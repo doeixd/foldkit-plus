@@ -1,1 +1,1801 @@
-{"environment":{"date":"2026-10-31T16:24:29.208Z","os":"win32 10.0.26100","cpu":"AMD Ryzen 7 6800U with Radeon Graphics          × 16","memoryGiB":28,"node":"v26.5.0","chromium":"156.0.8078.4","headless":true,"viewport":"1440×900","cpuThrottle":4,"reps":30,"warmups":3},"results":{"domains":[{"name":"type in search","runs":[{"frames":[{"tag":"UpdatedSearch","view":29.7,"patch":18.6},{"tag":"GotResultsListMessage/Measured","view":21.6,"patch":3.6},{"tag":"ReadStarted","view":53.9,"patch":1.3},{"tag":"ReadReceived","view":73,"patch":28.9}],"updates":[{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.8},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.5},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":2},{"tag":"ReadStarted","ms":0.2},{"tag":"RefreshStarted","ms":0.4},{"tag":"ReadStarted","ms":0.8},{"tag":"RefreshStarted","ms":1.6},{"tag":"ReadReceived","ms":3.4},{"tag":"ReadReceived","ms":3.9}]},{"frames":[{"tag":"UpdatedSearch","view":30.3,"patch":23.5},{"tag":"GotResultsListMessage/Measured","view":31.5,"patch":3.4},{"tag":"ReadReceived","view":60.4,"patch":27.1}],"updates":[{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.4},{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.7},{"tag":"UpdatedSearch","ms":0.5},{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":4},{"tag":"ReadStarted","ms":0.4},{"tag":"RefreshStarted","ms":0.4},{"tag":"ReadStarted","ms":0.8},{"tag":"RefreshStarted","ms":1.2},{"tag":"ReadReceived","ms":1.6},{"tag":"ReadReceived","ms":3.8}]},{"frames":[{"tag":"UpdatedSearch","view":24.3,"patch":14.9},{"tag":"GotResultsListMessage/Measured","view":20,"patch":2.8},{"tag":"ReadStarted","view":71.4,"patch":1.2},{"tag":"ReadReceived","view":59.8,"patch":34.9}],"updates":[{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.5},{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.4},{"tag":"UpdatedSearch","ms":0.4},{"tag":"UpdatedSearch","ms":0.1},{"tag":"ChangedUrl","ms":0.6},{"tag":"ChangedUrl","ms":0.2},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":1.8},{"tag":"ReadStarted","ms":0.3},{"tag":"RefreshStarted","ms":0.4},{"tag":"ReadStarted","ms":0.8},{"tag":"RefreshStarted","ms":1.8},{"tag":"ReadReceived","ms":1.5},{"tag":"ReadReceived","ms":2.8}]},{"frames":[{"tag":"UpdatedSearch","view":20.7,"patch":22.4},{"tag":"GotResultsListMessage/Measured","view":23.2,"patch":3},{"tag":"ReadStarted","view":58.9,"patch":1.1},{"tag":"ReadReceived","view":56.8,"patch":29}],"updates":[{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.7},{"tag":"UpdatedSearch","ms":0.3},{"tag":"UpdatedSearch","ms":0.4},{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0.1},{"tag":"GotResultsListMessage/Measured","ms":0.3},{"tag":"GotSearchMessage/Settled","ms":0.1},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":2},{"tag":"ReadStarted","ms":0.3},{"tag":"RefreshStarted","ms":0.4},{"tag":"ReadStarted","ms":0.7},{"tag":"RefreshStarted","ms":1.3},{"tag":"ReadReceived","ms":1.8},{"tag":"ReadReceived","ms":3.3}]},{"frames":[{"tag":"UpdatedSearch","view":18.6,"patch":19.7},{"tag":"GotResultsListMessage/Measured","view":23.2,"patch":2.4},{"tag":"ReadStarted","view":51.4,"patch":1.2},{"tag":"ReadReceived","view":67.9,"patch":30.6}],"updates":[{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.6},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.3},{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0.1},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":0.1},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":2.3},{"tag":"ReadStarted","ms":0.2},{"tag":"RefreshStarted","ms":0.4},{"tag":"ReadStarted","ms":0.8},{"tag":"RefreshStarted","ms":1.3},{"tag":"ReadReceived","ms":2.6},{"tag":"ReadReceived","ms":3.7}]},{"frames":[{"tag":"UpdatedSearch","view":20.3,"patch":20.1},{"tag":"GotResultsListMessage/Measured","view":24.4,"patch":3.2},{"tag":"ReadStarted","view":62.6,"patch":1.2},{"tag":"ReadReceived","view":61.6,"patch":26.7}],"updates":[{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.5},{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.6},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.3},{"tag":"ChangedUrl","ms":0.1},{"tag":"GotResultsListMessage/Measured","ms":0.3},{"tag":"GotSearchMessage/Settled","ms":0.3},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":2.9},{"tag":"ReadStarted","ms":0.4},{"tag":"RefreshStarted","ms":0.3},{"tag":"ReadStarted","ms":1.1},{"tag":"RefreshStarted","ms":2.3},{"tag":"ReadReceived","ms":2},{"tag":"ReadReceived","ms":4.1}]},{"frames":[{"tag":"UpdatedSearch","view":19.5,"patch":16.4},{"tag":"GotResultsListMessage/Measured","view":23.4,"patch":3.5},{"tag":"ReadStarted","view":63.7,"patch":1.8},{"tag":"ReadReceived","view":55.4,"patch":25.7}],"updates":[{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.6},{"tag":"UpdatedSearch","ms":0.6},{"tag":"UpdatedSearch","ms":0.1},{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.4},{"tag":"ChangedUrl","ms":0.1},{"tag":"ChangedUrl","ms":0},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0.1},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":2.1},{"tag":"ReadStarted","ms":0.2},{"tag":"RefreshStarted","ms":0.4},{"tag":"ReadStarted","ms":1},{"tag":"RefreshStarted","ms":1.7},{"tag":"ReadReceived","ms":3.4},{"tag":"ReadReceived","ms":3}]},{"frames":[{"tag":"UpdatedSearch","view":20.8,"patch":14.6},{"tag":"GotResultsListMessage/Measured","view":21,"patch":3.2},{"tag":"ReadStarted","view":58.1,"patch":1.2},{"tag":"ReadReceived","view":54.4,"patch":28.8}],"updates":[{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.8},{"tag":"UpdatedSearch","ms":0.3},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.1},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0.1},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotSearchMessage/Settled","ms":0.3},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":1.8},{"tag":"ReadStarted","ms":0.2},{"tag":"RefreshStarted","ms":0.2},{"tag":"ReadStarted","ms":0.8},{"tag":"RefreshStarted","ms":1.2},{"tag":"ReadReceived","ms":2},{"tag":"ReadReceived","ms":3}]},{"frames":[{"tag":"UpdatedSearch","view":17.6,"patch":14.1},{"tag":"GotResultsListMessage/Measured","view":19.7,"patch":2.7},{"tag":"ReadStarted","view":55.1,"patch":1},{"tag":"ReadReceived","view":60.7,"patch":25.7}],"updates":[{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.4},{"tag":"UpdatedSearch","ms":0.3},{"tag":"UpdatedSearch","ms":0.3},{"tag":"UpdatedSearch","ms":0.6},{"tag":"ChangedUrl","ms":0.4},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0.2},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":2.3},{"tag":"ReadStarted","ms":0.4},{"tag":"RefreshStarted","ms":1},{"tag":"ReadStarted","ms":0.8},{"tag":"RefreshStarted","ms":2},{"tag":"ReadReceived","ms":1.8},{"tag":"ReadReceived","ms":3.8}]},{"frames":[{"tag":"UpdatedSearch","view":24.6,"patch":23.8},{"tag":"GotResultsListMessage/Measured","view":22.1,"patch":4.3},{"tag":"ReadStarted","view":59.6,"patch":1.2},{"tag":"ReadReceived","view":67.3,"patch":27}],"updates":[{"tag":"UpdatedSearch","ms":0.5},{"tag":"ChangedUrl","ms":0.2},{"tag":"UpdatedSearch","ms":0.6},{"tag":"ChangedUrl","ms":0.7},{"tag":"UpdatedSearch","ms":0.5},{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.5},{"tag":"ChangedUrl","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":8.2},{"tag":"ReadStarted","ms":0.2},{"tag":"RefreshStarted","ms":0.5},{"tag":"ReadStarted","ms":0.9},{"tag":"RefreshStarted","ms":1.4},{"tag":"ReadReceived","ms":3.1},{"tag":"ReadReceived","ms":5.1}]},{"frames":[{"tag":"UpdatedSearch","view":21.2,"patch":18.5},{"tag":"GotResultsListMessage/Measured","view":21.4,"patch":2.8},{"tag":"ReadReceived","view":52.8,"patch":23.2}],"updates":[{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.4},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.4},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotSearchMessage/Settled","ms":0.1},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":1.9},{"tag":"ReadStarted","ms":0.5},{"tag":"RefreshStarted","ms":0.4},{"tag":"ReadStarted","ms":0.7},{"tag":"RefreshStarted","ms":1},{"tag":"ReadReceived","ms":1.8},{"tag":"ReadReceived","ms":4.1}]},{"frames":[{"tag":"UpdatedSearch","view":16.3,"patch":20.9},{"tag":"GotResultsListMessage/Measured","view":32.4,"patch":3.2},{"tag":"ReadStarted","view":69,"patch":1.3},{"tag":"ReadReceived","view":55.1,"patch":25.8}],"updates":[{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.4},{"tag":"UpdatedSearch","ms":0.1},{"tag":"UpdatedSearch","ms":0.3},{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0},{"tag":"ChangedUrl","ms":0},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":1.8},{"tag":"ReadStarted","ms":0.4},{"tag":"RefreshStarted","ms":0.7},{"tag":"ReadStarted","ms":1},{"tag":"RefreshStarted","ms":1.6},{"tag":"ReadReceived","ms":3.2},{"tag":"ReadReceived","ms":4.5}]},{"frames":[{"tag":"UpdatedSearch","view":24.9,"patch":17},{"tag":"GotResultsListMessage/Measured","view":24.9,"patch":2.7},{"tag":"ReadStarted","view":62.9,"patch":1.4},{"tag":"ReadReceived","view":51.3,"patch":24.3}],"updates":[{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.4},{"tag":"UpdatedSearch","ms":0.3},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.4},{"tag":"ChangedUrl","ms":0.1},{"tag":"ChangedUrl","ms":0.2},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0.3},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":2.1},{"tag":"ReadStarted","ms":0.4},{"tag":"RefreshStarted","ms":0.4},{"tag":"ReadStarted","ms":0.9},{"tag":"RefreshStarted","ms":1.6},{"tag":"ReadReceived","ms":2.1},{"tag":"ReadReceived","ms":4}]},{"frames":[{"tag":"UpdatedSearch","view":17.7,"patch":17.5},{"tag":"GotResultsListMessage/Measured","view":19.4,"patch":2.2},{"tag":"ReadStarted","view":55.9,"patch":2.3},{"tag":"ReadReceived","view":58.4,"patch":24.2}],"updates":[{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.7},{"tag":"UpdatedSearch","ms":0.4},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0.1},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotResultsListMessage/Measured","ms":0.6},{"tag":"GotSearchMessage/Settled","ms":0.3},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":1.9},{"tag":"ReadStarted","ms":0.4},{"tag":"RefreshStarted","ms":0.5},{"tag":"ReadStarted","ms":1.2},{"tag":"RefreshStarted","ms":2},{"tag":"ReadReceived","ms":2.4},{"tag":"ReadReceived","ms":4.7}]},{"frames":[{"tag":"UpdatedSearch","view":16.2,"patch":14.3},{"tag":"GotResultsListMessage/Measured","view":23,"patch":2.6},{"tag":"ReadStarted","view":55.6,"patch":1.4},{"tag":"ReadReceived","view":57.4,"patch":23.5}],"updates":[{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.2},{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.6},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.1},{"tag":"ChangedUrl","ms":0.4},{"tag":"ChangedUrl","ms":0.1},{"tag":"GotResultsListMessage/Measured","ms":0.3},{"tag":"GotSearchMessage/Settled","ms":0.3},{"tag":"GotSearchMessage/Settled","ms":0.1},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":3.2},{"tag":"ReadStarted","ms":0.5},{"tag":"RefreshStarted","ms":0.4},{"tag":"ReadStarted","ms":0.8},{"tag":"RefreshStarted","ms":1.5},{"tag":"ReadReceived","ms":2.2},{"tag":"ReadReceived","ms":7}]},{"frames":[{"tag":"UpdatedSearch","view":23.4,"patch":16.6},{"tag":"GotResultsListMessage/Measured","view":18.2,"patch":2.5},{"tag":"ReadStarted","view":69.7,"patch":1.2},{"tag":"ReadReceived","view":60.3,"patch":27.3}],"updates":[{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.4},{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.6},{"tag":"UpdatedSearch","ms":0.1},{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.3},{"tag":"ChangedUrl","ms":0.2},{"tag":"GotResultsListMessage/Measured","ms":0.5},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":2},{"tag":"ReadStarted","ms":0.2},{"tag":"RefreshStarted","ms":0.4},{"tag":"ReadStarted","ms":1.6},{"tag":"RefreshStarted","ms":2.7},{"tag":"ReadReceived","ms":2.8},{"tag":"ReadReceived","ms":6.7}]},{"frames":[{"tag":"UpdatedSearch","view":21.2,"patch":18.2},{"tag":"GotResultsListMessage/Measured","view":22.6,"patch":3.1},{"tag":"ReadStarted","view":54,"patch":1.8},{"tag":"ReadReceived","view":54.2,"patch":22.4}],"updates":[{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.5},{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.5},{"tag":"UpdatedSearch","ms":0.3},{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.5},{"tag":"ChangedUrl","ms":0.1},{"tag":"GotResultsListMessage/Measured","ms":0.5},{"tag":"GotSearchMessage/Settled","ms":0.1},{"tag":"GotSearchMessage/Settled","ms":0.1},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":1.7},{"tag":"ReadStarted","ms":0.4},{"tag":"RefreshStarted","ms":0.3},{"tag":"ReadStarted","ms":1.6},{"tag":"RefreshStarted","ms":1.7},{"tag":"ReadReceived","ms":3},{"tag":"ReadReceived","ms":3.7}]},{"frames":[{"tag":"UpdatedSearch","view":18.5,"patch":14.6},{"tag":"GotResultsListMessage/Measured","view":20,"patch":2.8},{"tag":"ReadReceived","view":54.7,"patch":26.2}],"updates":[{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.5},{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.4},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.4},{"tag":"ChangedUrl","ms":0.1},{"tag":"GotResultsListMessage/Measured","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0.1},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":2},{"tag":"ReadStarted","ms":0.4},{"tag":"RefreshStarted","ms":0.4},{"tag":"ReadStarted","ms":0.8},{"tag":"RefreshStarted","ms":1.4},{"tag":"ReadReceived","ms":3.3},{"tag":"ReadReceived","ms":3.6}]},{"frames":[{"tag":"UpdatedSearch","view":18.9,"patch":17.5},{"tag":"GotResultsListMessage/Measured","view":21.2,"patch":2.7},{"tag":"ReadStarted","view":50.4,"patch":1.2},{"tag":"ReadReceived","view":50.3,"patch":24.1}],"updates":[{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.6},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.3},{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0.1},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotSearchMessage/Settled","ms":0.1},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":2.1},{"tag":"ReadStarted","ms":0.1},{"tag":"RefreshStarted","ms":0.4},{"tag":"ReadStarted","ms":1.2},{"tag":"RefreshStarted","ms":1},{"tag":"ReadReceived","ms":3.1},{"tag":"ReadReceived","ms":3.3}]},{"frames":[{"tag":"UpdatedSearch","view":17.3,"patch":15.1},{"tag":"GotResultsListMessage/Measured","view":25.4,"patch":2.6},{"tag":"ReadReceived","view":54,"patch":27.4}],"updates":[{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.6},{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.7},{"tag":"UpdatedSearch","ms":0.3},{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0.2},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotSearchMessage/Settled","ms":0.3},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0.1},{"tag":"GotSearchMessage/Settled","ms":1.8},{"tag":"ReadStarted","ms":0.5},{"tag":"RefreshStarted","ms":0.5},{"tag":"ReadStarted","ms":0.7},{"tag":"RefreshStarted","ms":1.4},{"tag":"ReadReceived","ms":3.1},{"tag":"ReadReceived","ms":4.7}]},{"frames":[{"tag":"UpdatedSearch","view":16.8,"patch":17.7},{"tag":"GotResultsListMessage/Measured","view":25,"patch":2.5},{"tag":"ReadStarted","view":57.7,"patch":1.3},{"tag":"ReadReceived","view":67,"patch":28.1}],"updates":[{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.4},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.1},{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.5},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0},{"tag":"GotResultsListMessage/Measured","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":1.9},{"tag":"ReadStarted","ms":0.2},{"tag":"RefreshStarted","ms":0.4},{"tag":"ReadStarted","ms":1},{"tag":"RefreshStarted","ms":1},{"tag":"ReadReceived","ms":3.2},{"tag":"ReadReceived","ms":3.8}]},{"frames":[{"tag":"UpdatedSearch","view":21.9,"patch":15.4},{"tag":"GotResultsListMessage/Measured","view":19.8,"patch":3.7},{"tag":"ReadReceived","view":58.6,"patch":30.1}],"updates":[{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.5},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.3},{"tag":"ChangedUrl","ms":0.1},{"tag":"ChangedUrl","ms":0.3},{"tag":"GotResultsListMessage/Measured","ms":0.3},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":1.8},{"tag":"ReadStarted","ms":0.3},{"tag":"RefreshStarted","ms":0.4},{"tag":"ReadStarted","ms":0.8},{"tag":"RefreshStarted","ms":1.4},{"tag":"ReadReceived","ms":2.1},{"tag":"ReadReceived","ms":4.2}]},{"frames":[{"tag":"UpdatedSearch","view":31.7,"patch":13.7},{"tag":"GotResultsListMessage/Measured","view":21.2,"patch":3},{"tag":"ReadReceived","view":59.4,"patch":25.4}],"updates":[{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.5},{"tag":"UpdatedSearch","ms":0.3},{"tag":"UpdatedSearch","ms":0.4},{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0},{"tag":"ChangedUrl","ms":0.3},{"tag":"GotResultsListMessage/Measured","ms":0.7},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":2},{"tag":"ReadStarted","ms":0.6},{"tag":"RefreshStarted","ms":0.5},{"tag":"ReadStarted","ms":1},{"tag":"RefreshStarted","ms":1.4},{"tag":"ReadReceived","ms":3.1},{"tag":"ReadReceived","ms":3.6}]},{"frames":[{"tag":"UpdatedSearch","view":18.1,"patch":15},{"tag":"GotResultsListMessage/Measured","view":23.9,"patch":2.6},{"tag":"ReadReceived","view":54.3,"patch":30.1}],"updates":[{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.5},{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.6},{"tag":"UpdatedSearch","ms":0.3},{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0.1},{"tag":"GotResultsListMessage/Measured","ms":0.5},{"tag":"GotSearchMessage/Settled","ms":0.1},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":3.1},{"tag":"ReadStarted","ms":0.2},{"tag":"RefreshStarted","ms":0.2},{"tag":"ReadStarted","ms":0.9},{"tag":"RefreshStarted","ms":1.3},{"tag":"ReadReceived","ms":2.2},{"tag":"ReadReceived","ms":4.6}]},{"frames":[{"tag":"UpdatedSearch","view":16.3,"patch":14.3},{"tag":"GotResultsListMessage/Measured","view":19.8,"patch":3},{"tag":"ReadReceived","view":52.8,"patch":26.9}],"updates":[{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.3},{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.6},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.4},{"tag":"ChangedUrl","ms":0.4},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotSearchMessage/Settled","ms":0.3},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":2.2},{"tag":"ReadStarted","ms":0.4},{"tag":"RefreshStarted","ms":0.4},{"tag":"ReadStarted","ms":0.8},{"tag":"RefreshStarted","ms":1.6},{"tag":"ReadReceived","ms":2.4},{"tag":"ReadReceived","ms":3.8}]},{"frames":[{"tag":"UpdatedSearch","view":17.4,"patch":17.5},{"tag":"GotResultsListMessage/Measured","view":27.9,"patch":2.3},{"tag":"ReadStarted","view":64.6,"patch":1.2},{"tag":"ReadReceived","view":59.5,"patch":29.4}],"updates":[{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.6},{"tag":"UpdatedSearch","ms":0.4},{"tag":"UpdatedSearch","ms":0.3},{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.4},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0.1},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":2.1},{"tag":"ReadStarted","ms":0.4},{"tag":"RefreshStarted","ms":0.3},{"tag":"ReadStarted","ms":0.9},{"tag":"RefreshStarted","ms":1.2},{"tag":"ReadReceived","ms":3.2},{"tag":"ReadReceived","ms":3.4}]},{"frames":[{"tag":"UpdatedSearch","view":20.7,"patch":17.5},{"tag":"GotResultsListMessage/Measured","view":19.2,"patch":2.6},{"tag":"ReadStarted","view":55.1,"patch":1.4},{"tag":"ReadReceived","view":54.2,"patch":29.7}],"updates":[{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.4},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.4},{"tag":"ChangedUrl","ms":0.4},{"tag":"ChangedUrl","ms":0.5},{"tag":"ChangedUrl","ms":0.2},{"tag":"GotResultsListMessage/Measured","ms":0.6},{"tag":"GotSearchMessage/Settled","ms":0.1},{"tag":"GotSearchMessage/Settled","ms":0.1},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":2.1},{"tag":"ReadStarted","ms":0.4},{"tag":"RefreshStarted","ms":0.3},{"tag":"ReadStarted","ms":0.9},{"tag":"RefreshStarted","ms":1.7},{"tag":"ReadReceived","ms":3.1},{"tag":"ReadReceived","ms":4.1}]},{"frames":[{"tag":"UpdatedSearch","view":16.2,"patch":14.5},{"tag":"GotResultsListMessage/Measured","view":20.5,"patch":5.3},{"tag":"ReadStarted","view":58.3,"patch":1.1},{"tag":"ReadReceived","view":53.9,"patch":25.7}],"updates":[{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.6},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.3},{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.4},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0.2},{"tag":"GotSearchMessage/Settled","ms":1.8},{"tag":"ReadStarted","ms":0.4},{"tag":"RefreshStarted","ms":0.2},{"tag":"ReadStarted","ms":0.8},{"tag":"RefreshStarted","ms":2},{"tag":"ReadReceived","ms":2.8},{"tag":"ReadReceived","ms":4.7}]},{"frames":[{"tag":"UpdatedSearch","view":24.5,"patch":20.7},{"tag":"GotResultsListMessage/Measured","view":19.5,"patch":2.5},{"tag":"ReadStarted","view":63.2,"patch":2.4},{"tag":"ReadReceived","view":52.2,"patch":29.6}],"updates":[{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.3},{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.5},{"tag":"UpdatedSearch","ms":0.5},{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.3},{"tag":"ChangedUrl","ms":0.2},{"tag":"GotResultsListMessage/Measured","ms":0.7},{"tag":"GotSearchMessage/Settled","ms":0.4},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":2.8},{"tag":"ReadStarted","ms":0.2},{"tag":"RefreshStarted","ms":0.6},{"tag":"ReadStarted","ms":0.8},{"tag":"RefreshStarted","ms":1.5},{"tag":"ReadReceived","ms":3.4},{"tag":"ReadReceived","ms":5.3}]},{"frames":[{"tag":"UpdatedSearch","view":21.2,"patch":18},{"tag":"GotResultsListMessage/Measured","view":31.5,"patch":2.4},{"tag":"ReadStarted","view":56.7,"patch":1.2},{"tag":"ReadReceived","view":60,"patch":24.4}],"updates":[{"tag":"UpdatedSearch","ms":0.3},{"tag":"ChangedUrl","ms":0.8},{"tag":"UpdatedSearch","ms":0.2},{"tag":"UpdatedSearch","ms":0.1},{"tag":"UpdatedSearch","ms":0.2},{"tag":"ChangedUrl","ms":0.2},{"tag":"ChangedUrl","ms":0},{"tag":"ChangedUrl","ms":0.2},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":0},{"tag":"GotSearchMessage/Settled","ms":1.9},{"tag":"ReadStarted","ms":0.6},{"tag":"RefreshStarted","ms":0.3},{"tag":"ReadStarted","ms":0.6},{"tag":"RefreshStarted","ms":1.4},{"tag":"ReadReceived","ms":3},{"tag":"ReadReceived","ms":4.6}]}]},{"name":"scroll a page","runs":[{"frames":[],"updates":[]},{"frames":[],"updates":[]},{"frames":[],"updates":[]},{"frames":[],"updates":[]},{"frames":[],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0.1}]},{"frames":[{"tag":"GotResultsListMessage/Placed","view":52.2,"patch":18.4}],"updates":[{"tag":"ReadStarted","ms":1.6},{"tag":"RefreshStarted","ms":1.6},{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"GotResultsListMessage/Measured","ms":0.1}]},{"frames":[{"tag":"ReadStarted","view":61.9,"patch":19.7},{"tag":"ReadStarted","view":57.1,"patch":15.5},{"tag":"ReadStarted","view":56.6,"patch":18.9},{"tag":"ReadStarted","view":49.3,"patch":14.5},{"tag":"ReadStarted","view":52.4,"patch":15.3},{"tag":"ReadStarted","view":53.2,"patch":12.9},{"tag":"GotResultsListMessage/Measured","view":56.9,"patch":2.3},{"tag":"ReadReceived","view":61.9,"patch":21.8}],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"ReadStarted","ms":1.1},{"tag":"RefreshStarted","ms":0.6},{"tag":"GotResultsListMessage/Measured","ms":0.2},{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"ReadStarted","ms":1.4},{"tag":"RefreshStarted","ms":2},{"tag":"GotResultsListMessage/Measured","ms":0.3},{"tag":"GotResultsListMessage/Placed","ms":0.5},{"tag":"ReadStarted","ms":1.4},{"tag":"RefreshStarted","ms":1.6},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotResultsListMessage/Placed","ms":0},{"tag":"ReadStarted","ms":1.5},{"tag":"RefreshStarted","ms":1.5},{"tag":"GotResultsListMessage/Measured","ms":0.6},{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"ReadStarted","ms":1.7},{"tag":"RefreshStarted","ms":1.6},{"tag":"GotResultsListMessage/Measured","ms":0.5},{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"ReadStarted","ms":1.2},{"tag":"RefreshStarted","ms":1.2},{"tag":"GotResultsListMessage/Measured","ms":0.5},{"tag":"ReadReceived","ms":4.3}]},{"frames":[{"tag":"GotResultsListMessage/Placed","view":41.8,"patch":26.4}],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0.3},{"tag":"GotResultsListMessage/Measured","ms":0.2}]},{"frames":[{"tag":"GotResultsListMessage/Placed","view":44.6,"patch":16.4},{"tag":"ReadStarted","view":55.4,"patch":27},{"tag":"GotResultsListMessage/Placed","view":57.5,"patch":35.2}],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"ReadStarted","ms":2},{"tag":"RefreshStarted","ms":1.6},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotResultsListMessage/Placed","ms":0},{"tag":"ReadStarted","ms":1.4},{"tag":"RefreshStarted","ms":2},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"ReadReceived","ms":5.6},{"tag":"GotResultsListMessage/Placed","ms":0.1},{"tag":"GotResultsListMessage/Measured","ms":0.1}]},{"frames":[],"updates":[]},{"frames":[],"updates":[]},{"frames":[{"tag":"GotResultsListMessage/Placed","view":48.1,"patch":25.4}],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"GotResultsListMessage/Measured","ms":0}]},{"frames":[{"tag":"ReadStarted","view":57.5,"patch":20.2},{"tag":"ReadStarted","view":50.6,"patch":22.2},{"tag":"GotResultsListMessage/Placed","view":54.2,"patch":28.3},{"tag":"GotResultsListMessage/Placed","view":43.8,"patch":34.1}],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"ReadStarted","ms":2.2},{"tag":"RefreshStarted","ms":2},{"tag":"GotResultsListMessage/Measured","ms":0.3},{"tag":"GotResultsListMessage/Placed","ms":0.4},{"tag":"ReadStarted","ms":1.6},{"tag":"RefreshStarted","ms":1.8},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"ReadStarted","ms":0.9},{"tag":"RefreshStarted","ms":0.7},{"tag":"GotResultsListMessage/Measured","ms":0.1},{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"GotResultsListMessage/Measured","ms":0.2}]},{"frames":[{"tag":"GotResultsListMessage/Placed","view":42.9,"patch":29.5}],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"GotResultsListMessage/Measured","ms":0.2}]},{"frames":[{"tag":"GotResultsListMessage/Placed","view":47.7,"patch":14},{"tag":"ReadStarted","view":63.8,"patch":17.7},{"tag":"GotResultsListMessage/Placed","view":49.6,"patch":19.2}],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"ReadStarted","ms":1.6},{"tag":"RefreshStarted","ms":2.8},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotResultsListMessage/Placed","ms":0.1},{"tag":"ReadStarted","ms":1.5},{"tag":"RefreshStarted","ms":2},{"tag":"GotResultsListMessage/Measured","ms":0.4},{"tag":"GotResultsListMessage/Placed","ms":0.4},{"tag":"GotResultsListMessage/Measured","ms":0.1}]},{"frames":[],"updates":[]},{"frames":[],"updates":[]},{"frames":[],"updates":[]},{"frames":[{"tag":"GotResultsListMessage/Placed","view":46.5,"patch":20.1},{"tag":"GotResultsListMessage/Placed","view":48,"patch":20.7},{"tag":"GotResultsListMessage/Placed","view":64.2,"patch":31.6},{"tag":"GotResultsListMessage/Placed","view":40,"patch":23.9}],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0.4},{"tag":"GotResultsListMessage/Measured","ms":0.2},{"tag":"GotResultsListMessage/Placed","ms":0.3},{"tag":"ReadStarted","ms":1.7},{"tag":"RefreshStarted","ms":1.6},{"tag":"GotResultsListMessage/Measured","ms":0.2},{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"GotResultsListMessage/Measured","ms":0.2},{"tag":"GotResultsListMessage/Placed","ms":0.3},{"tag":"GotResultsListMessage/Measured","ms":0}]},{"frames":[{"tag":"GotResultsListMessage/Placed","view":35.8,"patch":26}],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0.1},{"tag":"GotResultsListMessage/Measured","ms":0.1}]},{"frames":[{"tag":"GotResultsListMessage/Placed","view":52.4,"patch":15.7}],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"GotResultsListMessage/Measured","ms":0}]},{"frames":[{"tag":"GotResultsListMessage/Placed","view":40.2,"patch":15.7}],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0.3},{"tag":"GotResultsListMessage/Measured","ms":0}]},{"frames":[{"tag":"GotResultsListMessage/Placed","view":49.4,"patch":15},{"tag":"GotResultsListMessage/Placed","view":53.4,"patch":16},{"tag":"GotResultsListMessage/Placed","view":81.4,"patch":24.2},{"tag":"GotResultsListMessage/Placed","view":45.9,"patch":25.8}],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"ReadStarted","ms":1.8},{"tag":"RefreshStarted","ms":1.7},{"tag":"GotResultsListMessage/Measured","ms":0.5},{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"ReadStarted","ms":1.2},{"tag":"RefreshStarted","ms":1.4},{"tag":"GotResultsListMessage/Measured","ms":0},{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"ReadStarted","ms":1},{"tag":"RefreshStarted","ms":1.1},{"tag":"GotResultsListMessage/Measured","ms":0},{"tag":"GotResultsListMessage/Placed","ms":0.4},{"tag":"GotResultsListMessage/Measured","ms":0.2}]},{"frames":[{"tag":"GotResultsListMessage/Placed","view":41.3,"patch":20.7}],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"GotResultsListMessage/Measured","ms":0.2}]},{"frames":[{"tag":"GotResultsListMessage/Placed","view":74.3,"patch":22.1},{"tag":"GotResultsListMessage/Placed","view":49.2,"patch":20.5},{"tag":"GotResultsListMessage/Placed","view":42.8,"patch":26.7}],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0.3},{"tag":"ReadStarted","ms":2},{"tag":"RefreshStarted","ms":1.9},{"tag":"GotResultsListMessage/Measured","ms":0.3},{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"ReadStarted","ms":1.2},{"tag":"RefreshStarted","ms":1},{"tag":"GotResultsListMessage/Measured","ms":0.1},{"tag":"GotResultsListMessage/Placed","ms":0.1},{"tag":"GotResultsListMessage/Measured","ms":0}]},{"frames":[{"tag":"GotResultsListMessage/Placed","view":51.1,"patch":26.3}],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0},{"tag":"GotResultsListMessage/Measured","ms":0.1}]},{"frames":[{"tag":"GotResultsListMessage/Placed","view":56.9,"patch":20.3},{"tag":"GotResultsListMessage/Placed","view":71.5,"patch":19.4},{"tag":"GotResultsListMessage/Placed","view":45.3,"patch":15.3},{"tag":"GotResultsListMessage/Placed","view":75.4,"patch":35.9},{"tag":"GotResultsListMessage/Placed","view":56.2,"patch":17.2},{"tag":"GotResultsListMessage/Placed","view":45.1,"patch":28.7}],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0.1},{"tag":"ReadStarted","ms":1.3},{"tag":"RefreshStarted","ms":1},{"tag":"GotResultsListMessage/Measured","ms":0},{"tag":"GotResultsListMessage/Placed","ms":0.1},{"tag":"ReadStarted","ms":1.2},{"tag":"RefreshStarted","ms":1.2},{"tag":"GotResultsListMessage/Measured","ms":0.1},{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"ReadStarted","ms":1.2},{"tag":"RefreshStarted","ms":1.6},{"tag":"GotResultsListMessage/Measured","ms":0.1},{"tag":"GotResultsListMessage/Placed","ms":0.3},{"tag":"ReadStarted","ms":0.6},{"tag":"RefreshStarted","ms":0.6},{"tag":"GotResultsListMessage/Measured","ms":0},{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"ReadStarted","ms":1.2},{"tag":"RefreshStarted","ms":1.6},{"tag":"GotResultsListMessage/Measured","ms":0.3},{"tag":"GotResultsListMessage/Placed","ms":0},{"tag":"GotResultsListMessage/Measured","ms":0.1}]},{"frames":[{"tag":"GotResultsListMessage/Placed","view":44.8,"patch":23.6}],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"GotResultsListMessage/Measured","ms":0.2}]},{"frames":[{"tag":"GotResultsListMessage/Placed","view":57.4,"patch":17.2},{"tag":"GotResultsListMessage/Placed","view":61,"patch":38.6},{"tag":"GotResultsListMessage/Placed","view":41.5,"patch":26.1}],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0.4},{"tag":"ReadStarted","ms":1.8},{"tag":"RefreshStarted","ms":1.4},{"tag":"GotResultsListMessage/Measured","ms":0.1},{"tag":"GotResultsListMessage/Placed","ms":0},{"tag":"GotResultsListMessage/Measured","ms":0},{"tag":"GotResultsListMessage/Placed","ms":0.2},{"tag":"GotResultsListMessage/Measured","ms":0}]},{"frames":[{"tag":"GotResultsListMessage/Placed","view":46.6,"patch":24.9}],"updates":[{"tag":"GotResultsListMessage/Placed","ms":0.1},{"tag":"GotResultsListMessage/Measured","ms":0}]}]},{"name":"toggle a filter","runs":[{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":59.2,"patch":14.6},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":48.5,"patch":10.7}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.4},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.3},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.1}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":49.2,"patch":13.6},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":57.1,"patch":14}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.2},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.3},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0.2},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.1}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":49.5,"patch":12},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":51.9,"patch":11.7}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.5},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.1},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.3},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.2}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":60.1,"patch":18.4},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":48,"patch":10.1}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.3},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0.2},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.7},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.3},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.2}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":49.8,"patch":14.5},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":45.6,"patch":11.3}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.4},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.4},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.5},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":51.1,"patch":11.9},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":45.4,"patch":11.8}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.3},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.4},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.2}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":59.5,"patch":12.5},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":44.7,"patch":11.1}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.4},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0.1},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.5},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":44.5,"patch":17},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":51.2,"patch":11.8}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.6},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.3},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.5},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.2}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":48.9,"patch":13.3},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":40.3,"patch":10.1}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.3},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.3},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.5},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":45.1,"patch":11.7},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":56.6,"patch":10.3}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.2},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.3},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.4},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.6},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.1}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":53.1,"patch":12.6},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":46.3,"patch":10.7}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.2},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.4},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.7},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.3}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":51,"patch":12},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":52.8,"patch":10.9}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.3},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.3},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":49.6,"patch":11.1},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":56,"patch":13.7}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.2},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0.1},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.4},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.2}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":51.2,"patch":13.8},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":49.3,"patch":10.7}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.2},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.3},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.3},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.2}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":45.1,"patch":12.4},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":40.9,"patch":9.6}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.3},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0.1},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.3},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":44.1,"patch":12.4},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":46.4,"patch":10.1}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.3},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.2}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":56.6,"patch":12.6},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":40.4,"patch":14.2}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.1},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.3},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.3}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":47.1,"patch":13.5},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":59.5,"patch":15.5}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.4},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.3},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.2}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":50.5,"patch":12.2},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":40.8,"patch":9.9}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.3},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.3},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0.2},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.3},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.2}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":41.4,"patch":16.2},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":43.4,"patch":10.9}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.2},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.1},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.2}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":51.1,"patch":12},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":54.4,"patch":11.6}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.4},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.2}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":48.9,"patch":12.9},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":43.6,"patch":9.6}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.2},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0.2},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.3},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.3},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.2}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":55.6,"patch":14.4},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":48.9,"patch":10.9}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.2},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.3},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0.1},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.3},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.1}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":55,"patch":12.1},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":46.9,"patch":11.1}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.2},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0.2},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.1}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":48,"patch":12},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":47.3,"patch":12.5}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.3},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.3},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.3},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":46.1,"patch":15.2},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":50,"patch":11.7}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.4},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.2}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":54.1,"patch":11.7},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":46.9,"patch":10.3}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.3},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.6}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":51.2,"patch":13},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":50.6,"patch":13.7}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.2},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.1},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.2}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":56.8,"patch":12.3},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":43.5,"patch":9.9}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.4},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0.1},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.4},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.2}]},{"frames":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","view":48.5,"patch":17.8},{"tag":"GotAvailabilityListboxMessage/SelectedItem","view":53.1,"patch":10.1}],"updates":[{"tag":"GotAvailabilityListboxMessage/PressedPointerOnButton","ms":0.2},{"tag":"GotAvailabilityListboxMessage/Opened","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedAnchorListbox","ms":0},{"tag":"GotAvailabilityListboxMessage/CompletedFocusItems","ms":0},{"tag":"GotAvailabilityListboxMessage/MovedPointerOverItem","ms":0.2},{"tag":"GotAvailabilityListboxMessage/SelectedItem","ms":0.6},{"tag":"GotAvailabilityListboxMessage/CompletedFocusButton","ms":0.2}]}]}]}}
+{
+  "environment": {
+    "date": "2026-10-31T16:24:29.208Z",
+    "os": "win32 10.0.26100",
+    "cpu": "AMD Ryzen 7 6800U with Radeon Graphics          × 16",
+    "memoryGiB": 28,
+    "node": "v26.5.0",
+    "chromium": "156.0.8078.4",
+    "headless": true,
+    "viewport": "1440×900",
+    "cpuThrottle": 4,
+    "reps": 30,
+    "warmups": 3
+  },
+  "results": {
+    "domains": [
+      {
+        "name": "type in search",
+        "runs": [
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 29.7, "patch": 18.6 },
+              { "tag": "GotResultsListMessage/Measured", "view": 21.6, "patch": 3.6 },
+              { "tag": "ReadStarted", "view": 53.9, "patch": 1.3 },
+              { "tag": "ReadReceived", "view": 73, "patch": 28.9 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.8 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.5 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2 },
+              { "tag": "ReadStarted", "ms": 0.2 },
+              { "tag": "RefreshStarted", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 0.8 },
+              { "tag": "RefreshStarted", "ms": 1.6 },
+              { "tag": "ReadReceived", "ms": 3.4 },
+              { "tag": "ReadReceived", "ms": 3.9 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 30.3, "patch": 23.5 },
+              { "tag": "GotResultsListMessage/Measured", "view": 31.5, "patch": 3.4 },
+              { "tag": "ReadReceived", "view": 60.4, "patch": 27.1 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.7 },
+              { "tag": "UpdatedSearch", "ms": 0.5 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 4 },
+              { "tag": "ReadStarted", "ms": 0.4 },
+              { "tag": "RefreshStarted", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 0.8 },
+              { "tag": "RefreshStarted", "ms": 1.2 },
+              { "tag": "ReadReceived", "ms": 1.6 },
+              { "tag": "ReadReceived", "ms": 3.8 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 24.3, "patch": 14.9 },
+              { "tag": "GotResultsListMessage/Measured", "view": 20, "patch": 2.8 },
+              { "tag": "ReadStarted", "view": 71.4, "patch": 1.2 },
+              { "tag": "ReadReceived", "view": 59.8, "patch": 34.9 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.6 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 1.8 },
+              { "tag": "ReadStarted", "ms": 0.3 },
+              { "tag": "RefreshStarted", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 0.8 },
+              { "tag": "RefreshStarted", "ms": 1.8 },
+              { "tag": "ReadReceived", "ms": 1.5 },
+              { "tag": "ReadReceived", "ms": 2.8 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 20.7, "patch": 22.4 },
+              { "tag": "GotResultsListMessage/Measured", "view": 23.2, "patch": 3 },
+              { "tag": "ReadStarted", "view": 58.9, "patch": 1.1 },
+              { "tag": "ReadReceived", "view": 56.8, "patch": 29 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.7 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.3 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2 },
+              { "tag": "ReadStarted", "ms": 0.3 },
+              { "tag": "RefreshStarted", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 0.7 },
+              { "tag": "RefreshStarted", "ms": 1.3 },
+              { "tag": "ReadReceived", "ms": 1.8 },
+              { "tag": "ReadReceived", "ms": 3.3 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 18.6, "patch": 19.7 },
+              { "tag": "GotResultsListMessage/Measured", "view": 23.2, "patch": 2.4 },
+              { "tag": "ReadStarted", "view": 51.4, "patch": 1.2 },
+              { "tag": "ReadReceived", "view": 67.9, "patch": 30.6 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.6 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.3 },
+              { "tag": "ReadStarted", "ms": 0.2 },
+              { "tag": "RefreshStarted", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 0.8 },
+              { "tag": "RefreshStarted", "ms": 1.3 },
+              { "tag": "ReadReceived", "ms": 2.6 },
+              { "tag": "ReadReceived", "ms": 3.7 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 20.3, "patch": 20.1 },
+              { "tag": "GotResultsListMessage/Measured", "view": 24.4, "patch": 3.2 },
+              { "tag": "ReadStarted", "view": 62.6, "patch": 1.2 },
+              { "tag": "ReadReceived", "view": 61.6, "patch": 26.7 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.6 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.3 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.3 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.9 },
+              { "tag": "ReadStarted", "ms": 0.4 },
+              { "tag": "RefreshStarted", "ms": 0.3 },
+              { "tag": "ReadStarted", "ms": 1.1 },
+              { "tag": "RefreshStarted", "ms": 2.3 },
+              { "tag": "ReadReceived", "ms": 2 },
+              { "tag": "ReadReceived", "ms": 4.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 19.5, "patch": 16.4 },
+              { "tag": "GotResultsListMessage/Measured", "view": 23.4, "patch": 3.5 },
+              { "tag": "ReadStarted", "view": 63.7, "patch": 1.8 },
+              { "tag": "ReadReceived", "view": 55.4, "patch": 25.7 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.6 },
+              { "tag": "UpdatedSearch", "ms": 0.6 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.1 },
+              { "tag": "ReadStarted", "ms": 0.2 },
+              { "tag": "RefreshStarted", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 1 },
+              { "tag": "RefreshStarted", "ms": 1.7 },
+              { "tag": "ReadReceived", "ms": 3.4 },
+              { "tag": "ReadReceived", "ms": 3 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 20.8, "patch": 14.6 },
+              { "tag": "GotResultsListMessage/Measured", "view": 21, "patch": 3.2 },
+              { "tag": "ReadStarted", "view": 58.1, "patch": 1.2 },
+              { "tag": "ReadReceived", "view": 54.4, "patch": 28.8 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.8 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.3 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 1.8 },
+              { "tag": "ReadStarted", "ms": 0.2 },
+              { "tag": "RefreshStarted", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 0.8 },
+              { "tag": "RefreshStarted", "ms": 1.2 },
+              { "tag": "ReadReceived", "ms": 2 },
+              { "tag": "ReadReceived", "ms": 3 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 17.6, "patch": 14.1 },
+              { "tag": "GotResultsListMessage/Measured", "view": 19.7, "patch": 2.7 },
+              { "tag": "ReadStarted", "view": 55.1, "patch": 1 },
+              { "tag": "ReadReceived", "view": 60.7, "patch": 25.7 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.6 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.3 },
+              { "tag": "ReadStarted", "ms": 0.4 },
+              { "tag": "RefreshStarted", "ms": 1 },
+              { "tag": "ReadStarted", "ms": 0.8 },
+              { "tag": "RefreshStarted", "ms": 2 },
+              { "tag": "ReadReceived", "ms": 1.8 },
+              { "tag": "ReadReceived", "ms": 3.8 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 24.6, "patch": 23.8 },
+              { "tag": "GotResultsListMessage/Measured", "view": 22.1, "patch": 4.3 },
+              { "tag": "ReadStarted", "view": 59.6, "patch": 1.2 },
+              { "tag": "ReadReceived", "view": 67.3, "patch": 27 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.5 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.6 },
+              { "tag": "ChangedUrl", "ms": 0.7 },
+              { "tag": "UpdatedSearch", "ms": 0.5 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 8.2 },
+              { "tag": "ReadStarted", "ms": 0.2 },
+              { "tag": "RefreshStarted", "ms": 0.5 },
+              { "tag": "ReadStarted", "ms": 0.9 },
+              { "tag": "RefreshStarted", "ms": 1.4 },
+              { "tag": "ReadReceived", "ms": 3.1 },
+              { "tag": "ReadReceived", "ms": 5.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 21.2, "patch": 18.5 },
+              { "tag": "GotResultsListMessage/Measured", "view": 21.4, "patch": 2.8 },
+              { "tag": "ReadReceived", "view": 52.8, "patch": 23.2 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 1.9 },
+              { "tag": "ReadStarted", "ms": 0.5 },
+              { "tag": "RefreshStarted", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 0.7 },
+              { "tag": "RefreshStarted", "ms": 1 },
+              { "tag": "ReadReceived", "ms": 1.8 },
+              { "tag": "ReadReceived", "ms": 4.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 16.3, "patch": 20.9 },
+              { "tag": "GotResultsListMessage/Measured", "view": 32.4, "patch": 3.2 },
+              { "tag": "ReadStarted", "view": 69, "patch": 1.3 },
+              { "tag": "ReadReceived", "view": 55.1, "patch": 25.8 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 1.8 },
+              { "tag": "ReadStarted", "ms": 0.4 },
+              { "tag": "RefreshStarted", "ms": 0.7 },
+              { "tag": "ReadStarted", "ms": 1 },
+              { "tag": "RefreshStarted", "ms": 1.6 },
+              { "tag": "ReadReceived", "ms": 3.2 },
+              { "tag": "ReadReceived", "ms": 4.5 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 24.9, "patch": 17 },
+              { "tag": "GotResultsListMessage/Measured", "view": 24.9, "patch": 2.7 },
+              { "tag": "ReadStarted", "view": 62.9, "patch": 1.4 },
+              { "tag": "ReadReceived", "view": 51.3, "patch": 24.3 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.3 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.1 },
+              { "tag": "ReadStarted", "ms": 0.4 },
+              { "tag": "RefreshStarted", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 0.9 },
+              { "tag": "RefreshStarted", "ms": 1.6 },
+              { "tag": "ReadReceived", "ms": 2.1 },
+              { "tag": "ReadReceived", "ms": 4 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 17.7, "patch": 17.5 },
+              { "tag": "GotResultsListMessage/Measured", "view": 19.4, "patch": 2.2 },
+              { "tag": "ReadStarted", "view": 55.9, "patch": 2.3 },
+              { "tag": "ReadReceived", "view": 58.4, "patch": 24.2 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.7 },
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.6 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.3 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 1.9 },
+              { "tag": "ReadStarted", "ms": 0.4 },
+              { "tag": "RefreshStarted", "ms": 0.5 },
+              { "tag": "ReadStarted", "ms": 1.2 },
+              { "tag": "RefreshStarted", "ms": 2 },
+              { "tag": "ReadReceived", "ms": 2.4 },
+              { "tag": "ReadReceived", "ms": 4.7 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 16.2, "patch": 14.3 },
+              { "tag": "GotResultsListMessage/Measured", "view": 23, "patch": 2.6 },
+              { "tag": "ReadStarted", "view": 55.6, "patch": 1.4 },
+              { "tag": "ReadReceived", "view": 57.4, "patch": 23.5 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.6 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.3 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.3 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 3.2 },
+              { "tag": "ReadStarted", "ms": 0.5 },
+              { "tag": "RefreshStarted", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 0.8 },
+              { "tag": "RefreshStarted", "ms": 1.5 },
+              { "tag": "ReadReceived", "ms": 2.2 },
+              { "tag": "ReadReceived", "ms": 7 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 23.4, "patch": 16.6 },
+              { "tag": "GotResultsListMessage/Measured", "view": 18.2, "patch": 2.5 },
+              { "tag": "ReadStarted", "view": 69.7, "patch": 1.2 },
+              { "tag": "ReadReceived", "view": 60.3, "patch": 27.3 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.6 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.5 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2 },
+              { "tag": "ReadStarted", "ms": 0.2 },
+              { "tag": "RefreshStarted", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 1.6 },
+              { "tag": "RefreshStarted", "ms": 2.7 },
+              { "tag": "ReadReceived", "ms": 2.8 },
+              { "tag": "ReadReceived", "ms": 6.7 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 21.2, "patch": 18.2 },
+              { "tag": "GotResultsListMessage/Measured", "view": 22.6, "patch": 3.1 },
+              { "tag": "ReadStarted", "view": 54, "patch": 1.8 },
+              { "tag": "ReadReceived", "view": 54.2, "patch": 22.4 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.5 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 1.7 },
+              { "tag": "ReadStarted", "ms": 0.4 },
+              { "tag": "RefreshStarted", "ms": 0.3 },
+              { "tag": "ReadStarted", "ms": 1.6 },
+              { "tag": "RefreshStarted", "ms": 1.7 },
+              { "tag": "ReadReceived", "ms": 3 },
+              { "tag": "ReadReceived", "ms": 3.7 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 18.5, "patch": 14.6 },
+              { "tag": "GotResultsListMessage/Measured", "view": 20, "patch": 2.8 },
+              { "tag": "ReadReceived", "view": 54.7, "patch": 26.2 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2 },
+              { "tag": "ReadStarted", "ms": 0.4 },
+              { "tag": "RefreshStarted", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 0.8 },
+              { "tag": "RefreshStarted", "ms": 1.4 },
+              { "tag": "ReadReceived", "ms": 3.3 },
+              { "tag": "ReadReceived", "ms": 3.6 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 18.9, "patch": 17.5 },
+              { "tag": "GotResultsListMessage/Measured", "view": 21.2, "patch": 2.7 },
+              { "tag": "ReadStarted", "view": 50.4, "patch": 1.2 },
+              { "tag": "ReadReceived", "view": 50.3, "patch": 24.1 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.6 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.1 },
+              { "tag": "ReadStarted", "ms": 0.1 },
+              { "tag": "RefreshStarted", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 1.2 },
+              { "tag": "RefreshStarted", "ms": 1 },
+              { "tag": "ReadReceived", "ms": 3.1 },
+              { "tag": "ReadReceived", "ms": 3.3 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 17.3, "patch": 15.1 },
+              { "tag": "GotResultsListMessage/Measured", "view": 25.4, "patch": 2.6 },
+              { "tag": "ReadReceived", "view": 54, "patch": 27.4 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.6 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.7 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.3 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 1.8 },
+              { "tag": "ReadStarted", "ms": 0.5 },
+              { "tag": "RefreshStarted", "ms": 0.5 },
+              { "tag": "ReadStarted", "ms": 0.7 },
+              { "tag": "RefreshStarted", "ms": 1.4 },
+              { "tag": "ReadReceived", "ms": 3.1 },
+              { "tag": "ReadReceived", "ms": 4.7 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 16.8, "patch": 17.7 },
+              { "tag": "GotResultsListMessage/Measured", "view": 25, "patch": 2.5 },
+              { "tag": "ReadStarted", "view": 57.7, "patch": 1.3 },
+              { "tag": "ReadReceived", "view": 67, "patch": 28.1 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 1.9 },
+              { "tag": "ReadStarted", "ms": 0.2 },
+              { "tag": "RefreshStarted", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 1 },
+              { "tag": "RefreshStarted", "ms": 1 },
+              { "tag": "ReadReceived", "ms": 3.2 },
+              { "tag": "ReadReceived", "ms": 3.8 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 21.9, "patch": 15.4 },
+              { "tag": "GotResultsListMessage/Measured", "view": 19.8, "patch": 3.7 },
+              { "tag": "ReadReceived", "view": 58.6, "patch": 30.1 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.3 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.3 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 1.8 },
+              { "tag": "ReadStarted", "ms": 0.3 },
+              { "tag": "RefreshStarted", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 0.8 },
+              { "tag": "RefreshStarted", "ms": 1.4 },
+              { "tag": "ReadReceived", "ms": 2.1 },
+              { "tag": "ReadReceived", "ms": 4.2 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 31.7, "patch": 13.7 },
+              { "tag": "GotResultsListMessage/Measured", "view": 21.2, "patch": 3 },
+              { "tag": "ReadReceived", "view": 59.4, "patch": 25.4 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0.3 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.7 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2 },
+              { "tag": "ReadStarted", "ms": 0.6 },
+              { "tag": "RefreshStarted", "ms": 0.5 },
+              { "tag": "ReadStarted", "ms": 1 },
+              { "tag": "RefreshStarted", "ms": 1.4 },
+              { "tag": "ReadReceived", "ms": 3.1 },
+              { "tag": "ReadReceived", "ms": 3.6 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 18.1, "patch": 15 },
+              { "tag": "GotResultsListMessage/Measured", "view": 23.9, "patch": 2.6 },
+              { "tag": "ReadReceived", "view": 54.3, "patch": 30.1 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.6 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.5 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 3.1 },
+              { "tag": "ReadStarted", "ms": 0.2 },
+              { "tag": "RefreshStarted", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 0.9 },
+              { "tag": "RefreshStarted", "ms": 1.3 },
+              { "tag": "ReadReceived", "ms": 2.2 },
+              { "tag": "ReadReceived", "ms": 4.6 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 16.3, "patch": 14.3 },
+              { "tag": "GotResultsListMessage/Measured", "view": 19.8, "patch": 3 },
+              { "tag": "ReadReceived", "view": 52.8, "patch": 26.9 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.6 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.3 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.2 },
+              { "tag": "ReadStarted", "ms": 0.4 },
+              { "tag": "RefreshStarted", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 0.8 },
+              { "tag": "RefreshStarted", "ms": 1.6 },
+              { "tag": "ReadReceived", "ms": 2.4 },
+              { "tag": "ReadReceived", "ms": 3.8 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 17.4, "patch": 17.5 },
+              { "tag": "GotResultsListMessage/Measured", "view": 27.9, "patch": 2.3 },
+              { "tag": "ReadStarted", "view": 64.6, "patch": 1.2 },
+              { "tag": "ReadReceived", "view": 59.5, "patch": 29.4 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.6 },
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.1 },
+              { "tag": "ReadStarted", "ms": 0.4 },
+              { "tag": "RefreshStarted", "ms": 0.3 },
+              { "tag": "ReadStarted", "ms": 0.9 },
+              { "tag": "RefreshStarted", "ms": 1.2 },
+              { "tag": "ReadReceived", "ms": 3.2 },
+              { "tag": "ReadReceived", "ms": 3.4 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 20.7, "patch": 17.5 },
+              { "tag": "GotResultsListMessage/Measured", "view": 19.2, "patch": 2.6 },
+              { "tag": "ReadStarted", "view": 55.1, "patch": 1.4 },
+              { "tag": "ReadReceived", "view": 54.2, "patch": 29.7 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.6 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.1 },
+              { "tag": "ReadStarted", "ms": 0.4 },
+              { "tag": "RefreshStarted", "ms": 0.3 },
+              { "tag": "ReadStarted", "ms": 0.9 },
+              { "tag": "RefreshStarted", "ms": 1.7 },
+              { "tag": "ReadReceived", "ms": 3.1 },
+              { "tag": "ReadReceived", "ms": 4.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 16.2, "patch": 14.5 },
+              { "tag": "GotResultsListMessage/Measured", "view": 20.5, "patch": 5.3 },
+              { "tag": "ReadStarted", "view": 58.3, "patch": 1.1 },
+              { "tag": "ReadReceived", "view": 53.9, "patch": 25.7 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.6 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 1.8 },
+              { "tag": "ReadStarted", "ms": 0.4 },
+              { "tag": "RefreshStarted", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 0.8 },
+              { "tag": "RefreshStarted", "ms": 2 },
+              { "tag": "ReadReceived", "ms": 2.8 },
+              { "tag": "ReadReceived", "ms": 4.7 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 24.5, "patch": 20.7 },
+              { "tag": "GotResultsListMessage/Measured", "view": 19.5, "patch": 2.5 },
+              { "tag": "ReadStarted", "view": 63.2, "patch": 2.4 },
+              { "tag": "ReadReceived", "view": 52.2, "patch": 29.6 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "UpdatedSearch", "ms": 0.5 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.7 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.4 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.8 },
+              { "tag": "ReadStarted", "ms": 0.2 },
+              { "tag": "RefreshStarted", "ms": 0.6 },
+              { "tag": "ReadStarted", "ms": 0.8 },
+              { "tag": "RefreshStarted", "ms": 1.5 },
+              { "tag": "ReadReceived", "ms": 3.4 },
+              { "tag": "ReadReceived", "ms": 5.3 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 21.2, "patch": 18 },
+              { "tag": "GotResultsListMessage/Measured", "view": 31.5, "patch": 2.4 },
+              { "tag": "ReadStarted", "view": 56.7, "patch": 1.2 },
+              { "tag": "ReadReceived", "view": 60, "patch": 24.4 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.8 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 1.9 },
+              { "tag": "ReadStarted", "ms": 0.6 },
+              { "tag": "RefreshStarted", "ms": 0.3 },
+              { "tag": "ReadStarted", "ms": 0.6 },
+              { "tag": "RefreshStarted", "ms": 1.4 },
+              { "tag": "ReadReceived", "ms": 3 },
+              { "tag": "ReadReceived", "ms": 4.6 }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "scroll a page",
+        "runs": [
+          { "frames": [], "updates": [] },
+          { "frames": [], "updates": [] },
+          { "frames": [], "updates": [] },
+          { "frames": [], "updates": [] },
+          { "frames": [], "updates": [{ "tag": "GotResultsListMessage/Placed", "ms": 0.1 }] },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 52.2, "patch": 18.4 }],
+            "updates": [
+              { "tag": "ReadStarted", "ms": 1.6 },
+              { "tag": "RefreshStarted", "ms": 1.6 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "ReadStarted", "view": 61.9, "patch": 19.7 },
+              { "tag": "ReadStarted", "view": 57.1, "patch": 15.5 },
+              { "tag": "ReadStarted", "view": 56.6, "patch": 18.9 },
+              { "tag": "ReadStarted", "view": 49.3, "patch": 14.5 },
+              { "tag": "ReadStarted", "view": 52.4, "patch": 15.3 },
+              { "tag": "ReadStarted", "view": 53.2, "patch": 12.9 },
+              { "tag": "GotResultsListMessage/Measured", "view": 56.9, "patch": 2.3 },
+              { "tag": "ReadReceived", "view": 61.9, "patch": 21.8 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 1.1 },
+              { "tag": "RefreshStarted", "ms": 0.6 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 1.4 },
+              { "tag": "RefreshStarted", "ms": 2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.3 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.5 },
+              { "tag": "ReadStarted", "ms": 1.4 },
+              { "tag": "RefreshStarted", "ms": 1.6 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "ReadStarted", "ms": 1.5 },
+              { "tag": "RefreshStarted", "ms": 1.5 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.6 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 1.7 },
+              { "tag": "RefreshStarted", "ms": 1.6 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.5 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 1.2 },
+              { "tag": "RefreshStarted", "ms": 1.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.5 },
+              { "tag": "ReadReceived", "ms": 4.3 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 41.8, "patch": 26.4 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.3 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotResultsListMessage/Placed", "view": 44.6, "patch": 16.4 },
+              { "tag": "ReadStarted", "view": 55.4, "patch": 27 },
+              { "tag": "GotResultsListMessage/Placed", "view": 57.5, "patch": 35.2 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 2 },
+              { "tag": "RefreshStarted", "ms": 1.6 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "ReadStarted", "ms": 1.4 },
+              { "tag": "RefreshStarted", "ms": 2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "ReadReceived", "ms": 5.6 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 }
+            ]
+          },
+          { "frames": [], "updates": [] },
+          { "frames": [], "updates": [] },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 48.1, "patch": 25.4 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "ReadStarted", "view": 57.5, "patch": 20.2 },
+              { "tag": "ReadStarted", "view": 50.6, "patch": 22.2 },
+              { "tag": "GotResultsListMessage/Placed", "view": 54.2, "patch": 28.3 },
+              { "tag": "GotResultsListMessage/Placed", "view": 43.8, "patch": 34.1 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 2.2 },
+              { "tag": "RefreshStarted", "ms": 2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.3 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 1.6 },
+              { "tag": "RefreshStarted", "ms": 1.8 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 0.9 },
+              { "tag": "RefreshStarted", "ms": 0.7 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 42.9, "patch": 29.5 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotResultsListMessage/Placed", "view": 47.7, "patch": 14 },
+              { "tag": "ReadStarted", "view": 63.8, "patch": 17.7 },
+              { "tag": "GotResultsListMessage/Placed", "view": 49.6, "patch": 19.2 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 1.6 },
+              { "tag": "RefreshStarted", "ms": 2.8 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadStarted", "ms": 1.5 },
+              { "tag": "RefreshStarted", "ms": 2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.4 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 }
+            ]
+          },
+          { "frames": [], "updates": [] },
+          { "frames": [], "updates": [] },
+          { "frames": [], "updates": [] },
+          {
+            "frames": [
+              { "tag": "GotResultsListMessage/Placed", "view": 46.5, "patch": 20.1 },
+              { "tag": "GotResultsListMessage/Placed", "view": 48, "patch": 20.7 },
+              { "tag": "GotResultsListMessage/Placed", "view": 64.2, "patch": 31.6 },
+              { "tag": "GotResultsListMessage/Placed", "view": 40, "patch": 23.9 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.4 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.3 },
+              { "tag": "ReadStarted", "ms": 1.7 },
+              { "tag": "RefreshStarted", "ms": 1.6 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.3 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 35.8, "patch": 26 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 52.4, "patch": 15.7 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 40.2, "patch": 15.7 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.3 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotResultsListMessage/Placed", "view": 49.4, "patch": 15 },
+              { "tag": "GotResultsListMessage/Placed", "view": 53.4, "patch": 16 },
+              { "tag": "GotResultsListMessage/Placed", "view": 81.4, "patch": 24.2 },
+              { "tag": "GotResultsListMessage/Placed", "view": 45.9, "patch": 25.8 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 1.8 },
+              { "tag": "RefreshStarted", "ms": 1.7 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.5 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 1.2 },
+              { "tag": "RefreshStarted", "ms": 1.4 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 1 },
+              { "tag": "RefreshStarted", "ms": 1.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.4 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 41.3, "patch": 20.7 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotResultsListMessage/Placed", "view": 74.3, "patch": 22.1 },
+              { "tag": "GotResultsListMessage/Placed", "view": 49.2, "patch": 20.5 },
+              { "tag": "GotResultsListMessage/Placed", "view": 42.8, "patch": 26.7 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.3 },
+              { "tag": "ReadStarted", "ms": 2 },
+              { "tag": "RefreshStarted", "ms": 1.9 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.3 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 1.2 },
+              { "tag": "RefreshStarted", "ms": 1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 51.1, "patch": 26.3 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotResultsListMessage/Placed", "view": 56.9, "patch": 20.3 },
+              { "tag": "GotResultsListMessage/Placed", "view": 71.5, "patch": 19.4 },
+              { "tag": "GotResultsListMessage/Placed", "view": 45.3, "patch": 15.3 },
+              { "tag": "GotResultsListMessage/Placed", "view": 75.4, "patch": 35.9 },
+              { "tag": "GotResultsListMessage/Placed", "view": 56.2, "patch": 17.2 },
+              { "tag": "GotResultsListMessage/Placed", "view": 45.1, "patch": 28.7 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadStarted", "ms": 1.3 },
+              { "tag": "RefreshStarted", "ms": 1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadStarted", "ms": 1.2 },
+              { "tag": "RefreshStarted", "ms": 1.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 1.2 },
+              { "tag": "RefreshStarted", "ms": 1.6 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.3 },
+              { "tag": "ReadStarted", "ms": 0.6 },
+              { "tag": "RefreshStarted", "ms": 0.6 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 1.2 },
+              { "tag": "RefreshStarted", "ms": 1.6 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.3 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 44.8, "patch": 23.6 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotResultsListMessage/Placed", "view": 57.4, "patch": 17.2 },
+              { "tag": "GotResultsListMessage/Placed", "view": 61, "patch": 38.6 },
+              { "tag": "GotResultsListMessage/Placed", "view": 41.5, "patch": 26.1 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 1.8 },
+              { "tag": "RefreshStarted", "ms": 1.4 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 46.6, "patch": 24.9 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "toggle a filter",
+        "runs": [
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 59.2,
+                "patch": 14.6
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 48.5, "patch": 10.7 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.4 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 49.2,
+                "patch": 13.6
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 57.1, "patch": 14 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 49.5,
+                "patch": 12
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 51.9, "patch": 11.7 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.5 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 60.1,
+                "patch": 18.4
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 48, "patch": 10.1 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.7 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 49.8,
+                "patch": 14.5
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 45.6, "patch": 11.3 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.4 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.4 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.5 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 51.1,
+                "patch": 11.9
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 45.4, "patch": 11.8 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.4 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 59.5,
+                "patch": 12.5
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 44.7, "patch": 11.1 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.4 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.5 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 44.5,
+                "patch": 17
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 51.2, "patch": 11.8 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.6 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.5 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 48.9,
+                "patch": 13.3
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 40.3, "patch": 10.1 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.5 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 45.1,
+                "patch": 11.7
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 56.6, "patch": 10.3 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.4 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.6 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 53.1,
+                "patch": 12.6
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 46.3, "patch": 10.7 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.4 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.7 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.3 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 51,
+                "patch": 12
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 52.8, "patch": 10.9 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 49.6,
+                "patch": 11.1
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 56, "patch": 13.7 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.4 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 51.2,
+                "patch": 13.8
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 49.3, "patch": 10.7 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 45.1,
+                "patch": 12.4
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 40.9, "patch": 9.6 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 44.1,
+                "patch": 12.4
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 46.4, "patch": 10.1 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 56.6,
+                "patch": 12.6
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 40.4, "patch": 14.2 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.3 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 47.1,
+                "patch": 13.5
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 59.5, "patch": 15.5 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.4 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 50.5,
+                "patch": 12.2
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 40.8, "patch": 9.9 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 41.4,
+                "patch": 16.2
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 43.4, "patch": 10.9 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 51.1,
+                "patch": 12
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 54.4, "patch": 11.6 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.4 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 48.9,
+                "patch": 12.9
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 43.6, "patch": 9.6 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 55.6,
+                "patch": 14.4
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 48.9, "patch": 10.9 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 55,
+                "patch": 12.1
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 46.9, "patch": 11.1 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 48,
+                "patch": 12
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 47.3, "patch": 12.5 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 46.1,
+                "patch": 15.2
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 50, "patch": 11.7 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.4 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 54.1,
+                "patch": 11.7
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 46.9, "patch": 10.3 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.6 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 51.2,
+                "patch": 13
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 50.6, "patch": 13.7 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 56.8,
+                "patch": 12.3
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 43.5, "patch": 9.9 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.4 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.4 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 48.5,
+                "patch": 17.8
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 53.1, "patch": 10.1 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.6 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.2 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
