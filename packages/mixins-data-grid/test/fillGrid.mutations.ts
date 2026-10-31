@@ -52,13 +52,13 @@ export default [
     'if (!editsAny || !toggle || modifiers.altKey) return Option.none()',
   ),
   one('Escape lets no fill go', view, "key === 'Escape' && Option.isSome(state.filling)", 'false'),
+  one('the preview is not drawn', view, "? [h.DataAttribute('fill', 'target')]", '? []'),
   one(
-    'the preview is not drawn',
+    'no handle is drawn',
     view,
-    "...(filled ? [h.DataAttribute('fill', 'target')] : []),",
-    '',
+    '...(handled\n                ? [',
+    '...(false\n                ? [',
   ),
-  one('no handle is drawn', view, '...(handled ? [fillHandle] : []),', ''),
   one(
     'the cell is looked for where the pointer is, past the edge',
     drag,

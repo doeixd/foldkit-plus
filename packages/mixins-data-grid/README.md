@@ -63,13 +63,14 @@ const application = Bundle.assemble<Model, Message>()([
 
 const ItemsGrid = DataGridView<Message>().define(Grid).pipe(Style.attach(GridStyle))
 const rows = RowModel.fromArray(items, itemKey)
+const wrap = (message: typeof Grid.Message.Type): Message => Placement.wrapper.make(message)
 
 const view = (model: Model, h: HtmlBuilder<Message>) =>
   ItemsGrid(
     {
       state: model.grid,
       rows,
-      wrap: message => Placement.wrapper.make(message),
+      wrap,
       label: 'Items',
       rowHeight: 32,
       headerHeight: 36,
@@ -94,6 +95,13 @@ Style on `root` (`height: '24rem'`, say): it is the scroll container.
 - **`wrap`** lifts the grid's Messages into the application's: keys send
   `Moved` (with the scroll that reveals the cell), a pressed cell sends
   `Focused`, and the scroll container sends `Measured`.
+- **A body row is drawn again only when what it is drawn from changed**: its
+  row, its index, whether it is selected, the focus, range, fill or edit it
+  holds, the columns' layout, and `wrap`, `cell` and `marks` by identity
+  (`foldkit-mixins`' per-item memo). A move of the focus redraws two rows; a
+  scroll, the rows it brings in. Define those three functions once, as `wrap`
+  is above: one made inline is new every render, and every row is drawn
+  every time (correct, not cached).
 - **`GridStyle`** is the default look, in the `components` layer.
 
 ## What it draws
@@ -288,7 +296,6 @@ closes. `opened` is `'editor'` (a cell's field, a native select included),
 With the Name column editable (`edit: {}` in its spec):
 
 ```ts
-const wrap = (message: typeof Grid.Message.Type) => Placement.wrapper.make(message)
 const editor = DataGridView<Message>().resolveOpened(Grid, { wrap, opened: 'editor' })
 const field = Scene.role('textbox', { name: 'Name' })
 

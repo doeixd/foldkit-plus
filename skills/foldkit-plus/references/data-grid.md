@@ -108,6 +108,10 @@ the whole wiring, compiled.
 
 - The view sends the grid's own Messages through `wrap`; place
   `DataGrid.make(...).bundle` with `Bundle.declare` and pass its wrapper.
+- A body row is drawn again only when its row, index, selection, the focus,
+  range, fill or edit it holds, the column layout, or `wrap`/`cell`/`marks`
+  (by identity) changed: define those functions once, not inline, or every
+  row redraws every render.
 - `root` is the scroll container: give it a height with a Style. A Style that
   sets a cell's `width`, `position`, `insetInlineStart` or `boxSizing`, or a
   row's `height`, throws `slot "cell" protects style property`.

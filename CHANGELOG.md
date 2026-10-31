@@ -155,6 +155,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **A data grid draws a body row again only when it changed**
+  (`foldkit-mixins-data-grid`, #376 R3). Each row is a per-item memo of its
+  row, index, selection, the focus, range, fill or edit it holds, the column
+  layout, and the `wrap`, `cell` and `marks` given (by identity): a focus that
+  moves redraws two rows, a scroll the rows it brings in. Pass those functions
+  defined once; one made inline draws every row every render, as before.
+
 - **A Slot's per-item memo forgets the items it no longer draws**
   (`foldkit-mixins`, #376 R3). `slots.x.lazy` kept every key for the page's
   life, so it asked for keys that stay bounded; a key drawn again now starts a

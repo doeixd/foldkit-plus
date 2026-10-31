@@ -253,6 +253,9 @@ const Registry = DataGridView<Message>()
 
 const DemoGuide = demoGuide<Message>()
 
+// Made once: the grid keeps a row's drawing while what it is drawn from, this included, is the same.
+const wrapGrid = (message: typeof Grid.Message.Type): Message => Placement.wrapper.make(message)
+
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   // Counted from the selection, not by asking each of 100,000 rows every render.
   const selectedCount = RowSelection.match(model.grid.selection.rows, {
@@ -301,7 +304,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           {
             state: model.grid,
             rows: rowsOf(model),
-            wrap: message => Placement.wrapper.make(message),
+            wrap: wrapGrid,
             label: 'Products',
             rowHeight: 32,
             headerHeight: 36,

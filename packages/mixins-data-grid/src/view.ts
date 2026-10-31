@@ -13,6 +13,7 @@ import {
   type ColumnSpec,
   type ColumnState,
   type DataGridOf,
+  type GridProjection,
   type Direction,
   GridFocus,
   GridSelection,
@@ -146,6 +147,56 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
 
 const px = (value: number): string => `${value}px`
 
+// Spacers hold the width of the columns not drawn; nothing to see or style.
+const spacer = <Message>(h: HtmlBuilder<Message>, size: number): ReadonlyArray<Html> =>
+  size > 0 ? [h.div([h.AriaHidden(true), h.Style({ width: px(size), flex: 'none' })], [])] : []
+
+/** Where one column's cells stand in a row: plain data, compared by its text. */
+type CellLayout<Id> = {
+  readonly id: Id
+  readonly colindex: number
+  readonly style: Readonly<Record<string, string>>
+  readonly pinned: Option.Option<'start' | 'end'>
+  /** The pinned column beside those that scroll, where a style draws the edge. */
+  readonly edge: Option.Option<'start' | 'end'>
+}
+
+/** The columns every body row draws, in display order, with spacers' widths between. */
+type RowLayout<Id> = {
+  readonly start: ReadonlyArray<CellLayout<Id>>
+  readonly before: number
+  readonly center: ReadonlyArray<CellLayout<Id>>
+  readonly after: number
+  readonly end: ReadonlyArray<CellLayout<Id>>
+  readonly rowHeight: number
+  readonly width: number
+}
+
+/**
+ * All a body row is drawn from. What only some rows have (the focus, a
+ * range, an edit) is none for the others, so a row is drawn again only when
+ * its own part changed.
+ */
+type RowArgs<Row, Id extends string, GridMessage, Message> = {
+  readonly row: Row
+  readonly key: string
+  readonly index: number
+  readonly layout: RowLayout<Id>
+  /** For a cell's draft when it is double-clicked. */
+  readonly projection: GridProjection<Row, Id>
+  readonly wrap: (message: GridMessage) => Message
+  readonly cell: GridInput<Row, Id, GridMessage, Message>['cell']
+  readonly marks: GridInput<Row, Id, GridMessage, Message>['marks']
+  readonly selected: boolean
+  readonly focused: Option.Option<Id>
+  /** The range's columns, when the range covers this row. */
+  readonly inRange: Option.Option<ReadonlySet<string>>
+  /** The columns a fill being dragged would write in this row. */
+  readonly filled: Option.Option<ReadonlySet<string>>
+  readonly handled: Option.Option<Id>
+  readonly editor: Option.Option<{ readonly column: Id; readonly content: ReadonlyArray<Html> }>
+}
+
 /** Whether the rows' source is reading: the grid says so, and asks for nothing more. */
 export const isBusy = (status: RowStatus | undefined): boolean =>
   RowStatus.match(status ?? RowStatus.Ready(), {
@@ -211,6 +262,126 @@ const view = <Message>() => ({
     type Id = keyof Specs & string
     // Whether any column edits: fixed with the grid, so worked out once.
     const editsAny = Object.values(grid.columns.byId).some(column => column.edit !== undefined)
+    const editable = (column: Id) => grid.columns.byId[column].edit !== undefined
+    // In a grid where some columns edit, the others say they do not.
+    const readOnly = (column: Id) => editsAny && !editable(column)
+
+    /**
+     * One body row, from its arguments alone: a row is drawn again only when
+     * one of them changed, so a focus that moves redraws the row it left and
+     * the row it reached, and a scroll only the rows it brings in.
+     */
+    const drawRow = (
+      slots: SlotView.SlotBuilders<typeof GridSlots, Message>,
+      h: HtmlBuilder<Message>,
+      args: RowArgs<Row, Id, typeof grid.Message.Type, Message>,
+    ): Html => {
+      const { row, key, index, layout } = args
+      const drawCell = ({ id, colindex, style, pinned, edge }: CellLayout<Id>): Html => {
+        const address = { row: key, column: id }
+        const edited = Option.filter(args.editor, editor => editor.column === id)
+        const handled = Option.contains(args.handled, id)
+        return h.div(
+          slots.cell.attrs([
+            h.Role('gridcell'),
+            h.Id(GridFocus.cellId(grid.id, address)),
+            h.AriaColindex(colindex),
+            // An edited cell holds its error below it, and the corner cell
+            // the fill handle; a pinned cell is sticky, which places both.
+            h.Style({
+              ...style,
+              ...((Option.isSome(edited) || handled) && Option.isNone(pinned)
+                ? { position: 'relative' }
+                : {}),
+            }),
+            ...(Option.exists(args.filled, columns => columns.has(id))
+              ? [h.DataAttribute('fill', 'target')]
+              : []),
+            ...(grid.cellSelection
+              ? [h.AriaSelected(Option.exists(args.inRange, columns => columns.has(id)))]
+              : []),
+            ...(Option.contains(args.focused, id) ? [h.DataAttribute('focused', 'true')] : []),
+            ...Option.match(pinned, {
+              onNone: () => [],
+              onSome: side => [h.DataAttribute('pinned', side)],
+            }),
+            ...Option.match(edge, {
+              onNone: () => [],
+              onSome: side => [h.DataAttribute('pinned-edge', side)],
+            }),
+            // Editable: double-clicking edits, as Enter does.
+            ...(editable(id)
+              ? [
+                  h.DataAttribute('editable', 'true'),
+                  h.OnDoubleClick(
+                    args.wrap(
+                      grid.Message.EditStarted({
+                        address,
+                        draft: grid.draftOf(args.projection, address),
+                      }),
+                    ),
+                  ),
+                ]
+              : []),
+            ...(Option.isSome(edited) ? [h.DataAttribute('editing', 'true')] : []),
+            ...(readOnly(id) ? [h.AriaReadonly(true)] : []),
+            ...Option.match(args.marks === undefined ? Option.none() : args.marks(address), {
+              onNone: () => [],
+              onSome: mark => [
+                h.DataAttribute('mark', mark.name),
+                h.AriaDescription(mark.description),
+                // Said on hover too: a dot alone does not say what it means.
+                h.Title(mark.description),
+              ],
+            }),
+          ]),
+          Option.match(edited, {
+            onNone: () => [
+              args.cell?.(id, row, h) ?? textOf(grid.columns.byId[id].value(row)),
+              // Its drag is the body's listener's, which outlives the handle's cell.
+              ...(handled
+                ? [
+                    h.span(
+                      slots.fillHandle.attrs([
+                        h.AriaHidden(true),
+                        h.Attribute(fillHandleAttribute, ''),
+                        h.Style({ position: 'absolute', insetInlineEnd: '0', insetBlockEnd: '0' }),
+                      ]),
+                      [],
+                    ),
+                  ]
+                : []),
+            ],
+            onSome: editor => editor.content,
+          }),
+        )
+      }
+      return h.div(
+        slots.row.attrs([
+          h.Key(key),
+          h.Role('row'),
+          h.AriaRowindex(index + 2),
+          ...(grid.rowSelection === undefined ? [] : [h.AriaSelected(args.selected)]),
+          h.Style({ display: 'flex', height: px(layout.rowHeight), width: px(layout.width) }),
+        ]),
+        [
+          ...layout.start.map(drawCell),
+          ...spacer(h, layout.before),
+          ...layout.center.map(drawCell),
+          ...spacer(h, layout.after),
+          ...layout.end.map(drawCell),
+        ],
+      )
+    }
+    // The layout the rows were last drawn with, kept while it reads the same.
+    let lastLayout: { readonly text: string; readonly layout: RowLayout<Id> } | undefined
+    const sameLayout = (layout: RowLayout<Id>): RowLayout<Id> => {
+      const text = JSON.stringify(layout)
+      if (lastLayout !== undefined && lastLayout.text === text) return lastLayout.layout
+      lastLayout = { text, layout }
+      return layout
+    }
+
     return SlotView.forMessages<Message>().define(
       GridSlots,
       (input: GridInput<Row, Id, typeof grid.Message.Type, Message>, slots, h): Html => {
@@ -231,8 +402,6 @@ const view = <Message>() => ({
         const indexOf = new Map(projection.columns.map((id, index) => [id, index]))
         const startInsets = insets(shown.start, width)
         const endInsets = insets([...shown.end].reverse(), width)
-        const markOf = (address: CellAddress<Id>): Option.Option<CellMark> =>
-          input.marks === undefined ? Option.none() : input.marks(address)
         const pinned = (id: Id): Option.Option<'start' | 'end'> => {
           if (startInsets.has(id)) return Option.some('start')
           if (endInsets.has(id)) return Option.some('end')
@@ -242,11 +411,16 @@ const view = <Message>() => ({
         // the edge the others pass under.
         const startEdge = shown.start.at(-1)
         const endEdge = shown.end[0]
-        const pinnedEdge = (id: Id) => {
-          if (id === startEdge) return [h.DataAttribute('pinned-edge', 'start')]
-          if (id === endEdge) return [h.DataAttribute('pinned-edge', 'end')]
-          return []
+        const edgeOf = (id: Id): Option.Option<'start' | 'end'> => {
+          if (id === startEdge) return Option.some('start')
+          if (id === endEdge) return Option.some('end')
+          return Option.none()
         }
+        const pinnedEdge = (id: Id) =>
+          Option.match(edgeOf(id), {
+            onNone: () => [],
+            onSome: side => [h.DataAttribute('pinned-edge', side)],
+          })
 
         const cellStyle = (id: Id): Record<string, string> => {
           const base = { boxSizing: 'border-box', width: px(Math.max(0, width(id))), flex: 'none' }
@@ -258,17 +432,28 @@ const view = <Message>() => ({
                 : { ...base, position: 'sticky', insetInlineEnd: px(endInsets.get(id)!) },
           })
         }
-        // Spacers hold the width of the columns not drawn; nothing to see or style.
-        const spacer = (size: number): ReadonlyArray<Html> =>
-          size > 0
-            ? [h.div([h.AriaHidden(true), h.Style({ width: px(size), flex: 'none' })], [])]
-            : []
+        const cellLayout = (id: Id): CellLayout<Id> => ({
+          id,
+          colindex: indexOf.get(id)! + 1,
+          style: cellStyle(id),
+          pinned: pinned(id),
+          edge: edgeOf(id),
+        })
+        const layout = sameLayout({
+          start: shown.start.map(cellLayout),
+          before: shown.center.before,
+          center: shown.centerColumns.map(cellLayout),
+          after: shown.center.after,
+          end: shown.end.map(cellLayout),
+          rowHeight,
+          width: shown.width,
+        })
         // Cells in display order, with spacers where the undrawn center columns are.
         const across = (drawCell: (id: Id) => Html): ReadonlyArray<Html> => [
           ...shown.start.map(drawCell),
-          ...spacer(shown.center.before),
+          ...spacer(h, shown.center.before),
           ...shown.centerColumns.map(drawCell),
-          ...spacer(shown.center.after),
+          ...spacer(h, shown.center.after),
           ...shown.end.map(drawCell),
         ]
 
@@ -708,9 +893,6 @@ const view = <Message>() => ({
           ),
           () => Option.isNone(editing),
         )
-        const editable = (column: Id) => grid.columns.byId[column].edit !== undefined
-        // In a grid where some columns edit, the others say they do not.
-        const readOnly = (column: Id) => editsAny && !editable(column)
         const cornerOf = (box: CellBox<Id>) =>
           Option.map(projection.rows.keyAt(box.rows.start), row => ({
             row,
@@ -947,15 +1129,6 @@ const view = <Message>() => ({
             () => stop,
           ),
           () => editsAny,
-        )
-        // Its drag is the body's listener's, which outlives the handle's cell.
-        const fillHandle = h.span(
-          slots.fillHandle.attrs([
-            h.AriaHidden(true),
-            h.Attribute(fillHandleAttribute, ''),
-            h.Style({ position: 'absolute', insetInlineEnd: '0', insetBlockEnd: '0' }),
-          ]),
-          [],
         )
         // A header drag is measured toward the region's end, as a resize is.
         const headerPressed = Mount.mapMessage(HeaderPress(), fact =>
@@ -1213,92 +1386,46 @@ const view = <Message>() => ({
                   [],
                 ),
               onSome: ({ row, key }) =>
-                h.div(
-                  slots.row.attrs([
-                    h.Key(key),
-                    h.Role('row'),
-                    h.AriaRowindex(index + 2),
-                    ...(grid.rowSelection === undefined
-                      ? []
-                      : [h.AriaSelected(isSelectedRow(key))]),
-                    h.Style({ display: 'flex', height: px(rowHeight), width: px(shown.width) }),
-                  ]),
-                  across(id => {
-                    const address = { row: key, column: id }
-                    const focused =
-                      Option.isNone(onHeader) &&
-                      Option.exists(stop, current => current.row === key && current.column === id)
-                    const inRange = Option.exists(
-                      Option.zipWith(range, rangeColumns, (box, ids) => ({ box, ids })),
-                      ({ box, ids }) =>
-                        index >= box.rows.start && index < box.rows.end && ids.has(id),
-                    )
-                    const edited = Option.filter(
-                      editing,
-                      edit => edit.address.row === key && edit.address.column === id,
-                    )
-                    const handled = Option.exists(
-                      handleAt,
-                      at => at.row === key && at.column === id,
-                    )
-                    const filled = Option.exists(
-                      fillTarget,
-                      box => index >= box.rows.start && index < box.rows.end && box.columns.has(id),
-                    )
-                    return h.div(
-                      slots.cell.attrs([
-                        h.Role('gridcell'),
-                        h.Id(GridFocus.cellId(grid.id, address)),
-                        h.AriaColindex(indexOf.get(id)! + 1),
-                        // An edited cell holds its error below it, and the corner cell
-                        // the fill handle; a pinned cell is sticky, which places both.
-                        h.Style({
-                          ...cellStyle(id),
-                          ...((Option.isSome(edited) || handled) && Option.isNone(pinned(id))
-                            ? { position: 'relative' }
-                            : {}),
-                        }),
-                        ...(filled ? [h.DataAttribute('fill', 'target')] : []),
-                        ...(grid.cellSelection ? [h.AriaSelected(inRange)] : []),
-                        ...(focused ? [h.DataAttribute('focused', 'true')] : []),
-                        ...Option.match(pinned(id), {
-                          onNone: () => [],
-                          onSome: edge => [h.DataAttribute('pinned', edge)],
-                        }),
-                        ...pinnedEdge(id),
-                        // Editable: double-clicking edits, as Enter does.
-                        ...(editable(id)
-                          ? [
-                              h.DataAttribute('editable', 'true'),
-                              h.OnDoubleClick(
-                                input.wrap(
-                                  grid.Message.EditStarted({ address, draft: draftOf(address) }),
-                                ),
-                              ),
-                            ]
-                          : []),
-                        ...(Option.isSome(edited) ? [h.DataAttribute('editing', 'true')] : []),
-                        ...(readOnly(id) ? [h.AriaReadonly(true)] : []),
-                        ...Option.match(markOf(address), {
-                          onNone: () => [],
-                          onSome: mark => [
-                            h.DataAttribute('mark', mark.name),
-                            h.AriaDescription(mark.description),
-                            // Said on hover too: a dot alone does not say what it means.
-                            h.Title(mark.description),
-                          ],
-                        }),
-                      ]),
-                      Option.match(edited, {
-                        onNone: () => [
-                          input.cell?.(id, row, h) ?? textOf(grid.columns.byId[id].value(row)),
-                          ...(handled ? [fillHandle] : []),
-                        ],
-                        onSome: edit => editorOf(address, edit),
-                      }),
-                    )
-                  }),
-                ),
+                slots.row.lazy({ index, id: key }, drawRow, {
+                  row,
+                  key,
+                  index,
+                  layout,
+                  projection,
+                  wrap: input.wrap,
+                  cell: input.cell,
+                  marks: input.marks,
+                  selected: isSelectedRow(key),
+                  focused: Option.isNone(onHeader)
+                    ? Option.map(
+                        Option.filter(stop, current => current.row === key),
+                        current => current.column,
+                      )
+                    : Option.none(),
+                  inRange: Option.flatMap(
+                    Option.zipWith(range, rangeColumns, (box, ids) => ({ box, ids })),
+                    ({ box, ids }) =>
+                      index >= box.rows.start && index < box.rows.end
+                        ? Option.some(ids)
+                        : Option.none(),
+                  ),
+                  filled: Option.flatMap(fillTarget, box =>
+                    index >= box.rows.start && index < box.rows.end
+                      ? Option.some(box.columns)
+                      : Option.none(),
+                  ),
+                  handled: Option.map(
+                    Option.filter(handleAt, at => at.row === key),
+                    at => at.column,
+                  ),
+                  editor: Option.map(
+                    Option.filter(editing, edit => edit.address.row === key),
+                    edit => ({
+                      column: edit.address.column,
+                      content: editorOf(edit.address, edit),
+                    }),
+                  ),
+                }),
             },
           )
 
