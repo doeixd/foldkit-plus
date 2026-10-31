@@ -149,4 +149,20 @@ describe('All Results', () => {
     expect(measured.resultsList.heights).toEqual({ 'acme.com': 120 })
     expect(settle(measured, 'globex', 2).resultsList.heights).toEqual({})
   })
+
+  test('the rows measured while a label is typed keep their heights once it settles', () => {
+    // The list draws the typed label's rows before the debounce settles it,
+    // and a row still drawn is measured again only if it resizes (#381).
+    const typed = [
+      Message.UpdatedSearch({ value: 'globex' }),
+      Message.GotResultsListMessage({
+        message: WindowList.Message.Measured({ rows: [{ key: 'globex.com', height: 412 }] }),
+      }),
+      Message.GotSearchMessage({
+        message: SearchInput.Message.Settled({ value: 'globex', generation: 1 }),
+      }),
+    ].reduce((model, message) => update(model, message).model, empty)
+    expect(typed.resultsList.heights).toEqual({ 'globex.com': 412 })
+    expect(typed.resultsList.estimatedHeight).toBe(412)
+  })
 })

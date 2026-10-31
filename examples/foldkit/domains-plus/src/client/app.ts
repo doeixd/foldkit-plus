@@ -219,26 +219,6 @@ const tldSheetStep = (model: Model, next: Sheet.Return): Return => sheetStep(mod
 const filtersSheetStep = (model: Model, next: Sheet.Return): Return =>
   sheetStep(model, next, filtersSheet)
 
-/**
- * Rows not yet measured take the mean height of every row measured: a row of
- * six names is one height on a desktop and three times it on a phone, and a
- * fixed estimate made the list's length change as rows were drawn (#381).
- * The mean of all, not of the last report, so rows measured again as their
- * prices land do not move the estimate.
- */
-const estimatedFromMeasured = (list: WindowList.Model, message: WindowList.Message) =>
-  WindowList.Message.match(message, {
-    Placed: () => list,
-    Measured: () => {
-      const heights = Object.values(list.heights)
-      if (heights.length === 0) return list
-      const mean = heights.reduce((sum, height) => sum + height, 0) / heights.length
-      return mean === list.estimatedHeight
-        ? list
-        : modifyFields(list, { estimatedHeight: () => mean })
-    },
-  })
-
 const withoutDomain = (name: string) => (cart: Cart.Cart) =>
   Array.filter(cart, domain => domain.name !== name)
 
@@ -340,10 +320,7 @@ const own = (model: Model, message: Own): Return =>
     CompletedFocusFiltersButton: () => ({ model }),
     CompletedFocusTldFilterButton: () => ({ model }),
     GotResultsListMessage: ({ message }) => {
-      const next = estimatedFromMeasured(
-        WindowList.update(model.resultsList, message).model,
-        message,
-      )
+      const next = WindowList.update(model.resultsList, message).model
       return {
         model:
           next === model.resultsList ? model : modifyFields(model, { resultsList: () => next }),
@@ -515,12 +492,14 @@ const Settled = Page.at(Search, {
     ({ value }) =>
     (model: Model): Return => {
       const label = queryToMaybeDomainLabel(value)
-      // Rows of another label are never drawn again: their heights go with them.
-      const same = Option.makeEquivalence(String.Equivalence)(label, model.settledLabel)
+      // Rows of another label are never drawn again: their heights go with
+      // them. The new label's stay: its rows were drawn, and measured, as it
+      // was typed, and a row is measured again only when it resizes (#381).
       return {
         model: modifyFields(model, {
           settledLabel: () => label,
-          resultsList: list => (same ? list : WindowList.keep(list, [])),
+          resultsList: list =>
+            WindowList.keep(list, Option.match(label, { onNone: () => [], onSome: namesOf })),
         }),
       }
     },

@@ -116,7 +116,10 @@ version changed; `pnpm` skips versions already in the registry.
   and `keep`; Slots `root`, `spacer`, `row`. `VirtualList` stays the list in
   a box of its own. Its one Mount, `WindowList.Track`, is resolved in a
   Scene with `WindowList.resolveTrack(onMessage, reading)`, which sends the
-  reading through the view's own `onMessage` (#369).
+  reading through the view's own `onMessage` (#369). `init`'s
+  `unmeasured: 'mean'` counts a row not yet measured as the mean of the rows
+  measured, for rows whose height the window's width decides, which `init`
+  cannot know (#381).
 
 - **Request body limits on the Remote endpoint** (`foldkit-remote-server`,
   #359). `serveFetch`'s `maxBodyBytes` (default 1 MiB; it read a body of any

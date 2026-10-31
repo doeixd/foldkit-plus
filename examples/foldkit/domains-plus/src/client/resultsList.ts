@@ -28,7 +28,11 @@ export const groupDomainListings = (
   )
 
 export const RESULTS_LIST_ID = 'domain-results'
-/** Two rows of three at upstream's desktop row height, until a group is measured. */
+/**
+ * Two rows of three at upstream's desktop row height, until a group is
+ * measured; then the mean of those measured, since a group of six names is
+ * one height on a desktop and three times it on a phone (#381).
+ */
 export const RESULTS_GROUP_HEIGHT_PX = 114
 /** Groups drawn, and read, past each end of the viewport. */
 export const RESULTS_OVERSCAN_GROUPS = 2
@@ -37,5 +41,6 @@ export const initResultsList = (): WindowList.Model =>
   WindowList.init({
     id: RESULTS_LIST_ID,
     estimatedHeight: RESULTS_GROUP_HEIGHT_PX,
+    unmeasured: 'mean',
     overscan: RESULTS_OVERSCAN_GROUPS,
   })

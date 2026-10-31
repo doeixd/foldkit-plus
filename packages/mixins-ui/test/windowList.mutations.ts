@@ -50,6 +50,55 @@ export default [
     tests: unit,
   },
   {
+    name: "the estimate follows the rows measured without 'mean'",
+    edits: [
+      {
+        file,
+        find: "model.unmeasured === 'mean' && measured.length > 0",
+        replace: 'measured.length > 0',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: "a list is 'mean' unless told otherwise",
+    edits: [
+      {
+        file,
+        find: "unmeasured: config.unmeasured ?? 'estimate',",
+        replace: "unmeasured: config.unmeasured ?? 'mean',",
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a row hidden at 0 counts toward the mean',
+    edits: [{ file, find: '.filter(height => height > 0)', replace: '' }],
+    tests: unit,
+  },
+  {
+    name: 'the mean of no rows replaces the last',
+    edits: [
+      {
+        file,
+        find: "model.unmeasured === 'mean' && measured.length > 0",
+        replace: "model.unmeasured === 'mean'",
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'keep leaves the mean of the rows it dropped',
+    edits: [
+      {
+        file,
+        find: ': withHeights(model, Object.fromEntries(held))',
+        replace: ': modifyFields(model, { heights: () => Object.fromEntries(held) })',
+      },
+    ],
+    tests: unit,
+  },
+  {
     name: 'the viewport above the list counts as over it',
     edits: [
       {

@@ -178,6 +178,57 @@ test('All Results reads the rows scrolled into view, and only those', async () =
   await page.close()
 })
 
+test('at 320px the list keeps its length as the prices land (#381)', async () => {
+  const { page, problems } = await opened()
+  await page.setViewportSize({ width: 320, height: 900 })
+  let release = (): void => undefined
+  const prices = new Promise<void>(resolve => {
+    release = resolve
+  })
+  await page.route('**/remote', async route => {
+    await prices
+    await route.continue().catch(() => undefined)
+  })
+  // The list's height once ten frames running have drawn it the same.
+  const steadyLength = () =>
+    page.locator('#domain-results').evaluate(
+      list =>
+        new Promise<number>(resolve => {
+          let last = -1
+          let same = 0
+          const frame = () => {
+            const height = list.getBoundingClientRect().height
+            same = height === last ? same + 1 : 0
+            last = height
+            if (same === 10) resolve(height)
+            else requestAnimationFrame(frame)
+          }
+          frame()
+        }),
+    )
+  try {
+    await page.goto(`${origin}/`)
+    await page.locator('#domains-app:not([data-foldkit-plus-resume])').waitFor({ timeout: 60_000 })
+    // Typed, so the rows are drawn before the debounce settles the label;
+    // its names wrap at 320px, so the rows are not all one height.
+    await page
+      .getByRole('searchbox', { name: 'Search domains' })
+      .fill('a-long-domain-name-for-layout')
+    await page.locator('#domain-results .domain-row').first().waitFor()
+    await expect.poll(() => new URL(page.url()).search).toBe('?q=a-long-domain-name-for-layout')
+    const pending = await steadyLength()
+    release()
+    await expect
+      .poll(() => page.locator('#domain-results .domain-row .price').count(), { timeout: 30_000 })
+      .toBeGreaterThan(0)
+    expect(await steadyLength()).toBe(pending)
+    expect(problems).toEqual([])
+  } finally {
+    release()
+    await page.close()
+  }
+})
+
 test('on a phone the filters open as sheets from the bottom', async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true })
   const problems: Array<string> = []

@@ -15,7 +15,8 @@
  * `top` is how far the viewport's top is past the list's, so content above
  * the list, or growing above it, is read every time and never assumed. A
  * row's height is its border box, measured once drawn; until then it is
- * `estimatedHeight`. A row is drawn `display: flow-root`, so space rows with
+ * `estimatedHeight`, or with `unmeasured: 'mean'` the mean of the rows
+ * measured. A row is drawn `display: flow-root`, so space rows with
  * padding, not margins. `@foldkit/ui`'s `VirtualList` is the list in a box
  * of its own.
  */
@@ -47,8 +48,10 @@ export const WindowListSlots = Slots.define({
 
 export const Model = Schema.Struct({
   id: Schema.String,
-  /** A row's height until it is measured, in pixels. */
+  /** A row's height until it is measured, in pixels; kept at the mean of `heights` under `'mean'`. */
   estimatedHeight: Schema.Number,
+  /** What a row not yet measured counts: `init`'s estimate, or the mean of the rows measured. */
+  unmeasured: Schema.Literals(['estimate', 'mean']),
   /** Rows drawn beyond the viewport at each end. */
   overscan: Schema.Number,
   /** Measured border-box heights, by row key. */
@@ -70,6 +73,15 @@ export interface InitConfig {
   readonly id: string
   /** A row's height until it is measured, in pixels. */
   readonly estimatedHeight: number
+  /**
+   * What a row not yet measured counts. `'estimate'` (the default) is
+   * `estimatedHeight`. `'mean'` is the mean of the rows measured above 0, and
+   * `estimatedHeight` until one is: for rows of one height that the window's
+   * width decides (a grid of one column on a phone and three on a desktop),
+   * which `init`, run before any width is known, cannot pick, so the list's
+   * length is right once one row is measured rather than moving as each is.
+   */
+  readonly unmeasured?: Model['unmeasured']
   /** Rows drawn beyond the viewport at each end. Default 5. */
   readonly overscan?: number
   /**
@@ -94,10 +106,25 @@ export const init = (config: InitConfig): Model => {
   return {
     id: config.id,
     estimatedHeight: config.estimatedHeight,
+    unmeasured: config.unmeasured ?? 'estimate',
     overscan,
     heights: {},
     viewport: { top: 0, height: config.viewportHeight ?? 1000 },
   }
+}
+
+/**
+ * `model` with `heights`, and under `'mean'` its estimate their mean; the
+ * last mean stays while no row measured is above 0, since a row seen at this
+ * width is a better guess than `init`'s.
+ */
+const withHeights = (model: Model, heights: Model['heights']): Model => {
+  const measured = Object.values(heights).filter(height => height > 0)
+  const estimatedHeight =
+    model.unmeasured === 'mean' && measured.length > 0
+      ? measured.reduce((sum, height) => sum + height, 0) / measured.length
+      : model.estimatedHeight
+  return modifyFields(model, { heights: () => heights, estimatedHeight: () => estimatedHeight })
 }
 
 /** The list after `message`; the same Model when nothing changes. */
@@ -118,25 +145,26 @@ export const update = (model: Model, message: Message): { readonly model: Model 
       return changed.length === 0
         ? { model }
         : {
-            model: modifyFields(model, {
-              heights: heights =>
-                Object.fromEntries([
-                  ...Object.entries(heights),
-                  ...changed.map(({ key, height }) => [key, height] as const),
-                ]),
-            }),
+            model: withHeights(
+              model,
+              Object.fromEntries([
+                ...Object.entries(model.heights),
+                ...changed.map(({ key, height }) => [key, height] as const),
+              ]),
+            ),
           }
     },
   })
 
-/** The Model without the heights of rows no longer in `keys`; the same Model when none left. */
+/**
+ * The Model without the heights of rows no longer in `keys`, its `'mean'`
+ * taken again over those kept; the same Model when none left.
+ */
 export const keep = (model: Model, keys: ReadonlyArray<string>): Model => {
   const kept = new Set(keys)
   const entries = Object.entries(model.heights)
   const held = entries.filter(([key]) => kept.has(key))
-  return held.length === entries.length
-    ? model
-    : modifyFields(model, { heights: () => Object.fromEntries(held) })
+  return held.length === entries.length ? model : withHeights(model, Object.fromEntries(held))
 }
 
 const layoutOf = (model: Model): VirtualLayout => ({

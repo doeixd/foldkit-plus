@@ -2,10 +2,10 @@
  * WindowList's Model: a reading equal to the one held returns the Model it
  * was given, a poisoned height is ignored, `keep` lets departed rows go, and
  * `windowOf` covers the part of the viewport over the list plus the overscan,
- * whether the list is above, across or below the viewport. A Scene of a page
+ * whether the list is above, across or below the viewport, and under
+ * `unmeasured: 'mean'` a row not yet measured counts the mean of those measured. A Scene of a page
  * drawing the list resolves its one Mount through the page's own Message.
  */
-import { Schema } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Scene } from 'foldkit/test'
@@ -91,6 +91,47 @@ describe('WindowList.keep', () => {
 
   it('returns the Model when every measured row stays', () => {
     expect(WindowList.keep(measured, ['a', 'b', 'c'])).toBe(measured)
+  })
+})
+
+describe("unmeasured: 'mean'", () => {
+  const measure = (list: WindowList.Model, rows: ReadonlyArray<readonly [string, number]>) =>
+    WindowList.update(
+      list,
+      WindowList.Message.Measured({ rows: rows.map(([key, height]) => ({ key, height })) }),
+    ).model
+  const mean = WindowList.init({ id: 'list', estimatedHeight: 20, unmeasured: 'mean' })
+  // A row hidden at 0 is no guess for a row not yet drawn.
+  const measured = measure(mean, [
+    ['a', 100],
+    ['b', 200],
+    ['c', 0],
+  ])
+
+  it('counts a row not yet measured as the mean of those measured above 0', () => {
+    expect(mean.estimatedHeight).toBe(20)
+    expect(measured.estimatedHeight).toBe(150)
+    // Rows 0 and 1 at 150 cover the 200px viewport, then two of overscan: at 20, twelve.
+    const at = WindowList.update(
+      WindowList.init({
+        id: 'list',
+        estimatedHeight: 20,
+        unmeasured: 'mean',
+        overscan: 2,
+        viewportHeight: 200,
+      }),
+      WindowList.Message.Measured({ rows: [{ key: 'other', height: 150 }] }),
+    ).model
+    expect(WindowList.windowOf(at, keys)).toEqual({ start: 0, end: 4 })
+  })
+
+  it('takes the mean again over the rows kept, and holds the last while none is', () => {
+    expect(WindowList.keep(measured, ['b', 'c']).estimatedHeight).toBe(200)
+    expect(WindowList.keep(measured, ['c']).estimatedHeight).toBe(150)
+  })
+
+  it("keeps init's estimate by default", () => {
+    expect(measure(model, [['a', 100]]).estimatedHeight).toBe(20)
   })
 })
 
