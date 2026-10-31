@@ -16,6 +16,7 @@ import {
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote, entityKey, optimisticOfWrite } from '../src/index.js'
+import { Answers } from './answers.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -42,6 +43,7 @@ const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote
 
 const remote = (operators?: MemoryOperators) => {
   const Data = Remote.make({
+    mutations: [Answers],
     model: App.model.remote,
     entities: [Project],
     queries: [Above],
@@ -165,6 +167,7 @@ const Nearest = Query.define('Nearest', { target: Schema.Number }, ({ input }) =
 describe('A list ordered by a call', () => {
   const ordered = (operators?: MemoryOperators) => {
     const Data = Remote.make({
+      mutations: [Answers],
       model: App.model.remote,
       entities: [Project],
       queries: [Nearest],
@@ -296,6 +299,7 @@ describe('A pending computed assignment', () => {
   )
   const shown = (operators?: MemoryOperators) => {
     const Data = Remote.make({
+      mutations: [Answers],
       model: App.model.remote,
       entities: [Project],
       queries: [],
@@ -355,6 +359,7 @@ describe('A pending computed assignment', () => {
       compute: { name: ({ row }) => upper(row.name) },
     })
     const Data = Remote.make({
+      mutations: [Answers],
       model: App.model.remote,
       entities: [Project],
       queries: [],

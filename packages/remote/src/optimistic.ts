@@ -13,6 +13,7 @@ import {
   type MemoryOperators,
 } from 'foldkit-entity'
 import { type Connection, type Edge, edge, items } from './connection.js'
+import { connectionIdentity, type ConnectionIdentity } from './capability.js'
 import {
   reconcileMutation,
   type MutationAnswer,
@@ -32,6 +33,13 @@ import {
   type EntityKey,
   type EntityStore,
 } from './store.js'
+
+export {
+  addOverlay,
+  connectionIdentity,
+  emptyOptimistic,
+  type ConnectionIdentity,
+} from './capability.js'
 
 export interface EntityLayer {
   readonly id: string
@@ -78,12 +86,6 @@ const toOverlays = (id: string, changes: ReadonlyArray<ConnectionChange>): Conne
     edges: [change.edge],
     position: change._tag === 'Insert' ? change.position : 'remove',
   }))
-
-/** A connection, by identity string or by anything that carries one (a `QueryRef`). */
-export type ConnectionIdentity = string | { readonly identity: string }
-
-export const connectionIdentity = (connection: ConnectionIdentity): string =>
-  typeof connection === 'string' ? connection : connection.identity
 
 const change = (
   connection: ConnectionIdentity,
@@ -181,8 +183,6 @@ export interface OptimisticState {
   readonly overlays: ReadonlyArray<ConnectionOverlay>
 }
 
-export const emptyOptimistic: OptimisticState = { layers: [], overlays: [] }
-
 export const addLayer = (optimistic: OptimisticState, layer: EntityLayer): OptimisticState => ({
   ...optimistic,
   layers: [...optimistic.layers, layer],
@@ -192,14 +192,6 @@ export const removeLayer = (optimistic: OptimisticState, id: string): Optimistic
   const layers = optimistic.layers.filter(layer => layer.id !== id)
   return layers.length === optimistic.layers.length ? optimistic : { ...optimistic, layers }
 }
-
-export const addOverlay = (
-  optimistic: OptimisticState,
-  overlay: ConnectionOverlay,
-): OptimisticState => ({
-  ...optimistic,
-  overlays: [...optimistic.overlays, overlay],
-})
 
 export const removeOverlay = (optimistic: OptimisticState, id: string): OptimisticState => {
   const overlays = optimistic.overlays.filter(overlay => overlay.id !== id)

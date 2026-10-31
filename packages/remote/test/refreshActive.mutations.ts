@@ -34,8 +34,8 @@ export default [
     edits: [
       {
         file: '../src/model.ts',
-        find: '          message.connection in model.failures.connections\n            ? new Set',
-        replace: '          false\n            ? new Set',
+        find: '      connection in model.failures.connections\n        ? new Set',
+        replace: '      false\n        ? new Set',
       },
     ],
     tests,

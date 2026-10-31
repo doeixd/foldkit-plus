@@ -18,6 +18,7 @@ import {
 } from '../src/index.js'
 import { why, Why } from '../src/why.js'
 import { whyWords } from '../src/whyTerms.js'
+import { Answers } from './answers.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -35,7 +36,12 @@ const ByOwner = Query.define('ByOwner', { ownerId: Schema.String }, ({ input }) 
 const Model = Schema.Struct({ remote: Remote.Model })
 type Model = typeof Model.Type
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
-const Data = Remote.make({ model: App.model.remote, entities: [Project], queries: [ByOwner] })
+const Data = Remote.make({
+  mutations: [Answers],
+  model: App.model.remote,
+  entities: [Project],
+  queries: [ByOwner],
+})
 const start: Model = { remote: Remote.initial }
 
 const listOf = (ownerId: string) => Data.query(ByOwner, { ownerId }, { select: Named, first: 25 })
@@ -347,6 +353,7 @@ describe("Remote.make's budget", () => {
 
   it('reaches retention on its Message, and is left off when not given', async () => {
     const budgeted = Remote.make({
+      mutations: [Answers],
       model: App.model.remote,
       entities: [Project],
       queries: [ByOwner],
@@ -367,7 +374,13 @@ describe("Remote.make's budget", () => {
 
   it.each([-1, Number.NaN])('refuses %s where it is given', budget => {
     expect(() =>
-      Remote.make({ model: App.model.remote, entities: [Project], queries: [ByOwner], budget }),
+      Remote.make({
+        mutations: [Answers],
+        model: App.model.remote,
+        entities: [Project],
+        queries: [ByOwner],
+        budget,
+      }),
     ).toThrow(/budget is how many entries/)
     expect(() => Remote.retain([a], undefined, { budget })).toThrow(/budget is how many entries/)
   })

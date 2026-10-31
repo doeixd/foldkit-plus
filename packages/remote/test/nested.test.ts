@@ -18,6 +18,7 @@ import {
   relationShape,
   requirementsOf,
   tombstone,
+  updateRemote,
   writeEntity,
   type EntityStore,
   type RemoteMessage,
@@ -421,7 +422,7 @@ describe('observe resolves a graph in one read', () => {
     const emitted = [...messages] as ReadonlyArray<RemoteMessage>
     expect(emitted.map(message => message._tag)).toEqual(['ReadStarted', 'ReadReceived'])
     const received = emitted.find(message => message._tag === 'ReadReceived')!
-    const model = Data.update(initialRemoteModel, received)
+    const model = updateRemote(initialRemoteModel, received)
     expect(calls).toHaveLength(1)
     expect(Object.keys(model.entities).sort()).toEqual([
       'Comment:c1',

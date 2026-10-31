@@ -108,7 +108,7 @@ export default [
   edit(
     'a write settled elsewhere leaves what it showed as it is',
     model,
-    "requests.length === 0 ? released : reduceRemote(released, { _tag: 'RefreshStarted', requests })",
+    "requests.length === 0\n      ? released\n      : reduceRemote(capabilities, released, { _tag: 'RefreshStarted', requests })",
     'released',
   ),
   edit(

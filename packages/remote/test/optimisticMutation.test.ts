@@ -27,6 +27,7 @@ import {
   type LiveEvent,
   type RemoteModel,
 } from '../src/index.js'
+import { Answers } from './answers.js'
 
 const Comment = Entity.make('Comment', Schema.Struct({ id: Schema.String, body: Schema.String }))
 const AddComment = Mutation.make('AddComment', {
@@ -297,7 +298,7 @@ describe('Remote.mutateInto with optimistic operations', () => {
 })
 
 describe('a Surface reads through the optimistic layers', () => {
-  const Data2 = Remote.define({ entities: [Comment] })
+  const Data2 = Remote.define({ entities: [Comment], mutations: [Answers] })
   const App2 = Surface.application({
     Model: Schema.Struct({ remote: Data2.Model }),
     Message: defineMessageUnion({ Ping: {} }),

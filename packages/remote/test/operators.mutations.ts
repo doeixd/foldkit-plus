@@ -20,10 +20,9 @@ export default [
     name: 'a pending edit is placed without the table',
     edits: [
       {
-        file: '../src/index.ts',
-        find: 'impactOn({ ...query.value, connection: placed, holds }, store, change, operators, context)',
-        replace:
-          'impactOn({ ...query.value, connection: placed, holds }, store, change, undefined as never, context)',
+        file: '../src/placing.ts',
+        find: '        lists.operators,\n        context,',
+        replace: '        undefined as never,\n        context,',
       },
     ],
     tests,
@@ -98,8 +97,8 @@ export default [
     name: 'a live insert is placed by a call without the table',
     edits: [
       {
-        file: '../src/index.ts',
-        find: 'placeIn(store, placed, body, query.value.encoded, key, operators)',
+        file: '../src/layers.ts',
+        find: 'placeIn(store, placed, body, query.value.encoded, key, lists.operators)',
         replace: 'placeIn(store, placed, body, query.value.encoded, key, undefined!)',
       },
     ],

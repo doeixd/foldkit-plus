@@ -23,16 +23,8 @@ import {
   type Edge,
   type Segment,
 } from './connection.js'
-import {
-  beginOptimistic,
-  emptyOptimistic,
-  pruneOverlays,
-  settleFailure,
-  settleSuccess,
-  type ConnectionChange,
-  type OptimisticState,
-  type OptimisticOperation,
-} from './optimistic.js'
+import { emptyOptimistic, layersIn, type Capabilities } from './capability.js'
+import type { ConnectionChange, OptimisticState, OptimisticOperation } from './optimistic.js'
 import {
   applyConnectionEvent,
   applyEntityEvent,
@@ -934,7 +926,7 @@ export const invalidateConnections = (
 ): RemoteModel => {
   if (connections.length === 0) return model
   const marked = connections.reduce(
-    (current, connection) => updateRemote(current, { _tag: 'ConnectionInvalidated', connection }),
+    (current, connection) => invalidated(current, connection),
     model,
   )
   return { ...marked, refresh: withRefreshRequested(marked.refresh, [], connections) }
@@ -1112,17 +1104,23 @@ const clearGap = (model: RemoteModel, stream: string): RemoteModel =>
     : model
 
 /**
- * The pure reducer all four producers share. A live event that arrives ahead of
- * its cursor is a gap: it is not applied, and the stream is recorded so its
- * live entry restarts it rather than silently missing facts. When every field a Message
+ * The pure reducer all four producers share, with what `capabilities` holds
+ * installed: `updateRemote` with everything, a domain with what its
+ * declarations brought. A live event that arrives ahead of its cursor is a
+ * gap: it is not applied, and the stream is recorded so its live entry
+ * restarts it rather than silently missing facts. When every field a Message
  * touches keeps its identity, `model` itself is returned, so the application's
  * root keeps its identity and Foldkit does not render. The common no-ops do (a
  * duplicate live event, a repeated `ReadStarted`); a repeated failure, or a
  * `preserve-existing` restore of entities already held, still makes an equal
  * copy.
  */
-export const updateRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel => {
-  const next = reduceRemote(model, message)
+export const reduceIn = (
+  capabilities: Capabilities,
+  model: RemoteModel,
+  message: RemoteMessage,
+): RemoteModel => {
+  const next = reduceRemote(capabilities, model, message)
   return next === model || !sameFields(model, next) ? next : model
 }
 
@@ -1268,7 +1266,11 @@ const isWaiting = (queued: Queued): boolean =>
   queued._tag === 'Readable' && queued.write.state._tag === 'Waiting'
 
 /** The ledger and layers without a queued write: nothing of it shown or listed. */
-const releasedFrom = (model: RemoteModel, queued: Queued): RemoteModel => {
+const releasedFrom = (
+  capabilities: Capabilities,
+  model: RemoteModel,
+  queued: Queued,
+): RemoteModel => {
   const operation = operationOf(queued)
   if (!model.mutations.pending.has(operation)) {
     return { ...model, mutations: forgetFailure(model.mutations, operation) }
@@ -1283,7 +1285,7 @@ const releasedFrom = (model: RemoteModel, queued: Queued): RemoteModel => {
   return {
     ...model,
     mutations: { ...model.mutations, pending, writes, order },
-    optimistic: settleFailure(model.optimistic, operation),
+    optimistic: layersIn(capabilities).settleFailure(model.optimistic, operation),
   }
 }
 
@@ -1293,8 +1295,13 @@ const releasedFrom = (model: RemoteModel, queued: Queued): RemoteModel => {
  * failed is failed, its layer gone; one this version cannot read is not in
  * the ledger at all.
  */
-const adopted = (model: RemoteModel, prior: Queued | undefined, entry: ReadEntry): RemoteModel => {
-  const released = prior === undefined ? model : releasedFrom(model, prior)
+const adopted = (
+  capabilities: Capabilities,
+  model: RemoteModel,
+  prior: Queued | undefined,
+  entry: ReadEntry,
+): RemoteModel => {
+  const released = prior === undefined ? model : releasedFrom(capabilities, model, prior)
   if (entry._tag === 'Unreadable') return released
   const { write } = entry
   const begun = {
@@ -1310,7 +1317,7 @@ const adopted = (model: RemoteModel, prior: Queued | undefined, entry: ReadEntry
   return write.state._tag === 'Waiting'
     ? {
         ...begun,
-        optimistic: beginOptimistic(
+        optimistic: layersIn(capabilities).begin(
           begun.optimistic,
           write.operation,
           write.optimistic,
@@ -1333,8 +1340,15 @@ const adopted = (model: RemoteModel, prior: Queued | undefined, entry: ReadEntry
  * layers go, every row they showed is asked for again and every list is
  * refetched, since what the server made of them is not known here.
  */
-const settledElsewhere = (model: RemoteModel, settled: ReadonlyArray<Queued>): RemoteModel => {
-  const released = settled.reduce(releasedFrom, model)
+const settledElsewhere = (
+  capabilities: Capabilities,
+  model: RemoteModel,
+  settled: ReadonlyArray<Queued>,
+): RemoteModel => {
+  const released = settled.reduce(
+    (current, queued) => releasedFrom(capabilities, current, queued),
+    model,
+  )
   const rows = new Map<string, { readonly entity: string; readonly id: string }>()
   for (const queued of settled) {
     if (queued._tag !== 'Readable' || queued.write.state._tag !== 'Waiting') continue
@@ -1353,7 +1367,9 @@ const settledElsewhere = (model: RemoteModel, settled: ReadonlyArray<Queued>): R
     }),
   )
   const asked =
-    requests.length === 0 ? released : reduceRemote(released, { _tag: 'RefreshStarted', requests })
+    requests.length === 0
+      ? released
+      : reduceRemote(capabilities, released, { _tag: 'RefreshStarted', requests })
   return invalidateConnections(asked, Object.keys(asked.connections))
 }
 
@@ -1365,6 +1381,7 @@ const settledElsewhere = (model: RemoteModel, settled: ReadonlyArray<Queued>): R
  * store). The Model itself when nothing changed.
  */
 const readOutbox = (
+  capabilities: Capabilities,
   model: RemoteModel,
   message: Extract<RemoteMessage, { readonly _tag: 'OutboxRead' }>,
 ): RemoteModel => {
@@ -1373,7 +1390,10 @@ const readOutbox = (
     (Option.isSome(model.outbox.scope) && model.outbox.scope.value !== message.scope)
   const start: RemoteModel = switching
     ? {
-        ...model.outbox.queue.reduce(releasedFrom, model),
+        ...model.outbox.queue.reduce(
+          (current, queued) => releasedFrom(capabilities, current, queued),
+          model,
+        ),
         outbox: { ...model.outbox, queue: [], done: [] },
       }
     : model
@@ -1396,7 +1416,7 @@ const readOutbox = (
     else if (prior !== undefined && revisionOf(prior) === revision) {
       queue.push(storedAs(prior, true))
     } else {
-      next = adopted(next, prior, entry)
+      next = adopted(capabilities, next, prior, entry)
       if (entry._tag === 'Unreadable' && prior === undefined) {
         recorded.push(outboxUnreadable({ requestId: operation, reason: entry.reason }))
       }
@@ -1410,7 +1430,7 @@ const readOutbox = (
     if (gone.has(operation)) settled.push(queued)
     else queue.push(storedAs(queued, false))
   }
-  next = settledElsewhere(next, settled)
+  next = settledElsewhere(capabilities, next, settled)
   // Said once a page: every save after fails alike until storage frees up.
   const said = next.diagnostics.some(
     diagnostic => diagnostic._tag === 'OutboxUnsaved' && diagnostic.key === message.key,
@@ -1458,10 +1478,17 @@ export const dismissQueued = (model: RemoteModel, requestId: string): RemoteMode
   }
 }
 
-const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel => {
+const reduceRemote = (
+  capabilities: Capabilities,
+  model: RemoteModel,
+  message: RemoteMessage,
+): RemoteModel => {
   switch (message._tag) {
     case 'Preloaded':
-      return message.messages.reduce(reduceRemote, model)
+      return message.messages.reduce(
+        (reduced, heard) => reduceRemote(capabilities, reduced, heard),
+        model,
+      )
     case 'CompletedReportDiagnostics':
       return model
     case 'ReadReceived':
@@ -1661,7 +1688,7 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
                 optimistic: message.optimistic ?? [],
               },
         ),
-        optimistic: beginOptimistic(
+        optimistic: layersIn(capabilities).begin(
           model.optimistic,
           message.requestId,
           message.optimistic ?? [],
@@ -1671,7 +1698,7 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
     case 'MutationSucceeded': {
       // Settling is release-the-layer-and-overlays, so overlapping optimistic
       // layers rebase instead of needing inverse patches.
-      const settled = settleSuccess(
+      const settled = layersIn(capabilities).settleSuccess(
         model.entities,
         model.optimistic,
         model.mutations,
@@ -1719,20 +1746,25 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
         ),
       }
     case 'OutboxRead':
-      return readOutbox(model, message)
-    case 'OverlayShown':
+      return readOutbox(capabilities, model, message)
+    case 'OverlayShown': {
+      const layers = layersIn(capabilities)
       return {
         ...model,
-        optimistic: beginOptimistic(
-          settleFailure(model.optimistic, overlayLayer(message.id)),
+        optimistic: layers.begin(
+          layers.settleFailure(model.optimistic, overlayLayer(message.id)),
           overlayLayer(message.id),
           message.optimistic,
         ),
       }
+    }
     case 'WindowGrown':
       return { ...model, grown: { ...model.grown, [message.window]: message.size } }
     case 'OverlayLifted': {
-      const optimistic = settleFailure(model.optimistic, overlayLayer(message.id))
+      const optimistic = layersIn(capabilities).settleFailure(
+        model.optimistic,
+        overlayLayer(message.id),
+      )
       return optimistic.layers.length === model.optimistic.layers.length &&
         optimistic.overlays.length === model.optimistic.overlays.length
         ? model
@@ -1762,7 +1794,7 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
           message.error,
           message.operation,
         ),
-        optimistic: settleFailure(model.optimistic, message.requestId),
+        optimistic: layersIn(capabilities).settleFailure(model.optimistic, message.requestId),
       }
     case 'LiveReceived': {
       const state = model.live[message.stream] ?? emptyLiveState
@@ -1856,34 +1888,22 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
                 ? merged
                 : { ...merged, receivedAt },
         },
-        optimistic: pruneOverlays(
-          model.optimistic,
-          message.connection,
-          new Set(message.page.edges.map(edge => edge.key)),
-          model.mutations.pending,
-        ),
+        // No overlay, nothing to prune: a read-only domain has no layer code.
+        optimistic:
+          model.optimistic.overlays.length === 0
+            ? model.optimistic
+            : layersIn(capabilities).pruneOverlays(
+                model.optimistic,
+                message.connection,
+                new Set(message.page.edges.map(edge => edge.key)),
+                model.mutations.pending,
+              ),
         failures,
         loading,
       }
     }
     case 'ConnectionInvalidated':
-      // Asking again is also how a failed query is retried, so the failure goes
-      // with the mark.
-      // A connection is often both: a failed refresh stays due, and `Hydrated`
-      // restores one stale. Asking again must still settle its failure, and
-      // its mark becomes a loading one, so a list with no page to show reads
-      // `Loading` until its query answers.
-      return {
-        ...model,
-        connections: setConnectionStale(model.connections, message.connection, true),
-        // Stale for a reason of its own now, not only for a placement's check.
-        placed: withoutChecking(model.placed, message.connection),
-        failures: withoutConnectionFailure(model.failures, message.connection),
-        loading:
-          message.connection in model.failures.connections
-            ? new Set([...model.loading, connectionMark(message.connection)])
-            : model.loading,
-      }
+      return invalidated(model, message.connection)
     case 'QueryFailed':
       // The pages stay as they were, and a refresh that failed is still owed:
       // the connection stays stale. The failure is what stops the planner
@@ -1904,6 +1924,28 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
         connections: setConnectionStale(model.connections, message.connection, false),
       }
   }
+}
+
+/**
+ * `ConnectionInvalidated`'s reduction. Asking again is also how a failed query
+ * is retried, so the failure goes with the mark. A connection is often both: a
+ * failed refresh stays due, and `Hydrated` restores one stale. Asking again
+ * must still settle its failure, and its mark becomes a loading one, so a list
+ * with no page to show reads `Loading` until its query answers.
+ */
+const invalidated = (model: RemoteModel, connection: string): RemoteModel => {
+  const next = {
+    ...model,
+    connections: setConnectionStale(model.connections, connection, true),
+    // Stale for a reason of its own now, not only for a placement's check.
+    placed: withoutChecking(model.placed, connection),
+    failures: withoutConnectionFailure(model.failures, connection),
+    loading:
+      connection in model.failures.connections
+        ? new Set([...model.loading, connectionMark(connection)])
+        : model.loading,
+  }
+  return sameFields(model, next) ? model : next
 }
 
 /** The failures without one connection's, keeping identity when it had none. */

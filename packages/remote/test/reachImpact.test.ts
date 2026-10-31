@@ -11,6 +11,7 @@ import { Entity, Expr, Order, Relation } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote, type NormalizedPatch } from '../src/index.js'
+import { Answers } from './answers.js'
 
 const TeamFields = Entity.define(
   'Team',
@@ -65,6 +66,7 @@ const Model = Schema.Struct({ remote: Remote.Model, me: Schema.String })
 type Model = typeof Model.Type
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
 const Data = Remote.make({
+  mutations: [Answers],
   model: App.model.remote,
   entities: [Team, Member, Note],
   queries: [OfTeam, Staffed, Adas, Ours],

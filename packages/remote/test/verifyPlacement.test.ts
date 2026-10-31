@@ -16,6 +16,7 @@ import {
   type RemoteModel,
 } from '../src/index.js'
 import { why } from '../src/why.js'
+import { Answers } from './answers.js'
 
 /** The placement mismatches `remote` records, as the facts each names. */
 const mismatchesOf = (remote: RemoteModel) =>
@@ -39,6 +40,7 @@ type Model = typeof Model.Type
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
 const make = (verifyPredictions: boolean) =>
   Remote.make({
+    mutations: [Answers],
     model: App.model.remote,
     entities: [Project],
     queries: [ByPrice],
@@ -245,6 +247,7 @@ describe('verifyPredictions over a list ordered by a call', () => {
     Operators.memory(Operators.implement(distance, run))
   const client = table((price, target) => Math.abs(price - target))
   const Data = Remote.make({
+    mutations: [Answers],
     model: App.model.remote,
     entities: [Project],
     queries: [Nearest],

@@ -108,9 +108,9 @@ export default [
     name: 'a list read ignores pending deletes',
     edits: [
       {
-        file: '../src/index.ts',
-        find: '      shown.overlays,\n      goneIn(remote.entities, remote.optimistic),',
-        replace: '      shown.overlays,\n      goneIn(remote.entities, emptyOptimistic),',
+        file: '../src/layers.ts',
+        find: 'placed.overlays, goneIn(entities, optimistic))',
+        replace: 'placed.overlays, goneIn(entities, { ...optimistic, layers: [] }))',
       },
     ],
     tests,

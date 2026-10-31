@@ -23,7 +23,7 @@ export default [
   ),
   edit(
     'a list fetched to check its placement plans no reads for a gap',
-    'planAsked(unverified(after),',
-    'planAsked(after,',
+    'planAsked(bound, unverified(after),',
+    'planAsked(bound, after,',
   ),
 ]

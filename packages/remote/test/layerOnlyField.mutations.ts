@@ -15,7 +15,7 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: 'plan(plannedStoreOf(remote.entities, remote.optimistic, visible), read, options)',
+        find: 'plan(plannedOf(capabilities, remote, visible), read, options)',
         replace: 'plan(visible, read, options)',
       },
     ],

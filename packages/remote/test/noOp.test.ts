@@ -17,6 +17,7 @@ import {
   type RemoteMessage,
   type RemoteModel,
 } from '../src/index.js'
+import { Answers } from './answers.js'
 
 const edge = (id: string) => ({ key: entityKey('User', id), ref: { entity: 'User', id } })
 const page = { edges: [edge('u1')], start: terminal, end: terminal }
@@ -82,6 +83,7 @@ const base = [
 const Model = Schema.Struct({ remote: Remote.Model })
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
 const Data = Remote.make({
+  mutations: [Answers],
   model: App.model.remote,
   entities: [Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))],
 })

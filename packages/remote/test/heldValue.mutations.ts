@@ -84,8 +84,8 @@ export default [
   edit(
     'an invalidated list drops its pages',
     model,
-    'connections: setConnectionStale(model.connections, message.connection, true),',
-    'connections: setConnectionStale({ ...model.connections, [message.connection]: emptyConnection }, message.connection, true),',
+    'connections: setConnectionStale(model.connections, connection, true),',
+    'connections: setConnectionStale({ ...model.connections, [connection]: emptyConnection }, connection, true),',
   ),
   edit(
     'a refresh forgets a deleted entity it asks about',

@@ -191,6 +191,19 @@ version changed; `pnpm` skips versions already in the registry.
   gzipped).
 
 
+- **Breaking: a domain loads the code that shows pending layers only through
+  what makes one** (`foldkit-remote`, #378). Showing pending writes, overlays
+  and live inserts over the store is a capability a domain installs from what
+  makes a layer: a Mutation it registers (a descriptor carries it under
+  `[Installs]`), `Data.overlay`, a live insert and `Remote.mutateInto`. A
+  domain whose Model holds no layer reads the committed store directly, and
+  one handed a layer nothing installed (a hand-made `MutationStarted` on a
+  domain that registers no mutation) fails, naming the domain, rather than
+  read as if there were none. `RemoteDescriptor.update`, and so
+  `Data.update`, is gone: `updateRemote` is the reducer with everything
+  installed, for a test without a domain. A `MutationDescriptor` is made by
+  `Mutation.make` or `Mutation.write`, which give it `[Installs]`.
+
 - **Remote reads are cheap to repeat, and keep their objects while what they
   read does** (`foldkit-remote`, #384). `Data.get(selection, id)` (and
   `Remote.select`) gives one Projection per Selection and id, where it built

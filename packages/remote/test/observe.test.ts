@@ -17,9 +17,13 @@ import {
   writeEntity,
   type RemoteMessage,
 } from '../src/index.js'
+import { Answers } from './answers.js'
 
 const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
-const Data = Remote.define({ entities: [User] })
+const Data = Remote.define({
+  mutations: [Answers],
+  entities: [User],
+})
 const Model = Schema.Struct({ remote: Data.Model, route: Schema.String })
 const Message = defineMessageUnion({ Ping: {} })
 const App = Surface.application({ Model, Message })

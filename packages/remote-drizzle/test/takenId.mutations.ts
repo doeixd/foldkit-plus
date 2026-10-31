@@ -6,7 +6,7 @@
  */
 const drizzle = '../src/index.ts'
 const server = '../../remote-server/src/index.ts'
-const mutation = '../../remote/src/mutation.ts'
+const mutation = '../../remote/src/mutationDescriptor.ts'
 
 const asServerError = {
   file: drizzle,

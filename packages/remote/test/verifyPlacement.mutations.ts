@@ -88,7 +88,7 @@ export default [
     edits: [
       {
         file: '../src/model.ts',
-        find: '        placed: withoutChecking(model.placed, message.connection),\n',
+        find: '    placed: withoutChecking(model.placed, connection),\n',
         replace: '',
       },
     ],

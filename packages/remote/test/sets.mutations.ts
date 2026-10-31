@@ -58,7 +58,7 @@ export default [
     name: 'a pending create joins no list',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/placing.ts',
         find: 'if (!holds.has(entityKey(change.entity, change.id)) && !created) continue',
         replace: 'if (!holds.has(entityKey(change.entity, change.id))) continue',
       },

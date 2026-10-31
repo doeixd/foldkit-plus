@@ -11,6 +11,7 @@ import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { ConnectionChange, Query, Remote, type NormalizedPatch } from '../src/index.js'
+import { Answers } from './answers.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -81,6 +82,7 @@ const Model = Schema.Struct({ remote: Remote.Model })
 type Model = typeof Model.Type
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
 const Data = Remote.make({
+  mutations: [Answers],
   model: App.model.remote,
   entities: [Project, Owner],
   queries: [ByStatus, Named, Opaque, Owners, ServerOrdered, Sorted, ActiveNamed],

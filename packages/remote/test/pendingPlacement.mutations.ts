@@ -4,14 +4,16 @@
  */
 const tests = ['packages/remote/test/pendingPlacement.test.ts']
 const index = '../src/index.ts'
+const layers = '../src/layers.ts'
+const placing = '../src/placing.ts'
 
 export default [
   {
     name: 'a read shows the server’s pages as they are',
     edits: [
       {
-        file: index,
-        find: 'const pages = pendingPlaced(remote, identity, connection)',
+        file: layers,
+        find: 'const pages = pendingPlaced(lists, entities, optimistic, identity, connection)',
         replace: 'const pages = connection',
       },
     ],
@@ -23,8 +25,7 @@ export default [
       {
         file: index,
         find: ': shownEdges(remote, over.ref.identity, connection)',
-        replace:
-          ': visibleItems(connection, over.ref.identity, remote.optimistic.overlays, goneIn(remote.entities, remote.optimistic))',
+        replace: ': edgesOf(capabilities, remote, over.ref.identity, connection)',
       },
     ],
     tests,
@@ -33,7 +34,7 @@ export default [
     name: 'a row a pending edit brings in joins the list',
     edits: [
       {
-        file: index,
+        file: placing,
         find: 'if (!holds.has(entityKey(change.entity, change.id)) && !created) continue',
         replace: '',
       },
@@ -44,7 +45,7 @@ export default [
     name: 'a placement is worked out and not shown',
     edits: [
       {
-        file: index,
+        file: placing,
         find: 'Placed: ({ connection }) => connection,',
         replace: 'Placed: () => placed,',
       },
@@ -53,7 +54,7 @@ export default [
   },
   {
     name: 'every list is placed under one key',
-    edits: [{ file: index, find: '`placed:${identity}`', replace: "'placed'" }],
+    edits: [{ file: layers, find: '`placed:${identity}`', replace: "'placed'" }],
     tests,
     survives:
       'each list’s pages are already a scope of their own; the identity keeps two lists apart only should they share one Connection value',
@@ -126,14 +127,14 @@ export default [
   },
   {
     name: 'an inserted row stays where its overlay put it',
-    edits: [{ file: index, find: 'const shown = inserts', replace: 'const shown = false' }],
+    edits: [{ file: layers, find: 'const placed = inserts', replace: 'const placed = false' }],
     tests,
   },
   {
     name: 'an inserted row placed before a loaded one stays at the front',
     edits: [
       {
-        file: index,
+        file: layers,
         find: 'Before: place => void (placed = withEdge(placed, edge, place)),',
         replace: 'Before: () => undefined,',
       },
@@ -144,7 +145,7 @@ export default [
     name: 'an inserted row placed at the end stays at the front',
     edits: [
       {
-        file: index,
+        file: layers,
         find: 'End: place => void (placed = withEdge(placed, edge, place)),',
         replace: 'End: () => undefined,',
       },
@@ -155,7 +156,7 @@ export default [
     name: 'an inserted row past what is loaded is shown',
     edits: [
       {
-        file: index,
+        file: layers,
         find: 'Outside: () => void outside.push(edge),',
         replace: 'Outside: () => undefined,',
       },
@@ -164,14 +165,14 @@ export default [
   },
   {
     name: 'an insert of a row the pages hold places it twice',
-    edits: [{ file: index, find: 'if (held.has(edge.key)) continue', replace: '' }],
+    edits: [{ file: layers, find: 'if (held.has(edge.key)) continue', replace: '' }],
     tests,
   },
   {
     name: 'a removed row is placed too',
     edits: [
       {
-        file: index,
+        file: layers,
         find: "if (overlay.connection !== identity || overlay.position === 'remove') continue",
         replace: 'if (overlay.connection !== identity) continue',
       },

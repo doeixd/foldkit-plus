@@ -132,8 +132,15 @@ describe('a read-only Remote page', () => {
     expect(kept.readOnly.remote).not.toContain('whyReasons.js')
   })
 
-  it.fails('keeps no write code (#378 phase 4)', () => {
+  it.fails('keeps no write code (#378 phase 4b)', () => {
     expect(kept.readOnly.remote).not.toContain('mutation.js')
+    expect(kept.readOnly.remote).not.toContain('mutationDescriptor.js')
+  })
+
+  // A live insert is an overlay, so until live leaves the core (phase 5) the
+  // core's live path installs the layer capability, and keeps it.
+  it.fails('keeps no layer code (#378 phases 4 and 5)', () => {
+    expect(kept.readOnly.remote).not.toContain('layers.js')
     expect(kept.readOnly.remote).not.toContain('optimistic.js')
     expect(kept.readOnly.entity).not.toContain('write.js')
   })
@@ -152,7 +159,9 @@ describe('a read-only Remote page', () => {
 
 describe('a Remote page that writes', () => {
   it('keeps the write code', () => {
-    expect(kept.writes.remote).toEqual(expect.arrayContaining(['mutation.js', 'optimistic.js']))
+    expect(kept.writes.remote).toEqual(
+      expect.arrayContaining(['mutation.js', 'layers.js', 'optimistic.js']),
+    )
     expect(kept.writes.entity).toContain('write.js')
   })
 })

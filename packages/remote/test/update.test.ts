@@ -402,9 +402,8 @@ const FakeClient = Layer.succeed(RemoteClient, {
 })
 
 describe('Remote domain submodel', () => {
-  it('Remote.define exposes Model, initial, Message, update, and rpc', () => {
+  it('Remote.define exposes Model, initial, Message, and rpc', () => {
     expect(Data.initial).toEqual(initialRemoteModel)
-    expect(Data.update).toBe(updateRemote)
     expect(Data.rpc).toBeDefined()
     expect(Data.entities).toHaveLength(1)
     expect(Data.registry.entities.get('User')?.name).toBe('User')

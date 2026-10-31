@@ -16,6 +16,7 @@ import {
   type PredictionMismatch,
   type RemoteMessage,
 } from '../src/index.js'
+import { Answers } from './answers.js'
 
 const Post = Entity.define(
   'Post',
@@ -25,7 +26,12 @@ const Model = Schema.Struct({ remote: Remote.Model })
 type Model = typeof Model.Type
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
 const make = (verifyPredictions: boolean) =>
-  Remote.make({ model: App.model.remote, entities: [Post], verifyPredictions })
+  Remote.make({
+    mutations: [Answers],
+    model: App.model.remote,
+    entities: [Post],
+    verifyPredictions,
+  })
 
 const p1 = { entity: 'Post', id: 'p1' }
 

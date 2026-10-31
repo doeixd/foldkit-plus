@@ -12,7 +12,7 @@ import {
   type InputExpr,
 } from 'foldkit-entity'
 import type { Cursor } from './connection.js'
-import { schemaOf, type SchemaOrFields, type TypeOf } from './mutation.js'
+import { schemaOf, type SchemaOrFields, type TypeOf } from './schema.js'
 
 export type LiveInsertion = 'visible' | 'boundary' | 'invalidate' | 'ignore'
 

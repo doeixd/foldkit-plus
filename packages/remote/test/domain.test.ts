@@ -23,6 +23,7 @@ import {
   Selection,
   connectionsOf,
   emptyStore,
+  updateRemote,
   entityKey,
   readField,
   refreshedAt,
@@ -164,7 +165,7 @@ describe('the domain’s operations compile to the kernel’s', () => {
     expect(Data.inspect(loaded).entities.map(entry => entry.key)).toEqual(['Project:p1'])
   })
 
-  it('reduce is Remote.update on the bound slice, for RemoteMessage or the union’s case', () => {
+  it('reduce is updateRemote on the bound slice, for RemoteMessage or the union’s case', () => {
     const message = Message.RefreshStarted({
       requests: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
     })
@@ -173,7 +174,7 @@ describe('the domain’s operations compile to the kernel’s', () => {
     // By own tag only: an inherited name is not one of Remote's Messages.
     expect(Remote.reduces({ _tag: 'toString' })).toBe(false)
     const reduced = Remote.reduces(message) ? Data.reduce(initial, message) : initial
-    expect(reduced.remote).toEqual(Data.update(initial.remote, message as never))
+    expect(reduced.remote).toEqual(updateRemote(initial.remote, message as never))
     expect(reduced.route).toBe('/')
   })
 })

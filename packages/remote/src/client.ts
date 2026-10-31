@@ -6,7 +6,7 @@ import { Context, type Duration, Effect, Schema, Stream } from 'effect'
 import { withCallTimeout } from './deadline.js'
 import type { RelationRequirement, Requirement } from './requirement.js'
 import type { LiveCursor, LiveEvent } from './live.js'
-import type { MutationDescriptor } from './mutation.js'
+import type { MutationDescriptor } from './mutationDescriptor.js'
 import type { ConnectionChange } from './optimistic.js'
 import type { RemoteError } from './remoteData.js'
 import {

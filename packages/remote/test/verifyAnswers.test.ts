@@ -16,6 +16,7 @@ import {
   type PredictionMismatch,
   type RemoteMessage,
 } from '../src/index.js'
+import { Answers } from './answers.js'
 
 const Post = DomainEntity.define(
   'Post',
@@ -37,6 +38,7 @@ const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote
 /** A domain whose active Surface lists the feed, reading each post's title and editedAt. */
 const make = (verifyPredictions: boolean) => {
   const Data = Remote.make({
+    mutations: [Answers],
     model: App.model.remote,
     entities: [Post],
     queries: [Feed],

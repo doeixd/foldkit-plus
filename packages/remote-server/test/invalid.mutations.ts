@@ -14,13 +14,13 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 export default [
   edit(
     'any invalid refusal matches every invariant',
-    '../../remote/src/mutation.ts',
+    '../../remote/src/mutationDescriptor.ts',
     '    Option.contains(refusal.rule, invariant.id),',
     '    true,',
   ),
   edit(
     'an unnamed refusal matches every invariant',
-    '../../remote/src/mutation.ts',
+    '../../remote/src/mutationDescriptor.ts',
     'Option.contains(refusal.rule, invariant.id)',
     'Option.getOrElse(Option.map(refusal.rule, rule => rule === invariant.id), () => true)',
   ),
@@ -40,7 +40,7 @@ export default [
   edit('the refusal has no path', server, 'path: refused.path,', 'path: [],'),
   edit(
     'a plain write cannot be refused as invalid',
-    '../../remote/src/mutation.ts',
+    '../../remote/src/mutationDescriptor.ts',
     'conflictUnmetOrInvalid : conflictOrInvalid)',
     'conflictUnmetOrInvalid : conflict)',
   ),

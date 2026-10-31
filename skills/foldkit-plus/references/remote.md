@@ -1220,6 +1220,11 @@ handler's write and raw SQL are held to the invariants and move the revision too
   derives from many reads with `Projection.derive([App.model.remote, …], f)`.
   A Remote read declares no Model path, so name the store's field; `derive`
   refuses a Remote Projection in `on`.
+- A domain loads the code that shows pending writes and overlays only through
+  what makes one: a Mutation it registers, `overlay`, a live insert. Reducing a
+  hand-made `MutationStarted` or `MutationSucceeded` on a domain that registers
+  no mutation throws, naming the domain; register one in such a test, or reduce
+  with `updateRemote`, which has everything. `RemoteDescriptor.update` is gone.
 - Selections must pick at least one field (`Selection.make` throws otherwise).
 - Presence is not `value === undefined`: missing, present-undefined, present-null,
   stale, and not-found are distinct.

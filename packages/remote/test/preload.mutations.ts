@@ -11,7 +11,7 @@ export default [
     edits: [
       {
         file: '../src/model.ts',
-        find: '      return message.messages.reduce(reduceRemote, model)',
+        find: '      return message.messages.reduce(\n        (reduced, heard) => reduceRemote(capabilities, reduced, heard),\n        model,\n      )',
         replace: '      return model',
       },
     ],

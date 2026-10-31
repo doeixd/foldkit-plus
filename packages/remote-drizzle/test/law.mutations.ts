@@ -41,9 +41,9 @@ export default [
   ),
   edit(
     'the client places pending rows without the viewer',
-    '../../remote/src/index.ts',
-    '        layersContext(layers),',
-    '        undefined,',
+    '../../remote/src/layers.ts',
+    '      layersContext(layers),',
+    '      undefined,',
   ),
   edit(
     'the client places a row by the order reversed',

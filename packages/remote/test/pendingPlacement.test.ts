@@ -268,6 +268,9 @@ describe('A row an insert shows', () => {
     expect(ids(active, joined)).toEqual(['p4', 'p1', 'p2', 'p3'])
     const later = inserted(read(loaded(), 'p4', { status: 'active', price: 25 }), 'p4')
     expect(ids(active, later)).toEqual(['p1', 'p2', 'p4', 'p3'])
+    // Past every row of a list loaded whole: its end, though it was prepended.
+    const last = inserted(read(loaded(), 'p4', { status: 'active', price: 99 }), 'p4')
+    expect(ids(active, last)).toEqual(['p1', 'p2', 'p3', 'p4'])
   })
 
   it('is left out when it sorts past what is loaded', () => {

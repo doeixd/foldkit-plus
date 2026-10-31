@@ -2931,9 +2931,14 @@ imperatively and reduces their results into a new Model.
 
 ### The reducer and its Messages
 
-`updateRemote(remote, message)` is the pure reducer over Remote facts;
-`Data.update` applies it to a bound Remote state and `Data.reduce` applies it to
-the application Model. The common Messages that change nothing (a duplicate live
+`updateRemote(remote, message)` is the pure reducer over Remote facts, for a
+test or a tool without a domain; `Data.reduce` applies it to the application
+Model with what the domain's declarations installed. A domain loads the code
+that shows pending writes and overlays only through what makes one: a Mutation
+it registers, `overlay`, a live insert. Handed a pending layer nothing
+installed (a hand-made `MutationStarted` on a domain that registers no
+mutation), it fails, naming the domain, rather than read as if there were none.
+The common Messages that change nothing (a duplicate live
 event, a repeated `ReadStarted`, an empty `Hydrated`, a retention pass that
 collects nothing) return the Model they were given, so Foldkit neither renders
 nor recomputes Subscription dependencies.

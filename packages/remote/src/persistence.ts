@@ -14,7 +14,7 @@
 import { Effect, Option } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import { type Connection, type Edge } from './connection.js'
-import { connectionIdentity, type ConnectionIdentity } from './optimistic.js'
+import { connectionIdentity, type ConnectionIdentity } from './capability.js'
 import { stableStringify } from './query.js'
 import { emptyStore, type EntityEntry, type EntityStore } from './store.js'
 

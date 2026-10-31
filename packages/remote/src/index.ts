@@ -73,7 +73,27 @@ import {
   type PatchValues,
 } from './entity.js'
 import { wireValues } from './patchValues.js'
-import { EntityChange, Impact, changesOf, impactOn, type HeldConnection } from './impact.js'
+import { Impact, changesOf, impactOn, type HeldConnection } from './impact.js'
+import {
+  Capability,
+  Installs,
+  connectionIdentity,
+  edgesOf,
+  emptyOptimistic,
+  goneOf,
+  layersIn,
+  noCapabilities,
+  plannedOf,
+  requestOnlyOf,
+  shownEdgesOf,
+  visibleOf,
+  type Capabilities,
+  type ConnectionIdentity,
+  type Lists,
+} from './capability.js'
+import { installLayers } from './layers.js'
+import { memoRead } from './memo.js'
+import { placedHeld } from './placing.js'
 import { belongsEncoded, matching, type Judged, type Matched } from './matching.js'
 import type { WhyReader } from './whyReasons.js'
 import { withWhyReader } from './inner.js'
@@ -101,7 +121,7 @@ import {
   retentionRootsSchema,
   invalidateConnections,
   readsStale,
-  updateRemote,
+  reduceIn,
   withRefreshRequested,
   writeRead,
   type RemoteMessage,
@@ -117,27 +137,12 @@ import {
   brokenByWrite,
   forbiddenByWrite,
   DerivedBy,
-  type MutationDescriptor,
   type MutationStatus,
   type NormalizedPatch,
   type PendingDelete,
 } from './mutation.js'
-import {
-  connectionIdentity,
-  emptyOptimistic,
-  goneIn,
-  heldOnlyByRequests,
-  plannedStore,
-  resolvedPatches,
-  visibleItems,
-  visibleStore,
-  type ConnectionIdentity,
-  type ConnectionOverlay,
-  type EntityLayer,
-  type OptimisticState,
-  type OptimisticOperation,
-} from './optimistic.js'
-import { RowPlace, placeIn, withEdge } from './placement.js'
+import type { MutationDescriptor } from './mutationDescriptor.js'
+import type { OptimisticOperation } from './optimistic.js'
 import { deadlineOf, plan, type Deadline, type PlanOptions } from './plan.js'
 import { RemotePolicy } from './policy.js'
 import { IDENTITY_SEPARATOR, stableStringify } from './query.js'
@@ -250,9 +255,56 @@ export * from './inspect.js'
 export * from './live.js'
 export * from './matching.js'
 export { placeIn, RowPlace } from './placement.js'
-export * from './model.js'
+export {
+  dismissQueued,
+  emptyRefresh,
+  failureOf,
+  fieldMark,
+  forgetRemote,
+  initialRemoteModel,
+  invalidateConnections,
+  isFieldFailed,
+  isLoading,
+  isLoadingThrough,
+  isQueryLoading,
+  isRemoteMessage,
+  noFailures,
+  onlyOverlaid,
+  overlaysOf,
+  readsStale,
+  refreshIsInFlight,
+  refreshedAt,
+  remoteMessageCases,
+  remoteMessageSchema,
+  remoteModelSchema,
+  retentionRootsSchema,
+  windowGrowthKey,
+  withRefreshRequested,
+  writeRead,
+  type Evicted,
+  type Failures,
+  type PlacedOrder,
+  type RefreshState,
+  type RemoteMessage,
+  type RemoteMessageInput,
+  type RemoteMessageTag,
+  type RemoteModel,
+  type StreamHealth,
+} from './model.js'
+export { updateRemote } from './update.js'
 export * from './mutation.js'
+export * from './mutationDescriptor.js'
+export * from './schema.js'
 export * from './optimistic.js'
+export {
+  Capability,
+  Installs,
+  type Capabilities,
+  type Install,
+  type LayerCapability,
+  type Lists,
+  type ListQuery,
+} from './capability.js'
 export * from './persistence.js'
 export { OutboxItemState, type OutboxItem, type OutboxStatus, type RetryOptions } from './outbox.js'
 export * from './plan.js'
@@ -337,7 +389,6 @@ export interface RemoteDescriptor<
   readonly Model: Schema.Codec<RemoteModel, unknown>
   readonly initial: RemoteModel
   readonly Message: Schema.Schema<RemoteMessage>
-  readonly update: (model: RemoteModel, message: RemoteMessage) => RemoteModel
   readonly rpc: typeof RemoteRpc
   /** Name-keyed lookups built from the declared entities, queries, and mutations. */
   readonly registry: {
@@ -372,6 +423,12 @@ export interface BoundRemote<AppModel, Store extends RemoteModel, Names extends 
    * pending computed assignment is predicted by wherever the store is read.
    */
   readonly operators: MemoryOperators
+  /**
+   * What the domain's declarations installed (#378): empty until something
+   * that makes a pending layer does, so a domain that only reads runs, and a
+   * page that only reads loads, none of the code that shows one.
+   */
+  readonly [Capability]: Capabilities
   /** Phantom: the entity names this Remote definition registers. */
   readonly [boundRemoteNames]?: Names
 }
@@ -1159,8 +1216,8 @@ export interface ReadMeta {
   readonly loading: boolean
 }
 
-const metaOf = (remote: RemoteModel, asked: Asked, operators: MemoryOperators): ReadMeta => {
-  const visible = visibleStoreOf(remote.entities, remote.optimistic, operators)
+const metaOf = (bound: BoundRemote<any, any>, remote: RemoteModel, asked: Asked): ReadMeta => {
+  const visible = visibleOf(bound[Capability], remote, bound.operators)
   let updatedAt: number | undefined
   let stale = false
   let loading = false
@@ -1202,12 +1259,7 @@ const metaOf = (remote: RemoteModel, asked: Asked, operators: MemoryOperators): 
       isQueryLoading(remote, connection.identity)
     )
       loading = true
-    for (const edge of visibleItems(
-      known,
-      connection.identity,
-      remote.optimistic.overlays,
-      goneIn(remote.entities, remote.optimistic),
-    )) {
+    for (const edge of edgesOf(bound[Capability], remote, connection.identity, known)) {
       if (edge.ref.entity !== connection.select.entity) continue
       touch(edge.ref.entity, edge.ref.id, connection.select)
     }
@@ -1224,8 +1276,7 @@ const storeOf = <AppModel, Store extends RemoteModel, Names extends string>(
   bound: BoundRemote<AppModel, Store, Names>,
   model: AppModel,
 ): EntityStore => {
-  const remote = bound.store.get(model)
-  return visibleStoreOf(remote.entities, remote.optimistic, bound.operators)
+  return visibleOf(bound[Capability], bound.store.get(model), bound.operators)
 }
 
 /**
@@ -1250,86 +1301,6 @@ const confirmed = <AppModel, Store extends RemoteModel, P extends Projection<App
   ...projection,
   read: (root: AppModel) => projection.read(withoutOptimistic(bound, root)),
 })
-
-// The visible store is recomputed only when the base store or the layers
-// change, so reads and plans across renders of one Model share it. Keyed on
-// the layers rather than the whole optimistic state, which also changes with
-// every overlay (a live insert, a page pruning one) that no layer is part of.
-// By the client's table, then the layers, then the store: a prediction depends on all three.
-const visibleStores = new WeakMap<
-  MemoryOperators,
-  WeakMap<object, WeakMap<EntityStore, EntityStore>>
->()
-
-const visibleStoreOf = (
-  entities: EntityStore,
-  optimistic: OptimisticState,
-  operators: MemoryOperators,
-): EntityStore => {
-  let byLayers = visibleStores.get(operators)
-  if (byLayers === undefined) {
-    byLayers = new WeakMap()
-    visibleStores.set(operators, byLayers)
-  }
-  let byStore = byLayers.get(optimistic.layers)
-  if (byStore === undefined) {
-    byStore = new WeakMap()
-    byLayers.set(optimistic.layers, byStore)
-  }
-  let visible = byStore.get(entities)
-  if (visible === undefined) {
-    visible = visibleStore(entities, optimistic, operators)
-    byStore.set(entities, visible)
-  }
-  return visible
-}
-
-// A visible store is made from one store and one set of layers, so it keys
-// what is planned over it; the read entries ask on every Model change.
-const plannedStores = new WeakMap<EntityStore, EntityStore>()
-
-/** `plannedStore` of the visible store, kept by it. */
-const plannedStoreOf = (
-  entities: EntityStore,
-  optimistic: OptimisticState,
-  visible: EntityStore,
-): EntityStore => {
-  let planned = plannedStores.get(visible)
-  if (planned === undefined) {
-    planned = plannedStore(entities, visible, optimistic)
-    plannedStores.set(visible, planned)
-  }
-  return planned
-}
-
-interface ReadScope {
-  readonly inner: WeakMap<object, ReadScope>
-  readonly results: Map<string, unknown>
-}
-
-const readResults: ReadScope = { inner: new WeakMap(), results: new Map() }
-
-// A read's result per snapshot of everything it reads. `Remote.storeOf` is
-// shared across every read of one Model state, so equal reads of one render
-// assemble and decode once and return one value (a view may compare by
-// identity). A query read also depends on its connection and the overlays,
-// which change independently of the store, so it keys on those too. Weak on
-// every scope, bounded by what is read.
-const memoRead = <T>(scopes: ReadonlyArray<object>, key: string, compute: () => T): T => {
-  let scope = readResults
-  for (const by of scopes) {
-    let inner = scope.inner.get(by)
-    if (inner === undefined) {
-      inner = { inner: new WeakMap(), results: new Map() }
-      scope.inner.set(by, inner)
-    }
-    scope = inner
-  }
-  if (scope.results.has(key)) return scope.results.get(key) as T
-  const value = compute()
-  scope.results.set(key, value)
-  return value
-}
 
 /**
  * `Remote.select`'s reader for one domain and Selection, kept by the
@@ -1603,7 +1574,6 @@ const defineRemote = <
     Model: remoteModelSchema(),
     initial: initialRemoteModel,
     Message: remoteMessageSchema,
-    update: updateRemote,
     rpc: RemoteRpc,
     registry: {
       entities: new Map(entities.map(entity => [entity.name, entity])),
@@ -1633,13 +1603,17 @@ const bindRemote = <
   operators: MemoryOperators,
 ): BoundRemote<AppModel, Store, EntityName<Entities[number]>> => {
   const store = ModelRef.focus(ref)
+  const name = store.dependency.join('.') || 'remote'
+  const capabilities = noCapabilities(name)
+  for (const mutation of definition.mutations) mutation[Installs](capabilities)
   return {
     definition,
     store,
     operators,
+    [Capability]: capabilities,
     contract: {
       kind: 'remote',
-      name: store.dependency.join('.') || 'remote',
+      name,
       // A generated field reference knows its application and its path; a raw
       // optic (`ModelRef.fromOptic`) knows neither, so it claims nothing.
       owner: (store as { readonly owner?: object }).owner,
@@ -1764,11 +1738,12 @@ const missingRows = (
 }
 
 const planAsked = (
+  bound: BoundRemote<any, any>,
   remote: RemoteModel,
   asked: Asked,
   options: PlanOptions,
-  operators: MemoryOperators,
 ): Planned => {
+  const capabilities = bound[Capability]
   const queries: QueryRequirement[] = []
   const refreshing: string[] = []
   const items: Requirement[] = []
@@ -1812,12 +1787,7 @@ const planAsked = (
     const tail =
       failed || size === undefined ? undefined : missingRows(known, connection.window, size)
     if (tail !== undefined) queries.push(withWindow(connection, tail))
-    const edges = visibleItems(
-      known,
-      connection.identity,
-      remote.optimistic.overlays,
-      goneIn(remote.entities, remote.optimistic),
-    )
+    const edges = edgesOf(capabilities, remote, connection.identity, known)
     items.push(
       ...itemsOf(
         edges.map(edge => edge.ref),
@@ -1825,10 +1795,10 @@ const planAsked = (
       ),
     )
   }
-  const visible = visibleStoreOf(remote.entities, remote.optimistic, operators)
+  const visible = visibleOf(capabilities, remote, bound.operators)
   const read = [...asked.requirements, ...items]
-  const held = heldOnlyByRequests(remote.entities, remote.optimistic)
-  const planned = plan(plannedStoreOf(remote.entities, remote.optimistic, visible), read, options)
+  const held = requestOnlyOf(capabilities, remote)
+  const planned = plan(plannedOf(capabilities, remote, visible), read, options)
   const sent = planned.filter(
     requirement => !held.has(entityKey(requirement.entity, requirement.id)),
   )
@@ -2171,7 +2141,7 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       let byAsked = planned.get(remote)
       const known = byAsked?.get(askedKey)
       if (known !== undefined && at < known.until) return known.dependencies
-      const plan = planAsked(remote, asked, RemotePolicy.toPlan(policy, at), bound.operators)
+      const plan = planAsked(bound, remote, asked, RemotePolicy.toPlan(policy, at))
       const dependencies: ReadDependencies = {
         refresh: refreshedAt(
           remote.refresh,
@@ -2708,7 +2678,7 @@ export const Remote = {
     bound: BoundRemote<AppModel, Store>,
     model: AppModel,
     projection: Projection<AppModel, Value>,
-  ): ReadMeta => metaOf(bound.store.get(model), askedOf(projection), bound.operators),
+  ): ReadMeta => metaOf(bound, bound.store.get(model), askedOf(projection)),
 
   /**
    * The pure plan for a projection against a Model: the requirements its
@@ -2721,8 +2691,7 @@ export const Remote = {
     projection: Projection<AppModel, Value>,
     options?: PlanOptions,
   ): ReadonlyArray<Requirement> =>
-    planAsked(bound.store.get(model), askedOf(projection), options ?? {}, bound.operators)
-      .requirements,
+    planAsked(bound, bound.store.get(model), askedOf(projection), options ?? {}).requirements,
 
   /**
    * The queries a projection needs run before its connections read: those the
@@ -2734,12 +2703,9 @@ export const Remote = {
     projection: Projection<AppModel, Value>,
     options?: PlanOptions,
   ): ReadonlyArray<QueryRef<string, unknown>> =>
-    planAsked(
-      bound.store.get(model),
-      askedOf(projection),
-      options ?? {},
-      bound.operators,
-    ).queries.flatMap(query => (query.ref === undefined ? [] : [query.ref])),
+    planAsked(bound, bound.store.get(model), askedOf(projection), options ?? {}).queries.flatMap(
+      query => (query.ref === undefined ? [] : [query.ref]),
+    ),
 
   /**
    * The store reads see: the base store under the pending optimistic layers.
@@ -2838,12 +2804,7 @@ export const Remote = {
       return known === undefined
         ? []
         : itemsOf(
-            visibleItems(
-              known,
-              connection.identity,
-              remote.optimistic.overlays,
-              goneIn(remote.entities, remote.optimistic),
-            ).map(edge => edge.ref),
+            edgesOf(bound[Capability], remote, connection.identity, known).map(edge => edge.ref),
             connection.select,
           )
     })
@@ -2856,7 +2817,7 @@ export const Remote = {
         ? merged.filter(connection => connection.identity in remote.failures.connections)
         : merged
     const requirements = plan(
-      visibleStoreOf(remote.entities, remote.optimistic, bound.operators),
+      visibleOf(bound[Capability], remote, bound.operators),
       options.failed === true
         ? asking.filter(
             requirement =>
@@ -2885,7 +2846,10 @@ export const Remote = {
         connection,
       })),
     ]
-    const marked = marks.reduce(updateRemote, remote)
+    const marked = marks.reduce<RemoteModel>(
+      (current, mark) => reduceIn(bound[Capability], current, mark),
+      remote,
+    )
     // Fields already stale may be in a read that began before this refresh (a
     // refreshing policy marks what it refetches); unless no read has begun since
     // the last refresh, that read is restarted too.
@@ -3143,13 +3107,15 @@ export const Remote = {
     requestId: string,
     options: MutateOptions = {},
   ) {
-    const started = updateRemote(bound.store.get(model), {
+    const capabilities = bound[Capability]
+    mutation[Installs](capabilities)
+    const started = reduceIn(capabilities, bound.store.get(model), {
       _tag: 'MutationStarted',
       requestId,
       ...(options.optimistic === undefined ? {} : { optimistic: options.optimistic }),
     })
     const outcome = yield* mutateRemote(mutation, input, requestId, { now: options.now })
-    const settled = updateRemote(started, {
+    const settled = reduceIn(capabilities, started, {
       _tag: 'MutationSucceeded',
       requestId,
       entities: outcome.entities,
@@ -3288,6 +3254,7 @@ const bindDomain = <
   const operators = options.operators ?? Operators.kernel
   const budget = checkedBudget(options.budget)
   const bound = bindRemote(definition, ref, operators)
+  const capabilities = bound[Capability]
   const verify = verification(options.verifyPredictions, {
     mutations: new Set(definition.registry.mutations.keys()),
     queries: new Set(definition.registry.queries.keys()),
@@ -3373,8 +3340,10 @@ const bindDomain = <
       live === undefined || live.policy !== undefined
         ? message
         : { ...live, policy: livePolicyFor(model, live.event) }
+    // A live insert is an overlay, which the layer capability shows.
+    if (live !== undefined) installLayers(capabilities)
     const remote = store.get(model)
-    const reduced = updateRemote(remote, resolved as RemoteMessage)
+    const reduced = reduceIn(capabilities, remote, resolved as RemoteMessage)
     const answer =
       message._tag === 'MutationSucceeded'
         ? (message as Extract<RemoteMessage, { _tag: 'MutationSucceeded' }>)
@@ -3425,8 +3394,8 @@ const bindDomain = <
         mutation,
         before.optimistic,
         after.optimistic,
-        visibleStoreOf(after.entities, after.optimistic, operators),
-        planAsked(unverified(after), askedUnion(projections), {}, operators).requirements,
+        visibleOf(capabilities, after, operators),
+        planAsked(bound, unverified(after), askedUnion(projections), {}).requirements,
       ),
     ].filter(found => !verify.expects(found.part._tag, mutation))
     return found.length === 0
@@ -3465,7 +3434,7 @@ const bindDomain = <
   ): ReadonlyArray<PredictionMismatch> => {
     const layer = before.optimistic.layers.find(each => each.id === requestId)
     if (layer === undefined) return []
-    const shown = visibleStoreOf(before.entities, before.optimistic, operators)
+    const shown = visibleOf(capabilities, before, operators)
     const answered = new Map<string, Readonly<Record<string, unknown>>>()
     for (const row of [...answer.entities, ...(answer.read?.result.entities ?? [])]) {
       const key = entityKey(row.entity, row.id)
@@ -3518,151 +3487,13 @@ const bindDomain = <
     const filtered = (over === undefined ? undefined : definition.registry.filtered.get(over)) ?? []
     return Option.some({ descriptor, encoded, filtered })
   }
-
-  /**
-   * `pages` with each change to a row they hold placed, judged against
-   * `store`: a row that moved goes where the body's order puts it, and one
-   * that stopped matching leaves. A row a pending write creates joins where
-   * the body puts it, since the write holds all it is. Another row a change
-   * brings in is not added, since what the list selects of it may not be
-   * loaded, and a change the client cannot place leaves the row where it is.
-   */
-  const placedHeld = (
-    identity: string,
-    pages: Connection,
-    changes: ReadonlyArray<EntityChange>,
-    store: EntityStore,
-    // For pending placement, the viewer its operations were predicted for; none
-    // when no operation named one, and a body over the context is the server's.
-    context?: ExprContext,
-  ): Connection => {
-    const query = queryOf(identity)
-    if (Option.isNone(query)) return pages
-    // Built once: each change is of a row of its own, judged against the store
-    // as every change left it, so what the list held before them all is enough.
-    const holds = new Set(items(pages).map(edge => entityKey(edge.ref.entity, edge.ref.id)))
-    let placed = pages
-    for (const change of changes) {
-      const created = EntityChange.match(change, {
-        Changed: ({ created }) => created,
-        Deleted: () => false,
-      })
-      if (!holds.has(entityKey(change.entity, change.id)) && !created) continue
-      placed = Impact.$match(
-        impactOn({ ...query.value, connection: placed, holds }, store, change, operators, context),
-        {
-          Kept: () => placed,
-          Placed: ({ connection }) => connection,
-          Invalidated: () => placed,
-        },
-      )
-    }
-    return placed
-  }
-
-  /**
-   * What a list body's context reads while pending layers are placed: the
-   * viewer the newest operation was predicted for. The viewer is the
-   * reader's, so every operation since the last `forget` names the same one.
-   */
-  const layersContext = (layers: ReadonlyArray<EntityLayer>): ExprContext | undefined => {
-    const viewer = [...layers].reverse().find(layer => Option.isSome(layer.viewer))?.viewer
-    return viewer === undefined ? undefined : { viewer, now: Option.none() }
-  }
-
-  /**
-   * A loaded list with the pending layers placed in its pages, so a row a
-   * pending edit moves, or takes out of the list, shows where its answer
-   * will be placed until the edit settles.
-   */
-  const pendingPlaced = (remote: RemoteModel, identity: string, pages: Connection): Connection => {
-    const { layers } = remote.optimistic
-    if (layers.length === 0) return pages
-    return memoRead([pages, layers, remote.entities], `placed:${identity}`, () =>
-      placedHeld(
-        identity,
-        pages,
-        changesOf(
-          { entities: resolvedPatches(remote.entities, remote.optimistic, operators) },
-          remote.entities,
-        ),
-        visibleStoreOf(remote.entities, remote.optimistic, operators),
-        layersContext(layers),
-      ),
-    )
-  }
-
-  /**
-   * The edges a loaded list shows: its pages with pending edits placed, and
-   * each row an insert overlay shows (a pending create, a confirmed or a live
-   * insert) where the body's order puts it, or left out when it sorts past
-   * what is loaded. An overlay says a row is in the list; in a list the
-   * client can place, the order says where. A row it cannot place stays at
-   * the end its overlay names.
-   */
+  const lists: Lists = { queryOf, operators }
+  /** The edges a loaded list shows, its pending edits and inserts placed. */
   const shownEdges = (
     remote: RemoteModel,
     identity: string,
     connection: Connection,
-  ): ReadonlyArray<Edge> => {
-    const pages = pendingPlaced(remote, identity, connection)
-    const inserts = remote.optimistic.overlays.some(
-      overlay => overlay.connection === identity && overlay.position !== 'remove',
-    )
-    const shown = inserts
-      ? insertsPlaced(remote, identity, pages)
-      : { pages, overlays: remote.optimistic.overlays }
-    return visibleItems(
-      shown.pages,
-      identity,
-      shown.overlays,
-      goneIn(remote.entities, remote.optimistic),
-    )
-  }
-
-  const insertsPlaced = (
-    remote: RemoteModel,
-    identity: string,
-    pages: Connection,
-  ): { readonly pages: Connection; readonly overlays: ReadonlyArray<ConnectionOverlay> } => {
-    const { overlays } = remote.optimistic
-    const store = visibleStoreOf(remote.entities, remote.optimistic, operators)
-    return memoRead([pages, overlays, store], `inserted:${identity}`, () => {
-      const query = queryOf(identity)
-      const body = Option.isSome(query) ? query.value.descriptor.body : undefined
-      if (Option.isNone(query) || body === undefined) return { pages, overlays }
-      // A row a later remove hides is placed too: `visibleItems` hides it
-      // wherever it is.
-      const inserted = new Map<string, Edge>()
-      for (const overlay of overlays) {
-        if (overlay.connection !== identity || overlay.position === 'remove') continue
-        for (const edge of overlay.edges) inserted.set(edge.key, edge)
-      }
-      const held = new Set(items(pages).map(edge => edge.key))
-      let placed = pages
-      const outside: Array<Edge> = []
-      for (const edge of inserted.values()) {
-        if (held.has(edge.key)) continue
-        const key = entityKey(edge.ref.entity, edge.ref.id)
-        RowPlace.$match(placeIn(store, placed, body, query.value.encoded, key, operators), {
-          Before: place => void (placed = withEdge(placed, edge, place)),
-          End: place => void (placed = withEdge(placed, edge, place)),
-          Outside: () => void outside.push(edge),
-          Unknown: () => undefined,
-        })
-      }
-      return {
-        pages: placed,
-        overlays:
-          outside.length === 0
-            ? overlays
-            : [
-                ...overlays,
-                { id: 'placed:outside', connection: identity, edges: outside, position: 'remove' },
-              ],
-      }
-    })
-  }
+  ): ReadonlyArray<Edge> => shownEdgesOf(capabilities, lists, remote, identity, connection)
 
   /**
    * The loaded lists with what the server said of rows they hold placed: a
@@ -3692,7 +3523,7 @@ const bindDomain = <
     if (changes.length === 0) return remote
     const placed: Record<string, Connection> = {}
     for (const [identity, pages] of Object.entries(remote.connections)) {
-      const after = placedHeld(identity, pages, changes, remote.entities, context)
+      const after = placedHeld(lists, identity, pages, changes, remote.entities, context)
       if (after !== pages) placed[identity] = after
     }
     return withPlacements(remote, placed, [])
@@ -3729,7 +3560,7 @@ const bindDomain = <
       keys.add(change.edge.key)
       named.set(change.connection, keys)
     }
-    const visible = visibleStoreOf(remote.entities, remote.optimistic, operators)
+    const visible = visibleOf(capabilities, remote, operators)
     const placed: Record<string, Connection> = {}
     const invalidated: Array<string> = []
     for (const identity of Object.keys(remote.connections)) {
@@ -3746,12 +3577,9 @@ const bindDomain = <
       // list holds is read once: a change is of a row of its own, judged against
       // the store as the whole answer left it.
       const holds = new Set(
-        visibleItems(
-          original,
-          identity,
-          remote.optimistic.overlays,
-          goneIn(remote.entities, remote.optimistic),
-        ).map(edge => entityKey(edge.ref.entity, edge.ref.id)),
+        edgesOf(capabilities, remote, identity, original).map(edge =>
+          entityKey(edge.ref.entity, edge.ref.id),
+        ),
       )
       let pages = original
       let invalid = false
@@ -3891,7 +3719,7 @@ const bindDomain = <
       // The pages first, so their items join the one entity read below. A
       // page with a payload already writes its items' selected fields, so
       // the read below is only for what the server left out.
-      for (const query of planAsked(store.get(current), askedOf(projection), planOptions, operators)
+      for (const query of planAsked(bound, store.get(current), askedOf(projection), planOptions)
         .queries) {
         const page = yield* queryRequestOf(query).pipe(
           Effect.flatMap(request => client.query(request)),
@@ -3902,10 +3730,10 @@ const bindDomain = <
         )
       }
       const requirements = planAsked(
+        bound,
         store.get(current),
         askedOf(projection),
         planOptions,
-        operators,
       ).requirements
       if (requirements.length === 0) return current
       const at = now()
@@ -3931,12 +3759,7 @@ const bindDomain = <
         current: AppModel,
         projections: ReadonlyArray<Projection<AppModel, unknown>>,
       ) => {
-        const planned = planAsked(
-          store.get(current),
-          askedUnion(projections),
-          planOptions,
-          operators,
-        )
+        const planned = planAsked(bound, store.get(current), askedUnion(projections), planOptions)
         return planned.queries.length > 0 || planned.requirements.length > 0
       }
       let current = model
@@ -4154,7 +3977,7 @@ const bindDomain = <
         remote: RemoteModel,
         connection: Connection,
       ): RemoteData<Page<Value>> | undefined => {
-        const visible = visibleStoreOf(remote.entities, remote.optimistic, operators)
+        const visible = visibleOf(capabilities, remote, operators)
         const key = `${ref.identity}\u0000${relationKey}\u0000${String(sizeOf(remote))}`
         const read = memoRead<RemoteData<Page<Value>> | undefined>(
           [visible, connection, remote.optimistic.overlays, remote.placed],
@@ -4197,7 +4020,7 @@ const bindDomain = <
             new Set(shownEdges(remote, ref.identity, connection).map(edge => edge.key)),
             ref.window,
             sizeOf(remote),
-            goneIn(remote.entities, remote.optimistic),
+            goneOf(capabilities, remote),
           )
         ) {
           return undefined
@@ -4272,7 +4095,7 @@ const bindDomain = <
         ? Option.some(
             bound.store.set(
               model,
-              updateRemote(remote, {
+              reduceIn(capabilities, remote, {
                 _tag: 'WindowGrown',
                 window: windowGrowthKey(ref.identity, stableStringify(ref.window)),
                 size: size + page,
@@ -4294,7 +4117,7 @@ const bindDomain = <
       }
       const remote = store.get(model)
       const connection = remote.connections[over.ref.identity]
-      const visible = visibleStoreOf(remote.entities, remote.optimistic, operators)
+      const visible = visibleOf(capabilities, remote, operators)
       const edges =
         connection === undefined ? [] : shownEdges(remote, over.ref.identity, connection)
       const among = edges.map(edge => entityKey(edge.ref.entity, edge.ref.id))
@@ -4343,8 +4166,14 @@ const bindDomain = <
     },
     refresh: (model, target, options) => Remote.refresh(bound, model, target, options),
     forget: model => Remote.forget(bound, model),
-    overlay: (model, id, optimistic) => reduce(model, { _tag: 'OverlayShown', id, optimistic }),
-    lift: (model, id) => reduce(model, { _tag: 'OverlayLifted', id }),
+    overlay: (model, id, optimistic) => {
+      installLayers(capabilities)
+      return reduce(model, { _tag: 'OverlayShown', id, optimistic })
+    },
+    lift: (model, id) => {
+      installLayers(capabilities)
+      return reduce(model, { _tag: 'OverlayLifted', id })
+    },
     overlays: model => overlaysOf(store.get(model)),
     visibleItems: (remote, connection) => {
       const identity = connectionIdentity(connection)
@@ -4366,7 +4195,7 @@ const bindDomain = <
       const known = Option.fromUndefinedOr(remote.mutations.operations.get(requestId))
       // A declared write shows what it writes until the server answers; one given wins.
       const viewer = viewerOf(model)
-      const visible = visibleStoreOf(remote.entities, remote.optimistic, bound.operators)
+      const visible = visibleOf(capabilities, remote, bound.operators)
       const predicted =
         mutation.write === undefined
           ? undefined
@@ -4429,7 +4258,7 @@ const bindDomain = <
           : (options.optimistic ?? predicted)
       // A write refused where it is made is settled at once, durable or not.
       const queued = durable && Option.isNone(refused)
-      const started = updateRemote(remote, {
+      const started = reduceIn(capabilities, remote, {
         _tag: 'MutationStarted',
         requestId,
         ...(optimistic === undefined ? {} : { optimistic }),
@@ -5112,7 +4941,7 @@ const bindDomain = <
     const remote = store.get(model)
     return {
       remote,
-      visible: visibleStoreOf(remote.entities, remote.optimistic, operators),
+      visible: visibleOf(capabilities, remote, operators),
       listOf: identity => ({
         query: Option.match(queryOf(identity), {
           onNone: () => identity,
@@ -5137,7 +4966,10 @@ const bindDomain = <
         }
       },
       operators,
-      context: layersContext(remote.optimistic.layers),
+      context:
+        remote.optimistic.layers.length === 0
+          ? undefined
+          : layersIn(capabilities).context(remote.optimistic.layers),
     }
   }
   return withWhyReader(domain, whyReader)

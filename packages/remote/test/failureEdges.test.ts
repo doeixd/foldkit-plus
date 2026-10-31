@@ -22,6 +22,7 @@ import {
   type RemoteError,
   type Requirement,
 } from '../src/index.js'
+import { Answers } from './answers.js'
 
 const User = DomainEntity.define(
   'User',
@@ -45,6 +46,7 @@ const Model = Schema.Struct({ remote: Remote.Model })
 type Model = typeof Model.Type
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
 const Data = Remote.make({
+  mutations: [Answers],
   model: App.model.remote,
   entities: [Blog.Project, Blog.User],
   queries: [All],

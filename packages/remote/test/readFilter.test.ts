@@ -9,6 +9,7 @@ import { Entity as DomainEntity, Expr, Order, ReadFilter } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote, type NormalizedPatch } from '../src/index.js'
+import { Answers } from './answers.js'
 
 const TaskFields = DomainEntity.define(
   'Task',
@@ -28,7 +29,12 @@ const Open = Query.define('Open', {}, () =>
 const Model = Schema.Struct({ remote: Remote.Model })
 type Model = typeof Model.Type
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
-const Data = Remote.make({ model: App.model.remote, entities: [Task], queries: [Open] })
+const Data = Remote.make({
+  mutations: [Answers],
+  model: App.model.remote,
+  entities: [Task],
+  queries: [Open],
+})
 const open = Data.query(Open, {}, { select: DomainEntity.select(Task, { id: true }), first: 25 })
 
 const rows = [

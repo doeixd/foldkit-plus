@@ -35,7 +35,7 @@ export default [
     edits: [
       {
         file: index,
-        find: 'planAsked(unverified(after), askedUnion(projections), {}, operators).requirements,',
+        find: 'planAsked(bound, unverified(after), askedUnion(projections), {}).requirements,',
         replace: '[],',
       },
     ],

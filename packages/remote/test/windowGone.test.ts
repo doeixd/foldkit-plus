@@ -9,6 +9,7 @@ import { Entity as DomainEntity, Order } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { ConnectionChange, Query, Remote, terminal, type RemoteMessage } from '../src/index.js'
+import { Answers } from './answers.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -21,7 +22,12 @@ const All = Query.define('All', {}, () =>
 const Model = Schema.Struct({ remote: Remote.Model })
 type Model = typeof Model.Type
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
-const Data = Remote.make({ model: App.model.remote, entities: [Project], queries: [All] })
+const Data = Remote.make({
+  mutations: [Answers],
+  model: App.model.remote,
+  entities: [Project],
+  queries: [All],
+})
 const Named = DomainEntity.select(Project, { name: true })
 const initial: Model = { remote: Remote.initial }
 

@@ -26,7 +26,7 @@ export default [
     name: 'a new note joins no list until it is answered',
     edits: [
       {
-        file: '../../../packages/remote/src/index.ts',
+        file: '../../../packages/remote/src/placing.ts',
         find: 'if (!holds.has(entityKey(change.entity, change.id)) && !created) continue',
         replace: 'if (!holds.has(entityKey(change.entity, change.id))) continue',
       },

@@ -6,7 +6,8 @@
  */
 import type { EdgeRef } from './connection.js'
 import { type Connection, type Edge, hasNext, hasPrevious } from './connection.js'
-import { addOverlay, type OptimisticState } from './optimistic.js'
+import { addOverlay } from './capability.js'
+import type { OptimisticState } from './optimistic.js'
 import type { LiveInsertion, LivePolicy } from './query.js'
 import { entityKey, tombstone, writeEntity, type EntityStore } from './store.js'
 

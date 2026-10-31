@@ -179,6 +179,26 @@ On the Entity side, the `Entity` object reaches `invariant`, which imports
    - **Order:** 4a, then 4c (which needs 4a's install point), then 4b.
      Each turns its own `it.fails` case in `readOnlyPage.test.ts` into
      `it`.
+   **4a built (2026-10-31).** `capability.ts` is the seam: a bound domain
+   holds `[Capability]`, whose `layers` slot is empty until something that
+   makes a layer installs `layers.ts` (the visible and planned stores,
+   pending and insert placement, beginning and settling layers). A Mutation
+   descriptor carries its install under `[Installs]` (`bindRemote` runs each
+   one), and `Data.overlay`, a `LiveReceived` and `Remote.mutateInto` install
+   it too. The read core asks the slot only while the Model holds a layer or
+   overlay, and a Model holding one that nothing installed fails, naming the
+   domain, instead of reading as the committed store. The reducer
+   (`reduceIn(capabilities, …)`) reaches layers the same way; `updateRemote`
+   is the reducer with everything installed, in `update.ts`, and
+   `RemoteDescriptor.update` is gone. `memoRead` moved to `memo.ts`,
+   `placedHeld` to `placing.ts`, `schemaOf` to `schema.ts`, and the
+   declarations (`Mutation`, `Refusal`) to `mutationDescriptor.ts`, so the
+   install creates no import cycle. `live.ts` takes `addOverlay` from
+   `capability.ts`; the optimistic parts of `RetentionChanged` and `forget`
+   stay in the core, being walks over the Model's own fields that import no
+   layer code. The page keeps the layer code still, through the core's live
+   path, which installs it until live leaves the core in phase 5; so the
+   size test's layer case waits for phase 5, and its write case for 4b.
 5. **Live through the transport; the outbox through `Data.outbox`.** Waits
    for phase 4's layer capability (a live insert is an overlay). `sse.js`
    also needs the `Remote` object to become an ES module namespace, as

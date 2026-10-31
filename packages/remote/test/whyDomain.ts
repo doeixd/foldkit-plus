@@ -4,6 +4,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Expr, Order, Relation } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { Query, Remote, type RemoteMessage } from '../src/index.js'
+import { Answers } from './answers.js'
 
 const UserBase = Entity.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const ProjectBase = Entity.define(
@@ -37,6 +38,7 @@ export const App = Surface.application({
   Message: defineMessageUnion({ ...Remote.messages }),
 })
 export const Data = Remote.make({
+  mutations: [Answers],
   model: App.model.remote,
   entities: [User, Project],
   queries: [All, ByStatus],

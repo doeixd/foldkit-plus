@@ -9,7 +9,7 @@ export default [
     name: 'a refusal is matched by its id alone',
     edits: [
       {
-        file: '../../remote/src/mutation.ts',
+        file: '../../remote/src/mutationDescriptor.ts',
         find: '    Option.contains(refusal.entity, invariant.entity) &&\n',
         replace: '',
       },
