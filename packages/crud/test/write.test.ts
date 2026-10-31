@@ -42,7 +42,7 @@ const App = Surface.application({ Model, Message })
 const Data = Remote.make({ model: App.model.remote, entities: [Project], mutations: [EditProject] })
 const ProjectEditor = Editor.at({ data: Data, model: App.model.editor })
 const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
-const Placed = Page.at(Slot, { onOut: ProjectEditor.onOut })
+const Placed = Page.at(Slot, ProjectEditor.placement)
 const placements = Page.assemble(Placed)
 const update = ProjectEditor.after(
   placements.update((model: Model, message: Message) =>
@@ -199,7 +199,7 @@ describe('An editor over a write that expects a revision', () => {
     Model: DocModel,
     Message: DocMessage,
   }).withServices<RemoteClient>()
-  const DocPlaced = DocPage.at(DocSlot, { onOut: Placed.onOut })
+  const DocPlaced = DocPage.at(DocSlot, Placed.placement)
   const docPlacements = DocPage.assemble(DocPlaced)
   const docUpdate = Placed.after(
     docPlacements.update((model: DocModel, message: DocMessage) =>

@@ -66,7 +66,7 @@ const PostRemover = Remover.at({ data: Data, model: App.model.remover })
 
 const Page = Base.pipe(
   Bundle.withServices<RemoteClient>(),
-  Bundle.configure('editor', { onOut: PostEditor.onOut }),
+  Bundle.configure('editor', PostEditor.placement),
   Bundle.configure('remover', { onOut: PostRemover.onOut }),
 )
 const Placed = Page.children.editor

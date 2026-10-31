@@ -179,7 +179,7 @@ export const pickers = Crud.options(EditPostForm, [Authors], {
 // the open editor require.
 const Page = Base.pipe(
   Bundle.withServices<RemoteClient>(),
-  Bundle.configure('editPost', { onOut: PostEditor.onOut }),
+  Bundle.configure('editPost', PostEditor.placement),
   Bundle.configure('removePost', { onOut: PostRemover.onOut }),
   // Every piece on the page, handed over: each one's requirement is gathered.
   Bundle.withWiring(

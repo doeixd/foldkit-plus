@@ -71,6 +71,8 @@ Remote's store ──▶ each piece reads it: a page, a value, a status ──�
 
 the user acts ──▶ a Message ──▶ a piece's helper, or the editor's onOut
    ──▶ Data.mutate ──▶ Remote settles it ──▶ the status moves
+
+busy = the editor's request id is pending in Remote's ledger
 ```
 
 The rule to remember: **a piece loads only what its `active` requires, and only
@@ -185,10 +187,10 @@ const Data = Remote.make({
 // Where it lives: its slice of the Model, and the domain it saves through.
 const PostEditor = Editor.at({ data: Data, model: App.model.editor })
 
-// Its onOut needs the domain, so it is given once the domain exists.
+// Its placement needs the domain, so it is given once the domain exists.
 const Page = Base.pipe(
   Bundle.withServices<RemoteClient>(),
-  Bundle.configure('editor', { onOut: PostEditor.onOut }),
+  Bundle.configure('editor', PostEditor.placement),
 )
 const Placed = Page.children.editor
 const { placements } = Page
@@ -211,14 +213,18 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
 - **`Editor.bundle`** wraps the form's Bundle. Its Messages are the form's own,
   so a view dispatches `EditPostForm.Message.Changed(...)` exactly as before.
 - **`Bundle.compose`** states the page once, with the editor under `editor`.
-  The editor's `onOut` is made from the Remote domain, which is made from the
+  The editor's `placement` is made from the Remote domain, which is made from the
   page's own Model, so it is given afterwards with `Bundle.configure`; until
   then the page's `placements` are a type error that names the editor. See
   [composing a parent](../bundle/README.md#composing-a-parent).
 - **`Editor.at`** takes the editor's slice as a `ModelRef` (`App.model.editor`)
   and the bound Remote domain, and returns what needs the parent:
-  - `onOut` for the placement: a valid submit becomes `Data.mutate`, and the
-    editor remembers the request id.
+  - `placement`, the placement's config: its `onOut` turns a valid submit into
+    `Data.mutate` and remembers the request id, and its `viewInputs` draw the
+    form busy and with why a save did not land (see
+    [a save in flight](#a-save-in-flight)). Spread it to add to it:
+    `{ ...PostEditor.placement, onOut: ... }`.
+  - `busy(model)`: the save is in flight.
   - `active`: while an id is open, what the form writes is fetched and
     retained. Its `projectionOf(model)` reads that value, typed by the
     members the form writes.
@@ -240,7 +246,7 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
 | `Placed.helpers.open(id)` | Returns an Update Step; apply it in your `update` to open a record |
 | `Data.subscriptions({ editor: PostEditor.active })` | Describes the loader; the runtime installs it and provides `RemoteClient` |
 | `PostEditor.after(update)` | Fills the form once the value loads, and reconciles the status after each Message |
-| A valid submit, through `onOut` | Returns the mutation Command; its result comes back through Remote |
+| A valid submit, through `placement.onOut` | Returns the mutation Command; its result comes back through Remote |
 
 Include the placement's own Subscriptions as well if your form has any. Do not
 read `Submitted` as `Saved`: only the mutation's outcome settles the save.
@@ -310,6 +316,33 @@ with `Refusal.invalid` (the row the save would leave breaks an invariant) shows
 its message the same way beside each key its path names. A refusal of a key the
 form does not have, or of an invariant whose path names none, is left to the
 status and `saveError`.
+
+### A save in flight
+
+From a submit until Remote has the save's answer, the editor is `busy(model)`,
+and the form drawn through its placement reads `submitting`: with
+`foldkit-mixins-form`, the `form` carries `aria-busy` and `data-submitting` and
+its button is disabled. Busy is read from Remote's ledger by the save's request
+id at every draw; the editor keeps no flag of its own, and your page passes
+none. It ends at the answer, when the save's pending layer is released: a list
+refetched after the write shows that through its own `Refreshing`, and a
+navigation your `update` sends after the save is yours, not the save's.
+
+- **A submit while busy** does nothing: no second write, and the Model is
+  returned as it was given.
+- **A refusal naming one of the form's keys** shows on that key (below).
+- **A refusal naming none** (a conflict, an invariant over another field) is
+  the form's `failure`, drawn in the form's `failure` Slot, with the
+  invariant's message or the server's words. It is not offered again: the same
+  write would be refused again.
+- **A failure** (the server could not be reached) is the form's `failure` with
+  `retry`: the button reads "Try again", and a submit sends the same write
+  again through `Data.retry`, with its request and operation ids, so a server
+  that applied it answers from its record. An edit since makes the next submit
+  a new write.
+
+The failure shows only while the form is as it was saved. `status` still says
+`SaveFailed` or `Conflict` for a view around the form.
 
 ### How it treats the form
 
@@ -476,7 +509,7 @@ application asks again.
 | A list's page could not be read | `page(model)` is `Failed`, with `previous` rows if it had some | `refresh(model)` from a retry button |
 | A detail's value could not be read | `value(model)` is `Failed` | `refresh(model)` |
 | An editor's record could not be read | `LoadFailed`; a record read before and failed on refresh stays `Editing`, showing the last good value | `refresh(model)` |
-| A save failed | `SaveFailed`; the drafts are kept | show `saveError(model)`; the user submits again |
+| A save failed | `SaveFailed`; the drafts are kept, and the drawn form shows why | the user submits again, which retries the same write |
 | A delete failed | `DeleteFailed` | show `error(model)`; ask again |
 | The record was deleted, here or elsewhere | a detail reads `NotFound`, an open editor reports `NotFound`, and it leaves every list | close the screen or say so |
 | A piece's `active` is not wired | it stays `Initial` or `Loading`, and nothing reports it | wire every piece with [`Crud.actives`](#wiring-a-page) |

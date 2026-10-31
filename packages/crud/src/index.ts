@@ -186,6 +186,14 @@ export interface DomainLike<Root> {
   ): Projection<Root, RemoteData<Page<any>>> & { readonly ref: { readonly identity: string } }
   more(model: Root, projection: any): Option.Option<Root>
   refresh(model: Root, target: any): Root
+  /** Sends a failed write again as itself: the same input and request id. */
+  retry(
+    model: Root,
+    requestId: string,
+  ): Option.Option<{
+    readonly model: Root
+    readonly command: Command<RemoteMessage, never, RemoteClient>
+  }>
   mutation(model: Root, requestId: string): MutationStatus
   refusal(model: Root, requestId: string, mutation: any): Option.Option<unknown>
   /** `Data.active`: a read of the domain as an active Surface of its application. */
@@ -196,6 +204,21 @@ export interface DomainLike<Root> {
 }
 
 type Step<Root> = Update.Step<Root, RemoteMessage, RemoteClient>
+
+/**
+ * What an editor adds to the inputs its form's view is drawn with, read from
+ * Remote's ledger by its save's request id at every draw: `foldkit-mixins-form`'s
+ * `submitting` and `failure`.
+ */
+export interface SubmitInputs {
+  /** The save is in flight: from submit until Remote has its answer. */
+  readonly submitting?: boolean | undefined
+  /**
+   * Why the save did not land, while the form is as it was saved: a refusal
+   * naming none of the form's keys, or a failure, which a submit sends again.
+   */
+  readonly failure?: { readonly error: string; readonly retry: boolean } | undefined
+}
 
 /** One thing a relation picker offers. */
 export interface Choice {
@@ -1081,31 +1104,89 @@ export const Crud = {
           return requestId === null ? { _tag: 'Unknown' } : data.mutation(root, requestId)
         }
 
+        /** Whether the save is in flight: started, and not yet answered. */
+        const busy = (root: Root): boolean => saveOf(root)._tag === 'Pending'
+
+        /**
+         * Why the save did not land, while the form is as it was saved. A
+         * refusal that names one of the form's keys shows on that key instead;
+         * a refusal is not sent again, since it would only be refused again.
+         */
+        const failure = (root: Root): Option.Option<NonNullable<SubmitInputs['failure']>> => {
+          const save = saveOf(root)
+          if (save._tag !== 'Failed' || slice.get(root).edited) return Option.none()
+          return Option.match(refusalOf(root), {
+            onNone: () =>
+              Option.some({ error: save.error.message, retry: save.error.refusal === undefined }),
+            onSome: refusal =>
+              namedBy(refusal).length > 0
+                ? Option.none()
+                : Option.some({
+                    error: Refusal.isInvalid(refusal) ? refusal.message : save.error.message,
+                    retry: false,
+                  }),
+          })
+        }
+
+        /**
+         * A valid submit: nothing while the last save is in flight; the same
+         * write again after a failure, while the form is as it was saved;
+         * otherwise a new mutation, whose request is remembered.
+         */
+        const onOut =
+          (submitted: Submitted<Value>): Step<Root> =>
+          root => {
+            if (busy(root)) return { model: root }
+            const { requestId } = slice.get(root)
+            const again = Option.flatMap(
+              Option.filter(failure(root), ({ retry }) => retry),
+              () => (requestId === null ? Option.none() : data.retry(root, requestId)),
+            )
+            if (Option.isSome(again))
+              return { model: again.value.model, commands: [again.value.command] }
+            // A declared write is told what changed, so it writes, and shows, only that.
+            const started = data.mutate(
+              root,
+              mutation,
+              submitted.value,
+              mutation.write === undefined
+                ? undefined
+                : { keys: changedKeys(slice.get(root), submitted.value) },
+            )
+            const editor = slice.get(started.model)
+            return {
+              model: slice.set(started.model, {
+                ...editor,
+                requestId: started.requestId,
+                edited: false,
+                sent: Option.some(submitted.value as Readonly<Record<string, unknown>>),
+              }),
+              commands: [started.command],
+            }
+          }
+
         return {
-          /** For the placement: a valid submit becomes the mutation, and its request is remembered. */
-          onOut:
-            (submitted: Submitted<Value>): Step<Root> =>
-            root => {
-              // A declared write is told what changed, so it writes, and shows, only that.
-              const started = data.mutate(
-                root,
-                mutation,
-                submitted.value,
-                mutation.write === undefined
-                  ? undefined
-                  : { keys: changedKeys(slice.get(root), submitted.value) },
-              )
-              const editor = slice.get(started.model)
-              return {
-                model: slice.set(started.model, {
-                  ...editor,
-                  requestId: started.requestId,
-                  edited: false,
-                  sent: Option.some(submitted.value as Readonly<Record<string, unknown>>),
-                }),
-                commands: [started.command],
-              }
-            },
+          /**
+           * The editor's placement config (`Page.at(Slot, Editor.placement)`, or
+           * `Bundle.configure(field, Editor.placement)`): a valid submit becomes
+           * the mutation, and the form is drawn busy while it is in flight and
+           * with why it did not land. Spread it to add to it.
+           */
+          placement: {
+            onOut,
+            viewInputs: <Inputs extends SubmitInputs | void>(root: Root, given: Inputs): Inputs =>
+              ({
+                ...given,
+                submitting: busy(root) || (given as SubmitInputs | undefined)?.submitting === true,
+                failure: Option.getOrElse(
+                  failure(root),
+                  () => (given as SubmitInputs | undefined)?.failure,
+                ),
+              }) as Inputs,
+          },
+
+          /** Whether the save is in flight: from submit until Remote has its answer. */
+          busy,
 
           /**
            * For `Data.subscriptions`: while an id is being edited, what it loads is

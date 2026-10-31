@@ -209,7 +209,7 @@ export const noteHref = (id: string) => Site.href(NoteNode, { id })
 const Page = Bundle.parent({ Model, Message }).withServices<Services>()
 
 export const NoteEditor = Editor.at({ data: Data, model: App.model.editor })
-export const EditorForm = Page.at(Editing, { onOut: NoteEditor.onOut })
+export const EditorForm = Page.at(Editing, NoteEditor.placement)
 
 /**
  * A fresh id for a note about to be added, and the time it was: `update`

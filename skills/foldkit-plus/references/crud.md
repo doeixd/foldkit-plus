@@ -17,7 +17,7 @@ Nothing is generated from an Entity alone: no form and mutation, no editor.
 | Fact | Owner |
 | --- | --- |
 | Drafts and their validity | the form |
-| Current values; whether a save is pending, applied, failed | Remote's store |
+| Current values; whether a save is pending, applied, failed | Remote's store (the editor reads its save by request id; busy is never a copy) |
 | What to load, how a loaded value becomes input values | the form's input (`Entity.selectFor` / `valuesFor`) |
 | Which id is open, whether it was shown, which save is this editor's | the editor's slice of the parent Model |
 | What happens after a save | the application, reading `status` |
@@ -79,7 +79,7 @@ const Data = Remote.make({
 const PostEditor = Editor.at({ data: Data, model: App.model.editor })
 
 const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
-const Placed = Page.at(Slot, { onOut: PostEditor.onOut })
+const Placed = Page.at(Slot, PostEditor.placement)
 const placements = Page.assemble(Placed)
 
 const update = PostEditor.after(
@@ -108,6 +108,15 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
   retries a `LoadFailed` read, and
   `PostEditor.target(model)` the id being edited (`null` for a new one). The form's Model is
   `model.editor.form`.
+- **A save in flight:** placed with `PostEditor.placement`, the drawn form reads
+  `submitting` (`aria-busy` on the form Slot, button disabled) from submit until
+  Remote has the answer; `PostEditor.busy(model)` is the same fact. A submit
+  while busy does nothing (no write, the Model as given). A refusal naming no
+  form key, and a failure, are the form's `failure` (`failure` Slot); after a
+  failure the button reads "Try again" and a submit sends the same write again
+  through `Data.retry` (same request and operation ids). An edit makes the
+  next submit a new write. Extend the placement by spreading it:
+  `{ ...PostEditor.placement, onOut: out => model => … }`.
 - **Draw it:** give the editor's Bundle the form's view, lifted:
   `Editor.bundle.pipe(Bundle.withView(Crud.editorView(FormView.submodel(EditPostForm, view))))`,
   then `Placed.view(model, h, { options: pickers(model) })`. Or draw from

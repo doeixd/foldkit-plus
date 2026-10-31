@@ -163,10 +163,9 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   parent so far, so `onOut` knows the Model; spread it, so later children's
   fields survive. `Bundle.withWiring(Data.wiring(...))` in a second `pipe`, once
   `Data` exists; `Bundle.withServices<S>()` for the own update's services. A
-  config made from the parent (a Crud editor's `onOut` from `Editor.at({ data,
+  config made from the parent (a Crud editor's `placement` from `Editor.at({ data,
   model: App.model.editor })`): `withChild('editor', Editor.bundle)` with no
-  config, then `Base.pipe(Bundle.configure('editor', { onOut: PostEditor.onOut
-  }))` once `App = Surface.application(Base)` and `Data` exist; `children` and
+  config, then `Base.pipe(Bundle.configure('editor', PostEditor.placement))` once `App = Surface.application(Base)` and `Data` exist; `children` and
   `placements` are type errors until every such child is configured. Use
   `declare`/`parent`/`at` instead when Model and Message already exist or a
   placement needs a custom Link.

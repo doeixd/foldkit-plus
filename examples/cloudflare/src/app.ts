@@ -167,9 +167,11 @@ const Page = Base.pipe(
   }),
   Bundle.configure('rename', {
     // The editor's own save: a declared write, so it shows the new title before
-    // the server answers. A rename also clears the page's notice.
+    // the server answers, and its form reads busy until the answer. A rename
+    // also clears the page's notice.
+    ...Rename.placement,
     onOut: submitted => model => {
-      const started = Rename.onOut(submitted)(model)
+      const started = Rename.placement.onOut(submitted)(model)
       return { ...started, model: modifyFields(started.model, { notice: () => Option.none() }) }
     },
   }),

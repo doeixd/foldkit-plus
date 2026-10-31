@@ -488,7 +488,7 @@ type KnownOr<T> = unknown extends T ? never : T
  * const Base = Bundle.compose({ ... }).pipe(Bundle.withChild('editor', Editor.bundle))
  * const App = Surface.application(Base)
  * const PostEditor = Editor.at({ data: Data, model: App.model.editor })
- * const Page = Base.pipe(Bundle.configure('editor', { onOut: PostEditor.onOut }))
+ * const Page = Base.pipe(Bundle.configure('editor', PostEditor.placement))
  * ```
  */
 export const configure =

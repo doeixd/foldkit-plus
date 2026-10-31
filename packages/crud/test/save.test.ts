@@ -37,7 +37,7 @@ const App = Surface.application({ Model, Message })
 const Data = Remote.make({ model: App.model.remote, entities: [Project], mutations: [SaveProject] })
 const ProjectEditor = Editor.at({ data: Data, model: App.model.editor })
 const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
-const Placed = Page.at(Slot, { onOut: ProjectEditor.onOut })
+const Placed = Page.at(Slot, ProjectEditor.placement)
 const update = ProjectEditor.after(
   Page.assemble(Placed).update((model: Model, message: Message) =>
     Remote.reduces(message) ? { model: Data.reduce(model, message) } : { model },

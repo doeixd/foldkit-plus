@@ -219,7 +219,7 @@ export const ComposeForm = Page.at(Composer, {
 })
 
 export const PostEditor = Editor.at({ data: Data, model: App.model.editor })
-export const EditorForm = Page.at(Editing, { onOut: PostEditor.onOut })
+export const EditorForm = Page.at(Editing, PostEditor.placement)
 // #endregion
 
 /** Every read the page makes, each while its route is the page's. */

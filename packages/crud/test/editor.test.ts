@@ -82,7 +82,7 @@ const PostEditor = Editor.at({ data: Data, model: App.model.editor })
 
 // A save is a Command that needs `RemoteClient`, so the parent names that service.
 const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
-const Placed = Page.at(Slot, { onOut: PostEditor.onOut })
+const Placed = Page.at(Slot, PostEditor.placement)
 const placements = Page.assemble(Placed)
 
 const update = PostEditor.after(
