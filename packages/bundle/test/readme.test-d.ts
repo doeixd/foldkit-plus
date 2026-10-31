@@ -6,6 +6,7 @@ import * as Tabs from '@foldkit/ui/tabs'
 import { Match, Schema, Stream } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
+import * as Submodel from 'foldkit/submodel'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import { Bundle, Link } from '../src/index.js'
@@ -123,6 +124,36 @@ const updateOwn = (model: Model, message: OwnMessage) =>
   })
 
 export const observedUpdate = Observed.update(updateOwn)
+
+// --- Drawing with what the parent holds ---
+
+const Notice = Bundle.declare(
+  Bundle.make('Notice', {
+    Model: Schema.Struct({ text: Schema.String }),
+    Message: defineMessageUnion({ Dismissed: {} }),
+    init: () => ({ model: { text: '' } }),
+    update: model => ({ model }),
+  }).pipe(
+    Bundle.withView(
+      Submodel.defineView<
+        { readonly text: string },
+        { readonly _tag: 'Dismissed' },
+        { readonly offline?: boolean | undefined }
+      >((model, inputs, h) => h.p([], [inputs.offline === true ? 'Offline' : model.text])),
+    ),
+  ),
+  'notice',
+)
+const ShelfModel = Schema.Struct({ ...Notice.fields, online: Schema.Boolean })
+const Shelf = Bundle.parent({
+  Model: ShelfModel,
+  Message: defineMessageUnion({ ...Notice.cases }),
+})
+
+export const Shown = Shelf.at(Notice, {
+  // Whether the page is online is the page's to know; the notice draws it.
+  viewInputs: (model, given) => ({ ...given, offline: !model.online }),
+})
 
 // --- Presets ---
 

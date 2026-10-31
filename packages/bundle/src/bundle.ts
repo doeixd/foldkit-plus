@@ -145,7 +145,8 @@ export interface Bundle<
       OutMessage,
       OutStepMessage,
       R2,
-      SeedFor<Parent, Field>
+      SeedFor<Parent, Field>,
+      ViewInputs
     >
   ) => Placed<
     Name,
@@ -216,6 +217,7 @@ export type PlacementConfig<
   OutStepMessage,
   R2,
   ParentSeed = Parent,
+  ViewInputs = unknown,
 > = {
   /** Prefix for the placement's Subscription and resource keys. Defaults to `Name@path`. */
   readonly key?: string
@@ -225,6 +227,8 @@ export type PlacementConfig<
   readonly onMessage?: Required<
     PlaceConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2, ParentSeed>
   >['onMessage']
+  /** The inputs the child's view is drawn with, from the parent's Model and the inputs given, at every draw. */
+  readonly viewInputs?: (parent: Parent, given: ViewInputs) => ViewInputs
 } & ([Args] extends [void]
   ? { readonly args?: never }
   : { readonly args: ArgsSource<ParentSeed, Args> }) &
@@ -255,6 +259,7 @@ export type PlaceConfigParam<
   OutStepMessage,
   R2,
   ParentSeed = Parent,
+  ViewInputs = unknown,
 > = [Args] extends [void]
   ? [OutMessage] extends [never]
     ? [
@@ -266,7 +271,8 @@ export type PlaceConfigParam<
           OutMessage,
           OutStepMessage,
           R2,
-          ParentSeed
+          ParentSeed,
+          ViewInputs
         >,
       ]
     : [
@@ -278,7 +284,8 @@ export type PlaceConfigParam<
           OutMessage,
           OutStepMessage,
           R2,
-          ParentSeed
+          ParentSeed,
+          ViewInputs
         >,
       ]
   : [
@@ -290,7 +297,8 @@ export type PlaceConfigParam<
         OutMessage,
         OutStepMessage,
         R2,
-        ParentSeed
+        ParentSeed,
+        ViewInputs
       >,
     ]
 

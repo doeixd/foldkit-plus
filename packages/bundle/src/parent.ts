@@ -122,7 +122,8 @@ export interface Parent<Model, Message extends AnyMessage, Services = never> {
       P<B>['OutMessage'],
       OutStepMessage,
       R2,
-      Omit<Model, Field>
+      Omit<Model, Field>,
+      P<B>['ViewInputs']
     > &
       VariantCheck<Wrapped<WrapperTag<Field>, P<B>['Message']>, Message>
   ) => PlacedBy<B, Model, Wrapped<WrapperTag<Field>, P<B>['Message']>, OutStepMessage, R2, Field>
@@ -144,7 +145,8 @@ export interface Parent<Model, Message extends AnyMessage, Services = never> {
       P<B>['OutMessage'],
       OutStepMessage,
       R2,
-      Omit<Model, Field>
+      Omit<Model, Field>,
+      P<B>['ViewInputs']
     > &
       VariantCheck<Wrapped<WrapperTag<Field>, P<B>['Message']>, Message>
   ) => PlacedBy<B, Model, Wrapped<WrapperTag<Field>, P<B>['Message']>, OutStepMessage, R2, Field>

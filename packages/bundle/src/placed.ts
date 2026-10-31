@@ -124,6 +124,7 @@ export interface PlaceConfig<
   OutStepMessage,
   R2,
   ParentSeed = Parent,
+  ViewInputs = unknown,
 > {
   /**
    * The bundle's args: a static value, or a factory from the parent seed (the
@@ -149,6 +150,13 @@ export interface PlaceConfig<
   readonly key?: string
   /** A gate beside the Link's own: Subscriptions and resources run only while both hold. */
   readonly when?: (parent: Parent) => boolean
+  /**
+   * The inputs the child's view is drawn with, from the parent's Model and the
+   * inputs the parent's view gave, at every draw: a fact the parent holds and
+   * the child's Model cannot, such as whether a write the child started is
+   * answered yet.
+   */
+  readonly viewInputs?: (parent: Parent, given: ViewInputs) => ViewInputs
 }
 
 /** A lifted resource record: each child entry in parent terms, keyed by the placement. */
@@ -324,7 +332,8 @@ export type Place = <
     OutMessage,
     OutStepMessage,
     R2,
-    string extends Field ? Parent : Omit<Parent, Field>
+    string extends Field ? Parent : Omit<Parent, Field>,
+    ViewInputs
   >,
 ) => Placed<
   Name,
@@ -345,7 +354,7 @@ export type Place = <
 // they are `any`; `Place` states them for callers.
 type ErasedSpec = BundleSpec<string, any, any, any, any, any, any, any, any, any>
 type ErasedLink = Link<any, any, any, any>
-type ErasedConfig = PlaceConfig<any, any, any, any, any, any, any>
+type ErasedConfig = PlaceConfig<any, any, any, any, any, any, any, any, any>
 type ErasedStep = Update.Step<any, any, any>
 type ErasedView = Submodel.View<any, any, any>
 type ErasedHelper = Helper<any, any, any, any>
@@ -456,14 +465,16 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
   const childView: ErasedView | undefined = bundle.view
   const viewIn =
     (slotId: string) =>
-    (parent: unknown, h: HtmlBuilder<any>, viewInputs?: unknown): Html =>
+    (parent: unknown, h: HtmlBuilder<any>, given?: unknown): Html =>
       childView === undefined
         ? null
         : Option.match(link.read(parent), {
             onNone: () => null,
-            onSome: model =>
+            onSome: model => {
+              const viewInputs =
+                config.viewInputs === undefined ? given : config.viewInputs(parent, given)
               // `h.submodel` passes inputs positionally whenever the key is present.
-              viewInputs === undefined
+              return viewInputs === undefined
                 ? h.submodel({
                     slotId,
                     model,
@@ -477,7 +488,8 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
                     toParentMessage: link.toParentMessage,
                     // With `ViewInputs` erased, Foldkit's conditional config cannot name the inputs' type.
                     viewInputs: viewInputs as never,
-                  }),
+                  })
+            },
           })
 
   return {

@@ -1289,7 +1289,8 @@ export const Site = {
       never,
       never,
       ObserverR,
-      SeedFor<Parent, Field>
+      SeedFor<Parent, Field>,
+      ViewInputs
     >,
   ): SitePage<
     Parent,

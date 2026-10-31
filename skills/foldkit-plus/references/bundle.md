@@ -193,6 +193,11 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   placement's wrapper: type it `Bundle.OwnMessage<Message, typeof
   placements.placements>` and match it with Effect `Match.valueTags` (a union's
   own `match` still demands every variant).
+- **Drawing with what the parent holds:** `viewInputs: (model, given) =>
+  ({ ...given, offline: !model.online })` in a placement's config rewrites the
+  inputs its view is drawn with at every draw, from the parent's Model: a fact
+  the child's Model cannot hold (`Crud.editor`'s form reads its save's busy
+  state this way).
 - **An ask that waits for its owner:** `follow(placed, { pending:
   model => …, release, ready: (child, model) => …, toMessages: (ask, child,
   model) => …, send? })` (from `foldkit-bundle`) wraps an update result: while a pending ask

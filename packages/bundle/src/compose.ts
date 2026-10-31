@@ -330,7 +330,8 @@ type PlaceConfig<Fields, Field extends string, B, OutStepMessage, R2> = NonNulla
     P<B>['OutMessage'],
     OutStepMessage,
     R2,
-    Omit<ModelOf<WithOne<Fields, Field, B>>, Field>
+    Omit<ModelOf<WithOne<Fields, Field, B>>, Field>,
+    P<B>['ViewInputs']
   >[0]
 >
 

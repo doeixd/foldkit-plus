@@ -61,7 +61,8 @@ export interface Declared<B extends AnyBundle, Field extends string> {
       BundleParts<B>['OutMessage'],
       OutStepMessage,
       R2,
-      Omit<Parent, Field>
+      Omit<Parent, Field>,
+      BundleParts<B>['ViewInputs']
     >
   ) => Placed<
     BundleParts<B>['Name'],

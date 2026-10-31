@@ -456,6 +456,25 @@ Observed.update(updateOwn)
 A wiring's tags are strings at runtime, so a Message a wiring claims still
 appears in `OwnMessage`.
 
+## Drawing with what the parent holds
+
+A child's view reads its own Model and the inputs the parent's view passes.
+A fact only the parent holds, such as whether a write the child started has
+been answered, reaches it through `viewInputs` in the placement config, which
+rewrites those inputs at every draw:
+
+```ts
+const Shown = Shelf.at(Notice, {
+  // Whether the page is online is the page's to know; the notice draws it.
+  viewInputs: (model, given) => ({ ...given, offline: !model.online }),
+})
+```
+
+`given` is what `Shown.view(model, h, inputs)` was called with, and the
+function returns the inputs the child's view takes. It reads; it changes no
+Model. `Crud.editor` places its form this way, so the drawn form reads busy
+while its save is in flight.
+
 ## Presets
 
 `bundle.with(args)` binds the args, so a placement gives none:
