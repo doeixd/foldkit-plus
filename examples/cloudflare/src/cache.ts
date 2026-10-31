@@ -1,11 +1,6 @@
-/** What the browser keeps of the list, per actor: `app.ts`'s `persistence` stores it. */
-import {
-  RemotePersistence,
-  entityKey,
-  type Edge,
-  type RemoteModel,
-  type Snapshot,
-} from 'foldkit-remote'
+/** What the browser keeps of the list, per actor: `app.ts`'s `remoteCache` stores it. */
+import { entityKey, type Edge, type RemoteModel } from 'foldkit-remote'
+import { RemotePersistence, type Snapshot } from 'foldkit-remote/persistence'
 import { AllTodos } from './operations.js'
 
 export const cacheKey = (actor: string): string => `foldkit-crud-cache:${actor}`

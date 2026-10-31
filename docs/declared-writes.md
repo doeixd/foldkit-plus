@@ -397,10 +397,10 @@ have run it. Sending it again is safe exactly as far as the table below says.
 A page that reloads forgets its Model, and with it the operation ids of writes
 still in flight. A durable write keeps them:
 `Data.mutate(model, Sell, input, { durable: true })` stores the write in
-Remote's outbox (`Data.outbox`) before it is sent, sends stored writes one at a
+Remote's outbox (`outbox(Data, …)`) before it is sent, sends stored writes one at a
 time and in order, and sends one again after an `Unreachable` and after a
 reload, with the same operation id and the same `now`. Setup and status are in
-[Remote's outbox section](../packages/remote/README.md#a-write-that-outlives-the-page-dataoutbox).
+[Remote's outbox section](../packages/remote/README.md#a-write-that-outlives-the-page-outbox).
 
 What the server must give it is the third row of the table above: a durable
 write may arrive twice, so it needs a writer with a ledger (below), or a

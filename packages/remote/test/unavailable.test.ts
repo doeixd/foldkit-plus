@@ -5,9 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   Entity,
   Query,
-  REMOTE_CACHE_VERSION,
   Remote,
-  RemotePersistence,
   emptyStore,
   entityKey,
   isFieldUnavailable,
@@ -19,6 +17,7 @@ import {
   type Boundary,
   type RemoteMessage,
 } from '../src/index.js'
+import { REMOTE_CACHE_VERSION, RemotePersistence } from '../src/persistence.js'
 import { why, Why } from '../src/why.js'
 import { captureRemote, restoreRemote } from '../src/resume.js'
 

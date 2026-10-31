@@ -75,7 +75,7 @@ each of those.
 | **Boundary** | What is known past a segment's end: `Terminal` (nothing more), `Cursor` (where to page from), or `Unknown`. |
 | **Optimistic layer** | A mutation's patches shown over the cache while it is in flight, removed when it settles. An increment's amount (`adds`) is added to the value under it each time it is read. |
 | **Operation id** | A mutation's identity to a server, unique across clients (`crypto.randomUUID()`), resent by a retry with the same `requestId`. The request id is a per-Model counter, except a durable write's, which the outbox names. |
-| **Outbox** | Durable writes stored before they are sent, sent in order by one tab, kept across a reload (`Data.mutate(…, { durable: true })`, `Data.outbox`). [The outbox](../packages/remote/README.md#a-write-that-outlives-the-page-dataoutbox) |
+| **Outbox** | Durable writes stored before they are sent, sent in order by one tab, kept across a reload (`Data.mutate(…, { durable: true })`, `outbox(Data, …)`). [The outbox](../packages/remote/README.md#a-write-that-outlives-the-page-outbox) |
 | **Write ledger** | `foldkit-remote-drizzle`'s record of the updates a writer landed, by operation and row, so a retry is not applied twice. [Declared writes](./declared-writes.md#a-write-ledger) |
 | **Overlay** | Operations shown over the cache with no request behind them, until lifted: a preview. |
 | **Retention** | Keeping only what active Surfaces reach; the rest is collected when they change. |

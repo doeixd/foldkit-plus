@@ -8,7 +8,7 @@ import { Layer } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import { Style } from 'foldkit-mixins'
 import * as Runtime from 'foldkit/runtime'
-import { init, Message, Model, opening, outbox, subscriptions, update } from './app.js'
+import { init, Message, Model, opening, durable, subscriptions, update } from './app.js'
 import { sandboxRemote } from './server/connection.js'
 import { PEOPLE, type Person } from './server/seed.js'
 import { stylesheet } from './style.js'
@@ -63,5 +63,5 @@ Runtime.run(
     },
   }),
   // The outbox read back before the first frame: a chirp waiting shows at once.
-  { flags: outbox.restore(opening(person)) },
+  { flags: durable.restore(opening(person)) },
 )

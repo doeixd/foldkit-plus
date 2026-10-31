@@ -1,343 +1,483 @@
 /**
- * The durable outbox (#247, operations phase 7): a write made with
- * `Data.mutate(…, { durable: true })` is queued in the Model, copied to a
- * `KeyValueStore`, and sent from there, in order, by one tab, so a reload
- * keeps it, layer and all, and sends it again with the same operation id and
- * the same `now`. Remote sends it later; Sync converges, which this does not.
- *
- * The Model's queue is the truth for this page; the store is its copy, shared
- * by every tab on the same key, and written as a merge so no tab's write
- * overwrites another's.
+ * `foldkit-remote/outbox`: durable writes (`Data.mutate`'s `durable`) kept
+ * across a reload and sent in order by one tab (#247). An entry of its own
+ * (#378), so a page with no outbox keeps none of its store, locks or sending.
  */
-import { Context, Data, Duration, Effect, Option, Random, Schema } from 'effect'
+import { Clock, Data, Effect, Option, Queue, Result, Schema, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
-import type { Computation } from 'foldkit-entity'
-import type { OptimisticOperation } from './optimistic.js'
-import { remoteErrorSchema, type RemoteError } from './remoteData.js'
-import { RelationRequest } from './wire.js'
+import * as Subscription from 'foldkit/subscription'
+import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
+import type { Wiring } from 'foldkit-surface'
+import { mintOperation, mutateRemote, remoteError, type RemoteClient } from './client.js'
+import { remoteMessageSchema, type RemoteMessage, type RemoteModel } from './model.js'
+import type { MutationDescriptor } from './mutationDescriptor.js'
+import {
+  backoff,
+  channelFor,
+  headOf,
+  mergeStored,
+  onlineAgain,
+  othersWaiting,
+  readEntries,
+  readStored,
+  sendLock,
+  settledIn,
+  storedFromText,
+  storedOf,
+  storedText,
+  storeLock,
+  StoredWrite,
+  withLock,
+  type RetryOptions,
+  type StoredOutbox,
+} from './outboxStore.js'
+import { Queued, type OutboxState } from './queue.js'
+import type { RemoteError } from './remoteData.js'
 
-/** Where a queued write stands, as the store keeps it. */
-export type QueuedState =
-  | { readonly _tag: 'Waiting' }
-  | { readonly _tag: 'Failed'; readonly error: RemoteError }
+export { OutboxLocks, type RetryOptions } from './outboxStore.js'
 
-const QueuedStateSchema = Schema.Union([
-  Schema.Struct({ _tag: Schema.Literal('Waiting') }),
-  Schema.Struct({ _tag: Schema.Literal('Failed'), error: remoteErrorSchema }),
-])
-
-const CollationSchema = Schema.Union([
-  Schema.Struct({ _tag: Schema.Literal('Binary') }),
-  Schema.Struct({ _tag: Schema.Literal('AsciiFold') }),
-  Schema.Struct({ _tag: Schema.Literal('Locale'), locale: Schema.String }),
-])
-
-const ComputationSchema: Schema.Codec<Computation> = Schema.Union([
-  Schema.Struct({ _tag: Schema.Literal('Field'), key: Schema.String }),
-  Schema.Struct({ _tag: Schema.Literal('Value'), value: Schema.Unknown }),
-  Schema.Struct({
-    _tag: Schema.Literal('Call'),
-    operator: Schema.String,
-    args: Schema.Array(Schema.suspend((): Schema.Codec<Computation> => ComputationSchema)),
-    collation: Schema.NullOr(CollationSchema),
-  }),
-])
-
-const Ref = Schema.Struct({ entity: Schema.String, id: Schema.String })
-
-/** The layer a write showed, as stored: read back only where every operation still has its shape. */
-const OptimisticSchema: Schema.Codec<OptimisticOperation> = Schema.Union([
-  Schema.Struct({
-    entity: Schema.String,
-    id: Schema.String,
-    values: Schema.Record(Schema.String, Schema.Unknown),
-    adds: Schema.optionalKey(Schema.Record(Schema.String, Schema.Number)),
-    computes: Schema.optionalKey(Schema.Record(Schema.String, ComputationSchema)),
-  }),
-  Schema.Struct({ _tag: Schema.Literal('Delete'), entity: Schema.String, id: Schema.String }),
-  Schema.Struct({
-    _tag: Schema.Literal('Insert'),
-    connection: Schema.String,
-    position: Schema.Literals(['prepend', 'append']),
-    edge: Schema.Struct({ key: Schema.String, ref: Ref }),
-  }),
-  Schema.Struct({
-    _tag: Schema.Literal('Remove'),
-    connection: Schema.String,
-    edge: Schema.Struct({ key: Schema.String, ref: Ref }),
-  }),
-])
-
-/**
- * A durable write as the store keeps it: what a later page needs to show it
- * and send it as itself. Its input is encoded by the Mutation's `Input`, so a
- * page reads it back with the Mutation it has then.
- */
-export const StoredWrite = Schema.Struct({
-  /** Its operation id, which is also its request id. */
-  operation: Schema.String,
-  mutation: Schema.String,
-  input: Schema.Unknown,
-  keys: Schema.optionalKey(Schema.Array(Schema.String)),
-  now: Schema.optionalKey(Schema.Number),
-  /** The layer it shows until it settles. */
-  optimistic: Schema.Array(OptimisticSchema),
-  /** Who its layer was predicted for. */
-  viewer: Schema.optionalKey(Ref),
-  /** What the reader was shown when they acted, for the answer to carry. */
-  shown: Schema.Array(RelationRequest),
-  /** Moves on each change of `state`; of two copies, the higher wins. */
-  revision: Schema.Number,
-  state: QueuedStateSchema,
-})
-export type StoredWrite = typeof StoredWrite.Type
-
-/** What makes a stored entry an operation at all: one without these is dropped. */
-const OperationKey = Schema.Struct({ operation: Schema.String, revision: Schema.Number })
-const keyOf = Schema.decodeUnknownOption(OperationKey)
-
-const OUTBOX_VERSION = 1
-
-/** The record one key holds: every tab's queued writes, and the operations settled lately. */
-const StoredOutboxSchema = Schema.Struct({
-  version: Schema.Literal(OUTBOX_VERSION),
-  scope: Schema.String,
-  entries: Schema.Array(Schema.Unknown),
-  done: Schema.Array(Schema.String),
-})
-
-/** A key's queue as stored, each entry as it was written, read or not. */
-export interface StoredOutbox {
-  readonly entries: ReadonlyArray<unknown>
-  readonly done: ReadonlyArray<string>
-}
-
-export const emptyStoredOutbox: StoredOutbox = { entries: [], done: [] }
-
-/**
- * How many settled operation ids are kept. A copy of a write settled longer
- * ago than this could come back from a tab that slept through it; the
- * server's ledger answers it again from its record.
- */
-const DONE_WINDOW = 256
-
-/** `done` with `settled` after it, the newest `DONE_WINDOW`, each once. */
-export const withDone = (
-  done: ReadonlyArray<string>,
-  settled: ReadonlyArray<string>,
-): ReadonlyArray<string> => {
-  if (settled.every(operation => done.includes(operation))) return done
-  const kept = new Set(done)
-  for (const operation of settled) kept.add(operation)
-  return [...kept].slice(-DONE_WINDOW)
-}
-
-/**
- * Two copies of a queue as one: entries of both by operation, none that
- * either settled, the higher revision of each, in the store's order and then
- * mine. A join, so tabs that save at once lose nothing the next save does
- * not put back.
- */
-export const mergeStored = (store: StoredOutbox, mine: StoredOutbox): StoredOutbox => {
-  const done = withDone(store.done, mine.done)
-  const gone = new Set(done)
-  const kept = new Map<string, { readonly raw: unknown; readonly revision: number }>()
-  for (const raw of [...store.entries, ...mine.entries]) {
-    const key = keyOf(raw)
-    if (Option.isNone(key) || gone.has(key.value.operation)) continue
-    const held = kept.get(key.value.operation)
-    if (held === undefined || held.revision < key.value.revision) {
-      kept.set(key.value.operation, { raw, revision: key.value.revision })
-    }
+/** What `outbox` and `outboxStatus` use of a domain: `Remote.make`'s value is one. */
+export interface OutboxDomain<AppModel> {
+  readonly registry: {
+    readonly mutations: ReadonlyMap<string, MutationDescriptor<any, any, any>>
   }
-  return { entries: [...kept.values()].map(({ raw }) => raw), done }
+  readonly store: { get(model: AppModel): RemoteModel }
+  readonly contract: { readonly name: string }
+  reduce(model: AppModel, message: RemoteMessage): AppModel
 }
 
-/** The record under `key` for `scope`: none when absent, of another scope or version, or not JSON. */
-export const readStored = (
-  key: string,
-  scope: string,
-): Effect.Effect<StoredOutbox, KeyValueStore.KeyValueStoreError, KeyValueStore.KeyValueStore> =>
-  Effect.gen(function* () {
-    const kv = yield* KeyValueStore.KeyValueStore
-    const text = yield* kv.get(key)
-    if (text === undefined) return emptyStoredOutbox
-    const parsed = Schema.decodeUnknownOption(Schema.fromJsonString(StoredOutboxSchema))(text)
-    return Option.match(parsed, {
-      onNone: () => emptyStoredOutbox,
-      onSome: record =>
-        record.scope === scope ? { entries: record.entries, done: record.done } : emptyStoredOutbox,
-    })
-  })
+/** How `outbox` keeps durable writes across a reload. */
+export interface OutboxOptions<AppModel> {
+  /**
+   * Where the queue is stored, from the Model: one key per principal, so one
+   * person's waiting writes are never sent as another's.
+   */
+  readonly key: (model: AppModel) => string
+  /**
+   * Who the queue is for, the principal. One stored under another scope reads
+   * as empty and is never written over; a page whose scope changes sends
+   * nothing it read for the old one, and reads the new one's.
+   */
+  readonly scope: (model: AppModel) => string
+  /** The wait between sends nothing answered: 1 second doubling to 30, unless given. */
+  readonly retry?: RetryOptions | undefined
+}
 
+/** `outbox`'s wiring, and the restore its runtime's `init` starts from. */
+export interface OutboxWiring<AppModel> extends Wiring<
+  AppModel,
+  RemoteMessage,
+  KeyValueStore.KeyValueStore | RemoteClient
+> {
+  /**
+   * The Model with the stored queue under its `key` read back, as the wiring
+   * would read it, and this page's session minted. Resolve it as the runtime's
+   * `flags` and start `init` from it: a durable write needs the session, and
+   * the first frame then shows the waiting writes.
+   */
+  readonly restore: (model: AppModel) => Effect.Effect<AppModel, never, KeyValueStore.KeyValueStore>
+}
 /**
- * Whether the record under `key` holds writes waiting for another scope than
- * `scope`: a key that is not one per principal. Writing over it would lose
- * them, so it is not written.
+ * Keeps a domain's durable writes (`mutate`'s `durable`) across a reload and
+ * sends them, as a wiring beside `Data.wiring`: the queue is written to `key`
+ * before a write is sent, sent oldest first by one tab (a Web Lock), sent
+ * again after a failure that nothing answered with a backoff, and read back
+ * by every tab. Start `init` from its `restore`. A change of principal should
+ * `forget` in `update`, and name another `key`.
  */
-export const othersWaiting = (
-  key: string,
-  scope: string,
-): Effect.Effect<boolean, KeyValueStore.KeyValueStoreError, KeyValueStore.KeyValueStore> =>
-  Effect.gen(function* () {
-    const text = yield* (yield* KeyValueStore.KeyValueStore).get(key)
-    return Option.exists(
-      Option.flatMap(Option.fromUndefinedOr(text), stored =>
-        Schema.decodeUnknownOption(Schema.fromJsonString(StoredOutboxSchema))(stored),
-      ),
-      record => record.scope !== scope && record.entries.length > 0,
+export const outbox = <AppModel>(
+  domain: OutboxDomain<AppModel>,
+  options: OutboxOptions<AppModel>,
+): OutboxWiring<AppModel> => {
+  /** The descriptor a stored write names, which `readEntries` found registered. */
+  const registered = (name: string): MutationDescriptor<any, any, any> => {
+    const descriptor = domain.registry.mutations.get(name)
+    if (descriptor === undefined) {
+      throw new Error(
+        `Remote: a durable write names mutation "${name}", which domain "${domain.contract.name}" does not register`,
+      )
+    }
+    return descriptor
+  }
+  /** How this version reads a stored input of `mutation`; none for one it does not register. */
+  const inputOf = (mutation: string) =>
+    Option.map(
+      Option.fromUndefinedOr(domain.registry.mutations.get(mutation)),
+      descriptor => (input: unknown) =>
+        Option.map(Schema.decodeUnknownOption(descriptor.Input)(input), decoded => ({
+          decoded,
+        })),
     )
+  const readOf = (
+    key: string,
+    scope: string,
+    stored: StoredOutbox,
+    extra: { readonly session?: string; readonly unsaved?: string } = {},
+  ): RemoteMessage => ({
+    _tag: 'OutboxRead',
+    key,
+    scope,
+    entries: readEntries(stored, inputOf),
+    done: stored.done,
+    ...extra,
   })
+  /** Tells the other tabs on `key` the store changed, with the answer that changed it. */
+  const announce = (key: string, outcome: Option.Option<RemoteMessage>) =>
+    Effect.sync(() =>
+      Option.map(channelFor(key), channel => {
+        channel.postMessage({ outcome: Option.getOrUndefined(outcome) })
+        channel.close()
+      }),
+    )
+  /** The store with `change` merged in, under its lock, so two tabs never write it at once. */
+  const writeStored = (key: string, scope: string, change: StoredOutbox) =>
+    withLock(
+      storeLock(key),
+      Effect.gen(function* () {
+        // Another scope's waiting writes are never written over: a key that
+        // is not one per principal fails the save, and says why.
+        if (yield* othersWaiting(key, scope)) {
+          return yield* Effect.fail(
+            new Error(
+              `the store under ${key} holds another scope's waiting writes; give each principal a key of its own`,
+            ),
+          )
+        }
+        const merged = mergeStored(yield* readStored(key, scope), change)
+        const kv = yield* KeyValueStore.KeyValueStore
+        yield* kv.set(key, storedText(merged, scope))
+        return merged
+      }),
+    )
+  /** What the store holds, as a page reads it; this page's own queue, and why, where it cannot be read. */
+  const restored = (key: string, scope: string, session: Option.Option<string>) =>
+    readStored(key, scope).pipe(
+      Effect.map(stored =>
+        readOf(
+          key,
+          scope,
+          stored,
+          Option.match(session, {
+            onNone: () => ({}),
+            onSome: minted => ({ session: minted }),
+          }),
+        ),
+      ),
+      Effect.catch(error =>
+        Effect.succeed(
+          readOf(
+            key,
+            scope,
+            { entries: [], done: [] },
+            {
+              ...Option.match(session, {
+                onNone: () => ({}),
+                onSome: minted => ({ session: minted }),
+              }),
+              unsaved: error.message,
+            },
+          ),
+        ),
+      ),
+    )
+  /** Whether the page's queue is the one stored under `key` for `scope`. */
+  const holding = (outbox: RemoteModel['outbox'], key: string, scope: string) =>
+    Option.contains(outbox.key, key) && Option.contains(outbox.scope, scope)
+  const minted = (has: boolean) =>
+    has ? Effect.succeed(Option.none<string>()) : Effect.sync(() => Option.some(mintOperation()))
 
-export const storedText = (outbox: StoredOutbox, scope: string): string =>
-  JSON.stringify({ version: OUTBOX_VERSION, scope, entries: outbox.entries, done: outbox.done })
+  // The queue's text changes only with the queue and the scope, so it is kept by them.
+  let lastText: {
+    readonly outbox: RemoteModel['outbox'] | undefined
+    readonly scope: string
+    readonly text: string
+  } = { outbox: undefined, scope: '', text: '' }
+  const textOf = (outbox: RemoteModel['outbox'], scope: string): string => {
+    if (lastText.outbox !== outbox || lastText.scope !== scope) {
+      lastText = { outbox, scope, text: storedText(storedOf(outbox), scope) }
+    }
+    return lastText.text
+  }
 
-/** A queue's text, as `storedText` wrote it, read back. */
-export const storedFromText = (text: string): StoredOutbox =>
-  Option.match(Schema.decodeUnknownOption(Schema.fromJsonString(StoredOutboxSchema))(text), {
-    onNone: () => emptyStoredOutbox,
-    onSome: ({ entries, done }) => ({ entries, done }),
-  })
+  const restoreEntry: EntryWithoutKeepAlive<
+    AppModel,
+    RemoteMessage,
+    {
+      readonly key: string
+      readonly scope: string
+      readonly restored: boolean
+      readonly session: boolean
+    },
+    KeyValueStore.KeyValueStore
+  > = {
+    dependenciesSchema: Schema.Struct({
+      key: Schema.String,
+      scope: Schema.String,
+      restored: Schema.Boolean,
+      session: Schema.Boolean,
+    }),
+    modelToDependencies: model => {
+      const { outbox } = domain.store.get(model)
+      const key = options.key(model)
+      const scope = options.scope(model)
+      return {
+        key,
+        scope,
+        restored: holding(outbox, key, scope),
+        session: Option.isSome(outbox.session),
+      }
+    },
+    dependenciesToStream: ({ key, scope, restored: done, session }) =>
+      done
+        ? Stream.empty
+        : Stream.fromEffect(Effect.flatMap(minted(session), mint => restored(key, scope, mint))),
+  }
 
-/**
- * Whether the store says `operation` is settled: done, or refused. A store
- * that lacks it says nothing (it could not be written), and it is sent.
- */
-export const settledIn = (outbox: StoredOutbox, operation: string): boolean =>
-  outbox.done.includes(operation) ||
-  outbox.entries.some(raw =>
-    Option.exists(
-      Schema.decodeUnknownOption(StoredWrite)(raw),
-      write => write.operation === operation && write.state._tag !== 'Waiting',
+  // Written whenever the queue changes, merged with what other tabs wrote,
+  // and read back: what the store holds is what may be sent.
+  const save: EntryWithoutKeepAlive<
+    AppModel,
+    RemoteMessage,
+    { readonly key: string; readonly scope: string; readonly text: Option.Option<string> },
+    KeyValueStore.KeyValueStore
+  > = {
+    dependenciesSchema: Schema.Struct({
+      key: Schema.String,
+      scope: Schema.String,
+      text: Schema.OptionFromNullOr(Schema.String),
+    }),
+    modelToDependencies: model => {
+      const { outbox } = domain.store.get(model)
+      const key = options.key(model)
+      const scope = options.scope(model)
+      return {
+        key,
+        scope,
+        // Saved only under the key and scope it was read for: never over a queue not yet read.
+        text: holding(outbox, key, scope) ? Option.some(textOf(outbox, scope)) : Option.none(),
+      }
+    },
+    dependenciesToStream: ({ key, scope, text }) =>
+      Option.match(text, {
+        onNone: () => Stream.empty,
+        onSome: written => {
+          const mine = storedFromText(written)
+          return Stream.fromEffect(
+            writeStored(key, scope, mine).pipe(
+              Effect.tap(() => announce(key, Option.none())),
+              Effect.map(merged => readOf(key, scope, merged)),
+              // A store that cannot be written does not hold the writes back:
+              // they are sent, and a reload before the answer loses them.
+              Effect.catch(error =>
+                Effect.succeed(readOf(key, scope, mine, { unsaved: error.message })),
+              ),
+            ),
+          )
+        },
+      }),
+  }
+
+  /** Sends `write`, as the one tab on `key` that sends, until the server answers it. */
+  const sent = (key: string, scope: string, write: StoredWrite) =>
+    Stream.callback<RemoteMessage, never, KeyValueStore.KeyValueStore | RemoteClient>(queue => {
+      const emit = (message: RemoteMessage) => Queue.offer(queue, message)
+      /**
+       * The outcome told this tab and the others first, so each settles
+       * with the server's answer, then written to the store before the
+       * lock goes, so the next sender reads it.
+       */
+      const settle = (message: RemoteMessage, change: StoredOutbox) =>
+        emit(message).pipe(
+          Effect.andThen(announce(key, Option.some(message))),
+          Effect.andThen(writeStored(key, scope, change)),
+          Effect.andThen(announce(key, Option.none())),
+          // Unwritten, the store still says waiting: the next sender sends it
+          // again, and the operation id has the server answer from its record.
+          Effect.ignore,
+        )
+      const operation = write.operation
+      return withLock(
+        sendLock(key),
+        Effect.gen(function* () {
+          // Another tab may have settled it while this one waited for the lock.
+          const there = yield* Effect.option(readStored(key, scope))
+          if (Option.isSome(there) && settledIn(there.value, operation)) {
+            yield* emit(readOf(key, scope, there.value))
+            return
+          }
+          const mutation = registered(write.mutation)
+          const input = Schema.decodeUnknownSync(mutation.Input)(write.input)
+          for (let attempt = 1; ; attempt++) {
+            const result = yield* Effect.result(
+              mutateRemote(mutation, input, operation, {
+                keys: write.keys,
+                operation,
+                shown: write.shown,
+                now: write.now,
+              }),
+            )
+            if (Result.isSuccess(result)) {
+              const outcome = result.success
+              const at = yield* Clock.currentTimeMillis
+              return yield* settle(
+                {
+                  _tag: 'MutationSucceeded',
+                  requestId: operation,
+                  entities: outcome.entities,
+                  connections: outcome.connections,
+                  deleted: outcome.deleted,
+                  ...(outcome.read === undefined ? {} : { read: outcome.read }),
+                  now: at,
+                },
+                { entries: [], done: [operation] },
+              )
+            }
+            const error = remoteError(result.failure)
+            // Nothing answered: kept waiting, and sent again after a wait.
+            if (result.failure._tag === 'Unreachable') {
+              yield* emit({ _tag: 'OutboxDelayed', requestId: operation, attempt, error })
+              yield* Effect.race(
+                Effect.flatMap(backoff(attempt, options.retry), Effect.sleep),
+                onlineAgain,
+              )
+              continue
+            }
+            return yield* settle(
+              { _tag: 'MutationFailed', requestId: operation, error, operation },
+              {
+                entries: [
+                  { ...write, revision: write.revision + 1, state: { _tag: 'Failed', error } },
+                ],
+                done: [],
+              },
+            )
+          }
+        }),
+      ).pipe(Effect.ensuring(Queue.end(queue)))
+    })
+
+  // The head's text changes only with the head, so a send is not restarted
+  // by anything else the Model does while it waits for its answer.
+  let lastHead: {
+    readonly outbox: RemoteModel['outbox'] | undefined
+    readonly head: Option.Option<string>
+  } = { outbox: undefined, head: Option.none() }
+  const headTextOf = (outbox: RemoteModel['outbox']): Option.Option<string> => {
+    if (lastHead.outbox !== outbox) {
+      lastHead = { outbox, head: Option.map(headOf(outbox), write => JSON.stringify(write)) }
+    }
+    return lastHead.head
+  }
+  const send: EntryWithoutKeepAlive<
+    AppModel,
+    RemoteMessage,
+    { readonly key: string; readonly scope: string; readonly head: Option.Option<string> },
+    KeyValueStore.KeyValueStore | RemoteClient
+  > = {
+    dependenciesSchema: Schema.Struct({
+      key: Schema.String,
+      scope: Schema.String,
+      head: Schema.OptionFromNullOr(Schema.String),
+    }),
+    modelToDependencies: model => {
+      const { outbox } = domain.store.get(model)
+      const key = options.key(model)
+      const scope = options.scope(model)
+      return {
+        key,
+        scope,
+        // Another scope's queue is never sent: it was made as someone else.
+        head: holding(outbox, key, scope) ? headTextOf(outbox) : Option.none(),
+      }
+    },
+    dependenciesToStream: ({ key, scope, head }) =>
+      Option.match(head, {
+        onNone: () => Stream.empty,
+        onSome: text => sent(key, scope, Schema.decodeUnknownSync(StoredWrite)(JSON.parse(text))),
+      }),
+  }
+
+  /** What another tab announced: the answer it heard first, then the store as it now is. */
+  const heard = (key: string, scope: string, data: unknown) =>
+    Effect.map(restored(key, scope, Option.none()), (read): ReadonlyArray<RemoteMessage> => [
+      ...Option.toArray(outcomeOf(data)),
+      read,
+    ])
+  const watch: EntryWithoutKeepAlive<
+    AppModel,
+    RemoteMessage,
+    { readonly key: string; readonly scope: string; readonly restored: boolean },
+    KeyValueStore.KeyValueStore
+  > = {
+    dependenciesSchema: Schema.Struct({
+      key: Schema.String,
+      scope: Schema.String,
+      restored: Schema.Boolean,
+    }),
+    modelToDependencies: model => {
+      const key = options.key(model)
+      const scope = options.scope(model)
+      return {
+        key,
+        scope,
+        restored: holding(domain.store.get(model).outbox, key, scope),
+      }
+    },
+    dependenciesToStream: ({ key, scope, restored: read }) =>
+      read
+        ? Stream.callback<unknown>(queue =>
+            Effect.acquireRelease(
+              Effect.sync(() =>
+                Option.map(channelFor(key), channel => {
+                  channel.onmessage = (event: MessageEvent<unknown>) => {
+                    Queue.offerUnsafe(queue, event.data)
+                  }
+                  return channel
+                }),
+              ),
+              channel => Effect.sync(() => Option.map(channel, open => open.close())),
+            ),
+          ).pipe(
+            Stream.mapEffect(data => heard(key, scope, data)),
+            Stream.flatMap(messages => Stream.fromIterable(messages)),
+          )
+        : Stream.empty,
+  }
+
+  return {
+    key: `outbox:${domain.contract.name}`,
+    handles: [],
+    subscriptions: Subscription.make<
+      AppModel,
+      RemoteMessage,
+      KeyValueStore.KeyValueStore | RemoteClient
+    >()(() => ({
+      'outbox.restore': restoreEntry,
+      'outbox.save': save,
+      'outbox.send': send,
+      'outbox.watch': watch,
+    })),
+    restore: model =>
+      Effect.map(
+        Effect.flatMap(minted(Option.isSome(domain.store.get(model).outbox.session)), mint =>
+          restored(options.key(model), options.scope(model), mint),
+        ),
+        message => domain.reduce(model, message),
+      ),
+  }
+}
+
+/** The outbox's own answers, as another tab announced them: a settled write, and nothing else. */
+const announcedOutcome = Schema.Struct({ outcome: Schema.optional(remoteMessageSchema) })
+const outcomeOf = (data: unknown): Option.Option<RemoteMessage> =>
+  Option.filter(
+    Option.flatMap(Schema.decodeUnknownOption(announcedOutcome)(data), ({ outcome }) =>
+      Option.fromUndefinedOr(outcome),
     ),
+    outcome => outcome._tag === 'MutationSucceeded' || outcome._tag === 'MutationFailed',
   )
 
-/** A queued write in the Model. */
-export type Queued = Data.TaggedEnum<{
-  /** One this version can send: shown, in the ledger, and sent in its turn. */
-  Readable: {
-    readonly write: StoredWrite
-    /** Whether the store is known to hold this revision: only then is it sent. */
-    readonly stored: boolean
-    /** Sends in a row that nothing answered, this page. */
-    readonly attempt: number
-    /** Why the last of them failed. */
-    readonly delayed: Option.Option<RemoteError>
-  }
-  /** One this version cannot read (a Mutation it lacks, an input that no longer decodes): kept, never sent. */
-  Unreadable: {
-    readonly operation: string
-    readonly revision: number
-    /** The entry as it was stored, written back as it is. */
-    readonly raw: unknown
-    readonly reason: string
-    readonly stored: boolean
-  }
-}>
-export const Queued = Data.taggedEnum<Queued>()
-
-/** The durable writes this page holds, and the store they are copied to. */
-export interface OutboxState {
-  /** Names this page load's operations; minted by the outbox's restore. */
-  readonly session: Option.Option<string>
-  /** The store key the queue was read from; it is saved there and nowhere else. */
-  readonly key: Option.Option<string>
-  /**
-   * Whose queue it is, as it was read: a page whose scope moves on sends none
-   * of it, and reads the new scope's instead.
-   */
-  readonly scope: Option.Option<string>
-  /** Every tab's queued writes, in the order they are sent. */
-  readonly queue: ReadonlyArray<Queued>
-  /** Operations settled lately, here or in another tab. */
-  readonly done: ReadonlyArray<string>
-}
-
-export const emptyOutbox: OutboxState = {
-  session: Option.none(),
-  key: Option.none(),
-  scope: Option.none(),
-  queue: [],
-  done: [],
-}
-
-export const operationOf = Queued.$match({
-  Readable: ({ write }) => write.operation,
-  Unreadable: ({ operation }) => operation,
-})
-
-export const revisionOf = Queued.$match({
-  Readable: ({ write }) => write.revision,
-  Unreadable: ({ revision }) => revision,
-})
-
-const isStored = Queued.$match({
-  Readable: ({ stored }) => stored,
-  Unreadable: ({ stored }) => stored,
-})
-
-/** The queue as the store keeps it. */
-export const storedOf = (outbox: OutboxState): StoredOutbox => ({
-  entries: outbox.queue.map(
-    Queued.$match({ Readable: ({ write }) => write, Unreadable: ({ raw }) => raw }),
-  ),
-  done: outbox.done,
-})
-
-/** Whether every queued write is in the store as the Model holds it. */
-export const allStored = (outbox: OutboxState): boolean => outbox.queue.every(isStored)
-
-/** The write sent next: the oldest one waiting that the store holds. */
-export const headOf = (outbox: OutboxState): Option.Option<StoredWrite> => {
-  for (const queued of outbox.queue) {
-    if (queued._tag === 'Readable' && queued.write.state._tag === 'Waiting' && queued.stored) {
-      return Option.some(queued.write)
-    }
-  }
-  return Option.none()
-}
-
-/**
- * A stored entry as a page reads it: a write it can send, with its input
- * decoded, or one it cannot, with why.
- */
-export type ReadEntry =
-  | { readonly _tag: 'Readable'; readonly write: StoredWrite; readonly input: unknown }
-  | {
-      readonly _tag: 'Unreadable'
-      readonly operation: string
-      readonly revision: number
-      readonly raw: unknown
-      readonly reason: string
-    }
-
-/** A stored queue as a page reads it, entry by entry: one bad entry never fails the rest. */
-export const readEntries = (
-  outbox: StoredOutbox,
-  inputOf: (
-    mutation: string,
-  ) => Option.Option<(input: unknown) => Option.Option<{ readonly decoded: unknown }>>,
-): ReadonlyArray<ReadEntry> =>
-  outbox.entries.flatMap((raw): ReadonlyArray<ReadEntry> => {
-    const key = keyOf(raw)
-    // Not an operation at all: nothing to send, show, or dismiss.
-    if (Option.isNone(key)) return []
-    const unreadable = (reason: string): ReadonlyArray<ReadEntry> => [
-      { _tag: 'Unreadable', ...key.value, raw, reason },
-    ]
-    const write = Schema.decodeUnknownOption(StoredWrite)(raw)
-    if (Option.isNone(write)) return unreadable('it was stored in a shape this version cannot read')
-    return Option.match(inputOf(write.value.mutation), {
-      onNone: () => unreadable(`${write.value.mutation} is not a mutation this version registers`),
-      onSome: decode =>
-        Option.match(decode(write.value.input), {
-          onNone: () => unreadable(`its input no longer decodes as ${write.value.mutation}'s`),
-          onSome: ({ decoded }) => [{ _tag: 'Readable', write: write.value, input: decoded }],
-        }),
-    })
-  })
-
-/** One item of `Data.outboxStatus`. */
+/** One item of `outboxStatus`. */
 export interface OutboxItem {
   readonly requestId: string
   /** The Mutation it names; none where the stored entry names none this version can read. */
@@ -365,7 +505,17 @@ export interface OutboxStatus {
 
 const MutationName = Schema.Struct({ mutation: Schema.String })
 
-export const outboxStatus = (outbox: OutboxState): OutboxStatus => {
+/**
+ * The durable writes a domain has not yet settled, every tab's, in the order
+ * the outbox sends them: how many wait, how many the server refused, and each
+ * one's state, for a "3 changes waiting" line.
+ */
+export const outboxStatus = <AppModel>(
+  domain: { readonly store: { get(model: AppModel): RemoteModel } },
+  model: AppModel,
+): OutboxStatus => statusOf(domain.store.get(model).outbox)
+
+const statusOf = (outbox: OutboxState): OutboxStatus => {
   const items = outbox.queue.map(
     Queued.$match({
       Readable: ({ write, attempt, delayed }): OutboxItem => ({
@@ -392,94 +542,3 @@ export const outboxStatus = (outbox: OutboxState): OutboxStatus => {
     items,
   }
 }
-
-/**
- * Where the outbox takes its Web Locks: the browser's, where it has them. A
- * trace, which is one tab, takes none.
- */
-export const OutboxLocks = Context.Reference<Option.Option<LockManager>>(
-  'foldkit-remote/OutboxLocks',
-  { defaultValue: () => Option.fromUndefinedOr(globalThis.navigator?.locks) },
-)
-
-/**
- * Holds the Web Lock `name` while `effect` runs, where there are Web Locks;
- * elsewhere runs it as it is (one tab, or a server).
- */
-export const withLock = <A, E, R>(
-  name: string,
-  effect: Effect.Effect<A, E, R>,
-): Effect.Effect<A, E, R> =>
-  Effect.flatMap(Effect.service(OutboxLocks), held =>
-    Option.match(held, {
-      onNone: () => effect,
-      onSome: locks => heldWhile(locks, name, effect),
-    }),
-  )
-
-const heldWhile = <A, E, R>(
-  locks: LockManager,
-  name: string,
-  effect: Effect.Effect<A, E, R>,
-): Effect.Effect<A, E, R> =>
-  Effect.acquireUseRelease(
-    Effect.callback<() => void>((resume, signal) => {
-      locks
-        .request(name, { signal }, () => {
-          let release: () => void = () => undefined
-          const held = new Promise<void>(done => {
-            release = done
-          })
-          resume(Effect.succeed(release))
-          return held
-        })
-        // An abandoned wait rejects with the signal's reason; nothing waits on it.
-        .catch(() => undefined)
-    }),
-    () => effect,
-    release => Effect.sync(release),
-  )
-
-/** The `BroadcastChannel` the tabs on one key speak on; none where there is none. */
-export const channelFor = (key: string): Option.Option<BroadcastChannel> =>
-  typeof globalThis.BroadcastChannel === 'function'
-    ? Option.some(new globalThis.BroadcastChannel(`foldkit-remote-outbox:${key}`))
-    : Option.none()
-
-/** The lock the tabs on one key send under: one sends, the others wait. */
-export const sendLock = (key: string): string => `foldkit-remote-outbox:${key}:send`
-
-/** The lock a write to the store is made under, so two tabs never write it at once. */
-export const storeLock = (key: string): string => `foldkit-remote-outbox:${key}:store`
-
-/** How long the outbox waits before sending again after `attempt` sends nothing answered. */
-export interface RetryOptions {
-  /** The first wait; 1 second unless given. */
-  readonly base?: Duration.Input | undefined
-  /** The longest; 30 seconds unless given. */
-  readonly max?: Duration.Input | undefined
-}
-
-/** `base` doubled per attempt, up to `max`, ±20% so tabs that failed together do not retry together. */
-export const backoff = (
-  attempt: number,
-  options: RetryOptions = {},
-): Effect.Effect<Duration.Duration> => {
-  const base = Duration.toMillis(Duration.fromInputUnsafe(options.base ?? '1 second'))
-  const max = Duration.toMillis(Duration.fromInputUnsafe(options.max ?? '30 seconds'))
-  const wait = Math.min(max, base * 2 ** Math.max(0, attempt - 1))
-  return Effect.map(Random.nextBetween(0.8, 1.2), jitter => Duration.millis(wait * jitter))
-}
-
-/**
- * Waits until the browser says it is online again, where it can say so;
- * never elsewhere. A wait for a retry races it, so a write goes as soon as
- * the network is back.
- */
-export const onlineAgain: Effect.Effect<void> = Effect.callback<void>(resume => {
-  const target = globalThis.window
-  if (target === undefined || typeof target.addEventListener !== 'function') return
-  const online = () => resume(Effect.void)
-  target.addEventListener('online', online, { once: true })
-  return Effect.sync(() => target.removeEventListener('online', online))
-})

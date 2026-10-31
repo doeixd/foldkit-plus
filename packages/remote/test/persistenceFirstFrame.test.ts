@@ -1,6 +1,6 @@
 /**
  * A reload draws the stored list from its first frame (#262): `init` starts
- * from `Data.persistence`'s `restore`, so the list never reads `Loading`
+ * from `persistence(Data, …)`'s `restore`, so the list never reads `Loading`
  * while the stored rows are on their way. Traced, with a domain of its own.
  */
 import { Effect, Option, Schema, Stream } from 'effect'
@@ -10,14 +10,8 @@ import type * as Update from 'foldkit/update'
 import { Entity, Order } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import {
-  Query,
-  Remote,
-  RemotePersistence,
-  isRemoteMessage,
-  terminal,
-  type RemoteClient,
-} from '../src/index.js'
+import { Query, Remote, isRemoteMessage, terminal, type RemoteClient } from '../src/index.js'
+import { persistence, RemotePersistence } from '../src/persistence.js'
 import { Respond, Trace } from '../src/testing.js'
 
 const Project = Entity.define('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
@@ -39,7 +33,7 @@ const Data = Remote.make({
 
 const list = Data.query(All, {}, { select: Entity.select(Project, { name: true }), first: 25 })
 const active = { list: Data.active('list', () => Option.some(list)) }
-const persistence = Data.persistence({
+const cache = persistence(Data, {
   key: model => `cache:${model.actor}`,
   scope: model => model.actor,
   connections: [list.ref],
@@ -104,7 +98,7 @@ const reload = (start: Model) =>
 describe('A reload that restores in init', () => {
   it('draws the stored rows first, then the server’s, and never Loading', async () => {
     const start = await Effect.runPromise(
-      persistence.restore(fresh).pipe(Effect.provideService(KeyValueStore.KeyValueStore, stored)),
+      cache.restore(fresh).pipe(Effect.provideService(KeyValueStore.KeyValueStore, stored)),
     )
     const trace = await reload(start)
 

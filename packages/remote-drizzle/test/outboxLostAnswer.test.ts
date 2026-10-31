@@ -13,6 +13,7 @@ import { KeyValueStore } from 'effect/persistence'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Write } from 'foldkit-entity'
 import { Mutation, Remote, RemoteClient, type RemoteMessage } from 'foldkit-remote'
+import { outbox, outboxStatus } from 'foldkit-remote/outbox'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Surface } from 'foldkit-surface'
 import { expect, it } from 'vitest'
@@ -89,12 +90,12 @@ const Model = Schema.Struct({ remote: Remote.Model })
 type Model = typeof Model.Type
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
 const Data = Remote.make({ model: App.model.remote, entities: [Item], mutations: [Restock] })
-const outbox = Data.outbox({
+const durable = outbox(Data, {
   key: () => 'outbox:ada',
   scope: () => 'ada',
   retry: { base: '1 millis', max: '2 millis' },
 })
-const entries = outbox.subscriptions!
+const entries = durable.subscriptions!
 
 const kv = Effect.runSync(
   Effect.gen(function* () {
@@ -118,7 +119,7 @@ const step = (name: 'outbox.save' | 'outbox.send', model: Model) => {
 
 it('sends a write whose answer was not an answer again, and settles it from the ledger', async () => {
   const start = await Effect.runPromise(
-    outbox
+    durable
       .restore({ remote: Remote.initial })
       .pipe(Effect.provideService(KeyValueStore.KeyValueStore, kv)),
   )
@@ -140,6 +141,6 @@ it('sends a write whose answer was not an answer again, and settles it from the 
     entities: [{ entity: 'Item', id: 'i1', values: { stock: 12 } }],
   })
   const settled = messages.reduce(Data.reduce, saved)
-  expect(Data.outboxStatus(settled)).toMatchObject({ waiting: 0, failed: 0, items: [] })
+  expect(outboxStatus(Data, settled)).toMatchObject({ waiting: 0, failed: 0, items: [] })
   expect(Data.mutation(settled, queued.requestId)._tag).toBe('Applied')
 })

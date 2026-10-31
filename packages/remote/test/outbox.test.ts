@@ -24,7 +24,8 @@ import {
   terminal,
   type RemoteMessage,
 } from '../src/index.js'
-import { mergeStored } from '../src/outbox.js'
+import { outbox, outboxStatus } from '../src/outbox.js'
+import { mergeStored } from '../src/outboxStore.js'
 
 const Item = Entity.define('Item', Schema.Struct({ id: Schema.String, count: Schema.Number }))
 const SetCount = Mutation.write(
@@ -47,12 +48,12 @@ const Data = Remote.make({
   mutations: [SetCount],
 })
 
-const outbox = Data.outbox({
+const durable = outbox(Data, {
   key: model => `outbox:${model.actor}`,
   scope: model => model.actor,
   retry: { base: '1 millis', max: '2 millis' },
 })
-const entries = outbox.subscriptions!
+const entries = durable.subscriptions!
 
 /** Ada's page before anything is read back: i1 and i2 held at 1. */
 const page = (actor = 'ada'): Model =>
@@ -143,7 +144,7 @@ const step = (tab: Tab, entry: Entry, model: Model): Promise<ReadonlyArray<Remot
 }
 
 /** The page with its restore run, as a runtime's flags would. */
-const restored = (tab: Tab, model: Model = page(), wiring = outbox) =>
+const restored = (tab: Tab, model: Model = page(), wiring = durable) =>
   Effect.runPromise(
     wiring.restore(model).pipe(Effect.provideService(KeyValueStore.KeyValueStore, tab.kv)),
   )
@@ -205,7 +206,7 @@ describe('a durable write', () => {
       ),
     ).toEqual({ _tag: 'MutationQueued', requestId: started.requestId })
     expect(tab.sent).toEqual([])
-    expect(Data.outboxStatus(started.model)).toMatchObject({ waiting: 1, failed: 0 })
+    expect(outboxStatus(Data, started.model)).toMatchObject({ waiting: 1, failed: 0 })
   })
 
   it('is sent only once the store holds it', async () => {
@@ -238,7 +239,7 @@ describe('a durable write', () => {
     expect(tab.shown).toEqual([[{ entity: 'Item', fields: ['count'] }]])
     expect(count(settled, 'i1')).toBe(2)
     expect(Data.mutation(settled, started.requestId)).toEqual({ _tag: 'Applied' })
-    expect(Data.outboxStatus(settled)).toEqual({ waiting: 0, failed: 0, items: [] })
+    expect(outboxStatus(Data, settled)).toEqual({ waiting: 0, failed: 0, items: [] })
     expect(storedOperations(tab.kv)).toEqual([])
   })
 
@@ -266,7 +267,7 @@ describe('a durable write', () => {
     const after = { kv, ...server() }
     const reloaded = await restored(after)
     expect(count(reloaded, 'i1')).toBe(2)
-    expect(Data.outboxStatus(reloaded).items).toMatchObject([
+    expect(outboxStatus(Data, reloaded).items).toMatchObject([
       { requestId: started.requestId, mutation: Option.some('SetCount') },
     ])
     expect(reloaded.remote.outbox.session).not.toEqual(started.model.remote.outbox.session)
@@ -280,7 +281,7 @@ describe('a durable write', () => {
       },
     ])
     expect(count(settled, 'i1')).toBe(2)
-    expect(Data.outboxStatus(settled).items).toEqual([])
+    expect(outboxStatus(Data, settled).items).toEqual([])
   })
 
   it('is sent again after a send nothing answered, and those after it wait their turn', async () => {
@@ -298,7 +299,7 @@ describe('a durable write', () => {
       'MutationSucceeded',
     ])
     const delayed = messages.slice(0, 1).reduce(Data.reduce, saved)
-    expect(Data.outboxStatus(delayed).items[0]?.state).toMatchObject({
+    expect(outboxStatus(Data, delayed).items[0]?.state).toMatchObject({
       _tag: 'Waiting',
       attempt: 1,
     })
@@ -325,25 +326,25 @@ describe('a durable write', () => {
     expect(tab.sent.map(each => each.requestId)).toEqual([first.requestId, second.requestId])
     expect(count(settled, 'i1')).toBe(1)
     expect(Data.failedWrites(settled).map(write => write.requestId)).toEqual([first.requestId])
-    expect(Data.outboxStatus(settled)).toMatchObject({ waiting: 0, failed: 1 })
+    expect(outboxStatus(Data, settled)).toMatchObject({ waiting: 0, failed: 1 })
     expect(await Effect.runPromise(tab.kv.get('outbox:ada'))).toContain('"Failed"')
 
     const retried = Option.getOrThrow(Data.retry(settled, first.requestId))
     expect(count(retried.model, 'i1')).toBe(2)
-    expect(Data.outboxStatus(retried.model)).toMatchObject({ waiting: 1, failed: 0 })
+    expect(outboxStatus(Data, retried.model)).toMatchObject({ waiting: 1, failed: 0 })
     const again = await settle(tab, retried.model)
     expect(tab.sent.map(each => each.requestId)).toEqual([
       first.requestId,
       second.requestId,
       first.requestId,
     ])
-    expect(Data.outboxStatus(again).items).toEqual([])
+    expect(outboxStatus(Data, again).items).toEqual([])
 
     const refusedAgain = { kv: memory(), ...server(['refused']) }
     const failed = await settle(refusedAgain, setCount(await restored(refusedAgain), 'i1', 2).model)
-    const [item] = Data.outboxStatus(failed).items
+    const [item] = outboxStatus(Data, failed).items
     const dismissed = await settle(refusedAgain, Data.dismiss(failed, item!.requestId))
-    expect(Data.outboxStatus(dismissed).items).toEqual([])
+    expect(outboxStatus(Data, dismissed).items).toEqual([])
     expect(Data.failedWrites(dismissed)).toEqual([])
     expect(storedOperations(refusedAgain.kv)).toEqual([])
   })
@@ -365,7 +366,7 @@ describe('a durable write', () => {
     await settle(tab, setCount(await restored(tab), 'i1', 2).model)
     const reloaded = { kv, ...server() }
     const model = await restored(reloaded)
-    expect(Data.outboxStatus(model)).toMatchObject({ waiting: 0, failed: 1 })
+    expect(outboxStatus(Data, model)).toMatchObject({ waiting: 0, failed: 1 })
     await settle(reloaded, model)
     expect(reloaded.sent).toEqual([])
   })
@@ -405,7 +406,7 @@ describe('a stored write this version cannot read', () => {
     const kv = storeHolding([unreadable, storedWrite('old-2', 'SetCount', { id: 'i2', count: 5 })])
     const tab = { kv, ...server() }
     const model = await restored(tab)
-    expect(Data.outboxStatus(model).items).toMatchObject([
+    expect(outboxStatus(Data, model).items).toMatchObject([
       { requestId: 'old-1', state: { _tag: 'Unreadable' } },
       { requestId: 'old-2', state: { _tag: 'Waiting' } },
     ])
@@ -415,18 +416,18 @@ describe('a stored write this version cannot read', () => {
     ])
     const settled = await settle(tab, model)
     expect(tab.sent.map(each => each.requestId)).toEqual(['old-2'])
-    expect(Data.outboxStatus(settled).items).toMatchObject([{ requestId: 'old-1' }])
+    expect(outboxStatus(Data, settled).items).toMatchObject([{ requestId: 'old-1' }])
     expect(Data.inspect(settled).diagnostics).toHaveLength(1)
     expect(storedOperations(kv)).toEqual(['old-1'])
 
     const dismissed = await settle(tab, Data.dismiss(settled, 'old-1'))
-    expect(Data.outboxStatus(dismissed).items).toEqual([])
+    expect(outboxStatus(Data, dismissed).items).toEqual([])
     expect(storedOperations(kv)).toEqual([])
   })
 
   it('drops an entry that is not an operation at all', async () => {
     const tab = { kv: storeHolding([{ nothing: true }]), ...server() }
-    expect(Data.outboxStatus(await restored(tab)).items).toEqual([])
+    expect(outboxStatus(Data, await restored(tab)).items).toEqual([])
   })
 })
 
@@ -479,7 +480,7 @@ describe('the store between tabs', () => {
       entries: [],
       done: [started.requestId],
     })
-    expect(Data.outboxStatus(heard).items).toEqual([])
+    expect(outboxStatus(Data, heard).items).toEqual([])
     expect(count(heard, 'i1')).toBe(1)
     expect(Data.get(Counted, 'i1').read(heard)._tag).toBe('Refreshing')
   })
@@ -516,14 +517,14 @@ describe('the store between tabs', () => {
         }),
       ),
     )
-    expect(Data.outboxStatus(await restored({ kv, ...server() })).items).toEqual([])
+    expect(outboxStatus(Data, await restored({ kv, ...server() })).items).toEqual([])
   })
 
   it('forget empties the queue and keeps the session', async () => {
     const tab = { kv: memory(), ...server() }
     const started = setCount(await restored(tab), 'i1', 2)
     const forgotten = Data.forget(started.model)
-    expect(Data.outboxStatus(forgotten).items).toEqual([])
+    expect(outboxStatus(Data, forgotten).items).toEqual([])
     expect(forgotten.remote.outbox.session).toEqual(started.model.remote.outbox.session)
     expect(forgotten.remote.outbox.key).toEqual(Option.none())
   })
@@ -534,7 +535,7 @@ describe('the store between tabs', () => {
  * the key is one for every principal, so only the scope tells whose it is.
  */
 describe('a change of principal in the same page', () => {
-  const shared = Data.outbox({
+  const shared = outbox(Data, {
     key: () => 'outbox:shared',
     scope: model => model.actor,
     retry: { base: '1 millis', max: '2 millis' },
@@ -564,7 +565,7 @@ describe('a change of principal in the same page', () => {
     const { saved, operation } = await adaWaiting(tab)
     const grace = await settle(tab, become(saved), running)
     expect(tab.sent).toEqual([])
-    expect(Data.outboxStatus(grace).items).toEqual([])
+    expect(outboxStatus(Data, grace).items).toEqual([])
     expect(waiting(tab.kv)).toMatchObject({ scope: 'ada', entries: [{ operation }] })
     // Writing Grace's queue over it would lose Ada's write: the save says so instead.
     expect(Data.inspect(grace).diagnostics).toMatchObject([{ _tag: 'OutboxUnsaved' }])

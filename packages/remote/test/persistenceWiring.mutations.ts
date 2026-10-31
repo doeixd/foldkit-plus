@@ -1,12 +1,12 @@
 /**
- * `Data.persistence`, broken in turn:
+ * `persistence(Data, …)`, broken in turn:
  * `pnpm mutate packages/remote/test/persistenceWiring.mutations.ts`.
  */
 const tests = [
   'packages/remote/test/persistenceWiring.test.ts',
   'packages/remote/test/persistenceFirstFrame.test.ts',
 ]
-const file = '../src/index.ts'
+const file = '../src/persistence.ts'
 const model = '../src/model.ts'
 
 export default [
@@ -37,7 +37,7 @@ export default [
     edits: [
       {
         file,
-        find: "merge: 'preserve-existing',\n            from: key,",
+        find: "merge: 'preserve-existing',\n        from: key,",
         replace: "merge: 'preserve-existing',",
       },
     ],
@@ -59,8 +59,8 @@ export default [
     edits: [
       {
         file,
-        find: "merge: 'preserve-existing',\n            from: key,",
-        replace: "merge: 'replace',\n            from: key,",
+        find: "merge: 'preserve-existing',\n        from: key,",
+        replace: "merge: 'replace',\n        from: key,",
       },
     ],
     tests,
@@ -70,9 +70,9 @@ export default [
     edits: [
       {
         file,
-        find: '          Effect.option,\n        )\n      // Restores the key',
+        find: '      Effect.option,\n    )\n  // Restores the key',
         replace:
-          "          Effect.orElseSucceed((): RemoteMessage => ({ _tag: 'Hydrated', entities: {}, connections: {}, merge: 'preserve-existing', from: key })),\n          Effect.option,\n        )\n      // Restores the key",
+          "      Effect.orElseSucceed((): RemoteMessage => ({ _tag: 'Hydrated', entities: {}, connections: {}, merge: 'preserve-existing', from: key })),\n      Effect.option,\n    )\n  // Restores the key",
       },
     ],
     tests,
@@ -82,8 +82,8 @@ export default [
     edits: [
       {
         file,
-        find: 'restored\n            ? Stream.empty\n            : Stream.fromEffect(hydratedFrom',
-        replace: 'false\n            ? Stream.empty\n            : Stream.fromEffect(hydratedFrom',
+        find: 'restored\n        ? Stream.empty\n        : Stream.fromEffect(hydratedFrom',
+        replace: 'false\n        ? Stream.empty\n        : Stream.fromEffect(hydratedFrom',
       },
     ],
     tests,
@@ -93,8 +93,8 @@ export default [
     edits: [
       {
         file,
-        find: 'restored: Option.contains(store.get(model).restoredFrom, key),',
-        replace: 'restored: Option.isSome(store.get(model).restoredFrom),',
+        find: 'restored: Option.contains(domain.store.get(model).restoredFrom, key),',
+        replace: 'restored: Option.isSome(domain.store.get(model).restoredFrom),',
       },
     ],
     tests,
@@ -102,7 +102,11 @@ export default [
   {
     name: 'init starts from the Model as it was',
     edits: [
-      { file, find: 'onSome: message => reduce(model, message)', replace: 'onSome: () => model' },
+      {
+        file,
+        find: 'onSome: message => domain.reduce(model, message)',
+        replace: 'onSome: () => model',
+      },
     ],
     tests,
   },
@@ -113,7 +117,7 @@ export default [
         file,
         find: 'Option.match({ onNone: () => model,',
         replace:
-          "Option.match({ onNone: () => reduce(model, { _tag: 'Hydrated', entities: {}, connections: {}, merge: 'preserve-existing', from: options.key(model) }),",
+          "Option.match({ onNone: () => domain.reduce(model, { _tag: 'Hydrated', entities: {}, connections: {}, merge: 'preserve-existing', from: options.key(model) }),",
       },
     ],
     tests,

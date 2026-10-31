@@ -25,6 +25,7 @@ import {
   RemoteRpc,
   type RemoteMessage,
 } from 'foldkit-remote'
+import { outbox, outboxStatus } from 'foldkit-remote/outbox'
 import { Surface } from 'foldkit-surface'
 import { afterAll, describe, expect, it } from 'vitest'
 import { RemoteServer, bodyLimit } from '../src/index.js'
@@ -195,12 +196,12 @@ describe('a request middleware refused for who is asking', () => {
 })
 
 describe('a durable write refused', () => {
-  const outbox = Data.outbox({
+  const durable = outbox(Data, {
     key: () => 'outbox:ada',
     scope: () => 'ada',
     retry: { base: '1 millis', max: '2 millis' },
   })
-  const entries = outbox.subscriptions!
+  const entries = durable.subscriptions!
   /** An outbox over a store of its own, its writes sent as whoever holds `token`. */
   const outboxAs = (token: string) => {
     const kv = Effect.runSync(
@@ -212,7 +213,7 @@ describe('a durable write refused', () => {
     return {
       restore: () =>
         Effect.runPromise(
-          outbox
+          durable
             .restore({ remote: Remote.initial })
             .pipe(Effect.provideService(KeyValueStore.KeyValueStore, kv)),
         ),
@@ -244,7 +245,7 @@ describe('a durable write refused', () => {
     expect(statuses).toEqual([status])
     expect(messages.map(message => message._tag)).not.toContain('OutboxDelayed')
     const settled = messages.reduce(Data.reduce, saved)
-    expect(Data.outboxStatus(settled)).toMatchObject({ waiting: 0, failed: 1 })
+    expect(outboxStatus(Data, settled)).toMatchObject({ waiting: 0, failed: 1 })
     expect(Data.mutation(settled, queued.requestId)._tag).toBe('Failed')
   })
 })

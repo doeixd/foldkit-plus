@@ -11,18 +11,19 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 const index = '../src/index.ts'
 const model = '../src/model.ts'
 const outbox = '../src/outbox.ts'
+const store = '../src/outboxStore.ts'
 
 export default [
   // #284: a write made as one principal is never sent as another.
   edit(
     'a queue of another scope is sent',
-    index,
+    outbox,
     'Option.contains(outbox.key, key) && Option.contains(outbox.scope, scope)',
     'Option.contains(outbox.key, key)',
   ),
   edit(
     "another scope's waiting writes are written over",
-    outbox,
+    store,
     'record => record.scope !== scope && record.entries.length > 0,',
     '() => false,',
   ),
@@ -40,59 +41,54 @@ export default [
   ),
   edit(
     'a write is sent before the store holds it',
-    outbox,
+    store,
     "queued.write.state._tag === 'Waiting' && queued.stored",
     "queued.write.state._tag === 'Waiting'",
   ),
   edit(
     'the newest waiting write is sent first',
-    outbox,
+    store,
     'for (const queued of outbox.queue) {',
     'for (const queued of [...outbox.queue].reverse()) {',
   ),
-  edit('a stored write is sent without its now', index, 'now: write.now,', 'now: undefined,'),
+  edit('a stored write is sent without its now', outbox, 'now: write.now,', 'now: undefined,'),
   edit(
     'a send nothing answered settles the write as failed',
-    index,
+    outbox,
     "if (result.failure._tag === 'Unreachable') {",
     'if (false) {',
   ),
   edit(
     'a write another tab settled is sent again',
-    index,
+    outbox,
     'if (Option.isSome(there) && settledIn(there.value, operation)) {',
     'if (false) {',
   ),
   edit(
     'a store that cannot be written holds the writes back',
-    index,
+    outbox,
     'Effect.succeed(readOf(key, scope, mine, { unsaved: error.message })),',
     'Effect.succeed(readOf(key, scope, { entries: [], done: [] }, { unsaved: error.message })),',
   ),
   edit(
     'an input that no longer decodes is sent anyway',
-    index,
+    outbox,
     'Option.map(Schema.decodeUnknownOption(descriptor.Input)(input), decoded => ({',
     'Option.map(Option.some(input), decoded => ({',
   ),
   edit(
     'a merge keeps the lower revision',
-    outbox,
+    store,
     'held.revision < key.value.revision',
     'held.revision > key.value.revision',
   ),
   edit(
     'a merge brings back what was settled',
-    outbox,
+    store,
     'if (Option.isNone(key) || gone.has(key.value.operation)) continue',
     'if (Option.isNone(key)) continue',
   ),
-  edit(
-    'another scope’s queue is read',
-    outbox,
-    'record.scope === scope ?',
-    "record.scope !== '' ?",
-  ),
+  edit('another scope’s queue is read', store, 'record.scope === scope ?', "record.scope !== '' ?"),
   edit(
     'an answered write stays queued',
     model,
@@ -131,7 +127,7 @@ export default [
   ),
   edit(
     'a durable write is sent under an id of its own, not its operation',
-    index,
+    outbox,
     'mutateRemote(mutation, input, operation, {',
     'mutateRemote(mutation, input, `${operation}.sent`, {',
   ),
@@ -139,7 +135,7 @@ export default [
     name: 'a reload reads nothing back',
     edits: [
       {
-        file: outbox,
+        file: store,
         find: 'if (text === undefined) return emptyStoredOutbox',
         replace: 'if (text !== null) return emptyStoredOutbox',
       },
@@ -150,7 +146,7 @@ export default [
     name: 'every tab sends: no lock is taken',
     edits: [
       {
-        file: outbox,
+        file: store,
         find: 'onSome: locks => heldWhile(locks, name, effect),',
         replace: 'onSome: () => effect,',
       },
@@ -161,7 +157,7 @@ export default [
     name: 'a tab never hears another',
     edits: [
       {
-        file: index,
+        file: outbox,
         find: 'channel.onmessage = (event: MessageEvent<unknown>) => {',
         replace: 'channel.onmessage = (event: MessageEvent<unknown>) => { return;',
       },
@@ -172,7 +168,7 @@ export default [
     name: 'the other tabs are not told the answer before the store is',
     edits: [
       {
-        file: index,
+        file: outbox,
         find: 'Effect.andThen(announce(key, Option.some(message))),',
         replace: 'Effect.andThen(Effect.void),',
       },

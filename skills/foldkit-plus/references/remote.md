@@ -16,7 +16,7 @@ Messages reduced by one pure reducer. There is no hidden cache next to the app.
 | --- | --- |
 | Route, selection, form drafts, transient UI errors | app Model + `update` |
 | Server-owned facts that can be refetched | `foldkit-remote` |
-| A write the server decides, which must be sent even after a reload or offline | `foldkit-remote`: `Data.mutate(…, { durable: true })` + `Data.outbox` |
+| A write the server decides, which must be sent even after a reload or offline | `foldkit-remote`: `Data.mutate(…, { durable: true })` + `outbox(Data, …)` |
 | Client-authored edits that must survive offline/restart and converge | `foldkit-sync` (+ `foldkit-durable`) |
 | Local state reflected in the URL or a preference store | app Model, observed by `foldkit-mirror` |
 
@@ -460,7 +460,8 @@ Prefetch (SSR, route/hover, tests) and persistence:
 
 ```ts
 import { Effect, Option } from 'effect'
-import { Remote, RemotePersistence, RemotePolicy } from 'foldkit-remote'
+import { Remote, RemotePolicy } from 'foldkit-remote'
+import { RemotePersistence } from 'foldkit-remote/persistence'
 
 const ssr = Effect.gen(function* () {
   // Performs I/O explicitly; returns the Model with results reduced in.
@@ -488,7 +489,7 @@ const ssr = Effect.gen(function* () {
 }).pipe(Effect.provide(clientLayer))
 ```
 
-To keep the cache across reloads, assemble `Data.persistence` beside
+To keep the cache across reloads, assemble `persistence(Data, …)` beside
 `Data.wiring`. It restores under a key and saves on every change, and needs a
 `KeyValueStore` (for example `BrowserKeyValueStore.layerLocalStorage`):
 
@@ -497,16 +498,18 @@ declare const actorOf: (model: Model) => string
 -->
 
 ```ts
+import { persistence } from 'foldkit-remote/persistence'
+
 // actorOf(model): who is signed in, as the application's Model says
-const persistence = Data.persistence({
+const cache = persistence(Data, {
   key: model => `remote-cache:${actorOf(model)}`,
   scope: actorOf,
   // optional: `connections: [ref.identity]`, or `snapshot: remote => ...`
 })
 ```
 
-Start `init` from `persistence.restore(model)`, resolved as the runtime's
-`flags` (`Flags: Model, flags: persistence.restore(initial), initial: (model:
+Start `init` from `cache.restore(model)`, resolved as the runtime's
+`flags` (`Flags: Model, flags: cache.restore(initial), initial: (model:
 Model) => ({ model })`), so a reload draws the stored rows in its first frame
 instead of `Loading`; the wiring then restores only a key the Model is not
 restored from. The restore hydrates with `preserve-existing`, and records the
@@ -525,7 +528,7 @@ version/scope, oversized, or malformed snapshots yield `Option.none()` from
 
 **A connection can be declared to survive a reload**:
 `snapshotOf(model.remote, { connections: [ref.identity] })` (or
-`Data.persistence({ …, connections })`). Nothing survives that is
+`persistence(Data, { …, connections })`). Nothing survives that is
 not named — the default is the disposable, server-derived cache Remote always
 had. A declared one keeps its **edges only**: the snapshot has nowhere to put a
 cursor, because a cursor names server state that may be gone. It comes back with
@@ -675,9 +678,9 @@ without that, each failure is a `WriteUnheard` diagnostic.
 **Durable writes: the outbox.** `Data.mutate(model, M, input, { durable: true,
 now })` queues the write instead of sending it: its layer shows, its request id
 is its operation id (`<session>-<n>`), and its Command answers `MutationQueued`.
-Assemble `Data.outbox({ key, scope, retry? })` beside `Data.wiring` (it needs a
-`KeyValueStore` and `RemoteClient`), and start `init` from
-`outbox.restore(model)` as the runtime's `flags`, which mints the session (a
+Assemble `outbox(Data, { key, scope, retry? })` from `foldkit-remote/outbox`
+beside `Data.wiring` (it needs a `KeyValueStore` and `RemoteClient`), and start
+`init` from its `restore(model)` as the runtime's `flags`, which mints the session (a
 durable `mutate` before it throws) and shows what a reload left. The outbox
 stores a write before sending it, sends the oldest one at a time under a Web
 Lock (one tab sends), sends again with the same operation id and `now` after a
@@ -685,7 +688,7 @@ reload or an `Unreachable` failure (backoff 1 s doubling to 30 s, and on
 `online`; `OutboxDelayed` per attempt), and settles a refusal as `Failed`
 (`failedWrites`, `retry` queues again, `dismiss` removes it from the store).
 Other tabs read the store over a `BroadcastChannel` and show each other's
-writes. `Data.outboxStatus(model)` is `{ waiting, failed, items }`, each item's
+writes. `outboxStatus(Data, model)`, from the same entry, is `{ waiting, failed, items }`, each item's
 `state` `Waiting { attempt, error }`, `Failed { error }` or `Unreadable {
 reason }` (a stored write this version's Mutations cannot read: kept, never
 sent, `OutboxUnreadable`, dismissable). A store that cannot be written reports

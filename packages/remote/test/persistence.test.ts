@@ -5,7 +5,6 @@ import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import {
   Entity,
-  REMOTE_CACHE_VERSION,
   Remote,
   RemoteClient,
   Selection,
@@ -21,6 +20,7 @@ import {
   type EntityStore,
   type RemoteModel,
 } from '../src/index.js'
+import { REMOTE_CACHE_VERSION } from '../src/persistence.js'
 import { RemotePersistence } from '../src/persistence.js'
 
 const { emptySnapshot } = RemotePersistence

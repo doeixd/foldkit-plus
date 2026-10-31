@@ -57,7 +57,7 @@ export default [
     edits: [
       {
         file: '../src/app.ts',
-        find: '    persistence,',
+        find: '    cache,',
         replace: '',
       },
     ],

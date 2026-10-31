@@ -37,10 +37,20 @@
       "types": "./dist/filter.d.ts",
       "import": "./dist/filter.js"
     },
+    "./outbox": {
+      "foldkit-plus:source": "./src/outbox.ts",
+      "types": "./dist/outbox.d.ts",
+      "import": "./dist/outbox.js"
+    },
     "./overlay": {
       "foldkit-plus:source": "./src/overlay.ts",
       "types": "./dist/overlay.d.ts",
       "import": "./dist/overlay.js"
+    },
+    "./persistence": {
+      "foldkit-plus:source": "./src/persistence.ts",
+      "types": "./dist/persistence.d.ts",
+      "import": "./dist/persistence.js"
     },
     "./port": {
       "foldkit-plus:source": "./src/port.ts",

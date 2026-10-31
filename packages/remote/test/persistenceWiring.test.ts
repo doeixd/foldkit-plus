@@ -1,5 +1,5 @@
 /**
- * `Data.persistence`: the cache kept across a reload as a wiring. Its restore
+ * `persistence(Data, …)`: the cache kept across a reload as a wiring. Its restore
  * runs for a storage key the Model is not yet restored from, in `init` through
  * `restore` or else as a Subscription; its save writes only once that key's
  * own snapshot is in, so a save at startup never writes the empty store over
@@ -11,7 +11,8 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Entity as DomainEntity } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Remote, RemotePersistence, type RemoteMessage } from '../src/index.js'
+import { Remote, type RemoteMessage } from '../src/index.js'
+import { persistence, RemotePersistence } from '../src/persistence.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -24,12 +25,12 @@ type Model = typeof Model.Type
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
 const Data = Remote.make({ model: App.model.remote, entities: [Project] })
 
-const persistence = Data.persistence({
+const cache = persistence(Data, {
   key: model => `cache:${model.actor}`,
   scope: model => model.actor,
   debounce: 0,
 })
-const entries = persistence.subscriptions!
+const entries = cache.subscriptions!
 const restore = entries['persistence.restore']!
 const save = entries['persistence.save']!
 
@@ -81,7 +82,7 @@ const step = <D>(
   ).then(collected => [...collected])
 }
 
-describe('Data.persistence', () => {
+describe('persistence', () => {
   it('restores the snapshot stored under the key, keeping what the store already holds', async () => {
     const kv = storeWith('ada', 'Apollo')
     const messages = await step(kv, restore, fresh('ada'))
@@ -96,9 +97,7 @@ describe('Data.persistence', () => {
   it('restores in init as the entry would, and the entry then restores nothing more', async () => {
     const kv = storeWith('ada', 'Apollo')
     const started = await Effect.runPromise(
-      persistence
-        .restore(fresh('ada'))
-        .pipe(Effect.provideService(KeyValueStore.KeyValueStore, kv)),
+      cache.restore(fresh('ada')).pipe(Effect.provideService(KeyValueStore.KeyValueStore, kv)),
     )
     const messages = await step(kv, restore, fresh('ada'))
     expect(started).toEqual(messages.reduce(Data.reduce, fresh('ada')))
@@ -162,7 +161,7 @@ describe('Data.persistence', () => {
   })
 
   it('removes a snapshot grown past maxBytes, so no older one outlives it', async () => {
-    const small = Data.persistence({
+    const small = persistence(Data, {
       key: model => `cache:${model.actor}`,
       scope: model => model.actor,
       maxBytes: 16,
@@ -189,9 +188,7 @@ describe('Data.persistence', () => {
     expect(await step(unreadable, restore, fresh('ada'))).toEqual([])
     const model = fresh('ada')
     const started = await Effect.runPromise(
-      persistence
-        .restore(model)
-        .pipe(Effect.provideService(KeyValueStore.KeyValueStore, unreadable)),
+      cache.restore(model).pipe(Effect.provideService(KeyValueStore.KeyValueStore, unreadable)),
     )
     expect(started).toBe(model)
   })

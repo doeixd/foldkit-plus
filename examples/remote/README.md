@@ -249,7 +249,7 @@ when it lands, as a read is, so the stale-while-revalidate entry from step 3
 takes the renamed project as fresh and plans no refetch.
 
 This write is sent once. A write that must be sent even after a reload or while
-offline is made `durable: true` and sent by `Data.outbox`, which this
+offline is made `durable: true` and sent by `outbox(Data, …)`, which this
 in-process demo does not assemble; see [Chirp](../chirp). Client-authored edits
 that must converge with other replicas are [`foldkit-sync`](../../packages/sync).
 
@@ -304,7 +304,7 @@ answer; this in-process client answers instantly, so the demo does not show it.
   deterministic. See [`foldkit-remote-server`](../../packages/remote-server).
 - **SQL compilation.** See [`foldkit-remote-drizzle`](../../packages/remote-drizzle)
   and [`examples/kitchen-sink`](../kitchen-sink).
-- **Durable writes and live data.** The outbox (`Data.outbox`) and live reads
+- **Durable writes and live data.** The outbox (`outbox(Data, …)`) and live reads
   (`Data.live`, `Data.query(..., { live: true })`) need a client that stays
   connected; [Chirp](../chirp) shows the outbox and
   [`examples/reference`](../reference) a live list. Client-authored state that

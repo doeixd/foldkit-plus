@@ -11,6 +11,7 @@ import { Derived, Entity, Expr, Write, type WriteSurface } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Mutation, Remote, RemoteClient, RemoteData } from '../src/index.js'
+import { outbox, outboxStatus } from '../src/outbox.js'
 
 /** What the gate was asked last, so a test can see the surface a write was judged by. */
 const asked: Array<WriteSurface> = []
@@ -142,7 +143,7 @@ describe('a write its held gate forbids', () => {
 
   it('durable, is refused and not queued', async () => {
     const opened = await Effect.runPromise(
-      Data.outbox({ key: () => 'outbox', scope: () => 'me' })
+      outbox(Data, { key: () => 'outbox', scope: () => 'me' })
         .restore(held)
         .pipe(Effect.provide(KeyValueStore.layerMemory)),
     )
@@ -152,7 +153,7 @@ describe('a write its held gate forbids', () => {
       { id: 'd1', title: 'Mine', size: 1 },
       { durable: true },
     )
-    expect(Data.outboxStatus(started.model).items).toEqual([])
+    expect(outboxStatus(Data, started.model).items).toEqual([])
     expect(await run(started, counting().client)).toMatchObject({ _tag: 'MutationFailed' })
   })
 })

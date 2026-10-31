@@ -105,7 +105,7 @@ what you are doing:
 | Load an ordered, paged list | [Queries and pagination](#queries-and-pagination) |
 | Filter a list already on screen | [Filtering a loaded list](#filtering-a-loaded-list-without-asking-the-server) |
 | Save, and show the result before the server answers | [Mutations](#mutations-and-optimistic-state) |
-| Save a write that must reach the server across a reload or offline | [`Data.outbox`](#a-write-that-outlives-the-page-dataoutbox) |
+| Save a write that must reach the server across a reload or offline | [`outbox(Data, …)`](#a-write-that-outlives-the-page-outbox) |
 | Keep a list current as the server changes it | [Live data](#live-data) |
 | Fetch outside an active screen | [Policies and prefetch](#reading-policies-and-prefetch) |
 | Keep data across a reload | [Hydration](#persistence-and-hydration) |
@@ -693,7 +693,7 @@ what the server said:
   requestId)` reads `Failed` with the error. Nothing retries it on its own
   (`Data.retry` sends it again; see [When a write fails](#when-a-write-fails)).
   A write survives a reload only when it is sent `durable`
-  ([`Data.outbox`](#a-write-that-outlives-the-page-dataoutbox)); an edit that
+  ([`outbox(Data, …)`](#a-write-that-outlives-the-page-outbox)); an edit that
   must converge with other devices' offline edits belongs to
   [`foldkit-sync`](../sync).
 - **It succeeded, but the answer did not name the row.** The answer carries
@@ -2063,25 +2063,27 @@ Sync draws the same line over its replica, with the same words and a different
 mechanism: see [what a reader sees while a change is in
 flight](../../docs/state-model.md#what-a-reader-sees-while-a-change-is-in-flight).
 
-### A write that outlives the page: `Data.outbox`
+### A write that outlives the page: `outbox`
 
 A like pressed on a train, a post written in a tunnel: the write must reach the
 server, but nothing needs to converge, since the server decides it once. Make
 it durable, and assemble the outbox beside `Data.wiring`:
 
 ```ts
-const outbox = Data.outbox({
+import { outbox, outboxStatus } from 'foldkit-remote/outbox'
+
+const durable = outbox(Data, {
   key: model => `outbox:${model.userId}`,
   scope: model => model.userId,
 })
-const placements = Page.assemble(Data.wiring(actives), outbox)
+const placements = Page.assemble(Data.wiring(actives), durable)
 
 // update: queued, not sent; its layer shows at once
 const sent = Data.mutate(model, PostChirp, post, { now, durable: true })
 return { model: sent.model, commands: [sent.command] }
 
 // the view
-const { waiting } = Data.outboxStatus(model) // "3 changes waiting"
+const { waiting } = outboxStatus(Data, model) // "3 changes waiting"
 ```
 
 `waiting` counts a write on its way too, so a line drawn whenever it is above
@@ -2089,7 +2091,7 @@ zero shows for a frame or two on every write, pushing the page below it down
 and back. Draw it once a send went unanswered: an item whose `state` is
 `Waiting` with `attempt` above zero.
 
-`outbox.restore(model)` is `persistence.restore`'s twin: resolve it as the
+`durable.restore(model)` is `cache.restore`'s twin: resolve it as the
 runtime's `flags` and start `init` from it. It reads back what a reload left and
 mints the page's session, which names its writes; `Data.mutate` with `durable`
 before it has run throws.
@@ -2292,7 +2294,7 @@ never in one.
 
 ```ts
 import { Option } from 'effect'
-import { RemotePersistence } from 'foldkit-remote'
+import { RemotePersistence } from 'foldkit-remote/persistence'
 
 // A cache carried in the page: prefetch on the server, embed, then hydrate.
 // `snapshotOf` names the connections that survive; none, here. For a page
@@ -2334,14 +2336,16 @@ snapshot from another version/scope, an oversized snapshot, or malformed data is
 discarded and the planner refetches. `Hydrated` is itself a Remote Message, so
 hydration still changes the application through the reducer.
 
-### A cache kept across reloads: `Data.persistence`
+### A cache kept across reloads: `persistence`
 
-The calls above are the parts. `Data.persistence` puts them together as a
+The calls above are the parts. `persistence(Data, …)` puts them together as a
 wiring: it restores the snapshot stored under a key, and saves the cache under
 that key whenever it changes.
 
 ```ts
-const persistence = Data.persistence({
+import { persistence } from 'foldkit-remote/persistence'
+
+const cache = persistence(Data, {
   key: model => `remote-cache:${model.userId}`,
   scope: model => model.userId,
   maxBytes: 512_000,
@@ -2349,11 +2353,11 @@ const persistence = Data.persistence({
 
 // Assembled beside `Data.wiring`; the runtime provides a `KeyValueStore`,
 // such as `BrowserKeyValueStore.layerLocalStorage`.
-const placements = Page.assemble(Data.wiring(actives), persistence)
+const placements = Page.assemble(Data.wiring(actives), cache)
 ```
 
 The first restore belongs before the first frame, or a reload draws `Loading`
-until a Subscription brings the stored rows. `persistence.restore(model)` is
+until a Subscription brings the stored rows. `cache.restore(model)` is
 that restore as an Effect: resolve it as the runtime's `flags`, which the
 runtime runs with its `resources` before `init`, and start `init` from the
 Model it gives (`examples/cloudflare/src/browser.ts` does):
@@ -2363,7 +2367,7 @@ Runtime.makeElement(
   placements.runtime({
     Model,
     Flags: Model,
-    flags: persistence.restore(initial(actor)),
+    flags: cache.restore(initial(actor)),
     initial: (model: Model) => ({ model }),
     // …
   }),
@@ -2558,7 +2562,7 @@ body that is not JSON, JSON that is not `{ result }` or `{ error }` (a
 gateway's `{}`), or a response with status 408, 429, 502, 503 or 504, which
 Remote's server never answers with. Each is a `RemoteJsonClient`, a
 `RemoteRpcClient` whose transport error is `RemoteUnreachable`. A mutation the
-server failed is a `RemoteMutationError`. The difference matters for a [durable write](#a-write-that-outlives-the-page-dataoutbox):
+server failed is a `RemoteMutationError`. The difference matters for a [durable write](#a-write-that-outlives-the-page-outbox):
 an `Unreachable` one is sent again, a refused one is settled `Failed`.
 
 **Deadlines, aborts and limits.** `Remote.clientLayer(client, options)` puts
@@ -2795,7 +2799,7 @@ expect(Trace.tags(trace, list)).toEqual(['Ready', 'Refreshing', 'Ready'])
   script its events as `LiveReceived` Messages. Only Remote's Commands run,
   and `entry.skipped` names the others. It drives a domain whose Messages are
   in your union, not a `Remote.fold`.
-- **Durable writes need the outbox.** Pass `outbox` (your `Data.outbox`
+- **Durable writes need the outbox.** Pass `outbox` (your `outbox(Data, …)`
   wiring) and the trace starts from its `restore`, over an empty store of its
   own, and runs its Subscriptions as one tab: a durable write is stored and
   sent by it, and `Respond.mutation` answers that send.

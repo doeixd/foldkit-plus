@@ -238,7 +238,7 @@ A failure is kept until the application answers it (`Data.failedWrites`,
 sent, or what came back was no Remote answer, such as a gateway's 502 page)
 fails `Unreachable` (`RemoteUnreachable`), apart from a refusal, because the
 server may or may not have run it. A write sent `durable` is stored first, in
-`Data.outbox`'s `KeyValueStore`, and sent in order by one tab; after a reload,
+`outbox(Data, …)`'s `KeyValueStore`, and sent in order by one tab; after a reload,
 or a send that came back `Unreachable`, it is sent again under the same
 operation id, which a ledgered writer answers from its record. A refusal
 settles it as `Failed`, as any write.

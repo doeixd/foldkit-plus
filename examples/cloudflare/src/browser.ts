@@ -7,7 +7,7 @@ import { Layer } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import * as Runtime from 'foldkit/runtime'
 import { Remote } from 'foldkit-remote'
-import { ACTOR_KEY, initial, Model, persistence, placements, update } from './app.js'
+import { ACTOR_KEY, initial, Model, placements, remoteCache, update } from './app.js'
 import { view } from './view.js'
 
 const container = document.getElementById('app')
@@ -25,7 +25,7 @@ Runtime.run(
       // The stored list is restored before the first frame, so a reload draws
       // it at once instead of "Loading…".
       Flags: Model,
-      flags: persistence.restore(initial(actor)),
+      flags: remoteCache.restore(initial(actor)),
       initial: (model: Model) => ({ model }),
       update,
       view,

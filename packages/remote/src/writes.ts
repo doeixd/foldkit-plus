@@ -20,7 +20,7 @@ import { mutationStatus } from './ledger.js'
 import { reduceIn, type RemoteMessage, type RemoteModel } from './model.js'
 import { brokenByWrite, forbiddenByWrite, foreseenOfWrite, predictionOfWrite } from './mutation.js'
 import type { OptimisticOperation } from './optimistic.js'
-import { operationOf } from './outbox.js'
+import { operationOf } from './queue.js'
 import { assertRegistered } from './registered.js'
 import type { RemoteError } from './remoteData.js'
 import type { RelationRequirement } from './requirement.js'
@@ -69,7 +69,7 @@ const writes: WriteCapability = {
       return Option.match(remote.outbox.session, {
         onNone: () => {
           throw new Error(
-            `[foldkit-remote] Data.mutate(${mutation}, { durable: true }) before the outbox's restore has run: start init from Data.outbox(…).restore(model), as the runtime's flags, so a durable write has an id no other tab or page load uses`,
+            `[foldkit-remote] Data.mutate(${mutation}, { durable: true }) before the outbox's restore has run: start init from outbox(Data, …).restore(model), as the runtime's flags, so a durable write has an id no other tab or page load uses`,
           )
         },
         onSome: session => `${session}-${remote.mutations.sequence + 1}`,

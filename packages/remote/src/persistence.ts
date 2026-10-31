@@ -1,5 +1,5 @@
 /**
- * Remote cache persistence: a snapshot of the entity store and nothing else.
+ * `foldkit-remote/persistence`, an entry of its own (#378). Remote cache persistence: a snapshot of the entity store and nothing else.
  * Runtime state (connections' live cursors, optimistic layers, the mutation
  * ledger, gaps, retention roots) is never in a snapshot; it belongs to the
  * session that produced it.
@@ -11,12 +11,16 @@
  * `KeyValueStore`, so the backend (memory, filesystem, SQL, Web Storage) is the
  * application's choice.
  */
-import { Effect, Option } from 'effect'
+import { Duration, Effect, Option, Schema, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
+import * as Subscription from 'foldkit/subscription'
+import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
+import type { Wiring } from 'foldkit-surface'
 import { type Connection, type Edge } from './connection.js'
 import { connectionIdentity, type ConnectionIdentity } from './capability.js'
 import { stableStringify } from './query.js'
-import { emptyStore, type EntityEntry, type EntityStore } from './store.js'
+import type { RemoteMessage, RemoteModel } from './model.js'
+import { emptyStore, mergeStores, type EntityEntry, type EntityStore } from './store.js'
 
 /** Bump when the serialized shape changes; a mismatch discards the cache. */
 export const REMOTE_CACHE_VERSION = 5
@@ -84,9 +88,6 @@ export interface SnapshotOptions {
   /** Snapshots larger than this many bytes are not written and not read. */
   readonly maxBytes?: number | undefined
 }
-
-/** How a snapshot meets a store that already has entries. */
-export type MergePolicy = 'replace' | 'preserve-existing'
 
 interface SerializedEntry {
   readonly values: Readonly<Record<string, unknown>>
@@ -255,23 +256,6 @@ const hydrate = (
   }
 }
 
-/**
- * Brings a snapshot into a store that may already hold entries. `replace`
- * takes the snapshot's entry for every key it has; `preserve-existing` keeps
- * an entry the current store already has (it is at least as fresh as a
- * snapshot taken earlier). Either way, keys only the current store has stay.
- */
-const mergeStores = (
-  current: EntityStore,
-  snapshot: EntityStore,
-  policy: MergePolicy,
-): EntityStore =>
-  Object.keys(snapshot).length === 0
-    ? current
-    : policy === 'replace'
-      ? { ...current, ...snapshot }
-      : { ...snapshot, ...current }
-
 /** An empty snapshot: the cache as a fresh session has it. */
 const emptySnapshot: Snapshot = { entities: emptyStore, connections: {} }
 
@@ -320,4 +304,191 @@ export const RemotePersistence = {
       }
       return restored.value
     }),
+}
+
+/** What `persistence` uses of a domain: `Remote.make`'s value is one. */
+export interface PersistedDomain<AppModel> {
+  readonly store: { get(model: AppModel): RemoteModel }
+  readonly contract: { readonly name: string }
+  reduce(model: AppModel, message: RemoteMessage): AppModel
+}
+
+/** How `persistence` keeps the cache across a reload. */
+export interface PersistenceOptions<AppModel> {
+  /**
+   * Where the snapshot is stored, from the Model: one key per principal, so a
+   * change of principal reads and writes another snapshot.
+   */
+  readonly key: (model: AppModel) => string
+  /** Who the snapshot is for; one taken under another scope is discarded. */
+  readonly scope: (model: AppModel) => string
+  /** The query connections whose rows survive a reload; none by default. */
+  readonly connections?: ReadonlyArray<ConnectionIdentity> | undefined
+  /** What to keep, when it is not `snapshotOf` the `connections`. */
+  readonly snapshot?: ((remote: RemoteModel) => Snapshot) | undefined
+  /** A snapshot larger than this is neither written nor read. */
+  readonly maxBytes?: number | undefined
+  /** How long the cache must be unchanged before it is written; default 250 milliseconds. */
+  readonly debounce?: Duration.Input | undefined
+}
+
+/** `persistence`'s wiring, and the restore its runtime's `init` starts from. */
+export interface PersistenceWiring<AppModel> extends Wiring<
+  AppModel,
+  RemoteMessage,
+  KeyValueStore.KeyValueStore
+> {
+  /**
+   * The Model with the snapshot stored under its `key` restored, as the wiring
+   * would restore it. Resolve it as the runtime's `flags` and start `init`
+   * from it, so the first frame draws the stored rows; the wiring then
+   * restores only when `key` changes. A store it cannot read leaves the Model
+   * as it is, and the wiring tries again.
+   */
+  readonly restore: (model: AppModel) => Effect.Effect<AppModel, never, KeyValueStore.KeyValueStore>
+}
+/**
+ * Keeps a domain's cache across a reload, as a wiring beside `Data.wiring`:
+ * the stored snapshot for `key` is restored (`Hydrated`, with what the store
+ * already holds kept over it, so a page resumed from the server wins)
+ * whenever the Model is not yet restored from `key`; and the cache is written
+ * back when it changes, once its own snapshot is in. Start `init` from its
+ * `restore` so the first frame already holds the snapshot. Overlays,
+ * optimistic layers, the mutation ledger, live cursors and gaps are never
+ * stored. A change of principal should `forget` in `update`, and name
+ * another `key`.
+ */
+export const persistence = <AppModel>(
+  domain: PersistedDomain<AppModel>,
+  options: PersistenceOptions<AppModel>,
+): PersistenceWiring<AppModel> => {
+  const connections = (options.connections ?? []).map(connectionIdentity)
+  const snapshotOf =
+    options.snapshot ??
+    ((remote: RemoteModel) => RemotePersistence.snapshotOf(remote, { connections }))
+  const debounce = options.debounce ?? '250 millis'
+  // The snapshot text is derived on every Model change; it changes only with
+  // the store, the connections and the scope, so it is kept by them.
+  let last: {
+    readonly entities: EntityStore
+    readonly connections: RemoteModel['connections']
+    readonly scope: string
+    readonly text: Option.Option<string>
+  } = { entities: emptyStore, connections: {}, scope: '', text: Option.none() }
+  const textOf = (remote: RemoteModel, scope: string): Option.Option<string> => {
+    if (
+      last.entities !== remote.entities ||
+      last.connections !== remote.connections ||
+      last.scope !== scope
+    ) {
+      last = {
+        entities: remote.entities,
+        connections: remote.connections,
+        scope,
+        text: Option.fromUndefinedOr(
+          RemotePersistence.dehydrate(snapshotOf(remote), {
+            scope,
+            maxBytes: options.maxBytes,
+          }),
+        ),
+      }
+    }
+    return last.text
+  }
+  // A store that cannot be read restores nothing, so nothing is saved
+  // under this key: an unread snapshot is never written over.
+  const hydratedFrom = (
+    key: string,
+    scope: string,
+  ): Effect.Effect<Option.Option<RemoteMessage>, never, KeyValueStore.KeyValueStore> =>
+    RemotePersistence.restore({ key, scope, maxBytes: options.maxBytes }).pipe(
+      Effect.map((snapshot): RemoteMessage => ({
+        _tag: 'Hydrated',
+        entities: snapshot.entities,
+        connections: snapshot.connections,
+        merge: 'preserve-existing',
+        from: key,
+      })),
+      Effect.option,
+    )
+  // Restores the key the Model is not yet restored from: at start, unless
+  // `init` began from `restore`, and whenever the key changes.
+  const restoreEntry: EntryWithoutKeepAlive<
+    AppModel,
+    RemoteMessage,
+    { readonly key: string; readonly scope: string; readonly restored: boolean },
+    KeyValueStore.KeyValueStore
+  > = {
+    dependenciesSchema: Schema.Struct({
+      key: Schema.String,
+      scope: Schema.String,
+      restored: Schema.Boolean,
+    }),
+    modelToDependencies: model => {
+      const key = options.key(model)
+      return {
+        key,
+        scope: options.scope(model),
+        restored: Option.contains(domain.store.get(model).restoredFrom, key),
+      }
+    },
+    dependenciesToStream: ({ key, scope, restored }) =>
+      restored
+        ? Stream.empty
+        : Stream.fromEffect(hydratedFrom(key, scope)).pipe(
+            Stream.flatMap(Option.match({ onNone: () => Stream.empty, onSome: Stream.make })),
+          ),
+  }
+  const save: EntryWithoutKeepAlive<
+    AppModel,
+    RemoteMessage,
+    { readonly key: string; readonly restored: boolean; readonly text: Option.Option<string> },
+    KeyValueStore.KeyValueStore
+  > = {
+    dependenciesSchema: Schema.Struct({
+      key: Schema.String,
+      restored: Schema.Boolean,
+      text: Schema.OptionFromNullOr(Schema.String),
+    }),
+    modelToDependencies: model => {
+      const remote = domain.store.get(model)
+      const key = options.key(model)
+      const restored = Option.contains(remote.restoredFrom, key)
+      return {
+        key,
+        restored,
+        text: restored ? textOf(remote, options.scope(model)) : Option.none(),
+      }
+    },
+    // A changed cache restarts this stream, so the wait is the debounce.
+    dependenciesToStream: ({ key, restored, text }) =>
+      restored
+        ? Stream.fromEffect(
+            Effect.gen(function* () {
+              yield* Effect.sleep(debounce)
+              const kv = yield* KeyValueStore.KeyValueStore
+              // Too large to keep: no stale smaller snapshot may outlive it.
+              yield* Option.match(text, {
+                onNone: () => kv.remove(key),
+                onSome: written => kv.set(key, written),
+              })
+            }).pipe(
+              // A full store keeps the snapshot it had; the next change tries again.
+              Effect.ignore,
+            ),
+          ).pipe(Stream.drain)
+        : Stream.empty,
+  }
+  return {
+    key: `persistence:${domain.contract.name}`,
+    handles: [],
+    subscriptions: Subscription.make<AppModel, RemoteMessage, KeyValueStore.KeyValueStore>()(
+      () => ({ 'persistence.restore': restoreEntry, 'persistence.save': save }),
+    ),
+    restore: model =>
+      Effect.map(
+        hydratedFrom(options.key(model), options.scope(model)),
+        Option.match({ onNone: () => model, onSome: message => domain.reduce(model, message) }),
+      ),
+  }
 }

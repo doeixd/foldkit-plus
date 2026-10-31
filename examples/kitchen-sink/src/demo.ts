@@ -5,7 +5,8 @@
  * note, a human, and an agent; the four agent adapters project one contract.
  */
 import { Effect, Fiber, Option, Schema, Stream } from 'effect'
-import { ConnectionChange, RemotePersistence } from 'foldkit-remote'
+import { ConnectionChange } from 'foldkit-remote'
+import { RemotePersistence } from 'foldkit-remote/persistence'
 import { Agent } from 'foldkit-agent'
 import { AgentA2a } from 'foldkit-agent-a2a'
 import { AgentMcp } from 'foldkit-agent-mcp'

@@ -76,7 +76,7 @@ this example's own is below.
   revision as the table does, with no read. Only the drawn rows: a server
   refuses more than a thousand ids in one subscription. A row read but not
   drawn still catches up by being read again.
-- **The rows read are kept too.** `Data.persistence` saves Remote's cache in
+- **The rows read are kept too.** `persistence(Data, …)` saves Remote's cache in
   `localStorage`, every list loaded with its rows, so a reload paints them
   before the server answers, or while it cannot, with the pending edits over
   them. The cache is disposable: a restored list is stale and asked for again.

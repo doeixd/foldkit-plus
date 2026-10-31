@@ -14,6 +14,7 @@ import { Entity, Write } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { afterEach, expect, it, vi } from 'vitest'
 import { Mutation, Remote, RemoteClient, isRemoteMessage, terminal } from '../src/index.js'
+import { outbox, outboxStatus } from '../src/outbox.js'
 
 afterEach(() => {
   document.body.innerHTML = ''
@@ -34,7 +35,7 @@ const Message = defineMessageUnion({ ...Remote.messages, Pressed: {} })
 type Message = typeof Message.Type
 const App = Surface.application({ Model, Message })
 const Data = Remote.make({ model: App.model.remote, entities: [Item], mutations: [SetCount] })
-const outbox = Data.outbox({ key: model => `tabs:${model.actor}`, scope: model => model.actor })
+const durable = outbox(Data, { key: model => `tabs:${model.actor}`, scope: model => model.actor })
 
 const initial: Model = Data.reduce(
   { remote: Remote.initial, actor: 'ada' },
@@ -62,7 +63,7 @@ const view = (model: Model, h: HtmlBuilder<Message>) => {
     [],
     [
       h.p([h.Class('count')], [read._tag === 'Ready' ? String(read.value.count) : read._tag]),
-      h.p([h.Class('waiting')], [String(Data.outboxStatus(model).waiting)]),
+      h.p([h.Class('waiting')], [String(outboxStatus(Data, model).waiting)]),
       h.button([h.Class('press'), h.OnClick(Message.Pressed())], ['Set']),
     ],
   )
@@ -104,11 +105,11 @@ const tab = (name: string) => {
     Runtime.makeElement({
       Model,
       Flags: Model,
-      flags: outbox.restore(initial),
+      flags: durable.restore(initial),
       init: (model: Model) => ({ model }),
       update,
       view,
-      subscriptions: outbox.subscriptions!,
+      subscriptions: durable.subscriptions!,
       container,
       resources: Layer.merge(
         Layer.succeed(RemoteClient, client),

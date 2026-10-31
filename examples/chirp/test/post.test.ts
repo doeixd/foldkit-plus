@@ -10,10 +10,11 @@ import { Effect, Stream } from 'effect'
 import { TestClock } from 'effect/testing'
 import { Entity } from 'foldkit-entity'
 import { Remote, type RemoteClient } from 'foldkit-remote'
+import { outboxStatus } from 'foldkit-remote/outbox'
 import { Respond, Trace } from 'foldkit-remote/testing'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
-import { ComposeForm, Data, Message, outbox, update, type Model } from '../src/app.js'
+import { ComposeForm, Data, Message, durable, update, type Model } from '../src/app.js'
 import { opened } from './opened.js'
 import { Compose } from '../src/compose.js'
 import { Chirper } from '../src/domain.js'
@@ -96,7 +97,7 @@ describe('a chirp posted', () => {
   })
 
   it('waits in the outbox, so a reload before the answer keeps it', () => {
-    expect(Data.outboxStatus(posted(held))).toMatchObject({ waiting: 1, failed: 0 })
+    expect(outboxStatus(Data, posted(held))).toMatchObject({ waiting: 1, failed: 0 })
   })
 })
 
@@ -113,7 +114,7 @@ describe('a chirp of yours deleted before the answer', () => {
   })
 
   it('waits in the outbox beside the post, so a reload keeps both', () => {
-    expect(Data.outboxStatus(deleted)).toMatchObject({ waiting: 2, failed: 0 })
+    expect(outboxStatus(Data, deleted)).toMatchObject({ waiting: 2, failed: 0 })
   })
 })
 
@@ -149,7 +150,7 @@ describe('a chirp posted, as the server keeps it', () => {
       update,
       active: {},
       client: sandbox(),
-      outbox,
+      outbox: durable,
       now: at,
       steps: [
         Message.GotComposeMessage({ message: Compose.Message.Submitted() }),

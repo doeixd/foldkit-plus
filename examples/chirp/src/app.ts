@@ -13,6 +13,7 @@ import { Url } from 'foldkit/url'
 import { Bundle } from 'foldkit-bundle'
 import { Entity, type Selected } from 'foldkit-entity'
 import { Remote, RemoteData, RemotePolicy, type RemoteClient } from 'foldkit-remote'
+import { outbox } from 'foldkit-remote/outbox'
 import { Site } from 'foldkit-site'
 import { Surface } from 'foldkit-surface'
 import { Composer } from './compose.js'
@@ -245,7 +246,7 @@ const Routing = Site.routing<Model, Message, AppRoute>({
  * The chirps you post and have not seen answered, kept in this browser per
  * person: a reload restores them, shows them, and sends them.
  */
-export const outbox = Data.outbox({
+export const durable = outbox(Data, {
   key: model => `chirp-outbox:${model.me}`,
   scope: model => model.me,
 })
@@ -260,7 +261,7 @@ const placements = Page.assemble(
   ComposeForm,
   EditorForm,
   Data.wiring(actives, { policy: freshness }),
-  outbox,
+  durable,
   Routing,
 )
 

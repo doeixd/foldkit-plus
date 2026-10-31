@@ -26,7 +26,8 @@ import { Bundle } from 'foldkit-bundle'
 import { Crud } from 'foldkit-crud'
 import { type CellAddress, DataGrid, RowModel } from 'foldkit-data-grid'
 import { GridCrud } from 'foldkit-data-grid/crud'
-import { Remote, RemotePersistence, type RemoteClient } from 'foldkit-remote'
+import { Remote, type RemoteClient } from 'foldkit-remote'
+import { persistence, RemotePersistence } from 'foldkit-remote/persistence'
 import { Projection, Surface } from 'foldkit-surface'
 import { Sync } from 'foldkit-sync'
 import { RemoteEdits } from 'foldkit-sync/remote'
@@ -272,7 +273,7 @@ export const Shown = RemoteEdits.make(Data, ProductEdits)
  * every device here is one author, and the rows are the server's alone.
  * The edits are not in it; the replica keeps those, and `Shown` lays them over.
  */
-const persistence = Data.persistence({
+const cache = persistence(Data, {
   key: () => 'foldkit-registry/remote-cache',
   scope: () => 'registry',
   snapshot: remote =>
@@ -438,7 +439,7 @@ const Page = Base.pipe(
   }),
   Bundle.withWiring(
     Data.wiring({ ...Crud.actives({ products: Products }), live: LiveRows }),
-    persistence,
+    cache,
   ),
 )
 

@@ -254,7 +254,7 @@ in the application was told.
 ### A write that must outlive the page
 
 `Data.mutate(model, M, input, { durable: true })` queues the write in the
-outbox (`Data.outbox`) instead of sending it: stored first, sent in order by
+outbox (`outbox(Data, …)`) instead of sending it: stored first, sent in order by
 one tab, and kept across a reload. What changes for its failures:
 
 | Failure | Ordinary write | Durable write |
@@ -263,7 +263,7 @@ one tab, and kept across a reload. What changes for its failures:
 | The server refused it | `Failed`, listed by `failedWrites` | the same, and kept in the store until retried or dismissed |
 | The page reloaded before the answer | lost | sent again with the same operation id and `now` |
 
-`Data.outboxStatus(model)` says what waits (`{ waiting, failed, items }`), for
+`outboxStatus(Data, model)` says what waits (`{ waiting, failed, items }`), for
 a "3 changes waiting" line, drawn once an item is `Waiting` with `attempt`
 above zero (`waiting` also counts writes on their way). A write the server applied but whose answer never
 came is answered again from the writer's record, by its operation id: a

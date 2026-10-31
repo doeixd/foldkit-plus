@@ -164,6 +164,20 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Breaking: the outbox and persistence are functions of entries of their
+  own, not domain methods** (`foldkit-remote`, #378). `Data.outbox(options)`
+  is `outbox(Data, options)` and `Data.outboxStatus(model)` is
+  `outboxStatus(Data, model)`, from `foldkit-remote/outbox`;
+  `Data.persistence(options)` is `persistence(Data, options)` from
+  `foldkit-remote/persistence`, which also exports `RemotePersistence`,
+  `Snapshot`, `SnapshotOptions` and `REMOTE_CACHE_VERSION` (no longer exported
+  from `foldkit-remote`). `OutboxItem`, `OutboxItemState`, `OutboxStatus` and
+  `RetryOptions` moved to `foldkit-remote/outbox` too. The reducer's outbox
+  bookkeeping stays in the core, so a durable `mutate` and `dismiss` work as
+  before; a page with no outbox or persistence keeps none of their store,
+  locks or sending: a read-only `Remote.make` page keeps 221.7 kB of
+  `foldkit-remote` where it kept 245.1 kB (rendered, built from source).
+
 - **A page that declares Entities keeps none of the invariant judge**
   (`foldkit-entity`, #378). `Entity` is an ES module namespace rather than an
   object, and the build leaves relative imports as written so it stays one: a

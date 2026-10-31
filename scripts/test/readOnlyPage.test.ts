@@ -146,11 +146,15 @@ describe('a read-only Remote page', () => {
     expect(kept.readOnly.entity).not.toContain('write.js')
   })
 
-  it.fails('keeps no live or outbox code (#378 phase 5)', () => {
+  it('keeps no outbox or persistence code (#378 phase 5)', () => {
+    expect(kept.readOnly.remote).not.toContain('outbox.js')
+    expect(kept.readOnly.remote).not.toContain('outboxStore.js')
+    expect(kept.readOnly.remote).not.toContain('persistence.js')
+  })
+
+  it.fails('keeps no live code (#378 phase 5)', () => {
     expect(kept.readOnly.remote).not.toContain('live.js')
     expect(kept.readOnly.remote).not.toContain('sse.js')
-    expect(kept.readOnly.remote).not.toContain('outbox.js')
-    expect(kept.readOnly.remote).not.toContain('persistence.js')
   })
 
   it.fails('keeps no expression evaluator (#378 phases 4 and 5)', () => {

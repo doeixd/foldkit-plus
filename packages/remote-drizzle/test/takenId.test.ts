@@ -18,6 +18,7 @@ import {
   type RemoteJsonClient,
   type RemoteMessage,
 } from 'foldkit-remote'
+import { outbox, outboxStatus } from 'foldkit-remote/outbox'
 import { Law } from 'foldkit-remote/testing'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Surface } from 'foldkit-surface'
@@ -149,12 +150,12 @@ it('answers a create of a taken id with 409, and a free one with 200', async () 
 })
 
 describe('a durable create', () => {
-  const outbox = Data.outbox({
+  const durable = outbox(Data, {
     key: () => 'outbox:ada',
     scope: () => 'ada',
     retry: { base: '1 millis', max: '2 millis' },
   })
-  const entries = outbox.subscriptions!
+  const entries = durable.subscriptions!
   const kv = () =>
     Effect.runSync(
       Effect.gen(function* () {
@@ -178,7 +179,7 @@ describe('a durable create', () => {
       ).then(collected => [...collected] as ReadonlyArray<RemoteMessage>)
     }
     const start = await Effect.runPromise(
-      outbox
+      durable
         .restore({ remote: Remote.initial })
         .pipe(Effect.provideService(KeyValueStore.KeyValueStore, store)),
     )
@@ -197,7 +198,7 @@ describe('a durable create', () => {
     const { messages, settled, queued } = await created('i1')
     expect(messages.map(message => message._tag)).toEqual(['MutationFailed'])
     expect(statuses).toEqual([409])
-    expect(Data.outboxStatus(settled)).toMatchObject({ waiting: 0, failed: 1 })
+    expect(outboxStatus(Data, settled)).toMatchObject({ waiting: 0, failed: 1 })
     expect(Data.failedWrites(settled, CreateItem)).toEqual([
       expect.objectContaining({
         requestId: queued.requestId,

@@ -5,9 +5,10 @@
  */
 import { Effect, Option, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
-import { Remote, RemoteData, RemotePersistence } from 'foldkit-remote'
+import { Remote, RemoteData } from 'foldkit-remote'
+import { RemotePersistence } from 'foldkit-remote/persistence'
 import { describe, expect, it } from 'vitest'
-import { Data, initial, persistence, Todos, type Model } from '../src/app.js'
+import { Data, initial, remoteCache, Todos, type Model } from '../src/app.js'
 import { cacheKey, snapshotFor } from '../src/cache.js'
 import { AllTodos, CreateTodo } from '../src/operations.js'
 
@@ -77,7 +78,7 @@ const storeWith = (
 
 /** What the page's persistence wiring restores into `model` from `kv`. */
 const restored = async (kv: KeyValueStore.KeyValueStore, model: Model): Promise<Model> => {
-  const restore = persistence.subscriptions!['persistence.restore']!
+  const restore = remoteCache.subscriptions!['persistence.restore']!
   const dependencies = restore.modelToDependencies(model)
   const messages = await Effect.runPromise(
     Stream.runCollect(restore.dependenciesToStream(dependencies, () => dependencies)).pipe(
@@ -89,7 +90,7 @@ const restored = async (kv: KeyValueStore.KeyValueStore, model: Model): Promise<
 
 /** What the page's persistence wiring saves of `model` into `kv`, after its debounce. */
 const saved = async (kv: KeyValueStore.KeyValueStore, model: Model): Promise<void> => {
-  const save = persistence.subscriptions!['persistence.save']!
+  const save = remoteCache.subscriptions!['persistence.save']!
   const dependencies = save.modelToDependencies(model)
   await Effect.runPromise(
     Stream.runDrain(save.dependenciesToStream(dependencies, () => dependencies)).pipe(

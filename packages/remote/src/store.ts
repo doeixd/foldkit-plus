@@ -326,3 +326,23 @@ export const missingFields = (
     return requested !== undefined && stored !== undefined && stored !== '' && stored !== requested
   })
 }
+
+/** How a snapshot meets a store that already has entries. */
+export type MergePolicy = 'replace' | 'preserve-existing'
+
+/**
+ * Brings a snapshot into a store that may already hold entries. `replace`
+ * takes the snapshot's entry for every key it has; `preserve-existing` keeps
+ * an entry the current store already has (it is at least as fresh as a
+ * snapshot taken earlier). Either way, keys only the current store has stay.
+ */
+export const mergeStores = (
+  current: EntityStore,
+  snapshot: EntityStore,
+  policy: MergePolicy,
+): EntityStore =>
+  Object.keys(snapshot).length === 0
+    ? current
+    : policy === 'replace'
+      ? { ...current, ...snapshot }
+      : { ...snapshot, ...current }

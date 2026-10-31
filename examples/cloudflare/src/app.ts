@@ -15,6 +15,7 @@ import { Crud } from 'foldkit-crud'
 import { Style } from 'foldkit-mixins'
 import { FormView } from 'foldkit-mixins-form'
 import { Remote, type RemoteClient } from 'foldkit-remote'
+import { persistence } from 'foldkit-remote/persistence'
 import { modifyFields } from 'foldkit/struct'
 import { Surface } from 'foldkit-surface'
 import { cacheKey, snapshotFor } from './cache.js'
@@ -111,7 +112,7 @@ const remoteWiring = Data.wiring(Crud.actives({ todos: Todos, editor: Rename }))
  * The list kept in the browser, one snapshot per actor. A later visit paints
  * those rows and asks again. An unsent edit is not in it: Remote has no outbox.
  */
-export const persistence = Data.persistence({
+export const remoteCache = persistence(Data, {
   key: model => cacheKey(model.actor),
   scope: model => model.actor,
   snapshot: remote => snapshotFor(remote, Data.visibleItems),
@@ -172,7 +173,7 @@ const Page = Base.pipe(
       return { ...started, model: modifyFields(started.model, { notice: () => Option.none() }) }
     },
   }),
-  Bundle.withWiring({ ...remoteWiring, route: routeRemote }, persistence),
+  Bundle.withWiring({ ...remoteWiring, route: routeRemote }, remoteCache),
 )
 
 export const AddForm = Page.children.add

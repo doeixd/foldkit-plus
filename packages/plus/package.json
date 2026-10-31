@@ -448,10 +448,20 @@
       "types": "./dist/remote/filter.d.mts",
       "import": "./dist/remote/filter.mjs"
     },
+    "./remote/outbox": {
+      "foldkit-plus:source": "./src/remote/outbox.ts",
+      "types": "./dist/remote/outbox.d.mts",
+      "import": "./dist/remote/outbox.mjs"
+    },
     "./remote/overlay": {
       "foldkit-plus:source": "./src/remote/overlay.ts",
       "types": "./dist/remote/overlay.d.mts",
       "import": "./dist/remote/overlay.mjs"
+    },
+    "./remote/persistence": {
+      "foldkit-plus:source": "./src/remote/persistence.ts",
+      "types": "./dist/remote/persistence.d.mts",
+      "import": "./dist/remote/persistence.mjs"
     },
     "./remote/port": {
       "foldkit-plus:source": "./src/remote/port.ts",

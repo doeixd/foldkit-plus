@@ -4,8 +4,8 @@
  */
 import { Effect } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
-import { initial, outbox, type Model } from '../src/app.js'
+import { durable, initial, type Model } from '../src/app.js'
 
 export const opened: Model = Effect.runSync(
-  outbox.restore(initial).pipe(Effect.provide(KeyValueStore.layerMemory)),
+  durable.restore(initial).pipe(Effect.provide(KeyValueStore.layerMemory)),
 )

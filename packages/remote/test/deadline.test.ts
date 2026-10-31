@@ -22,6 +22,7 @@ import {
   terminal,
   type RemoteMessage,
 } from '../src/index.js'
+import { outbox, outboxStatus } from '../src/outbox.js'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -128,7 +129,7 @@ describe('a durable write that runs out', () => {
       setTimeout(() => callback(performance.now()), 0),
     )
     vi.stubGlobal('cancelAnimationFrame', clearTimeout)
-    const outbox = Data.outbox({
+    const durable = outbox(Data, {
       key: model => `outbox:${model.actor}`,
       scope: model => model.actor,
       retry: { base: '20 millis', max: '40 millis' },
@@ -164,7 +165,7 @@ describe('a durable write that runs out', () => {
       h.main(
         [],
         [
-          h.p([h.Id('waiting')], [String(Data.outboxStatus(model).waiting)]),
+          h.p([h.Id('waiting')], [String(outboxStatus(Data, model).waiting)]),
           h.button([h.Id('press'), h.OnClick(Message.Pressed())], ['Set']),
         ],
       )
@@ -175,11 +176,11 @@ describe('a durable write that runs out', () => {
       Runtime.makeElement({
         Model,
         Flags: Model,
-        flags: outbox.restore(initial),
+        flags: durable.restore(initial),
         init: (model: Model) => ({ model }),
         update,
         view,
-        subscriptions: outbox.subscriptions!,
+        subscriptions: durable.subscriptions!,
         container,
         resources: Layer.merge(
           Remote.coalesced(client, { timeout: '50 millis' }),

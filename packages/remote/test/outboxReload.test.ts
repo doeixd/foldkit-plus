@@ -22,6 +22,7 @@ import {
   isRemoteMessage,
   terminal,
 } from '../src/index.js'
+import { outbox, outboxStatus } from '../src/outbox.js'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -42,7 +43,7 @@ const Message = defineMessageUnion({ ...Remote.messages, Pressed: {} })
 type Message = typeof Message.Type
 const App = Surface.application({ Model, Message })
 const Data = Remote.make({ model: App.model.remote, entities: [Item], mutations: [SetCount] })
-const outbox = Data.outbox({
+const durable = outbox(Data, {
   key: model => `outbox:${model.actor}`,
   scope: model => model.actor,
   retry: { base: '20 millis', max: '40 millis' },
@@ -74,7 +75,7 @@ const view = (model: Model, h: HtmlBuilder<Message>) => {
     [],
     [
       h.p([h.Id('count')], [read._tag === 'Ready' ? String(read.value.count) : read._tag]),
-      h.p([h.Id('waiting')], [String(Data.outboxStatus(model).waiting)]),
+      h.p([h.Id('waiting')], [String(outboxStatus(Data, model).waiting)]),
       h.button([h.Id('press'), h.OnClick(Message.Pressed())], ['Set']),
     ],
   )
@@ -114,11 +115,11 @@ const open = (kv: KeyValueStore.KeyValueStore, client: RemoteClient['Service']) 
     Runtime.makeElement({
       Model,
       Flags: Model,
-      flags: outbox.restore(initial),
+      flags: durable.restore(initial),
       init: (model: Model) => ({ model }),
       update,
       view,
-      subscriptions: outbox.subscriptions!,
+      subscriptions: durable.subscriptions!,
       container,
       resources: Layer.merge(
         Layer.succeed(RemoteClient, client),

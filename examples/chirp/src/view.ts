@@ -11,6 +11,7 @@ import { Icon, type IconData } from 'foldkit-media'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import { Avatar } from 'foldkit-mixins-ui'
 import type { RemoteData } from 'foldkit-remote'
+import { outboxStatus } from 'foldkit-remote/outbox'
 import { RemoteData as Data } from 'foldkit-remote'
 import { Site } from 'foldkit-site'
 import { Surface } from 'foldkit-surface'
@@ -204,7 +205,7 @@ const strip = (model: Model, slots: Slots, h: H): Html =>
  * stood above each new chirp for a frame or two and pushed it down.
  */
 const waiting = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
-  const { waiting: count, items } = Chirps.outboxStatus(model)
+  const { waiting: count, items } = outboxStatus(Chirps, model)
   const unanswered = items.some(item => item.state._tag === 'Waiting' && item.state.attempt > 0)
   return unanswered
     ? [

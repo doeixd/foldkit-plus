@@ -13,7 +13,7 @@ import { ShownBy, why, Why } from 'foldkit-remote/why'
 import { Respond, Trace } from 'foldkit-remote/testing'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
-import { ComposeForm, Data, Message, outbox, update, type Model } from '../src/app.js'
+import { ComposeForm, Data, Message, durable, update, type Model } from '../src/app.js'
 import { Compose } from '../src/compose.js'
 import { Post } from '../src/guard.js'
 import { ByAuthor, PostChirp } from '../src/operations.js'
@@ -118,7 +118,7 @@ describe('the timeline of a post', () => {
       // list, and the timeline says so (`NotObserved`).
       active: { mine: Data.active('Mine', () => Option.some(mine)) },
       client: sandbox(),
-      outbox,
+      outbox: durable,
       now: at,
       steps: [
         Message.GotComposeMessage({ message: Compose.Message.Submitted() }),

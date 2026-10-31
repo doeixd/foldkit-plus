@@ -9,7 +9,8 @@
  * before it returns, and `Entity` an object again, each failed "keeps no
  * invariant judge, expressions or writes". Remote's likewise: a domain that
  * carries `why` again (`Object.assign(domain, { why })` in `bindDomain`)
- * failed "keeps no explanations".
+ * failed "keeps no explanations", and one that reaches `outboxStatus` and
+ * `persistence` again failed "keeps no outbox or persistence code".
  */
 const tests = ['scripts/test/readOnlyPage.test.ts']
 
@@ -42,7 +43,9 @@ export default [
   linked('remote', [
     'src/index.ts',
     'src/filter.ts',
+    'src/outbox.ts',
     'src/overlay.ts',
+    'src/persistence.ts',
     'src/port.ts',
     'src/testing.ts',
     'src/why.ts',

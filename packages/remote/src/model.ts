@@ -49,14 +49,15 @@ import {
   withDone,
   type OutboxState,
   type ReadEntry,
-  type StoredWrite,
-} from './outbox.js'
+} from './queue.js'
+import type { StoredWrite } from './outboxStore.js'
 import {
   askAgain,
   entityKey,
   entry as storeEntry,
   emptyStore,
   isTombstone,
+  mergeStores,
   readField,
   remove,
   setStale,
@@ -66,6 +67,7 @@ import {
   type EntityKey,
   type EntityStore,
   type EntityWrite,
+  type MergePolicy,
 } from './store.js'
 import { windowKey } from './plan.js'
 import { isRefPage, targetsOf, type RefPageValue } from './relation.js'
@@ -80,7 +82,6 @@ import {
   type Retained,
   type RetentionRoots,
 } from './retain.js'
-import { RemotePersistence, type MergePolicy } from './persistence.js'
 import {
   AnswerRead,
   NormalizedEntity,
@@ -157,7 +158,7 @@ export interface RemoteModel {
   readonly failures: Failures
   /**
    * The storage key the cache was last restored from, through `Hydrated`'s
-   * `from`. `Data.persistence` saves under a key only once its own snapshot is
+   * `from`. `persistence(Data, …)` saves under a key only once its own snapshot is
    * in, so a save at startup cannot write the empty store over it, and
    * restores only a key the Model is not yet restored from.
    */
@@ -296,7 +297,7 @@ export const emptyRefresh: RefreshState = {
  * treated as applied: its answer, when it comes, writes nothing here.
  *
  * `restoredFrom` is kept too: the emptied store is now what that key holds,
- * so `Data.persistence` saves it over the old snapshot and never restores the
+ * so `persistence(Data, …)` saves it over the old snapshot and never restores the
  * key again. Restoring would bring back exactly what was forgotten.
  */
 export const forgetRemote = (model: RemoteModel): RemoteModel => {
@@ -1612,7 +1613,7 @@ const reduceRemote = (
       )
       return {
         ...model,
-        entities: RemotePersistence.mergeStores(model.entities, message.entities, message.merge),
+        entities: mergeStores(model.entities, message.entities, message.merge),
         failures: withoutFieldFailures(model.failures, written),
         connections:
           restored.length === 0

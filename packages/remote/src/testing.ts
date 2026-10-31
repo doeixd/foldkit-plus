@@ -14,11 +14,12 @@ import type { Equivalence } from 'effect'
 import type * as Update from 'foldkit/update'
 import type { ActiveSurface, Projection, SurfaceSource } from 'foldkit-surface'
 import { RemoteClient } from './client.js'
-import type { EntityLike, OutboxWiring, RemoteDomain, SubscriptionsOptions } from './index.js'
+import type { EntityLike, RemoteDomain, SubscriptionsOptions } from './index.js'
 import type { PredictionMismatch, RemoteDiagnostic } from './diagnostics.js'
 import type { RemoteMessage } from './model.js'
 import type { MutationDescriptor } from './mutationDescriptor.js'
-import { OutboxLocks } from './outbox.js'
+import type { OutboxWiring } from './outbox.js'
+import { OutboxLocks } from './outboxStore.js'
 import { IDENTITY_SEPARATOR, queryIdentity, stableStringify, type QueryRef } from './query.js'
 import type { RemoteData } from './remoteData.js'
 import { timeline, why, type ReadStep, type ReadWhy } from './why.js'
@@ -191,7 +192,7 @@ export interface TraceConfig<
   /** What answers each request once a step lets it go on: a fake, or a server's in-process client. */
   readonly client: Client
   /**
-   * The application's `Data.outbox`, when it makes durable writes: the trace
+   * The application's `outbox(Data, …)`, when it makes durable writes: the trace
    * starts from its `restore` over an empty store of its own, and runs its
    * Subscriptions as one tab does (without Web Locks, and with no other tab
    * to hear), so a durable write is stored and sent by it.

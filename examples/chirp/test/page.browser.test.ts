@@ -14,7 +14,7 @@ import { Style } from 'foldkit-mixins'
 import { RemoteClient } from 'foldkit-remote'
 import { afterEach, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
-import { init, Model, opening, outbox, subscriptions, update, type Message } from '../src/app.js'
+import { init, Model, opening, durable, subscriptions, update, type Message } from '../src/app.js'
 import { sandboxRemote } from '../src/server/connection.js'
 import type { Person } from '../src/server/seed.js'
 import { profileHref } from '../src/site.js'
@@ -48,7 +48,7 @@ const mount = async (
   container.id = 'chirp-test'
   document.body.append(container)
   const restored = await Effect.runPromise(
-    outbox.restore(opening(person)).pipe(Effect.provide(KeyValueStore.layerMemory)),
+    durable.restore(opening(person)).pipe(Effect.provide(KeyValueStore.layerMemory)),
   )
   const handle = Runtime.embed(
     Runtime.makeElement({

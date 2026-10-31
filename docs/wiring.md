@@ -41,8 +41,8 @@ The producers, one per integration:
 | Integration | Call | Brings |
 | --- | --- | --- |
 | Remote | `Data.wiring(active, options?)` | `route` into `Data.reduce`, entries per active Surface, contract, `RemoteClient`; `shared` names the Remote Messages the application's update hears too |
-| Remote cache across a reload | `Data.persistence({ key, … })` | restores the stored cache and writes it back, `restore` for the first frame, a `KeyValueStore` |
-| Remote durable writes | `Data.outbox({ key, … })` | stores durable writes and sends them, `restore` for the first frame, a `KeyValueStore` |
+| Remote cache across a reload | `persistence(Data, { key, … })` | restores the stored cache and writes it back, `restore` for the first frame, a `KeyValueStore` |
+| Remote durable writes | `outbox(Data, { key, … })` | stores durable writes and sends them, `restore` for the first frame, a `KeyValueStore` |
 | URL mirror | `Filters.wiring(tag)` | routes the app's URL Message, `onUrl`, subscriptions, contract |
 | Key-value mirror | `Prefs.wiring()` | routes its own `MirrorRestored`, `restore` as `init`, subscriptions, contract |
 | Sync | `TodoSync.wiring()` | contract only |
