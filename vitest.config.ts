@@ -66,7 +66,13 @@ export default defineConfig({
       }),
       // The upstream foldkit-domains copy keeps its own test setup (happy-dom,
       // Foldkit's Vitest setup, tests beside the source), as upstream runs it.
-      'examples/foldkit/domains/vitest.config.ts',
+      // Given by path, it took Vitest's default workers, not `maxWorkers`, and
+      // Vitest refuses projects in one group whose workers differ: a local run
+      // whose free memory lowered `maxWorkers` failed before any test ran.
+      {
+        extends: './examples/foldkit/domains/vitest.config.ts',
+        test: { name: 'foldkit-domains', root: './examples/foldkit/domains', maxWorkers },
+      },
       mergeConfig(inBrowser, {
         test: {
           name: 'browser-touch',
