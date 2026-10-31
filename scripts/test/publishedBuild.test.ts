@@ -8,40 +8,27 @@
  * while its `export * as` namespaces became objects whose getters keep every
  * member (#241).
  */
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
-import { build as buildPackage, type UserConfig } from 'tsdown'
-import { build as buildPage } from 'vite'
+import { rmSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterAll, expect, test } from 'vitest'
+import { buildPublished, packages, pageModules, scratchIn } from './pageBuild.js'
 
-const packages = resolve(import.meta.dirname, '..', '..', 'packages')
 const made: Array<string> = []
 afterAll(() => {
   for (const dir of made) rmSync(dir, { recursive: true, force: true })
 })
 
 /** The bytes a page keeps from files under `dir`, importing `entry` as `pkg`. */
-const keptFrom = async (root: string, entry: string, dir: string): Promise<number> => {
-  const result = await buildPage({
-    configFile: false,
-    logLevel: 'silent',
-    root,
-    resolve: { alias: { pkg: entry }, conditions: ['foldkit-plus:source'] },
-    build: {
-      write: false,
-      // What a page pays: unminified, a published module's doc comment, which
-      // the source build drops, outweighed a small page (mixins-builder).
-      minify: true,
-      lib: { entry: join(root, 'page.ts'), formats: ['es'], fileName: 'page' },
-    },
-  })
+const keptFrom = async (
+  root: string,
+  page: string,
+  entry: string,
+  dir: string,
+): Promise<number> => {
   const prefix = dir.replaceAll('\\', '/')
-  return [result]
-    .flat()
-    .flatMap(built => ('output' in built ? built.output : []))
-    .flatMap(chunk => (chunk.type === 'chunk' ? Object.entries(chunk.modules) : []))
-    .filter(([id]) => id.replaceAll('\\', '/').startsWith(prefix))
-    .reduce((sum, [, module]) => sum + module.renderedLength, 0)
+  return (await pageModules(root, page, [{ find: 'pkg', replacement: entry }]))
+    .filter(({ id }) => id.startsWith(prefix))
+    .reduce((sum, { length }) => sum + length, 0)
 }
 
 /**
@@ -82,31 +69,16 @@ test.each(cases)(
   'a page keeps no more of the published %s than of its source',
   async (name, page) => {
     const packageDir = join(packages, name)
-    // Inside the package, so the built files resolve its dependencies.
-    mkdirSync(join(packageDir, '.tsbuild'), { recursive: true })
-    const root = mkdtempSync(join(packageDir, '.tsbuild', 'published-'))
+    const root = scratchIn(name, 'published-')
     made.push(root)
-    writeFileSync(join(root, 'page.ts'), page)
-    const config: UserConfig = (await import(`../../packages/${name}/tsdown.config.ts`)).default
-    await buildPackage({
-      ...config,
-      config: false,
-      cwd: packageDir,
-      outDir: join(root, 'dist'),
-      dts: false,
-      logLevel: 'silent',
-    })
-    // Where the package's manifest sends an import, so the check reads the
-    // file a consumer gets.
-    const manifest: { readonly exports: { readonly '.': { readonly import: string } } } =
-      JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf8'))
-    const imported = manifest.exports['.'].import
+    const imported = await buildPublished(name, root)
     const source = await keptFrom(
       root,
+      page,
       join(packageDir, 'src', 'index.ts'),
       join(packageDir, 'src'),
     )
-    const published = await keptFrom(root, join(root, imported), join(root, 'dist'))
+    const published = await keptFrom(root, page, imported, join(root, 'dist'))
     expect(source).toBeGreaterThan(0)
     expect(published).toBeLessThanOrEqual(source * 1.05)
   },
