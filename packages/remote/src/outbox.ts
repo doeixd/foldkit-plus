@@ -34,7 +34,7 @@ import {
 import { Queued, type OutboxState } from './queue.js'
 import type { RemoteError } from './remoteData.js'
 
-export { OutboxLocks, type RetryOptions } from './outboxStore.js'
+export type { RetryOptions } from './outboxStore.js'
 
 /** What `outbox` and `outboxStatus` use of a domain: `Remote.make`'s value is one. */
 export interface OutboxDomain<AppModel> {
@@ -77,6 +77,7 @@ export interface OutboxWiring<AppModel> extends Wiring<
    */
   readonly restore: (model: AppModel) => Effect.Effect<AppModel, never, KeyValueStore.KeyValueStore>
 }
+
 /**
  * Keeps a domain's durable writes (`mutate`'s `durable`) across a reload and
  * sends them, as a wiring beside `Data.wiring`: the queue is written to `key`
