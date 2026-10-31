@@ -128,3 +128,37 @@ A page refused only for its query now says how to keep it (`SSR.generate`, or
 The state names Model fields, not URL parameters, so nothing can say which
 query the Model depends on; and an application that reads `?q=` wants it
 read, not ignored.
+
+## Answering typing before boot (#372)
+
+| Fact | Owner |
+| --- | --- |
+| What was typed before the script | the field (`KeepTyped`) |
+| Its effects (the address, derived text) | the application's `update` and view, once the runtime runs |
+| Anything before the bundle runs | an inline script of the application's, if it keeps one |
+
+Upstream answers the first keystrokes before its bundle runs, with an inline
+script that writes `?q=`, switches a layout attribute and fills the pending
+cards. Before the bundle no code of the application is in the page, so only
+such a script can; `foldkit-ssr` does not write one (a Content Security Policy
+nonce, and a second copy of the field's behaviour in DOM code, which #356
+chose against).
+
+What changed is the time between the script and the answer. A page whose
+plan starts `'idle'` or `'on-interaction'` replayed kept typing only when
+that start came: the person had typed, and the page waited for them to do
+something else. Typing is the interaction such a page waits for, so a page
+with kept typing now starts as its script runs and draws the Message's
+effects at once. Only a lazy bundle still loading holds it, since its
+`update` must be there.
+
+What stays the application's, with the exact limit in the README: anything
+before the bundle. An application that keeps a script may write the address
+only on a page recorded for its path (#373's half above), which starts from
+the URL it is opened at; a page rendered per request is refused at any other
+query.
+
+Upstream: a script before the bundle needs a nonce Foldkit's document
+renderer could thread (proposal 2's head channel), and the whole pre-boot
+contract is foldkit#1784; recorded beside proposal 6 in
+[`upstream-foldkit-ssr.md`](../upstream-foldkit-ssr.md).

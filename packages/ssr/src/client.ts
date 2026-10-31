@@ -254,7 +254,10 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     boot()
     return
   }
-  deferBoot(root, decoded.success, start, { boot, answered }, pending, report, kept.success)
+  // Typing is an interaction, whenever it happened: a page that waits for
+  // one starts now, so what was typed is answered as soon as the script runs.
+  const typed = answered.length > 0 ? 'now' : start
+  deferBoot(root, decoded.success, typed, { boot, answered }, pending, report, kept.success)
 }
 
 /**

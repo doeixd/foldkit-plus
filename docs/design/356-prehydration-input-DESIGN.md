@@ -67,7 +67,9 @@ rh.input([rh.Value(model.query), rh.OnInput(Message.ChangedQuery), rh.KeepTyped(
    before boot, so they reach `update` before anything the page answers
    afterwards, once each.
 3. **Boot.** A page with kept typing boots through the deferred path even when
-   it starts `now`, because that path hands the queue to the runtime. The
+   it starts `now`, because that path hands the queue to the runtime, and
+   starts at once even when its plan waits for `'idle'` or an interaction:
+   the typing was the interaction (#372). The
    runtime starts from the resumed Model, so its first render is the served
    page and every node is adopted; it re-asserts the served value into each
    changed field. Just before boot each marked field's value and selection
@@ -103,6 +105,18 @@ then changes through an ordinary patch.
 - **A value the browser restored.** A reload or a history visit can refill a
   field before the script runs; it is kept like typing, since it is what the
   field shows.
+
+### Answering before the script (#372)
+
+`KeepTyped` keeps and replays; it does not answer before the bundle runs,
+since no code of the application is in the page until then. Upstream's page
+writes `?q=` and fills its pending cards from an inline script. Doing that
+here would bring back what this design avoided: a script the template must
+carry under a Content Security Policy nonce, and a second copy of the
+field's behaviour in DOM code. What `foldkit-ssr` does instead is answer as
+soon as the script runs, whatever the plan's `start`, and let a page recorded
+for its path start from a URL such a script wrote
+([`364-373-ssr-serving-DESIGN.md`](364-373-ssr-serving-DESIGN.md)).
 
 ## Fields in lazy bundles
 

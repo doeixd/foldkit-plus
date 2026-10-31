@@ -172,4 +172,15 @@ export default [
     edits: [{ file: index, find: '    if (unkeepable.length > 0) {', replace: '    if (false) {' }],
     tests: refused,
   },
+  {
+    name: 'a page waiting to boot holds what was typed before its script (#372)',
+    edits: [
+      {
+        file: client,
+        find: "  const typed = answered.length > 0 ? 'now' : start",
+        replace: '  const typed = start',
+      },
+    ],
+    tests: deferred,
+  },
 ]

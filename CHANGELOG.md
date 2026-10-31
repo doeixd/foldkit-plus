@@ -37,8 +37,12 @@ version changed; `pnpm` skips versions already in the registry.
   the field's `OnInput` (else `OnChange`) Message ahead of anything else, and
   puts back the value and caret the first render resets, so the field keeps
   every character, its caret and its focus. No inline script, so a page's
-  Content Security Policy needs no nonce. Works on any `start`, and inside a
-  lazy bundle once its code loads. A text `input`, `textarea` or `select`
+  Content Security Policy needs no nonce. Works on any `start`: a page that
+  waits for `'idle'` or an interaction starts at once when something was
+  typed, since typing is that interaction (#372); inside a lazy bundle, once
+  its code loads. Nothing answers the typing before the script runs (the
+  address, derived text): that takes an inline script, which is the
+  application's. A text `input`, `textarea` or `select`
   that `rh` builds, with a hole-form `OnInput`/`OnChange`, only; anything else
   is refused on the server (`ResumeUnsafe`, `UnkeepableField`), naming the
   element, `KeepTyped` on an element `h.input` built included (#371), which

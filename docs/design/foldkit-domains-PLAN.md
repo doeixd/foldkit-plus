@@ -339,7 +339,7 @@ without it, and the root checks green. The upstream copy stays untouched.
    change interrupts its in-flight request (a held-open `fetch` with an abort
    assertion); if it lets it finish, the answer is still reduced but the
    bandwidth is spent.
-7. **Typing before the bundle.** Half closed: `rh.KeepTyped()` keeps and replays it; answering it before boot is [#372](https://github.com/doeixd/foldkit-plus/issues/372). Upstream keeps an inline script and a
+7. **Typing before the bundle.** Half closed: `rh.KeepTyped()` keeps and replays it, at once whatever the plan's `start`; answering it before the bundle runs needs an inline script, which `foldkit-ssr` does not write ([#372](https://github.com/doeixd/foldkit-plus/issues/372), limits in the `foldkit-ssr` README). Upstream keeps an inline script and a
    handoff Command (tracked upstream as foldkit/foldkit#1784). `foldkit-ssr`'s
    `Resume` answers events before boot; whether it can write `?q=` and text
    holes before boot, and keep the input node and caret, is unknown. If not,

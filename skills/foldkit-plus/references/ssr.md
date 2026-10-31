@@ -225,7 +225,10 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   `textarea` or a `select` that `rh` builds (`rh.input`, not `h.input`: only
   `rh`'s elements are marked) with a hole-form binding: anything else is
   `UnkeepableField` on the server. An IME composition in progress at boot
-  ends.
+  ends. Nothing answers the typing before the bundle runs (no `?q=`, no
+  derived text): that takes an inline script, which `foldkit-ssr` does not
+  write; once it runs, a page started `'idle'`/`'on-interaction'` with kept
+  typing starts at once and draws it.
 - `SSR.generate` returns pages as a tuple of `paths`: `const [home, about]`.
   `SSR.sitemap(pages, { origin })` (each `{ path, modified? }`) and
   `SSR.robots({ origin, sitemap?, disallow? })` write the two files a static

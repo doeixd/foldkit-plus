@@ -834,6 +834,27 @@ which the first render's reset ends, though its text is kept. A value the
 browser restored into the field on a reload or a history visit is kept like
 typing, since it is what the field shows.
 
+`KeepTyped` answers the typing as soon as the script runs, not before. Until
+the bundle is parsed no code of the application is in the page, so nothing
+but the field changes: the address stays, and text derived from the query (a
+heading, pending results) shows what the server rendered. When the script
+runs, the replayed Message is the first `update` sees, and the page draws its
+effects as it would any Message's. Typing is the interaction a page started
+`'idle'` or `'on-interaction'` waits for, so such a page starts at once when
+something was typed before its script; only a lazy bundle still loading
+holds the queue undrawn.
+
+Answering sooner takes code that runs before the bundle, which only an inline
+script can be. `foldkit-ssr` writes none: it would need a Content Security
+Policy nonce and a second copy of the field's behaviour in plain DOM code. An
+application that keeps one (upstream's foldkit-domains writes `?q=` and fills
+its pending cards from one) may write the address only on a page recorded for
+its path alone (`SSR.generate`, or `SSR.entry`'s `prerendered`), which, opened
+at another query, starts from that URL; a page rendered per request is
+refused at any query but its own. Markup such a script changes is the
+served page no longer, and Foldkit reconciles it at hydration to the Model's
+first render.
+
 ## Forms that work without scripts
 
 A form whose `OnSubmit` names a Message can be answered by the server, before

@@ -358,6 +358,17 @@ already does above Foldkit, with no script.
 **Afterwards, here.** `KeepTyped` passes the marked fields as the predicate
 and drops `hold` and `restore`; the README's limit on IME composition goes.
 
+**Not covered, and not ours to build (#372).** Answering the typing before
+the bundle runs (upstream's `bootstrap.ts` writes `?q=` and fills pending
+cards) needs code in the page before the bundle: an inline script, which a
+page under a Content Security Policy can run only with a nonce or hash the
+document carries. Foldkit's `renderDocument` owns that document, so the
+nonce belongs with proposal 2's head channel, and the contract (which
+controls, which effects, how the bundle retires the script) with
+foldkit#1784. `foldkit-ssr` answers as soon as its script runs, whatever the
+plan's `start`, and starts a page recorded for its path from a URL such a
+script wrote; nothing earlier is in its reach.
+
 ## What we are not asking for
 
 These were on this repository's list and are dropped or held after this
