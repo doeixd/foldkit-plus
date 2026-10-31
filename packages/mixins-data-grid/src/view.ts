@@ -221,6 +221,10 @@ const view = <Message>() => ({
         const shown = grid.window(input)
         const stop = GridFocus.tabStop(projection, state.focus.current)
         const pageRows = Math.max(1, Math.floor((viewport.height - headerHeight) / rowHeight))
+        // What an open editor, choice list or column menu holds focus with.
+        const started = input.wrap(grid.Message.MountStarted())
+        const holdFocus = Mount.mapMessage(HoldFocus(), () => started)
+        const keepFocus = Mount.mapMessage(KeepFocus(), () => started)
 
         // Display order across the regions; a column's index is its aria-colindex less one.
         const drawn = [...shown.start, ...shown.centerColumns, ...shown.end]
@@ -586,7 +590,7 @@ const view = <Message>() => ({
                 h.Role('listbox'),
                 h.AriaLabel(grid.columns.byId[address.column].header),
                 h.DataAttribute('place', above ? 'above' : 'below'),
-                h.OnMount(KeepFocus()),
+                h.OnMount(keepFocus),
                 h.Style({
                   position: 'absolute',
                   insetInlineStart: '0',
@@ -639,7 +643,7 @@ const view = <Message>() => ({
                 grid.Message.EditCommitted({ next: Option.none(), reveal: Option.none() }),
               ),
             ),
-            h.OnMount(HoldFocus()),
+            h.OnMount(holdFocus),
             h.Style({ boxSizing: 'border-box', width: '100%', height: '100%' }),
           ]
           const shared = sharedWith((pressed, modifiers) => editorKey(address, pressed, modifiers))
@@ -892,7 +896,7 @@ const view = <Message>() => ({
         const pressed = Mount.mapMessage(CellPress(), fact =>
           input.wrap(
             Match.valueTags(fact, {
-              CellsListening: () => grid.Message.PressListening(),
+              CellsListening: () => grid.Message.MountStarted(),
               CellClicked: ({ cell, shiftKey, toggleKey }) =>
                 grid.Message.CellPressed({ cell, shiftKey, toggleKey }),
               FillDragStarted: () => grid.Message.FillStarted(),
@@ -957,7 +961,7 @@ const view = <Message>() => ({
         const headerPressed = Mount.mapMessage(HeaderPress(), fact =>
           input.wrap(
             Match.valueTags(fact, {
-              HeaderListening: () => grid.Message.PressListening(),
+              HeaderListening: () => grid.Message.MountStarted(),
               HeaderDragStarted: ({ header }) => grid.Message.ColumnDragStarted({ header }),
               HeaderDragged: ({ deltaX }) => grid.Message.ColumnDragged({ delta: deltaX * toward }),
               HeaderDragEnded: ({ completed }) => grid.Message.ColumnDragEnded({ completed }),
@@ -1107,7 +1111,7 @@ const view = <Message>() => ({
                     ...(count === 0 ? [] : [h.AriaActiveDescendant(menuPart(id, String(active)))]),
                     h.OnKeyDownPreventDefault(key => Option.map(menuKey(key), input.wrap)),
                     h.OnFocusLeave(input.wrap(grid.Message.MenuClosed())),
-                    h.OnMount(HoldFocus()),
+                    h.OnMount(holdFocus),
                     h.Style({ position: 'absolute', top: '100%', insetInlineEnd: '0' }),
                   ]),
                   items.map((item, index) =>
@@ -1436,7 +1440,7 @@ const view = <Message>() => ({
    * page that draws it, with the Messages the runtime sends: the scroll
    * container's measure with `viewport` (what a browser's layout would
    * report), and the header row's and the body's pointer listeners with
-   * `PressListening`. A Scene of the page starts with
+   * `MountStarted`. A Scene of the page starts with
    * `Scene.Mount.resolveAll(...DataGridView<Message>().resolveMounts(Grid, { wrap, viewport }))`.
    */
   resolveMounts: <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(
@@ -1447,12 +1451,37 @@ const view = <Message>() => ({
       readonly viewport: Viewport
     },
   ): ReadonlyArray<Scene.MountResolver<Message>> => {
-    const listening = options.wrap(grid.Message.PressListening())
+    const started = options.wrap(grid.Message.MountStarted())
     return [
       [GridViewport.Measure, options.wrap(grid.Message.Measured(options.viewport))],
-      [HeaderPress, listening],
-      [CellPress, listening],
+      [HeaderPress, started],
+      [CellPress, started],
     ]
+  },
+  /**
+   * The Mounts the grid starts as it opens something over itself, resolved
+   * with the `MountStarted` the runtime sends: `'editor'` is a cell's field
+   * (a native select included) and `'menu'` a column's menu, each holding
+   * focus; `'choice'` is a choice's combobox and the list beside it, which
+   * keeps a press on an option from taking that focus. Resolve them once it
+   * is drawn, and acknowledge them once it closes:
+   * `Scene.Mount.expectEnded(...opened.map(([mount]) => mount))`.
+   */
+  resolveOpened: <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(
+    grid: DataGridOf<Row, Specs>,
+    options: {
+      /** The view's `wrap`. */
+      readonly wrap: (message: typeof grid.Message.Type) => Message
+      readonly opened: 'editor' | 'choice' | 'menu'
+    },
+  ): ReadonlyArray<Scene.MountResolver<Message>> => {
+    const started = options.wrap(grid.Message.MountStarted())
+    return options.opened === 'choice'
+      ? [
+          [HoldFocus, started],
+          [KeepFocus, started],
+        ]
+      : [[HoldFocus, started]]
   },
 })
 

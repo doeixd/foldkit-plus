@@ -74,8 +74,8 @@ grid.moveBy({ row: 'p1', column: 'sku' }, { rows: 1, columns: 1 })
   column: `ResizeStarted({ header })` and `ColumnDragStarted({ header })`
   take `GridFocus.headerId(gridId, column)`, `CellPressed({ cell, ... })`
   takes `GridFocus.cellId`; an id that is not this grid's changes nothing.
-  `PressListening` changes nothing (the view's pointer listeners send it as
-  they start), and `GridViewport.Measure` sends a reading only when it changes.
+  `MountStarted` changes nothing (the view's Mounts send it as they start),
+  and `GridViewport.Measure` sends a reading only when it changes.
 - Place `DataGrid.make({ id, columns }).bundle`: focus and the viewport in
   one Model. Send `Moved({ address, reveal })` for a key (with `reveal` from
   `VirtualGrid.reveal`) and `Focused({ address })` for the pointer; the
@@ -160,11 +160,14 @@ the whole wiring, compiled.
   visible column, drawn or not; `aria-rowcount` is `-1` for an unknown count.
 - A Scene test of a page drawing the grid resolves its three Mounts (the
   measure, and the header row's and body's pointer listeners, which send
-  `PressListening` when they start) with
+  `MountStarted` when they start) with
   `Scene.Mount.resolveAll(...DataGridView<Message>().resolveMounts(Grid, { wrap, viewport }))`.
-  Test the keys in Scene and the pointer on the runtime; an open editor or
-  column menu keeps focus with a Mount that sends nothing, which Scene cannot
-  resolve.
+  An open editor, choice list or column menu starts Mounts that hold focus,
+  which send `MountStarted` too: once it is drawn, resolve them with
+  `resolveAll(...DataGridView<Message>().resolveOpened(Grid, { wrap, opened }))`
+  (`opened`: `'editor'`, `'choice'` or `'menu'`), and once it closes
+  acknowledge them with `Scene.Mount.expectEnded(...opened.map(([mount]) => mount))`.
+  Test the keys in Scene and the pointer on the runtime.
 
 ## Known traps
 

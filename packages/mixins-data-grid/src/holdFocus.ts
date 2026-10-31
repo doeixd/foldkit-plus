@@ -1,5 +1,8 @@
-import { Effect, Schema, Stream } from 'effect'
+import { Effect, Queue, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
+
+/** Focus is on the element: the Mount's answer when it starts, which changes nothing. */
+export const HoldingFocus = Schema.TaggedStruct('HoldingFocus', {})
 
 type Editable = Element & {
   readonly value?: string
@@ -14,12 +17,13 @@ type Editable = Element & {
  * the grid when it goes, so closing it leaves the keyboard on the grid rather
  * than on the page's body. Focus the user moved elsewhere stays there. A
  * choice's `select` also opens its list, so a double-click on the cell shows
- * the choices at once rather than asking for another click.
+ * the choices at once rather than asking for another click. It answers
+ * `HoldingFocus` when it starts, so a Scene test can open what it holds.
  */
 export const HoldFocus = Mount.defineStream('DataGridHoldFocus', {
-  messages: [Schema.Never],
+  messages: [HoldingFocus],
   execute: ({ element }) =>
-    Stream.callback<never>(() =>
+    Stream.callback<typeof HoldingFocus.Type>(queue =>
       Effect.acquireRelease(
         Effect.sync(() => {
           const editor = element as Editable
@@ -35,6 +39,7 @@ export const HoldFocus = Mount.defineStream('DataGridHoldFocus', {
               // and its list opens with a click or Alt+ArrowDown.
             }
           }
+          Queue.offerUnsafe(queue, HoldingFocus.make({}))
           return grid
         }),
         grid =>

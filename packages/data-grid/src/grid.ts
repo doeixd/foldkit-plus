@@ -187,11 +187,12 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     CellPressed: { cell: Schema.String, shiftKey: Schema.Boolean, toggleKey: Schema.Boolean },
     CellsCleared: {},
     /**
-     * The view's pointer listeners started, on the header row or the body.
-     * Nothing changes: it is their Mounts' answer on start, so a Scene test
-     * resolves them with a Message the runtime sends too.
+     * One of the view's Mounts started: a pointer listener (the header row's
+     * or the body's), or what holds focus in an open editor, choice list or
+     * column menu. Nothing changes: it is their answer on start, so a Scene
+     * test resolves them with a Message the runtime sends too.
      */
-    PressListening: {},
+    MountStarted: {},
     /** An edit began on an editable cell, with the text it starts from. */
     EditStarted: { address: focus.Address, draft: Schema.String },
     /**
@@ -1006,7 +1007,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         }),
 
         CellsCleared: (): Return => ({ model: clearCells(model) }),
-        PressListening: (): Return => ({ model }),
+        MountStarted: (): Return => ({ model }),
         ResizeEnded: ({ completed }): Return => ({
           model: Option.match(model.resizing, {
             onNone: () => model,

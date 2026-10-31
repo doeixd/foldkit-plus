@@ -143,12 +143,22 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **A data grid's editor, choice list and column menu open in Scene**
+  (`foldkit-mixins-data-grid`, `foldkit-data-grid`, #382; breaking). Each
+  holds focus with a Mount (`DataGridHoldFocus`, and `DataGridKeepFocus` on
+  a choice's list) that sent nothing when it started, so a Scene test could
+  not open one. They now send the grid's `MountStarted`, which changes
+  nothing, and `DataGridView<Message>().resolveOpened(Grid, { wrap, opened })`
+  resolves what an open `'editor'`, `'choice'` or `'menu'` starts. The grid's
+  `PressListening` is renamed `MountStarted`, since the pointer listeners
+  are no longer the only Mounts that send it.
+
 - **A page holding a data grid draws in Scene** (`foldkit-mixins-data-grid`,
   `foldkit-data-grid`, #380; breaking). The grid drew three Mounts that sent
   nothing when they started (`DataGridHeaderDrag`, a `Move` on every resize
   handle, `DataGridCellPress`), and Scene resolves every Mount with a
   Message, so no Scene test could draw such a page. The header row's and the
-  body's pointer listeners now send the grid's `PressListening`, which
+  body's pointer listeners now send the grid's `MountStarted`, which
   changes nothing, when they start, and
   `DataGridView<Message>().resolveMounts(Grid, { wrap, viewport })` resolves
   the grid's three Mounts with what the runtime sends. A resize handle's

@@ -7,7 +7,7 @@ const tests = ['packages/mixins-data-grid/test/choice.browser.test.ts']
 export default [
   {
     name: 'a press on the list takes focus from the combobox',
-    edits: [{ file: '../src/view.ts', find: 'h.OnMount(KeepFocus()),', replace: '' }],
+    edits: [{ file: '../src/view.ts', find: 'h.OnMount(keepFocus),', replace: '' }],
     tests,
   },
   {

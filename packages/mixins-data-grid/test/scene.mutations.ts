@@ -1,9 +1,13 @@
 /**
- * What lets Scene draw the grid (#380), each broken in turn: its Mounts'
- * Messages when they start, and the header row's listener taking the resize
- * handles' drags. `pnpm mutate packages/mixins-data-grid/test/scene.mutations.ts`.
+ * What lets Scene draw the grid (#380) and open its editor, choice list and
+ * column menu (#382), each broken in turn: its Mounts' Messages when they
+ * start, and the header row's listener taking the resize handles' drags.
+ * `pnpm mutate packages/mixins-data-grid/test/scene.mutations.ts`.
  */
 const header = '../src/headerPress.ts'
+const hold = '../src/holdFocus.ts'
+const keep = '../src/keepFocus.ts'
+const scene = 'packages/mixins-data-grid/test/scene.test.ts'
 const body = '../src/press.ts'
 const view = '../src/view.ts'
 const grid = '../../data-grid/src/grid.ts'
@@ -49,11 +53,40 @@ export default [
     edits: [
       {
         file: view,
-        find: '      [CellPress, listening],',
+        find: '      [CellPress, started],',
         replace: '      [CellPress, options.wrap(grid.Message.Measured(options.viewport))],',
       },
     ],
-    tests: ['packages/mixins-data-grid/test/scene.test.ts'],
+    tests: [scene],
+  },
+  {
+    name: 'an open editor or menu says nothing when it holds focus',
+    edits: [
+      {
+        file: hold,
+        find: '          Queue.offerUnsafe(queue, HoldingFocus.make({}))\n',
+        replace: '',
+      },
+    ],
+    tests: [runtime],
+  },
+  {
+    name: "a choice's list says nothing when it starts",
+    edits: [
+      {
+        file: keep,
+        find: '          Queue.offerUnsafe(queue, KeepingFocus.make({}))\n',
+        replace: '',
+      },
+    ],
+    tests: [runtime],
+  },
+  {
+    name: 'resolveOpened leaves out the list of a choice',
+    edits: [
+      { file: view, find: "    return options.opened === 'choice'", replace: '    return false' },
+    ],
+    tests: [scene],
   },
   {
     name: 'the measure repeats a reading',

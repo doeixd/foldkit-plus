@@ -254,7 +254,7 @@ Cells are `border-box`, so padding stays inside the width the window assumed.
 
 The grid starts three Mounts as it is drawn: the root's measure of its
 scroll container, and one pointer listener each on the header row and the
-body. Each sends a Message when it starts (`Measured`, and `PressListening`,
+body. Each sends a Message when it starts (`Measured`, and `MountStarted`,
 which changes nothing), so Scene can resolve them with the Messages the
 runtime sends, and `resolveMounts` names them. For the grid of the first
 example:
@@ -278,8 +278,37 @@ Scene.scene(
 
 `wrap` is the one the view is given. Scene runs no Mount, so what the
 pointer does (a click on a cell, a drag) is tested on the runtime; the keys
-are tested in Scene. An open editor, choice list or column menu keeps focus
-with a Mount that sends nothing, so a Scene test stops short of opening one.
+are tested in Scene.
+
+An open editor, choice list or column menu holds focus with a Mount of its
+own, which sends `MountStarted` too, so a Scene test opens one, resolves what
+it starts with `resolveOpened`, and acknowledges that it ended once it
+closes. `opened` is `'editor'` (a cell's field, a native select included),
+`'choice'` (a choice's combobox and its list) or `'menu'` (a column's menu).
+With the Name column editable (`edit: {}` in its spec):
+
+```ts
+const wrap = (message: typeof Grid.Message.Type) => Placement.wrapper.make(message)
+const editor = DataGridView<Message>().resolveOpened(Grid, { wrap, opened: 'editor' })
+const field = Scene.role('textbox', { name: 'Name' })
+
+Scene.scene(
+  { update: application.update(), view },
+  Scene.given(application.initial({}).model),
+  Scene.Mount.resolveAll(
+    ...DataGridView<Message>().resolveMounts(Grid, {
+      wrap,
+      viewport: { top: 0, left: 0, width: 400, height: 300 },
+    }),
+  ),
+  Scene.keydown(Scene.role('grid'), 'ArrowRight'),
+  Scene.keydown(Scene.role('grid'), 'Enter'),
+  Scene.Mount.resolveAll(...editor),
+  Scene.type(field, 'Anvil'),
+  Scene.keydown(field, 'Escape'),
+  Scene.Mount.expectEnded(...editor.map(([mount]) => mount)),
+)
+```
 
 ## Limits
 

@@ -206,8 +206,8 @@ describe('DataGrid', () => {
     expect(step(start, Grid.Message.ResizeStarted({ header })).model).toBe(start)
   })
 
-  test('the view’s pointer listeners starting changes nothing', () => {
-    expect(step(start, Grid.Message.PressListening()).model).toBe(start)
+  test('a Mount of the view starting changes nothing', () => {
+    expect(step(start, Grid.Message.MountStarted()).model).toBe(start)
   })
 
   test('a resize that never began ends as nothing', () => {

@@ -83,9 +83,9 @@ test('the header row and the body each say when their pointer listeners start', 
   )
   try {
     await vi.waitFor(() =>
-      expect(started.filter(tag => tag === 'PressListening')).toEqual([
-        'PressListening',
-        'PressListening',
+      expect(started.filter(tag => tag === 'MountStarted')).toEqual([
+        'MountStarted',
+        'MountStarted',
       ]),
     )
   } finally {
@@ -281,6 +281,107 @@ test('a mark moved to another cell leaves nothing on the cell it was on', async 
     expect(at('r2').getAttribute('aria-description')).toBe('Not yet sent')
     expect(at('r1').hasAttribute('data-mark')).toBe(false)
     expect(at('r1').hasAttribute('aria-description')).toBe(false)
+  } finally {
+    handle.dispose()
+  }
+})
+
+const Status = Schema.Literals(['Active', 'Paused'])
+interface Task {
+  readonly id: string
+  readonly name: string
+  readonly status: typeof Status.Type
+}
+const Tasks = DataGrid.make({
+  id: 'tasks',
+  columns: Columns.define<Task>()({
+    name: { header: 'Name', value: task => task.name, width: 100, edit: {} },
+    status: { header: 'Status', value: task => task.status, width: 100, edit: { schema: Status } },
+  }),
+})
+const TasksPlacement = Bundle.declare(Tasks.bundle, 'tasks')
+const TasksModel = Schema.Struct({ ...TasksPlacement.fields })
+type TasksModel = typeof TasksModel.Type
+const TasksMessage = defineMessageUnion({ ...TasksPlacement.cases })
+type TasksMessage = typeof TasksMessage.Type
+const tasksApplication = Bundle.assemble<TasksModel, TasksMessage>()([
+  Bundle.parent({ Model: TasksModel, Message: TasksMessage }).at(TasksPlacement, {
+    onOut: Bundle.ignore,
+  }),
+])
+const TasksView = DataGridView<TasksMessage>().define(Tasks)
+
+test('an editor, a choice list and a column menu each say when they start', async () => {
+  // jsdom lays nothing out: a 300 by 120 box, so the cells (and an editor in one) are drawn.
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(120)
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(300)
+  const update = tasksApplication.update()
+  const seen: Array<string> = []
+  const container = document.createElement('div')
+  container.id = 'grid-opened'
+  document.body.appendChild(container)
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model: TasksModel,
+      container,
+      init: () => tasksApplication.initial({ tasks: Tasks.bundle.init(undefined).model }),
+      update: (model: TasksModel, message: TasksMessage) => {
+        TasksMessage.match(message, { GotTasksMessage: ({ message }) => seen.push(message._tag) })
+        return update(model, message)
+      },
+      view: (model: TasksModel, h: HtmlBuilder<TasksMessage>) =>
+        TasksView(
+          {
+            state: model.tasks,
+            rows: RowModel.fromArray<Task>(
+              [{ id: 't', name: 'Tape', status: 'Active' }],
+              task => task.id,
+            ),
+            wrap: message => TasksPlacement.wrapper.make(message),
+            label: 'Tasks',
+            rowHeight: 20,
+            headerHeight: 20,
+            columnMenu: true,
+          },
+          h,
+        ),
+    }),
+  )
+  const key = (target: Element, name: string) =>
+    target.dispatchEvent(
+      new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true }),
+    )
+  const grid = () => document.getElementById('tasks')!
+  const drawn = (selector: string) => document.querySelector(`#tasks ${selector}`)
+  // How many of the view's Mounts have said they started, reached in time.
+  const started = (count: number) =>
+    vi.waitFor(() => expect(seen.filter(tag => tag === 'MountStarted').length).toBe(count))
+  try {
+    // The header row's and the body's pointer listeners.
+    await started(2)
+    key(grid(), 'Enter')
+    await started(3)
+    expect(drawn('input')).not.toBeNull()
+    key(drawn('input')!, 'Escape')
+    await vi.waitFor(() => expect(drawn('input')).toBeNull())
+
+    key(grid(), 'ArrowRight')
+    // A key reads the cell the last frame drew: Enter waits for the move.
+    await vi.waitFor(() =>
+      expect(grid().getAttribute('aria-activedescendant')).toBe(
+        GridFocus.cellId('tasks', { row: 't', column: 'status' }),
+      ),
+    )
+    key(grid(), 'Enter')
+    // The combobox holds focus, and its list keeps a press from taking it.
+    await started(5)
+    expect(drawn('[role="listbox"]')).not.toBeNull()
+    key(drawn('[role="combobox"]')!, 'Escape')
+    await vi.waitFor(() => expect(drawn('[role="listbox"]')).toBeNull())
+
+    drawn('[aria-haspopup="menu"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await started(6)
+    expect(drawn('[role="menu"]')).not.toBeNull()
   } finally {
     handle.dispose()
   }
