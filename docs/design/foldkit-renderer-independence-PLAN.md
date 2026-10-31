@@ -1,6 +1,6 @@
 # Foldkit programs independent of the renderer
 
-**Status:** plan, 2026-10-30. Nothing here is built. Tracks #376; related to
+**Status:** plan, 2026-10-30. R0 is built (§10); nothing else is. Tracks #376; related to
 #148, #149 and #190. Every claim about Foldkit is checked against the
 published `foldkit@0.170.0` (`node_modules/.pnpm/foldkit@0.170.0_*/node_modules/foldkit/dist`),
 and every claim about Blocks against the canary `0.169.0-canary.90746b32d2ca`
@@ -866,3 +866,86 @@ spike that decides the rest. In parallel, file **Proposal C** (frame
 scheduler) and comment **Proposal E** on #1655 while Blocks is still
 reshaping Mounts: both are small, useful without the rest, and get cheaper to
 ask for the earlier they are asked.
+
+## 10. Results
+
+### R0: the conformance suite
+
+**Where.** `packages/plus/test/conformance/`, test support beside
+`foldkit-plus`'s own tests, published nowhere. `harness.ts` is the contract
+a renderer implements (`LiveDrawer`: play a script and report what it drew,
+the Messages that reached `update`, the Mounts that started and ended;
+`StaticDrawer`: draw a Model) and `conform`, which compares every drawer to
+a reference. `drawers.ts` holds today's three: the runtime
+(`Runtime.makeElement` and `embed`, the reference), Scene, and the server
+(`renderToString` as static markup, parsed back with `DOMParser`).
+`markup.ts` reads every drawing into one canonical text: elements, sorted
+attributes and classes, style declarations, the value a field holds (its
+property, not its attribute) and joined text; Scene's VNode is built into an
+element from its description first, so all three are read the same way.
+`cases.ts` holds the cases, `known.ts` the disagreements found, `suite.ts`
+the Vitest form. `conformance.test.ts` runs it in jsdom with all three
+drawers; `conformance.browser.test.ts` runs the runtime in Chromium against
+Scene. A future renderer adds a drawer and runs `conformanceSuite`.
+
+**Cases** (each a program whose `update` issues no Commands, and a script of
+clicks, typing and Messages sent as a Subscription would):
+
+| Case | What it holds |
+| --- | --- |
+| elements and attributes | properties and attributes (`Id`, `Title`, `Hidden`, `Tabindex`, `For`, `Href`, `Disabled`), classes, style, data and ARIA attributes, a text field, a checkbox, a `select` and a `textarea`, each changed by typing or a Message |
+| text and whitespace | adjacent and empty strings, whitespace between elements, escaped characters, emoji, a `pre` whose text starts with a newline |
+| table | `caption`, `thead`, `tbody`, `colspan`, a row added |
+| table rows outside a tbody | the same rows put straight in the `table` |
+| keyed list with Mounts | rows keyed by id, each holding a Mount: the first dropped, the list reversed, a row added at the front |
+| positional list with Mounts | the same list without keys |
+| lazy slots | `createLazy` and `createKeyedLazy`, redrawn by their arguments |
+| submodels | two `h.submodel`s of one view, their Messages wrapped for the parent |
+| event handlers | a click bubbling from a child to its parent's handler, elements added and removed |
+| KeepTyped | a field built by foldkit-ssr's `Resume.builder`, marked `KeepTyped` |
+| data grid header | foldkit-mixins-data-grid's grid, sorted by its header's buttons |
+
+**Found** (each pinned in `known.ts`; an entry that stops appearing fails
+the suite):
+
+- **Scene does not model keys** (Foldkit). Scene tracks a Mount by name and
+  position, so dropping the first keyed row ends the *last* row's Mount, and
+  adding a row at the front starts the Mount of a row that was already
+  there, answering that row's Message. The runtime ends and starts the rows'
+  own. Scene draws the keyed and the positional list identically; the
+  runtime does not. This is the disagreement §4.7 predicted.
+- **Scene cannot draw the data grid** (this repository, #380). The grid
+  draws three Mounts by default that answer no Message when they start
+  (`DataGridHeaderDrag`, `Move`, `DataGridCellPress`), and Scene resolves
+  every Mount with one. The runtime and the server agree on the grid
+  through three sort clicks.
+- **The server refuses a table without a `tbody`** (Foldkit, by design):
+  a parser would insert one, so `renderToString` fails with
+  `SerializationError` where the runtime and Scene draw the rows as written.
+  A page drawn on the client only is the one place the two disagree.
+
+Everything else agrees on all three drawers, in jsdom and in Chromium:
+markup, Messages (including a click bubbling to a parent, a submodel's
+wrapped Message, typing) and probed Mount lifecycles. The server keeps a
+`pre`'s leading newline and whitespace between elements as the runtime
+draws them.
+
+**Test.** `conformance.mutations.ts`: dropping the keyed list's key makes
+the runtime end the last row's Mount, as Scene does, so the recorded
+disagreement vanishes and the suite fails, while Scene's own reading is the
+same with the key or without it (`conformance.test.ts`, "keys"). The other
+mutations break the comparison, Scene's report of ended Mounts and the
+reading of a field's value; all four are killed.
+
+**Not covered.** Commands (a case's `update` issues none, so components
+whose `update` focuses or scrolls, such as the Listbox behind domains-plus's
+filters, are not cases yet; Scene resolves Commands by description, the
+runtime runs them, and a drawer pair for them is the next step), hydration
+(`Runtime.hydrate` returns no handle to dispose, so a hydrating drawer
+would leak a runtime per case), foldkit-ssr's own `SSR.render` (where
+`KeepTyped` writes its marker; outside it, as here, the marker is not
+written by any drawer), timing (AGENTS.md: "Keys faster than a frame meet
+the last frame's view"), and the todo and domains-plus examples the plan
+named: their views are bound to their applications' Models and Commands,
+so the cases use the components they draw instead.
+
