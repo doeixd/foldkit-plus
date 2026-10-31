@@ -277,3 +277,26 @@ describe('SSR.entry status (#364)', () => {
     expect(reported).toEqual([failed('https://example.test/', reason)])
   })
 })
+
+describe('SSR.entry prerendered (#373)', () => {
+  const matchOf = async (entry: ReturnType<typeof SSR.entry>, url: string) => {
+    const result = await entry.renderPage(new Request(url))
+    if (result._tag !== 'Rendered') throw new Error('not rendered')
+    const carried = new RegExp(`${RESUME_ATTRIBUTE}="([^"]*)"`).exec(result.application.html)?.[1]
+    return JSON.parse((carried ?? '{}').replaceAll('&quot;', '"').replaceAll('&amp;', '&')).match
+  }
+
+  it('records the path alone for a prerendered path with no query, and the route otherwise', async () => {
+    const entry = SSR.entry(config, plan, { buildId: 'b', prerendered: ['/', '/docs/'] })
+    expect(await matchOf(entry, 'https://example.test/')).toBe('path')
+    expect(await matchOf(entry, 'https://example.test/docs')).toBe('path')
+    expect(await matchOf(entry, 'https://example.test/?q=a')).toBeUndefined()
+    expect(await matchOf(entry, 'https://example.test/other')).toBeUndefined()
+  })
+
+  it.each(['about', '/about?x=1', '/about#top'])('refuses %s, which no file is served at', path => {
+    expect(() => SSR.entry(config, plan, { buildId: 'b', prerendered: [path] })).toThrow(
+      `"${path}" in prerendered is not a path a file can be served at`,
+    )
+  })
+})

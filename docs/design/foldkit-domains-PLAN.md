@@ -557,11 +557,12 @@ Results following once the runtime boots. Departures:
   `rh.KeepTyped()` rendered an unbound marker, and the browser contained
   the page ([#371](https://github.com/doeixd/foldkit-plus/issues/371)); the
   server now refuses it (`UnkeepableField`), naming the element.
-- **Nothing is prerendered.** The plugin's prerender renders `/` through
-  `SSR.entry`, which records the query, and the static host serves that file
+- **Nothing was prerendered.** The plugin's prerender renders `/` through
+  `SSR.entry`, which recorded the query, and the static host serves that file
   for `/?q=…`, where it was refused
-  ([#373](https://github.com/doeixd/foldkit-plus/issues/373)); the Worker
-  renders every page.
+  ([#373](https://github.com/doeixd/foldkit-plus/issues/373)). `/` is
+  prerendered again: the entry's `prerendered: prerenderPaths` records its
+  path alone, and the page at `?q=` is handed the URL as `ChangedUrl`.
 
 **Phase 7, built, with parity measured.** Upstream's dark dropdowns
 (`menu: { panel: 'default' }`) and sheets (`SheetLook`), the phone's search

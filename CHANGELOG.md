@@ -52,6 +52,15 @@ version changed; `pnpm` skips versions already in the registry.
   `500` and reported (`PageFailed`). `examples/foldkit/domains-plus` answers
   its NotFound route through it.
 
+- **Prerendered pages through `SSR.entry`** (`foldkit-ssr`, #373):
+  `SSR.entry(..., { prerendered: paths })` names the paths Foldkit's plugin
+  prerenders through the entry (`ssr.build.prerender`); a request for one with
+  no query records its path alone, as `SSR.generate` does, so the file a
+  static host serves for `/?q=acme` resumes there instead of being contained.
+  Export the same list as `prerenderPaths` for the plugin. A page refused only
+  for its query now says to generate it or name it in `prerendered`.
+  `examples/foldkit/domains-plus` prerenders `/` again.
+
 - **`WindowViewport`** (`foldkit-primitives/state`, #351): a Mount on a
   list's own box reporting `ViewportPlaced { top, height }`, how far the
   window's viewport is past the list's top and its height, on every scroll,
@@ -129,6 +138,13 @@ version changed; `pnpm` skips versions already in the registry.
   `list`, `option`; options and the trigger are drawn in the Listbox's slots.
 
 ### Changed
+
+- **A page recorded for its path starts from the URL it is opened at**
+  (`foldkit-ssr`, #373). A page from `SSR.generate`, or one `SSR.entry`
+  prerenders, opened at a query resumed with the Model made without it, and
+  an application with `routing` never saw the query. `SSR.hydrate` now starts
+  it from the resumed Model given `routing.onUrlChange` of that URL, at once
+  whatever `start` is; the part of the page the query changes is redrawn.
 
 - **A prediction the server disagrees with fails the test** (`foldkit-remote`,
   #350; breaking). `PredictionMismatch` is reported at `level: 'error'`, so

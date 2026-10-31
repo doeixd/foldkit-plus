@@ -4,7 +4,7 @@
  * the browser on its route, without running `init`.
  */
 import { handleRequest } from 'foldkit/experimental/server'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { SSR } from 'foldkit-ssr'
 import { load, settle, template } from './handoverFixture.js'
 import { calls, config, plan } from './routeFixture.js'
@@ -19,6 +19,7 @@ it('resumes a page served by handleRequest', async () => {
   load(await response.text())
   const route = document.getElementById('route')
   calls.init = 0
+  const told = vi.spyOn(config.routing, 'onUrlChange')
 
   SSR.hydrate(config, plan, { buildId: 'b' })
   await settle()
@@ -27,4 +28,6 @@ it('resumes a page served by handleRequest', async () => {
   expect(document.body.inert).not.toBe(true)
   expect(document.getElementById('route')).toBe(route)
   expect(route?.textContent).toBe('/about')
+  // Rendered for this query, so there is no URL to tell it (#373).
+  expect(told).not.toHaveBeenCalled()
 })

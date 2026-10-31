@@ -242,7 +242,7 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   root's last children for a served page, which has no template head to
   write to; `SSR.hydrate` moves them into the head (hydration would remove
   them), and styles for a void root are refused with `VoidRootWithStyles`.
-- `SSR.entry(config, plan, { buildId, flags?, headers?, status?, diagnostics? })` returns the
+- `SSR.entry(config, plan, { buildId, flags?, headers?, status?, prerendered?, diagnostics? })` returns the
   `{ renderPage }` a Foldkit server entry exports for `handleRequest` (or the
   `foldkit` Vite plugin's dev server). `GET` and `HEAD` render, `POST` is
   handled for a plan with `fallback: 'server'`; other methods get `405`; a
@@ -290,8 +290,13 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
 - The route check compares path and query with the URL the server rendered.
   A page from `SSR.generate(config, plan, { buildId, template, origin, paths })`
   records its path alone, since a static host ignores the query: it resumes at
-  `/about?ref=x` or `/about/`, not at `/other`. Each result has `file`
-  (`about/index.html`) and `html` to write.
+  `/about?ref=x` or `/about/`, not at `/other`, and at a query starts from
+  the Model `routing.onUrlChange` of that URL gives (the differing part is
+  redrawn). Each result has `file`
+  (`about/index.html`) and `html` to write. A page Foldkit's plugin
+  prerenders through `SSR.entry` (`ssr.build.prerender`) needs
+  `SSR.entry(..., { prerendered: prerenderPaths })`, the list the entry module
+  also exports as `prerenderPaths`; otherwise the file is refused at `?q=…`.
 - `Projection.pick` refuses two fields with the same last key (`post.id` and
   `viewer.id`), which would otherwise merge into one.
 - Lower level: `SSR.envelope(plan, model, { route? })` and

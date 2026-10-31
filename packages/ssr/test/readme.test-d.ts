@@ -65,3 +65,9 @@ SSR.hydrate(config, plan, { buildId, diagnostics: async () => {} })
       AppRoute.match(model.route, { Home: () => 200, Post: () => 200, NotFound: () => 404 }),
   })
 }
+
+// The README's `prerendered` snippet: one list for the entry and the plugin.
+{
+  const prerenderPaths = ['/']
+  Server.entry(config, plan, { buildId, prerendered: prerenderPaths })
+}

@@ -4,7 +4,7 @@
  * or without a trailing slash, as a static host serves it.
  */
 import { Effect } from 'effect'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { SSR } from 'foldkit-ssr'
 import { load, settle, template } from './handoverFixture.js'
 import { calls, config, plan } from './routeFixture.js'
@@ -20,7 +20,6 @@ it('resumes a page generated for /about at /about/?utm_source=mail', async () =>
   )
   window.history.replaceState(null, '', '/about/?utm_source=mail')
   load(about.html)
-  const route = document.getElementById('route')
   calls.init = 0
 
   SSR.hydrate(config, plan, { buildId: 'b' })
@@ -28,6 +27,7 @@ it('resumes a page generated for /about at /about/?utm_source=mail', async () =>
 
   expect(calls.init).toBe(0)
   expect(document.body.inert).not.toBe(true)
-  expect(document.getElementById('route')).toBe(route)
-  expect(route?.textContent).toBe('/about')
+  // The page was made without the query, so the application starts from the
+  // URL it is at, as from a navigation (#373): this one shows the path it reads.
+  await vi.waitFor(() => expect(document.getElementById('route')?.textContent).toBe('/about/'))
 })

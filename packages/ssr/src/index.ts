@@ -1172,6 +1172,15 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
      */
     readonly status?: ((model: Model, request: Request) => number) | undefined
     /**
+     * The paths a build prerenders through this entry (Foldkit's plugin,
+     * `ssr.build.prerender`), whose files a static host serves for every
+     * query. A request for one of them with no query records its path alone,
+     * as `SSR.generate` does, so the file resumes at `/?q=…` and the
+     * application starts from that URL. Export the same list as the entry
+     * module's `prerenderPaths`, which the plugin reads.
+     */
+    readonly prerendered?: ReadonlyArray<string> | undefined
+    /**
      * Where this request's diagnostics go, with the request: a request
      * answered 500 (`PageFailed`), a handler the page cannot name, and what
      * a posted form's Commands report. The reporter in the Effect context
@@ -1197,6 +1206,19 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     throw new Error(
       `foldkit-ssr: plan "${plan.id}" handles posted forms, which run as whoever posted; name the origins a form may be posted from (origins)`,
     )
+  }
+  for (const path of options.prerendered ?? []) {
+    if (!path.startsWith('/') || /[?#]/.test(path)) {
+      throw new Error(
+        `foldkit-ssr: "${path}" in prerendered is not a path a file can be served at: start it with / and leave out any query or fragment`,
+      )
+    }
+  }
+  const prerendered = new Set((options.prerendered ?? []).map(pathKey))
+  // A file a static host serves whatever the query, read for no query.
+  const matchOf = (url: string): RouteMatch => {
+    const route = routeOf(url)
+    return !route.includes('?') && prerendered.has(pathKey(route)) ? 'path' : 'full'
   }
   // Required above for every plan that takes a post, the only reader of it.
   const origins = new Set(options.origins ?? [])
@@ -1258,7 +1280,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
               config,
               plan,
               { buildId: options.buildId, url: request.url, ...flagged, ...styled },
-              'full',
+              matchOf(request.url),
             )
         if (statusOf === undefined) return { page: served.page, status: Option.none<number>() }
         const status = statusOf(served.model, request)

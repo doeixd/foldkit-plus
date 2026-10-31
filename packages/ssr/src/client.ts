@@ -24,6 +24,7 @@ import {
   FOLDKIT_APP_ATTRIBUTE,
   STATIC_ATTRIBUTE,
   STYLES_MARKER,
+  arrival,
   bindings,
   bindingsAndEvents,
   metaEntry,
@@ -167,6 +168,10 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     return
   }
   const model = resumed.success
+  // A page recorded for its path, opened at a query: the application learns
+  // the URL, as from a navigation, and the page starts now, since what it
+  // shows is not yet the address.
+  const arrived = arrival(config, document, window.location.href)
   const commands = (plan.boot?.(model) as ReadonlyArray<unknown> | undefined) ?? []
   const resuming: RenderContext = {
     mode: 'resume',
@@ -197,17 +202,35 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     }
     return { model: current, commands: returned }
   }
+  // The URL goes into the Model the runtime starts from, not into `answered`:
+  // Subscriptions start from that Model before any Message lands, and a URL
+  // mirror among them would write the served address back over the real one.
+  // The first render then differs from the served page where the URL does, and
+  // Foldkit rebuilds that part, as a navigation would redraw it. Applied at
+  // boot, once any lazy bundle's `update` has loaded.
+  const startOf = () =>
+    Option.match(arrived, {
+      onNone: () => ({ model, commands }),
+      onSome: message => {
+        const step = apply(model, message) as {
+          readonly model: Model
+          readonly commands?: ReadonlyArray<unknown> | undefined
+        }
+        return { model: step.model, commands: [...commands, ...(step.commands ?? [])] }
+      },
+    })
   const boot = (entries: Readonly<Record<string, unknown>> = {}) =>
     adopt(
       makeApplication({
-        ...withContext(startingFrom({ ...config, update }, { model, commands }), resuming),
+        ...withContext(startingFrom({ ...config, update }, startOf()), resuming),
         container: root,
         subscriptions: { ...config.subscriptions, ...entries },
       } as never),
       { buildId: options.buildId },
     )
   const pending = (config.lazy ?? []).filter(bundle => !bundle.isLoaded())
-  const eager = plan.start === 'now' && pending.length === 0
+  const start = Option.isSome(arrived) ? 'now' : plan.start
+  const eager = start === 'now' && pending.length === 0
   if (eager && root.querySelector(`[${KEEP_ATTRIBUTE}]`) === null) {
     boot()
     return
@@ -231,7 +254,7 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     boot()
     return
   }
-  deferBoot(root, decoded.success, plan.start, { boot, answered }, pending, report, kept.success)
+  deferBoot(root, decoded.success, start, { boot, answered }, pending, report, kept.success)
 }
 
 /**

@@ -7,6 +7,7 @@ import { Effect, Option, Result, Schema, Stream, type Layer } from 'effect'
 import type { Runtime } from 'foldkit'
 import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import type { Ports } from 'foldkit/port'
+import { fromString } from 'foldkit/url'
 import {
   ModelRef,
   type ActiveSurface,
@@ -463,9 +464,15 @@ export const resume = <Model, Fields extends Schema.Struct.Fields>(
     const matches =
       match === 'path' ? pathKey(String(route)) === pathKey(options.route) : route === options.route
     if (!matches) {
+      // Only the query differs: a static host served a page rendered for one
+      // query for another, which only a page recorded for its path survives.
+      const served =
+        match !== 'path' && pathKey(String(route)) === pathKey(options.route)
+          ? `; a page a static host serves for every query must record its path alone: generate it with SSR.generate, or name its path in SSR.entry's prerendered`
+          : ''
       return refuse(
         'Route',
-        `the page was ${match === 'path' ? 'generated' : 'rendered'} for ${String(route)}, not ${options.route}`,
+        `the page was ${match === 'path' ? 'generated' : 'rendered'} for ${String(route)}, not ${options.route}${served}`,
       )
     }
   }
@@ -473,6 +480,24 @@ export const resume = <Model, Fields extends Schema.Struct.Fields>(
   return Result.isFailure(resumed)
     ? refuse('Invalid', resumed.failure)
     : Result.succeed(resumed.success)
+}
+
+/**
+ * The Message telling the application the URL it is at, when the page was
+ * recorded for its path alone and the browser is at a query: `init` never ran
+ * here, so the application would otherwise never learn the query. None for
+ * an application without routing, or a page at no query.
+ */
+export const arrival = <Model, Message>(
+  config: ResumableConfig<Model, Message>,
+  page: ParentNode,
+  href: string,
+): Option.Option<Message> => {
+  const routing = config.routing
+  if (routing === undefined || new URL(href).search === '') return Option.none()
+  const read = readEnvelope(page)
+  if (Result.isFailure(read) || read.success.match !== 'path') return Option.none()
+  return Option.map(fromString(href), routing.onUrlChange)
 }
 
 /** The tag a Message value carries, for naming it. */

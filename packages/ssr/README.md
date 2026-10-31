@@ -458,8 +458,30 @@ a tuple, so `const [home, about] = pages` needs no check.
 
 A static host serves one file for every query, and for `/about` and `/about/`
 alike, so a generated page records its path alone: `/about?ref=mail` resumes
-the page generated for `/about`, and `/other` is refused. A server-rendered page
-records its path and query, and resumes only there.
+the page generated for `/about`, and `/other` is refused. The page was made
+without the query, and `init` does not run in the browser, so an application
+with `routing` starts from the resumed Model given `routing.onUrlChange` of
+the URL it is at, as from a navigation, and starts at once whatever its
+`start`: one that reads the query (a search box in `?q=`) shows it, and the
+part of the page that differs is redrawn; one that does not changes nothing.
+The Message goes into the starting Model rather than after boot, so a URL
+mirror does not write the served address back over the real one. A
+server-rendered page records its path and query, and resumes only there.
+
+Foldkit's Vite plugin prerenders pages through the server entry itself
+(`ssr.build.prerender`), so `SSR.entry` cannot tell a build's request from a
+visitor's. Name those paths in `prerendered`, and a request for one with no
+query records its path alone, as `SSR.generate` does; export the same list
+as `prerenderPaths`, which the plugin reads:
+
+```ts
+export const prerenderPaths = ['/']
+
+export const { renderPage } = SSR.entry(config, Post, { buildId, prerendered: prerenderPaths })
+```
+
+A prerendered file the entry was not told of is refused at any other query,
+and the reason says so.
 
 A generated site also wants a sitemap and a `robots.txt` that names it.
 `SSR.sitemap` takes the pages, with a `modified` date where one is known, and

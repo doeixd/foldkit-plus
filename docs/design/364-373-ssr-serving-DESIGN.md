@@ -80,3 +80,51 @@ last `<` before the marker opens that element.
 A hole form (`rh.OnInput(Member)`) on an element `h` builds is not refused:
 it is a plain closure to the page, unmarked, so the page boots on that event
 as on any other `h` handler.
+
+## A prerendered page served for a query (#373)
+
+| Fact | Owner |
+| --- | --- |
+| Which paths a build writes as files | the application: `prerenderPaths`, read by Foldkit's plugin |
+| Which route a page records | `SSR.entry` (`prerendered`) or `SSR.generate` |
+| The URL the browser is at | the browser; the application learns it through `routing.onUrlChange` |
+
+Foldkit's plugin prerenders through the server entry, `renderPage(new
+Request(origin + path))`, so the entry cannot tell a build from a visitor.
+A page it rendered recorded path and query, and a static host serving that
+file for `/?q=acme` had it refused: the route check exists because the
+runtime never reports the URL at boot, so a resumed page would show one
+address and be at another.
+
+Two halves:
+
+1. **The entry records the path alone for the paths it is told are files.**
+   `SSR.entry(..., { prerendered })`, validated as `SSR.generate` validates
+   its paths. A request for one of them with no query is what a prerender
+   sends, and what a live request for that file would show anyway, so
+   recording the path alone for it is right whichever made it. A request
+   with a query records it, as before. The module exports the same list as
+   `prerenderPaths`, so the plugin and the entry read one list.
+2. **A page recorded for its path, opened at a query, starts from the URL.**
+   The Model was made without the query, and `init` does not run in the
+   browser, so `SSR.hydrate` starts an application with `routing` from the
+   resumed Model given `routing.onUrlChange(url)`, at boot (after any lazy
+   bundle has loaded), ahead of typing kept by `KeepTyped`, and boots now
+   whatever `start` says, since the page does not yet show its address. The
+   first render then differs from the served page where the URL does, and
+   Foldkit rebuilds that part, as a navigation would redraw it. It applies to
+   `SSR.generate`'s pages too, which resumed at `?ref=mail` without the
+   application ever seeing the query. Only the query counts: a trailing
+   slash or `index.html` is the host's spelling of the same path.
+
+   Rejected: queueing the Message, as typing is, so the first render adopts
+   every node. Subscriptions start from the Model the runtime starts from,
+   before any queued Message lands, and domains-plus's URL mirror then wrote
+   the served address (`/`) over `/?q=acme`, whose own `ChangedUrl` emptied
+   the search again: a Chromium probe of the built page ended at `/`.
+
+A page refused only for its query now says how to keep it (`SSR.generate`, or
+`prerendered`). Rejected: accepting a query the plan's state does not read.
+The state names Model fields, not URL parameters, so nothing can say which
+query the Model depends on; and an application that reads `?q=` wants it
+read, not ignored.

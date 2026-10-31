@@ -72,8 +72,6 @@ Where it behaves differently, on purpose or because of a gap in Foldkit Plus:
 - The first page of a search asks for the top four, then for the rows in
   view, as upstream did (4, then 56); a scroll asks for exactly the rows it
   brings into view, not the next 60-name page.
-- Nothing is prerendered: the Worker renders every page, since a static `/`
-  served for `/?q=` is refused ([#373](https://github.com/doeixd/foldkit-plus/issues/373)).
 
 ## Parity
 
