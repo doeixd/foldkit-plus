@@ -65,7 +65,8 @@ that never explains a read keeps none of them), returns a `ReadWhy` (`state`,
 `because`, `message`, `surfaces`), pure over the Model. `because` is every
 fact about what the read reads, typed (`Why`, matched with `Why.match` or
 `Why.guards`): `List`/`Fields` `Missing`, `Evicted` or `Stale` and `inFlight` (`via` is
-the relation path to a row), `ListFailed`/`FieldsFailed` (nothing retries
+the relation path to a row), `HeldForHistory` (a list Back or Forward came back to, shown
+as it was), `ListFailed`/`FieldsFailed` (nothing retries
 them; `Data.refresh` does), `Unavailable`, `Undecodable`, `OverlayOnly`,
 `Deleted`, `LiveReconnecting`/`LiveRefused`, `Pending`, and `Joined`/`Left`
 with `terms` (`WhyTerm`: each `where` predicate `True`/`False`/`Null`/`Unknown`).
@@ -1291,7 +1292,12 @@ handler's write and raw SQL are held to the invariants and move the revision too
   longest ago goes first, and `why` says `Evicted`). A list held
   that way is stale, so going back reads `Refreshing` and refetches it, unless
   every call reading it is `staleWhileRevalidate`: then it keeps its age, and
-  going back inside `maxAge` draws it with no request.
+  going back inside `maxAge` draws it with no request. Back and Forward read
+  a list left within `Remote.make({ historyWindow })` (default 5 minutes)
+  `Ready` with no request, once the app reduces `Navigated({ kind:
+  'history' })` before the route changes (`Site.routing`'s `navigated:
+  (model, kind) => Data.reduce(model, { _tag: 'Navigated', kind })`); past
+  the window, after a `push`, or once it changed while held, it refetches.
 - `staleWhileRevalidate` ages rows and lists; a list also refetches when
   invalidated, or under `networkOnly` (reading `Refreshing` meanwhile).
 - Live cursors count on from the `after` a stream opened with (a new stream's

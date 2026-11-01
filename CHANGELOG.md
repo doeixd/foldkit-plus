@@ -9,6 +9,20 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Back and Forward show a list left as it was, asking nothing**
+  (`foldkit-remote`, `foldkit-site`, #401). Remote learns each navigation's
+  kind from a new Message, `Navigated({ kind: 'history' | 'push' })`, reduced
+  before the route changes, and `Site.routing` sends it given `navigated:
+  (model, kind) => Data.reduce(model, { _tag: 'Navigated', kind })`:
+  `history` for a `popstate`, `push` for a link or a Command that wrote the
+  URL. A list left under `cacheFirst` is held stale with the time it was
+  left; a history navigation back within `Remote.make`'s `historyWindow`
+  (default five minutes, `defaultHistoryWindow`; also `Remote.retain`'s
+  options) reads it `Ready` and plans no query for it. Past the window, after
+  a `push`, or once the list was invalidated, asked again or changed while
+  held, it refetches as before. `why` names the hold `HeldForHistory`, and
+  `RemoteModel.history` keeps the navigations and holds.
+
 - **Saved reads have their own age and an eviction order**
   (`foldkit-remote/persistence`, #404). `persistence(Data, { maxAge })`
   keeps each saved row and list for `maxAge` milliseconds from when it was
@@ -209,6 +223,12 @@ version changed; `pnpm` skips versions already in the registry.
   the placement check reads the carried page (`docs/benchmarks.md`).
 
 ### Changed
+
+- **`RetentionChanged` says when the roots changed** (`foldkit-remote`, #401).
+  The retain entry stamps it with Effect's `Clock` (`now`, after its `grace`)
+  and names `historyWindow` when one was given; a hand-written one without
+  `now` holds no list for going back, as before. `Why` has a new case,
+  `HeldForHistory { list }`, which an exhaustive `Why.match` must handle.
 
 - **A Remote snapshot carries ages and an order** (`foldkit-remote/persistence`,
   #404). `Snapshot` is `{ entities, connections, expires, recency }`: a kept

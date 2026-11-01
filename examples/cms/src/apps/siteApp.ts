@@ -271,6 +271,8 @@ const Routing = Site.routing<Model, Message, Route, RemoteClient>({
   parse: routeOf,
   tags: { clicked: 'UrlRequested', changed: 'UrlChanged' },
   completed: Message.Ticked,
+  // Back and Forward show a list left within five minutes as it was, asking nothing.
+  navigated: (model, kind) => Data.reduce(model, { _tag: 'Navigated', kind }),
   arrived: model => ({
     model,
     commands: [

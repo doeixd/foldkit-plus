@@ -68,10 +68,17 @@ import { isRefPage, targetsOf, type RefPageValue } from './relation.js'
 import {
   budgeted,
   defaultBudget,
+  defaultHistoryWindow,
   gc,
+  heldForHistory,
   heldRoots,
+  noNavigationHistory,
   noRecentRoots,
   reachable,
+  type ConnectionRoot,
+  type HistoryHold,
+  type NavigationHistory,
+  type NavigationKind,
   type ReadRoot,
   type RecentRoots,
   type Retained,
@@ -179,7 +186,8 @@ export interface RemoteModel {
    * What retention keeps: the active Surfaces' roots, and those of the
    * Surfaces left, in the batches they left in, while the budget allows. A
    * list left is held stale, so going back reads it `Refreshing` while it
-   * refetches, unless its age says when it is due (`ConnectionRoot.ages`).
+   * refetches, unless its age says when it is due (`ConnectionRoot.ages`),
+   * or a history navigation comes back to it within its window (`history`).
    */
   readonly recent: RecentRoots
   /**
@@ -188,6 +196,12 @@ export interface RemoteModel {
    * list or row absent from the store as `Evicted` while it is named here.
    */
   readonly evicted: Evicted
+  /**
+   * The navigations the application reported (`Navigated`), and the lists
+   * left that a history navigation back reads as they were: `Ready`, asked
+   * for by nothing, rather than `Refreshing`.
+   */
+  readonly history: NavigationHistory
 }
 
 /** What the budget evicted, by list identity and by the row a read reads. */
@@ -225,10 +239,13 @@ export interface PlacedOrder {
 
 /**
  * Whether a list reads as stale: as its connection says, unless it is stale
- * only for `verifyPredictions` to fetch the page its placement is checked against.
+ * only for `verifyPredictions` to fetch the page its placement is checked
+ * against, or only for being left, and a history navigation came back to it.
  */
 export const readsStale = (remote: RemoteModel, identity: string): boolean =>
-  remote.connections[identity]?.stale === true && remote.placed[identity]?.checking !== true
+  remote.connections[identity]?.stale === true &&
+  remote.placed[identity]?.checking !== true &&
+  !heldForHistory(remote.history, remote.connections, identity)
 
 /** How a live stream has fared, as its live entry restarts it. */
 export interface StreamHealth {
@@ -333,6 +350,7 @@ export const initialRemoteModel: RemoteModel = {
   diagnostics: [],
   recent: noRecentRoots,
   evicted: noEvicted,
+  history: noNavigationHistory,
 }
 
 /** The entity store and the mutation ledger are runtime values, not wire shapes. */
@@ -361,6 +379,7 @@ export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
     diagnostics: runtimeSchema,
     recent: runtimeSchema,
     evicted: runtimeSchema,
+    history: runtimeSchema,
   }) as unknown as Schema.Codec<RemoteModel, unknown>
 
 /** The submodel's Messages; each reduces to `RemoteModel` through `updateRemote`. */
@@ -415,7 +434,21 @@ export type RemoteMessage =
       readonly roots: RetentionRoots
       /** How many entries, rows and lists, retention keeps; `defaultBudget` when absent. */
       readonly budget?: number | undefined
+      /**
+       * When the roots changed, in milliseconds since the epoch. Given, a list
+       * left is held for a history navigation back until `historyWindow` after
+       * it, and a list shown again is judged against its hold.
+       */
+      readonly now?: number | undefined
+      /** How long a list left is held for going back, in milliseconds; `defaultHistoryWindow` when absent. */
+      readonly historyWindow?: number | undefined
     }
+  /**
+   * The application navigated: `history` for Back and Forward, `push` for a
+   * navigation the reader started. Reduced before the route changes, so the
+   * lists the new route shows are judged by it (`Site.routing`'s `navigated`).
+   */
+  | { readonly _tag: 'Navigated'; readonly kind: NavigationKind }
   /** A restored snapshot meets the store; runtime state is untouched. */
   | {
       readonly _tag: 'Hydrated'
@@ -645,7 +678,13 @@ export const remoteMessageCases = {
   },
   ReadStarted: { requests: Schema.Array(ReadRequest), refresh: Schema.optional(Schema.Number) },
   QueryStarted: { connections: Schema.Array(Schema.String) },
-  RetentionChanged: { roots: retentionRootsSchema, budget: Schema.optional(Schema.Number) },
+  RetentionChanged: {
+    roots: retentionRootsSchema,
+    budget: Schema.optional(Schema.Number),
+    now: Schema.optional(Schema.Number),
+    historyWindow: Schema.optional(Schema.Number),
+  },
+  Navigated: { kind: Schema.Literals(['history', 'push']) },
   Hydrated: {
     connections: Schema.optional(Schema.Unknown),
     receivedAt: Schema.optional(Schema.Record(Schema.String, Schema.Number)),
@@ -1610,17 +1649,12 @@ const reduceRemote = (
         message.budget ?? defaultBudget,
       )
       const retained = gc(model, heldRoots(recent))
-      // A list no active Surface shows is held for going back, and refetched
-      // then, unless its age already says when it is due.
-      const connections = recent.departed
-        .flatMap(batch => batch.connections)
-        .reduce(
-          (held, { identity, ages }) =>
-            held[identity] === undefined || ages === true
-              ? held
-              : setConnectionStale(held, identity, true),
-          retained.connections,
-        )
+      const { connections, history } = heldForGoingBack(model.history, retained.connections, {
+        departed: recent.departed.flatMap(batch => batch.connections),
+        shown: message.roots.connections,
+        now: message.now,
+        window: message.historyWindow ?? defaultHistoryWindow,
+      })
       // Retention's own walk over the Model before collection. It counts a
       // relation's target and a list's row the store does not hold, which is
       // exactly a value whose first read failed or is still in flight.
@@ -1637,6 +1671,7 @@ const reduceRemote = (
         ...model,
         ...retained,
         connections,
+        history,
         recent,
         evicted:
           evicted.connections.length === 0 && evicted.requirements.length === 0
@@ -1735,8 +1770,24 @@ const reduceRemote = (
             : setConnectionStale(held, identity, true),
         model.connections,
       )
-      return { ...model, entities, failures, loading, connections }
+      return {
+        ...model,
+        entities,
+        failures,
+        loading,
+        connections,
+        history: withoutHolds(model.history, message.connections ?? []),
+      }
     }
+    case 'Navigated':
+      return {
+        ...model,
+        history: {
+          ...model.history,
+          navigations: model.history.navigations + 1,
+          last: message.kind,
+        },
+      }
     case 'QueryStarted': {
       const loading = new Set(model.loading)
       for (const identity of message.connections) loading.add(connectionMark(identity))
@@ -2011,6 +2062,70 @@ const reduceRemote = (
   }
 }
 
+/** `history` without the holds on `identities`; itself when it held none of them. */
+const withoutHolds = (
+  history: NavigationHistory,
+  identities: ReadonlyArray<string>,
+): NavigationHistory => {
+  const dropped = identities.filter(identity => Object.hasOwn(history.held, identity))
+  if (dropped.length === 0) return history
+  const held = { ...history.held }
+  for (const identity of dropped) delete held[identity]
+  return { ...history, held }
+}
+
+/**
+ * The lists retention holds for going back, once `departed` are the lists of
+ * Surfaces left and `shown` those of the active ones.
+ *
+ * A list left is marked stale, so going back refetches it, unless its age
+ * already says when it is due. Left fresh at `now`, it is also held until
+ * `window` after: a history navigation back within that reads it as it was,
+ * and asks for nothing. A list shown again ends its hold, fresh again if the
+ * hold kept it, stale otherwise; a hold on a list retention dropped ends too.
+ */
+const heldForGoingBack = (
+  history: NavigationHistory,
+  retained: Readonly<Record<string, Connection>>,
+  lists: {
+    readonly departed: ReadonlyArray<ConnectionRoot>
+    readonly shown: ReadonlyArray<ConnectionRoot>
+    readonly now: number | undefined
+    readonly window: number
+  },
+): {
+  readonly connections: Readonly<Record<string, Connection>>
+  readonly history: NavigationHistory
+} => {
+  const { now } = lists
+  let connections = retained
+  const held: Record<string, HistoryHold> = {}
+  for (const [identity, hold] of Object.entries(history.held))
+    if (Object.hasOwn(retained, identity)) held[identity] = hold
+  for (const { identity } of lists.shown) {
+    const hold = held[identity]
+    if (hold === undefined) continue
+    if (now !== undefined && now < hold.until && heldForHistory(history, connections, identity))
+      connections = setConnectionStale(connections, identity, false)
+    delete held[identity]
+  }
+  for (const { identity, ages } of lists.departed) {
+    const current = connections[identity]
+    if (current === undefined || ages === true || current.stale) continue
+    connections = setConnectionStale(connections, identity, true)
+    if (now !== undefined)
+      held[identity] = {
+        until: now + lists.window,
+        after: history.navigations,
+        connection: connections[identity]!,
+      }
+  }
+  const unchanged =
+    Object.keys(held).length === Object.keys(history.held).length &&
+    Object.keys(held).every(identity => history.held[identity] === held[identity])
+  return { connections, history: unchanged ? history : { ...history, held } }
+}
+
 /**
  * `ConnectionInvalidated`'s reduction. Asking again is also how a failed query
  * is retried, so the failure goes with the mark. A connection is often both: a
@@ -2022,6 +2137,8 @@ const invalidated = (model: RemoteModel, connection: string): RemoteModel => {
   const next = {
     ...model,
     connections: setConnectionStale(model.connections, connection, true),
+    // Stale for a reason of its own: going back fetches it again.
+    history: withoutHolds(model.history, [connection]),
     // Stale for a reason of its own now, not only for a placement's check.
     placed: withoutChecking(model.placed, connection),
     failures: withoutConnectionFailure(model.failures, connection),

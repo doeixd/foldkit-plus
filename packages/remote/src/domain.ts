@@ -4,7 +4,7 @@
  * the types the bound domain is made of. Internal; `index.ts` exports its types
  * and `remote.ts` its operations.
  */
-import { Duration, Effect, Option, Record, Result, Schema, Stream } from 'effect'
+import { Clock, Duration, Effect, Option, Record, Result, Schema, Stream } from 'effect'
 import {
   Derivation,
   Entity as DomainEntity,
@@ -75,7 +75,7 @@ import { RemotePolicy } from './policy.js'
 import { stableStringify } from './query.js'
 import type { ConnectionSpec, QueryDescriptor, QueryRef, QueryWindow } from './query.js'
 import { remoteDataSchema, type RemoteData, type RemoteError } from './remoteData.js'
-import type { ConnectionRoot, RetentionRoots } from './retain.js'
+import { heldForHistory, type ConnectionRoot, type RetentionRoots } from './retain.js'
 import { marked, persistOf, type PersistOption } from './persist.js'
 import { Selection, relationOf, type Page } from './selection.js'
 import { recent, type Recent } from './recent.js'
@@ -1092,6 +1092,8 @@ export interface RetainOptions {
 export interface RetainEntryOptions extends RetainOptions {
   /** How many entries, rows and lists, retention keeps; `defaultBudget` when not given. */
   readonly budget?: number | undefined
+  /** How long a list left is held for Back and Forward, in milliseconds; `defaultHistoryWindow` when not given. */
+  readonly historyWindow?: number | undefined
 }
 
 /** The budget given, refused where it is given when it counts no entries a cache can hold. */
@@ -1103,14 +1105,38 @@ export const checkedBudget = (budget: number | undefined): number | undefined =>
   return budget
 }
 
-/** `RetentionChanged` for these roots, naming a budget only when one was given. */
+/** The history window given, refused where it is given when it is no length of time. */
+export const checkedHistoryWindow = (window: number | undefined): number | undefined => {
+  if (window !== undefined && !(window >= 0))
+    throw new Error(
+      `[foldkit-remote] historyWindow is how long a list left is held for Back and Forward, in milliseconds, 0 or more; got ${window}`,
+    )
+  return window
+}
+
+/**
+ * `RetentionChanged` for these roots, as the retain entry sends it once they
+ * have been stable for `grace`: stamped with the clock, and naming a budget
+ * and a history window only when one was given.
+ */
 export const retentionChanged = (
   roots: RetentionRoots,
-  budget: number | undefined,
-): RemoteMessage =>
-  budget === undefined
-    ? { _tag: 'RetentionChanged', roots }
-    : { _tag: 'RetentionChanged', roots, budget }
+  options: {
+    readonly budget: number | undefined
+    readonly historyWindow: number | undefined
+    readonly grace: Duration.Input | undefined
+  },
+): Effect.Effect<RemoteMessage> =>
+  Clock.currentTimeMillis.pipe(
+    Effect.delay(options.grace ?? 0),
+    Effect.map((now): RemoteMessage => ({
+      _tag: 'RetentionChanged',
+      roots,
+      now,
+      ...(options.budget === undefined ? {} : { budget: options.budget }),
+      ...(options.historyWindow === undefined ? {} : { historyWindow: options.historyWindow }),
+    })),
+  )
 
 /** How `Remote.observe` and `Remote.prefetch` treat fields the store already holds. */
 export interface ObserveOptions {
@@ -1398,7 +1424,13 @@ export const planAsked = (
         ? undefined
         : known.receivedAt + freshness.freshness
     const aged = freshness !== undefined && expires !== undefined && freshness.now > expires
-    if (!failed && (known === undefined || known.stale || aged || options.force === true)) {
+    // A list held for the history navigation that came back to it is shown
+    // as it was left, and asked for by nothing.
+    const due =
+      known !== undefined &&
+      known.stale &&
+      !heldForHistory(remote.history, remote.connections, connection.identity)
+    if (!failed && (known === undefined || due || aged || options.force === true)) {
       queries.push(
         size === undefined
           ? connection

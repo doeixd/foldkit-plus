@@ -298,3 +298,55 @@ const keptOf = <T>(
   const kept = entries.filter(([key]) => keep(key))
   return kept.length === entries.length ? record : Object.fromEntries(kept)
 }
+
+/**
+ * What a navigation was: `history` for Back and Forward (a `popstate`), and
+ * `push` for one the reader started, by a link or a Command.
+ */
+export type NavigationKind = 'history' | 'push'
+
+/**
+ * How long a list left stays held for Back and Forward when `Remote.make` is
+ * given no `historyWindow`: five minutes.
+ */
+export const defaultHistoryWindow = 300_000
+
+/** A list left under `cacheFirst`, held for a history navigation back to it. */
+export interface HistoryHold {
+  /** When the hold ends, in milliseconds since the epoch. */
+  readonly until: number
+  /** How many navigations Remote had been told of when the list was left. */
+  readonly after: number
+  /** The list as it was left: any change to it since (a page, a placement) ends the hold. */
+  readonly connection: Connection
+}
+
+/** The navigations Remote has been told of (`Navigated`), and the lists held for going back. */
+export interface NavigationHistory {
+  readonly navigations: number
+  /** The latest navigation's kind; `push` before any. */
+  readonly last: NavigationKind
+  readonly held: Readonly<Record<string, HistoryHold>>
+}
+
+export const noNavigationHistory: NavigationHistory = { navigations: 0, last: 'push', held: {} }
+
+/**
+ * Whether a list left is held for the history navigation that came back to
+ * it: unchanged since it was left, and the latest navigation since then is
+ * one through history. Retention ends the hold, by its window, once a Surface
+ * shows the list again.
+ */
+export const heldForHistory = (
+  history: NavigationHistory,
+  connections: Readonly<Record<string, Connection>>,
+  identity: string,
+): boolean => {
+  const hold = history.held[identity]
+  return (
+    hold !== undefined &&
+    history.last === 'history' &&
+    history.navigations > hold.after &&
+    connections[identity] === hold.connection
+  )
+}

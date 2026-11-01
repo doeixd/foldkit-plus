@@ -360,16 +360,18 @@ describe("Remote.make's budget", () => {
       budget: 5,
     })
     expect(await sent(budgeted)).toEqual([
-      { _tag: 'RetentionChanged', roots: rootsOf(a), budget: 5 },
+      { _tag: 'RetentionChanged', roots: rootsOf(a), now: expect.any(Number), budget: 5 },
     ])
-    expect(await sent(Data)).toEqual([{ _tag: 'RetentionChanged', roots: rootsOf(a) }])
+    expect(await sent(Data)).toEqual([
+      { _tag: 'RetentionChanged', roots: rootsOf(a), now: expect.any(Number) },
+    ])
   })
 
   it('is given to a retain entry wired by hand', async () => {
     const entry = Remote.retain([a], undefined, { budget: 3 })
     expect(
       await Effect.runPromise(Stream.runCollect(entry.dependenciesToStream(rootsOf(a)))),
-    ).toEqual([{ _tag: 'RetentionChanged', roots: rootsOf(a), budget: 3 }])
+    ).toEqual([{ _tag: 'RetentionChanged', roots: rootsOf(a), now: expect.any(Number), budget: 3 }])
   })
 
   it.each([-1, Number.NaN])('refuses %s where it is given', budget => {

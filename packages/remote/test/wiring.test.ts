@@ -60,6 +60,7 @@ const allTags: ReadonlyArray<RemoteMessageTag> = [
   'QueryFailed',
   'Preloaded',
   'CompletedReportDiagnostics',
+  'Navigated',
 ]
 
 describe('RemoteDomain.wiring', () => {

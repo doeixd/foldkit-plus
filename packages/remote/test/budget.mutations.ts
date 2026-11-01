@@ -131,8 +131,8 @@ export default [
   edit(
     "Remote.retain's budget is dropped",
     remote,
-    'toMessage(retentionChanged(current, budget))',
-    'toMessage(retentionChanged(current, undefined))',
+    '    budget: checkedBudget(options.budget),\n    historyWindow',
+    '    budget: undefined,\n    historyWindow',
   ),
   edit('a budget that is no number passes', domain, '!(budget >= 0)', 'budget < 0'),
 ]

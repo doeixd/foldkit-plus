@@ -83,7 +83,7 @@ import { RemotePolicy } from './policy.js'
 import { IDENTITY_SEPARATOR, queryIdentity, stableStringify } from './query.js'
 import type { ConnectionSpec, QueryDescriptor, QueryRef } from './query.js'
 import { remoteDataSchema, type RemoteData, type RemoteError } from './remoteData.js'
-import type { RetentionRoots } from './retain.js'
+import { heldForHistory, type RetentionRoots } from './retain.js'
 import { combinePersist, marked, persistOf, withPersist, type Persist } from './persist.js'
 import { Selection, pageSchema, type Page } from './selection.js'
 import { sameData } from './data.js'
@@ -130,6 +130,7 @@ import {
   wallClock,
   identityMessage,
   checkedBudget,
+  checkedHistoryWindow,
   retentionChanged,
   defineRemote,
   bindRemote,
@@ -378,12 +379,21 @@ export const make = <
    * back to one reads `Loading`, which `why` says is `Evicted`.
    */
   readonly budget?: number | undefined
+  /**
+   * How long a list left stays held for Back and Forward, in milliseconds
+   * (`defaultHistoryWindow`, five minutes, when not given). A history
+   * navigation (`Navigated`, which `Site.routing` sends) back to it within
+   * this reads it `Ready` and asks for nothing; past it, or after a
+   * navigation the reader started, it is refetched. 0 holds nothing.
+   */
+  readonly historyWindow?: number | undefined
 }): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> =>
   bindDomain(defineRemote(config), config.model, {
     verifyPredictions: config.verifyPredictions,
     operators: config.operators,
     viewer: config.viewer,
     budget: config.budget,
+    historyWindow: config.historyWindow,
   })
 
 /**
@@ -768,16 +778,16 @@ export const retain = <AppModel, Message = RemoteMessage>(
   options: RetainEntryOptions = {},
 ): EntryWithoutKeepAlive<AppModel, Message, RetentionRoots, never> => {
   const roots = rootsOf(projections, options)
-  const budget = checkedBudget(options.budget)
+  const changed = {
+    budget: checkedBudget(options.budget),
+    historyWindow: checkedHistoryWindow(options.historyWindow),
+    grace: options.grace,
+  }
   return {
     dependenciesSchema: retentionRootsSchema,
     modelToDependencies: () => roots,
     dependenciesToStream: current =>
-      Stream.fromEffect(
-        Effect.succeed(toMessage(retentionChanged(current, budget))).pipe(
-          Effect.delay(options.grace ?? 0),
-        ),
-      ),
+      Stream.fromEffect(Effect.map(retentionChanged(current, changed), toMessage)),
   }
 }
 
@@ -980,10 +990,12 @@ const bindDomain = <
       | ((model: AppModel) => Option.Option<{ readonly entity: string; readonly id: string }>)
       | undefined
     readonly budget?: number | undefined
+    readonly historyWindow?: number | undefined
   } = {},
 ): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> => {
   const operators = Option.fromUndefinedOr(options.operators)
   const budget = checkedBudget(options.budget)
+  const historyWindow = checkedHistoryWindow(options.historyWindow)
   const bound = bindRemote(definition, ref, operators)
   const capabilities = bound[Capability]
   const verify = verification(options.verifyPredictions, {
@@ -1556,7 +1568,9 @@ const bindDomain = <
       connection: Connection,
     ): RemoteData<Page<Value>> | undefined => {
       const visible = visibleOf(capabilities, remote, operators)
-      const key = `${ref.identity}\u0000${relationKey}\u0000${String(sizeOf(remote))}`
+      // Whether a history navigation holds it is no part of the connection.
+      const held = heldForHistory(remote.history, remote.connections, ref.identity)
+      const key = `${ref.identity}\u0000${relationKey}\u0000${String(sizeOf(remote))}\u0000${held}`
       const read = memoRead<RemoteData<Page<Value>> | undefined>(
         [visible, connection, remote.optimistic.overlays, remote.placed],
         key,
@@ -1726,9 +1740,7 @@ const bindDomain = <
         },
         dependenciesToStream: (current: RetentionRoots) =>
           Stream.fromEffect(
-            Effect.succeed<RemoteMessage>(retentionChanged(current, budget)).pipe(
-              Effect.delay(options.grace ?? 0),
-            ),
+            retentionChanged(current, { budget, historyWindow, grace: options.grace }),
           ),
       }
       markAll(entries)

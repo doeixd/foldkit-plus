@@ -126,6 +126,40 @@ test('pointing at a post reads it ahead, so it draws with no server left to ask'
   await page.close()
 }, 180_000)
 
+test('Back shows the blog as it was left, asking nothing; a link to it asks again', async () => {
+  const { page, errors } = await open('/site/blog')
+  const titles = page.locator('main li h3')
+  const link = page.locator('main li h3 a').first()
+  await link.waitFor({ timeout: 120_000 })
+  const listed = await titles.allTextContents()
+  await link.click()
+  await page.locator('main h1').waitFor({ timeout: 10_000 })
+  await page.waitForLoadState('networkidle')
+  // Nothing under the pointer reads ahead from here.
+  await page.mouse.move(0, 0)
+  const asked: Array<string> = []
+  page.on('request', request => {
+    if (request.url().includes('/remote')) asked.push(request.url())
+  })
+
+  await page.goBack()
+  await expect.poll(() => titles.allTextContents(), { timeout: 5_000 }).toEqual(listed)
+  await page.waitForLoadState('networkidle')
+  expect(asked).toEqual([])
+
+  // Followed by a link, the same page is asked for again.
+  await page.locator('main li h3 a').first().click()
+  await page.locator('main h1').waitFor({ timeout: 10_000 })
+  await page.waitForLoadState('networkidle')
+  asked.length = 0
+  const refetched = page.waitForRequest(request => request.url().includes('/remote'))
+  await page.locator('a[href="/site/blog"]').first().click()
+  await refetched
+  await expect.poll(() => titles.allTextContents(), { timeout: 5_000 }).toEqual(listed)
+  expect(errors).toEqual([])
+  await page.close()
+}, 180_000)
+
 test('pointing at the pages section reads it ahead, so it draws with no server left to ask', async () => {
   const { page, errors } = await open('/?as=edda')
   const link = page.locator('a[href="/pages?as=edda"]').first()

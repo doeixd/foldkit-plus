@@ -354,6 +354,23 @@ the field is `arrived: (model, route) => ({ model, commands })`, run after the
 routed pages are told and never for an echo: the CMS site moves focus to what
 it drew there (`examples/cms/src/apps/siteApp.ts`).
 
+`navigated: (model, kind) => model` is told what kind each navigation is,
+before its route is set: `'history'` when the browser's `popstate` brought it
+(Back, Forward), `'push'` for a link or a Command that wrote the URL. An echo
+is no navigation, and tells nothing. Remote uses it to show a list the reader
+just left as it was on the way back, rather than refetching it:
+
+```ts
+const Navigating = Site.routing<Model, Message, AppRoute, RemoteClient>({
+  // ...site, route, parse, tags and completed, as above
+  navigated: (model, kind) => Data.reduce(model, { _tag: 'Navigated', kind }),
+})
+```
+
+The kind is read from the event Foldkit reduces the URL change in, so a change
+reduced later than that (Foldkit defers a burst past its frame budget) reads
+as `'push'`, which only refetches what Back would have shown as it was.
+
 The wiring claims the click tag and shares the change tag with URL mirrors,
 which read their slices first. `CompletedNavigation` is one completion for
 the navigation commands — declare the variant, pass the constructor. Route

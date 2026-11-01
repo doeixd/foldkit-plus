@@ -115,6 +115,11 @@ finger. The routing claims `intended`, skips addresses the tree does not hold
 and the route shown, and hands `read` the Model with the route set; the Model
 itself is unchanged, and the reads land as Remote's `Preloaded`. Do not add
 an "intended route" Model field or extra `Surface.at` entries for it.
+`navigated: (model, kind) => Root` is told each navigation's kind before its
+route is set: `'history'` for a `popstate` (Back, Forward), `'push'` for a link
+or a Command that wrote the URL; never for an echo. Remote takes it as
+`(model, kind) => Data.reduce(model, { _tag: 'Navigated', kind })`, and Back
+then shows a list left within `historyWindow` as it was, asking nothing.
 
 **Attached Surfaces.** `surface: { surface, params: route => params }` on a
 node; `Site.sources(site, App.owner, App.model.route)` is each surfaced node

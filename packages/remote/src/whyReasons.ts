@@ -15,6 +15,7 @@ import type { Asked } from './active.js'
 import type { Edge } from './connection.js'
 import { holderOf } from './held.js'
 import { fieldMark, isQueryLoading, readsStale, type RemoteModel } from './model.js'
+import { heldForHistory } from './retain.js'
 import type { EntityLayer } from './optimistic.js'
 import { targetsOf } from './relation.js'
 import { RemoteData, type RemoteError } from './remoteData.js'
@@ -239,6 +240,8 @@ const listReasons = (reader: WhyReader, asked: ConnectionRequirement): ReadonlyA
     return [...reasons, Why.List({ list, held, inFlight })]
   }
   if (readsStale(remote, identity)) reasons.push(Why.List({ list, held: 'Stale', inFlight }))
+  else if (heldForHistory(remote.history, remote.connections, identity))
+    reasons.push(Why.HeldForHistory({ list }))
   const { shown, placed, pages } = reader.edgesOf(asked)
   const walked = new Map<string, Set<RelationRequirement>>()
   for (const edge of shown) {

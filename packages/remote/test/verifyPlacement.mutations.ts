@@ -78,7 +78,7 @@ export default [
     edits: [
       {
         file: '../src/model.ts',
-        find: ' && remote.placed[identity]?.checking !== true',
+        find: '  remote.placed[identity]?.checking !== true &&\n',
         replace: '',
       },
     ],

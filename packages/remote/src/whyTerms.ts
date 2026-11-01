@@ -50,6 +50,12 @@ export const Why = defineTaggedUnion({
   NoActiveRecord: {},
   /** The list's own page is missing or stale; `inFlight` while its query is out. */
   List: { list: ListRef, held: Held, inFlight: Schema.Boolean },
+  /**
+   * The list was left, and a history navigation (Back, Forward) came back to
+   * it within `Remote.make`'s `historyWindow`: it shows as it was left, and
+   * nothing asks for it.
+   */
+  HeldForHistory: { list: ListRef },
   /** Fields of one row are missing or stale; `via` is the relation path from the read's row. */
   Fields: { row: RowRef, via: Names, fields: Names, held: Held, inFlight: Schema.Boolean },
   /** The list's query failed, and nothing has settled it. Nothing retries it on its own. */
@@ -172,6 +178,8 @@ export const whyWords = (why: Why): string =>
     NoActiveRecord: () =>
       'Nothing is fetching it. Pass the active record you give Data.subscriptions as `surfaces` to tell whether an active Surface reads it.',
     List: ({ list, held, inFlight }) => heldWords[held][`${inFlight}`](`Its list "${list.query}"`),
+    HeldForHistory: ({ list }) =>
+      `Its list "${list.query}" shows as it was left: a history navigation came back to it within Remote.make's historyWindow, so nothing fetches it. A navigation the reader starts fetches it again.`,
     Fields: ({ row, via, fields, held, inFlight }) =>
       heldWords[held][`${inFlight}`](`${fields.join(', ')} of ${rowWords(row, via)}`),
     ListFailed: ({ list, error }) => `Its list "${list.query}" failed. ${failedReadWords(error)}`,
@@ -230,6 +238,7 @@ const decides = (why: Why): ReadonlyArray<State> =>
     NotFetching: () => ['Initial'],
     NoActiveRecord: () => ['Initial'],
     List: ({ held, inFlight }) => listDecides[held][`${inFlight}`],
+    HeldForHistory: () => ['Ready'],
     Fields: ({ held, inFlight }) => fieldsDecide[held][`${inFlight}`],
     ListFailed: () => ['Failed'],
     FieldsFailed: () => ['Failed'],

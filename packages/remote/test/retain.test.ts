@@ -272,7 +272,9 @@ describe('Remote.retain', () => {
     const messages = await Effect.runPromise(
       Stream.runCollect(entry.dependenciesToStream(dependencies)),
     )
-    expect([...messages]).toEqual([{ _tag: 'RetentionChanged', roots: dependencies }])
+    expect([...messages]).toEqual([
+      { _tag: 'RetentionChanged', roots: dependencies, now: expect.any(Number) },
+    ])
     const next = updateRemote(model(), [...messages][0]!)
     expect(keys(next)).toEqual(['Project:p1', 'Project:p2', 'User:u1'])
   })

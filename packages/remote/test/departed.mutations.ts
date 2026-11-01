@@ -27,14 +27,14 @@ export default [
   edit(
     'a list left is not refetched',
     model,
-    'ages === true\n              ? held\n              : setConnectionStale(held, identity, true),',
-    'ages === true\n              ? held\n              : held,',
+    '    connections = setConnectionStale(connections, identity, true)\n    if (now',
+    '    if (now',
   ),
   edit(
     'a list still shown is marked stale too',
     model,
-    'recent.departed\n        .flatMap(batch => batch.connections)',
-    'heldRoots(recent).connections',
+    'departed: recent.departed.flatMap(batch => batch.connections),',
+    'departed: heldRoots(recent).connections,',
   ),
   edit(
     'nothing left is kept',

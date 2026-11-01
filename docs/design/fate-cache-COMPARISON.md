@@ -1,6 +1,6 @@
 # fate's cache, against Remote, and what we change
 
-Status: plan (2026-11-01). The source is fate's own documentation, read
+Status: plan (2026-11-01); #401 built. The source is fate's own documentation, read
 from its repository at af7e5ae (2026-10-29): the Requests, Actions, List
 Views, Live Views, Deferred Views and Persistence guides, and the 1.0
 announcement. A companion to
@@ -101,6 +101,14 @@ Four changes, in this order. Each is its own issue.
    - `why` names the reason a list was not asked (`HeldForHistory`).
    - The test: Back within the window makes no request and draws no
      `Refreshing` frame; Back past it, and a link to the same page, refetch.
+   - Built so (#401): `Site.routing` reads the kind from the event Foldkit
+     reduces the URL change in (`window.event`), since only that stack tells
+     a `popstate` from a Command's `foldkit:urlchange`, and tells Remote in
+     the same update, before the route is set: a Message sent after it would
+     land behind the plan that already asked. The window is judged by
+     retention's clock when the list is shown again, so a list past it shows
+     as it was until then, and a list invalidated, asked again or changed
+     while held is no longer held.
 2. **A `cacheOnly` policy** (#402). `RemotePolicy.cacheOnly` plans no reads,
    shows what the store holds, and keeps following store changes (answers,
    live patches, writes). A value it lacks reads `Initial`, and `why` says it

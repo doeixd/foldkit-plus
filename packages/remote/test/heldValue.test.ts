@@ -365,6 +365,18 @@ const messages = {
     'leaving the open list under a small budget': () => ({ ...showing(list, project), budget: 4 }),
     'leaving everything under a budget of none': () => ({ ...showing(), budget: 0 }),
     'going back to the open list, its lists ageing': () => ageing(left, stale),
+    // Stamped, as the retain entry sends it: a list left is held for going
+    // back through history until five minutes after.
+    'leaving everything at a time': () => ({ ...showing(), now: 10 }),
+    'going back to the open list at a time': () => ({ ...showing(left, stale), now: 20 }),
+    'going back to everything past the history window': () => ({
+      ...showing(list, left, project, stale),
+      now: 10 + 300_000,
+    }),
+  },
+  Navigated: {
+    'Back or Forward': () => ({ _tag: 'Navigated', kind: 'history' }),
+    'a link followed': () => ({ _tag: 'Navigated', kind: 'push' }),
   },
   Hydrated: {
     'a snapshot under preserve-existing': () => ({

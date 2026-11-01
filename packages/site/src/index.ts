@@ -364,6 +364,20 @@ export interface SiteTarget<Route extends { readonly _tag: string }> {
  * off a route case. Anything else is a definition-time error, not a silent
  * mismatch.
  */
+/** What a navigation was: `history` for Back and Forward, `push` for a link or a Command. */
+export type NavigationKind = 'history' | 'push'
+
+/**
+ * The kind of the URL change being reduced. Foldkit reduces its Message on
+ * the stack of the event that caused it: the browser's `popstate` for Back
+ * and Forward, `foldkit:urlchange` for a URL a Command wrote. A change
+ * reduced off that stack (a drain deferred past Foldkit's budget) reads as
+ * `push`, which only refetches what a history navigation would have shown
+ * as it was.
+ */
+const navigationKind = (): NavigationKind =>
+  typeof window !== 'undefined' && window.event?.type === 'popstate' ? 'history' : 'push'
+
 const tagOfConstructor = (constructor: unknown, what: string): string => {
   const literal = (constructor as { fields?: { _tag?: { ast?: { literal?: unknown } } } }).fields
     ?._tag?.ast?.literal
@@ -1067,6 +1081,14 @@ export const Site = {
      */
     readonly arrived?: ((model: Root, route: Route) => Update.Return<Root, Message, R>) | undefined
     /**
+     * Told what kind each navigation is, before its route is set: `history`
+     * for Back and Forward (`popstate`), `push` for a link or a Command that
+     * wrote the URL. Remote holds a list left for a history navigation back
+     * to it: `(model, kind) => Data.reduce(model, { _tag: 'Navigated', kind })`.
+     * An echo of the shown address is no navigation, and tells nothing.
+     */
+    readonly navigated?: ((model: Root, kind: NavigationKind) => Root) | undefined
+    /**
      * Reads a page ahead when the reader means to follow a link to it, so it
      * draws at once when they do. `links` says where they mean to go
      * (`pointedLinks()` from `foldkit-primitives/dom`), `intended` is the
@@ -1100,7 +1122,7 @@ export const Site = {
           Effect.as(config.completed()),
         ),
     })
-    const { arrived, preload } = config
+    const { arrived, navigated, preload } = config
     const intendedTag =
       preload === undefined
         ? undefined
@@ -1200,6 +1222,9 @@ export const Site = {
           // and no page is informed of a route it already has.
           if (sameRoute(config.route.get(model), next)) return Option.some({ model })
           const steps: Array<Update.Step<Root, Message, R>> = [
+            ...(navigated === undefined
+              ? []
+              : [(model: Root) => ({ model: navigated(model, navigationKind()) })]),
             model => ({ model: setRoute(model, next) }),
             ...(config.pages ?? []).map(
               page => (model: Root) =>

@@ -626,6 +626,7 @@ Match them with `Why.match`:
 | `Why` | What it says | What restarts it |
 | --- | --- | --- |
 | `List { list, held, inFlight }` | the list's own page is `Missing`, `Evicted` (the budget dropped it) or `Stale` | the read entry, while a Surface reads it |
+| `HeldForHistory { list }` | the list was left, and Back or Forward came back to it within `historyWindow`: it shows as it was, and nothing fetches it | a navigation the reader starts |
 | `Fields { row, via, fields, held, inFlight }` | fields of one row are `Missing`, `Evicted` (the budget dropped the row) or `Stale`; `via` is the relation path (`['owner']`) | the read entry |
 | `ListFailed`, `FieldsFailed` | a request failed | **nothing on its own**: `Data.refresh`, a write of the field, a new page |
 | `Unavailable`, `Undecodable`, `OverlayOnly` | the store holds what cannot be shown | a change of Selection or overlay |
@@ -730,6 +731,27 @@ its age instead: going back inside `maxAge` draws it `Ready` and sends
 nothing, and past it reads `Refreshing` while it refetches. Only past the budget is a
 screen's data evicted, the screen left longest ago first, and then coming back
 reads `Loading` and refetches; `why` says the list or row is `Evicted`.
+
+Back and Forward are different: they return to a page the reader has just
+seen, and refetching it only makes it flicker. Told that a navigation came
+through history, Remote reads a list left within `Remote.make`'s
+`historyWindow` (five minutes by default) `Ready`, as it was, and asks for
+nothing; `why` says `HeldForHistory`. Past the window, after a navigation the
+reader started (a link, a Command that wrote the URL), or once the list was
+invalidated or changed while held, it refetches as above. The application
+says which kind each navigation is with the `Navigated` Message, reduced
+before the route changes; `Site.routing` does it given `navigated`:
+
+```ts
+const Routing = Site.routing<Model, Message, Route, RemoteClient>({
+  // site, route, parse, tags and completed as before
+  navigated: (model, kind) => Data.reduce(model, { _tag: 'Navigated', kind }),
+})
+```
+
+The window is judged by retention's clock, once the list is shown again: in
+the moment between the route changing and retention seeing it, a list past its
+window still shows as it was, then reads `Refreshing` while it refetches.
 To keep something no screen reads, name it in a retain entry or a
 `connections` list; see [Retention](#retention-and-garbage-collection).
 
@@ -2338,6 +2360,7 @@ in its options.
 ```text
 Surface left      -> its lists held stale (or with their age, under staleWhileRevalidate), its reads held
 Surface again     -> rows read Refreshing; the planner refetches the stale list
+  through history -> within historyWindow: Ready as it was left, nothing asked
 page arrives      -> it replaces the held rows; Ready
 past the budget   -> evicted, left longest ago first; going back reads Loading and refetches
 ```
