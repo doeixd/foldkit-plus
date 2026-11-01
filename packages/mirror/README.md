@@ -1,7 +1,7 @@
 # `foldkit-mirror`
 
-Keeps part of a Foldkit Model represented somewhere else — usually the URL or a
-key-value store — **without making that representation the owner of the state**.
+Keeps part of a Foldkit Model represented somewhere else — usually the URL, a
+key-value store or a cookie — **without making that representation the owner of the state**.
 
 A filter can become `?filter=active`; a draft can survive a reload; a collapsed
 sidebar can be remembered. In every case the Model remains authoritative and
@@ -14,9 +14,9 @@ Model slice
    |
    | encode when it changes
    v
-URL / KeyValueStore
+URL / KeyValueStore / cookie
 
-URL / KeyValueStore
+URL / KeyValueStore / cookie
    |
    | decode on navigation / cold load
    v
@@ -54,6 +54,7 @@ Remote
 | --- | --- | --- |
 | Filter, sort, page, search text, open panel | local Model | URL via `Mirror.url` |
 | Preference, draft, collapsed sidebar | local Model | `KeyValueStore` via `Mirror.kv` |
+| A cart or preference the server renders, or a page without scripts keeps | local Model | a cookie via `Mirror.cookie` |
 | Shared/offline edits that must converge | Sync/Durable | not Mirror |
 | Server-derived facts | server / Remote | not Mirror |
 
@@ -403,6 +404,80 @@ The important part is what did **not** change: `sidebar` and `draft` are still
 ordinary Model fields. The key-value store is merely how those fields are
 remembered between sessions.
 
+## Keep what a server renders in a cookie with `Mirror.cookie`
+
+A key-value store lives in the browser, so a server rendering the page cannot
+read it, and a page that works without JavaScript has no store at all. A
+cookie travels with every request: the server reads it for the first render,
+a form posted without scripts can set it in the answer, and the scripted page
+writes it as the Model changes. This extends the Model with `cart`, a list of
+names:
+
+```ts
+const Cart = Mirror.cookie(App, {
+  name: 'cart',
+  fields: [App.model.cart],
+})
+```
+
+The cookie is named `cart` and holds the mirror's keys form-encoded
+(`cart=cart=%5B%22acme.dev%22%5D`), so no character of the slice can end the
+value or the header. Its three seams:
+
+<!-- docs-check
+import { Option } from 'effect'
+declare const request: Request
+declare const reached: Model
+-->
+
+```ts
+// On the server, before the first render: the request's cookie into the Model.
+const opened = Mirror.bootstrap(initial, Cart.bootstrap(Cart.keysOf(request.headers.get('cookie'))))
+
+// In a server's answer that changed the slice: `reached` is the Model a form
+// posted without scripts reached through `update`.
+const setCookie: Option.Option<string> = Cart.setCookie(reached, request)
+```
+
+In the browser, `Cart.wiring()` (or `Cart.subscriptions`) writes
+`document.cookie` whenever the encoded slice changes, at once by default. It
+reads nothing at startup: the server's render already holds the slice, and a
+page with no server reads it with `Cart.bootstrap(Cart.keysOf(document.cookie))`
+in its `init`.
+
+What each call does, and does not do:
+
+- `keysOf(header)` picks the mirror's cookie out of a `Cookie` header and its
+  own keys out of that cookie. A cookie whose `name=value` is past `maxBytes`
+  (4096 by default) is read as holding nothing. It decodes nothing.
+- `bootstrap(keys)` decodes each key through its codec, the field's Schema: a
+  key that does not decode leaves its field at the initial value, and
+  `Cart.decode(keys).issues` names it.
+- `setCookie(model, request)` is the `Set-Cookie` value for the slice of
+  `model`, or one that clears the cookie when the slice is at its defaults.
+  It sets nothing itself; the answer's headers carry it. It is `None` when
+  the slice encodes past `maxBytes`, and the browser keeps what it held; a
+  browser write past it is skipped and reported as `CookieTooLarge`.
+
+A cookie is the visitor's to edit. Decoding proves its shape, not its truth:
+a cart that names a domain is not a price for it, so the server checks again
+what it would not take from a form (domains-plus prices every name in its
+cart cookie again). The browser writes the cookie, so it is never
+`HttpOnly`; keep nothing secret in it.
+
+The attributes default to `Path=/`, `SameSite=Lax`, a `Max-Age` of 365 days,
+and `Secure` on an https page or for an https request; `attributes` changes
+any of them, and a name, path or domain a header could not carry is refused
+when the mirror is declared:
+
+```ts
+const Theme = Mirror.cookie(App, {
+  name: 'theme',
+  fields: [App.model.theme],
+  attributes: { sameSite: 'Strict', maxAge: '30 days', secure: true },
+})
+```
+
 ## Restore before the first render with bootstrap
 
 A key-value mirror normally restores asynchronously: `restore` reads the store
@@ -672,8 +747,9 @@ Writes are throttled so rapidly changing local state does not hammer the externa
 representation:
 
 ```text
-URL mirror default: 50 ms
-KV mirror default:  250 ms
+URL mirror default:    50 ms
+KV mirror default:     250 ms
+cookie mirror default: 0 ms
 ```
 
 A newer slice supersedes a pending write through Foldkit's dependency restart
@@ -702,7 +778,7 @@ at all defaults removes the stored document.
 
 ### Diagnostics
 
-What a key-value mirror absorbs, it reports as a typed diagnostic through
+What a key-value or cookie mirror absorbs, it reports as a typed diagnostic through
 `Diagnostics.Reporter` (`foldkit-surface`'s channel), which by default is
 Effect's log, the browser's console:
 
@@ -711,8 +787,9 @@ Effect's log, the browser's console:
 | `StoreUnread` | `warning` | The store failed a read: the mirror restored nothing. |
 | `StoreUnwritten` | `warning` | The store failed a write, or the removal of a discarded document. |
 | `StoreMalformed` | `warning` | The key held a document no mirror writes (not JSON, or not its shape): something else writes that key. Another version or scope is a mirror's own, discarded with no report. |
+| `CookieTooLarge` | `warning` | A cookie mirror's slice encoded past its `maxBytes`, so the browser write was skipped and the cookie keeps what it held. Carries `name`, `bytes` and `maxBytes`. |
 
-Each carries its `key`, and the store's `error` or the `reason`. Send them
+Each key-value diagnostic carries its `key`, and the store's `error` or the `reason`. Send them
 elsewhere with `Layer.succeed(Diagnostics.Reporter, report)` in the runtime's
 resources; in a test, provide `Diagnostics.collect().report` and assert on
 `reported`. A URL key that does not decode is not reported: it is what the
@@ -790,6 +867,8 @@ this kernel.
   owners; cold-load precedence follows the URL -> KV -> initial rule above.
 - A URL mirror only touches the keys it owns. It composes with a Foldkit
   router's `route.query(schema)` when they use different keys.
+- A cookie is sent with every request to its path, and browsers keep about
+  4 KB of one: mirror a few small fields there, not a document.
 - Mirror stores have no durable operation log, conflict resolution, or
   multi-device synchronization.
 

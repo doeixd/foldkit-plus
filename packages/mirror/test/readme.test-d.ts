@@ -2,7 +2,7 @@
  * The Quick start from this package's README, type-checked so the
  * documentation cannot drift from the API.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import type { KeyValueStore } from 'effect/persistence'
 import { Bundle } from 'foldkit-bundle'
 import { Runtime } from 'foldkit'
@@ -110,4 +110,47 @@ void wiredUrl
   })
 
   Runtime.makeApplication({ Model, ...routed, view, subscriptions, container })
+}
+
+// `Mirror.cookie`: a slice the server reads for its render and sets in an answer.
+{
+  const Model = Schema.Struct({
+    cart: Schema.Array(Schema.String),
+    theme: Schema.Literals(['light', 'dark']),
+  })
+  type Model = typeof Model.Type
+  const initial: Model = { cart: [], theme: 'light' }
+  const App = Surface.application({
+    Model,
+    Message: defineMessageUnion({}),
+    initial,
+    update: (model: Model) => ({ model }),
+  })
+
+  const Cart = Mirror.cookie(App, {
+    name: 'cart',
+    fields: [App.model.cart],
+  })
+
+  const request = new Request('https://shop.test/')
+  const opened = Mirror.bootstrap(
+    initial,
+    Cart.bootstrap(Cart.keysOf(request.headers.get('cookie'))),
+  )
+  const reached = opened
+  const setCookie: Option.Option<string> = Cart.setCookie(reached, request)
+  const browser: Model = Mirror.bootstrap(initial, Cart.bootstrap(Cart.keysOf(document.cookie)))
+
+  const Theme = Mirror.cookie(App, {
+    name: 'theme',
+    fields: [App.model.theme],
+    attributes: { sameSite: 'Strict', maxAge: '30 days', secure: true },
+  })
+
+  void [
+    setCookie,
+    browser,
+    Theme,
+    Bundle.parent({ Model, Message: defineMessageUnion({}) }).assemble(Cart.wiring()),
+  ]
 }

@@ -3,11 +3,12 @@
 Some local state should outlive the page or be linkable: the filter and page a
 list shows, the search text, a collapsed sidebar, a half-written draft. Two
 stores fit: the **URL** for what a link should carry, and a **key-value store**
-for what a device should remember. `foldkit-mirror` keeps a slice of the Model
-in step with either. The Model stays the only truth; the store is a mirror.
+for what a device should remember, and a **cookie** for what a server must read
+to render the page. `foldkit-mirror` keeps a slice of the Model in step with
+any of them. The Model stays the only truth; the store is a mirror.
 
-- [`foldkit-mirror`](../packages/mirror) — `Mirror.url`, `Mirror.kv`, and the
-  `Mirror.make` kernel over any `MirrorStore`.
+- [`foldkit-mirror`](../packages/mirror) — `Mirror.url`, `Mirror.kv`, `Mirror.cookie`,
+  and the `Mirror.make` kernel over any `MirrorStore`.
 
 ## The problem
 
@@ -117,6 +118,7 @@ separates it from the two packages that do own state:
 | --- | --- | --- |
 | Filter, sort, page, search text, an open panel | the local Model | the URL, via `Mirror.url` |
 | Preferences, a draft, a collapsed sidebar | the local Model | `KeyValueStore`, via `Mirror.kv` |
+| A cart or preference a server renders, or a page without scripts keeps | the local Model | a cookie, via `Mirror.cookie` |
 | Client-authored state that must converge across devices | `foldkit-sync` | a durable ordered log |
 | A cache of another owner's facts | `foldkit-remote` | the server |
 

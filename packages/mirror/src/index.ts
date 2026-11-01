@@ -28,10 +28,11 @@ import {
   type Wiring,
   type WritableProjection,
 } from 'foldkit-surface'
-import { storeMalformed, storeUnread, storeUnwritten } from './diagnostics.js'
+import { cookieTooLarge, storeMalformed, storeUnread, storeUnwritten } from './diagnostics.js'
 import { own, put, table } from './record.js'
 
 export type {
+  CookieTooLarge,
   MirrorDiagnostic,
   StoreMalformed,
   StoreUnread,
@@ -208,6 +209,143 @@ const kvStore = (options: {
       }),
   }
 }
+
+/** `Mirror.cookie`'s attributes; each default is what a cookie the browser writes needs. */
+export interface CookieAttributes {
+  /** Default `/`, so every page sends it. */
+  readonly path?: string | undefined
+  /** Default none: the host that set it, and no other. */
+  readonly domain?: string | undefined
+  /** Default `Lax`: sent on a navigation and a same-site post, never a cross-site post. */
+  readonly sameSite?: 'Strict' | 'Lax' | 'None' | undefined
+  /** Default `auto`: `Secure` on an https page, or for an https request on the server. */
+  readonly secure?: boolean | 'auto' | undefined
+  /** How long the browser keeps it; default 365 days. */
+  readonly maxAge?: Duration.Input | undefined
+}
+
+/** A cookie mirror's cookie, its attributes checked once, when it is declared. */
+interface CookieSpec {
+  readonly name: string
+  readonly owned: ReadonlyArray<string>
+  readonly attributes: ReadonlyArray<string>
+  readonly secure: boolean | 'auto'
+  readonly maxAge: number
+  readonly maxBytes: number
+}
+
+// RFC 6265's cookie-name (an RFC 7230 token), and an attribute value: no
+// control, space or `;`, so neither can end the header's field or add another.
+const COOKIE_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/
+const ATTRIBUTE_VALUE = /^[!-:<-~]+$/
+
+const cookieSpec = (
+  name: string,
+  owned: ReadonlyArray<string>,
+  attributes: CookieAttributes,
+  maxBytes: number,
+): CookieSpec => {
+  const refuse = (why: string): never => {
+    throw new Error(`Mirror.cookie("${name}"): ${why}`)
+  }
+  if (!COOKIE_NAME.test(name))
+    refuse("a cookie name is a token: letters, digits and !#$%&'*+-.^_`|~")
+  const path = attributes.path ?? '/'
+  if (!path.startsWith('/') || !ATTRIBUTE_VALUE.test(path))
+    refuse(`the path "${path}" starts with / and holds no space, control or ;`)
+  const domain = Option.fromUndefinedOr(attributes.domain)
+  if (Option.exists(domain, domain => !/^[0-9A-Za-z.-]+$/.test(domain)))
+    refuse('a domain holds letters, digits, dots and hyphens only')
+  const sameSite = attributes.sameSite ?? 'Lax'
+  const secure = attributes.secure ?? 'auto'
+  // A browser refuses a `SameSite=None` cookie without `Secure`.
+  if (sameSite === 'None' && secure !== true) refuse('SameSite=None needs secure: true')
+  const maxAge = Math.floor(
+    Duration.toSeconds(Duration.fromInputUnsafe(attributes.maxAge ?? '365 days')),
+  )
+  if (!(maxAge > 0)) refuse('maxAge is longer than a second')
+  if (!(maxBytes > 0)) refuse('maxBytes is a positive number')
+  return {
+    name,
+    owned,
+    attributes: [
+      `Path=${path}`,
+      ...Option.match(domain, { onNone: () => [], onSome: domain => [`Domain=${domain}`] }),
+      `SameSite=${sameSite}`,
+    ],
+    secure,
+    maxAge,
+    maxBytes,
+  }
+}
+
+/** The mirror's keys a `Cookie` header (or `document.cookie`) holds: none for a cookie past `maxBytes`. */
+const keysOfCookie = (spec: CookieSpec, header: string): Encoded => {
+  for (const part of header.split(';')) {
+    const at = part.indexOf('=')
+    if (at < 0 || part.slice(0, at).trim() !== spec.name) continue
+    const value = part.slice(at + 1).trim()
+    // The first of two cookies by one name is the one of the longer path, as browsers send them.
+    return spec.name.length + 1 + value.length > spec.maxBytes ? {} : readParams(value, spec.owned)
+  }
+  return {}
+}
+
+/**
+ * The `Set-Cookie` value keeping `keys`, or clearing the cookie when there are
+ * none; the length of its `name=value` when that is past `maxBytes`. The keys
+ * are form-encoded, which leaves only characters a cookie's value allows.
+ */
+const setCookieOf = (
+  spec: CookieSpec,
+  keys: Encoded,
+  https: boolean,
+): Result.Result<string, number> => {
+  const value = new URLSearchParams(Object.entries(keys)).toString()
+  const pair = `${spec.name}=${value}`
+  if (pair.length > spec.maxBytes) return Result.fail(pair.length)
+  const secure = spec.secure === 'auto' ? https : spec.secure
+  return Result.succeed(
+    [
+      pair,
+      ...spec.attributes,
+      `Max-Age=${value === '' ? 0 : spec.maxAge}`,
+      ...(secure ? ['Secure'] : []),
+    ].join('; '),
+  )
+}
+
+const documentOf = (): Option.Option<Document> =>
+  Option.fromUndefinedOr((globalThis as { document?: Document }).document)
+
+// Outside a browser (a server, a test without a DOM) there is no cookie to read or write.
+const cookieStore = (spec: CookieSpec): MirrorStore => ({
+  read: Effect.sync(() =>
+    Option.match(documentOf(), {
+      onNone: () => undefined,
+      onSome: document => keysOfCookie(spec, document.cookie),
+    }),
+  ),
+  write: write =>
+    Option.match(documentOf(), {
+      onNone: () => Effect.void,
+      onSome: document =>
+        Result.match(
+          setCookieOf(
+            spec,
+            write.set,
+            (globalThis as { location?: Location }).location?.protocol === 'https:',
+          ),
+          {
+            onFailure: bytes => Diagnostics.report(cookieTooLarge(spec.name, bytes, spec.maxBytes)),
+            onSuccess: line =>
+              Effect.sync(() => {
+                document.cookie = line
+              }),
+          },
+        ),
+    }),
+})
 
 /** An in-memory store that records its writes, for tests and for a mirror with no host. */
 export interface MemoryStore extends MirrorStore {
@@ -417,6 +555,21 @@ export interface KvMirrorConfig<S extends Slice, Name extends string = string> e
   readonly scope?: string | undefined
 }
 
+export interface CookieMirrorConfig<
+  S extends Slice,
+  Name extends string = string,
+> extends MirrorConfig<S, Name> {
+  /** The cookie's name, a token (`cart`); also the mirror's name. */
+  readonly name: Name
+  readonly attributes?: CookieAttributes | undefined
+  /**
+   * The most the cookie's `name=value` may hold, in bytes; default 4096, what
+   * every browser keeps. A slice encoded past it is not written, and a cookie
+   * past it is read as holding nothing.
+   */
+  readonly maxBytes?: number | undefined
+}
+
 /** One key that failed to decode; the field keeps its initial value. */
 export interface DecodeIssue {
   readonly key: string
@@ -453,7 +606,7 @@ export interface Mirror<
   R = never,
   Name extends string = string,
 > {
-  readonly kind: 'url' | 'kv' | 'memory'
+  readonly kind: 'url' | 'kv' | 'cookie' | 'memory'
   readonly name: Name
   /** Store key per field. */
   readonly keys: Readonly<Record<keyof Value & string, string>>
@@ -609,6 +762,39 @@ export interface KvMirror<
    * contract. Other key-value mirrors share the `MirrorRestored` tag.
    */
   readonly wiring: () => KvMirrorWiring<AppModel>
+}
+
+/**
+ * A slice kept in one cookie, which the server reads for a render and the
+ * browser writes when the slice changes. A cookie is the visitor's to edit:
+ * `keysOf` and `decode` check its shape, and what the application trusts
+ * (a price, a permission) it checks again.
+ */
+export interface CookieMirror<
+  AppModel,
+  Value extends Record<string, unknown>,
+  Name extends string = string,
+> extends Mirror<AppModel, Value, never, Name> {
+  readonly kind: 'cookie'
+  /**
+   * The mirror's keys a `Cookie` header holds (`request.headers.get('cookie')`,
+   * or `document.cookie`), for `bootstrap` or `decode`: only the keys it owns,
+   * and none from a cookie past `maxBytes`.
+   */
+  readonly keysOf: (cookieHeader: string | null) => Encoded
+  /**
+   * The `Set-Cookie` value keeping the slice of `model`, for a server's answer
+   * (a form posted without scripts): it clears the cookie when the slice is at
+   * its defaults, and `Secure` is `auto`'s for `request.url`. `None` when the
+   * slice encodes past `maxBytes`: the browser keeps the cookie it holds.
+   */
+  readonly setCookie: (model: AppModel, request: { readonly url: string }) => Option.Option<string>
+  /**
+   * How this mirror joins an assembly: its Subscription, which writes the
+   * cookie, and its contract. It reads nothing at startup; `bootstrap` does,
+   * from the request's cookie on the server or `document.cookie` in a browser.
+   */
+  readonly wiring: () => Wiring<AppModel, never>
 }
 
 /** One runtime's store, for a mirror's writes: the keys its Model has yet to take in, and the writes waiting on that. */
@@ -938,6 +1124,15 @@ const make = <S extends Slice, R, Name extends string>(
   return { mirror, keysOfUrl }
 }
 
+/** The store keys a mirror's config names, before `make` builds it: a store that holds them needs them first. */
+const ownedKeys = (config: MirrorConfig<Slice>): ReadonlyArray<string> =>
+  Object.keys(projectionOf(config.fields).schema.fields).map(
+    field =>
+      (config.keys as Readonly<Record<string, KeyOptions<unknown> | undefined>> | undefined)?.[
+        field
+      ]?.key ?? field,
+  )
+
 // A mirror's Subscription entries are unbranded so an application can spread them
 // into its own `Subscription.make`; wiring hands them over as a branded record.
 const brandEntries = <AppModel, R>(
@@ -1033,12 +1228,7 @@ export const Mirror = {
     app: MirrorApp<SliceRoot<S>>,
     config: UrlMirrorConfig<S, Name>,
   ): UrlMirror<SliceRoot<S>, SliceValue<S>, Name> => {
-    const owned = Object.keys(projectionOf(config.fields).schema.fields).map(
-      field =>
-        (config.keys as Readonly<Record<string, KeyOptions<unknown> | undefined>> | undefined)?.[
-          field
-        ]?.key ?? field,
-    )
+    const owned = ownedKeys(config)
     // A write comes back as a `UrlChanged`, and under load it lands after newer
     // edits, even after a second write: reading it would put the older value
     // back (#379). So the mirror keeps the text of its keys in each write whose
@@ -1193,6 +1383,51 @@ export const Mirror = {
             ? Option.some({ model: reduce(model, message) })
             : Option.none(),
         init: model => ({ model, commands: [mirror.restore] }),
+        subscriptions: brandEntries(mirror.subscriptions),
+        contract: mirror.contract,
+      }),
+    }
+  },
+
+  /**
+   * A slice kept in one cookie named `name`, its keys form-encoded in the
+   * value: written from the browser when it changes, read by the server
+   * (`keysOf` the request's `Cookie` header, then `bootstrap`) so the first
+   * render holds it, and set by a server's answer with `setCookie`. A browser
+   * writes it, so it is never `HttpOnly`: keep nothing secret in it.
+   */
+  cookie: <S extends Slice, Name extends string = string>(
+    app: MirrorApp<SliceRoot<S>>,
+    config: CookieMirrorConfig<S, Name>,
+  ): CookieMirror<SliceRoot<S>, SliceValue<S>, Name> => {
+    const spec = cookieSpec(
+      config.name,
+      ownedKeys(config),
+      config.attributes ?? {},
+      config.maxBytes ?? 4096,
+    )
+    // No session: the server's render, not a restore, put the cookie's slice
+    // in the Model, and a slice the server cleaned (a name it dropped) must
+    // still be written.
+    const { mirror } = make(
+      app,
+      'cookie',
+      cookieStore(spec),
+      config,
+      config.throttle ?? 0,
+      Option.none(),
+    )
+    return {
+      ...mirror,
+      kind: 'cookie',
+      keysOf: header => (header === null ? {} : keysOfCookie(spec, header)),
+      setCookie: (model, request) =>
+        Result.getSuccess(
+          setCookieOf(spec, mirror.encode(model), request.url.startsWith('https:')),
+        ),
+      wiring: () => ({
+        key: `mirror:${mirror.name}`,
+        handles: [],
         subscriptions: brandEntries(mirror.subscriptions),
         contract: mirror.contract,
       }),

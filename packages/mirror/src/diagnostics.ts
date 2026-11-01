@@ -1,6 +1,7 @@
 /**
  * What a key-value mirror absorbs: a store that fails a read or a write, and
- * a document under its key that is not a mirror's. The mirror is disposable
+ * a document under its key that is not a mirror's; and what a cookie mirror
+ * refuses to write. The mirror is disposable
  * state, so it goes on as if the store held nothing; each is reported through
  * `Diagnostics.report`, so the log says why a slice did not survive.
  */
@@ -35,8 +36,29 @@ export interface StoreMalformed extends Diagnostic {
   readonly reason: string
 }
 
+/**
+ * A cookie mirror's slice encoded past its `maxBytes`, so it was not written:
+ * the browser would drop it, and the cookie keeps what it held.
+ */
+export interface CookieTooLarge extends Diagnostic {
+  readonly _tag: 'CookieTooLarge'
+  readonly name: string
+  readonly bytes: number
+  readonly maxBytes: number
+}
+
 /** Every diagnostic a mirror reports. */
-export type MirrorDiagnostic = StoreUnread | StoreUnwritten | StoreMalformed
+export type MirrorDiagnostic = StoreUnread | StoreUnwritten | StoreMalformed | CookieTooLarge
+
+export const cookieTooLarge = (name: string, bytes: number, maxBytes: number): CookieTooLarge => ({
+  _tag: 'CookieTooLarge',
+  source,
+  level: 'warning',
+  message: `the cookie "${name}" would be ${bytes} bytes, past its ${maxBytes}, so it was not written and keeps what it held.`,
+  name,
+  bytes,
+  maxBytes,
+})
 
 export const storeUnread = (key: string, error: KeyValueStore.KeyValueStoreError): StoreUnread => ({
   _tag: 'StoreUnread',

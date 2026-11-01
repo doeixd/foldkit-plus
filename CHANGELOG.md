@@ -9,6 +9,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Mirror.cookie`** (`foldkit-mirror`, #394): a slice kept in one cookie,
+  which a server reads for its first render and the browser writes when the
+  slice changes. `keysOf(cookieHeader)` reads the mirror's own keys (none
+  from a cookie past `maxBytes`, 4096 by default) for `bootstrap`, which
+  decodes them through the field Schemas; `setCookie(model, request)` is the
+  `Set-Cookie` value for a server's answer, `None` past `maxBytes`; and
+  `wiring()` brings the browser's write. The keys are form-encoded in the
+  value. The attributes default to `Path=/`, `SameSite=Lax`, a `Max-Age` of
+  365 days and `Secure` on https, and a name, path or domain a header cannot
+  carry is refused when the mirror is declared. A browser write past
+  `maxBytes` is skipped and reported as `CookieTooLarge`.
+
 - **`RemotePolicy.cacheOnly`, and a policy picked from the Model**
   (`foldkit-remote`, #402). A read under `cacheOnly` asks for nothing: what
   the store holds shows, what changes the store still reaches it (an answer

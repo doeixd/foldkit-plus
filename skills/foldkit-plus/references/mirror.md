@@ -2,8 +2,8 @@
 
 Checked against `foldkit-mirror` 0.6.3.
 
-Keeps part of a Foldkit Model **represented** in the URL or in an Effect
-`KeyValueStore`. The Model stays authoritative, and `update` stays the only
+Keeps part of a Foldkit Model **represented** in the URL, an Effect
+`KeyValueStore`, or a cookie. The Model stays authoritative, and `update` stays the only
 place where state changes. A mirror only observes the state, so it never owns it.
 
 ## Ownership
@@ -12,6 +12,7 @@ place where state changes. A mirror only observes the state, so it never owns it
 | --- | --- | --- |
 | Filter, sort, page, search text, open panel | local Model | URL, via `Mirror.url` |
 | Preference, draft, collapsed sidebar | local Model | `KeyValueStore`, via `Mirror.kv` |
+| A cart or preference a server renders, or a page without scripts keeps | local Model | a cookie, via `Mirror.cookie` |
 | Offline edits that must converge across devices | `foldkit-sync` | not Mirror |
 | Server facts | `foldkit-remote` | not Mirror (put only the id in the URL) |
 
@@ -188,12 +189,64 @@ for (const command of start.commands ?? []) {
   runtime), so a slow store cannot lose its document to the first write.
   Before any answer, a write is checked against what the store holds, so a
   mirror that is never restored writes once its slice agrees with the store.
-- Writes are throttled (URL 50 ms, KV 250 ms, `throttle`) and deduped, so
+- Writes are throttled (URL 50 ms, KV 250 ms, cookie 0, `throttle`) and deduped, so
   `popstate` cannot loop. `location: 'hash'` is supported, and SSR writes nothing.
 - `Mirror.kv({ scope })` scopes to a user or tenant. Another scope or version,
   or a malformed document, is removed. Store failures never throw; they, and a
   malformed document, are reported on `Diagnostics` (`foldkit-surface`) as
-  `StoreUnread`, `StoreUnwritten` and `StoreMalformed` (`MirrorDiagnostic`).
+  `StoreUnread`, `StoreUnwritten` and `StoreMalformed`, and a cookie past
+  `maxBytes` as `CookieTooLarge` (`MirrorDiagnostic`).
+
+## Cookie mirror
+
+`Mirror.cookie(App, { name, fields, attributes?, maxBytes? })` keeps the slice
+in one cookie named `name`, its keys form-encoded in the value. The server
+reads it for the first render, an answer to a form posted without scripts sets
+it, and the browser writes `document.cookie` when the slice changes (at once
+by default):
+
+<!-- docs-check standalone
+import { Option, Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
+import { defineMessageUnion } from 'foldkit/message'
+import { Mirror } from 'foldkit-mirror'
+import { Surface } from 'foldkit-surface'
+const Model = Schema.Struct({ cart: Schema.Array(Schema.String) })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({})
+const initial: Model = { cart: [] }
+const App = Surface.application({ Model, Message, initial, update: (model: Model) => ({ model }) })
+const Page = Bundle.parent({ Model, Message })
+declare const request: Request
+declare const reached: Model
+-->
+
+```ts
+const Cart = Mirror.cookie(App, { name: 'cart', fields: [App.model.cart] })
+
+// Server, before rendering: the request's cookie into the Model.
+const opened = Mirror.bootstrap(initial, Cart.bootstrap(Cart.keysOf(request.headers.get('cookie'))))
+// Server, answering a post: the Set-Cookie for the Model it reached.
+const setCookie: Option.Option<string> = Cart.setCookie(reached, request)
+// Browser: its Subscription writes the cookie.
+const wiring = Page.assemble(Cart.wiring())
+```
+
+- `keysOf` reads only the mirror's own keys, and nothing from a cookie whose
+  `name=value` is past `maxBytes` (4096). `bootstrap` decodes through the
+  field Schemas, so a key that does not decode stays initial.
+- A cookie is the visitor's to edit: decoding checks its shape, and what the
+  app trusts (a price) it checks again on the server.
+- Defaults: `Path=/`, `SameSite=Lax`, `Max-Age` 365 days, `Secure` on https
+  (`secure: 'auto'`). A name, path or domain a header cannot carry, or
+  `SameSite=None` without `secure: true`, throws at declaration. Never
+  `HttpOnly`: the browser writes it.
+- `setCookie` is `None`, and a browser write is skipped and reported as
+  `CookieTooLarge`, when the slice encodes past `maxBytes`; a slice at its
+  defaults clears the cookie (`Max-Age=0`).
+- The wiring handles no Message and reads nothing at startup; the server's
+  render holds the slice. A page with no server bootstraps
+  `Cart.keysOf(document.cookie)` in `init`.
 
 ## Contract, Module, gotchas
 
