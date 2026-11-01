@@ -118,9 +118,10 @@ guide.
 
 **Upstream's Playwright suites, unchanged, against the built Worker**
 (`pnpm parity --project chromium` and `--project webkit`, two workers,
-Windows): **48 of 67 pass in Chromium** (2026-10-31), **43 of 67 in WebKit**
-(2026-10-30, before #381 and #383 were fixed; 27 in Chromium before phase
-7's fixes).
+Windows): **36 of 67 pass in Chromium** and **33 of 67 in WebKit**
+(2026-11-01). They were 48 and 43 (2026-10-31 and 10-30) until #388 had the
+Worker read the prices a page shows and put the filters in the address: the
+new **server read** and **filters in the address** groups below.
 `parity/run.mjs` copies upstream's `e2e/` and the `src/shared/` files its
 specs import into `parity/.suite`, puts the ported `parity/api.ts` in place
 of upstream's mock (it answers reads by name at `/remote`, asking upstream's
@@ -142,48 +143,63 @@ What still fails falls into these groups:
   runs: nothing is prerendered, since the file a static host serves for `/`
   would be served for every `?q=` with an empty box
   ([#383](https://github.com/doeixd/foldkit-plus/issues/383)).
-- **read pattern** (8): the spec counts upstream's 60-name pages ("60 of 556
-  domains checked") or its RPC ranges, or expects one failed range to fail
-  the whole search. The port reads the rows in view, by design: the first
-  read of a search is the top four and the rows in view together, and a
-  scroll reads exactly the rows it brings into view.
+- **server read** (10): the spec mocks `/remote` in the browser, opens
+  `/?q=`, and expects the page to wait on the mock: quote skeletons,
+  "Searching domains", a failed search, or the spec's own sample quotes. The
+  Worker reads every price a page opened at `?q=` shows before it answers
+  (#388), so the page arrives priced from the server's sample results and the
+  browser asks the mock for none of them. By design: the page is whole
+  without scripts.
+- **filters in the address** (4): the spec clears the search and expects
+  the address to be `/`. The port keeps the filters and sort in the address
+  (`?tld=`, `?availability=`, `?sort=`) beside `?q=`, so a page without
+  scripts can be filtered and a reload keeps them (#388); clearing the text
+  leaves them there. Upstream's address holds `?q=` alone.
+- **read pattern** (6): the spec counts upstream's 60-name pages ("60 of 556
+  domains checked") or its RPC ranges. The port reads the rows in view, by
+  design: the first read of a search is the top four and the rows in view
+  together, and a scroll reads exactly the rows it brings into view.
 - **WebKit on Windows** (3, WebKit only): Tab does not reach links in
   Playwright's WebKit on Windows; upstream's own build fails the same three
   there.
 
+`domains.a11y.spec.ts:396` passes in Chromium in most runs; in about one in
+four, End stops short of the last row while the rows it passes are read
+([#406](https://github.com/doeixd/foldkit-plus/issues/406)).
+
 | Spec | Chromium | WebKit |
 | --- | --- | --- |
-| `domains.a11y.spec.ts` | 16 of 17 | 13 of 17 |
-| `domains.mobile.spec.ts` | 18 of 25 | 17 of 25 |
-| `domains.spec.ts` | 14 of 25 | 13 of 25 |
+| `domains.a11y.spec.ts` | 13 of 17 | 10 of 17 |
+| `domains.mobile.spec.ts` | 15 of 25 | 15 of 25 |
+| `domains.spec.ts` | 8 of 25 | 8 of 25 |
 
 | Test | Chromium | WebKit | Why it differs |
 | --- | --- | --- | --- |
 | `domains.a11y.spec.ts:70` landing Tab order follows pricing, search, and source in static HTML | pass | fail | WebKit on Windows (upstream fails it too) |
 | `domains.a11y.spec.ts:70` landing Tab order follows pricing, search, and source after hydration | pass | fail | WebKit on Windows (upstream fails it too) |
 | `domains.a11y.spec.ts:136` landing, results, filters, and cart pass accessibility scans at 1440px | pass | pass |  |
-| `domains.a11y.spec.ts:233` pending quotes and search failure pass accessibility scans at 1440px | pass | pass |  |
+| `domains.a11y.spec.ts:233` pending quotes and search failure pass accessibility scans at 1440px | fail | fail | server read |
 | `domains.a11y.spec.ts:136` landing, results, filters, and cart pass accessibility scans at 390px | pass | pass |  |
-| `domains.a11y.spec.ts:233` pending quotes and search failure pass accessibility scans at 390px | pass | pass |  |
+| `domains.a11y.spec.ts:233` pending quotes and search failure pass accessibility scans at 390px | fail | fail | server read |
 | `domains.a11y.spec.ts:136` landing, results, filters, and cart pass accessibility scans at 320px | pass | pass |  |
-| `domains.a11y.spec.ts:233` pending quotes and search failure pass accessibility scans at 320px | pass | pass |  |
+| `domains.a11y.spec.ts:233` pending quotes and search failure pass accessibility scans at 320px | fail | fail | server read |
 | `domains.a11y.spec.ts:268` keyboard cart removal and retry preserve a useful focus target | pass | pass |  |
 | `domains.a11y.spec.ts:317` filter listboxes support keyboard navigation, typeahead, selection, and dismissal | pass | pass |  |
-| `domains.a11y.spec.ts:396` keyboard users can skip navigation, scroll the complete catalog, and leave the results | pass | fail | WebKit on Windows (upstream fails it too) |
+| `domains.a11y.spec.ts:396` keyboard users can skip navigation, scroll the complete catalog, and leave the results | pass | fail | WebKit on Windows (upstream fails it too); Chromium fails it now and then (#406) |
 | `domains.a11y.spec.ts:478` Tab focus keeps the first virtual row below the navigation at 1440px | pass | pass |  |
 | `domains.a11y.spec.ts:478` Tab focus keeps the first virtual row below the navigation at 390px | pass | pass |  |
-| `domains.a11y.spec.ts:515` loading announcements retain their node outside the busy region and respect reduced motion | fail | fail | read pattern |
+| `domains.a11y.spec.ts:515` loading announcements retain their node outside the busy region and respect reduced motion | fail | fail | server read |
 | `domains.a11y.spec.ts:555` quote buttons describe pricing and renewal terms, and failed searches describe their error | pass | pass |  |
 | `domains.a11y.spec.ts:572` long cart names and text spacing fit a narrow viewport without hiding removal controls | pass | pass |  |
 | `domains.a11y.spec.ts:608` custom filter backgrounds and modal text have readable contrast, and the cart controls its dialog | pass | pass |  |
-| `domains.mobile.spec.ts:22` mobile search supports focus, viewport changes, filters, and clearing in narrow portrait | pass | pass |  |
-| `domains.mobile.spec.ts:22` mobile search supports focus, viewport changes, filters, and clearing in portrait | pass | pass |  |
-| `domains.mobile.spec.ts:22` mobile search supports focus, viewport changes, filters, and clearing in landscape | pass | pass |  |
+| `domains.mobile.spec.ts:22` mobile search supports focus, viewport changes, filters, and clearing in narrow portrait | fail | fail | filters in the address |
+| `domains.mobile.spec.ts:22` mobile search supports focus, viewport changes, filters, and clearing in portrait | fail | fail | filters in the address |
+| `domains.mobile.spec.ts:22` mobile search supports focus, viewport changes, filters, and clearing in landscape | fail | fail | filters in the address |
 | `domains.mobile.spec.ts:150` mobile empty search matches the compact header and survives hydration without moving focus | pass | pass |  |
 | `domains.mobile.spec.ts:233` clearing search and dismissing the mobile keyboard retains the search header before hydration | fail | fail | early input |
 | `domains.mobile.spec.ts:233` clearing search and dismissing the mobile keyboard retains the search header after hydration | pass | pass |  |
 | `domains.mobile.spec.ts:314` tapping Domains focuses search during the mobile gesture before hydration | fail | fail | early input |
-| `domains.mobile.spec.ts:314` tapping Domains focuses search during the mobile gesture after hydration | pass | fail | WebKit not re-run since #383 |
+| `domains.mobile.spec.ts:314` tapping Domains focuses search during the mobile gesture after hydration | pass | pass |  |
 | `domains.mobile.spec.ts:393` mobile submission dismisses focus before hydration and preserves the query at handoff | fail | fail | early input |
 | `domains.mobile.spec.ts:449` mobile cart traps focus, locks page scrolling, and restores focus in portrait | pass | pass |  |
 | `domains.mobile.spec.ts:449` mobile cart traps focus, locks page scrolling, and restores focus in landscape | pass | pass |  |
@@ -208,18 +224,18 @@ What still fails falls into these groups:
 | `domains.spec.ts:179` prefills the URL query after the field receives early focus | fail | fail | early input |
 | `domains.spec.ts:202` first mobile tap moves the same input into the second header row before hydration | pass | pass |  |
 | `domains.spec.ts:254` mobile search scrolls with the hero and stays pinned during a search | pass | pass |  |
-| `domains.spec.ts:344` searches, filters, sorts, and manages the cart | pass | pass |  |
+| `domains.spec.ts:344` searches, filters, sorts, and manages the cart | fail | fail | filters in the address |
 | `domains.spec.ts:396` updates domain names while prices and availability wait for the current lookup | pass | pass |  |
-| `domains.spec.ts:451` quote skeletons preserve card, row, and control geometry at 1440px | pass | pass |  |
-| `domains.spec.ts:451` quote skeletons preserve card, row, and control geometry at 900px | pass | pass |  |
-| `domains.spec.ts:451` quote skeletons preserve card, row, and control geometry at 390px | pass | pass |  |
-| `domains.spec.ts:451` quote skeletons preserve card, row, and control geometry at 320px | pass | fail | WebKit not re-run since #381 |
+| `domains.spec.ts:451` quote skeletons preserve card, row, and control geometry at 1440px | fail | fail | server read |
+| `domains.spec.ts:451` quote skeletons preserve card, row, and control geometry at 900px | fail | fail | server read |
+| `domains.spec.ts:451` quote skeletons preserve card, row, and control geometry at 390px | fail | fail | server read |
+| `domains.spec.ts:451` quote skeletons preserve card, row, and control geometry at 320px | fail | fail | server read |
 | `domains.spec.ts:587` restores queries on reload and browser navigation and ignores superseded searches | pass | pass |  |
 | `domains.spec.ts:616` virtualizes the catalog and preserves scrolling and cart selections across query changes | fail | fail | read pattern |
 | `domains.spec.ts:715` hands URL synchronization to the Runtime without leaving duplicate early listeners | fail | fail | early input |
 | `domains.spec.ts:760` backspacing to a loaded query restores quotes without waiting for debounce or RPC | fail | fail | read pattern |
-| `domains.spec.ts:840` failed lookups hide prices and recover through explicit retry | fail | fail | read pattern |
-| `domains.spec.ts:863` shows multi-year registration and renewal quotes without treating an unconfirmed name as purchasable | pass | pass |  |
+| `domains.spec.ts:840` failed lookups hide prices and recover through explicit retry | fail | fail | server read |
+| `domains.spec.ts:863` shows multi-year registration and renewal quotes without treating an unconfirmed name as purchasable | fail | fail | server read |
 | `domains.spec.ts:906` loads quotes for the visible catalog pages and preserves prices when a later page needs retry | fail | fail | read pattern |
 | `domains.spec.ts:967` ships Inspect DevTools while searches and virtual results stay live at 1440px | fail | fail | read pattern |
 | `domains.spec.ts:967` ships Inspect DevTools while searches and virtual results stay live at 390px | fail | fail | read pattern |
