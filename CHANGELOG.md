@@ -9,6 +9,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`SSR.entry`'s `answerPost: 'redirect'`, and `origins: 'same-origin'`**
+  (`foldkit-ssr`, #390). A handled post is answered `303` to the address it
+  was posted to (its path and query, relative, so it names no other origin)
+  instead of the page, so a reload asks for the page again rather than
+  posting twice; what the post changed reaches that `GET` through what
+  `headers` wrote from the Model it reached, which `prepare` reads back. A
+  refused post is still a `400`. `answerPost` on a plan with no server
+  fallback throws when the entry is made. `origins: 'same-origin'` takes a
+  post only from the origin the request was addressed to, for a site whose
+  address the entry cannot know when it is made, so the entry can be made
+  once.
+
 - **`SSR.entry`'s `prepare`: one entry for a page read before it renders**
   (`foldkit-ssr`, #393). `prepare: (model, request) => Effect<Model>` turns
   the Model `init` gave into the one a request starts from, a

@@ -11,7 +11,7 @@ export default [
     edits: [
       {
         file: index,
-        find: '      ...Option.match(status, { onNone: () => ({}), onSome: status => ({ status }) }),\n',
+        find: '...Option.match(status, { onNone: () => ({}), onSome: status => ({ status }) }),',
         replace: '',
       },
     ],
@@ -19,9 +19,7 @@ export default [
   },
   {
     name: 'status is given the browser’s Model',
-    edits: [
-      { file: index, find: '      model: started.model,\n', replace: '      model: browser,\n' },
-    ],
+    edits: [{ file: index, find: '      model: started.model,', replace: '      model: browser,' }],
     tests: entry,
   },
   {
@@ -29,8 +27,8 @@ export default [
     edits: [
       {
         file: index,
-        find: '        if (!Number.isInteger(status) || status < 200 || status > 599) {',
-        replace: '        if (false) {',
+        find: 'if (Option.isSome(unanswerable)) {',
+        replace: 'if (false) {',
       },
     ],
     tests: entry,
@@ -40,8 +38,8 @@ export default [
     edits: [
       {
         file: index,
-        find: '        if (!Number.isInteger(status) || status < 200 || status > 599) {',
-        replace: '        if (status < 200 || status > 599) {',
+        find: 'given => !Number.isInteger(given) || given < 200',
+        replace: 'given => given < 200',
       },
     ],
     tests: entry,
@@ -51,8 +49,9 @@ export default [
     edits: [
       {
         file: index,
-        find: '          return { page: served.page, extra, status: Option.none<number>() }',
-        replace: '          return { page: served.page, extra, status: Option.some(200) }',
+        find: 'Option.map(Option.fromUndefinedOr(statusOf), of => of(served.model, request))',
+        replace:
+          'Option.orElseSome(Option.map(Option.fromUndefinedOr(statusOf), of => of(served.model, request)), () => 200)',
       },
     ],
     tests: entry,

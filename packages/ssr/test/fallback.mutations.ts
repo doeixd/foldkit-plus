@@ -82,7 +82,7 @@ export default [
     edits: [
       {
         file,
-        find: 'if (posting && !postedFrom(request, origins)) {',
+        find: 'if (posting && !postedFrom(request, originsOf(request))) {',
         replace: 'if (false) {',
       },
     ],
@@ -142,9 +142,9 @@ export default [
     edits: [
       {
         file,
-        find: 'if (posting && !postedFrom(request, origins)) {',
+        find: 'if (posting && !postedFrom(request, originsOf(request))) {',
         replace:
-          'if (posting && (await request.clone().formData(), await request.text(), !postedFrom(request, origins))) {',
+          'if (posting && (await request.clone().formData(), await request.text(), !postedFrom(request, originsOf(request)))) {',
       },
     ],
     tests,
@@ -156,6 +156,28 @@ export default [
         file: '../src/resumable.ts',
         find: 'if (submit === undefined || method || !Array.isArray(children))',
         replace: 'if (submit === undefined || !Array.isArray(children))',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "origins: 'same-origin' takes no post at all",
+    edits: [
+      {
+        file,
+        find: "options.origins === 'same-origin' ? new Set([new URL(request.url).origin]) : origins",
+        replace: 'origins',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "origins: 'same-origin' takes the origin the post claims",
+    edits: [
+      {
+        file,
+        find: 'new Set([new URL(request.url).origin])',
+        replace: "new Set([request.headers.get('origin') ?? ''])",
       },
     ],
     tests,

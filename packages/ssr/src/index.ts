@@ -1175,9 +1175,13 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
      * form cannot carry a CSRF header; this is its check. A post with no
      * `Origin` or `Origin: null` (a page served with `Referrer-Policy:
      * no-referrer`) is taken when `Sec-Fetch-Site` says `same-origin`. Each must be an origin exactly as
-     * a browser sends it (`https://example.com`).
+     * a browser sends it (`https://example.com`). `'same-origin'` takes a
+     * post from the origin the request was addressed to and no other, for a
+     * site served at addresses not known when the entry is made (a dev
+     * server's port); behind a proxy that rewrites the request's host, every
+     * post is refused.
      */
-    readonly origins?: ReadonlyArray<string> | undefined
+    readonly origins?: ReadonlyArray<string> | 'same-origin' | undefined
     /**
      * Markup for the first paint, carried as the rendered root's last
      * children, which `SSR.hydrate` moves into the head. The host owns the
@@ -1192,6 +1196,15 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
      * that throws, is answered `500` and reported, as a failed render is.
      */
     readonly status?: ((model: Model, request: Request) => number) | undefined
+    /**
+     * How a posted form is answered. `'page'`, the default, is the page
+     * `update` reached, at the address the form posted to, so a reload posts
+     * again. `'redirect'` is a `303` to that address, which the browser then
+     * asks for with a `GET` (Post/Redirect/Get): what the post changed must
+     * outlive it where the next request reads it, a cookie `headers` writes
+     * from the Model the post reached. A refused post is still a `400`.
+     */
+    readonly answerPost?: 'page' | 'redirect' | undefined
     /**
      * The paths a build prerenders through this entry (Foldkit's plugin,
      * `ssr.build.prerender`), whose files a static host serves for every
@@ -1217,12 +1230,18 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       `foldkit-ssr: plan "${plan.id}" says what the page says of itself (meta), which is written into the template's head, and the template is the host's: serve it with SSR.generate, not SSR.entry`,
     )
   }
-  for (const origin of options.origins ?? []) {
+  const listed = options.origins === 'same-origin' ? [] : (options.origins ?? [])
+  for (const origin of listed) {
     if (!URL.canParse(origin) || new URL(origin).origin !== origin)
       throw new Error(`foldkit-ssr: ${JSON.stringify(origin)} in origins is not an origin`)
   }
   // A post runs `flags`, the config's resources and the post's own, any of
   // which may act as whoever the cookie says posted.
+  if (options.answerPost !== undefined && plan.fallback !== 'server') {
+    throw new Error(
+      `foldkit-ssr: plan "${plan.id}" has no server fallback, so no form is posted to answer (answerPost)`,
+    )
+  }
   if (plan.fallback === 'server' && options.origins === undefined) {
     throw new Error(
       `foldkit-ssr: plan "${plan.id}" handles posted forms, which run as whoever posted; name the origins a form may be posted from (origins)`,
@@ -1242,7 +1261,9 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     return !route.includes('?') && prerendered.has(pathKey(route)) ? 'path' : 'full'
   }
   // Required above for every plan that takes a post, the only reader of it.
-  const origins = new Set(options.origins ?? [])
+  const origins = new Set(listed)
+  const originsOf = (request: Request): ReadonlySet<string> =>
+    options.origins === 'same-origin' ? new Set([new URL(request.url).origin]) : origins
   const allow = plan.fallback === 'server' ? 'GET, HEAD, POST, OPTIONS' : 'GET, HEAD, OPTIONS'
   // Deleted and appended rather than set, which would keep one `set-cookie` of several.
   const merge = (response: Response, extra: Headers): Response => {
@@ -1292,7 +1313,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     if (method !== 'GET' && method !== 'HEAD' && !posting) {
       return responded(new Response(null, { status: 405, headers: { allow } }))
     }
-    if (posting && !postedFrom(request, origins)) {
+    if (posting && !postedFrom(request, originsOf(request))) {
       return responded(plainText(403, 'The form was not posted from this site.'))
     }
     const flagsOf = options.flags
@@ -1308,14 +1329,24 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
           flagsOf === undefined ? undefined : yield* Effect.tryPromise(async () => flagsOf(request))
         const flagged = flagsOf === undefined ? {} : { flags }
         const prepared = prepare === undefined ? {} : { prepare }
+        const post = {
+          buildId: options.buildId,
+          ...flagged,
+          ...styled,
+          ...prepared,
+          ...(options.resources === undefined ? {} : { resources: options.resources(request) }),
+        }
+        if (posting && options.answerPost === 'redirect') {
+          const model = yield* postedModel(request, config, plan, post)
+          const extra = yield* Effect.sync(() => headersOf(request, Option.some(model)))
+          const redirect = new Response(null, {
+            status: 303,
+            headers: { location: sameAddress(request.url) },
+          })
+          return Responded(extra === undefined ? redirect : merge(redirect, extra))
+        }
         const served = posting
-          ? yield* handleServed(request, config, plan, {
-              buildId: options.buildId,
-              ...flagged,
-              ...styled,
-              ...prepared,
-              ...(options.resources === undefined ? {} : { resources: options.resources(request) }),
-            })
+          ? yield* handleServed(request, config, plan, post)
           : yield* renderMatching(
               prepare === undefined
                 ? config
@@ -1326,16 +1357,25 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
             )
         // `headers` or `status` that throws is a defect, answered 500 and reported.
         const extra = yield* Effect.sync(() => headersOf(request, Option.some(served.model)))
-        if (statusOf === undefined) {
-          return { page: served.page, extra, status: Option.none<number>() }
-        }
-        const status = statusOf(served.model, request)
-        if (!Number.isInteger(status) || status < 200 || status > 599) {
+        const status = Option.map(Option.fromUndefinedOr(statusOf), of => of(served.model, request))
+        const unanswerable = Option.filter(
+          status,
+          given => !Number.isInteger(given) || given < 200 || given > 599,
+        )
+        if (Option.isSome(unanswerable)) {
           return yield* Effect.die(
-            new Error(`status gave ${status} for the page, which is no status between 200 and 599`),
+            new Error(
+              `status gave ${unanswerable.value} for the page, which is no status between 200 and 599`,
+            ),
           )
         }
-        return { page: served.page, extra, status: Option.some(status) }
+        yield* reportUnnamed(config, plan, served.page.unnamed)
+        // No `headers` or `status` key unless given: a `Rendered` that carries
+        // neither stays generatable as a static file.
+        return Rendered(served.page.rendered, {
+          ...(extra === undefined ? {} : { headers: extra }),
+          ...Option.match(status, { onNone: () => ({}), onSome: status => ({ status }) }),
+        })
       }).pipe(reporting),
     )
     if (Exit.isFailure(exit)) {
@@ -1348,16 +1388,20 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       await Effect.runPromise(reporting(Diagnostics.report(pageFailed(request.url, exit.cause))))
       return responded(plainText(500, 'The page could not be rendered.'), { reported: true })
     }
-    const { page, extra, status } = exit.value
-    await Effect.runPromise(reporting(reportUnnamed(config, plan, page.unnamed)))
-    // No `headers` or `status` key unless given: a `Rendered` that carries
-    // neither stays generatable as a static file.
-    return Rendered(page.rendered, {
-      ...(extra === undefined ? {} : { headers: extra }),
-      ...Option.match(status, { onNone: () => ({}), onSome: status => ({ status }) }),
-    })
+    return exit.value
   }
   return { renderPage: answer }
+}
+
+/**
+ * Where a post's answer sends the browser: the address it posted to, its path
+ * and query alone. Relative, so the browser resolves it against that address
+ * and it names no other origin, whatever `Host` the request claimed; leading
+ * slashes collapse to one, since `//elsewhere.test/` would name another host.
+ */
+const sameAddress = (url: string): string => {
+  const { pathname, search } = new URL(url)
+  return `${pathname.replace(/^\/+/, '/')}${search}`
 }
 
 /**
@@ -1569,6 +1613,26 @@ const handleServed = <Model, Fields extends Schema.Struct.Fields>(
   plan: ResumePlan<Model, Fields>,
   options: HandleOptions<Model>,
 ): Effect.Effect<Served<Model>, RenderError | ResumeUnsafe | FallbackRefused> =>
+  Effect.flatMap(postedModel(request, config, plan, options), model =>
+    renderMatching(
+      startingFrom(config, { model }) as ResumableConfig<Model>,
+      plan,
+      {
+        buildId: options.buildId,
+        url: request.url,
+        ...(options.styles === undefined ? {} : { styles: options.styles }),
+      },
+      'full',
+    ),
+  )
+
+/** The Model a posted form reaches: its Message decoded and checked, then `update` and its Commands. */
+const postedModel = <Model, Fields extends Schema.Struct.Fields>(
+  request: Request,
+  config: ResumableConfig<Model>,
+  plan: ResumePlan<Model, Fields>,
+  options: HandleOptions<Model>,
+): Effect.Effect<Model, RenderError | FallbackRefused> =>
   // The post's resources live as long as the post.
   Effect.scoped(
     Effect.gen(function* () {
@@ -1638,17 +1702,7 @@ const handleServed = <Model, Fields extends Schema.Struct.Fields>(
       const post =
         options.resources === undefined ? Context.empty() : yield* Layer.build(options.resources)
       const booted = yield* fold(config, post, start, [], boot)
-      const model = yield* fold(config, post, booted, [message], [])
-      return yield* renderMatching(
-        startingFrom(config, { model }) as ResumableConfig<Model>,
-        plan,
-        {
-          buildId: options.buildId,
-          url: request.url,
-          ...(options.styles === undefined ? {} : { styles: options.styles }),
-        },
-        'full',
-      )
+      return yield* fold(config, post, booted, [message], [])
     }),
   )
 

@@ -946,13 +946,54 @@ A form a cookie session authorizes is a cross-site request forgery target,
 and a form cannot carry a CSRF header. `SSR.entry`'s `origins` names the
 origins a form may be posted from; a post whose `Origin` (every browser sends
 one on a `POST`) is not among them is answered `403` before its body is read
-or `flags` and `resources` run. A page served with `Referrer-Policy:
+or `flags` and `resources` run. `origins: 'same-origin'` takes a post from
+the origin the request was addressed to and no other, for a site whose
+address the entry cannot know when it is made (a dev server's port); behind a
+proxy that rewrites the request's host it refuses every post. A page served with `Referrer-Policy:
 no-referrer` posts `Origin: null` even to its own site; such a post, or one
 with no `Origin` at all, is taken when its Fetch Metadata `Sec-Fetch-Site`,
 which no page or form can set, says `same-origin`, and refused without it. A plan with a server fallback requires `origins`, since a post
 runs `flags`, the config's `resources` and its own as whoever the cookie says
 posted: an entry made without them throws. An entry of your own that calls
 `SSR.handle` checks `Origin` itself.
+
+### Answering a post with a redirect
+
+The page a post renders sits at the address the form posted to, so a reload
+asks to post again. That is harmless for an idempotent Message and wrong for
+one that orders or sends something. `answerPost: 'redirect'` answers the post
+`303` to the same address instead, and the browser asks for it with a `GET`
+(Post/Redirect/Get):
+
+```text
+POST /todos ──▶ update, and its Commands ──▶ 303, Location: /todos, headers(request, some(model))
+GET  /todos ──▶ init, prepare ──▶ the page, rendered
+```
+
+```ts
+SSR.entry(config, Todos, {
+  buildId,
+  origins: ['https://example.com'],
+  answerPost: 'redirect',
+  // What the post changed has to outlive it: the next request starts from `init`.
+  headers: (_request, model) =>
+    Option.match(model, {
+      onNone: () => ({}),
+      onSome: ({ todos }) => ({
+        'set-cookie': `todos=${encodeURIComponent(JSON.stringify(todos))}; Path=/; HttpOnly; SameSite=Lax`,
+      }),
+    }),
+})
+```
+
+The `Location` is the posted address's path and query, relative, so the
+browser resolves it against the address it posted to and it can name no
+other origin, whatever `Host` the request claimed. The `GET` starts from
+`init` and `prepare`, so whatever the post changed reaches it only through
+what `headers` wrote (a cookie) or a store of the application's; `prepare`
+reads it back. The page shows nothing else of the post: a message about its
+outcome is a one-shot cookie the application writes and `prepare` reads. A
+refused post is still a `400`, and a failing Command a `500`.
 
 ### A whole page without scripts
 
@@ -974,9 +1015,10 @@ is the guide. What the port needed from this package:
   `<noscript>` is not drawn by the view, and the page would not be the one
   the browser renders first.
 - **Keep state between posts yourself.** A post starts from `init`, so what
-  must outlive it lives in a cookie the entry reads, validated as it is read,
-  and `headers(request, model)` writes it back from the Model the post
-  reached.
+  must outlive it lives in a cookie the entry reads in `prepare`, validated
+  as it is read, and `headers(request, model)` writes it back from the Model
+  the post reached. With that, answer posts with a redirect
+  (`answerPost: 'redirect'`), so a reload does not post again.
 - **Wait for the takeover in a scripted test.** The served page works on its
   own, so a click before boot posts. The root loses `data-foldkit-plus-resume`
   as the page boots.

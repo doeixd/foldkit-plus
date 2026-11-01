@@ -227,6 +227,23 @@ describe('SSR.handle through handleRequest', () => {
     expect((await serve(request, guarded)).status).toBe(200)
   })
 
+  it.each([
+    ['its own origin', 'https://example.test/todos', 'https://example.test', 200],
+    ['another origin', 'https://example.test/todos', 'https://elsewhere.test', 403],
+    ['an origin it was not addressed to', 'https://other.test/todos', 'https://example.test', 403],
+  ] as const)(
+    "takes a form under origins: 'same-origin' only from %s",
+    async (_, url, origin, status) => {
+      const same = SSR.entry(config, plan, { buildId: 'b', origins: 'same-origin' })
+      const request = new Request(url, {
+        method: 'POST',
+        headers: { ...html, origin },
+        body: new URLSearchParams({ [FALLBACK_FIELD]: added }),
+      })
+      expect((await serve(request, same)).status).toBe(status)
+    },
+  )
+
   it('serves a page to any origin: only a post is checked', async () => {
     const guarded = SSR.entry(config, plan, { buildId: 'b', origins: ['https://example.test'] })
     const response = await serve(
@@ -353,5 +370,62 @@ describe('SSR.handle through handleRequest', () => {
     )
     expect(other.status).toBe(405)
     expect(other.headers.get('allow')).toBe('GET, HEAD, POST, OPTIONS')
+  })
+})
+
+describe("answerPost: 'redirect' (Post/Redirect/Get)", () => {
+  const statuses: Array<number> = []
+  const redirecting = SSR.entry(config, plan, {
+    buildId: 'b',
+    origins,
+    answerPost: 'redirect',
+    // The post's outcome travels in what `headers` writes from its Model.
+    headers: (_request, model) =>
+      Option.match(model, {
+        onNone: () => ({}),
+        onSome: ({ todos }) => ({ 'set-cookie': `todos=${todos.join('|')}` }),
+      }),
+    status: () => {
+      statuses.push(200)
+      return 200
+    },
+  })
+
+  it('answers a post 303 to the address it posted to, with the headers of the Model it reached', async () => {
+    statuses.length = 0
+    const response = await serve(post({ title: 'Milk', [FALLBACK_FIELD]: added }), redirecting)
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/todos?view=all')
+    expect(response.headers.getSetCookie()).toEqual(['todos=Served|Milk'])
+    expect(await response.text()).toBe('')
+    // Nothing was rendered, so nothing asked for a page's status.
+    expect(statuses).toEqual([])
+  })
+
+  it('redirects to a path of its own origin, whatever the posted address looks like', async () => {
+    const request = new Request('https://example.test//elsewhere.test/a?b=1', {
+      method: 'POST',
+      headers: { ...html, origin: 'https://example.test' },
+      body: new URLSearchParams({ [FALLBACK_FIELD]: added }),
+    })
+    const response = await serve(request, redirecting)
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/elsewhere.test/a?b=1')
+  })
+
+  it('still answers a refused post 400, and a page GET as before', async () => {
+    expect((await serve(post({ [FALLBACK_FIELD]: 'not json' }), redirecting)).status).toBe(400)
+    const page = await serve(
+      new Request('https://example.test/todos', { headers: html }),
+      redirecting,
+    )
+    expect(page.status).toBe(200)
+  })
+
+  it('is refused for a plan that takes no post', () => {
+    const eager = SSR.plan(App, { id: 'todos', state: plan.state, surfaces: plan.surfaces })
+    expect(() => SSR.entry(config, eager, { buildId: 'b', answerPost: 'redirect' })).toThrow(
+      'no form is posted to answer',
+    )
   })
 })

@@ -253,7 +253,7 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   root's last children for a served page, which has no template head to
   write to; `SSR.hydrate` moves them into the head (hydration would remove
   them), and styles for a void root are refused with `VoidRootWithStyles`.
-- `SSR.entry(config, plan, { buildId, flags?, headers?, status?, prerendered?, diagnostics? })` returns the
+- `SSR.entry(config, plan, { buildId, flags?, prepare?, headers?, status?, origins?, answerPost?, prerendered?, diagnostics? })` returns the
   `{ renderPage }` a Foldkit server entry exports for `handleRequest` (or the
   `foldkit` Vite plugin's dev server). `GET` and `HEAD` render, `POST` is
   handled for a plan with `fallback: 'server'`; other methods get `405`; a
@@ -308,7 +308,12 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   services (who posted: `AuthServer.resolver({ …, requests: 'browser' })`
   from `foldkit-auth`). A plan with a server fallback requires `origins`: a
   post whose `Origin` is not among them is `403`, since a form cannot carry a
-  CSRF header.
+  CSRF header. `origins: 'same-origin'` takes only the origin the request
+  was addressed to (a dev server's unknown port). `answerPost: 'redirect'`
+  answers a handled post `303` to its own path and query (relative, never
+  another origin) instead of the page, so a reload does not post again;
+  what the post changed reaches the next `GET` only through what `headers`
+  wrote from the Model it reached (a cookie), which `prepare` reads back.
 - The route check compares path and query with the URL the server rendered.
   A page from `SSR.generate(config, plan, { buildId, template, origin, paths })`
   records its path alone, since a static host ignores the query: it resumes at
