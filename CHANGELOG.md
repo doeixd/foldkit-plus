@@ -193,6 +193,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`Remote` is an ES module namespace** (`foldkit-remote`, #396), as
+  `Entity` is: a page keeps only the members it calls. A page that never
+  calls `Remote.http`, `Remote.json`, `Remote.clientLayer`,
+  `Remote.coalesced`, `Remote.rpcProtocolHttp` or `Remote.resume` keeps none
+  of their modules, and each member nothing calls goes too: domains-plus and
+  Chirp each keep 15.7 kB less JavaScript (about 5 kB gzipped). Every
+  `Remote.x` reads as before; `Remote` is now a module namespace, so it is
+  read-only and `typeof Remote` is the module's type. `foldkit-remote`'s
+  build leaves relative imports as written, one file per module, so the
+  published namespace stays one.
+
 - **`Crud.editor`'s form is busy until its save is answered** (`foldkit-crud`,
   #387; breaking). A placed editor's `onOut` moved into `placement` (`{ onOut,
   viewInputs }`): place it with `Page.at(Slot, Editor.placement)` or

@@ -369,6 +369,30 @@ On the Entity side, the `Entity` object reaches `invariant`, which imports
    `Operators.kernel`, the default operator table `Remote.make` takes. Each
    is its own change (a `Remote` namespace as `Entity`'s, and the operator
    table apart from the expression builders), not a capability.
+   **`Remote` a namespace (#396, 2026-11-01).** `Remote` is the ES module
+   `remote.ts`, exported as `export * as Remote`, and its calls are marked
+   `@__PURE__` where they build a value (`Model`, `Message`, the `Effect.fn`
+   members); a bundler keeps an unmarked top-level call though nothing reads
+   it. What its members share moved to `domain.ts`, which imports neither, so
+   the namespace has no cycle back to `index.ts`. `markAll` moved out of
+   `resume.ts` (to `deferrable.ts`), since every page's `subscriptions` marks
+   its entries. Measured as above, *before* at `222d6eb3` (#397 in), *after*
+   with the namespace:
+   | example | before | after |
+   | --- | ---: | ---: |
+   | domains-plus, all JS | 878.1 kB, 275.1 kB gz | 862.4 kB, 270.2 kB gz |
+   | domains-plus, Remote | 186.2 kB | 179.5 kB |
+   | Chirp, page JS | 1,145.0 kB, 368.0 kB gz | 1,129.3 kB, 362.9 kB gz |
+   | Chirp, Remote | 262.2 kB | 247.5 kB |
+   domains-plus calls `Remote.http`, `Remote.clientLayer` and `Remote.resume`,
+   so it keeps `json`, `coalesce` and `resume` as it should; what it drops is
+   the members it never calls (`prefetch`, `mutateInto`, `retain`, `observe`,
+   `query`, `patch` with `patchValues`, …) and the Effect code only they
+   reached: 15.7 kB of its JavaScript, 4.9 kB gzipped. Chirp resumes nothing
+   and sends through its sandbox's own client, so it drops `resume` and most
+   of `json` too: 15.7 kB, 5.1 kB gzipped. The page in
+   `readOnlyPage.test.ts`, which calls none of the transports, keeps none of
+   `coalesce`, `json`, `rpc` or `resume`.
    **The operator table (#397, 2026-11-01).** Nothing in the table itself
    reached `expr.ts` but the kernel's one operator: `Text.startsWith` is made
    by `Expr.operator` in a module-level call, and the call keeps the `Expr`

@@ -27,7 +27,7 @@ devices' or build on their own unsent effects, it is not Remote. Also not for
 local-only state or single-endpoint request caching.
 
 Packages:
-- `foldkit-remote` (client): entities, normalized store, `Remote.Model` + reducer, queries, optimistic overlays, live cursors, `RemoteClient`.
+- `foldkit-remote` (client): entities, normalized store, `Remote.Model` + reducer, queries, optimistic overlays, live cursors, `RemoteClient`. `Remote` is an ES module namespace, not an object: a page keeps only the members it calls (one that never calls `Remote.http` or `Remote.resume` keeps no transport or resume code).
 - `foldkit-remote-server`: interprets requirements against your Sources with field authorization and a live hub; not transport, auth, or a DB.
 - `foldkit-remote-drizzle` (provisional): compiles selections and queries into Drizzle SELECTs; needs a `DrizzleDatabase` you provide.
 
