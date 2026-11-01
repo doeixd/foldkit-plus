@@ -156,6 +156,7 @@ Each carries a status note at its head saying what it waits for.
 | [remote-improvement-2-DESIGN.md](./remote-improvement-2-DESIGN.md) | An outside proposal for a shared, versioned domain contract that Entity, Remote, Drizzle, Sync and Durable interpret. Not adopted as a plan. |
 | [solid-2-optimistic-COMPARISON.md](./solid-2-optimistic-COMPARISON.md) | Solid 2.0's stores, `action`, optimistic stores, `until` and `affects` (from its beta RFCs), compared with Remote's predicted pending layers; four ideas worth taking (2026-10-30). |
 | [solid-2-forms-cache-COMPARISON.md](./solid-2-forms-cache-COMPARISON.md) | Solid 2's `query` cache, `formAction`, single flight and progressive-enhancement practice, against Remote, `foldkit-form` and `fallback: 'server'`: what we take (#386 single flight for lists, #387 a form busy until its write is answered, #388 domains-plus with JavaScript off, Back/Forward from held data on #236) and what we do not. |
+| [fate-cache-COMPARISON.md](./fate-cache-COMPARISON.md) | fate's read modes, retention, list windows, explicit writes, live events, saved reads and offline writes, against Remote: what we keep (derived refresh and placement, the entry budget, the whole restore) and the plan (#401 Back/Forward from held lists, #402 `cacheOnly`, #403 an outbox write waits for sign-in, #404 saved reads with an age and eviction order). |
 
 ### History and earlier exploration
 
