@@ -338,7 +338,10 @@ const writes: WriteCapability = {
                             ...(outcome.lists === undefined ? {} : { lists: outcome.lists }),
                             ...(outcome.principal === undefined
                               ? {}
-                              : { principal: madeAsOf(outcome.principal) }),
+                              : {
+                                  principal: madeAsOf(outcome.principal),
+                                  generation: context.bound.store.get(startedModel).refresh.floor,
+                                }),
                             now: at,
                           })),
                       }),

@@ -29,6 +29,8 @@ afterEach(() => {
   localStorage.clear()
   sent.length = 0
   signedOut = false
+  atOnce = false
+  moves.length = 0
 })
 
 const Item = Entity.define('Item', Schema.Struct({ id: Schema.String, count: Schema.Number }))
@@ -60,7 +62,11 @@ const initial: Model = Data.reduce(
   },
 )
 
+/** Each `OutboxMoved` any tab said, by the operations it named. */
+const moves: Array<ReadonlyArray<string>> = []
+
 const update = (model: Model, message: Message): Update.Return<Model, Message, RemoteClient> => {
+  if (message._tag === 'OutboxMoved') moves.push(message.requestIds)
   if (isRemoteMessage(message)) return { model: Data.reduce(model, message) }
   if (message._tag === 'SignedIn') return { model: Data.signedIn(model) }
   const started = Data.mutate(model, SetCount, { id: 'i1', count: 2 }, { durable: true })
@@ -89,35 +95,45 @@ const view = (model: Model, h: HtmlBuilder<Message>) => {
 const sent: Array<string | undefined> = []
 let answer: () => void = () => undefined
 let signedOut = false
+/** Answers each write as it arrives, rather than when a test lets it. */
+let atOnce = false
+const applied = {
+  output: {},
+  entities: [{ entity: 'Item', id: 'i1', values: { count: 2 } }],
+  connections: [],
+  deleted: [],
+}
 const client: RemoteClient['Service'] = {
   read: () => Effect.succeed({ settled: [], entities: [] }),
   query: () => Effect.succeed({ edges: [], start: terminal, end: terminal }),
   mutate: request =>
-    signedOut
-      ? Effect.sync(() => sent.push(request.operation)).pipe(
-          Effect.andThen(
-            Effect.fail(new RemoteUnauthenticated({ message: 'Your session ended.' })),
-          ),
-        )
-      : Effect.promise(
-          () =>
-            new Promise<void>(resolve => {
-              sent.push(request.operation)
-              answer = resolve
+    atOnce
+      ? Effect.sync(() => sent.push(request.operation)).pipe(Effect.as(applied))
+      : signedOut
+        ? Effect.sync(() => sent.push(request.operation)).pipe(
+            Effect.andThen(
+              Effect.fail(new RemoteUnauthenticated({ message: 'Your session ended.' })),
+            ),
+          )
+        : Effect.promise(
+            () =>
+              new Promise<void>(resolve => {
+                sent.push(request.operation)
+                answer = resolve
+              }),
+          ).pipe(
+            Effect.as({
+              output: {},
+              entities: [{ entity: 'Item', id: 'i1', values: { count: 2 } }],
+              connections: [],
+              deleted: [],
             }),
-        ).pipe(
-          Effect.as({
-            output: {},
-            entities: [{ entity: 'Item', id: 'i1', values: { count: 2 } }],
-            connections: [],
-            deleted: [],
-          }),
-        ),
+          ),
   live: () => Stream.empty,
 }
 
 /** A tab: the application in a section of its own, over the page's `localStorage`. */
-const tab = (name: string) => {
+const tab = (name: string, start: Model = initial) => {
   const section = document.createElement('section')
   section.className = name
   const container = document.createElement('div')
@@ -128,7 +144,7 @@ const tab = (name: string) => {
     Runtime.makeElement({
       Model,
       Flags: Model,
-      flags: durable.restore(initial),
+      flags: durable.restore(start),
       init: (model: Model) => ({ model }),
       update,
       view,
@@ -193,6 +209,63 @@ it('shows a write no one is signed in to send as waiting for a sign-in in both t
     await vi.waitFor(() => expect([a.read('waiting'), b.read('waiting')]).toEqual(['0', '0']))
     expect(sent[1]).toBe(sent[0])
     expect(JSON.parse(localStorage.getItem('tabs:ada') ?? '{}')).toMatchObject({ entries: [] })
+  } finally {
+    a.handle.dispose()
+    b.handle.dispose()
+  }
+})
+
+it("moves a visitor's writes once when two tabs race to: said once, none lost or sent twice (#405)", async () => {
+  // A visitor's two writes, waiting for a sign-in, in the visitor's queue.
+  const visitorWrite = (operation: string, count: number) => ({
+    operation,
+    mutation: 'SetCount',
+    input: { id: 'i1', count },
+    optimistic: [],
+    shown: [],
+    madeAs: { _tag: 'Visitor' },
+    revision: 1,
+    state: { _tag: 'WaitingForSignIn', error: { _tag: 'Unauthenticated', message: 'Sign in.' } },
+  })
+  localStorage.setItem(
+    'tabs:visitor',
+    JSON.stringify({
+      version: 1,
+      scope: 'visitor',
+      entries: [visitorWrite('v-1', 2), visitorWrite('v-2', 3)],
+      done: [],
+    }),
+  )
+  // Both tabs held the visitor's queue, forgot it on Ada's sign-in, and heard her.
+  const visitor = Data.reduce(
+    { ...initial, actor: 'visitor' },
+    { _tag: 'OutboxRead', key: 'tabs:visitor', scope: 'visitor', entries: [], done: [] },
+  )
+  const forgotten = { ...Data.forget(visitor), actor: 'ada' }
+  const ada = Data.reduce(forgotten, {
+    _tag: 'ReadReceived',
+    requests: [],
+    result: { entities: [], settled: [], principal: 'User:ada' },
+    now: 0,
+    generation: forgotten.remote.refresh.floor,
+  })
+  atOnce = true
+  const a = tab('a', ada)
+  const b = tab('b', ada)
+  try {
+    await vi.waitFor(() => expect([...sent].sort()).toEqual(['v-1', 'v-2']))
+    await new Promise(resolve => setTimeout(resolve, 200))
+    expect(moves).toEqual([['v-1', 'v-2']])
+    expect([...sent].sort()).toEqual(['v-1', 'v-2'])
+    expect(JSON.parse(localStorage.getItem('tabs:visitor') ?? '{}')).toMatchObject({
+      entries: [],
+    })
+    await vi.waitFor(() =>
+      expect(JSON.parse(localStorage.getItem('tabs:ada') ?? '{}')).toMatchObject({
+        entries: [],
+        done: expect.arrayContaining(['v-1', 'v-2']),
+      }),
+    )
   } finally {
     a.handle.dispose()
     b.handle.dispose()

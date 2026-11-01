@@ -392,6 +392,12 @@ export type RemoteMessage =
       readonly requests: readonly Requirement[]
       readonly result: Schema.Schema.Type<typeof ReadBatchResult>
       readonly now: number
+      /**
+       * The refresh generation the request was planned or sent under: whom
+       * the answer was for is heard only from a request sent since the last
+       * `forget` (#405). Without it, it is not heard.
+       */
+      readonly generation?: number | undefined
     }
   | {
       readonly _tag: 'ReadFailed'
@@ -532,6 +538,11 @@ export type RemoteMessage =
       readonly entries: ReadonlyArray<ReadEntry>
       readonly done: ReadonlyArray<string>
       readonly unsaved?: string | undefined
+      /**
+       * Whom a page holding this queue last heard the server answer as: a
+       * page that has heard no one yet stamps its writes with it (#405).
+       */
+      readonly principal?: MadeAs | undefined
     }
   /** A durable write was sent and nothing answered; it is sent again after a wait. */
   | {
@@ -543,14 +554,29 @@ export type RemoteMessage =
   /**
    * Writes made with no one signed in, waiting under the `from` scope's queue,
    * moved to the `to` scope's queue once an answer named who signed in: sent
-   * as them from then on. Said once, by the tab that moved them, for the
-   * application to tell the person (#405). It changes nothing in the Model.
+   * as them from then on. `from` and `to` are one scope for writes stamped in
+   * place, a visitor's or ones made before any answer said who, when an
+   * answer names someone without the scope moving. Said once, by the tab
+   * that moved them, for the application to tell the person (#405). It
+   * changes nothing in the Model.
    */
   | {
       readonly _tag: 'OutboxMoved'
       readonly requestIds: ReadonlyArray<string>
       readonly from: string
       readonly to: string
+    }
+  /**
+   * Writes in the `scope`'s queue made for someone other than whom an answer
+   * names now (the cookie changed hands while the scope did not): none is
+   * sent, nor any after them, until an answer names whom they were made for
+   * again. Said once per change, by each page that hears it (#405). It
+   * changes nothing in the Model.
+   */
+  | {
+      readonly _tag: 'OutboxHeld'
+      readonly requestIds: ReadonlyArray<string>
+      readonly scope: string
     }
   | {
       readonly _tag: 'MutationSucceeded'
@@ -575,6 +601,12 @@ export type RemoteMessage =
       readonly now: number
       /** Whom the answer was for, where `MutationResult.principal` said. */
       readonly principal?: MadeAs | undefined
+      /**
+       * The refresh generation the request was planned or sent under: whom
+       * the answer was for is heard only from a request sent since the last
+       * `forget` (#405). Without it, it is not heard.
+       */
+      readonly generation?: number | undefined
     }
   | {
       readonly _tag: 'MutationFailed'
@@ -636,6 +668,12 @@ export type RemoteMessage =
       readonly now?: number | undefined
       /** Whom the answer was for, where `QueryResult.principal` said. */
       readonly principal?: MadeAs | undefined
+      /**
+       * The refresh generation the request was planned or sent under: whom
+       * the answer was for is heard only from a request sent since the last
+       * `forget` (#405). Without it, it is not heard.
+       */
+      readonly generation?: number | undefined
     }
   | { readonly _tag: 'ConnectionInvalidated'; readonly connection: string }
   | { readonly _tag: 'ConnectionRefreshed'; readonly connection: string }
@@ -685,6 +723,7 @@ export const remoteMessageCases = {
     requests: Schema.Array(ReadRequest),
     result: ReadBatchResult,
     now: Schema.Number,
+    generation: Schema.optional(Schema.Number),
   },
   ReadFailed: {
     requests: Schema.Array(ReadRequest),
@@ -739,6 +778,7 @@ export const remoteMessageCases = {
     entries: Schema.Array(Schema.Unknown),
     done: Schema.Array(Schema.String),
     unsaved: Schema.optional(Schema.String),
+    principal: Schema.optional(MadeAs),
   },
   OutboxDelayed: { requestId: Schema.String, attempt: Schema.Number, error: remoteErrorSchema },
   OutboxMoved: {
@@ -746,6 +786,7 @@ export const remoteMessageCases = {
     from: Schema.String,
     to: Schema.String,
   },
+  OutboxHeld: { requestIds: Schema.Array(Schema.String), scope: Schema.String },
   MutationSucceeded: {
     requestId: Schema.String,
     entities: Schema.Array(NormalizedEntity),
@@ -757,6 +798,7 @@ export const remoteMessageCases = {
     lists: Schema.optional(Schema.Array(AnswerList)),
     now: Schema.Number,
     principal: Schema.optional(MadeAs),
+    generation: Schema.optional(Schema.Number),
   },
   MutationFailed: { requestId: Schema.String, error: remoteErrorSchema, operation: Schema.String },
   OverlayShown: { id: Schema.String, optimistic: Schema.Array(Schema.Unknown) },
@@ -778,6 +820,7 @@ export const remoteMessageCases = {
     settled: Schema.optional(Schema.Array(SettledFields)),
     now: Schema.optional(Schema.Number),
     principal: Schema.optional(MadeAs),
+    generation: Schema.optional(Schema.Number),
   },
   ConnectionInvalidated: { connection: Schema.String },
   ConnectionRefreshed: { connection: Schema.String },
@@ -1282,10 +1325,18 @@ const placedIn = (queue: ReadonlyArray<Queued>, queued: Queued): ReadonlyArray<Q
 
 /**
  * The outbox having heard whom an answer was for. Itself when the answer did
- * not say, or said what it holds.
+ * not say, said what it holds, or answers a request sent before the last
+ * `forget` (its `generation` below `refresh.floor`), which was someone else's.
  */
-const heardAs = (outbox: OutboxState, heard: MadeAs | undefined): OutboxState => {
-  if (heard === undefined) return outbox
+const heardAs = (
+  model: RemoteModel,
+  outbox: OutboxState,
+  heard: MadeAs | undefined,
+  generation: number | undefined,
+): OutboxState => {
+  if (heard === undefined || generation === undefined || generation < model.refresh.floor) {
+    return outbox
+  }
   const same = Option.exists(outbox.principal, held =>
     Match.valueTags(held, {
       Visitor: () => heard._tag === 'Visitor',
@@ -1575,6 +1626,10 @@ const readOutbox = (
     recorded.push(outboxUnsaved({ key: message.key, reason: message.unsaved }))
   }
   const session = Option.orElse(before.session, () => Option.fromUndefinedOr(message.session))
+  // A page that has heard no one yet takes whom a page holding the queue last heard.
+  const principal = Option.isSome(before.principal)
+    ? before.principal
+    : Option.fromUndefinedOr(message.principal)
   const unchanged =
     !switching &&
     next === start &&
@@ -1583,6 +1638,7 @@ const readOutbox = (
     Option.contains(before.key, message.key) &&
     Option.contains(before.scope, message.scope) &&
     Option.isSome(before.session) === Option.isSome(session) &&
+    Option.isSome(before.principal) === Option.isSome(principal) &&
     queue.length === before.queue.length &&
     queue.every((queued, index) => queued === before.queue[index])
   if (unchanged) return model
@@ -1594,7 +1650,7 @@ const readOutbox = (
       scope: Option.some(message.scope),
       queue,
       done,
-      principal: before.principal,
+      principal,
       left: switching ? leftOf(model.outbox) : before.left,
     },
     diagnostics: withDiagnostics(next.diagnostics, recorded),
@@ -1667,8 +1723,10 @@ const reduceRemote = (
       return {
         ...model,
         outbox: heardAs(
+          model,
           model.outbox,
           message.result.principal === undefined ? undefined : madeAsOf(message.result.principal),
+          message.generation,
         ),
         entities: writeRead(model.entities, message.requests, message.result, message.now),
         loading: withoutLoading(model.loading, message.requests),
@@ -1907,7 +1965,12 @@ const reduceRemote = (
             ? settled.store
             : writeRead(settled.store, read.requests, read.result, message.now),
         mutations: settled.state,
-        outbox: heardAs(withoutQueued(model.outbox, message.requestId), message.principal),
+        outbox: heardAs(
+          model,
+          withoutQueued(model.outbox, message.requestId),
+          message.principal,
+          message.generation,
+        ),
         optimistic: settled.optimistic,
         failures: withoutFieldFailures(model.failures, [
           ...(read === undefined
@@ -1922,6 +1985,7 @@ const reduceRemote = (
     }
     case 'MutationQueued':
     case 'OutboxMoved':
+    case 'OutboxHeld':
       return model
     case 'OutboxDelayed':
       return {
@@ -2094,7 +2158,7 @@ const reduceRemote = (
               ),
         failures,
         loading,
-        outbox: heardAs(model.outbox, message.principal),
+        outbox: heardAs(model, model.outbox, message.principal, message.generation),
       }
     }
     case 'ConnectionInvalidated':

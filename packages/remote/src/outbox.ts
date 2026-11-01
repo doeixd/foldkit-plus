@@ -27,12 +27,16 @@ import {
   storedText,
   moveLock,
   storeLock,
+  storedChange,
   StoredWrite,
+  emptyStoredOutbox,
+  sendable,
   withLock,
   type RetryOptions,
   type StoredOutbox,
 } from './outboxStore.js'
 import { madeAsOf, Queued, type MadeAs, type OutboxState } from './queue.js'
+import { RemotePrincipalChanged } from './wire.js'
 import type { RemoteError } from './remoteData.js'
 
 export type { RetryOptions } from './outboxStore.js'
@@ -87,8 +91,10 @@ export interface OutboxWiring<AppModel> extends Wiring<
  * by every tab. Start `init` from its `restore`. A change of principal should
  * `forget` in `update`, and name another `key`. Each write is sent naming
  * whom the server last said it answered as when it was queued, and the
- * server runs it for no one else; a visitor's moves to the queue of whoever
- * signs in first (`OutboxMoved`, #405).
+ * server runs it for no one else: one made for someone other than whom an
+ * answer names is held (`OutboxHeld`), and a visitor's is stamped as, and
+ * moved to the queue of, whoever signs in first (`OutboxMoved`, #405). Whom
+ * the page heard is saved with the queue, for a reload.
  */
 export const outbox = <AppModel>(
   domain: OutboxDomain<AppModel>,
@@ -124,6 +130,7 @@ export const outbox = <AppModel>(
     scope,
     entries: readEntries(stored, inputOf),
     done: stored.done,
+    ...Option.match(stored.principal, { onNone: () => ({}), onSome: principal => ({ principal }) }),
     ...extra,
   })
   /** Tells the other tabs on `key` the store changed, with the answer that changed it. */
@@ -182,18 +189,13 @@ export const outbox = <AppModel>(
       ),
       Effect.catch(error =>
         Effect.succeed(
-          readOf(
-            key,
-            scope,
-            { entries: [], done: [] },
-            {
-              ...Option.match(session, {
-                onNone: () => ({}),
-                onSome: minted => ({ session: minted }),
-              }),
-              unsaved: error.message,
-            },
-          ),
+          readOf(key, scope, emptyStoredOutbox, {
+            ...Option.match(session, {
+              onNone: () => ({}),
+              onSome: minted => ({ session: minted }),
+            }),
+            unsaved: error.message,
+          }),
         ),
       ),
     )
@@ -282,7 +284,7 @@ export const outbox = <AppModel>(
   }
 
   /** Sends `write`, as the one tab on `key` that sends, until the server answers it. */
-  const sent = (key: string, scope: string, write: StoredWrite) =>
+  const sent = (key: string, scope: string, write: StoredWrite, generation: number) =>
     Stream.callback<RemoteMessage, never, KeyValueStore.KeyValueStore | RemoteClient>(queue => {
       const emit = (message: RemoteMessage) => Queue.offer(queue, message)
       /**
@@ -336,10 +338,10 @@ export const outbox = <AppModel>(
                   ...(outcome.lists === undefined ? {} : { lists: outcome.lists }),
                   ...(outcome.principal === undefined
                     ? {}
-                    : { principal: madeAsOf(outcome.principal) }),
+                    : { principal: madeAsOf(outcome.principal), generation }),
                   now: at,
                 },
-                { entries: [], done: [operation] },
+                storedChange([], [operation]),
               )
             }
             const error = remoteError(result.failure)
@@ -362,10 +364,7 @@ export const outbox = <AppModel>(
                 revision: write.revision + 1,
                 state: { _tag: 'WaitingForSignIn', error },
               } as const
-              return yield* Effect.flatMap(
-                saved(key, scope, { entries: [waiting], done: [] }),
-                emit,
-              )
+              return yield* Effect.flatMap(saved(key, scope, storedChange([waiting], [])), emit)
             }
             // Nothing answered: kept waiting, and sent again after a wait.
             if (next === 'sendAgain') {
@@ -378,12 +377,10 @@ export const outbox = <AppModel>(
             }
             return yield* settle(
               { _tag: 'MutationFailed', requestId: operation, error, operation },
-              {
-                entries: [
-                  { ...write, revision: write.revision + 1, state: { _tag: 'Failed', error } },
-                ],
-                done: [],
-              },
+              storedChange(
+                [{ ...write, revision: write.revision + 1, state: { _tag: 'Failed', error } }],
+                [],
+              ),
             )
           }
         }),
@@ -405,16 +402,22 @@ export const outbox = <AppModel>(
   const send: EntryWithoutKeepAlive<
     AppModel,
     RemoteMessage,
-    { readonly key: string; readonly scope: string; readonly head: Option.Option<string> },
+    {
+      readonly key: string
+      readonly scope: string
+      readonly head: Option.Option<string>
+      readonly generation: number
+    },
     KeyValueStore.KeyValueStore | RemoteClient
   > = {
     dependenciesSchema: Schema.Struct({
       key: Schema.String,
       scope: Schema.String,
       head: Schema.OptionFromNullOr(Schema.String),
+      generation: Schema.Number,
     }),
     modelToDependencies: model => {
-      const { outbox } = domain.store.get(model)
+      const { outbox, refresh } = domain.store.get(model)
       const key = options.key(model)
       const scope = options.scope(model)
       return {
@@ -422,21 +425,27 @@ export const outbox = <AppModel>(
         scope,
         // Another scope's queue is never sent: it was made as someone else.
         head: holding(outbox, key, scope) ? headTextOf(outbox) : Option.none(),
+        // Whom its answer was for is heard only while no `forget` came between.
+        generation: refresh.floor,
       }
     },
-    dependenciesToStream: ({ key, scope, head }) =>
+    dependenciesToStream: ({ key, scope, head, generation }) =>
       Option.match(head, {
         onNone: () => Stream.empty,
-        onSome: text => sent(key, scope, Schema.decodeUnknownSync(StoredWrite)(JSON.parse(text))),
+        onSome: text =>
+          sent(key, scope, Schema.decodeUnknownSync(StoredWrite)(JSON.parse(text)), generation),
       }),
   }
 
   /**
-   * A visitor's writes in the `from` queue moved to the `to` queue, made for
-   * `key` from then on, and the report of them; nothing where none wait
-   * there. Written to `to` before they leave `from`, so a page closed between
-   * loses none, and a second move finds them gone. One tab at a time moves
-   * from a queue, so the report is said once.
+   * The writes in the `from` queue no one has claimed moved to the `to`
+   * queue, made for `key` from then on, and the report of them; nothing where
+   * none wait there. Out of another queue, a visitor's alone; in place (`from`
+   * is `to`: the cookie named someone while the scope stayed), a visitor's
+   * and those made before any answer said who. Written to `to` before they
+   * leave `from`, so a page closed between loses none, and a second move
+   * finds them gone. One tab at a time moves from a queue, so the report is
+   * said once.
    */
   const moved = (
     from: { readonly key: string; readonly scope: string },
@@ -446,28 +455,38 @@ export const outbox = <AppModel>(
     withLock(
       moveLock(from.key),
       Effect.gen(function* () {
+        const inPlace = from.key === to.key && from.scope === to.scope
         const there = yield* readStored(from.key, from.scope)
-        const visitors = there.entries.flatMap(raw =>
+        const unclaimed = there.entries.flatMap(raw =>
           Option.toArray(
             Option.filter(
               Schema.decodeUnknownOption(StoredWrite)(raw),
-              write => write.madeAs?._tag === 'Visitor' && write.state._tag !== 'Failed',
+              write =>
+                write.state._tag !== 'Failed' &&
+                (inPlace ? write.madeAs?._tag !== 'Signed' : write.madeAs?._tag === 'Visitor'),
             ),
           ),
         )
-        if (visitors.length === 0) return []
-        const merged = yield* writeStored(to.key, to.scope, {
-          entries: visitors.map(write => ({
-            ...write,
-            madeAs: { _tag: 'Signed', key } as const,
-            revision: write.revision + 1,
-            state: { _tag: 'Waiting' } as const,
-          })),
-          done: [],
-        })
-        const requestIds = visitors.map(write => write.operation)
-        yield* writeStored(from.key, from.scope, { entries: [], done: requestIds })
-        yield* announce(from.key, Option.none())
+        if (unclaimed.length === 0) return []
+        const signed = { _tag: 'Signed', key } as const
+        const merged = yield* writeStored(
+          to.key,
+          to.scope,
+          storedChange(
+            unclaimed.map(write => ({
+              ...write,
+              madeAs: signed,
+              revision: write.revision + 1,
+              state: { _tag: 'Waiting' } as const,
+            })),
+            [],
+          ),
+        )
+        const requestIds = unclaimed.map(write => write.operation)
+        if (!inPlace) {
+          yield* writeStored(from.key, from.scope, storedChange([], requestIds))
+          yield* announce(from.key, Option.none())
+        }
         yield* announce(to.key, Option.none())
         return [
           { _tag: 'OutboxMoved', requestIds, from: from.scope, to: to.scope } as const,
@@ -486,6 +505,7 @@ export const outbox = <AppModel>(
       readonly key: string
       readonly scope: string
       readonly from: Option.Option<{ readonly key: string; readonly scope: string }>
+      readonly unclaimed: ReadonlyArray<string>
       readonly principal: Option.Option<string>
     },
     KeyValueStore.KeyValueStore
@@ -494,30 +514,61 @@ export const outbox = <AppModel>(
       key: Schema.String,
       scope: Schema.String,
       from: Schema.OptionFromNullOr(Schema.Struct({ key: Schema.String, scope: Schema.String })),
+      unclaimed: Schema.Array(Schema.String),
       principal: Schema.OptionFromNullOr(Schema.String),
     }),
     modelToDependencies: model => {
       const { outbox } = domain.store.get(model)
       const key = options.key(model)
       const scope = options.scope(model)
+      const held = holding(outbox, key, scope)
       return {
         key,
         scope,
-        // Only into the queue the page holds, from one it held before.
-        from: holding(outbox, key, scope)
-          ? Option.filter(outbox.left, left => left.key !== key || left.scope !== scope)
-          : Option.none(),
+        // Only into the queue the page holds, from the one it held before
+        // (the same one, where the scope did not move: then it is in place).
+        from: held ? outbox.left : Option.none(),
+        // The stored writes of the queue it holds that no one has claimed.
+        unclaimed: held ? unclaimedIn(outbox) : [],
         principal: Option.flatMap(outbox.principal, signedKey),
       }
     },
-    dependenciesToStream: ({ key, scope, from, principal }) =>
-      Option.match(Option.all({ from, principal }), {
+    dependenciesToStream: ({ key, scope, from, unclaimed, principal }) =>
+      Option.match(principal, {
         onNone: () => Stream.empty,
-        onSome: ({ from: left, principal: signed }) =>
-          Stream.flatMap(Stream.fromEffect(moved(left, { key, scope }, signed)), messages =>
-            Stream.fromIterable(messages),
-          ),
+        onSome: signed => {
+          const here = { key, scope }
+          const moves = [
+            ...Option.toArray(Option.map(from, left => moved(left, here, signed))),
+            ...(unclaimed.length === 0 ? [] : [moved(here, here, signed)]),
+          ]
+          return Stream.flatMap(
+            Stream.fromEffect(Effect.map(Effect.all(moves), all => all.flat())),
+            messages => Stream.fromIterable(messages),
+          )
+        },
       }),
+  }
+
+  // Writes made for someone other than whom an answer names now are not sent,
+  // and each page that hears so says so once.
+  const hold: EntryWithoutKeepAlive<
+    AppModel,
+    RemoteMessage,
+    { readonly scope: string; readonly held: ReadonlyArray<string> },
+    never
+  > = {
+    dependenciesSchema: Schema.Struct({ scope: Schema.String, held: Schema.Array(Schema.String) }),
+    modelToDependencies: model => {
+      const { outbox } = domain.store.get(model)
+      const key = options.key(model)
+      const scope = options.scope(model)
+      return { scope, held: holding(outbox, key, scope) ? heldIn(outbox) : [] }
+    },
+    dependenciesToStream: ({ scope, held }) =>
+      held.length === 0
+        ? Stream.empty
+        : Stream.succeed<RemoteMessage>({ _tag: 'OutboxHeld', requestIds: held, scope }),
   }
 
   /** What another tab announced: the answer it heard first, then the store as it now is. */
@@ -580,6 +631,7 @@ export const outbox = <AppModel>(
       'outbox.send': send,
       'outbox.watch': watch,
       'outbox.adopt': adopt,
+      'outbox.hold': hold,
     })),
     restore: model =>
       Effect.map(
@@ -590,6 +642,35 @@ export const outbox = <AppModel>(
       ),
   }
 }
+
+/** The operations of the readable, unsettled writes of `outbox` that `pick` takes. */
+const operationsIn = (
+  outbox: OutboxState,
+  pick: (write: StoredWrite, stored: boolean) => boolean,
+): ReadonlyArray<string> =>
+  outbox.queue.flatMap(
+    Queued.$match({
+      Readable: ({ write, stored }) =>
+        write.state._tag !== 'Failed' && pick(write, stored) ? [write.operation] : [],
+      Unreadable: () => [],
+    }),
+  )
+
+/** The stored writes of `outbox` stamped for no one in particular: a visitor's, or unstamped. */
+const unclaimedIn = (outbox: OutboxState): ReadonlyArray<string> =>
+  operationsIn(outbox, (write, stored) => stored && write.madeAs?._tag !== 'Signed')
+
+/** The writes of `outbox` made for someone other than whom the page heard last. */
+const heldIn = (outbox: OutboxState): ReadonlyArray<string> =>
+  operationsIn(outbox, write => heldFrom(write, outbox.principal))
+
+/**
+ * Whether `write` was made for someone other than whom the page heard last:
+ * held, not sent, until they are heard again. A visitor's or an unstamped
+ * one is not held but claimed (`outbox.adopt`).
+ */
+const heldFrom = (write: StoredWrite, heard: Option.Option<MadeAs>): boolean =>
+  write.madeAs?._tag === 'Signed' && !sendable(write.madeAs, heard)
 
 /** The key a write made for someone is sent with; none for a visitor's, or one queued before any answer said. */
 const signedKey = (madeAs: MadeAs | undefined): Option.Option<string> =>
@@ -657,6 +738,13 @@ export const outboxStatus = <AppModel>(
   model: AppModel,
 ): OutboxStatus => statusOf(domain.store.get(model).outbox)
 
+/** Why a write made for someone else than whom the page heard last waits. */
+const heldFor = remoteError(
+  new RemotePrincipalChanged({
+    message: 'It was made for someone other than who is signed in now',
+  }),
+)
+
 const statusOf = (outbox: OutboxState): OutboxStatus => {
   const items = outbox.queue.map(
     Queued.$match({
@@ -664,7 +752,11 @@ const statusOf = (outbox: OutboxState): OutboxStatus => {
         requestId: write.operation,
         mutation: Option.some(write.mutation),
         state: Match.valueTags(write.state, {
-          Waiting: () => OutboxItemState.Waiting({ attempt, error: delayed }),
+          // Held for whom it was made for, as a refusal from the server would leave it.
+          Waiting: () =>
+            heldFrom(write, outbox.principal)
+              ? OutboxItemState.WaitingForSignIn({ error: heldFor })
+              : OutboxItemState.Waiting({ attempt, error: delayed }),
           Failed: ({ error }) => OutboxItemState.Failed({ error }),
           WaitingForSignIn: ({ error }) => OutboxItemState.WaitingForSignIn({ error }),
         }),

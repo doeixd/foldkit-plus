@@ -255,19 +255,25 @@ version changed; `pnpm` skips versions already in the registry.
   mutation carries `principal`: the key of the server's `viewer` for who
   asked (`'User:ada'`), or `null` for a visitor, and nothing from a server
   with no `viewer`. A durable write is stamped, when queued, with whom the
-  last answer named (`Data.forget` forgets it; a retry keeps its stamp), and
-  is sent naming them (`MutationRequest.principal`). `RemoteServer.handlers`
-  refuses a write naming someone other than who asks before its Source runs,
-  a ledger's replay included, with the new `RemotePrincipalChanged`
+  last answer named (a retry keeps its stamp), and is sent naming them
+  (`MutationRequest.principal`). Whom the page heard is saved with the
+  scope's queue, so a reloaded page stamps its writes before its first
+  answer; `ReadReceived`, `ConnectionMerged` and `MutationSucceeded` carry the
+  refresh `generation` they were sent under, and an answer to a request sent
+  before `Data.forget` is not heard. `RemoteServer.handlers` refuses a write
+  naming someone other than who asks before its Source runs, a ledger's
+  replay included, with the new `RemotePrincipalChanged`
   (`_tag: 'PrincipalChanged'`, a 409 `{ error, principalChanged }` over
-  JSON), or `Unauthenticated` for a visitor; a server with no `viewer` refuses
-  any write that names someone. The outbox keeps such a write
+  JSON), or `Unauthenticated` for a visitor; a server with no `viewer`
+  refuses any write that names someone. The outbox keeps such a write
   `WaitingForSignIn`, with that error, until `Data.signedIn` finds its person
-  signed in. A visitor's waiting writes in the queue a page held before a
-  sign-in move to the queue it holds now once an answer names who signed in,
-  stamped as them, and the tab that moved them says so once with the new
-  `OutboxMoved { requestIds, from, to }` Message. A write queued before any
-  answer said who names no one, and runs as whoever asks.
+  signed in; and where an answer names someone else while the scope stays,
+  it sends none of the queue's writes made for another and says so with the
+  new `OutboxHeld { requestIds, scope }` Message. A visitor's waiting writes
+  move, once an answer names who signed in, to the queue the page holds now
+  (stamped in place, with writes queued before any answer said who, where
+  the scope did not move), stamped as them, and the tab that moved them says
+  so once with the new `OutboxMoved { requestIds, from, to }` Message.
   `ConnectionMerged` and `MutationSucceeded` carry `principal` too.
 
 - **A Remote snapshot carries ages and an order** (`foldkit-remote/persistence`,

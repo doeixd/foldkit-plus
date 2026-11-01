@@ -699,6 +699,13 @@ const messages = {
       to: 'ada',
     }),
   },
+  OutboxHeld: {
+    'a write made for someone else held': () => ({
+      _tag: 'OutboxHeld',
+      requestIds: ['session-rename'],
+      scope: 'ada',
+    }),
+  },
 } satisfies Record<RemoteMessageTag, Readonly<Record<string, Generate>>>
 
 const cases = Object.entries(messages).flatMap(([tag, generators]) =>

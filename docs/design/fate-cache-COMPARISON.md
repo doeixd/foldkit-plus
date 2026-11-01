@@ -148,9 +148,15 @@ Four changes, in this order. Each is its own issue.
      or a ledger's replay runs, as `PrincipalChanged` (or `Unauthenticated` for
      a visitor); the outbox keeps it `WaitingForSignIn`. A visitor's write
      waiting under the visitor's queue moves to the queue of whoever signs in
-     first, once an answer names them, reported once as `OutboxMoved`. Left
-     open: a write queued before any answer on a page names no one, and runs
-     as whoever asks; whom the page heard is not kept across a reload.
+     first, once an answer names them, reported once as `OutboxMoved`. Then
+     the three gaps that left: whom the page heard is saved with the scope's
+     queue, so a reload stamps its writes before its first answer; an answer
+     carries the refresh generation its request was sent under, and one sent
+     before `forget` is not heard; and an answer naming someone else under
+     the same scope holds the queue's writes made for another, unsent
+     (`OutboxHeld`), and stamps a visitor's, or unstamped, writes in place
+     before sending any (`OutboxMoved`). A write to a server with no `viewer`
+     still names no one.
 4. **Saved reads with their own age and an eviction order** (#404).
    `persistence(Data, …)` takes `maxAge` (default one day), and a
    `Data.subscriptions` call can pass `persist: { maxAge }` or `persist:

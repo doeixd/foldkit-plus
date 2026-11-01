@@ -2190,7 +2190,8 @@ outbox.save  → the queue written to the store, merged with other tabs' → Out
 outbox.send  → the oldest stored write sent, one at a time, by one tab  → MutationSucceeded | MutationFailed
              → answered Unauthenticated or PrincipalChanged: stored as WaitingForSignIn → OutboxRead; the rest held
 Data.signedIn → each write waiting for a sign-in waits its turn again → sent, then those behind it
-outbox.adopt → a visitor's writes left in the last queue, once an answer names who signed in → OutboxMoved
+outbox.adopt → a visitor's writes, once an answer names who signed in: stamped as them → OutboxMoved
+outbox.hold  → writes made for someone other than whom an answer names: not sent → OutboxHeld
 reload       → outbox.restore: the queue back, layers shown → sent again, same operation id, same now
 ```
 
@@ -2233,20 +2234,30 @@ reload       → outbox.restore: the queue back, layers shown → sent again, sa
   cookie it is refused before it runs (`PrincipalChanged`) and waits, as
   `WaitingForSignIn` with that error, until `Data.signedIn` finds them signed
   in again. A replay of a write already run is answered to them alone. A
-  retry keeps the stamp it was made with. A write queued before any answer
-  said who, on a page's first frames, names no one, and runs as whoever the
-  cookie names when it is sent; so does any write to a server with no
-  `viewer`. `Data.forget` forgets whom the page heard.
+  retry keeps the stamp it was made with. Whom the page heard is saved with
+  the scope's queue, so a reloaded page, offline or before its first answer,
+  stamps its writes with whom that queue last heard. An answer to a request
+  sent before `Data.forget` is not heard: it was for whoever the page forgot.
+  A write to a server with no `viewer` names no one, and nor does one queued
+  where the scope's queue has heard no one yet.
+- **Held when the cookie changes hands.** When an answer names someone other
+  than whom the queue's writes were made for, while the `scope` stays, the
+  outbox sends none of them, nor any after them: `outboxStatus` shows each as
+  `WaitingForSignIn` with a `PrincipalChanged` error, and each page that hears
+  it says so once with `OutboxHeld { requestIds, scope }`. An answer naming
+  them again sends them, in order.
 - **A visitor's writes go to whoever signs in first.** A write made with no
-  one signed in (the last answer said a visitor) names no one. Once the page
-  holds another queue and an answer names who signed in, the outbox moves
-  the visitor's waiting writes from the queue the page held before into this
-  one, stamped as that person, and sends them. The tab that moved them says
-  so once with `OutboxMoved { requestIds, from, to }` (the scopes), which
-  `update` reads before reducing, or with `Data.wiring(…, { shared:
-  ['OutboxMoved'] })` under an assembly, to tell the person. Someone's own
-  writes never move, nor does a refused one, and nothing moves before an
-  answer names who: a visitor's queue is never sent as anyone else's.
+  one signed in (the last answer said a visitor) names no one. Once an
+  answer names who signed in, the outbox moves the visitor's waiting writes
+  from the queue the page held before into the one it holds now, stamped as
+  that person, and sends them. Where the `scope` did not move, it stamps them
+  in place, with any write queued before an answer said who, and sends none
+  of them unstamped as that person. The tab that moved them says so once with
+  `OutboxMoved { requestIds, from, to }` (the scopes, one scope in place),
+  which `update` reads before reducing, or with `Data.wiring(…, { shared:
+  ['OutboxMoved', 'OutboxHeld'] })` under an assembly, to tell the person.
+  Someone's own writes never move, nor does a refused one, and nothing moves
+  before an answer names who.
 - **One tab sends; every tab shows.** The store is shared by every tab on the
   key. A Web Lock picks the one that sends, which reads the store again first
   so a write another tab settled is not sent twice; a `BroadcastChannel` tells

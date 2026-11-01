@@ -28,8 +28,9 @@ import {
   type RemoteMessage,
 } from '../src/index.js'
 import { outbox, outboxStatus } from '../src/outbox.js'
-import { mergeStored } from '../src/outboxStore.js'
+import { mergeStored, storedChange } from '../src/outboxStore.js'
 import { pageMessage } from '../src/domain.js'
+import type { MadeAs } from '../src/queue.js'
 
 const Item = Entity.define('Item', Schema.Struct({ id: Schema.String, count: Schema.Number }))
 const SetCount = Mutation.write(
@@ -75,6 +76,7 @@ const page = (actor = 'ada', principal?: string | null): Model =>
         ...(principal === undefined ? {} : { principal }),
       },
       now: 0,
+      generation: 0,
     },
   )
 
@@ -188,12 +190,19 @@ const settle = async (
   start: Model,
   running = entries,
   heard: Array<RemoteMessage> = [],
+  order: ReadonlyArray<keyof typeof entries> = [
+    'outbox.restore',
+    'outbox.save',
+    'outbox.send',
+    'outbox.adopt',
+    'outbox.hold',
+  ],
 ): Promise<Model> => {
   let model = start
   const ran = new Map<string, string>()
   for (let pass = 0; pass < 30; pass++) {
     let changed = false
-    for (const name of ['outbox.restore', 'outbox.save', 'outbox.send', 'outbox.adopt'] as const) {
+    for (const name of order) {
       const dependencies = JSON.stringify(running[name]!.modelToDependencies(model))
       if (ran.get(name) === dependencies) continue
       ran.set(name, dependencies)
@@ -540,12 +549,17 @@ describe('a durable write made for someone', () => {
     ).entries.map(({ operation, madeAs }) => ({ operation, madeAs }))
 
   /** `model` having heard an answer for `principal`. */
-  const answeredAs = (model: Model, principal: string | null): Model =>
+  const answeredAs = (
+    model: Model,
+    principal: string | null,
+    generation = model.remote.refresh.floor,
+  ): Model =>
     Data.reduce(model, {
       _tag: 'ReadReceived',
       requests: [],
       result: { entities: [], settled: [], principal },
       now: 0,
+      generation,
     })
 
   const moves = (heard: ReadonlyArray<RemoteMessage>) =>
@@ -599,11 +613,14 @@ describe('a durable write made for someone', () => {
     const tab = { kv: memory(), ...server(['refused'], cookie) }
     const started = setCount(await restored(tab, page('ada', 'User:ada')), 'i1', 2)
     const failed = await settle(tab, started.model)
-    // An answer for Grace lands before the retry: the retry is still Ada's.
+    // An answer for Grace lands before the retry: the retry is still Ada's,
+    // held while Grace is who the page heard, and sent as Ada once she is again.
     const retried = Option.getOrThrow(
       Data.retry(answeredAs(failed, 'User:grace'), started.requestId),
     )
-    await settle(tab, retried.model)
+    const held = await settle(tab, retried.model)
+    expect(tab.sent.map(each => each.principal)).toEqual(['User:ada'])
+    await settle(tab, answeredAs(held, 'User:ada'))
     expect(tab.sent.map(each => each.principal)).toEqual(['User:ada', 'User:ada'])
   })
 
@@ -617,7 +634,6 @@ describe('a durable write made for someone', () => {
   })
 
   it('is made for whom the latest answer named: a read, a list', async () => {
-    // Every write is run, whoever it names: what each names is the question.
     const tab = { kv: memory(), ...server() }
     // A visitor's page, then answers for Ada, Grace and Ada again.
     const visitor = await restored(tab, page('ada', null))
@@ -626,16 +642,29 @@ describe('a durable write made for someone', () => {
     const listed = setCount(
       Data.reduce(
         grace.model,
-        pageMessage('All', { edges: [], start: terminal, end: terminal, principal: 'User:ada' }),
+        pageMessage(
+          'All',
+          { edges: [], start: terminal, end: terminal, principal: 'User:ada' },
+          false,
+          {},
+          undefined,
+          undefined,
+          grace.model.remote.refresh.floor,
+        ),
       ),
       'i1',
       4,
     )
     await settle(tab, listed.model)
-    expect(tab.sent.map(each => each.principal)).toEqual(['User:ada', 'User:grace', 'User:ada'])
+    // Ada's first is sent; Grace's is held while Ada is who the page heard, and Ada's last behind it.
+    expect(tab.sent.map(each => each.principal)).toEqual(['User:ada'])
+    expect(stamped(tab.kv, 'outbox:ada').map(({ madeAs }) => madeAs)).toEqual([
+      { _tag: 'Signed', key: 'User:grace' },
+      { _tag: 'Signed', key: 'User:ada' },
+    ])
   })
 
-  it("learns who from a write's answer, and forgets it with the Model", async () => {
+  it("learns who from a write's answer; forgotten, takes whom its queue last heard", async () => {
     const cookie = { current: 'User:ada' }
     const tab = { kv: memory(), ...server([], cookie) }
     const first = setCount(await restored(tab, page('ada')), 'i1', 2)
@@ -644,7 +673,122 @@ describe('a durable write made for someone', () => {
     const settled = await settle(tab, second.model)
     const third = setCount(Data.forget(settled), 'i2', 4)
     await settle(tab, third.model)
-    expect(tab.sent.map(each => each.principal)).toEqual([undefined, 'User:ada', undefined])
+    expect(tab.sent.map(each => each.principal)).toEqual([undefined, 'User:ada', 'User:ada'])
+  })
+
+  it('after a reload, is made for whom its queue last heard, before any answer', async () => {
+    const cookie = { current: 'User:ada' }
+    const tab = { kv: memory(), ...server([], cookie) }
+    await settle(tab, setCount(await restored(tab, page('ada', 'User:ada')), 'i1', 2).model)
+    const reloaded = { kv: tab.kv, ...server([], cookie) }
+    const started = setCount(await restored(reloaded, page('ada')), 'i1', 3)
+    await settle(reloaded, started.model)
+    expect(reloaded.sent.map(each => each.principal)).toEqual(['User:ada'])
+    // And so, the cookie Grace's by then, it is held for Ada rather than run as Grace.
+    cookie.current = 'User:grace'
+    const later = { kv: tab.kv, ...server([], cookie) }
+    const held = setCount(await restored(later, page('ada')), 'i1', 4)
+    await settle(later, held.model)
+    expect(later.ran).toEqual([])
+    expect(later.sent.map(each => each.principal)).toEqual(['User:ada'])
+  })
+
+  it('takes whom its queue heard from a read of the store that brings nothing else', async () => {
+    const tab = { kv: memory(), ...server() }
+    const held = await restored(tab, page('ada'))
+    const read = Data.reduce(held, {
+      _tag: 'OutboxRead',
+      key: 'outbox:ada',
+      scope: 'ada',
+      entries: [],
+      done: [],
+      principal: { _tag: 'Signed', key: 'User:ada' },
+    })
+    await settle(tab, setCount(read, 'i1', 2).model)
+    expect(tab.sent.map(each => each.principal)).toEqual(['User:ada'])
+  })
+
+  it('never hears whom an answer was for from a request sent before forget', async () => {
+    // Ada's page; a read sent as her is answered after the page forgot her for Grace.
+    const cookie = { current: 'User:grace' }
+    const tab = { kv: memory(), ...server([], cookie) }
+    const ada = await restored(tab, page('ada', 'User:ada'))
+    const grace = { ...Data.forget(ada), actor: 'grace' }
+    const late = answeredAs(grace, 'User:ada', ada.remote.refresh.floor)
+    const started = setCount(await restored(tab, late), 'i1', 2)
+    const settled = await settle(tab, started.model)
+    // Not stamped as Ada, so not refused and stuck waiting for her: run as Grace.
+    expect(tab.sent.map(each => each.principal)).toEqual([undefined])
+    expect(tab.ran).toEqual([started.requestId])
+    expect(outboxStatus(Data, settled).items).toEqual([])
+  })
+
+  it('holds a queue made for someone when an answer names another under the same scope, said once', async () => {
+    const cookie = { current: 'User:grace' }
+    const tab = { kv: memory(), ...server([], cookie) }
+    const started = setCount(await restored(tab, page('ada', 'User:ada')), 'i1', 2)
+    const second = setCount(started.model, 'i2', 3)
+    const heard: Array<RemoteMessage> = []
+    const held = await settle(tab, answeredAs(second.model, 'User:grace'), entries, heard)
+    expect(tab.sent).toEqual([])
+    expect(heard.filter(message => message._tag === 'OutboxHeld')).toEqual([
+      {
+        _tag: 'OutboxHeld',
+        requestIds: [started.requestId, second.requestId],
+        scope: 'ada',
+      },
+    ])
+    expect(outboxStatus(Data, held)).toMatchObject({
+      waiting: 0,
+      waitingForSignIn: 2,
+      items: [
+        { state: { _tag: 'WaitingForSignIn', error: { _tag: 'PrincipalChanged' } } },
+        { state: { _tag: 'WaitingForSignIn', error: { _tag: 'PrincipalChanged' } } },
+      ],
+    })
+    // Ada heard again: both sent as her, in order.
+    cookie.current = 'User:ada'
+    await settle(tab, answeredAs(held, 'User:ada'))
+    expect(tab.ran).toEqual([started.requestId, second.requestId])
+  })
+
+  it('claims a write made before any answer for whom the first names, said once, before sending it', async () => {
+    const cookie = { current: 'User:grace' }
+    const tab = { kv: memory(), ...server([], cookie) }
+    const started = setCount(await restored(tab, page('ada')), 'i1', 2)
+    const heard: Array<RemoteMessage> = []
+    await settle(tab, answeredAs(started.model, 'User:grace'), entries, heard)
+    expect(moves(heard)).toEqual([
+      { _tag: 'OutboxMoved', requestIds: [started.requestId], from: 'ada', to: 'ada' },
+    ])
+    expect(tab.sent.map(each => each.principal)).toEqual(['User:grace'])
+  })
+
+  it('claims a write only once the store holds it, whichever entry runs first', async () => {
+    const cookie = { current: 'User:grace' }
+    const tab = { kv: memory(), ...server([], cookie) }
+    const started = setCount(await restored(tab, page('ada')), 'i1', 2)
+    const adoptFirst = [
+      'outbox.adopt',
+      'outbox.restore',
+      'outbox.save',
+      'outbox.send',
+      'outbox.hold',
+    ] as const
+    await settle(tab, answeredAs(started.model, 'User:grace'), entries, [], adoptFirst)
+    expect(tab.sent.map(each => each.principal)).toEqual(['User:grace'])
+  })
+
+  it('hears no one from an answer that does not say when it was asked', async () => {
+    const tab = { kv: memory(), ...server() }
+    const ready = Data.reduce(await restored(tab, page('ada')), {
+      _tag: 'ReadReceived',
+      requests: [],
+      result: { entities: [], settled: [], principal: 'User:ada' },
+      now: 0,
+    })
+    await settle(tab, setCount(ready, 'i1', 2).model)
+    expect(tab.sent.map(each => each.principal)).toEqual([undefined])
   })
 
   /**
@@ -691,13 +835,17 @@ describe('a durable write made for someone', () => {
     },
   )
 
-  it('never moves into the queue it came from', async () => {
+  it("claims a visitor's write in place when an answer names someone and the scope stays, said once", async () => {
     // Forgotten, but the page's scope is still the visitor's when Ada's answer lands.
     const { tab, started, waiting } = await visitorThenAda()
     const heard: Array<RemoteMessage> = []
     await settle(tab, answeredAs(Data.forget(waiting), 'User:ada'), entries, heard)
-    expect(moves(heard)).toEqual([])
-    expect(storedOperations(tab.kv, 'outbox:visitor')).toEqual([started.requestId])
+    expect(moves(heard)).toEqual([
+      { _tag: 'OutboxMoved', requestIds: [started.requestId], from: 'visitor', to: 'visitor' },
+    ])
+    // Sent once, as Ada, and only after the report: never unstamped as her.
+    expect(tab.sent.map(each => each.principal)).toEqual([undefined, 'User:ada'])
+    expect(tab.ran).toEqual([started.requestId])
   })
 
   it("leaves a visitor's refused write where it was", async () => {
@@ -797,6 +945,17 @@ describe('a stored write this version cannot read', () => {
 })
 
 describe('the store between tabs', () => {
+  it('keeps whom a page heard last: mine where I heard, else what the store holds (#405)', () => {
+    const ada = { _tag: 'Signed', key: 'User:ada' } as const
+    const grace = { _tag: 'Signed', key: 'User:grace' } as const
+    const heard = (principal: MadeAs) => ({
+      ...storedChange([], []),
+      principal: Option.some(principal),
+    })
+    expect(mergeStored(heard(ada), heard(grace)).principal).toEqual(Option.some(grace))
+    expect(mergeStored(heard(ada), storedChange([], [])).principal).toEqual(Option.some(ada))
+  })
+
   it('merges two copies saved at once: both writes kept, the higher revision of each, none settled', () => {
     const a = storedWrite('a-1', 'SetCount', { id: 'i1', count: 2 })
     const b = storedWrite('b-1', 'SetCount', { id: 'i2', count: 3 })
@@ -805,16 +964,16 @@ describe('the store between tabs', () => {
       revision: 1,
       state: { _tag: 'Failed', error: { _tag: 'X', message: 'no' } },
     }
-    expect(mergeStored({ entries: [a], done: [] }, { entries: [b], done: [] })).toEqual({
+    expect(mergeStored(storedChange([a], []), storedChange([b], []))).toEqual({
       entries: [a, b],
       done: [],
+      principal: Option.none(),
     })
-    expect(
-      mergeStored({ entries: [failedA, b], done: [] }, { entries: [a], done: [] }).entries,
-    ).toEqual([failedA, b])
-    expect(
-      mergeStored({ entries: [a, b], done: ['b-1'] }, { entries: [a], done: [] }).entries,
-    ).toEqual([a])
+    expect(mergeStored(storedChange([failedA, b], []), storedChange([a], [])).entries).toEqual([
+      failedA,
+      b,
+    ])
+    expect(mergeStored(storedChange([a, b], ['b-1']), storedChange([a], [])).entries).toEqual([a])
   })
 
   it('shows a write another tab queued, as its own', async () => {

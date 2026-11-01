@@ -9,7 +9,7 @@
  * by every tab on the same key, and written as a merge so no tab's write
  * overwrites another's.
  */
-import { Context, Duration, Effect, Option, Random, Schema } from 'effect'
+import { Context, Duration, Effect, Match, Option, Random, Schema } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import type { Computation } from 'foldkit-entity'
 import type { OptimisticOperation } from './optimistic.js'
@@ -112,21 +112,43 @@ const keyOf = Schema.decodeUnknownOption(OperationKey)
 
 const OUTBOX_VERSION = 1
 
-/** The record one key holds: every tab's queued writes, and the operations settled lately. */
+/**
+ * The record one key holds: every tab's queued writes, the operations settled
+ * lately, and whom the server last said it answered as on a page holding it.
+ */
 const StoredOutboxSchema = Schema.Struct({
   version: Schema.Literal(OUTBOX_VERSION),
   scope: Schema.String,
   entries: Schema.Array(Schema.Unknown),
   done: Schema.Array(Schema.String),
+  principal: Schema.optionalKey(MadeAs),
 })
 
 /** A key's queue as stored, each entry as it was written, read or not. */
 export interface StoredOutbox {
   readonly entries: ReadonlyArray<unknown>
   readonly done: ReadonlyArray<string>
+  /**
+   * Whom the server last said it answered as on a page holding this queue:
+   * what a reloaded page stamps its writes with before its first answer
+   * (#405). None where no page has heard.
+   */
+  readonly principal: Option.Option<MadeAs>
 }
 
-export const emptyStoredOutbox: StoredOutbox = { entries: [], done: [] }
+export const emptyStoredOutbox: StoredOutbox = { entries: [], done: [], principal: Option.none() }
+
+/** A change to a stored queue: these entries and settled operations, and no word on whom. */
+export const storedChange = (
+  entries: ReadonlyArray<unknown>,
+  done: ReadonlyArray<string>,
+): StoredOutbox => ({ entries, done, principal: Option.none() })
+
+const fromRecord = (record: typeof StoredOutboxSchema.Type): StoredOutbox => ({
+  entries: record.entries,
+  done: record.done,
+  principal: Option.fromUndefinedOr(record.principal),
+})
 
 /**
  * Two copies of a queue as one: entries of both by operation, none that
@@ -146,7 +168,11 @@ export const mergeStored = (store: StoredOutbox, mine: StoredOutbox): StoredOutb
       kept.set(key.value.operation, { raw, revision: key.value.revision })
     }
   }
-  return { entries: [...kept.values()].map(({ raw }) => raw), done }
+  return {
+    entries: [...kept.values()].map(({ raw }) => raw),
+    done,
+    principal: Option.orElse(mine.principal, () => store.principal),
+  }
 }
 
 /** The record under `key` for `scope`: none when absent, of another scope or version, or not JSON. */
@@ -161,8 +187,7 @@ export const readStored = (
     const parsed = Schema.decodeUnknownOption(Schema.fromJsonString(StoredOutboxSchema))(text)
     return Option.match(parsed, {
       onNone: () => emptyStoredOutbox,
-      onSome: record =>
-        record.scope === scope ? { entries: record.entries, done: record.done } : emptyStoredOutbox,
+      onSome: record => (record.scope === scope ? fromRecord(record) : emptyStoredOutbox),
     })
   })
 
@@ -186,13 +211,19 @@ export const othersWaiting = (
   })
 
 export const storedText = (outbox: StoredOutbox, scope: string): string =>
-  JSON.stringify({ version: OUTBOX_VERSION, scope, entries: outbox.entries, done: outbox.done })
+  JSON.stringify({
+    version: OUTBOX_VERSION,
+    scope,
+    entries: outbox.entries,
+    done: outbox.done,
+    ...Option.match(outbox.principal, { onNone: () => ({}), onSome: principal => ({ principal }) }),
+  })
 
 /** A queue's text, as `storedText` wrote it, read back. */
 export const storedFromText = (text: string): StoredOutbox =>
   Option.match(Schema.decodeUnknownOption(Schema.fromJsonString(StoredOutboxSchema))(text), {
     onNone: () => emptyStoredOutbox,
-    onSome: ({ entries, done }) => ({ entries, done }),
+    onSome: fromRecord,
   })
 
 /**
@@ -215,17 +246,38 @@ export const storedOf = (outbox: OutboxState): StoredOutbox => ({
     Queued.$match({ Readable: ({ write }) => write, Unreadable: ({ raw }) => raw }),
   ),
   done: outbox.done,
+  principal: outbox.principal,
 })
 
 /**
+ * Whether a write made as `madeAs` may be sent while the page last heard
+ * `heard` (#405): anything, before a page has heard; one made for someone
+ * only while no one else is signed in; a visitor's, or one made before any
+ * answer said who, only while no one is, since `outbox.adopt` stamps it as
+ * whoever signs in first and says so.
+ */
+export const sendable = (madeAs: MadeAs | undefined, heard: Option.Option<MadeAs>): boolean =>
+  Option.match(heard, {
+    onNone: () => true,
+    onSome: page =>
+      Match.valueTags(page, {
+        Visitor: () => true,
+        Signed: ({ key }) => madeAs?._tag === 'Signed' && madeAs.key === key,
+      }),
+  })
+
+/**
  * The write sent next: the oldest one waiting that the store holds. None
- * while a write waits for a sign-in: those after it wait behind it, in order.
+ * while a write waits for a sign-in, or was made for someone other than whom
+ * the page heard last: those after it wait behind it, in order.
  */
 export const headOf = (outbox: OutboxState): Option.Option<StoredWrite> => {
   for (const queued of outbox.queue) {
     if (queued._tag !== 'Readable') continue
     if (queued.write.state._tag === 'WaitingForSignIn') return Option.none()
-    if (queued.write.state._tag === 'Waiting' && queued.stored) return Option.some(queued.write)
+    if (queued.write.state._tag !== 'Waiting') continue
+    if (!sendable(queued.write.madeAs, outbox.principal)) return Option.none()
+    if (queued.stored) return Option.some(queued.write)
   }
   return Option.none()
 }

@@ -888,7 +888,9 @@ export const mutateInto = /* @__PURE__ */ Effect.fn('Remote.mutateInto')(functio
     entities: outcome.entities,
     connections: outcome.connections,
     deleted: outcome.deleted,
-    ...(outcome.principal === undefined ? {} : { principal: madeAsOf(outcome.principal) }),
+    ...(outcome.principal === undefined
+      ? {}
+      : { principal: madeAsOf(outcome.principal), generation: started.refresh.floor }),
     now: yield* Clock.currentTimeMillis,
   })
   return {

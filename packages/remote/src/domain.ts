@@ -1596,6 +1596,8 @@ export const pageMessage = (
   window: QueryWindow = {},
   select?: RelationRequirement | undefined,
   now?: number | undefined,
+  /** The refresh generation the query was planned under: see `ConnectionMerged.generation`. */
+  generation?: number | undefined,
 ): RemoteMessage => {
   // Failed the way any query fails, with a named protocol error, rather than
   // the page being silently accepted or an exception escaping a subscription.
@@ -1633,7 +1635,13 @@ export const pageMessage = (
       ? { entities: [...(result.entities ?? [])], settled: [...(result.settled ?? [])] }
       : {}),
     ...(dated === undefined ? {} : { now: dated }),
-    ...(result.principal === undefined ? {} : { principal: madeAsOf(result.principal) }),
+    // Whom it was for, with when it was asked, which says whether to hear it.
+    ...(result.principal === undefined
+      ? {}
+      : {
+          principal: madeAsOf(result.principal),
+          ...(generation === undefined ? {} : { generation }),
+        }),
   }
 }
 
@@ -1670,6 +1678,7 @@ export const rootsOf = (
 const readMessage = (
   requirements: ReadonlyArray<Requirement>,
   now: () => number,
+  generation: number,
 ): Effect.Effect<RemoteMessage, never, RemoteClient> =>
   Effect.gen(function* () {
     const client = yield* RemoteClient
@@ -1679,7 +1688,13 @@ const readMessage = (
     )
     return Result.isFailure(result)
       ? { _tag: 'ReadFailed', requests: requirements, error: remoteError(result.failure) }
-      : { _tag: 'ReadReceived', requests: requirements, result: result.success, now: at }
+      : {
+          _tag: 'ReadReceived',
+          requests: requirements,
+          result: result.success,
+          now: at,
+          generation,
+        }
   })
 
 /** Runs a query and reports the page that refreshes its connection, or the failure. Never fails. */
@@ -1689,7 +1704,8 @@ const queryMessage = (
     readonly window: QueryWindow
     readonly select?: RelationRequirement | undefined
   },
-  now: () => number = wallClock,
+  now: () => number,
+  generation: number,
 ): Effect.Effect<RemoteMessage, never, RemoteClient> =>
   Effect.gen(function* () {
     const client = yield* RemoteClient
@@ -1698,7 +1714,15 @@ const queryMessage = (
     )
     return Result.isFailure(result)
       ? { _tag: 'QueryFailed', connection: query.identity, error: remoteError(result.failure) }
-      : pageMessage(query.identity, result.success, true, query.window, query.select, now())
+      : pageMessage(
+          query.identity,
+          result.success,
+          true,
+          query.window,
+          query.select,
+          now(),
+          generation,
+        )
   })
 
 /** A query the read entry runs, as its dependencies carry it: plain data Foldkit compares. */
@@ -1767,10 +1791,10 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
   options: ObserveOptions<AppModel>,
 ): EntryWithoutKeepAlive<AppModel, Message, ReadDependencies, RemoteClient> => {
   const { now = wallClock, timeout } = options
-  const read = (requirements: ReadonlyArray<Requirement>) =>
-    Effect.map(withCallTimeout(readMessage(requirements, now), timeout), toMessage)
-  const run = (query: ReadDependencies['queries'][number]) =>
-    Effect.map(withCallTimeout(queryMessage(query, now), timeout), toMessage)
+  const read = (requirements: ReadonlyArray<Requirement>, generation: number) =>
+    Effect.map(withCallTimeout(readMessage(requirements, now, generation), timeout), toMessage)
+  const run = (query: ReadDependencies['queries'][number], generation: number) =>
+    Effect.map(withCallTimeout(queryMessage(query, now, generation), timeout), toMessage)
   // A plan is a function of the Remote model, what is asked, and the clock only
   // until the next value ages out (`expires`, which `deadlineOf` computes as
   // exactly that moment), so a Model change the Remote model is not part of
@@ -1853,8 +1877,10 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
         Stream.merge(
           Stream.mergeAll(
             [
-              ...(requirements.length === 0 ? [] : [Stream.fromEffect(read(requirements))]),
-              ...queries.map(query => Stream.fromEffect(run(query))),
+              ...(requirements.length === 0
+                ? []
+                : [Stream.fromEffect(read(requirements, refresh))]),
+              ...queries.map(query => Stream.fromEffect(run(query, refresh))),
             ],
             { concurrency: 'unbounded' },
           ),

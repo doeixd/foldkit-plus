@@ -736,12 +736,19 @@ forgets it; a retry keeps its stamp) and sent with it as `MutationRequest.princi
 `RemoteServer.handlers` refuses one naming someone else before its Source runs,
 a ledger replay included: `RemotePrincipalChanged` (`_tag: 'PrincipalChanged'`,
 a 409 `{ error, principalChanged }` over JSON), or `Unauthenticated` for a
-visitor, and the outbox keeps it `WaitingForSignIn` with that error. A write
-queued before any answer said who names no one and runs as whoever asks. A
-visitor's waiting writes in the queue the page held before move, once an
-answer names who signed in, into the queue it holds now, stamped as them;
-the moving tab says `OutboxMoved { requestIds, from, to }` once (share it from
-`Data.wiring` to hear it in `update`).
+visitor, and the outbox keeps it `WaitingForSignIn` with that error. Whom
+the page heard is saved with the scope's queue and stamps a reloaded page's
+writes before its first answer; an answer to a request sent before
+`Data.forget` (each Message carries the `generation` it was sent under) is
+not heard. An answer naming someone other than whom the queue's writes were
+made for, under the same scope, holds them unsent (`outboxStatus`:
+`WaitingForSignIn` with `PrincipalChanged`) and says `OutboxHeld { requestIds,
+scope }` once per page. A visitor's waiting writes in the queue the page held
+before move, once an answer names who signed in, into the queue it holds now,
+stamped as them; under the same scope they, and writes queued before any
+answer said who, are stamped in place before any is sent. The moving tab says
+`OutboxMoved { requestIds, from, to }` once (share both Messages from
+`Data.wiring` to hear them in `update`).
 Other tabs read the store over a `BroadcastChannel` and show each other's
 writes. `outboxStatus(Data, model)`, from the same entry, is `{ waiting, failed,
 waitingForSignIn, items }`, each item's `state` `Waiting { attempt, error }`,

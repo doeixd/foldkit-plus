@@ -42,8 +42,8 @@ export default [
   edit(
     'a write is sent before the store holds it',
     store,
-    "queued.write.state._tag === 'Waiting' && queued.stored",
-    "queued.write.state._tag === 'Waiting'",
+    'if (queued.stored) return Option.some(queued.write)',
+    'return Option.some(queued.write)',
   ),
   edit(
     'the newest waiting write is sent first',
@@ -92,8 +92,8 @@ export default [
   edit(
     'an answered write stays queued',
     model,
-    'heardAs(withoutQueued(model.outbox, message.requestId), message.principal)',
-    'heardAs(model.outbox, message.principal)',
+    'withoutQueued(model.outbox, message.requestId),',
+    'model.outbox,',
   ),
   edit(
     'an unreadable write is not reported',
@@ -223,8 +223,8 @@ export default [
     edits: [
       {
         file: outbox,
-        find: 'saved(key, scope, { entries: [waiting], done: [] }),',
-        replace: 'Effect.succeed(readOf(key, scope, { entries: [waiting], done: [] })),',
+        find: 'saved(key, scope, storedChange([waiting], [])),',
+        replace: 'Effect.succeed(readOf(key, scope, storedChange([waiting], []))),',
       },
     ],
     tests: ['packages/remote/test/outboxTabs.browser.test.ts'],
