@@ -20,7 +20,7 @@
  * padding, not margins. `@foldkit/ui`'s `VirtualList` is the list in a box
  * of its own.
  */
-import { Schema, Stream } from 'effect'
+import { Effect, Latch, Schema, Stream } from 'effect'
 import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { Scene } from 'foldkit/test'
@@ -233,17 +233,31 @@ const keysOf = <Item>(
  * (`WindowViewport`, as `Placed`) and the heights of the rows drawn
  * (`MeasureRows`, as `Measured`). A failure in either ends both, reported
  * as this Mount's. A Scene test resolves it with `resolveTrack`.
+ *
+ * The first `Placed` waits for the first rows measured. The two streams
+ * start a scheduler task apart, and a frame drawn between them moved the
+ * window before any row was observed: the rows it took away were never
+ * measured, and a list scrolled past them kept their estimates for good (#398).
  */
 export const Track = Mount.defineStream('WindowList.Track', {
   messages: [Message.Placed, Message.Measured],
   execute: ({ element, viewStateChanges }) =>
-    Stream.merge(
-      WindowViewport()
-        .f(element, viewStateChanges)
-        .pipe(Stream.map(({ top, height }) => Message.Placed({ top, height }))),
-      MeasureRows({ attribute: ROW_KEY })
-        .f(element, viewStateChanges)
-        .pipe(Stream.map(({ rows }) => Message.Measured({ rows }))),
+    Stream.unwrap(
+      // Where nothing can measure a row (jsdom), nothing is waited for.
+      Effect.map(Latch.make(globalThis.ResizeObserver === undefined), measuring =>
+        Stream.merge(
+          Stream.fromEffectDrain(measuring.await).pipe(
+            Stream.concat(WindowViewport().f(element, viewStateChanges)),
+            Stream.map(({ top, height }) => Message.Placed({ top, height })),
+          ),
+          MeasureRows({ attribute: ROW_KEY })
+            .f(element, viewStateChanges)
+            .pipe(
+              Stream.onFirst(() => measuring.open),
+              Stream.map(({ rows }) => Message.Measured({ rows })),
+            ),
+        ),
+      ),
     ),
 })
 

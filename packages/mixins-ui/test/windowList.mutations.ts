@@ -147,9 +147,8 @@ export default [
     edits: [
       {
         file,
-        find: '.pipe(Stream.map(({ top, height }) => Message.Placed({ top, height }))),',
-        replace:
-          '.pipe(Stream.map(({ top, height }) => Message.Placed({ top: top * 0, height }))),',
+        find: 'Stream.map(({ top, height }) => Message.Placed({ top, height })),',
+        replace: 'Stream.map(({ top, height }) => Message.Placed({ top: top * 0, height })),',
       },
     ],
     tests: browser,
@@ -159,10 +158,37 @@ export default [
     edits: [
       {
         file,
-        find: '.pipe(Stream.map(({ rows }) => Message.Measured({ rows }))),',
-        replace: '.pipe(Stream.drain),',
+        find: 'Stream.map(({ rows }) => Message.Measured({ rows })),',
+        replace: 'Stream.drain,',
       },
     ],
+    tests: browser,
+  },
+  {
+    name: 'the list is placed before any row is measured',
+    edits: [
+      {
+        file,
+        find: 'Stream.fromEffectDrain(measuring.await)',
+        replace: 'Stream.fromEffectDrain(Effect.void)',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the list waits for a measure where nothing measures',
+    edits: [
+      {
+        file,
+        find: 'Latch.make(globalThis.ResizeObserver === undefined)',
+        replace: 'Latch.make(false)',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the list is never placed',
+    edits: [{ file, find: 'Stream.onFirst(() => measuring.open),', replace: '' }],
     tests: browser,
   },
   {

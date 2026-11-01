@@ -149,7 +149,9 @@ version changed; `pnpm` skips versions already in the registry.
   reading through the view's own `onMessage` (#369). `init`'s
   `unmeasured: 'mean'` counts a row not yet measured as the mean of the rows
   measured, for rows whose height the window's width decides, which `init`
-  cannot know (#381).
+  cannot know (#381). The Mount places the list once the first rows drawn
+  are measured, so a frame drawn as it starts takes no row away unmeasured
+  (#398).
 
 - **Request body limits on the Remote endpoint** (`foldkit-remote-server`,
   #359). `serveFetch`'s `maxBodyBytes` (default 1 MiB; it read a body of any

@@ -6,7 +6,7 @@
  * a handful of the thousand; the header stays stuck; content above growing
  * with no scroll still moves the rows drawn; once every row is measured each
  * starts at the sum of the heights above it, and the footer where the last
- * ends.
+ * ends, even when a frame is drawn while the list's Mount starts.
  */
 import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
@@ -27,8 +27,10 @@ const Model = Schema.Struct({ list: WindowList.Model })
 type Model = typeof Model.Type
 
 let handle: { dispose: () => void } | undefined
+const { setTimeout } = window
 
 afterEach(async () => {
+  vi.unstubAllGlobals()
   handle?.dispose()
   handle = undefined
   window.scrollTo(0, 0)
@@ -196,4 +198,27 @@ describe.each([
       }
     }
   })
+})
+
+test('a frame drawn while the Mount starts moves no row away unmeasured', async () => {
+  await page.viewport(1280, 800)
+  // A loaded page paints between tasks: each zero-delay timer, which is how
+  // Effect hands work to the next fiber, waits here for a frame. On CI one
+  // landed between the viewport's first reading and the rows' observer (#398).
+  vi.stubGlobal('setTimeout', (handler: TimerHandler, delay?: number, ...rest: unknown[]) =>
+    delay === undefined || delay === 0
+      ? requestAnimationFrame(() => setTimeout(handler, 0, ...rest))
+      : setTimeout(handler, delay, ...rest),
+  )
+  await mount()
+  // Placed: the thirty rows drawn for a list assumed at the viewport's top
+  // are cut to the dozen above the fold, 560px down.
+  await vi.waitFor(() => expect(indexOf(rows().at(-1)!)).toBeLessThan(20))
+  // Rows the first frame drew, and none since, are above the viewport here.
+  const drawn = await scrolledTo(560 + prefix(30))
+  expect(indexOf(drawn[0]!)).toBeGreaterThan(20)
+  const top = list().getBoundingClientRect().top
+  for (const row of drawn) {
+    expect(row.getBoundingClientRect().top - top).toBeCloseTo(prefix(indexOf(row)), 1)
+  }
 })
