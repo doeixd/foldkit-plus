@@ -61,14 +61,14 @@ export default [
   edit(
     'a write another tab settled is sent again',
     outbox,
-    'if (Option.isSome(there) && settledIn(there.value, operation)) {',
+    'if (Option.isSome(there) && answeredIn(there.value, operation)) {',
     'if (false) {',
   ),
   edit(
     'a store that cannot be written holds the writes back',
     outbox,
-    'Effect.succeed(readOf(key, scope, mine, { unsaved: error.message })),',
-    'Effect.succeed(readOf(key, scope, { entries: [], done: [] }, { unsaved: error.message })),',
+    'Effect.succeed(readOf(key, scope, change, { unsaved: error.message }))',
+    'Effect.succeed(readOf(key, scope, { entries: [], done: [] }, { unsaved: error.message }))',
   ),
   edit(
     'an input that no longer decodes is sent anyway',
@@ -122,14 +122,57 @@ export default [
   edit(
     'a refusal leaves the revision where it was',
     model,
-    'revision: queued.write.revision + 1,',
-    'revision: queued.write.revision,',
+    "revision: queued.write.revision + 1,\n                  state: { _tag: 'Failed'",
+    "revision: queued.write.revision,\n                  state: { _tag: 'Failed'",
   ),
   edit(
     'a durable write is sent under an id of its own, not its operation',
     outbox,
     'mutateRemote(mutation, input, operation, {',
     'mutateRemote(mutation, input, `${operation}.sent`, {',
+  ),
+  // #403: a write no one is signed in to send waits for a sign-in.
+  edit(
+    'an Unauthenticated answer settles the write failed',
+    outbox,
+    "if (result.failure._tag === 'Unauthenticated') {",
+    'if (false) {',
+  ),
+  edit(
+    'a write waiting for a sign-in holds nothing back',
+    store,
+    "if (queued.write.state._tag === 'WaitingForSignIn') return Option.none()",
+    'if (false) return Option.none()',
+  ),
+  edit(
+    'a write waiting for a sign-in drops its layer',
+    model,
+    'WaitingForSignIn: () => true,',
+    'WaitingForSignIn: () => false,',
+  ),
+  edit(
+    'a write waiting for a sign-in is begun again over the writes after it',
+    model,
+    'isWaiting(prior) &&\n    entry._tag',
+    'false &&\n    entry._tag',
+  ),
+  edit(
+    'a sign-in resumes nothing',
+    model,
+    'if (!model.outbox.queue.some(waitsForSignIn)) return model',
+    'return model',
+  ),
+  edit(
+    'a sign-in leaves the revision where it was',
+    model,
+    "revision: queued.write.revision + 1,\n                state: { _tag: 'Waiting' },",
+    "revision: queued.write.revision,\n                state: { _tag: 'Waiting' },",
+  ),
+  edit(
+    'a write waiting for a sign-in is shown as waiting its turn',
+    outbox,
+    'WaitingForSignIn: ({ error }) => OutboxItemState.WaitingForSignIn({ error }),',
+    'WaitingForSignIn: () => OutboxItemState.Waiting({ attempt, error: delayed }),',
   ),
   {
     name: 'a reload reads nothing back',
@@ -171,6 +214,17 @@ export default [
         file: outbox,
         find: 'Effect.andThen(announce(key, Option.some(message))),',
         replace: 'Effect.andThen(Effect.void),',
+      },
+    ],
+    tests: ['packages/remote/test/outboxTabs.browser.test.ts'],
+  },
+  {
+    name: 'the other tabs are not told a write waits for a sign-in',
+    edits: [
+      {
+        file: outbox,
+        find: 'saved(key, scope, { entries: [waiting], done: [] }),',
+        replace: 'Effect.succeed(readOf(key, scope, { entries: [waiting], done: [] })),',
       },
     ],
     tests: ['packages/remote/test/outboxTabs.browser.test.ts'],

@@ -666,7 +666,11 @@ refuses it the same way with `_tag: 'Forbidden'` and the `explain` as
 `reason`; a `may` not held refuses nothing.
 `RemoteServer.forbid(reason?)` refuses who is asking, for any mutation: a 403
 over JSON, and `Data.mutation` is `Failed` with `error._tag === 'Forbidden'` and
-`error.reason` when given. `Remote.http` reads a 403 that is not Remote's
+`error.reason` when given. A visitor is refused with
+`RemoteServer.unauthenticated(reason?)` (a 401) instead: `RemoteServer.write`
+does for a write whose Entity sets a member from who asks, `GuardServer` for
+every write it refuses one, so a client tells a session that ended from a
+person refused. `Remote.http` reads a 403 that is not Remote's
 answer (middleware) as `Forbidden` too. A 401 (`RemoteServer.unauthenticated`,
 or middleware) fails every call kind, reads and live streams included, with
 `_tag: 'Unauthenticated'` and `reason` when given: the session is gone; read it
@@ -704,10 +708,16 @@ Lock (one tab sends), sends again with the same operation id and `now` after a
 reload or an `Unreachable` failure (backoff 1 s doubling to 30 s, and on
 `online`; `OutboxDelayed` per attempt), and settles a refusal as `Failed`
 (`failedWrites`, `retry` queues again, `dismiss` removes it from the store).
+A send answered `Unauthenticated` is not settled: the write stays queued as
+`WaitingForSignIn` (layer shown, `Pending`, not dismissable) and every write
+after it waits behind it, in order, across reloads, until `update` reports a
+sign-in with `Data.signedIn(model)`, after moving `scope` to whoever signed in;
+only that scope's queue is sent, so another person's never is. `Forbidden`
+stays final.
 Other tabs read the store over a `BroadcastChannel` and show each other's
-writes. `outboxStatus(Data, model)`, from the same entry, is `{ waiting, failed, items }`, each item's
-`state` `Waiting { attempt, error }`, `Failed { error }` or `Unreadable {
-reason }` (a stored write this version's Mutations cannot read: kept, never
+writes. `outboxStatus(Data, model)`, from the same entry, is `{ waiting, failed,
+waitingForSignIn, items }`, each item's `state` `Waiting { attempt, error }`,
+`Failed { error }`, `WaitingForSignIn { error }` or `Unreadable { reason }` (a stored write this version's Mutations cannot read: kept, never
 sent, `OutboxUnreadable`, dismissable). A store that cannot be written reports
 `OutboxUnsaved` and still sends. A page sends only the queue it read for the
 current `key` and `scope` (one per principal): after a change of principal it

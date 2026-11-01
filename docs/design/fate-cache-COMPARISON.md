@@ -60,7 +60,7 @@ and each view sees only the fields it selected.
 | Live | The server names what changed | The server re-reads through `readAs` and runs each list's window again, resuming from a cursor |
 | Saved reads | Per request, with its own `maxAge`, least recently used evicted, loaded lazily | One snapshot of the whole cache within `maxBytes`, restored through `flags` before `init` |
 | Offline writes | As above | The outbox: the same order, identity, ledger and tab rules |
-| A write the session no longer covers | Waits for sign-in | `Forbidden` settles it as `Failed` |
+| A write the session no longer covers | Waits for sign-in | Waits for sign-in (`WaitingForSignIn`, #403); `Forbidden` settles it as `Failed` |
 
 ## What we keep, and why
 
@@ -117,6 +117,14 @@ Four changes, in this order. Each is its own issue.
    final. A change of principal still means another key, so one person's
    writes are never sent as another's. The server side must tell the two
    apart on the wire: check what `RemoteServer` answers for a visitor today.
+   - Done. The wire already carried `Unauthenticated` (a 401) for a resolver
+     that refused a credential, but a visitor's write was `Forbidden`, from
+     `GuardServer` and from `RemoteServer.write` setting a member from who
+     asks: a session whose cookie the browser dropped read as a refusal. Both
+     now answer a visitor `Unauthenticated`. The waiting state is the store's,
+     read back through `OutboxRead` like any other, so every tab shows it; a
+     reload keeps it waiting until `Data.signedIn`, since only the
+     application knows who signed in.
 4. **Saved reads with their own age and an eviction order** (#404).
    `persistence(Data, …)` takes `maxAge` (default one day), and a
    `Data.subscriptions` call can pass `persist: { maxAge }` or `persist:

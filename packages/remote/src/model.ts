@@ -3,7 +3,7 @@
  * optimistic layers an application keeps in its Model, the Messages that
  * change it, and the pure reducer over them.
  */
-import { Option, Schema } from 'effect'
+import { Match, Option, Schema } from 'effect'
 import {
   liveRefused,
   outboxUnreadable,
@@ -1274,9 +1274,17 @@ const entryOperation = (entry: ReadEntry): string =>
 const entryRevision = (entry: ReadEntry): number =>
   entry._tag === 'Readable' ? entry.write.revision : entry.revision
 
-/** Whether the queued write waits its turn: in the ledger in flight, its layer shown. */
+/** Whether a stored write's state keeps it in the ledger in flight, its layer shown. */
+const waitingIn = (state: StoredWrite['state']): boolean =>
+  Match.valueTags(state, {
+    Waiting: () => true,
+    WaitingForSignIn: () => true,
+    Failed: () => false,
+  })
+
+/** Whether the queued write waits, its turn or a sign-in: in the ledger in flight, its layer shown. */
 const isWaiting = (queued: Queued): boolean =>
-  queued._tag === 'Readable' && queued.write.state._tag === 'Waiting'
+  queued._tag === 'Readable' && waitingIn(queued.write.state)
 
 /** The ledger and layers without a queued write: nothing of it shown or listed. */
 const releasedFrom = (
@@ -1314,6 +1322,16 @@ const adopted = (
   prior: Queued | undefined,
   entry: ReadEntry,
 ): RemoteModel => {
+  // Waiting either side of a sign-in, a write is the same write: its layer
+  // keeps its place under the writes after it, which a new begin would lose.
+  if (
+    prior !== undefined &&
+    isWaiting(prior) &&
+    entry._tag === 'Readable' &&
+    waitingIn(entry.write.state)
+  ) {
+    return model
+  }
   const released = prior === undefined ? model : releasedFrom(capabilities, model, prior)
   if (entry._tag === 'Unreadable') return released
   const { write } = entry
@@ -1327,25 +1345,23 @@ const adopted = (
       optimistic: write.optimistic,
     }),
   }
-  return write.state._tag === 'Waiting'
-    ? {
-        ...begun,
-        optimistic: layersIn(capabilities).begin(
-          begun.optimistic,
-          write.operation,
-          write.optimistic,
-          Option.fromUndefinedOr(write.viewer),
-        ),
-      }
-    : {
-        ...begun,
-        mutations: failMutation(
-          begun.mutations,
-          write.operation,
-          write.state.error,
-          write.operation,
-        ),
-      }
+  const shown = (): RemoteModel => ({
+    ...begun,
+    optimistic: layersIn(capabilities).begin(
+      begun.optimistic,
+      write.operation,
+      write.optimistic,
+      Option.fromUndefinedOr(write.viewer),
+    ),
+  })
+  return Match.valueTags(write.state, {
+    Waiting: shown,
+    WaitingForSignIn: shown,
+    Failed: ({ error }) => ({
+      ...begun,
+      mutations: failMutation(begun.mutations, write.operation, error, write.operation),
+    }),
+  })
 }
 
 /**
@@ -1364,7 +1380,7 @@ const settledElsewhere = (
   )
   const rows = new Map<string, { readonly entity: string; readonly id: string }>()
   for (const queued of settled) {
-    if (queued._tag !== 'Readable' || queued.write.state._tag !== 'Waiting') continue
+    if (queued._tag !== 'Readable' || !isWaiting(queued)) continue
     for (const operation of queued.write.optimistic) {
       if ('entity' in operation) rows.set(entityKey(operation.entity, operation.id), operation)
     }
@@ -1488,6 +1504,40 @@ export const dismissQueued = (model: RemoteModel, requestId: string): RemoteMode
     ...model,
     mutations: forgetFailure(model.mutations, requestId),
     outbox: withoutQueued(model.outbox, requestId),
+  }
+}
+
+/**
+ * The Remote Model with every write waiting for a sign-in waiting its turn
+ * again (`Data.signedIn`), its revision moved on, so the store and every tab
+ * take it and the outbox sends it, then those held behind it. The Model
+ * itself when none waits for one.
+ */
+export const signedInQueued = (model: RemoteModel): RemoteModel => {
+  const waitsForSignIn = (
+    queued: Queued,
+  ): queued is Extract<Queued, { readonly _tag: 'Readable' }> =>
+    queued._tag === 'Readable' && queued.write.state._tag === 'WaitingForSignIn'
+  if (!model.outbox.queue.some(waitsForSignIn)) return model
+  return {
+    ...model,
+    outbox: {
+      ...model.outbox,
+      queue: model.outbox.queue.map(queued =>
+        waitsForSignIn(queued)
+          ? Queued.Readable({
+              write: {
+                ...queued.write,
+                revision: queued.write.revision + 1,
+                state: { _tag: 'Waiting' },
+              },
+              stored: false,
+              attempt: 0,
+              delayed: Option.none(),
+            })
+          : queued,
+      ),
+    },
   }
 }
 

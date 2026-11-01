@@ -386,7 +386,13 @@ A refusal of who is asking, rather than of what they asked, is
 `Effect.fail(RemoteServer.forbid('Only an admin may archive.'))`: sent as
 `Forbidden` with the reason (a 403 over JSON), or with none when `forbid()` is
 given none, so the refusal says nothing of why. It is the same for every
-mutation, so it needs no `Refusal` declared.
+mutation, so it needs no `Refusal` declared. A refusal of a visitor, someone
+not signed in, is `RemoteServer.unauthenticated(reason)` instead (a 401):
+signing in is the remedy, and Remote's outbox keeps a durable write so
+answered waiting for it, where it settles a `Forbidden` one as failed.
+`RemoteServer.write` refuses a visitor a write whose Entity sets a member from
+who asks that way, and `GuardServer` refuses a visitor every write it would
+refuse.
 
 A Source may additionally return connection changes:
 

@@ -2117,7 +2117,10 @@ const sent = Data.mutate(model, PostChirp, post, { now, durable: true })
 return { model: sent.model, commands: [sent.command] }
 
 // the view
-const { waiting } = outboxStatus(Data, model) // "3 changes waiting"
+const { waiting, waitingForSignIn } = outboxStatus(Data, model) // "3 changes waiting"
+
+// update, once the application knows who is signed in again
+return { model: Data.signedIn(model) }
 ```
 
 `waiting` counts a write on its way too, so a line drawn whenever it is above
@@ -2134,6 +2137,8 @@ before it has run throws.
 Data.mutate(…, { durable }) → queued in the Model, layer shown   (its Command answers MutationQueued)
 outbox.save  → the queue written to the store, merged with other tabs' → OutboxRead (stored)
 outbox.send  → the oldest stored write sent, one at a time, by one tab  → MutationSucceeded | MutationFailed
+             → answered Unauthenticated: stored as WaitingForSignIn → OutboxRead; the rest held
+Data.signedIn → each write waiting for a sign-in waits its turn again → sent, then those behind it
 reload       → outbox.restore: the queue back, layers shown → sent again, same operation id, same now
 ```
 
@@ -2153,6 +2158,22 @@ reload       → outbox.restore: the queue back, layers shown → sent again, sa
   `Failed`, as for any write: `Data.failedWrites`, `Data.retry` (queued again)
   and `Data.dismiss` (gone from the store too) work on it unchanged. A write
   still waiting cannot be dismissed: it may be on its way.
+- **A session that ended waits for a sign-in.** `Forbidden` is a person the
+  server refused, and is final; `Unauthenticated` (a 401) is a server that
+  could not tell who sent it: a session that ended, or a visitor, which
+  `GuardServer` and `RemoteServer.write` refuse with it rather than
+  `Forbidden`. A write so answered stays queued as `WaitingForSignIn` in
+  `outboxStatus` (`waitingForSignIn` counts them), its layer still shown and
+  its ledger entry pending, and every write after it waits behind it, in
+  order. Nothing sends it again on its own, a reload included: once the
+  application knows who is signed in (its sign-in answered, or a reload read
+  who it is), `update` reports it with `Data.signedIn(model)`, and the outbox
+  sends it again as itself, then the rest. It sends only the queue of the
+  `scope` the page holds, so call `Data.signedIn` after moving `scope` to the
+  person who signed in: a sign-in as someone else reads their queue, never
+  this one. It cannot be dismissed while it waits. A handler of your own
+  (`RemoteServer.mutation`) refuses a visitor with
+  `RemoteServer.unauthenticated(reason)` for the same.
 - **One tab sends; every tab shows.** The store is shared by every tab on the
   key. A Web Lock picks the one that sends, which reads the store again first
   so a write another tab settled is not sent twice; a `BroadcastChannel` tells

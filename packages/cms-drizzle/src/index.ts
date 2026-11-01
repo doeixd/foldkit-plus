@@ -29,7 +29,7 @@ import { Cms, type Content, type Facts, type Transition } from 'foldkit-cms'
 import { Entity, type AnyEntity } from 'foldkit-entity'
 import { Guards, type Policy, type PrincipalGuard } from 'foldkit-guard'
 import { GuardServer } from 'foldkit-guard/server'
-import type { MutationDescriptor, RemoteForbidden } from 'foldkit-remote'
+import type { MutationDescriptor, RemoteForbidden, RemoteUnauthenticated } from 'foldkit-remote'
 import {
   DrizzleDatabase,
   drizzleWrites,
@@ -519,7 +519,7 @@ export const CmsServer = {
         readonly principal: P
       }) => Effect.Effect<
         MutationOutcome<Output>,
-        RemoteServerError | MutationRefused | RemoteForbidden,
+        RemoteServerError | MutationRefused | RemoteForbidden | RemoteUnauthenticated,
         DrizzleDatabase
       >,
     ): MutationSource<P, DrizzleDatabase> =>

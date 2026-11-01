@@ -445,7 +445,7 @@ describe('GuardServer.writer', () => {
     expect(row('t8')).toMatchObject({ owner_id: 'ada' })
     expect(await mutate(Option.none(), 'CreateMine', { id: 't9', title: 'Whose?' })).toMatchObject({
       _tag: 'Failure',
-      failure: { _tag: 'Forbidden' },
+      failure: { _tag: 'Unauthenticated' },
     })
     expect(row('t9')).toBeUndefined()
   })
@@ -457,8 +457,22 @@ describe('GuardServer.writer', () => {
     })
     expect(await mutate(Option.none(), 'CreateNote', { id: 'n2', body: 'Hi' })).toMatchObject({
       _tag: 'Failure',
+      failure: { _tag: 'Unauthenticated' },
+    })
+  })
+
+  it('asks a visitor to sign in where it refuses someone signed in, and writes nothing (#403)', async () => {
+    const { mutate, row } = open()
+    const edit = { id: 't1', ownerId: 'ada', title: 'Visited' }
+    expect(await mutate(Option.none(), 'EditTodo', edit, ['title'])).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Unauthenticated' },
+    })
+    expect(await mutate(vi, 'EditTodo', edit, ['title'])).toMatchObject({
+      _tag: 'Failure',
       failure: { _tag: 'Forbidden' },
     })
+    expect(row('t1')).toMatchObject({ title: 'Own' })
   })
 })
 
@@ -727,6 +741,15 @@ describe('GuardServer.mutation', () => {
     expect(await handle(ada, 'ArchiveTodo', { id: 't2' })).toMatchObject({
       _tag: 'Failure',
       failure: { _tag: 'Forbidden' },
+    })
+    expect(seen).toEqual([])
+  })
+
+  it('asks a visitor to sign in, without running (#403)', async () => {
+    seen.length = 0
+    expect(await handle(Option.none(), 'ArchiveTodo', { id: 't1' })).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Unauthenticated' },
     })
     expect(seen).toEqual([])
   })

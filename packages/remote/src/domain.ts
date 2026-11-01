@@ -639,6 +639,16 @@ export interface RemoteDomain<
    * else (a write still waiting, too) returns the same Model.
    */
   dismiss(model: AppModel, requestId: string): AppModel
+  /**
+   * Reports from `update` that the principal the outbox's `scope` names is
+   * signed in again: the durable writes the server answered `Unauthenticated`
+   * wait their turn again, and the outbox sends them, then those held behind
+   * them, in order. Call it once the application knows who is signed in (its
+   * sign-in answered, or a reload read who it is), after any change of
+   * `scope`: only the queue of the scope the page holds is sent, never
+   * another person's. The same Model when none waits for a sign-in.
+   */
+  signedIn(model: AppModel): AppModel
   /** `updateRemote` on the bound slice: reduces one of Remote's Messages, as `RemoteMessage` or as the application's union constructs it. */
   reduce(model: AppModel, message: RemoteMessage | RemoteMessageInput): AppModel
   /**

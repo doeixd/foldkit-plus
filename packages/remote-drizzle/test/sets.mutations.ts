@@ -37,7 +37,7 @@ export default [
   ),
   edit(
     'a visitor is not refused',
-    '                // A visitor, a viewer of another Entity, or a path reaching no row.\n                if (set.unfilled.length > 0) return yield* Effect.fail(RemoteServer.forbid())',
+    '                // A visitor, a viewer of another Entity, or a path reaching no row.\n                if (set.unfilled.length > 0) return yield* Effect.fail(unfilled)',
     '',
   ),
   edit(

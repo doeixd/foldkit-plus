@@ -3,7 +3,7 @@
  * across a reload and sent in order by one tab (#247). An entry of its own
  * (#378), so a page with no outbox keeps none of its store, locks or sending.
  */
-import { Clock, Data, Effect, Option, Queue, Result, Schema, Stream } from 'effect'
+import { Clock, Data, Effect, Match, Option, Queue, Result, Schema, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import * as Subscription from 'foldkit/subscription'
 import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
@@ -20,8 +20,8 @@ import {
   othersWaiting,
   readEntries,
   readStored,
+  answeredIn,
   sendLock,
-  settledIn,
   storedFromText,
   storedOf,
   storedText,
@@ -150,6 +150,18 @@ export const outbox = <AppModel>(
         return merged
       }),
     )
+  /**
+   * `change` written to the store, the other tabs told, and the store read
+   * back; where it cannot be written, `change` itself and why. A store that
+   * cannot be written does not hold the writes back: they are sent, and a
+   * reload before the answer loses them.
+   */
+  const saved = (key: string, scope: string, change: StoredOutbox) =>
+    writeStored(key, scope, change).pipe(
+      Effect.tap(() => announce(key, Option.none())),
+      Effect.map(merged => readOf(key, scope, merged)),
+      Effect.catch(error => Effect.succeed(readOf(key, scope, change, { unsaved: error.message }))),
+    )
   /** What the store holds, as a page reads it; this page's own queue, and why, where it cannot be read. */
   const restored = (key: string, scope: string, session: Option.Option<string>) =>
     readStored(key, scope).pipe(
@@ -261,20 +273,7 @@ export const outbox = <AppModel>(
     dependenciesToStream: ({ key, scope, text }) =>
       Option.match(text, {
         onNone: () => Stream.empty,
-        onSome: written => {
-          const mine = storedFromText(written)
-          return Stream.fromEffect(
-            writeStored(key, scope, mine).pipe(
-              Effect.tap(() => announce(key, Option.none())),
-              Effect.map(merged => readOf(key, scope, merged)),
-              // A store that cannot be written does not hold the writes back:
-              // they are sent, and a reload before the answer loses them.
-              Effect.catch(error =>
-                Effect.succeed(readOf(key, scope, mine, { unsaved: error.message })),
-              ),
-            ),
-          )
-        },
+        onSome: written => Stream.fromEffect(saved(key, scope, storedFromText(written))),
       }),
   }
 
@@ -300,9 +299,9 @@ export const outbox = <AppModel>(
       return withLock(
         sendLock(key),
         Effect.gen(function* () {
-          // Another tab may have settled it while this one waited for the lock.
+          // Another tab may have had it answered while this one waited for the lock.
           const there = yield* Effect.option(readStored(key, scope))
-          if (Option.isSome(there) && settledIn(there.value, operation)) {
+          if (Option.isSome(there) && answeredIn(there.value, operation)) {
             yield* emit(readOf(key, scope, there.value))
             return
           }
@@ -336,6 +335,20 @@ export const outbox = <AppModel>(
               )
             }
             const error = remoteError(result.failure)
+            // No one is signed in to send it as: kept, with every write after
+            // it, until `Data.signedIn`. Not settled, so no tab is told an
+            // outcome: each reads the state from the store (#403).
+            if (result.failure._tag === 'Unauthenticated') {
+              const waiting = {
+                ...write,
+                revision: write.revision + 1,
+                state: { _tag: 'WaitingForSignIn', error },
+              } as const
+              return yield* Effect.flatMap(
+                saved(key, scope, { entries: [waiting], done: [] }),
+                emit,
+              )
+            }
             // Nothing answered: kept waiting, and sent again after a wait.
             if (result.failure._tag === 'Unreachable') {
               yield* emit({ _tag: 'OutboxDelayed', requestId: operation, attempt, error })
@@ -493,6 +506,11 @@ export type OutboxItemState = Data.TaggedEnum<{
   Waiting: { readonly attempt: number; readonly error: Option.Option<RemoteError> }
   /** The server answered no: `Data.retry` or `Data.dismiss` it. */
   Failed: { readonly error: RemoteError }
+  /**
+   * The server could not tell who sent it (`Unauthenticated`): kept, and the
+   * writes after it held, until `Data.signedIn` reports a sign-in.
+   */
+  WaitingForSignIn: { readonly error: RemoteError }
   /** Stored by a version of the app this one cannot read: `Data.dismiss` it. */
   Unreadable: { readonly reason: string }
 }>
@@ -502,6 +520,8 @@ export const OutboxItemState = Data.taggedEnum<OutboxItemState>()
 export interface OutboxStatus {
   readonly waiting: number
   readonly failed: number
+  /** Writes waiting for a sign-in; the `waiting` ones after them are held behind them. */
+  readonly waitingForSignIn: number
   /** Every durable write not yet settled, in the order they are sent. */
   readonly items: ReadonlyArray<OutboxItem>
 }
@@ -524,10 +544,11 @@ const statusOf = (outbox: OutboxState): OutboxStatus => {
       Readable: ({ write, attempt, delayed }): OutboxItem => ({
         requestId: write.operation,
         mutation: Option.some(write.mutation),
-        state:
-          write.state._tag === 'Waiting'
-            ? OutboxItemState.Waiting({ attempt, error: delayed })
-            : OutboxItemState.Failed({ error: write.state.error }),
+        state: Match.valueTags(write.state, {
+          Waiting: () => OutboxItemState.Waiting({ attempt, error: delayed }),
+          Failed: ({ error }) => OutboxItemState.Failed({ error }),
+          WaitingForSignIn: ({ error }) => OutboxItemState.WaitingForSignIn({ error }),
+        }),
       }),
       Unreadable: ({ operation, raw, reason }): OutboxItem => ({
         requestId: operation,
@@ -542,6 +563,7 @@ const statusOf = (outbox: OutboxState): OutboxStatus => {
   return {
     waiting: items.filter(item => item.state._tag === 'Waiting').length,
     failed: items.filter(item => item.state._tag === 'Failed').length,
+    waitingForSignIn: items.filter(item => item.state._tag === 'WaitingForSignIn').length,
     items,
   }
 }

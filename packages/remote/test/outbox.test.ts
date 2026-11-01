@@ -19,7 +19,9 @@ import {
   Query,
   Remote,
   RemoteClient,
+  RemoteForbidden,
   RemoteMutationError,
+  RemoteUnauthenticated,
   RemoteUnreachable,
   terminal,
   type RemoteMessage,
@@ -70,7 +72,7 @@ const page = (actor = 'ada'): Model =>
     },
   )
 
-type Answer = 'applied' | 'unreachable' | 'refused' | 'unanswered'
+type Answer = 'applied' | 'unreachable' | 'refused' | 'unanswered' | 'signedOut' | 'forbidden'
 
 /** A server answering each send as scripted (applied once the script runs out), and what reached it. */
 const server = (script: ReadonlyArray<Answer> = []) => {
@@ -103,6 +105,10 @@ const server = (script: ReadonlyArray<Answer> = []) => {
           new RemoteMutationError({ message: 'no', refusal: { _tag: 'Conflict' } }),
         )
       }
+      if (answer === 'signedOut') {
+        return Effect.fail(new RemoteUnauthenticated({ message: 'Your session ended.' }))
+      }
+      if (answer === 'forbidden') return Effect.fail(new RemoteForbidden({ message: 'Not yours' }))
       const input = request.input as { readonly id: string; readonly count: number }
       return Effect.succeed({
         output: {},
@@ -239,7 +245,12 @@ describe('a durable write', () => {
     expect(tab.shown).toEqual([[{ entity: 'Item', fields: ['count'] }]])
     expect(count(settled, 'i1')).toBe(2)
     expect(Data.mutation(settled, started.requestId)).toEqual({ _tag: 'Applied' })
-    expect(outboxStatus(Data, settled)).toEqual({ waiting: 0, failed: 0, items: [] })
+    expect(outboxStatus(Data, settled)).toEqual({
+      waiting: 0,
+      failed: 0,
+      waitingForSignIn: 0,
+      items: [],
+    })
     expect(storedOperations(tab.kv)).toEqual([])
   })
 
@@ -375,6 +386,108 @@ describe('a durable write', () => {
     const tab = { kv: memory(), ...server() }
     const started = setCount(await restored(tab), 'i1', 2)
     expect(Data.dismiss(started.model, started.requestId)).toBe(started.model)
+  })
+})
+
+/**
+ * #403: a write the server answers `Unauthenticated` (no one signed in, a
+ * session that ended) waits for a sign-in, and holds the writes after it;
+ * one it answers `Forbidden` (someone refused) settles failed.
+ */
+describe('a durable write no one is signed in to send', () => {
+  /** Ada's three writes, the session ending under the second: i1 to 2, then i2 to 3 and 4. */
+  const expired = async () => {
+    const tab = { kv: memory(), ...server(['applied', 'signedOut']) }
+    const first = setCount(await restored(tab), 'i1', 2)
+    const second = setCount(first.model, 'i2', 3)
+    const third = setCount(second.model, 'i2', 4)
+    const waiting = await settle(tab, third.model)
+    return { tab, waiting, ids: [first, second, third].map(started => started.requestId) }
+  }
+
+  it('waits for a sign-in, shown and pending, and holds the writes after it in order', async () => {
+    const { tab, waiting, ids } = await expired()
+    expect(tab.sent.map(each => each.requestId)).toEqual([ids[0], ids[1]])
+    expect(outboxStatus(Data, waiting)).toMatchObject({
+      waiting: 1,
+      failed: 0,
+      waitingForSignIn: 1,
+      items: [
+        {
+          requestId: ids[1],
+          state: { _tag: 'WaitingForSignIn', error: { _tag: 'Unauthenticated' } },
+        },
+        { requestId: ids[2], state: { _tag: 'Waiting' } },
+      ],
+    })
+    // Both layers still shown, the later one over the earlier.
+    expect(count(waiting, 'i2')).toBe(4)
+    expect(Data.mutation(waiting, ids[1]!)).toEqual({ _tag: 'Pending' })
+    expect(Data.failedWrites(waiting)).toEqual([])
+    expect(await Effect.runPromise(tab.kv.get('outbox:ada'))).toContain('"WaitingForSignIn"')
+    // It is not the reader's to drop: it waits for them to sign in.
+    expect(Data.dismiss(waiting, ids[1]!)).toBe(waiting)
+    // Nothing else sends it.
+    await settle(tab, waiting)
+    expect(tab.sent).toHaveLength(2)
+  })
+
+  it('a sign-in sends it again as itself, then those held behind it, in order', async () => {
+    const { tab, waiting, ids } = await expired()
+    const resumed = await settle(tab, Data.signedIn(waiting))
+    expect(tab.sent.map(each => each.requestId)).toEqual([ids[0], ids[1], ids[1], ids[2]])
+    expect(tab.sent[2]).toEqual(tab.sent[1])
+    expect(outboxStatus(Data, resumed).items).toEqual([])
+    expect(count(resumed, 'i2')).toBe(4)
+    expect(storedOperations(tab.kv)).toEqual([])
+    // With nothing waiting for one, a sign-in changes nothing.
+    expect(Data.signedIn(resumed)).toBe(resumed)
+  })
+
+  it('a reload keeps it waiting, and sends it only once a sign-in is reported', async () => {
+    const { tab, ids } = await expired()
+    const after = { kv: tab.kv, ...server() }
+    const reloaded = await settle(after, await restored(after))
+    expect(after.sent).toEqual([])
+    expect(outboxStatus(Data, reloaded)).toMatchObject({ waiting: 1, waitingForSignIn: 1 })
+    expect(count(reloaded, 'i2')).toBe(4)
+    await settle(after, Data.signedIn(reloaded))
+    expect(after.sent.map(each => each.requestId)).toEqual([ids[1], ids[2]])
+  })
+
+  it('Forbidden still settles it failed, and holds nothing back', async () => {
+    const tab = { kv: memory(), ...server(['forbidden']) }
+    const first = setCount(await restored(tab), 'i1', 2)
+    const second = setCount(first.model, 'i2', 3)
+    const settled = await settle(tab, second.model)
+    expect(tab.sent.map(each => each.requestId)).toEqual([first.requestId, second.requestId])
+    expect(outboxStatus(Data, settled)).toMatchObject({
+      waiting: 0,
+      failed: 1,
+      waitingForSignIn: 0,
+      items: [
+        { requestId: first.requestId, state: { _tag: 'Failed', error: { _tag: 'Forbidden' } } },
+      ],
+    })
+    expect(count(settled, 'i1')).toBe(1)
+    // A sign-in does not send a refused write again.
+    await settle(tab, Data.signedIn(settled))
+    expect(tab.sent).toHaveLength(2)
+  })
+
+  it('another principal never sends it, signed in or not; its own sends it once signed in', async () => {
+    const { tab, waiting, ids } = await expired()
+    // Grace signs in on the same page: her queue is read, and Ada's is not sent.
+    const grace = await settle(tab, Data.signedIn({ ...waiting, actor: 'grace' }))
+    expect(tab.sent).toHaveLength(2)
+    expect(outboxStatus(Data, grace).items).toEqual([])
+    // On a page of her own too.
+    const reloaded = { kv: tab.kv, ...server() }
+    await settle(reloaded, Data.signedIn(await restored(reloaded, page('grace'))))
+    expect(reloaded.sent).toEqual([])
+    // Ada, signed in again, sends hers.
+    await settle(reloaded, Data.signedIn(await restored(reloaded, page('ada'))))
+    expect(reloaded.sent.map(each => each.requestId)).toEqual([ids[1], ids[2]])
   })
 })
 

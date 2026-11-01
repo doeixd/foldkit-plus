@@ -37,8 +37,8 @@ export default [
   ),
   edit(
     'validate does not warn',
-    'pins.set(guarded, Option.fromUndefinedOr(revision))',
-    "pins.set(guarded, Option.some('revision'))",
+    'pins.set(asked, Option.fromUndefinedOr(revision))',
+    "pins.set(asked, Option.some('revision'))",
   ),
   edit(
     'an input expecting another field than the pin is written',

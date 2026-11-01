@@ -55,6 +55,7 @@ import {
   isQueryLoading,
   isRemoteMessage,
   dismissQueued,
+  signedInQueued,
   forgetRemote,
   refreshIsInFlight,
   remoteMessageCases,
@@ -1815,6 +1816,11 @@ const bindDomain = <
         ...remote,
         mutations: forgetFailure(remote.mutations, requestId),
       } as Store)
+    },
+    signedIn: model => {
+      const remote = store.get(model)
+      const resumed = signedInQueued(remote)
+      return resumed === remote ? model : store.set(model, resumed as Store)
     },
     reduce,
     inspect: model => inspectRemote(store.get(model)),

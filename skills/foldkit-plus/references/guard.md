@@ -191,7 +191,8 @@ export const Todo = TodoFields.pipe(
   relation's own, an update's member and `Link` rules also over the row after
   with that one change undone, so each change is judged given the rest of the
   write, an `Unlink` over the row before alone; a create over what it proposes, an unset field matching no
-  guard), refuses as `Forbidden`, and answers as the writer now sees the row:
+  guard), refuses as `Forbidden` (a visitor as `Unauthenticated`, so a
+  durable write waits for a sign-in), and answers as the writer now sees the row:
   a row the write hid from them in `deleted`. The binding needs `visible`.
 - Who owns a new row is the Entity's to say, not the writer's:
   `Entity.sets({ ownerId: Expr.viewer(UserRow), createdAt: Expr.now }, { on: 'create' })`, and

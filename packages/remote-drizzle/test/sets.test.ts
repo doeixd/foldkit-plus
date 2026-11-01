@@ -238,7 +238,7 @@ describe('what the context sets, on the server', () => {
     const { mutate, row, close } = sandbox()
     try {
       const answer = await mutate(null, 'LikePost', { id: 'l1', postId: 'p1' }, 1)
-      expect(answer).toMatchObject({ failure: { _tag: 'Forbidden' } })
+      expect(answer).toMatchObject({ failure: { _tag: 'Unauthenticated' } })
       expect(row('select id from likes')).toEqual([])
     } finally {
       close()

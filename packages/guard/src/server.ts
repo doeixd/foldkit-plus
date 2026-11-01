@@ -19,8 +19,9 @@ import {
 } from 'foldkit-entity'
 import {
   Diagnostics,
+  RemoteForbidden,
   type MutationDescriptor,
-  type RemoteForbidden,
+  type RemoteUnauthenticated,
   type ReportDiagnostic,
 } from 'foldkit-remote'
 import {
@@ -327,7 +328,8 @@ export const GuardServer = {
    * to a member is that member's own change. An `Unlink` rule holds over the
    * row before alone. A create's rules hold over the values it proposes, where a field the
    * create leaves unset matches no guard, not even one for an empty value. A refusal is
-   * `Forbidden`, with the sentence an `explain` gave; the write never runs.
+   * `Forbidden`, with the sentence an `explain` gave, or `Unauthenticated` for a
+   * visitor; the write never runs.
    *
    * What the Entity sets from the write's context (`Entity.sets`: who asks,
    * when) reaches a create or an update already set by `RemoteServer.write`,
@@ -945,8 +947,14 @@ export const GuardServer = {
           ),
         ),
     }
-    pins.set(guarded, Option.fromUndefinedOr(revision))
-    return writeRules.add(guarded, policy, [entity])
+    const asked: EntityWriter<Option.Option<User>, R | RW> = {
+      ...guarded,
+      update: context => signInFirst(context.principal, guarded.update(context)),
+      insert: context => signInFirst(context.principal, guarded.insert(context)),
+      delete: context => signInFirst(context.principal, guarded.delete(context)),
+    }
+    pins.set(asked, Option.fromUndefinedOr(revision))
+    return writeRules.add(asked, policy, [entity])
   },
 
   /**
@@ -956,8 +964,8 @@ export const GuardServer = {
    * rule must hold over it; a row its writer may not see is refused. With no
    * `id` (a create), the rule must hold of who is asking alone, a field it
    * reads matching no guard. `run` is given the row as read: its fields the
-   * rule reads, its `id`, and `fields`. A refusal is `Forbidden`; `run` never
-   * runs. What `run` writes is its own: check members it sets there. Each
+   * rule reads, its `id`, and `fields`. A refusal is `Forbidden`, or
+   * `Unauthenticated` for a visitor; `run` never runs. What `run` writes is its own: check members it sets there. Each
    * row of `entity` its answer carries is read back through `source`, so the
    * answer shows its writer only what they may see, a row it hid from them
    * as deleted.
@@ -1068,7 +1076,7 @@ export const GuardServer = {
             return yield* Effect.fail(refused(rule.deny))
           }
           return yield* shown(yield* run({ ...context, row }), principal)
-        }),
+        }).pipe(answered => signInFirst(context.principal, answered)),
     )
   },
 
@@ -1413,6 +1421,22 @@ const requirementOf = (
     Or: ({ conditions }) =>
       RowRequirement.Any({ of: conditions.map(each => requirementOf(each, input)) }),
   })
+
+/**
+ * A visitor's refused write as a sign-in it needs: `Unauthenticated`, never
+ * `Forbidden`, so a client tells a session that ended (its cookie gone, it
+ * asks as a visitor) from a person refused, and a durable write waits for the
+ * sign-in rather than failing (#403). A refusal's words go with it.
+ */
+const signInFirst = <User, A, E, R>(
+  principal: Option.Option<User>,
+  write: Effect.Effect<A, E, R>,
+): Effect.Effect<A, E | RemoteUnauthenticated, R> =>
+  Option.isSome(principal)
+    ? write
+    : Effect.mapError(write, error =>
+        error instanceof RemoteForbidden ? RemoteServer.unauthenticated(error.reason) : error,
+      )
 
 const refused = (deny: Deny) =>
   Match.valueTags(deny, {

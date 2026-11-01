@@ -230,22 +230,34 @@ describe('a durable write refused', () => {
     }
   }
 
-  it.each([
-    { why: 'for its size', token: 'ada', text: 'x'.repeat(limit), status: 413 },
-    { why: 'for a session gone', token: 'gone', text: '', status: 401 },
-    { why: 'for another person', token: 'other', text: '', status: 403 },
-  ])('$why is sent once and settled failed, not sent again', async ({ token, text, status }) => {
+  /** One durable write of `text`, stored and sent as whoever holds `token`: what the send answered. */
+  const sentAs = async (token: string, text: string) => {
     const { restore, step } = outboxAs(token)
     const start = await restore()
     const queued = Data.mutate(start, Note, { text }, { durable: true, now: Date.now() })
     const saved = (await step('outbox.save', queued.model)).reduce(Data.reduce, queued.model)
     statuses.length = 0
     const messages = await step('outbox.send', saved)
-
-    expect(statuses).toEqual([status])
     expect(messages.map(message => message._tag)).not.toContain('OutboxDelayed')
-    const settled = messages.reduce(Data.reduce, saved)
-    expect(outboxStatus(Data, settled)).toMatchObject({ waiting: 0, failed: 1 })
-    expect(Data.mutation(settled, queued.requestId)._tag).toBe('Failed')
+    return { step, requestId: queued.requestId, answered: messages.reduce(Data.reduce, saved) }
+  }
+
+  it.each([
+    { why: 'for its size', token: 'ada', text: 'x'.repeat(limit), status: 413 },
+    { why: 'for another person', token: 'other', text: '', status: 403 },
+  ])('$why is sent once and settled failed, not sent again', async ({ token, text, status }) => {
+    const { requestId, answered } = await sentAs(token, text)
+    expect(statuses).toEqual([status])
+    expect(outboxStatus(Data, answered)).toMatchObject({ waiting: 0, failed: 1 })
+    expect(Data.mutation(answered, requestId)._tag).toBe('Failed')
+  })
+
+  it('for a session gone is sent once and waits for a sign-in, not sent again (#403)', async () => {
+    const { step, requestId, answered } = await sentAs('gone', '')
+    expect(statuses).toEqual([401])
+    expect(outboxStatus(Data, answered)).toMatchObject({ failed: 0, waitingForSignIn: 1 })
+    expect(Data.mutation(answered, requestId)._tag).toBe('Pending')
+    expect(await step('outbox.send', answered)).toEqual([])
+    expect(statuses).toEqual([401])
   })
 })

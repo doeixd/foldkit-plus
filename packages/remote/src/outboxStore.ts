@@ -17,14 +17,20 @@ import { remoteErrorSchema, type RemoteError } from './remoteData.js'
 import { Queued, withDone, type OutboxState, type ReadEntry } from './queue.js'
 import { QueryRequest, RelationRequest } from './wire.js'
 
-/** Where a queued write stands, as the store keeps it. */
+/**
+ * Where a queued write stands, as the store keeps it: waiting its turn,
+ * refused, or answered `Unauthenticated` and waiting for a sign-in, which
+ * holds every write after it (#403).
+ */
 export type QueuedState =
   | { readonly _tag: 'Waiting' }
   | { readonly _tag: 'Failed'; readonly error: RemoteError }
+  | { readonly _tag: 'WaitingForSignIn'; readonly error: RemoteError }
 
 const QueuedStateSchema = Schema.Union([
   Schema.Struct({ _tag: Schema.Literal('Waiting') }),
   Schema.Struct({ _tag: Schema.Literal('Failed'), error: remoteErrorSchema }),
+  Schema.Struct({ _tag: Schema.Literal('WaitingForSignIn'), error: remoteErrorSchema }),
 ])
 
 const CollationSchema = Schema.Union([
@@ -185,10 +191,11 @@ export const storedFromText = (text: string): StoredOutbox =>
   })
 
 /**
- * Whether the store says `operation` is settled: done, or refused. A store
- * that lacks it says nothing (it could not be written), and it is sent.
+ * Whether the store holds an answer for `operation`: done, refused, or
+ * waiting for a sign-in. A store that lacks it says nothing (it could not be
+ * written), and it is sent.
  */
-export const settledIn = (outbox: StoredOutbox, operation: string): boolean =>
+export const answeredIn = (outbox: StoredOutbox, operation: string): boolean =>
   outbox.done.includes(operation) ||
   outbox.entries.some(raw =>
     Option.exists(
@@ -205,12 +212,15 @@ export const storedOf = (outbox: OutboxState): StoredOutbox => ({
   done: outbox.done,
 })
 
-/** The write sent next: the oldest one waiting that the store holds. */
+/**
+ * The write sent next: the oldest one waiting that the store holds. None
+ * while a write waits for a sign-in: those after it wait behind it, in order.
+ */
 export const headOf = (outbox: OutboxState): Option.Option<StoredWrite> => {
   for (const queued of outbox.queue) {
-    if (queued._tag === 'Readable' && queued.write.state._tag === 'Waiting' && queued.stored) {
-      return Option.some(queued.write)
-    }
+    if (queued._tag !== 'Readable') continue
+    if (queued.write.state._tag === 'WaitingForSignIn') return Option.none()
+    if (queued.write.state._tag === 'Waiting' && queued.stored) return Option.some(queued.write)
   }
   return Option.none()
 }

@@ -473,9 +473,10 @@ describe('a write no button would send', () => {
   it.each(refusals)('refuses it when $what', async ({ as: person, mutation, input }) => {
     const as = sandbox()
     const before = await state(as('you'))
+    // A visitor is asked to sign in; someone signed in is refused (#403).
     expect(await as(person).mutate(mutation, input)).toMatchObject({
       _tag: 'Failure',
-      failure: { _tag: 'Forbidden' },
+      failure: { _tag: person === 'visitor' ? 'Unauthenticated' : 'Forbidden' },
     })
     expect(await state(as('you'))).toEqual(before)
   })

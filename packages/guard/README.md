@@ -429,7 +429,10 @@ RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
   it leaves unset does not hold, whatever it asks (`isNull` and `isNotNull`
   alike): the create never said what the field holds.
 - A refusal is `Forbidden`, with the sentence `Guards.explain` gave; the
-  write never runs.
+  write never runs. A visitor is refused as `Unauthenticated` instead, with
+  the same sentence: no one is signed in, so the remedy is a sign-in, and a
+  client tells a session that ended (its cookie gone) from a person refused.
+  Remote's outbox keeps a durable write so answered until the sign-in.
 - The answer is read back under the binding's `visible` and the Entity's
   member Read rules: the row as its writer may now see it, with no more
   fields than the write set, and a row the write hid from them in `deleted`,
@@ -519,8 +522,8 @@ creator's, and `RemoteServer.make({ viewer })` says who that is. A member rule
 over such a member judges the server's value like any other: declare none there.
 
 No input may set `ownerId`, which is refused where the write is declared. A
-visitor is no one to set, and is refused even where the rules would let
-anyone create. A create of an id already taken is refused as
+visitor is no one to set, and is refused (`Unauthenticated`) even where the
+rules would let anyone create. A create of an id already taken is refused as
 `Refusal.taken`, with one answer whatever the row there holds, so it tells
 nothing the asker may not read. Only
 the writer's ledger recognises a retry, by its operation and who asked, and
@@ -823,6 +826,7 @@ const MeSource = GuardServer.me(Me, Policy)
 | A member's Read refused (`redact`) | the replacement value | `Ready` with it, by design indistinguishable |
 | A relation's Read refused | withheld, as a member's | unavailable |
 | A write refused | `Forbidden`, a 403 over JSON | `Data.mutation` is `Failed` with `_tag: 'Forbidden'`, `reason` from an `explain` |
+| A visitor's write refused | `Unauthenticated`, a 401 over JSON | `Failed` with `_tag: 'Unauthenticated'`; a durable write waits for a sign-in |
 | A write moved a row out of its writer's sight | answered in `deleted` | tombstoned; it leaves every list |
 | A delete of a row its writer cannot see | nothing deleted; answered gone | tombstoned |
 | A Sync edit refused | rejected by its id, with its reason | the replica drops it, with the reason |

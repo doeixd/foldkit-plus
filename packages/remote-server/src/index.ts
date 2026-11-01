@@ -417,7 +417,7 @@ export interface EntityWriter<P, R = never> {
     readonly principal: P
   }) => Effect.Effect<
     Option.Option<Readonly<Record<string, unknown>>>,
-    RemoteServerError | RemoteForbidden | RemoteUnmet | RemoteInvalid,
+    RemoteServerError | RemoteForbidden | RemoteUnauthenticated | RemoteUnmet | RemoteInvalid,
     R
   >
   /**
@@ -442,7 +442,7 @@ export interface EntityWriter<P, R = never> {
     readonly principal: P
   }) => Effect.Effect<
     Readonly<Record<string, unknown>>,
-    RemoteServerError | RemoteForbidden | RemoteInvalid | RemoteTaken,
+    RemoteServerError | RemoteForbidden | RemoteUnauthenticated | RemoteInvalid | RemoteTaken,
     R
   >
   /**
@@ -459,7 +459,7 @@ export interface EntityWriter<P, R = never> {
     readonly principal: P
   }) => Effect.Effect<
     'deleted' | 'absent' | 'moved',
-    RemoteServerError | RemoteForbidden | RemoteUnmet,
+    RemoteServerError | RemoteForbidden | RemoteUnauthenticated | RemoteUnmet,
     R
   >
   /**
@@ -605,7 +605,7 @@ export interface MutationSource<P, R = never> {
        */
       readonly pointed?: ReadonlyArray<{ readonly entity: string; readonly id: string }>
     },
-    RemoteServerError | MutationRefused | RemoteForbidden,
+    RemoteServerError | MutationRefused | RemoteForbidden | RemoteUnauthenticated,
     R
   >
 }
@@ -2088,7 +2088,7 @@ export const RemoteServer = {
       readonly now: number
     }) => Effect.Effect<
       MutationOutcome<Output>,
-      RemoteServerError | MutationRefused | RemoteForbidden,
+      RemoteServerError | MutationRefused | RemoteForbidden | RemoteUnauthenticated,
       R
     >,
   ): MutationSource<P, R> => ({
@@ -2168,8 +2168,10 @@ export const RemoteServer = {
   /**
    * A refusal of a caller who could not be told: a `serveFetch` or
    * `defineDocumentHost` resolver fails with it (`RemoteServer.unauthenticated()`)
-   * when the credential it was sent no longer holds. It answers 401, with
-   * `reason`, when given, for the person who asked.
+   * when the credential it was sent no longer holds, and a write refused to a
+   * visitor fails with it (`GuardServer` does), so a client can tell a session
+   * that ended from a refusal. It answers 401, with `reason`, when given, for
+   * the person who asked; a durable write so answered waits for a sign-in.
    */
   unauthenticated: (reason?: string): RemoteUnauthenticated =>
     new RemoteUnauthenticated({
@@ -2354,6 +2356,11 @@ export const RemoteServer = {
             ),
           ),
         )
+        // A member set from who asks, with nothing to set it from: a visitor is
+        // asked to sign in, anyone else refused (#403).
+        const unfilled = Option.isNone(viewer)
+          ? RemoteServer.unauthenticated()
+          : RemoteServer.forbid()
         const given = input as never
         const expect = Write.expected(write, given)
         const conflict = (bound: { readonly entity: string; readonly id: string }) =>
@@ -2377,7 +2384,11 @@ export const RemoteServer = {
           bound: { readonly entity: string; readonly id: string },
           writing: Effect.Effect<
             A,
-            RemoteServerError | RemoteForbidden | RemoteUnmet | RemoteInvalid,
+            | RemoteServerError
+            | RemoteForbidden
+            | RemoteUnauthenticated
+            | RemoteUnmet
+            | RemoteInvalid,
             R
           >,
         ) =>
@@ -2405,7 +2416,11 @@ export const RemoteServer = {
         const invalid = <A>(
           writing: Effect.Effect<
             A,
-            RemoteServerError | RemoteForbidden | MutationRefused | RemoteInvalid,
+            | RemoteServerError
+            | RemoteForbidden
+            | RemoteUnauthenticated
+            | MutationRefused
+            | RemoteInvalid,
             R
           >,
         ) =>
@@ -2463,7 +2478,7 @@ export const RemoteServer = {
                 const named = Write.bind(write, given, keys)
                 // An update sets what its Entity sets `on: 'write'`, whichever keys it names.
                 const set = yield* context
-                if (set.unfilled.length > 0) return yield* Effect.fail(RemoteServer.forbid())
+                if (set.unfilled.length > 0) return yield* Effect.fail(unfilled)
                 const bound = {
                   ...named,
                   values: { ...named.values, ...set.values },
@@ -2516,7 +2531,7 @@ export const RemoteServer = {
                 const bound = Write.bind(write, given)
                 const set = yield* context
                 // A visitor, a viewer of another Entity, or a path reaching no row.
-                if (set.unfilled.length > 0) return yield* Effect.fail(RemoteServer.forbid())
+                if (set.unfilled.length > 0) return yield* Effect.fail(unfilled)
                 const row = yield* invalid(
                   writer
                     .insert({

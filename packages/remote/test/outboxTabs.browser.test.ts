@@ -2,7 +2,8 @@
  * Two tabs on one outbox, in a real browser: two runtimes in one page share
  * its `localStorage`, its Web Locks and its `BroadcastChannel`s, as two tabs
  * of one origin do. A write queued in one shows in the other, is sent once,
- * and settles in both with the server's answer.
+ * and settles in both with the server's answer; one no one is signed in to
+ * send waits for a sign-in in both.
  */
 import { Effect, Layer, Schema, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
@@ -13,12 +14,21 @@ import type * as Update from 'foldkit/update'
 import { Entity, Write } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { afterEach, expect, it, vi } from 'vitest'
-import { Mutation, Remote, RemoteClient, isRemoteMessage, terminal } from '../src/index.js'
+import {
+  Mutation,
+  Remote,
+  RemoteClient,
+  RemoteUnauthenticated,
+  isRemoteMessage,
+  terminal,
+} from '../src/index.js'
 import { outbox, outboxStatus } from '../src/outbox.js'
 
 afterEach(() => {
   document.body.innerHTML = ''
   localStorage.clear()
+  sent.length = 0
+  signedOut = false
 })
 
 const Item = Entity.define('Item', Schema.Struct({ id: Schema.String, count: Schema.Number }))
@@ -31,7 +41,7 @@ const SetCount = Mutation.write(
 
 const Model = Schema.Struct({ remote: Remote.Model, actor: Schema.String })
 type Model = typeof Model.Type
-const Message = defineMessageUnion({ ...Remote.messages, Pressed: {} })
+const Message = defineMessageUnion({ ...Remote.messages, Pressed: {}, SignedIn: {} })
 type Message = typeof Message.Type
 const App = Surface.application({ Model, Message })
 const Data = Remote.make({ model: App.model.remote, entities: [Item], mutations: [SetCount] })
@@ -52,6 +62,7 @@ const initial: Model = Data.reduce(
 
 const update = (model: Model, message: Message): Update.Return<Model, Message, RemoteClient> => {
   if (isRemoteMessage(message)) return { model: Data.reduce(model, message) }
+  if (message._tag === 'SignedIn') return { model: Data.signedIn(model) }
   const started = Data.mutate(model, SetCount, { id: 'i1', count: 2 }, { durable: true })
   return { model: started.model, commands: [started.command] }
 }
@@ -64,32 +75,44 @@ const view = (model: Model, h: HtmlBuilder<Message>) => {
     [
       h.p([h.Class('count')], [read._tag === 'Ready' ? String(read.value.count) : read._tag]),
       h.p([h.Class('waiting')], [String(outboxStatus(Data, model).waiting)]),
+      h.p([h.Class('signIn')], [String(outboxStatus(Data, model).waitingForSignIn)]),
       h.button([h.Class('press'), h.OnClick(Message.Pressed())], ['Set']),
+      h.button([h.Class('signedIn'), h.OnClick(Message.SignedIn())], ['Signed in']),
     ],
   )
 }
 
-/** One server both tabs reach: it answers once a test lets it, and counts what reached it. */
+/**
+ * One server both tabs reach: it answers once a test lets it, or at once
+ * `Unauthenticated` while `signedOut`, and counts what reached it.
+ */
 const sent: Array<string | undefined> = []
 let answer: () => void = () => undefined
+let signedOut = false
 const client: RemoteClient['Service'] = {
   read: () => Effect.succeed({ settled: [], entities: [] }),
   query: () => Effect.succeed({ edges: [], start: terminal, end: terminal }),
   mutate: request =>
-    Effect.promise(
-      () =>
-        new Promise<void>(resolve => {
-          sent.push(request.operation)
-          answer = resolve
-        }),
-    ).pipe(
-      Effect.as({
-        output: {},
-        entities: [{ entity: 'Item', id: 'i1', values: { count: 2 } }],
-        connections: [],
-        deleted: [],
-      }),
-    ),
+    signedOut
+      ? Effect.sync(() => sent.push(request.operation)).pipe(
+          Effect.andThen(
+            Effect.fail(new RemoteUnauthenticated({ message: 'Your session ended.' })),
+          ),
+        )
+      : Effect.promise(
+          () =>
+            new Promise<void>(resolve => {
+              sent.push(request.operation)
+              answer = resolve
+            }),
+        ).pipe(
+          Effect.as({
+            output: {},
+            entities: [{ entity: 'Item', id: 'i1', values: { count: 2 } }],
+            connections: [],
+            deleted: [],
+          }),
+        ),
   live: () => Stream.empty,
 }
 
@@ -118,7 +141,8 @@ const tab = (name: string) => {
     }),
   )
   const read = (part: string) => section.querySelector(`.${part}`)?.textContent
-  return { handle, read, press: () => (section.querySelector('.press') as HTMLElement).click() }
+  const click = (part: string) => (section.querySelector(`.${part}`) as HTMLElement).click()
+  return { handle, read, press: () => click('press'), signIn: () => click('signedIn') }
 }
 
 it('shows a write queued in one tab in the other, sends it once, and settles both', async () => {
@@ -141,6 +165,34 @@ it('shows a write queued in one tab in the other, sends it once, and settles bot
       entries: [],
       done: [sent[0]],
     })
+  } finally {
+    a.handle.dispose()
+    b.handle.dispose()
+  }
+})
+
+it('shows a write no one is signed in to send as waiting for a sign-in in both tabs, until one reports it', async () => {
+  const a = tab('a')
+  const b = tab('b')
+  try {
+    await vi.waitFor(() => expect([a.read('count'), b.read('count')]).toEqual(['1', '1']))
+    signedOut = true
+    a.press()
+    await vi.waitFor(() => expect([a.read('signIn'), b.read('signIn')]).toEqual(['1', '1']))
+    // Still shown, and sent once: no tab sends it again on its own.
+    expect([a.read('count'), b.read('count')]).toEqual(['2', '2'])
+    expect([a.read('waiting'), b.read('waiting')]).toEqual(['0', '0'])
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(sent).toHaveLength(1)
+    // Signed in again, in the other tab: it is sent again, and settles in both.
+    signedOut = false
+    b.signIn()
+    await vi.waitFor(() => expect(sent).toHaveLength(2))
+    await vi.waitFor(() => expect([a.read('signIn'), b.read('signIn')]).toEqual(['0', '0']))
+    answer()
+    await vi.waitFor(() => expect([a.read('waiting'), b.read('waiting')]).toEqual(['0', '0']))
+    expect(sent[1]).toBe(sent[0])
+    expect(JSON.parse(localStorage.getItem('tabs:ada') ?? '{}')).toMatchObject({ entries: [] })
   } finally {
     a.handle.dispose()
     b.handle.dispose()

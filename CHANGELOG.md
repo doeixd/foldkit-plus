@@ -195,6 +195,22 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **A durable write no one is signed in to send waits for a sign-in**
+  (`foldkit-remote`, `foldkit-remote-server`, `foldkit-guard`, #403). A send
+  the server answers `Unauthenticated` no longer settles the write `Failed`:
+  it stays queued as `WaitingForSignIn` (its layer shown, its ledger entry
+  pending), every write after it waits behind it in order, across reloads and
+  in every tab, until `update` reports a sign-in with `Data.signedIn(model)`.
+  Only the queue of the page's `scope` is sent then, never another person's.
+  `outboxStatus` counts them in `waitingForSignIn`, and an item's `state` is
+  `WaitingForSignIn { error }`. `Forbidden` stays final. So that a session
+  whose cookie the browser dropped reads as one that ended, a visitor's
+  refused write is now `Unauthenticated` (a 401) rather than `Forbidden`:
+  `GuardServer.writer` and `GuardServer.mutation` refuse a visitor so, and
+  `RemoteServer.write` refuses a visitor a write whose Entity sets a member
+  from who asks. `EntityWriter`'s and `MutationSource`'s error channels (and
+  `RemoteServer.mutation`'s `run`) take `RemoteUnauthenticated`.
+
 - **`Remote` is an ES module namespace** (`foldkit-remote`, #396), as
   `Entity` is: a page keeps only the members it calls. A page that never
   calls `Remote.http`, `Remote.json`, `Remote.clientLayer`,
