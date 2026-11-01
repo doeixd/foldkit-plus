@@ -27,8 +27,24 @@ export default [
     edits: [
       {
         file: entry,
-        find: 'origins: [new URL(request.url).origin],',
+        find: "origins: 'same-origin',",
         replace: "origins: ['https://elsewhere.test'],",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a post is answered with the page, which a reload posts again',
+    edits: [{ file: entry, find: "    answerPost: 'redirect',", replace: '' }],
+    tests,
+  },
+  {
+    name: "a post starts from no cart, not the cookie's",
+    edits: [
+      {
+        file: entry,
+        find: 'modifyFields(model, { cart: () => cartOf(request) })',
+        replace: 'model',
       },
     ],
     tests,

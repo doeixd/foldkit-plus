@@ -575,10 +575,10 @@ export const update = placements.update(own)
  * server's first render. A page opened at a row of All Results draws its
  * list from there.
  */
-const start = (route: AppRoute, search: Model, cart: Cart.Cart): Return =>
+const start = (route: AppRoute, search: Model): Return =>
   placements.initial({
     ...filtersInitial(),
-    cart,
+    cart: [],
     route,
     query: search.query,
     tldFilter: search.tldFilter,
@@ -591,12 +591,11 @@ const start = (route: AppRoute, search: Model, cart: Cart.Cart): Return =>
     resultsList: initResultsList(search.from),
   })
 
-/** The page at `url`, as the server renders it; the browser resumes from it. */
-export const init = (url: Url): Return => initWith(url, [])
-
-/** The page at `url` holding `cart`, the cart a visitor's cookie keeps (`server/cart.ts`). */
-export const initWith = (url: Url, cart: Cart.Cart): Return =>
-  start(routeOf(url), SearchInUrl.reduce(empty, url), cart)
+/**
+ * The page at `url`, as the server renders it before it reads the prices
+ * and the cart's cookie (`server/entry.ts`); the browser resumes from it.
+ */
+export const init = (url: Url): Return => start(routeOf(url), SearchInUrl.reduce(empty, url))
 
 export const subscriptions = placements.subscriptions()
 

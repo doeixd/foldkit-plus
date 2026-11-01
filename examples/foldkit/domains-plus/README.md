@@ -102,14 +102,17 @@ is the guide this port produced):
   the page read it as available, at the price read. The server keeps the
   cart in a cookie through `Mirror.cookie` (`CartInCookie`), prices its names
   again on every read (`src/server/cart.ts`), and answers a page drawn with a
-  cart `private, no-store`. The scripted page writes the same cookie as its
-  cart changes, so the cart is one with scripts or without.
+  cart `private, no-store`. A post is answered with a redirect to its page
+  (`answerPost: 'redirect'`), so a reload posts nothing. The scripted page
+  writes the same cookie as its cart changes, so the cart is one with scripts
+  or without.
 
 `e2e/noscript.e2e.ts` searches, filters, pages and fills the cart with
 JavaScript off, and checks that the scripted page posts no form, loads no
 script after it is live, and adopts the page without a hydration warning;
-`e2e/built.e2e.ts` posts a cart form to the built Worker. What it cost, and
-what the packages lacked (#389 to #394), are in the guide.
+`e2e/built.e2e.ts` posts a cart form to the built Worker and reloads the page
+it is sent to. What it cost, and what is still the application's, are in the
+guide.
 
 ## Parity
 

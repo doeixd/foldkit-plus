@@ -31,11 +31,12 @@ and the posts reach the `update` the scripted page runs.
 
 ```text
 GET  /?q=acme&sort=PriceAscending
-       Mirror.reduce ─▶ init ─▶ Data.satisfy ─▶ render whole ─▶ HTML + envelope
+       Mirror.reduce ─▶ init ─▶ prepare (cookie, Data.satisfy) ─▶ render whole ─▶ HTML + envelope
        scripts on:  SSR.hydrate resumes the Model; nothing is read again
 
 POST /?q=acme   (foldkit-plus-message = the form's encoded Message)
-       Origin checked ─▶ init, as for the GET ─▶ update(Message) ─▶ render ─▶ HTML
+       Origin checked ─▶ init, prepare, as for the GET ─▶ update(Message)
+         ─▶ 303 to /?q=acme, with the cookie written from the Model it reached
        scripts on:  the runtime answers the submit; nothing is posted
 ```
 
@@ -151,23 +152,26 @@ What each part does, and does not do:
 `SSR.render` renders the Model it is given and fetches nothing. A page whose
 rows come from Remote reads them first, with `Data.satisfy`, which reads what
 every active Surface needs, pass after pass, through a reader in the same
-process (`foldkit-remote-server/fetch`'s `pageReader`). The entry then starts
-from that Model, so it is made per request:
+process (`foldkit-remote-server/fetch`'s `pageReader`). The entry's
+`prepare` makes that read, from the Model `init` gave, for a page and for a
+post alike, so one entry is made once:
 
 ```ts sketch
-const readPage = (request: Request, url: Url): Promise<Model> =>
-  Effect.runPromise(
-    Data.satisfy(init(url).model, actives).pipe(Effect.provide(readPrices(request))),
-  )
+const readPage = (model: Model, request: Request): Effect.Effect<Model> =>
+  Data.satisfy(model, actives).pipe(Effect.provide(readPrices(request)))
 
-export const renderPage = async (request: Request) => {
-  const model = await readPage(request, Option.getOrThrow(fromString(request.url)))
-  return SSR.entry({ Model, init: () => ({ model }), update, view, container: null }, plan, {
-    buildId,
-    origins: [new URL(request.url).origin],
-  }).renderPage(request)
-}
+export const { renderPage } = SSR.entry({ Model, init, update, view, container: null }, plan, {
+  buildId,
+  origins: 'same-origin',
+  prepare: readPage,
+})
 ```
+
+`origins: 'same-origin'` takes a form posted from the origin the request was
+addressed to, for a site whose address is not known when the entry is made (a
+dev server's port). A `prepare` that fails is answered `500`; domains-plus
+catches a failed read inside it and draws the page unread, which the browser
+then reads.
 
 The plan lists the reading Surfaces and sends their data with Remote's part,
 so the browser starts with the prices and reads none of them again:
@@ -182,9 +186,7 @@ SSR.plan(App, {
 
 What a Surface's reads follow (the list's window, the filters) goes in
 `state`, or the browser would read different rows from the ones the server
-drew, and `SSR.render` refuses the plan. Building an entry per request is a
-gap: [#393](https://github.com/doeixd/foldkit-plus/issues/393) proposes a
-`prepare` step instead.
+drew, and `SSR.render` refuses the plan.
 
 ## The address is the state a GET carries
 
@@ -322,10 +324,11 @@ with scripts is there on a reload without them, and the other way round.
   `POST`.
 - **A page drawn with someone's cart is theirs.** Answer it
   `cache-control: private, no-store`.
-- **A reload posts again.** The answer is the page, at the post's URL.
-  Adding and removing are idempotent, so domains-plus can bear it; a
-  redirect after the post is
-  [#390](https://github.com/doeixd/foldkit-plus/issues/390).
+- **Answer a post with a redirect.** `answerPost: 'redirect'` answers it
+  `303` to the address it was posted to, so the page the reader sees is a
+  `GET`, and a reload asks for it again instead of posting twice. What the
+  post changed reaches that `GET` through the cookie `headers` wrote; the
+  page shows nothing else of the post. A refused post is still a `400`.
 
 The cookie keeps the cart's names alone, apart by a `+`: a name holds no
 price, so the cart's codec (`Cart.CartCookie`) encodes the names and refuses
@@ -381,6 +384,7 @@ there instead.
 
 ## Limits
 
-- The answer to a post is the page, not a redirect (#390).
-- A read before render needs an entry per request (#393).
+- What a redirected post's page shows of the post is only what its cookie
+  carries: a refusal or a validation message needs a one-shot cookie of the
+  application's, written in `headers` and read in `prepare`.
 - A form's busy state is not yet tied to its write being answered (#387).

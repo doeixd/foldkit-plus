@@ -76,7 +76,7 @@ test('a page opened at ?q= shows the query in the box before the bundle runs (#3
   }
 })
 
-test('without JavaScript, the built Worker answers a cart form by running update (#388)', async () => {
+test('without JavaScript, the built Worker answers a cart form by running update, then a redirect (#388, #390)', async () => {
   const context = await browser.newContext({ javaScriptEnabled: false })
   const page = await context.newPage()
   try {
@@ -88,8 +88,14 @@ test('without JavaScript, the built Worker answers a cart form by running update
     )
     await card.getByRole('button', { name: `Add ${name} to cart` }).click()
     const response = await answered
-    expect(response.status()).toBe(200)
+    // Post/Redirect/Get: the page shown is a GET of the address, so a reload posts nothing.
+    expect(response.status()).toBe(303)
     expect(await response.headerValue('set-cookie')).toContain(`cart=cart=${name}`)
+    await page.waitForURL(/[?]q=acme$/)
+    expect(await page.getByRole('region', { name: 'Your cart' }).textContent()).toContain(name)
+    const reloaded = page.waitForRequest(request => request.url().includes('?q=acme'))
+    await page.reload()
+    expect((await reloaded).method()).toBe('GET')
     expect(await page.getByRole('region', { name: 'Your cart' }).textContent()).toContain(name)
   } finally {
     await context.close()

@@ -6,15 +6,13 @@
  * answers by running `update`.
  */
 import { parse } from 'parse5'
-import { beforeAll, describe, expect, test, vi } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { FALLBACK_FIELD } from 'foldkit-ssr'
 import { renderPage } from '../src/server/entry.js'
 import { domainCandidates } from '../src/shared/domain'
 
-// The build's id, which `vite build` gives both bundles; the entry reads it per request.
-beforeAll(() => {
-  vi.stubEnv('FOLDKIT_BUILD_ID', 'page-test')
-})
+// The build's id, which `vite build` gives both bundles; read when the entry is made.
+vi.hoisted(() => vi.stubEnv('FOLDKIT_BUILD_ID', 'page-test'))
 
 type Node = {
   readonly nodeName: string
@@ -66,6 +64,12 @@ const post = (path: string, message: unknown, headers: Record<string, string> = 
     method: 'POST',
     headers: { origin: ORIGIN, ...headers },
     body: new URLSearchParams({ [FALLBACK_FIELD]: JSON.stringify(message) }),
+  })
+
+/** A post's redirect followed, as a browser does: a GET of its address, with the cookie it set. */
+const follow = (posted: Awaited<ReturnType<typeof post>>) =>
+  answer(posted.headers.get('location')!, {
+    headers: { cookie: posted.headers.get('set-cookie')!.split(';')[0]! },
   })
 
 describe('a search served without scripts', () => {
@@ -136,13 +140,17 @@ const cartCookie = (...names: ReadonlyArray<string>) =>
 describe('the cart without scripts', () => {
   const add = { _tag: 'ClickedAddDomain', name: 'acme.com' }
 
-  test('a post adds the name at the price the server read, and keeps it in a cookie', async () => {
-    const { status, headers, nodes } = await post('/?q=acme', add)
-    expect(status).toBe(200)
+  test('a post adds the name at the price the server read, keeps it in a cookie, and sends the browser back', async () => {
+    const posted = await post('/?q=acme', add)
+    const { status, headers } = posted
+    // A reload of the page it leads to asks for it again, and posts nothing.
+    expect(status).toBe(303)
+    expect(headers.get('location')).toBe('/?q=acme')
     expect(headers.get('set-cookie')).toMatch(
       /^cart=cart=acme\.com; Path=\/; SameSite=Lax; Max-Age=31536000; Secure$/,
     )
     expect(headers.get('cache-control')).toBe('private, no-store')
+    const { nodes } = await follow(posted)
     expect(textOf(byId(nodes, 'cart')!)).toContain('acme.com')
     expect(textOf(byId(nodes, 'cart')!)).toContain('$12')
   })
@@ -169,12 +177,14 @@ describe('the cart without scripts', () => {
   })
 
   test('a removal posted with the cookie takes the name out and clears the cookie', async () => {
-    const { headers, nodes } = await post(
+    const posted = await post(
       '/?q=acme',
       { _tag: 'ClickedRemoveDomain', name: 'acme.com' },
       { cookie: cartCookie('acme.com') },
     )
-    expect(headers.get('set-cookie')).toMatch(/^cart=; .*Max-Age=0/)
+    expect(posted.status).toBe(303)
+    expect(posted.headers.get('set-cookie')).toMatch(/^cart=; .*Max-Age=0/)
+    const { nodes } = await follow(posted)
     expect(textOf(byId(nodes, 'cart')!)).not.toContain('acme.com')
   })
 
