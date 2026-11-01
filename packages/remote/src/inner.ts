@@ -37,6 +37,8 @@ export interface Inner<AppModel> {
   ) => QueryProjection<AppModel, Value, Q['name'], QueryInput<Q>>
   /** What an active entry reads live for this Model. */
   readonly liveAsk: (model: AppModel, active: ActiveEntry<AppModel>) => LiveAsk
+  /** Whether every `subscriptions` call naming the entry reads it `cacheOnly` for this Model. */
+  readonly unasked: (model: AppModel, active: ActiveEntry<AppModel>) => boolean
 }
 
 const inners = new WeakMap<object, unknown>()

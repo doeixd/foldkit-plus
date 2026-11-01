@@ -30,6 +30,8 @@ export interface PlanOptions {
   readonly freshness?: PlanFreshness | undefined
   /** Plan every requested field, present or not, tombstoned or not. */
   readonly force?: boolean | undefined
+  /** Plan nothing: what the store lacks is left unasked (`RemotePolicy.cacheOnly`). */
+  readonly unasked?: boolean | undefined
 }
 
 const pickFields = <T>(
@@ -117,6 +119,7 @@ export const plan = (
   requirements: readonly Requirement[],
   options: PlanOptions = {},
 ): ReadonlyArray<Requirement> => {
+  if (options.unasked === true) return []
   const { freshness, force = false } = options
   const planned: Requirement[] = []
   const followed: Requirement[] = []

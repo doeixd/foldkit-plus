@@ -340,7 +340,8 @@ export interface LiveDependencies {
   readonly failures: number
 }
 
-export interface SubscriptionsOptions extends ObserveOptions, LiveOptions, RetainOptions {}
+export interface SubscriptionsOptions<AppModel = never>
+  extends ObserveOptions<AppModel>, LiveOptions, RetainOptions {}
 
 /**
  * A Remote domain's wiring for an assembly: it routes Remote's Messages into
@@ -358,7 +359,8 @@ export type RemoteWiring<AppModel, Shared extends RemoteMessageTag = never> = Wi
 /** How `Data.wiring` joins an assembly: its Subscriptions' options, and what the application hears. */
 export interface WiringOptions<
   Shared extends RemoteMessageTag = never,
-> extends SubscriptionsOptions {
+  AppModel = never,
+> extends SubscriptionsOptions<AppModel> {
   /**
    * Remote's Messages the application's own `update` receives as well, after
    * Remote has reduced them, so the Model it gets already holds what they say:
@@ -487,7 +489,7 @@ export interface RemoteDomain<
    */
   subscriptions<const Active extends Readonly<Record<string, ActiveEntry<AppModel>>>>(
     active: Active,
-    options?: SubscriptionsOptions,
+    options?: SubscriptionsOptions<AppModel>,
   ): SubscriptionEntries<AppModel, Active>
   /** `Remote.plan`: the requirements the store does not satisfy. */
   plan<Value>(
@@ -531,7 +533,7 @@ export interface RemoteDomain<
   prefetch<Value>(
     model: AppModel,
     projection: Projection<AppModel, Value>,
-    options?: ObserveOptions,
+    options?: ObserveOptions<AppModel>,
   ): Effect.Effect<
     AppModel,
     | RemoteReadError
@@ -665,7 +667,7 @@ export interface RemoteDomain<
     const Shared extends RemoteMessageTag = never,
   >(
     active: Active,
-    options?: WiringOptions<Shared>,
+    options?: WiringOptions<Shared, AppModel>,
   ) => RemoteWiring<AppModel, Shared>
   /** `Remote.inspect` of the bound slice. */
   inspect(model: AppModel): RemoteInspection
@@ -714,7 +716,7 @@ export interface RemoteFold<
   /** `Data.subscriptions`, every entry lifted to the wrapper Message. */
   readonly subscriptions: <const Active extends Readonly<Record<string, ActiveEntry<AppModel>>>>(
     active: Active,
-    options?: SubscriptionsOptions,
+    options?: SubscriptionsOptions<AppModel>,
   ) => SubscriptionEntries<AppModel, Active, ParentMessage>
 }
 
@@ -1138,10 +1140,28 @@ export const retentionChanged = (
     })),
   )
 
+/**
+ * A read's policy: one for every Model, or one picked from the Model (an
+ * `online` field the application keeps), so a change of it restarts the read
+ * entry with the plan the new policy makes.
+ */
+export type PolicyOption<AppModel> = RemotePolicy | ((model: AppModel) => RemotePolicy)
+
+/** The policy `option` picks for `model`; `RemotePolicy.cacheFirst` when none was given. */
+export const policyAt = <AppModel>(
+  option: PolicyOption<AppModel> | undefined,
+  model: AppModel,
+): RemotePolicy =>
+  option === undefined
+    ? RemotePolicy.cacheFirst
+    : typeof option === 'function'
+      ? option(model)
+      : option
+
 /** How `Remote.observe` and `Remote.prefetch` treat fields the store already holds. */
-export interface ObserveOptions {
-  /** Default `RemotePolicy.cacheFirst`. */
-  readonly policy?: RemotePolicy | undefined
+export interface ObserveOptions<AppModel = never> {
+  /** Default `RemotePolicy.cacheFirst`; a function picks it from the Model. */
+  readonly policy?: PolicyOption<AppModel> | undefined
   /** The clock a refreshing policy reads; default `Date.now`, read at each use. */
   readonly now?: (() => number) | undefined
   /**
@@ -1404,6 +1424,9 @@ export const planAsked = (
   asked: Asked,
   options: PlanOptions,
 ): Planned => {
+  // `cacheOnly`: nothing is asked, and nothing the store holds ages out.
+  if (options.unasked === true)
+    return { requirements: [], queries: [], refreshing: [], refreshes: [], expires: null }
   const capabilities = bound[Capability]
   const queries: QueryRequirement[] = []
   const refreshing: string[] = []
@@ -1737,9 +1760,9 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
   bound: BoundRemote<AppModel, Store>,
   askedOf: (model: AppModel) => Asked,
   toMessage: (message: RemoteMessage) => Message,
-  options: ObserveOptions,
+  options: ObserveOptions<AppModel>,
 ): EntryWithoutKeepAlive<AppModel, Message, ReadDependencies, RemoteClient> => {
-  const { policy = RemotePolicy.cacheFirst, now = wallClock, timeout } = options
+  const { now = wallClock, timeout } = options
   const read = (requirements: ReadonlyArray<Requirement>) =>
     Effect.map(withCallTimeout(readMessage(requirements, now), timeout), toMessage)
   const run = (query: ReadDependencies['queries'][number]) =>
@@ -1768,9 +1791,11 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       ),
     }),
     modelToDependencies: model => {
+      const policy = policyAt(options.policy, model)
       const remote = bound.store.get(model)
       const asked = askedOf(model)
-      const askedKey = stableStringify(asked)
+      // A policy picked from the Model can change while the Remote model does not.
+      const askedKey = stableStringify([policy, asked])
       const at = now()
       let byAsked = planned.get(remote)
       const known = byAsked?.get(askedKey)

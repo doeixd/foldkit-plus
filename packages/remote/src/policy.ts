@@ -16,6 +16,11 @@ export type RemotePolicy =
   | { readonly _tag: 'StaleWhileRevalidate'; readonly maxAge: number }
   /** Fetch every selected field regardless of coverage; cached values stay visible meanwhile. */
   | { readonly _tag: 'NetworkOnly' }
+  /**
+   * Fetch nothing: show what the store holds, and follow what changes it
+   * (answers, live events, writes). A value it lacks reads `Initial`.
+   */
+  | { readonly _tag: 'CacheOnly' }
 
 export const RemotePolicy = {
   /** Fetch only what the store lacks. */
@@ -30,6 +35,14 @@ export const RemotePolicy = {
   /** Fetch every selected field regardless of coverage; cached values stay visible meanwhile. */
   networkOnly: { _tag: 'NetworkOnly' } as const satisfies RemotePolicy,
 
+  /**
+   * Fetch nothing: what the store holds shows, and what it lacks reads
+   * `Initial`, until the policy changes. For a screen that works offline,
+   * picked from the Model: `policy: model => (model.online ? RemotePolicy.cacheFirst
+   * : RemotePolicy.cacheOnly)`.
+   */
+  cacheOnly: { _tag: 'CacheOnly' } as const satisfies RemotePolicy,
+
   /** The planner options a policy compiles to at `now`. */
   toPlan: (policy: RemotePolicy, now: number): PlanOptions => {
     switch (policy._tag) {
@@ -39,6 +52,8 @@ export const RemotePolicy = {
         return { freshness: { now, freshness: policy.maxAge } }
       case 'NetworkOnly':
         return { force: true }
+      case 'CacheOnly':
+        return { unasked: true }
     }
   },
 

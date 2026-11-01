@@ -1,6 +1,6 @@
 # fate's cache, against Remote, and what we change
 
-Status: plan (2026-11-01); #401 built. The source is fate's own documentation, read
+Status: plan (2026-11-01); #401 and #402 built. The source is fate's own documentation, read
 from its repository at af7e5ae (2026-10-29): the Requests, Actions, List
 Views, Live Views, Deferred Views and Persistence guides, and the 1.0
 announcement. A companion to
@@ -117,6 +117,13 @@ Four changes, in this order. Each is its own issue.
    restarts the read entry, as a policy change does today. The plan must show
    that switching to `networkOnly` on reconnect asks what `cacheOnly` left
    missing, and that `cacheOnly` keeps a read-only page free of write code.
+   - Built so (#402): a call's `policy` may be a function of the Model, which
+     the read entry reads on each plan, so a change of it restarts the entry.
+     Under `cacheFirst`, going online asks for exactly what `cacheOnly` left
+     missing; `networkOnly` asks for that and refetches everything held, as
+     it always does. A live read keeps its stream: it is how changes reach
+     the store. `why` says `CacheOnly` when every call reading it, for that
+     Model, is `cacheOnly`.
 3. **An outbox write waits for sign-in** (#403). A send the server answers
    as unauthenticated (no principal, as opposed to a principal it refuses)
    keeps the write queued as `WaitingForSignIn` rather than settling it

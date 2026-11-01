@@ -228,8 +228,13 @@ export const why = <Domain extends AnyDomain>(
       : [
           Option.match(surfaces, {
             onNone: () => Why.NoActiveRecord(),
-            onSome: names =>
-              names.length === 0 ? Why.NotObserved() : Why.NotFetching({ surfaces: names }),
+            onSome: names => {
+              if (names.length === 0) return Why.NotObserved()
+              const { unasked } = innerOf<ModelOfDomain<Domain>>(domain)
+              return reading.every(({ entry }) => unasked(model, entry))
+                ? Why.CacheOnly({ surfaces: names })
+                : Why.NotFetching({ surfaces: names })
+            },
           }),
         ]
   const live =

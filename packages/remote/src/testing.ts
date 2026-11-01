@@ -182,7 +182,7 @@ export interface TraceConfig<
   /** The active record, as `Data.subscriptions` and `why` take it. */
   readonly active: Readonly<Record<string, ActiveSurface<AppModel> | SurfaceSource<AppModel>>>
   /** As `Data.subscriptions` takes them; the trace's clock stands still, so it sets `now`. */
-  readonly options?: Omit<SubscriptionsOptions, 'now'>
+  readonly options?: Omit<SubscriptionsOptions<AppModel>, 'now'>
   /**
    * The time the trace's clock stands at, in milliseconds since the epoch:
    * what every Command and Subscription it runs reads (`Remote.now`, an

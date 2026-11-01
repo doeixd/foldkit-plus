@@ -46,6 +46,8 @@ export const Why = defineTaggedUnion({
   NotObserved: {},
   /** `Initial`, and these active Surfaces read it: Remote's Subscriptions are not running. */
   NotFetching: { surfaces: Names },
+  /** `Initial`, and the active Surfaces reading it read under `RemotePolicy.cacheOnly`, which asks for nothing. */
+  CacheOnly: { surfaces: Names },
   /** `Initial`, and no active record was given to tell which mistake it is. */
   NoActiveRecord: {},
   /** The list's own page is missing or stale; `inFlight` while its query is out. */
@@ -177,6 +179,8 @@ export const whyWords = (why: Why): string =>
       `${surfaces.join(', ')} ${surfaces.length === 1 ? 'reads it and is' : 'read it and are'} active, yet nothing is fetching it. Right after a Message, that is the moment before the read entry asks; if it stays so, Remote's Subscriptions are not installed: give the runtime Data.subscriptions (or Data.wiring) and a RemoteClient.`,
     NoActiveRecord: () =>
       'Nothing is fetching it. Pass the active record you give Data.subscriptions as `surfaces` to tell whether an active Surface reads it.',
+    CacheOnly: ({ surfaces }) =>
+      `${surfaces.join(', ')} ${surfaces.length === 1 ? 'reads' : 'read'} it under RemotePolicy.cacheOnly, which asks for nothing: it shows once the store holds it (an answer, a live event, a write), or when the policy the Model picks asks for it.`,
     List: ({ list, held, inFlight }) => heldWords[held][`${inFlight}`](`Its list "${list.query}"`),
     HeldForHistory: ({ list }) =>
       `Its list "${list.query}" shows as it was left: a history navigation came back to it within Remote.make's historyWindow, so nothing fetches it. A navigation the reader starts fetches it again.`,
@@ -237,6 +241,7 @@ const decides = (why: Why): ReadonlyArray<State> =>
     NotObserved: () => ['Initial'],
     NotFetching: () => ['Initial'],
     NoActiveRecord: () => ['Initial'],
+    CacheOnly: () => ['Initial'],
     List: ({ held, inFlight }) => listDecides[held][`${inFlight}`],
     HeldForHistory: () => ['Ready'],
     Fields: ({ held, inFlight }) => fieldsDecide[held][`${inFlight}`],

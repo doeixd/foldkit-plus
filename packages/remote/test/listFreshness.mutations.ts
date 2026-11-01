@@ -106,8 +106,8 @@ export default [
   edit(
     'the last call alone says whether a reader ages',
     remote,
-    "(ageing.get(entry) ?? true) && options.policy?._tag === 'StaleWhileRevalidate'",
-    "options.policy?._tag === 'StaleWhileRevalidate'",
+    'policies.set(entry, [...(policies.get(entry) ?? []), options.policy])',
+    'policies.set(entry, [options.policy])',
   ),
   edit(
     'a resumed list loses its age',

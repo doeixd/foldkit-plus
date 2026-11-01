@@ -20,6 +20,7 @@ expectTypeOf(why(Data, model, project)).toEqualTypeOf<ReadWhy>()
 const words = Why.match(why(Data, model, project).because[0]!, {
   NotObserved: () => 'a',
   NotFetching: ({ surfaces }) => surfaces.join(),
+  CacheOnly: ({ surfaces }) => surfaces.join(),
   NoActiveRecord: () => 'a',
   List: ({ list }) => list.query,
   HeldForHistory: ({ list }) => list.identity,
@@ -42,6 +43,7 @@ expectTypeOf(words).toEqualTypeOf<string>()
 Why.match(why(Data, model, project).because[0]!, {
   NotObserved: () => 'a',
   NotFetching: () => 'a',
+  CacheOnly: () => 'a',
   NoActiveRecord: () => 'a',
   List: () => 'a',
   HeldForHistory: () => 'a',

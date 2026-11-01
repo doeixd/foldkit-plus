@@ -48,8 +48,8 @@ stale fields. An inactive Surface creates no work. `RemoteData` is a closed unio
 
 - `Initial`: absent, **nothing is fetching it** (often a wiring bug: not observed).
   `why(Data, model, projection, { surfaces })` says which: its first reason is
-  `NotObserved` (no active Surface reads it) or `NotFetching` (one does;
-  Subscriptions not installed). See "Why a read is in its state" below.
+  `NotObserved` (no active Surface reads it), `NotFetching` (one does;
+  Subscriptions not installed) or `CacheOnly` (the policy asks for nothing). See "Why a read is in its state" below.
 - `Loading`: absent, a read or a list's query is in flight (`QueryStarted`).
 - `Ready`: all selected fields present and decode.
 - `Refreshing`: old value still visible while refetching.
@@ -1300,6 +1300,11 @@ handler's write and raw SQL are held to the invariants and move the revision too
   the window, after a `push`, or once it changed while held, it refetches.
 - `staleWhileRevalidate` ages rows and lists; a list also refetches when
   invalidated, or under `networkOnly` (reading `Refreshing` meanwhile).
+  `cacheOnly` asks for nothing: it shows what the store holds and follows
+  answers, live events and writes, and what it lacks reads `Initial` (`why`:
+  `CacheOnly`). A call's `policy` may be `model => RemotePolicy` (an offline
+  screen: `model.online ? cacheFirst : cacheOnly`); a change of it restarts
+  the read entry, so going online asks what `cacheOnly` left missing.
 - Live cursors count on from the `after` a stream opened with (a new stream's
   first event is `1`): duplicates ignored, an ahead-of-cursor event is a **gap** (not
   applied, recorded in `remote.gaps`). It restarts the stream; only the

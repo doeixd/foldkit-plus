@@ -608,6 +608,8 @@ The first reason is the one that decides `Initial`:
 - `NotFetching`: an active Surface reads it and nothing started a request.
   Right after a Message that is the moment before the read entry asks; if it
   stays so, Remote's Subscriptions are not installed in the runtime.
+- `CacheOnly`: the active Surfaces reading it read under
+  `RemotePolicy.cacheOnly`, which asks for nothing on purpose.
 - `NoActiveRecord`: no `surfaces` were given, so it cannot tell which.
 
 `Data.plan(model, projection)` shows whether Remote believes anything is
@@ -909,6 +911,11 @@ What Remote should do when the Model already contains the selected fields is a
   again whole.
 - `RemotePolicy.networkOnly` — request every selected field and list; cached
   values stay visible while the request is in flight.
+- `RemotePolicy.cacheOnly` — request nothing. What the store holds shows, and
+  what changes the store still reaches the read (an answer another read
+  brought, a live event, a write); what it lacks reads `Initial`, and `why`
+  says `CacheOnly`. A value held stale reads `Refreshing`, though nothing
+  fetches it until the policy changes.
 
 A refreshing policy emits `RefreshStarted` before the read, naming the fields
 and the held lists it asks for again though the Model holds them (aged out,
@@ -952,6 +959,28 @@ const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() => ({
 Retention stays the domain's: a call's `retain` entry roots every read any call
 of the domain names, so neither call collects what the other reads. Keeping one
 `retain` entry is all it takes; it waits for its own call's `grace`.
+
+A call's `policy` can also be picked from the Model, so a screen that works
+offline reads what it holds while offline and asks once it is back. `isOnline`
+reads a field the application keeps, from `navigator.onLine` and its events or
+a failed request:
+
+<!-- docs-check
+declare const isOnline: (model: Model) => boolean
+-->
+```ts
+const offlineEntries = Data.subscriptions(
+  { page: projectPage },
+  { policy: model => (isOnline(model) ? RemotePolicy.cacheFirst : RemotePolicy.cacheOnly) },
+)
+```
+
+A change of policy changes the read entry's plan, so Foldkit restarts it: going
+back online under `cacheFirst` asks for exactly what `cacheOnly` left missing,
+and under `networkOnly` for that and everything held again. A live read keeps
+its stream under any policy: it is how changes reach the store, and it
+reconnects on its own. `Data.prefetch` and `Remote.prefetch` take the same
+option and pick the policy from the Model they are given.
 
 **Time reaches Remote only as a Message.** The plan is a function of the Remote
 model, what is asked, and `now`, and it runs again only when one of those

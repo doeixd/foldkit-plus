@@ -128,6 +128,8 @@ import {
   PAGES_KEPT,
   keptPage,
   wallClock,
+  policyAt,
+  type PolicyOption,
   identityMessage,
   checkedBudget,
   checkedHistoryWindow,
@@ -270,7 +272,7 @@ export const fold = <Domain extends RemoteDomain<any, any, any, any, any>, Paren
       ),
     subscriptions: (
       active: Readonly<Record<string, ActiveEntry<AppModel>>>,
-      options?: SubscriptionsOptions,
+      options?: SubscriptionsOptions<AppModel>,
     ) =>
       markAll(
         messagesAs(brandEntries(domain.subscriptions(active, options)), toParentMessage),
@@ -519,15 +521,15 @@ export const prefetch = /* @__PURE__ */ Effect.fn('Remote.prefetch')(function* <
   bound: BoundRemote<AppModel, Store>,
   model: AppModel,
   projection: Projection<AppModel, Value>,
-  options: ObserveOptions = {},
+  options: ObserveOptions<AppModel> = {},
 ) {
   const store = storeOf(bound, model)
-  const { policy = RemotePolicy.cacheFirst, now = wallClock } = options
+  const { now = wallClock } = options
   const at = now()
   const missing = planRequirements(
     store,
     requirementsOf(projection),
-    RemotePolicy.toPlan(policy, at),
+    RemotePolicy.toPlan(policyAt(options.policy, model), at),
   )
   if (missing.length === 0) return store
   yield* Effect.annotateCurrentSpan('requirementCount', missing.length)
@@ -914,7 +916,7 @@ export const observe = <
   surface: Surface<AppModel, Model, SurfaceMessage, Params>,
   params: Params,
   toMessage: (message: RemoteMessage) => Message = identityMessage as never,
-  options: ObserveOptions = {},
+  options: ObserveOptions<AppModel> = {},
 ): EntryWithoutKeepAlive<AppModel, Message, ReadDependencies, RemoteClient> =>
   observeEntry(bound, () => askedOf(surface.projection(params)), toMessage, options)
 
@@ -1021,9 +1023,16 @@ const bindDomain = <
     (model: AppModel) => ReadonlyArray<NamedProjection<AppModel>>
   >()
   const keptConnections = new Set<string>()
-  // Whether every call naming a reader ages what it reads: a list only such
-  // readers read keeps its age once left, rather than going stale.
-  const ageing = new Map<ActiveEntry<AppModel>, boolean>()
+  // The policy of each call naming a reader, `undefined` for the default.
+  const policies = new Map<ActiveEntry<AppModel>, Array<PolicyOption<AppModel> | undefined>>()
+  // Whether every call naming a reader reads it under `tag` for this Model.
+  const readsUnder = (
+    entry: ActiveEntry<AppModel>,
+    model: AppModel,
+    tag: RemotePolicy['_tag'],
+  ): boolean =>
+    policies.has(entry) &&
+    policies.get(entry)!.every(policy => policyAt(policy, model)._tag === tag)
   // What the calls naming a reader say of saving what it reads (`persist`).
   const persisting = new Map<ActiveEntry<AppModel>, Persist>()
   // An application-union case has the runtime shape of the `RemoteMessage` it names.
@@ -1376,7 +1385,7 @@ const bindDomain = <
   const prefetchInto = (
     model: AppModel,
     projection: Projection<AppModel, unknown>,
-    options: ObserveOptions,
+    options: ObserveOptions<AppModel>,
     heard: Array<RemoteMessage>,
   ) => {
     const hear = (current: AppModel, message: RemoteMessage): AppModel => {
@@ -1384,9 +1393,9 @@ const bindDomain = <
       return reduce(current, message)
     }
     return Effect.gen(function* () {
-      const { policy = RemotePolicy.cacheFirst, now = wallClock } = options
+      const { now = wallClock } = options
       const client = yield* RemoteClient
-      const planOptions = RemotePolicy.toPlan(policy, now())
+      const planOptions = RemotePolicy.toPlan(policyAt(options.policy, model), now())
       let current = model
       // The pages first, so their items join the one entity read below. A
       // page with a payload already writes its items' selected fields, so
@@ -1696,10 +1705,7 @@ const bindDomain = <
         readers.set(entry, resolvedAt)
         if (persist !== undefined)
           persisting.set(entry, combinePersist(persisting.get(entry), persist))
-        ageing.set(
-          entry,
-          (ageing.get(entry) ?? true) && options.policy?._tag === 'StaleWhileRevalidate',
-        )
+        policies.set(entry, [...(policies.get(entry) ?? []), options.policy])
         const asked = (model: AppModel) =>
           askedUnion(resolvedAt(model).map(({ projection }) => projection))
         entries[`${key}.read`] = observeEntry(bound, asked, identityMessage, options)
@@ -1719,7 +1725,9 @@ const bindDomain = <
           const said: Array<RetentionRoots> = []
           const projections = [...readers].flatMap(([entry, resolvedAt]) => {
             const read = resolvedAt(model).map(({ projection }) => projection)
-            if (ageing.get(entry) !== true)
+            // A list only readers that age it read keeps its age once left,
+            // rather than going stale.
+            if (!readsUnder(entry, model, 'StaleWhileRevalidate'))
               for (const { identity } of read.flatMap(connectionsOf)) unaged.add(identity)
             const persist = persisting.get(entry)
             if (persist !== undefined) said.push(marked(rootsOf(read, {}), persist))
@@ -1909,6 +1917,7 @@ const bindDomain = <
   }
   return withInner(domain, {
     why: whyReader,
+    unasked: (model, entry) => readsUnder(entry, model, 'CacheOnly'),
     context: contextOf,
     shown: shownEdges,
     liveQuery: (query, input, options) => queryRead(query, input, options, true),

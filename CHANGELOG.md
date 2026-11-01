@@ -9,6 +9,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`RemotePolicy.cacheOnly`, and a policy picked from the Model**
+  (`foldkit-remote`, #402). A read under `cacheOnly` asks for nothing: what
+  the store holds shows, what changes the store still reaches it (an answer
+  another read brought, a live event, a write), and what it lacks reads
+  `Initial`, which `why` names `CacheOnly { surfaces }`. A call's `policy`
+  (`Data.subscriptions`, `Data.wiring`, `Remote.observe`, `Data.prefetch`,
+  `Remote.prefetch`) may be a function of the Model, `model => model.online ?
+  RemotePolicy.cacheFirst : RemotePolicy.cacheOnly`, so a screen that works
+  offline asks for what it left missing once it is back: a change of policy
+  restarts the read entry. `PlanOptions.unasked` is what `cacheOnly` plans
+  with.
+
 - **Back and Forward show a list left as it was, asking nothing**
   (`foldkit-remote`, `foldkit-site`, #401). Remote learns each navigation's
   kind from a new Message, `Navigated({ kind: 'history' | 'push' })`, reduced
@@ -223,6 +235,14 @@ version changed; `pnpm` skips versions already in the registry.
   the placement check reads the carried page (`docs/benchmarks.md`).
 
 ### Changed
+
+- **Remote's read options name the Model** (`foldkit-remote`, #402).
+  `ObserveOptions`, `SubscriptionsOptions` and `WiringOptions` take the
+  application Model as a type parameter (`WiringOptions<Shared, AppModel>`),
+  for a `policy` picked from it; a list left keeps its age only while every
+  call reading it reads it under `staleWhileRevalidate` for the Model as it
+  is. `Why` has a new case, `CacheOnly { surfaces }`, which an exhaustive
+  `Why.match` must handle.
 
 - **`RetentionChanged` says when the roots changed** (`foldkit-remote`, #401).
   The retain entry stamps it with Effect's `Clock` (`now`, after its `grace`)
