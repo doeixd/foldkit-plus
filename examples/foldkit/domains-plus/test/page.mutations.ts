@@ -66,16 +66,31 @@ export default [
     tests,
   },
   {
-    name: 'the cart is the cookie, its prices as it says',
+    name: 'a cookie is read for every name it holds',
+    edits: [{ file: cart, find: 'Array.take(MAX_NAMES),', replace: '' }],
+    tests,
+  },
+  {
+    name: 'the cookie writes its names apart by a comma',
     edits: [
       {
-        file: cart,
-        find: 'const read = new Map(',
-        replace:
-          'if (names.length > 0) return CartInCookie.decode(keysOf(request)).value.cart ?? []; const read = new Map(',
+        file: '../src/client/domain/cart.ts',
+        find: "encode: names => names.join(' '),",
+        replace: "encode: names => names.join(','),",
       },
     ],
-    tests,
+    tests: [...tests, 'examples/foldkit/domains-plus/test/cartCookie.test.ts'],
+  },
+  {
+    name: 'a cookie of names decodes to an empty cart',
+    edits: [
+      {
+        file: '../src/client/domain/cart.ts',
+        find: 'decode: names =>',
+        replace: 'decode: () => Effect.succeed([]), unused: (names: unknown) =>',
+      },
+    ],
+    tests: ['examples/foldkit/domains-plus/test/cartCookie.test.ts'],
   },
   {
     name: 'the filters are not read from the address',

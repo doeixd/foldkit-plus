@@ -431,11 +431,13 @@ export const SearchInUrl = Mirror.url(App, {
  * The cart in the `cart` cookie: the server reads it for every page
  * (`server/cart.ts`) and sets it in its answer to a cart form posted without
  * scripts, and the scripted page writes it as the cart changes, so a reload
- * shows the cart either way. The server prices each name in it again.
+ * shows the cart either way. It keeps the names alone, which the server
+ * prices again (`Cart.CartCookie`).
  */
 export const CartInCookie = Mirror.cookie(App, {
   name: 'cart',
   fields: [App.model.cart],
+  keys: { cart: { codec: Cart.CartCookie } },
   initial: empty,
 })
 

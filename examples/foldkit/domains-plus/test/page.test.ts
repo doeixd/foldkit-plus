@@ -9,6 +9,7 @@ import { parse } from 'parse5'
 import { beforeAll, describe, expect, test, vi } from 'vitest'
 import { FALLBACK_FIELD } from 'foldkit-ssr'
 import { renderPage } from '../src/server/entry.js'
+import { domainCandidates } from '../src/shared/domain'
 
 // The build's id, which `vite build` gives both bundles; the entry reads it per request.
 beforeAll(() => {
@@ -128,21 +129,9 @@ describe('a search served without scripts', () => {
   })
 })
 
-/** The `cart` cookie holding `names`, each at a price no server would give. */
+/** The `cart` cookie holding `names`, as the cart's mirror writes it. */
 const cartCookie = (...names: ReadonlyArray<string>) =>
-  `cart=${new URLSearchParams({
-    cart: JSON.stringify(
-      names.map(name => ({
-        _tag: 'Available',
-        name,
-        tld: name.split('.')[1],
-        price: 0.01,
-        renewalPrice: 0.01,
-        years: 1,
-        isPremium: false,
-      })),
-    ),
-  })}`
+  `cart=${new URLSearchParams({ cart: names.join(' ') })}`
 
 describe('the cart without scripts', () => {
   const add = { _tag: 'ClickedAddDomain', name: 'acme.com' }
@@ -151,7 +140,7 @@ describe('the cart without scripts', () => {
     const { status, headers, nodes } = await post('/?q=acme', add)
     expect(status).toBe(200)
     expect(headers.get('set-cookie')).toMatch(
-      /^cart=cart=%5B[^;]*acme\.com[^;]*; Path=\/; SameSite=Lax; Max-Age=31536000; Secure$/,
+      /^cart=cart=acme\.com; Path=\/; SameSite=Lax; Max-Age=31536000; Secure$/,
     )
     expect(headers.get('cache-control')).toBe('private, no-store')
     expect(textOf(byId(nodes, 'cart')!)).toContain('acme.com')
@@ -166,9 +155,17 @@ describe('the cart without scripts', () => {
     // A name the demo marks taken, one it does not know, and a repeat are dropped.
     const items = all(byId(nodes, 'cart')!).filter(node => node.nodeName === 'li')
     expect(items.map(item => textOf(item).split('$')[0])).toEqual(['acme.com'])
-    // At the server's price, not the cookie's.
     expect(textOf(items[0]!)).toContain('$12')
-    expect(textOf(items[0]!)).not.toContain('0.01')
+  })
+
+  test('a cookie naming more names than a cart keeps is read for its first 50', async () => {
+    // More than 50 that are available, and few enough to fit the cookie.
+    const names = domainCandidates('acme')
+      .slice(0, 120)
+      .map(({ name }) => name)
+    const { nodes } = await answer('/?q=other', { headers: { cookie: cartCookie(...names) } })
+    const items = all(byId(nodes, 'cart')!).filter(node => node.nodeName === 'li')
+    expect(items).toHaveLength(50)
   })
 
   test('a removal posted with the cookie takes the name out and clears the cookie', async () => {

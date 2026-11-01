@@ -89,7 +89,7 @@ test('without JavaScript, the built Worker answers a cart form by running update
     await card.getByRole('button', { name: `Add ${name} to cart` }).click()
     const response = await answered
     expect(response.status()).toBe(200)
-    expect(await response.headerValue('set-cookie')).toContain(encodeURIComponent(`"${name}"`))
+    expect(await response.headerValue('set-cookie')).toContain(`cart=cart=${name}`)
     expect(await page.getByRole('region', { name: 'Your cart' }).textContent()).toContain(name)
   } finally {
     await context.close()

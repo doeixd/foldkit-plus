@@ -462,7 +462,10 @@ What each call does, and does not do:
 A cookie is the visitor's to edit. Decoding proves its shape, not its truth:
 a cart that names a domain is not a price for it, so the server checks again
 what it would not take from a form (domains-plus prices every name in its
-cart cookie again). The browser writes the cookie, so it is never
+cart cookie again). A cookie may keep less than its field: domains-plus's
+cart codec (`keys: { cart: { codec } }`) writes the cart's names alone and
+refuses to decode them, since a name holds no price, and its server reads
+the names from `keysOf` and prices them. The browser writes the cookie, so it is never
 `HttpOnly`; keep nothing secret in it.
 
 The attributes default to `Path=/`, `SameSite=Lax`, a `Max-Age` of 365 days,

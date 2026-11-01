@@ -1,23 +1,28 @@
 /**
- * The cart a request's `cart` cookie keeps (`CartInCookie`). The cookie is
- * the visitor's to edit, so only its names are taken, each priced again from
- * the server's own sample results: a price in it is never shown.
+ * The cart a request's `cart` cookie keeps (`CartInCookie`): its names
+ * alone (`Cart.CartCookie`). The cookie is the visitor's to edit, so each
+ * name is priced again from the server's own sample results, and a taken or
+ * unknown one is dropped.
  */
-import { Array, Option, pipe } from 'effect'
+import { Array, Option, Record, Schema, pipe } from 'effect'
 import { CartInCookie } from '../client/app.js'
-import type { Cart } from '../client/domain'
+import { Cart } from '../client/domain'
 import { Domain } from '../shared/domain'
 import { readDomains } from './remote.js'
 
 const keysOf = (request: Request) => CartInCookie.keysOf(request.headers.get('cookie'))
 
+/** More names than any cart a person keeps; short names could pack hundreds into the cookie. */
+const MAX_NAMES = 50
+
 /** The cart the request's cookie names: each name read as the server prices it, taken ones dropped. */
 export const cartOf = (request: Request): Cart.Cart => {
-  // The cookie's 4096 bytes hold a few dozen entries at most.
   const names = pipe(
-    CartInCookie.decode(keysOf(request)).value.cart ?? [],
-    Array.map(({ name }) => name),
+    Record.get(keysOf(request), CartInCookie.keys.cart),
+    Option.flatMap(Schema.decodeOption(Cart.CartNames)),
+    Option.getOrElse((): ReadonlyArray<string> => []),
     Array.dedupe,
+    Array.take(MAX_NAMES),
   )
   const read = new Map(readDomains(names).map(({ id, values }) => [id, values]))
   return Array.flatMap(names, name =>
