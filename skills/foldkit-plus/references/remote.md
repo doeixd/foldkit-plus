@@ -482,8 +482,8 @@ const ssr = Effect.gen(function* () {
   const loaded = yield* Data.prefetch(App.initial, ProjectPage.projection({ projectId: 'p1' }), {
     policy: RemotePolicy.networkOnly,
   })
-  // A snapshot is `{ entities, connections }`. Connections are session state
-  // unless named, so this keeps the cache and nothing else.
+  // A snapshot is the rows and the lists named, each with when it expires.
+  // Connections are session state unless named, so this keeps the rows alone.
   const text = RemotePersistence.dehydrate(RemotePersistence.snapshotOf(loaded.remote), {
     scope: 'user-1',
   }) // string
@@ -494,11 +494,7 @@ const ssr = Effect.gen(function* () {
   )
   return Data.reduce(
     App.initial,
-    Remote.Message.Hydrated({
-      entities: restored.entities,
-      connections: restored.connections,
-      merge: 'preserve-existing', // or 'replace'
-    }),
+    RemotePersistence.hydrated(restored, { merge: 'preserve-existing' }), // or 'replace'
   )
 }).pipe(Effect.provide(clientLayer))
 ```
@@ -509,6 +505,8 @@ To keep the cache across reloads, assemble `persistence(Data, …)` beside
 
 <!-- docs-check
 declare const actorOf: (model: Model) => string
+declare const inbox: Parameters<typeof Data.subscriptions>[0]
+declare const account: Parameters<typeof Data.subscriptions>[0]
 -->
 
 ```ts
@@ -518,9 +516,24 @@ import { persistence } from 'foldkit-remote/persistence'
 const cache = persistence(Data, {
   key: model => `remote-cache:${actorOf(model)}`,
   scope: actorOf,
-  // optional: `connections: [ref.identity]`, or `snapshot: remote => ...`
+  // optional: `connections: [ref.identity]`, `maxAge` (ms, default a day),
+  // `maxBytes`, or `snapshot: (remote, { maxAge }) => ...`
 })
+
+// What a call reads is saved for its own `maxAge`, or not at all:
+Data.subscriptions(inbox, { persist: { maxAge: 7 * 86_400_000 } })
+Data.subscriptions(account, { persist: false })
 ```
+
+A saved row or list expires `maxAge` after it was **fetched**; a restore keeps
+that time, so reading it back does not make it younger. What has expired is
+dropped when the snapshot is written and again when it is read (`save` and
+`restore` read Effect's `Clock`; `dehydrate`/`hydrate` take `now`). Past
+`maxBytes`, the batches read least recently go first, in retention's own
+order (`recent`: the Surfaces on screen, then those left, newest first, then
+what no read reaches); a row a kept batch reaches stays, and lasts as long as
+the kept list naming it. Where two calls that name `persist` read one row,
+`false` wins, else the longer age.
 
 Start `init` from `cache.restore(model)`, resolved as the runtime's
 `flags` (`Flags: Model, flags: cache.restore(initial), initial: (model:
@@ -536,9 +549,11 @@ emptied cache is saved over it.
 
 `RemotePersistence.save(snapshot, { key, scope, maxBytes })` /
 `restore({ key, scope, maxBytes })` use Effect's `KeyValueStore`. Wrong
-version/scope, oversized, or malformed snapshots yield `Option.none()` from
-`hydrate` (`restore` yields `RemotePersistence.emptySnapshot` and removes the key). An oversized
-`dehydrate` returns `undefined`, and an oversized `save` removes the key instead of writing.
+version/scope (a version-5 snapshot, from before ages, included), oversized, or
+malformed snapshots yield `Option.none()` from `hydrate` (`restore` yields
+`RemotePersistence.emptySnapshot` and removes the key). A `dehydrate` that
+cannot fit even after evicting (or has no `recency` to evict by) returns
+`undefined`, and such a `save` removes the key instead of writing.
 
 **A connection can be declared to survive a reload**:
 `snapshotOf(model.remote, { connections: [ref.identity] })` (or

@@ -9,6 +9,21 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Saved reads have their own age and an eviction order**
+  (`foldkit-remote/persistence`, #404). `persistence(Data, { maxAge })`
+  keeps each saved row and list for `maxAge` milliseconds from when it was
+  fetched (one day by default), and a `Data.subscriptions` or `Data.wiring`
+  call can say `persist: { maxAge }` or `persist: false` for what it reads
+  (also `Remote.retain`'s options). The setting rides on the retention roots,
+  so it holds for a page left too; where calls that name one share a row,
+  `false` wins, else the longer age. What has expired is dropped when the
+  snapshot is written and again when it is read, and a restore keeps each
+  row's and list's age, so reading saved data does not extend it. Past
+  `maxBytes`, the batches read least recently go first, in retention's own
+  order, and a row a kept batch reaches stays, as long as the kept list
+  naming it. `RemotePersistence.hydrated(snapshot, { merge, from })` is the
+  `Hydrated` Message for a snapshot; `Hydrated` takes `receivedAt` by list.
+
 - **A placement draws its child with what the parent holds** (`foldkit-bundle`,
   #387). `viewInputs: (model, given) => inputs` in a placement's config
   rewrites the inputs the child's view is drawn with, at every draw, from the
@@ -194,6 +209,22 @@ version changed; `pnpm` skips versions already in the registry.
   the placement check reads the carried page (`docs/benchmarks.md`).
 
 ### Changed
+
+- **A Remote snapshot carries ages and an order** (`foldkit-remote/persistence`,
+  #404). `Snapshot` is `{ entities, connections, expires, recency }`: a kept
+  list is `{ segments, receivedAt }`, `expires` names when each row and list
+  expires, and `recency` the batches to drop past `maxBytes`, most recent
+  first. `REMOTE_CACHE_VERSION` is 6, so a stored version-5 snapshot is
+  refused and removed, and the planner refetches. `snapshotOf` reads the
+  Model's `recent` and takes `maxAge`; `dehydrate` and `hydrate` take `now`
+  and drop what has expired by then, and `save` and `restore` read Effect's
+  `Clock`. A `dehydrate` past `maxBytes` drops what was read least recently
+  until it fits, instead of refusing the whole; one with no `recency` still
+  returns `undefined`. `persistence`'s `snapshot` option is given `{ maxAge }`
+  as its second argument, and the wiring builds the snapshot when it writes,
+  not on each change. A query page with no rows' fields (an empty list) now
+  carries `now` and dates its list, as one with them did; undated, a saved
+  empty list read as fetched at 0 and expired at once.
 
 - **A durable write no one is signed in to send waits for a sign-in**
   (`foldkit-remote`, `foldkit-remote-server`, `foldkit-guard`, #403). A send

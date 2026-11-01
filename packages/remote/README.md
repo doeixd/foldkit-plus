@@ -2351,11 +2351,12 @@ and refetch; Sync recovery must preserve unsent client intent.**
 
 ## Persistence and hydration
 
-A snapshot is `{ entities, connections }`. The entity cache is disposable and
-always goes; a connection goes only if named, and keeps its edges alone — never
-a cursor, which may name server state that is gone. Session machinery (live
-cursors, optimistic layers, mutation bookkeeping, gaps, retention roots) is
-never in one.
+A snapshot is the entity cache and the lists named to survive. The rows go; a
+connection goes only if named, and keeps its edges and its age alone — never a
+cursor, which may name server state that is gone. Each row and list carries
+when it expires (see [How long a saved read lasts](#how-long-a-saved-read-lasts)).
+Session machinery (live cursors, optimistic layers, mutation bookkeeping, gaps,
+retention roots) is never in one.
 
 ```ts
 import { Option } from 'effect'
@@ -2375,12 +2376,7 @@ const restored = Option.getOrElse(
   () => RemotePersistence.emptySnapshot,
 )
 
-Data.reduce(model, {
-  _tag: 'Hydrated',
-  entities: restored.entities,
-  connections: restored.connections,
-  merge: 'preserve-existing',
-})
+Data.reduce(model, RemotePersistence.hydrated(restored, { merge: 'preserve-existing' }))
 
 // Or persist through Effect's KeyValueStore.
 RemotePersistence.save(RemotePersistence.snapshotOf(model.remote), {
@@ -2400,6 +2396,10 @@ Snapshots are deterministic, versioned, scoped, and optionally size-bounded. A
 snapshot from another version/scope, an oversized snapshot, or malformed data is
 discarded and the planner refetches. `Hydrated` is itself a Remote Message, so
 hydration still changes the application through the reducer.
+
+`dehydrate` and `hydrate` drop what has expired by the `now` they are given,
+and nothing without one: a snapshot carried into a page is whole. `save` and
+`restore` read Effect's `Clock`.
 
 ### A cache kept across reloads: `persistence`
 
@@ -2471,14 +2471,73 @@ Without `restore` in `init`, the wiring restores at start too, a frame late.
   decode, is removed, and an empty snapshot is restored in its place.
 - **Saving is debounced** (`debounce`, 250 ms by default) and best-effort: a
   full store keeps the snapshot it had, and the next change tries again. The
-  write waits; the snapshot does not: it is serialized on each change of the
-  cache, so under a steady stream of live changes keep it small, with
-  `maxBytes` or a `snapshot` that stores only what a page shows. A
-  cache grown past `maxBytes` removes its key, so an older, smaller snapshot
-  cannot outlive it.
+  snapshot is built when the write happens, not on each change, so the ages
+  are judged by the clock then.
 
 `snapshot` replaces `snapshotOf` when an application keeps something else, such
-as only the edges a page shows.
+as only the edges a page shows. It is given the wiring's `maxAge`; build it
+with `RemotePersistence.snapshotOf(remote, { connections, maxAge })` and change
+what it holds, so the ages and the order come with it.
+
+### How long a saved read lasts
+
+A saved row or list expires a fixed time after it was **fetched**: the
+`maxAge` of the call that read it, or the wiring's own (one day by default).
+Reading it back does not make it younger: a restore keeps when each row was
+written and when each list's page arrived, so the next save measures from the
+same moment.
+
+```text
+fetched at t  ->  expires at t + maxAge
+save:    drop what has expired -> past maxBytes, drop what was read least recently -> write
+restore: drop what has expired -> Hydrated (ages kept)
+```
+
+<!-- docs-check
+declare const inbox: Parameters<typeof Data.subscriptions>[0]
+declare const account: Parameters<typeof Data.subscriptions>[0]
+-->
+
+```ts
+const aged = persistence(Data, {
+  key: model => `remote-cache:${model.userId}`,
+  scope: model => model.userId,
+  maxAge: 86_400_000, // a day, the default
+  maxBytes: 512_000,
+})
+
+// `inbox` and `account` are records of Surfaces, as `Data.subscriptions` takes
+// them; `Data.wiring(active, { persist })` takes the same option.
+Data.subscriptions(inbox, { persist: { maxAge: 7 * 86_400_000 } }) // a week, for offline
+Data.subscriptions(account, { persist: false }) // never written to the device
+```
+
+- **A call says what becomes of what it reads.** `persist` rides on the
+  retention roots the call reads, so it holds for a page left too, not only
+  for the one on screen. A call that names no `persist` leaves the choice to
+  one that does: where several read the same row or list, `false` wins, else
+  the longer age. A row another read reaches is kept by that read, so
+  `persist: false` keeps a row off the device only where nothing else saves
+  it.
+- **Past `maxBytes`, what was read least recently goes first.** The order is
+  retention's own (`recent`): the reads of the Surfaces on screen first, then
+  the Surfaces left, the most recently left first, then what no read reaches.
+  A page left leaves as one batch, so its lists and reads are kept or dropped
+  together. The first batch that does not fit is dropped with every older one,
+  though a smaller older batch might fit, so a snapshot whose newest batch
+  does not fit is written empty. One that cannot be made to fit (a `maxBytes`
+  below an empty snapshot's size, or a `snapshot` with no `recency` to drop
+  by) is not written, and its key is removed, so an older, smaller snapshot
+  cannot outlive it.
+- **A row a kept list names stays.** A row is dropped only with every batch
+  that reaches it, and lasts as long as the longest-lived list kept that names
+  it, though it was fetched earlier than the list's page.
+- **What expired is dropped twice.** A save leaves it out, and a restore drops
+  what expired while the snapshot sat in storage, so a page reloaded after a
+  week paints nothing older than its `maxAge` allows.
+- **A snapshot from before ages (version 5) is refused** and its key removed,
+  as any other version is: it carries no ages to judge, and the planner
+  refetches.
 
 ## Server rendering: `Remote.resume`
 

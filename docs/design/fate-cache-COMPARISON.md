@@ -58,7 +58,7 @@ and each view sees only the fields it selected.
 | What a write refreshes | Named by the caller | Derived: the answer carries what visible Surfaces show of the rows it names, and the first page of each list whose rows it moved (#386) |
 | A new row into a list | Named by the caller | Placed by the list's query body, checked by `Law.check` and `verifyPredictions` |
 | Live | The server names what changed | The server re-reads through `readAs` and runs each list's window again, resuming from a cursor |
-| Saved reads | Per request, with its own `maxAge`, least recently used evicted, loaded lazily | One snapshot of the whole cache within `maxBytes`, restored through `flags` before `init` |
+| Saved reads | Per request, with its own `maxAge`, least recently used evicted, loaded lazily | One snapshot within `maxBytes`, each row and list with its own `maxAge` (#404), least recently read evicted, restored whole through `flags` before `init` |
 | Offline writes | As above | The outbox: the same order, identity, ledger and tab rules |
 | A write the session no longer covers | Waits for sign-in | Waits for sign-in (`WaitingForSignIn`, #403); `Forbidden` settles it as `Failed` |
 
@@ -132,6 +132,17 @@ Four changes, in this order. Each is its own issue.
    `maxAge`, evicting the least recently read first when it passes
    `maxBytes`. Rows another kept list still names stay. The restore stays
    whole and synchronous through `flags`.
+   - Done. A call's `persist` rides on the retention roots it reads, so a
+     page left keeps its setting; the snapshot orders its rows and lists by
+     retention's own recency (`recent`), batch by batch, and stores when each
+     expires (version 6). A restore keeps each list's `receivedAt`, which it
+     used to reset to 0: a list restored and not refetched (offline) would
+     otherwise have expired at the next save. Where calls that name `persist`
+     share a row, `false` wins, else the longer age; a call naming none
+     defers. Eviction stops at the first batch that does not fit, as the
+     in-memory budget does. The example's e2e found an empty list never
+     dated (`receivedAt` 0, since a page without rows' fields carried no
+     `now`), so it expired at once; such a page now dates its list.
 
 Not taken: lazy loading of saved reads, caller-named list insertion and
 refresh, server-named live changes, continuation pages kept across a refresh,
