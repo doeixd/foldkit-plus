@@ -271,10 +271,11 @@ it('keeps both of two presses made before the next draw', async () => {
       document.querySelectorAll<HTMLInputElement>('[role="group"] input[type="checkbox"]'),
     )
     // Both in one task: no frame draws the first press before the second.
+    // The flag goes first, so the tags the wait below reads land after it.
+    element<HTMLInputElement>('Edit-featured').click()
+    element<HTMLInputElement>('Edit-featured').click()
     boxes[0]!.click()
     boxes[1]!.click()
-    element<HTMLInputElement>('Edit-featured').click()
-    element<HTMLInputElement>('Edit-featured').click()
     await vi.waitFor(() =>
       expect(latest && Edit.field(latest.edit, 'tagIds').value).toEqual(['t1', 't2']),
     )
