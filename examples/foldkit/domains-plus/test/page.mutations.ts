@@ -34,8 +34,8 @@ export default [
     edits: [
       {
         file: entry,
-        find: "'set-cookie': cartCookie(cart, request.url.startsWith('https:')),",
-        replace: '',
+        find: "? { 'set-cookie': cartCookie(cart, request.url.startsWith('https:')) }",
+        replace: '? {}',
       },
     ],
     tests,
@@ -45,8 +45,8 @@ export default [
     edits: [
       {
         file: entry,
-        find: "...(hasCart(request) ? { headers: () => ({ 'cache-control': 'private, no-store' }) } : {}),",
-        replace: '',
+        find: "...(hasCart(request) || request.method === 'POST'",
+        replace: "...(request.method === 'POST'",
       },
     ],
     tests,

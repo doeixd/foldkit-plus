@@ -111,8 +111,12 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   `FOLDKIT_APP_ATTRIBUTE`) and imports nothing from the server, about 200 kB
   minified less than `foldkit-ssr`, which carries Foldkit's renderer. Import
   `foldkit-ssr` only in server code. `SSR.hydrate` takes the same
-  `makeApplication` config; `SSR.entry(..., { headers })` sets headers on every
-  response it answers and answers OPTIONS itself.
+  `makeApplication` config; `SSR.entry(..., { headers: (request, model) =>
+  … })` sets headers on every response it answers (`model` is `some` of the
+  Model a rendered or posted page reached, `none` where nothing rendered, so a
+  cookie is written from it) and answers OPTIONS itself. A header `Headers`
+  refuses (CR or LF in a value), one that frames the response, or `location`
+  is a `500`.
 
 - `init`'s Commands never run on a resumed page. `SSR.render` fails with
   `ResumeUnsafe` `UndeclaredStartup` until the plan names them in `boot`. A
@@ -283,7 +287,8 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   form with `h.form`, since with a fallback every `rh.form` whose `OnSubmit`
   names a Message posts it (#391); draw both kinds of control on both sides,
   never in `<noscript>`; keep state between posts in a cookie the entry reads
-  and validates, since a post starts from `init`. The guide is
+  and validates, since a post starts from `init`, and write it back in
+  `headers` from the Model the post reached. The guide is
   https://github.com/doeixd/foldkit-plus/blob/main/docs/progressive-enhancement.md,
   worked on `examples/foldkit/domains-plus`.
 - `renderPage(request)` gets nothing but the request, so what the host holds

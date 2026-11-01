@@ -4,7 +4,7 @@
  * host owns the template: the entry answers `Rendered`, with the envelope in
  * the rendered root, and never splices markup into a template of its own.
  */
-import { Effect } from 'effect'
+import { Effect, Option } from 'effect'
 import { handleRequest } from 'foldkit/experimental/server'
 import { Projection } from 'foldkit-surface'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -135,6 +135,51 @@ describe('SSR.entry through handleRequest', () => {
     expect(refused.headers.get('cache-control')).toBe('no-store')
   })
 
+  it('gives `headers` the Model a rendered page reached, and none where nothing rendered', async () => {
+    const seen: Array<readonly [string, Option.Option<number>]> = []
+    const entry = SSR.entry(config, plan, {
+      buildId: 'b',
+      headers: (request, model) => {
+        seen.push([request.method, Option.map(model, ({ count }) => count)])
+        return Option.match(model, {
+          onNone: () => ({}),
+          onSome: ({ count }) => ({ 'set-cookie': `count=${count}` }),
+        })
+      },
+    })
+    const page = await serve(new Request('https://example.test/', { headers: html }), entry)
+    // The server's Model, from `init`: the browser's would not have 41.
+    expect(page.headers.getSetCookie()).toEqual(['count=41'])
+    await serve(new Request('https://example.test/', { method: 'OPTIONS' }), entry)
+    await serve(new Request('https://example.test/', { method: 'PUT' }), entry)
+    expect(seen).toEqual([
+      ['GET', Option.some(41)],
+      ['OPTIONS', Option.none()],
+      ['PUT', Option.none()],
+    ])
+  })
+
+  it.each([
+    ['a value holding CR and LF', { 'set-cookie': 'a=1\r\nlocation: https://evil.test' }],
+    ['a name that is no token', { 'set cookie': 'a=1' }],
+    ['location, which only the entry writes', { location: 'https://evil.test' }],
+    ['a header that frames the response', { 'Content-Length': '0' }],
+  ])('answers `headers` giving %s 500, reporting it', async (_, given) => {
+    const { reported, diagnostics } = collecting()
+    const entry = SSR.entry(config, plan, {
+      buildId: 'b',
+      diagnostics,
+      headers: (_request, model) => (Option.isSome(model) ? given : {}),
+    })
+    const response = await serve(new Request('https://example.test/', { headers: html }), entry)
+    expect(response.status).toBe(500)
+    expect(response.headers.get('location')).toBeNull()
+    expect(response.headers.getSetCookie()).toEqual([])
+    expect(reported).toEqual([
+      expect.arrayContaining([expect.objectContaining({ _tag: 'PageFailed' })]),
+    ])
+  })
+
   it('answers `headers` that throw 500, reporting why with the request', async () => {
     const { reported, diagnostics } = collecting()
     const entry = SSR.entry(config, plan, {
@@ -146,7 +191,16 @@ describe('SSR.entry through handleRequest', () => {
     })
     const response = await serve(new Request('https://example.test/', { headers: html }), entry)
     expect(response.status).toBe(500)
-    expect(reported).toEqual([failed('https://example.test/', 'no policy today')])
+    // An answer that rendered nothing calls them too.
+    const preflight = await serve(
+      new Request('https://example.test/other', { method: 'OPTIONS' }),
+      entry,
+    )
+    expect(preflight.status).toBe(500)
+    expect(reported).toEqual([
+      failed('https://example.test/', 'no policy today'),
+      failed('https://example.test/other', 'no policy today'),
+    ])
   })
 
   it('leaves a hashed-asset miss to handleRequest, rendering nothing', async () => {

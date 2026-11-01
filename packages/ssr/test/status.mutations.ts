@@ -51,9 +51,8 @@ export default [
     edits: [
       {
         file: index,
-        find: '        if (statusOf === undefined) return { page: served.page, status: Option.none<number>() }',
-        replace:
-          '        if (statusOf === undefined) return { page: served.page, status: Option.some(200) }',
+        find: '          return { page: served.page, extra, status: Option.none<number>() }',
+        replace: '          return { page: served.page, extra, status: Option.some(200) }',
       },
     ],
     tests: entry,

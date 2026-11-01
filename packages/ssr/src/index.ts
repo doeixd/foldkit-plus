@@ -1114,10 +1114,10 @@ const generate = <
  * `405`, each with the methods the entry answers in `allow` (`handleRequest`
  * passes every method through). A render that fails, or a plan the render
  * refuses, is answered `500` with the reason reported (`diagnostics`), never with a page the
- * browser cannot resume. `headers(request)` rides on the `Rendered` result, so
- * Foldkit's `toResponse` sets it over its own on the page: a cache policy, or
- * a CORS answer to a preflight. `status(model, request)` gives a page its
- * status from the Model the server reached, `404` for a route not found.
+ * browser cannot resume. `headers(request, model)` is set over Foldkit's own
+ * on every answer: a cache policy, a CORS answer to a preflight, or a cookie
+ * written from the Model a post reached. `status(model, request)` gives a page
+ * its status from that Model, `404` for a route not found.
  *
  * The page is answered as `Rendered`: the rendered application carries the
  * envelope in its root, so the host injects it into its own template with
@@ -1136,7 +1136,17 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   options: {
     readonly buildId: string
     readonly flags?: ((request: Request) => unknown | PromiseLike<unknown>) | undefined
-    readonly headers?: ((request: Request) => HeadersInit) | undefined
+    /**
+     * Headers set over the entry's own on every answer. `model` is the Model
+     * the server reached for a rendered page, a posted form's after `update`;
+     * it is `none` for an answer that rendered nothing (`OPTIONS`, `405`, a
+     * refused post, a `500`). So a cookie kept from the Model is written here.
+     * A name or value no `Headers` takes (a CR or LF in a value), a header that
+     * frames the response (`content-length`, `transfer-encoding`, `connection`
+     * and the like) or `location`, which only the entry writes, is answered
+     * `500` and reported, as `headers` that throw are.
+     */
+    readonly headers?: ((request: Request, model: Option.Option<Model>) => HeadersInit) | undefined
     /**
      * A posted form's own services, from its request (who is asking, a
      * client bound to them), for the Commands the fallback runs; where one is
@@ -1229,6 +1239,17 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     extra.forEach((value, name) => response.headers.append(name, value))
     return response
   }
+  // `Headers` refuses a name that is no token and a value holding CR, LF or NUL.
+  const headersOf = (request: Request, model: Option.Option<Model>): Headers | undefined => {
+    if (options.headers === undefined) return undefined
+    const headers = new Headers(options.headers(request, model))
+    for (const name of headers.keys()) {
+      if (ENTRY_HEADERS.has(name)) {
+        throw new Error(`headers set ${name}, which the entry writes and an application may not`)
+      }
+    }
+    return headers
+  }
   const answer = async (request: Request): Promise<EntryResult> => {
     const method = request.method.toUpperCase()
     const posting = method === 'POST' && plan.fallback === 'server'
@@ -1236,20 +1257,25 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     const reporting = reportingTo(
       diagnostics === undefined ? undefined : diagnostic => diagnostics(diagnostic, request),
     )
-    const headersOf = options.headers
-    let extra: Headers | undefined
-    if (headersOf !== undefined) {
+    // An answer that rendered nothing, with the headers given no Model. A 500
+    // is reported already, so `headers` failing again for it is not.
+    const responded = async (
+      response: Response,
+      { reported = false } = {},
+    ): Promise<EntryResult> => {
+      let extra: Headers | undefined
       try {
-        extra = new Headers(headersOf(request))
+        extra = headersOf(request, Option.none())
       } catch (error) {
-        await Effect.runPromise(
-          reporting(Diagnostics.report(pageFailed(request.url, Cause.die(error)))),
-        )
+        if (!reported) {
+          await Effect.runPromise(
+            reporting(Diagnostics.report(pageFailed(request.url, Cause.die(error)))),
+          )
+        }
         return Responded(plainText(500, 'The page could not be rendered.'))
       }
+      return Responded(extra === undefined ? response : merge(response, extra))
     }
-    const responded = (response: Response): EntryResult =>
-      Responded(extra === undefined ? response : merge(response, extra))
     if (method === 'OPTIONS')
       return responded(new Response(null, { status: 204, headers: { allow } }))
     if (method !== 'GET' && method !== 'HEAD' && !posting) {
@@ -1282,14 +1308,18 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
               { buildId: options.buildId, url: request.url, ...flagged, ...styled },
               matchOf(request.url),
             )
-        if (statusOf === undefined) return { page: served.page, status: Option.none<number>() }
+        // `headers` or `status` that throws is a defect, answered 500 and reported.
+        const extra = yield* Effect.sync(() => headersOf(request, Option.some(served.model)))
+        if (statusOf === undefined) {
+          return { page: served.page, extra, status: Option.none<number>() }
+        }
         const status = statusOf(served.model, request)
         if (!Number.isInteger(status) || status < 200 || status > 599) {
           return yield* Effect.die(
             new Error(`status gave ${status} for the page, which is no status between 200 and 599`),
           )
         }
-        return { page: served.page, status: Option.some(status) }
+        return { page: served.page, extra, status: Option.some(status) }
       }).pipe(reporting),
     )
     if (Exit.isFailure(exit)) {
@@ -1300,9 +1330,9 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
         return responded(plainText(400, `The form could not be handled: ${refused.value.message}`))
       }
       await Effect.runPromise(reporting(Diagnostics.report(pageFailed(request.url, exit.cause))))
-      return responded(plainText(500, 'The page could not be rendered.'))
+      return responded(plainText(500, 'The page could not be rendered.'), { reported: true })
     }
-    const { page, status } = exit.value
+    const { page, extra, status } = exit.value
     await Effect.runPromise(reporting(reportUnnamed(config, plan, page.unnamed)))
     // No `headers` or `status` key unless given: a `Rendered` that carries
     // neither stays generatable as a static file.
@@ -1313,6 +1343,22 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   }
   return { renderPage: answer }
 }
+
+/**
+ * What `headers` may not set: what frames the response, which the host's
+ * server writes, and `location`, which only the entry writes.
+ */
+const ENTRY_HEADERS: ReadonlySet<string> = new Set([
+  'connection',
+  'content-length',
+  'keep-alive',
+  'location',
+  'proxy-connection',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+])
 
 /**
  * Whether a post came from one of `origins`, by what the browser sends and no

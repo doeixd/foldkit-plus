@@ -248,6 +248,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`SSR.entry`'s `headers` is given the Model the page reached** (`foldkit-ssr`,
+  #389). `headers: (request, model: Option<Model>) => HeadersInit`: `some` of
+  the server's Model for a rendered page, a posted form's after `update`, so a
+  cookie kept from the Model is written there; `none` for an answer that
+  rendered nothing (`OPTIONS`, `405`, `403`, a refused post, a `500`). A
+  `headers(request)` written before still compiles. `headers` that set
+  `location` or a header that frames the response (`content-length`,
+  `transfer-encoding`, `connection` and their kin) are now answered `500` and
+  reported, as a name or value `Headers` refuses (CR or LF in a value) is.
+
 - **Remote's read options name the Model** (`foldkit-remote`, #402).
   `ObserveOptions`, `SubscriptionsOptions` and `WiringOptions` take the
   application Model as a type parameter (`WiringOptions<Shared, AppModel>`),

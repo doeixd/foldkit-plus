@@ -291,10 +291,10 @@ request reads it: domains-plus keeps its cart's names in a cookie.
 - **The posted Message is validated three times:** its Schema (a name has a
   length), the plan (an active Surface must list it), and `update`, which adds
   a name only if the Model read it as available, at the price it read.
-- **Writing it needs the Model the post reached.** `SSR.entry`'s `headers`
-  sees only the request; domains-plus keeps the Model `status` is given and
-  adds `set-cookie` to the answer
-  ([#389](https://github.com/doeixd/foldkit-plus/issues/389)).
+- **Writing it needs the Model the post reached.** `SSR.entry`'s
+  `headers(request, model)` is given it, and domains-plus answers a post with
+  `set-cookie` from `model.cart`. `headers` is called for every answer, a
+  `GET` and a refusal too, so it writes the cookie only for a `POST`.
 - **A page drawn with someone's cart is theirs.** Answer it
   `cache-control: private, no-store`.
 - **A reload posts again.** The answer is the page, at the post's URL.
@@ -349,8 +349,7 @@ there instead.
 
 ## Limits
 
-- The answer to a post is the page, not a redirect (#390), and its headers
-  cannot come from the Model (#389).
+- The answer to a post is the page, not a redirect (#390).
 - A GET form is built with `h.form` (#391).
 - Opening a virtual list at a row is the application's (#392).
 - A read before render needs an entry per request (#393).

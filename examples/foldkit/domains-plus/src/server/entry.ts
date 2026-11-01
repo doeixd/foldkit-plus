@@ -6,7 +6,6 @@
  */
 import { Effect, Option } from 'effect'
 import {
-  Rendered,
   Responded,
   renderDocument as renderShell,
   type DocumentRenderer,
@@ -59,44 +58,38 @@ const readPage = (request: Request, url: Url): Promise<Model> => {
  * (#393). A
  * cart form posted without scripts reaches `SSR.handle` through it, which
  * runs `update` and renders the result, and the cart that post reached is
- * kept in the cookie the next request reads. The entry hands no Model to
- * `headers`, so the one `status` is given is kept to write it (#389).
+ * kept in the cookie the next request reads.
  */
 const answer = async (request: Request, url: Url): Promise<EntryResult> => {
   const model = await readPage(request, url)
-  let reached = Option.none<Model>()
-  const result = await SSR.entry(
+  return SSR.entry(
     { Model, init: () => ({ model }), update, view, subscriptions, routing, container: null },
     plan,
     {
       buildId: import.meta.env.FOLDKIT_BUILD_ID,
       // A form may be posted from this page's own origin, and no other.
       origins: [new URL(request.url).origin],
-      // A page drawn with a visitor's cart is theirs alone.
-      ...(hasCart(request) ? { headers: () => ({ 'cache-control': 'private, no-store' }) } : {}),
+      headers: (request, reached) => ({
+        // A page drawn with a visitor's cart is theirs alone.
+        ...(hasCart(request) || request.method === 'POST'
+          ? { 'cache-control': 'private, no-store' }
+          : {}),
+        ...Option.match(reached, {
+          onNone: () => ({}),
+          onSome: ({ cart }) =>
+            request.method === 'POST'
+              ? { 'set-cookie': cartCookie(cart, request.url.startsWith('https:')) }
+              : {},
+        }),
+      }),
       // The theme and the classes the page draws, so the first paint is styled
       // before any script runs; the browser moves them into the head, and its
       // Styles find them there and add none twice.
       styles: rendered =>
         `<style>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>`,
-      status: model => {
-        reached = Option.some(model)
-        return AppRoute.match(model.route, { Search: () => 200, NotFound: () => 404 })
-      },
+      status: model => AppRoute.match(model.route, { Search: () => 200, NotFound: () => 404 }),
     },
   ).renderPage(request)
-  if (request.method.toUpperCase() !== 'POST' || result._tag !== 'Rendered') return result
-  return Option.match(reached, {
-    onNone: () => result,
-    onSome: ({ cart }) =>
-      Rendered(result.application, {
-        ...(result.status === undefined ? {} : { status: result.status }),
-        headers: {
-          'cache-control': 'private, no-store',
-          'set-cookie': cartCookie(cart, request.url.startsWith('https:')),
-        },
-      }),
-  })
 }
 
 /** `/remote` answers the prices; every other path is a page. */

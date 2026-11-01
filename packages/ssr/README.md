@@ -339,18 +339,36 @@ Flags passes `flags: request => ...`. `POST` is handled only for a plan with a
 render refuses are answered `500` with the reason reported
 ([`PageFailed`](#diagnostics)), never with a page the browser could not resume.
 
-`headers: request => ...` rides on the `Rendered` result, set over the host's
-own: a cache policy for a page that is one visitor's, or the CORS answer to a
-preflight, which reaches the entry and not the host.
+`headers: (request, model) => ...` is set over the host's own on every
+answer: a cache policy for a page that is one visitor's, the CORS answer to a
+preflight, which reaches the entry and not the host, or a cookie written from
+the Model. `model` is an `Option`: `some` of the Model the server reached for
+a rendered page (a posted form's, after `update`), `none` for an answer that
+rendered nothing (`OPTIONS`, a `405`, a refused post, a `500`).
 
 ```ts
 SSR.entry(config, Post, {
   buildId,
-  headers: () => ({ 'cache-control': 'private, no-store', vary: 'cookie' }),
+  headers: (_request, model) => ({
+    'cache-control': 'private, no-store',
+    vary: 'cookie',
+    ...Option.match(model, {
+      onNone: () => ({}),
+      onSome: ({ post }) => ({
+        'set-cookie': `last-read=${encodeURIComponent(post.id)}; Path=/; SameSite=Lax`,
+      }),
+    }),
+  }),
 })
 ```
 
-A `headers` that throws is answered `500`, as a failed render is.
+A `headers` that throws is answered `500`, as a failed render is, and so is
+one that sets what is not the application's to set: a name or value `Headers`
+refuses (a value holding CR or LF cannot smuggle a second header in), a
+header that frames the response (`content-length`, `transfer-encoding`,
+`connection` and their kin), or `location`. A value from the Model still
+needs encoding for its header, as `encodeURIComponent` does here: a cookie's
+value holds no `;` or `,`.
 
 Every rendered page is answered `200` unless `status: (model, request) =>
 ...` says otherwise. It is given the Model the server reached, which already
@@ -950,9 +968,9 @@ is the guide. What the port needed from this package:
   `<noscript>` is not drawn by the view, and the page would not be the one
   the browser renders first.
 - **Keep state between posts yourself.** A post starts from `init`, so what
-  must outlive it lives in a cookie the entry reads, validated as it is read.
-  Writing it back needs the Model the post reached, which only `status` is
-  given today ([#389](https://github.com/doeixd/foldkit-plus/issues/389)).
+  must outlive it lives in a cookie the entry reads, validated as it is read,
+  and `headers(request, model)` writes it back from the Model the post
+  reached.
 - **Wait for the takeover in a scripted test.** The served page works on its
   own, so a click before boot posts. The root loses `data-foldkit-plus-resume`
   as the page boots.

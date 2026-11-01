@@ -3,7 +3,7 @@
  * the form, and a POST of it runs Foldkit's loop once on the server and
  * answers with the page that results.
  */
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Option } from 'effect'
 import { handleRequest } from 'foldkit/experimental/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { HtmlBuilder } from 'foldkit/html'
@@ -80,6 +80,23 @@ describe('SSR.handle through handleRequest', () => {
     // The page is a resumable one, for the browser that gets it.
     expect(body).toContain('&quot;plan&quot;:&quot;todos&quot;')
     expect(body).toContain('&quot;todos&quot;:[&quot;Served&quot;,&quot;Milk&quot;]')
+  })
+
+  it('gives `headers` the Model the post reached, and none to a post refused', async () => {
+    const kept = SSR.entry(config, plan, {
+      buildId: 'b',
+      origins,
+      headers: (_request, model) =>
+        Option.match(model, {
+          onNone: () => ({ 'x-todos': 'none' }),
+          onSome: ({ todos }) => ({ 'x-todos': todos.join(',') }),
+        }),
+    })
+    const answered = await serve(post({ title: 'Milk', [FALLBACK_FIELD]: added }), kept)
+    expect(answered.headers.get('x-todos')).toBe('Served,Milk')
+    const refused = await serve(post({ [FALLBACK_FIELD]: 'not json' }), kept)
+    expect(refused.status).toBe(400)
+    expect(refused.headers.get('x-todos')).toBe('none')
   })
 
   it('carries `styles` on the page a post renders, as on a GET', async () => {
