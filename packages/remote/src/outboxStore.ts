@@ -14,7 +14,7 @@ import { KeyValueStore } from 'effect/persistence'
 import type { Computation } from 'foldkit-entity'
 import type { OptimisticOperation } from './optimistic.js'
 import { remoteErrorSchema, type RemoteError } from './remoteData.js'
-import { Queued, withDone, type OutboxState, type ReadEntry } from './queue.js'
+import { MadeAs, Queued, withDone, type OutboxState, type ReadEntry } from './queue.js'
 import { QueryRequest, RelationRequest } from './wire.js'
 
 /**
@@ -91,6 +91,11 @@ export const StoredWrite = Schema.Struct({
   optimistic: Schema.Array(OptimisticSchema),
   /** Who its layer was predicted for. */
   viewer: Schema.optionalKey(Ref),
+  /**
+   * Who it was made for: sent with it, so the server refuses it as anyone
+   * else, and a visitor's moves to whoever signs in first (#405).
+   */
+  madeAs: Schema.optionalKey(MadeAs),
   /** What the reader was shown when they acted, for the answer to carry. */
   shown: Schema.Array(RelationRequest),
   /** The lists it asks back with its answer; absent from a write stored before they were. */
@@ -306,6 +311,9 @@ export const channelFor = (key: string): Option.Option<BroadcastChannel> =>
 
 /** The lock the tabs on one key send under: one sends, the others wait. */
 export const sendLock = (key: string): string => `foldkit-remote-outbox:${key}:send`
+
+/** The lock a visitor's writes are moved out of a queue under, so one tab moves them and says so. */
+export const moveLock = (key: string): string => `foldkit-remote-outbox:${key}:move`
 
 /** The lock a write to the store is made under, so two tabs never write it at once. */
 export const storeLock = (key: string): string => `foldkit-remote-outbox:${key}:store`

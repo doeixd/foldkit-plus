@@ -28,6 +28,7 @@ import {
   type Wiring,
 } from 'foldkit-surface'
 import { RemoteClient, remoteError } from './client.js'
+import { madeAsOf } from './queue.js'
 import type { Connection, Edge } from './connection.js'
 import { Entity, type EntityDescriptor, type FieldsFrom } from './entity.js'
 import {
@@ -649,7 +650,9 @@ export interface RemoteDomain<
    * them, in order. Call it once the application knows who is signed in (its
    * sign-in answered, or a reload read who it is), after any change of
    * `scope`: only the queue of the scope the page holds is sent, never
-   * another person's. The same Model when none waits for a sign-in.
+   * another person's. A write made for someone else than who signs in
+   * (`PrincipalChanged`) is refused again, and waits on. The same Model when
+   * none waits for a sign-in.
    */
   signedIn(model: AppModel): AppModel
   /** `updateRemote` on the bound slice: reduces one of Remote's Messages, as `RemoteMessage` or as the application's union constructs it. */
@@ -1630,6 +1633,7 @@ export const pageMessage = (
       ? { entities: [...(result.entities ?? [])], settled: [...(result.settled ?? [])] }
       : {}),
     ...(dated === undefined ? {} : { now: dated }),
+    ...(result.principal === undefined ? {} : { principal: madeAsOf(result.principal) }),
   }
 }
 

@@ -48,6 +48,7 @@ import {
   Remote,
   RemoteClient,
   RemoteForbidden,
+  RemotePrincipalChanged,
   RemoteUnauthenticated,
   RemoteLiveError,
   RemoteLiveRefused,
@@ -96,6 +97,7 @@ type AnswerError =
   | RemoteQueryError
   | RemoteMutationError
   | RemoteForbidden
+  | RemotePrincipalChanged
   | RemoteProtocolError
 
 export class RemoteServerError extends Schema.TaggedError<RemoteServerError>()(
@@ -746,6 +748,50 @@ export const exprContext = (
 /** Who asks, as the server's `viewer` says: none for a visitor, or on a server with no viewer. */
 const viewerOf = <P, R>(server: ServerDefinition<P, R>, principal: P): Option.Option<EntityRef> =>
   server.viewer === undefined ? Option.none() : server.viewer(principal)
+
+/**
+ * Whom an answer is for, as the wire says it (#405): the key of who asks
+ * (their `viewer`), `null` for a visitor, and nothing from a server that
+ * names no `viewer`, which keeps no keys.
+ */
+const answeredFor = <P, R>(
+  server: ServerDefinition<P, R>,
+  principal: P,
+): { readonly principal?: string | null } =>
+  server.viewer === undefined
+    ? {}
+    : {
+        principal: Option.match(server.viewer(principal), {
+          onNone: () => null,
+          onSome: viewer => entityKey(viewer.entity, viewer.id),
+        }),
+      }
+
+/**
+ * Refuses a write made for someone other than who asks, before anything of
+ * it runs (#405): a visitor is asked to sign in, anyone else told who is
+ * signed in changed. A server that keeps no keys cannot tell, and refuses
+ * any write that names one.
+ */
+const madeFor = <P, R>(
+  server: ServerDefinition<P, R>,
+  principal: P,
+  expected: Option.Option<string>,
+): Effect.Effect<void, RemotePrincipalChanged | RemoteUnauthenticated> =>
+  Option.match(expected, {
+    onNone: () => Effect.void,
+    onSome: key => {
+      const asking = answeredFor(server, principal).principal
+      if (asking === key) return Effect.void
+      return asking === null
+        ? Effect.fail(RemoteServer.unauthenticated())
+        : Effect.fail(
+            new RemotePrincipalChanged({
+              message: 'The write was made for someone other than who is signed in now',
+            }),
+          )
+    },
+  })
 
 /**
  * One row as `principal` may see it, through the server's own source for its
@@ -2652,7 +2698,11 @@ export const RemoteServer = {
    * The server: its sources by name. `viewer` says who asks, as a row
    * (`principal => Option.some(Remote.ref(User, principal.id))`), or none for
    * a visitor: what a declared write's `Expr.viewer` sets. A server
-   * registering such an insert without one is refused here.
+   * registering such an insert without one is refused here. It is also whom
+   * each answer says it is for (`principal`, the row's key), which a durable
+   * write carries back: one made for another viewer than who asks is refused
+   * before it runs (`RemotePrincipalChanged`). A server without `viewer`
+   * keeps no keys, so its writes are not checked (#405).
    *
    * `clockSkew` is how far from this server's clock a client's time (the
    * `now` a write is sent with, when the reader acted) may be and still be
@@ -2895,7 +2945,8 @@ export const RemoteServer = {
    * The request and its payload are decoded by the protocol's own schemas
    * before a handler sees them, so an operation name is one of Remote's three
    * and nothing else. A body that is not a request is a 400; a caller who
-   * could not be told a 401; a refusal of who is asking a 403; a mutation's
+   * could not be told a 401; a refusal of who is asking a 403; a write made
+   * for someone else (`RemotePrincipalChanged`) a 409; a mutation's
    * declared refusal a 422, or a 409 when it is `Refusal.taken`; a handler's
    * failure a 500 with its message; a defect a 500 that says nothing of it,
    * its cause reported as a `ServerDefect` (`Diagnostics`, by default the log).
@@ -2935,6 +2986,13 @@ export const RemoteServer = {
         Effect.succeed({ status: 400 as const, body: { error: error.message } }),
       ),
       Effect.catchTag('Unauthenticated', error => Effect.succeed(unauthenticatedAnswer(error))),
+      // Not the asker's refusal, and not the write's: who is signed in changed.
+      Effect.catchTag('PrincipalChanged', error =>
+        Effect.succeed({
+          status: 409 as const,
+          body: { error: error.message, principalChanged: {} },
+        }),
+      ),
       Effect.catchTag('Forbidden', error =>
         Effect.succeed({
           status: 403 as const,
@@ -2989,7 +3047,10 @@ export const RemoteServer = {
         const mismatch = protocolMismatch(payload.version)
         if (mismatch !== undefined) return yield* mismatch
         const caller = yield* asking
-        return yield* RemoteServer.readHelper(server, caller, options, payload.requests)
+        return {
+          ...(yield* RemoteServer.readHelper(server, caller, options, payload.requests)),
+          ...answeredFor(server, caller),
+        }
       }),
 
       FoldkitRemoteMutate: Effect.fn('RemoteServer.FoldkitRemoteMutate')(function* (payload) {
@@ -3013,6 +3074,7 @@ export const RemoteServer = {
           Math.max(1, options.maxIdsPerEntity ?? DEFAULT_MAX_IDS_PER_ENTITY),
         )
         const caller = yield* asking
+        yield* madeFor(server, caller, Option.fromUndefinedOr(payload.principal))
         const outcome = yield* source
           .run({
             input,
@@ -3093,11 +3155,16 @@ export const RemoteServer = {
           deleted: outcome.deleted.map(gone => ({ entity: gone.entity, id: gone.id })),
           ...Option.match(read, { onNone: () => ({}), onSome: value => ({ read: value }) }),
           ...(answered.length === 0 ? {} : { lists: answered }),
+          ...answeredFor(server, caller),
         }
       }),
 
       FoldkitRemoteQuery: Effect.fn('RemoteServer.FoldkitRemoteQuery')(function* (payload) {
-        return yield* answerQuery(server, yield* asking, options, payload)
+        const caller = yield* asking
+        return {
+          ...(yield* answerQuery(server, caller, options, payload)),
+          ...answeredFor(server, caller),
+        }
       }),
 
       FoldkitRemoteLive: payload => {

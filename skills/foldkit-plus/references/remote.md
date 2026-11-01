@@ -729,7 +729,19 @@ A send answered `Unauthenticated` is not settled: the write stays queued as
 after it waits behind it, in order, across reloads, until `update` reports a
 sign-in with `Data.signedIn(model)`, after moving `scope` to whoever signed in;
 only that scope's queue is sent, so another person's never is. `Forbidden`
-stays final.
+stays final. Every answer (read, list, mutation) carries `principal`, the
+server `viewer`'s key or `null` for a visitor (absent without a `viewer`); a
+durable write is stamped with the last one heard when queued (`Data.forget`
+forgets it; a retry keeps its stamp) and sent with it as `MutationRequest.principal`.
+`RemoteServer.handlers` refuses one naming someone else before its Source runs,
+a ledger replay included: `RemotePrincipalChanged` (`_tag: 'PrincipalChanged'`,
+a 409 `{ error, principalChanged }` over JSON), or `Unauthenticated` for a
+visitor, and the outbox keeps it `WaitingForSignIn` with that error. A write
+queued before any answer said who names no one and runs as whoever asks. A
+visitor's waiting writes in the queue the page held before move, once an
+answer names who signed in, into the queue it holds now, stamped as them;
+the moving tab says `OutboxMoved { requestIds, from, to }` once (share it from
+`Data.wiring` to hear it in `update`).
 Other tabs read the store over a `BroadcastChannel` and show each other's
 writes. `outboxStatus(Data, model)`, from the same entry, is `{ waiting, failed,
 waitingForSignIn, items }`, each item's `state` `Waiting { attempt, error }`,
@@ -1172,7 +1184,8 @@ foreignColumn }`; a `Derived.make` member = `{ relation, where? }` (a count) or
 table by its foreign key, under its `visible`), nor does a `Derived.exists`, read for
 `RemoteServer.make({ viewer: principal => Option<{ entity, id }> })`, the one viewer of
 every source it mounts (a server without one refuses such a source, and it is never
-`shared`; `source` takes no `viewer`). A query body's `Expr.viewer(User)` and `Expr.now`
+`shared`; `source` takes no `viewer`); its key is also each answer's `principal`,
+which a durable write must match to run. A query body's `Expr.viewer(User)` and `Expr.now`
 read the same viewer and the server's clock; a write's `when` and its Entity's invariants
 may not read them yet, which `writer` refuses where it is built. A required `one`
 over a nullable column throws: declare it `{ optional: true }`. So does a column

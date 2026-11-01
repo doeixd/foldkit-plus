@@ -23,7 +23,7 @@ import { reduceIn, type RemoteMessage, type RemoteModel } from './model.js'
 import { brokenByWrite, forbiddenByWrite, foreseenOfWrite, predictionOfWrite } from './mutation.js'
 import type { ConnectionChange, OptimisticOperation } from './optimistic.js'
 import type { PendingDelete } from './ledger.js'
-import { operationOf } from './queue.js'
+import { madeAsOf, operationOf } from './queue.js'
 import { assertRegistered } from './registered.js'
 import type { RemoteError } from './remoteData.js'
 import type { RelationRequirement } from './requirement.js'
@@ -336,6 +336,9 @@ const writes: WriteCapability = {
                             deleted: outcome.deleted,
                             ...(outcome.read === undefined ? {} : { read: outcome.read }),
                             ...(outcome.lists === undefined ? {} : { lists: outcome.lists }),
+                            ...(outcome.principal === undefined
+                              ? {}
+                              : { principal: madeAsOf(outcome.principal) }),
                             now: at,
                           })),
                       }),

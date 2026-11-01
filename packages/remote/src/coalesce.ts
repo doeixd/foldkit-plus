@@ -330,6 +330,19 @@ class ReadRequirement extends Request.Class<
 > {}
 
 /**
+ * Whom the reads a batch waited on were answered for, where they agree: a
+ * session that changed between two of them says nothing, rather than one
+ * of them (#405).
+ */
+const answeredBy = (
+  results: ReadonlyArray<BatchResult>,
+): { readonly principal?: string | null } => {
+  const said = results.flatMap(result => (result.principal === undefined ? [] : [result.principal]))
+  const first = said[0]
+  return first !== undefined && said.every(each => each === first) ? { principal: first } : {}
+}
+
+/**
  * Wraps a raw batch read so that requirements are batched, cut to the
  * server's limits, and deduplicated. Every waiter receives the whole result
  * of each read it waited on; `Remote.writeRead` is idempotent, so writing it
@@ -391,6 +404,7 @@ export const coalesceReads = (
         Effect.map(results => ({
           entities: results.flatMap(result => result.entities),
           settled: results.flatMap(result => result.settled),
+          ...answeredBy(results),
         })),
       )
     }

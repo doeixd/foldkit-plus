@@ -147,13 +147,15 @@ const open = () => {
       /** The error a mutation is refused with, as the client receives it. */
       refused: (mutation: string, input: unknown) =>
         Effect.runPromise(
-          handlers
-            .FoldkitRemoteMutate({ requestId: `r${++requests}`, mutation, input })
-            .pipe(
-              Effect.catchTags({ Forbidden: Effect.die, Unauthenticated: Effect.die }),
-              Effect.flip,
-              Effect.provide(layer),
-            ),
+          handlers.FoldkitRemoteMutate({ requestId: `r${++requests}`, mutation, input }).pipe(
+            Effect.catchTags({
+              Forbidden: Effect.die,
+              Unauthenticated: Effect.die,
+              PrincipalChanged: Effect.die,
+            }),
+            Effect.flip,
+            Effect.provide(layer),
+          ),
         ),
       bySlug: (slug: string) =>
         Effect.runPromise(

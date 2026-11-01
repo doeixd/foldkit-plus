@@ -860,6 +860,19 @@ does), and a server with no `viewer` refuses that Source where it is made,
 naming it. A query body's `Expr.viewer` and `Expr.now` read this viewer and the
 server's Effect `Clock` (`exprContext`).
 
+The viewer is also whom every answer says it is for. A read's, a list's and a
+mutation's result carry `principal`: the viewer's key (`'User:ada'`), or
+`null` for a visitor. The client treats it as opaque, stamps each durable
+write it queues with it, and sends it back with every send of that write. The
+handlers compare it with whom they answer as before the mutation's Source
+runs: another person is refused with `RemotePrincipalChanged` (a 409 over
+JSON), a visitor with `Unauthenticated`, and nothing runs, a ledger's replay
+included, so a write resent after the cookie changed hands is never run, or
+answered from its record, as someone else. A write that names no one (made
+with no one signed in, or before any answer said who) runs as whoever asks.
+A server with no `viewer` keeps no keys: its answers carry no `principal`, and
+it refuses a write that names one, which it cannot check.
+
 Then compile it into handlers, once per principal, or once for every request
 with a Context key as the principal (see Authentication vs authorization):
 
@@ -1111,6 +1124,10 @@ const route = async (request: Request): Promise<Response> => {
   this (`RemoteServer.forbid`).
 - **409** with `{ error, refusal }`: a declared insert's id is already a
   row's, refused as `Refusal.taken`.
+- **409** with `{ error, principalChanged: {} }`: the write names someone
+  other than who asks (`RemotePrincipalChanged`). Nothing ran. The client
+  fails it with `_tag: 'PrincipalChanged'`, and the outbox keeps it waiting
+  for them.
 - **422** with `{ error, refusal }`: the mutation refused what was asked, in
   its own `Refusal`.
 - **500** with `{ error }`: the handler failed, and the message is its own;

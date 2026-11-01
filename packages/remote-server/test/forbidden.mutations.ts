@@ -60,8 +60,8 @@ export default [
     edits: [
       {
         file: '../../remote/src/wire.ts',
-        find: 'error: Schema.Union([RemoteMutationError, RemoteForbidden, RemoteUnauthenticated]),',
-        replace: 'error: Schema.Union([RemoteMutationError, RemoteUnauthenticated]),',
+        find: '    RemoteMutationError,\n    RemoteForbidden,',
+        replace: '    RemoteMutationError,',
       },
     ],
     tests,

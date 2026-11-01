@@ -3,7 +3,7 @@
  * durable writes. The store, the locks and the sending are
  * `foldkit-remote/outbox`'s, so a page with no outbox keeps none of them.
  */
-import { Data, Option } from 'effect'
+import { Data, Option, Schema } from 'effect'
 import type { StoredWrite } from './outboxStore.js'
 import type { RemoteError } from './remoteData.js'
 
@@ -24,6 +24,20 @@ export const withDone = (
   for (const operation of settled) kept.add(operation)
   return [...kept].slice(-DONE_WINDOW)
 }
+
+/**
+ * Whom an answer was for, and so who a durable write was made for when it
+ * was queued (#405): a visitor, or someone by the server's key for them.
+ */
+export const MadeAs = Schema.Union([
+  Schema.TaggedStruct('Visitor', {}),
+  Schema.TaggedStruct('Signed', { key: Schema.String }),
+])
+export type MadeAs = typeof MadeAs.Type
+
+/** An answer's `principal` as the wire says it: `null` a visitor, a key someone. */
+export const madeAsOf = (said: string | null): MadeAs =>
+  said === null ? { _tag: 'Visitor' } : { _tag: 'Signed', key: said }
 
 /** A queued write in the Model. */
 export type Queued = Data.TaggedEnum<{
@@ -64,6 +78,18 @@ export interface OutboxState {
   readonly queue: ReadonlyArray<Queued>
   /** Operations settled lately, here or in another tab. */
   readonly done: ReadonlyArray<string>
+  /**
+   * Whom the server last said it answered as (an answer's `principal`):
+   * what a durable write queued now is stamped with. None until an answer
+   * says, and again after `forget` (#405).
+   */
+  readonly principal: Option.Option<MadeAs>
+  /**
+   * The queue this page held before its key or scope moved on: a visitor's
+   * writes there move to the queue it holds now once an answer names who is
+   * signed in (#405).
+   */
+  readonly left: Option.Option<{ readonly key: string; readonly scope: string }>
 }
 
 export const emptyOutbox: OutboxState = {
@@ -72,7 +98,15 @@ export const emptyOutbox: OutboxState = {
   scope: Option.none(),
   queue: [],
   done: [],
+  principal: Option.none(),
+  left: Option.none(),
 }
+
+/** The queue `outbox` holds, as `left` names it once the page moves on; else what it left before. */
+export const leftOf = (outbox: OutboxState): OutboxState['left'] =>
+  Option.isSome(outbox.key) && Option.isSome(outbox.scope)
+    ? Option.some({ key: outbox.key.value, scope: outbox.scope.value })
+    : outbox.left
 
 export const operationOf = Queued.$match({
   Readable: ({ write }) => write.operation,

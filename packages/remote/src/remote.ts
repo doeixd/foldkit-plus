@@ -12,6 +12,7 @@ import * as Subscription from 'foldkit/subscription'
 import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
 import { ModelRef, type Projection, type Surface } from 'foldkit-surface'
 import { RemoteClient, liveEventOf, mutateRemote, type RemoteRpcClient } from './client.js'
+import { madeAsOf } from './queue.js'
 import {
   emptyConnection,
   hasNext,
@@ -887,6 +888,7 @@ export const mutateInto = /* @__PURE__ */ Effect.fn('Remote.mutateInto')(functio
     entities: outcome.entities,
     connections: outcome.connections,
     deleted: outcome.deleted,
+    ...(outcome.principal === undefined ? {} : { principal: madeAsOf(outcome.principal) }),
     now: yield* Clock.currentTimeMillis,
   })
   return {

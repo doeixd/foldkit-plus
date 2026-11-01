@@ -92,8 +92,8 @@ export default [
   edit(
     'an answered write stays queued',
     model,
-    'outbox: withoutQueued(model.outbox, message.requestId),',
-    'outbox: model.outbox,',
+    'heardAs(withoutQueued(model.outbox, message.requestId), message.principal)',
+    'heardAs(model.outbox, message.principal)',
   ),
   edit(
     'an unreadable write is not reported',
@@ -116,8 +116,8 @@ export default [
   edit(
     'forget mints the session away',
     model,
-    'outbox: { ...emptyOutbox, session: model.outbox.session },',
-    'outbox: emptyOutbox,',
+    'outbox: { ...emptyOutbox, session: model.outbox.session, left: leftOf(model.outbox) },',
+    'outbox: { ...emptyOutbox, left: leftOf(model.outbox) },',
   ),
   edit(
     'a refusal leaves the revision where it was',

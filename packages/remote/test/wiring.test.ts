@@ -49,6 +49,7 @@ const allTags: ReadonlyArray<RemoteMessageTag> = [
   'MutationQueued',
   'OutboxRead',
   'OutboxDelayed',
+  'OutboxMoved',
   'OverlayShown',
   'OverlayLifted',
   'WindowGrown',

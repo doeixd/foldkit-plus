@@ -21,6 +21,7 @@ import {
   RemoteClient,
   RemoteForbidden,
   RemoteMutationError,
+  RemotePrincipalChanged,
   RemoteUnauthenticated,
   RemoteUnreachable,
   terminal,
@@ -28,6 +29,7 @@ import {
 } from '../src/index.js'
 import { outbox, outboxStatus } from '../src/outbox.js'
 import { mergeStored } from '../src/outboxStore.js'
+import { pageMessage } from '../src/domain.js'
 
 const Item = Entity.define('Item', Schema.Struct({ id: Schema.String, count: Schema.Number }))
 const SetCount = Mutation.write(
@@ -57,8 +59,11 @@ const durable = outbox(Data, {
 })
 const entries = durable.subscriptions!
 
-/** Ada's page before anything is read back: i1 and i2 held at 1. */
-const page = (actor = 'ada'): Model =>
+/**
+ * Ada's page before anything is read back: i1 and i2 held at 1, read by an
+ * answer that named `principal` (the wire's `null` a visitor), or no one.
+ */
+const page = (actor = 'ada', principal?: string | null): Model =>
   Data.reduce(
     { remote: Remote.initial, actor },
     {
@@ -67,6 +72,7 @@ const page = (actor = 'ada'): Model =>
       result: {
         settled: [],
         entities: ['i1', 'i2'].map(id => ({ entity: 'Item', id, values: { id, count: 1 } })),
+        ...(principal === undefined ? {} : { principal }),
       },
       now: 0,
     },
@@ -74,15 +80,22 @@ const page = (actor = 'ada'): Model =>
 
 type Answer = 'applied' | 'unreachable' | 'refused' | 'unanswered' | 'signedOut' | 'forbidden'
 
-/** A server answering each send as scripted (applied once the script runs out), and what reached it. */
-const server = (script: ReadonlyArray<Answer> = []) => {
+/**
+ * A server answering each send as scripted (applied once the script runs
+ * out), and what reached it. Given `cookie`, it answers as whom the cookie
+ * names now (`null` a visitor), as `RemoteServer.handlers` does: a write made
+ * for anyone else is refused before it runs, and `ran` counts what ran.
+ */
+const server = (script: ReadonlyArray<Answer> = [], cookie?: { current: string | null }) => {
   const answers = [...script]
   const sent: Array<{
     readonly requestId: string
     readonly operation: string | undefined
     readonly input: unknown
     readonly now: number | undefined
+    readonly principal?: string | undefined
   }> = []
+  const ran: Array<string> = []
   /** What each send says the page shows. */
   const shown: Array<unknown> = []
   const client: RemoteClient['Service'] = {
@@ -94,8 +107,17 @@ const server = (script: ReadonlyArray<Answer> = []) => {
         operation: request.operation,
         input: request.input,
         now: request.now,
+        ...(request.principal === undefined ? {} : { principal: request.principal }),
       })
       shown.push(request.shown)
+      if (cookie !== undefined && request.principal !== undefined) {
+        if (cookie.current === null) {
+          return Effect.fail(new RemoteUnauthenticated({ message: 'Sign in.' }))
+        }
+        if (cookie.current !== request.principal) {
+          return Effect.fail(new RemotePrincipalChanged({ message: 'Someone else' }))
+        }
+      }
       const answer = answers.shift() ?? 'applied'
       if (answer === 'unanswered') return Effect.never
       if (answer === 'unreachable')
@@ -110,16 +132,18 @@ const server = (script: ReadonlyArray<Answer> = []) => {
       }
       if (answer === 'forbidden') return Effect.fail(new RemoteForbidden({ message: 'Not yours' }))
       const input = request.input as { readonly id: string; readonly count: number }
+      ran.push(request.requestId)
       return Effect.succeed({
         output: {},
         entities: [{ entity: 'Item', id: input.id, values: { count: input.count } }],
         connections: [],
         deleted: [],
+        ...(cookie === undefined ? {} : { principal: cookie.current }),
       })
     },
     live: () => Stream.empty,
   }
-  return { sent, shown, client }
+  return { sent, shown, ran, client }
 }
 
 const memory = () =>
@@ -159,17 +183,24 @@ const restored = (tab: Tab, model: Model = page(), wiring = durable) =>
  * Runs the restore, save and send entries as the runtime does, each when its
  * dependencies change, until none does.
  */
-const settle = async (tab: Tab, start: Model, running = entries): Promise<Model> => {
+const settle = async (
+  tab: Tab,
+  start: Model,
+  running = entries,
+  heard: Array<RemoteMessage> = [],
+): Promise<Model> => {
   let model = start
   const ran = new Map<string, string>()
   for (let pass = 0; pass < 30; pass++) {
     let changed = false
-    for (const name of ['outbox.restore', 'outbox.save', 'outbox.send'] as const) {
+    for (const name of ['outbox.restore', 'outbox.save', 'outbox.send', 'outbox.adopt'] as const) {
       const dependencies = JSON.stringify(running[name]!.modelToDependencies(model))
       if (ran.get(name) === dependencies) continue
       ran.set(name, dependencies)
       changed = true
-      model = (await step(tab, running[name]!, model)).reduce(Data.reduce, model)
+      const messages = await step(tab, running[name]!, model)
+      heard.push(...messages)
+      model = messages.reduce(Data.reduce, model)
     }
     if (!changed) return model
   }
@@ -177,8 +208,11 @@ const settle = async (tab: Tab, start: Model, running = entries): Promise<Model>
 }
 
 /** The entries the store holds now, by operation. */
-const storedOperations = (kv: KeyValueStore.KeyValueStore): ReadonlyArray<string> => {
-  const text = Effect.runSync(kv.get('outbox:ada'))
+const storedOperations = (
+  kv: KeyValueStore.KeyValueStore,
+  key = 'outbox:ada',
+): ReadonlyArray<string> => {
+  const text = Effect.runSync(kv.get(key))
   return text === undefined
     ? []
     : (JSON.parse(text) as { entries: ReadonlyArray<{ operation: string }> }).entries.map(
@@ -488,6 +522,224 @@ describe('a durable write no one is signed in to send', () => {
     // Ada, signed in again, sends hers.
     await settle(reloaded, Data.signedIn(await restored(reloaded, page('ada'))))
     expect(reloaded.sent.map(each => each.requestId)).toEqual([ids[1], ids[2]])
+  })
+})
+
+/**
+ * #405: a durable write carries whom the server last said it answered as,
+ * and the server refuses it as anyone else: the outbox keeps it waiting for
+ * them. A visitor's moves to whoever signs in first.
+ */
+describe('a durable write made for someone', () => {
+  /** Each stored entry's operation and who it was made for. */
+  const stamped = (kv: KeyValueStore.KeyValueStore, key: string) =>
+    (
+      JSON.parse(Effect.runSync(kv.get(key)) ?? '{"entries":[]}') as {
+        entries: ReadonlyArray<{ operation: string; madeAs?: unknown }>
+      }
+    ).entries.map(({ operation, madeAs }) => ({ operation, madeAs }))
+
+  /** `model` having heard an answer for `principal`. */
+  const answeredAs = (model: Model, principal: string | null): Model =>
+    Data.reduce(model, {
+      _tag: 'ReadReceived',
+      requests: [],
+      result: { entities: [], settled: [], principal },
+      now: 0,
+    })
+
+  const moves = (heard: ReadonlyArray<RemoteMessage>) =>
+    heard.filter(message => message._tag === 'OutboxMoved')
+
+  it('is sent naming them, and runs when they ask', async () => {
+    const cookie = { current: 'User:ada' }
+    const tab = { kv: memory(), ...server([], cookie) }
+    const started = setCount(await restored(tab, page('ada', 'User:ada')), 'i1', 2)
+    const settled = await settle(tab, started.model)
+    expect(tab.sent.map(each => each.principal)).toEqual(['User:ada'])
+    expect(tab.ran).toEqual([started.requestId])
+    expect(count(settled, 'i1')).toBe(2)
+  })
+
+  it('is refused under a stale scope and another cookie, runs nothing, and waits for them', async () => {
+    // The page still holds Ada's scope; the cookie is Grace's now.
+    const cookie = { current: 'User:ada' }
+    const tab = { kv: memory(), ...server([], cookie) }
+    const started = setCount(await restored(tab, page('ada', 'User:ada')), 'i1', 2)
+    cookie.current = 'User:grace'
+    const waiting = await settle(tab, started.model)
+    expect(tab.sent.map(each => each.principal)).toEqual(['User:ada'])
+    expect(tab.ran).toEqual([])
+    expect(outboxStatus(Data, waiting)).toMatchObject({
+      waiting: 0,
+      waitingForSignIn: 1,
+      items: [
+        {
+          requestId: started.requestId,
+          state: { _tag: 'WaitingForSignIn', error: { _tag: 'PrincipalChanged' } },
+        },
+      ],
+    })
+    expect(count(waiting, 'i1')).toBe(2)
+    expect(Data.mutation(waiting, started.requestId)).toEqual({ _tag: 'Pending' })
+    // A sign-in reported while Grace is still signed in is refused again.
+    const again = await settle(tab, Data.signedIn(waiting))
+    expect(tab.sent).toHaveLength(2)
+    expect(tab.ran).toEqual([])
+    expect(outboxStatus(Data, again).waitingForSignIn).toBe(1)
+    // Ada back: sent as her, and run.
+    cookie.current = 'User:ada'
+    const resumed = await settle(tab, Data.signedIn(again))
+    expect(tab.ran).toEqual([started.requestId])
+    expect(outboxStatus(Data, resumed).items).toEqual([])
+  })
+
+  it('keeps who it was made for through a refusal and a retry', async () => {
+    const cookie = { current: 'User:ada' }
+    const tab = { kv: memory(), ...server(['refused'], cookie) }
+    const started = setCount(await restored(tab, page('ada', 'User:ada')), 'i1', 2)
+    const failed = await settle(tab, started.model)
+    // An answer for Grace lands before the retry: the retry is still Ada's.
+    const retried = Option.getOrThrow(
+      Data.retry(answeredAs(failed, 'User:grace'), started.requestId),
+    )
+    await settle(tab, retried.model)
+    expect(tab.sent.map(each => each.principal)).toEqual(['User:ada', 'User:ada'])
+  })
+
+  it('carries no one when no answer said who, and runs as whoever asks', async () => {
+    const cookie = { current: 'User:grace' }
+    const tab = { kv: memory(), ...server([], cookie) }
+    const started = setCount(await restored(tab, page('ada')), 'i1', 2)
+    await settle(tab, started.model)
+    expect(tab.sent.map(each => each.principal)).toEqual([undefined])
+    expect(tab.ran).toEqual([started.requestId])
+  })
+
+  it('is made for whom the latest answer named: a read, a list', async () => {
+    // Every write is run, whoever it names: what each names is the question.
+    const tab = { kv: memory(), ...server() }
+    // A visitor's page, then answers for Ada, Grace and Ada again.
+    const visitor = await restored(tab, page('ada', null))
+    const ada = setCount(answeredAs(visitor, 'User:ada'), 'i1', 2)
+    const grace = setCount(answeredAs(ada.model, 'User:grace'), 'i1', 3)
+    const listed = setCount(
+      Data.reduce(
+        grace.model,
+        pageMessage('All', { edges: [], start: terminal, end: terminal, principal: 'User:ada' }),
+      ),
+      'i1',
+      4,
+    )
+    await settle(tab, listed.model)
+    expect(tab.sent.map(each => each.principal)).toEqual(['User:ada', 'User:grace', 'User:ada'])
+  })
+
+  it("learns who from a write's answer, and forgets it with the Model", async () => {
+    const cookie = { current: 'User:ada' }
+    const tab = { kv: memory(), ...server([], cookie) }
+    const first = setCount(await restored(tab, page('ada')), 'i1', 2)
+    const answered = await settle(tab, first.model)
+    const second = setCount(answered, 'i1', 3)
+    const settled = await settle(tab, second.model)
+    const third = setCount(Data.forget(settled), 'i2', 4)
+    await settle(tab, third.model)
+    expect(tab.sent.map(each => each.principal)).toEqual([undefined, 'User:ada', undefined])
+  })
+
+  /**
+   * How a page moves to Ada's scope on her sign-in: forgetting what it held
+   * (once, or twice), or not.
+   */
+  const signIns: ReadonlyArray<readonly [string, (model: Model) => Model]> = [
+    ['forgetting what it held', model => ({ ...Data.forget(model), actor: 'ada' })],
+    ['forgetting twice', model => ({ ...Data.forget(Data.forget(model)), actor: 'ada' })],
+    ['keeping what it held', model => ({ ...model, actor: 'ada' })],
+  ]
+
+  /** A visitor's write, refused for want of a sign-in, then Ada signing in on the same page. */
+  const visitorThenAda = async (signIn = signIns[0]![1]) => {
+    const cookie: { current: string | null } = { current: null }
+    const tab = { kv: memory(), ...server(['signedOut'], cookie) }
+    const started = setCount(await restored(tab, page('visitor', null)), 'i1', 2)
+    const waiting = await settle(tab, started.model)
+    expect(stamped(tab.kv, 'outbox:visitor')).toEqual([
+      { operation: started.requestId, madeAs: { _tag: 'Visitor' } },
+    ])
+    cookie.current = 'User:ada'
+    return { tab, cookie, started, waiting, ada: signIn(waiting) }
+  }
+
+  it.each(signIns)(
+    'moves to the queue of the first person who signs in, said once, and is sent as them, %s',
+    async (_, signIn) => {
+      const { tab, started, ada } = await visitorThenAda(signIn)
+      const heard: Array<RemoteMessage> = []
+      const signedIn = Data.signedIn(answeredAs(ada, 'User:ada'))
+      const settled = await settle(tab, signedIn, entries, heard)
+      expect(moves(heard)).toEqual([
+        { _tag: 'OutboxMoved', requestIds: [started.requestId], from: 'visitor', to: 'ada' },
+      ])
+      expect(storedOperations(tab.kv, 'outbox:visitor')).toEqual([])
+      expect(tab.sent.map(each => each.principal)).toEqual([undefined, 'User:ada'])
+      expect(tab.ran).toEqual([started.requestId])
+      expect(outboxStatus(Data, settled).items).toEqual([])
+      // Another page of hers finds nothing left to move, and says nothing.
+      const later: Array<RemoteMessage> = []
+      await settle(tab, await restored(tab, signedIn), entries, later)
+      expect(moves(later)).toEqual([])
+    },
+  )
+
+  it('never moves into the queue it came from', async () => {
+    // Forgotten, but the page's scope is still the visitor's when Ada's answer lands.
+    const { tab, started, waiting } = await visitorThenAda()
+    const heard: Array<RemoteMessage> = []
+    await settle(tab, answeredAs(Data.forget(waiting), 'User:ada'), entries, heard)
+    expect(moves(heard)).toEqual([])
+    expect(storedOperations(tab.kv, 'outbox:visitor')).toEqual([started.requestId])
+  })
+
+  it("leaves a visitor's refused write where it was", async () => {
+    const tab = { kv: memory(), ...server(['refused']) }
+    const started = setCount(await restored(tab, page('visitor', null)), 'i1', 2)
+    const failed = await settle(tab, started.model)
+    const heard: Array<RemoteMessage> = []
+    const ada = answeredAs({ ...Data.forget(failed), actor: 'ada' }, 'User:ada')
+    await settle(tab, ada, entries, heard)
+    expect(moves(heard)).toEqual([])
+    expect(storedOperations(tab.kv, 'outbox:visitor')).toEqual([started.requestId])
+  })
+
+  it('moves only once an answer names who signed in, stamped as them', async () => {
+    const { tab, cookie, started, ada } = await visitorThenAda()
+    // Ada's page before any answer: nothing moves.
+    const unknown = await settle(tab, Data.signedIn(ada))
+    expect(storedOperations(tab.kv, 'outbox:visitor')).toEqual([started.requestId])
+    expect(storedOperations(tab.kv, 'outbox:ada')).toEqual([])
+    // Once one does, it moves stamped as her, so it never runs as anyone else.
+    cookie.current = 'User:grace'
+    await settle(tab, answeredAs(unknown, 'User:ada'))
+    expect(stamped(tab.kv, 'outbox:ada')).toEqual([
+      { operation: started.requestId, madeAs: { _tag: 'Signed', key: 'User:ada' } },
+    ])
+    expect(tab.ran).toEqual([])
+  })
+
+  it("never moves anyone's but a visitor's", async () => {
+    // Ada's write, waiting for her session, then Grace signing in on the page.
+    const cookie: { current: string | null } = { current: 'User:ada' }
+    const tab = { kv: memory(), ...server(['signedOut'], cookie) }
+    const started = setCount(await restored(tab, page('ada', 'User:ada')), 'i1', 2)
+    const waiting = await settle(tab, started.model)
+    cookie.current = 'User:grace'
+    const grace = answeredAs({ ...Data.forget(waiting), actor: 'grace' }, 'User:grace')
+    const heard: Array<RemoteMessage> = []
+    await settle(tab, Data.signedIn(grace), entries, heard)
+    expect(moves(heard)).toEqual([])
+    expect(storedOperations(tab.kv, 'outbox:ada')).toEqual([started.requestId])
+    expect(storedOperations(tab.kv, 'outbox:grace')).toEqual([])
+    expect(tab.ran).toEqual([])
   })
 })
 

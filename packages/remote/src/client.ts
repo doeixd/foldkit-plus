@@ -20,6 +20,7 @@ import {
   RemoteLiveError,
   RemoteLiveRefused,
   RemoteForbidden,
+  RemotePrincipalChanged,
   RemoteUnauthenticated,
   RemoteMutationError,
   RemoteProtocolError,
@@ -54,7 +55,11 @@ export class RemoteClient extends Context.Service<
       request: Schema.Schema.Type<typeof MutationRequest>,
     ) => Effect.Effect<
       Schema.Schema.Type<typeof MutationResult>,
-      RemoteMutationError | RemoteForbidden | RemoteUnauthenticated | RemoteUnreachable
+      | RemoteMutationError
+      | RemoteForbidden
+      | RemoteUnauthenticated
+      | RemotePrincipalChanged
+      | RemoteUnreachable
     >
     readonly live: (request: {
       readonly requirements: ReadonlyArray<Requirement>
@@ -97,7 +102,11 @@ export interface RemoteRpcClient<R = never, TransportError = never> {
     payload: Schema.Schema.Type<typeof MutationRequest>,
   ) => Effect.Effect<
     Schema.Schema.Type<typeof MutationResult>,
-    RemoteMutationError | RemoteForbidden | RemoteUnauthenticated | TransportError,
+    | RemoteMutationError
+    | RemoteForbidden
+    | RemoteUnauthenticated
+    | RemotePrincipalChanged
+    | TransportError,
     R
   >
   readonly FoldkitRemoteLive: (
@@ -217,9 +226,11 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
     readonly lists?: ReadonlyArray<Schema.Schema.Type<typeof QueryRequest>> | undefined
     /** How long this send waits for its answer, over the client's `timeout`. */
     readonly timeout?: Duration.Input | undefined
+    /** Who the write was made for, as an answer named them: refused as anyone else (#405). */
+    readonly principal?: string | undefined
   } = {},
 ) {
-  const { keys, shown, now, lists } = options
+  const { keys, shown, now, lists, principal } = options
   const operation = options.operation ?? (yield* Effect.sync(mintOperation))
   yield* Effect.annotateCurrentSpan({ mutation: mutation.name, requestId, operation })
   const client = yield* RemoteClient
@@ -238,6 +249,7 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
       ...(now === undefined ? {} : { now }),
       ...(shown === undefined || shown.length === 0 ? {} : { shown }),
       ...(lists === undefined || lists.length === 0 ? {} : { lists }),
+      ...(principal === undefined ? {} : { principal }),
     }),
     options.timeout,
   )
@@ -253,5 +265,6 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
     deleted: result.deleted ?? [],
     read: result.read,
     lists: result.lists,
+    principal: result.principal,
   }
 })

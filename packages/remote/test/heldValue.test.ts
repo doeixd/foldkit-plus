@@ -691,6 +691,14 @@ const messages = {
       error: { _tag: 'Unreachable', message: 'offline' },
     }),
   },
+  OutboxMoved: {
+    "a visitor's write moved to the queue of who signed in": () => ({
+      _tag: 'OutboxMoved',
+      requestIds: ['visitor-rename'],
+      from: 'visitor',
+      to: 'ada',
+    }),
+  },
 } satisfies Record<RemoteMessageTag, Readonly<Record<string, Generate>>>
 
 const cases = Object.entries(messages).flatMap(([tag, generators]) =>

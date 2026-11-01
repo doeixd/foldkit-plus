@@ -10,6 +10,7 @@ import type { RemoteJsonClient } from './client.js'
 import {
   RemoteForbidden,
   RemoteMutationError,
+  RemotePrincipalChanged,
   RemoteQueryError,
   RemoteReadError,
   RemoteUnauthenticated,
@@ -33,6 +34,8 @@ export const RemoteJsonAnswer = Schema.Union([
     forbidden: Schema.optional(Schema.Struct({ reason: Schema.optional(Schema.String) })),
     /** Who is asking could not be told, with the reason when one was given; a 401. */
     unauthenticated: Schema.optional(Schema.Struct({ reason: Schema.optional(Schema.String) })),
+    /** A durable write made for someone other than who asks, refused before it ran; a 409. */
+    principalChanged: Schema.optional(Schema.Struct({})),
     /** The request body was larger than the server takes, `limit` bytes when it says; a 413. */
     tooLarge: Schema.optional(Schema.Struct({ limit: Schema.optional(Schema.Number) })),
   }),
@@ -120,14 +123,15 @@ export const json = (send: RemoteJsonSend): RemoteJsonClient => ({
       send,
       'mutate',
       payload,
-      failure(({ error, refusal, forbidden }) =>
-        forbidden === undefined
+      failure(({ error, refusal, forbidden, principalChanged }) => {
+        if (principalChanged !== undefined) return new RemotePrincipalChanged({ message: error })
+        return forbidden === undefined
           ? new RemoteMutationError({ message: error, refusal })
           : new RemoteForbidden({
               message: error,
               ...(forbidden.reason === undefined ? {} : { reason: forbidden.reason }),
-            }),
-      ),
+            })
+      }),
     ),
   FoldkitRemoteLive: () => Stream.empty,
 })

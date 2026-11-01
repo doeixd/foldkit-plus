@@ -250,6 +250,26 @@ version changed; `pnpm` skips versions already in the registry.
   `now` holds no list for going back, as before. `Why` has a new case,
   `HeldForHistory { list }`, which an exhaustive `Why.match` must handle.
 
+- **A durable write is made for one person** (`foldkit-remote`,
+  `foldkit-remote-server`, #405). Every answer to a read, a list or a
+  mutation carries `principal`: the key of the server's `viewer` for who
+  asked (`'User:ada'`), or `null` for a visitor, and nothing from a server
+  with no `viewer`. A durable write is stamped, when queued, with whom the
+  last answer named (`Data.forget` forgets it; a retry keeps its stamp), and
+  is sent naming them (`MutationRequest.principal`). `RemoteServer.handlers`
+  refuses a write naming someone other than who asks before its Source runs,
+  a ledger's replay included, with the new `RemotePrincipalChanged`
+  (`_tag: 'PrincipalChanged'`, a 409 `{ error, principalChanged }` over
+  JSON), or `Unauthenticated` for a visitor; a server with no `viewer` refuses
+  any write that names someone. The outbox keeps such a write
+  `WaitingForSignIn`, with that error, until `Data.signedIn` finds its person
+  signed in. A visitor's waiting writes in the queue a page held before a
+  sign-in move to the queue it holds now once an answer names who signed in,
+  stamped as them, and the tab that moved them says so once with the new
+  `OutboxMoved { requestIds, from, to }` Message. A write queued before any
+  answer said who names no one, and runs as whoever asks.
+  `ConnectionMerged` and `MutationSucceeded` carry `principal` too.
+
 - **A Remote snapshot carries ages and an order** (`foldkit-remote/persistence`,
   #404). `Snapshot` is `{ entities, connections, expires, recency }`: a kept
   list is `{ segments, receivedAt }`, `expires` names when each row and list

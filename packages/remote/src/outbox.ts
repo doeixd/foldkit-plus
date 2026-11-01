@@ -25,13 +25,14 @@ import {
   storedFromText,
   storedOf,
   storedText,
+  moveLock,
   storeLock,
   StoredWrite,
   withLock,
   type RetryOptions,
   type StoredOutbox,
 } from './outboxStore.js'
-import { Queued, type OutboxState } from './queue.js'
+import { madeAsOf, Queued, type MadeAs, type OutboxState } from './queue.js'
 import type { RemoteError } from './remoteData.js'
 
 export type { RetryOptions } from './outboxStore.js'
@@ -84,7 +85,10 @@ export interface OutboxWiring<AppModel> extends Wiring<
  * before a write is sent, sent oldest first by one tab (a Web Lock), sent
  * again after a failure that nothing answered with a backoff, and read back
  * by every tab. Start `init` from its `restore`. A change of principal should
- * `forget` in `update`, and name another `key`.
+ * `forget` in `update`, and name another `key`. Each write is sent naming
+ * whom the server last said it answered as when it was queued, and the
+ * server runs it for no one else; a visitor's moves to the queue of whoever
+ * signs in first (`OutboxMoved`, #405).
  */
 export const outbox = <AppModel>(
   domain: OutboxDomain<AppModel>,
@@ -315,6 +319,7 @@ export const outbox = <AppModel>(
                 shown: write.shown,
                 lists: write.lists,
                 now: write.now,
+                principal: Option.getOrUndefined(signedKey(write.madeAs)),
               }),
             )
             if (Result.isSuccess(result)) {
@@ -329,6 +334,9 @@ export const outbox = <AppModel>(
                   deleted: outcome.deleted,
                   ...(outcome.read === undefined ? {} : { read: outcome.read }),
                   ...(outcome.lists === undefined ? {} : { lists: outcome.lists }),
+                  ...(outcome.principal === undefined
+                    ? {}
+                    : { principal: madeAsOf(outcome.principal) }),
                   now: at,
                 },
                 { entries: [], done: [operation] },
@@ -338,13 +346,16 @@ export const outbox = <AppModel>(
             const next = Match.value(result.failure).pipe(
               Match.tags({
                 Unauthenticated: () => 'waitForSignIn' as const,
+                // Made for someone else than who is signed in: kept for them (#405).
+                PrincipalChanged: () => 'waitForSignIn' as const,
                 Unreachable: () => 'sendAgain' as const,
               }),
               Match.orElse(() => 'settle' as const),
             )
-            // No one is signed in to send it as: kept, with every write after
-            // it, until `Data.signedIn`. Not settled, so no tab is told an
-            // outcome: each reads the state from the store (#403).
+            // No one is signed in to send it as, or someone else is: kept,
+            // with every write after it, until `Data.signedIn`. Not settled,
+            // so no tab is told an outcome: each reads the state from the
+            // store (#403, #405).
             if (next === 'waitForSignIn') {
               const waiting = {
                 ...write,
@@ -420,6 +431,95 @@ export const outbox = <AppModel>(
       }),
   }
 
+  /**
+   * A visitor's writes in the `from` queue moved to the `to` queue, made for
+   * `key` from then on, and the report of them; nothing where none wait
+   * there. Written to `to` before they leave `from`, so a page closed between
+   * loses none, and a second move finds them gone. One tab at a time moves
+   * from a queue, so the report is said once.
+   */
+  const moved = (
+    from: { readonly key: string; readonly scope: string },
+    to: { readonly key: string; readonly scope: string },
+    key: string,
+  ) =>
+    withLock(
+      moveLock(from.key),
+      Effect.gen(function* () {
+        const there = yield* readStored(from.key, from.scope)
+        const visitors = there.entries.flatMap(raw =>
+          Option.toArray(
+            Option.filter(
+              Schema.decodeUnknownOption(StoredWrite)(raw),
+              write => write.madeAs?._tag === 'Visitor' && write.state._tag !== 'Failed',
+            ),
+          ),
+        )
+        if (visitors.length === 0) return []
+        const merged = yield* writeStored(to.key, to.scope, {
+          entries: visitors.map(write => ({
+            ...write,
+            madeAs: { _tag: 'Signed', key } as const,
+            revision: write.revision + 1,
+            state: { _tag: 'Waiting' } as const,
+          })),
+          done: [],
+        })
+        const requestIds = visitors.map(write => write.operation)
+        yield* writeStored(from.key, from.scope, { entries: [], done: requestIds })
+        yield* announce(from.key, Option.none())
+        yield* announce(to.key, Option.none())
+        return [
+          { _tag: 'OutboxMoved', requestIds, from: from.scope, to: to.scope } as const,
+          readOf(to.key, to.scope, merged),
+        ]
+      }),
+    ).pipe(
+      // A store that cannot be read or written moves nothing: the writes wait
+      // where they are, and the next sign-in moves them.
+      Effect.catch(() => Effect.succeed([])),
+    )
+  const adopt: EntryWithoutKeepAlive<
+    AppModel,
+    RemoteMessage,
+    {
+      readonly key: string
+      readonly scope: string
+      readonly from: Option.Option<{ readonly key: string; readonly scope: string }>
+      readonly principal: Option.Option<string>
+    },
+    KeyValueStore.KeyValueStore
+  > = {
+    dependenciesSchema: Schema.Struct({
+      key: Schema.String,
+      scope: Schema.String,
+      from: Schema.OptionFromNullOr(Schema.Struct({ key: Schema.String, scope: Schema.String })),
+      principal: Schema.OptionFromNullOr(Schema.String),
+    }),
+    modelToDependencies: model => {
+      const { outbox } = domain.store.get(model)
+      const key = options.key(model)
+      const scope = options.scope(model)
+      return {
+        key,
+        scope,
+        // Only into the queue the page holds, from one it held before.
+        from: holding(outbox, key, scope)
+          ? Option.filter(outbox.left, left => left.key !== key || left.scope !== scope)
+          : Option.none(),
+        principal: Option.flatMap(outbox.principal, signedKey),
+      }
+    },
+    dependenciesToStream: ({ key, scope, from, principal }) =>
+      Option.match(Option.all({ from, principal }), {
+        onNone: () => Stream.empty,
+        onSome: ({ from: left, principal: signed }) =>
+          Stream.flatMap(Stream.fromEffect(moved(left, { key, scope }, signed)), messages =>
+            Stream.fromIterable(messages),
+          ),
+      }),
+  }
+
   /** What another tab announced: the answer it heard first, then the store as it now is. */
   const heard = (key: string, scope: string, data: unknown) =>
     Effect.map(restored(key, scope, Option.none()), (read): ReadonlyArray<RemoteMessage> => [
@@ -479,6 +579,7 @@ export const outbox = <AppModel>(
       'outbox.save': save,
       'outbox.send': send,
       'outbox.watch': watch,
+      'outbox.adopt': adopt,
     })),
     restore: model =>
       Effect.map(
@@ -489,6 +590,15 @@ export const outbox = <AppModel>(
       ),
   }
 }
+
+/** The key a write made for someone is sent with; none for a visitor's, or one queued before any answer said. */
+const signedKey = (madeAs: MadeAs | undefined): Option.Option<string> =>
+  madeAs === undefined
+    ? Option.none()
+    : Match.valueTags(madeAs, {
+        Visitor: () => Option.none(),
+        Signed: ({ key }) => Option.some(key),
+      })
 
 /** The outbox's own answers, as another tab announced them: a settled write, and nothing else. */
 const announcedOutcome = Schema.Struct({ outcome: Schema.optional(remoteMessageSchema) })
@@ -514,8 +624,10 @@ export type OutboxItemState = Data.TaggedEnum<{
   /** The server answered no: `Data.retry` or `Data.dismiss` it. */
   Failed: { readonly error: RemoteError }
   /**
-   * The server could not tell who sent it (`Unauthenticated`): kept, and the
-   * writes after it held, until `Data.signedIn` reports a sign-in.
+   * The server could not tell who sent it (`Unauthenticated`), or it was made
+   * for someone other than who is signed in now (`PrincipalChanged`, #405):
+   * kept, and the writes after it held, until `Data.signedIn` reports a
+   * sign-in. `error` says which.
    */
   WaitingForSignIn: { readonly error: RemoteError }
   /** Stored by a version of the app this one cannot read: `Data.dismiss` it. */

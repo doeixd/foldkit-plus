@@ -37,6 +37,9 @@ import {
 } from './ledger.js'
 import {
   emptyOutbox,
+  leftOf,
+  MadeAs,
+  madeAsOf,
   operationOf,
   Queued,
   revisionOf,
@@ -328,7 +331,7 @@ export const forgetRemote = (model: RemoteModel): RemoteModel => {
     },
     // The writes stay in their own key's store, for that principal's return.
     // The session is this page's, and keeps naming its operations.
-    outbox: { ...emptyOutbox, session: model.outbox.session },
+    outbox: { ...emptyOutbox, session: model.outbox.session, left: leftOf(model.outbox) },
   }
 }
 
@@ -537,6 +540,18 @@ export type RemoteMessage =
       readonly attempt: number
       readonly error: RemoteError
     }
+  /**
+   * Writes made with no one signed in, waiting under the `from` scope's queue,
+   * moved to the `to` scope's queue once an answer named who signed in: sent
+   * as them from then on. Said once, by the tab that moved them, for the
+   * application to tell the person (#405). It changes nothing in the Model.
+   */
+  | {
+      readonly _tag: 'OutboxMoved'
+      readonly requestIds: ReadonlyArray<string>
+      readonly from: string
+      readonly to: string
+    }
   | {
       readonly _tag: 'MutationSucceeded'
       readonly requestId: string
@@ -558,6 +573,8 @@ export type RemoteMessage =
       readonly lists?: ReadonlyArray<Schema.Schema.Type<typeof AnswerList>> | undefined
       /** Injected clock reading of the answer: how fresh the written entities are. */
       readonly now: number
+      /** Whom the answer was for, where `MutationResult.principal` said. */
+      readonly principal?: MadeAs | undefined
     }
   | {
       readonly _tag: 'MutationFailed'
@@ -617,6 +634,8 @@ export type RemoteMessage =
         | undefined
       /** Injected clock reading of the answer, dating what the payload writes. */
       readonly now?: number | undefined
+      /** Whom the answer was for, where `QueryResult.principal` said. */
+      readonly principal?: MadeAs | undefined
     }
   | { readonly _tag: 'ConnectionInvalidated'; readonly connection: string }
   | { readonly _tag: 'ConnectionRefreshed'; readonly connection: string }
@@ -722,6 +741,11 @@ export const remoteMessageCases = {
     unsaved: Schema.optional(Schema.String),
   },
   OutboxDelayed: { requestId: Schema.String, attempt: Schema.Number, error: remoteErrorSchema },
+  OutboxMoved: {
+    requestIds: Schema.Array(Schema.String),
+    from: Schema.String,
+    to: Schema.String,
+  },
   MutationSucceeded: {
     requestId: Schema.String,
     entities: Schema.Array(NormalizedEntity),
@@ -732,6 +756,7 @@ export const remoteMessageCases = {
     read: Schema.optional(AnswerRead),
     lists: Schema.optional(Schema.Array(AnswerList)),
     now: Schema.Number,
+    principal: Schema.optional(MadeAs),
   },
   MutationFailed: { requestId: Schema.String, error: remoteErrorSchema, operation: Schema.String },
   OverlayShown: { id: Schema.String, optimistic: Schema.Array(Schema.Unknown) },
@@ -752,6 +777,7 @@ export const remoteMessageCases = {
     entities: Schema.optional(Schema.Array(NormalizedEntity)),
     settled: Schema.optional(Schema.Array(SettledFields)),
     now: Schema.optional(Schema.Number),
+    principal: Schema.optional(MadeAs),
   },
   ConnectionInvalidated: { connection: Schema.String },
   ConnectionRefreshed: { connection: Schema.String },
@@ -1254,6 +1280,21 @@ const placedIn = (queue: ReadonlyArray<Queued>, queued: Queued): ReadonlyArray<Q
     : [...queue, queued]
 }
 
+/**
+ * The outbox having heard whom an answer was for. Itself when the answer did
+ * not say, or said what it holds.
+ */
+const heardAs = (outbox: OutboxState, heard: MadeAs | undefined): OutboxState => {
+  if (heard === undefined) return outbox
+  const same = Option.exists(outbox.principal, held =>
+    Match.valueTags(held, {
+      Visitor: () => heard._tag === 'Visitor',
+      Signed: ({ key }) => heard._tag === 'Signed' && heard.key === key,
+    }),
+  )
+  return same ? outbox : { ...outbox, principal: Option.some(heard) }
+}
+
 /** A durable write queued to wait its turn: new, or a failed one retried, its revision moved on. */
 const queuedWrite = (
   outbox: OutboxState,
@@ -1270,6 +1311,16 @@ const queuedWrite = (
     ...(write.now === undefined ? {} : { now: write.now }),
     optimistic: message.optimistic ?? [],
     ...(message.viewer === undefined ? {} : { viewer: message.viewer }),
+    // A write retried keeps who it was made for; a new one is whom the server last named.
+    ...Option.match(
+      prior === undefined
+        ? outbox.principal
+        : Queued.$match(prior, {
+            Readable: ({ write: queued }) => Option.fromUndefinedOr(queued.madeAs),
+            Unreadable: () => outbox.principal,
+          }),
+      { onNone: () => ({}), onSome: madeAs => ({ madeAs }) },
+    ),
     shown: write.durable?.shown ?? [],
     ...(write.durable?.lists === undefined ? {} : { lists: write.durable.lists }),
     revision: prior === undefined ? 0 : revisionOf(prior) + 1,
@@ -1543,6 +1594,8 @@ const readOutbox = (
       scope: Option.some(message.scope),
       queue,
       done,
+      principal: before.principal,
+      left: switching ? leftOf(model.outbox) : before.left,
     },
     diagnostics: withDiagnostics(next.diagnostics, recorded),
   }
@@ -1613,6 +1666,10 @@ const reduceRemote = (
     case 'ReadReceived':
       return {
         ...model,
+        outbox: heardAs(
+          model.outbox,
+          message.result.principal === undefined ? undefined : madeAsOf(message.result.principal),
+        ),
         entities: writeRead(model.entities, message.requests, message.result, message.now),
         loading: withoutLoading(model.loading, message.requests),
         // What was asked, and what came back: a relation riding on the request
@@ -1850,7 +1907,7 @@ const reduceRemote = (
             ? settled.store
             : writeRead(settled.store, read.requests, read.result, message.now),
         mutations: settled.state,
-        outbox: withoutQueued(model.outbox, message.requestId),
+        outbox: heardAs(withoutQueued(model.outbox, message.requestId), message.principal),
         optimistic: settled.optimistic,
         failures: withoutFieldFailures(model.failures, [
           ...(read === undefined
@@ -1864,6 +1921,7 @@ const reduceRemote = (
       }
     }
     case 'MutationQueued':
+    case 'OutboxMoved':
       return model
     case 'OutboxDelayed':
       return {
@@ -2036,6 +2094,7 @@ const reduceRemote = (
               ),
         failures,
         loading,
+        outbox: heardAs(model.outbox, message.principal),
       }
     }
     case 'ConnectionInvalidated':

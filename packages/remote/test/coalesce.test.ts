@@ -58,6 +58,32 @@ const batch = (...requests: Array<ReturnType<typeof req>>): Batch => ({
 })
 
 describe('coalesceReads', () => {
+  it.each([
+    [
+      'says whom the reads it joined were for, where they agree',
+      ['User:ada', 'User:ada'],
+      'User:ada',
+    ],
+    ['says no one where they disagree', ['User:ada', 'User:grace'], undefined],
+    ['says a visitor where each did', [null, null], null],
+  ] as const)('%s (#405)', async (_, said, expected) => {
+    const answers = [...said]
+    const read: BatchRead = batch =>
+      Effect.sync(() => {
+        const principal = answers.shift()
+        return { ...answer(batch), ...(principal === undefined ? {} : { principal }) }
+      })
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        // One id a read: the batch is cut in two, each answered on its own.
+        const coalesced = yield* coalesceReads(read, { maxIdsPerEntity: 1 })
+        return yield* coalesced(batch(req('u1', ['name']), req('u2', ['name'])))
+      }),
+    )
+    expect(result.entities).toHaveLength(2)
+    expect(result.principal).toBe(expected)
+  })
+
   it('runs concurrent identical reads once and fans the result out', async () => {
     const raw = recording()
     const results = await Effect.runPromise(

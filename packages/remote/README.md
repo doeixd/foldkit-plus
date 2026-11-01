@@ -2188,8 +2188,9 @@ before it has run throws.
 Data.mutate(…, { durable }) → queued in the Model, layer shown   (its Command answers MutationQueued)
 outbox.save  → the queue written to the store, merged with other tabs' → OutboxRead (stored)
 outbox.send  → the oldest stored write sent, one at a time, by one tab  → MutationSucceeded | MutationFailed
-             → answered Unauthenticated: stored as WaitingForSignIn → OutboxRead; the rest held
+             → answered Unauthenticated or PrincipalChanged: stored as WaitingForSignIn → OutboxRead; the rest held
 Data.signedIn → each write waiting for a sign-in waits its turn again → sent, then those behind it
+outbox.adopt → a visitor's writes left in the last queue, once an answer names who signed in → OutboxMoved
 reload       → outbox.restore: the queue back, layers shown → sent again, same operation id, same now
 ```
 
@@ -2225,6 +2226,27 @@ reload       → outbox.restore: the queue back, layers shown → sent again, sa
   this one. It cannot be dismissed while it waits. A handler of your own
   (`RemoteServer.mutation`) refuses a visitor with
   `RemoteServer.unauthenticated(reason)` for the same.
+- **Made for one person.** Every answer says whom it was for (`principal`,
+  from the server's `viewer`), and a durable write is stamped, when it is
+  queued, with whom the last answer named. It is sent naming them, and the
+  server runs it for no one else: under a stale `scope` and another person's
+  cookie it is refused before it runs (`PrincipalChanged`) and waits, as
+  `WaitingForSignIn` with that error, until `Data.signedIn` finds them signed
+  in again. A replay of a write already run is answered to them alone. A
+  retry keeps the stamp it was made with. A write queued before any answer
+  said who, on a page's first frames, names no one, and runs as whoever the
+  cookie names when it is sent; so does any write to a server with no
+  `viewer`. `Data.forget` forgets whom the page heard.
+- **A visitor's writes go to whoever signs in first.** A write made with no
+  one signed in (the last answer said a visitor) names no one. Once the page
+  holds another queue and an answer names who signed in, the outbox moves
+  the visitor's waiting writes from the queue the page held before into this
+  one, stamped as that person, and sends them. The tab that moved them says
+  so once with `OutboxMoved { requestIds, from, to }` (the scopes), which
+  `update` reads before reducing, or with `Data.wiring(…, { shared:
+  ['OutboxMoved'] })` under an assembly, to tell the person. Someone's own
+  writes never move, nor does a refused one, and nothing moves before an
+  answer names who: a visitor's queue is never sent as anyone else's.
 - **One tab sends; every tab shows.** The store is shared by every tab on the
   key. A Web Lock picks the one that sends, which reads the store again first
   so a write another tab settled is not sent twice; a `BroadcastChannel` tells
@@ -2694,6 +2716,11 @@ tells "sign in again" from "could not load" without comparing tags. Remote
 treats either as any failure: a read or query is `Failed`, and a live stream
 restarts with its backoff, refused again each time, until the application
 signs in again and calls `Data.forget`.
+
+A mutation naming someone other than who asks (a durable write's `principal`)
+fails with `_tag: 'PrincipalChanged'` over every transport: the 409 Remote's
+server answers it with over JSON, or the error itself over Effect RPC. It
+never ran.
 
 The JSON clients carry no live data. For live data over the same `POST`s,
 `httpWithLive` (`foldkit-remote/live`) keeps reads, queries, and mutations as `http` sends

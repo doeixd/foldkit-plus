@@ -61,6 +61,17 @@ export class RemoteUnauthenticated extends Schema.TaggedError<RemoteUnauthentica
   },
 ) {}
 
+/**
+ * A durable write was made for another principal than the one asking (its
+ * `principal` names someone else): who is signed in changed since it was
+ * made. Nothing ran. Asking again as the same caller is refused again; it
+ * runs once the person it was made for asks (#405).
+ */
+export class RemotePrincipalChanged extends Schema.TaggedError<RemotePrincipalChanged>()(
+  'PrincipalChanged',
+  { message: Schema.String },
+) {}
+
 export class RemoteLiveError extends Schema.TaggedError<RemoteLiveError>()('RemoteLiveError', {
   message: Schema.String,
 }) {}
@@ -157,9 +168,23 @@ export const SettledFields = Schema.Struct({
   fields: Schema.Array(Schema.String),
 })
 
+/**
+ * Whom the server says it answers as: an opaque key of who asks (its `viewer`,
+ * in `RemoteServer.make`), never read for anything but sending it back.
+ * Bounded, since a write carries it back to be compared.
+ */
+export const PrincipalKey = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(512))
+
+/**
+ * Whom an answer was for: the key of who asked, `null` for a visitor. Absent
+ * from a server that keeps no keys (it names no `viewer`) and from an older one.
+ */
+const answeredAs = Schema.optional(Schema.NullOr(PrincipalKey))
+
 export const ReadBatchResult = Schema.Struct({
   entities: Schema.Array(NormalizedEntity),
   settled: Schema.Array(SettledFields),
+  principal: answeredAs,
 })
 
 /** A read a mutation's answer carries: what was asked, and what came back. */
@@ -203,6 +228,7 @@ export const QueryResult = Schema.Struct({
    */
   entities: Schema.optional(Schema.Array(NormalizedEntity)),
   settled: Schema.optional(Schema.Array(SettledFields)),
+  principal: answeredAs,
 })
 
 /**
@@ -264,6 +290,14 @@ export const MutationRequest = Schema.Struct({
    * after the write (`MutationResult.lists`); the client asks again for the rest.
    */
   lists: Schema.optional(Schema.Array(QueryRequest).check(Schema.isMaxLength(MAX_ANSWER_LISTS))),
+  /**
+   * The principal the write was made for, as an answer named it
+   * (`MutationResult.principal`): the server refuses it as anyone else,
+   * before running it, with `RemotePrincipalChanged`. Absent for a write
+   * made with no one signed in, or before any answer said who: it runs as
+   * whoever asks. The outbox sends it with every durable write (#405).
+   */
+  principal: Schema.optional(PrincipalKey),
 })
 
 /** A list a mutation's answer carries: the query as the client asked it, and its page. */
@@ -307,6 +341,7 @@ export const MutationResult = Schema.Struct({
    * left out.
    */
   lists: Schema.optional(Schema.Array(AnswerList)),
+  principal: answeredAs,
 })
 
 /** A live subscription may watch no more lists than this; each is run again every tick. */
@@ -369,7 +404,12 @@ export const Read = Rpc.make('FoldkitRemoteRead', {
 export const Mutate = Rpc.make('FoldkitRemoteMutate', {
   payload: MutationRequest,
   success: MutationResult,
-  error: Schema.Union([RemoteMutationError, RemoteForbidden, RemoteUnauthenticated]),
+  error: Schema.Union([
+    RemoteMutationError,
+    RemoteForbidden,
+    RemoteUnauthenticated,
+    RemotePrincipalChanged,
+  ]),
 })
 
 export const Live = Rpc.make('FoldkitRemoteLive', {
