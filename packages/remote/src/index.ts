@@ -9,7 +9,6 @@ import { Clock, Duration, Effect, Layer, Option, Record, Result, Schema, Stream 
 import {
   Derivation,
   Entity as DomainEntity,
-  Operators,
   ReadFilter,
   SelectionTypeId,
   type ExprContext,
@@ -370,10 +369,12 @@ export interface BoundRemote<AppModel, Store extends RemoteModel, Names extends 
   /** For `Module`: owns the store's Model path. */
   readonly contract: Contract
   /**
-   * How the client runs primitive operators: `Remote.make`'s table, which a
-   * pending computed assignment is predicted by wherever the store is read.
+   * The table `Remote.make` was given for running primitive operators, which a
+   * pending computed assignment is predicted by wherever the store is read;
+   * none for the kernel's (`Operators.kernel`), which only what judges a body
+   * on the client loads (#397).
    */
-  readonly operators: MemoryOperators
+  readonly operators: Option.Option<MemoryOperators>
   /**
    * What the domain's declarations installed (#378): empty until something
    * that makes a pending layer does, so a domain that only reads runs, and a
@@ -969,7 +970,7 @@ const placeableReadContract = <Name extends string, Input>(
   capabilities: Capabilities,
   contract: ReadContract<Name, Input>,
   body: Domain.AnyQuery | undefined,
-  operators: MemoryOperators,
+  operators: Option.Option<MemoryOperators>,
 ): ReadContract<Name, Input> => {
   if (body === undefined || Option.isNone(capabilities.bodies)) return contract
   const { requirement, ref } = contract
@@ -1372,7 +1373,7 @@ const bindRemote = <
 >(
   definition: RemoteDescriptor<Entities, Queries, Mutations>,
   ref: ModelRef<AppModel, Store>,
-  operators: MemoryOperators,
+  operators: Option.Option<MemoryOperators>,
 ): BoundRemote<AppModel, Store, EntityName<Entities[number]>> => {
   const store = ModelRef.focus(ref)
   const name = store.dependency.join('.') || 'remote'
@@ -2238,7 +2239,7 @@ export const Remote = {
     store: ModelRef<AppModel, Store>,
     options: { readonly operators?: MemoryOperators | undefined } = {},
   ): BoundRemote<AppModel, Store, EntityName<Entities[number]>> =>
-    bindRemote(definition, store, options.operators ?? Operators.kernel),
+    bindRemote(definition, store, Option.fromUndefinedOr(options.operators)),
 
   /**
    * The resume part for this domain, for `foldkit-ssr`'s `SSR.plan({ parts })`:
@@ -2828,7 +2829,7 @@ const bindDomain = <
     readonly budget?: number | undefined
   } = {},
 ): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> => {
-  const operators = options.operators ?? Operators.kernel
+  const operators = Option.fromUndefinedOr(options.operators)
   const budget = checkedBudget(options.budget)
   const bound = bindRemote(definition, ref, operators)
   const capabilities = bound[Capability]

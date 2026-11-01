@@ -28,6 +28,7 @@ import {
 import { RowPlace, placeIn, withEdge } from './placement.js'
 import { placedHeld } from './placing.js'
 import { entityKey, type EntityStore } from './store.js'
+import { tableOf } from './table.js'
 
 // The visible store is recomputed only when the base store or the layers
 // change, so reads and plans across renders of one Model share it. Keyed on
@@ -103,13 +104,14 @@ const pendingPlaced = (
 ): Connection => {
   const { layers } = optimistic
   if (layers.length === 0) return pages
+  const operators = tableOf(lists.operators)
   return memoRead([pages, layers, entities], `placed:${identity}`, () =>
     placedHeld(
       lists,
       identity,
       pages,
-      changesOf({ entities: resolvedPatches(entities, optimistic, lists.operators) }, entities),
-      visibleStoreOf(entities, optimistic, lists.operators),
+      changesOf({ entities: resolvedPatches(entities, optimistic, operators) }, entities),
+      visibleStoreOf(entities, optimistic, operators),
       layersContext(layers),
     ),
   )
@@ -123,7 +125,8 @@ const insertsPlaced = (
   pages: Connection,
 ): { readonly pages: Connection; readonly overlays: ReadonlyArray<ConnectionOverlay> } => {
   const { overlays } = optimistic
-  const store = visibleStoreOf(entities, optimistic, lists.operators)
+  const operators = tableOf(lists.operators)
+  const store = visibleStoreOf(entities, optimistic, operators)
   return memoRead([pages, overlays, store], `inserted:${identity}`, () => {
     const query = lists.queryOf(identity)
     const body = Option.isSome(query) ? query.value.descriptor.body : undefined
@@ -141,7 +144,7 @@ const insertsPlaced = (
     for (const edge of inserted.values()) {
       if (held.has(edge.key)) continue
       const key = entityKey(edge.ref.entity, edge.ref.id)
-      RowPlace.$match(placeIn(store, placed, body, query.value.encoded, key, lists.operators), {
+      RowPlace.$match(placeIn(store, placed, body, query.value.encoded, key, operators), {
         Before: place => void (placed = withEdge(placed, edge, place)),
         End: place => void (placed = withEdge(placed, edge, place)),
         Outside: () => void outside.push(edge),
@@ -187,7 +190,8 @@ const shown = (
 }
 
 export const layers: LayerCapability = {
-  visible: visibleStoreOf,
+  visible: (entities, optimistic, operators) =>
+    visibleStoreOf(entities, optimistic, tableOf(operators)),
   planned: plannedStoreOf,
   requestOnly: heldOnlyByRequests,
   gone: goneIn,

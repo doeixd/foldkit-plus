@@ -219,6 +219,18 @@ version changed; `pnpm` skips versions already in the registry.
   before phase 5 of #378; Chirp, which writes, reads live and keeps an outbox,
   is 366.3 kB where it was 368.4 kB.
 
+- **A read-only page keeps none of Entity's expression code** (`foldkit-remote`,
+  #397; breaking for `BoundRemote.operators`). The read core carries only the
+  operator table `Remote.make` or `Remote.at` was given:
+  `BoundRemote.operators` is an `Option`, none when no table was given, and
+  what judges a body on the client (pending placement, placing a read's news,
+  a live insert's policy, `filtered`, a write's invariant check, `Law.check`,
+  `why`) takes `Operators.kernel` for none. Which table judges is unchanged.
+  A read-only `Remote.make` page keeps 8.3 kB of `foldkit-entity` where it kept
+  53.0 kB (rendered, minified, from `dist`): no `expr` or `operators`. The
+  `domains-plus` example's client is 275.1 kB gzipped where it was 289.4 kB;
+  Chirp, which writes, is unchanged (368.0 kB).
+
 - **Breaking: live reads come from `foldkit-remote/live`** (`foldkit-remote`,
   #378). `Data.live(selection, id)` is `live(Data, selection, id)`;
   `Data.query(Q, input, { …, live: true })` is `liveQuery(Data, Q, input, {

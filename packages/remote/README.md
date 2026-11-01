@@ -1594,7 +1594,10 @@ the store the answer left:
 `Remote.make({ ..., operators })` (`Operators.kernel` by default) is the table
 it matches, filters and places rows with. A body calling an operator the table
 does not run is judged by the server, as any row the client cannot judge is:
-`filtered` answers it incomplete and a change to it refetches.
+`filtered` answers it incomplete and a change to it refetches. The domain
+carries only the table it was given (`Data.operators`, an `Option`, none for
+the default): what judges a body on the client takes the kernel's for none,
+so a page that only reads keeps none of Entity's expression code.
 
 **A placement can be checked against the server.** `Remote.make({ ...,
 verifyPredictions: true })` places as usual, and also fetches each list it placed

@@ -35,7 +35,7 @@ export default [
   edit(
     'a list places the amount, not the sum',
     '../src/layers.ts',
-    '{ entities: resolvedPatches(entities, optimistic, lists.operators) },',
+    '{ entities: resolvedPatches(entities, optimistic, operators) },',
     '{ entities: layers.flatMap(layer => layer.patches) },',
   ),
   {

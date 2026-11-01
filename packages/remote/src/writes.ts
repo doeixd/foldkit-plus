@@ -30,6 +30,7 @@ import type { RelationRequirement } from './requirement.js'
 import { parsedQueryRequest } from './queryRequest.js'
 import { isPatch, patchedFields, shownOf } from './shown.js'
 import { entityKey } from './store.js'
+import { tableOf } from './table.js'
 import { MAX_ANSWER_LISTS, RemoteForbidden, type QueryRequest } from './wire.js'
 
 const writes: WriteCapability = {
@@ -239,7 +240,7 @@ const writes: WriteCapability = {
                     options.keys,
                     { viewer, now: Option.fromUndefinedOr(options.now) },
                     visible,
-                    context.bound.operators,
+                    tableOf(context.bound.operators),
                   ),
                   (held): RemoteError =>
                     remoteError({

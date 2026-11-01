@@ -20,6 +20,7 @@ import { targetsOf } from './relation.js'
 import { RemoteData, type RemoteError } from './remoteData.js'
 import type { ConnectionRequirement, RelationRequirement } from './requirement.js'
 import { entityKey, type EntityStore } from './store.js'
+import { tableOf } from './table.js'
 import { ShownBy, Why, type ListRef, type WhyTerm } from './whyTerms.js'
 
 /** What the reasons are read from, as the bound domain reads its lists. */
@@ -41,7 +42,7 @@ export interface WhyReader {
     readonly placed: ReadonlyArray<Edge>
     readonly pages: ReadonlyArray<Edge>
   }
-  readonly operators: MemoryOperators
+  readonly operators: Option.Option<MemoryOperators>
   /** What a body's `Expr.viewer` reads: the viewer the newest pending operation was predicted for. */
   readonly context: ExprContext | undefined
 }
@@ -181,7 +182,7 @@ const termsOf = (reader: WhyReader, identity: string, entity: string, id: string
             Judge.match(
               Judge.predicate(predicate, held, {
                 input: encoded,
-                operators: reader.operators,
+                operators: tableOf(reader.operators),
                 context: reader.context,
                 rows: holder.rows,
               }),

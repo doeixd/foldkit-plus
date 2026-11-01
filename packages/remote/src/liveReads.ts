@@ -14,6 +14,7 @@ import { applyConnectionEvent, applyEntityEvent } from './liveEvents.js'
 import { liveStreamKey } from './liveState.js'
 import { belongsEncoded } from './matching.js'
 import { entityKey } from './store.js'
+import { tableOf } from './table.js'
 import type {
   RemoteLiveError,
   RemoteLiveRefused,
@@ -62,7 +63,7 @@ const policy: LiveCapability['policy'] = (lists, visible, event, context) => {
         descriptor,
         encoded,
         entityKey(event.edge.ref.entity, event.edge.ref.id),
-        lists.operators,
+        tableOf(lists.operators),
         context,
       )
       return decided === 'no' ? { prepend: 'ignore', append: 'ignore' } : declared

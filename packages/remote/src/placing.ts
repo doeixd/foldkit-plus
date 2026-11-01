@@ -8,6 +8,7 @@ import type { Lists } from './capability.js'
 import { items, type Connection } from './connection.js'
 import { EntityChange, Impact, impactOn } from './impact.js'
 import { entityKey, type EntityStore } from './store.js'
+import { tableOf } from './table.js'
 
 /**
  * `pages` with each change to a row they hold placed, judged against
@@ -44,7 +45,7 @@ export const placedHeld = (
         { ...query.value, connection: placed, holds },
         store,
         change,
-        lists.operators,
+        tableOf(lists.operators),
         context,
       ),
       {

@@ -369,6 +369,33 @@ On the Entity side, the `Entity` object reaches `invariant`, which imports
    `Operators.kernel`, the default operator table `Remote.make` takes. Each
    is its own change (a `Remote` namespace as `Entity`'s, and the operator
    table apart from the expression builders), not a capability.
+   **The operator table (#397, 2026-11-01).** Nothing in the table itself
+   reached `expr.ts` but the kernel's one operator: `Text.startsWith` is made
+   by `Expr.operator` in a module-level call, and the call keeps the `Expr`
+   object and the operator builder, which is most of `expr.ts`. The read core
+   ran none of it; it only resolved `Remote.make`'s default
+   (`options.operators ?? Operators.kernel`) to hand to the capabilities. So
+   the table did not need splitting: the core now carries what it was given,
+   `BoundRemote.operators: Option<MemoryOperators>`, and what judges a body
+   resolves it to the kernel's (`tableOf`, `table.ts`): the layer, body and
+   live capabilities, `filtered`, the write capability's invariant check,
+   `Law.check`'s placement check and `why`. Which table judges is unchanged.
+   A page that names `Operators.kernel` itself still keeps `expr.ts`; such a
+   page judges on the client, and the bodies it judges are built by `Expr`
+   anyway, so declaring the kernel's operator apart from its builder was not
+   worth a second way to make one. Measured as for phase 5, *before* at
+   `58105c14`, *after* with the change; Entity is the same build in both:
+   | example | before | after |
+   | --- | ---: | ---: |
+   | domains-plus, all JS | 922.9 kB, 289.4 kB gz | 878.1 kB, 275.1 kB gz |
+   | domains-plus, Remote / Entity | 186.2 / 56.1 kB | 186.2 / 11.3 kB |
+   | Chirp, page JS | 1,144.9 kB, 367.9 kB gz | 1,145.0 kB, 368.0 kB gz |
+   | Chirp, Remote / Entity | 261.9 / 120.7 kB | 262.3 / 120.7 kB |
+   The read-only page of `readOnlyPage.test.ts` keeps 8.3 kB of
+   `foldkit-entity` where it kept 53.0 kB (rendered, minified, from `dist`):
+   no `expr`, `operators`, `law`, `text` or `collation`. domains-plus is
+   now 39.8 kB gzipped below the 314.9 kB this note began at, about the 40 kB
+   it estimated.
 
 Every phase keeps behaviour unchanged, only where code lives, so `Law.check`,
 `heldValue.test.ts`, the R0 conformance suite and every example must stay

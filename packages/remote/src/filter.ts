@@ -21,6 +21,7 @@ import { assertRegistered } from './registered.js'
 import { readRow } from './rowRead.js'
 import { relationOf } from './selection.js'
 import { entityKey } from './store.js'
+import { tableOf } from './table.js'
 
 type AnyDomain = RemoteDomain<any, any, any, any, any>
 
@@ -75,12 +76,12 @@ export const filtered = <
     )
   }
   const inner = innerOf<ModelOfDomain<Domain>>(domain)
-  const { operators } = domain
   const remote = domain.store.get(model)
   const connection = remote.connections[over.ref.identity]
-  const visible = visibleOf(domain[Capability], remote, operators)
+  const visible = visibleOf(domain[Capability], remote, domain.operators)
   const edges = connection === undefined ? [] : inner.shown(remote, over.ref.identity, connection)
   const among = edges.map(edge => entityKey(edge.ref.entity, edge.ref.id))
+  const operators = tableOf(domain.operators)
   let judged: Judged
   try {
     judged = matching(visible, by, input, { among, operators, context: inner.context(model) })

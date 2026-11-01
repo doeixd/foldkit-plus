@@ -592,7 +592,10 @@ cannot be placed is invalidated, restarting any read of it in flight, so its rea
 refetches it. A body's primitive operators run on the client by
 `Remote.make({ operators })` (`Operators.kernel` by default; a domain bound by hand
 takes it as `Remote.at(definition, store, { operators })`), which also predicts a
-pending computed assignment; one the table lacks is the server's to judge. `Remote.make({ verifyPredictions: true })` (dev and tests) also
+pending computed assignment; one the table lacks is the server's to judge. The
+domain carries only the table it was given (`Data.operators`, an `Option`): what
+judges a body takes the kernel's for none, so a page that only reads keeps no
+expression code. `Remote.make({ verifyPredictions: true })` (dev and tests) also
 fetches each list it placed an answer, a read or a live patch in, and keeps
 any disagreement with the server's first page as a `PredictionMismatch`
 diagnostic whose `part` is a `Placement`: an order it does not share, or a row placing

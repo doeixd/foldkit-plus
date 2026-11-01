@@ -6,11 +6,22 @@ const tests = ['packages/remote/test/operators.test.ts']
 
 export default [
   {
+    name: 'what judges ignores the table the domain was given',
+    edits: [
+      {
+        file: '../src/table.ts',
+        find: 'Option.getOrElse(given, () => Operators.kernel)',
+        replace: 'Operators.kernel',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a write is judged without the table',
     edits: [
       {
         file: '../src/bodies.ts',
-        find: 'impactOn(held, visible, change, lists.operators, context)',
+        find: 'impactOn(held, visible, change, operators, context)',
         replace: 'impactOn(held, visible, change, undefined as never, context)',
       },
     ],
@@ -21,7 +32,7 @@ export default [
     edits: [
       {
         file: '../src/placing.ts',
-        find: '        lists.operators,\n        context,',
+        find: '        tableOf(lists.operators),\n        context,',
         replace: '        undefined as never,\n        context,',
       },
     ],
@@ -32,7 +43,7 @@ export default [
     edits: [
       {
         file: '../src/liveReads.ts',
-        find: '        lists.operators,\n        context,\n      )',
+        find: '        tableOf(lists.operators),\n        context,\n      )',
         replace: '        undefined,\n        context,\n      )',
       },
     ],
@@ -98,7 +109,7 @@ export default [
     edits: [
       {
         file: '../src/layers.ts',
-        find: 'placeIn(store, placed, body, query.value.encoded, key, lists.operators)',
+        find: 'placeIn(store, placed, body, query.value.encoded, key, operators)',
         replace: 'placeIn(store, placed, body, query.value.encoded, key, undefined!)',
       },
     ],

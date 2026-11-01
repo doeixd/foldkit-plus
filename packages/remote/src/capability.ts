@@ -72,7 +72,8 @@ export type ListQuery = Pick<HeldConnection, 'descriptor' | 'encoded' | 'filtere
 /** How a domain reads its lists' bodies, for the code that places rows in them. */
 export interface Lists {
   readonly queryOf: (identity: string) => Option.Option<ListQuery>
-  readonly operators: MemoryOperators
+  /** The table the domain was given, which what judges a body resolves (`tableOf`). */
+  readonly operators: Option.Option<MemoryOperators>
 }
 
 /** The layer capability: what shows pending layers and overlays, and keeps them. */
@@ -81,7 +82,7 @@ export interface LayerCapability {
   readonly visible: (
     entities: EntityStore,
     optimistic: OptimisticState,
-    operators: MemoryOperators,
+    operators: Option.Option<MemoryOperators>,
   ) => EntityStore
   /** The store a read plans over (`plannedStore`). */
   readonly planned: (
@@ -213,7 +214,7 @@ export interface BodyCapability {
   readonly placedFields: (
     body: AnyQuery,
     encoded: Readonly<Record<string, unknown>>,
-    operators: MemoryOperators,
+    operators: Option.Option<MemoryOperators>,
   ) => ReadonlyArray<string>
   /** The loaded lists a read's or live patch's news of rows they hold moved, by identity. */
   readonly news: (
@@ -290,7 +291,7 @@ interface Layered {
 export const visibleOf = (
   capabilities: Capabilities,
   { entities, optimistic }: Layered,
-  operators: MemoryOperators,
+  operators: Option.Option<MemoryOperators>,
 ): EntityStore =>
   optimistic.layers.length === 0
     ? entities

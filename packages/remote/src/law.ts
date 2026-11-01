@@ -15,6 +15,7 @@ import { belongsEncoded } from './matching.js'
 import type { RemoteMessage, RemoteModel } from './model.js'
 import { patchedFields } from './shown.js'
 import { entityKey, type EntityStore } from './store.js'
+import { tableOf } from './table.js'
 import { REMOTE_PROTOCOL_VERSION } from './wire.js'
 
 /** One part both sides answered, and what each said. */
@@ -246,7 +247,7 @@ const check = <AppModel>(
       const judged = [...predicted.keys()].every(
         key =>
           descriptor === undefined ||
-          belongsEncoded(shown, descriptor, encoded, key, Data.operators, {
+          belongsEncoded(shown, descriptor, encoded, key, tableOf(Data.operators), {
             viewer: layer?.viewer ?? Option.none(),
             now: Option.none(),
           }) !== 'unknown',

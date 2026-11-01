@@ -13,11 +13,14 @@ import type { Connection } from './connection.js'
 import { Impact, changesOf, impactOn, type HeldConnection } from './impact.js'
 import { placedHeld } from './placing.js'
 import { entityKey } from './store.js'
+import { tableOf } from './table.js'
 
-const placedFields: BodyCapability['placedFields'] = (body, encoded, operators) =>
-  Relational.placement(body, encoded, { operators })._tag === 'Placeable'
+const placedFields: BodyCapability['placedFields'] = (body, encoded, given) => {
+  const operators = tableOf(given)
+  return Relational.placement(body, encoded, { operators })._tag === 'Placeable'
     ? Relational.dependencies(body).fields.map(field => field.key)
     : []
+}
 
 /**
  * The loaded lists with what the server said of rows they hold placed: a read
@@ -73,6 +76,7 @@ const answer: BodyCapability['answer'] = (
     named.set(change.connection, keys)
   }
   const visible = visibleOf(capabilities, remote, lists.operators)
+  const operators = tableOf(lists.operators)
   for (const identity of Object.keys(remote.connections)) {
     const keys = named.get(identity)
     const judged =
@@ -95,7 +99,7 @@ const answer: BodyCapability['answer'] = (
     let invalid = false
     for (const change of judged) {
       const held: HeldConnection = { ...query.value, connection: pages, holds }
-      const after = Impact.$match(impactOn(held, visible, change, lists.operators, context), {
+      const after = Impact.$match(impactOn(held, visible, change, operators, context), {
         Kept: () => Option.some(pages),
         Placed: ({ connection }) => Option.some(connection),
         Invalidated: () => Option.none<Connection>(),
