@@ -244,6 +244,21 @@ describe('SSR.handle through handleRequest', () => {
     },
   )
 
+  it("builds a post's resources for a post alone, not for a page", async () => {
+    const asked: Array<string> = []
+    const owning = SSR.entry(config, plan, {
+      buildId: 'b',
+      origins,
+      resources: request => {
+        asked.push(request.method)
+        return Layer.empty
+      },
+    })
+    await serve(new Request('https://example.test/todos', { headers: html }), owning)
+    await serve(post({ title: 'Milk', [FALLBACK_FIELD]: added }), owning)
+    expect(asked).toEqual(['POST'])
+  })
+
   it('serves a page to any origin: only a post is checked', async () => {
     const guarded = SSR.entry(config, plan, { buildId: 'b', origins: ['https://example.test'] })
     const response = await serve(

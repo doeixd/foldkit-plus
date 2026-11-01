@@ -182,4 +182,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: "a page builds a post's resources",
+    edits: [
+      {
+        file,
+        find: "if (posting && options.answerPost === 'redirect') {",
+        replace: "post(); if (posting && options.answerPost === 'redirect') {",
+      },
+    ],
+    tests,
+  },
 ]

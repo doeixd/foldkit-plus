@@ -1329,15 +1329,16 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
           flagsOf === undefined ? undefined : yield* Effect.tryPromise(async () => flagsOf(request))
         const flagged = flagsOf === undefined ? {} : { flags }
         const prepared = prepare === undefined ? {} : { prepare }
-        const post = {
+        // Built for a post alone: a GET runs no Command, and no `resources`.
+        const post = () => ({
           buildId: options.buildId,
           ...flagged,
           ...styled,
           ...prepared,
           ...(options.resources === undefined ? {} : { resources: options.resources(request) }),
-        }
+        })
         if (posting && options.answerPost === 'redirect') {
-          const model = yield* postedModel(request, config, plan, post)
+          const model = yield* postedModel(request, config, plan, post())
           const extra = yield* Effect.sync(() => headersOf(request, Option.some(model)))
           const redirect = new Response(null, {
             status: 303,
@@ -1346,7 +1347,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
           return Responded(extra === undefined ? redirect : merge(redirect, extra))
         }
         const served = posting
-          ? yield* handleServed(request, config, plan, post)
+          ? yield* handleServed(request, config, plan, post())
           : yield* renderMatching(
               prepare === undefined
                 ? config
