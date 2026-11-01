@@ -55,7 +55,7 @@ export default [
   edit(
     'a send nothing answered settles the write as failed',
     outbox,
-    "if (result.failure._tag === 'Unreachable') {",
+    "if (next === 'sendAgain') {",
     'if (false) {',
   ),
   edit(
@@ -135,7 +135,7 @@ export default [
   edit(
     'an Unauthenticated answer settles the write failed',
     outbox,
-    "if (result.failure._tag === 'Unauthenticated') {",
+    "if (next === 'waitForSignIn') {",
     'if (false) {',
   ),
   edit(

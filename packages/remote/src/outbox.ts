@@ -335,10 +335,17 @@ export const outbox = <AppModel>(
               )
             }
             const error = remoteError(result.failure)
+            const next = Match.value(result.failure).pipe(
+              Match.tags({
+                Unauthenticated: () => 'waitForSignIn' as const,
+                Unreachable: () => 'sendAgain' as const,
+              }),
+              Match.orElse(() => 'settle' as const),
+            )
             // No one is signed in to send it as: kept, with every write after
             // it, until `Data.signedIn`. Not settled, so no tab is told an
             // outcome: each reads the state from the store (#403).
-            if (result.failure._tag === 'Unauthenticated') {
+            if (next === 'waitForSignIn') {
               const waiting = {
                 ...write,
                 revision: write.revision + 1,
@@ -350,7 +357,7 @@ export const outbox = <AppModel>(
               )
             }
             // Nothing answered: kept waiting, and sent again after a wait.
-            if (result.failure._tag === 'Unreachable') {
+            if (next === 'sendAgain') {
               yield* emit({ _tag: 'OutboxDelayed', requestId: operation, attempt, error })
               yield* Effect.race(
                 Effect.flatMap(backoff(attempt, options.retry), Effect.sleep),
