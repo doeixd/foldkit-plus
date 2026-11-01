@@ -272,9 +272,9 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   Surface lists `Message.GotUploadMessage`. Server markup stamps each
   placement root `data-foldkit-plus-slot="Upload@upload"` (`SLOT_ATTRIBUTE`).
 - `fallback: 'server'` on the plan: a form with a named `rh.OnSubmit(Message)`
-  is written `method="post"` to its own URL with a hidden
+  and no `Method` is written `method="post"` to its own URL with a hidden
   `foldkit-plus-message` input (the Message encoded). `SSR.handle(request,
-  config, plan, { buildId, flags? })`, which `SSR.entry` calls for `POST`,
+  config, plan, { buildId, flags?, prepare? })`, which `SSR.entry` calls for `POST`,
   decodes it, lets posted fields named as the Message's own override them,
   requires a tag an active Surface lists, rebuilds the Model (`init`, then the
   plan's `boot`), runs `update` and each Command under `config.resources`
@@ -287,9 +287,10 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   nothing in.
 - A whole page without scripts (search and filters as a GET of the URL
   mirror's keys, plain controls shown under `@media (scripting: none)`,
-  paging links for a virtual list, a cart through the fallback): build a GET
-  form with `h.form`, since with a fallback every `rh.form` whose `OnSubmit`
-  names a Message posts it (#391); draw both kinds of control on both sides,
+  paging links for a virtual list, a cart through the fallback): give a GET
+  form `rh.Method('get')`, since with a fallback an `rh.form` with no
+  `Method` whose `OnSubmit` names a Message posts it, and one with a `Method`
+  is left as drawn; draw both kinds of control on both sides,
   never in `<noscript>`; keep state between posts in a cookie the entry reads
   and validates, since a post starts from `init`, and write it back in
   `headers` from the Model the post reached. The guide is

@@ -424,7 +424,9 @@ export const builder = <Builder extends AnyBuilder>(
    * plan with a fallback, also posts that Message: `method="post"` to its own
    * URL, and a hidden input carrying the Message encoded. Posted fields named
    * as the Message's own fields override them, so a typed title reaches
-   * `update` as it would through the page.
+   * `update` as it would through the page. A form given its own `Method` is
+   * the view's, left as drawn: a search is a GET of the address the URL
+   * mirror reads, and posts no Message.
    */
   const fallback = (
     tag: string,
@@ -444,7 +446,8 @@ export const builder = <Builder extends AnyBuilder>(
       (item): item is Extract<Attribute<unknown>, { readonly _tag: 'OnSubmit' }> =>
         isAttribute(item) && item._tag === 'OnSubmit',
     )
-    if (submit === undefined || !Array.isArray(children)) return { attributes, children }
+    const method = attributes.some(item => isAttribute(item) && item._tag === 'Method')
+    if (submit === undefined || method || !Array.isArray(children)) return { attributes, children }
     const encoded = now.fallback(now.wrap(submit.message))
     if (encoded === undefined) return { attributes, children }
     const make = (name: string) => source[name] as (value: string) => Attribute<unknown>

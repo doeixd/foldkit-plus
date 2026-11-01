@@ -101,8 +101,7 @@ const searchForm = (model: Model, slots: Slots, h: H): Html => {
   // A GET of `/` without scripts, which the server reads as the address
   // the Mirror writes: the text, and the filters' plain selects that name
   // this form. With scripts, Enter is `SubmittedSearch` and nothing is sent.
-  // `h.form`, not `rh.form`: the server fallback would make it a post (#391).
-  return h.form(
+  return rh.form(
     slots.search.attrs([
       h.Id(SEARCH_FORM_ID),
       h.Role('search'),

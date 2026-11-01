@@ -915,7 +915,11 @@ A form that need not work without scripts sends `Added()` and reads
 
 With scripts on, nothing changes: the page answers the submit and the form
 never posts. Without them, the server wrote the form to post the Message to the
-page's own URL, and `SSR.entry` hands that post to `SSR.handle`:
+page's own URL, and `SSR.entry` hands that post to `SSR.handle`. A form given
+its own `Method` is left as the view draws it, with no Message field: a
+search form is `rh.Method('get')` and sends its named fields as the address,
+and one given `Method('post')` posts no Message, which the entry answers
+`400`.
 
 ```text
 POST ──▶ decode the Message ──▶ set the posted fields into it (the typed `title`)
@@ -962,10 +966,9 @@ is the guide. What the port needed from this package:
   `prepare` (`Data.satisfy`); send the reading
   Surfaces' data with `parts: [Remote.resume(Data)]` and list the Surfaces
   in `surfaces`, so the browser reads none of it again.
-- **Keep GET forms as `h.form`.** With a fallback, every form `rh` builds
-  posts its Message; a search or filter form is a GET of the address the URL
-  mirror reads, and `h.form` leaves it one
-  ([#391](https://github.com/doeixd/foldkit-plus/issues/391)).
+- **Give a GET form its method.** With a fallback, a form `rh` builds whose
+  `OnSubmit` names a Message posts it; a search or filter form is a GET of
+  the address the URL mirror reads, and `rh.Method('get')` leaves it one.
 - **Draw the plain controls on both sides.** Show them under
   `@media (scripting: none)` and hide the scripted ones there; a control in
   `<noscript>` is not drawn by the view, and the page would not be the one

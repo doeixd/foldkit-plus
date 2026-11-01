@@ -149,4 +149,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a form given its own method is made to post its Message (#391)',
+    edits: [
+      {
+        file: '../src/resumable.ts',
+        find: 'if (submit === undefined || method || !Array.isArray(children))',
+        replace: 'if (submit === undefined || !Array.isArray(children))',
+      },
+    ],
+    tests,
+  },
 ]

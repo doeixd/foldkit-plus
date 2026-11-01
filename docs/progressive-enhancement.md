@@ -212,16 +212,16 @@ in the page, so Enter in the box and Apply beside the filters send the same
 query. With scripts, `OnSubmit` answers Enter and nothing is sent.
 
 ```ts sketch
-h.form([h.Id('domain-search-form'), h.Method('get'), h.Action('/'), h.OnSubmit(Message.SubmittedSearch())], [
+rh.form([h.Id('domain-search-form'), h.Method('get'), h.Action('/'), h.OnSubmit(Message.SubmittedSearch())], [
   rh.input([h.Name('q'), h.Value(model.query), rh.OnInput(Message.UpdatedSearch)]),
 ])
 
 h.select([h.Name('sort'), h.AriaLabel('Sort results'), h.Attribute('form', 'domain-search-form')], options)
 ```
 
-Build a GET form with `h.form`, not `rh.form`: with a server fallback every
-form `rh` builds is written to post its Message
-([#391](https://github.com/doeixd/foldkit-plus/issues/391)).
+Give a GET form its method, `Method('get')`: with a server fallback, a form
+`rh` builds with no `Method` is written to post its Message, and one with a
+`Method` is left as the view draws it.
 
 A link to another state of the page is `SearchInUrl.href(model, { from: 13 },
 '/')`: the address with the mirrored keys patched, defaults left out. Give
@@ -350,7 +350,6 @@ there instead.
 ## Limits
 
 - The answer to a post is the page, not a redirect (#390).
-- A GET form is built with `h.form` (#391).
 - Opening a virtual list at a row is the application's (#392).
 - A read before render needs an entry per request (#393).
 - State between posts is the application's own cookie (#394).

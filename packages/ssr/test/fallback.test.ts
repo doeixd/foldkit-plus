@@ -5,6 +5,7 @@
  */
 import { Effect, Layer, Option } from 'effect'
 import { handleRequest } from 'foldkit/experimental/server'
+import { JSDOM } from 'jsdom'
 import { describe, expect, it, vi } from 'vitest'
 import type { HtmlBuilder } from 'foldkit/html'
 import { Diagnostics, FALLBACK_FIELD, Resume, SSR, type Diagnostic } from 'foldkit-ssr'
@@ -57,6 +58,32 @@ describe('the form the server writes', () => {
     expect(rendered.html).not.toContain('method=')
     expect(rendered.html).not.toContain(FALLBACK_FIELD)
   })
+
+  it.each(['get', 'post'])(
+    'leaves a form given its own method (%s) as drawn, posting no Message',
+    async method => {
+      const searching = {
+        ...config,
+        view: (model: Model, h: HtmlBuilder<Message>) => {
+          const rh = Resume.builder(h)
+          return {
+            title: 'Todos',
+            body: rh.form(
+              [rh.Id('search'), rh.Method(method), rh.OnSubmit(Message.Added({ title: '' }))],
+              [rh.input([rh.Name('q'), rh.Value(model.draft), rh.OnInput(Message.Typed)])],
+            ),
+          }
+        },
+      }
+      const { rendered } = await Effect.runPromise(SSR.render(searching, plan, { buildId: 'b' }))
+      // Read back as a browser parses it: one method, the view's, and no Message field.
+      const form = new JSDOM(rendered.html).window.document.getElementById('search')!
+      expect(form.getAttribute('method')).toBe(method)
+      expect(rendered.html.match(/method=/g)).toHaveLength(1)
+      expect(form.querySelectorAll('input').length).toBe(1)
+      expect(rendered.html).not.toContain(FALLBACK_FIELD)
+    },
+  )
 
   it('is a plain form when the plan has no fallback', async () => {
     const eager = SSR.plan(App, { id: 'todos', state: plan.state, surfaces: plan.surfaces })

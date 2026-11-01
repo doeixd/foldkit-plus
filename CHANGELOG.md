@@ -257,6 +257,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **A form given its own `Method` is left as drawn under a server fallback**
+  (`foldkit-ssr`, #391). `rh.form([rh.Method('get'), rh.OnSubmit(…)], …)` is
+  no longer written `method="post"` with a Message field: a search or filter
+  form is a GET of the address its named fields write. Before, the fallback
+  appended a second `method="post"` after the view's, and nothing said so. A
+  form given `Method('post')` posts no Message either, which the entry
+  answers `400`; leave `Method` out for a form that posts its Message.
+
 - **`SSR.entry`'s `headers` is given the Model the page reached** (`foldkit-ssr`,
   #389). `headers: (request, model: Option<Model>) => HeadersInit`: `some` of
   the server's Model for a rendered page, a posted form's after `update`, so a

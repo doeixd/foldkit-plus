@@ -585,10 +585,10 @@ export const initWith = (url: Url, cart: Cart.Cart): Return =>
 
 export const subscriptions = placements.subscriptions()
 
-/** The search box: what it shows, and the Message typing into it sends. */
+/** The search box: what it shows, and the Messages typing into it and Enter send. */
 export const SearchBox = App.surface('SearchBox', {
   model: ({ model }) => ({ query: model.query }),
-  messages: [Message.UpdatedSearch],
+  messages: [Message.UpdatedSearch, Message.SubmittedSearch],
 })
 
 /**
