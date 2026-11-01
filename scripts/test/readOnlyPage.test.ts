@@ -167,6 +167,11 @@ describe('a read-only Remote page', () => {
   it('keeps no expression evaluator (#378 phases 4 and 5)', () => {
     expect(kept.readOnly.entity).not.toContain('evaluate.js')
   })
+
+  it.fails('keeps no expressions or operator table, which only judging needs (#397)', () => {
+    expect(kept.readOnly.entity).not.toContain('expr.js')
+    expect(kept.readOnly.entity).not.toContain('operators.js')
+  })
 })
 
 describe('a Remote page that writes', () => {
