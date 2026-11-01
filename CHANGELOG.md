@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`SSR.entry`'s `prepare`: one entry for a page read before it renders**
+  (`foldkit-ssr`, #393). `prepare: (model, request) => Effect<Model>` turns
+  the Model `init` gave into the one a request starts from, a
+  `Data.satisfy` read or a cookie, for `GET`, `HEAD` and a posted form,
+  before the post's Message is checked against the active Surfaces and
+  `update` runs. An application that built an entry per request to start it
+  from a read Model makes one. A `prepare` that fails is answered `500` and
+  reported. `SSR.handle` takes it too.
+
 - **`Mirror.cookie`** (`foldkit-mirror`, #394): a slice kept in one cookie,
   which a server reads for its first render and the browser writes when the
   slice changes. `keysOf(cookieHeader)` reads the mirror's own keys (none

@@ -332,7 +332,15 @@ so a Model serialized by another deployment is never decoded. Asking Foldkit
 to expose that id is [proposal 4](../../docs/upstream-foldkit-ssr.md#proposal-4-expose-the-compiled-build-id).
 
 `GET` and `HEAD` render the page for the request's URL; an application with
-Flags passes `flags: request => ...`. `POST` is handled only for a plan with a
+Flags passes `flags: request => ...`. `prepare: (model, request) => Effect`
+turns the Model `init` gave into the one the page is rendered from, for what
+must be read before the render (`Data.satisfy`, [below](#what-the-host-hands-the-page-ssrrequestcontext))
+or taken from the request (a cookie). It runs for a posted form too, before
+the Message is checked against the active Surfaces and `update` runs, so the
+post starts from the Model the page it came from was drawn with, and one
+entry, made once, serves every request. A `prepare` that fails is answered
+`500` and reported; one that would rather draw the page unread recovers
+inside its Effect. `POST` is handled only for a plan with a
 [server fallback](#forms-that-work-without-scripts). `OPTIONS` is answered
 `204` and any other method `405`, each with the methods the entry answers in
 `allow`. A render that fails or throws, `flags` that reject, and a plan the
@@ -405,7 +413,6 @@ by `handleRequest`, reads it back:
 
 ```ts
 import { Effect, Option, type Layer } from 'effect'
-import { Responded } from 'foldkit/experimental/server'
 import type { RemoteClient, RemoteUnauthenticated } from 'foldkit-remote'
 import { SSR } from 'foldkit-ssr'
 
@@ -417,19 +424,15 @@ export const PageContext = SSR.requestContext<{
 // The host, a Worker's fetch say:
 //   pages.fetch(PageContext.attach(request, { reader: pageReader(page)(request, env) }))
 
-// The server entry. `actives` is the record `Data.wiring` takes.
-export const renderPage = (request: Request) =>
-  Option.match(PageContext.of(request), {
-    onNone: async () => Responded(new Response('No reader for this page.', { status: 500 })),
-    onSome: async ({ reader }) => {
-      const model = await Effect.runPromise(
-        Data.satisfy(App.initial, actives).pipe(Effect.provide(reader)),
-      )
-      return SSR.entry({ ...config, init: () => ({ model }) }, Post, { buildId }).renderPage(
-        request,
-      )
-    },
-  })
+// The server entry, made once. `actives` is the record `Data.wiring` takes.
+export const { renderPage } = SSR.entry(config, Post, {
+  buildId,
+  prepare: (model, request) =>
+    Option.match(PageContext.of(request), {
+      onNone: () => Effect.fail(new Error('No reader for this page.')),
+      onSome: ({ reader }) => Data.satisfy(model, actives).pipe(Effect.provide(reader)),
+    }),
+})
 ```
 
 The value is kept for that request alone, in a `WeakMap` on `globalThis`
@@ -916,7 +919,7 @@ page's own URL, and `SSR.entry` hands that post to `SSR.handle`:
 
 ```text
 POST ──▶ decode the Message ──▶ set the posted fields into it (the typed `title`)
-     ──▶ init, then boot and its Commands ──▶ update, and every Command after it
+     ──▶ init, prepare, then boot and its Commands ──▶ update, and every Command after it
      ──▶ the page, rendered
 ```
 
@@ -955,8 +958,8 @@ rest is the application's, and
 all of it; [Pages that work without JavaScript](../../docs/progressive-enhancement.md)
 is the guide. What the port needed from this package:
 
-- **Render what is shown.** `SSR.render` fetches nothing, so read first
-  (`Data.satisfy`) and start the entry from that Model; send the reading
+- **Render what is shown.** `SSR.render` fetches nothing, so read first, in
+  `prepare` (`Data.satisfy`); send the reading
   Surfaces' data with `parts: [Remote.resume(Data)]` and list the Surfaces
   in `surfaces`, so the browser reads none of it again.
 - **Keep GET forms as `h.form`.** With a fallback, every form `rh` builds

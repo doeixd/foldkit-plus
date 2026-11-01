@@ -1108,7 +1108,9 @@ const generate = <
  * served by Node and Workers alike.
  *
  * `GET` and `HEAD` render the page against the plan, with the request's URL
- * and, when the application has Flags, `flags(request)`. `POST` goes to
+ * and, when the application has Flags, `flags(request)`; `prepare(model,
+ * request)` turns the Model `init` gave into the one rendered, a read made
+ * before the render (`Data.satisfy`). `POST` goes to
  * `SSR.handle` when the plan has a server fallback, and is answered `400` when
  * the post is unusable. `OPTIONS` is answered `204`, and any other method
  * `405`, each with the methods the entry answers in `allow` (`handleRequest`
@@ -1136,6 +1138,15 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   options: {
     readonly buildId: string
     readonly flags?: ((request: Request) => unknown | PromiseLike<unknown>) | undefined
+    /**
+     * The Model a request starts from, from the one `init` gave: what the page
+     * shows read first (`Data.satisfy`), or what the request carries (a
+     * cookie). Run for `GET`, `HEAD` and a posted form, before the post's
+     * Message is checked or `update` runs, so the entry is made once. A
+     * failure is answered `500` and reported; to draw the page unread
+     * instead, recover inside the Effect.
+     */
+    readonly prepare?: Prepare<Model> | undefined
     /**
      * Headers set over the entry's own on every answer. `model` is the Model
      * the server reached for a rendered page, a posted form's after `update`;
@@ -1286,6 +1297,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     }
     const flagsOf = options.flags
     const statusOf = options.status
+    const { prepare } = options
     const styled = options.styles === undefined ? {} : { styles: options.styles }
     // `Effect.result` would miss a defect, such as a view that throws, and a
     // `flags` that throws or rejects is not in the Effect at all: both would
@@ -1295,15 +1307,19 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
         const flags =
           flagsOf === undefined ? undefined : yield* Effect.tryPromise(async () => flagsOf(request))
         const flagged = flagsOf === undefined ? {} : { flags }
+        const prepared = prepare === undefined ? {} : { prepare }
         const served = posting
           ? yield* handleServed(request, config, plan, {
               buildId: options.buildId,
               ...flagged,
               ...styled,
+              ...prepared,
               ...(options.resources === undefined ? {} : { resources: options.resources(request) }),
             })
           : yield* renderMatching(
-              config,
+              prepare === undefined
+                ? config
+                : yield* preparedStart(request, config, { url: request.url, ...flagged }, prepare),
               plan,
               { buildId: options.buildId, url: request.url, ...flagged, ...styled },
               matchOf(request.url),
@@ -1497,12 +1513,31 @@ const startOf = <Model>(
     return started!
   })
 
+/** Turns the Model `init` gave into the one a request starts from. */
+export type Prepare<Model> = (model: Model, request: Request) => Effect.Effect<Model, unknown>
+
+/**
+ * The config a request starts from: `init`'s answer, its Model prepared. A
+ * failed `prepare` is a defect, answered 500 and reported as a failed render.
+ */
+const preparedStart = <Model>(
+  request: Request,
+  config: ResumableConfig<Model>,
+  options: { readonly url: string; readonly flags?: unknown },
+  prepare: Prepare<Model>,
+): Effect.Effect<ResumableConfig<Model>, RenderError> =>
+  Effect.gen(function* () {
+    const started = yield* startOf(config, options)
+    const model = yield* Effect.orDie(prepare(started.model, request))
+    return startingFrom(config, { ...started, model }) as ResumableConfig<Model>
+  })
+
 /**
  * Answers a form posted by a page rendered with `fallback: 'server'`: the
  * posted Message is decoded through the plan's Message Schema, with posted
  * fields of the same names as its own overriding them, and must be one the
  * Surfaces active for the request's Model may send. The server then rebuilds
- * the Model the browser had, `init` and then the plan's `boot` with every
+ * the Model the browser had, `init`, `prepare` and then the plan's `boot` with every
  * Command it leads to, runs `update` with the Message and every Command that
  * follows, and renders the result as a fresh page.
  */
@@ -1510,14 +1545,16 @@ const handle = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   request: Request,
   config: ResumableConfig<Model, Message>,
   plan: ResumePlan<Model, Fields>,
-  options: HandleOptions,
+  options: HandleOptions<Model>,
 ): Effect.Effect<RenderedPage, RenderError | ResumeUnsafe | FallbackRefused> =>
   Effect.map(handleServed(request, config, plan, options), served => served.page)
 
-interface HandleOptions {
+interface HandleOptions<Model> {
   readonly buildId: string
   readonly flags?: unknown
   readonly styles?: Head | undefined
+  /** The Model the post starts from, from `init`'s, as `SSR.entry`'s `prepare`. */
+  readonly prepare?: Prepare<Model> | undefined
   /**
    * This post's own services, beside the config's `resources`: who is
    * asking, a client bound to them. Built once for the post; where both
@@ -1530,7 +1567,7 @@ const handleServed = <Model, Fields extends Schema.Struct.Fields>(
   request: Request,
   config: ResumableConfig<Model>,
   plan: ResumePlan<Model, Fields>,
-  options: HandleOptions,
+  options: HandleOptions<Model>,
 ): Effect.Effect<Served<Model>, RenderError | ResumeUnsafe | FallbackRefused> =>
   // The post's resources live as long as the post.
   Effect.scoped(
@@ -1584,7 +1621,10 @@ const handleServed = <Model, Fields extends Schema.Struct.Fields>(
       if (Result.isFailure(decoded)) return yield* invalid(decoded.failure)
       const message = decoded.success
       const started = yield* startOf(config, { url: request.url, ...options })
-      const allowed = allowedTags(plan, started.model)
+      const { prepare } = options
+      const start =
+        prepare === undefined ? started.model : yield* Effect.orDie(prepare(started.model, request))
+      const allowed = allowedTags(plan, start)
       if (!allowed.has(tagOf(message))) {
         return yield* refuseFallback(
           'Unlisted',
@@ -1594,10 +1634,10 @@ const handleServed = <Model, Fields extends Schema.Struct.Fields>(
       // As the browser got here: `init` on the server, then the plan's `boot`
       // at hydration, and only then the user's Message. `init`'s own Commands
       // never run in the browser, so they do not run here.
-      const boot = (plan.boot?.(started.model) as ReadonlyArray<unknown> | undefined) ?? []
+      const boot = (plan.boot?.(start) as ReadonlyArray<unknown> | undefined) ?? []
       const post =
         options.resources === undefined ? Context.empty() : yield* Layer.build(options.resources)
-      const booted = yield* fold(config, post, started.model, [], boot)
+      const booted = yield* fold(config, post, start, [], boot)
       const model = yield* fold(config, post, booted, [message], [])
       return yield* renderMatching(
         startingFrom(config, { model }) as ResumableConfig<Model>,

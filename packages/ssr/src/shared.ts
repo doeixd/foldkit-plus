@@ -648,7 +648,7 @@ const withoutFlags = <Config extends { readonly Flags?: unknown }>(config: Confi
 /** The config whose `init` returns this start, whatever arguments it is given. */
 export const startingFrom = <Model>(
   config: ResumableConfig<Model>,
-  start: { readonly model: Model; readonly commands?: ReadonlyArray<unknown> },
+  start: { readonly model: Model; readonly commands?: ReadonlyArray<unknown> | undefined },
 ) => ({ ...withoutFlags(config), init: () => start })
 
 /** A route as the envelope records it: the path and the query. */

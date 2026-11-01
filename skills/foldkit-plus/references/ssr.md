@@ -101,11 +101,15 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   `examples/foldkit/ssr/src/renderPage.ts`.
 - **Render from Remote data by preparing it first.** `SSR.render` and
   `SSR.generate` render the Model `init` returns; nothing is fetched during a
-  render. Build that Model with `Data.satisfy(model, actives)`, which reads
+  render. Build that Model with `Data.satisfy(model, actives)` in
+  `SSR.entry`'s `prepare: (model, request) => Effect<Model>`, which runs after
+  `init` for `GET`, `HEAD` and a posted form (before its Message is checked),
+  so one entry serves every request; a failed `prepare` is a reported `500`.
+  `Data.satisfy` reads
   every active Surface pass after pass until nothing is missing, so a read that
-  depends on another (a page's Blocks on its document) is made too. With a
-  `foldkit-bundle` assembly, `init` must still return
-  `placements.initial(...)`: pass the prepared fields to it.
+  depends on another (a page's Blocks on its document) is made too. `init`
+  stays the application's own (with a `foldkit-bundle` assembly,
+  `placements.initial(...)`); `prepare` reads from the Model it returns.
 - **Import `foldkit-ssr/client` in the browser.** It holds `plan`, `resume`,
   `hydrate`, `static`, `serving` and the attribute names (including
   `FOLDKIT_APP_ATTRIBUTE`) and imports nothing from the server, about 200 kB
