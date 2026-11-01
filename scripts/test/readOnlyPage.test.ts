@@ -157,6 +157,13 @@ describe('a read-only Remote page', () => {
     expect(kept.readOnly.remote).not.toContain('sse.js')
   })
 
+  // `Remote` is an ES module namespace, so a member nothing calls is not kept.
+  it.fails('keeps no transport or resume code it never calls (#396)', () => {
+    for (const unused of ['coalesce.js', 'json.js', 'rpc.js', 'resume.js']) {
+      expect(kept.readOnly.remote).not.toContain(unused)
+    }
+  })
+
   it('keeps no expression evaluator (#378 phases 4 and 5)', () => {
     expect(kept.readOnly.entity).not.toContain('evaluate.js')
   })
