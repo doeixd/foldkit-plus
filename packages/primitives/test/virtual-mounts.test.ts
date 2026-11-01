@@ -213,11 +213,13 @@ describe('MeasureRows', () => {
     return element
   }
 
-  it('observes the keyed rows, follows rows drawn and gone, and reports a batch at once', async () => {
+  it('reads the rows drawn as it starts, observes the keyed rows, follows rows drawn and gone, and reports a batch at once', async () => {
     const instances = installResizeObserver()
     const list = document.createElement('div')
     const [a, b, c] = [row('a'), row('b'), row('c')]
     const spacer = document.createElement('div')
+    // Drawn before it starts: `a` is read at once; `b`, of no height, is left to the observer.
+    a.getBoundingClientRect = () => DOMRect.fromRect({ x: 0, y: 0, width: 100, height: 20 })
     list.append(spacer, a, b)
     document.body.appendChild(list)
     try {
@@ -226,7 +228,7 @@ describe('MeasureRows', () => {
           const fiber = yield* Effect.forkChild(
             takeMessages(
               MeasureRows({ attribute: 'data-key' }).f(list, Mount.liveViewStateChanges),
-              2,
+              3,
             ),
           )
           yield* settle
@@ -246,6 +248,7 @@ describe('MeasureRows', () => {
         }),
       )
       expect(values).toEqual([
+        RowsMeasured.make({ rows: [{ key: 'a', height: 20 }] }),
         RowsMeasured.make({
           rows: [
             { key: 'b', height: 30 },

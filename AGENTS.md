@@ -621,12 +621,14 @@ Foldkit's own behaviour that we work around is listed in
   take it between: CI's cloudflare e2e failed "Port 41893 is already in use",
   `strictPort` or not. Start an e2e server with `onFreePort(() =>
   vite.listen())` (`scripts/free-port.mjs`), which retries only that error.
-- **The streams of a `Stream.merge` start a timer task apart, and a frame
-  can be drawn between.** WindowList's Mount merged the viewport's reading
-  and the rows' observer; on a loaded CI runner the first `Placed` was drawn
-  before the observer began, and the rows it took away were never measured.
-  CPU throttling never reproduced it; deferring every zero-delay
-  `setTimeout` to a frame did, every run (`windowList.browser.test.ts`).
+- **A ResizeObserver's first report comes after the frame's animation
+  callbacks.** WindowList's Mount observed the rows drawn and placed the
+  list; the frame that drew the placement ran first and took rows away,
+  which were never measured (#398). CPU throttling never reproduced it;
+  deferring every zero-delay `setTimeout` to a frame did, every run.
+  Holding the placement for that report placed the list a frame late, after
+  domains-plus's first reads, which then looped (#399). Read what is drawn
+  synchronously when observing starts.
 - **A runtime disposed before its Subscriptions start never ends their
   streams.** `embed(...).dispose()` in the same tick as boot (React
   StrictMode's mount, unmount, mount) interrupts the Subscription fibers

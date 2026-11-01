@@ -472,7 +472,10 @@ export type RowsMeasured = typeof RowsMeasured.Type
  * list rather than a Mount per row: each child carrying `attribute` is a
  * row, its value the row's key. A row is reported when it is drawn and on
  * every resize after, and the rows one frame resized arrive in one batch,
- * so a list's first draw is one Message, not one per row.
+ * so a list's first draw is one Message, not one per row. The rows already
+ * drawn when it starts are read at once, and reported first, as a batch that
+ * may be empty: a row the next frame takes away would otherwise go before
+ * the observer's first report. A row of no height is left to the observer.
  */
 export const MeasureRows = Mount.defineStream('MeasureRows', {
   messages: [RowsMeasured],
@@ -514,6 +517,16 @@ export const MeasureRows = Mount.defineStream('MeasureRows', {
             const children = new MutationObserver(reconcile)
             children.observe(element, { childList: true })
             reconcile()
+            Queue.offerUnsafe(
+              queue,
+              RowsMeasured.make({
+                rows: Array.from(observed).flatMap(row => {
+                  const key = row.getAttribute(attribute)
+                  const height = row.getBoundingClientRect().height
+                  return key === null || height === 0 ? [] : [{ key, height }]
+                }),
+              }),
+            )
             return () => {
               children.disconnect()
               sizes.disconnect()

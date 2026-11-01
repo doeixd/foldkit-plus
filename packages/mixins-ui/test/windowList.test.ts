@@ -1,17 +1,13 @@
-// @vitest-environment jsdom
 /**
  * WindowList's Model: a reading equal to the one held returns the Model it
  * was given, a poisoned height is ignored, `keep` lets departed rows go, and
  * `windowOf` covers the part of the viewport over the list plus the overscan,
  * whether the list is above, across or below the viewport, and under
  * `unmeasured: 'mean'` a row not yet measured counts the mean of those measured. A Scene of a page
- * drawing the list resolves its one Mount through the page's own Message,
- * and the Mount places the list where nothing can measure its rows.
+ * drawing the list resolves its one Mount through the page's own Message.
  */
-import { Duration, Effect, Option, Stream } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
-import * as Mount from 'foldkit/mount'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
 import { WindowList } from '../src/index.js'
@@ -160,20 +156,6 @@ describe('WindowList.windowOf', () => {
     ).model
     // The viewport over 100..200 is all of row 1, the second 100px row.
     expect(WindowList.windowOf(tall, keys)).toEqual({ start: 0, end: 4 })
-  })
-})
-
-describe('WindowList.Track', () => {
-  it('places the list where no ResizeObserver measures its rows', async () => {
-    expect(globalThis.ResizeObserver).toBeUndefined()
-    const root = document.createElement('div')
-    const first = await Effect.runPromise(
-      WindowList.Track()
-        .f(root, Mount.liveViewStateChanges)
-        .pipe(Stream.runHead, Effect.timeout(Duration.seconds(1))),
-    )
-    // jsdom lays nothing out: the list reads as at the viewport's top.
-    expect(Option.getOrThrow(first)).toMatchObject({ _tag: 'Placed', height: 768 })
   })
 })
 

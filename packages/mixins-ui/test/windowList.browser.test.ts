@@ -203,8 +203,8 @@ describe.each([
 test('a frame drawn while the Mount starts moves no row away unmeasured', async () => {
   await page.viewport(1280, 800)
   // A loaded page paints between tasks: each zero-delay timer, which is how
-  // Effect hands work to the next fiber, waits here for a frame. On CI one
-  // landed between the viewport's first reading and the rows' observer (#398).
+  // Effect hands work to the next fiber, waits here for a frame. On CI the
+  // frame that placed the list ran before the rows' observer reported (#398).
   vi.stubGlobal('setTimeout', (handler: TimerHandler, delay?: number, ...rest: unknown[]) =>
     delay === undefined || delay === 0
       ? requestAnimationFrame(() => setTimeout(handler, 0, ...rest))

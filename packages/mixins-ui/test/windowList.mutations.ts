@@ -147,8 +147,9 @@ export default [
     edits: [
       {
         file,
-        find: 'Stream.map(({ top, height }) => Message.Placed({ top, height })),',
-        replace: 'Stream.map(({ top, height }) => Message.Placed({ top: top * 0, height })),',
+        find: '.pipe(Stream.map(({ top, height }) => Message.Placed({ top, height }))),',
+        replace:
+          '.pipe(Stream.map(({ top, height }) => Message.Placed({ top: top * 0, height }))),',
       },
     ],
     tests: browser,
@@ -158,38 +159,33 @@ export default [
     edits: [
       {
         file,
-        find: 'Stream.map(({ rows }) => Message.Measured({ rows })),',
-        replace: 'Stream.drain,',
+        find: '.pipe(Stream.map(({ rows }) => Message.Measured({ rows }))),',
+        replace: '.pipe(Stream.drain),',
       },
     ],
     tests: browser,
   },
   {
-    name: 'the list is placed before any row is measured',
+    name: 'the rows drawn as MeasureRows starts are not read',
     edits: [
       {
-        file,
-        find: 'Stream.fromEffectDrain(measuring.await)',
-        replace: 'Stream.fromEffectDrain(Effect.void)',
+        file: '../../primitives/src/state/virtual.ts',
+        find: 'return key === null || height === 0 ? [] : [{ key, height }]',
+        replace: 'return []',
       },
     ],
-    tests: browser,
+    tests: [...browser, 'packages/primitives/test/virtual-mounts.test.ts'],
   },
   {
-    name: 'the list waits for a measure where nothing measures',
+    name: 'a row of no height is read as it starts',
     edits: [
       {
-        file,
-        find: 'Latch.make(globalThis.ResizeObserver === undefined)',
-        replace: 'Latch.make(false)',
+        file: '../../primitives/src/state/virtual.ts',
+        find: 'return key === null || height === 0 ? [] : [{ key, height }]',
+        replace: 'return key === null ? [] : [{ key, height }]',
       },
     ],
-    tests: unit,
-  },
-  {
-    name: 'the list is never placed',
-    edits: [{ file, find: 'Stream.onFirst(() => measuring.open),', replace: '' }],
-    tests: browser,
+    tests: ['packages/primitives/test/virtual-mounts.test.ts'],
   },
   {
     name: "a Scene's reading skips the page's onMessage",
