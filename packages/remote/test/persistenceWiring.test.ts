@@ -7,6 +7,7 @@
  */
 import { Effect, Option, Schema, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
+import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity as DomainEntity } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
@@ -59,7 +60,7 @@ const storeWith = (actor: string, name: string) =>
         scope: actor,
       })
       return yield* KeyValueStore.KeyValueStore
-    }).pipe(Effect.provide(KeyValueStore.layerMemory)),
+    }).pipe(Effect.provide(KeyValueStore.layerMemory), Effect.provide(TestClock.layer())),
   )
 
 /** What a Subscription entry does: its stream for the Model's dependencies, collected. */
@@ -78,6 +79,8 @@ const step = <D>(
   return Effect.runPromise(
     Stream.runCollect(entry.dependenciesToStream(dependencies, () => dependencies)).pipe(
       Effect.provideService(KeyValueStore.KeyValueStore, kv),
+      // The rows were fetched at 0: read and written at 0, none has expired.
+      Effect.provide(TestClock.layer()),
     ),
   ).then(collected => [...collected])
 }
@@ -97,7 +100,12 @@ describe('persistence', () => {
   it('restores in init as the entry would, and the entry then restores nothing more', async () => {
     const kv = storeWith('ada', 'Apollo')
     const started = await Effect.runPromise(
-      cache.restore(fresh('ada')).pipe(Effect.provideService(KeyValueStore.KeyValueStore, kv)),
+      cache
+        .restore(fresh('ada'))
+        .pipe(
+          Effect.provideService(KeyValueStore.KeyValueStore, kv),
+          Effect.provide(TestClock.layer()),
+        ),
     )
     const messages = await step(kv, restore, fresh('ada'))
     expect(started).toEqual(messages.reduce(Data.reduce, fresh('ada')))

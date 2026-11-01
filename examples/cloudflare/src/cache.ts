@@ -1,4 +1,4 @@
-/** What the browser keeps of the list, per actor: `app.ts`'s `remoteCache` stores it. */
+/** What the browser keeps of the list, per actor, for `maxAge`: `app.ts`'s `remoteCache` stores it. */
 import { entityKey, type Edge, type RemoteModel } from 'foldkit-remote'
 import { RemotePersistence, type Snapshot } from 'foldkit-remote/persistence'
 import { AllTodos } from './operations.js'
@@ -22,13 +22,18 @@ const inStore = (remote: RemoteModel, edge: Edge): boolean => {
 export const snapshotFor = (
   remote: RemoteModel,
   shown: (remote: RemoteModel, connection: string) => ReadonlyArray<Edge>,
+  options: { readonly maxAge: number },
 ): Snapshot => {
   const ref = AllTodos.ref({})
-  const base = RemotePersistence.snapshotOf(remote, { connections: [ref.identity] })
+  const base = RemotePersistence.snapshotOf(remote, {
+    connections: [ref.identity],
+    maxAge: options.maxAge,
+  })
   const identity = ref.identity
-  if (base.connections[identity] === undefined) return base
+  const list = base.connections[identity]
+  if (list === undefined) return base
   // An edge whose row the snapshot does not hold cannot assemble, and the
   // whole list would fail.
   const edges = shown(remote, identity).filter(edge => inStore(remote, edge))
-  return { entities: base.entities, connections: { [identity]: [edges] } }
+  return { ...base, connections: { [identity]: { ...list, segments: [edges] } } }
 }

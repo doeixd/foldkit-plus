@@ -72,6 +72,7 @@ import {
   heldRoots,
   noRecentRoots,
   reachable,
+  type ReadRoot,
   type RecentRoots,
   type Retained,
   type RetentionRoots,
@@ -83,11 +84,12 @@ import {
   QueryRequest,
   ReadBatchResult,
   ReadRequest,
+  readRequestFields,
   RelationRequest,
   SettledFields,
   type RemoteLiveRefused,
 } from './wire.js'
-import { put } from './record.js'
+import { own, put } from './record.js'
 import { remoteErrorSchema, type RemoteError } from './remoteData.js'
 import type { LivePolicy } from './query.js'
 
@@ -427,6 +429,12 @@ export type RemoteMessage =
       readonly connections?:
         | Readonly<Record<string, ReadonlyArray<ReadonlyArray<Edge>>>>
         | undefined
+      /**
+       * When the page that last answered each restored connection whole
+       * arrived, by identity: its age, kept across the reload. 0 for one not
+       * named.
+       */
+      readonly receivedAt?: Readonly<Record<string, number>> | undefined
       readonly merge: MergePolicy
       /** The storage key the snapshot was read from, when it was: `restoredFrom`. */
       readonly from?: string | undefined
@@ -597,13 +605,21 @@ export type RemoteMessage =
    */
   | { readonly _tag: 'CompletedReportDiagnostics' }
 
+const persistSchema = Schema.optional(Schema.Union([Schema.Number, Schema.Literal(false)]))
+
 export const retentionRootsSchema = Schema.Struct({
-  requirements: Schema.Array(ReadRequest),
+  requirements: Schema.Array(
+    Schema.Struct({ ...readRequestFields, persist: persistSchema }) as unknown as Schema.Codec<
+      ReadRoot,
+      ReadRoot
+    >,
+  ),
   connections: Schema.Array(
     Schema.Struct({
       identity: Schema.String,
       select: Schema.optional(RelationRequest),
       ages: Schema.optional(Schema.Boolean),
+      persist: persistSchema,
     }),
   ),
 })
@@ -632,6 +648,7 @@ export const remoteMessageCases = {
   RetentionChanged: { roots: retentionRootsSchema, budget: Schema.optional(Schema.Number) },
   Hydrated: {
     connections: Schema.optional(Schema.Unknown),
+    receivedAt: Schema.optional(Schema.Record(Schema.String, Schema.Number)),
     from: Schema.optional(Schema.String),
     entities: runtimeSchema,
     merge: Schema.Union([Schema.Literal('replace'), Schema.Literal('preserve-existing')]),
@@ -1661,7 +1678,7 @@ const reduceRemote = (
                 end: unknownBoundary,
               })),
               stale: true,
-              receivedAt: 0,
+              receivedAt: own(message.receivedAt, identity) ?? 0,
             },
           ] as const,
       )

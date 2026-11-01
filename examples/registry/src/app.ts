@@ -277,8 +277,8 @@ export const Shown = RemoteEdits.make(Data, ProductEdits)
 const cache = persistence(Data, {
   key: () => 'foldkit-registry/remote-cache',
   scope: () => 'registry',
-  snapshot: remote =>
-    RemotePersistence.snapshotOf(remote, { connections: Object.keys(remote.connections) }),
+  snapshot: (remote, { maxAge }) =>
+    RemotePersistence.snapshotOf(remote, { connections: Object.keys(remote.connections), maxAge }),
 })
 
 export const Products = ProductList.at({

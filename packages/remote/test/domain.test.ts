@@ -1528,6 +1528,8 @@ describe('Data.query reads a connection as a page of selected items', () => {
           end: cursor('p2'),
         },
         refreshes: true,
+        // A page without rows' fields still dates its list.
+        now: expect.any(Number),
       },
     ])
     // The wire request is rebuilt from the connection identity: the canonical encoded input.

@@ -115,7 +115,7 @@ const remoteWiring = Data.wiring(Crud.actives({ todos: Todos, editor: Rename }))
 export const remoteCache = persistence(Data, {
   key: model => cacheKey(model.actor),
   scope: model => model.actor,
-  snapshot: remote => snapshotFor(remote, Data.visibleItems),
+  snapshot: (remote, ages) => snapshotFor(remote, Data.visibleItems, ages),
 })
 
 /**

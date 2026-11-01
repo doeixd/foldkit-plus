@@ -23,7 +23,7 @@ export default [
     edits: [
       {
         file: cache,
-        find: 'connections: { [identity]: [edges] }',
+        find: 'connections: { [identity]: { ...list, segments: [edges] } }',
         replace: 'connections: base.connections',
       },
     ],
@@ -34,8 +34,8 @@ export default [
     edits: [
       {
         file: cache,
-        find: 'connections: { [identity]: [edges] }',
-        replace: 'connections: { [identity]: [] }',
+        find: 'connections: { [identity]: { ...list, segments: [edges] } }',
+        replace: 'connections: { [identity]: { ...list, segments: [] } }',
       },
     ],
     tests,
@@ -61,7 +61,7 @@ export default [
     edits: [
       {
         file: app,
-        find: 'snapshot: remote => snapshotFor(remote, Data.visibleItems),',
+        find: 'snapshot: (remote, ages) => snapshotFor(remote, Data.visibleItems, ages),',
         replace: '',
       },
     ],

@@ -5,6 +5,7 @@
  */
 import { Effect, Option, Schema, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
+import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { Entity, Order } from 'foldkit-entity'
@@ -89,7 +90,7 @@ const stored = Effect.runSync(
       { key: 'cache:ada', scope: 'ada' },
     )
     return yield* KeyValueStore.KeyValueStore
-  }).pipe(Effect.provide(KeyValueStore.layerMemory)),
+  }).pipe(Effect.provide(KeyValueStore.layerMemory), Effect.provide(TestClock.layer())),
 )
 
 const reload = (start: Model) =>
@@ -98,7 +99,11 @@ const reload = (start: Model) =>
 describe('A reload that restores in init', () => {
   it('draws the stored rows first, then the server’s, and never Loading', async () => {
     const start = await Effect.runPromise(
-      cache.restore(fresh).pipe(Effect.provideService(KeyValueStore.KeyValueStore, stored)),
+      cache.restore(fresh).pipe(
+        Effect.provideService(KeyValueStore.KeyValueStore, stored),
+        // The page was fetched at 0, and the reload comes before it expires.
+        Effect.provide(TestClock.layer()),
+      ),
     )
     const trace = await reload(start)
 

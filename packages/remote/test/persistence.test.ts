@@ -30,7 +30,7 @@ const { emptySnapshot } = RemotePersistence
  * connection could be declared to survive one. Most of these tests are about
  * the entity half and say so by construction.
  */
-const only = (entities: EntityStore) => ({ entities, connections: {} })
+const only = (entities: EntityStore) => ({ ...RemotePersistence.emptySnapshot, entities })
 
 const run = <A, E>(effect: Effect.Effect<A, E, KeyValueStore.KeyValueStore>) =>
   Effect.runPromise(Effect.provide(effect, KeyValueStore.layerMemory))

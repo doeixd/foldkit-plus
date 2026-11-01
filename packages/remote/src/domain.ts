@@ -76,6 +76,7 @@ import { stableStringify } from './query.js'
 import type { ConnectionSpec, QueryDescriptor, QueryRef, QueryWindow } from './query.js'
 import { remoteDataSchema, type RemoteData, type RemoteError } from './remoteData.js'
 import type { ConnectionRoot, RetentionRoots } from './retain.js'
+import { marked, persistOf, type PersistOption } from './persist.js'
 import { Selection, relationOf, type Page } from './selection.js'
 import { recent, type Recent } from './recent.js'
 import { INITIAL, LOADING, NOT_FOUND, failedWith, readRow } from './rowRead.js'
@@ -1078,6 +1079,13 @@ export interface RetainOptions {
   readonly connections?: ReadonlyArray<ConnectionIdentity> | undefined
   /** How long the roots must be stable before collecting; default none. */
   readonly grace?: Duration.Input | undefined
+  /**
+   * What `persistence(Data, …)` saves of what this reads: `{ maxAge }` in
+   * milliseconds, measured from when it was fetched, or `false` for none of
+   * it. Without it, the wiring's own `maxAge`. Where two calls that name one
+   * read the same row or list, `false` wins, else the longer age.
+   */
+  readonly persist?: PersistOption | undefined
 }
 
 /** `Remote.retain`'s options: a retain entry wired by hand says the budget itself. */
@@ -1548,6 +1556,8 @@ export const pageMessage = (
     select !== undefined &&
     ((result.entities !== undefined && result.entities.length > 0) ||
       (result.settled !== undefined && result.settled.length > 0))
+  // An empty page dates its list too: the age a saved list is judged by.
+  const dated = hasPayload ? (now ?? 0) : now
   return {
     _tag: 'ConnectionMerged',
     connection,
@@ -1562,12 +1572,9 @@ export const pageMessage = (
     ...(refreshes ? { refreshes } : {}),
     ...(select === undefined || !hasPayload ? {} : { select }),
     ...(hasPayload
-      ? {
-          entities: [...(result.entities ?? [])],
-          settled: [...(result.settled ?? [])],
-          now: now ?? 0,
-        }
+      ? { entities: [...(result.entities ?? [])], settled: [...(result.settled ?? [])] }
       : {}),
+    ...(dated === undefined ? {} : { now: dated }),
   }
 }
 
@@ -1591,10 +1598,13 @@ export const rootsOf = (
       select: current === undefined ? select : Requirement.mergeRelation(current, select),
     })
   }
-  return {
-    requirements: Requirement.merge(projections.flatMap(requirementsOf)),
-    connections: [...connections.values()].sort((a, b) => (a.identity < b.identity ? -1 : 1)),
-  }
+  return marked(
+    {
+      requirements: Requirement.merge(projections.flatMap(requirementsOf)),
+      connections: [...connections.values()].sort((a, b) => (a.identity < b.identity ? -1 : 1)),
+    },
+    persistOf(options.persist),
+  )
 }
 
 /** Reads requirements and reports the Message that settles them. Never fails. */

@@ -10,6 +10,7 @@ import { entityKey, readField, type EntityKey, type EntityStore } from './store.
 import type { Connection } from './connection.js'
 import type { OptimisticState } from './optimistic.js'
 import type { MutationState } from './ledger.js'
+import type { Persist } from './persist.js'
 
 /** A connection to keep: its identity, and what a page of it selects of each item, if a projection reads it. */
 export interface ConnectionRoot {
@@ -21,10 +22,15 @@ export interface ConnectionRoot {
    * is held stale, and going back refetches it.
    */
   readonly ages?: boolean | undefined
+  /** What the calls reading it say of saving it (`persist`); none when no call says. */
+  readonly persist?: Persist | undefined
 }
 
+/** A read to keep, and what the calls reading it say of saving it (`persist`). */
+export type ReadRoot = Requirement & { readonly persist?: Persist | undefined }
+
 export interface RetentionRoots {
-  readonly requirements: ReadonlyArray<Requirement>
+  readonly requirements: ReadonlyArray<ReadRoot>
   /** Connections (`QueryRef.identity`) to keep, with their edges' targets and what `select` reaches through them. */
   readonly connections: ReadonlyArray<ConnectionRoot>
 }

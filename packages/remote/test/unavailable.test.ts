@@ -220,7 +220,10 @@ describe('the mark survives', () => {
   const store = withheld(initial).remote.entities
 
   it('a persistence round trip, under a new cache version', () => {
-    const text = RemotePersistence.dehydrate({ entities: store, connections: {} })
+    const text = RemotePersistence.dehydrate({
+      ...RemotePersistence.emptySnapshot,
+      entities: store,
+    })
     expect(JSON.parse(text).version).toBe(REMOTE_CACHE_VERSION)
     expect(JSON.parse(text).entities[p1].unavailable).toEqual(['privateNotes'])
     expect(Option.map(RemotePersistence.hydrate(text), held => held.entities)).toEqual(
@@ -229,7 +232,10 @@ describe('the mark survives', () => {
   })
 
   it('is refused from a snapshot that lacks it', () => {
-    const text = RemotePersistence.dehydrate({ entities: store, connections: {} })
+    const text = RemotePersistence.dehydrate({
+      ...RemotePersistence.emptySnapshot,
+      entities: store,
+    })
     const older = JSON.parse(text)
     delete older.entities[p1].unavailable
     expect(RemotePersistence.hydrate(JSON.stringify(older))).toEqual(Option.none())

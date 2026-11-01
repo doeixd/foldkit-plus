@@ -120,7 +120,8 @@ const relationLevel = (depth: number): Schema.Codec<RelationRequirement, Relatio
 
 export const RelationRequest = relationLevel(MAX_RELATION_DEPTH - 1)
 
-export const ReadRequest: Schema.Codec<Requirement, Requirement> = Schema.Struct({
+/** A read's fields, which a retention root (`model.ts`) carries too. */
+export const readRequestFields = {
   entity: Schema.String,
   id: Schema.String,
   fields: Fields,
@@ -128,7 +129,11 @@ export const ReadRequest: Schema.Codec<Requirement, Requirement> = Schema.Struct
   windows: Schema.optional(Schema.Record(Schema.String, WindowSchema)),
   /** The slice required of each relation field's target, resolved in the same read. */
   relations: Schema.optional(Schema.Record(Schema.String, RelationRequest)),
-}) as unknown as Schema.Codec<Requirement, Requirement>
+}
+
+export const ReadRequest: Schema.Codec<Requirement, Requirement> = Schema.Struct(
+  readRequestFields,
+) as unknown as Schema.Codec<Requirement, Requirement>
 
 export const ReadBatch = Schema.Struct({
   version: Schema.Number,

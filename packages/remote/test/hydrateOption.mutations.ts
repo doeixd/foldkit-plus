@@ -15,7 +15,7 @@ export default [
     edits: [
       {
         file,
-        find: 'return Option.some(deserializeStore(candidate as SerializedStore))',
+        find: 'return Option.some(options.now === undefined ? snapshot : unexpired(snapshot, options.now))',
         replace: 'return Option.none()',
       },
     ],

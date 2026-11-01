@@ -3,8 +3,9 @@
  * The list kept in the browser. A snapshot is the server's rows for one actor.
  * A pending edit is not in it, and another actor's snapshot does not paint.
  */
-import { Effect, Option, Stream } from 'effect'
+import { Effect, Fiber, Option, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
+import { TestClock } from 'effect/testing'
 import { Remote, RemoteData } from 'foldkit-remote'
 import { RemotePersistence } from 'foldkit-remote/persistence'
 import { describe, expect, it } from 'vitest'
@@ -46,10 +47,20 @@ const titles = (model: Model): ReadonlyArray<string> =>
       }),
   })
 
+/**
+ * The pages here are dated 0 (`Remote.queryMessage` given no time), so the
+ * cache is written and read with the clock at 0, before any of them expires.
+ */
+const clock = TestClock.layer()
+
+/** A day, as the page's cache keeps a row. */
+const day = { maxAge: 86_400_000 }
+
 const edgeIds = (model: Model): ReadonlyArray<string> => {
-  const segments =
-    snapshotFor(model.remote, Data.visibleItems).connections[AllTodos.ref({}).identity] ?? []
-  return segments.flatMap(segment => segment.map(edge => edge.ref.id))
+  const list = snapshotFor(model.remote, Data.visibleItems, day).connections[
+    AllTodos.ref({}).identity
+  ]
+  return (list?.segments ?? []).flatMap(segment => segment.map(edge => edge.ref.id))
 }
 
 const succeed = (model: Model, requestId: string, id: string, title: string): Model =>
@@ -67,13 +78,13 @@ const storeWith = (
   Effect.runSync(
     Effect.gen(function* () {
       for (const { key, actor, loaded } of stored) {
-        yield* RemotePersistence.save(snapshotFor(loaded.remote, Data.visibleItems), {
+        yield* RemotePersistence.save(snapshotFor(loaded.remote, Data.visibleItems, day), {
           key,
           scope: actor,
         })
       }
       return yield* KeyValueStore.KeyValueStore
-    }).pipe(Effect.provide(KeyValueStore.layerMemory)),
+    }).pipe(Effect.provide(KeyValueStore.layerMemory), Effect.provide(clock)),
   )
 
 /** What the page's persistence wiring restores into `model` from `kv`. */
@@ -83,6 +94,7 @@ const restored = async (kv: KeyValueStore.KeyValueStore, model: Model): Promise<
   const messages = await Effect.runPromise(
     Stream.runCollect(restore.dependenciesToStream(dependencies, () => dependencies)).pipe(
       Effect.provideService(KeyValueStore.KeyValueStore, kv),
+      Effect.provide(clock),
     ),
   )
   return [...messages].reduce(Data.reduce, model)
@@ -93,9 +105,13 @@ const saved = async (kv: KeyValueStore.KeyValueStore, model: Model): Promise<voi
   const save = remoteCache.subscriptions!['persistence.save']!
   const dependencies = save.modelToDependencies(model)
   await Effect.runPromise(
-    Stream.runDrain(save.dependenciesToStream(dependencies, () => dependencies)).pipe(
-      Effect.provideService(KeyValueStore.KeyValueStore, kv),
-    ),
+    Effect.gen(function* () {
+      const writing = yield* Effect.forkChild(
+        Stream.runDrain(save.dependenciesToStream(dependencies, () => dependencies)),
+      )
+      yield* TestClock.adjust('250 millis')
+      yield* Fiber.join(writing)
+    }).pipe(Effect.provideService(KeyValueStore.KeyValueStore, kv), Effect.provide(clock)),
   )
 }
 
@@ -188,7 +204,8 @@ describe('snapshot', () => {
   it('stores an empty page as one empty segment', async () => {
     const loaded = pageOf(initial('ada'), [])
     expect(
-      snapshotFor(loaded.remote, Data.visibleItems).connections[AllTodos.ref({}).identity],
+      snapshotFor(loaded.remote, Data.visibleItems, day).connections[AllTodos.ref({}).identity]
+        ?.segments,
     ).toEqual([[]])
     const model = await restored(storeWith([own('ada', loaded)]), initial('ada'))
     expect(Todos.page(model)._tag).toBe('Refreshing')

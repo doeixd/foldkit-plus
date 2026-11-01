@@ -37,8 +37,8 @@ export default [
     edits: [
       {
         file,
-        find: "merge: 'preserve-existing',\n        from: key,",
-        replace: "merge: 'preserve-existing',",
+        find: "hydrated(snapshot, { merge: 'preserve-existing', from: key })",
+        replace: "hydrated(snapshot, { merge: 'preserve-existing' })",
       },
     ],
     tests,
@@ -59,8 +59,8 @@ export default [
     edits: [
       {
         file,
-        find: "merge: 'preserve-existing',\n        from: key,",
-        replace: "merge: 'replace',\n        from: key,",
+        find: "hydrated(snapshot, { merge: 'preserve-existing', from: key })",
+        replace: "hydrated(snapshot, { merge: 'replace', from: key })",
       },
     ],
     tests,
@@ -129,7 +129,13 @@ export default [
   },
   {
     name: 'an oversized snapshot leaves the older one stored',
-    edits: [{ file, find: 'onNone: () => kv.remove(key),', replace: 'onNone: () => Effect.void,' }],
+    edits: [
+      {
+        file,
+        find: 'if (text === undefined) yield* kv.remove(options.key)',
+        replace: 'if (text === undefined) yield* Effect.void',
+      },
+    ],
     tests,
   },
 ]

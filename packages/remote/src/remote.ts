@@ -84,6 +84,7 @@ import { IDENTITY_SEPARATOR, queryIdentity, stableStringify } from './query.js'
 import type { ConnectionSpec, QueryDescriptor, QueryRef } from './query.js'
 import { remoteDataSchema, type RemoteData, type RemoteError } from './remoteData.js'
 import type { RetentionRoots } from './retain.js'
+import { combinePersist, marked, persistOf, withPersist, type Persist } from './persist.js'
 import { Selection, pageSchema, type Page } from './selection.js'
 import { sameData } from './data.js'
 import { recent } from './recent.js'
@@ -1011,6 +1012,8 @@ const bindDomain = <
   // Whether every call naming a reader ages what it reads: a list only such
   // readers read keeps its age once left, rather than going stale.
   const ageing = new Map<ActiveEntry<AppModel>, boolean>()
+  // What the calls naming a reader say of saving what it reads (`persist`).
+  const persisting = new Map<ActiveEntry<AppModel>, Persist>()
   // An application-union case has the runtime shape of the `RemoteMessage` it names.
   const reduce = (model: AppModel, message: RemoteMessage | RemoteMessageInput): AppModel => {
     const live =
@@ -1673,9 +1676,12 @@ const bindDomain = <
       const entries: Record<string, RemoteEntry<AppModel, any>> = {}
       // Checked before any reader joins the domain, so a refused call adds none.
       for (const entry of Object.values(active)) assertOwned(entry)
+      const persist = persistOf(options.persist)
       for (const [key, entry] of Object.entries(active)) {
         const resolvedAt = readers.get(entry) ?? memoizedResolved(entry)
         readers.set(entry, resolvedAt)
+        if (persist !== undefined)
+          persisting.set(entry, combinePersist(persisting.get(entry), persist))
         ageing.set(
           entry,
           (ageing.get(entry) ?? true) && options.policy?._tag === 'StaleWhileRevalidate',
@@ -1696,13 +1702,19 @@ const bindDomain = <
         dependenciesSchema: retentionRootsSchema,
         modelToDependencies: model => {
           const unaged = new Set<string>()
+          const said: Array<RetentionRoots> = []
           const projections = [...readers].flatMap(([entry, resolvedAt]) => {
             const read = resolvedAt(model).map(({ projection }) => projection)
             if (ageing.get(entry) !== true)
               for (const { identity } of read.flatMap(connectionsOf)) unaged.add(identity)
+            const persist = persisting.get(entry)
+            if (persist !== undefined) said.push(marked(rootsOf(read, {}), persist))
             return read
           })
-          const roots = rootsOf(projections, { connections: [...keptConnections] })
+          const roots = withPersist(
+            rootsOf(projections, { connections: [...keptConnections] }),
+            said,
+          )
           return {
             ...roots,
             connections: roots.connections.map(root =>
