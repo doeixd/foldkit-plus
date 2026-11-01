@@ -1,6 +1,6 @@
 # fate's cache, against Remote, and what we change
 
-Status: plan (2026-11-01); #401 and #402 built. The source is fate's own documentation, read
+Status: plan (2026-11-01); #401 to #405 built. The source is fate's own documentation, read
 from its repository at af7e5ae (2026-10-29): the Requests, Actions, List
 Views, Live Views, Deferred Views and Persistence guides, and the 1.0
 announcement. A companion to
@@ -60,7 +60,7 @@ and each view sees only the fields it selected.
 | Live | The server names what changed | The server re-reads through `readAs` and runs each list's window again, resuming from a cursor |
 | Saved reads | Per request, with its own `maxAge`, least recently used evicted, loaded lazily | One snapshot within `maxBytes`, each row and list with its own `maxAge` (#404), least recently read evicted, restored whole through `flags` before `init` |
 | Offline writes | As above | The outbox: the same order, identity, ledger and tab rules |
-| A write the session no longer covers | Waits for sign-in | Waits for sign-in (`WaitingForSignIn`, #403); `Forbidden` settles it as `Failed` |
+| A write the session no longer covers | Waits for sign-in | Waits for sign-in (`WaitingForSignIn`, #403); `Forbidden` settles it as `Failed`; one made for someone else than the cookie names is refused unrun and waits for them (#405) |
 
 ## What we keep, and why
 
@@ -140,6 +140,17 @@ Four changes, in this order. Each is its own issue.
      read back through `OutboxRead` like any other, so every tab shows it; a
      reload keeps it waiting until `Data.signedIn`, since only the
      application knows who signed in.
+   - Then (#405): the outbox kept one person's queue apart by the app's
+     `scope` alone, so a stale scope sent a write as whoever the cookie named.
+     Every answer now says whom it was for (`principal`, the server
+     `viewer`'s key), a durable write is stamped with the last one heard and
+     sent naming it, and `RemoteServer.handlers` refuses it, before its Source
+     or a ledger's replay runs, as `PrincipalChanged` (or `Unauthenticated` for
+     a visitor); the outbox keeps it `WaitingForSignIn`. A visitor's write
+     waiting under the visitor's queue moves to the queue of whoever signs in
+     first, once an answer names them, reported once as `OutboxMoved`. Left
+     open: a write queued before any answer on a page names no one, and runs
+     as whoever asks; whom the page heard is not kept across a reload.
 4. **Saved reads with their own age and an eviction order** (#404).
    `persistence(Data, …)` takes `maxAge` (default one day), and a
    `Data.subscriptions` call can pass `persist: { maxAge }` or `persist:
