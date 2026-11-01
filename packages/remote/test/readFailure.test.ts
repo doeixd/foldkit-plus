@@ -142,6 +142,18 @@ describe('A read that failed before the value arrived', () => {
     expect(named.read(started)._tag).toBe('Loading')
   })
 
+  it('stays planned while that read is in flight, and leaves the plan once it fails', () => {
+    // An entry restarted on a Model a beat behind its answers starts such a
+    // read; dropping the field would interrupt it and leave it Loading for good.
+    const started = Data.reduce(failedRead(initial), {
+      _tag: 'ReadStarted',
+      requests: [nameOf('p1')],
+    })
+
+    expect(Remote.plan(Data, started, named)).toEqual([nameOf('p1')])
+    expect(Remote.plan(Data, failedRead(started), named)).toEqual([])
+  })
+
   it('shows in the inspection a DevTools panel reads', () => {
     expect(Object.values(Remote.inspect(failedRead(initial).remote).failures.fields)).toEqual([
       down,

@@ -26,6 +26,7 @@ import {
   ReadBatchResult,
   Selection,
   type ReadDependencies,
+  RemoteReadError,
   type RemoteMessage,
 } from '../src/index.js'
 
@@ -85,7 +86,7 @@ type Answer = typeof ReadBatchResult.Type
 
 interface Held {
   readonly batch: Batch
-  readonly resume: (exit: Exit.Exit<Answer>) => void
+  readonly resume: (exit: Exit.Exit<Answer, RemoteReadError>) => void
 }
 
 const answerOf = (batch: Batch): Answer => ({
@@ -110,7 +111,7 @@ const drive = (start: Model, policy: RemotePolicy) => {
 
   const client: RemoteClient['Service'] = {
     read: batch =>
-      Effect.callback<Answer>(resume => {
+      Effect.callback<Answer, RemoteReadError>(resume => {
         const request: Held = { batch, resume }
         held.push(request)
         return Effect.sync(() => {
@@ -162,14 +163,15 @@ const drive = (start: Model, policy: RemotePolicy) => {
     reconcile()
   }
 
-  /** Answers the held read asking for `id`; its `ReadReceived` is queued, not reduced. */
-  const answer = (id: string) => {
+  /** Settles the held read asking for `id` with `exit`; its Message is queued, not reduced. */
+  const settleRead = (id: string, exit: (batch: Batch) => Exit.Exit<Answer, RemoteReadError>) => {
     const request = held.find(({ batch }) => batch.requests.some(r => r.id === id))
     if (request === undefined) throw new Error(`no read of ${id} is held`)
     held.splice(held.indexOf(request), 1)
-    request.resume(Exit.succeed(answerOf(request.batch)))
+    request.resume(exit(request.batch))
     settle()
   }
+  const answer = (id: string) => settleRead(id, batch => Exit.succeed(answerOf(batch)))
 
   return {
     model: () => model,
@@ -180,6 +182,8 @@ const drive = (start: Model, policy: RemotePolicy) => {
       model = { ...model, visible }
     },
     answer,
+    /** Fails the held read asking for `id`; its `ReadFailed` is queued, not reduced. */
+    fail: (id: string) => settleRead(id, () => Exit.fail(new RemoteReadError({ message: 'down' }))),
     reconcile,
     /** Reduces every queued Message, answering nothing. */
     drain: () => {
@@ -236,6 +240,42 @@ describe('two overlapping reads', () => {
           })
       })
     }
+  }
+})
+
+describe('two overlapping reads that fail', () => {
+  for (const policy of [
+    RemotePolicy.staleWhileRevalidate({ maxAge: 60_000 }),
+    RemotePolicy.cacheFirst,
+  ]) {
+    it(`end Failed under ${policy._tag} when a restart lands behind the second failure`, () => {
+      const driver = drive(start, policy)
+      driver.reconcile()
+      driver.drain()
+      expect(driver.held()).toEqual([top, names])
+
+      // Both fail. The visible entry restarts on the top read's failure,
+      // planning the names its own failure, queued already, is about to fail:
+      // its `ReadStarted` lands after that failure. Dropping those names as
+      // failed then interrupted the restart's read, and they read Loading for
+      // good (domains-plus's search sat at "Checking" with no Try again).
+      driver.fail('n0')
+      driver.fail('n9')
+      driver.drain()
+      // A server down for good: every read sent from here fails too.
+      for (let round = 0; round < 10 && driver.held().length > 0; round++) {
+        for (const [id] of driver.held()) driver.fail(id!)
+        driver.drain()
+      }
+
+      expect(driver.held()).toEqual([])
+      const model = driver.model()
+      for (const name of names)
+        expect(Data.get(Quote, name).read(model)).toEqual({
+          _tag: 'Failed',
+          error: { _tag: 'RemoteReadError', message: 'down' },
+        })
+    })
   }
 })
 

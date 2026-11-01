@@ -52,6 +52,7 @@ import type { RemoteInspection } from './inspect.js'
 import type { LiveCursor } from './liveState.js'
 import {
   failureOf,
+  fieldMark,
   initialRemoteModel,
   isFieldFailed,
   isLoadingThrough,
@@ -1518,6 +1519,12 @@ export const planAsked = (
  * a failed field is shown rather than retried on its own, so a persistent
  * error is not asked again on every unrelated restart of the read entry. A
  * field leaving the request takes its window and its relation with it.
+ *
+ * A failed field a read has started since is kept: it reads `Loading`, and
+ * only that read's answer settles it. An entry restarted on a Model a beat
+ * behind its own answers starts such a read (its plan predates the failure
+ * that lands first), and dropping the field from the next plan would
+ * interrupt that read and leave the field `Loading` for good.
  */
 const withoutFailedFields = (
   remote: RemoteModel,
@@ -1526,7 +1533,9 @@ const withoutFailedFields = (
   if (Object.keys(remote.failures.fields).length === 0) return planned
   return planned.flatMap(requirement => {
     const fields = requirement.fields.filter(
-      field => !isFieldFailed(remote, requirement.entity, requirement.id, field),
+      field =>
+        !isFieldFailed(remote, requirement.entity, requirement.id, field) ||
+        remote.loading.has(fieldMark(requirement.entity, requirement.id, field)),
     )
     if (fields.length === requirement.fields.length) return [requirement]
     if (fields.length === 0) return []

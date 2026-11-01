@@ -107,4 +107,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a failed field a read has started since is dropped from the plan',
+    edits: [
+      {
+        file: '../src/domain.ts',
+        find: '        remote.loading.has(fieldMark(requirement.entity, requirement.id, field)),',
+        replace: '        false,',
+      },
+    ],
+    tests: [...tests, 'packages/remote/test/readFailure.test.ts'],
+  },
 ]

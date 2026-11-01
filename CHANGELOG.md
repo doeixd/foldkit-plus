@@ -675,7 +675,12 @@ version changed; `pnpm` skips versions already in the registry.
   holds it (aged out, forced, or under another window): `ReadDependencies`
   carries it as `refreshes`, computed by the new `refreshedOf(store,
   planned, options)` beside `plan`, and its `refreshing` names a held list
-  only when it aged out or is forced.
+  only when it aged out or is forced. A failed field a read has started
+  since stays in the plan until that read answers: with the mark no longer
+  clearing failures, a restart planned a beat behind its answers started
+  such a read, the next plan dropped the field as failed and interrupted it,
+  and the field read `Loading` for good (domains-plus's failed search showed
+  no Try again).
 
 - **A second submit of an unchanged form keeps its Model** (`foldkit-form`,
   #387). It handed the value out again in a new, equal Model, so a parent that
