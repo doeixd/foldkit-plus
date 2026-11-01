@@ -19,8 +19,15 @@
  * measured. A row is drawn `display: flow-root`, so space rows with
  * padding, not margins. `@foldkit/ui`'s `VirtualList` is the list in a box
  * of its own.
+ *
+ * A server's page can open the list at a row (`init({ from })`): its window
+ * starts there, and the rows above it take no room until `Track` places the
+ * list, which gives them their room and scrolls the window by as much, so
+ * the row stays where the reader saw it. A page without scripts draws that
+ * window in the page's flow (`Recipes.WindowList` hides the spacers) and
+ * pages by links (`pageOf`).
  */
-import { Schema, Stream } from 'effect'
+import { Effect, Option, Schema, Stream } from 'effect'
 import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { Scene } from 'foldkit/test'
@@ -58,6 +65,8 @@ export const Model = Schema.Struct({
   heights: Schema.Record(Schema.String, Schema.Number),
   /** Where the viewport lies over the list: its top past the list's top, and its height. */
   viewport: Schema.Struct({ top: Schema.Number, height: Schema.Number }),
+  /** The row the window starts at until the list is placed; 0 after. */
+  from: Schema.Number,
 })
 export type Model = typeof Model.Type
 
@@ -90,18 +99,34 @@ export interface InitConfig {
    * Default 1000.
    */
   readonly viewportHeight?: number
+  /**
+   * The row the list opens at, as a page's address names it (`?from=`): the
+   * window starts at that row, with no overscan above it, until the list is
+   * placed; a row past the last viewport's worth opens that last viewport.
+   * Default 0.
+   */
+  readonly from?: number
 }
 
-/** A list with nothing measured. Throws on an estimate that is not above 0 or an overscan below 0. */
+/**
+ * A list with nothing measured. Throws on an estimate that is not above 0, or
+ * an overscan or a `from` that is not a whole number.
+ */
 export const init = (config: InitConfig): Model => {
   const overscan = config.overscan ?? 5
+  const from = config.from ?? 0
   if (!(config.estimatedHeight > 0 && Number.isFinite(config.estimatedHeight))) {
     throw new Error(
       `WindowList ${config.id}: estimatedHeight must be above 0, given ${config.estimatedHeight}`,
     )
   }
-  if (!Number.isInteger(overscan) || overscan < 0) {
-    throw new Error(`WindowList ${config.id}: overscan must be a whole number, given ${overscan}`)
+  for (const [name, value] of [
+    ['overscan', overscan],
+    ['from', from],
+  ] as const) {
+    if (!Number.isInteger(value) || value < 0) {
+      throw new Error(`WindowList ${config.id}: ${name} must be a whole number, given ${value}`)
+    }
   }
   return {
     id: config.id,
@@ -110,6 +135,7 @@ export const init = (config: InitConfig): Model => {
     overscan,
     heights: {},
     viewport: { top: 0, height: config.viewportHeight ?? 1000 },
+    from,
   }
 }
 
@@ -131,9 +157,9 @@ const withHeights = (model: Model, heights: Model['heights']): Model => {
 export const update = (model: Model, message: Message): { readonly model: Model } =>
   Message.match(message, {
     Placed: ({ top, height }) =>
-      top === model.viewport.top && height === model.viewport.height
+      top === model.viewport.top && height === model.viewport.height && model.from === 0
         ? { model }
-        : { model: modifyFields(model, { viewport: () => ({ top, height }) }) },
+        : { model: modifyFields(model, { viewport: () => ({ top, height }), from: () => 0 }) },
     Measured: ({ rows }) => {
       // A poisoned reading is ignored; a row drawn again reports the height held.
       const changed = rows.filter(
@@ -175,21 +201,74 @@ const layoutOf = (model: Model): VirtualLayout => ({
 })
 
 /**
+ * The window of a list opened at `row`: the viewport's worth from that row,
+ * or from the last viewport's worth when `row` is past its start, and
+ * `overscan` more below.
+ */
+const openedAt = (model: Model, keys: ReadonlyArray<string>, row: number): VirtualWindow => {
+  const layout = layoutOf(model)
+  const { height } = model.viewport
+  const total = totalHeight(keys, model.heights, layout)
+  const last = visibleRange(keys, model.heights, layout, total - height, height, 0).start
+  const start = Math.min(row, last)
+  const top = offsetFor(start, keys, model.heights, layout)
+  return {
+    start,
+    end: visibleRange(keys, model.heights, layout, top, height, model.overscan).end,
+  }
+}
+
+/**
  * The rows drawn, `[start, end)`: those the viewport overlaps, and
- * `overscan` more at each end. Keep `keys` between calls: the offsets are
- * cached by its identity.
+ * `overscan` more at each end; until a list opened at a row is placed, the
+ * rows from that one. Keep `keys` between calls: the offsets are cached by
+ * its identity.
  */
 export const windowOf = (model: Model, keys: ReadonlyArray<string>): VirtualWindow =>
-  visibleRange(
-    keys,
-    model.heights,
-    layoutOf(model),
-    model.viewport.top,
-    // The part of the viewport below the list's top. A pixel at least, so a
-    // list wholly above or below the viewport keeps its overscan at that end.
-    Math.max(1, model.viewport.height + Math.min(0, model.viewport.top)),
-    model.overscan,
-  )
+  model.from === 0
+    ? visibleRange(
+        keys,
+        model.heights,
+        layoutOf(model),
+        model.viewport.top,
+        // The part of the viewport below the list's top. A pixel at least, so a
+        // list wholly above or below the viewport keeps its overscan at that end.
+        Math.max(1, model.viewport.height + Math.min(0, model.viewport.top)),
+        model.overscan,
+      )
+    : openedAt(model, keys, model.from)
+
+/**
+ * The rows drawn and the rows to open next, for links that page a list
+ * without scripts (`?from=`): `previous` is the first row whose window
+ * reaches this one's start, `next` this one's end; none at either end of
+ * the list.
+ */
+export interface Page {
+  readonly start: number
+  readonly end: number
+  readonly previous: Option.Option<number>
+  readonly next: Option.Option<number>
+}
+
+/** The page `windowOf` draws, and the rows the pages either side of it open at. */
+export const pageOf = (model: Model, keys: ReadonlyArray<string>): Page => {
+  const { start, end } = windowOf(model, keys)
+  // A window's end only grows with the row it opens at: search for the first that reaches.
+  let low = 0
+  let high = start
+  while (low < high) {
+    const middle = (low + high) >>> 1
+    if (openedAt(model, keys, middle).end >= start) high = middle
+    else low = middle + 1
+  }
+  return {
+    start,
+    end,
+    previous: start > 0 ? Option.some(low) : Option.none(),
+    next: end < keys.length ? Option.some(end) : Option.none(),
+  }
+}
 
 export type WindowListView<Item, Outer> = Readonly<{
   model: Model
@@ -209,6 +288,27 @@ export type WindowListView<Item, Outer> = Readonly<{
 
 /** The attribute naming a row's key, which `MeasureRows` files its height under. */
 const ROW_KEY = 'data-window-list-key'
+
+/**
+ * Set to 1 on `root` by `Track`: until then the start spacer of a list
+ * opened at a row takes no room, so the row drawn first is at the list's top.
+ */
+const PLACED = '--fk-window-list-placed'
+
+/**
+ * Gives the rows above a list opened at a row their room, and scrolls the
+ * window by what that moved the first row drawn, so it stays where it was
+ * seen. Measured, not taken from the spacer, so it holds whatever else
+ * moved the row.
+ */
+const place = (root: Element) => {
+  if (!(root instanceof HTMLElement)) return
+  const first = root.querySelector(`:scope > [${ROW_KEY}]`)
+  const before = first?.getBoundingClientRect().top ?? 0
+  root.style.setProperty(PLACED, '1')
+  const moved = (first?.getBoundingClientRect().top ?? 0) - before
+  if (moved !== 0) window.scrollBy({ top: moved, behavior: 'instant' })
+}
 
 // The keys of an items array, kept while the array and its key function are,
 // so the offsets table built from them is reused from one scroll to the next.
@@ -232,18 +332,26 @@ const keysOf = <Item>(
  * The list's one Mount, on its `root`: where the viewport lies over the list
  * (`WindowViewport`, as `Placed`) and the heights of the rows drawn
  * (`MeasureRows`, as `Measured`). A failure in either ends both, reported
- * as this Mount's. A Scene test resolves it with `resolveTrack`.
+ * as this Mount's. Before either reads, it gives the rows above a list opened
+ * at a row their room. A Scene test resolves it with `resolveTrack`.
  */
 export const Track = Mount.defineStream('WindowList.Track', {
   messages: [Message.Placed, Message.Measured],
   execute: ({ element, viewStateChanges }) =>
-    Stream.merge(
-      WindowViewport()
-        .f(element, viewStateChanges)
-        .pipe(Stream.map(({ top, height }) => Message.Placed({ top, height }))),
-      MeasureRows({ attribute: ROW_KEY })
-        .f(element, viewStateChanges)
-        .pipe(Stream.map(({ rows }) => Message.Measured({ rows }))),
+    // After the patch that inserted the list: a hydrating runtime compares
+    // the page it adopted with the server's once the patch ends.
+    Stream.unwrap(
+      Effect.map(Effect.yieldNow, () => {
+        place(element)
+        return Stream.merge(
+          WindowViewport()
+            .f(element, viewStateChanges)
+            .pipe(Stream.map(({ top, height }) => Message.Placed({ top, height }))),
+          MeasureRows({ attribute: ROW_KEY })
+            .f(element, viewStateChanges)
+            .pipe(Stream.map(({ rows }) => Message.Measured({ rows }))),
+        )
+      }),
     ),
 })
 
@@ -275,13 +383,13 @@ export const view = <Item, Outer>(
   const startHeight = offsetFor(start, keys, model.heights, layout)
   const endHeight =
     totalHeight(keys, model.heights, layout) - offsetFor(end, keys, model.heights, layout)
-  const spacer = (edge: 'start' | 'end', height: number) =>
+  const spacer = (edge: 'start' | 'end', blockSize: string) =>
     h.keyed('div')(
       `${model.id}-${edge}`,
       builders.spacer.attrs([
         h.DataAttribute('edge', edge),
         h.AriaHidden(true),
-        h.Style({ blockSize: `${height}px` }),
+        h.Style({ blockSize }),
       ]),
       [],
     )
@@ -293,7 +401,10 @@ export const view = <Item, Outer>(
       h.OnMount(Mount.mapMessage(Track(), onMessage)),
     ]),
     [
-      spacer('start', startHeight),
+      spacer(
+        'start',
+        model.from === 0 ? `${startHeight}px` : `calc(var(${PLACED}, 0) * ${startHeight}px)`,
+      ),
       ...keys.slice(start, end).map((key, offset) => {
         const index = start + offset
         return h.keyed('div')(
@@ -309,7 +420,7 @@ export const view = <Item, Outer>(
           [itemToView(items[index]!, index)],
         )
       }),
-      spacer('end', endHeight),
+      spacer('end', `${endHeight}px`),
     ],
   )
 }

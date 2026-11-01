@@ -213,7 +213,16 @@ version changed; `pnpm` skips versions already in the registry.
   measured, for rows whose height the window's width decides, which `init`
   cannot know (#381). `MeasureRows` (`foldkit-primitives`) reads the rows
   drawn as it starts at once, as its first batch, so the frame that first
-  places the list takes no row away unmeasured (#398).
+  places the list takes no row away unmeasured (#398). A server's page opens
+  it at a row with `init`'s `from` (a page's `?from=`, kept in the Model's
+  `from` until the first `Placed`): the window starts there, the rows above
+  take no room until `Track` places the list, which gives them their room and
+  scrolls the window by what that moved the first row drawn, so the rows a
+  reader saw stay put as the runtime takes the page over.
+  `WindowList.pageOf(model, keys)` is the rows drawn and, as `Option`s, the
+  rows the pages either side open at, for links that page a list without
+  scripts, and `Recipes.WindowList` hides the spacers under `(scripting:
+  none)` (#392).
 
 - **Request body limits on the Remote endpoint** (`foldkit-remote-server`,
   #359). `serveFetch`'s `maxBodyBytes` (default 1 MiB; it read a body of any

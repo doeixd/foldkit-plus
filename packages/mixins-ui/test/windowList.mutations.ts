@@ -1,10 +1,15 @@
 /**
  * WindowList, broken in turn: `pnpm mutate packages/mixins-ui/test/windowList.mutations.ts`.
  * The Model's cases die in the unit tests, the drawing's in the browser's.
+ * Placing the list inside the patch that adopts it (`Effect.void` for
+ * `Effect.yieldNow` in `Track`) is killed by hand: a hydrating runtime reports
+ * the mismatch in `examples/foldkit/domains-plus/e2e/from.e2e.ts`, which
+ * `pnpm mutate` does not run.
  */
 const file = '../src/windowList.ts'
 const unit = ['packages/mixins-ui/test/windowList.test.ts']
 const browser = ['packages/mixins-ui/test/windowList.browser.test.ts']
+const ssr = ['packages/mixins-ui/test/windowList.ssr.test.ts']
 
 export default [
   {
@@ -125,8 +130,8 @@ export default [
     edits: [
       {
         file,
-        find: "      spacer('end', endHeight),",
-        replace: "      spacer('end', 0),",
+        find: "      spacer('end', `${endHeight}px`),",
+        replace: "      spacer('end', '0px'),",
       },
     ],
     tests: browser,
@@ -136,8 +141,8 @@ export default [
     edits: [
       {
         file,
-        find: "      spacer('start', startHeight),",
-        replace: "      spacer('start', 0),",
+        find: 'model.from === 0 ? `${startHeight}px` :',
+        replace: "model.from === 0 ? '0px' :",
       },
     ],
     tests: browser,
@@ -201,5 +206,124 @@ export default [
     name: "a row's content margins escape its measure",
     edits: [{ file, find: "            h.Style({ display: 'flow-root' }),\n", replace: '' }],
     tests: browser,
+  },
+  {
+    name: 'placing leaves the list opened at its row',
+    edits: [{ file, find: 'from: () => 0 }) },', replace: 'from: () => model.from }) },' }],
+    tests: unit,
+  },
+  {
+    name: 'a first reading equal to the one assumed leaves the list opened',
+    edits: [
+      {
+        file,
+        find: 'height === model.viewport.height && model.from === 0',
+        replace: 'height === model.viewport.height',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'an opened list draws the window of its viewport',
+    edits: [
+      {
+        file,
+        find: '  model.from === 0\n    ? visibleRange(',
+        replace: '  true\n    ? visibleRange(',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a row past the last viewport opens past it',
+    edits: [{ file, find: 'const start = Math.min(row, last)', replace: 'const start = row' }],
+    tests: unit,
+  },
+  {
+    name: 'from is not checked',
+    edits: [{ file, find: "    ['from', from],\n", replace: '' }],
+    tests: unit,
+  },
+  {
+    name: 'the previous page is one window back by count',
+    edits: [
+      {
+        file,
+        find: 'previous: start > 0 ? Option.some(low) : Option.none(),',
+        replace:
+          'previous: start > 0 ? Option.some(Math.max(0, start - (end - start))) : Option.none(),',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the previous page is the first whose window passes this one',
+    edits: [
+      {
+        file,
+        find: 'openedAt(model, keys, middle).end >= start',
+        replace: 'openedAt(model, keys, middle).end > start',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the first page has a previous',
+    edits: [{ file, find: 'previous: start > 0 ?', replace: 'previous: true ?' }],
+    tests: unit,
+  },
+  {
+    name: 'the last page has a next',
+    edits: [{ file, find: 'next: end < keys.length ?', replace: 'next: true ?' }],
+    tests: unit,
+  },
+  {
+    name: 'an opened list draws the rows above its row in their room before it is placed',
+    edits: [
+      {
+        file,
+        find: ': `calc(var(${PLACED}, 0) * ${startHeight}px)`,',
+        replace: ': `${startHeight}px`,',
+      },
+    ],
+    tests: [...ssr, ...browser],
+  },
+  {
+    name: 'Track never gives the rows above an opened row their room',
+    edits: [{ file, find: "  root.style.setProperty(PLACED, '1')\n", replace: '' }],
+    tests: browser,
+  },
+  {
+    name: 'placing an opened list scrolls nothing',
+    edits: [
+      {
+        file,
+        find: "  if (moved !== 0) window.scrollBy({ top: moved, behavior: 'instant' })\n",
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'placing scrolls from the window rather than from where the row was',
+    edits: [
+      {
+        file,
+        find: 'const before = first?.getBoundingClientRect().top ?? 0',
+        replace: 'const before = 0',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the recipe leaves the spacers in a page without scripts',
+    edits: [
+      {
+        file: '../src/recipes/windowList.ts',
+        find: "spacer: component(Style.media('(scripting: none)', { display: 'none' })),",
+        replace: 'spacer: component(),',
+      },
+    ],
+    tests: ssr,
   },
 ]

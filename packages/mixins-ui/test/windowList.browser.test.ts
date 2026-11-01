@@ -8,7 +8,8 @@
  * starts at the sum of the heights above it, and the footer where the last
  * ends, even when a frame is drawn while the list's Mount starts.
  */
-import { Schema } from 'effect'
+import { Effect, Schema } from 'effect'
+import { renderToString } from 'foldkit/experimental/server'
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import { afterEach, describe, expect, test, vi } from 'vitest'
@@ -221,4 +222,90 @@ test('a frame drawn while the Mount starts moves no row away unmeasured', async 
   for (const row of drawn) {
     expect(row.getBoundingClientRect().top - top).toBeCloseTo(prefix(indexOf(row)), 1)
   }
+})
+
+describe('a list opened at a row', () => {
+  // Rows exactly the estimate, so only the placing can move one.
+  const ROW = 40
+  const FROM = 100
+  const opened = () =>
+    WindowList.init({ id: 'results', estimatedHeight: ROW, viewportHeight: 800, from: FROM })
+  const view = (model: Model, h: HtmlBuilder<WindowList.Message>) =>
+    WindowList.view(
+      {
+        model: model.list,
+        items,
+        itemToKey,
+        itemToView: index => h.div([h.Style({ height: `${ROW}px` })], [`Row ${index}`]),
+        onMessage: message => message,
+        label: 'Results',
+      },
+      h,
+    )
+
+  /**
+   * The page a server sent, then the runtime drawing it and placing the list:
+   * where the opened row is on screen before, and once placed.
+   */
+  const takeOver = async () => {
+    await page.viewport(1280, 800)
+    const css = document.createElement('style')
+    css.dataset['test'] = ''
+    css.textContent = 'body { margin: 0 } #above { height: 500px } #footer { height: 300px }'
+    document.head.append(css)
+    const above = document.createElement('div')
+    above.id = 'above'
+    const container = document.createElement('div')
+    container.id = 'window-list-opened'
+    const footer = document.createElement('div')
+    footer.id = 'footer'
+    document.body.append(above, container, footer)
+    const served = await Effect.runPromise(
+      renderToString(
+        {
+          init: () => ({ model: { list: opened() } }),
+          view: (model: Model, h: HtmlBuilder<WindowList.Message>) => ({
+            title: 'List',
+            body: view(model, h),
+          }),
+        },
+        { buildId: 'b' },
+      ),
+    )
+    container.innerHTML = served.html
+    const row = () => document.querySelector<HTMLElement>(`[aria-posinset="${FROM + 1}"]`)!
+    const before = { scrollY: window.scrollY, top: row().getBoundingClientRect().top }
+    handle = Runtime.embed(
+      Runtime.makeElement({
+        Model,
+        container,
+        init: () => ({ model: { list: opened() } }),
+        update: (model: Model, message: WindowList.Message) => ({
+          model: { list: WindowList.update(model.list, message).model },
+          commands: [],
+        }),
+        view,
+      }),
+    )
+    // Placed: the row above the opened one is drawn, in the overscan.
+    await vi.waitFor(() =>
+      expect(document.querySelector(`[aria-posinset="${FROM}"]`)).not.toBeNull(),
+    )
+    await covered()
+    return { before, after: { scrollY: window.scrollY, top: row().getBoundingClientRect().top } }
+  }
+
+  test.each([
+    ['with scroll anchoring', 'auto'],
+    ['without it', 'none'],
+  ])('the opened row stays where it was seen as the list is placed, %s', async (_, anchor) => {
+    document.documentElement.style.setProperty('overflow-anchor', anchor)
+    const { before, after } = await takeOver()
+    // Served, the opened row is the list's first, under the block above it.
+    expect(before).toEqual({ scrollY: 0, top: 500 })
+    expect(after.top).toBeCloseTo(500, 0)
+    // The rows above it took their room, and the window scrolled by as much.
+    expect(after.scrollY).toBeCloseTo(FROM * ROW, 0)
+    expect(list().getBoundingClientRect().height).toBeCloseTo(COUNT * ROW, 0)
+  })
 })

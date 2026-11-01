@@ -9,6 +9,7 @@
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Scene } from 'foldkit/test'
+import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { WindowList } from '../src/index.js'
 
@@ -191,5 +192,71 @@ describe('WindowList.resolveTrack', () => {
       Scene.expect(Scene.text('row-18')).toExist(),
       Scene.expect(Scene.text('row-0')).toBeAbsent(),
     )
+  })
+})
+
+describe('a list opened at a row', () => {
+  const opened = (from: number) =>
+    WindowList.init({ id: 'list', estimatedHeight: 20, overscan: 2, viewportHeight: 100, from })
+
+  it.each([
+    // Rows 10 to 14 fill the 100px viewport, then 2 of overscan, and none above.
+    ['inside the list', 10, { start: 10, end: 17 }],
+    // The last viewport's worth: rows 95 to 99.
+    ['past the last viewport’s start', 97, { start: 95, end: 100 }],
+    ['past the end', 9999, { start: 95, end: 100 }],
+  ])('draws the rows from it, %s', (_, from, expected) => {
+    expect(WindowList.windowOf(opened(from), keys)).toEqual(expected)
+  })
+
+  it('follows the viewport once placed, even where the reading is the one assumed', () => {
+    const at = WindowList.update(opened(10), WindowList.Message.Placed({ top: 0, height: 100 }))
+    expect(at.model.from).toBe(0)
+    expect(WindowList.windowOf(at.model, keys)).toEqual({ start: 0, end: 7 })
+  })
+
+  it.each([
+    [{ from: -1 }, /from must be a whole number/],
+    [{ from: 2.5 }, /from must be a whole number/],
+  ])('refuses %o', (config, error) => {
+    expect(() => WindowList.init({ id: 'list', estimatedHeight: 20, ...config })).toThrow(error)
+  })
+})
+
+describe('WindowList.pageOf', () => {
+  /** Opened at `from`, the first ten rows measured at `height` where given. */
+  const openedAt = (from: number, height?: number) =>
+    WindowList.update(
+      WindowList.init({ id: 'list', estimatedHeight: 20, overscan: 2, viewportHeight: 100, from }),
+      WindowList.Message.Measured({
+        rows: height === undefined ? [] : keys.slice(0, 10).map(key => ({ key, height })),
+      }),
+    ).model
+
+  it('links to the rows before and after the window', () => {
+    // A window opened at 3 is rows 3 to 7 and 2 of overscan: it ends where 10 starts.
+    expect(WindowList.pageOf(openedAt(10), keys)).toEqual({
+      start: 10,
+      end: 17,
+      previous: Option.some(3),
+      next: Option.some(17),
+    })
+  })
+
+  it('has no previous at the first row and no next at the last', () => {
+    expect(WindowList.pageOf(model, keys)).toEqual({
+      start: 0,
+      end: 7,
+      previous: Option.none(),
+      next: Option.some(7),
+    })
+    expect(WindowList.pageOf(openedAt(9999), keys)).toMatchObject({ end: 100, next: Option.none() })
+  })
+
+  it('opens the previous page at the first row whose window reaches this one, over measured rows', () => {
+    // Two 50px rows fill the viewport: opened at 6 it draws to 10, at 5 to 9.
+    expect(WindowList.windowOf(openedAt(6, 50), keys).end).toBe(10)
+    expect(WindowList.windowOf(openedAt(5, 50), keys).end).toBe(9)
+    expect(WindowList.pageOf(openedAt(10, 50), keys).previous).toEqual(Option.some(6))
   })
 })
