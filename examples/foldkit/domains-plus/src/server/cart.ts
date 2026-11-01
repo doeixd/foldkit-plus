@@ -1,30 +1,23 @@
 /**
- * The cart a page without scripts keeps between requests, in a cookie: the
- * names only, each priced again from the server's own sample results when
- * read, so a cookie cannot carry a price. A scripted page keeps its cart in
- * the Model alone, as upstream's, and writes no cookie.
+ * The cart a request's `cart` cookie keeps (`CartInCookie`). The cookie is
+ * the visitor's to edit, so only its names are taken, each priced again from
+ * the server's own sample results: a price in it is never shown.
  */
-import { Array, Option, Record, String, pipe } from 'effect'
-import { Cookies } from 'effect/http'
+import { Array, Option, pipe } from 'effect'
+import { CartInCookie } from '../client/app.js'
 import type { Cart } from '../client/domain'
 import { Domain } from '../shared/domain'
 import { readDomains } from './remote.js'
 
-const COOKIE = 'cart'
-/** More names than any cart a person keeps; a cookie naming more is cut here. */
-const MAX_NAMES = 50
-/** A name holds no `|`, which RFC 6265 allows in a cookie's value where it does not allow `,`. */
-const SEPARATOR = '|'
+const keysOf = (request: Request) => CartInCookie.keysOf(request.headers.get('cookie'))
 
 /** The cart the request's cookie names: each name read as the server prices it, taken ones dropped. */
 export const cartOf = (request: Request): Cart.Cart => {
+  // The cookie's 4096 bytes hold a few dozen entries at most.
   const names = pipe(
-    Cookies.parseHeader(request.headers.get('cookie') ?? ''),
-    Record.get(COOKIE),
-    Option.map(String.split(SEPARATOR)),
-    Option.getOrElse((): ReadonlyArray<string> => []),
+    CartInCookie.decode(keysOf(request)).value.cart ?? [],
+    Array.map(({ name }) => name),
     Array.dedupe,
-    Array.take(MAX_NAMES),
   )
   const read = new Map(readDomains(names).map(({ id, values }) => [id, values]))
   return Array.flatMap(names, name =>
@@ -39,17 +32,5 @@ export const cartOf = (request: Request): Cart.Cart => {
   )
 }
 
-/** Whether `request` carries a cart cookie: its page is then that visitor's alone. */
-export const hasCart = (request: Request): boolean =>
-  Option.isSome(Record.get(Cookies.parseHeader(request.headers.get('cookie') ?? ''), COOKIE))
-
-/** The `set-cookie` that keeps `cart` for a year, or clears it when empty. */
-export const cartCookie = (cart: Cart.Cart, secure: boolean): string =>
-  [
-    `${COOKIE}=${Array.map(cart, ({ name }) => name).join(SEPARATOR)}`,
-    'Path=/',
-    'HttpOnly',
-    'SameSite=Lax',
-    cart.length === 0 ? 'Max-Age=0' : 'Max-Age=31536000',
-    ...(secure ? ['Secure'] : []),
-  ].join('; ')
+/** Whether `request` carries a cart: its page is then that visitor's alone. */
+export const hasCart = (request: Request): boolean => Object.keys(keysOf(request)).length > 0

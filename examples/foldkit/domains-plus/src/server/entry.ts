@@ -15,6 +15,7 @@ import { type Url, fromString } from 'foldkit/url'
 import { Style } from 'foldkit-mixins'
 import { SSR } from 'foldkit-ssr'
 import {
+  CartInCookie,
   Data,
   Model,
   actives,
@@ -28,7 +29,7 @@ import { documentHead } from '../client/documentHead.js'
 import { AppRoute } from '../client/site.js'
 import { stylesheet } from '../client/style.js'
 import { view } from '../client/view.js'
-import { cartCookie, cartOf, hasCart } from './cart.js'
+import { cartOf, hasCart } from './cart.js'
 import { readPrices, serveRemote } from './remote.js'
 
 /** The document around a rendered page: the head every page carries. */
@@ -76,9 +77,12 @@ const answer = async (request: Request, url: Url): Promise<EntryResult> => {
           : {}),
         ...Option.match(reached, {
           onNone: () => ({}),
-          onSome: ({ cart }) =>
+          onSome: model =>
             request.method === 'POST'
-              ? { 'set-cookie': cartCookie(cart, request.url.startsWith('https:')) }
+              ? Option.match(CartInCookie.setCookie(model, request), {
+                  onNone: () => ({}),
+                  onSome: cookie => ({ 'set-cookie': cookie }),
+                })
               : {},
         }),
       }),

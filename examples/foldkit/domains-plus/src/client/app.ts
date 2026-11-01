@@ -427,6 +427,18 @@ export const SearchInUrl = Mirror.url(App, {
   initial: empty,
 })
 
+/**
+ * The cart in the `cart` cookie: the server reads it for every page
+ * (`server/cart.ts`) and sets it in its answer to a cart form posted without
+ * scripts, and the scripted page writes it as the cart changes, so a reload
+ * shows the cart either way. The server prices each name in it again.
+ */
+export const CartInCookie = Mirror.cookie(App, {
+  name: 'cart',
+  fields: [App.model.cart],
+  initial: empty,
+})
+
 /** The prices, a server's facts read by name and kept in the Model. */
 export const Data = Remote.make({
   model: App.model.remote,
@@ -549,6 +561,7 @@ const Settled = Page.at(Search, {
 
 const placements = Page.assemble(
   SearchInUrl.wiring('ChangedUrl'),
+  CartInCookie.wiring(),
   Settled,
   Data.wiring(actives, { policy: freshness, grace: '1 minute' }),
 )

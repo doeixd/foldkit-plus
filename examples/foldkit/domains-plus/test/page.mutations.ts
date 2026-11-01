@@ -1,6 +1,10 @@
 /**
  * The page without scripts (#388), broken in turn:
  * `pnpm mutate examples/foldkit/domains-plus/test/page.mutations.ts`.
+ *
+ * `pnpm mutate` runs no e2e file, so one mutation is made by hand: deleting
+ * `CartInCookie.wiring()` from `app.ts` fails `noscript.e2e.ts`'s "one cart
+ * with scripts or without" (the scripted page then writes no cookie).
  */
 const tests = ['examples/foldkit/domains-plus/test/page.test.ts']
 const entry = '../src/server/entry.ts'
@@ -34,8 +38,8 @@ export default [
     edits: [
       {
         file: entry,
-        find: "? { 'set-cookie': cartCookie(cart, request.url.startsWith('https:')) }",
-        replace: '? {}',
+        find: '? Option.match(CartInCookie.setCookie(model, request), {',
+        replace: '? Option.match(Option.none<string>(), {',
       },
     ],
     tests,
@@ -59,6 +63,18 @@ export default [
   {
     name: 'a cookie naming a name twice puts it in twice',
     edits: [{ file: cart, find: '    Array.dedupe,\n', replace: '' }],
+    tests,
+  },
+  {
+    name: 'the cart is the cookie, its prices as it says',
+    edits: [
+      {
+        file: cart,
+        find: 'const read = new Map(',
+        replace:
+          'if (names.length > 0) return CartInCookie.decode(keysOf(request)).value.cart ?? []; const read = new Map(',
+      },
+    ],
     tests,
   },
   {

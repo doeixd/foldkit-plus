@@ -141,3 +141,40 @@ test('with JavaScript, the same page sends no form, loads no new chunk and adopt
   expect(warnings).toEqual([])
   await page.close()
 })
+
+test('one cart with scripts or without: the cookie carries it both ways (#394)', async () => {
+  // With scripts, the cart's mirror writes the cookie, and a reload is served with it.
+  const scripted = await browser.newContext()
+  const page = await scripted.newPage()
+  await page.goto(`${origin}/?q=acme`)
+  await page.locator('#domains-app:not([data-foldkit-plus-resume])').waitFor({ timeout: 60_000 })
+  const card = page.locator('.domain-card').first()
+  const name = (await card.locator('h3').textContent())!
+  await card.getByRole('button', { name: `Add ${name} to cart` }).click()
+  await page.getByRole('button', { name: 'Cart, 1 domains' }).waitFor()
+  await expect
+    .poll(async () => (await scripted.cookies()).some(cookie => cookie.name === 'cart'))
+    .toBe(true)
+  await page.reload()
+  await page.getByRole('button', { name: 'Cart, 1 domains' }).waitFor()
+
+  // Without scripts, the same cookie is the same cart, and a removal posted
+  // there clears it for the scripted page too.
+  const plain = await browser.newContext({ javaScriptEnabled: false })
+  await plain.addCookies(await scripted.cookies())
+  const plainPage = await plain.newPage()
+  await plainPage.goto(`${origin}/?q=other`)
+  const cart = plainPage.getByRole('region', { name: 'Your cart' })
+  expect(await cart.textContent()).toContain(name)
+  await cart.getByRole('button', { name: `Remove ${name}` }).click()
+  await plainPage.waitForLoadState()
+  expect(await cart.textContent()).not.toContain(name)
+
+  await scripted.clearCookies()
+  await scripted.addCookies(await plain.cookies())
+  await page.reload()
+  await page.locator('#domains-app:not([data-foldkit-plus-resume])').waitFor({ timeout: 60_000 })
+  expect(await page.getByRole('button', { name: /^Cart, 0 domains/ }).count()).toBe(1)
+  await plain.close()
+  await scripted.close()
+})

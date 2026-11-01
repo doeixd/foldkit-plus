@@ -128,13 +128,31 @@ describe('a search served without scripts', () => {
   })
 })
 
+/** The `cart` cookie holding `names`, each at a price no server would give. */
+const cartCookie = (...names: ReadonlyArray<string>) =>
+  `cart=${new URLSearchParams({
+    cart: JSON.stringify(
+      names.map(name => ({
+        _tag: 'Available',
+        name,
+        tld: name.split('.')[1],
+        price: 0.01,
+        renewalPrice: 0.01,
+        years: 1,
+        isPremium: false,
+      })),
+    ),
+  })}`
+
 describe('the cart without scripts', () => {
   const add = { _tag: 'ClickedAddDomain', name: 'acme.com' }
 
   test('a post adds the name at the price the server read, and keeps it in a cookie', async () => {
     const { status, headers, nodes } = await post('/?q=acme', add)
     expect(status).toBe(200)
-    expect(headers.get('set-cookie')).toMatch(/^cart=acme\.com; Path=\/; HttpOnly; SameSite=Lax/)
+    expect(headers.get('set-cookie')).toMatch(
+      /^cart=cart=%5B[^;]*acme\.com[^;]*; Path=\/; SameSite=Lax; Max-Age=31536000; Secure$/,
+    )
     expect(headers.get('cache-control')).toBe('private, no-store')
     expect(textOf(byId(nodes, 'cart')!)).toContain('acme.com')
     expect(textOf(byId(nodes, 'cart')!)).toContain('$12')
@@ -142,19 +160,22 @@ describe('the cart without scripts', () => {
 
   test('the cookie brings the cart to the next page, priced again by the server', async () => {
     const { headers, nodes } = await answer('/?q=other', {
-      headers: { cookie: 'cart=acme.com|vercel.com|acme.nope|acme.com' },
+      headers: { cookie: cartCookie('acme.com', 'vercel.com', 'acme.nope', 'acme.com') },
     })
     expect(headers.get('cache-control')).toBe('private, no-store')
     // A name the demo marks taken, one it does not know, and a repeat are dropped.
     const items = all(byId(nodes, 'cart')!).filter(node => node.nodeName === 'li')
     expect(items.map(item => textOf(item).split('$')[0])).toEqual(['acme.com'])
+    // At the server's price, not the cookie's.
+    expect(textOf(items[0]!)).toContain('$12')
+    expect(textOf(items[0]!)).not.toContain('0.01')
   })
 
   test('a removal posted with the cookie takes the name out and clears the cookie', async () => {
     const { headers, nodes } = await post(
       '/?q=acme',
       { _tag: 'ClickedRemoveDomain', name: 'acme.com' },
-      { cookie: 'cart=acme.com' },
+      { cookie: cartCookie('acme.com') },
     )
     expect(headers.get('set-cookie')).toMatch(/^cart=; .*Max-Age=0/)
     expect(textOf(byId(nodes, 'cart')!)).not.toContain('acme.com')

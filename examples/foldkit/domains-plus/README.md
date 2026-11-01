@@ -96,9 +96,10 @@ is the guide this port produced):
   list follows the window, and `from` leaves the address.
 - **The cart is a form posting its Message.** `update` adds a name only if
   the page read it as available, at the price read. The server keeps the
-  names in a cookie (`src/server/cart.ts`), prices them again on every read,
-  and answers a page drawn with a cart `private, no-store`. The scripted page
-  keeps its cart in the Model, as upstream's, and writes no cookie.
+  cart in a cookie through `Mirror.cookie` (`CartInCookie`), prices its names
+  again on every read (`src/server/cart.ts`), and answers a page drawn with a
+  cart `private, no-store`. The scripted page writes the same cookie as its
+  cart changes, so the cart is one with scripts or without.
 
 `e2e/noscript.e2e.ts` searches, filters, pages and fills the cart with
 JavaScript off, and checks that the scripted page posts no form, loads no

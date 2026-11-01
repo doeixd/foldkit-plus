@@ -283,18 +283,36 @@ viewport past the rows its overscan would draw above the row.
 ## State between two posts
 
 A post starts from `init`. Whatever must outlive it lives where the next
-request reads it: domains-plus keeps its cart's names in a cookie.
+request reads it: domains-plus keeps its cart in a cookie, through
+`Mirror.cookie` (`foldkit-mirror`), which the server and the scripted page
+share:
 
-- **Reading it is validating it.** The cookie is the visitor's to edit, so
-  the server takes the names only, drops repeats, keeps at most 50, and
-  prices each again from its own data; a taken or unknown name is dropped.
+```ts sketch
+export const CartInCookie = Mirror.cookie(App, { name: 'cart', fields: [App.model.cart] })
+
+// The server, for every page: the request's cookie, decoded by the field's Schema.
+const held = CartInCookie.decode(CartInCookie.keysOf(request.headers.get('cookie'))).value.cart
+// The server, answering a post: the Set-Cookie for the cart the post reached.
+CartInCookie.setCookie(reached, request)
+```
+
+The scripted page brings `CartInCookie.wiring()` into its assembly, and its
+Subscription writes `document.cookie` as the cart changes, so a cart filled
+with scripts is there on a reload without them, and the other way round.
+
+- **Reading it is validating it.** The cookie is the visitor's to edit. The
+  mirror reads only its own keys, nothing from a cookie past 4096 bytes, and
+  decodes through the cart's Schema; the server then takes the names only,
+  drops repeats, and prices each again from its own data, so a price in the
+  cookie is never shown and a taken or unknown name is dropped.
 - **The posted Message is validated three times:** its Schema (a name has a
   length), the plan (an active Surface must list it), and `update`, which adds
   a name only if the Model read it as available, at the price it read.
 - **Writing it needs the Model the post reached.** `SSR.entry`'s
   `headers(request, model)` is given it, and domains-plus answers a post with
-  `set-cookie` from `model.cart`. `headers` is called for every answer, a
-  `GET` and a refusal too, so it writes the cookie only for a `POST`.
+  `CartInCookie.setCookie(model, request)`. `headers` is called for every
+  answer, a `GET` and a refusal too, so it writes the cookie only for a
+  `POST`.
 - **A page drawn with someone's cart is theirs.** Answer it
   `cache-control: private, no-store`.
 - **A reload posts again.** The answer is the page, at the post's URL.
@@ -302,13 +320,13 @@ request reads it: domains-plus keeps its cart's names in a cookie.
   redirect after the post is
   [#390](https://github.com/doeixd/foldkit-plus/issues/390).
 
-The scripted page keeps its cart in the Model and writes no cookie, as before.
-A cookie store for `Mirror` that both would share is
-[#394](https://github.com/doeixd/foldkit-plus/issues/394).
+The cookie holds the cart's domains as JSON, prices included, so about 20
+fit in its 4096 bytes; past that the mirror writes nothing and reports
+`CookieTooLarge`, and the cookie keeps the cart it held.
 
 ## Testing it
 
-Two Playwright tests, both in
+Three Playwright tests, all in
 [`noscript.e2e.ts`](../examples/foldkit/domains-plus/e2e/noscript.e2e.ts):
 
 - **With JavaScript off** (`browser.newContext({ javaScriptEnabled: false })`):
@@ -317,6 +335,9 @@ Two Playwright tests, both in
 - **With it on**, the scripted page is unchanged: no form `POST` in the
   network log, no script requested after the page went live, and no
   hydration warning in the console.
+- **Both**, with one cookie: a cart filled with scripts is there on a reload
+  and on a page without them, and a removal posted without scripts empties
+  the scripted page's cart.
 
 A scripted test that clicks before the runtime has taken the page over is
 now testing the page without scripts: the served page is priced and its
@@ -352,5 +373,4 @@ there instead.
 - The answer to a post is the page, not a redirect (#390).
 - Opening a virtual list at a row is the application's (#392).
 - A read before render needs an entry per request (#393).
-- State between posts is the application's own cookie (#394).
 - A form's busy state is not yet tied to its write being answered (#387).
