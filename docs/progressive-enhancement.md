@@ -18,6 +18,7 @@ JavaScript off. Every rule below is something that port needed.
 | The page | `foldkit-ssr` renders it whole, from the Model `init` and your reads reached | It is the page |
 | What it shows of a server's data | `foldkit-remote`: `Data.satisfy` reads it before the render, `Remote.resume` sends it to the browser | It is in the HTML |
 | Search text, filters, sort, a list's position | the Model, kept in the address by `foldkit-mirror`'s `Mirror.url` | A GET form or a link writes the address; the server reads it |
+| A virtual list's window | `foldkit-mixins-ui`'s `WindowList`: `init({ from })` opens it at the address's row, `pageOf` names the pages either side, `Recipes.WindowList` lays the rows in the flow | One window, paged by links |
 | A change (add to cart) | `update`, as always. `fallback: 'server'` posts a form's Message, and `SSR.handle` runs `update` on the server | A POST of the page |
 | Which controls show | the view draws both kinds; `foldkit-mixins`' `Style.media('(scripting: none)', …)` shows one | The plain kind |
 | State between two posts | the application: a cookie it reads and writes | Foldkit Plus keeps nothing |
@@ -264,21 +265,23 @@ after any media rule that sets `display` for a width, as the comment says.
 
 A `WindowList` draws the rows in view and spacers for the rest. Without
 scripts there is no view to follow, so the page draws one window and links to
-the next:
+the next. `WindowList` owns all of it; the application mirrors the row:
 
-- the spacers are `scriptedOnly`, so the rows drawn lie in the page's flow;
-- `?from=` is a mirrored field; `init` opens the list at that row, and the
-  server reads the prices of exactly the rows it draws;
-- the paging links are worked out from the window a list opened at `from`
-  would draw, not from the live window, so scrolling a scripted page changes
-  none of them;
-- with scripts, the list's first `Placed` reading sets `from` back to 0, and
-  the mirror takes it out of the address.
+- `?from=` is a mirrored field, and `WindowList.init({ from })` opens the
+  list at that row: its window starts there, with no overscan above it, and
+  the server reads the prices of exactly the rows it draws (`windowOf`);
+- `Recipes.WindowList` hides the spacers under `(scripting: none)`, so the
+  rows drawn lie in the page's flow;
+- `WindowList.pageOf(model, keys)` gives the rows drawn and the rows the
+  pages either side open at, as `Option`s, for the links' `?from=`.
 
-domains-plus opens the list by sending `WindowList.Message.Placed` with the
-viewport past the rows its overscan would draw above the row.
-[#392](https://github.com/doeixd/foldkit-plus/issues/392) proposes
-`WindowList.openAt` and a page helper.
+With scripts the served page is the same: the opened row is drawn first,
+under the content above the list, and the rows above it take no room. When
+the runtime takes the page over, `WindowList.Track` gives them their room and
+scrolls the window by what that moved the first row drawn, so the reader's
+rows stay where they were. The list's first `Placed` reading sets its `from`
+back to 0 and the list follows the window; domains-plus clears its own `from`
+on the same Message, and the mirror takes it out of the address.
 
 ## State between two posts
 
@@ -371,6 +374,5 @@ there instead.
 ## Limits
 
 - The answer to a post is the page, not a redirect (#390).
-- Opening a virtual list at a row is the application's (#392).
 - A read before render needs an entry per request (#393).
 - A form's busy state is not yet tied to its write being answered (#387).

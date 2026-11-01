@@ -92,8 +92,12 @@ is the guide this port produced):
   `style.ts`, written with `Style.media`), and the scripted ones are hidden
   there; both are drawn on both sides, so hydration adopts the page as sent.
 - **All Results pages by links.** A page opened at `?from=13` draws the list
-  from that row in the page's flow, with Previous and Next; with scripts the
-  list follows the window, and `from` leaves the address.
+  from that row (`WindowList.init({ from })`) in the page's flow
+  (`Recipes.WindowList`), with Previous and Next (`WindowList.pageOf`). With
+  scripts the served page shows the same rows; the runtime gives the rows
+  above their room and scrolls by as much, so they stay where they were
+  (`e2e/from.e2e.ts`), then the list follows the window and `from` leaves
+  the address.
 - **The cart is a form posting its Message.** `update` adds a name only if
   the page read it as available, at the price read. The server keeps the
   cart in a cookie through `Mirror.cookie` (`CartInCookie`), prices its names

@@ -47,7 +47,7 @@ import {
 } from './domain'
 import { Message, Own, Search, SearchInput } from './message.js'
 import { arrangedOf, namesOf } from './results.js'
-import { initResultsList, openAt } from './resultsList.js'
+import { initResultsList } from './resultsList.js'
 import { AppRoute, routeOf } from './site.js'
 
 export { Message }
@@ -586,7 +586,7 @@ const start = (route: AppRoute, search: Model, cart: Cart.Cart): Return =>
     settledLabel: queryToMaybeDomainLabel(search.query),
     searchLayout: String.isNonEmpty(search.query) ? 'Search' : 'Landing',
     remote: Remote.initial,
-    resultsList: openAt(initResultsList(), search.from),
+    resultsList: initResultsList(search.from),
   })
 
 /** The page at `url`, as the server renders it; the browser resumes from it. */

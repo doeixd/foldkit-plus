@@ -112,7 +112,7 @@ describe('a search served without scripts', () => {
     expect(attr(rows[0]!, 'aria-posinset')).toBe('12')
     const drawn = new Set(rowNames(first.nodes))
     expect(rowNames(opened.nodes).filter(name => drawn.has(name))).toEqual([])
-    expect(pagingLinks(opened.nodes)).toEqual({ prev: '/?q=acme', next: '/?q=acme&from=24' })
+    expect(pagingLinks(opened.nodes)).toEqual({ prev: '/?q=acme', next: '/?q=acme&from=22' })
   })
 
   test('an address past the last row draws the last rows, and no next', async () => {

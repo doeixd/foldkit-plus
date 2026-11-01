@@ -1025,22 +1025,25 @@ export const Page = slots({
   ],
 })
 
-/** All Results' list: in the page's flow, scrolled by the page. */
+/**
+ * All Results' list: in the page's flow, scrolled by the page. The recipe
+ * lays the rows drawn in the page's flow where no script runs.
+ */
 export const ResultsListStyle = forSlots(WindowListSlots)(
-  {
-    root: [
-      Style.class('results-viewport'),
-      {
-        margin: '0',
-        listStyle: 'none',
-        padding: '0',
-        scrollMarginTop: 'calc(var(--header-height) + 1rem)',
-      },
-      Style.pseudo(':focus-visible', { outline: `2px solid ${d.text}`, outlineOffset: '-2px' }),
-    ],
-    // Without scripts the rows drawn lie in the page's flow, paged by links.
-    spacer: [scriptedOnly],
-  },
+  Recipes.WindowList.extend({
+    base: {
+      root: [
+        Style.class('results-viewport'),
+        {
+          margin: '0',
+          listStyle: 'none',
+          padding: '0',
+          scrollMarginTop: 'calc(var(--header-height) + 1rem)',
+        },
+        Style.pseudo(':focus-visible', { outline: `2px solid ${d.text}`, outlineOffset: '-2px' }),
+      ],
+    },
+  })(),
   { name: 'ResultsListStyle' },
 )
 

@@ -46,7 +46,7 @@ import {
 } from './cart.js'
 import { filters } from './filters.js'
 import { type Arranged, arrangedOf } from './results.js'
-import { type DomainListingGroup, initResultsList, openAt } from './resultsList.js'
+import type { DomainListingGroup } from './resultsList.js'
 import { Page, ResultsListStyle } from './style.js'
 
 type H = HtmlBuilder<Message>
@@ -398,33 +398,23 @@ const allResults = (
 
 /**
  * All Results' pages on a page without scripts, which draws the rows of the
- * list's first window in the page's flow: links to the windows before and
- * after, the address the Mirror writes with `?from=` set, so the server
- * draws the list from that row. Worked out from the row the page opened at,
- * not the live window, so scrolling a scripted page changes none of it.
+ * window the list opened at (`?from=`) in the page's flow: links to the
+ * windows before and after, the address the Mirror writes with `?from=` set,
+ * so the server draws the list from that row.
  */
 const paging = (model: Model, arranged: Arranged, slots: Slots, h: H): Html => {
-  const rows = arranged.groups.length
-  const { start, end } = WindowList.windowOf(openAt(initResultsList(), model.from), arranged.keys)
-  const at = Math.min(start, rows)
-  const size = Math.max(1, end - start)
+  const { start, end, previous, next } = WindowList.pageOf(model.resultsList, arranged.keys)
   const names = (to: number) =>
     Array.reduce(arranged.groups.slice(0, to), 0, (sum, group) => sum + group.listings.length)
-  const link = (from: number, label: string, rel: string) =>
+  const link = (label: string, rel: string) => (from: number) =>
     h.a(slots.button.attrs([h.Href(SearchInUrl.href(model, { from }, searchHref)), h.Rel(rel)]), [
       label,
     ])
+  const none = () => h.span([], [])
   return h.nav(slots.paging.attrs([h.AriaLabel('All Results pages')]), [
-    at > 0 ? link(Math.max(0, at - size), 'Previous', 'prev') : h.span([], []),
-    h.span(
-      [],
-      [
-        at < rows
-          ? `Domains ${names(at) + 1}–${names(Math.min(end, rows))} of ${arranged.count}`
-          : 'No more domains',
-      ],
-    ),
-    end < rows ? link(end, 'Next', 'next') : h.span([], []),
+    Option.match(previous, { onNone: none, onSome: link('Previous', 'prev') }),
+    h.span([], [`Domains ${names(start) + 1}–${names(end)} of ${arranged.count}`]),
+    Option.match(next, { onNone: none, onSome: link('Next', 'next') }),
   ])
 }
 

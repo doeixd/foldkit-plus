@@ -101,7 +101,13 @@ export default [
   },
   {
     name: 'a page opened at ?from= draws the list from its top',
-    edits: [{ file: '../src/client/resultsList.ts', find: '  row === 0\n', replace: '  true\n' }],
+    edits: [
+      {
+        file: '../src/client/app.ts',
+        find: 'resultsList: initResultsList(search.from),',
+        replace: 'resultsList: initResultsList(),',
+      },
+    ],
     tests,
   },
   {
@@ -109,8 +115,8 @@ export default [
     edits: [
       {
         file: '../src/client/view.ts',
-        find: "end < rows ? link(end, 'Next', 'next')",
-        replace: "end < rows ? link(at, 'Next', 'next')",
+        find: "Option.match(next, { onNone: none, onSome: link('Next', 'next') })",
+        replace: "Option.match(next, { onNone: none, onSome: () => link('Next', 'next')(start) })",
       },
     ],
     tests,

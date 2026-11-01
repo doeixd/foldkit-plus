@@ -37,26 +37,12 @@ export const RESULTS_GROUP_HEIGHT_PX = 114
 /** Groups drawn, and read, past each end of the viewport. */
 export const RESULTS_OVERSCAN_GROUPS = 2
 
-export const initResultsList = (): WindowList.Model =>
+/** The list, opened at `from`: the row of a page's `?from=`, drawn first until the list is placed. */
+export const initResultsList = (from = 0): WindowList.Model =>
   WindowList.init({
     id: RESULTS_LIST_ID,
     estimatedHeight: RESULTS_GROUP_HEIGHT_PX,
     unmeasured: 'mean',
     overscan: RESULTS_OVERSCAN_GROUPS,
+    from,
   })
-
-/**
- * The list drawn from `row` on, as a page opened at `?from=` draws it before
- * the window is known: the viewport placed past the rows its overscan would
- * draw above `row`, at the estimate, since nothing is measured yet (#392).
- */
-export const openAt = (list: WindowList.Model, row: number): WindowList.Model =>
-  row === 0
-    ? list
-    : WindowList.update(
-        list,
-        WindowList.Message.Placed({
-          top: (row + list.overscan) * list.estimatedHeight,
-          height: list.viewport.height,
-        }),
-      ).model
