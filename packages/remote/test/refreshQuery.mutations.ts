@@ -10,8 +10,8 @@ export default [
     name: 'a ref is read as a record of entries',
     edits: [
       {
-        file: '../src/index.ts',
-        find: '    if (isQueryRef(target)) {',
+        file: '../src/remote.ts',
+        find: '  if (isQueryRef(target)) {',
         replace: '    if (false) {',
       },
     ],
@@ -21,7 +21,7 @@ export default [
     name: 'a record keyed identity is read as a ref',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/domain.ts',
         find: "typeof (target as Partial<Record<'identity', unknown>>).identity === 'string'",
         replace: "'identity' in target",
       },
@@ -32,8 +32,8 @@ export default [
     name: 'a query the domain does not register is refreshed',
     edits: [
       {
-        file: '../src/index.ts',
-        find: "      assertRegistered(bound, 'Query', bound.definition.registry.queries, target.query)\n",
+        file: '../src/remote.ts',
+        find: "    assertRegistered(bound, 'Query', bound.definition.registry.queries, target.query)\n",
         replace: '',
       },
     ],
@@ -43,8 +43,8 @@ export default [
     name: 'a try again asks again a list that loaded',
     edits: [
       {
-        file: '../src/index.ts',
-        find: '        failed || (options.failed !== true && remote.connections[target.identity] !== undefined)',
+        file: '../src/remote.ts',
+        find: '      failed || (options.failed !== true && remote.connections[target.identity] !== undefined)',
         replace: '        failed || remote.connections[target.identity] !== undefined',
       },
     ],
@@ -54,8 +54,8 @@ export default [
     name: 'a failed list is not asked again',
     edits: [
       {
-        file: '../src/index.ts',
-        find: '        failed || (options.failed !== true && remote.connections[target.identity] !== undefined)',
+        file: '../src/remote.ts',
+        find: '      failed || (options.failed !== true && remote.connections[target.identity] !== undefined)',
         replace:
           '        options.failed !== true && remote.connections[target.identity] !== undefined',
       },
@@ -66,8 +66,8 @@ export default [
     name: 'an unloaded list is marked',
     edits: [
       {
-        file: '../src/index.ts',
-        find: '        failed || (options.failed !== true && remote.connections[target.identity] !== undefined)',
+        file: '../src/remote.ts',
+        find: '      failed || (options.failed !== true && remote.connections[target.identity] !== undefined)',
         replace: '        failed || options.failed !== true',
       },
     ],

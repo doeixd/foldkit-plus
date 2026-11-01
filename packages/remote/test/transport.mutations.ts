@@ -161,7 +161,7 @@ export default [
     name: 'a read entry drops its own timeout',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/domain.ts',
         find: 'Effect.map(withCallTimeout(readMessage(requirements, now), timeout), toMessage)',
         replace: 'Effect.map(readMessage(requirements, now), toMessage)',
       },

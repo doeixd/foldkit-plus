@@ -65,7 +65,7 @@ export default [
     name: 'the refusal is read as sent, not decoded',
     edits: [
       {
-        file: `${remote}/index.ts`,
+        file: '../../remote/src/domain.ts',
         find: ': Schema.decodeUnknownOption(mutation.Refusal)(error.refusal)',
         replace: ': Option.some(error.refusal as never)',
       },

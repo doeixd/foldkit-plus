@@ -123,7 +123,7 @@ describe('a page that declares Entities and reads a Selection', () => {
 describe('a read-only Remote page', () => {
   it('keeps what reading needs', () => {
     expect(kept.readOnly.remote).toEqual(
-      expect.arrayContaining(['index.js', 'model.js', 'plan.js', 'store.js']),
+      expect.arrayContaining(['remote.js', 'domain.js', 'model.js', 'plan.js', 'store.js']),
     )
   })
 
@@ -158,7 +158,7 @@ describe('a read-only Remote page', () => {
   })
 
   // `Remote` is an ES module namespace, so a member nothing calls is not kept.
-  it.fails('keeps no transport or resume code it never calls (#396)', () => {
+  it('keeps no transport or resume code it never calls (#396)', () => {
     for (const unused of ['coalesce.js', 'json.js', 'rpc.js', 'resume.js']) {
       expect(kept.readOnly.remote).not.toContain(unused)
     }

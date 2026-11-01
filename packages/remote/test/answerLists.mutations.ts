@@ -3,7 +3,7 @@
  * `pnpm mutate packages/remote/test/answerLists.mutations.ts`.
  */
 const writes = '../src/writes.ts'
-const index = '../src/index.ts'
+const remote = '../src/remote.ts'
 const tests = [
   'packages/remote/test/answerLists.test.ts',
   'packages/remote-server/test/singleFlight.test.ts',
@@ -106,7 +106,7 @@ export default [
     name: 'a page lands in a list the answer did not move',
     edits: [
       {
-        file: index,
+        file: remote,
         find: 'if (held === undefined || held.stale || judged.connections[identity] === held) continue',
         replace: 'if (held === undefined || held.stale) continue',
       },
@@ -117,7 +117,7 @@ export default [
     name: 'a page lands in a list stale before the write',
     edits: [
       {
-        file: index,
+        file: remote,
         find: 'if (held === undefined || held.stale || judged.connections[identity] === held) continue',
         replace: 'if (held === undefined || judged.connections[identity] === held) continue',
       },
@@ -128,7 +128,7 @@ export default [
     name: 'a page merges into what the client placed',
     edits: [
       {
-        file: index,
+        file: remote,
         find: 'const owed = { ...next, connections: setConnectionStale(next.connections, identity, true) }',
         replace: 'const owed = next',
       },
@@ -139,7 +139,7 @@ export default [
     name: 'a page past its window lands',
     edits: [
       {
-        file: index,
+        file: remote,
         find: "if (page._tag !== 'ConnectionMerged') continue",
         replace: '',
       },
@@ -150,7 +150,7 @@ export default [
     name: 'an answer carries no pages to the Model',
     edits: [
       {
-        file: index,
+        file: remote,
         find: '          : withAnswerLists(\n              remote,\n              impactOf(reduced, withAnswerRead(answer), remote.entities, contextOf(model)),\n              answer,\n            )',
         replace:
           '          : impactOf(reduced, withAnswerRead(answer), remote.entities, contextOf(model))',

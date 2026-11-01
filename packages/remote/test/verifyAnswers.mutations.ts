@@ -3,7 +3,7 @@
  * `pnpm mutate packages/remote/test/verifyAnswers.mutations.ts`.
  */
 const tests = ['packages/remote/test/verifyAnswers.test.ts']
-const index = '../src/index.ts'
+const remote = '../src/remote.ts'
 const gaps = '../src/answerGaps.ts'
 const shown = '../src/shown.ts'
 
@@ -12,7 +12,7 @@ export default [
     name: 'every answer is checked',
     edits: [
       {
-        file: index,
+        file: remote,
         find: 'answer === undefined || !verify.on',
         replace: 'answer === undefined',
       },
@@ -23,7 +23,7 @@ export default [
     name: 'a repeated answer is checked again',
     edits: [
       {
-        file: index,
+        file: remote,
         find: 'if (before.mutations.applied.has(requestId)) return after',
         replace: '',
       },
@@ -34,7 +34,7 @@ export default [
     name: 'what the Surfaces read is not shown',
     edits: [
       {
-        file: index,
+        file: remote,
         find: 'planAsked(bound, unverified(after), askedUnion(projections), {}).requirements,',
         replace: '[],',
       },
@@ -99,7 +99,7 @@ export default [
     name: 'gaps replace those kept before',
     edits: [
       {
-        file: index,
+        file: remote,
         find: 'diagnostics: withDiagnostics(after.diagnostics, found)',
         replace: 'diagnostics: found',
       },
@@ -110,7 +110,7 @@ export default [
     name: 'a gap names no mutation',
     edits: [
       {
-        file: index,
+        file: remote,
         find: '      write => write.mutation,',
         replace: '        () => undefined as never,',
       },

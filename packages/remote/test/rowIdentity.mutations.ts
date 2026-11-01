@@ -86,7 +86,7 @@ export default [
     name: 'a read handle is made on every call',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/domain.ts',
         find: '    const known = handles.get(id)\n    if (known !== undefined) return known\n',
         replace: '',
       },
@@ -97,7 +97,7 @@ export default [
     name: 'a read holding no value is a new object each time',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/domain.ts',
         find: '      // usually a wiring mistake.\n      return INITIAL',
         replace: "      // usually a wiring mistake.\n      return { _tag: 'Initial' }",
       },
@@ -108,7 +108,7 @@ export default [
     name: 'a page is new whenever the store is',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/remote.ts',
         find: 'return made === undefined ? undefined : keptPage(pages, key, made)',
         replace: 'return made',
       },
@@ -119,7 +119,7 @@ export default [
     name: 'a page is kept even when a row in it changed',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/domain.ts',
         find: '  left.items.every((item, index) => item === right.items[index])',
         replace: '  true',
       },

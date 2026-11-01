@@ -12,7 +12,7 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 export default [
   edit(
     "a live insert is judged without Remote.make's viewer",
-    '../src/index.ts',
+    '../src/remote.ts',
     '              live.event,\n              contextOf(model),',
     '              live.event,\n              { viewer: Option.none(), now: Option.none() },',
   ),
@@ -30,7 +30,7 @@ export default [
   ),
   edit(
     'the client reads the time as the epoch',
-    '../src/index.ts',
+    '../src/remote.ts',
     '    now: Option.none(),\n  })',
     '    now: Option.some(0),\n  })',
   ),

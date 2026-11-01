@@ -11,7 +11,7 @@ export default [
     name: 'a verified placement is not fetched',
     edits: [
       {
-        file: index,
+        file: '../src/remote.ts',
         find: 'invalidateConnections(withPlaced, [...invalidated, ...identities])',
         replace: 'invalidateConnections(withPlaced, invalidated)',
       },
@@ -22,7 +22,7 @@ export default [
     name: 'every placement is verified',
     edits: [
       {
-        file: index,
+        file: '../src/remote.ts',
         find: '        verify.on &&\n        !verify.expects(',
         replace: '        !verify.expects(',
       },
@@ -49,7 +49,7 @@ export default [
     name: 'a placement a read made is not checked',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/remote.ts',
         find: 'capabilities.bodies.value.news(lists, remote, news, before, context),\n          [],\n        )',
         replace:
           '{},\n          [],\n        ) && { ...remote, connections: { ...remote.connections, ...capabilities.bodies.value.news(lists, remote, news, before, context) } }',
@@ -66,7 +66,7 @@ export default [
     name: 'placing records nothing it took out',
     edits: [
       {
-        file: index,
+        file: '../src/remote.ts',
         find: 'dropped: firstPage(remote.connections[identity]).filter(key => !kept.has(key)),',
         replace: 'dropped: [],',
       },
@@ -99,7 +99,7 @@ export default [
     name: 'a checked list is never stale for its check alone',
     edits: [
       {
-        file: index,
+        file: '../src/remote.ts',
         find: 'checking: !invalidatedAnyway.has(identity),',
         replace: 'checking: false,',
       },
@@ -121,7 +121,7 @@ export default [
     name: 'a read is kept across a change of what its list is checked for',
     edits: [
       {
-        file: index,
+        file: '../src/remote.ts',
         find: 'remote.optimistic.overlays, remote.placed]',
         replace: 'remote.optimistic.overlays]',
       },
@@ -132,7 +132,7 @@ export default [
     name: 'meta says a list stale only for its check is stale',
     edits: [
       {
-        file: index,
+        file: '../src/domain.ts',
         find: 'if (readsStale(remote, connection.identity)) stale = true',
         replace: 'if (remote.connections[connection.identity]?.stale === true) stale = true',
       },
@@ -143,7 +143,7 @@ export default [
     name: 'meta says a list fetched only for its check is loading',
     edits: [
       {
-        file: index,
+        file: '../src/domain.ts',
         find: 'remote.placed[connection.identity]?.checking !== true &&',
         replace: 'true &&',
       },

@@ -125,7 +125,7 @@ export default [
     name: 'Remote.now reads no clock',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/remote.ts',
         find: 'effect: Effect.map(Clock.currentTimeMillis, toMessage),',
         replace: 'effect: Effect.succeed(toMessage(0)),',
       },

@@ -31,7 +31,7 @@ export default [
     name: 'the domain gathers no read filter',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/domain.ts',
         find: 'DomainEntity.is(entity) ? [[entity.name, ReadFilter.members(entity.metadata)]] : [],',
         replace: '[],',
       },
@@ -42,7 +42,7 @@ export default [
     name: 'a list is given no read filter',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/remote.ts',
         find: '(over === undefined ? undefined : definition.registry.filtered.get(over)) ?? []',
         replace: '[]',
       },

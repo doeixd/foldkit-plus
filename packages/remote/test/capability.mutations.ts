@@ -3,7 +3,8 @@
  * `pnpm mutate packages/remote/test/capability.mutations.ts`.
  */
 const tests = ['packages/remote/test/capability.test.ts']
-const index = '../src/index.ts'
+const domain = '../src/domain.ts'
+const remote = '../src/remote.ts'
 const overlay = '../src/overlay.ts'
 const live = '../src/live.ts'
 const liveReads = '../src/liveReads.ts'
@@ -25,7 +26,7 @@ export default [
     name: 'a registered query installs nothing',
     edits: [
       {
-        file: index,
+        file: domain,
         find: '  for (const query of definition.queries) query[Installs]?.(capabilities)\n',
         replace: '',
       },
@@ -47,7 +48,7 @@ export default [
     name: 'with no body, an answer fetches no list again',
     edits: [
       {
-        file: index,
+        file: remote,
         find: 'return invalidateConnections(remote, unplaceable(remote, answer, before))',
         replace: 'return remote',
       },
@@ -58,7 +59,7 @@ export default [
     name: 'with no body, a row the answer placed is fetched again too',
     edits: [
       {
-        file: index,
+        file: remote,
         find: 'change => change.entity === over && !named.has(entityKey(change.entity, change.id)),',
         replace: 'change => change.entity === over,',
       },
@@ -69,7 +70,7 @@ export default [
     name: 'a registered mutation installs nothing',
     edits: [
       {
-        file: index,
+        file: domain,
         find: '  for (const mutation of definition.mutations) mutation[Installs](capabilities)\n',
         replace: '',
       },
@@ -161,7 +162,7 @@ export default [
   },
   {
     name: 'Remote.mutateInto installs nothing',
-    edits: [{ file: index, find: '    mutation[Installs](capabilities)\n', replace: '' }],
+    edits: [{ file: remote, find: '  mutation[Installs](capabilities)\n', replace: '' }],
     tests,
   },
   {

@@ -10,7 +10,7 @@ export default [
     name: 'a patch keeps refs as objects',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/remote.ts',
         find: 'descriptor.patch(id, wireValues(descriptor, values))',
         replace: 'descriptor.patch(id, values)',
       },

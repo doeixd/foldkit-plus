@@ -65,7 +65,7 @@ export default [
     name: 'a write in flight is listed',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/remote.ts',
         find: 'if (write === undefined || error === undefined || mutations.pending.has(requestId))',
         replace: 'if (write === undefined || error === undefined)',
       },
@@ -76,7 +76,7 @@ export default [
     name: 'a mutation narrows nothing',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/remote.ts',
         find: '        if (mutation !== undefined && write.mutation !== mutation.name) return []\n',
         replace: '',
       },
@@ -87,7 +87,7 @@ export default [
     name: 'a refusal is not decoded',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/remote.ts',
         find: '            refusal: refusalOf(error, descriptor),',
         replace: '            refusal: Option.none(),',
       },
@@ -142,8 +142,8 @@ export default [
     name: 'a folded retry answers unwrapped',
     edits: [
       {
-        file: '../src/index.ts',
-        find: '          started => ({ ...started, command: mapMessage(started.command, toParentMessage) }),',
+        file: '../src/remote.ts',
+        find: '        started => ({ ...started, command: mapMessage(started.command, toParentMessage) }),',
         replace: '          started => started as never,',
       },
     ],
@@ -153,7 +153,7 @@ export default [
     name: 'a write not failed is dismissed',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/remote.ts',
         find: "      if (mutationStatus(remote.mutations, requestId)._tag !== 'Failed') return model\n",
         replace: '',
       },
@@ -164,7 +164,7 @@ export default [
     name: 'a dismissal forgets nothing',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/remote.ts',
         find: '        mutations: forgetFailure(remote.mutations, requestId),',
         replace: '        mutations: remote.mutations,',
       },
@@ -175,7 +175,7 @@ export default [
     name: 'the wiring shares nothing',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/remote.ts',
         find: '      shared: options.shared ?? [],',
         replace: '      shared: [],',
       },

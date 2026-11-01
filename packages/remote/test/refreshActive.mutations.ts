@@ -44,8 +44,8 @@ export default [
     name: '`failed` asks again every read',
     edits: [
       {
-        file: '../src/index.ts',
-        find: '      options.failed === true\n        ? asking.filter(',
+        file: '../src/remote.ts',
+        find: '    options.failed === true\n      ? asking.filter(',
         replace: '      false\n        ? asking.filter(',
       },
     ],
@@ -55,8 +55,8 @@ export default [
     name: '`failed` invalidates every list',
     edits: [
       {
-        file: '../src/index.ts',
-        find: '      options.failed === true\n        ? merged.filter(',
+        file: '../src/remote.ts',
+        find: '    options.failed === true\n      ? merged.filter(',
         replace: '      false\n        ? merged.filter(',
       },
     ],
@@ -66,7 +66,7 @@ export default [
     name: 'one entry is read as a record',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/domain.ts',
         find: "    typeof members.projectionOf === 'function' ||\n",
         replace: '',
       },
@@ -77,7 +77,7 @@ export default [
     name: 'a family is read as a record',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/domain.ts',
         find: "    typeof members.instancesOf === 'function' ||\n",
         replace: '',
       },
@@ -88,7 +88,7 @@ export default [
     name: 'a Surface without params is read as a record',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/domain.ts',
         find: " ||\n    typeof members.projection === 'function'\n",
         replace: '\n',
       },
@@ -99,7 +99,7 @@ export default [
     name: 'a record is read as one entry',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/domain.ts',
         find: "  typeof (target as Partial<Record<'read', unknown>>).read === 'function'",
         replace: "  'read' in target",
       },
@@ -110,7 +110,7 @@ export default [
     name: 'a foreign Surface is refreshed',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/domain.ts',
         find: '  for (const entry of entries) assertOwnedBy(contract, entry)\n',
         replace: '',
       },

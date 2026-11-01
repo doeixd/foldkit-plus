@@ -34,7 +34,7 @@ export default [
     name: 'subscriptions ask only an entry’s first projection',
     edits: [
       {
-        file,
+        file: '../src/remote.ts',
         find: '        const asked = (model: AppModel) =>\n          askedUnion(resolvedAt(model).map(({ projection }) => projection))',
         replace:
           '        const asked = (model: AppModel) =>\n          askedUnion(resolvedAt(model).slice(0, 1).map(({ projection }) => projection))',
@@ -46,7 +46,7 @@ export default [
     name: 'satisfy prefetches only an entry’s first projection',
     edits: [
       {
-        file,
+        file: '../src/remote.ts',
         find: '          for (const { projection } of resolvedOf(entry, current))',
         replace: '          for (const { projection } of resolvedOf(entry, current).slice(0, 1))',
       },
@@ -57,7 +57,7 @@ export default [
     name: 'a foreign parent is not refused',
     edits: [
       {
-        file,
+        file: '../src/domain.ts',
         find: '  for (const surface of from === undefined ? [entry] : [entry, from]) {',
         replace: '  for (const surface of [entry]) {',
       },

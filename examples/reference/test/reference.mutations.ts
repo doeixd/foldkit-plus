@@ -15,7 +15,7 @@ export default [
     name: 'a note only its add holds is asked of the server',
     edits: [
       {
-        file: '../../../packages/remote/src/index.ts',
+        file: '../../../packages/remote/src/domain.ts',
         find: '!held.has(entityKey(requirement.entity, requirement.id))',
         replace: 'true',
       },

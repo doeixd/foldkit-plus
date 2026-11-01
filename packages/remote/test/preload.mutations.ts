@@ -19,14 +19,14 @@ export default [
   },
   {
     name: 'what a preload reads is not handed on',
-    edits: [{ file: '../src/index.ts', find: '      heard.push(message)\n', replace: '' }],
+    edits: [{ file: '../src/remote.ts', find: '      heard.push(message)\n', replace: '' }],
     tests,
   },
   {
     name: 'a preload fails as its read does',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/remote.ts',
         find: '            Effect.exit,\n',
         replace: '',
       },
@@ -37,7 +37,7 @@ export default [
     name: 'a foreign Surface is refused only when the read runs',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/remote.ts',
         find: "      Object.values(active).forEach(assertOwned)\n      return {\n        name: 'Remote.preload',",
         replace: "      return {\n        name: 'Remote.preload',",
       },
@@ -48,8 +48,8 @@ export default [
     name: 'a folded preload arrives unwrapped',
     edits: [
       {
-        file: '../src/index.ts',
-        find: '          toParentMessage,\n        ),\n',
+        file: '../src/remote.ts',
+        find: '        toParentMessage,\n      ),\n',
         replace: '          (message: RemoteMessage) => message as never,\n        ),\n',
       },
     ],

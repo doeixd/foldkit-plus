@@ -3,7 +3,7 @@
  * `pnpm mutate packages/remote/test/pendingPlacement.mutations.ts`.
  */
 const tests = ['packages/remote/test/pendingPlacement.test.ts']
-const index = '../src/index.ts'
+const remote = '../src/remote.ts'
 const layers = '../src/layers.ts'
 const placing = '../src/placing.ts'
 
@@ -68,7 +68,7 @@ export default [
     name: 'a read is not placed',
     edits: [
       {
-        file: index,
+        file: remote,
         find: "if (message._tag === 'ReadReceived') return message.result.entities",
         replace: '',
       },
@@ -78,7 +78,7 @@ export default [
   {
     name: 'a live patch is not placed',
     edits: [
-      { file: index, find: "if (event._tag !== 'EntityPatched') return []", replace: 'return []' },
+      { file: remote, find: "if (event._tag !== 'EntityPatched') return []", replace: 'return []' },
     ],
     tests,
   },
@@ -86,7 +86,7 @@ export default [
     name: 'news is not placed at all',
     edits: [
       {
-        file: index,
+        file: remote,
         find: '? placedNews(reduced, newsOf(message), remote.entities, contextOf(model))',
         replace: '? reduced',
       },

@@ -15,7 +15,8 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 const retain = '../src/retain.ts'
 const model = '../src/model.ts'
 const reasons = '../src/whyReasons.ts'
-const index = '../src/index.ts'
+const domain = '../src/domain.ts'
+const remote = '../src/remote.ts'
 
 export default [
   edit(
@@ -126,12 +127,12 @@ export default [
     'entry === undefined && remote.evicted.rows.includes(key)',
     'remote.evicted.rows.includes(key)',
   ),
-  edit("Remote.make's budget is dropped", index, 'budget: config.budget,', ''),
+  edit("Remote.make's budget is dropped", remote, 'budget: config.budget,', ''),
   edit(
     "Remote.retain's budget is dropped",
-    index,
+    remote,
     'toMessage(retentionChanged(current, budget))',
     'toMessage(retentionChanged(current, undefined))',
   ),
-  edit('a budget that is no number passes', index, '!(budget >= 0)', 'budget < 0'),
+  edit('a budget that is no number passes', domain, '!(budget >= 0)', 'budget < 0'),
 ]

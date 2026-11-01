@@ -16,6 +16,7 @@
 import { Result, Schema } from 'effect'
 import type { Focus, Metadata } from 'foldkit-surface'
 import type { Boundary, Connection, Segment } from './connection.js'
+import { DEFERRABLE } from './deferrable.js'
 import type { LiveState } from './liveState.js'
 import type { RemoteModel } from './model.js'
 import { own, put } from './record.js'
@@ -64,23 +65,6 @@ const CapturedLive = Schema.Struct({
     Schema.Struct({ before: Schema.Number, after: Schema.Number }),
   ),
 })
-
-/**
- * Marks a Subscription entry Remote built as one that may start late under
- * `foldkit-ssr`'s deferred boot (its decision 10): a read with resumed data
- * plans nothing, a live subscription resumes from the cursor the envelope
- * carries, and retention running late collects late. Non-enumerable, so the
- * runtime's iteration of an entry never sees it.
- */
-export const DEFERRABLE: unique symbol = Symbol.for('foldkit-remote/deferrable')
-
-/** Marks every entry of a record Remote built, lifted or not. */
-export const markAll = <Entries extends object>(entries: Entries): Entries => {
-  for (const entry of Object.values(entries)) {
-    Object.defineProperty(entry, DEFERRABLE, { value: true, enumerable: false })
-  }
-  return entries
-}
 
 /** The captured part of a Remote store, as JSON. */
 export const RemoteCapture = Schema.Struct({

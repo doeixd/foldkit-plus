@@ -3,7 +3,7 @@
  * `pnpm mutate packages/remote-server/test/rpcTooLarge.mutations.ts`.
  */
 const rpc = '../../remote/src/rpc.ts'
-const index = '../../remote/src/index.ts'
+const remote = '../../remote/src/remote.ts'
 const tests = ['packages/remote-server/test/rpcTooLarge.test.ts']
 
 export default [
@@ -46,14 +46,14 @@ export default [
   },
   {
     name: 'a mutation under a 403 is its own error, not forbidden',
-    edits: [{ file: index, find: 'status === 403', replace: 'false' }],
+    edits: [{ file: remote, find: 'status === 403', replace: 'false' }],
     tests,
   },
   {
     name: 'a mutation refused reads as unreachable',
     edits: [
       {
-        file: index,
+        file: remote,
         find: ': new RemoteMutationError({ message }),',
         replace: ': new RemoteUnreachable({ message }),',
       },
@@ -64,7 +64,7 @@ export default [
     name: 'a read refused reads as unreachable',
     edits: [
       {
-        file: index,
+        file: remote,
         find: 'rpcFailure((_status, message) => new RemoteReadError({ message })),',
         replace: 'rpcFailure((_status, message) => new RemoteUnreachable({ message })),',
       },
@@ -75,7 +75,7 @@ export default [
     name: 'a query refused reads as unreachable',
     edits: [
       {
-        file: index,
+        file: remote,
         find: 'rpcFailure((_status, message) => new RemoteQueryError({ message })),',
         replace: 'rpcFailure((_status, message) => new RemoteUnreachable({ message })),',
       },

@@ -18,7 +18,7 @@ export default [
   ),
   edit(
     'no count is registered',
-    '../src/index.ts',
+    '../src/domain.ts',
     'DerivedBy.Count({ relation: relation.key, owner: entity.name, field }),',
     'DerivedBy.Count({ relation: "none", owner: entity.name, field }),',
   ),

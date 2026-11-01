@@ -8,7 +8,7 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
   edits: [{ file, find, replace }],
   tests,
 })
-const index = '../src/index.ts'
+const remote = '../src/remote.ts'
 const model = '../src/model.ts'
 const store = '../src/store.ts'
 
@@ -21,7 +21,7 @@ const absent = (name: string, file: string, find: string, replace: string) => ({
 
 const partial = (name: string, find: string, replace: string) => ({
   name,
-  edits: [{ file: index, find, replace }],
+  edits: [{ file: remote, find, replace }],
   tests: [
     ...tests,
     'packages/remote/test/domain.test.ts',
@@ -53,31 +53,31 @@ export default [
   ),
   edit(
     'a stale list reads as if it held nothing',
-    index,
+    '../src/remote.ts',
     'connection === undefined || (connection.stale && connection.segments.length === 0)',
     'connection === undefined || connection.stale',
   ),
   edit(
     'a list reads Loading while its rows are refetched',
-    index,
+    '../src/remote.ts',
     'const read =\n          readPage(remote, connection) ??',
     'const read =\n          loadingItem(remote, connection) ??\n          readPage(remote, connection) ??',
   ),
   edit(
     'an entity reads Loading while it is refetched',
-    index,
+    '../src/domain.ts',
     '      if (present !== undefined) {',
     '      if (isLoadingThrough(remote, selection.entity, id, relation)) return LOADING\n      if (present !== undefined) {',
   ),
   edit(
     "a failed list's query drops its rows",
-    index,
+    '../src/remote.ts',
     'return failedWith(read, failure)',
     "return { _tag: 'Failed', error: failure }",
   ),
   edit(
     "a failed entity's refresh drops its value",
-    index,
+    '../src/domain.ts',
     '? failedWith(present, failure)',
     "? { _tag: 'Failed', error: failure }",
   ),

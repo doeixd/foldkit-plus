@@ -12,14 +12,16 @@
  * failed "keeps no explanations", and one that reaches `outboxStatus` and
  * `persistence` again failed "keeps no outbox or persistence code", and
  * Remote's `Query` built without its `@__PURE__` mark failed "keeps no
- * expression evaluator".
+ * expression evaluator", and `Remote` an object again (`export const Remote =
+ * { ...Members }` in `index.ts`) failed "keeps no transport or resume code it
+ * never calls" (#396).
  */
 const tests = ['scripts/test/readOnlyPage.test.ts']
 
 const config = (name: string) => `../../packages/${name}/tsdown.config.ts`
 
-/** Entity's relative imports, left as written so `export * as Entity` stays a namespace. */
-const relative = { file: config('entity'), find: '/^\\.\\.?\\//, ', replace: '' }
+/** The package's relative imports, left as written so its namespace stays a namespace. */
+const relative = (name: string) => ({ file: config(name), find: '/^\\.\\.?\\//, ', replace: '' })
 
 /** Links the package's modules into its entries, so no page keeps a module of its own. */
 const linked = (name: string, entries: ReadonlyArray<string>) => ({
@@ -30,7 +32,7 @@ const linked = (name: string, entries: ReadonlyArray<string>) => ({
       find: "  entry: ['src/**/*.ts'],",
       replace: `  entry: ${JSON.stringify(entries)},`,
     },
-    ...(name === 'entity' ? [relative] : []),
+    relative(name),
   ],
   tests,
 })
@@ -39,7 +41,12 @@ export default [
   linked('entity', ['src/index.ts', 'src/conformance/index.ts']),
   {
     name: 'the published entity links its namespace into an object',
-    edits: [relative],
+    edits: [relative('entity')],
+    tests,
+  },
+  {
+    name: 'the published remote links its namespace into an object',
+    edits: [relative('remote')],
     tests,
   },
   linked('remote', [

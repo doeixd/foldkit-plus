@@ -9,7 +9,11 @@ export default [
   {
     name: 'a delete past the window is its own',
     edits: [
-      { file, find: '    if (size !== undefined && filled >= size) return false\n', replace: '' },
+      {
+        file: '../src/domain.ts',
+        find: '    if (size !== undefined && filled >= size) return false\n',
+        replace: '',
+      },
     ],
     tests,
   },
@@ -17,7 +21,7 @@ export default [
     name: 'a window from the end is read from the start',
     edits: [
       {
-        file,
+        file: '../src/domain.ts',
         find: 'const ordered = window.first === undefined ? [...edges].reverse() : edges',
         replace: 'const ordered = edges',
       },
@@ -26,14 +30,20 @@ export default [
   },
   {
     name: 'a hidden row counts toward the window',
-    edits: [{ file, find: '    if (shown.has(edge.key)) filled++\n', replace: '    filled++\n' }],
+    edits: [
+      {
+        file: '../src/domain.ts',
+        find: '    if (shown.has(edge.key)) filled++\n',
+        replace: '    filled++\n',
+      },
+    ],
     tests,
   },
   {
     name: 'no delete counts for the window',
     edits: [
       {
-        file,
+        file: '../src/domain.ts',
         find: '    if (gone(entityKey(edge.ref.entity, edge.ref.id))) return true\n',
         replace: '',
       },

@@ -8,7 +8,7 @@ const tests = [
 ]
 const edit = (name: string, find: string, replace: string) => ({
   name,
-  edits: [{ file: '../src/index.ts', find, replace }],
+  edits: [{ file: '../src/remote.ts', find, replace }],
   tests,
 })
 

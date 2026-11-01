@@ -12,7 +12,7 @@ const tests = [
 const terms = '../src/whyTerms.ts'
 const reasons = '../src/whyReasons.ts'
 const why = '../src/why.ts'
-const index = '../src/index.ts'
+const remote = '../src/remote.ts'
 const edit = (name: string, find: string, replace: string, file = reasons) => ({
   name,
   edits: [{ file, find, replace }],
@@ -116,7 +116,7 @@ export default [
     'a list’s rows are not cut to the read’s window',
     'shown: cutToWindow(placed, window, windowSize(remote, { identity, window })).edges,',
     'shown: placed,',
-    index,
+    remote,
   ),
   edit('the timeline compares every Model with the start', 'before = entry.model', '', why),
   edit('every Message is a step', 'if (was._tag === is._tag) return []', '', why),

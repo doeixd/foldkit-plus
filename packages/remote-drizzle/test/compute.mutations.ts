@@ -228,7 +228,7 @@ export default [
   ),
   edit(
     "a domain reads its store by the kernel, not Remote.make's table",
-    '../../remote/src/index.ts',
+    '../../remote/src/domain.ts',
     'return visibleOf(bound[Capability], bound.store.get(model), bound.operators)',
     'return visibleOf(bound[Capability], bound.store.get(model), Operators.kernel)',
     remoteTests,

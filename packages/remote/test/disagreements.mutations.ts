@@ -12,8 +12,8 @@ const edit = (name: string, file: string, find: string, replace: string, named =
 })
 const diagnostics = (name: string, find: string, replace: string, named = tests) =>
   edit(name, '../src/diagnostics.ts', find, replace, named)
-const index = (name: string, find: string, replace: string) =>
-  edit(name, '../src/index.ts', find, replace)
+const remote = (name: string, find: string, replace: string) =>
+  edit(name, '../src/remote.ts', find, replace)
 const testing = (name: string, find: string, replace: string) =>
   edit(name, '../src/testing.ts', find, replace)
 
@@ -30,12 +30,12 @@ export default [
     "typeof reason !== 'string'",
   ),
   diagnostics('the object form is on whatever it says', '    on: verify.on,', '    on: true,'),
-  index(
+  remote(
     'an expected Value or Gap is recorded',
     '].filter(found => !verify.expects(found.part._tag, mutation))',
     ']',
   ),
-  index(
+  remote(
     'an expected Placement is checked',
     '        verify.on &&\n        !verify.expects(',
     '        verify.on ||\n        !verify.expects(',

@@ -8,7 +8,7 @@ const tests = [
 ]
 const shown = '../src/shown.ts'
 const client = '../src/client.ts'
-const index = '../src/index.ts'
+const remote = '../src/remote.ts'
 const model = '../src/model.ts'
 
 export default [
@@ -109,7 +109,7 @@ export default [
     name: 'placement ignores what the answer read',
     edits: [
       {
-        file: index,
+        file: remote,
         find: 'impactOf(reduced, withAnswerRead(answer), remote.entities, contextOf(model)),',
         replace: 'impactOf(reduced, answer, remote.entities, contextOf(model)),',
       },
@@ -120,7 +120,7 @@ export default [
     name: 'a row the answer patched and read is placed by the read alone',
     edits: [
       {
-        file: index,
+        file: remote,
         find: 'held === undefined ? patch : { ...held, values: { ...held.values, ...patch.values } },',
         replace: 'patch,',
       },

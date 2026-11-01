@@ -12,62 +12,63 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
   edits: [{ file, find, replace }],
   tests,
 })
-const index = '../src/index.ts'
+const domain = '../src/domain.ts'
+const remote = '../src/remote.ts'
 const model = '../src/model.ts'
 const resume = '../src/resume.ts'
 
 export default [
   edit(
     'a list never ages',
-    index,
+    domain,
     'const aged = freshness !== undefined && expires !== undefined && freshness.now > expires',
     'const aged = false',
   ),
   edit(
     'a list ages at the very moment its window ends',
-    index,
+    domain,
     'freshness.now > expires',
     'freshness.now >= expires',
   ),
   edit(
     'a list asked for again is not named as refreshing',
-    index,
+    domain,
     '      if (known !== undefined && known.segments.length > 0) refreshing.push(connection.identity)\n',
     '',
   ),
   edit(
     'no clock waits on a list',
-    index,
+    domain,
     'listsExpire = earlier(listsExpire, {',
     'void earlier(listsExpire, {',
   ),
   edit(
     'a failed list sets a clock',
-    index,
+    domain,
     'if (!failed && expires !== undefined && Number.isFinite(expires))',
     'if (expires !== undefined && Number.isFinite(expires))',
   ),
   edit(
     'the later deadline is waited on',
-    index,
+    domain,
     'return a.at < b.at ? a : b',
     'return a.at < b.at ? b : a',
   ),
   edit(
     'deadlines that fall together keep only the rows',
-    index,
+    domain,
     'connections: [...a.connections, ...b.connections],',
     'connections: a.connections,',
   ),
   edit(
     'the entry does not announce a list it asks for again',
-    index,
+    domain,
     '(requirements.length > 0 || refreshing.length > 0)',
     'requirements.length > 0',
   ),
   edit(
     'the clock does not name the lists that aged',
-    index,
+    domain,
     'toMessage(refreshStarted(expires.due, expires.connections))',
     'toMessage(refreshStarted(expires.due, []))',
   ),
@@ -98,13 +99,13 @@ export default [
   edit('a list left is held stale whatever its readers', model, ' || ages === true', ''),
   edit(
     'a list read without ageing ages anyway',
-    index,
+    remote,
     'root.select === undefined || unaged.has(root.identity)',
     'root.select === undefined',
   ),
   edit(
     'the last call alone says whether a reader ages',
-    index,
+    remote,
     "(ageing.get(entry) ?? true) && options.policy?._tag === 'StaleWhileRevalidate'",
     "options.policy?._tag === 'StaleWhileRevalidate'",
   ),

@@ -77,7 +77,12 @@ export default [
     'const matched = evaluate(body, encoded, rows, { operators, context })',
     'const matched = evaluate(body, encoded, rows, { context })',
   ),
-  edit('Remote.make drops its table', remote, '      operators: config.operators,\n', ''),
+  edit(
+    'Remote.make drops its table',
+    '../../remote/src/remote.ts',
+    '    operators: config.operators,\n',
+    '',
+  ),
   edit(
     'the client filters with the kernel',
     '../../remote/src/filter.ts',

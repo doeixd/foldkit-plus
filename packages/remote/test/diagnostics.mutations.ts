@@ -77,7 +77,7 @@ export default [
     name: 'a fold does not report',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/remote.ts',
         find: 'commands: (reduced.commands ?? []).map(command => mapMessage(command, toParentMessage)),',
         replace: 'commands: [],',
       },
@@ -88,7 +88,7 @@ export default [
     name: 'a fold reads its own update as deaf',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/remote.ts',
         find: 'reduceReporting(domain.store, domain.reduce, model, message, true)',
         replace: 'reduceReporting(domain.store, domain.reduce, model, message, false)',
       },
@@ -99,7 +99,7 @@ export default [
     name: 'the wiring ignores what it shares',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/remote.ts',
         find: "(options.shared ?? []).some(tag => tag === 'MutationFailed'),",
         replace: 'false,',
       },

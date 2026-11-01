@@ -14,7 +14,7 @@ export default [
     name: "a folded entry sends the domain's Messages, not the parent's",
     edits: [
       {
-        file,
+        file: '../src/remote.ts',
         find: 'Stream.map(entry.dependenciesToStream(dependencies, read), toParentMessage)',
         replace: 'entry.dependenciesToStream(dependencies, read)',
       },
@@ -25,8 +25,8 @@ export default [
     name: "a folded entry's dependencies are wrapped as a lift wraps them",
     edits: [
       {
-        file,
-        find: 'markAll(\n          messagesAs(brandEntries(domain.subscriptions(active, options)), toParentMessage),\n        )',
+        file: '../src/remote.ts',
+        find: 'markAll(\n        messagesAs(brandEntries(domain.subscriptions(active, options)), toParentMessage),\n      )',
         replace:
           'markAll(\n          Subscription.lift(brandEntries(domain.subscriptions(active, options)))({ read: (model: AppModel) => Option.some(model), toParentMessage }),\n        )',
       },

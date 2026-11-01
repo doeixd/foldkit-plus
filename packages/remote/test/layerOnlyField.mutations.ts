@@ -14,7 +14,7 @@ export default [
     name: 'a read plans over the visible store',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/domain.ts',
         find: 'plan(plannedOf(capabilities, remote, visible), read, options)',
         replace: 'plan(visible, read, options)',
       },
@@ -58,7 +58,7 @@ export default [
     name: 'a row only a pending request holds is asked of the server',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/domain.ts',
         find: '!held.has(entityKey(requirement.entity, requirement.id))',
         replace: 'true',
       },

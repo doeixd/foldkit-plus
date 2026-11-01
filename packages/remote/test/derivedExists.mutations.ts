@@ -12,7 +12,7 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 export default [
   edit(
     'no exists is registered',
-    '../src/index.ts',
+    '../src/domain.ts',
     '            DerivedBy.Exists({\n              relation: relation.key,',
     '            DerivedBy.Exists({\n              relation: "none",',
   ),

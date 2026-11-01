@@ -19,7 +19,7 @@ export default [
     name: 'a read marks no list live',
     edits: [
       {
-        file: client,
+        file: '../../remote/src/remote.ts',
         find: 'live ? { ...contract.requirement, live } : contract.requirement',
         replace: 'contract.requirement',
       },
@@ -30,7 +30,7 @@ export default [
     name: 'a list read live without first is taken',
     edits: [
       {
-        file: client,
+        file: '../../remote/src/remote.ts',
         find: 'if (live && window.first === undefined) {',
         replace: 'if (false) {',
       },
@@ -94,7 +94,13 @@ export default [
   },
   {
     name: 'the RPC client sends no list',
-    edits: [{ file: client, find: '...(queries.length === 0 ? {} : { queries }),', replace: '' }],
+    edits: [
+      {
+        file: '../../remote/src/remote.ts',
+        find: '...(queries.length === 0 ? {} : { queries }),',
+        replace: '',
+      },
+    ],
     tests: serverTests,
   },
   {
