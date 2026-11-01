@@ -629,6 +629,15 @@ Foldkit's own behaviour that we work around is listed in
   Holding the placement for that report placed the list a frame late, after
   domains-plus's first reads, which then looped (#399). Read what is drawn
   synchronously when observing starts.
+- **A Subscription's restart speaks after the Messages already queued.**
+  Foldkit derives dependencies on a fiber of its own (a PubSub of Models), so
+  the first Messages of a restarted stream land behind answers queued
+  meanwhile. Remote's `RefreshStarted`, planned while a row was missing,
+  marked stale the answer that came between, and two overlapping reads
+  refreshed each other for good (#399); `Trace.run` restarts at once and
+  never showed it. Emit nothing whose effect assumes the Model it was
+  planned from, and test such a race with a driver whose restart lags
+  (`packages/remote/test/overlappingReads.test.ts`).
 - **A runtime disposed before its Subscriptions start never ends their
   streams.** `embed(...).dispose()` in the same tick as boot (React
   StrictMode's mount, unmount, mount) interrupts the Subscription fibers

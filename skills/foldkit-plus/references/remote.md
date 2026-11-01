@@ -292,6 +292,9 @@ const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Projec
 // Remote only as a Message, and a Projection never reads the clock. The deadline is a dependency
 // (`expires`), so a write moves it. A list's age is its last whole page (`Connection.receivedAt`);
 // an aged list is asked for again whole and reads Refreshing with its rows meanwhile.
+// The read entry's RefreshStarted names only what it reads again though held (ReadDependencies'
+// `refreshes` and `refreshing`), never what is missing or already stale: an answer queued
+// before the mark would be made stale again, and two overlapping reads would loop (#399).
 // A mutation's answer dates what it writes too: `MutationSucceeded.now`, Effect's Clock when the
 // answer lands (drive TestClock). Data.mutate's `now` option is the write's time sent to the server.
 

@@ -155,7 +155,9 @@ What a field the store already holds means is a `RemotePolicy` on `observe` and
 `staleWhileRevalidate({ maxAge })` refetches an entry older than the window, and
 `networkOnly` fetches every selected field. A policy compiles to planner options;
 it is not a second cache. A refreshing policy emits `RefreshStarted` with the
-read's `ReadStarted`, which marks the refetched fields stale.
+read's `ReadStarted`, which marks stale the fields it refetches though the store
+holds them; a missing or already stale field is not marked, so an answer queued
+before the mark is not made stale again.
 
 Time reaches Remote only as a Message. The read entry knows, from the Model and
 `now`, when the earliest value it holds ages out under `maxAge`; it sleeps until

@@ -889,9 +889,13 @@ What Remote should do when the Model already contains the selected fields is a
   values stay visible while the request is in flight.
 
 A refreshing policy emits `RefreshStarted` before the read, naming the fields
-and the held lists it asks for again, so the Projection becomes `Refreshing`
+and the held lists it asks for again though the Model holds them (aged out,
+forced, or under another window), so the Projection becomes `Refreshing`
 without discarding the old value, and the page answering a list replaces what
-it held. Planning accepts `now`
+it held. What it reads because it is missing or already stale it does not
+name: Foldkit reduces the mark after the Messages already queued, an answer to
+that very field among them, and a mark that made the answer stale again had
+two reads of one row refresh each other for good. Planning accepts `now`
 as an input, so tests can control time. It defaults to `Date.now`, read at each
 use, so fake timers (`vi.useFakeTimers`) move it; Effect's `TestClock` does not,
 because a plan runs outside Effect, so a test that drives `TestClock` passes

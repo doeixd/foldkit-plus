@@ -70,7 +70,7 @@ import { DerivedBy } from './derived.js'
 import type { MutationStatus } from './ledger.js'
 import type { MutationDescriptor } from './mutationDescriptor.js'
 import type { OptimisticOperation } from './optimistic.js'
-import { deadlineOf, plan, type Deadline, type PlanOptions } from './plan.js'
+import { deadlineOf, plan, refreshedOf, type Deadline, type PlanOptions } from './plan.js'
 import { RemotePolicy } from './policy.js'
 import { stableStringify } from './query.js'
 import type { ConnectionSpec, QueryDescriptor, QueryRef, QueryWindow } from './query.js'
@@ -1261,8 +1261,13 @@ export interface ReadDeadline extends Deadline {
 interface Planned {
   readonly requirements: ReadonlyArray<Requirement>
   readonly queries: ReadonlyArray<QueryRequirement>
-  /** Held lists among `queries` asked for whole, which read `Refreshing` while they are. */
+  /**
+   * Held lists among `queries` asked for again though they are held (aged,
+   * or forced), which read `Refreshing` while they are.
+   */
   readonly refreshing: ReadonlyArray<string>
+  /** What of `requirements` is read again though held (`refreshedOf`): it reads `Refreshing` meanwhile. */
+  readonly refreshes: ReadonlyArray<Requirement>
   /** Under a freshness, when what is held next goes stale; `null` when nothing held will. */
   readonly expires: ReadDeadline | null
 }
@@ -1384,7 +1389,10 @@ export const planAsked = (
               connection.window.first === undefined ? { last: size } : { first: size },
             ),
       )
-      if (known !== undefined && known.segments.length > 0) refreshing.push(connection.identity)
+      // A stale list is already marked, and an answer queued before the mark
+      // would be made stale again: see `refreshedOf`.
+      if (known !== undefined && known.segments.length > 0 && (aged || options.force === true))
+        refreshing.push(connection.identity)
       continue
     }
     if (known === undefined) continue
@@ -1410,15 +1418,18 @@ export const planAsked = (
   const visible = visibleOf(capabilities, remote, bound.operators)
   const read = [...asked.requirements, ...items]
   const held = requestOnlyOf(capabilities, remote)
-  const planned = plan(plannedOf(capabilities, remote, visible), read, options)
+  const store = plannedOf(capabilities, remote, visible)
+  const planned = plan(store, read, options)
   const sent = planned.filter(
     requirement => !held.has(entityKey(requirement.entity, requirement.id)),
   )
   const rowsExpire = freshness === undefined ? undefined : deadlineOf(visible, read, freshness)
+  const requirements = options.force === true ? sent : withoutFailedFields(remote, sent)
   return {
-    requirements: options.force === true ? sent : withoutFailedFields(remote, sent),
+    requirements,
     queries,
     refreshing,
+    refreshes: refreshedOf(store, requirements, options),
     expires: earlier(
       rowsExpire === undefined ? null : { ...rowsExpire, connections: [] },
       listsExpire,
@@ -1629,11 +1640,19 @@ export interface ReadDependencies {
    */
   readonly refresh: number
   /**
-   * Held lists the entry queries whole: under a refreshing policy its
-   * `RefreshStarted` marks them stale, so each reads `Refreshing` with its
-   * rows and the page answering it replaces them.
+   * Held lists the entry queries whole though they are held (aged out, or
+   * forced): under a refreshing policy its `RefreshStarted` marks them stale,
+   * so each reads `Refreshing` with its rows and the page answering it
+   * replaces them.
    */
   readonly refreshing: ReadonlyArray<string>
+  /**
+   * What of `requirements` is read again though the store holds it (aged
+   * out, forced, or under another window): under a refreshing policy its
+   * `RefreshStarted` marks these, and only these, stale, so each reads
+   * `Refreshing`. Empty under any other policy.
+   */
+  readonly refreshes: ReadonlyArray<Requirement>
   /**
    * Under a refreshing policy, when a value the entry holds next ages out and
    * what is due then. Time reaches Remote only as a Message: the entry sleeps
@@ -1687,6 +1706,7 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       queries: Schema.Array(PlannedQuery),
       refresh: Schema.Number,
       refreshing: Schema.Array(Schema.String),
+      refreshes: Schema.Array(ReadRequest),
       expires: Schema.NullOr(
         Schema.Struct({
           at: Schema.Number,
@@ -1717,6 +1737,7 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
           select,
         })),
         refreshing: plan.refreshing,
+        refreshes: RemotePolicy.refreshes(policy) ? plan.refreshes : [],
         expires: plan.expires,
       }
       if (byAsked === undefined) {
@@ -1726,7 +1747,7 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       byAsked.set(askedKey, { until: plan.expires?.at ?? Infinity, dependencies })
       return dependencies
     },
-    dependenciesToStream: ({ requirements, queries, refresh, refreshing, expires }) =>
+    dependenciesToStream: ({ requirements, queries, refresh, refreshing, refreshes, expires }) =>
       Stream.concat(
         Stream.fromIterable([
           // Absent fields read as `Loading` until the read lands.
@@ -1735,8 +1756,8 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
             : [toMessage({ _tag: 'ReadStarted', requests: requirements, refresh })]),
           // A refreshing policy also marks the present fields, and the held
           // lists it asks for whole, stale.
-          ...(RemotePolicy.refreshes(policy) && (requirements.length > 0 || refreshing.length > 0)
-            ? [toMessage(refreshStarted(requirements, refreshing))]
+          ...(refreshes.length > 0 || refreshing.length > 0
+            ? [toMessage(refreshStarted(refreshes, refreshing))]
             : []),
           // A list with nothing to show reads `Loading` until its page lands.
           ...(queries.length === 0

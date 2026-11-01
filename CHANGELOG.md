@@ -490,6 +490,20 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **Two overlapping reads no longer refresh each other for good**
+  (`foldkit-remote`, #399). Under a refreshing policy a read entry's
+  `RefreshStarted` named every field it read, and Foldkit reduces it after
+  the Messages already queued: an answer to the same row, landing between
+  the plan and the mark, was marked stale again. Two reads of one row then
+  each planned what the other's mark undid. In domains-plus, once the rows in
+  view shrank while the first reads were in flight, its Top Results and
+  visible rows took turns for about 1,100 Messages in 20s, and no price was
+  drawn. The mark now names only what the entry reads again though the store
+  holds it (aged out, forced, or under another window): `ReadDependencies`
+  carries it as `refreshes`, computed by the new `refreshedOf(store,
+  planned, options)` beside `plan`, and its `refreshing` names a held list
+  only when it aged out or is forced.
+
 - **A second submit of an unchanged form keeps its Model** (`foldkit-form`,
   #387). It handed the value out again in a new, equal Model, so a parent that
   refused the value could not return the Model it was given.

@@ -15,8 +15,8 @@ export default [
     edits: [
       {
         file: '../src/domain.ts',
-        find: 'plan(plannedOf(capabilities, remote, visible), read, options)',
-        replace: 'plan(visible, read, options)',
+        find: 'const store = plannedOf(capabilities, remote, visible)',
+        replace: 'const store = visible',
       },
     ],
     tests,

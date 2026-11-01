@@ -539,6 +539,7 @@ describe('live and Data.subscriptions', () => {
       queries: [],
       refresh: 0,
       refreshing: [],
+      refreshes: [],
       expires: null,
     })
     expect(subscriptions['page.read'].modelToDependencies(at(''))).toEqual({
@@ -546,6 +547,7 @@ describe('live and Data.subscriptions', () => {
       queries: [],
       refresh: 0,
       refreshing: [],
+      refreshes: [],
       expires: null,
     })
     expect(subscriptions['home.read'].modelToDependencies(at(''))).toEqual({
@@ -553,6 +555,7 @@ describe('live and Data.subscriptions', () => {
       queries: [],
       refresh: 0,
       refreshing: [],
+      refreshes: [],
       expires: null,
     })
   })
@@ -614,6 +617,7 @@ describe('live and Data.subscriptions', () => {
       queries: [],
       refresh: 0,
       refreshing: [],
+      refreshes: [],
       expires: null,
     })
 
@@ -667,6 +671,7 @@ describe('live and Data.subscriptions', () => {
       queries: [],
       refresh: 0,
       refreshing: [],
+      refreshes: [],
       expires: null,
     })
     expect(tuned['home.read'].modelToDependencies(loaded)).toEqual({
@@ -674,6 +679,8 @@ describe('live and Data.subscriptions', () => {
       queries: [],
       refresh: 0,
       refreshing: [],
+      // What it reads again though held reads `Refreshing` while it is.
+      refreshes: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
       expires: null,
     })
   })
@@ -1489,6 +1496,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       ],
       refresh: 0,
       refreshing: [],
+      refreshes: [],
       expires: null,
     })
     // The connection is a retention root by itself, with what the page selects of each item.
@@ -1537,6 +1545,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       queries: [],
       refresh: 0,
       refreshing: [],
+      refreshes: [],
       expires: null,
     })
     const reads = await Effect.runPromise(
@@ -1560,6 +1569,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       queries: [],
       refresh: 0,
       refreshing: [],
+      refreshes: [],
       expires: null,
     })
   })
@@ -1681,6 +1691,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       queries: [],
       refresh: 0,
       refreshing: [],
+      refreshes: [],
       expires: null,
     })
     const foreign = Data.reduce(initial, {

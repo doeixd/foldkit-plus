@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   emptyStore,
   entityKey,
+  markStale,
   plan,
+  refreshedOf,
   tombstone,
   windowKey,
   writeEntity,
@@ -176,5 +178,25 @@ describe('Remote.plan', () => {
         for (const field of requirement.fields) expect(asked!.has(field)).toBe(true)
       }
     }
+  })
+})
+
+describe('refreshedOf', () => {
+  const p1 = entityKey('Project', 'p1')
+  const comments = { entity: 'Project', id: 'p1', fields: ['comments'] }
+  const under = (first: number) => ({ ...comments, windows: { comments: { first } } })
+  const written = (updatedAt: number) =>
+    writeEntity(emptyStore, p1, { comments: [] }, updatedAt, { comments: windowKey({ first: 5 }) })
+  const freshness = { freshness: { now: 10_000, freshness: 1_000 } }
+
+  it.each([
+    ['an expired entity, whole', written(0), under(5), freshness, [under(5)]],
+    ['a field held under another window', written(9_500), under(10), freshness, [under(10)]],
+    ['every field under a force', written(9_500), under(5), { force: true }, [under(5)]],
+    ['nothing held under the window asked', written(9_500), under(5), freshness, []],
+    ['nothing missing', emptyStore, under(5), freshness, []],
+    ['nothing stale already', markStale(written(9_500), p1, ['comments']), comments, freshness, []],
+  ] as const)('names %s', (_, store, requirement, options, expected) => {
+    expect(refreshedOf(store, [requirement], options)).toEqual(expected)
   })
 })

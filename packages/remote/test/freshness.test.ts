@@ -168,6 +168,7 @@ describe('a value ageing out under staleWhileRevalidate', () => {
       queries: [],
       refresh: 0,
       refreshing: [],
+      refreshes: [],
       expires: { at: 2_000, due: [request], connections: [] },
     })
   })

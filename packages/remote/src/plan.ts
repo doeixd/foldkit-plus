@@ -101,6 +101,17 @@ export const deadlineOf = (
   return at === undefined ? undefined : { at, due: Requirement.merge(due) }
 }
 
+/** Whether a held entity is older than `freshness` allows, so it is read again whole. */
+const isExpired = (store: EntityStore, key: string, freshness: PlanFreshness | undefined) => {
+  const entry = store[key]
+  return (
+    freshness !== undefined &&
+    entry !== undefined &&
+    !entry.tombstone &&
+    freshness.now - entry.updatedAt > freshness.freshness
+  )
+}
+
 export const plan = (
   store: EntityStore,
   requirements: readonly Requirement[],
@@ -112,12 +123,7 @@ export const plan = (
 
   for (const group of Requirement.merge(requirements)) {
     const key = entityKey(group.entity, group.id)
-    const entry = store[key]
-    const expired =
-      freshness !== undefined &&
-      entry !== undefined &&
-      !entry.tombstone &&
-      freshness.now - entry.updatedAt > freshness.freshness
+    const expired = isExpired(store, key, freshness)
     const windowKeys = Object.fromEntries(
       Object.entries(group.windows ?? {}).map(([field, window]) => [field, windowKey(window)]),
     )
@@ -150,4 +156,51 @@ export const plan = (
   return [...Requirement.merge([...planned, ...nested])].sort((a, b) =>
     entityKey(a.entity, a.id) < entityKey(b.entity, b.id) ? -1 : 1,
   )
+}
+
+/**
+ * What of `planned`, the plan of `store` under `options`, is read again
+ * though the store holds it: every field under a force, an expired entity's
+ * fields, and a field held under another window. A refreshing policy marks
+ * these stale, so each reads `Refreshing`. A field planned because it is
+ * missing or already stale is not: marking it is no news, and Foldkit reduces
+ * the mark after the Messages already queued, an answer to that very field
+ * among them, which the mark would make stale again (#399). Two reads of one
+ * row then each planned what the other's mark undid, for good. Nothing here
+ * reads what the mark changes, so a read entry is not restarted by its own.
+ */
+export const refreshedOf = (
+  store: EntityStore,
+  planned: ReadonlyArray<Requirement>,
+  options: PlanOptions,
+): ReadonlyArray<Requirement> => {
+  if (options.force === true) return planned
+  return planned.flatMap(requirement => {
+    const key = entityKey(requirement.entity, requirement.id)
+    if (isExpired(store, key, options.freshness)) return [requirement]
+    const held = store[key]?.windows ?? {}
+    const fields = requirement.fields.filter(field => {
+      const window = requirement.windows?.[field]
+      const stored = Object.hasOwn(held, field) ? held[field] : undefined
+      return (
+        window !== undefined &&
+        stored !== undefined &&
+        stored !== '' &&
+        stored !== windowKey(window)
+      )
+    })
+    if (fields.length === 0) return []
+    const kept = new Set(fields)
+    const windows = pickFields(requirement.windows, kept)
+    const relations = pickFields(requirement.relations, kept)
+    return [
+      {
+        entity: requirement.entity,
+        id: requirement.id,
+        fields,
+        ...(windows === undefined ? {} : { windows }),
+        ...(relations === undefined ? {} : { relations }),
+      },
+    ]
+  })
 }

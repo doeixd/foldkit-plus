@@ -33,8 +33,8 @@ export default [
   edit(
     'a list asked for again is not named as refreshing',
     domain,
-    '      if (known !== undefined && known.segments.length > 0) refreshing.push(connection.identity)\n',
-    '',
+    '        refreshing.push(connection.identity)',
+    '        void 0',
   ),
   edit(
     'no clock waits on a list',
@@ -63,8 +63,8 @@ export default [
   edit(
     'the entry does not announce a list it asks for again',
     domain,
-    '(requirements.length > 0 || refreshing.length > 0)',
-    'requirements.length > 0',
+    'refreshes.length > 0 || refreshing.length > 0',
+    'refreshes.length > 0',
   ),
   edit(
     'the clock does not name the lists that aged',

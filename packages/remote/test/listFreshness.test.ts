@@ -136,6 +136,16 @@ describe('A list under staleWhileRevalidate', () => {
     expect(deps.refreshing).toEqual([identity])
   })
 
+  it('is asked for again when stale inside its window, and not named: it is marked already (#399)', () => {
+    const stale = Data.reduce(loadedAt(500), {
+      _tag: 'ConnectionInvalidated',
+      connection: identity,
+    })
+    const deps = readEntry(ageing, () => 999).modelToDependencies(stale)
+    expect(deps.queries.map(query => query.identity)).toEqual([identity])
+    expect(deps.refreshing).toEqual([])
+  })
+
   it('reads Refreshing with its rows while it is, and the page answering it replaces them', async () => {
     const entry = readEntry(ageing, () => 1_001)
     const deps = entry.modelToDependencies(loadedAt(0))
