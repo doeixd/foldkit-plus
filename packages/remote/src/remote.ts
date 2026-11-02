@@ -1039,6 +1039,8 @@ const bindDomain = <
     policies.get(entry)!.every(policy => policyAt(policy, model)._tag === tag)
   // What the calls naming a reader say of saving what it reads (`persist`).
   const persisting = new Map<ActiveEntry<AppModel>, Persist>()
+  // The lists a call keeps by name, marked with what it says of saving them.
+  const persistedLists: Array<RetentionRoots> = []
   // An application-union case has the runtime shape of the `RemoteMessage` it names.
   const reduce = (model: AppModel, message: RemoteMessage | RemoteMessageInput): AppModel => {
     const live =
@@ -1722,11 +1724,13 @@ const bindDomain = <
       }
       for (const identity of options.connections ?? [])
         keptConnections.add(connectionIdentity(identity))
+      if (persist !== undefined && options.connections !== undefined)
+        persistedLists.push(marked(rootsOf([], { connections: options.connections }), persist))
       entries.retain = {
         dependenciesSchema: retentionRootsSchema,
         modelToDependencies: model => {
           const unaged = new Set<string>()
-          const said: Array<RetentionRoots> = []
+          const said: Array<RetentionRoots> = [...persistedLists]
           const projections = [...readers].flatMap(([entry, resolvedAt]) => {
             const read = resolvedAt(model).map(({ projection }) => projection)
             // A list only readers that age it read keeps its age once left,

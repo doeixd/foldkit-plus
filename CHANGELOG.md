@@ -73,7 +73,8 @@ version changed; `pnpm` skips versions already in the registry.
   keeps each saved row and list for `maxAge` milliseconds from when it was
   fetched (one day by default), and a `Data.subscriptions` or `Data.wiring`
   call can say `persist: { maxAge }` or `persist: false` for what it reads
-  (also `Remote.retain`'s options). The setting rides on the retention roots,
+  and the lists it keeps by name (`connections`), as `Remote.retain`'s
+  options can. The setting rides on the retention roots,
   so it holds for a page left too; where calls that name one share a row,
   `false` wins, else the longer age. What has expired is dropped when the
   snapshot is written and again when it is read, and a restore keeps each

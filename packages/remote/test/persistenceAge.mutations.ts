@@ -207,6 +207,17 @@ export default [
     tests,
   },
   {
+    name: 'Data.subscriptions drops what it says of the lists it names',
+    edits: [
+      {
+        file: '../src/remote.ts',
+        find: 'const said: Array<RetentionRoots> = [...persistedLists]',
+        replace: 'const said: Array<RetentionRoots> = []',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a retain entry wired by hand drops its persist',
     edits: [
       {

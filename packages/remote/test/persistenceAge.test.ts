@@ -227,6 +227,24 @@ describe('what a call says of saving what it reads', () => {
     expect(retain.modelToDependencies(loaded).requirements).toMatchObject([{ persist: false }])
   })
 
+  it('covers the lists it keeps by name, as a retain entry wired by hand does', () => {
+    const data = domain()
+    const list = data.query(ByGroup, { group: 'a' }, { select: Named, first: 25 })
+    const retain = data.subscriptions({}, { connections: [list.ref], persist: false }).retain
+    const loaded = reduceAll(data, [listed('a', ['p1'], 0)])
+    const roots = retain.modelToDependencies(loaded)
+    expect(roots.connections).toMatchObject([{ identity: list.ref.identity, persist: false }])
+    const model = data.reduce(loaded, { _tag: 'RetentionChanged', roots })
+    const saved = RemotePersistence.snapshotOf(model.remote, { connections: [list.ref] })
+    expect(saved.connections).toEqual({})
+    expect(rows(saved)).toEqual([])
+    expect(
+      Remote.retain([], undefined, { connections: [list.ref], persist: false }).modelToDependencies(
+        start,
+      ).connections,
+    ).toEqual(roots.connections)
+  })
+
   it('is said of a retain entry wired by hand', () => {
     const roots = Remote.retain([readOf('p1')], undefined, { persist: false }).modelToDependencies(
       start,
