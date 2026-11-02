@@ -1,6 +1,6 @@
 # foldkit-agent and its adapters
 
-Checked against `foldkit-agent` 0.8.3, `foldkit-agent-webmcp` 0.7.2, `foldkit-agent-mcp` 0.7.1, `foldkit-agent-a2a` 0.6.2 and `foldkit-agent-native` 0.6.2.
+Checked against `foldkit-agent` 0.10.0, `foldkit-agent-webmcp` 0.9.0, `foldkit-agent-mcp` 0.9.0, `foldkit-agent-a2a` 0.8.0 and `foldkit-agent-native` 0.8.0.
 
 Packages: `foldkit-agent` (the contract and runtime), plus the adapters `foldkit-agent-webmcp`, `foldkit-agent-mcp`, `foldkit-agent-a2a`, and `foldkit-agent-native`. Peers: `foldkit`, `effect` (v4); adapters also peer on `foldkit-agent`. `foldkit-surface` is a regular dependency of `foldkit-agent`.
 
