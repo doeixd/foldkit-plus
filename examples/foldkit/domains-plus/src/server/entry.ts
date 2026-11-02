@@ -11,9 +11,9 @@ import {
   type DocumentRenderer,
   type EntryResult,
 } from 'foldkit/experimental/server'
+import { href } from 'virtual:foldkit-styles'
 import { modifyFields } from 'foldkit/struct'
 import { fromString } from 'foldkit/url'
-import { Style } from 'foldkit-mixins'
 import { SSR } from 'foldkit-ssr'
 import {
   CartInCookie,
@@ -28,14 +28,22 @@ import {
 } from '../client/app.js'
 import { documentHead } from '../client/documentHead.js'
 import { AppRoute } from '../client/site.js'
-import { stylesheet } from '../client/style.js'
 import { view } from '../client/view.js'
 import { cartOf, hasCart } from './cart.js'
 import { readPrices, serveRemote } from './remote.js'
 
-/** The document around a rendered page: the head every page carries. */
+/**
+ * The head every page carries, and the application's stylesheet linked in it:
+ * a file the browser caches, in the head so the first paint waits for it, and
+ * one the server does not write or have Foldkit parse again with every page.
+ * The mark tells the browser's Styles the classes in it are drawn.
+ */
+const head = `${documentHead}
+<link rel="stylesheet" href="${href}" data-foldkit-styles-href>`
+
+/** The document around a rendered page. */
 export const renderDocument: DocumentRenderer = (application, assets) =>
-  renderShell(application, assets, { head: documentHead })
+  renderShell(application, assets, { head })
 
 /**
  * The page at the request's address, holding the cart its cookie keeps,
@@ -85,10 +93,6 @@ const pages = SSR.entry(
             : {},
       }),
     }),
-    // The theme and the classes the page draws, so the first paint is styled
-    // before any script runs; the browser moves them into the head, and its
-    // Styles find them there and add none twice.
-    styles: rendered => `<style>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>`,
     status: model => AppRoute.match(model.route, { Search: () => 200, NotFound: () => 404 }),
   },
 )

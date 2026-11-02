@@ -1,5 +1,7 @@
 import { foldkit } from '@foldkit/vite-plugin'
 import { defineConfig } from 'vite'
+// From source, by path: a config runs in Node, past the source condition.
+import { styles } from '../../../packages/mixins/src/vite.ts'
 
 export default defineConfig(({ command }) => {
   // One `vite build` makes the client and the Worker, which must agree on
@@ -11,6 +13,8 @@ export default defineConfig(({ command }) => {
     ssr: { resolve: { conditions: ['foldkit-plus:source'] } },
     server: { host: '127.0.0.1', port: 5191 },
     plugins: [
+      // The theme and every class the app compiles, as one hashed file the pages link.
+      styles({ sheet: '/src/client/style.ts' }),
       foldkit({
         ssr: {
           serverEntry: '/src/server/entry.ts',

@@ -166,6 +166,10 @@ parallel.
     moved here from Phase 2. It takes about 92 KB out of every page, which is
     also out of every parse Foldkit makes. It is likely the largest single
     cut, and it shrinks the HTML too.
+    Measured on domains-plus `/?q=acme` (Windows, in-process handler): HTML
+    298,304 B to 178,661 B raw and 21.8 KB to 10.5 KB brotli, server CPU about
+    345 ms to 280 ms per request; the sheet is a 15 KB brotli file fetched once.
+    It also ended the layout shift (#418): the link is in the head.
   - #414: the drawn classes come from the render. With #419 the `usedIn`
     block leaves the page.
   - #415: render the first screen only.

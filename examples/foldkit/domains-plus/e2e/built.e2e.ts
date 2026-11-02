@@ -76,6 +76,24 @@ test('a page opened at ?q= shows the query in the box before the bundle runs (#3
   }
 })
 
+test('the page links its hashed stylesheet in the head, which holds a rule for every class the page draws (#419)', async () => {
+  const html = await (await fetch(`${origin}/?q=acme`)).text()
+  const head = html.slice(0, html.indexOf('</head>'))
+  expect(head).toMatch(
+    /<link rel="stylesheet" href="\/assets\/styles-[0-9a-f]{8}\.css" data-foldkit-styles-href>/,
+  )
+  // The theme is no longer written into the page.
+  expect(html).not.toContain('@layer reset')
+  const href = /href="(\/assets\/styles-[^"]+\.css)"/.exec(head)?.[1] ?? ''
+  const sheet = await fetch(`${origin}${href}`)
+  expect(sheet.status).toBe(200)
+  expect(sheet.headers.get('content-type')).toContain('text/css')
+  const css = await sheet.text()
+  const drawn = new Set(html.match(/style-[0-9a-z]+/g))
+  expect(drawn.size).toBeGreaterThan(20)
+  expect([...drawn].filter(name => !css.includes(`.${name}`))).toEqual([])
+})
+
 test('without JavaScript, the built Worker answers a cart form by running update, then a redirect (#388, #390)', async () => {
   const context = await browser.newContext({ javaScriptEnabled: false })
   const page = await context.newPage()

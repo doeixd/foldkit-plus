@@ -200,6 +200,12 @@ const html = SSR.page(template, result, {
 })
 ```
 
+With `foldkit-mixins/vite`, the stylesheet is a hashed file, and the page
+links it from the document's head instead (`renderDocument`'s `head`):
+`<link rel="stylesheet" href="${href}" data-foldkit-styles-href>`. A link in
+the head is fetched before the first paint; `styles`, below, is written as the
+root's last children, so a large page paints unstyled until it has all arrived.
+
 A served page has no template head to write to, so `SSR.render`, `SSR.entry`
 and `SSR.handle` take the same function as `styles` instead, carried as the
 rendered root's last children. `foldkit-mixins/foundations` writes the theme

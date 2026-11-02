@@ -98,7 +98,13 @@ would rebuild those elements.
 
 ## Gotchas
 
-- **A served page with `foldkit-mixins` styles needs `styles`, or it flashes
+- **Link the stylesheet in the document's head, not in `styles`.** `styles` is
+  written as the root's last children, hundreds of KB into the page, so it
+  paints unstyled and shifts (domains-plus's CLS was 0.88). With
+  `foldkit-mixins/vite`'s `styles({ sheet })`, the document's `head`
+  (`renderDocument`'s option) carries `<link rel="stylesheet" href
+  data-foldkit-styles-href>` and the page writes no sheet at all.
+- **A served page with `foldkit-mixins` styles and no linked sheet needs `styles`, or it flashes
   unstyled.** `foundations()` writes the theme into `index.html` alone; a page
   `SSR.entry` renders carries no head of its own. Give `SSR.entry` (and
   `SSR.render`, `SSR.handle`)
