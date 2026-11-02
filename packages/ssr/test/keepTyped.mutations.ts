@@ -63,8 +63,8 @@ export default [
     edits: [
       {
         file: keep,
-        find: '  field.element.value !== servedValue(field.element)',
-        replace: '  true',
+        find: '  return element.value !== servedValue(element)',
+        replace: '  return true',
       },
     ],
     tests: [...eager, ...fields],
@@ -96,11 +96,44 @@ export default [
     edits: [
       {
         file: keep,
-        find: '    options.find(option => !option.disabled)',
-        replace: '    options[0]',
+        find: 'options.find(option => !disabledOption(option))',
+        replace: 'options[0]',
       },
     ],
     tests: fields,
+  },
+  {
+    name: 'a listbox select starts on its first option (#451)',
+    edits: [
+      {
+        file: keep,
+        find: '    (displaySize(element) === 1 ? options.find(option => !disabledOption(option)) : undefined)',
+        replace: '    options.find(option => !disabledOption(option))',
+      },
+    ],
+    tests: eager,
+  },
+  {
+    name: 'an option inside a disabled optgroup counts as enabled (#451)',
+    edits: [
+      {
+        file: keep,
+        find: "  option.disabled || (option.closest('optgroup')?.disabled ?? false)",
+        replace: '  option.disabled',
+      },
+    ],
+    tests: eager,
+  },
+  {
+    name: 'a multiple select is read as a single value (#451)',
+    edits: [
+      {
+        file: keep,
+        find: '  if (element instanceof HTMLSelectElement && element.multiple) {',
+        replace: '  if (false) {',
+      },
+    ],
+    tests: eager,
   },
   {
     name: 'a marker is read by Number alone',

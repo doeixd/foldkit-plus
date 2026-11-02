@@ -58,23 +58,52 @@ export const keptFields = (
   return Result.succeed(kept)
 }
 
+/** Whether an option is disabled by its own attribute or by a disabled `optgroup` around it. */
+const disabledOption = (option: HTMLOptionElement): boolean =>
+  option.disabled || (option.closest('optgroup')?.disabled ?? false)
+
+/** A select's display size: its `size` when it parses above zero, else 4 for `multiple` and 1 otherwise. */
+const displaySize = (select: HTMLSelectElement): number => {
+  const size = select.getAttribute('size')
+  const parsed = size === null ? null : /^\s*(\d+)\s*$/.exec(size)
+  if (parsed !== null && Number(parsed[1]) > 0) return Number(parsed[1])
+  return select.multiple ? 4 : 1
+}
+
 /**
  * The value the server rendered into a field: its default, which typing
- * leaves alone. A `select`'s is its last option marked `selected`, as the
- * parser leaves it, else its first enabled one.
+ * leaves alone. A `select`'s follows the HTML reset algorithm: the last option
+ * marked `selected` wins, else a single-line select takes its first option
+ * that is not disabled, through an `optgroup` included.
  */
 const servedValue = (element: Field): string => {
   if (!(element instanceof HTMLSelectElement)) return element.defaultValue
   const options = Array.from(element.options)
   const chosen =
     options.filter(option => option.defaultSelected).at(-1) ??
-    options.find(option => !option.disabled)
+    (displaySize(element) === 1 ? options.find(option => !disabledOption(option)) : undefined)
   return chosen?.value ?? ''
 }
 
+/** The indices of a `select`'s options that `chosen` picks, in document order. */
+const indicesOf = (
+  select: HTMLSelectElement,
+  chosen: (option: HTMLOptionElement) => boolean,
+): ReadonlyArray<number> =>
+  Array.from(select.options).flatMap((option, index) => (chosen(option) ? [index] : []))
+
 /** Whether the field holds something other than what the server rendered. */
-export const changed = (field: KeptField): boolean =>
-  field.element.value !== servedValue(field.element)
+export const changed = (field: KeptField): boolean => {
+  const { element } = field
+  // A multiple select holds a set of selections, which its `value`, the first
+  // of them, cannot tell apart: compare the whole set with the served one.
+  if (element instanceof HTMLSelectElement && element.multiple) {
+    const selected = indicesOf(element, option => option.selected)
+    const served = indicesOf(element, option => option.defaultSelected)
+    return selected.length !== served.length || selected.some((index, at) => index !== served[at])
+  }
+  return element.value !== servedValue(element)
+}
 
 /** The Messages that carry each changed field's typing, in document order. */
 export const typedMessages = (fields: ReadonlyArray<KeptField>): ReadonlyArray<unknown> =>
@@ -84,13 +113,23 @@ export const typedMessages = (fields: ReadonlyArray<KeptField>): ReadonlyArray<u
 export interface Held {
   readonly element: Field
   readonly value: string
+  /** A `multiple` select's selected option indices: its `value` names only the first. */
+  readonly selected?: readonly number[] | undefined
   readonly selection?: readonly [number, number, 'forward' | 'backward' | 'none'] | undefined
 }
 
 /** Each changed field's state, to put back once hydration has re-asserted the served value. */
 export const hold = (fields: ReadonlyArray<KeptField>): ReadonlyArray<Held> =>
   fields.filter(changed).map(({ element }) => {
-    if (element instanceof HTMLSelectElement) return { element, value: element.value }
+    if (element instanceof HTMLSelectElement) {
+      return element.multiple
+        ? {
+            element,
+            value: element.value,
+            selected: indicesOf(element, option => option.selected),
+          }
+        : { element, value: element.value }
+    }
     // An input type with no selection (`email`, `number`) reads null.
     const { selectionStart: start, selectionEnd: end } = element
     return {
@@ -107,8 +146,15 @@ export const hold = (fields: ReadonlyArray<KeptField>): ReadonlyArray<Held> =>
  * the same element, which the person may still be typing into.
  */
 export const restore = (held: ReadonlyArray<Held>): void => {
-  for (const { element, value, selection } of held) {
-    element.value = value
+  for (const { element, value, selected, selection } of held) {
+    if (element instanceof HTMLSelectElement && selected !== undefined) {
+      const chosen = new Set(selected)
+      Array.from(element.options).forEach((option, index) => {
+        option.selected = chosen.has(index)
+      })
+    } else {
+      element.value = value
+    }
     if (selection !== undefined && !(element instanceof HTMLSelectElement)) {
       element.setSelectionRange(...selection)
     }
