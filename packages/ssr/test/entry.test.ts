@@ -317,6 +317,21 @@ describe('SSR.entry status (#364)', () => {
       reason: 'status gave 404.5 for the page',
     },
     {
+      given: 'a status that carries no body',
+      status: () => 204,
+      reason: 'status gave 204 for the page',
+    },
+    {
+      given: 'a status that resets content',
+      status: () => 205,
+      reason: 'status gave 205 for the page',
+    },
+    {
+      given: 'a not-modified status',
+      status: () => 304,
+      reason: 'status gave 304 for the page',
+    },
+    {
       given: 'a status that throws',
       status: () => {
         throw new Error('no route today')

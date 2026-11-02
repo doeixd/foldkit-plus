@@ -38,10 +38,25 @@ export default [
     edits: [
       {
         file: index,
-        find: 'given => !Number.isInteger(given) || given < 200',
-        replace: 'given => given < 200',
+        find: '!Number.isInteger(given) ||',
+        replace: 'false ||',
       },
     ],
+    tests: entry,
+  },
+  {
+    name: 'a bodyless status is served',
+    edits: [{ file: index, find: 'given === 204 ||', replace: 'false ||' }],
+    tests: entry,
+  },
+  {
+    name: 'a reset-content status is served',
+    edits: [{ file: index, find: 'given === 205 ||', replace: 'false ||' }],
+    tests: entry,
+  },
+  {
+    name: 'a not-modified status is served',
+    edits: [{ file: index, find: 'given === 304,', replace: 'false,' }],
     tests: entry,
   },
   {

@@ -401,8 +401,8 @@ SSR.entry(config, Post, {
 ```
 
 The page is rendered and resumed as any other; only the response's status
-changes. A status outside `200`–`599`, or a `status` that throws, is answered
-`500` and reported.
+changes. A status outside `200`–`599`, a `204`, `205` or `304` that cannot
+carry the page, or a `status` that throws, is answered `500` and reported.
 
 What the page says of itself (`meta`) and per-page `head` markup are written
 into a template's head, which the host owns here: a plan with `meta` is

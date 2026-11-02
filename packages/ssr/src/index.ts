@@ -1219,8 +1219,9 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     /**
      * The status a rendered page is answered with, from the Model the server
      * reached and the request: `404` for a route the Model says is not found.
-     * Omitted, every page is `200`. One outside `200`–`599`, or a `status`
-     * that throws, is answered `500` and reported, as a failed render is.
+     * Omitted, every page is `200`. One outside `200`–`599`, a `204`, `205`
+     * or `304` that carries no body, or a `status` that throws, is answered
+     * `500` and reported, as a failed render is.
      */
     readonly status?: ((model: Model, request: Request) => number) | undefined
     /**
@@ -1427,12 +1428,18 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
         const status = Option.map(Option.fromUndefinedOr(statusOf), of => of(served.model, request))
         const unanswerable = Option.filter(
           status,
-          given => !Number.isInteger(given) || given < 200 || given > 599,
+          given =>
+            !Number.isInteger(given) ||
+            given < 200 ||
+            given > 599 ||
+            given === 204 ||
+            given === 205 ||
+            given === 304,
         )
         if (Option.isSome(unanswerable)) {
           return yield* Effect.die(
             new Error(
-              `status gave ${unanswerable.value} for the page, which is no status between 200 and 599`,
+              `status gave ${unanswerable.value} for the page, which is no status for a page with a body`,
             ),
           )
         }
