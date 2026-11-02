@@ -927,6 +927,29 @@ For the new versions they depend on, or changes inside them alone:
 
 ### Fixed
 
+- **An omitted relation input is not a null link** (`foldkit-entity`, #449).
+  `Entity.judgeInput` read a mapped one relation's `Option.none()` as a known
+  null link, so an invariant like `Expr.isNotNull(after.by)` refused a partial
+  form that left the relation unchanged. It now leaves the link unset, so the
+  invariant is undecided; a literal `null` is still a known empty link, and an
+  `Option`-mapped relation input now type-checks.
+
+- **A body past the limit is too large even when cancelling it fails**
+  (`foldkit-remote-server`, #445). `readBounded` awaited the stream's
+  cancellation, so a rejected cancellation answered 400 "The body is not JSON"
+  and a hanging one never answered. The 413 is now decided by the limit, and
+  the rest is cancelled without waiting.
+
+- **A list placement is not shared across operator tables** (`foldkit-remote`,
+  #462). `pendingPlaced` memoized by the pages, layers, entities and
+  connections but not the domain's resolved operator table, so one domain's
+  pending placement could decide another's list. The table is a memo scope now.
+
+- **Cutting a large read no longer rescans every requirement per batch**
+  (`foldkit-remote`, #447). `readsOf` built an index from each target to its
+  original keys once, instead of scanning every plain requirement for each
+  batch, and keeps each read's key order.
+
 - **A cookie's `maxAge` is finite, and a page's status carries a body**
   (`foldkit-mirror`, `foldkit-ssr`, #446, #448). `Mirror.cookie` refused a
   `maxAge` under a second but published `Max-Age=Infinity` for
