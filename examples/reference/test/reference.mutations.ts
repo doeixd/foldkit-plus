@@ -4,7 +4,7 @@
  *
  * `notebook.test.ts` runs `update` over the real server in Node; the Worker's
  * tests run the bundle `stack.ts` builds with these edits applied
- * (`mutation.ts`); `migrations.test.ts` holds the migrations to the code.
+ * (`workerMutation`); `migrations.test.ts` holds the migrations to the code.
  */
 const page = ['examples/reference/test/notebook.test.ts']
 const worker = ['examples/reference/test/worker.test.ts']

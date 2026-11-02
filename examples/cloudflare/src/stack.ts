@@ -7,7 +7,7 @@
  */
 import { Stack } from 'foldkit-plus/testing/workers'
 import { fileURLToPath } from 'node:url'
-import { mutation } from './mutation.js'
+import { workerMutation } from '../../../scripts/mutation-plugin.mjs'
 import type { WorkerEnv } from './worker.js'
 
 const here = (file: string) => fileURLToPath(new URL(file, import.meta.url))
@@ -26,7 +26,7 @@ export const PAGE_ORIGIN = 'http://127.0.0.1:5177'
 const worker = {
   wrangler: here('../wrangler.toml'),
   entry: here('./worker.ts'),
-  plugins: [mutation()],
+  plugins: [workerMutation()],
 }
 
 export const startStack = (): Promise<CloudflareStack> =>

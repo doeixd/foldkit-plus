@@ -4,6 +4,7 @@
  */
 const workers = 'packages/plus/test/workers.test.ts'
 const stopped = 'packages/plus/test/workers.stopped.test.ts'
+const views = 'packages/plus/test/workers.views.test.ts'
 const file = '../src/testing/workers.ts'
 const peerFile = '../src/testing/peer.ts'
 
@@ -187,4 +188,39 @@ export default [
     ],
     tests: ['packages/plus/test/workers.close.test.ts'],
   },
+  ...(
+    [
+      [
+        "views are named from the entry's folder, not the configuration's",
+        'resolve(options.pageRoot ?? dirname(options.wrangler)),',
+        'resolve(options.pageRoot ?? dirname(options.entry)),',
+      ],
+      [
+        'the page root given is ignored',
+        'resolve(options.pageRoot ?? dirname(options.wrangler)),',
+        'resolve(dirname(options.wrangler)),',
+      ],
+      [
+        'a module read from disk is not branded',
+        'const code = await branded(await readFile(args.path), loader, args.path)',
+        'const code = Option.none<string>()',
+      ],
+      [
+        'a module a plugin loads is not branded',
+        'return result === null || result === undefined ? result : brandedResult(result, args)',
+        'return result',
+      ],
+      ['the plugins are given without the wrap', '    ...plugins.map(wrapped),', '    ...plugins,'],
+      [
+        "foldkit/brand resolves from each module, not the page's root",
+        ': Option.match(brand, { onNone: () => undefined, onSome: path => ({ path }) }),',
+        ': undefined,',
+      ],
+      [
+        'a page root without Foldkit is branded anyway',
+        'brand = found.errors.length === 0 ? Option.some(found.path) : Option.none()',
+        'brand = Option.some(found.path)',
+      ],
+    ] as const
+  ).map(([name, find, replace]) => ({ ...edit(name, find, replace), tests: [views] })),
 ]

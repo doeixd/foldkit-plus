@@ -377,12 +377,14 @@ database_id = "00000000-0000-0000-0000-000000000000"   # from `wrangler d1 creat
 migrations_dir = "migrations"
 ```
 
-- **Bundle.** `Stack` from `foldkit-plus/testing/workers` (with `wrangler`
-  and `esbuild` installed as dev dependencies) bundles the entry with esbuild
-  as ESM for the browser platform, keeps `cloudflare:workers` and `node:*`
-  external for `nodejs_compat`, and copies each imported `.wasm` (Yielded's
-  Argon2) beside the script, where `no_bundle` Wrangler loads it as a compiled
-  module. The tests and the deploy use one bundle:
+- **Bundle.** `Stack` from `foldkit-plus/testing/workers` (with `wrangler`,
+  `esbuild` and `@foldkit/vite-plugin` installed as dev dependencies) bundles
+  the entry with esbuild as ESM for the browser platform, keeps
+  `cloudflare:workers` and `node:*` external for `nodejs_compat`, and copies
+  each imported `.wasm` (Yielded's Argon2) beside the script, where
+  `no_bundle` Wrangler loads it as a compiled module. It brands the views as
+  the page's Vite build does, from `pageRoot` (the folder of `wrangler.toml`
+  by default), so hydration adopts the pages the Worker renders. The tests and the deploy use one bundle:
 
   ```ts
   // src/stack.ts

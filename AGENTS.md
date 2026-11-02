@@ -632,12 +632,6 @@ Foldkit's own behaviour that we work around is listed in
   hydration, and nothing said so. To check adoption, keep the served elements
   as the document turns interactive, before any module runs, and assert they
   are still in the document (`adoption` in `examples/reference/e2e`).
-- **A Worker bundled by esbuild draws no view identities (#412).** The page's
-  Vite build brands each view's result (`foldkit:view-identity`), and
-  Foldkit rebuilds a served element whose identity differs. `Stack` bundles
-  with esbuild, so every page the Worker rendered was rebuilt whole.
-  `examples/reference/src/workerSource.ts` brands the Worker's sources the
-  same way.
 - **Vite 8's `port: 0` is a probe, not a bind.** `httpServerStart` listens on
   an ephemeral port, closes it, and binds it again, so another process can
   take it between: CI's cloudflare e2e failed "Port 41893 is already in use",
@@ -2105,8 +2099,9 @@ of its own named a form field "fits the Catalog". Read words with
   the few a test queries.
 - **`pnpm mutate` reaches only modules Vitest loads.** A worker esbuild bundles
   for miniflare was never mutated, so a mutation of worker code read as "not
-  applied". `examples/cloudflare/src/stack.ts` applies the same edits in an
-  esbuild `onLoad` plugin; another esbuild-bundled stack needs the same.
+  applied". A `Stack` takes the same edits through `workerMutation`
+  (`scripts/mutation-plugin.mjs`) in its `plugins`; another esbuild-bundled
+  stack needs the same.
 - **`pnpm mutate` cannot reach code a test builds from the disk.**
   `cli.test.ts` builds `src/cli.ts` with tsdown, so a mutation of `cli.ts`
   reads "not applied". Mutate such code by hand (copy the file aside, edit,

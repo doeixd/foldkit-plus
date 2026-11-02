@@ -990,7 +990,7 @@ expect(errors()).toEqual([]) // console.error, uncaught exceptions and error dia
 
 When `neverShows` fails, a `Trace` test finds the Message. The Worker those
 tests run against comes from `foldkit-plus/testing/workers`: `Stack.start({
-wrangler, entry, vars?, secrets?, plugins?, console? })` reads `wrangler.toml`
+wrangler, entry, vars?, secrets?, plugins?, pageRoot?, console? })` reads `wrangler.toml`
 through Wrangler's test harness (fresh, migrated D1 per stack; `env()` re-read
 after a swap). `vars` may be a function of the stack's origin (`origin => ({
 ORIGIN: origin })`); the Worker's console is printed by level as it arrives
@@ -999,7 +999,11 @@ unless `console: 'quiet'`, and `logs()` takes the lines since the last call.
 rereads `wrangler.toml`; each change is started on a workerd of its own
 first, so one that does not build or start goes to `onRefused` and the
 running Worker keeps its storage. `Stack.writeBundle` writes the deploy
-bundle the same way (`wrangler` and `esbuild` are optional peers).
+bundle the same way (`wrangler`, `esbuild` and `@foldkit/vite-plugin` are
+optional peers). Both brand the Worker's views as `@foldkit/vite-plugin`
+brands the page's, named from `pageRoot` (the folder of `wrangler.toml` by
+default), so hydration adopts what the Worker served instead of rebuilding
+it; a root that resolves no `foldkit` is bundled as written.
 `Cpu.budget(stack.cpu, { warm, cold?, runs?, routes })` fails a test when a
 route spends more CPU than a deployed Worker may (Miniflare reports none);
 `Cpu.inThread(handler)` meters a handler run in Node instead.

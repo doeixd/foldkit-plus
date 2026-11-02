@@ -9,12 +9,20 @@
  * condition into a directory of the stack's own, and the harness runs the
  * configuration with `main` pointed there.
  *
- * `wrangler` and `esbuild` are optional peers of `foldkit-plus`, loaded on the
- * first call; Miniflare is read from Wrangler's own copy, so the date check
- * asks the runtime Wrangler starts.
+ * `wrangler`, `esbuild` and `@foldkit/vite-plugin` are optional peers of
+ * `foldkit-plus`, loaded on the first call; Miniflare is read from Wrangler's
+ * own copy, so the date check asks the runtime Wrangler starts.
  */
 import { Option, Schema } from 'effect'
-import type { BuildContext, BuildOptions, OutputFile, Plugin } from 'esbuild'
+import type {
+  BuildContext,
+  BuildOptions,
+  Loader,
+  OnLoadArgs,
+  OnLoadResult,
+  OutputFile,
+  Plugin,
+} from 'esbuild'
 import type { TestHarness, WorkerHandle } from 'wrangler'
 import { ChildProcess, spawn } from 'node:child_process'
 import { subscribe, unsubscribe } from 'node:diagnostics_channel'
@@ -23,13 +31,15 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createInterface } from 'node:readline'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { basename, dirname, join, relative, resolve } from 'node:path'
+import { basename, dirname, extname, join, relative, resolve } from 'node:path'
 import { peer } from './peer.js'
 
 const SUBPATH = 'testing/workers'
 
 const wrangler = () => peer(SUBPATH, 'wrangler', () => import('wrangler'))
 const esbuild = () => peer(SUBPATH, 'esbuild', () => import('esbuild'))
+const foldkitVite = () =>
+  peer(SUBPATH, '@foldkit/vite-plugin', () => import('@foldkit/vite-plugin'))
 
 export interface StackOptions {
   /** The Worker's Wrangler configuration (`wrangler.toml`, `.json` or `.jsonc`). */
@@ -44,8 +54,17 @@ export interface StackOptions {
   readonly vars?: Vars | ((origin: string) => Vars)
   /** Local values for secrets, over any in `.dev.vars`. */
   readonly secrets?: Readonly<Record<string, string>>
-  /** esbuild plugins for the bundle, the deploy's and the stack's alike. */
+  /**
+   * esbuild plugins for the bundle, the deploy's and the stack's alike. A
+   * module one loads is branded with view identities as one read from disk is.
+   */
   readonly plugins?: ReadonlyArray<Plugin>
+  /**
+   * The Vite root of the page the Worker renders; by default the folder of
+   * the Wrangler configuration. Each view is named by its module's path from
+   * here, as `@foldkit/vite-plugin` names the page's.
+   */
+  readonly pageRoot?: string
   /**
    * Whether each line the Worker writes to its console is printed here, by
    * its level, as it arrives (`'print'`, the default). `logs()` keeps them either way.
@@ -423,6 +442,112 @@ const readConfig = async (path: string) => {
   return { raw, config }
 }
 
+// The modules Vite's view-identity transform reads, and the loader each is read with.
+const scriptLoaders: Readonly<Record<string, Loader>> = {
+  '.ts': 'ts',
+  '.mts': 'ts',
+  '.tsx': 'tsx',
+  '.js': 'js',
+  '.mjs': 'js',
+  '.jsx': 'jsx',
+}
+const SCRIPT = /\.(?:ts|tsx|js|jsx|mts|mjs)$/
+const scripts = new Set(Object.values(scriptLoaders))
+// Vite skips installed packages: Foldkit's own, whose brand would stamp every vnode as it is made.
+const isPackaged = (path: string) => /[\\/]node_modules[\\/]/.test(path)
+
+/**
+ * The plugins, with the Worker's views branded as `@foldkit/vite-plugin`
+ * brands the page's build: each function's result named by its module's path
+ * from `root`. Foldkit adopts a served element only where that name is the
+ * one the browser's view gives it; unbranded, the Worker's page was rebuilt on
+ * every hydration, silently in production (#412).
+ *
+ * Vite brands what any load returns, but esbuild takes the first `onLoad`
+ * that answers, so each plugin's is wrapped and a module it loads (with
+ * `pnpm mutate`'s edits, say) is branded too. `foldkit/brand` resolves from
+ * `root`, as the page's does; a root that resolves none has no Foldkit page
+ * to match, and the Worker is bundled as written.
+ */
+const viewIdentity = (root: string, plugins: ReadonlyArray<Plugin>): Array<Plugin> => {
+  // Found at each build's start, so a watched stack sees Foldkit installed.
+  let brand = Option.none<string>()
+  const resolving = Symbol('foldkit/brand')
+  const brands = ({ path, namespace }: OnLoadArgs) =>
+    Option.isSome(brand) && namespace === 'file' && SCRIPT.test(path) && !isPackaged(path)
+  /** `contents` branded, or none where nothing in them returns. */
+  const branded = async (
+    contents: string | Uint8Array,
+    loader: Loader,
+    path: string,
+  ): Promise<Option.Option<string>> => {
+    const { transform } = await esbuild()
+    const { transformViewIdentity } = await foldkitVite()
+    // The brand reads JavaScript, as Vite hands it over after its own TypeScript pass.
+    const { code } = await transform(contents, { loader, sourcefile: path })
+    return Option.fromNullOr(transformViewIdentity(code, path, root)).pipe(
+      Option.map(result => result.code),
+    )
+  }
+  const brandedResult = async (result: OnLoadResult, args: OnLoadArgs): Promise<OnLoadResult> => {
+    const loader = result.loader ?? scriptLoaders[extname(args.path)]
+    const { contents } = result
+    if (!brands(args) || contents === undefined || loader === undefined || !scripts.has(loader))
+      return result
+    return Option.match(await branded(contents, loader, args.path), {
+      onNone: () => result,
+      onSome: contents => ({ ...result, contents, loader: 'js' }),
+    })
+  }
+  const wrapped = (plugin: Plugin): Plugin => ({
+    ...plugin,
+    setup: build =>
+      plugin.setup({
+        ...build,
+        onLoad: (options, load) =>
+          build.onLoad(options, async args => {
+            const result = await load(args)
+            return result === null || result === undefined ? result : brandedResult(result, args)
+          }),
+      }),
+  })
+  return [
+    {
+      name: 'foldkit-view-identity',
+      setup: build => {
+        build.onStart(async () => {
+          const found = await build.resolve('foldkit/brand', {
+            kind: 'import-statement',
+            resolveDir: root,
+            pluginData: resolving,
+          })
+          brand = found.errors.length === 0 ? Option.some(found.path) : Option.none()
+        })
+        build.onResolve({ filter: /^foldkit\/brand$/ }, args =>
+          args.pluginData === resolving
+            ? undefined
+            : Option.match(brand, { onNone: () => undefined, onSome: path => ({ path }) }),
+        )
+      },
+    },
+    ...plugins.map(wrapped),
+    {
+      // Last: a module no plugin loaded, read from disk.
+      name: 'foldkit-view-identity-load',
+      setup: build =>
+        build.onLoad({ filter: SCRIPT }, async args => {
+          const loader = scriptLoaders[extname(args.path)]
+          if (!brands(args) || loader === undefined) return undefined
+          const code = await branded(await readFile(args.path), loader, args.path)
+          return Option.match(code, {
+            onNone: () => undefined,
+            onSome: contents => ({ contents, loader: 'js' as const }),
+          })
+        }),
+    },
+  ]
+}
+
 /**
  * How the entry is bundled, for the stack and for `wrangler deploy`: the
  * script at `outfile`, and beside it any `.wasm` it imports, which `no_bundle`
@@ -438,7 +563,10 @@ const bundleOptions = (options: StackOptions, outfile: string) =>
     conditions: ['foldkit-plus:source'],
     external: ['cloudflare:workers', 'node:*'],
     loader: { '.wasm': 'copy' },
-    plugins: [...(options.plugins ?? [])],
+    plugins: viewIdentity(
+      resolve(options.pageRoot ?? dirname(options.wrangler)),
+      options.plugins ?? [],
+    ),
     outdir: dirname(outfile),
     entryNames: basename(outfile, '.js'),
     write: false,

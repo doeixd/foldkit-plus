@@ -157,10 +157,10 @@ lost is answered from its record. Edits and deletes are plain writes.
 **The Worker** (`worker.ts`, `page.ts`, `build.ts`). The template is the
 build's `index.html`, read through the assets binding once per isolate. The
 build writes its id into it (`vite.config.ts`), and the Worker renders under
-that id, so a page is always adopted by its own build's script. esbuild
-bundles the Worker, and `workerSource.ts` brands its views as the Foldkit
-plugin brands the page's: without it, Foldkit found every served element's
-view identity missing and rebuilt the whole page on hydration.
+that id, so a page is always adopted by its own build's script. `Stack`
+bundles the Worker with esbuild and brands its views as the Foldkit plugin
+brands the page's: unbranded, Foldkit found every served element's view
+identity missing and rebuilt the whole page on hydration.
 
 ## When something fails
 

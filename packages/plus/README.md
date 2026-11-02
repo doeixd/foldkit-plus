@@ -127,7 +127,7 @@ subpath that needs one it cannot find says which.
 
 | Subpath | Needs | For |
 | --- | --- | --- |
-| `foldkit-plus/testing/workers` | `wrangler`, `esbuild` | `Stack.start`: the Worker on a local workerd, configured by its own `wrangler.toml`, with fresh migrated D1 per stack; `Stack.writeBundle`: the same bundle where `main` says, for `wrangler deploy`; `Cpu.budget`: fails a test when a route spends more CPU than a budget |
+| `foldkit-plus/testing/workers` | `wrangler`, `esbuild`, `@foldkit/vite-plugin` | `Stack.start`: the Worker on a local workerd, configured by its own `wrangler.toml`, with fresh migrated D1 per stack; `Stack.writeBundle`: the same bundle where `main` says, for `wrangler deploy`; `Cpu.budget`: fails a test when a route spends more CPU than a budget |
 | `foldkit-plus/testing/playwright` | `playwright` (types) | `Behaviors`: a write shows while it is held at the network, holds still until its answer is drawn, and shows after (`optimistic`), a text never shows during some steps, even for one frame (`neverShows`), and the page's errors (`consoleErrors`) |
 
 <!-- docs-check
@@ -146,6 +146,16 @@ await fetch(stack.origin)
 stack.logs() // what the Worker wrote to its console since the last call; also printed as it arrives
 await stack.stop()
 ```
+
+The bundle's views are branded as `@foldkit/vite-plugin` brands the
+page's build: each function's result is named by its module's path from the
+page's Vite root, which is the folder of `wrangler.toml` unless `pageRoot`
+names another. Foldkit adopts a served element only when that name is the
+one the browser's view gives it, and rebuilds the rest without a word in
+production, so a Worker bundled without the brand had every page it rendered
+rebuilt on hydration. A module an esbuild plugin of `plugins` loads is
+branded too. Where the page root resolves no `foldkit`, there is no Foldkit
+page to match, and the Worker is bundled as written.
 
 The Worker's console is printed here as it arrives, each line with Node's
 console method of its level and prefixed `[worker]`, so a 500 shows the error
