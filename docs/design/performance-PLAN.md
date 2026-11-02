@@ -1,6 +1,6 @@
 # Performance: server CPU, client size, layout shift
 
-Status: plan (2026-11-02). Issues #413–#426, under #411.
+Status: plan (2026-11-02). Issues #413–#433, under #411.
 
 ## Why
 
@@ -63,38 +63,94 @@ look (#424).
 - CLS under 0.1;
 - `style.ts` under 700 lines.
 
+## How Foldkit Plus can beat base Foldkit
+
+Base Foldkit gives a program contract and a runtime: one Model, `update`, a
+virtual DOM drawn whole on every Message, and a server that renders a shell.
+Plus knows more about each program than the runtime does: what each region
+reads (Surfaces, Projections), what data a page needs and how fresh it may be
+(Remote, Entity, Query bodies), which Messages a region can send, and what is
+fixed at build (styles, routes). Every lever below spends that knowledge.
+
+| Lever | What Plus knows | Issues |
+| --- | --- | --- |
+| Data in the first paint, read once | A page's reads, resumed instead of refetched | built (#388); cheap with #413–#416 |
+| Fewer requests | A normalized store, derived refresh | built (#386 single flight, #401 Back and Forward); #428 caches public reads and pages at the edge |
+| Less work per update | What each region reads | #431 memoizes regions by it by default (built opt-in: #384, #385) |
+| Less work at build time | Styles and their classes are fixed per build | #419, #420 |
+| Less JavaScript for display | Which regions send no Messages | #432 islands |
+| Platform over script | Recipes own the components | #429 `content-visibility` lists, #430 popover, anchor positioning and `<dialog>` |
+| Earlier first byte | Which regions are first-screen | #427 streams the first screen first |
+| A different renderer | Surfaces declare reads; `react-codegen` compiles views | #433 compiled views, with #376 |
+
+Stock Foldkit's domains app reaches priced Top Results in 619 ms because it
+fetches after its script runs; Solid reaches them in 188 ms by pricing on the
+server. domains-plus already prices on the server, so once rendering is
+cheap it should match Solid there, a 3× gain over base Foldkit that a runtime
+alone cannot reach.
+
+## The floor
+
+Foldkit's virtual DOM plus Effect's runtime is a floor on client bytes that
+nothing short of #432 or #433 lowers: an estimated 100–150 KB brotli, to be
+measured by #421. Solid's 79 KB is below it. Plus also adds code base
+Foldkit does not have (Remote, Entity, Site); it is a net gain only where it
+replaces application code and requests, as it does in domains-plus (2,928
+lines against 3,280, prices in the first paint). #378, #396 and #397 keep a
+read-only page free of what it does not use; #421 extends that discipline to
+whole applications with a budget.
+
 ## Order
 
-1. **Server CPU**, the cause of the failures and of the slow first byte:
-   - #413 renders through `foldkit-ssr`'s own serializer, with the
-     fidelity checks run in development, tests and once per build;
-   - #414 takes the drawn classes from the render;
-   - #415 renders the first screen only;
-   - #416 measures and cuts cold start.
+**Phase 1: fix what is broken.** These touch separate code and can run in
+parallel.
+- **Server CPU**, the cause of the 1102s and the slow first byte:
+  - #413: `foldkit-ssr`'s own serializer, with the fidelity checks run in
+    development, tests and once per build. Upstream, separately: ask Foldkit
+    to let production skip them (a draft, posted only with the maintainer's
+    go-ahead).
+  - #414: the drawn classes come from the render.
+  - #415: render the first screen only.
+  - #416: cold start.
 
-   #417 closes when `cpu.test.ts` holds 10 ms. Upstream, separately: ask
-   Foldkit to let production skip its checks (a draft, posted only with the
-   maintainer's go-ahead).
-2. **Layout shift** (#418): measure the moving nodes, fix them at their
-   source, and add a CLS budget to the e2e tests.
-3. **Measurement before cutting** (#421): a bundle report by package and a JS
-   budget per example. Its table decides how much #420 is worth, and what
-   else to file.
-4. **Bytes:**
-   - #419: the stylesheet as a hashed, cached asset through a
-     `foldkit-mixins/vite` plugin. It helps every server-rendered app.
-   - #422: DevTools in development only.
-   - #423: sheets and pickers loaded on intent.
-   - #420: zero-runtime style modules, evaluated at build. Only if #421
-     shows the style system's share is worth it.
-5. **Lines:** #424, recipe defaults that need less restyling.
-6. **Holding the gains:** #425, a Linux CI job running every budget with a
-   summary table.
-7. **Publishing:** #426, redeploy domains-plus, rerun the comparison, and
-   deploy solid-domains' `/compare` with the maintainer's go-ahead.
+  #417 closes when `cpu.test.ts` holds 10 ms.
+- **Layout shift** (#418): find the moving nodes and add a CLS budget.
+- **Measurement** (#421): a bundle report by package and a JS budget. Its
+  table decides how much #420 and #432 are worth, and what else to file.
 
-Steps 1, 2 and 3 touch separate code (ssr and mixins; mixins-ui and the
-example's layout; scripts), so they can run in parallel. Step 4 waits on 3.
+**Phase 2: bytes.**
+- #419: the stylesheet as a cached asset (a `foldkit-mixins/vite` plugin).
+- #422: DevTools in development only.
+- #423: sheets and pickers on intent.
+- #420: zero-runtime style modules, if #421 shows the style system is worth
+  removing.
+
+**Phase 3: beyond parity, cheap and visible.**
+- #428: edge caching from the declarations. A cached page also costs no CPU.
+- #429: `content-visibility` lists. They remove the list's measuring code,
+  and probably #418's shift with it.
+- #430: platform popups, removing floating-ui.
+- #431: regions memoized by default, measured with `pnpm bench:render`.
+- #427: streaming SSR.
+
+One decision joins #415, #427 and #429: how much of a long list the server
+draws. Drawing all 556 rows as `content-visibility` rows is the best page
+(no layout shift, find-in-page, no measuring), but the view's cost grows
+with the rows (about 38 ms for 66 today). Measure it after #413. Then either
+the server draws every row unpriced and streams it after the first screen
+(#427), or it draws the first screen only and the client draws the rest.
+
+**Phase 4: long term, with upstream.**
+- #432: islands. A spike first, to measure what static regions would save.
+- #433: compiled views, with #376 and foldkit/foldkit#1227. A spike on one
+  row and card first.
+
+**Throughout:**
+- #424: recipe defaults, so `style.ts` shrinks.
+- #425: the Linux CI job running every budget.
+- #426: once Phase 1 and the parts of Phase 2 that move the headline
+  numbers land, redeploy, rerun the comparison, and publish it with the
+  maintainer's go-ahead.
 
 ## What we keep
 
