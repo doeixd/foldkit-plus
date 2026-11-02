@@ -229,7 +229,7 @@ follows another knob until a theme sets it.
 | `surface.hue` | angle | follows `accent.hue` | 0 to 360 | `neutral-h` |
 | `surface.saturation` | schemed number | 0, dark 4/3 of it | 0 to 0.04 | `surface-c`, `surface-c-dark` |
 | `surface.lightness` | schemed percent | 100, dark 24.5 | 75 to 100, dark 6 to 36 | `base-l`, `base-l-dark` |
-| `surface.contrast` | percent | 80 | 0 to 100 | `surface-contrast` |
+| `surface.contrast` | percent | 70 | 0 to 100 | `surface-contrast` |
 | `surface.textContrast` | number | 1 | | `contrast-factor` |
 | `surface.hover` | choice | `surface` | `surface`, `neutral`, `accent` | `surface-ink`, `state-ink` |
 | `surface.hoverStrength` | percent | 12 | 4 to 24 | `state-hover`; a press lays 1.75 of it |

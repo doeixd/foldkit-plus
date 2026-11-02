@@ -452,7 +452,7 @@ describe('the palette', () => {
     expect(knob['accent-l']).toBe('60%')
     expect(knob['accent-l-dark']).toBe('70%')
     expect(knob['accent-c-dark']).toBe('min(0.4, calc(var(--fk-knob-accent-c) + 0.03))')
-    expect(knob['surface-contrast']).toBe('80%')
+    expect(knob['surface-contrast']).toBe('70%')
     expect(knob['success-h']).toBe('145')
     const set = Theme.standard(Theme.make({ accent: { chroma: { light: 0.27, dark: 0.3 } } }))
     expect(set.knob['accent-c-dark']).toBe('0.3')

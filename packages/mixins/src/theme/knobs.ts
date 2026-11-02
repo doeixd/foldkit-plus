@@ -161,7 +161,7 @@ export const standard = {
     contrast: Knob.percent({
       title: 'Surface contrast',
       variable: 'surface-contrast',
-      default: 80,
+      default: 70,
       min: 0,
       max: 100,
       step: 1,
