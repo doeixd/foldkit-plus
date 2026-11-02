@@ -7,6 +7,22 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+## 0.38.0
+
+Pages get cheaper to serve. Public reads and whole pages are kept at the edge
+when the domain declares how long they stay fresh and the server can prove no
+viewer sees them differently, and the stylesheet ships as a hashed file the
+head links. A cascading delete is held to each row's own Delete rule. Tabs'
+pill selection is raised and a row of them can wrap, and a day of fixes lands
+across Remote, SSR, primitives and the guard.
+
+Versions: every package but `foldkit-metadata` and `foldkit-react-codegen` is
+a new minor, as each depends on one that changed. Breaking: a cascading
+delete's authorization, in `foldkit-entity`, `foldkit-guard`,
+`foldkit-remote`, `foldkit-remote-server` and `foldkit-remote-drizzle`.
+Visible without a code change: the default theme's surface contrast
+(`foldkit-mixins`) and Tabs' default pill selection (`foldkit-mixins-ui`).
+
 ### Added
 
 - **Public reads and pages kept at the edge** (`foldkit-surface`,
@@ -101,6 +117,131 @@ version changed; `pnpm` skips versions already in the registry.
   domains-plus's envelope is about 26.7 KB of the page, not 48.7 KB, and
   Foldkit's per-request checks parse that much less (#413). `getAttribute`
   reads the same JSON as before.
+
+### Fixed
+
+- **A row reused for a new key is measured at once, and a list sees the
+  boxes that move it** (`foldkit-primitives`, #458, #456). `MeasureRows`
+  watched children and resizes but missed a key attribute changed on an
+  existing row, and adding or removing the attribute; it now watches the key
+  attribute and reports the new key at once. `WindowViewport` watched only
+  the list and the document root, so a header growing without a scroll moved
+  the list unobserved; it now watches the ancestors and preceding boxes that
+  can move it, retargeting when the DOM above changes.
+
+- **A mixed-entity read takes the batches it can pack** (`foldkit-remote`,
+  #459). The batch cutter only filled the most recent request, so a later
+  entity opened a new read while an earlier one had room; each request now
+  goes into the first piece with room under both limits.
+
+- **A read is cut by the request it actually sends** (`foldkit-remote`, #450).
+  The client reserved a fixed 512 bytes for the envelope, so a
+  `maxBodyBytes` at or below 512 refused every nonempty read, query or
+  mutation. A read is now cut by the JSON body it sends, and a query or
+  mutation is refused only when its complete encoding is over the limit.
+
+- **An optimistic action that never ends fails at its deadline**
+  (`foldkit-plus/testing/playwright`, #461). `Behaviors.optimistic` still awaited
+  the action after its deadline, so an action stuck for another reason hung
+  the helper for good; it now fails at the deadline, leaving a later
+  rejection unobserved.
+
+- **A lazy list's drawings are evicted at each render** (`foldkit-mixins`,
+  #442). The item memo recognized a new pass only when a key was drawn again,
+  so disjoint windows of a virtual list never evicted an entry. A render
+  boundary is the pass now, so keys no window repeats are forgotten.
+
+- **Boot Commands see the address the page arrived at** (`foldkit-ssr`,
+  #460). A prerendered page opened at a query planned `boot` from the server
+  Model before the arrival URL was applied. Boot Commands are now planned from
+  the Model the runtime starts with, in the same order.
+
+- **A write's viewer key cannot collide with another viewer's**
+  (`foldkit-remote`, #454). The key was `entity:id`; an entity name and an id
+  each holding `:` could make the same key, so a durable write made for one
+  viewer ran as another. `entityKey` now escapes `%` and `:` in the entity
+  name, making the pair unambiguous; a name without them keeps its key.
+
+- **A cascading delete whose root is gone takes nothing**
+  (`foldkit-remote-drizzle`, #453). Descendant DELETEs were gated on
+  `not exists (root)`, which is also true when the root was already absent,
+  so children were removed while the caller was told nothing was deleted. A
+  cascade now removes leaves only while the root is there and holds its
+  revision, `when` and guard, then the root; on Postgres it holds the root's
+  row for the transaction.
+
+- **A restored create keeps its count over a count read earlier**
+  (`foldkit-remote`, #457). A restored durable create dropped its count
+  increment whenever the created row was in the store, assuming the count
+  already included it; a count read before the create was undercounted. The
+  increment is kept when the count was read before the write.
+
+- **KeepTyped reads a select's real initial selection** (`foldkit-ssr`, #451).
+  An untouched select whose first option is in a disabled `optgroup`, a
+  listbox select, or a `multiple` select was read as changed and dispatched a
+  Message on hydration. The served selection now follows the browser's reset
+  rules; multiple selections are compared and restored as a set, and an
+  option is disabled through its `optgroup`.
+
+- **An omitted relation input is not a null link** (`foldkit-entity`, #449).
+  `Entity.judgeInput` read a mapped one relation's `Option.none()` as a known
+  null link, so an invariant like `Expr.isNotNull(after.by)` refused a partial
+  form that left the relation unchanged. It now leaves the link unset, so the
+  invariant is undecided; a literal `null` is still a known empty link, and an
+  `Option`-mapped relation input now type-checks.
+
+- **A body past the limit is too large even when cancelling it fails**
+  (`foldkit-remote-server`, #445). `readBounded` awaited the stream's
+  cancellation, so a rejected cancellation answered 400 "The body is not JSON"
+  and a hanging one never answered. The 413 is now decided by the limit, and
+  the rest is cancelled without waiting.
+
+- **A list placement is not shared across operator tables** (`foldkit-remote`,
+  #462). `pendingPlaced` memoized by the pages, layers, entities and
+  connections but not the domain's resolved operator table, so one domain's
+  pending placement could decide another's list. The table is a memo scope now.
+
+- **Cutting a large read no longer rescans every requirement per batch**
+  (`foldkit-remote`, #447). `readsOf` built an index from each target to its
+  original keys once, instead of scanning every plain requirement for each
+  batch, and keeps each read's key order.
+
+- **A cookie's `maxAge` is finite, and a page's status carries a body**
+  (`foldkit-mirror`, `foldkit-ssr`, #446, #448). `Mirror.cookie` refused a
+  `maxAge` under a second but published `Max-Age=Infinity` for
+  `maxAge: 'Infinity'`, which a browser reads as a session cookie; it now
+  refuses a duration with no finite end. `SSR.entry`'s `status` now refuses
+  `204`, `205` and `304`, whose response cannot carry the rendered page, and
+  reports the page failed instead of throwing outside the entry.
+
+- **A page's ordinary text that spells the keep marker renders**
+  (`foldkit-ssr`, #452). `SSR.render` searched the whole serialized page for
+  `data-foldkit-plus-keep="?"`, so a text node holding those characters was
+  refused as a `KeepTyped` field with no binding. Only a marker that is an
+  attribute of an element now counts.
+
+- **A sparse derived array of a new length is derived again**
+  (`foldkit-surface`, #444). `Projection.derive` compared arrays by
+  `Object.keys`, which omits `length`, so two sparse arrays of different
+  lengths read as equal and the old value was kept. It now compares array
+  lengths too.
+
+- **Picker focus escapes an id that is not a CSS identifier**
+  (`foldkit-mixins-ui`, #455). A step between a phone Sheet's options built
+  `#1-option-1` by hand, which `querySelector` refuses; the selector now goes
+  through the package's CSS identifier escape, so a digit-leading or
+  colon-bearing id focuses.
+
+- **`Cpu.budget` checks every warm request** (`foldkit-plus/testing/workers`,
+  #443). The budget compared the mean of the requests after the first, so one
+  request could spend well over the limit and pass. It now reads each warm
+  request's cost and checks the most expensive, matching a deployed Worker's
+  per-request limit; `CpuReading.warm` is that cost, not the mean.
+
+- **`declared-any` reads a declaration across lines** (#441). The build gate
+  matched one line at a time, so a published function whose parameters wrapped
+  across lines still escaped with an `any` return. It now matches declarations
+  as whole statements.
 
 ## 0.37.0
 
@@ -926,129 +1067,6 @@ For the new versions they depend on, or changes inside them alone:
   may be `Evicted`.
 
 ### Fixed
-
-- **A row reused for a new key is measured at once, and a list sees the
-  boxes that move it** (`foldkit-primitives`, #458, #456). `MeasureRows`
-  watched children and resizes but missed a key attribute changed on an
-  existing row, and adding or removing the attribute; it now watches the key
-  attribute and reports the new key at once. `WindowViewport` watched only
-  the list and the document root, so a header growing without a scroll moved
-  the list unobserved; it now watches the ancestors and preceding boxes that
-  can move it, retargeting when the DOM above changes.
-
-- **A mixed-entity read takes the batches it can pack** (`foldkit-remote`,
-  #459). The batch cutter only filled the most recent request, so a later
-  entity opened a new read while an earlier one had room; each request now
-  goes into the first piece with room under both limits.
-
-- **A read is cut by the request it actually sends** (`foldkit-remote`, #450).
-  The client reserved a fixed 512 bytes for the envelope, so a
-  `maxBodyBytes` at or below 512 refused every nonempty read, query or
-  mutation. A read is now cut by the JSON body it sends, and a query or
-  mutation is refused only when its complete encoding is over the limit.
-
-- **An optimistic action that never ends fails at its deadline**
-  (`foldkit-plus/testing/playwright`, #461). `Behaviors.optimistic` still awaited
-  the action after its deadline, so an action stuck for another reason hung
-  the helper for good; it now fails at the deadline, leaving a later
-  rejection unobserved.
-
-- **A lazy list's drawings are evicted at each render** (`foldkit-mixins`,
-  #442). The item memo recognized a new pass only when a key was drawn again,
-  so disjoint windows of a virtual list never evicted an entry. A render
-  boundary is the pass now, so keys no window repeats are forgotten.
-
-- **Boot Commands see the address the page arrived at** (`foldkit-ssr`,
-  #460). A prerendered page opened at a query planned `boot` from the server
-  Model before the arrival URL was applied. Boot Commands are now planned from
-  the Model the runtime starts with, in the same order.
-
-- **A write's viewer key cannot collide with another viewer's**
-  (`foldkit-remote`, #454). The key was `entity:id`; an entity name and an id
-  each holding `:` could make the same key, so a durable write made for one
-  viewer ran as another. `entityKey` now escapes `%` and `:` in the entity
-  name, making the pair unambiguous; a name without them keeps its key.
-
-- **A cascading delete whose root is gone takes nothing**
-  (`foldkit-remote-drizzle`, #453). Descendant DELETEs were gated on
-  `not exists (root)`, which is also true when the root was already absent,
-  so children were removed while the caller was told nothing was deleted. A
-  cascade now removes leaves only while the root is there and holds its
-  revision, `when` and guard, then the root; on Postgres it holds the root's
-  row for the transaction.
-
-- **A restored create keeps its count over a count read earlier**
-  (`foldkit-remote`, #457). A restored durable create dropped its count
-  increment whenever the created row was in the store, assuming the count
-  already included it; a count read before the create was undercounted. The
-  increment is kept when the count was read before the write.
-
-- **KeepTyped reads a select's real initial selection** (`foldkit-ssr`, #451).
-  An untouched select whose first option is in a disabled `optgroup`, a
-  listbox select, or a `multiple` select was read as changed and dispatched a
-  Message on hydration. The served selection now follows the browser's reset
-  rules; multiple selections are compared and restored as a set, and an
-  option is disabled through its `optgroup`.
-
-- **An omitted relation input is not a null link** (`foldkit-entity`, #449).
-  `Entity.judgeInput` read a mapped one relation's `Option.none()` as a known
-  null link, so an invariant like `Expr.isNotNull(after.by)` refused a partial
-  form that left the relation unchanged. It now leaves the link unset, so the
-  invariant is undecided; a literal `null` is still a known empty link, and an
-  `Option`-mapped relation input now type-checks.
-
-- **A body past the limit is too large even when cancelling it fails**
-  (`foldkit-remote-server`, #445). `readBounded` awaited the stream's
-  cancellation, so a rejected cancellation answered 400 "The body is not JSON"
-  and a hanging one never answered. The 413 is now decided by the limit, and
-  the rest is cancelled without waiting.
-
-- **A list placement is not shared across operator tables** (`foldkit-remote`,
-  #462). `pendingPlaced` memoized by the pages, layers, entities and
-  connections but not the domain's resolved operator table, so one domain's
-  pending placement could decide another's list. The table is a memo scope now.
-
-- **Cutting a large read no longer rescans every requirement per batch**
-  (`foldkit-remote`, #447). `readsOf` built an index from each target to its
-  original keys once, instead of scanning every plain requirement for each
-  batch, and keeps each read's key order.
-
-- **A cookie's `maxAge` is finite, and a page's status carries a body**
-  (`foldkit-mirror`, `foldkit-ssr`, #446, #448). `Mirror.cookie` refused a
-  `maxAge` under a second but published `Max-Age=Infinity` for
-  `maxAge: 'Infinity'`, which a browser reads as a session cookie; it now
-  refuses a duration with no finite end. `SSR.entry`'s `status` now refuses
-  `204`, `205` and `304`, whose response cannot carry the rendered page, and
-  reports the page failed instead of throwing outside the entry.
-
-- **A page's ordinary text that spells the keep marker renders**
-  (`foldkit-ssr`, #452). `SSR.render` searched the whole serialized page for
-  `data-foldkit-plus-keep="?"`, so a text node holding those characters was
-  refused as a `KeepTyped` field with no binding. Only a marker that is an
-  attribute of an element now counts.
-
-- **A sparse derived array of a new length is derived again**
-  (`foldkit-surface`, #444). `Projection.derive` compared arrays by
-  `Object.keys`, which omits `length`, so two sparse arrays of different
-  lengths read as equal and the old value was kept. It now compares array
-  lengths too.
-
-- **Picker focus escapes an id that is not a CSS identifier**
-  (`foldkit-mixins-ui`, #455). A step between a phone Sheet's options built
-  `#1-option-1` by hand, which `querySelector` refuses; the selector now goes
-  through the package's CSS identifier escape, so a digit-leading or
-  colon-bearing id focuses.
-
-- **`Cpu.budget` checks every warm request** (`foldkit-plus/testing/workers`,
-  #443). The budget compared the mean of the requests after the first, so one
-  request could spend well over the limit and pass. It now reads each warm
-  request's cost and checks the most expensive, matching a deployed Worker's
-  per-request limit; `CpuReading.warm` is that cost, not the mean.
-
-- **`declared-any` reads a declaration across lines** (#441). The build gate
-  matched one line at a time, so a published function whose parameters wrapped
-  across lines still escaped with an `any` return. It now matches declarations
-  as whole statements.
 
 - **A Worker bundled by `Stack` draws the page's view identities**
   (`foldkit-plus/testing/workers`, #412). esbuild skips
