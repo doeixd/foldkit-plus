@@ -323,6 +323,11 @@
       "types": "./dist/mixins/foundations.d.mts",
       "import": "./dist/mixins/foundations.mjs"
     },
+    "./mixins/vite": {
+      "foldkit-plus:source": "./src/mixins/vite.ts",
+      "types": "./dist/mixins/vite.d.mts",
+      "import": "./dist/mixins/vite.mjs"
+    },
     "./mixins-builder": {
       "foldkit-plus:source": "./src/mixins-builder.ts",
       "types": "./dist/mixins-builder.d.mts",

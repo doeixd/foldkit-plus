@@ -114,6 +114,7 @@
       "foldkit-plus/mixins/testing": ["../../packages/plus/src/mixins/testing.ts"],
       "foldkit-plus/mixins/theme": ["../../packages/plus/src/mixins/theme.ts"],
       "foldkit-plus/mixins/utilities": ["../../packages/plus/src/mixins/utilities.ts"],
+      "foldkit-plus/mixins/vite": ["../../packages/plus/src/mixins/vite.ts"],
       "foldkit-plus/primitives": ["../../packages/plus/src/primitives.ts"],
       "foldkit-plus/primitives/device": ["../../packages/plus/src/primitives/device.ts"],
       "foldkit-plus/primitives/dom": ["../../packages/plus/src/primitives/dom.ts"],
