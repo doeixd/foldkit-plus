@@ -18,7 +18,7 @@ Every package keeps that rule: an agent sends only Messages `update` handles;
 server data and replicas' edits are reduced by `update`; the URL and storage
 mirror a slice of the Model, never own it; views are extended from outside.
 
-Targets Foldkit `0.170.x` and Effect 4.1, tested on `effect@4.1.0`. APIs are
+Targets Foldkit `0.170.x` and Effect 4.1, tested on `effect@4.1.1`. APIs are
 `0.x` and may break between minors. Two whole apps show the packages together:
 [`examples/chirp`](https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp), a Twitter clone with one file per package, and
 [`examples/reference`](https://github.com/doeixd/foldkit-plus/tree/main/examples/reference), the recommended stack on one Worker over D1.
@@ -33,10 +33,10 @@ Targets Foldkit `0.170.x` and Effect 4.1, tested on `effect@4.1.0`. APIs are
 | A filter in the URL, a draft or preference remembered on a device, a cart a server renders from a cookie | the local Model | `foldkit-mirror` | [mirror.md](references/mirror.md) |
 | Where the application is: route nodes in a hierarchy, typed targets, titles, history intent | the tree, as data; the route value stays in the local Model | `foldkit-site` (early) | [site.md](references/site.md) |
 | What an AI agent may see and do, over MCP, WebMCP, A2A, or Agent Native | the application | `foldkit-agent` + one adapter | [agent.md](references/agent.md) |
-| Restyling or adding behaviour to views, including `@foldkit/ui` | the view contract | `foldkit-mixins` (+ `-surface`, `-ui`) | [mixins.md](references/mixins.md) |
+| Restyling or adding behaviour to views, including `@foldkit/ui`; ready components (`Picker`, a window-scrolled `WindowList`) | the view contract; a component's state is the parent Model's | `foldkit-mixins` (+ `-surface`, `-ui`) | [mixins.md](references/mixins.md) |
 | A reusable Submodel placed several times or per key, with every part wired | the parent Model | `foldkit-bundle` (+ `-surface`) | [bundle.md](references/bundle.md) |
 | Responsive images (widths, `srcset`, formats, placeholders) and icons as data | the image's source; variants are a cache | `foldkit-media` (+ `Image`, `Icon` in `foldkit-mixins-ui`; early) | [media.md](references/media.md) |
-| A media query, presence, timer, pagination, undo history, socket, resize, or clipboard | the parent Model | `foldkit-primitives` | [primitives.md](references/primitives.md) |
+| A media query, presence, timer, pagination, undo history, socket, resize, clipboard, or a virtual list's measured rows | the parent Model | `foldkit-primitives` | [primitives.md](references/primitives.md) |
 | A React component in a Foldkit view, a Foldkit program in a React app, or views compiled to TSX | the Model / the embedded program | `foldkit-react` (+ `-codegen`) | [react.md](references/react.md) |
 | Typed facts a package attaches to another package's declaration (package authors only) | the key's package | `foldkit-metadata` (re-exported by `foldkit-surface`) | [surface.md](references/surface.md) |
 | A domain entity's fields, relations and derived members, its invariants, and writes declared as data | the domain declaration; the server's writer enforces it where it commits | `foldkit-entity` | [entity.md](references/entity.md) |
@@ -131,7 +131,7 @@ App.model.<field>, … })`, `Mirror.url(App, …)`, and `SurfaceView.define(Todo
   and wirings (`Data.wiring(…)`, `….wiring('UrlChanged')`, `….wiring()`); routing,
   startup Commands, Subscriptions and the Module derive from it (`bundle.md`).
 - **Install** with `npx --legacy-peer-deps foldkit-plus setup`, which prints the
-  steps for its project: Effect pins at 4.1.0, or a later 4.1 patch an npm
+  steps for its project: Effect pins at 4.1.1, or a later 4.1 patch an npm
   lockfile already holds (Foldkit takes `~4.1.0`), the `add` command, a `.gitattributes`. With `foldkit-plus`, import each
   package through its subpath (`foldkit-plus/remote-server`); the snippets
   name each package itself, as installed alone. Adapters with a library of their own
