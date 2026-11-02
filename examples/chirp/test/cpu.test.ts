@@ -13,6 +13,7 @@ import { REMOTE_PROTOCOL_VERSION, Selection, relationOf } from 'foldkit-remote'
 import { serveFetch } from 'foldkit-remote-server/fetch'
 import { Cpu } from 'foldkit-plus/testing/workers'
 import { expect, it } from 'vitest'
+import { cpuBudget } from '../../../scripts/perf-report.mjs'
 import { TimelinePost } from '../src/operations.js'
 import { openServer, principalOf } from '../src/server/server.js'
 import { memorySqlite } from '../src/server/sqlite-node.js'
@@ -47,7 +48,7 @@ const remote = (operation: string, payload: () => unknown) => () =>
   })
 
 it('answers its main calls within the CPU budget', async () => {
-  const readings = await Cpu.budget(meter, {
+  const readings = await cpuBudget('chirp', Cpu.budget, meter, {
     ...BUDGET,
     routes: {
       'the timeline': remote('query', () => ({

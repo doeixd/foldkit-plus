@@ -1,7 +1,7 @@
 import { availableParallelism, freemem } from 'node:os'
 import { playwright } from '@vitest/browser-playwright'
 import { defineConfig, mergeConfig } from 'vitest/config'
-import { inBrowser, shared } from './vitest.shared.js'
+import { budgetsElsewhere, inBrowser, perfTests, shared } from './vitest.shared.js'
 
 const everywhere = [
   'packages/*/test/**/*.test.ts',
@@ -49,7 +49,11 @@ export default defineConfig({
         test: {
           name: 'unit',
           include: everywhere,
-          exclude: [...browserTests, '**/node_modules/**'],
+          exclude: [
+            ...browserTests,
+            ...(budgetsElsewhere ? perfTests.unit : []),
+            '**/node_modules/**',
+          ],
         },
       }),
       // What jsdom cannot check: layout, focus, the caret. Headless Chromium,

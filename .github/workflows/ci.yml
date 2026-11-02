@@ -157,6 +157,61 @@ jobs:
 
       - run: pnpm e2e
 
+  # Every performance budget, on one quiet Linux runner: CPU readings step in
+  # 15.6 ms on Windows and drift on a loaded shard, so the budget tests run
+  # here and nowhere else on CI (`perfTests` in vitest.shared.ts). Files run
+  # one at a time so one's build does not tax another's CPU. The CPU limits
+  # stay generous because shared runners are noisy: they catch a route that
+  # grew several times over. Each test writes its reading to PERF_REPORT; the
+  # table lands in the job's summary, and a miss fails the job.
+  perf:
+    runs-on: ubuntu-latest
+    env:
+      FOLDKIT_PERF: '1'
+      PERF_REPORT: ${{ github.workspace }}/perf-report.jsonl
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      # The layout-shift budget drives Chromium; the bundle budgets build
+      # against the packages' `dist` themselves (`scripts/bundle-report.mjs`).
+      - run: pnpm exec playwright install --with-deps chromium
+
+        run: >-
+          pnpm exec vitest run --project unit --no-file-parallelism
+          examples/foldkit/domains-plus/test/cpu.test.ts
+          examples/foldkit/domains-plus/test/bundle.test.ts
+          examples/foldkit/domains-plus/test/serverBundle.test.ts
+          examples/chirp/test/cpu.test.ts
+          examples/cloudflare/test/cpu.test.ts
+          examples/cloudflare/test/serverBundle.test.ts
+
+      - run: pnpm exec vitest run --config vitest.e2e.config.ts examples/foldkit/domains-plus/e2e/layoutShift.e2e.ts
+        if: ${{ !cancelled() }}
+
+      # Read the exit status, not a pipe's: the table is written either way.
+      - run: |
+          status=0
+          node scripts/perf-summary.mjs "$PERF_REPORT" > perf-summary.md || status=$?
+          cat perf-summary.md >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+        if: ${{ !cancelled() }}
+
   demo:
     runs-on: ubuntu-latest
     steps:

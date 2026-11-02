@@ -223,7 +223,12 @@ the server draws every row unpriced and streams it after the first screen
 
 **Throughout:**
 - #424: recipe defaults, so `style.ts` shrinks.
-- #425: the Linux CI job running every budget.
+- #425: the Linux CI job running every budget. Done: the `perf` job in
+  `ci.yml` runs the CPU, client JS, HTML, server bundle and layout-shift
+  budgets on `ubuntu-latest` and writes a table to the job summary
+  (`scripts/perf-summary.mjs`, fed by `PERF_REPORT`). On CI the shards and
+  `pnpm e2e` skip those tests. The HTML budget is a ceiling of 9.6 KB, not
+  yet the 8 KB goal.
 - #426: once Phase 1 and the parts of Phase 2 that move the headline
   numbers land, redeploy, rerun the comparison, and publish it with the
   maintainer's go-ahead.

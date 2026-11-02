@@ -10,6 +10,28 @@ import { mutation } from './scripts/mutation-plugin.mjs'
 import { alias, inNode } from './scripts/test-resolve.mjs'
 import { icons } from './packages/media/src/vite/icons.js'
 
+/**
+ * The performance budgets (#425). CPU readings need a quiet Linux machine and
+ * a shared test shard is neither, so on CI they run only in the `perf` job
+ * (`FOLDKIT_PERF=1`) and are left out of the shards and of `pnpm e2e`;
+ * locally they stay in `pnpm test`.
+ */
+export const perfTests = {
+  unit: [
+    'examples/foldkit/domains-plus/test/cpu.test.ts',
+    'examples/foldkit/domains-plus/test/bundle.test.ts',
+    'examples/foldkit/domains-plus/test/serverBundle.test.ts',
+    'examples/chirp/test/cpu.test.ts',
+    'examples/cloudflare/test/cpu.test.ts',
+    'examples/cloudflare/test/serverBundle.test.ts',
+  ],
+  e2e: ['examples/foldkit/domains-plus/e2e/layoutShift.e2e.ts'],
+} as const
+
+/** Whether the budgets are left to the `perf` job: on CI, outside it. */
+export const budgetsElsewhere =
+  process.env.CI !== undefined && process.env.FOLDKIT_PERF === undefined
+
 /** For tests in Node or jsdom. */
 export const shared = defineConfig({
   plugins: [mutation()],

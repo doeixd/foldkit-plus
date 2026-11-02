@@ -10,6 +10,7 @@
 import { REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
 import { Cpu } from 'foldkit-plus/testing/workers'
 import { afterAll, beforeAll, expect, it } from 'vitest'
+import { cpuBudget } from '../../../scripts/perf-report.mjs'
 import { TODO_PAGE_SIZE } from '../src/operations.js'
 import { PAGE_ORIGIN, startStack, type CloudflareStack } from '../src/stack.js'
 
@@ -48,7 +49,7 @@ const remote = (operation: string, payload: unknown) => () =>
   })
 
 it('answers its main routes within the CPU budget', async () => {
-  const readings = await Cpu.budget(stack.cpu, {
+  const readings = await cpuBudget('cloudflare', Cpu.budget, stack.cpu, {
     ...BUDGET,
     routes: {
       'a page of todos': remote('query', {

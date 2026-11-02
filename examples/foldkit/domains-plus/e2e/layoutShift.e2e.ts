@@ -11,9 +11,11 @@
  */
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { brotliCompressSync } from 'node:zlib'
 import { type Browser, chromium } from 'playwright'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { unstable_startWorker } from 'wrangler'
+import { record } from '../../../../scripts/perf-report.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 
@@ -127,6 +129,7 @@ test.each(sizes)(
           `${size.name} ${shift.value.toFixed(4)} at ${shift.at}ms ${JSON.stringify(shift.sources)}`,
         )
       console.info(`${size.name} CLS ${total.toFixed(4)}`)
+      record({ kind: 'cls', name: size.name, value: total, budget: BUDGET })
       expect(total).toBeLessThan(BUDGET)
     } finally {
       await context.close()
@@ -134,3 +137,18 @@ test.each(sizes)(
   },
   180_000,
 )
+
+// Brotli bytes of the search page's HTML, as the Worker answers it. The plan's
+// goal is 8 KB (performance-PLAN.md); this ceiling only stops growth from the
+// 9,395 bytes measured on 2026-11-02, plus about 2%. Lower it as #414 and #424
+// land, never raise it without saying here what the growth bought.
+const HTML_CEILING = 9_600
+
+test('the search page HTML stays within its brotli budget', async () => {
+  const html = Buffer.from(await (await fetch(`${origin}/?q=sunbeam`)).arrayBuffer())
+  const bytes = brotliCompressSync(html).length
+  record({ kind: 'size', name: 'domains-plus HTML, brotli', value: bytes, budget: HTML_CEILING })
+  expect(bytes, `HTML brotli ${bytes} bytes, budget ${HTML_CEILING}`).toBeLessThanOrEqual(
+    HTML_CEILING,
+  )
+})

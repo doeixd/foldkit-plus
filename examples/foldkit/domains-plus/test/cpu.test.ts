@@ -12,6 +12,7 @@ import { DocumentAssets, handleRequest } from 'foldkit/experimental/server'
 import { REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
 import { Cpu } from 'foldkit-plus/testing/workers'
 import { describe, expect, test, vi } from 'vitest'
+import { cpuBudget } from '../../../../scripts/perf-report.mjs'
 import { renderDocument, renderPage } from '../src/server/entry.js'
 
 // The build's id, which `vite build` gives both bundles; read when the entry is made.
@@ -52,7 +53,7 @@ const pricesOf = (names: ReadonlyArray<string>) => () =>
 
 describe('within the CPU budget', () => {
   test('reads of prices', async () => {
-    const readings = await Cpu.budget(meter, {
+    const readings = await cpuBudget('domains-plus: reads', Cpu.budget, meter, {
       // About 1 ms warm on Linux. The first read in the process is the
       // first through Remote's server, and measured up to 47 ms on Windows.
       warm: 10,
@@ -77,7 +78,7 @@ describe('within the CPU budget', () => {
    * from growing until that is fixed.
    */
   test('the pages, as they are', async () => {
-    const readings = await Cpu.budget(meter, {
+    const readings = await cpuBudget('domains-plus: pages', Cpu.budget, meter, {
       warm: 1000,
       cold: 2000,
       routes: {
@@ -98,7 +99,7 @@ describe('within the CPU budget', () => {
    * the render it saves takes 40 to 140 ms.
    */
   test('a kept page', async () => {
-    const readings = await Cpu.budget(meter, {
+    const readings = await cpuBudget('domains-plus: kept pages', Cpu.budget, meter, {
       warm: 5,
       routes: { 'the landing page': '/', 'a search': '/?q=sunbeam' },
     })

@@ -8,6 +8,7 @@
 import { resolve } from 'node:path'
 import { expect, test } from 'vitest'
 import { formatReport, measure } from '../../../../scripts/bundle-report.mjs'
+import { record } from '../../../../scripts/perf-report.mjs'
 
 // Brotli bytes. Lower it as #419, #420, #422 and #423 land: never raise it
 // without saying here what the growth bought. 210.5 kB measured on 2026-11-02,
@@ -17,6 +18,12 @@ const CEILING = 215_000
 test('the search page loads at most the budgeted brotli JavaScript', async () => {
   const report = await measure(resolve(import.meta.dirname, '..'))
   expect(report.total.chunks).toBeGreaterThan(0)
+  record({
+    kind: 'size',
+    name: 'domains-plus client JS, brotli',
+    value: report.total.brotli,
+    budget: CEILING,
+  })
   const message = `${formatReport(report)}\n\nbudget: ${CEILING} bytes`
   expect(report.total.brotli, message).toBeLessThanOrEqual(CEILING)
   // A drop of more than 10% means the ceiling is stale: lower it.

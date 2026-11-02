@@ -4,13 +4,14 @@
  * Playwright. Kept out of `pnpm test`, which never starts a server.
  */
 import { defineConfig, mergeConfig } from 'vitest/config'
-import { shared } from './vitest.shared.js'
+import { budgetsElsewhere, perfTests, shared } from './vitest.shared.js'
 
 export default mergeConfig(
   shared,
   defineConfig({
     test: {
       include: ['examples/*/e2e/**/*.e2e.ts', 'examples/foldkit/*/e2e/**/*.e2e.ts'],
+      exclude: budgetsElsewhere ? [...perfTests.e2e, '**/node_modules/**'] : ['**/node_modules/**'],
       // A first load pre-bundles the workspace packages, which takes a while.
       testTimeout: 180_000,
       hookTimeout: 180_000,

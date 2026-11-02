@@ -26,6 +26,13 @@ Format with `pnpm format`, never bare `oxfmt`: bare `oxfmt` reads the
 repository config too, but also formats the HTML pages, `.mjs` scripts and
 `.jsonc` files the script's `**/*.{ts,json,yaml}` leaves alone.
 
+The performance budgets (CPU, bundle sizes, HTML size, layout shift) run on
+CI only in the `perf` job, on Linux, and are left out of the test shards and
+`pnpm e2e` there (`perfTests` in `vitest.shared.ts`); locally they stay in
+`pnpm test`. The job's summary table lists each reading against its budget. To
+get the same file locally, set `PERF_REPORT=perf.jsonl` and run
+`node scripts/perf-summary.mjs perf.jsonl`.
+
 ## Workspace resolution
 
 Workspace packages resolve to their source through the `foldkit-plus:source`
