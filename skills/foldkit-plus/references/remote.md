@@ -1000,6 +1000,9 @@ rereads `wrangler.toml`; each change is started on a workerd of its own
 first, so one that does not build or start goes to `onRefused` and the
 running Worker keeps its storage. `Stack.writeBundle` writes the deploy
 bundle the same way (`wrangler` and `esbuild` are optional peers).
+`Cpu.budget(stack.cpu, { warm, cold?, runs?, routes })` fails a test when a
+route spends more CPU than a deployed Worker may (Miniflare reports none);
+`Cpu.inThread(handler)` meters a handler run in Node instead.
 
 ## Server: `foldkit-remote-server`
 

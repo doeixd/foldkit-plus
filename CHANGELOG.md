@@ -9,6 +9,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **CPU budgets for Workers** (`foldkit-plus/testing/workers`, #339).
+  `Cpu.budget(meter, { warm, cold?, runs?, routes })` asks each route once,
+  then `runs` times more, and throws with every route's reading when one
+  spends more CPU than its budget, or answers a 5xx. A deployed Worker past
+  its plan's CPU limit fails with error 1102, which Miniflare neither
+  enforces nor reports (its tail events say `cpuTime: 0`). `stack.cpu`
+  meters a stack by its workerd's main thread, read from the operating
+  system on Linux and Windows; `Cpu.inThread(handler)` meters a handler run
+  in Node. examples/cloudflare, Chirp and domains-plus hold their main routes
+  to a budget. domains-plus's pages take 135 to 530 ms a request (#411), so
+  their budget only keeps them from growing.
+
 - **Cascading deletes, declared once** (`foldkit-entity`, `foldkit-remote`,
   `foldkit-remote-server`, `foldkit-remote-drizzle`, `foldkit-guard`, #343).
   `Relation.one(Post, { onDelete: 'cascade' })` says a row goes when the row

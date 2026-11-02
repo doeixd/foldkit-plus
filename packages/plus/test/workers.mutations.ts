@@ -48,7 +48,7 @@ export default [
   ),
   edit(
     'vars of the origin are never given',
-    'await harness.update(optionsFor(raw, outfile, vars))',
+    'await collect(spawned, () => harness.update(optionsFor(raw, outfile, vars)))',
     '',
   ),
   edit('vars are given the URL, not its origin', 'given(url.origin)', 'given(url.href)'),
@@ -82,12 +82,12 @@ export default [
   ),
   edit(
     'a change is reported but not swapped in',
-    'await harness.update(optionsFor(next.raw, outfile, vars))',
+    'await collect(spawned, () => harness.update(optionsFor(next.raw, outfile, vars)))',
     '',
   ),
   edit(
     'a change is swapped in without being tried first',
-    '            await trial.listen()\n            await migrate(trial.getWorker(), next.config)\n',
+    '            await collect(trials, () => trial.listen())\n            await migrate(trial.getWorker(), next.config)\n',
     '',
   ),
   edit(

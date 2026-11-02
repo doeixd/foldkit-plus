@@ -16,8 +16,11 @@
 import { Option, Schema } from 'effect'
 import type { BuildContext, BuildOptions, OutputFile, Plugin } from 'esbuild'
 import type { TestHarness, WorkerHandle } from 'wrangler'
-import { watch as watchFile, type FSWatcher } from 'node:fs'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { ChildProcess, spawn } from 'node:child_process'
+import { subscribe, unsubscribe } from 'node:diagnostics_channel'
+import { readFileSync, watch as watchFile, type FSWatcher } from 'node:fs'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { createInterface } from 'node:readline'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, relative, resolve } from 'node:path'
@@ -100,6 +103,14 @@ export interface Stack<Env> {
    */
   readonly logs: () => ReadonlyArray<WorkerLog>
   /**
+   * Requests sent straight to the Worker, metered for `Cpu.budget` by how
+   * long workerd's main thread runs, read from the operating system since
+   * workerd reports no CPU (Linux and Windows). That counts the Worker's code
+   * and what workerd does on the thread around it, D1's SQLite included,
+   * which a deployed Worker's CPU time leaves out.
+   */
+  readonly cpu: CpuMeter
+  /**
    * Rebuilds on every change to a file the bundle read, and rereads the
    * Wrangler configuration when it changes. Each change is first started on
    * a workerd of its own, then swapped in at the same origin, and the D1
@@ -114,6 +125,262 @@ export interface Stack<Env> {
    */
   readonly stop: () => Promise<void>
 }
+
+/** What a meter answers: a `Response`, or Miniflare's own. */
+export type CpuAnswer = Pick<Response, 'status' | 'arrayBuffer'>
+
+/** Answers requests, and reads how much CPU time the code answering them has spent. */
+export interface CpuMeter {
+  /** What a route given as a path is resolved against. */
+  readonly origin: string
+  readonly fetch: (request: Request) => Promise<CpuAnswer>
+  /** Milliseconds of CPU time spent so far, from a fixed point of the meter's own. */
+  readonly spent: () => Promise<number>
+}
+
+/**
+ * A route `Cpu.budget` asks: a path or URL to `GET`, or a function making
+ * a new request for each run, since a request's body is read once.
+ */
+export type CpuRoute = string | (() => Request)
+
+/** What one route cost, in milliseconds of CPU time. */
+export interface CpuReading {
+  readonly route: string
+  /** The last response's status. */
+  readonly status: number
+  /** The route's first request in this call: in a fresh stack, a cold isolate's. */
+  readonly cold: number
+  /** The mean of the requests after the first. */
+  readonly warm: number
+}
+
+export interface CpuBudget {
+  /** The routes, by the name a failure reports them with. */
+  readonly routes: Readonly<Record<string, CpuRoute>>
+  /** Milliseconds a warm request may spend. */
+  readonly warm: number
+  /** Milliseconds the first request may spend; unchecked when not given. */
+  readonly cold?: number
+  /** Requests after the first, each answered in full before the next; default 5. */
+  readonly runs?: number
+}
+
+/** The processes spawned while a stack's harness starts or reloads; workerd among them. */
+interface Spawned {
+  readonly processes: Array<ChildProcess>
+  /** Another stack spawned at the same time, so whose process is whose is unknown. */
+  shared: boolean
+}
+
+const collecting = new Set<Spawned>()
+
+// Named once spawned: Node publishes a process before it starts it.
+const isWorkerd = (child: ChildProcess) =>
+  typeof child.spawnfile === 'string' && /^workerd(\.exe)?$/.test(basename(child.spawnfile))
+
+// Node publishes every `spawn` here, workerd's by Miniflare included; the
+// harness offers no other way to find the process.
+const onSpawn = (message: unknown) => {
+  if (typeof message !== 'object' || message === null || !('process' in message)) return
+  const child = message.process
+  if (!(child instanceof ChildProcess)) return
+  for (const spawned of collecting) spawned.processes.push(child)
+}
+
+/** Runs `step`, adding the processes it spawns to `into`. */
+const collect = async <A>(into: Spawned, step: () => Promise<A>): Promise<A> => {
+  if (collecting.size === 0) subscribe('child_process', onSpawn)
+  for (const other of collecting) other.shared = into.shared = true
+  collecting.add(into)
+  try {
+    return await step()
+  } finally {
+    collecting.delete(into)
+    if (collecting.size === 0) unsubscribe('child_process', onSpawn)
+  }
+}
+
+const isRunning = (child: ChildProcess) => child.exitCode === null && child.signalCode === null
+
+/** Milliseconds a Linux process's main thread has run, by the scheduler's nanoseconds. */
+const linuxTime = async (pid: number): Promise<number> =>
+  Number((await readFile(`/proc/${pid}/task/${pid}/schedstat`, 'utf8')).split(' ')[0]) / 1e6
+
+/**
+ * Reads how long processes' main threads have run, where workerd runs
+ * JavaScript. V8's helper threads, which collect garbage and compile beside
+ * it, are left out: on a server-rendered page they added half as much again.
+ */
+interface CpuReader {
+  readonly read: (pids: ReadonlyArray<number>) => Promise<number>
+  readonly close: () => void
+}
+
+const linuxReader = (): CpuReader => ({
+  read: async pids => (await Promise.all(pids.map(linuxTime))).reduce((a, b) => a + b, 0),
+  close: () => {},
+})
+
+/**
+ * Windows has no `/proc`, and Node no call for another process's times, so
+ * one PowerShell kept open answers each read: started per read, it takes
+ * longer than the requests it measures. The main thread is the one that
+ * started first. Windows adds to a thread's time a scheduler tick (15.6 ms)
+ * at a time.
+ */
+const windowsReader = (): CpuReader => {
+  const shell = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', '-'], {
+    stdio: ['pipe', 'pipe', 'ignore'],
+    windowsHide: true,
+  })
+  const waiting: Array<(line: Option.Option<string>) => void> = []
+  createInterface({ input: shell.stdout }).on('line', line => waiting.shift()?.(Option.some(line)))
+  // A shell that could not start, or ended, answers no read waiting on it.
+  const ended = () => waiting.splice(0).forEach(answer => answer(Option.none()))
+  shell.on('error', ended).on('exit', ended)
+  return {
+    read: pids =>
+      new Promise((resolve, reject) => {
+        waiting.push(line => {
+          const ticks = Number(Option.getOrElse(line, () => ''))
+          if (Option.isSome(line) && Number.isFinite(ticks)) resolve(ticks / 1e4)
+          else
+            reject(
+              new Error(
+                `workerd's CPU time could not be read: ${Option.getOrElse(line, () => 'PowerShell ended')}`,
+              ),
+            )
+        })
+        shell.stdin.write(
+          `try { (@(${pids.join(',')}) | % { ([Diagnostics.Process]::GetProcessById($_).Threads | Sort-Object StartTime | Select-Object -First 1).TotalProcessorTime.Ticks } | Measure-Object -Sum).Sum } catch { "$_" }\n`,
+        )
+      }),
+    close: () => shell.kill(),
+  }
+}
+
+const readerFor = (): CpuReader => {
+  if (process.platform === 'linux') return linuxReader()
+  if (process.platform === 'win32') return windowsReader()
+  throw new Error(
+    `The stack reads workerd's CPU time on Linux and Windows, not ${process.platform}.`,
+  )
+}
+
+/** The CPU meter over a stack's workerd processes, its reader made on the first read. */
+const workerdMeter = (origin: string, dispatch: WorkerHandle['fetch'], spawned: Spawned) => {
+  let reader = Option.none<CpuReader>()
+  const meter: CpuMeter = {
+    origin,
+    // Straight to the Worker: over `origin` a second workerd, which proxies
+    // what the harness serves, would spend time of its own on every request.
+    fetch: async request =>
+      dispatch(request.url, {
+        method: request.method,
+        headers: [...request.headers],
+        ...(request.body === null ? {} : { body: await request.arrayBuffer() }),
+      }),
+    spent: async () => {
+      if (spawned.shared)
+        throw new Error(
+          'Another stack started in this process while this one did, so whose workerd is ' +
+            "whose is unknown: start stacks one at a time to read a stack's CPU.",
+        )
+      const current = Option.getOrElse(reader, readerFor)
+      reader = Option.some(current)
+      return current.read(
+        spawned.processes
+          .filter(child => isWorkerd(child) && isRunning(child))
+          .flatMap(child => (child.pid === undefined ? [] : [child.pid])),
+      )
+    },
+  }
+  return { meter, close: () => Option.map(reader, open => open.close()) }
+}
+
+/**
+ * Asks each route once, then `runs` times more, one request at a time, each
+ * response read in full, and reads what each cost. Throws listing every
+ * reading when a route spends more than the budget, or answers a 5xx, whose
+ * cost says nothing of the route's.
+ */
+const budget = async (
+  meter: CpuMeter,
+  { routes, warm, cold, runs = 5 }: CpuBudget,
+): Promise<ReadonlyArray<CpuReading>> => {
+  if (!Number.isInteger(runs) || runs < 1)
+    throw new Error(`Cpu.budget: runs must be a whole number from 1, not ${runs}.`)
+  const requestOf = (route: CpuRoute) =>
+    typeof route === 'string' ? new Request(new URL(route, meter.origin)) : route()
+  const readings: Array<CpuReading> = []
+  for (const [name, route] of Object.entries(routes)) {
+    let status = 0
+    const ask = async () => {
+      const response = await meter.fetch(requestOf(route))
+      await response.arrayBuffer()
+      status = response.status
+      if (status >= 500) throw new Error(`Cpu.budget: ${name} answered ${status}.`)
+    }
+    const start = await meter.spent()
+    await ask()
+    const first = await meter.spent()
+    for (let run = 0; run < runs; run++) await ask()
+    const end = await meter.spent()
+    readings.push({ route: name, status, cold: first - start, warm: (end - first) / runs })
+  }
+  const over = readings.filter(
+    reading => reading.warm > warm || (cold !== undefined && reading.cold > cold),
+  )
+  if (over.length > 0)
+    throw new Error(
+      `Over the CPU budget (warm ${warm} ms${cold === undefined ? '' : `, cold ${cold} ms`}): ` +
+        `${over.map(reading => reading.route).join(', ')}\n` +
+        readings
+          .map(
+            reading =>
+              `  ${reading.route}: cold ${reading.cold.toFixed(2)} ms, ` +
+              `warm ${reading.warm.toFixed(2)} ms (status ${reading.status})`,
+          )
+          .join('\n'),
+    )
+  return readings
+}
+
+const pause = new Int32Array(new SharedArrayBuffer(4))
+
+/**
+ * Milliseconds this thread has run. Linux books a running thread's time at
+ * each scheduler tick (4 ms at 250 Hz), and `threadCpuUsage` reads that
+ * book; a millisecond's sleep has the scheduler book the rest, and its own
+ * count is in nanoseconds. Read synchronously, so on this thread rather
+ * than the pool's.
+ */
+const threadTime = (): number => {
+  if (process.platform === 'linux') {
+    Atomics.wait(pause, 0, 0, 1)
+    return Number(readFileSync('/proc/thread-self/schedstat', 'utf8').split(' ')[0]) / 1e6
+  }
+  const { user, system } = process.threadCpuUsage()
+  return (user + system) / 1000
+}
+
+/**
+ * A meter over `answer` run in this process, by this thread's CPU time: for
+ * a Worker's handler Node can run (no D1 or other binding of workerd's),
+ * whose work happens on the thread that awaits it.
+ */
+const inThread = (
+  answer: (request: Request) => Promise<CpuAnswer>,
+  origin = 'http://localhost',
+): CpuMeter => ({ origin, fetch: answer, spent: async () => threadTime() })
+
+/**
+ * What a request costs in CPU time, which Miniflare neither limits nor
+ * reports, while a deployed Worker fails past its plan's limit (error 1102).
+ * `Cpu.budget` reads routes through a meter: a stack's `cpu`, or `Cpu.inThread`.
+ */
+export const Cpu = { budget, inThread } as const
 
 /**
  * The part of the configuration the stack reads itself. Wrangler validates
@@ -250,6 +517,10 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
   // Given here, or once the stack knows its origin.
   let vars = typeof given === 'function' ? undefined : given
   const harness: TestHarness = createTestHarness(optionsFor(raw, outfile, vars))
+  const spawned: Spawned = { processes: [], shared: false }
+  // Where a trial's workerd goes: collected only so that a stack starting beside it knows.
+  const trials: Spawned = { processes: [], shared: false }
+  let closeMeter = () => {}
   // The harness keeps workerd's console and offers no handler, so it is drained:
   // read and cleared in one synchronous step, nothing is read twice or missed.
   const kept: Array<WorkerLog> = []
@@ -276,6 +547,7 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
   // workerd running, or the bundle's directory behind.
   const stopOnce = async () => {
     clearInterval(draining)
+    closeMeter()
     Option.map(rereading, clearTimeout)
     Option.map(configWatcher, watcher => watcher.close())
     try {
@@ -303,13 +575,15 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
 
   try {
     await writeOutputs(first)
-    const { url } = await harness.listen()
+    const { url } = await collect(spawned, () => harness.listen())
     // A reload at the same origin, as a swap is, before any request of the caller's.
     if (typeof given === 'function') {
       vars = given(url.origin)
-      await harness.update(optionsFor(raw, outfile, vars))
+      await collect(spawned, () => harness.update(optionsFor(raw, outfile, vars)))
     }
     const worker = harness.getWorker()
+    const metered = workerdMeter(url.origin, worker.fetch, spawned)
+    closeMeter = metered.close
     await migrate(worker, config)
 
     const watch = async (listener: WatchListener) => {
@@ -335,7 +609,7 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
             optionsFor(next.raw, join(trialDirectory, basename(outfile)), vars),
           )
           try {
-            await trial.listen()
+            await collect(trials, () => trial.listen())
             await migrate(trial.getWorker(), next.config)
           } finally {
             await trial.close()
@@ -346,7 +620,7 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
         }
         try {
           await writeOutputs(next.files)
-          await harness.update(optionsFor(next.raw, outfile, vars))
+          await collect(spawned, () => harness.update(optionsFor(next.raw, outfile, vars)))
         } catch (error) {
           running = Option.none()
           listener.onStopped(errorText(error))
@@ -453,7 +727,15 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
       drain()
       return kept.splice(0)
     }
-    return { origin: url.origin, env, dispatch: worker.fetch, logs, watch, stop }
+    return {
+      origin: url.origin,
+      env,
+      dispatch: worker.fetch,
+      logs,
+      cpu: metered.meter,
+      watch,
+      stop,
+    }
   } catch (error) {
     // The start's failure is the one to report; a failure cleaning up after it would hide it.
     await stop().catch(() => undefined)

@@ -127,7 +127,7 @@ subpath that needs one it cannot find says which.
 
 | Subpath | Needs | For |
 | --- | --- | --- |
-| `foldkit-plus/testing/workers` | `wrangler`, `esbuild` | `Stack.start`: the Worker on a local workerd, configured by its own `wrangler.toml`, with fresh migrated D1 per stack; `Stack.writeBundle`: the same bundle where `main` says, for `wrangler deploy` |
+| `foldkit-plus/testing/workers` | `wrangler`, `esbuild` | `Stack.start`: the Worker on a local workerd, configured by its own `wrangler.toml`, with fresh migrated D1 per stack; `Stack.writeBundle`: the same bundle where `main` says, for `wrangler deploy`; `Cpu.budget`: fails a test when a route spends more CPU than a budget |
 | `foldkit-plus/testing/playwright` | `playwright` (types) | `Behaviors`: a write shows while it is held at the network, holds still until its answer is drawn, and shows after (`optimistic`), a text never shows during some steps, even for one frame (`neverShows`), and the page's errors (`consoleErrors`) |
 
 <!-- docs-check
@@ -163,6 +163,61 @@ that does not build, or builds a Worker that does not start, or a
 configuration the stack refuses, goes to `onRefused`, and the Worker running
 keeps answering. `onStopped` is the rest: a swap that failed after its trial
 started, which takes Wrangler's harness down with its storage.
+
+### CPU per request
+
+A deployed Worker that spends more CPU on a request than its plan allows
+fails it with error 1102 (the free plan allows 10 ms). Miniflare neither
+enforces that limit nor reports CPU: its tail events say `cpuTime: 0`,
+`limits.cpu_ms` is not applied, and `process.cpuUsage` is not implemented.
+So `Cpu.budget` reads it from outside, and fails a test when a route spends
+more than a budget:
+
+```ts
+import { Cpu } from 'foldkit-plus/testing/workers'
+
+const readings = await Cpu.budget(stack.cpu, {
+  warm: 20, // ms each request after the first may spend
+  cold: 150, // ms the first may spend; unchecked when left out
+  routes: {
+    home: '/', // a GET of this path
+    search: () => new Request(`${stack.origin}/remote`, { method: 'POST', body: '{}' }),
+  },
+})
+// [{ route: 'home', status: 200, cold: 31.2, warm: 4.1 }, …]
+```
+
+Each route is asked once, then `runs` (5) times more, one request at a time,
+each response read in full. Over budget, it throws with every route's
+reading; a 5xx throws too, since a failure costs nothing. `cold` is the
+route's first request in the call, so in a fresh stack it is a cold
+isolate's: code not yet optimized, and work kept per isolate (a compiled
+query, Auth) done for the first time.
+
+There are two meters:
+
+- `stack.cpu` sends each request straight to the Worker and reads the main
+  thread of the stack's workerd processes, where JavaScript runs, from the
+  operating system (`/proc` on Linux, PowerShell on Windows; other systems
+  are refused). It counts the Worker's code and what workerd does on that
+  thread around it, D1's SQLite included, which a deployed Worker's CPU time
+  leaves out: an empty route reads about 1 ms. V8's helper threads (garbage
+  collection, compiling) are left out. Stacks started at the same time in one
+  process cannot tell their workerd apart, and their `spent()` refuses.
+- `Cpu.inThread(handler, origin?)` runs a `(request) => Promise<Response>`
+  in this process and reads this thread's CPU time: for a handler Node can
+  run, such as a page renderer or a Remote server over Node's SQLite, with no
+  stack to start.
+
+Read budgets on Linux, where both meters count nanoseconds. Windows adds to
+a thread's time a scheduler tick (15.6 ms) at a time, so a reading there is
+only good as a mean of many requests. Choose a budget from Linux readings,
+with room for a slower CI runner: a route several times over it is the
+fault to catch, not noise. The examples hold their main routes to one:
+[examples/cloudflare](https://github.com/doeixd/foldkit-plus/blob/main/examples/cloudflare/test/cpu.test.ts),
+[examples/chirp](https://github.com/doeixd/foldkit-plus/blob/main/examples/chirp/test/cpu.test.ts)
+and
+[examples/foldkit/domains-plus](https://github.com/doeixd/foldkit-plus/blob/main/examples/foldkit/domains-plus/test/cpu.test.ts).
 
 <!-- docs-check
 import type { Page } from 'playwright'

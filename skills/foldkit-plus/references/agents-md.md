@@ -77,7 +77,8 @@ agent reads all of it at the start of every session.
 - A claim about focus, layout or the pointer is a browser test: jsdom moves no
   focus and lays nothing out.
 - A Worker is tested on a local workerd with `Stack.start`
-  (`foldkit-plus/testing/workers`), its pages in Chromium with `Behaviors`
+  (`foldkit-plus/testing/workers`), its main routes held to a CPU budget with
+  `Cpu.budget`, its pages in Chromium with `Behaviors`
   (`foldkit-plus/testing/playwright`).
 - A flaky test is a bug: reproduce it and fix the cause, never retry to green.
 - Report only what was verified; say which checks were skipped or failed.

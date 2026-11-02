@@ -424,6 +424,16 @@ migrations_dir = "migrations"
   since a reload retires the old handles ("poisoned stub"). Test a D1 write
   there, not on Node's SQLite: D1 has no transactions, so the ledger writes in
   a batch only workerd runs.
+- **CPU per request.** A deployed Worker past its plan's CPU limit fails the
+  request with error 1102 (10 ms on the free plan), and Miniflare neither
+  enforces nor reports CPU, so every other test passes. Hold the main routes
+  to a budget in a test file with a stack of its own:
+  `Cpu.budget(stack.cpu, { warm, cold?, routes })` reads workerd's main
+  thread from the operating system (Linux and Windows) and throws with every
+  route's reading when one is over; `Cpu.inThread(handler)` reads a handler
+  Node can run. Read the numbers on Linux (Windows counts in 15.6 ms ticks),
+  and do per-isolate work (compiled queries, Auth) once per isolate, since
+  `cold` counts it on the first request.
 - **Deploy**, from the app's folder, one Wrangler command at a time (they
   share one login), after confirming the account and the Worker's name:
 
