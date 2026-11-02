@@ -56,8 +56,14 @@ version changed; `pnpm` skips versions already in the registry.
   The pill's chosen tab was the accent's tint, a muddy grey with a neutral
   accent; it is now a raised surface with a hairline edge and shadow in the
   default text colour, so every pill Tabs looks different until it passes
-  `selection: 'tint'`. `overflow: 'wrap'` lets the row fall to more rows so no
-  tab is cut off; the site's studio tabs use it.
+  `selection: 'tint'`. `overflow: 'wrap'` is a grid of equal columns that
+  fills the row and falls to fewer columns, so six tabs are one row, 3 + 3,
+  then 2 x 3, never 5 + 1; `--fk-tab-min` (default three control heights)
+  sets how narrow a column goes. The pill tray's padding is wider and its
+  corner larger, so the chosen chip is inset and rounded (it read as a flat
+  square flush with the tray), and its lift is a contact shadow and a ring
+  that show in a theme whose shadow strength is 0. The site's studio tabs use
+  it.
 
 - **domains-plus's no-JavaScript TLD select carries no identity marker per
   option** (#465, #417). The view-identity transform brands what each function
