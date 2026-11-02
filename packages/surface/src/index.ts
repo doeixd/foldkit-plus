@@ -21,6 +21,17 @@ import { Metadata, type MetadataSummary } from 'foldkit-metadata'
 
 export { Metadata, MetadataTypeId, type MetadataKey, type MetadataSummary } from 'foldkit-metadata'
 export { Diagnostics, type Diagnostic, type ReportDiagnostic } from './diagnostics.js'
+export {
+  CachedRead,
+  CacheStore,
+  PageReads,
+  cachePolicy,
+  maxAgeSeconds,
+  shorterPolicy,
+  type CacheOptions,
+  type CachePolicy,
+  type WorkersCache,
+} from './edgeCache.js'
 
 // ===========================================================================
 // ModelRef and the typed Model tree (Phase 0 cases 1)
