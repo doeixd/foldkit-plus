@@ -383,6 +383,18 @@ A seam built from `ReadPolicy` counts as built from `Checked`, so
 runs the declared rules, not which services they were given. The write seams take the
 Policy as it is and require its services where the write runs.
 
+### Guarded reads are never kept at the edge
+
+`foldkit-remote-server`'s `serveFetch` keeps a read only when it can prove
+the answer is the same for whoever asks (its `cache`, #428). Every read seam
+above becomes a rule on the Source (`visible`, `filter` or `readable`), a
+function of the principal the server cannot read, so a read of a guarded
+Entity is never kept, and a page that made one is never kept either
+(`foldkit-ssr`'s `cache`). This holds for a rule over the row alone
+(`published = true`) too: the server cannot tell it from one over the
+principal. To cache such rows, serve them from an Entity no guard reads
+restrict.
+
 ## Serving writes
 
 A declared write (`Mutation.write`) is served by `RemoteServer.write` with no

@@ -155,6 +155,10 @@ export const Todo = TodoFields.pipe(
 
 ### Reads
 
+- A guarded read is never kept by `serveFetch`'s `cache` (#428): each read
+  seam is a Source rule (`visible`, `filter`, `readable`), a function of the
+  principal the server cannot read, so even a rule over the row alone keeps
+  the read, and any page that made it, private.
 - `foldkit-guard/drizzle`: `GuardDrizzle.visible(Policy, [Todo, Project])`
   gives each binding's `visible` (`bind(..., { Todo: { table, visible:
   visible.Todo } })`); an inherited Read compiles to a subquery, checked
