@@ -74,9 +74,13 @@ export default [
     tests: [unit],
   },
   {
-    name: 'no room for the envelope',
+    name: 'the read budget reserves a fixed 512 bytes rather than counting the envelope (#450)',
     edits: [
-      { file: coalesce, find: 'const ENVELOPE_BYTES = 512', replace: 'const ENVELOPE_BYTES = 0' },
+      {
+        file: coalesce,
+        find: "      maxBodyBytes - envelopeBytes('read', { version: REMOTE_PROTOCOL_VERSION, requests: [] }),",
+        replace: '      maxBodyBytes - 512,',
+      },
     ],
     tests: [unit],
   },
@@ -90,7 +94,7 @@ export default [
     edits: [
       {
         file: coalesce,
-        find: 'jsonBytes(request) > budget\n            ? // Refused',
+        find: "envelopeBytes('mutate', request) > maxBodyBytes\n            ? // Refused",
         replace: 'false\n            ? // Refused',
       },
     ],
@@ -101,7 +105,7 @@ export default [
     edits: [
       {
         file: coalesce,
-        find: 'jsonBytes(request) > budget\n                  ? Effect.fail(new RemoteQueryError',
+        find: "envelopeBytes('query', request) > limits.maxBodyBytes\n                  ? Effect.fail(new RemoteQueryError",
         replace: 'false\n                  ? Effect.fail(new RemoteQueryError',
       },
     ],

@@ -552,6 +552,22 @@ describe('a batch is cut to the limits the client knows (#354, #359)', () => {
     expect(raw.batches.flatMap(each => each.requests)).toHaveLength(20)
   })
 
+  it('sends a one-row read whose body fits a small maxBodyBytes (#450)', async () => {
+    const raw = recording()
+    const maxBodyBytes = 400
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const read = yield* coalesceReads(raw.read, { maxBodyBytes })
+        return yield* read(batch(req('u1', ['name'])))
+      }),
+    )
+    expect(raw.batches).toHaveLength(1)
+    expect(
+      JSON.stringify({ operation: 'read', payload: raw.batches[0] }).length,
+    ).toBeLessThanOrEqual(maxBodyBytes)
+    expect(result.entities).toEqual([{ entity: 'User', id: 'u1', values: { name: 'name:u1' } }])
+  })
+
   it('fails a requirement too large to send alone without sending it, and reads the rest', async () => {
     const raw = recording()
     const outcome = await Effect.runPromise(
@@ -559,7 +575,7 @@ describe('a batch is cut to the limits the client knows (#354, #359)', () => {
         const read = yield* coalesceReads(raw.read, { maxBodyBytes: 512 + 100 })
         return yield* Effect.all(
           [
-            Effect.flip(read(batch(req('u2', ['x'.repeat(200)])))),
+            Effect.flip(read(batch(req('u2', ['x'.repeat(600)])))),
             read(batch(req('u1', ['name']))),
           ],
           { concurrency: 'unbounded' },
@@ -586,7 +602,7 @@ describe('a batch is cut to the limits the client knows (#354, #359)', () => {
           Effect.flip(client.query(q(big))),
           Effect.flip(client.mutate({ requestId: 'r1', mutation: 'M', input: { big } })),
         ])
-      }).pipe(Effect.provide(Remote.coalesced(Raw, { maxBodyBytes: 512 + 100 }))),
+      }).pipe(Effect.provide(Remote.coalesced(Raw, { maxBodyBytes: 360 }))),
     )
     expect(errors.map(error => error._tag)).toEqual(['RemoteQueryError', 'RemoteMutationError'])
     expect(sent).toEqual([])

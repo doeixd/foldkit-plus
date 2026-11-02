@@ -73,15 +73,18 @@ export interface ClientOptions {
 /** The defaults `serveFetch` and `RemoteServer.handlers` refuse past. */
 export const DEFAULT_MAX_IDS_PER_ENTITY = 1000
 export const DEFAULT_MAX_BODY_BYTES = 1024 * 1024
-/**
- * What a request carries besides its payload: `{"operation":"read","payload":…}`
- * over HTTP, the request frame over RPC. Kept free under `maxBodyBytes`.
- */
-const ENVELOPE_BYTES = 512
 
 const encoder = new TextEncoder()
 /** The bytes a value takes as JSON, as a request body carries it. */
 const jsonBytes = (value: unknown): number => encoder.encode(JSON.stringify(value)).length
+
+/**
+ * The bytes the JSON transport's request body takes: `{ operation, payload }`,
+ * as `RemoteServer.answer` reads it. Effect RPC's frame may add its own, which
+ * the server then refuses with a 413 rather than the client refusing.
+ */
+const envelopeBytes = (operation: 'read' | 'query' | 'mutate', payload: unknown): number =>
+  jsonBytes({ operation, payload })
 
 /** A stable key for a requirement, so an equal requirement in flight is joined. */
 export const requirementKey = (requirement: Requirement): string =>
@@ -99,14 +102,23 @@ const hasWindows = (requirement: RelationRequirement): boolean =>
 
 interface Limits {
   readonly maxIds: number
-  /** The bytes a read's `requests` may take. */
+  /** The server's whole request-body limit. */
+  readonly maxBodyBytes: number
+  /** The bytes a read's `requests` may take: the body minus its empty envelope. */
   readonly budget: number
 }
 
-const limitsOf = (options: ClientOptions): Limits => ({
-  maxIds: Math.max(1, options.maxIdsPerEntity ?? DEFAULT_MAX_IDS_PER_ENTITY),
-  budget: (options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES) - ENVELOPE_BYTES,
-})
+const limitsOf = (options: ClientOptions): Limits => {
+  const maxBodyBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES
+  return {
+    maxIds: Math.max(1, options.maxIdsPerEntity ?? DEFAULT_MAX_IDS_PER_ENTITY),
+    maxBodyBytes,
+    // The array's brackets and the batch's version are the envelope; `cut`
+    // charges each request a byte more than it takes, for its comma.
+    budget:
+      maxBodyBytes - envelopeBytes('read', { version: REMOTE_PROTOCOL_VERSION, requests: [] }),
+  }
+}
 
 /** A read a batch runs: the keys it settles, and the merged requests it sends, or why it cannot. */
 interface PlannedRead {
@@ -284,7 +296,7 @@ export const coalesceQueries = (
 ): Effect.Effect<QueryRun> =>
   Effect.gen(function* () {
     const calls = inFlight<QueryResultValue, QueryError>()
-    const budget = limitsOf(options).budget
+    const limits = limitsOf(options)
     const runAll = (entries: ReadonlyArray<Request.Entry<QueryRead>>) =>
       Effect.gen(function* () {
         const done = new Map<string, Deferred.Deferred<QueryResultValue, QueryError>>()
@@ -297,7 +309,7 @@ export const coalesceQueries = (
             joined ??
               (yield* calls.start(
                 [key],
-                jsonBytes(request) > budget
+                envelopeBytes('query', request) > limits.maxBodyBytes
                   ? Effect.fail(new RemoteQueryError({ message: tooLargeMessage(options) }))
                   : query(request),
               )),
@@ -433,13 +445,13 @@ export const coalescedLayer = <E, R>(
       const client = yield* RemoteClient
       const read = yield* coalesceReads(client.read, options)
       const query = yield* coalesceQueries(client.query, options)
-      const { budget } = limitsOf(options)
+      const { maxBodyBytes } = limitsOf(options)
       return {
         ...client,
         read: batch => withDeadline(read(batch), options.timeout),
         query: request => withDeadline(query(request), options.timeout),
         mutate: request =>
-          jsonBytes(request) > budget
+          envelopeBytes('mutate', request) > maxBodyBytes
             ? // Refused rather than unreachable: sending it again is refused again.
               Effect.fail(new RemoteMutationError({ message: tooLargeMessage(options) }))
             : withDeadline(client.mutate(request), options.timeout),
