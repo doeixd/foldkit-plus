@@ -37,11 +37,31 @@ CPU before its first byte.
 
 | Cost | Share | Issue |
 | --- | --- | --- |
-| Foldkit's server re-parses its own output with parse5, three times a page | ~175 ms | #413 |
+| Foldkit's server re-parses its own output with parse5, about 16 times a page in 0.170 | ~175 ms | #413, upstream foldkit/foldkit#1657 |
 | Garbage collection, mostly from the above | ~55 ms | #413 |
 | Drawing the view: 66 priced names | ~38 ms | #415 |
 | `Style.usedIn` scanning the rendered HTML | unmeasured | #414 |
 | Cold start: a 2.1 MB Worker bundle evaluated per isolate | 345 ms cold against 135 ms warm under Node | #416 |
+
+The parse cost is Foldkit's, and upstream is reducing it.
+foldkit/foldkit#1657 (P2) tracks it with a reproduction: about 80 ms on a
+52 KB page. Its first step, #1659, cut parses from 26 to 16 and is in
+0.170. Its next step, not validating again in `injectIntoTemplate` the
+exact HTML `renderToString` already validated, is open, and the maintainer
+would raise it to P1 if the cost blocks a deployment, as ours does. The
+cost grows linearly with what is parsed, and our page is about 362 KB
+uncompressed against the reproduction's 52 KB. Most of the difference is
+ours to remove:
+- the inline stylesheet, about 92 KB (#419);
+- a second `usedIn` `<style>` block (#414);
+- every priced row (#415);
+- the resume data (#436).
+
+A serializer of our own was considered and rejected: it would have to track
+Foldkit's hydration markers and build stamping exactly, to work around a
+cost upstream is already cutting for every Foldkit SSR app. Effect Schema
+and seroval serialize data, not HTML. The resume data already goes through
+Effect Schema, and JSON encoding does not show in the profile.
 
 **Client JavaScript**: one 249 KB-brotli chunk, unattributed (#421), holding
 DevTools (~23 KB, #422), every sheet and picker (#423), and the whole style
@@ -115,16 +135,23 @@ whole applications with a budget.
 
 **Phase 1: fix what is broken.** These touch separate code and can run in
 parallel.
-- **Server CPU**, the cause of the 1102s and the slow first byte:
-  - #413: `foldkit-ssr`'s own serializer, with the fidelity checks run in
-    development, tests and once per build. Upstream, separately: ask Foldkit
-    to let production skip them (a draft, posted only with the maintainer's
-    go-ahead).
-  - #414: the drawn classes come from the render.
-  - #434: prerender at build the regions that read nothing per request, so
-    they cost nothing per request whatever the serializer costs.
+- **Server CPU**, the cause of the 1102s and the slow first byte, in this
+  order:
+  - #419: the stylesheet as a cached asset (a `foldkit-mixins/vite` plugin),
+    moved here from Phase 2. It takes about 92 KB out of every page, which is
+    also out of every parse Foldkit makes. It is likely the largest single
+    cut, and it shrinks the HTML too.
+  - #414: the drawn classes come from the render. With #419 the `usedIn`
+    block leaves the page.
   - #415: render the first screen only.
+  - #436: resume only the slices interactive regions read.
+  - #434: prerender at build the regions that read nothing per request, with
+    the prerendered shell as the template and not inside the checked page,
+    so it is not re-parsed.
   - #416: cold start.
+  - #413: measure parse5's share after each cut, and land
+    foldkit/foldkit#1657's next step upstream. That means commenting with our
+    numbers and offering the PR, posted only with the maintainer's go-ahead.
 
   #417 closes when `cpu.test.ts` holds 10 ms.
 - **Layout shift** (#418): find the moving nodes and add a CLS budget.
@@ -132,7 +159,6 @@ parallel.
   table decides how much #420 and #432 are worth, and what else to file.
 
 **Phase 2: bytes.**
-- #419: the stylesheet as a cached asset (a `foldkit-mixins/vite` plugin).
 - #422: DevTools in development only.
 - #423: sheets and pickers on intent.
 - #420: zero-runtime style modules, if #421 shows the style system is worth
@@ -145,7 +171,6 @@ parallel.
 - #430: platform popups, removing floating-ui.
 - #431: regions memoized by default, measured with `pnpm bench:render`.
 - #427: streaming SSR, with #435 starting every read at route match.
-- #436: resume only the slices an interactive region reads.
 
 Then, from the declared-optimization note:
 - #439: the invalidation map, after #431.

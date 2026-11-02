@@ -67,6 +67,12 @@ domains-plus that is the header, the hero, the footer, the filter
 scaffolding and the page frame. Checker: in development, render the region
 per request as well and compare with the prerendered markup.
 
+The prerendered shell belongs in the page template, not inside the markup
+the request renders. Foldkit re-parses the rendered markup and the page
+around it to check its fidelity (foldkit/foldkit#1657). Its cost grows with
+what is parsed, so a shell that sits inside the rendered markup saves
+rendering but is still parsed on every request.
+
 **Reads at route match** (#435). A route's reads are known from the Site
 tree and its Surfaces before any view runs. The server starts all of them
 when the route matches, in parallel, rather than discovering them while it
@@ -153,11 +159,14 @@ injection.
 The cheapest passes with the largest effect come first, and none needs
 Foldkit's cooperation:
 
-1. **#434 partial prerendering**, beside #413. A static region costs nothing
-   per request, whatever the serializer costs.
+1. **#434 partial prerendering**, beside #413 and after #419. A static
+   region costs nothing to render per request, and with the shell in the
+   template it costs nothing to check either.
 2. **#435 reads at route match**, with **#427 streaming**.
 3. **#428 cache policy from guards.**
-4. **#436 resume only what the client reads.**
+4. **#436 resume only what the client reads.** The resume data sits inside
+   the page Foldkit re-parses, so this cuts server CPU as well as HTML; the
+   performance plan moves it into Phase 1.
 5. **#439 the invalidation map**, after **#431**.
 6. **#437 index checks**, **#438 route splitting** and **#440 selection
    codecs**.
