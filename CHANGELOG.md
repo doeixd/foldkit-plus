@@ -22,6 +22,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **The default theme's surfaces step apart a little less** (`foldkit-mixins`).
+  The `surface.contrast` knob defaults to 70%, not 80%: the page, a card on it,
+  a field and a hover sit closer together. A theme that set the knob keeps its
+  value; `Theme.make({ surface: { contrast: 80 } })` restores the old look.
+
 - **Tabs' pill selection is raised by default, and a row can wrap** (#466).
   The pill's chosen tab was the accent's tint, a muddy grey with a neutral
   accent; it is now a raised surface with a hairline edge and shadow in the
