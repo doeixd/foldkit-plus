@@ -7,6 +7,19 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- **The stylesheet as a hashed file** (`foldkit-mixins/vite`, #419).
+  `styles({ sheet })` writes the application's stylesheet, completed with
+  every class and global rule the process compiled that it lacks
+  (`Style.complete`), as `assets/styles-<hash>.css` in the browser build, and
+  `virtual:foldkit-styles` exports its `href` (the dev server serves the same
+  `href`). A `<link data-foldkit-styles-href>` counts as a sheet to the
+  browser's injection, which skips the classes and global rules it holds and
+  waits for it while it loads. domains-plus links it from the head: `/?q=acme`
+  is 178 KB, not 298 KB (10.5 KB, not 21.8 KB, brotli), and the layout shift
+  of #418 is gone. `vite` becomes an optional peer of `foldkit-mixins`.
+
 ## 0.37.0
 
 Remote's cache gets a lifecycle, and pages work before and without their
