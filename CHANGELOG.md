@@ -43,6 +43,28 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **A cascading delete takes no row its deleter may not delete**
+  (`foldkit-entity`, `foldkit-guard`, `foldkit-remote`, `foldkit-remote-server`,
+  `foldkit-remote-drizzle`, #348). **Breaking:** a delete through
+  `GuardServer.writer` that cascades used to take every row it reached, so a
+  post's author removed other people's likes and replies whatever their rules
+  said. Now each row it takes is held to that row's own `Delete` rule, for the
+  person deleting, in the statement that deletes the row named (on D1, the
+  same batch). If one is refused, the whole delete is `Forbidden` ("It would
+  delete a Like you may not delete", with its `explain`), naming the Entity and
+  never the row, and nothing is removed. A rule that cannot judge a row (a
+  null it compares) refuses it. `Relation.one(Post, { onDelete: 'cascade',
+  authorizedBy: 'parent' })` opts a relation out: whoever may delete the post
+  takes those rows too. Declare it on each relation to keep the old
+  behaviour. `GuardServer.writer` takes each judged child's guarded Entity as
+  `children` (`{ children: [Like] }`), and where the writer is made it
+  refuses a missing child, a child that nothing judges, and a writer without
+  `requires` and `cascades`. `EntityWriter.delete` takes `cascading`
+  (`CascadeRequirement`). `Data.mutate` refuses such a delete where it is
+  made when a held row's `may` refuses `Delete`. Otherwise the page shows the
+  delete until the server's refusal brings the rows back. `Law.check` agrees
+  in both cases. Chirp's likes are `authorizedBy: 'parent'`.
+
 - **`serveFetch` answers say `cache-control: private, no-store`**
   (`foldkit-remote-server`, #428), not `no-store`, unless `headers` gives
   one or the read is public under `cache`.
