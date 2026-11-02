@@ -22,6 +22,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **domains-plus's no-JavaScript TLD select carries no identity marker per
+  option** (#465, #417). The view-identity transform brands what each function
+  returns, and the mapper that drew the select's 557 options returned each
+  one, so each wrote a `data-foldkit-identity` marker: 23 KB of `/`'s 61 KB.
+  The options are now built in a loop and `/` is 38 KB, 63 ms warm in Node
+  (82 ms before).
+
 - **The resume envelope is written in single quotes** (`foldkit-ssr`). The
   page's root carries the envelope as `data-foldkit-plus-resume='…'`,
   escaping `&` and `'`, so the JSON's own double quotes go unescaped:
