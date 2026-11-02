@@ -104,10 +104,22 @@ const typed = (model: Model, value: string): Return =>
 const layoutFor = (model: Model, query: string): SearchLayout =>
   String.isNonEmpty(query) ? 'Search' : model.searchLayout
 
+/**
+ * An emptied search takes its filters with it. The landing page shows none,
+ * so the address is `/` again and the next search starts unfiltered.
+ */
+const unfiltered = (model: Model): Model =>
+  modifyFields(model, {
+    tldFilter: () => 'All' as const,
+    availabilityFilter: () => 'All' as const,
+    sortOrder: () => 'Relevance' as const,
+    from: () => 0,
+  })
+
 /** The search box emptied: nothing is read, now, not after the debounce, and the page is back at its top. */
 const cleared = (model: Model): Return => {
   const next = typed(
-    modifyFields(model, { query: () => '', settledLabel: () => Option.none() }),
+    modifyFields(unfiltered(model), { query: () => '', settledLabel: () => Option.none() }),
     '',
   )
   return { model: next.model, commands: [...(next.commands ?? []), ScrollPageToTop()] }
@@ -242,7 +254,7 @@ const own = (model: Model, message: Own): Return =>
     }),
     UpdatedSearch: ({ value }) =>
       typed(
-        modifyFields(model, {
+        modifyFields(String.isEmpty(value) ? unfiltered(model) : model, {
           query: () => value,
           searchLayout: () => layoutFor(model, value),
         }),

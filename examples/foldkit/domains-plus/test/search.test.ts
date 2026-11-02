@@ -77,6 +77,37 @@ describe('typing', () => {
   })
 })
 
+describe('an emptied search', () => {
+  const filtered = init(url('/?q=acme&tld=Dev&availability=Available&sort=PriceDescending')).model
+  const defaults = { tldFilter: 'All', availabilityFilter: 'All', sortOrder: 'Relevance' }
+  const filtersOf = ({ tldFilter, availabilityFilter, sortOrder }: Model) => ({
+    tldFilter,
+    availabilityFilter,
+    sortOrder,
+  })
+
+  test('the fixture opens filtered', () => {
+    expect(filtersOf(filtered)).toEqual({
+      tldFilter: 'Dev',
+      availabilityFilter: 'Available',
+      sortOrder: 'PriceDescending',
+    })
+  })
+
+  // The mirror omits a field at its initial value, so the address is `/` again.
+  test.each([
+    ['Escape', Message.PressedEscape()],
+    ['the clear button', Message.ClickedClearSearch()],
+    ['deleting the text', typed('')],
+  ])('%s takes the filters back to their defaults', (_, message) => {
+    expect(filtersOf(after(filtered, message))).toEqual(defaults)
+  })
+
+  test('editing the text keeps them', () => {
+    expect(filtersOf(after(filtered, typed('acm')))).toEqual(filtersOf(filtered))
+  })
+})
+
 describe('the address', () => {
   test('a page opened at ?q= reads its label from the first render', () => {
     const opened = init(url('/?q=Acme.com')).model

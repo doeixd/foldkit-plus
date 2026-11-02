@@ -6,6 +6,39 @@ const tests = ['examples/foldkit/domains-plus/test/search.test.ts']
 
 export default [
   {
+    name: 'clearing the search keeps its filters',
+    edits: [
+      {
+        file: '../src/client/app.ts',
+        find: "modifyFields(unfiltered(model), { query: () => '', settledLabel: () => Option.none() }),",
+        replace: "modifyFields(model, { query: () => '', settledLabel: () => Option.none() }),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'deleting the text keeps its filters',
+    edits: [
+      {
+        file: '../src/client/app.ts',
+        find: 'modifyFields(String.isEmpty(value) ? unfiltered(model) : model, {',
+        replace: 'modifyFields(model, {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'editing the text drops its filters',
+    edits: [
+      {
+        file: '../src/client/app.ts',
+        find: 'modifyFields(String.isEmpty(value) ? unfiltered(model) : model, {',
+        replace: 'modifyFields(unfiltered(model), {',
+      },
+    ],
+    tests,
+  },
+  {
     name: "the mirror's echo goes through the debounce again",
     edits: [
       {
@@ -21,8 +54,8 @@ export default [
     edits: [
       {
         file: '../src/client/app.ts',
-        find: "modifyFields(model, { query: () => '', settledLabel: () => Option.none() }),",
-        replace: "modifyFields(model, { query: () => '' }),",
+        find: "modifyFields(unfiltered(model), { query: () => '', settledLabel: () => Option.none() }),",
+        replace: "modifyFields(unfiltered(model), { query: () => '' }),",
       },
     ],
     tests,
