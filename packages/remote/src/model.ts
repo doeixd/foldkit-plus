@@ -1532,7 +1532,24 @@ const createdBy = (operation: OptimisticOperation): Option.Option<EntityKey> =>
 const createdIn = (store: EntityStore, operation: OptimisticOperation): boolean =>
   Option.exists(createdBy(operation), key => store[key]?.tombstone === false)
 
-/** `operation` without the counts a create moves, which a store holding its row already has. */
+/**
+ * Whether the row `operation` moves its counts on was read no earlier than
+ * `at`, the write's time: a count read before it may predate the row the
+ * write made, so it still takes the increment (#457). A write with no time to
+ * judge by is taken to have been counted, as before (#410).
+ */
+const countedIn = (
+  store: EntityStore,
+  operation: OptimisticOperation,
+  at: Option.Option<number>,
+): boolean =>
+  !isPatch(operation) ||
+  Option.match(at, {
+    onNone: () => true,
+    onSome: now => (store[entityKey(operation.entity, operation.id)]?.updatedAt ?? 0) >= now,
+  })
+
+/** `operation` without the counts a create moves, when the store already counted its row. */
 const uncounted = (operation: OptimisticOperation): OptimisticOperation => {
   if (!isPatch(operation) || operation.creates === undefined) return operation
   const { adds: _adds, creates: _creates, ...rest } = operation
@@ -1564,10 +1581,14 @@ const adopted = (
   const released = prior === undefined ? model : releasedFrom(capabilities, model, prior)
   if (entry._tag === 'Unreadable') return released
   const { write } = entry
+  const at = Option.fromUndefinedOr(write.now)
   // A store holding the row a restored create makes read its counts with it there: the
-  // server ran the write before this page read them (#410).
+  // server ran the write before this page read them (#410), unless it read them
+  // before the write, when they may predate the row (#457).
+  const alreadyCounted = (operation: OptimisticOperation): boolean =>
+    createdIn(released.entities, operation) && countedIn(released.entities, operation, at)
   const optimistic = write.optimistic.map(operation =>
-    createdIn(released.entities, operation) ? uncounted(operation) : operation,
+    alreadyCounted(operation) ? uncounted(operation) : operation,
   )
   const begun = {
     ...released,
@@ -1575,7 +1596,7 @@ const adopted = (
       mutation: write.mutation,
       input: entry.input,
       keys: write.keys,
-      now: Option.fromUndefinedOr(write.now),
+      now: at,
       optimistic,
     }),
   }

@@ -22,8 +22,19 @@ export default [
     edits: [
       {
         file: model,
-        find: 'createdIn(released.entities, operation)',
+        find: 'createdIn(released.entities, operation) && countedIn(released.entities, operation, at)',
         replace: 'Option.isSome(createdBy(operation))',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a count read before the create takes no increment',
+    edits: [
+      {
+        file: model,
+        find: 'countedIn(released.entities, operation, at)',
+        replace: 'true',
       },
     ],
     tests,

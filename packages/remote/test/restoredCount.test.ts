@@ -1,8 +1,10 @@
 /**
- * A restored durable create counted once (#410). A create predicts the
+ * A restored durable create counted once (#410, #457). A create predicts the
  * counts of the rows it points at. When a reload's store already holds the
- * row it makes (the server ran it and its answer was lost), the counts the
- * page read include it, so the restored write adds nothing to them.
+ * row it makes (the server ran it and its answer was lost), a count read
+ * after the write includes it, so the restored write adds nothing to it. A
+ * count read before the write may predate the row, and still takes the
+ * increment.
  */
 import { Effect, Schema } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
@@ -56,8 +58,8 @@ const count = (model: Model) =>
     NotFound: () => 'NotFound',
   })
 
-/** The store holding `rows`, as a server render or a read sends them. */
-const reading = (model: Model, rows: ReadonlyArray<NormalizedPatch>): Model =>
+/** The store holding `rows`, as a server render or a read sends them, read at `now`. */
+const reading = (model: Model, rows: ReadonlyArray<NormalizedPatch>, now = 0): Model =>
   Data.reduce(model, {
     _tag: 'ReadReceived',
     requests: rows.map(row => ({
@@ -66,7 +68,7 @@ const reading = (model: Model, rows: ReadonlyArray<NormalizedPatch>): Model =>
       fields: Object.keys(row.values),
     })),
     result: { settled: [], entities: rows },
-    now: 0,
+    now,
   })
 
 const hopper = (noteCount: number): NormalizedPatch => ({
@@ -113,9 +115,27 @@ const leftPending = async () => {
 describe('A durable create restored after a reload', () => {
   it('counts its note once, over a server render that already counts it', async () => {
     const kv = await leftPending()
-    const reloaded = await restore(kv, reading({ remote: Remote.initial }, [hopper(1), note]))
+    const reloaded = await restore(kv, reading({ remote: Remote.initial }, [hopper(1), note], 2))
     expect(outboxStatus(Data, reloaded).waiting).toBe(1)
     expect(count(reloaded)).toBe('1')
+  })
+
+  it('counts its note over a store whose count predates the create', async () => {
+    const kv = await leftPending()
+    const reloaded = await restore(kv, reading({ remote: Remote.initial }, [hopper(0), note]))
+    expect(count(reloaded)).toBe('1')
+  })
+
+  it('counts its note over a count read before the write and a row read after it', async () => {
+    const kv = await leftPending()
+    const stored = reading(reading({ remote: Remote.initial }, [hopper(0)]), [note], 2)
+    expect(count(await restore(kv, stored))).toBe('1')
+  })
+
+  it('counts its note over a count read after the write and a row read before it', async () => {
+    const kv = await leftPending()
+    const stored = reading(reading({ remote: Remote.initial }, [note]), [hopper(1)], 2)
+    expect(count(await restore(kv, stored))).toBe('1')
   })
 
   it('counts its note over a store that does not hold it', async () => {
@@ -125,7 +145,7 @@ describe('A durable create restored after a reload', () => {
 
   it('counts its note over a store that holds it deleted', async () => {
     const kv = await leftPending()
-    const deleted = Data.reduce(reading({ remote: Remote.initial }, [hopper(0)]), {
+    const deleted = Data.reduce(reading({ remote: Remote.initial }, [hopper(0)], 2), {
       _tag: 'MutationSucceeded',
       requestId: 'elsewhere',
       entities: [],
