@@ -191,7 +191,8 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     // the URL, as from a navigation, and the page starts now, since what it
     // shows is not yet the address.
     const arrived = arrival(config, document, window.location.href)
-    const commands = (plan.boot?.(model) as ReadonlyArray<unknown> | undefined) ?? []
+    const bootCommands = (started: Model): ReadonlyArray<unknown> =>
+      (plan.boot?.(started) as ReadonlyArray<unknown> | undefined) ?? []
     const resuming: RenderContext = {
       mode: 'resume',
       snapshots: snapshotsOf(root),
@@ -226,16 +227,21 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     // mirror among them would write the served address back over the real one.
     // The first render then differs from the served page where the URL does, and
     // Foldkit rebuilds that part, as a navigation would redraw it. Applied at
-    // boot, once any lazy bundle's `update` has loaded.
+    // boot, once any lazy bundle's `update` has loaded. The boot Commands are
+    // planned from the Model the runtime actually starts with, so one derived
+    // from the route or query sees the address the page arrived at.
     const startOf = () =>
       Option.match(arrived, {
-        onNone: () => ({ model, commands }),
+        onNone: () => ({ model, commands: bootCommands(model) }),
         onSome: message => {
           const step = apply(model, message) as {
             readonly model: Model
             readonly commands?: ReadonlyArray<unknown> | undefined
           }
-          return { model: step.model, commands: [...commands, ...(step.commands ?? [])] }
+          return {
+            model: step.model,
+            commands: [...bootCommands(step.model), ...(step.commands ?? [])],
+          }
         },
       })
     const boot = (entries: Readonly<Record<string, unknown>> = {}) => {

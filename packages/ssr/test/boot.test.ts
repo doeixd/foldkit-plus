@@ -6,6 +6,7 @@
 import { Effect } from 'effect'
 import { expect, it, vi } from 'vitest'
 import { SSR } from 'foldkit-ssr'
+import { config as arrived, plan as arrivedPlan, seen } from './bootFixture.js'
 import { App, Message, config, load, plan, template } from './handoverFixture.js'
 
 const Booted = { name: 'Booted', effect: Effect.succeed(Message.Booted()) }
@@ -19,4 +20,23 @@ it('runs the Commands the plan names in boot', async () => {
 
   // The fixture's `update` answers `Booted` by setting the count to -1.
   await vi.waitFor(() => expect(document.getElementById('count')?.textContent).toBe('-1'))
+})
+
+it('plans boot Commands from the Model the page arrived with', async () => {
+  const [about] = await Effect.runPromise(
+    SSR.generate(arrived, arrivedPlan, {
+      buildId: 'b',
+      template,
+      origin: 'https://example.test',
+      paths: ['/about'],
+    }),
+  )
+  window.history.replaceState(null, '', '/about?q=1')
+  load(about.html)
+
+  SSR.hydrate(arrived, arrivedPlan, { buildId: 'b' })
+
+  // #460: the arrival Message lands before `boot`, and `boot` runs once.
+  expect(seen).toEqual([{ path: '/about', query: 'q=1', booted: false }])
+  await vi.waitFor(() => expect(document.getElementById('booted')?.textContent).toBe('true'))
 })

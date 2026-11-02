@@ -88,7 +88,7 @@ export default [
       {
         file: client,
         find: 'startingFrom({ ...config, update }, startOf())',
-        replace: 'startingFrom({ ...config, update }, { model, commands })',
+        replace: 'startingFrom({ ...config, update }, { model, commands: bootCommands(model) })',
       },
     ],
     tests,
