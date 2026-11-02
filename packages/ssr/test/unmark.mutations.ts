@@ -1,6 +1,13 @@
 /**
  * The served page's markers taken off before adoption, broken in turn:
  * `pnpm mutate packages/ssr/test/unmark.mutations.ts`.
+ *
+ * `pnpm mutate` runs no e2e file, so the development warning these markers
+ * caused (#375) is checked by hand: with `FOLDKIT_MUTATION` set to each of the
+ * first four edits (the file as an absolute path) and
+ * `FOLDKIT_MUTATION_MARKER` to a scratch file,
+ * `examples/foldkit/ssr/e2e/dev.e2e.ts`'s #375 test fails on Foldkit's
+ * "server DOM did not match" warning (checked 2026-11-01).
  */
 const client = '../src/client.ts'
 const tests = ['packages/ssr/test/unmark.test.ts', 'packages/ssr/test/lateCommitClick.test.ts']

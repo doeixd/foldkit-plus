@@ -1,13 +1,14 @@
 /**
  * `pnpm dev` end to end, with no `FOLDKIT_BUILD_ID` in the environment, as
  * the README runs it: the dev server renders the page, Chromium takes it over
- * rather than containing it, and the buttons count with nothing logged as an
- * error.
+ * rather than containing it with no mismatch warned, and the buttons count with
+ * nothing logged as an error.
  */
 import { fileURLToPath } from 'node:url'
 import { type Browser, chromium } from 'playwright'
 import { createServer, type ViteDevServer } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
+import { mutation } from '../../../../scripts/mutation-plugin.mjs'
 import { onFreePort } from '../../../../scripts/free-port.mjs'
 
 let vite: ViteDevServer
@@ -20,6 +21,8 @@ beforeAll(async () => {
     configFile: fileURLToPath(new URL('../vite.config.ts', import.meta.url)),
     logLevel: 'error',
     server: { port: 0 },
+    // `pnpm mutate`'s edits reach the page this server builds.
+    plugins: [mutation()],
   })
   await onFreePort(() => vite.listen())
   browser = await chromium.launch()
@@ -46,6 +49,22 @@ test('the served page is taken over and counts', async () => {
   await expect.poll(() => count.textContent(), { timeout: 30_000 }).toBe(String(before + 1))
 
   expect(problems).toEqual([])
+  await page.close()
+})
+
+test('Foldkit adopts the served page as the first client view draws it (#375)', async () => {
+  const page = await browser.newPage()
+  const mismatches: Array<string> = []
+  page.on('console', message => {
+    if (message.text().includes('server DOM did not match')) mismatches.push(message.text())
+  })
+  await page.goto(vite.resolvedUrls!.local[0]!)
+  // Foldkit takes its build stamp off the root as it adopts it, and warns of a
+  // mismatch in that same patch.
+  await page.waitForFunction(() => document.querySelector('[data-foldkit-build]') === null, null, {
+    timeout: 120_000,
+  })
+  expect(mismatches).toEqual([])
   await page.close()
 })
 
