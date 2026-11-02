@@ -7,6 +7,7 @@
  */
 import type * as Client from '@yielded/auth/Client'
 import { Clock, Context, Effect, Match, Option, Redacted, Schema, pipe } from 'effect'
+import type { KeyValueStore } from 'effect/persistence'
 import * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import { load, pushUrl, UrlRequest } from 'foldkit/navigation'
@@ -20,6 +21,7 @@ import { ME } from 'foldkit-plus/guard'
 import { pointedLinks } from 'foldkit-plus/primitives/dom'
 import { Remote, RemoteData, type RemoteClient } from 'foldkit-plus/remote'
 import { liveQuery } from 'foldkit-plus/remote/live'
+import { outbox } from 'foldkit-plus/remote/outbox'
 import { Access, Site } from 'foldkit-plus/site'
 import { SSR } from 'foldkit-plus/ssr/client'
 import { ModelRef, Projection, Surface } from 'foldkit-plus/surface'
@@ -49,7 +51,7 @@ export class AppClient extends Context.Service<
 >()('reference/AppClient') {}
 
 /** What a Command or Subscription here needs from the runtime's `resources`. */
-export type Services = RemoteClient | Resource.Lazy<AppClient>
+export type Services = RemoteClient | KeyValueStore.KeyValueStore | Resource.Lazy<AppClient>
 
 type Return = Update.Return<Model, Message, Services>
 
@@ -267,10 +269,26 @@ const Routing = Site.routing<Model, Message, AppRoute, Services>({
   },
 })
 
+/** Whose queue of unsent notes the page holds: the reader's, or a visitor's. */
+const scopeOf = (model: Model): string => Option.getOrElse(viewerOf(model), () => 'visitor')
+
+/**
+ * A new note is a durable write: stored in this browser before it is sent,
+ * sent again until the server answers, and kept across a reload. The Worker
+ * cannot read the browser's store, so a page it renders shows none of the
+ * queue; the browser starts from the outbox's `session` (`client.ts`), and
+ * the queue joins the page as a Message once the store answers.
+ */
+export const durable = outbox(Data, {
+  key: model => `notebook-outbox:${scopeOf(model)}`,
+  scope: scopeOf,
+})
+
 const placements = Page.assemble(
   AddingForm,
   EditorForm,
   Data.wiring(actives, { shared: ['MutationFailed'] }),
+  durable,
   Routing,
 )
 
@@ -397,9 +415,10 @@ const submitted = (model: Model): Return => {
  * A named draft, added. Remote shows it at once from the declarations: the
  * reader as its author and the time it was added, both set by the context,
  * its place in the notebook by the list's order, and its author's count.
+ * Durable: the outbox keeps it until the server answers, across a reload.
  */
 const added = (model: Model, { id, title, body, now }: typeof Message.NamedNote.Type): Return => {
-  const sent = Data.mutate(model, AddNote, { id, title, body }, { now })
+  const sent = Data.mutate(model, AddNote, { id, title, body }, { now, durable: true })
   return { model: sent.model, commands: [sent.command] }
 }
 

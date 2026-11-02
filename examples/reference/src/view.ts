@@ -10,6 +10,7 @@ import { May } from 'foldkit-plus/guard'
 import { SlotView, type SlotBuilders } from 'foldkit-plus/mixins'
 import { Alert, AppShell, Button, Card, Input, PasswordInput } from 'foldkit-plus/mixins-ui'
 import { Denied, RemoteData, type RemoteError } from 'foldkit-plus/remote'
+import { OutboxItemState, outboxStatus } from 'foldkit-plus/remote/outbox'
 import { Access, Site } from 'foldkit-plus/site'
 import { Surface } from 'foldkit-plus/surface'
 import {
@@ -183,6 +184,31 @@ const failedWrites = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> =>
     ]),
   )
 
+/**
+ * Notes stored in this browser that the server has not had yet, once a send
+ * went unanswered: drawn on every add, the line would show for a frame and
+ * push the page down and back.
+ */
+const unsent = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
+  const unanswered = outboxStatus(Data, model).items.filter(item =>
+    OutboxItemState.$match(item.state, {
+      Waiting: ({ attempt }) => attempt > 0,
+      WaitingForSignIn: () => true,
+      Failed: () => false,
+      Unreadable: () => false,
+    }),
+  ).length
+  return unanswered === 0
+    ? []
+    : [
+        status(
+          slots,
+          h,
+          `${unanswered} ${unanswered === 1 ? 'note' : 'notes'} not sent yet: kept in this browser, and sent once the server answers.`,
+        ),
+      ]
+}
+
 const notebook = (model: Model, viewer: string, slots: Slots, h: H): ReadonlyArray<Html> => {
   const { notes, mine } = Surface.read(NotebookPage, model, { viewer })
   return [
@@ -342,6 +368,7 @@ export const view = (model: Model, h: H): Document => {
             Option.match(model.notice, { onNone: () => [], onSome: text => [notice(h, text)] }),
           ),
           ...failedWrites(model, slots, h),
+          ...unsent(model, slots, h),
           ...page(model, slots, h),
         ]),
       ],

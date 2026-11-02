@@ -23,12 +23,15 @@ Yielded, Drizzle), as an application outside this repository would.
 | The notes and the accounts | D1 | `server.ts`, `auth.ts`, `migrations/` |
 | Who a request is | Yielded's session cookie, read by `AuthServer.resolver` | `auth.ts`, `worker.ts` |
 | What the page shows of the notes | Remote's cache, a field of the Model | `main.ts` |
+| A note added that the server has not answered | Remote's outbox, in this browser's `localStorage`, shared by its tabs | `main.ts` (`durable`), `client.ts` |
 | Which page, its title, who may see it | the site tree; the route is in the Model | `main.ts` |
 | The first paint | the Worker, rendering as the reader | `page.ts`, `worker.ts` |
 | How it looks | the shipped theme (`AppStyle.make({})`) and recipes | `style.ts`, `view.ts` |
 
 Nothing keeps state of its own in the page: Remote's cache, the forms' drafts
-and the route are fields of one Model, changed only by `update`.
+and the route are fields of one Model, changed only by `update`. The outbox's
+store is a copy of the Model's queue of unsent notes, kept so a reload can
+read it back; the server decides each note once it arrives.
 
 ## The shape
 
@@ -54,7 +57,8 @@ GET /  -> pageReader (the navigation's principal) -> Data.satisfy(actives) -> 30
 A write is shown before the server answers, and the server decides it:
 
 ```text
-Add -> NameNote (id) -> Data.mutate(AddNote)   the note, in its place, and its author's count, at once
+Add -> NameNote (id) -> Data.mutate(AddNote, { durable })   the note, in its place, and its author's count, at once
+    -> the outbox stores it, then sends it (one tab sends; every tab shows it)
     -> POST /remote -> what the Note sets from the context (author, time) -> GuardServer.writer: the guard, the decode, the CHECKs -> D1
     -> the answer, reduced into the Model; another member's page hears it from pollLive
 ```
@@ -131,20 +135,46 @@ never forgets a principal in place. Yielded's client is a chunk of its own,
 loaded by the first sign-in (`Resource.lazy`). Hovering a note's link reads
 its page ahead (`Site.routing`'s `preload`).
 
+**Unsent notes** (`main.ts`'s `durable`, `client.ts`). An add is a durable
+write: the outbox stores it in `localStorage` before sending it, sends it
+again until the server answers, and reads it back after a reload. The Worker
+renders a page with none of that queue, since it cannot read the browser's
+store, and the page's first client view must be the one it sent. So the
+browser starts from the outbox's `session` (`SSR.hydrate`'s `prepare`),
+which mints the id this page's writes are named by and draws nothing, and
+the queue joins the page a moment later, through the outbox's own
+Subscription, as any Message would:
+
+```text
+Worker:  page drawn from D1 (no queue)
+browser: SSR.hydrate -> prepare: durable.session -> adopts the Worker's page as it is
+         -> outbox.restore reads localStorage -> OutboxRead -> the unsent notes join the list
+```
+
+The ledger makes a resend safe: a note the server wrote but whose answer was
+lost is answered from its record. Edits and deletes are plain writes.
+
 **The Worker** (`worker.ts`, `page.ts`, `build.ts`). The template is the
 build's `index.html`, read through the assets binding once per isolate. The
 build writes its id into it (`vite.config.ts`), and the Worker renders under
-that id, so a page is always adopted by its own build's script.
+that id, so a page is always adopted by its own build's script. esbuild
+bundles the Worker, and `workerSource.ts` brands its views as the Foldkit
+plugin brands the page's: without it, Foldkit found every served element's
+view identity missing and rebuilt the whole page on hydration.
 
 ## When something fails
 
 - **A write the server refuses** (another's note, a title too long) changes
   nothing it stores. The note leaves the list, and the page lists the failed
   write with Retry and Dismiss (`Data.failedWrites`).
-- **A write nothing answered** (offline, or a gateway's error page) fails as
-  `Unreachable`: the server may or may not have written it, and the page says
-  so. Retry sends the same operation, which the ledger answers with its row if
-  it landed, so it is written once either way.
+- **An add nothing answered** (offline, or a gateway's error page) stays in
+  the outbox, sent again after a wait and as soon as the browser is back
+  online, across a reload; the page says how many notes are not sent yet.
+  The ledger answers a resend that already landed with its row, so it is
+  written once.
+- **An edit or a delete nothing answered** fails as `Unreachable`: the
+  server may or may not have written it, and the page says so. Retry sends
+  the same operation, which the ledger answers the same way.
 - **A session that ended** reads nothing: the page is rendered unread, and
   the browser's read is refused with a reason. A page that needs a member
   sends the reader to sign in, naming where they were.

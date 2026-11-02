@@ -155,8 +155,8 @@ export default [
     edits: [
       {
         file: '../src/main.ts',
-        find: 'Data.mutate(model, AddNote, { id, title, body }, { now })',
-        replace: 'Data.mutate(model, AddNote, { id, title, body })',
+        find: 'Data.mutate(model, AddNote, { id, title, body }, { now, durable: true })',
+        replace: 'Data.mutate(model, AddNote, { id, title, body }, { durable: true })',
       },
     ],
     tests: page,

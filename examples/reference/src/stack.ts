@@ -8,7 +8,7 @@ import { Stack } from 'foldkit-plus/testing/workers'
 import { fileURLToPath } from 'node:url'
 import { build } from 'vite'
 import { configFor } from '../vite.config.js'
-import { mutation } from './mutation.js'
+import { workerSource } from './workerSource.js'
 import type { WorkerEnv } from './worker.js'
 
 const here = (file: string) => fileURLToPath(new URL(file, import.meta.url))
@@ -19,7 +19,7 @@ export type ReferenceStack = Stack<WorkerEnv>
 export const worker = {
   wrangler: here('../wrangler.toml'),
   entry: here('./worker.ts'),
-  plugins: [mutation()],
+  plugins: [workerSource(here('..'))],
 }
 
 /** Builds the page into `dist/client` as `vite build` does, under a new build id. */

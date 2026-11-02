@@ -385,6 +385,31 @@ for none of it. From the first click on, it is the browser loop above.
 Import `SSR` from `foldkit-ssr/client` in the modules the browser loads; the
 server's renderer stays out of the page's script.
 
+### Writes that outlive the page
+
+A write made durable (`Data.mutate(…, { durable: true })`) is Remote's
+outbox's until the server answers it: stored in this browser, sent again
+after a failure and after a reload. The server never sees that store, so a
+page it renders shows none of the queue, and the browser must still first
+draw the page it was sent. The queue therefore joins after adoption, as a
+Message:
+
+```text
+server:  Data.satisfy → render (no queue)
+browser: SSR.hydrate → prepare: durable.session → adopt the served page
+         → outbox.restore (a Subscription) reads the store → OutboxRead → update → the unsent writes drawn
+```
+
+`durable.session` mints the id the page's writes are named by and reads
+nothing, so a write made in the first moments is queued, and the
+`OutboxRead` that follows keeps it. Every tab on the outbox's key shows the
+same queue, and one sends it. The ledger on the server's writer answers a
+write sent twice (its answer lost, then the page reloaded) from its record,
+so it is written once. [`examples/reference`](../examples/reference) adds
+notes this way on Workers; the [`foldkit-ssr`
+README](../packages/ssr/README.md#what-only-the-browser-has-prepare) says why
+the queue cannot be restored before adoption.
+
 ## A static site from the same tree
 
 A static host serves files, so every address must be known at build time.
@@ -484,6 +509,10 @@ follow, since all four read `sources`.
   `when` and `fresh` decline it, and `otherwise: 'render'` draws afresh in its
   place. `until` keeps the served page in view until the fresh one has its
   reads, as the CMS's `sitePlan.ts` does.
+- **The server cannot be reached.** A durable write waits in the outbox,
+  and the page can say how many wait (`outboxStatus`); a reload keeps them,
+  and they are sent once the server answers. A plain write fails `Unreachable`, and Retry
+  sends the same operation.
 - **The reader leaves a page.** Its Surface goes inactive, and after a grace
   period Remote collects what nothing else reads. That is safe: the server
   still owns the facts, and coming back fetches them again.

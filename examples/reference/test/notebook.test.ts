@@ -29,10 +29,12 @@ import {
   NotebookPage,
   accessOf,
   actives,
+  durable,
   unreadAt,
   update,
   type Model,
 } from '../src/main.js'
+import { AddNote } from '../src/operations.js'
 import { server } from '../src/server.js'
 import { failedWriteWords } from '../src/view.js'
 
@@ -74,7 +76,8 @@ const notebook = (model: Model) => {
 let ada: Model
 
 beforeAll(async () => {
-  ada = await opened('/', Option.some('ada'))
+  // As the browser starts it: a note added is durable, and needs the page's session.
+  ada = await Effect.runPromise(durable.session(await opened('/', Option.some('ada'))))
 })
 
 describe('a note added', () => {
@@ -169,18 +172,20 @@ describe('a note opened while it is being added', () => {
   // Nothing read the note's `may` when the add was sent, but the add's answer
   // carries it, as the Note foresees it (#370): the page has it with no
   // further read, and never draws the note Loading in between.
+  // The page's add is durable, and its outbox sends it; sent here as a plain
+  // write, it is the same request, and the same answer.
   it("learns whether its author may delete it from the add's answer", async () => {
-    const { model, commands } = update(
+    const add = Data.mutate(
       ada,
-      Message.NamedNote({ id: 'a2', title: 'Second light', body: '', now: Date.now() }),
+      AddNote,
+      { id: 'a2', title: 'Second light', body: '' },
+      { now: Date.now() },
     )
-    const add = commands?.[0]
-    if (add === undefined) throw new Error('the add sent no write')
-    const opened = { ...model, route: AppRoute.NotePage({ id: 'a2' }) }
+    const opened = { ...add.model, route: AppRoute.NotePage({ id: 'a2' }) }
     const note = NotePage.projection({ id: 'a2' })
     expect(Data.plan(opened, note)).toEqual([])
 
-    const answer = await Effect.runPromise(add.effect.pipe(Effect.provide(browser)))
+    const answer = await Effect.runPromise(add.command.effect.pipe(Effect.provide(browser)))
     const read = update(opened, answer).model
     expect(Data.plan(read, note)).toEqual([])
     expect(Surface.read(NotePage, read, { id: 'a2' }).note).toMatchObject({

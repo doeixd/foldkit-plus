@@ -4,10 +4,20 @@
  * Both talk to this page's own origin, so the session cookie rides along.
  */
 import { Layer } from 'effect'
+import { KeyValueStore } from 'effect/persistence'
 import { Resource } from 'foldkit-plus/bundle'
 import { Remote } from 'foldkit-plus/remote'
 import { FOLDKIT_APP_ATTRIBUTE, SSR } from 'foldkit-plus/ssr/client'
-import { AppClient, Message, Model, plan, subscriptions, unreadAt, update } from './main.js'
+import {
+  AppClient,
+  Message,
+  Model,
+  durable,
+  plan,
+  subscriptions,
+  unreadAt,
+  update,
+} from './main.js'
 import { view } from './view.js'
 import { httpWithLive } from 'foldkit-plus/remote/live'
 
@@ -34,9 +44,17 @@ SSR.hydrate(
       ),
       // Yielded's client, a chunk of its own: loaded by the first sign-in, sign-up or sign-out.
       Resource.lazy(AppClient, () => import('./authClient.js').then(chunk => chunk.layer)),
+      // Where the outbox keeps unsent notes, shared by this origin's tabs.
+      KeyValueStore.layerStorage(() => localStorage),
     ),
     devTools: { Message },
   },
   plan,
-  { buildId: import.meta.env.FOLDKIT_BUILD_ID },
+  {
+    buildId: import.meta.env.FOLDKIT_BUILD_ID,
+    // A session for this page's durable writes, which the view does not draw,
+    // so the first client view is still the Worker's page. The queue itself
+    // is read after it, by the outbox's own Subscription.
+    prepare: durable.session,
+  },
 )
