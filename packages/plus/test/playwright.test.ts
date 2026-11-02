@@ -25,8 +25,10 @@ const ORIGIN = 'http://app.test'
  * where it was; `hide` hides it for a frame, and `blank` makes it invisible
  * for one; `flash` hides and shows it in one go; `late` asks a query, and
  * moves it once that is answered; `logs` logs an error, and `throws` throws
- * one. `port` writes as a SharedWorker's port would, past the network, and
- * takes the line above away 600 ms later. `load` is what a load shows before
+ * one; `impatient` takes it out 700 ms after the post unless answered by
+ * then, as a page giving up on a slow write would. `port` writes as a
+ * SharedWorker's port would, past the network, and takes the line above away
+ * 600 ms later. `load` is what a load shows before
  * the list: `blink` reads "Loading…" for one frame, `hidden` keeps a hidden
  * "Loading…" in the page.
  */
@@ -68,6 +70,11 @@ document.getElementById('add').onclick = () => {
   const write = params.get('write')
   if (write === 'pessimistic') post().then(show)
   else if (write === 'local') show()
+  else if (write === 'impatient') {
+    show()
+    const giveUp = setTimeout(clear, 700)
+    post().then(() => clearTimeout(giveUp))
+  }
   else if (write === 'port') {
     waiting.hidden = false
     show()
@@ -133,6 +140,7 @@ describe('optimistic', () => {
   it.each([
     ['shown only once it is answered', 'pessimistic', /did not show within 500 ms/],
     ['taken back by its answer', 'revert', /<li>Milk<\/li> was taken out of the page/],
+    ['taken back while it is held', 'impatient', /<li>Milk<\/li> was taken out of the page/],
     ['shown with no write sent', 'local', /the action sent no Remote mutation/],
     ['pushed by a line taken away on its answer', 'jump', /moved \d+px up,/],
     ['pushed by a line taken away frames after its answer', 'drawn', /moved \d+px up,/],
@@ -214,11 +222,39 @@ describe('optimistic', () => {
     await page.close()
   })
 
-  it('refuses a wait shorter than the hold it would have to beat', async () => {
-    await open('?write=optimistic')
+  it('holds the writes until it has looked, however short the hold', async () => {
+    await open('?write=pessimistic')
     await expect(
-      Behaviors.optimistic(page, { act: add, shows: row(), hold: '1 second', within: '1 second' }),
-    ).rejects.toThrow(/must be shorter than hold/)
+      Behaviors.optimistic(page, {
+        act: add,
+        shows: row(),
+        hold: '100 millis',
+        within: '500 millis',
+      }),
+    ).rejects.toThrow(/did not show within 500 ms/)
+    await page.close()
+  })
+
+  const pause = (millis: number) => new Promise(resume => setTimeout(resume, millis))
+
+  it('passes a write shown at once by an action slower than within', async () => {
+    await open('?write=optimistic')
+    const slow = () => add().then(() => pause(800))
+    await Behaviors.optimistic(page, { act: slow, shows: row(), ...timing })
+    await page.close()
+  })
+
+  // #395: the wait for what shows was cut to 1 ms once the action outlasted
+  // `within`, so a row its answer drew passed.
+  it.each([
+    ['slower than within', () => add().then(() => pause(800)), /did not show within 500 ms/],
+    ['slower than the hold', () => add().then(() => pause(2000)), /did not end within hold/],
+    ['that waits for the row', () => add().then(() => row().waitFor()), /did not end within hold/],
+  ])('refuses a write drawn only on its answer by an action %s', async (_, act, message) => {
+    await open('?write=pessimistic')
+    await expect(Behaviors.optimistic(page, { act, shows: row(), ...timing })).rejects.toThrow(
+      message,
+    )
     await page.close()
   })
 })

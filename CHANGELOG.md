@@ -684,6 +684,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`Behaviors.optimistic` looks for what shows while every write is held**
+  (`foldkit-plus`, #395). Once `act` outlasted `within` it waited 1 ms for
+  `shows`, so a row drawn only by the answer, after an action slower than
+  `hold`, passed. Each Remote mutation is now held until `act` has ended and
+  `shows` has been looked for (and watched), and for `hold` at least, and
+  `shows` is looked for from the moment `act` begins; an action that has not
+  ended `hold` after it began is refused, since one waiting for its own
+  write's answer would wait for good. `within` no longer has to be shorter
+  than `hold`.
+
 - **A list over an exists is judged again when a pending write moves what it
   counts** (`foldkit-remote`, `foldkit-entity`, #344). A feed of an
   account's own posts and those of everyone it follows

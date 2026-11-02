@@ -87,7 +87,11 @@ export interface OptimisticOptions {
   readonly stays?: 'put' | 'shown' | Locator
   /** How the writes travel: `'http'` (the default), `Remote.http`'s requests, held at the network. */
   readonly writes?: 'http' | PageWrites
-  /** How long each Remote mutation is held at the network. `'3 seconds'` unless given. */
+  /**
+   * How long each Remote mutation is held at the network at least: it is held
+   * on until `act` has ended and `shows` has been looked for. `act` must end
+   * within it. `'3 seconds'` unless given.
+   */
   readonly hold?: Duration.Input
   /** How soon after `act` begins `shows` must show, while every write is held. `'1 second'` unless given. */
   readonly within?: Duration.Input
@@ -211,26 +215,31 @@ const stopIfWatching = ({ key }: StillWatch) => {
  * The write shows before the server answers, holds still until it has been
  * answered and drawn, and still shows after.
  *
- * Every Remote mutation the page sends is held at the network for `hold`;
- * `shows` must be visible within `within` of `act` while they are held. From
+ * Every Remote mutation the page sends is held at the network until `act`
+ * has ended and `shows` has been looked for, and for `hold` at least, so
+ * what shows was drawn before any answer however long `act` takes;
+ * `shows` must be visible within `within` of `act` beginning. From
  * then until settled, what `stays` names must stay in the page as the same
  * nodes, in the same place in their parent, within 1px of where they were
  * drawn, and visible. Settled is evidence, not a wait: no Remote request of
  * the page in flight (an answer can lead to more, such as a placed list's
  * first page under `verifyPredictions`), or `writes.answered`, then the page
  * quiet for three frames. An error the page logs meanwhile fails it too: a
- * `PredictionMismatch` is logged as one. Throws otherwise, and when `act`
- * sent no Remote mutation over HTTP, since nothing was then held.
+ * `PredictionMismatch` is logged as one. Throws otherwise, when `act` sent
+ * no Remote mutation over HTTP, since nothing was then held, and when `act`
+ * has not ended `hold` after it began: one that waits for its own write's
+ * answer would wait for good.
  */
 const optimistic = async (page: Page, options: OptimisticOptions): Promise<void> => {
   const writes = options.writes ?? 'http'
   const hold = millis(options.hold ?? '3 seconds')
   const within = millis(options.within ?? '1 second')
-  if (writes === 'http' && within >= hold)
-    throw new Error(
-      `optimistic: within (${within} ms) must be shorter than hold (${hold} ms), ` +
-        'or what shows could be the answer',
-    )
+  // Opened once `shows` has been looked for and is watched: no write is
+  // answered before, so nothing shown by then is an answer.
+  let release = () => {}
+  const looked = new Promise<void>(resolve => {
+    release = resolve
+  })
   const held: Array<Promise<void>> = []
   // Every Remote request from `act` on that is not yet answered.
   const inFlight = new Set<Request>()
@@ -248,10 +257,10 @@ const optimistic = async (page: Page, options: OptimisticOptions): Promise<void>
     if (message.type() === 'error') errors.push(message.text())
   }
   const thrown = (error: Error) => errors.push(String(error))
-  // Let through after `hold`. The answer is awaited apart from the handler:
-  // Playwright passes a request on to the next handler only once this one returns.
+  // Let through after `hold`, once looked. The answer is awaited apart from the
+  // handler: Playwright passes a request on to the next handler only once this one returns.
   const letThrough = async (route: Route) => {
-    await new Promise(resume => setTimeout(resume, hold))
+    await Promise.all([new Promise(resume => setTimeout(resume, hold)), looked])
     await route.fallback()
   }
   const answered = async (request: Request) => {
@@ -275,20 +284,36 @@ const optimistic = async (page: Page, options: OptimisticOptions): Promise<void>
       ? Option.none<Locator>()
       : Option.some(stays === 'put' ? options.shows : stays)
   const watch: StillWatch = { key: `__foldkitStill${crypto.randomUUID().replaceAll('-', '')}` }
+  let overdue: ReturnType<typeof setTimeout> | undefined
   try {
-    const started = Date.now()
-    await options.act()
-    // A write is let through `hold` after it was sent, which was after `act`
-    // began, so whatever shows by this deadline was drawn before any answer.
-    await options.shows
-      .waitFor({ state: 'visible', timeout: Math.max(1, within - (Date.now() - started)) })
-      .catch((error: unknown) => {
-        throw new Error(`optimistic: ${shows} did not show within ${within} ms of the action`, {
-          cause: error,
-        })
+    const shown = options.shows.waitFor({ state: 'visible', timeout: within }).then(
+      () => Option.none<unknown>(),
+      (error: unknown) => Option.some(error),
+    )
+    const acted = Promise.resolve().then(options.act)
+    // An action waiting for its own write's answer would wait for good.
+    const deadline =
+      writes === 'http'
+        ? new Promise<false>(resolve => {
+            overdue = setTimeout(resolve, hold, false)
+          })
+        : new Promise<never>(() => {})
+    const ended = await Promise.race([acted.then(() => true), deadline])
+    if (!ended) {
+      release()
+      await acted
+      throw new Error(
+        `optimistic: the action did not end within hold (${hold} ms), and every write is held until it does`,
+      )
+    }
+    const missed = await shown
+    if (Option.isSome(missed))
+      throw new Error(`optimistic: ${shows} did not show within ${within} ms of the action`, {
+        cause: missed.value,
       })
     if (Option.isSome(watched) && (await watched.value.evaluateAll(watchStill, watch)) === 0)
       throw new Error(`optimistic: ${String(watched.value)}, what stays, matches nothing`)
+    release()
     if (writes === 'http') {
       if (held.length === 0)
         throw new Error(`optimistic: ${shows} showed, but the action sent no Remote mutation`)
@@ -320,6 +345,8 @@ const optimistic = async (page: Page, options: OptimisticOptions): Promise<void>
         `optimistic: the page logged an error while the write settled:\n  ${errors.join('\n  ')}`,
       )
   } finally {
+    clearTimeout(overdue)
+    release()
     // A check that failed before reading the watch leaves it sampling every frame.
     if (!page.isClosed()) await page.evaluate(stopIfWatching, watch)
     page.off('request', sent)
