@@ -625,6 +625,19 @@ Foldkit's own behaviour that we work around is listed in
   upstream does. Test such a key by its `defaultPrevented` and poll where the
   page lands: reading the offset straight after the press failed on CI, where
   the Command ran frames later.
+- **Foldkit warns of a hydration mismatch only in development.** Its
+  warning is gated on `import.meta.hot`, which a Vite build strips, so a
+  production e2e that listens for "server DOM did not match" passes whatever
+  happened. `examples/reference` rebuilt every served element on every
+  hydration, and nothing said so. To check adoption, keep the served elements
+  as the document turns interactive, before any module runs, and assert they
+  are still in the document (`adoption` in `examples/reference/e2e`).
+- **A Worker bundled by esbuild draws no view identities (#412).** The page's
+  Vite build brands each view's result (`foldkit:view-identity`), and
+  Foldkit rebuilds a served element whose identity differs. `Stack` bundles
+  with esbuild, so every page the Worker rendered was rebuilt whole.
+  `examples/reference/src/workerSource.ts` brands the Worker's sources the
+  same way.
 - **Vite 8's `port: 0` is a probe, not a bind.** `httpServerStart` listens on
   an ephemeral port, closes it, and binds it again, so another process can
   take it between: CI's cloudflare e2e failed "Port 41893 is already in use",
