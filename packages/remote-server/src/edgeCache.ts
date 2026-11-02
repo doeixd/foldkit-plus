@@ -136,7 +136,7 @@ export const writeTags = (result: unknown): ReadonlyArray<string> =>
   })
 
 /** An answer as anyone may be given it: without whom it was for. */
-export const unaddressed = <A extends { readonly principal?: unknown }>(
+const unaddressed = <A extends { readonly principal?: unknown }>(
   answer: A,
 ): Omit<A, 'principal'> => {
   const { principal: _, ...rest } = answer
