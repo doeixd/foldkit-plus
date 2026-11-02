@@ -927,6 +927,43 @@ For the new versions they depend on, or changes inside them alone:
 
 ### Fixed
 
+- **A cookie's `maxAge` is finite, and a page's status carries a body**
+  (`foldkit-mirror`, `foldkit-ssr`, #446, #448). `Mirror.cookie` refused a
+  `maxAge` under a second but published `Max-Age=Infinity` for
+  `maxAge: 'Infinity'`, which a browser reads as a session cookie; it now
+  refuses a duration with no finite end. `SSR.entry`'s `status` now refuses
+  `204`, `205` and `304`, whose response cannot carry the rendered page, and
+  reports the page failed instead of throwing outside the entry.
+
+- **A page's ordinary text that spells the keep marker renders**
+  (`foldkit-ssr`, #452). `SSR.render` searched the whole serialized page for
+  `data-foldkit-plus-keep="?"`, so a text node holding those characters was
+  refused as a `KeepTyped` field with no binding. Only a marker that is an
+  attribute of an element now counts.
+
+- **A sparse derived array of a new length is derived again**
+  (`foldkit-surface`, #444). `Projection.derive` compared arrays by
+  `Object.keys`, which omits `length`, so two sparse arrays of different
+  lengths read as equal and the old value was kept. It now compares array
+  lengths too.
+
+- **Picker focus escapes an id that is not a CSS identifier**
+  (`foldkit-mixins-ui`, #455). A step between a phone Sheet's options built
+  `#1-option-1` by hand, which `querySelector` refuses; the selector now goes
+  through the package's CSS identifier escape, so a digit-leading or
+  colon-bearing id focuses.
+
+- **`Cpu.budget` checks every warm request** (`foldkit-plus/testing/workers`,
+  #443). The budget compared the mean of the requests after the first, so one
+  request could spend well over the limit and pass. It now reads each warm
+  request's cost and checks the most expensive, matching a deployed Worker's
+  per-request limit; `CpuReading.warm` is that cost, not the mean.
+
+- **`declared-any` reads a declaration across lines** (#441). The build gate
+  matched one line at a time, so a published function whose parameters wrapped
+  across lines still escaped with an `any` return. It now matches declarations
+  as whole statements.
+
 - **A Worker bundled by `Stack` draws the page's view identities**
   (`foldkit-plus/testing/workers`, #412). esbuild skips
   `@foldkit/vite-plugin`'s view-identity transform, so every page such a
