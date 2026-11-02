@@ -20,6 +20,15 @@ version changed; `pnpm` skips versions already in the registry.
   is 178 KB, not 298 KB (10.5 KB, not 21.8 KB, brotli), and the layout shift
   of #418 is gone. `vite` becomes an optional peer of `foldkit-mixins`.
 
+### Changed
+
+- **The resume envelope is written in single quotes** (`foldkit-ssr`). The
+  page's root carries the envelope as `data-foldkit-plus-resume='…'`,
+  escaping `&` and `'`, so the JSON's own double quotes go unescaped:
+  domains-plus's envelope is about 26.7 KB of the page, not 48.7 KB, and
+  Foldkit's per-request checks parse that much less (#413). `getAttribute`
+  reads the same JSON as before.
+
 ## 0.37.0
 
 Remote's cache gets a lifecycle, and pages work before and without their
