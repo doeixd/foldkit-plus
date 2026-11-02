@@ -9,6 +9,27 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Public reads and pages kept at the edge** (`foldkit-surface`,
+  `foldkit-remote`, `foldkit-remote-server`, `foldkit-ssr`, #428). The domain
+  declares how long a read stays fresh (`Entity.annotate(EdgeCache.of({
+  maxAge }))`, `Query.make(…, { cache: { maxAge } })`); the server proves
+  who may share it. `serveFetch`'s `cache: { store, visitor }` keeps a read
+  or query only when no Source on its way has `authorize`, `filter`,
+  `visible` or a member per viewer, answers it as the visitor whoever asks,
+  and says `public, max-age`; a write it answers purges the reads holding a
+  row it names and every list of their entities. `SSR.entry`'s `cache: {
+  store, maxAge }` keeps a page by build id and URL when every read it made
+  through `pageReader` was public and every request header its render read
+  was absent (`vary` names them), so a page with a cart cookie is never
+  kept; `SSR.keptDocuments` remembers a kept page's document.
+  `CacheStore.memory()` and `CacheStore.workers(caches.default)` keep them.
+  The checkers answer each kept read, and draw each kept page, for two
+  principals: `cache.check` reports `CachedReadDiffers` or
+  `CachedPageDiffers`, and `checkCache` and `SSR.checkCache` are the same
+  for a test. A guarded read is never kept: its rules are functions the
+  server cannot read. domains-plus serves a repeated `/` or `/?q=sunbeam` in
+  under a millisecond of CPU, against 40 and 140 ms rendered.
+
 - **The stylesheet as a hashed file** (`foldkit-mixins/vite`, #419).
   `styles({ sheet })` writes the application's stylesheet, completed with
   every class and global rule the process compiled that it lacks
@@ -21,6 +42,10 @@ version changed; `pnpm` skips versions already in the registry.
   of #418 is gone. `vite` becomes an optional peer of `foldkit-mixins`.
 
 ### Changed
+
+- **`serveFetch` answers say `cache-control: private, no-store`**
+  (`foldkit-remote-server`, #428), not `no-store`, unless `headers` gives
+  one or the read is public under `cache`.
 
 - **The default theme's surfaces step apart a little less** (`foldkit-mixins`).
   The `surface.contrast` knob defaults to 70%, not 80%: the page, a card on it,
