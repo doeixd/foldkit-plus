@@ -226,18 +226,15 @@ const pinsOf = (
 ): Pins => {
   const pins = new Map<string, unknown>()
   let whole = true
-  const given = (node: Operandish): Option.Option<unknown> => {
-    switch (node._tag) {
-      case 'Literal':
-        return Option.some(node.value)
-      case 'Input':
-        return Option.some(own(input, node.key))
-      case 'Viewer':
-        return context === undefined ? Option.none() : contextValue(node, context)
-      default:
-        return Option.none()
-    }
-  }
+  const given = (node: Operandish): Option.Option<unknown> =>
+    Match.value(node).pipe(
+      Match.tags({
+        Literal: ({ value }) => Option.some<unknown>(value),
+        Input: ({ key }) => Option.some<unknown>(own(input, key)),
+        Viewer: viewer => (context === undefined ? Option.none() : contextValue(viewer, context)),
+      }),
+      Match.orElse(() => Option.none()),
+    )
   for (const predicate of predicates) {
     const pin = Option.flatMap(fieldAndSide(predicate), ([field, side]) =>
       Option.map(Option.filter(given(side), pinnable), value => [field.key, value] as const),

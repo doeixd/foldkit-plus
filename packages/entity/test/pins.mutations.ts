@@ -51,8 +51,8 @@ export default [
     edits: [
       {
         file: evaluate,
-        find: "      case 'Viewer':\n        return context === undefined ? Option.none() : contextValue(node, context)\n",
-        replace: '',
+        find: 'Viewer: viewer => (context === undefined ? Option.none() : contextValue(viewer, context)),',
+        replace: 'Viewer: () => Option.none(),',
       },
     ],
     tests,
@@ -62,8 +62,8 @@ export default [
     edits: [
       {
         file: evaluate,
-        find: "      case 'Literal':\n        return Option.some(node.value)\n",
-        replace: '',
+        find: 'Literal: ({ value }) => Option.some<unknown>(value),',
+        replace: 'Literal: () => Option.none(),',
       },
     ],
     tests,
