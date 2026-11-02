@@ -155,7 +155,8 @@ let using: Set<string | typeof NESTED> | undefined
 /**
  * One `draw`'s items: a memo per key, the Slots each used, what those were
  * given, and the keys drawn in this pass and the one before, so a key no
- * longer drawn is forgotten.
+ * longer drawn is forgotten. `open` while a pass has begun and its closing
+ * microtask has not run.
  */
 interface ItemMemo {
   readonly lazies: Map<PropertyKey, ReturnType<typeof createLazy>>
@@ -163,6 +164,7 @@ interface ItemMemo {
   readonly given: Map<PropertyKey, unknown>
   drawn: Set<PropertyKey>
   before: Set<PropertyKey>
+  open: boolean
 }
 const itemMemos = new WeakMap<object, ItemMemo>()
 const itemMemoOf = (draw: object): ItemMemo => {
@@ -174,6 +176,7 @@ const itemMemoOf = (draw: object): ItemMemo => {
     given: new Map(),
     drawn: new Set(),
     before: new Set(),
+    open: false,
   }
   itemMemos.set(draw, made)
   return made
@@ -182,22 +185,31 @@ const itemMemoOf = (draw: object): ItemMemo => {
 /**
  * Notes `key` drawn. Foldkit's keyed memo keeps every key for the page's life,
  * so a list keyed by search results or scrolled through 100,000 rows would
- * hold a drawing of each. A key is drawn once per pass, so one drawn again
- * means a new pass began: what neither that pass nor the one before drew is
- * forgotten (two passes, so two views sharing a `draw` keep each other's).
+ * hold a drawing of each. Foldkit draws a view tree synchronously in one
+ * frame, so the first key noted after the last pass closed begins a new one;
+ * the microtask that follows the render closes it and forgets what neither it
+ * nor the pass before drew (two passes, so two views sharing a `draw` keep
+ * each other's). Keys that never repeat, as successive windows of a virtual
+ * list, are still forgotten.
  */
 const remember = (memo: ItemMemo, key: PropertyKey): void => {
-  if (memo.drawn.has(key)) {
-    for (const known of new Set([...memo.lazies.keys(), ...memo.used.keys()])) {
-      if (memo.drawn.has(known) || memo.before.has(known)) continue
-      memo.lazies.delete(known)
-      memo.used.delete(known)
-      memo.given.delete(known)
-    }
+  if (!memo.open) {
+    memo.open = true
     memo.before = memo.drawn
     memo.drawn = new Set()
+    queueMicrotask(() => closePass(memo))
   }
   memo.drawn.add(key)
+}
+
+const closePass = (memo: ItemMemo): void => {
+  memo.open = false
+  for (const known of new Set([...memo.lazies.keys(), ...memo.used.keys()])) {
+    if (memo.drawn.has(known) || memo.before.has(known)) continue
+    memo.lazies.delete(known)
+    memo.used.delete(known)
+    memo.given.delete(known)
+  }
 }
 
 const lazyFor = (memo: ItemMemo, key: PropertyKey): ReturnType<typeof createLazy> => {

@@ -92,6 +92,7 @@ const Page = SlotView.forMessages<Message>().define(PageSlots, (model: Model, sl
     button(h, 'price', Message.Priced()),
     button(h, 'ab', Message.Showed({ rows: ['a', 'b'] })),
     button(h, 'cd', Message.Showed({ rows: ['c', 'd'] })),
+    button(h, 'ef', Message.Showed({ rows: ['e', 'f'] })),
     Sums(model, slots, h),
     Parity(model, slots, h),
     Quote(model, slots, h),
@@ -242,6 +243,23 @@ it('forgets the items it no longer draws, and keeps those it does', async () => 
     for (const id of ['b', 'b', 'b']) expect(await press(id)).toEqual([])
     // `a` and `b` left two passes ago and more: forgotten, so drawn afresh.
     expect(await press('ab')).toEqual(['a', 'b'])
+  } finally {
+    handle.dispose()
+  }
+})
+
+it('forgets keys no pass repeats, as successive windows of a list (#442)', async () => {
+  const { handle, press } = await run((model, h) => Page(model, h))
+  try {
+    // Each pass shows a window sharing no key with the one before.
+    expect(await press('cd')).toEqual(['c', 'd'])
+    expect(await press('ef')).toEqual(['e', 'f'])
+    // `a, b` left one full pass ago: forgotten, so drawn afresh.
+    expect(await press('ab')).toEqual(['a', 'b'])
+    // The two most recent passes are kept, so `e, f` is not drawn again.
+    expect(await press('ef')).toEqual([])
+    // `c, d` is now three passes back: forgotten, so drawn afresh.
+    expect(await press('cd')).toEqual(['c', 'd'])
   } finally {
     handle.dispose()
   }

@@ -43,8 +43,19 @@ export default [
     edits: [
       {
         file: '../src/slotView.ts',
-        find: '  if (memo.drawn.has(key)) {',
-        replace: '  if (false) {',
+        find: '    if (memo.drawn.has(known) || memo.before.has(known)) continue\n',
+        replace: '    if (true) continue\n',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the item memo opens a new pass only when a key repeats',
+    edits: [
+      {
+        file: '../src/slotView.ts',
+        find: '  if (!memo.open) {',
+        replace: '  if (memo.drawn.has(key)) {',
       },
     ],
     tests,
