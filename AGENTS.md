@@ -9,6 +9,39 @@
   `pnpm build`), and fix what the check surfaces in a follow-up commit rather
   than letting it accumulate.
 
+## Delegating to subagents
+
+Usage costs the maintainer money. Pick the cheapest model that can do the
+job well.
+
+- **Haiku** for mechanical, well-specified work: a flag or config change, a
+  rename, a version bump, a measurement that runs a script and reports
+  numbers, a docs fix whose content is already decided. Give it exact files,
+  exact commands and the proof to show.
+- **Sonnet** for ordinary implementation and investigation:
+  - a feature inside one package with a clear design;
+  - a test or a budget;
+  - a bug hunt with a reproduction;
+  - a bundle or layout investigation;
+  - a refresh of a skill reference.
+- **The default (most capable) model** for:
+  - deciding a published API's shape;
+  - security-sensitive code (authorization, identity, the wire, CSRF,
+    caching across principals);
+  - changes spanning several packages' contracts;
+  - design notes;
+  - independent reviews.
+
+A low-stakes subagent still follows every rule here. Its brief carries the
+git rules (shared worktree, explicit-path commits, the temp-index recipe for
+shared files, the never-commit list), the checks to run, and what it must
+not touch. Subagents push and report; they do not wait for or run CI. The
+coordinating session checks CI and closes issues.
+
+Run subagents in parallel only on disjoint files, and say in each brief what
+the others are editing. Never let two of them run Wrangler (or anything
+that refreshes the Cloudflare login) at once.
+
 ## Reviewing a commit
 
 When re-reading a commit, check each of these deliberately:
