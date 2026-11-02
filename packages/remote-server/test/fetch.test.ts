@@ -307,7 +307,7 @@ describe('serveFetch, headers for whom it answered', () => {
     ['a refusal', JSON.stringify({ operation: 'read', payload: readA }), 'refused'],
   ])('lets no cache keep %s, which is one principal’s (#284)', async (_, body, admin) => {
     const response = await send(body, admin)
-    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
     await response.body?.cancel()
   })
 
@@ -316,7 +316,7 @@ describe('serveFetch, headers for whom it answered', () => {
       server: backend.server,
       resolvePrincipal: () => Effect.succeed<Principal>({ isAdmin: false }),
       layer: () => Layer.empty,
-      headers: () => ({ 'cache-control': 'private, no-store', vary: 'cookie' }),
+      headers: () => ({ 'cache-control': 'no-cache', vary: 'cookie' }),
     })(
       new Request('http://worker.test/remote', {
         method: 'POST',
@@ -324,13 +324,13 @@ describe('serveFetch, headers for whom it answered', () => {
       }),
       {},
     )
-    expect(response.headers.get('cache-control')).toBe('private, no-store')
+    expect(response.headers.get('cache-control')).toBe('no-cache')
   })
 
   it('lets no cache keep a path it does not serve either', async () => {
     expect(
       (await fetch(new Request('http://worker.test/remote'), {})).headers.get('cache-control'),
-    ).toBe('no-store')
+    ).toBe('private, no-store')
   })
 
   it('names nobody on a refusal, which answered no one', async () => {

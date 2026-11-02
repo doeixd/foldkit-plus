@@ -120,6 +120,6 @@ describe('/remote', () => {
       }),
       undefined,
     )
-    expect(fine.headers.get('cache-control')).toBe('no-store')
+    expect(fine.headers.get('cache-control')).toBe('private, no-store')
   })
 })

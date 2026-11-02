@@ -11,7 +11,7 @@ export default [
     edits: [
       {
         file,
-        find: "if (!response.headers.has('cache-control')) response.headers.set('cache-control', 'no-store')",
+        find: "response.headers.set('cache-control', 'private, no-store')",
         replace: '',
       },
     ],
@@ -19,7 +19,9 @@ export default [
   },
   {
     name: "the application's cache-control is overwritten",
-    edits: [{ file, find: "if (!response.headers.has('cache-control')) ", replace: '' }],
+    edits: [
+      { file, find: "if (!response.headers.has('cache-control')) {", replace: 'if (true) {' },
+    ],
     tests,
   },
   {
@@ -150,6 +152,7 @@ export default [
         file,
         find: 'Response.json(answered.body, { status: answered.status, headers })',
         replace: 'Response.json(answered.body, { status: answered.status })',
+        all: true,
       },
     ],
     tests,

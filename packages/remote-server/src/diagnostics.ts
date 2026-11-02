@@ -50,8 +50,25 @@ export interface ClockSkewed extends Diagnostic {
   readonly bound: number
 }
 
+/**
+ * A read the server judged public answered otherwise for who asked than for
+ * the visitor (`serveFetch`'s `cache.check`): its declaration or a source's
+ * `read` depends on who asks, so it must not be cached. The asker was given
+ * their own answer.
+ */
+export interface CachedReadDiffers extends Diagnostic {
+  readonly _tag: 'CachedReadDiffers'
+  /** The request, as the JSON it was sent as. */
+  readonly request: string
+}
+
 /** Every diagnostic a Remote server reports. */
-export type RemoteServerDiagnostic = ServerDefect | AnswerUnread | PublishFailed | ClockSkewed
+export type RemoteServerDiagnostic =
+  | ServerDefect
+  | AnswerUnread
+  | PublishFailed
+  | ClockSkewed
+  | CachedReadDiffers
 
 export const serverDefect = (cause: Cause.Cause<unknown>): ServerDefect => ({
   _tag: 'ServerDefect',
@@ -87,4 +104,12 @@ export const clockSkewed = (
   level: 'warning',
   message: `${facts.mutation} was sent at ${facts.sent}, ${Math.abs(facts.sent - facts.own)} ms from this server's clock (${facts.own}), past its clockSkew of ${facts.bound} ms: it was written at the server's time, so the client's prediction of it moves when the answer lands. The client's clock is off, or the request waited that long.`,
   ...facts,
+})
+
+export const cachedReadDiffers = (request: string): CachedReadDiffers => ({
+  _tag: 'CachedReadDiffers',
+  source,
+  level: 'error',
+  message: `a read judged public was answered otherwise for who asked than for a visitor, so it is not the same for everyone and must not be cached; find what in its sources depends on who asks: ${request}`,
+  request,
 })

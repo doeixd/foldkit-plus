@@ -244,7 +244,8 @@ A transport failure becomes the call's Remote error, not a defect.
   what `layer(env)` provides; failing with `RemoteServer.unauthenticated(reason?)`
   answers 401. `revalidate: { every, key? }` asks again while a live stream is
   open and ends it on a refusal. Every answer is one principal's, so it says
-  `cache-control: no-store` unless `headers` gives its own. `maxBodyBytes`
+  `cache-control: private, no-store` unless `headers` gives its own, or the
+  read is public under `cache` (below). `maxBodyBytes`
   (1 MiB) refuses a larger body with a 413 `{ error, tooLarge: { limit } }`
   before decoding it; `bodyLimit(n)` (root export) is the same as HTTP
   middleware for an `RpcServer` route. A Worker request
@@ -256,6 +257,24 @@ A transport failure becomes the call's Remote error, not a defect.
   RemoteUnauthenticated>` over `serveFetch`'s server and limits, with no HTTP.
   Provide it to the pre-read (`Data.satisfy`); it only reads. A page GET
   carries no CSRF header: with `foldkit-auth`, use `requests: 'navigation'`.
+- Keeping public reads (#428): `serveFetch({ ..., cache: { store, visitor,
+  check? } })`. Freshness is declared, publicness proved: an Entity says
+  `Entity.annotate(EdgeCache.of({ maxAge: '60 seconds' }))`, a Query
+  `Query.make(name, { Input, Result, cache: { maxAge } })` (or `Query.define`'s
+  options). A read or query is public only when no Source on its way (its
+  Entity's, each relation's, a query's own and its `select`'s) has
+  `authorize`, `filter`, `visible` (guards, Drizzle `visible`, `memory`'s
+  `readable`) or a `perViewer` member, and each declares a freshness. It is
+  answered as `visitor` (refused if the server's `viewer` names a row for
+  it), without `principal`, kept by its body's SHA-256 for the shortest
+  `maxAge`, `cache-control: public, max-age=…`. A write answered there purges
+  each row its answer names and every list of their entities; other writers
+  purge nothing. `CacheStore.memory()` / `CacheStore.workers(caches.default)`
+  (per-isolate purge index). `pageReader` with the same `cache` answers public
+  reads as the visitor and notes each read in `PageReads` for
+  `foldkit-ssr`'s page cache. Checker: `cache.check` reports
+  `CachedReadDiffers`; `checkCache(config, requests, env)` rejects a
+  difference between the visitor's and each asker's answer, or no public read.
 
 ## Common tasks
 

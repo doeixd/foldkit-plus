@@ -1207,9 +1207,10 @@ pass the limit, its stream cancelled there. Give the client the same number
 reads to fit; `Remote.http` reads a 413 as the call's own error, so a durable
 write is not resent. A body that is not UTF-8 JSON, or not a request, is a 400
 that reaches no handler; a handler's failure a 500 with its message. Every response, refusals
-and errors included, says `cache-control: no-store` unless `headers` gives a
+and errors included, says `cache-control: private, no-store` unless `headers` gives a
 `cache-control` of its own: each answer is one principal's rows (and `may`), so
-no shared cache may keep one.
+no shared cache may keep one. The one exception is a read the server proves
+public, with `cache` (below).
 
 A resolver refuses the caller by failing with
 `RemoteServer.unauthenticated(reason?)`: a 401 whose body is
@@ -1293,6 +1294,126 @@ The reader only reads. A mutation fails with `RemoteMutationError` and a live
 open with `RemoteLiveError`: another site can start a navigation, so the
 principal it resolves must never write, and a render keeps no stream.
 
+With `cache`, the reader answers each read it proves public as the visitor,
+and notes every read for the render (`PageReads`): public with its
+freshness and the rows it holds, or private. `foldkit-ssr`'s `SSR.entry`
+keeps a page only when every read it made was public.
+
+### Keeping public reads: `cache`
+
+A read every visitor gets the same answer to costs the same work every
+time it is asked. With `cache`, `serveFetch` keeps such reads and answers
+them again from a store, without asking a Source:
+
+```text
+a read -> public? (no rule about who asks, freshness declared)
+       -> yes: answered as the visitor, kept by its body for maxAge
+       -> no:  answered as who asks, cache-control: private, no-store
+a write -> purges every kept read holding a row it names, and every list of that row's entity
+```
+
+The domain declares how long a read stays fresh; it never says who may
+share it. An Entity says it with `EdgeCache.of`, a Query with `cache`:
+
+```ts standalone
+import { Effect, Layer, Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+import { CacheStore, EdgeCache, Query, REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
+import { RemoteServer } from 'foldkit-remote-server'
+import { checkCache, serveFetch } from 'foldkit-remote-server/fetch'
+
+const Price = Entity.define(
+  'Price',
+  Schema.Struct({ id: Schema.String, amount: Schema.Number }),
+).pipe(Entity.annotate(EdgeCache.of({ maxAge: '60 seconds' })))
+const Cheap = Query.make('Cheap', { Input: {}, Result: Price, cache: { maxAge: '30 seconds' } })
+
+const server = RemoteServer.make({
+  entities: [
+    RemoteServer.entity(Price, {
+      read: ({ ids }) => Effect.succeed(ids.map(id => ({ id, values: { id, amount: 12 } }))),
+    }),
+  ],
+})
+
+const config = {
+  server,
+  resolvePrincipal: (request: Request) =>
+    Effect.succeed({ userId: request.headers.get('x-user') ?? undefined }),
+  layer: () => Layer.empty,
+}
+export const fetch = serveFetch({
+  ...config,
+  cache: { store: CacheStore.memory(), visitor: { userId: undefined } },
+})
+```
+
+Whether a read is public is the server's to prove, from the Sources it
+passes through: a read or query is public only when no Source on its way
+(its Entity's, each relation's it reaches, a query's own and its `select`'s)
+has an `authorize`, a `filter`, a `visible` rule or a member answered per
+viewer (`Derived.exists`), and each declares a freshness. Those rules are
+functions of the principal the server cannot read, so a Source with one is
+private even where its rule happens to read only the row: a guarded Entity
+(`foldkit-guard`), a Drizzle binding with `visible`, a `memory` backend with
+`readable`. Nothing is cached that the server could not prove.
+
+A public read is answered as `visitor`, whoever asks: one answer, right for
+everyone, and never someone's own, even from a Source whose `read` looks at
+the principal. `visitor` must be no one: `serveFetch` refuses one the
+server's `viewer` names a row for. The answer names nobody it was for (no
+`principal`), says `cache-control: public, max-age=…` for the shortest
+freshness it reaches, and is kept by the SHA-256 of its body under
+`/__foldkit/cache/remote/` on the request's origin. A refusal or a failure
+is not kept. Everything else (a write, a live stream, a read that is not
+public) says `private, no-store`.
+
+A write answered here purges what its answer names: each row it wrote,
+deleted, moved in a list or read back (`shown`, carried `lists`), and every
+list of each of their entities, which a changed row can join or leave. A
+write that is not answered by this `serveFetch` (another server, a job, a
+database trigger) purges nothing: what it changed is served as it was kept
+until `maxAge`.
+
+`CacheStore.memory({ limit })` keeps answers in the process, for Node, a dev
+server and tests (1,000 by default, the oldest dropped first).
+`CacheStore.workers(caches.default)` keeps them in the Workers Cache API;
+which answers a tag names is known to the isolate that kept them, so a
+write purges what this isolate kept, and another isolate's or data centre's
+copy stays until its `maxAge`. Give `pageReader` the same config, and pages
+read through it are judged the same way (`foldkit-ssr`'s `cache`).
+
+The checker answers each public read as two principals. `cache.check`
+answers it as who asks too, and where the two differ reports
+`CachedReadDiffers` and gives the asker their own: a development mode.
+`checkCache(config, requests, env)` is the same, for a test: it serves each
+request twice with `check` and a store in memory, and rejects a difference,
+or a set of requests with no public read, which would check nothing:
+
+```ts
+const asking = (user?: string) => () =>
+  new Request('https://shop.test/remote', {
+    method: 'POST',
+    headers: user === undefined ? {} : { 'x-user': user },
+    body: JSON.stringify({
+      operation: 'read',
+      payload: {
+        version: REMOTE_PROTOCOL_VERSION,
+        requests: [{ entity: 'Price', id: 'a', fields: ['amount'] }],
+      },
+    }),
+  })
+
+export const checked = checkCache(
+  { ...config, cache: { visitor: { userId: undefined } } },
+  [asking(), asking('u1')],
+  undefined,
+)
+```
+
+`Cheap` is a Query a server registers with `RemoteServer.query`; its answer
+is kept for 30 seconds, the shorter of its own and `Price`'s.
+
 ## Diagnostics
 
 A server answers some failures without telling the caller why. Each is a
@@ -1331,7 +1452,7 @@ A descriptor declared with
 [`Query.define`](../remote#queries-and-pagination) carries its meaning as a
 value (`body`), and `evaluate` runs a body directly:
 
-```ts
+```ts standalone
 import { Entity, Expr, Order, Query, evaluate } from 'foldkit-entity'
 
 const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, slug: Schema.String }))

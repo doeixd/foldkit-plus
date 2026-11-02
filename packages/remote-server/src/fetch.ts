@@ -18,6 +18,7 @@ import {
   Effect,
   Exit,
   Layer,
+  Option,
   Result,
   Schedule,
   Schema,
@@ -26,11 +27,20 @@ import {
 } from 'effect'
 import {
   DEFAULT_MAX_BODY_BYTES,
+  CacheStore,
   Diagnostics,
   LiveRequirement,
+  QueryRequest,
+  QueryResult,
+  ReadBatch,
+  ReadBatchResult,
   Remote,
+  RemoteJsonRequest,
   RemoteLiveError,
   RemoteMutationError,
+  maxAgeSeconds,
+  stableStringify,
+  type CachePolicy,
   type Diagnostic,
   type RemoteClient,
   type RemoteJsonAnswer,
@@ -38,7 +48,16 @@ import {
   type RemoteUnauthenticated,
 } from 'foldkit-remote'
 import { declaresTooLarge, readJson, tooLargeAnswer } from './body.js'
-import { serverDefect } from './diagnostics.js'
+import { cachedReadDiffers, serverDefect } from './diagnostics.js'
+import {
+  cacheKey,
+  notingHandlers,
+  queryPolicy,
+  queryTags,
+  readPolicy,
+  readTags,
+  writeTags,
+} from './edgeCache.js'
 import { RemoteServer, type LiveHub, type ServerDefinition } from './index.js'
 import { unauthenticatedAnswer } from './refusal.js'
 
@@ -113,6 +132,101 @@ export interface FetchConfig<P, R, Env, RP = never> {
    * (`Remote.clientLayer(…, { maxBodyBytes })`), so it cuts its reads to fit.
    */
   readonly maxBodyBytes?: number | undefined
+  /**
+   * Keeps public reads in `store` (#428). A read or query is public where
+   * none of the sources it passes through has a rule about who asks
+   * (`authorize`, `filter`, `visible`, a member per viewer) and each declares
+   * how long it stays fresh (`EdgeCache.of` on its Entity, `cache` on its
+   * Query). A public read is answered as `visitor`, whoever asks, so one
+   * answer is right for everyone, and kept for the shortest `maxAge` it
+   * reaches; it says `cache-control: public, max-age=…`. Every other answer
+   * says `private, no-store`. A write answered here purges the kept reads
+   * holding a row it names, and every list of that row's entity.
+   *
+   * `visitor` is the principal of someone not signed in: refused when the
+   * server's `viewer` names a row for it. With `check`, for development and
+   * tests, each public read is also answered as who asks, and a difference
+   * is reported (`CachedReadDiffers`) and answered with the asker's own.
+   */
+  readonly cache?:
+    | {
+        readonly store: CacheStore
+        readonly visitor: P
+        readonly check?: boolean | undefined
+      }
+    | undefined
+}
+
+/** A read or query a cache may keep: how long, and the tags of its answer. */
+interface Shareable {
+  readonly policy: CachePolicy
+  readonly tagsOf: (result: unknown) => ReadonlyArray<string>
+}
+
+const decodeRequest = Schema.decodeUnknownOption(RemoteJsonRequest)
+const decodeBatch = Schema.decodeUnknownOption(ReadBatch)
+const decodeQuery = Schema.decodeUnknownOption(QueryRequest)
+const decodeReadResult = Schema.decodeUnknownOption(ReadBatchResult)
+const decodeQueryResult = Schema.decodeUnknownOption(QueryResult)
+
+/** `body`, when it is a read or query every source of which is public. */
+const shareableOf = <P, R>(
+  server: ServerDefinition<P, R>,
+  body: unknown,
+): Option.Option<Shareable> =>
+  Option.flatMap(decodeRequest(body), ({ operation, payload }) =>
+    ({
+      read: () =>
+        Option.flatMap(decodeBatch(payload), batch =>
+          Option.map(readPolicy(server, batch), policy => ({
+            policy,
+            tagsOf: (result: unknown) =>
+              Option.match(decodeReadResult(result), {
+                onNone: () => [],
+                onSome: read => readTags(batch, read),
+              }),
+          })),
+        ),
+      query: () =>
+        Option.flatMap(decodeQuery(payload), request =>
+          Option.map(queryPolicy(server, request), policy => ({
+            policy,
+            tagsOf: (result: unknown) =>
+              Option.match(decodeQueryResult(result), {
+                onNone: () => [],
+                onSome: page => queryTags(server, request, page),
+              }),
+          })),
+        ),
+      mutate: () => Option.none<Shareable>(),
+    })[operation](),
+  )
+
+/** An answer as anyone may be given it: its result without whom it was for. */
+const unaddressedAnswer = (answer: RemoteJsonAnswer): RemoteJsonAnswer => {
+  if (!('result' in answer) || typeof answer.result !== 'object' || answer.result === null)
+    return answer
+  const { principal: _, ...result } = answer.result as Readonly<Record<string, unknown>>
+  return { result }
+}
+
+/** Whether `body` is a write: what it names, a cache purges. */
+const isWrite = (body: unknown): boolean =>
+  Option.exists(decodeRequest(body), request => request.operation === 'mutate')
+
+/** A visitor the server's `viewer` names a row for is someone: their reads are their own. */
+const refuseSomeone = <P, R>(
+  server: ServerDefinition<P, R>,
+  cache: { readonly visitor: P } | undefined,
+): void => {
+  if (
+    cache !== undefined &&
+    server.viewer !== undefined &&
+    Option.isSome(server.viewer(cache.visitor))
+  )
+    throw new Error(
+      'foldkit-remote-server: cache.visitor must be no one, but the server viewer names a row for it',
+    )
 }
 
 /** A live open over fetch: the requirements and the cursor it resumes after. */
@@ -266,6 +380,7 @@ export const serveFetch = <P, R, Env, RP = never>(
   config: FetchConfig<P, R, Env, RP>,
 ): ((request: Request, env: Env) => Promise<Response>) => {
   const path = config.path ?? '/remote'
+  refuseSomeone(config.server, config.cache)
   const maxBodyBytes = config.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES
   const heartbeat = config.liveHeartbeat ?? DEFAULT_HEARTBEAT
   if (
@@ -304,6 +419,56 @@ export const serveFetch = <P, R, Env, RP = never>(
       Stream.drain,
     )
   }
+  /**
+   * A public read: the visitor's answer, from the store or answered and kept.
+   * Under `check`, also the asker's own, which is given instead where they differ.
+   */
+  const answerShared = (
+    request: Request,
+    body: unknown,
+    cache: NonNullable<FetchConfig<P, R, Env, RP>['cache']>,
+    shareable: Shareable,
+    own: RemoteRpcClient<R>,
+    headers: Readonly<Record<string, string>>,
+  ): Effect.Effect<Response, never, R> =>
+    Effect.gen(function* () {
+      const asked = stableStringify(body)
+      const key = yield* cacheKey(request.url, 'remote', asked)
+      const kept = yield* cache.store.match(key)
+      let text: string
+      if (Option.isSome(kept)) {
+        text = kept.value
+      } else {
+        const visitor = RemoteServer.handlers(config.server, cache.visitor, {
+          maxIdsPerEntity: config.maxIdsPerEntity,
+          maxDepth: config.maxDepth,
+        })
+        const answered = yield* RemoteServer.answer(visitor, body)
+        // A refusal or a failure is nobody's to keep.
+        if (answered.status !== 200) {
+          return Response.json(answered.body, { status: answered.status, headers })
+        }
+        text = JSON.stringify(unaddressedAnswer(answered.body))
+        yield* cache.store.put(key, text, {
+          maxAge: shareable.policy.maxAge,
+          tags: shareable.tagsOf('result' in answered.body ? answered.body.result : {}),
+        })
+      }
+      if (cache.check === true) {
+        const mine = yield* RemoteServer.answer(own, body)
+        if (stableStringify(unaddressedAnswer(mine.body)) !== stableStringify(JSON.parse(text))) {
+          yield* Diagnostics.report(cachedReadDiffers(asked))
+          return Response.json(mine.body, { status: mine.status, headers })
+        }
+      }
+      return new Response(text, {
+        headers: {
+          'content-type': 'application/json',
+          'cache-control': `public, max-age=${maxAgeSeconds(shareable.policy)}`,
+          ...headers,
+        },
+      })
+    })
   /** `live` is whether the response streams, and so owns `scope` until it ends. */
   const respond = (
     request: Request,
@@ -336,7 +501,24 @@ export const serveFetch = <P, R, Env, RP = never>(
         // A 400 for a payload no stream speaks has no stream to close it.
         return { response, live: response.status === 200 }
       }
+      const { cache } = config
+      const shareable =
+        cache === undefined ? Option.none<Shareable>() : shareableOf(config.server, body.success)
+      if (cache !== undefined && Option.isSome(shareable)) {
+        const response = yield* answerShared(
+          request,
+          body.success,
+          cache,
+          shareable.value,
+          handlers,
+          headers,
+        )
+        return { response, live: false }
+      }
       const answered = yield* RemoteServer.answer(handlers, body.success)
+      if (cache !== undefined && answered.status === 200 && isWrite(body.success)) {
+        yield* cache.store.purge(writeTags('result' in answered.body ? answered.body.result : {}))
+      }
       return {
         response: Response.json(answered.body, { status: answered.status, headers }),
         live: false,
@@ -379,19 +561,60 @@ export const serveFetch = <P, R, Env, RP = never>(
     )
     return Response.json({ error: 'Internal error' }, { status: 500 })
   }
-  // Every answer is read as one principal: no cache may keep it for another.
-  // A `cache-control` of the application's own (`headers`) stands.
+  // Every answer but a public read's is read as one principal: no cache may
+  // keep it for another. A `cache-control` of the application's own (`headers`) stands.
   return async (request, env) => {
     const response = await served(request, env)
-    if (!response.headers.has('cache-control')) response.headers.set('cache-control', 'no-store')
+    if (!response.headers.has('cache-control')) {
+      response.headers.set('cache-control', 'private, no-store')
+    }
     return response
   }
 }
 
-/** What `pageReader` reads of a `serveFetch` config: the server, its Sources' layer and its limits. */
+/**
+ * The cache's checker, for a test: serves each request twice through
+ * `serveFetch` with `cache.check` and a store in memory, so every public read
+ * is answered both as the visitor (kept, then from the store) and as whoever
+ * the request resolves to. Rejects naming each read whose answers differ, and
+ * when no read was public, which would check nothing. Give requests from at
+ * least two principals, a visitor's and someone's; each is a function, since
+ * a body is read once.
+ */
+export const checkCache = async <P, R, Env, RP = never>(
+  config: Omit<FetchConfig<P, R, Env, RP>, 'cache' | 'diagnostics'> & {
+    readonly cache: { readonly visitor: P }
+  },
+  requests: ReadonlyArray<() => Request>,
+  env: Env,
+): Promise<void> => {
+  const store = CacheStore.memory()
+  const differs: Array<string> = []
+  const serve = serveFetch({
+    ...config,
+    cache: { ...config.cache, store, check: true },
+    diagnostics: diagnostic =>
+      Effect.sync(() => {
+        // tag-check: open -- a Diagnostic's tag is any package's; this one is ours.
+        if (diagnostic._tag === 'CachedReadDiffers') differs.push(diagnostic.message)
+      }),
+  })
+  for (const _round of [1, 2]) {
+    for (const make of requests) await serve(make(), env)
+  }
+  if (differs.length > 0) throw new Error(differs.join('\n'))
+  if (store.size() === 0) {
+    throw new Error('checkCache: no request was a public read, so nothing was checked')
+  }
+}
+
+/**
+ * What `pageReader` reads of a `serveFetch` config: the server, its Sources'
+ * layer, its limits, and the cache's `visitor`.
+ */
 export type PageReaderConfig<P, R, Env, RP = never> = Pick<
   FetchConfig<P, R, Env, RP>,
-  'server' | 'resolvePrincipal' | 'layer' | 'maxIdsPerEntity' | 'maxDepth'
+  'server' | 'resolvePrincipal' | 'layer' | 'maxIdsPerEntity' | 'maxDepth' | 'cache'
 >
 
 /**
@@ -407,16 +630,26 @@ export type PageReaderConfig<P, R, Env, RP = never> = Pick<
  * refusal fails that Effect with `Unauthenticated`, as a 401 would. It only
  * reads: a mutation fails with `RemoteMutationError` and a live open with
  * `RemoteLiveError`, since a navigation can be started from another site.
+ *
+ * Each read is noted for a render `foldkit-ssr` may cache (`PageReads`):
+ * with `cache`, one proved public as `serveFetch` proves it is answered as
+ * `cache.visitor` and noted public; every other read, and every read without
+ * `cache`, is noted private, which keeps the page from being cached.
  */
-export const pageReader =
-  <P, R, Env, RP = never>(config: PageReaderConfig<P, R, Env, RP>) =>
-  (request: Request, env: Env): Layer.Layer<RemoteClient, RemoteUnauthenticated> =>
+export const pageReader = <P, R, Env, RP = never>(config: PageReaderConfig<P, R, Env, RP>) => {
+  refuseSomeone(config.server, config.cache)
+  const limits = { maxIdsPerEntity: config.maxIdsPerEntity, maxDepth: config.maxDepth }
+  const visitor = Option.map(Option.fromUndefinedOr(config.cache), cache =>
+    RemoteServer.handlers(config.server, cache.visitor, limits),
+  )
+  return (request: Request, env: Env): Layer.Layer<RemoteClient, RemoteUnauthenticated> =>
     Layer.unwrap(
       Effect.map(config.resolvePrincipal(request, env), principal => {
-        const handlers = RemoteServer.handlers(config.server, principal, {
-          maxIdsPerEntity: config.maxIdsPerEntity,
-          maxDepth: config.maxDepth,
-        })
+        const handlers = notingHandlers(
+          config.server,
+          RemoteServer.handlers(config.server, principal, limits),
+          visitor,
+        )
         return Remote.clientLayer<R>({
           ...handlers,
           FoldkitRemoteMutate: () =>
@@ -428,3 +661,4 @@ export const pageReader =
         })
       }),
     ).pipe(Layer.provide(config.layer(env)))
+}

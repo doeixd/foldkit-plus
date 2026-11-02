@@ -45,6 +45,7 @@ import {
   // One default for both ends, so a client cuts its reads to what the server takes.
   DEFAULT_MAX_IDS_PER_ENTITY,
   Diagnostics,
+  EdgeCache,
   REMOTE_PROTOCOL_VERSION,
   Remote,
   RemoteClient,
@@ -86,6 +87,7 @@ import {
   RemoteJsonRequest,
   RELATION_ALIAS,
   aliasedField,
+  type CachePolicy,
 } from 'foldkit-remote'
 import { answerUnread, clockSkewed, publishFailed, serverDefect } from './diagnostics.js'
 import { unauthenticatedAnswer } from './refusal.js'
@@ -217,6 +219,12 @@ export interface EntitySource<P, R = never> {
    * without one.
    */
   readonly perViewer?: ReadonlyArray<string> | undefined
+  /**
+   * How long a read of these rows stays fresh, from the Entity's declaration
+   * (`EdgeCache.of`). It never makes a read public: `serveFetch` caches one
+   * only where nothing about it depends on who asks.
+   */
+  readonly cache?: CachePolicy | undefined
 }
 
 /** What `EntitySource.filter` decides for one read. */
@@ -672,6 +680,8 @@ export interface QuerySource<P, R = never> {
   }) => Effect.Effect<QueryPage, RemoteServerError, R>
   /** The rule that decides which rows the query lists. See `EntitySource.visible`. */
   readonly visible?: unknown
+  /** How long an answer stays fresh, from the Query's declaration. See `EntitySource.cache`. */
+  readonly cache?: CachePolicy | undefined
 }
 
 /**
@@ -1743,6 +1753,10 @@ function memory<P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> {
   const visible = config.readable === undefined ? {} : { visible: config.readable }
   const entities = [...config.domain.registry.entities.keys()].map(name => ({
     ...visible,
+    ...Option.match(Option.fromUndefinedOr(config.domain.registry.cached.get(name)), {
+      onNone: () => ({}),
+      onSome: cache => ({ cache }),
+    }),
     ...RemoteServer.entity<P>(
       { name },
       {
@@ -2126,6 +2140,7 @@ export const RemoteServer = {
   ): EntitySource<P, R> => {
     const declared = entity.members ?? entity.fields
     const fields = declared === undefined ? undefined : new Set(Object.keys(declared))
+    const cache = EdgeCache.policyOf(entity)
     const unserved = (options.shared ?? []).filter(
       field => fields !== undefined && !fields.has(field),
     )
@@ -2141,6 +2156,7 @@ export const RemoteServer = {
       ...(options.authorize === undefined ? {} : { authorize: options.authorize }),
       ...(options.filter === undefined ? {} : { filter: options.filter }),
       ...(options.shared === undefined ? {} : { shared: new Set(options.shared) }),
+      ...(Option.isSome(cache) ? { cache: cache.value } : {}),
     }
   },
 
@@ -2727,6 +2743,7 @@ export const RemoteServer = {
     query: query.name,
     entity: query.Result.entity,
     Input: query.Input,
+    ...(query.cache === undefined ? {} : { cache: query.cache }),
     run: context =>
       run({
         input: context.input as Input,
@@ -3326,6 +3343,7 @@ export * from './evaluate.js'
 export { bodyLimit } from './body.js'
 export type {
   AnswerUnread,
+  CachedReadDiffers,
   ClockSkewed,
   PublishFailed,
   RemoteServerDiagnostic,
