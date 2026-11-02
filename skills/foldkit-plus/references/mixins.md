@@ -55,8 +55,9 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
 - **Regions** redraw by Model path: `const R = SlotView.region(Projection.struct({ cart:
   App.model.cart }), (value, slots: Builders, h: H) => …)`, then `R(model, slots, h)` in the
   page's render. Drawn again only when a value at a path the Projection reads changed (by
-  identity), or its read gives new fields; the drawing gets only that value. A Projection with no
-  `dependencies` is refused. A reused region's DOM is not patched.
+  identity), or its read gives new fields; the drawing gets only that value. A read with no path
+  of its own (a Remote read, alone or in a `struct`) is read every render. A reused region's DOM
+  is not patched.
 - `hidden: true` slots are omitted from public Style/Behavior spec keys.
 - **Styling pipeline:** `tokens -> ref -> pieces -> slots -> sheet`. `Theme.standard(theme)`
   (the scales and the palette, at a theme's knob values) is the only source of values; read them

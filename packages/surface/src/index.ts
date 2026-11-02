@@ -414,6 +414,23 @@ type StructValue<Entries> = {
   ? { readonly [K in keyof Value]: Value[K] }
   : never
 
+// What reads something no path of its own names: a Remote read, named by its
+// metadata, declares no path, and a Projection composing one declares only its
+// other parts' paths. `derive` cannot skip a read of either. A set, not a
+// field, since only a derivation asks.
+const readsUnnamed = new WeakSet<object>()
+
+const unnamed = (entry: { readonly dependencies: DependencyTree }): boolean =>
+  entry.dependencies.length === 0 || readsUnnamed.has(entry)
+
+const markedBy = <P extends object>(
+  composed: P,
+  parts: ReadonlyArray<{ readonly dependencies: DependencyTree }>,
+): P => {
+  if (parts.some(unnamed)) readsUnnamed.add(composed)
+  return composed
+}
+
 /** A value derived from the Model and the paths it reads: what `Projection.derive` makes. */
 export interface Derived<Root, Value> {
   readonly dependencies: DependencyTree
@@ -461,18 +478,22 @@ export const Projection = {
       const picked: Record<string, AnySchema> = Object.create(null)
       const dependencies: (readonly string[])[] = []
       const metadata: Metadata[] = []
+      // A field picked with `true` declares no path of its own.
+      const parts: { readonly dependencies: DependencyTree }[] = []
       const readers: (readonly [string, (root: unknown) => unknown])[] = []
 
       for (const key of Object.keys(selection)) {
         const choice = (selection as Record<string, unknown>)[key]
         if (choice === true) {
           picked[key] = schema.fields[key] as AnySchema
+          parts.push({ dependencies: [] })
           readers.push([key, root => propertyReader(root, key)])
         } else {
           const nested = choice as Projection<unknown, unknown>
           picked[key] = nested.Model
           dependencies.push(...nested.dependencies)
           metadata.push(nested.metadata)
+          parts.push(nested)
           readers.push([key, root => nested.read(propertyReader(root, key))])
         }
       }
@@ -482,11 +503,14 @@ export const Projection = {
         for (const [key, reader] of readers) out[key] = reader(root)
         return out
       }
-      return makeProjection(
-        objectSchema(picked),
-        mergeDependencies(dependencies),
-        read,
-        Metadata.combine(metadata),
+      return markedBy(
+        makeProjection(
+          objectSchema(picked),
+          mergeDependencies(dependencies),
+          read,
+          Metadata.combine(metadata),
+        ),
+        parts,
       ) as unknown as Projection<Schema.Struct.Type<F>, OfValue<F, Sel>>
     },
 
@@ -497,6 +521,7 @@ export const Projection = {
     const picked: Record<string, AnySchema> = Object.create(null)
     const dependencies: (readonly string[])[] = []
     const metadata: Metadata[] = []
+    const nesteds: Projection<unknown, unknown>[] = []
     const readers: (readonly [string, (root: unknown) => unknown])[] = []
 
     for (const key of Object.keys(entries)) {
@@ -510,6 +535,7 @@ export const Projection = {
         picked[key] = entry.Model
         dependencies.push(...entry.dependencies)
         metadata.push(entry.metadata)
+        nesteds.push(entry)
         readers.push([key, entry.read])
       }
     }
@@ -519,11 +545,14 @@ export const Projection = {
       for (const [key, reader] of readers) out[key] = reader(root)
       return out
     }
-    return makeProjection(
-      objectSchema(picked),
-      mergeDependencies(dependencies),
-      read,
-      Metadata.combine(metadata),
+    return markedBy(
+      makeProjection(
+        objectSchema(picked),
+        mergeDependencies(dependencies),
+        read,
+        Metadata.combine(metadata),
+      ),
+      nesteds,
     ) as unknown as Projection<EntryRoot<Entries[keyof Entries]>, StructValue<Entries>>
   },
 
@@ -534,22 +563,30 @@ export const Projection = {
    */
   array: <Root, Value>(
     projection: Projection<Root, Value>,
-  ): Projection<ReadonlyArray<Root>, ReadonlyArray<Value>> => ({
-    Model: Schema.Array(projection.Model),
-    dependencies: projection.dependencies,
-    metadata: projection.metadata,
-    read: root => root.map(value => projection.read(value)),
-  }),
+  ): Projection<ReadonlyArray<Root>, ReadonlyArray<Value>> =>
+    markedBy(
+      {
+        Model: Schema.Array(projection.Model),
+        dependencies: projection.dependencies,
+        metadata: projection.metadata,
+        read: root => root.map(value => projection.read(value)),
+      },
+      [projection],
+    ),
 
   /** Maps a Projection inside an Option, preserving absence. */
   option: <Root, Value>(
     projection: Projection<Root, Value>,
-  ): Projection<Option.Option<Root>, Option.Option<Value>> => ({
-    Model: Schema.Option(projection.Model),
-    dependencies: projection.dependencies,
-    metadata: projection.metadata,
-    read: root => Option.map(root, value => projection.read(value)),
-  }),
+  ): Projection<Option.Option<Root>, Option.Option<Value>> =>
+    markedBy(
+      {
+        Model: Schema.Option(projection.Model),
+        dependencies: projection.dependencies,
+        metadata: projection.metadata,
+        read: root => Option.map(root, value => projection.read(value)),
+      },
+      [projection],
+    ),
 
   read: <Root, Value>(projection: Projection<Root, Value>, root: Root): Value =>
     projection.read(root),
@@ -577,12 +614,13 @@ export const Projection = {
    * A value worked out from the Model, and worked out again only when a value
    * at a path it reads is a new object: the value counterpart of
    * `foldkit-mixins`' `SlotView.region`, and what a region can be drawn from.
-   * `on` names what `derive` reads, as field references or Projections, each
-   * declaring at least one path (a Remote read declares none: name its
-   * store's field); `derive` must read nothing else, or it shows what it read
-   * last. A result with the same fields as the last,
-   * shallowly, gives the last back, so a memo keyed on it holds. It keeps one
-   * result: the one for the last Model it was given.
+   * `on` names what `derive` reads, as field references or Projections;
+   * `derive` must read nothing else, or it shows what it read last. While
+   * something in `on` reads what no path of its names (a Remote read, alone or
+   * inside a `struct`), the value is worked out on every read. A result with
+   * the same fields as the last, shallowly, gives the last back, so a memo
+   * keyed on it holds. It keeps one result: the one for the last Model it was
+   * given.
    *
    * @example
    * ```ts
@@ -596,18 +634,19 @@ export const Projection = {
     on: ReadonlyArray<ModelRef<Root, any> | { readonly dependencies: DependencyTree }>,
     derive: (root: Root) => Value,
   ): Derived<Root, Value> => {
-    const paths = on.map(entry =>
-      RefTypeId in entry ? [entry[RefTypeId].dependency] : entry.dependencies,
-    )
-    // A change to what declares no path could never work the value out again.
-    if (paths.length === 0 || paths.some(declared => declared.length === 0)) {
+    if (on.length === 0) {
       throw new Error(
-        "Projection.derive: something it reads declares no Model paths, so a change to it would never work the value out again. Name field references, or Projections built from them; a Remote read declares none, so name its store's field (App.model.remote).",
+        'Projection.derive: it names nothing it reads, so nothing could tell it to work the value out again. Name field references, or Projections built from them.',
       )
     }
-    const dependencies = mergeDependencies(paths.flat())
+    const parts = on.map(entry =>
+      RefTypeId in entry ? { dependencies: [entry[RefTypeId].dependency] } : entry,
+    )
+    const dependencies = mergeDependencies(parts.flatMap(part => part.dependencies))
+    // No path changes when what such a read reads does, so none can skip it.
+    const always = parts.some(unnamed)
     let last: { readonly values: ReadonlyArray<unknown>; readonly value: Value } | undefined
-    return {
+    const derived: Derived<Root, Value> = {
       dependencies,
       read: root => {
         const values = dependencies.map(path => valueAt(root, path))
@@ -615,13 +654,15 @@ export const Projection = {
         const value =
           before === undefined
             ? derive(root)
-            : values.every((value, index) => Object.is(value, before.values[index]))
+            : !always && values.every((value, index) => Object.is(value, before.values[index]))
               ? before.value
               : keepAlike(before.value, derive(root))
         last = { values, value }
         return value
       },
     }
+    if (always) readsUnnamed.add(derived)
+    return derived
   },
 
   /**

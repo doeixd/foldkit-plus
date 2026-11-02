@@ -676,6 +676,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A region over a Remote read beside a field is drawn again when the store
+  changes** (`foldkit-surface`, `foldkit-mixins`, #385). A Remote read declares
+  no Model path, and `Projection.struct` merged only its other entries' paths,
+  so `SlotView.region(Projection.struct({ quote: Data.get(Quote, id), cart:
+  App.model.cart }), …)` compared `cart` alone and showed a stale price until
+  the cart changed. `struct`, `of`, `array` and `option` now remember a part
+  that reads what no path of its names, and `Projection.derive`, which a region
+  is built on, works such a value out on every read, keeping the last while
+  its fields are the same, so the region is drawn again only when the read
+  gives something new. `derive` no longer refuses an entry that declares no
+  path; it still refuses an empty `on`.
+
 - **Any build of a package publishes the declarations a release does**
   (workspace, #340). tsdown's declaration emitter reads each referenced
   package's `.tsbuild/build` declarations, and where they were missing it

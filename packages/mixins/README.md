@@ -948,16 +948,18 @@ with `Projection.fromReader` that came out the same) is not drawn either. That
 is `Projection.derive`'s rule, which the region is built on: a value a view
 works out on every render without drawing it (a filtered list, a summary of
 many Remote reads) is a `Projection.derive`, and a region can be drawn from
-one. A Remote read declares no Model path: a region over one names the
-store's field (`App.model.remote`) among what it reads.
+one. A Remote read declares no Model path, alone or in a `Projection.struct`
+beside fields, so a region over one reads on every render and is drawn
+again when the read gives new fields. Drawn from a `Projection.derive` that
+names the store's field (`App.model.remote`) and makes the Remote read inside,
+it is not read while the store holds.
 
 - **It reads only its value.** `Header`'s drawing is given what the
   Projection reads, so it cannot read a path it is not drawn again for. A
   helper written over the Model takes `Pick<Model, …>` instead.
 - **Its paths must be from the root.** A Projection built from field
   references has them; one from `Projection.fromReader` needs its
-  `dependencies`, and one with none is refused, since it would never be
-  drawn again.
+  `dependencies`, and one with none is read on every render.
 - **Slots, Mixins and nesting** work as for an item: a Mixin reading the
   view's input draws it every time, and a region or item drawn inside
   another is drawn in place, the outer one every time. Put regions where

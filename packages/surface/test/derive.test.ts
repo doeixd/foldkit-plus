@@ -56,13 +56,64 @@ describe('Projection.derive', () => {
     expect(runs()).toBe(2)
   })
 
-  it('refuses to derive from what it could not notice change', () => {
-    // As a Remote read is: its data is named by its metadata, not by a path.
-    const pathless = Projection.fromReader(Schema.Number, (root: Model) => root.todos.length)
+  it('refuses to derive from nothing it names', () => {
+    expect(() => Projection.derive([], () => 1)).toThrow(/names nothing it reads/)
+  })
 
-    expect(() => Projection.derive([], () => 1)).toThrow(/declares no Model paths/)
-    expect(() => Projection.derive([App.model.todos, pathless], pathless.read)).toThrow(
-      /name its store's field/,
-    )
+  // As a Remote read is: its data is named by its metadata, not by a path.
+  const store = { count: 1 }
+  const pathless = Projection.fromReader(Schema.Number, (_: Model) => store.count)
+
+  it.each([
+    ['alone', () => pathless],
+    [
+      'inside a struct beside a field',
+      () => Projection.struct({ n: pathless, todos: App.model.todos }),
+    ],
+    [
+      'picked by an of beside a field with a path',
+      () =>
+        Projection.of(ModelSchema)({
+          todos: true,
+          selectedTodoId: Projection.fromReader(
+            Schema.NullOr(Schema.String),
+            (id: string | null) => id,
+            {
+              dependencies: [['selectedTodoId']],
+            },
+          ),
+        }),
+    ],
+    [
+      'inside an array',
+      () => Projection.array(Projection.struct({ n: pathless, id: App.model.selectedTodoId })),
+    ],
+    [
+      'inside an option',
+      () => Projection.option(Projection.struct({ n: pathless, id: App.model.selectedTodoId })),
+    ],
+    [
+      'inside another derivation',
+      () =>
+        Projection.derive(
+          [Projection.struct({ n: pathless, todos: App.model.todos })],
+          (root: Model) => root,
+        ),
+    ],
+  ])('works out on every read a value over a read no path names, %s', (_, reads) => {
+    let runs = 0
+    store.count = 1
+    const counted = Projection.derive([reads(), App.model.todos], (root: Model) => {
+      runs++
+      return { count: store.count, todos: root.todos }
+    })
+    const first = counted.read(model)
+
+    expect(counted.read(model)).toBe(first)
+    store.count = 2
+    expect(counted.read(model)).toEqual({ count: 2, todos: model.todos })
+    store.count = 3
+    expect(counted.read(model)).toEqual({ count: 3, todos: model.todos })
+    expect(runs).toBe(4)
   })
 })

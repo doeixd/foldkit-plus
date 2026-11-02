@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 /**
  * A region on the runtime: drawn again exactly when a Model path it reads
- * changed, each time and not only the first, and a Slot's per-item memo
+ * changed, each time and not only the first, or when a read no path names
+ * gives something new, and a Slot's per-item memo
  * forgetting the keys it no longer draws.
  */
 import { Schema } from 'effect'
@@ -22,6 +23,8 @@ const Model = Schema.Struct({
   pair: Schema.Struct({ a: Schema.Number, b: Schema.Number }),
   c: Schema.Number,
   rows: Schema.Array(Schema.String),
+  // Read as a Remote read is, by no path of the region's.
+  store: Schema.Struct({ price: Schema.Number }),
   // Moved by every Message, and drawn outside every region: the page has drawn a step.
   step: Schema.Number,
 })
@@ -30,6 +33,7 @@ const Message = defineMessageUnion({
   BumpedA: {},
   BumpedB: {},
   BumpedC: {},
+  Priced: {},
   Showed: { rows: Schema.Array(Schema.String) },
 })
 type Message = typeof Message.Type
@@ -60,6 +64,17 @@ const Parity = SlotView.region(
     return h.p(slots.region.attrs([h.Id('parity')]), [odd ? 'odd' : 'even'])
   },
 )
+// A read beside a field that declares no path, as `Data.get` does (#385).
+const Quote = SlotView.region(
+  Projection.struct({
+    price: Projection.fromReader(Schema.Number, (model: Model) => model.store.price),
+    c: App.model.c,
+  }),
+  ({ price, c }, slots: Builders, h: H) => {
+    drawn.push('Quote')
+    return h.p(slots.region.attrs([h.Id('quote')]), [`${price}x${c}`])
+  },
+)
 const drawRow = (slots: Builders, h: H, { text }: { readonly text: string }) => {
   drawn.push(text)
   return h.li(slots.row.attrs([h.Key(text)], { index: 0, id: text }), [text])
@@ -74,10 +89,12 @@ const Page = SlotView.forMessages<Message>().define(PageSlots, (model: Model, sl
     button(h, 'a', Message.BumpedA()),
     button(h, 'b', Message.BumpedB()),
     button(h, 'c', Message.BumpedC()),
+    button(h, 'price', Message.Priced()),
     button(h, 'ab', Message.Showed({ rows: ['a', 'b'] })),
     button(h, 'cd', Message.Showed({ rows: ['c', 'd'] })),
     Sums(model, slots, h),
     Parity(model, slots, h),
+    Quote(model, slots, h),
     h.ul(
       [],
       model.rows.map((text, index) => slots.row.lazy({ index, id: text }, drawRow, { text })),
@@ -102,12 +119,15 @@ const run = async (view: (model: Model, h: H) => ReturnType<typeof Page>) => {
     Runtime.makeElement({
       Model,
       container,
-      init: () => ({ model: { pair: { a: 0, b: 0 }, c: 1, rows: ['a', 'b'], step: 0 } }),
+      init: () => ({
+        model: { pair: { a: 0, b: 0 }, c: 1, rows: ['a', 'b'], store: { price: 10 }, step: 0 },
+      }),
       update: (model: Model, message: Message) => {
         const next = Message.match(message, {
           BumpedA: () => ({ ...model, pair: { ...model.pair, a: model.pair.a + 1 } }),
           BumpedB: () => ({ ...model, pair: { ...model.pair, b: model.pair.b + 1 } }),
           BumpedC: () => ({ ...model, c: model.c + 2 }),
+          Priced: () => ({ ...model, store: { price: model.store.price + 1 } }),
           Showed: ({ rows }) => ({ ...model, rows }),
         })
         return { model: { ...next, step: model.step + 1 } }
@@ -141,11 +161,26 @@ it('draws a region again exactly when a path it reads changed, each time', async
     expect(await press('b')).toEqual([])
     expect(await press('b')).toEqual([])
     // A second path, twice: `Parity` reads it too, but reads the same parity.
-    expect(await press('c')).toEqual(['Sums'])
+    expect(await press('c')).toEqual(['Sums', 'Quote'])
     expect(text('#sums')).toBe('2+3')
-    expect(await press('c')).toEqual(['Sums'])
+    expect(await press('c')).toEqual(['Sums', 'Quote'])
     expect(text('#sums')).toBe('2+5')
     expect(text('#parity')).toBe('odd')
+  } finally {
+    handle.dispose()
+  }
+})
+
+it('draws a region again when only a read no path names changed, each time (#385)', async () => {
+  const { handle, text, press } = await run((model, h) => Page(model, h))
+  try {
+    expect(await press('price')).toEqual(['Quote'])
+    expect(text('#quote')).toBe('11x1')
+    expect(await press('price')).toEqual(['Quote'])
+    expect(text('#quote')).toBe('12x1')
+    // Read on every render, but drawn only when it reads something new.
+    expect(await press('b')).toEqual([])
+    expect(await press('b')).toEqual([])
   } finally {
     handle.dispose()
   }
@@ -161,20 +196,11 @@ it('draws every region again while a Mixin reads the whole input', async () => {
   )
   const { handle, press } = await run((model, h) => Marked(model, h))
   try {
-    expect(await press('b')).toEqual(['Sums', 'Parity'])
+    expect(await press('b')).toEqual(['Sums', 'Parity', 'Quote'])
     expect(document.querySelector('#sums')?.classList.contains('marked')).toBe(true)
   } finally {
     handle.dispose()
   }
-})
-
-it('refuses a region that reads no Model path', () => {
-  expect(() =>
-    SlotView.region(
-      Projection.fromReader(Schema.Number, (model: Model) => model.c),
-      (c, slots: Builders, h: H) => h.p(slots.region.attrs(), [String(c)]),
-    ),
-  ).toThrow(/no Model paths/)
 })
 
 it('keeps the items of two lists that share a drawing and some keys', async () => {

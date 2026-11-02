@@ -600,9 +600,12 @@ export type Region<Root, Slots, Message> = (
  * reads, and drawn again only when that changed. While every path `reads`
  * depends on holds the value it held, the region does not read at all and
  * Foldkit reuses its last drawing without diffing it; when one changed and
- * the read gives the same fields as before, it is reused too. Like a Slot's
- * `lazy` item, it is drawn again when a Mixin gives the Slots it used
- * something different, and drawn afresh where there is no runtime frame.
+ * the read gives the same fields as before, it is reused too. What reads no
+ * path of its own (a Remote read, alone or in a `Projection.struct`) is read
+ * on every render, and the region drawn again when that gives other fields.
+ * Like a Slot's `lazy` item, it is drawn again when a Mixin gives the Slots
+ * it used something different, and drawn afresh where there is no runtime
+ * frame.
  *
  * `draw` reads only its value, so the region cannot read what it is not
  * drawn again for. A region drawn inside another region or item is drawn in
@@ -622,9 +625,8 @@ export const region = <Root, Value, Slots, Message>(
   reads: Reads<Root, Value>,
   draw: (value: Value, slots: SlotBuilders<Slots, Message>, h: HtmlBuilder<Message>) => Html,
 ): Region<Root, Slots, Message> => {
-  // Worked out again by the same rule a derivation is, which refuses reads
-  // that declare no path, and drawn again by the lazy slot only when that
-  // gives a new value.
+  // Worked out again by the same rule a derivation is, and drawn again by the
+  // lazy slot only when that gives a new value.
   const derived = Projection.derive([reads], reads.read)
   const drawRegion = (
     slots: SlotBuilders<Slots, Message>,

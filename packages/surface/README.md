@@ -163,10 +163,12 @@ Open.read(model) // the same array while `model.todos` is
 ```
 
 `on` takes field references and Projections, whose `dependencies` it reads;
-`derive` must read nothing else, or it shows what it read last. Each must
-declare a path: a Remote read declares none (its data is named by its
-metadata), so name the store's field, `App.model.remote`, and `derive`
-refuses one that declares none. A new result
+`derive` must read nothing else, or it shows what it read last. A Remote read
+declares no path (its data is named by its metadata), and a `struct` holding
+one declares only its other entries' paths, so while `on` holds such a read
+the value is worked out on every read. Name the store's field,
+`App.model.remote`, in `on` in its place, reading the Remote read inside
+`derive`, and the value is kept while the store holds. A new result
 with the same fields as the last (shallowly) gives the last back, so a memo
 keyed on it downstream holds. It keeps one result, the one for the Model it
 was last given, and an empty `on` throws, since nothing could tell it to work
