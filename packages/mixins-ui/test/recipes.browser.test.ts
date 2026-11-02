@@ -1,7 +1,7 @@
 /**
  * The recipes over a real palette, in a real browser that does the color math:
  * a neutral control that is on stands out from the page, an outlined neutral
- * button's line can be seen, and a chosen pill tab is the accent's tint.
+ * button's line can be seen, and a tint pill's chosen tab is the accent's tint.
  */
 import { afterEach, expect, test } from 'vitest'
 import { Layers, Style, type StyleValue } from 'foldkit-mixins'
@@ -97,9 +97,9 @@ test.each(['light', 'dark'] as const)(
 )
 
 test.each(['light', 'dark'] as const)(
-  'in a %s scheme, the chosen pill tab is the accent’s tint and ink',
+  'in a %s scheme, the chosen tab of a tint pill is the accent’s tint and ink',
   scheme => {
-    const tab = classOf(TabsSlots, Recipes.Tabs({ variant: 'pill' }), 'tab')
+    const tab = classOf(TabsSlots, Recipes.Tabs({ variant: 'pill', selection: 'tint' }), 'tab')
     install(scheme)
     // In a tablist, which marks its chosen tab while no indicator does.
     const chosen = getComputedStyle(

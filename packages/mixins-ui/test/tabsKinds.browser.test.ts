@@ -45,6 +45,8 @@ interface Fixture {
   readonly orientation?: UiTabs.Orientation
   /** The tablist's width, to make a row overflow. */
   readonly width?: string
+  /** `--fk-tab-min`, which a wrapping row's columns are no narrower than. */
+  readonly tabMin?: string
   readonly scheme?: 'light' | 'dark'
 }
 
@@ -69,6 +71,7 @@ const mount = (fixture: Fixture) => {
   // The runtime draws in place of its container, so the width goes on a box around it.
   const box = document.createElement('div')
   if (fixture.width !== undefined) box.style.width = fixture.width
+  if (fixture.tabMin !== undefined) box.style.setProperty('--fk-tab-min', fixture.tabMin)
   const container = document.createElement('div')
   container.id = 'tabs-kinds'
   box.appendChild(container)
@@ -306,23 +309,75 @@ test('a tint pill keeps the accent tint and no shadow', async () => {
   }
 })
 
-test('a wrapping row keeps every tab inside it, and the indicator follows a tab on the second row', async () => {
+const tabBoxes = () =>
+  Array.from(document.querySelectorAll<HTMLElement>('[role="tab"]')).map(each =>
+    each.getBoundingClientRect(),
+  )
+/** The tabs' count on each row, top to bottom. */
+const rowSizes = () => {
+  const counts = new Map<number, number>()
+  for (const at of tabBoxes())
+    counts.set(Math.round(at.top), (counts.get(Math.round(at.top)) ?? 0) + 1)
+  return [...counts.entries()].sort((a, b) => a[0] - b[0]).map(([, count]) => count)
+}
+const panes = ['Themes', 'Color', 'Shape', 'Type', 'Icons', 'Motion']
+
+test.each([
+  ['330px', [3, 3]],
+  ['600px', [6]],
+  ['200px', [2, 2, 2]],
+] as const)(
+  'a wrapping row of six is equal columns that fill it: at %s, rows of %j',
+  async (width, rows) => {
+    const handle = mount({
+      values: panes,
+      recipe: { variant: 'pill', size: 'sm', overflow: 'wrap' },
+      width,
+    })
+    try {
+      await vi.waitFor(() => expect(tab('Motion')).toBeTruthy())
+      const list = document.querySelector<HTMLElement>('[role="tablist"]')!
+      expect(rowSizes()).toEqual(rows)
+      expect(list.scrollWidth).toBeLessThanOrEqual(list.clientWidth)
+      const boxes = tabBoxes()
+      const first = boxes[0]!
+      for (const at of boxes) expect(Math.abs(at.width - first.width)).toBeLessThan(1)
+      // The columns fill the row: the last tab ends at the tray's padding edge.
+      const box = list.getBoundingClientRect()
+      const padding = parseFloat(getComputedStyle(list).paddingLeft)
+      expect(Math.abs(box.right - padding - Math.max(...boxes.map(at => at.right)))).toBeLessThan(1)
+      expect(Math.abs(first.left - box.left - padding)).toBeLessThan(1)
+    } finally {
+      handle.dispose()
+    }
+  },
+)
+
+test("--fk-tab-min sets how narrow a wrapping row's tabs go", async () => {
+  const handle = mount({
+    values: panes,
+    recipe: { variant: 'pill', size: 'sm', overflow: 'wrap' },
+    width: '330px',
+    tabMin: '150px',
+  })
+  try {
+    await vi.waitFor(() => expect(tab('Motion')).toBeTruthy())
+    expect(rowSizes()).toEqual([2, 2, 2])
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('the indicator follows a tab on the last row of a wrapping row, and the labels are centred', async () => {
   const values = Array.from({ length: 8 }, (_, index) => `Section ${index + 1}`)
-  const handle = mount({ values, recipe: { variant: 'pill', overflow: 'wrap' }, width: '20rem' })
+  const handle = mount({
+    values,
+    recipe: { variant: 'pill', size: 'sm', overflow: 'wrap' },
+    width: '20rem',
+  })
   try {
     await vi.waitFor(() => expect(tab('Section 8')).toBeTruthy())
-    const list = document.querySelector<HTMLElement>('[role="tablist"]')!
-    expect(list.scrollWidth).toBeLessThanOrEqual(list.clientWidth)
-    const box = list.getBoundingClientRect()
-    for (const each of document.querySelectorAll<HTMLElement>('[role="tab"]')) {
-      const at = each.getBoundingClientRect()
-      expect(at.left).toBeGreaterThanOrEqual(box.left - 0.5)
-      expect(at.right).toBeLessThanOrEqual(box.right + 0.5)
-      expect(at.bottom).toBeLessThanOrEqual(box.bottom + 0.5)
-    }
-    expect(tab('Section 8')!.getBoundingClientRect().top).toBeGreaterThan(
-      tab('Section 1')!.getBoundingClientRect().top + 1,
-    )
+    expect(rowSizes()).toEqual([3, 3, 2])
     tab('Section 1')!.focus()
     await userEvent.keyboard('{End}')
     await vi.waitFor(() => {
@@ -333,7 +388,57 @@ test('a wrapping row keeps every tab inside it, and the indicator follows a tab 
       expect(Math.abs(at.top)).toBeLessThan(1)
       expect(Math.abs(at.bottom)).toBeLessThan(1)
     })
+    for (const each of document.querySelectorAll<HTMLElement>('[role="tab"]')) {
+      const label = each.firstElementChild!.getBoundingClientRect()
+      const at = each.getBoundingClientRect()
+      expect(Math.abs(label.left + label.width / 2 - (at.left + at.width / 2))).toBeLessThan(1)
+    }
   } finally {
     handle.dispose()
   }
 })
+
+test.each(['light', 'dark'] as const)(
+  'the chosen pill is a rounded chip inset in its tray, with a lift, in a %s scheme',
+  async scheme => {
+    const handle = mount({
+      values: panes,
+      scheme,
+      recipe: { variant: 'pill', size: 'sm', overflow: 'wrap' },
+      width: '330px',
+    })
+    try {
+      await vi.waitFor(() => expect(tab('Motion')).toBeTruthy())
+      const list = document.querySelector<HTMLElement>('[role="tablist"]')!
+      const tray = getComputedStyle(list)
+      const padding = parseFloat(tray.paddingLeft)
+      const outer = parseFloat(tray.borderTopLeftRadius)
+      const chip = getComputedStyle(indicator())
+      expect(padding).toBeGreaterThan(3)
+      // Concentric: the tray's corner less its padding, and not square.
+      expect(parseFloat(chip.borderTopLeftRadius)).toBeGreaterThan(1)
+      expect(Math.abs(parseFloat(chip.borderTopLeftRadius) - (outer - padding))).toBeLessThan(0.5)
+      // Inset by the padding on the three sides the first tab touches.
+      const box = list.getBoundingClientRect()
+      const at = indicator().getBoundingClientRect()
+      expect(Math.abs(at.left - box.left - padding)).toBeLessThan(1)
+      expect(Math.abs(at.top - box.top - padding)).toBeLessThan(1)
+      // The tray's second row is under it, so the bottom is the row's, not the tray's.
+      tab('Motion')!.focus()
+      await userEvent.keyboard('{End}')
+      await vi.waitFor(() => expect(tab('Motion')!.getAttribute('aria-selected')).toBe('true'))
+      const last = indicator().getBoundingClientRect()
+      expect(Math.abs(box.right - last.right - padding)).toBeLessThan(1)
+      expect(Math.abs(box.bottom - last.bottom - padding)).toBeLessThan(1)
+      // A contact shadow that is not transparent (the theme's own shadow is, at strength 0), and a ring.
+      expect(chip.boxShadow).toMatch(/\/ 0\.[1-9]\d*\) 0px 1px 2px/)
+      expect(chip.boxShadow).toMatch(/\) 0px 0px 0px 1px$/)
+      expect(chip.backgroundColor).not.toBe(tray.backgroundColor)
+      // In a dark scheme the chip's fill is near its tray's, so its ring is a step stronger.
+      const ring = /oklch\(([\d.]+) [^)]*\) 0px 0px 0px 1px$/.exec(chip.boxShadow)
+      expect(Number(ring?.[1])).toBeGreaterThan(scheme === 'dark' ? 0.4 : 0.8)
+    } finally {
+      handle.dispose()
+    }
+  },
+)

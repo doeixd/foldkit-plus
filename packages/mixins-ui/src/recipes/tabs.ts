@@ -17,6 +17,7 @@ import { Utilities } from 'foldkit-mixins/utilities'
 import { TabsSlots } from '../tabs.js'
 import {
   component,
+  controlHeight,
   disabled,
   focusRing,
   glide,
@@ -47,7 +48,23 @@ const vertical = `:where(${upright})`
 /** A vertical tablist right to left, whose inline end is the left. */
 const verticalRtl = `:where(${upright}:dir(rtl))`
 
-const raisedEdge = `${ref.shadow.xs}, 0 0 0 ${ref.border.thin} ${ref.outline.subtle}`
+/**
+ * The chosen pill's lift: a contact shadow in black (mixed from the text it
+ * would glow in a dark scheme), which holds where `shadow-strength` is its
+ * default 0 and the theme's own `shadow.xs` draws nothing; that shadow on top;
+ * and a hairline ring, a step stronger in a dark scheme, where the chip's fill
+ * is only a little lighter than its tray.
+ */
+const raisedEdge = `0 1px 2px 0 color-mix(in oklch, black 14%, transparent), ${ref.shadow.xs}, 0 0 0 ${ref.border.thin} light-dark(${ref.outline.default}, ${ref.outline.overt})`
+
+/**
+ * The narrowest a wrapping row's tabs go before it falls to fewer columns,
+ * on the tabs' size step: a short label ("Themes") and its padding.
+ * `--fk-tab-min` tunes it.
+ */
+const tabMin = `var(--fk-tab-min, calc(${controlHeight} * 3))`
+
+const trayPadding = `calc(${ref.space['2xs']} * 0.75)`
 
 const hovered = (part: 'x' | 'y' | 'w' | 'h' | 'shown' | 'moving') => `var(--fk-tabs-hover-${part})`
 const chosen = (part: 'x' | 'y' | 'w' | 'h' | 'display') =>
@@ -221,11 +238,13 @@ export const Tabs = Style.recipeFor(TabsSlots)({
         tablist: variant(
           Style.self({
             inlineSize: 'fit-content',
-            padding: ref.space['3xs'],
-            borderRadius: ref.radius.lg,
+            // Between the ladder's inset and the next space step: it reads as an inset, and
+            // the chip keeps a corner in a theme with little radius.
+            padding: trayPadding,
+            borderRadius: ref.radius.xl,
             background: ref.surface.muted,
             // The tabs, the chosen pill and the hover take their corners from these.
-            ...nests(ref.radius.lg, ref.space['3xs']),
+            ...nests(ref.radius.xl, trayPadding),
           }),
         ),
         tab: variant(
@@ -267,8 +286,17 @@ export const Tabs = Style.recipeFor(TabsSlots)({
       tint: {},
     },
     overflow: {
-      // Every tab stays whole: past the row's width the tabs fall to the next row.
-      wrap: { tablist: variant(Style.self({ flexWrap: 'wrap', maxInlineSize: '100%' })) },
+      // Every tab stays whole and the same width: a grid of equal columns that
+      // fill the row, so six tabs are one row, then 3 + 3, then 2 x 3, never 5 + 1.
+      wrap: {
+        tablist: variant(
+          Style.self({
+            display: 'grid',
+            gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, ${tabMin}), 1fr))`,
+            inlineSize: '100%',
+          }),
+        ),
+      },
       // Past the row's width the tabs scroll, as a browser's tab strip; none shrinks or wraps.
       scroll: {
         tablist: variant(

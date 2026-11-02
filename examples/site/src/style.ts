@@ -43,7 +43,7 @@ const ONE_COLUMN = '(max-width: 79.99rem)'
 /** At and above it, the knobs are a column beside the preview. */
 const COLUMNS = '(min-width: 80rem)'
 /** What of the docked drawer shows peeking: its handle and the pane names. */
-const DRAWER_PEEK = '6rem'
+const DRAWER_PEEK = '8rem'
 
 /** Below this width the rail becomes a bar over the page. */
 const NARROW = '(max-width: 56rem)'
@@ -1307,17 +1307,12 @@ export const StudioDrawerStyle = Style.forSlots(DrawerSlots)(
 )
 
 /**
- * `/create`'s pane names, across the whole knobs column and sharing what
- * their words leave; past its width (a phone's drawer) they wrap, none cut off.
+ * `/create`'s pane names, across the whole knobs column in equal segments: the
+ * grid fills the row, so six names are 3 + 3 in the column and a phone's drawer,
+ * one row where the column is wide enough.
  */
 export const StudioTabsStyle = Style.forSlots(TabsSlots)(
-  Recipes.Tabs.extend({
-    base: {
-      tablist: Style.self({ inlineSize: '100%' }),
-      // The least room around each name, so five fit the column; the spare width is shared out.
-      tab: Style.self({ flexGrow: '1', paddingInline: t.space['2xs'] }),
-    },
-  })({ variant: 'pill', size: 'sm', overflow: 'wrap' }),
+  Recipes.Tabs({ variant: 'pill', size: 'sm', overflow: 'wrap' }),
 )
 
 /**

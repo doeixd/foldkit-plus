@@ -330,7 +330,7 @@ draws both views over the same models. `Menu` itself (`Menu.init/update/view`, b
 long body scrolls under answers that stay, and `covered: true` in its context steps back a dialog another
 was opened from (draw the second inside the first's `dialog`). A tab is a flex row: draw its words in
 `label` and an icon in `icon`; `TabsContext.close: { onClose }` makes tabs closable (answer with `Tabs.closing`
-and `FocusTab`); Tabs axes `variant`, `size`, `overflow: 'scroll' | 'wrap'`, and the pill's `selection: 'raised' | 'tint'`. A Segmented option takes an `icon` (or
+and `FocusTab`); Tabs axes `variant`, `size`, `overflow: 'scroll' | 'wrap'` (wrap is equal columns filling the row; `--fk-tab-min` tunes the minimum), and the pill's `selection: 'raised' | 'tint'`. A Segmented option takes an `icon` (or
 `iconOnly`); axes `tray` (`tray`, `plain`, `underline`), `size`, `width: 'fill'`. Listbox, Combobox, Toast and DatePicker, which upstream draws
 with no consumer seam, are adapted over small view forks transcribed from the pinned `@foldkit/ui` source, with
 state staying upstream.

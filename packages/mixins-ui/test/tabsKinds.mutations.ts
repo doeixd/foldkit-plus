@@ -140,8 +140,86 @@ export default [
     tests,
   },
   {
-    name: 'a wrapping row does not wrap',
-    edits: [{ file: recipe, find: "flexWrap: 'wrap', ", replace: '' }],
+    name: 'a wrapping row is not a grid',
+    edits: [
+      {
+        file: recipe,
+        find: "display: 'grid',\n            gridTemplateColumns",
+        replace: 'gridTemplateColumns',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a wrapping row has a fixed three columns',
+    edits: [{ file: recipe, find: 'repeat(auto-fit, ', replace: 'repeat(3, ' }],
+    tests,
+  },
+  {
+    name: 'a wrapping row ignores --fk-tab-min',
+    edits: [
+      { file: recipe, find: 'var(--fk-tab-min, calc(', replace: 'var(--fk-tab-unset, calc(' },
+    ],
+    tests,
+  },
+  {
+    name: 'a wrapping pill tray does not fill its row',
+    edits: [
+      {
+        file: recipe,
+        find: "minmax(min(100%, ${tabMin}), 1fr))`,\n            inlineSize: '100%',",
+        replace: 'minmax(min(100%, ${tabMin}), 1fr))`,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the pill tray has no padding',
+    edits: [{ file: recipe, find: 'padding: trayPadding,', replace: "padding: '0'," }],
+    tests,
+  },
+  {
+    name: 'the pill corner is not concentric with its tray',
+    edits: [
+      {
+        file: recipe,
+        find: '...nests(ref.radius.xl, trayPadding),',
+        replace: "...nests(ref.radius.xl, '0px'),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a raised pill has no contact shadow',
+    edits: [
+      {
+        file: recipe,
+        find: '0 1px 2px 0 color-mix(in oklch, black 14%, transparent), ',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a raised pill has no ring',
+    edits: [
+      {
+        file: recipe,
+        find: '0 0 0 ${ref.border.thin} light-dark(${ref.outline.default}, ${ref.outline.overt})`',
+        replace: '0 0 0 0 transparent`',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a raised pill ring is no stronger in a dark scheme',
+    edits: [
+      {
+        file: recipe,
+        find: 'light-dark(${ref.outline.default}, ${ref.outline.overt})',
+        replace: '${ref.outline.default}',
+      },
+    ],
     tests,
   },
 ]
