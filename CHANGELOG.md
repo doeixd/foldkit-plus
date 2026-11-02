@@ -7,6 +7,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+## 0.37.0
+
 Remote's cache gets a lifecycle, and pages work before and without their
 script. A list ages like a row, the store keeps what Surfaces left within a
 budget, Back and Forward show a list left as it was, `RemotePolicy.cacheOnly`
@@ -42,6 +44,28 @@ failed read or query is `RemoteUnreachable`; `CoalesceOptions` is
 `recentRoots` are gone. Under Added: `EntityWriter.delete` answers a
 `DeleteOutcome`. Under Fixed: `HeldRow.pointing` takes `pinned`, and
 `belongsEncoded` takes `BelongsOptions`.
+
+Versions: every package but `foldkit-metadata` and `foldkit-react-codegen` is
+a new minor. Breaking changes of their own: `foldkit-bundle` 0.10.0,
+`foldkit-cms` 0.10.0, `foldkit-crud` 0.13.0, `foldkit-data-grid` 0.5.0,
+`foldkit-entity` 0.15.0, `foldkit-guard` 0.8.0, `foldkit-mixins` 0.22.0,
+`foldkit-mixins-crud` 0.11.0, `foldkit-mixins-data-grid` 0.4.0, `foldkit-plus`
+0.19.0, `foldkit-primitives` 0.17.0, `foldkit-remote` 0.23.0,
+`foldkit-remote-drizzle` 0.17.0, `foldkit-remote-server` 0.20.0, `foldkit-ssr`
+0.10.0 and `foldkit-sync` 0.14.0. Additions or fixes of their own:
+`foldkit-form` 0.10.0, `foldkit-mirror` 0.8.0, `foldkit-mixins-form` 0.12.0,
+`foldkit-mixins-ui` 0.23.0, `foldkit-site` 0.6.0 and `foldkit-surface` 0.12.0.
+For the new versions they depend on, or changes inside them alone:
+`foldkit-agent` 0.10.0, `foldkit-agent-a2a` 0.8.0, `foldkit-agent-mcp` 0.9.0,
+`foldkit-agent-native` 0.8.0, `foldkit-agent-webmcp` 0.9.0, `foldkit-auth`
+0.3.0, `foldkit-builder` 0.5.0, `foldkit-bundle-surface` 0.6.0,
+`foldkit-cms-drizzle` 0.8.0, `foldkit-composition` 0.5.0, `foldkit-durable`
+0.11.0, `foldkit-form-recipes` 0.3.0, `foldkit-media` 0.5.0,
+`foldkit-mixins-builder` 0.5.0, `foldkit-mixins-richtext` 0.7.0,
+`foldkit-mixins-surface` 0.8.0, `foldkit-react` 0.6.0, `foldkit-richtext`
+0.7.0, `foldkit-richtext-code` 0.4.0, `foldkit-richtext-code-shiki` 0.4.0,
+`foldkit-richtext-dom` 0.8.0 and `foldkit-richtext-markdown` 0.5.0.
+`foldkit-metadata` 0.1.0 and `foldkit-react-codegen` 0.3.0 are unchanged.
 
 ### Added
 
