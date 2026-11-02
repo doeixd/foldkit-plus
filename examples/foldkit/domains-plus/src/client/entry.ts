@@ -7,9 +7,6 @@ import { FOLDKIT_APP_ATTRIBUTE, SSR } from 'foldkit-ssr/client'
 import { MAX_BODY_BYTES, MAX_IDS_PER_READ } from '../shared/entity'
 import { Message, Model, init, plan, routing, subscriptions, update } from './app.js'
 import { view } from './view.js'
-// DevTools, kept in the build as upstream ships them; its SSR build skips the
-// plugin's own injection, so the overlay is imported here.
-import 'virtual:foldkit-devtools-overlay'
 
 // The theme and the served classes come in the page's root
 // (`server/entry.ts`), which `SSR.hydrate` moves into the head; classes drawn
@@ -17,6 +14,11 @@ import 'virtual:foldkit-devtools-overlay'
 const container = document.querySelector<HTMLElement>(`[${FOLDKIT_APP_ATTRIBUTE}]`)
 if (container === null)
   throw new Error('the page was not rendered by the server: start it with `pnpm dev`')
+
+// DevTools load in development only. `import.meta.env.DEV` is false in
+// `vite build`, so Vite drops the overlay import and the `devTools` option, and
+// the production bundle carries neither.
+if (import.meta.env.DEV) await import('virtual:foldkit-devtools-overlay')
 
 SSR.hydrate(
   {
@@ -32,13 +34,17 @@ SSR.hydrate(
       maxIdsPerEntity: MAX_IDS_PER_READ,
       maxBodyBytes: MAX_BODY_BYTES,
     }),
-    devTools: {
-      Message,
-      show: 'Always',
-      mode: 'Inspect',
-      banner:
-        'Built with Foldkit and Foldkit Plus. Select a Message to inspect its Model, Commands, and Mounts while the app stays live.',
-    },
+    ...(import.meta.env.DEV
+      ? {
+          devTools: {
+            Message,
+            show: 'Always' as const,
+            mode: 'Inspect' as const,
+            banner:
+              'Built with Foldkit and Foldkit Plus. Select a Message to inspect its Model, Commands, and Mounts while the app stays live.',
+          },
+        }
+      : {}),
   },
   plan,
   { buildId: import.meta.env.FOLDKIT_BUILD_ID },

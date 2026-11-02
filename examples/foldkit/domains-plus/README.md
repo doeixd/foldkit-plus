@@ -42,7 +42,7 @@ settledLabel + WindowList window + filters ─▶ TopResults · VisibleResults �
 | 3 | All Results: every name in rows of six, drawn by `foldkit-mixins-ui`'s `WindowList` in the page's scroll; the rows in view (and two past each end) read their prices; the count of names checked |
 | 4 | Filters and sort: availability and sort as `Picker`s (a dropdown on a desktop, a sheet on a phone), the TLD as a dropdown with typeahead or a searchable sheet; the Available filter and the price sorts read the whole catalog |
 | 5 | The cart: add and remove, the count said in a live region, the cart as a sheet at the right edge with the total; focus moves to the close button on a removal and back to the Cart button on close |
-| 6 | Typing before the bundle runs is kept (`rh.KeepTyped()`), DevTools ship in the build, and the built Worker runs under `pnpm preview` |
+| 6 | Typing before the bundle runs is kept (`rh.KeepTyped()`), DevTools load in development only (`pnpm dev`), and the built Worker runs under `pnpm preview` |
 | 7 | Upstream's dark dropdowns and sheets, the results list as a described tab stop, the page back at its top when the search empties, and the parity checks below; from them, upstream's one "Filters and sort" sheet on a phone (the `Picker`s gave way to dropdowns and that sheet), focus back on a sheet's button once it has closed, the cart open at once at upstream's width, and rows not yet drawn sized as those measured |
 | 8 | The page with JavaScript off ([#388](https://github.com/doeixd/foldkit-plus/issues/388)): every price shown is in the HTML, search and filters are a GET of the address, the list pages by `?from=` links, and the cart is a form the server answers by running `update`; see [below](#without-javascript) |
 
@@ -256,8 +256,9 @@ About 260 KB of that (roughly 40 KB gzipped) is code a page that only reads
 never runs: Remote's writes, outbox, live and explain modules and Entity's
 expressions and writes, kept because the page imports the `Remote` and
 `Entity` namespace objects ([#378](https://github.com/doeixd/foldkit-plus/issues/378)).
-The DevTools (about 95 KB) ship in both, as upstream ships them. Each page
-also carries the theme's stylesheet in its head (about 92 KB before
+The DevTools overlay (about 95 KB) ships only in upstream's build: the port
+loads it in development only ([#422](https://github.com/doeixd/foldkit-plus/issues/422)).
+Each page also carries the theme's stylesheet in its head (about 92 KB before
 compression), where upstream links its CSS file.
 
 **Invariants** (upstream's `docs/testing.md`), and the port's test for each:
