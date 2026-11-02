@@ -8,7 +8,7 @@ import { Option } from 'effect'
 import type { ExprContext, MemoryOperators } from 'foldkit-entity'
 import type { Install, LayerCapability, Lists } from './capability.js'
 import { items, type Connection, type Edge } from './connection.js'
-import { changesOf } from './impact.js'
+import { changesOf, readsThrough, rejudged } from './impact.js'
 import { memoRead } from './memo.js'
 import {
   beginOptimistic,
@@ -105,16 +105,28 @@ const pendingPlaced = (
   const { layers } = optimistic
   if (layers.length === 0) return pages
   const operators = tableOf(lists.operators)
-  return memoRead([pages, layers, entities], `placed:${identity}`, () =>
-    placedHeld(
-      lists,
-      identity,
-      pages,
-      changesOf({ entities: resolvedPatches(entities, optimistic, operators) }, entities),
-      visibleStoreOf(entities, optimistic, operators),
-      layersContext(layers),
-    ),
-  )
+  return memoRead([pages, layers, entities], `placed:${identity}`, () => {
+    const changes = changesOf(
+      {
+        entities: resolvedPatches(entities, optimistic, operators),
+        deleted: layers.flatMap(layer => layer.deletes),
+      },
+      entities,
+    )
+    const store = visibleStoreOf(entities, optimistic, operators)
+    const context = layersContext(layers)
+    const placed = placedHeld(lists, identity, pages, changes, store, context)
+    // A layer writing what the body reads through other rows may move any row of the list.
+    return Option.match(lists.queryOf(identity), {
+      onNone: () => placed,
+      onSome: query => {
+        const body = query.descriptor.body
+        if (body === undefined || !changes.some(change => readsThrough(body, change))) return placed
+        const holds = new Set(items(placed).map(edge => edge.key))
+        return rejudged({ ...query, connection: placed, holds }, store, operators, context)
+      },
+    })
+  })
 }
 
 const insertsPlaced = (

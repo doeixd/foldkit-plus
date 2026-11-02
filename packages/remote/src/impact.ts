@@ -23,7 +23,7 @@ import {
   type OneRelation,
   type OrderTerm,
 } from 'foldkit-entity'
-import { edge, hasNext, hasPrevious, isGapped, type Connection } from './connection.js'
+import { edge, hasNext, hasPrevious, isGapped, items, type Connection } from './connection.js'
 import { RowPlace, placeIn, withEdge, withoutEdge } from './placement.js'
 import { Data, Match, Option } from 'effect'
 import { belongsEncoded } from './matching.js'
@@ -114,6 +114,61 @@ const reachedOf = (body: AnyQuery): Reached => {
   return reached
 }
 
+/**
+ * Whether `change` writes what `body` reads through another row: a row a path
+ * reaches, or one an exists counts, made, deleted or changed in what is read
+ * of it. Any row of the list may have moved.
+ */
+export const readsThrough = (body: AnyQuery, change: EntityChange): boolean => {
+  const read = reachedOf(body).others.get(change.entity)
+  return (
+    read !== undefined &&
+    EntityChange.match(change, {
+      Deleted: () => true,
+      Changed: ({ fields }) => fields.some(field => read.has(field)),
+    })
+  )
+}
+
+/**
+ * `connection`'s pages judged again by its body over `store`, after a change
+ * `readsThrough` names: a row it shows that the body no longer admits leaves,
+ * and a row the store holds that it now admits joins where the order puts
+ * it. A row the store cannot judge, or a joining row it cannot place, is left
+ * as it was, and none joins a list its server filters by a rule the client
+ * does not run. Never complete: a row the store lacks may have joined too.
+ */
+export const rejudged = (
+  connection: HeldConnection,
+  store: EntityStore,
+  operators: MemoryOperators,
+  context?: ExprContext | undefined,
+): Connection => {
+  const { descriptor, encoded, holds } = connection
+  const body = descriptor.body
+  let pages = connection.connection
+  if (body === undefined) return pages
+  const belongs = (key: EntityKey) =>
+    belongsEncoded(store, descriptor, encoded, key, operators, context)
+  for (const held of items(pages))
+    if (belongs(entityKey(held.ref.entity, held.ref.id)) === 'no')
+      pages = withoutEdge(pages, held.key)
+  if (connection.filtered.length > 0) return pages
+  const entity = body.entity.name
+  const prefix = `${entity}:`
+  for (const key of Object.keys(store)) {
+    if (!key.startsWith(prefix) || holds.has(key) || belongs(key) !== 'yes') continue
+    const joined = edge({ entity, id: key.slice(prefix.length) })
+    RowPlace.$match(placeIn(store, pages, body, encoded, key, operators), {
+      Before: place => void (pages = withEdge(pages, joined, place)),
+      End: place => void (pages = withEdge(pages, joined, place)),
+      Outside: () => undefined,
+      Unknown: () => undefined,
+    })
+  }
+  return pages
+}
+
 /** Whether two versions of a list hold the same rows in the same order, segment by segment. */
 const sameOrder = (left: Connection, right: Connection): boolean =>
   left.segments.length === right.segments.length &&
@@ -141,15 +196,7 @@ export const impactOn = (
   const body = descriptor.body
   const over = body?.entity.name ?? (descriptor.Result as Partial<ConnectionSpec>).entity
   const reached = body === undefined ? undefined : reachedOf(body)
-  // A row another reads through a path or an exists: any row of the list may have moved.
-  const read = reached?.others.get(change.entity)
-  if (
-    read !== undefined &&
-    EntityChange.match(change, {
-      Deleted: () => true,
-      Changed: ({ fields }) => fields.some(field => read.has(field)),
-    })
-  ) {
+  if (body !== undefined && readsThrough(body, change)) {
     return Impact.Invalidated({
       reason: `${entityKey(change.entity, change.id)} changed what "${descriptor.name}" reads through another row`,
     })

@@ -110,6 +110,20 @@ const Adas = Query.define('Adas', {}, () =>
   ),
 )
 
+/**
+ * The cards a person voted for: an exists over the votes pointing at each
+ * (#344). A vote the client holds puts its card in; one it takes back leaves
+ * the card to the server, since the store may not hold every other vote.
+ */
+const VotedBy = Query.define('VotedBy', { voterId: Schema.String }, ({ input }) =>
+  Query.from(Card).pipe(
+    Query.where(
+      Expr.exists(Board.Vote.relations.card, Expr.eq(Board.Vote.relations.voter, input.voterId)),
+    ),
+    Query.orderBy(Order.asc(Card.fields.rank), Order.asc(Card.fields.id, binary)),
+  ),
+)
+
 const CardInput = Schema.Struct({ id: Schema.String, title: Schema.String, rank: Schema.Int })
 const AddCard = Mutation.write(
   'AddCard',
@@ -169,7 +183,7 @@ const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote
 const Data = Remote.make({
   model: App.model.remote,
   entities: [Team, User, Card, Vote],
-  queries: [ByRank, ByTitle, Mine, Adas],
+  queries: [ByRank, ByTitle, Mine, Adas, VotedBy],
   mutations,
   viewer: model => Option.some(Remote.ref(UserFields, model.me)),
 })
@@ -283,6 +297,7 @@ const serverOf = ({ Db, ledger }: Bound) =>
       query(ByTitle, { entity: Db.Card }),
       query(Mine, { entity: Db.Card }),
       query(Adas, { entity: Db.Card }),
+      query(VotedBy, { entity: Db.Card }),
     ],
     mutations: [
       RemoteServer.write(AddCard, writer(Db.Card)),
@@ -350,8 +365,14 @@ const everything = [
   { entity: Card, ids: ['c1', 'c2', 'c3'] },
   { entity: Vote, ids: ['v1', 'v2'] },
 ]
-const lists = [ByRank.ref({}), ByTitle.ref({}), Mine.ref({}), Adas.ref({})]
-const [byRank, byTitle, mine, adas] = lists.map(ref => ref.identity)
+const lists = [
+  ByRank.ref({}),
+  ByTitle.ref({}),
+  Mine.ref({}),
+  Adas.ref({}),
+  VotedBy.ref({ voterId: 'u1' }),
+]
+const [byRank, byTitle, mine, adas, votedBy] = lists.map(ref => ref.identity)
 
 interface LawCase {
   readonly what: string
@@ -359,6 +380,8 @@ interface LawCase {
   readonly input: unknown
   /** Parts the client must have predicted and the server agreed with: proof each was compared. */
   readonly compares: ReadonlyArray<string>
+  /** Parts the client must have left to the server. */
+  readonly unknown?: ReadonlyArray<string>
 }
 
 const cases: ReadonlyArray<LawCase> = [
@@ -403,7 +426,7 @@ const cases: ReadonlyArray<LawCase> = [
     what: 'a vote: its voter, the card counting it, and found by its voter',
     mutation: CastVote,
     input: { id: 'v9', cardId: 'c2' },
-    compares: ['Vote:v9.card', 'Vote:v9.voter', 'Card:c2.voteCount', 'Card:c2.voted'],
+    compares: ['Vote:v9.card', 'Vote:v9.voter', 'Card:c2.voteCount', 'Card:c2.voted', votedBy!],
   },
   {
     what: 'a vote moved: one count down, the other up, found where it went',
@@ -422,6 +445,7 @@ const cases: ReadonlyArray<LawCase> = [
     mutation: Unvote,
     input: { id: 'v2' },
     compares: ['Vote:v2', 'Card:c1.voteCount', 'Card:c1.voted'],
+    unknown: [votedBy!],
   },
   {
     what: 'an edit the client refuses itself, as the server refuses it',
@@ -495,6 +519,7 @@ const suite = (Db: Bound, fresh: () => Promise<Fresh>) =>
       const report = await checked(Db, layer, c)
       expect(report.disagreed).toEqual([])
       expect(report.agreed).toEqual(expect.arrayContaining([...c.compares]))
+      expect(report.unknown).toEqual(expect.arrayContaining([...(c.unknown ?? [])]))
     } finally {
       await close()
     }

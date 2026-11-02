@@ -684,6 +684,24 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A list over an exists is judged again when a pending write moves what it
+  counts** (`foldkit-remote`, `foldkit-entity`, #344). A feed of an
+  account's own posts and those of everyone it follows
+  (`Expr.path(Post.relations.author, Expr.exists(Follow.relations.followee,
+  …))`) stayed as the server listed it while a follow was pending: a write to
+  what a body reads through other rows (a row a path reaches, or one an
+  exists counts, made, deleted or changed) only invalidated the list once
+  answered. The list is now judged again over the store and the pending
+  layers: a row the body no longer admits leaves, and one the store holds
+  that it now admits joins where the order puts it, while the write is
+  pending and once it is answered, when the list is also fetched (or written
+  from the page the answer carries). An exists over the store is true where a
+  row the store holds points here and passes the filter (`HeldRow.pointing`
+  returned no rows before), and unknown otherwise, so an unfollow leaves the
+  posts it may remove to that page. `Held.isLink(identity, key)` reads a
+  link of a row known only by its Entity's identity. `Law.check` leaves to
+  the server a list showing a row the client cannot judge.
+
 - **A create's form, started again blank, keeps the focus its button had**
   (`foldkit-mixins-form`, `foldkit-crud`, #408). A blank form cannot submit,
   so after a create landed its button was `disabled`, and a keyboard's focus

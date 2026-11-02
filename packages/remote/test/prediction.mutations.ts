@@ -35,8 +35,8 @@ export default [
   edit(
     'a list places the amount, not the sum',
     '../src/layers.ts',
-    '{ entities: resolvedPatches(entities, optimistic, operators) },',
-    '{ entities: layers.flatMap(layer => layer.patches) },',
+    'entities: resolvedPatches(entities, optimistic, operators),',
+    'entities: layers.flatMap(layer => layer.patches),',
   ),
   {
     name: 'a field an earlier layer could not work out is read as the store holds it',

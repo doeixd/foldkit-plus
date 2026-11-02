@@ -21,7 +21,7 @@ export default [
     edits: [
       {
         file: '../../../packages/remote/src/bodies.ts',
-        find: 'else if (pages !== original) placed[identity] = pages',
+        find: 'if (pages !== original) placed[identity] = pages',
         replace: '',
       },
     ],

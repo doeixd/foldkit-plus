@@ -12,7 +12,7 @@ const edit = (name: string, find: string, replace: string) => ({
 export default [
   edit(
     'a change to a row another reads is never looked at',
-    'const read = reached?.others.get(change.entity)',
+    'const read = reachedOf(body).others.get(change.entity)',
     'const read: ReadonlySet<string> | undefined = undefined',
   ),
   edit('a reached row deleted keeps the list', 'Deleted: () => true,', 'Deleted: () => false,'),

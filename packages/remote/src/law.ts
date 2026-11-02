@@ -244,7 +244,11 @@ const check = <AppModel>(
       const descriptor = Data.definition.registry.queries.get(ref.query)
       const encoded = Schema.encodeSync(ref.Input)(ref.input) as Readonly<Record<string, unknown>>
       // A row the client could not judge is left where it was, or out: the server places it.
-      const judged = [...predicted.keys()].every(
+      // So is one the list shows whose verdict an exists the store cannot complete decides.
+      const shownKeys = Data.visibleItems(remote, ref.identity).map(edge =>
+        entityKey(edge.ref.entity, edge.ref.id),
+      )
+      const judged = [...predicted.keys(), ...shownKeys].every(
         key =>
           descriptor === undefined ||
           belongsEncoded(shown, descriptor, encoded, key, tableOf(Data.operators), {

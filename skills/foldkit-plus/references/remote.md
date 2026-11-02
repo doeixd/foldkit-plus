@@ -626,8 +626,11 @@ brings a row into a list or fetches. A row an insert overlay or a live
 `ConnectionInsert` shows is drawn where the body's order puts it, in a list
 the client can place; `Data.visibleItems(remote, connection)` gives the edges
 as reads draw them. A body that reads through a path (or a path from the viewer) is
-judged over every row the path reaches, and judged again when one of those changes;
-a row whose path reaches what the store lacks cannot be told. A `Query.make` list (no body) is
+judged over every row the path reaches, and judged again when one of those changes,
+by a pending write as well (a follow brings the followed account's held posts into a
+feed over `Expr.exists`), and fetched once answered unless the answer carries its page;
+a row whose path reaches what the store lacks cannot be told, and an exists is true only
+where a held row points here and passes its filter, so an unfollow waits for that page. A `Query.make` list (no body) is
 invalidated by any change to its Entity, and a list whose body declares no
 order (the server's `orderBy` decides it) by any change to a row it holds. `Data.refresh` remains for effects the answer does not name.
 

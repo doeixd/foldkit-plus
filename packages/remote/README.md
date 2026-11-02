@@ -1635,9 +1635,17 @@ the store the answer left:
 - a list over a `Query.make` query, which declares no body, is invalidated by
   any change to its Entity;
 - a list whose body reads other rows (a path, an exists, a path from the
-  viewer) is invalidated by a change to any member those read, or a deletion
-  of such a row: a team renamed moves every member listed by its name. A
-  change to the link a path starts from re-judges that row alone;
+  viewer) is judged again over the store, and fetched, by a change to any
+  member those read, or a row of theirs made or deleted: a team renamed moves
+  every member listed by its name, and a follow brings the followed
+  account's posts into a feed over `Expr.exists`. A row the body no longer
+  admits leaves, and a row the store holds that it now admits joins where the
+  order puts it, so the list shows that until its page arrives (in the answer
+  itself, when the write sent for it). An exists is true over the store
+  where a row the store holds points here and passes its filter, and is not
+  known otherwise, since the store may not hold every such row: an unfollow
+  leaves the posts it may have removed to that page. A change to the link a
+  path starts from re-judges that row alone;
 - a row a list does not hold that changes a member the server's own read rule
   filters on (an owner, a team: declared on the Entity as `ReadFilter`, which
   `foldkit-guard` attaches) invalidates it: whether the row now belongs is the
@@ -1705,7 +1713,11 @@ stops matching; the server's pages are untouched, and lifting the edit puts
 the row back. A read or a live `EntityPatched` that brings a new value for a
 row a list holds moves it in the list's pages, as an answer does. Neither
 brings a row into a list, since what the list selects of it may not be
-loaded, and neither fetches: a list it cannot place stands as it is.
+loaded, and neither fetches: a list it cannot place stands as it is. The
+exception is a pending write to what a body reads through other rows (a
+follow under a feed of the accounts one follows): the list is judged again
+over the store and the layers, and shows the rows the store holds that the
+body now admits, and none it no longer does, until the write settles.
 
 **An inserted row is drawn in order.** A `ConnectionChange.prepend` or
 `append` (a pending create's, a confirmed one's) and a live

@@ -10,7 +10,15 @@ import { Query as Relational } from 'foldkit-entity'
 import type { BodyCapability, Install } from './capability.js'
 import { edgesOf, visibleOf } from './capability.js'
 import type { Connection } from './connection.js'
-import { Impact, changesOf, impactOn, type HeldConnection } from './impact.js'
+import {
+  EntityChange,
+  Impact,
+  changesOf,
+  impactOn,
+  readsThrough,
+  rejudged,
+  type HeldConnection,
+} from './impact.js'
 import { placedHeld } from './placing.js'
 import { entityKey } from './store.js'
 import { tableOf } from './table.js'
@@ -53,7 +61,9 @@ const news: BodyCapability['news'] = (lists, remote, patches, before, context) =
 /**
  * The loaded connections as a write left them: each judged by its body
  * against the store as the write left it, a change it can place placed in its
- * pages, and one it cannot invalidated for its read entry to fetch.
+ * pages, and one it cannot invalidated for its read entry to fetch. A change
+ * to what a body reads through other rows is judged again over the store
+ * (`rejudged`) and fetched too, since a row the store lacks may have joined.
  */
 const answer: BodyCapability['answer'] = (
   capabilities,
@@ -95,9 +105,12 @@ const answer: BodyCapability['answer'] = (
         entityKey(edge.ref.entity, edge.ref.id),
       ),
     )
+    const body = query.value.descriptor.body
+    const through = (change: EntityChange) => body !== undefined && readsThrough(body, change)
     let pages = original
     let invalid = false
     for (const change of judged) {
+      if (through(change)) continue
       const held: HeldConnection = { ...query.value, connection: pages, holds }
       const after = Impact.$match(impactOn(held, visible, change, operators, context), {
         Kept: () => Option.some(pages),
@@ -110,8 +123,15 @@ const answer: BodyCapability['answer'] = (
       }
       pages = after.value
     }
-    if (invalid) invalidated.push(identity)
-    else if (pages !== original) placed[identity] = pages
+    if (invalid) {
+      invalidated.push(identity)
+      continue
+    }
+    if (judged.some(through)) {
+      pages = rejudged({ ...query.value, connection: pages, holds }, visible, operators, context)
+      invalidated.push(identity)
+    }
+    if (pages !== original) placed[identity] = pages
   }
   return { placed, invalidated }
 }

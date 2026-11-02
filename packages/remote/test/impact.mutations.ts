@@ -12,8 +12,8 @@ export default [
     edits: [
       {
         file: '../src/bodies.ts',
-        find: 'if (invalid) invalidated.push(identity)',
-        replace: 'if (false) invalidated.push(identity)',
+        find: 'if (invalid) {',
+        replace: 'if (false) {',
       },
     ],
     tests,
@@ -23,7 +23,7 @@ export default [
     edits: [
       {
         file: '../src/bodies.ts',
-        find: 'else if (pages !== original) placed[identity] = pages',
+        find: 'if (pages !== original) placed[identity] = pages',
         replace: '',
       },
     ],
