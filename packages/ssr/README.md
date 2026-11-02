@@ -948,8 +948,12 @@ origins a form may be posted from; a post whose `Origin` (every browser sends
 one on a `POST`) is not among them is answered `403` before its body is read
 or `flags` and `resources` run. `origins: 'same-origin'` takes a post from
 the origin the request was addressed to and no other, for a site whose
-address the entry cannot know when it is made (a dev server's port); behind a
-proxy that rewrites the request's host it refuses every post. A page served with `Referrer-Policy:
+address the entry cannot know when it is made (a dev server's port). It
+compares with the request's own URL, so **behind a proxy that terminates TLS
+or rewrites the host** (nginx, Fly, Render), where the server sees
+`http://host` and the browser sends `Origin: https://host`, every post is
+refused `403`. There, pass the public origin, `origins:
+['https://example.com']`, never `'same-origin'`. A page served with `Referrer-Policy:
 no-referrer` posts `Origin: null` even to its own site; such a post, or one
 with no `Origin` at all, is taken when its Fetch Metadata `Sec-Fetch-Site`,
 which no page or form can set, says `same-origin`, and refused without it. A plan with a server fallback requires `origins`, since a post

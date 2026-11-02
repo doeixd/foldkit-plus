@@ -218,7 +218,11 @@ export interface CookieAttributes {
   readonly domain?: string | undefined
   /** Default `Lax`: sent on a navigation and a same-site post, never a cross-site post. */
   readonly sameSite?: 'Strict' | 'Lax' | 'None' | undefined
-  /** Default `auto`: `Secure` on an https page, or for an https request on the server. */
+  /**
+   * Default `auto`: `Secure` on an https page, or for an https request on the
+   * server. Behind a proxy that terminates TLS the server's request is http,
+   * so a cookie it sets has no `Secure`: set `true` in production there.
+   */
   readonly secure?: boolean | 'auto' | undefined
   /** How long the browser keeps it; default 365 days. */
   readonly maxAge?: Duration.Input | undefined

@@ -471,7 +471,10 @@ the names from `keysOf` and prices them. The browser writes the cookie, so it is
 The attributes default to `Path=/`, `SameSite=Lax`, a `Max-Age` of 365 days,
 and `Secure` on an https page or for an https request; `attributes` changes
 any of them, and a name, path or domain a header could not carry is refused
-when the mirror is declared:
+when the mirror is declared. **Behind a proxy that terminates TLS** (nginx,
+Fly, Render) the server sees an http request, so `secure: 'auto'` leaves
+`Secure` off every cookie the server sets: set `secure: true` in production
+there, as here:
 
 ```ts
 const Theme = Mirror.cookie(App, {

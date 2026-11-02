@@ -231,6 +231,8 @@ describe('SSR.handle through handleRequest', () => {
     ['its own origin', 'https://example.test/todos', 'https://example.test', 200],
     ['another origin', 'https://example.test/todos', 'https://elsewhere.test', 403],
     ['an origin it was not addressed to', 'https://other.test/todos', 'https://example.test', 403],
+    // Behind a proxy that terminates TLS the server sees http: fails closed, as documented.
+    ['its https self, seen as http', 'http://example.test/todos', 'https://example.test', 403],
   ] as const)(
     "takes a form under origins: 'same-origin' only from %s",
     async (_, url, origin, status) => {

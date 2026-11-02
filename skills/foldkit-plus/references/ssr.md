@@ -309,7 +309,10 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   from `foldkit-auth`). A plan with a server fallback requires `origins`: a
   post whose `Origin` is not among them is `403`, since a form cannot carry a
   CSRF header. `origins: 'same-origin'` takes only the origin the request
-  was addressed to (a dev server's unknown port). `answerPost: 'redirect'`
+  was addressed to (a dev server's unknown port); behind a proxy that
+  terminates TLS or rewrites the host it refuses every post (`http://` URL,
+  `https://` Origin), so pass the public origin there
+  (`origins: ['https://example.com']`). `answerPost: 'redirect'`
   answers a handled post `303` to its own path and query (relative, never
   another origin) instead of the page, so a reload does not post again;
   what the post changed reaches the next `GET` only through what `headers`

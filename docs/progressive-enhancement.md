@@ -169,7 +169,13 @@ export const { renderPage } = SSR.entry({ Model, init, update, view, container: 
 
 `origins: 'same-origin'` takes a form posted from the origin the request was
 addressed to, for a site whose address is not known when the entry is made (a
-dev server's port). A `prepare` that fails is answered `500`; domains-plus
+dev server's port). Behind a proxy that terminates TLS or rewrites the host,
+the server sees `http://host` while the browser sends `Origin:
+https://host`, and every post is refused `403`: deploy there with the public
+origin, `origins: ['https://example.com']`. The same proxy makes the cart
+cookie's `secure: 'auto'` leave out `Secure`, since the request looks like
+http; set `Mirror.cookie({ …, attributes: { secure: true } })` in production
+behind it. A `prepare` that fails is answered `500`; domains-plus
 catches a failed read inside it and draws the page unread, which the browser
 then reads.
 

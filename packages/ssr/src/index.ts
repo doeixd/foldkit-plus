@@ -1178,8 +1178,10 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
      * a browser sends it (`https://example.com`). `'same-origin'` takes a
      * post from the origin the request was addressed to and no other, for a
      * site served at addresses not known when the entry is made (a dev
-     * server's port); behind a proxy that rewrites the request's host, every
-     * post is refused.
+     * server's port). It compares with the request's own URL, so behind a
+     * proxy that terminates TLS (the server sees `http://`, the browser
+     * sends `Origin: https://`) or rewrites the host, every post is refused
+     * 403: there, name the public origin (`['https://example.com']`).
      */
     readonly origins?: ReadonlyArray<string> | 'same-origin' | undefined
     /**

@@ -238,7 +238,9 @@ const wiring = Page.assemble(Cart.wiring())
 - A cookie is the visitor's to edit: decoding checks its shape, and what the
   app trusts (a price) it checks again on the server.
 - Defaults: `Path=/`, `SameSite=Lax`, `Max-Age` 365 days, `Secure` on https
-  (`secure: 'auto'`). A name, path or domain a header cannot carry, or
+  (`secure: 'auto'`); behind a TLS-terminating proxy the server's request is
+  http and `auto` drops `Secure`, so set `attributes: { secure: true }` in
+  production there. A name, path or domain a header cannot carry, or
   `SameSite=None` without `secure: true`, throws at declaration. Never
   `HttpOnly`: the browser writes it.
 - `setCookie` is `None`, and a browser write is skipped and reported as
