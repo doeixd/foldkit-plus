@@ -267,6 +267,7 @@ const cookieSpec = (
   const maxAge = Math.floor(
     Duration.toSeconds(Duration.fromInputUnsafe(attributes.maxAge ?? '365 days')),
   )
+  if (!Number.isFinite(maxAge)) refuse('maxAge is a finite duration')
   if (!(maxAge > 0)) refuse('maxAge is longer than a second')
   if (!(maxBytes > 0)) refuse('maxBytes is a positive number')
   return {

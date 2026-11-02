@@ -95,5 +95,6 @@ export default [
   ),
   refusal('SameSite=None without Secure', "if (sameSite === 'None' && secure !== true)"),
   refusal('a Max-Age under a second', 'if (!(maxAge > 0))'),
+  refusal('a Max-Age with no finite end', 'if (!Number.isFinite(maxAge))'),
   refusal('no maxBytes', 'if (!(maxBytes > 0))'),
 ]

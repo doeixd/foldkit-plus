@@ -144,6 +144,7 @@ describe('Mirror.cookie', () => {
     ['a domain holding a space', { name: 'p', attributes: { domain: 'a .test' } }],
     ['SameSite=None without Secure', { name: 'p', attributes: { sameSite: 'None' as const } }],
     ['a Max-Age under a second', { name: 'p', attributes: { maxAge: 0 } }],
+    ['a Max-Age with no finite end', { name: 'p', attributes: { maxAge: 'Infinity' as const } }],
     ['no maxBytes', { name: 'p', maxBytes: 0 }],
   ])('refuses %s when it is declared', (_, config) => {
     expect(() => Mirror.cookie(App, { ...config, fields: [App.model.theme], initial })).toThrow(
