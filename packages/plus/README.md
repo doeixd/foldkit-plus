@@ -189,8 +189,8 @@ These check the drawn page over the real network. `optimistic` holds every
 Remote mutation at the network, for `hold` and until it has looked for
 `shows`, and requires `shows` within `within` of the action beginning, so what
 it sees was drawn before any answer however long the action takes (an action
-must end within `hold`: one waiting for its own write's answer would wait for
-good). From then until the write settles, each element `shows` resolves to
+still running after 10 seconds, or `hold` if longer, is refused: one waiting
+for its own write's answer would wait for good). From then until the write settles, each element `shows` resolves to
 must stay the same node, in the same place in its parent, within 1px of where
 it was drawn, and visible. A prediction that is drawn again, pushed down by a
 line said only while the write is pending, or hidden for a frame fails with

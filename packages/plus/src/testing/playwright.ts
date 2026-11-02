@@ -31,6 +31,13 @@ const isRemoteMutation = (request: Request): boolean =>
 const millis = (input: Duration.Input) => Duration.toMillis(Duration.fromInputUnsafe(input))
 
 /**
+ * How long `act` may take at least before it is taken to wait for its own
+ * write's answer. Only that case needs a limit, so it is far longer than a
+ * click takes on a loaded runner, whatever `hold` is.
+ */
+const ACT_LIMIT = 10_000
+
+/**
  * Resolves once three frames in a row pass with no change to the document,
  * or after two seconds of changes: a Message an answer caused has been drawn.
  */
@@ -89,8 +96,8 @@ export interface OptimisticOptions {
   readonly writes?: 'http' | PageWrites
   /**
    * How long each Remote mutation is held at the network at least: it is held
-   * on until `act` has ended and `shows` has been looked for. `act` must end
-   * within it. `'3 seconds'` unless given.
+   * on until `act` has ended and `shows` has been looked for. `'3 seconds'`
+   * unless given.
    */
   readonly hold?: Duration.Input
   /** How soon after `act` begins `shows` must show, while every write is held. `'1 second'` unless given. */
@@ -227,8 +234,8 @@ const stopIfWatching = ({ key }: StillWatch) => {
  * quiet for three frames. An error the page logs meanwhile fails it too: a
  * `PredictionMismatch` is logged as one. Throws otherwise, when `act` sent
  * no Remote mutation over HTTP, since nothing was then held, and when `act`
- * has not ended `hold` after it began: one that waits for its own write's
- * answer would wait for good.
+ * has not ended 10 seconds (or `hold`, if longer) after it began: one that
+ * waits for its own write's answer would wait for good.
  */
 const optimistic = async (page: Page, options: OptimisticOptions): Promise<void> => {
   const writes = options.writes ?? 'http'
@@ -295,7 +302,7 @@ const optimistic = async (page: Page, options: OptimisticOptions): Promise<void>
     const deadline =
       writes === 'http'
         ? new Promise<false>(resolve => {
-            overdue = setTimeout(resolve, hold, false)
+            overdue = setTimeout(resolve, Math.max(hold, ACT_LIMIT), false)
           })
         : new Promise<never>(() => {})
     const ended = await Promise.race([acted.then(() => true), deadline])
@@ -303,7 +310,7 @@ const optimistic = async (page: Page, options: OptimisticOptions): Promise<void>
       release()
       await acted
       throw new Error(
-        `optimistic: the action did not end within hold (${hold} ms), and every write is held until it does`,
+        `optimistic: the action did not end within ${Math.max(hold, ACT_LIMIT)} ms, and every write is held until it does: does it wait for its own write's answer?`,
       )
     }
     const missed = await shown

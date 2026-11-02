@@ -237,9 +237,12 @@ describe('optimistic', () => {
 
   const pause = (millis: number) => new Promise(resume => setTimeout(resume, millis))
 
-  it('passes a write shown at once by an action slower than within', async () => {
+  it.each([
+    ['within', 800],
+    ['the hold', 2000],
+  ])('passes a write shown at once by an action slower than %s', async (_, millis) => {
     await open('?write=optimistic')
-    const slow = () => add().then(() => pause(800))
+    const slow = () => add().then(() => pause(millis))
     await Behaviors.optimistic(page, { act: slow, shows: row(), ...timing })
     await page.close()
   })
@@ -248,8 +251,7 @@ describe('optimistic', () => {
   // `within`, so a row its answer drew passed.
   it.each([
     ['slower than within', () => add().then(() => pause(800)), /did not show within 500 ms/],
-    ['slower than the hold', () => add().then(() => pause(2000)), /did not end within hold/],
-    ['that waits for the row', () => add().then(() => row().waitFor()), /did not end within hold/],
+    ['slower than the hold', () => add().then(() => pause(2000)), /did not show within 500 ms/],
   ])('refuses a write drawn only on its answer by an action %s', async (_, act, message) => {
     await open('?write=pessimistic')
     await expect(Behaviors.optimistic(page, { act, shows: row(), ...timing })).rejects.toThrow(
@@ -257,6 +259,15 @@ describe('optimistic', () => {
     )
     await page.close()
   })
+
+  it('refuses an action that waits for its own write’s answer', async () => {
+    await open('?write=pessimistic')
+    const waits = () => add().then(() => row().waitFor({ timeout: 30_000 }))
+    await expect(
+      Behaviors.optimistic(page, { act: waits, shows: row(), ...timing }),
+    ).rejects.toThrow(/did not end within 10000 ms[^]*wait for its own write/)
+    await page.close()
+  }, 30_000)
 })
 
 describe('neverShows', () => {

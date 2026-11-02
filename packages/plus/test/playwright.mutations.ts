@@ -27,7 +27,12 @@ export default [
     'new Promise(resume => setTimeout(resume, hold)), looked',
     'new Promise(resume => setTimeout(resume, hold))',
   ),
-  edit('an action outlasting the hold passes', 'if (!ended) {', 'if (false) {'),
+  edit('an action outlasting the limit is let go on', 'if (!ended) {', 'if (false) {'),
+  edit(
+    'an action slower than a short hold is refused',
+    'setTimeout(resolve, Math.max(hold, ACT_LIMIT), false)',
+    'setTimeout(resolve, hold, false)',
+  ),
   edit('an action that wrote nothing passes', 'if (held.length === 0)', 'if (false)'),
   edit(
     'a write taken back by its answer passes',
