@@ -927,6 +927,33 @@ For the new versions they depend on, or changes inside them alone:
 
 ### Fixed
 
+- **A write's viewer key cannot collide with another viewer's**
+  (`foldkit-remote`, #454). The key was `entity:id`; an entity name and an id
+  each holding `:` could make the same key, so a durable write made for one
+  viewer ran as another. `entityKey` now escapes `%` and `:` in the entity
+  name, making the pair unambiguous; a name without them keeps its key.
+
+- **A cascading delete whose root is gone takes nothing**
+  (`foldkit-remote-drizzle`, #453). Descendant DELETEs were gated on
+  `not exists (root)`, which is also true when the root was already absent,
+  so children were removed while the caller was told nothing was deleted. A
+  cascade now removes leaves only while the root is there and holds its
+  revision, `when` and guard, then the root; on Postgres it holds the root's
+  row for the transaction.
+
+- **A restored create keeps its count over a count read earlier**
+  (`foldkit-remote`, #457). A restored durable create dropped its count
+  increment whenever the created row was in the store, assuming the count
+  already included it; a count read before the create was undercounted. The
+  increment is kept when the count was read before the write.
+
+- **KeepTyped reads a select's real initial selection** (`foldkit-ssr`, #451).
+  An untouched select whose first option is in a disabled `optgroup`, a
+  listbox select, or a `multiple` select was read as changed and dispatched a
+  Message on hydration. The served selection now follows the browser's reset
+  rules; multiple selections are compared and restored as a set, and an
+  option is disabled through its `optgroup`.
+
 - **An omitted relation input is not a null link** (`foldkit-entity`, #449).
   `Entity.judgeInput` read a mapped one relation's `Option.none()` as a known
   null link, so an invariant like `Expr.isNotNull(after.by)` refused a partial
