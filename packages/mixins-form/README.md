@@ -397,8 +397,10 @@ read from there, never kept as a second flag: `foldkit-crud`'s editor passes it
 itself (with a placement's `viewInputs`), and a page that mutates in its own
 `onOut` keeps the request id and passes `Data.mutation(model, requestId)._tag
 === 'Pending'`. While submitting, the `form` carries `aria-busy` and
-`data-submitting`, and the submit button is disabled and reads
-`words.submitting` (default `Submitting…`). Busy ends when the write is
+`data-submitting`, and the submit button reads `words.submitting` (default
+`Submitting…`) and is `aria-disabled="true"`, not `disabled`: it keeps the
+focus a press gave it, and a press meanwhile reaches a submit that waits or a
+write in flight, which ignores it. Busy ends when the write is
 answered: a list refreshed after it shows that through its own `Refreshing`.
 
 When the write did not land, the view input `failure` (`{ error, retry }`) says
@@ -435,8 +437,8 @@ Each control has an `id` of `<form name>-<key>` (in a row,
 `aria-busy` while a check runs, `aria-invalid`, `aria-required` when the key is
 required, and `aria-describedby` naming its description, the `checking` line
 while a check runs, and its error while invalid. An error is `role="alert"`.
-The submit button is disabled until the form would submit, and while it is
-submitting.
+The submit button is disabled until the form would submit, and
+`aria-disabled` while it is submitting, so it keeps its focus.
 
 Those attributes belong to the view: an attachment that also supplies one is an
 attribute conflict, reported when the view renders. The slots declare

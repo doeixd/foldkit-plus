@@ -207,7 +207,7 @@ describe('FormView markup', () => {
     expect(Inert.text(button(saved))).toBe('Save')
   })
 
-  it('shows the form submitting: busy, marked, its button disabled and worded for it', () => {
+  it('shows the form submitting: busy, marked, its button aria-disabled and worded for it', () => {
     const ready = send(
       Edit.Message.Changed({ key: 'title', value: 'Hello' }),
       Edit.Message.Changed({ key: 'status', value: 'draft' }),
@@ -222,7 +222,9 @@ describe('FormView markup', () => {
     const sending = draw(true)
     expect(sending?.data?.attrs).toMatchObject({ 'aria-busy': 'true' })
     expect(sending?.data?.attrs).toMatchObject({ 'data-submitting': '' })
-    expect(button(sending)?.data?.props?.disabled).toBe(true)
+    // Still focusable, so the focus a press gave it stays; a press reaches a busy guard.
+    expect(button(sending)?.data?.props?.disabled).toBe(false)
+    expect(button(sending)?.data?.attrs?.['aria-disabled']).toBe('true')
     expect(Inert.text(button(sending))).toBe('Submitting…')
     expect(Inert.text(button(draw(true, { submitting: 'Saving…' })))).toBe('Saving…')
 
@@ -230,6 +232,7 @@ describe('FormView markup', () => {
     expect(idle?.data?.attrs?.['aria-busy']).toBeUndefined()
     expect(idle?.data?.attrs?.['data-submitting']).toBeUndefined()
     expect(button(idle)?.data?.props?.disabled).toBe(false)
+    expect(button(idle)?.data?.attrs?.['aria-disabled']).toBeUndefined()
     expect(Inert.text(button(idle))).toBe('Submit')
   })
 

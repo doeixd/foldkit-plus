@@ -243,7 +243,8 @@ each field's error; a Behavior that supplies one of those throws a two-owners co
 While a key's check runs, its field draws a `checking` line (`role="status"`,
 words `words.checking`) and its `root` carries `data-validation` with the
 field's state. While submitting, the `form` is `aria-busy` with
-`data-submitting`, and the button is disabled and reads `words.submitting`. The
+`data-submitting`, and the button reads `words.submitting` and is
+`aria-disabled` (still focusable; a press reaches a guard that ignores it). The
 form counts a submit waiting on a check itself; whether the write the value
 started is answered is Remote's, read by its request id, never a flag of your
 own: `Crud.editor` passes it (see [crud.md](crud.md)), and a page that mutates

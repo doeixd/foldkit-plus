@@ -295,7 +295,7 @@ export const FormSlots = Slots.define({
   submit: Slot.make({
     capability: Capability.Interactive,
     events: [Event.Click],
-    attributes: [Attr.Disabled],
+    attributes: [Attr.Disabled, Attr.AriaDisabled],
   }),
   /** A nested key: the group around its rows, its name, each row, and the buttons that add and remove one. */
   group: Slot.make({ capability: Capability.Container }),
@@ -1058,7 +1058,11 @@ export const FormView = {
                   h.button(
                     slots.submit.attrs([
                       h.Type('submit'),
-                      h.Disabled(!input.canSubmit || submitting),
+                      h.Disabled(!input.canSubmit),
+                      // Disabling it would drop the focus a press gave it; a
+                      // press while submitting reaches a submit that waits or
+                      // a write in flight, which ignores it.
+                      ...(submitting ? [h.AriaDisabled(true)] : []),
                     ]),
                     [
                       submitting
