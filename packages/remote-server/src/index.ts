@@ -2330,9 +2330,16 @@ export const RemoteServer = {
         `[foldkit-remote-server] write "${mutation.name}" cannot land through its writer for ${writer.entity}: ${refused.join('; ')}`,
       )
     }
+    const kind = Match.value(write).pipe(
+      Match.tagsExhaustive({
+        Insert: () => ({ hasBefore: false, inserts: true, deletes: false }),
+        Update: () => ({ hasBefore: true, inserts: false, deletes: false }),
+        Delete: () => ({ hasBefore: false, inserts: false, deletes: true }),
+      }),
+    )
     // An update judges every invariant; an insert, with no row before, the state ones alone.
     const judged = Entity.invariants(write.input.entity).filter(
-      held => write._tag === 'Update' || !Entity.readsBefore(held),
+      held => kind.hasBefore || !Entity.readsBefore(held),
     )
     if (judged.length > 0 && writer.invariants !== true) {
       throw new Error(
@@ -2341,7 +2348,7 @@ export const RemoteServer = {
     }
     // An insert's row is its values and its links (a `one` relation an invariant reads as the
     // id it points at): a member it leaves to a default the writer cannot judge.
-    if (write._tag === 'Insert') {
+    if (kind.inserts) {
       const sets = new Set([
         'id',
         ...write.sets.map(set => set.field.key),
@@ -2395,7 +2402,7 @@ export const RemoteServer = {
     // Every Entity a delete of this one removes rows of, by name, and what each points at
     // whose derived members the removal moves: the answer re-reads them as it does the row's.
     const cascadePointers = new Map<string, ReadonlyArray<string>>()
-    if (write._tag === 'Delete') {
+    if (kind.deletes) {
       const reach = (entity: AnyEntity): void => {
         for (const { owner } of Entity.cascading(entity)) {
           if (cascadePointers.has(owner.name)) continue

@@ -80,7 +80,7 @@ export default [
   edit(
     'an insert may leave a field an invariant reads unset',
     '../../remote-server/src/index.ts',
-    "if (write._tag === 'Insert') {",
+    'if (kind.inserts) {',
     'if (false) {',
   ),
   edit(
