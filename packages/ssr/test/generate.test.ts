@@ -22,13 +22,9 @@ describe('SSR.generate', () => {
       ['/404.html', '404.html'],
     ])
     expect(pages[1]?.html).toMatch(/<p id="route"[^>]*>\/about<\/p>/)
-    expect(pages[1]?.html).toContain(
-      '&quot;route&quot;:&quot;/about&quot;,&quot;match&quot;:&quot;path&quot;',
-    )
+    expect(pages[1]?.html).toContain('"route":"/about","match":"path"')
     // A trailing slash is the same file, so the path is recorded without it.
-    expect(pages[2]?.html).toContain(
-      '&quot;route&quot;:&quot;/docs/intro&quot;,&quot;match&quot;:&quot;path&quot;',
-    )
+    expect(pages[2]?.html).toContain('"route":"/docs/intro","match":"path"')
   })
 
   it('refuses a path no file can be served at', async () => {

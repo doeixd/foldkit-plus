@@ -53,7 +53,7 @@ describe('prepare', () => {
     )
     const body = await response.text()
     expect(body).toMatch(/<button id="count"[^>]*>7<\/button>/)
-    expect(body).toContain('&quot;count&quot;:7')
+    expect(body).toContain('"count":7')
     // `init`'s Model, once.
     expect(seen).toEqual([41])
   })

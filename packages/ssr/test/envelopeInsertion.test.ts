@@ -19,9 +19,9 @@ const withSearch = (search: string) => ({
 
 /** The envelope off a served page, as the browser reads it. */
 const carried = (page: string): string => {
-  const found = page.match(/data-foldkit-plus-resume="([^"]*)"/)
+  const found = page.match(/data-foldkit-plus-resume='([^']*)'/)
   if (found === null) throw new Error('the page carries no envelope')
-  return found[1]!.replaceAll('&quot;', '"').replaceAll('&amp;', '&')
+  return found[1]!.replaceAll('&#39;', "'").replaceAll('&amp;', '&')
 }
 
 describe('SSR.page', () => {
@@ -34,14 +34,14 @@ describe('SSR.page', () => {
 
   it('carries the envelope on the stamped root, as JSON', async () => {
     const result = await Effect.runPromise(SSR.render(config, plan, { buildId: 'b' }))
-    expect(result.rendered.html).toMatch(/data-foldkit-app="[^"]*" data-foldkit-plus-resume="/)
+    expect(result.rendered.html).toMatch(/data-foldkit-app="[^"]*" data-foldkit-plus-resume='/)
     expect(carried(result.rendered.html)).toBe(result.envelope)
     const page = SSR.page(template, result)
     expect(page.match(/data-foldkit-plus-resume/g)).toHaveLength(1)
   })
 
   it('round-trips a hostile Model through the page the host injects', async () => {
-    const hostile = `</script><script>alert(1)</script>"quoted"&quot;&#65;`
+    const hostile = `</script><script>alert(1)</script>"quoted"'single'&quot;&#65;`
     const result = await Effect.runPromise(SSR.render(withSearch(hostile), plan, { buildId: 'b' }))
     load(SSR.page(template, result))
     expect(SSR.resume(plan, document)).toEqual(

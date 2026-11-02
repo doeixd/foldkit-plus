@@ -105,8 +105,8 @@ describe('SSR.handle through handleRequest', () => {
     // The plan's boot ran before the Message did.
     expect(body).toContain('<p id="booted">true</p>')
     // The page is a resumable one, for the browser that gets it.
-    expect(body).toContain('&quot;plan&quot;:&quot;todos&quot;')
-    expect(body).toContain('&quot;todos&quot;:[&quot;Served&quot;,&quot;Milk&quot;]')
+    expect(body).toContain('"plan":"todos"')
+    expect(body).toContain('"todos":["Served","Milk"]')
   })
 
   it('gives `headers` the Model the post reached, and none to a post refused', async () => {

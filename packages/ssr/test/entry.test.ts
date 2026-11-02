@@ -57,7 +57,7 @@ describe('SSR.entry through handleRequest', () => {
     const result = await entry.renderPage(new Request('https://example.test/'))
     expect(result._tag).toBe('Rendered')
     if (result._tag !== 'Rendered') throw new Error('unreachable')
-    expect(result.application.html).toMatch(/data-foldkit-app="[^"]*" data-foldkit-plus-resume="/)
+    expect(result.application.html).toMatch(/data-foldkit-app="[^"]*" data-foldkit-plus-resume='/)
     expect(result.headers).toBeUndefined()
   })
 
@@ -336,8 +336,8 @@ describe('SSR.entry prerendered (#373)', () => {
   const matchOf = async (entry: ReturnType<typeof SSR.entry>, url: string) => {
     const result = await entry.renderPage(new Request(url))
     if (result._tag !== 'Rendered') throw new Error('not rendered')
-    const carried = new RegExp(`${RESUME_ATTRIBUTE}="([^"]*)"`).exec(result.application.html)?.[1]
-    return JSON.parse((carried ?? '{}').replaceAll('&quot;', '"').replaceAll('&amp;', '&')).match
+    const carried = new RegExp(`${RESUME_ATTRIBUTE}='([^']*)'`).exec(result.application.html)?.[1]
+    return JSON.parse((carried ?? '{}').replaceAll('&#39;', "'").replaceAll('&amp;', '&')).match
   }
 
   it('records the path alone for a prerendered path with no query, and the route otherwise', async () => {

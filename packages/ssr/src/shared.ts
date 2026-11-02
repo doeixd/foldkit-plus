@@ -59,13 +59,14 @@ export const serializeJsonScript = (value: unknown): string =>
     .replaceAll(PARAGRAPH_SEPARATOR, '\\u2029')
 
 /**
- * The envelope JSON as the stamped root carries it: `serializeJsonScript`
- * already escaped `<` and the line separators, and an attribute must escape
- * `&` and `"` besides, so no string in the Model can break out of the value.
- * `getAttribute` resolves the entities back, which is exactly the JSON.
+ * The envelope JSON as the stamped root carries it, in single quotes so the
+ * JSON's own double quotes need no escape. `&` and `'` are escaped, so no
+ * string in the Model can break out of the value; `getAttribute` resolves the
+ * entities back to exactly the JSON. `serializeJsonScript` has already escaped
+ * `<` and the line separators.
  */
 export const attributeOf = (json: string): string =>
-  ` ${RESUME_ATTRIBUTE}="${json.replaceAll('&', '&amp;').replaceAll('"', '&quot;')}"`
+  ` ${RESUME_ATTRIBUTE}='${json.replaceAll('&', '&amp;').replaceAll("'", '&#39;')}'`
 
 /**
  * What a page says of itself beyond Foldkit's `Document` (`title`, `lang`,

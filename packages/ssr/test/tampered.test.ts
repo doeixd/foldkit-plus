@@ -14,12 +14,7 @@ it('refuses a page whose envelope is for another plan, and says why', async () =
     template,
     await Effect.runPromise(SSR.render(config, plan, { buildId: 'b' })),
   )
-  load(
-    served.replace(
-      '&quot;plan&quot;:&quot;counter&quot;',
-      '&quot;plan&quot;:&quot;elsewhere&quot;',
-    ),
-  )
+  load(served.replace('"plan":"counter"', '"plan":"elsewhere"'))
   const button = document.getElementById('count')
   const collected = Diagnostics.collect()
   calls.init = 0

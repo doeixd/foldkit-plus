@@ -17,10 +17,10 @@ it('renders a static region once on the server and never in the browser', async 
   expect(calls.copy).toBe(1)
   expect(served).toContain('A long server-only body')
   expect(served).toContain('data-foldkit-plus-static="post-copy"')
-  const start = served.indexOf('data-foldkit-plus-resume="')
+  const start = served.indexOf("data-foldkit-plus-resume='")
   const envelope = served.slice(
     start,
-    served.indexOf('"', start + 'data-foldkit-plus-resume="'.length),
+    served.indexOf("'", start + "data-foldkit-plus-resume='".length),
   )
   expect(envelope).not.toContain('A long server-only body')
 
