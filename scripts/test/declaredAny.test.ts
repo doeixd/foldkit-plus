@@ -17,8 +17,16 @@ test.each([
   'type Shaped<A extends string> = any;',
   'export declare function make(input: string): any;',
   'declare function make<A>(input: A): any;',
+  'export declare function make(\n  input: string\n): any;',
+  'declare function make<A extends string>(\n  input: A,\n  other: Record<string, A>\n): any;',
 ])('refuses %s', line => {
   expect(anyDeclarations(`export {}\n${line}\n`)).toEqual([2])
+})
+
+test('a declaration does not carry into the next', () => {
+  const text =
+    'export declare function make(\n  input: string\n): Made;\nexport declare function other(): any;'
+  expect(anyDeclarations(text)).toEqual([4])
 })
 
 test.each([

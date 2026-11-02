@@ -15,15 +15,16 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const name = String.raw`[\w$]+`
 const declaration = new RegExp(
   [
-    String.raw`^\s*(?:export\s+)?(?:declare\s+)?(?:const|let|var)\s+${name}\s*:\s*any\s*;`,
-    String.raw`^\s*(?:export\s+)?(?:declare\s+)?type\s+${name}(?:<[^=]*>)?\s*=\s*any\s*;`,
-    String.raw`^\s*(?:export\s+)?(?:declare\s+)?function\s+${name}\s*(?:<.*>)?\(.*\)\s*:\s*any\s*;`,
+    String.raw`^[ \t]*(?:export\s+)?(?:declare\s+)?(?:const|let|var)\s+${name}\s*:\s*any\s*;`,
+    String.raw`^[ \t]*(?:export\s+)?(?:declare\s+)?type\s+${name}(?:<[^=]*>)?\s*=\s*any\s*;`,
+    String.raw`^[ \t]*(?:export\s+)?(?:declare\s+)?function\s+${name}\s*(?:<[^;]*?>)?\s*\([^;]*?\)\s*:\s*any\s*;`,
   ].join('|'),
+  'gm',
 )
 
 /** The 1-based lines of `text` that declare a name as `any`. */
 export const anyDeclarations = text =>
-  text.split(/\r?\n/).flatMap((line, index) => (declaration.test(line) ? [index + 1] : []))
+  [...text.matchAll(declaration)].map(match => text.slice(0, match.index).split(/\r?\n/).length)
 
 const walk = path =>
   statSync(path).isDirectory()

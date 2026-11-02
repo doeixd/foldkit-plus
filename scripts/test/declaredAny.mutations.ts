@@ -20,7 +20,18 @@ export default [
   },
   {
     name: 'a function returning any is published',
-    edits: [{ file, find: String.raw`\(.*\)\s*:\s*any`, replace: 'never' }],
+    edits: [{ file, find: String.raw`\([^;]*?\)\s*:\s*any`, replace: 'never' }],
+    tests,
+  },
+  {
+    name: 'a declaration carries into the next',
+    edits: [
+      {
+        file,
+        find: String.raw`\([^;]*?\)\s*:\s*any\s*;`,
+        replace: String.raw`\([\s\S]*?\)\s*:\s*any\s*;`,
+      },
+    ],
     tests,
   },
   {
@@ -39,7 +50,7 @@ export default [
     edits: [
       {
         file,
-        find: String.raw`^\s*(?:export\s+)?(?:declare\s+)?(?:const`,
+        find: String.raw`^[ \t]*(?:export\s+)?(?:declare\s+)?(?:const`,
         replace: String.raw`(?:export\s+)?(?:declare\s+)?(?:const`,
       },
     ],
