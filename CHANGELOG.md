@@ -58,8 +58,9 @@ version changed; `pnpm` skips versions already in the registry.
   default text colour, so every pill Tabs looks different until it passes
   `selection: 'tint'`. `overflow: 'wrap'` is a grid of equal columns that
   fills the row and falls to fewer columns, so six tabs are one row, 3 + 3,
-  then 2 x 3, never 5 + 1; `--fk-tab-min` (default three control heights)
-  sets how narrow a column goes. The pill tray's padding is wider and its
+  then 2 x 3, never 5 + 1; a column is no narrower than three control
+  heights, which `Recipes.Tabs.extend` sets through the tablist's private
+  `--_fk-tab-min`. The pill tray's padding is wider and its
   corner larger, so the chosen chip is inset and rounded (it read as a flat
   square flush with the tray), and its lift is a contact shadow and a ring
   that show in a theme whose shadow strength is 0. The site's studio tabs use
