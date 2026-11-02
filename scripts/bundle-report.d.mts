@@ -29,12 +29,6 @@ export declare const measure: (
   exampleDirectory: string,
   options?: { readonly rebuild?: boolean },
 ) => Promise<BundleReport>
-/** A build of the example's client, the way an installed application gets it; `cleanup` removes it. */
-export declare const buildClient: (
-  exampleDirectory: string,
-  options?: { readonly rebuild?: boolean },
-) => Promise<{ readonly client: string; readonly cleanup: () => void }>
-export declare const reportFor: (client: string, exampleDirectory: string) => BundleReport
 export declare const formatReport: (report: BundleReport) => string
 
 export interface ServerReport {

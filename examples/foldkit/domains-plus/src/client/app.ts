@@ -6,13 +6,13 @@
  */
 import * as UiDialog from '@foldkit/ui/dialog'
 import * as UiListbox from '@foldkit/ui/listbox'
-import { Array, Match, Option, Schema, String } from 'effect'
+import { Array, Option, Schema, String } from 'effect'
 import * as Command from 'foldkit/command'
 import { UrlRequest } from 'foldkit/navigation'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import { Url, toString as urlToString } from 'foldkit/url'
-import { Bundle, type Resource } from 'foldkit-bundle'
+import { Bundle } from 'foldkit-bundle'
 import { Mirror } from 'foldkit-mirror'
 import { ListboxView, Sheet, WindowList } from 'foldkit-mixins-ui'
 import { Remote, RemoteData, RemotePolicy, type RemoteClient } from 'foldkit-remote'
@@ -46,8 +46,7 @@ import {
   TldFilter,
   isCompleteCatalogRequired,
 } from './domain'
-import { Message, Own, Search, SearchInput, type SheetToOpen } from './message.js'
-import { LoadSheets, type Sheets } from './sheets.js'
+import { Message, Own, Search, SearchInput } from './message.js'
 import { arrangedOf, namesOf } from './results.js'
 import { initResultsList } from './resultsList.js'
 import { AppRoute, routeOf } from './site.js'
@@ -94,18 +93,10 @@ export const Model = Schema.Struct({
   cart: Cart.Cart,
   /** The cart, a sheet at the window's right edge. */
   cartSheet: Sheet.Model,
-  /**
-   * Whether the sheets' views are in (`sheets.ts`). The server and the first
-   * frame draw bare dialogs, so the page is the same until they load.
-   */
-  sheetsLoaded: Schema.Boolean,
 })
 export type Model = typeof Model.Type
 
-/** What a Command or Subscription needs from the runtime's `resources`. */
-export type Services = RemoteClient | Resource.Lazy<Sheets>
-
-type Return = Update.Return<Model, Message, Services>
+type Return = Update.Return<Model, Message, RemoteClient>
 
 /** A keystroke for the debounce, which settles it 150 ms after the last one. */
 const typed = (model: Model, value: string): Return =>
@@ -251,26 +242,6 @@ const tldSheetStep = (model: Model, next: Sheet.Return): Return => sheetStep(mod
 const filtersSheetStep = (model: Model, next: Sheet.Return): Return =>
   sheetStep(model, next, filtersSheet)
 
-const openCart = (model: Model): Return => cartSheetStep(model, Sheet.open(model.cartSheet))
-const openFilters = (model: Model): Return =>
-  filtersSheetStep(model, Sheet.open(model.filtersSheet))
-const openTld = (model: Model): Return =>
-  tldSheetStep(modifyFields(model, { tldSearchQuery: () => '' }), Sheet.open(model.tldSheet))
-
-/**
- * A press that opens a sheet. Its views are loaded on the press when no hover
- * or focus got them first, and the sheet opens when they are in: a dialog
- * shown before then would be the bare one.
- */
-const whenSheetsLoaded = (
-  model: Model,
-  sheet: SheetToOpen,
-  open: (model: Model) => Return,
-): Return =>
-  model.sheetsLoaded
-    ? open(model)
-    : { model, commands: [LoadSheets({ opens: Option.some(sheet) })] }
-
 const withoutDomain = (name: string) => (cart: Cart.Cart) =>
   Array.filter(cart, domain => domain.name !== name)
 
@@ -332,7 +303,7 @@ const own = (model: Model, message: Own): Return =>
     GotSortListboxMessage: ({ message }) => dropdownStep(model, message, sortDropdown, chooseSort),
     GotFiltersSheetMessage: ({ message }) =>
       sheetMessageStep(model, message, filtersSheet, FocusFiltersButton),
-    ClickedFilters: () => whenSheetsLoaded(model, 'Filters', openFilters),
+    ClickedFilters: () => filtersSheetStep(model, Sheet.open(model.filtersSheet)),
     // A choice in the phone's sheet applies and closes it, as upstream's.
     ClickedMobileAvailabilityOption: ({ value }) =>
       filtersSheetStep(
@@ -346,7 +317,8 @@ const own = (model: Model, message: Own): Return =>
       ),
     GotTldSheetMessage: ({ message }) =>
       sheetMessageStep(model, message, tldSheet, FocusTldFilterButton),
-    ClickedTldFilter: () => whenSheetsLoaded(model, 'Tld', openTld),
+    ClickedTldFilter: () =>
+      tldSheetStep(modifyFields(model, { tldSearchQuery: () => '' }), Sheet.open(model.tldSheet)),
     UpdatedTldSearch: ({ value }) => ({
       model: modifyFields(model, { tldSearchQuery: () => value }),
     }),
@@ -372,23 +344,7 @@ const own = (model: Model, message: Own): Return =>
       model: modifyFields(model, { cart: withoutDomain(name) }),
       commands: [FocusCartCloseButton()],
     }),
-    ClickedCart: () => whenSheetsLoaded(model, 'Cart', openCart),
-    WantedSheets: () =>
-      model.sheetsLoaded ? { model } : { model, commands: [LoadSheets({ opens: Option.none() })] },
-    LoadedSheets: ({ opens }) => {
-      const loaded = model.sheetsLoaded ? model : modifyFields(model, { sheetsLoaded: () => true })
-      return Option.match(opens, {
-        onNone: () => ({ model: loaded }),
-        onSome: sheet =>
-          Match.value(sheet).pipe(
-            Match.when('Cart', () => openCart(loaded)),
-            Match.when('Tld', () => openTld(loaded)),
-            Match.when('Filters', () => openFilters(loaded)),
-            Match.exhaustive,
-          ),
-      })
-    },
-    FailedToLoadSheets: () => ({ model }),
+    ClickedCart: () => cartSheetStep(model, Sheet.open(model.cartSheet)),
     GotCartSheetMessage: ({ message }) =>
       sheetMessageStep(model, message, cartSheet, FocusCartButton),
     CompletedFocusCartButton: () => ({ model }),
@@ -433,7 +389,6 @@ const filtersInitial = () => ({
   filtersSheet: Sheet.init({ id: 'filters-sheet', side: 'bottom' }),
   cart: [],
   cartSheet: Sheet.init({ id: 'domains-cart', side: 'right' }),
-  sheetsLoaded: false,
 })
 
 /** How long the search text rests before it is read. */
@@ -599,7 +554,7 @@ export const actives = {
  */
 export const freshness = RemotePolicy.staleWhileRevalidate({ maxAge: 60_000 })
 
-const Page = Bundle.parent({ Model, Message }).withServices<Services>()
+const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
 
 const Settled = Page.at(Search, {
   args: { delayMs: SETTLE_MS },

@@ -11,6 +11,7 @@ import * as UiListbox from '@foldkit/ui/listbox'
 import { Sheet, WindowList } from 'foldkit-mixins-ui'
 import { debounce } from 'foldkit-primitives/time'
 import { Remote } from 'foldkit-remote'
+import { Domain } from '../shared/domain'
 import { AvailabilityFilter, Cart, SortOrder, TldFilter } from './domain'
 import { ResultsListScrollKey } from './resultsList'
 
@@ -21,10 +22,6 @@ import { ResultsListScrollKey } from './resultsList'
  */
 export const SearchInput = debounce({ name: 'SearchInput', value: Schema.String })
 export const Search = Bundle.declare(SearchInput, 'search')
-
-/** The sheet a press waited on the sheets' chunk for, opened once it is in. */
-export const SheetToOpen = Schema.Literals(['Cart', 'Tld', 'Filters'])
-export type SheetToOpen = typeof SheetToOpen.Type
 
 /** The page's own Messages, which its `update` answers; the placements answer the rest. */
 const own = {
@@ -57,10 +54,6 @@ const own = {
   ClickedRemoveDomain: { name: Cart.Name },
   ClickedRemoveCartDomain: { name: Cart.Name },
   ClickedCart: {},
-  // Hover, focus or a press on what opens a sheet: its chunk starts loading.
-  WantedSheets: {},
-  LoadedSheets: { opens: Schema.Option(SheetToOpen) },
-  FailedToLoadSheets: {},
   GotCartSheetMessage: { message: Sheet.Message },
   CompletedFocusCartButton: {},
   CompletedFocusCartCloseButton: {},

@@ -124,8 +124,7 @@ describe('the cart', () => {
     expect(removed.model.cart).toEqual([])
     expect(removed.commands?.map(command => command.name)).toEqual([FocusCartCloseButton().name])
     // The Dialog says it closed once its close has run: the Cart button takes focus back.
-    const withSheets = update(added, Message.LoadedSheets({ opens: Option.none() })).model
-    const opened = update(withSheets, Message.ClickedCart()).model
+    const opened = update(added, Message.ClickedCart()).model
     expect(Sheet.isOpen(opened.cartSheet)).toBe(true)
     const requested = update(
       opened,

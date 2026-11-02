@@ -6,24 +6,31 @@
  * The Model keeps each value; these draw the controls that change it.
  */
 import type * as UiListbox from '@foldkit/ui/listbox'
-import { Array, Option, String } from 'effect'
+import { Array, Option, String, pipe } from 'effect'
 import { type Html, type HtmlBuilder, childAttributes } from 'foldkit/html'
 import { Icon } from 'foldkit-media'
-import type { SlotBuilders } from 'foldkit-mixins'
+import type { SlotAttributes, SlotBuilders } from 'foldkit-mixins'
 import { Listbox, Sheet } from 'foldkit-mixins-ui'
 import { Dropdown, type Model } from './app.js'
 import { FILTERS_BUTTON_ID, SEARCH_FORM_ID, TLD_FILTER_BUTTON_ID } from './command.js'
 import { AvailabilityFilter, SortOrder, TldFilter } from './domain'
 import { icons } from './iconData.js'
 import { Message } from './message.js'
-import { ListboxLook, ListboxStyle, type Page } from './style.js'
-import { onIntent, viewsOf } from './sheets.js'
+import {
+  FiltersSheetLook,
+  ListboxLook,
+  ListboxStyle,
+  type Page,
+  SheetLook,
+  SheetStyle,
+  TldSheetLook,
+} from './style.js'
 
 type H = HtmlBuilder<Message>
 type Slots = SlotBuilders<typeof Page.slots, Message>
 
 /** What the filters read: each value, and the dropdown or sheet that chooses it. */
-export type FiltersInput = Pick<
+type FiltersInput = Pick<
   Model,
   | 'tldFilter'
   | 'tldListbox'
@@ -34,15 +41,14 @@ export type FiltersInput = Pick<
   | 'sortOrder'
   | 'sortListbox'
   | 'filtersSheet'
-  | 'sheetsLoaded'
 >
 
-export const availabilityLabels: Readonly<Record<AvailabilityFilter, string>> = {
+const availabilityLabels: Readonly<Record<AvailabilityFilter, string>> = {
   All: 'Show All',
   Available: 'Available',
 }
 
-export const sortLabels: Readonly<Record<SortOrder, string>> = {
+const sortLabels: Readonly<Record<SortOrder, string>> = {
   Relevance: 'Relevance',
   Length: 'Length',
   Alphabetical: 'Alphabetical',
@@ -50,8 +56,29 @@ export const sortLabels: Readonly<Record<SortOrder, string>> = {
   PriceDescending: 'Price: High to Low',
 }
 
+/** The phone's sorts, as upstream's: one "Price" stands for both price orders. */
+const phoneSorts: ReadonlyArray<SortOrder> = [
+  'Relevance',
+  'Length',
+  'PriceAscending',
+  'Alphabetical',
+]
+
 export const tldLabel = (value: TldFilter): string =>
   value === 'All' ? 'All TLDs' : `.${String.toLowerCase(value)}`
+
+/** The TLDs a phone's search matches, `All` first and the rest in order, as upstream. */
+const visibleTlds = (query: string): ReadonlyArray<TldFilter> => {
+  const search = pipe(query, String.trim, String.toLowerCase, String.replace(/^\./, ''))
+  const extensions = pipe(
+    TldFilter.literals,
+    Array.filter(value => value !== 'All'),
+    Array.sort(String.Order),
+  )
+  return Array.filter<TldFilter>(['All', ...extensions], value =>
+    pipe(tldLabel(value), String.toLowerCase, String.includes(search)),
+  )
+}
 
 /** A desktop dropdown over `values`, its trigger naming `label` and the value chosen. */
 const dropdown = <Value extends string>(
@@ -98,6 +125,161 @@ const dropdown = <Value extends string>(
     toParentMessage: config.onMessage,
   })
 }
+
+const choiceContent = (label: string, slots: Slots, h: H): ReadonlyArray<Html> => [
+  h.span([], [label]),
+  h.span(slots.choiceCheck.attrs([h.AriaHidden(true)]), [
+    Icon.draw(icons.check, h, { size: '20px' }),
+  ]),
+]
+
+const tldSheet = (model: FiltersInput, slots: Slots, h: H): Html =>
+  Sheet.view(
+    {
+      model: model.tldSheet,
+      onMessage: message => Message.GotTldSheetMessage({ message }),
+      mixins: [SheetStyle.mixin, SheetLook.mixin, TldSheetLook.mixin],
+      draw: sheet =>
+        h.dialog(
+          sheet.dialog,
+          sheet.isVisible
+            ? [
+                h.div(sheet.backdrop),
+                h.section(sheet.panel, [
+                  h.div(sheet.handle),
+                  h.h2(sheet.title, ['Filter by TLD']),
+                  h.div(slots.tldSearch.attrs(), [
+                    Icon.draw(icons.search, h, { size: '20px' }),
+                    h.input(
+                      slots.tldSearchInput.attrs([
+                        ...sheet.initialFocus,
+                        h.Type('search'),
+                        h.AriaLabel('Search TLDs'),
+                        h.Placeholder('Search TLDs...'),
+                        h.Autocomplete('off'),
+                        h.Value(model.tldSearchQuery),
+                        h.OnInput(value => Message.UpdatedTldSearch({ value })),
+                      ]),
+                    ),
+                  ]),
+                  h.div(
+                    slots.tldOptions.attrs(),
+                    Array.match(visibleTlds(model.tldSearchQuery), {
+                      onEmpty: () => [
+                        h.p(slots.tldNoResults.attrs([h.Role('status')]), ['No TLDs found.']),
+                      ],
+                      onNonEmpty: values =>
+                        Array.map(values, value =>
+                          h.keyed('button')(
+                            value,
+                            slots.choice.attrs([
+                              h.Type('button'),
+                              h.AriaPressed(value === model.tldFilter ? 'true' : 'false'),
+                              h.OnClick(Message.ClickedMobileTldOption({ value })),
+                            ]),
+                            choiceContent(tldLabel(value), slots, h),
+                          ),
+                        ),
+                    }),
+                  ),
+                  h.button(
+                    [...sheet.closeButton, h.AriaLabel('Close TLD filter')],
+                    [Icon.draw(icons.close, h, { size: '18px' })],
+                  ),
+                ]),
+              ]
+            : [],
+        ),
+    },
+    h,
+  )
+
+/** A group of the phone's filters sheet: its heading, and a pressed button per choice. */
+const choiceGroup = <Value extends string>(
+  config: {
+    readonly id: string
+    readonly heading: string
+    readonly values: ReadonlyArray<Value>
+    readonly labelOf: (value: Value) => string
+    readonly isChosen: (value: Value) => boolean
+    readonly onChoose: (value: Value) => Message
+    /** The Dialog's first focus, given to the chosen choice. */
+    readonly initialFocus: SlotAttributes<Message>
+  },
+  slots: Slots,
+  h: H,
+): Html =>
+  h.div(slots.filterGroup.attrs([h.Role('group'), h.AriaLabelledBy(config.id)]), [
+    h.h3(slots.filterGroupLabel.attrs([h.Id(config.id)]), [config.heading]),
+    ...Array.map(config.values, value =>
+      h.keyed('button')(
+        value,
+        slots.choice.attrs([
+          h.Type('button'),
+          h.AriaPressed(config.isChosen(value) ? 'true' : 'false'),
+          ...(config.isChosen(value) ? config.initialFocus : []),
+          h.OnClick(config.onChoose(value)),
+        ]),
+        choiceContent(config.labelOf(value), slots, h),
+      ),
+    ),
+  ])
+
+const filtersSheet = (model: FiltersInput, slots: Slots, h: H): Html =>
+  Sheet.view(
+    {
+      model: model.filtersSheet,
+      onMessage: message => Message.GotFiltersSheetMessage({ message }),
+      mixins: [SheetStyle.mixin, SheetLook.mixin, FiltersSheetLook.mixin],
+      draw: sheet =>
+        h.dialog(
+          sheet.dialog,
+          sheet.isVisible
+            ? [
+                h.div(sheet.backdrop),
+                h.section(sheet.panel, [
+                  h.div(sheet.handle),
+                  h.h2(sheet.title, ['Filters and sort']),
+                  choiceGroup(
+                    {
+                      id: 'availability-filter-heading',
+                      heading: 'Filter by',
+                      values: AvailabilityFilter.literals,
+                      labelOf: value => availabilityLabels[value],
+                      isChosen: value => value === model.availabilityFilter,
+                      onChoose: value => Message.ClickedMobileAvailabilityOption({ value }),
+                      initialFocus: sheet.initialFocus,
+                    },
+                    slots,
+                    h,
+                  ),
+                  h.hr(slots.filterDivider.attrs()),
+                  choiceGroup(
+                    {
+                      id: 'sort-order-heading',
+                      heading: 'Sort by',
+                      values: phoneSorts,
+                      labelOf: value => (value === 'PriceAscending' ? 'Price' : sortLabels[value]),
+                      isChosen: value =>
+                        value === model.sortOrder ||
+                        (value === 'PriceAscending' && model.sortOrder === 'PriceDescending'),
+                      onChoose: value => Message.ClickedMobileSortOption({ value }),
+                      initialFocus: [],
+                    },
+                    slots,
+                    h,
+                  ),
+                  h.button(
+                    [...sheet.closeButton, h.AriaLabel('Close filters and sort')],
+                    [Icon.draw(icons.close, h, { size: '18px' })],
+                  ),
+                ]),
+              ]
+            : [],
+        ),
+    },
+    h,
+  )
 
 /** A select of the search form, sent as `name` with the search text. */
 const plainSelect = <Value extends string>(
@@ -201,7 +383,6 @@ export const filters = (model: FiltersInput, slots: Slots, h: H): Html =>
         h.AriaHasPopup('dialog'),
         h.AriaControls(model.tldSheet.dialog.id),
         h.AriaExpanded(Sheet.isOpen(model.tldSheet)),
-        ...onIntent(h),
         h.OnClick(Message.ClickedTldFilter()),
       ]),
       [h.span([], [tldLabel(model.tldFilter)]), Icon.draw(icons.chevronDown, h, { size: '14px' })],
@@ -242,19 +423,11 @@ export const filters = (model: FiltersInput, slots: Slots, h: H): Html =>
         ...(model.availabilityFilter !== 'All' || model.sortOrder !== 'Relevance'
           ? [h.DataAttribute('active-filters', '')]
           : []),
-        ...onIntent(h),
         h.OnClick(Message.ClickedFilters()),
       ]),
       [Icon.draw(icons.filter, h, { size: '18px' })],
     ),
     plainFilters(model, slots, h),
-    ...(model.sheetsLoaded
-      ? Option.match(viewsOf(), {
-          onNone: () => [],
-          onSome: views => [views.tldSheet(model, slots, h), views.filtersSheet(model, slots, h)],
-        })
-      : [
-          h.dialog([h.Id(model.tldSheet.dialog.id)], []),
-          h.dialog([h.Id(model.filtersSheet.dialog.id)], []),
-        ]),
+    tldSheet(model, slots, h),
+    filtersSheet(model, slots, h),
   ])

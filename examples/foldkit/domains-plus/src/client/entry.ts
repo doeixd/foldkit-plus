@@ -2,13 +2,10 @@
  * The browser's entry: the server's page taken over by Foldkit's runtime,
  * starting from the Model the page carries.
  */
-import { Layer } from 'effect'
-import { Resource } from 'foldkit-bundle'
 import { Remote } from 'foldkit-remote'
 import { FOLDKIT_APP_ATTRIBUTE, SSR } from 'foldkit-ssr/client'
 import { MAX_BODY_BYTES, MAX_IDS_PER_READ } from '../shared/entity'
 import { Message, Model, init, plan, routing, subscriptions, update } from './app.js'
-import { Sheets } from './sheets.js'
 import { view } from './view.js'
 
 // The theme and the served classes come in the page's root
@@ -33,14 +30,10 @@ SSR.hydrate(
     container,
     routing,
     // The server's own bounds, so a read is cut to what it accepts.
-    resources: Layer.mergeAll(
-      Remote.clientLayer(Remote.http('/remote'), {
-        maxIdsPerEntity: MAX_IDS_PER_READ,
-        maxBodyBytes: MAX_BODY_BYTES,
-      }),
-      // The cart's and the phone's sheets, a chunk of their own.
-      Resource.lazy(Sheets, () => import('./sheetViews.js').then(chunk => chunk.layer)),
-    ),
+    resources: Remote.clientLayer(Remote.http('/remote'), {
+      maxIdsPerEntity: MAX_IDS_PER_READ,
+      maxBodyBytes: MAX_BODY_BYTES,
+    }),
     ...(import.meta.env.DEV
       ? {
           devTools: {
