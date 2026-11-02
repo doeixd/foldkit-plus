@@ -10,7 +10,7 @@ import { mapMessage } from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
-import { ModelRef, type Projection, type Surface } from 'foldkit-surface'
+import { Diagnostics, ModelRef, type Projection, type Surface } from 'foldkit-surface'
 import { RemoteClient, liveEventOf, mutateRemote, type RemoteRpcClient } from './client.js'
 import { madeAsOf } from './queue.js'
 import {
@@ -181,6 +181,7 @@ import { resumePart } from './resume.js'
 import { answerGaps } from './answerGaps.js'
 import {
   PredictionPart,
+  insertUnpredicted,
   predictionMismatch,
   verification,
   withDiagnostics,
@@ -1498,6 +1499,24 @@ const bindDomain = <
         refetched: (remote, asked) => planAsked(bound, remote, asked, {}).queries,
       }),
   })
+  // Under `verifyPredictions`, each list's members a declared insert of its Entity cannot
+  // show pending (#342), once per list, insert and members.
+  const unpredictedReported = new Set<string>()
+  const reportUnpredicted = (query: string, select: Selection<unknown>): void => {
+    if (Option.isNone(capabilities.writes)) return
+    for (const mutation of definition.registry.mutations.values()) {
+      if (mutation.write?.input.entity.name !== select.entity) continue
+      const members = capabilities.writes.value.unpredicted(mutation.write, select.fields)
+      const key = JSON.stringify([query, mutation.name, members])
+      if (members.length === 0 || unpredictedReported.has(key)) continue
+      unpredictedReported.add(key)
+      Effect.runSync(
+        Diagnostics.report(
+          insertUnpredicted({ query, mutation: mutation.name, entity: select.entity, members }),
+        ),
+      )
+    }
+  }
   /** A query read; `live` watches the list too (`liveQuery` from `foldkit-remote/live`). */
   const queryRead = <Q extends QueryDescriptor<any, any, any>, Value, Entity extends string>(
     query: Q,
@@ -1534,6 +1553,7 @@ const bindDomain = <
         `Remote: the selection is of "${select.entity}", but query "${query.name}" lists "${listed}"`,
       )
     }
+    if (verify.on) reportUnpredicted(query.name, select)
     const contract = placeableReadContract(
       capabilities,
       readContract(query.ref(input), select, window),

@@ -7,7 +7,7 @@
  * reads the committed store directly, which is what the visible store is then.
  */
 import { Option, type Stream } from 'effect'
-import type { AnyQuery, ExprContext, EntityRef, MemoryOperators } from 'foldkit-entity'
+import type { AnyQuery, AnyWrite, ExprContext, EntityRef, MemoryOperators } from 'foldkit-entity'
 import type { RemoteClient } from './client.js'
 import { items, type Connection, type Edge } from './connection.js'
 import type { Asked, NamedProjection } from './active.js'
@@ -180,6 +180,8 @@ export interface WriteCapability {
   readonly bind: <AppModel, Store extends RemoteModel>(
     context: WriteContext<AppModel, Store>,
   ) => WriteMethods<AppModel>
+  /** The members of `selected` a pending row of `write`, an insert, cannot hold (#342). */
+  readonly unpredicted: (write: AnyWrite, selected: ReadonlyArray<string>) => ReadonlyArray<string>
 }
 
 /** The live capability: a live stream, and what its events do to the Model. */

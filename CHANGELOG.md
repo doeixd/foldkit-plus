@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`InsertUnpredicted`** (`foldkit-remote`, #342). Under
+  `verifyPredictions`, `Data.query` reports a list that selects members a
+  declared `Write.insert` of its Entity cannot predict (neither its input,
+  `Entity.sets`, a count, an exists nor a supplied member's `predict`),
+  naming the list, the members and the insert, once each: a row the insert
+  makes is not shown in the list until the server answers, and the list reads
+  `Refreshing` meanwhile. It goes to the default reporter, since no
+  application's context reaches a declaration.
+
 - **`SSR.entry`'s `answerPost: 'redirect'`, and `origins: 'same-origin'`**
   (`foldkit-ssr`, #390). A handled post is answered `303` to the address it
   was posted to (its path and query, relative, so it names no other origin)

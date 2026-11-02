@@ -2039,6 +2039,24 @@ Match on the part with `PredictionPart.$match`. `Law.check`
 ([below](#testing-that-a-prediction-is-the-truth-law)) is the same law, in a
 test, over every part rather than the ones an answer carries.
 
+**A list a declared insert cannot draw in is named where it is read.** A row a
+pending `Write.insert` makes holds its id, what its input maps, what its Entity
+sets on create (`Entity.sets`), its counts and exists, and what a supplied
+member foresees. A list that selects anything else of it (a nullable
+`editedAt` no input names, a relation) cannot draw the row until the answer,
+and reads `Refreshing` meanwhile. Under `verifyPredictions`, `Data.query`
+reports that as an `InsertUnpredicted` warning, once per list, insert and
+members:
+
+```text
+[foldkit-remote] Feed selects Post.editedAt, which CreatePost cannot predict: a Post it makes is not shown in Feed until the server answers, and Feed reads Refreshing meanwhile. Map it in CreatePost's input, set it with Entity.sets, or select fewer.
+```
+
+It is reported to the default reporter (Effect's log), since no application's
+context reaches a declaration, and it is not recorded in the Model. An
+optional input key counts as mapped, though a write that leaves it out shows
+no value for it.
+
 A row's shown fields are those the request's optimistic patch wrote, added
 to or computed (a declared write's own included), plus those the active
 Surfaces (every `Data.subscriptions` call) read of a row the request patched
@@ -2895,6 +2913,7 @@ first, the newest 256 kept:
 | `_tag` | When |
 | --- | --- |
 | `PredictionMismatch` | Under `verifyPredictions`, an answer disagreed with what the client predicted: a field's value (`Value`), a list's order (`Placement`), or a field left out (`Gap`). |
+| `InsertUnpredicted` | Not recorded here: under `verifyPredictions`, `Data.query` reports a list that selects members a declared insert of its Entity cannot predict ([above](#checking-an-answer-against-what-was-shown)). |
 | `WriteUnheard` | A write failed, and the wiring does not share `MutationFailed`. |
 
 Each carries its facts, `source: 'foldkit-remote'`, a `level` and a `message`

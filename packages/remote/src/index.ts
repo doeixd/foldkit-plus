@@ -10,6 +10,7 @@ export type { RemoteResumePart } from './resume.js'
 export {
   PredictionPart,
   type ExpectedDisagreements,
+  type InsertUnpredicted,
   type LiveRefused,
   type OutboxUnreadable,
   type OutboxUnsaved,

@@ -31,6 +31,7 @@ import { parsedQueryRequest } from './queryRequest.js'
 import { isPatch, patchedFields, shownOf } from './shown.js'
 import { entityKey } from './store.js'
 import { tableOf } from './table.js'
+import { unpredicted } from './unpredicted.js'
 import { MAX_ANSWER_LISTS, RemoteForbidden, type QueryRequest } from './wire.js'
 
 const writes: WriteCapability = {
@@ -370,6 +371,7 @@ const writes: WriteCapability = {
 
     return { mutate, retry }
   },
+  unpredicted,
 }
 
 /** Installs the write capability, and the layer capability a write's pending layer needs. */

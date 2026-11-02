@@ -107,6 +107,35 @@ export interface OutboxUnsaved extends Diagnostic {
   readonly reason: string
 }
 
+/**
+ * Under `verifyPredictions`, a list that selects members of its Entity that a
+ * declared insert cannot predict (#342): a row the insert makes is not shown
+ * in the list until the server answers, and the list reads `Refreshing`
+ * meanwhile. Reported where the read is declared (`Data.query`), once per
+ * list and insert, to the default reporter, since no application's context
+ * reaches a declaration.
+ */
+export interface InsertUnpredicted extends Diagnostic {
+  readonly _tag: 'InsertUnpredicted'
+  readonly query: string
+  readonly mutation: string
+  readonly entity: string
+  readonly members: ReadonlyArray<string>
+}
+
+export const insertUnpredicted = (
+  facts: Omit<InsertUnpredicted, '_tag' | 'source' | 'level' | 'message'>,
+): InsertUnpredicted => {
+  const them = facts.members.length === 1 ? 'it' : 'them'
+  return {
+    _tag: 'InsertUnpredicted',
+    source,
+    level: 'warning',
+    message: `${facts.query} selects ${facts.members.map(member => `${facts.entity}.${member}`).join(', ')}, which ${facts.mutation} cannot predict: a ${facts.entity} it makes is not shown in ${facts.query} until the server answers, and ${facts.query} reads Refreshing meanwhile. Map ${them} in ${facts.mutation}'s input, set ${them} with Entity.sets, or select fewer.`,
+    ...facts,
+  }
+}
+
 /** Every diagnostic Remote's client records. */
 export type RemoteDiagnostic =
   | LiveRefused

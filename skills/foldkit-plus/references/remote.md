@@ -926,7 +926,12 @@ Message and `why`. Declare the domain with
 build off; no package reads a build mode); a part the server answers
 otherwise on purpose goes in `verifyPredictions: { on, expected: { mutations:
 { PostChirp: { Value: 'why' } }, queries: { Feed: { Placement: 'why' } } } }`,
-names checked against the domain. `Trace.record(Data, update, { reads })`
+names checked against the domain. Under it, `Data.query` also reports (to the default
+log, not the Model) an `InsertUnpredicted` warning naming a list that selects members a
+declared `Write.insert` of its Entity cannot predict (neither its input, `Entity.sets`,
+a count, an exists nor a supplied member's `predict`): a row it makes is not drawn
+there until the answer, and the list reads `Refreshing`. Map the member in the input, set
+it with `Entity.sets`, or select fewer. `Trace.record(Data, update, { reads })`
 wraps a running app's `update` (a browser test's `Runtime.embed`); call
 `check()` after the steps. A mismatch is reported at error level, so it
 reaches `console.error` and `Behaviors.consoleErrors`.
