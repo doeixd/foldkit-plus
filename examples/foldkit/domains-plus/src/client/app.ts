@@ -607,7 +607,11 @@ const start = (route: AppRoute, search: Model): Return =>
  * The page at `url`, as the server renders it before it reads the prices
  * and the cart's cookie (`server/entry.ts`); the browser resumes from it.
  */
-export const init = (url: Url): Return => start(routeOf(url), SearchInUrl.reduce(empty, url))
+export const init = (url: Url): Return => {
+  const search = SearchInUrl.reduce(empty, url)
+  // A form posted without scripts names its filters with an empty `q` too.
+  return start(routeOf(url), String.isEmpty(search.query) ? unfiltered(search) : search)
+}
 
 export const subscriptions = placements.subscriptions()
 

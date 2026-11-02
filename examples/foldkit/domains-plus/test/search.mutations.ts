@@ -6,6 +6,17 @@ const tests = ['examples/foldkit/domains-plus/test/search.test.ts']
 
 export default [
   {
+    name: 'a page opened with an empty q keeps the filters it names',
+    edits: [
+      {
+        file: '../src/client/app.ts',
+        find: 'String.isEmpty(search.query) ? unfiltered(search) : search',
+        replace: 'search',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'clearing the search keeps its filters',
     edits: [
       {

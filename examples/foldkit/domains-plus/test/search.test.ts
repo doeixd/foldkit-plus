@@ -103,6 +103,12 @@ describe('an emptied search', () => {
     expect(filtersOf(after(filtered, message))).toEqual(defaults)
   })
 
+  test('a page opened with an empty q and filters set opens unfiltered', () => {
+    const opened = init(url('/?q=&tld=Dev&availability=Available&sort=PriceDescending')).model
+    expect(filtersOf(opened)).toEqual(defaults)
+    expect(filtersOf(after(opened, typed('a')))).toEqual(defaults)
+  })
+
   test('editing the text keeps them', () => {
     expect(filtersOf(after(filtered, typed('acm')))).toEqual(filtersOf(filtered))
   })
