@@ -35,7 +35,15 @@ beforeEach(() => {
   recorded.clear()
 })
 
-const definition = (viewer: boolean) =>
+/** Who a principal is, as a row: a User whose id is the principal. */
+const viewerOf = (principal: Principal) => Option.map(principal, id => ({ entity: 'User', id }))
+
+const definition = (
+  viewer: boolean,
+  viewerFor: (
+    principal: Principal,
+  ) => Option.Option<{ readonly entity: string; readonly id: string }> = viewerOf,
+) =>
   RemoteServer.make<Principal>({
     entities: [
       RemoteServer.entity(Item, {
@@ -66,9 +74,7 @@ const definition = (viewer: boolean) =>
         }),
       ),
     ],
-    ...(viewer
-      ? { viewer: (principal: Principal) => Option.map(principal, id => ({ entity: 'User', id })) }
-      : {}),
+    ...(viewer ? { viewer: viewerFor } : {}),
   })
 const server = definition(true)
 
@@ -272,5 +278,40 @@ describe('a server with no viewer', () => {
     )
     expect(answered.status).toBe(409)
     expect(answered.body).toMatchObject({ principalChanged: {} })
+  })
+})
+
+describe('two viewers whose keys would collide (#454)', () => {
+  const colliding = definition(true, principal =>
+    Option.map(principal, id =>
+      id === 'left' ? { entity: 'User', id: 'ada:x' } : { entity: 'User:ada', id: 'x' },
+    ),
+  )
+  const asLeft = RemoteServer.handlers(colliding, Option.some('left'))
+  const asRight = RemoteServer.handlers(colliding, Option.some('right'))
+
+  it('refuses a write made for one when the other asks, before it runs', async () => {
+    const first = await Effect.runPromise(
+      asLeft.FoldkitRemoteMutate({
+        requestId: 'o1',
+        operation: 'o1',
+        mutation: 'Rename',
+        input: { id: 'a' },
+      }),
+    )
+    expect(first.principal).toBe('User:ada:x')
+    const error = await Effect.runPromise(
+      Effect.flip(
+        asRight.FoldkitRemoteMutate({
+          requestId: 'o1',
+          operation: 'o1',
+          mutation: 'Rename',
+          input: { id: 'a' },
+          principal: first.principal,
+        }),
+      ),
+    )
+    expect(error._tag).toBe('PrincipalChanged')
+    expect(runs).toEqual([{ operation: 'o1', by: Option.some('left') }])
   })
 })

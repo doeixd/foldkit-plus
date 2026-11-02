@@ -40,8 +40,14 @@ export interface EntityEntry {
 
 export type EntityStore = Readonly<Record<EntityKey, EntityEntry>>
 
-/** The separator keeps an untrusted id from colliding with a prototype key. */
-export const entityKey = (entity: string, id: string): EntityKey => `${entity}:${id}`
+/**
+ * The separator keeps an untrusted id from colliding with a prototype key. An
+ * entity name is escaped first, so its own `:` cannot be read as that
+ * separator and two entities cannot share a key (#454); a name without one
+ * leaves the key as it was.
+ */
+export const entityKey = (entity: string, id: string): EntityKey =>
+  `${entity.replaceAll('%', '%25').replaceAll(':', '%3A')}:${id}`
 
 const emptyEntry: EntityEntry = {
   values: {},

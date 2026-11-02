@@ -2,6 +2,7 @@ import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
   emptyStore,
+  entityKey,
   entry,
   hasField,
   isTombstone,
@@ -15,6 +16,17 @@ import {
 } from '../src/index.js'
 
 const key = 'User:u1'
+
+describe('entityKey', () => {
+  it('keeps a colon in an entity name from colliding with an id', () => {
+    expect(entityKey('User', 'ada:x')).not.toBe(entityKey('User:ada', 'x'))
+    expect(entityKey('User', 'ada:x')).toBe('User:ada:x')
+    expect(entityKey('User:ada', 'x')).toBe('User%3Aada:x')
+    expect(entityKey('User%3Aada', 'x')).not.toBe(entityKey('User', 'ada:x'))
+    // A name with neither mark keeps the key it always had.
+    expect(entityKey('User', 'ada')).toBe('User:ada')
+  })
+})
 
 describe('EntityStore', () => {
   it('distinguishes missing, present-undefined, present-null, stale, and tombstone', () => {

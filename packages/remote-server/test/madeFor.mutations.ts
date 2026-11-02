@@ -3,7 +3,7 @@
  * each step broken in turn: `pnpm mutate
  * packages/remote-server/test/madeFor.mutations.ts`.
  */
-const tests = ['packages/remote-server/test/madeFor.test.ts']
+const tests = ['packages/remote-server/test/madeFor.test.ts', 'packages/remote/test/store.test.ts']
 const edit = (name: string, file: string, find: string, replace: string) => ({
   name,
   edits: [{ file, find, replace }],
@@ -95,5 +95,11 @@ export default [
     '../../remote/src/wire.ts',
     'principal: Schema.optional(Schema.NullOr(PrincipalKey)),',
     'principal: Schema.optional(PrincipalKey),',
+  ),
+  edit(
+    'an entity name and an id can share a key',
+    '../../remote/src/store.ts',
+    "`${entity.replaceAll('%', '%25').replaceAll(':', '%3A')}:${id}`",
+    '`${entity}:${id}`',
   ),
 ]
