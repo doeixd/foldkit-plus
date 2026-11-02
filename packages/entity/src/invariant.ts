@@ -5,8 +5,9 @@
  * form, a server's writer.
  *
  * One is built over the row before a write (`before`, each field as `Expr.field`) and
- * the row after it (`after`, each field as `Expr.next`). What it reads decides
- * when it is judged:
+ * the row after it (`after`, each field as `Expr.next`); each `one` relation is
+ * there too, as the id it points at, so a judged row holds it as that id. What
+ * it reads decides when it is judged:
  *
  * ```text
  * reads `after` only  -> a state invariant: every create and update, a CHECK constraint
@@ -27,11 +28,19 @@ import {
   dependenciesOf,
   type FieldExpr,
   type NextExpr,
+  type OneRelation,
   type Predicate,
   type Reads,
 } from './expr.js'
 import { remake, variantBases } from './descriptor.js'
-import type { AnyEntity, EntityField, EntityIdentity, EntityInput, InputMember } from './index.js'
+import type {
+  AnyEntity,
+  EntityField,
+  EntityIdentity,
+  EntityInput,
+  EntityMember,
+  InputMember,
+} from './index.js'
 import { storesNull, variantsOf } from './variants.js'
 
 type AnyField = EntityField<string, string, Schema.Constraint>
@@ -45,33 +54,45 @@ export interface Invariant {
   readonly predicate: Predicate
   /** What someone the rules let write is told when a write would break it. */
   readonly message: string
-  /** The fields a form shows the failure beside. */
+  /** The members a form shows the failure beside. */
   readonly path: ReadonlyArray<string>
-  /** The fields it reads of the row before a write; none for a state invariant. */
+  /** The members it reads of the row before a write (fields, `one` relations); none for a state invariant. */
   readonly before: ReadonlyArray<string>
-  /** The fields it reads of the row after. */
+  /** The members it reads of the row after. */
   readonly after: ReadonlyArray<string>
 }
 
+/** The keys of an Entity's `one` relations: what a row holds as the id each points at. */
+type LinkKeys<E extends AnyEntity> = {
+  [K in keyof E['relations'] & string]: E['relations'][K]['cardinality'] extends 'one' ? K : never
+}[keyof E['relations'] & string]
+
+/** The id a `one` relation points at, as a row holds it: null for an optional one pointing nowhere. */
+type LinkOf<
+  E extends AnyEntity,
+  K extends keyof E['relations'],
+> = E['relations'][K]['optional'] extends true ? string | null : string
+
 /**
- * Each field as the row before a write holds it: what an invariant reads as
- * `before`. Encoded, as the store holds it and the judge reads it, so a
- * literal is written so too (a date as its ISO text).
+ * Each field as the row before a write holds it, and each `one` relation as
+ * the id it points at: what an invariant reads as `before`. Encoded, as the
+ * store holds it and the judge reads it, so a literal is written so too (a
+ * date as its ISO text).
  */
 export type BeforeRow<E extends AnyEntity> = {
   readonly [K in keyof E['fields'] & string]: FieldExpr<
     Schema.Codec.Encoded<E['fields'][K]['schema']>
   > &
     Reads<E['name']>
-}
+} & { readonly [K in LinkKeys<E>]: FieldExpr<LinkOf<E, K>> & Reads<E['name']> }
 
-/** Each field as the row after a write holds it, encoded: what an invariant reads as `after`. */
+/** Each field, and each `one` relation's id, as the row after a write holds it: `after`. */
 export type AfterRow<E extends AnyEntity> = {
   readonly [K in keyof E['fields'] & string]: NextExpr<
     Schema.Codec.Encoded<E['fields'][K]['schema']>
   > &
     Reads<E['name']>
-}
+} & { readonly [K in LinkKeys<E>]: NextExpr<LinkOf<E, K>> & Reads<E['name']> }
 
 /** A row, or a change from one row to another, as an invariant is judged over it. */
 export interface Change {
@@ -129,7 +150,7 @@ type Build<E extends AnyEntity> = (rows: {
 
 interface Options<E extends AnyEntity> {
   readonly message: string
-  readonly path?: ReadonlyArray<keyof E['fields'] & string>
+  readonly path?: ReadonlyArray<(keyof E['fields'] & string) | LinkKeys<E>>
 }
 
 /** The invariant `build` declares over `entity`'s rows, refused where it could judge nothing. */
@@ -140,11 +161,19 @@ const declareOn = <E extends AnyEntity>(
   options: Options<E>,
 ): Invariant => {
   const fields = entity.fields as Readonly<Record<string, E['fields'][string]>>
-  const after = Object.fromEntries(
-    Object.entries(fields).map(([key, field]) => [key, Expr.next(field)]),
-  ) as unknown as AfterRow<E>
+  const relations = entity.relations as Readonly<Record<string, EntityMember>>
+  // A `one` relation reads as the id it points at; a `many` holds no one value.
+  const links = Object.values(relations).flatMap(member =>
+    member._tag === 'Relation' && member.cardinality === 'one' ? [member as OneRelation] : [],
+  )
+  const nexts = [
+    ...Object.entries(fields).map(([key, field]) => [key, Expr.next(field)] as const),
+    ...links.map(link => [link.key, Expr.next(link)] as const),
+  ]
+  const after = Object.fromEntries(nexts) as unknown as AfterRow<E>
+  // Before a write, each is what its `after` reads after it: the same operand, unmoved.
   const before = Object.fromEntries(
-    Object.entries(fields).map(([key, field]) => [key, Expr.field(field)]),
+    nexts.map(([key, next]) => [key, next.field]),
   ) as unknown as BeforeRow<E>
   const predicate = build({ before, after }) as Predicate
   // `where` refuses a predicate over another Entity, which the type allows when it is unmarked.
@@ -162,7 +191,8 @@ const declareOn = <E extends AnyEntity>(
   }
   const path = options.path ?? [...new Set([...afterReads, ...beforeReads])]
   for (const key of path) {
-    if (!Object.hasOwn(fields, key)) fail(entity, `"${id}"'s path names "${key}", not a field`)
+    if (!Object.hasOwn(fields, key) && !links.some(link => link.key === key))
+      fail(entity, `"${id}"'s path names "${key}", neither a field nor a one relation`)
   }
   return Object.freeze({
     id,
@@ -330,7 +360,8 @@ export const judge = (
 
 /**
  * The row an input's value describes, judged under its Entity's state
- * invariants: each key mapped to a field, encoded as the store holds it. An
+ * invariants: each key mapped to a field, encoded as the store holds it, and
+ * each mapped to a `one` relation as the id it points at. An
  * invariant over a field the input does not set (an `Option` holding nothing, a
  * key left out) is undecided, so a partial input is never called valid on its
  * account. It has no row before, so it judges no transition.
@@ -345,7 +376,15 @@ export const judgeInput = (
   const members = input.members as Readonly<Record<string, InputMember>>
   const row: Record<string, unknown> = {}
   for (const [key, member] of Object.entries(members)) {
-    if (member._tag !== 'Field' || !Object.hasOwn(value, key)) continue
+    if (!Object.hasOwn(value, key)) continue
+    // A `one` relation's key holds the id it points at: the row holds that id, or null.
+    if (member._tag === 'RelationInput' && member.relation.cardinality === 'one') {
+      const given = value[key]
+      const id = Option.isOption(given) ? Option.getOrNull(given) : given
+      if (id === null || typeof id === 'string') put(row, member.relation.key, id)
+      continue
+    }
+    if (member._tag !== 'Field') continue
     const encode = Schema.encodeUnknownOption(
       member.schema as unknown as Schema.Codec<unknown, unknown>,
     )

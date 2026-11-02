@@ -166,7 +166,7 @@ describe('An invariant', () => {
             path: ['volume'],
           }),
         ),
-      'not a field',
+      'neither a field nor a one relation',
     ],
   ])('is refused where it is declared: %s', (_, declare, message) => {
     expect(declare).toThrow(message)

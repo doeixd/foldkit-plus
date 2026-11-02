@@ -376,7 +376,6 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
     ))
       if (member._tag === 'Field')
         checkColumn(name, field, member.schema as Schema.Top, columns[field]!)
-    holdsChecks(entity, config.table, columns, operators)
 
     const relations = Object.create(null) as Record<string, RelationBinding>
     const members: Readonly<Record<string, Domain.EntityMember>> = entity.relations
@@ -433,6 +432,9 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
         enumerable: true,
       }) as RelationBinding
     }
+
+    // An invariant may read a `one` relation, so the checks are read once relations are bound.
+    holdsChecks(entity, config.table, columns, relations, operators)
 
     for (const { set, member, column } of contextSharers(entity.sets, columns, relations))
       fail(

@@ -9,6 +9,23 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **An invariant reads `one` relations** (`foldkit-entity`,
+  `foldkit-remote-drizzle`, #345). `before` and `after` in
+  `Entity.invariant` hold each `one` relation as the id it points at, as a
+  query and a guard read it, so "you cannot follow yourself" stays on the
+  Entity: `Expr.not(Expr.eq(after.follower, after.followee))`, piped onto
+  the Entity `Entity.relate` returned, with `path: ['followee']`. A judged
+  row holds the relation as that id (null where an optional one points
+  nowhere), `Entity.judgeInput` reads an input key mapped to it,
+  `Expr.next` takes a `one` relation, and Remote refuses a write breaking
+  one where it is made, over the held row's links. The Drizzle writer
+  judges an insert's links, compiles an update's link into its statement,
+  and explains a miss by the row's links; `checkConstraints` writes the
+  CHECK over the columns the relations are stored on, and `entityChecks`
+  takes them as `relations: { follower: t.followerId, … }`.
+  `RemoteServer.write` counts an insert's links, and the members its
+  context sets, as set.
+
 - **`InsertUnpredicted`** (`foldkit-remote`, #342). Under
   `verifyPredictions`, `Data.query` reports a list that selects members a
   declared `Write.insert` of its Entity cannot predict (neither its input,

@@ -14,6 +14,7 @@ import {
   Held,
   type AnyEntity,
   type EntityDerived,
+  type EntityMember,
   type Forbids,
   type HeldRow,
   type WriteSurface,
@@ -385,10 +386,17 @@ export const predictionOfWrite = (
   ]
 }
 
-/** The held fields of `row`, plain and encoded, as an invariant is judged over them. */
+/**
+ * The held fields of `row`, plain and encoded, and each `one` relation as the id
+ * it points at, as an invariant is judged over them.
+ */
 const plainRow = (entity: AnyEntity, row: HeldRow): Record<string, unknown> => {
   const plain: Record<string, unknown> = {}
-  for (const key of Object.keys(entity.fields))
+  const relations: Readonly<Record<string, EntityMember>> = entity.relations
+  const links = Object.values(relations).flatMap(member =>
+    member._tag === 'Relation' && member.cardinality === 'one' ? [member.key] : [],
+  )
+  for (const key of [...Object.keys(entity.fields), ...links])
     Held.match(row.field(key), {
       onHeld: value => {
         put(plain, key, value)

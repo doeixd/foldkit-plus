@@ -40,8 +40,13 @@ import {
 import { Match, Option, Schema, SchemaAST } from 'effect'
 import * as Domain from 'foldkit-entity'
 import { SchemaShape, type Invariant } from 'foldkit-entity'
-import type { AnyEntityBinding } from './binding.js'
-import { compilePredicates, QueryCompileError, type CompileTarget } from './compile.js'
+import type { AnyEntityBinding, RelationBinding } from './binding.js'
+import {
+  compilePredicates,
+  QueryCompileError,
+  type CompileTarget,
+  type StoredRelation,
+} from './compile.js'
 import { operatorsFrom, type BindingOperators } from './operators.js'
 import { quoted } from './quoted.js'
 
@@ -526,6 +531,16 @@ const derive = (
   return { checks, serverOnly }
 }
 
+/** The columns `one` relations are stored on, as a compile target reads them (`{ field }`). */
+const linksOf = (
+  given: Readonly<Record<string, AnyColumn | undefined>>,
+): Readonly<Record<string, StoredRelation>> => {
+  const links = Object.create(null) as Record<string, StoredRelation>
+  for (const [key, field] of Object.entries(given))
+    if (field !== undefined) links[key] = { kind: 'one', field }
+  return links
+}
+
 /** An Entity's fields beside the column each is stored in, failing for one with none. */
 const fieldsOf = (
   entity: Domain.AnyEntity,
@@ -549,10 +564,21 @@ const fieldsOf = (
   return { columns: resolved, fields }
 }
 
+/** The keys of an Entity's `one` relations. */
+type LinkKeys<E extends Domain.AnyEntity> = {
+  [K in keyof E['relations'] & string]: E['relations'][K]['cardinality'] extends 'one' ? K : never
+}[keyof E['relations'] & string]
+
 /** Options for `entityChecks`, matching what `bind` is given for the same table. */
 export interface EntityCheckOptions<E extends Domain.AnyEntity> {
   /** A column for a field whose name differs from the column's key; the rest match by key. */
   readonly fields?: { readonly [K in keyof E['fields']]?: AnyColumn } | undefined
+  /**
+   * The column each `one` relation an invariant reads is stored on, as `bind`'s
+   * `{ field }`: `follower: t.followerId`. An invariant reading one not named
+   * here is refused.
+   */
+  readonly relations?: { readonly [K in LinkKeys<E>]?: AnyColumn } | undefined
   /** How an invariant's primitive operators run in SQL; each kernel's when not given. */
   readonly operators?: Partial<BindingOperators> | undefined
 }
@@ -595,6 +621,7 @@ export function entityChecks(
   const { checks } = derive(entity.name, stored.fields, Domain.Entity.invariants(entity), {
     table,
     columns: stored.columns,
+    relations: linksOf(options.relations ?? {}),
     operators: operatorsFrom(options.operators),
   })
   return is(table, PgTable)
@@ -628,7 +655,12 @@ export const checkConstraints = (
       Object.hasOwn(fields, field) ? [[field, fields[field]!.ast] as const] : [],
     ),
     binding.invariants,
-    { table: binding.table, columns: binding.columns, operators: binding.operators },
+    {
+      table: binding.table,
+      columns: binding.columns,
+      relations: binding.relations,
+      operators: binding.operators,
+    },
   )
   return {
     constraints: checks.map(({ name, condition }) => ({
@@ -664,6 +696,7 @@ export const holdsChecks = (
   entity: Domain.AnyEntity,
   table: Table,
   columns: Readonly<Record<string, AnyColumn>>,
+  relations: Readonly<Record<string, RelationBinding>>,
   operators: BindingOperators,
 ): void => {
   const tableName = getTableName(table)
@@ -681,6 +714,7 @@ export const holdsChecks = (
   const { checks } = derive(entity.name, stored.fields, Domain.Entity.invariants(entity), {
     table,
     columns,
+    relations,
     operators,
   })
   const derived = new Map(checks.map(({ name, condition }) => [name, condition]))

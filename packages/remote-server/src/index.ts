@@ -2310,12 +2310,15 @@ export const RemoteServer = {
         `[foldkit-remote-server] write "${mutation.name}" writes ${writer.entity}, which has invariants, but its writer does not judge them (invariants)`,
       )
     }
-    const contextual = write.context.flatMap(({ member }) =>
-      member._tag === 'Field' ? [member.key] : [],
-    )
-    // An insert's row is its values: a field it leaves to a default the writer cannot judge.
+    // An insert's row is its values and its links (a `one` relation an invariant reads as the
+    // id it points at): a member it leaves to a default the writer cannot judge.
     if (write._tag === 'Insert') {
-      const sets = new Set(['id', ...write.sets.map(set => set.field.key), ...contextual])
+      const sets = new Set([
+        'id',
+        ...write.sets.map(set => set.field.key),
+        ...write.links.map(link => link.relation.key),
+        ...write.context.map(({ member }) => member.key),
+      ])
       const unset = judged.flatMap(held =>
         held.after.filter(key => !sets.has(key)).map(key => `${held.id} reads ${key}`),
       )

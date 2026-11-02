@@ -221,8 +221,8 @@ export default [
     edits: [
       {
         file: index,
-        find: '            { after: { ...values, id } },\n            binding.operators.memory,\n',
-        replace: '            { after: { ...values, id } },\n',
+        find: '            { after: { ...values, ...linkIds(links), id } },\n            binding.operators.memory,\n',
+        replace: '            { after: { ...values, ...linkIds(links), id } },\n',
       },
     ],
     tests,

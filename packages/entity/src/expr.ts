@@ -1551,6 +1551,18 @@ interface FieldOf {
 const fieldOf = ((field: EntityField<string, string, Schema.Constraint>) =>
   fieldExpr(field)) as FieldOf
 
+interface NextOf {
+  <Name extends string, Key extends string, S extends Schema.Constraint>(
+    field: EntityField<Name, Key, S>,
+  ): NextExpr<Schema.Schema.Type<S>> & Reads<Name>
+  <Name extends string, Key extends string, Optional extends boolean>(
+    relation: EntityRelation<Name, Key, AnyEntity, 'one', Optional>,
+  ): NextExpr<Optional extends true ? string | null : string> & Reads<Name>
+}
+// A `one` relation is the id it points at, as everywhere else it is an operand.
+const nextOf = ((member: EntityField<string, string, Schema.Constraint> | OneRelation) =>
+  node({ _tag: 'Next', field: toOperand(member) as FieldExpr<unknown> })) as NextOf
+
 export const Expr = {
   /**
    * An operator, defined by what a call of it means: `definedAs` builds that
@@ -1668,13 +1680,10 @@ export const Expr = {
     node({ _tag: 'Input', key, schema }),
 
   /**
-   * A field as the row a write would leave holds it: what `Entity.invariant`'s
-   * builder hands out as `after`.
+   * A field, or a `one` relation as the id it points at, as the row a write
+   * would leave holds it: what `Entity.invariant`'s builder hands out as `after`.
    */
-  next: <Name extends string, Key extends string, S extends Schema.Constraint>(
-    field: EntityField<Name, Key, S>,
-  ): NextExpr<Schema.Schema.Type<S>> & Reads<Name> =>
-    node({ _tag: 'Next', field: fieldExpr(field) }) as NextExpr<Schema.Schema.Type<S>>,
+  next: nextOf,
 
   /**
    * One field of one Entity, as a scalar. An expression is one already: an

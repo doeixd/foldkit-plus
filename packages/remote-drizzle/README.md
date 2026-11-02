@@ -1323,7 +1323,11 @@ sqlite.exec(`create table posts (…, ${constraints.map(c => c.constraint).join(
 ```
 
 `entityChecks` takes the Entity, not the binding, because Drizzle reads the
-callback lazily and the binding is made from the table. Each column with rules
+callback lazily and the binding is made from the table. An invariant over a
+`one` relation ("you cannot follow yourself") reads the column it is stored
+on, which the table's columns do not name by the relation's key: give it as
+`entityChecks(Follow, t, { relations: { follower: t.followerId, followee:
+t.followeeId } })`, as `bind` is given `{ field }`. Each column with rules
 gets one `constraint "<table>_<column>_check"`; each state invariant gets
 `constraint "<table>_<id>" check ((…) is true)` (`is true`, because a plain
 check passes a row its condition calls unknown, and an invariant does not).

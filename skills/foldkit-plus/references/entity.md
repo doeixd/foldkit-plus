@@ -325,6 +325,12 @@ const Restock = Write.update(
   and update, and a `CHECK` constraint (`checkConstraints`, `entityChecks`). `before` too: a transition invariant, judged
   on updates only. `Entity.readsBefore` of one of `Entity.invariants(entity)` tells which. One reading nothing of `after` is refused
   where it is declared: which rows a write may start from is its `when`.
+- **Over `one` relations too.** `before` and `after` hold each `one` relation as the id it points at,
+  so "you cannot follow yourself" stays on the Entity: pipe
+  `Entity.invariant('notSelf', ({ after }) => Expr.not(Expr.eq(after.follower, after.followee)), …)`
+  onto the Entity `Entity.relate` returned. A judged row holds the relation as that id; the Drizzle
+  writer reads its column, and `entityChecks(Follow, t, { relations: { follower: t.followerId, … } })`
+  names the column a CHECK reads. A `many` holds no one value and is not there.
 - **Strictly true.** A null fails one, as SQL's unknown drops a row from a `WHERE`; write
   `Expr.or(Expr.isNull(after.x), …)` to allow it. Text compares only under a declared collation.
 - **Judged everywhere it can be.** `Entity.judge(entity, { after, before? })` is the pure reference
@@ -581,7 +587,7 @@ Expr.path(Feed.Post.relations.author,
   table twice, or a relation not stored on its owner's table, is refused at
   registration. Query bodies and a guard's Read, Update and Delete rules take
   paths ([guard.md](guard.md)); invariants, `when` and computed assignments
-  do not yet.
+  do not yet (an invariant reads its own row's `one` relations as ids).
 - A `one` relation is itself an operand, the id it points at:
   `Expr.eq(Like.relations.user, Expr.viewer(User))`, or a guard's
   `Expr.eq(Like.relations.user, p.id)`. So no field over the same column repeats

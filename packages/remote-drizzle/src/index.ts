@@ -37,6 +37,7 @@ import { Array as Arr, Clock, Effect, Match, Option, Result, Schema } from 'effe
 import {
   Entity as DomainEntity,
   Expr,
+  idOfRef,
   Query,
   Write,
   dependenciesOf,
@@ -1308,6 +1309,7 @@ export const writer = <P = unknown>(
       const target = {
         table: binding.table,
         columns: binding.columns,
+        relations: binding.relations,
         next,
         operators: binding.operators,
       }
@@ -1364,6 +1366,25 @@ export const writer = <P = unknown>(
         tested(binding.operators.memory.evidence, kind) &&
         tested(binding.operators.sql.evidence, kind),
     )
+  }
+
+  /** Each link a write points, as the id an invariant reads it as: null for none. */
+  const linkIds = (
+    links: Readonly<Record<string, Option.Option<EntityRef>>>,
+  ): Readonly<Record<string, string | null>> =>
+    Object.fromEntries(
+      Object.entries(links).map(([key, link]) => [
+        key,
+        Option.getOrNull(Option.map(link, ref => ref.id)),
+      ]),
+    )
+  /** A row as answered (each link its ref key) with each link as the id an invariant reads. */
+  const judgedRow = (row: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> => {
+    const read: Record<string, unknown> = { ...row }
+    for (const [key, relation] of Object.entries(binding.relations))
+      if (relation.kind === 'one' && typeof row[key] === 'string')
+        read[key] = idOfRef(row[key], `${binding.name}.${key}`)
+    return read
   }
 
   /** The first of the invariants broken, as the refusal a writer answers it with. */
@@ -1862,7 +1883,7 @@ export const writer = <P = unknown>(
         const where = and(
           at.where,
           ...required,
-          ...(yield* holdingInvariants(values, increments, assignments)),
+          ...(yield* holdingInvariants({ ...values, ...linkIds(links) }, increments, assignments)),
         )
         const { bump } = at
         const set = {
@@ -1990,8 +2011,10 @@ export const writer = <P = unknown>(
           Option.isNone(book) && sets && !incrementing && holdsWritten(row, values, links)
         // Holding its precondition, it missed by the row it would leave.
         if (holdsWhen) {
-          const after = proposedOf(row, { values, increments, assignments })
-          const broken = brokenIn(retried ? { after } : { before: row, after })
+          const before = judgedRow(row)
+          const written = { ...values, ...linkIds(links) }
+          const after = proposedOf(before, { values: written, increments, assignments })
+          const broken = brokenIn(retried ? { after } : { before, after })
           if (Option.isSome(broken)) return yield* broken.value
         }
         if (retried) return now
@@ -2008,7 +2031,7 @@ export const writer = <P = unknown>(
         yield* Match.value(
           DomainEntity.judgeAgainst(
             invariants,
-            { after: { ...values, id } },
+            { after: { ...values, ...linkIds(links), id } },
             binding.operators.memory,
           ),
         ).pipe(

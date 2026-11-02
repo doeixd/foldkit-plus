@@ -71,6 +71,11 @@ import type { RelationBinding } from './binding.js'
 import { collatedColumn, type OrderTerm } from './cursor.js'
 import { kernelOperators, type BindingOperators } from './operators.js'
 
+/** How a relation is stored, as far as compiling reads it: a `one` by the column it is stored on. */
+export type StoredRelation =
+  | { readonly kind: 'one'; readonly field: AnyColumn }
+  | { readonly kind: Exclude<RelationBinding['kind'], 'one'> }
+
 /**
  * What a binding has to offer to be compiled against: a column per field key,
  * and the table, whose dialect decides how text folds.
@@ -97,7 +102,7 @@ export interface CompileTarget {
    */
   readonly context?: ExprContext | undefined
   /** Its `one` relations, by key: a path leaves this table by one stored here (`{ field }`). */
-  readonly relations?: Readonly<Record<string, RelationBinding>> | undefined
+  readonly relations?: Readonly<Record<string, StoredRelation>> | undefined
   /** The binding of each Entity a path or an exists may reach, by identity; `bind` sets it. */
   readonly reach?: ((owner: EntityIdentity<string>) => Option.Option<CompileTarget>) | undefined
   /**

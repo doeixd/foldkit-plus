@@ -1173,6 +1173,36 @@ so: a date stored as ISO text is compared with ISO text
 (`Expr.eq(after.at, '2026-01-01T00:00:00.000Z')`), since a `Date` would never
 equal it.
 
+A `one` relation is there too, as the id it points at, as it is in a query
+or a guard: a rule over where a row points stays on the Entity, judged with
+the rest, and compiles to a CHECK over the columns the relations are stored
+on. Pipe it onto the Entity `Entity.relate` returned, which has them:
+
+<!-- docs-check
+import { Relation } from 'foldkit-entity'
+-->
+
+```ts
+const PersonFields = Entity.define('Person', Schema.Struct({ id: Schema.String }))
+const Social = Entity.relate(
+  { Person: PersonFields, Follow: Entity.define('Follow', Schema.Struct({ id: Schema.String })) },
+  { Follow: { follower: Relation.one(PersonFields), followee: Relation.one(PersonFields) } },
+)
+const Follow = Social.Follow.pipe(
+  Entity.invariant('notSelf', ({ after }) => Expr.not(Expr.eq(after.follower, after.followee)), {
+    message: 'You cannot follow yourself',
+    path: ['followee'],
+  }),
+)
+
+Entity.judge(Follow, { after: { id: 'f1', follower: 'ada', followee: 'ada' } })
+// { _tag: 'Invalid', failures: [{ id: 'notSelf', … }] }
+```
+
+A row judged holds each relation it reads as that id (null where an optional
+one points nowhere); `Entity.judgeInput` reads an input key mapped to the
+relation as it. A `many` relation holds no one value, so it is not there.
+
 `Entity.invariant` returns the step that attaches it, carrying its `id` and,
 once attached, its Entity's name as `entity`: an id is unique only within an
 Entity, so a refusal names both. A declaration attaches to one Entity; reading
@@ -1203,8 +1233,8 @@ Refusal.isInvalidBy(refusal, reservedWithinQuantity)
 - It is declared once, on the Entity's metadata, and attaching more adds to it;
   the Entity stays the same (`Entity.same`). Its interpreters read it from there.
 - It reads stored rows only: one over another Entity, or reading an input, is
-  refused where it is declared, as is an id declared twice or a `path` naming no
-  field. So is one reading nothing of `after`: which rows a write may start from
+  refused where it is declared, as is an id declared twice or a `path` naming
+  neither a field nor a `one` relation. So is one reading nothing of `after`: which rows a write may start from
   is its `when`. Who may write is a guard's; whether a write applies now is its `when`'s.
 - `Entity.judge(entity, { after, before? })` judges rows as the store holds them
   (encoded) and is pure. Without `before` (a create) it skips transition

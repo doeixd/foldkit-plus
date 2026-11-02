@@ -48,8 +48,8 @@ export default [
   edit('a server without a viewer is made', 'if (viewing !== undefined) {', 'if (false) {'),
   edit(
     'a field the context sets is not counted as set where an insert is registered',
-    '...write.sets.map(set => set.field.key), ...contextual])',
-    '...write.sets.map(set => set.field.key)])',
+    '...write.context.map(({ member }) => member.key),',
+    '',
   ),
   edit(
     "the server ignores the client's time",

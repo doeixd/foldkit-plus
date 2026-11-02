@@ -19,7 +19,7 @@ export default [
   edit(
     'the statement does not judge the row',
     drizzle,
-    '...(yield* holdingInvariants(values, increments, assignments))',
+    '...(yield* holdingInvariants({ ...values, ...linkIds(links) }, increments, assignments))',
     '',
   ),
   edit(
@@ -44,13 +44,13 @@ export default [
   edit(
     'a miss judges the row without its amounts',
     drizzle,
-    'proposedOf(row, { values, increments, assignments })',
-    'proposedOf(row, { values, increments: {}, assignments })',
+    'proposedOf(before, { values: written, increments, assignments })',
+    'proposedOf(before, { values: written, increments: {}, assignments })',
   ),
   edit(
     'a miss judges no transition',
     drizzle,
-    'brokenIn(retried ? { after } : { before: row, after })',
+    'brokenIn(retried ? { after } : { before, after })',
     'brokenIn({ after })',
   ),
   edit(
@@ -131,8 +131,8 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: 'brokenIn(retried ? { after } : { before: row, after })',
-        replace: 'brokenIn({ before: row, after })',
+        find: 'brokenIn(retried ? { after } : { before, after })',
+        replace: 'brokenIn({ before, after })',
       },
     ],
     tests: ['packages/remote-drizzle/test/transition.test.ts'],

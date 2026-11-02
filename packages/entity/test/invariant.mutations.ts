@@ -46,8 +46,8 @@ export default [
   edit('an invariant may read an input', 'if (dependencies.inputs.length > 0) {', 'if (false) {'),
   edit(
     'a path may name no field',
-    'if (!Object.hasOwn(fields, key)) fail(entity,',
-    'if (false) fail(entity,',
+    'if (!Object.hasOwn(fields, key) && !links.some(link => link.key === key))',
+    'if (false)',
   ),
   edit(
     'the path defaults to nothing',

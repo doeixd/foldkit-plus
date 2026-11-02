@@ -39,8 +39,8 @@ export default [
   edit(
     'a miss is explained without what it computes',
     writerFile,
-    'proposedOf(row, { values, increments, assignments })',
-    'proposedOf(row, { values, increments, assignments: {} })',
+    'proposedOf(before, { values: written, increments, assignments })',
+    'proposedOf(before, { values: written, increments, assignments: {} })',
     drizzleTests,
   ),
   edit(
