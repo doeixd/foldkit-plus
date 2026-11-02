@@ -927,6 +927,28 @@ For the new versions they depend on, or changes inside them alone:
 
 ### Fixed
 
+- **A read is cut by the request it actually sends** (`foldkit-remote`, #450).
+  The client reserved a fixed 512 bytes for the envelope, so a
+  `maxBodyBytes` at or below 512 refused every nonempty read, query or
+  mutation. A read is now cut by the JSON body it sends, and a query or
+  mutation is refused only when its complete encoding is over the limit.
+
+- **An optimistic action that never ends fails at its deadline**
+  (`foldkit-plus/testing/playwright`, #461). `Behaviors.optimistic` still awaited
+  the action after its deadline, so an action stuck for another reason hung
+  the helper for good; it now fails at the deadline, leaving a later
+  rejection unobserved.
+
+- **A lazy list's drawings are evicted at each render** (`foldkit-mixins`,
+  #442). The item memo recognized a new pass only when a key was drawn again,
+  so disjoint windows of a virtual list never evicted an entry. A render
+  boundary is the pass now, so keys no window repeats are forgotten.
+
+- **Boot Commands see the address the page arrived at** (`foldkit-ssr`,
+  #460). A prerendered page opened at a query planned `boot` from the server
+  Model before the arrival URL was applied. Boot Commands are now planned from
+  the Model the runtime starts with, in the same order.
+
 - **A write's viewer key cannot collide with another viewer's**
   (`foldkit-remote`, #454). The key was `entity:id`; an entity name and an id
   each holding `:` could make the same key, so a durable write made for one
