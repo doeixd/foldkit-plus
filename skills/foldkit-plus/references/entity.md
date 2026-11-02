@@ -587,7 +587,9 @@ Expr.path(Feed.Post.relations.author,
   `Expr.eq(Like.relations.user, p.id)`. So no field over the same column repeats
   the link. SQL reads its column (a relation stored `{ field }`); a row given to
   `evaluate` holds it as the id, and a ref-keyed row (a Source's answer, the
-  Remote store) is read through `Held.fromRefs(query, row)`. No list orders by one.
+  Remote store) is read through `Held.fromRefs(query, row)`, and a row known only by
+  its Entity's identity (one pointing here) through `Held.isLink(identity, key)`. No
+  list orders by one.
 - `evaluate` (one plain row) refuses a path or an exists. `Judge.query(body,
   input, row)` reads a `HeldRow` (`Held.rows(tables)` over plain records) and
   answers a `Verdict`: `Known` (SQL's answer) or `Unknown` with why, when the

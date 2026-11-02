@@ -118,6 +118,11 @@ export const make = (parts: Parts): AnyEntity => {
 export const remake = (entity: AnyEntity, changed: Partial<Parts>): AnyEntity =>
   make({ ...partsOf.get(entity)!, ...changed })
 
+/** The relations every descriptor of the Entity `identity` names holds. */
+export const relationsOf = (
+  identity: EntityIdentity<string>,
+): Readonly<Record<string, EntityMember>> => shapeOf(identity).relations
+
 /** Adds to the Entity's shared members, which every descriptor of it then reads. */
 export const extend = (
   entity: AnyEntity,

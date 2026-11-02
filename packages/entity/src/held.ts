@@ -8,6 +8,7 @@
  * which a plain record cannot: both read as a missing key.
  */
 import { Option } from 'effect'
+import { relationsOf } from './descriptor.js'
 import { Query, type AnyQuery, type OneRelation } from './expr.js'
 import type { AnyEntity, EntityIdentity, EntityMember } from './index.js'
 import { own, put } from './record.js'
@@ -213,6 +214,16 @@ const fromRefs = (
   return read
 }
 
+/**
+ * Whether `key` is a `one` relation of the Entity `owner` names: what a
+ * ref-keyed holder reads as the id it points at on a row it knows only by
+ * identity, as a row pointing through `HeldRow.pointing`'s relation is.
+ */
+const isLink = (owner: EntityIdentity<string>, key: string): boolean => {
+  const member = own(relationsOf(owner), key)
+  return member?._tag === 'Relation' && member.cardinality === 'one'
+}
+
 /** The id a ref key (`'User:ada'`) names, refusing what is none, as `where` holds it. */
 export const idOfRef = (ref: unknown, where: string): string => {
   const separator = typeof ref === 'string' ? ref.indexOf(':') : -1
@@ -236,4 +247,5 @@ export const Held = {
   /** Rows held as plain records; see `HeldTable`. */
   rows: rowsOf,
   fromRefs,
+  isLink,
 }
