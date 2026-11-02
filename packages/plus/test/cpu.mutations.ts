@@ -16,8 +16,13 @@ export default [
   edit('a cold reading over budget passes', '(cold !== undefined && reading.cold > cold)', 'false'),
   edit(
     'the first request is read with the rest',
-    'cold: first - start, warm: (end - first) / runs',
-    'cold: (end - start) / (runs + 1), warm: (end - start) / (runs + 1)',
+    'const first = await meter.spent()',
+    'const first = start',
+  ),
+  edit(
+    'a warm reading is their mean',
+    'warmest = Math.max(warmest, now - previous)',
+    'warmest = (warmest * run + (now - previous)) / (run + 1)',
   ),
   edit('a failed answer is read as a cost', 'if (status >= 500)', 'if (false)'),
   edit('no runs are taken as some', 'if (!Number.isInteger(runs) || runs < 1)', 'if (false)'),

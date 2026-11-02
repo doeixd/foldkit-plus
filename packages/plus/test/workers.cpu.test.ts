@@ -12,7 +12,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Cpu, Stack } from '../src/testing/workers.js'
+import { Cpu, Stack, type CpuMeter } from '../src/testing/workers.js'
 
 const supported = String(
   createRequire(createRequire(import.meta.url).resolve('wrangler'))('miniflare')
@@ -111,19 +111,43 @@ describe('a handler in this thread', () => {
   })
 
   it('passes a cheap handler and fails a busy one', async () => {
-    await Cpu.budget(meter, { routes: { cheap: '/' }, warm: 10, cold: 10 })
+    await Cpu.budget(meter, { routes: { cheap: '/' }, warm: 40, cold: 40 })
     await expect(
       Cpu.budget(meter, {
-        routes: { busy: () => new Request('http://localhost/?ms=30') },
-        warm: 10,
+        routes: { busy: () => new Request('http://localhost/?ms=80') },
+        warm: 40,
       }),
-    ).rejects.toThrow(/^Over the CPU budget \(warm 10 ms\): busy\n/)
+    ).rejects.toThrow(/^Over the CPU budget \(warm 40 ms\): busy\n/)
   })
 
   it('takes a whole number of runs from 1', async () => {
     await expect(Cpu.budget(meter, { routes: { cheap: '/' }, warm: 10, runs: 0 })).rejects.toThrow(
       'runs must be a whole number from 1',
     )
+  })
+})
+
+describe('a meter with known costs', () => {
+  /** Cumulative CPU readings, in the order `Cpu.budget` reads them. */
+  const costs = (sequence: ReadonlyArray<number>): CpuMeter => {
+    let index = 0
+    return {
+      origin: 'http://localhost',
+      fetch: async () => new Response('ok'),
+      spent: async () => sequence[index++] ?? sequence.at(-1) ?? 0,
+    }
+  }
+
+  it('checks every warm request, not their mean', async () => {
+    // A cold request of 1 ms, then warm ones of 30, 0, 0, 0 and 0: the mean
+    // is 6 ms, but one request spent three times the budget.
+    await expect(
+      Cpu.budget(costs([1, 2, 32, 32, 32, 32, 32]), {
+        routes: { home: '/' },
+        warm: 10,
+        runs: 5,
+      }),
+    ).rejects.toThrow('home: cold 1.00 ms, warm 30.00 ms')
   })
 })
 

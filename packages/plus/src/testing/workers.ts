@@ -170,14 +170,22 @@ export interface CpuReading {
   readonly status: number
   /** The route's first request in this call: in a fresh stack, a cold isolate's. */
   readonly cold: number
-  /** The mean of the requests after the first. */
+  /**
+   * The most a request after the first spent, in milliseconds. A deployed
+   * Worker's limit applies to each request, not to their mean.
+   */
   readonly warm: number
 }
 
 export interface CpuBudget {
   /** The routes, by the name a failure reports them with. */
   readonly routes: Readonly<Record<string, CpuRoute>>
-  /** Milliseconds a warm request may spend. */
+  /**
+   * Milliseconds each request after the first may spend. A meter's own
+   * resolution bounds how small this can be: Windows books a thread's CPU
+   * time in 15.6 ms ticks, so a budget near that reads one request's cost
+   * as a tick whether it spent it or not.
+   */
   readonly warm: number
   /** Milliseconds the first request may spend; unchecked when not given. */
   readonly cold?: number
@@ -320,9 +328,10 @@ const workerdMeter = (origin: string, dispatch: WorkerHandle['fetch'], spawned: 
 
 /**
  * Asks each route once, then `runs` times more, one request at a time, each
- * response read in full, and reads what each cost. Throws listing every
- * reading when a route spends more than the budget, or answers a 5xx, whose
- * cost says nothing of the route's.
+ * response read in full, and reads what each cost. Every warm request is
+ * checked, since a deployed Worker's limit applies to each rather than to
+ * their mean. Throws listing every reading when a route spends more than
+ * the budget, or answers a 5xx, whose cost says nothing of the route's.
  */
 const budget = async (
   meter: CpuMeter,
@@ -344,9 +353,15 @@ const budget = async (
     const start = await meter.spent()
     await ask()
     const first = await meter.spent()
-    for (let run = 0; run < runs; run++) await ask()
-    const end = await meter.spent()
-    readings.push({ route: name, status, cold: first - start, warm: (end - first) / runs })
+    let warmest = 0
+    let previous = first
+    for (let run = 0; run < runs; run++) {
+      await ask()
+      const now = await meter.spent()
+      warmest = Math.max(warmest, now - previous)
+      previous = now
+    }
+    readings.push({ route: name, status, cold: first - start, warm: warmest })
   }
   const over = readings.filter(
     reading => reading.warm > warm || (cold !== undefined && reading.cold > cold),

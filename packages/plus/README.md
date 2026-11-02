@@ -198,11 +198,13 @@ const readings = await Cpu.budget(stack.cpu, {
 ```
 
 Each route is asked once, then `runs` (5) times more, one request at a time,
-each response read in full. Over budget, it throws with every route's
-reading; a 5xx throws too, since a failure costs nothing. `cold` is the
-route's first request in the call, so in a fresh stack it is a cold
-isolate's: code not yet optimized, and work kept per isolate (a compiled
-query, Auth) done for the first time.
+each response read in full. Every warm request is checked, since a deployed
+limit applies to each rather than to their mean: `warm` in a reading is the
+most one spent. Over budget, it throws with every route's reading; a 5xx
+throws too, since a failure costs nothing. `cold` is the route's first
+request in the call, so in a fresh stack it is a cold isolate's: code not yet
+optimized, and work kept per isolate (a compiled query, Auth) done for the
+first time.
 
 There are two meters:
 
