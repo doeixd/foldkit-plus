@@ -24,6 +24,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -67,17 +68,45 @@ const workspaceClosure = exampleDir => {
   return [...seen]
 }
 
+/** The newest modification time of any file under `dir`, skipping `node_modules`; -Infinity if none. */
+export const newestMtime = dir => {
+  if (!existsSync(dir)) return -Infinity
+  let newest = -Infinity
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name)
+    if (entry.isDirectory()) {
+      if (entry.name !== 'node_modules') newest = Math.max(newest, newestMtime(path))
+    } else {
+      newest = Math.max(newest, statSync(path).mtimeMs)
+    }
+  }
+  return newest
+}
+
 /**
- * Builds the packages the example reaches whose `dist` is missing (CI builds
- * none), or all of them with `rebuild`. A stale `dist` is measured as it is:
- * run `pnpm build:packages` first for a current figure.
+ * A `dist` is stale when `src/` or `package.json` is newer than its newest file.
+ * A missing `dist` is -Infinity, so it is stale too.
+ */
+export const isStale = packageDir =>
+  Math.max(
+    newestMtime(join(packageDir, 'src')),
+    statSync(join(packageDir, 'package.json')).mtimeMs,
+  ) > newestMtime(join(packageDir, 'dist'))
+
+/**
+ * Builds the packages the example reaches whose `dist` is missing or stale
+ * (CI builds none), or all of them with `rebuild`.
  */
 const ensureDist = async (dirs, rebuild) => {
   const { build } = await import('tsdown')
   for (const dir of dirs) {
     const packageDir = join(repo, 'packages', dir)
-    const entry = readJson(join(packageDir, 'package.json')).exports?.['.']?.import
-    if (!rebuild && entry !== undefined && existsSync(join(packageDir, entry))) continue
+    const manifest = readJson(join(packageDir, 'package.json'))
+    const entry = manifest.exports?.['.']?.import
+    const built = entry !== undefined && existsSync(join(packageDir, entry))
+    const stale = built && isStale(packageDir)
+    if (!rebuild && built && !stale) continue
+    if (stale) console.error(`rebuilding ${manifest.name}: its dist is older than its source`)
     const config = (await import(pathToFileURL(join(packageDir, 'tsdown.config.ts')).href)).default
     await build({ ...config, config: false, cwd: packageDir, dts: false, logLevel: 'silent' })
   }
