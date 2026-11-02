@@ -534,6 +534,38 @@ describe('a batch is cut to the limits the client knows (#354, #359)', () => {
     expect(answer.entities.map(entity => entity.id).sort()).toEqual(['u0', 'u1', 'u2', 'u3', 'u4'])
   })
 
+  it('packs a later entity into an earlier piece with room (#459)', async () => {
+    const raw = recording()
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const read = yield* coalesceReads(raw.read, { maxIdsPerEntity: 1 })
+        return yield* read(
+          batch(
+            req('a1', ['name']),
+            req('a2', ['name']),
+            { entity: 'Post', id: 'b1', fields: ['title'] },
+            { entity: 'Post', id: 'b2', fields: ['title'] },
+          ),
+        )
+      }),
+    )
+    expect(raw.batches).toHaveLength(2)
+    expect(
+      raw.batches.map(sent =>
+        sent.requests.map(request => `${request.entity}:${request.id}`).sort(),
+      ),
+    ).toEqual([
+      ['Post:b1', 'User:a1'],
+      ['Post:b2', 'User:a2'],
+    ])
+    expect(result.entities.map(entity => `${entity.entity}:${entity.id}`).sort()).toEqual([
+      'Post:b1',
+      'Post:b2',
+      'User:a1',
+      'User:a2',
+    ])
+  })
+
   it('cuts by bytes so each request fits maxBodyBytes', async () => {
     const raw = recording()
     const maxBodyBytes = 512 + 200

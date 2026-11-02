@@ -128,8 +128,10 @@ interface PlannedRead {
 }
 
 /**
- * Cuts merged requests into the fewest reads that fit `limits`, in order. A
- * request too large to send alone is a read of its own that is never sent.
+ * Cuts merged requests into reads that fit `limits`, in order: each request
+ * goes into the first piece with room under both limits, so a later entity
+ * fills an earlier read rather than opening one of its own. A request too
+ * large to send alone is a read of its own that is never sent.
  */
 const cut = (
   requests: ReadonlyArray<Requirement>,
@@ -144,15 +146,15 @@ const cut = (
       tooLarge.push(request)
       continue
     }
-    const last = pieces.at(-1)
-    if (
-      last !== undefined &&
-      last.bytes + bytes <= limits.budget &&
-      (last.ids.get(request.entity) ?? 0) < limits.maxIds
-    ) {
-      last.requests.push(request)
-      last.bytes += bytes
-      last.ids.set(request.entity, (last.ids.get(request.entity) ?? 0) + 1)
+    const piece = pieces.find(
+      piece =>
+        piece.bytes + bytes <= limits.budget &&
+        (piece.ids.get(request.entity) ?? 0) < limits.maxIds,
+    )
+    if (piece !== undefined) {
+      piece.requests.push(request)
+      piece.bytes += bytes
+      piece.ids.set(request.entity, (piece.ids.get(request.entity) ?? 0) + 1)
     } else {
       pieces.push({ requests: [request], bytes, ids: new Map([[request.entity, 1]]) })
     }

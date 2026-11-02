@@ -51,11 +51,22 @@ export default [
     edits: [
       {
         file: coalesce,
-        find: '(last.ids.get(request.entity) ?? 0) < limits.maxIds',
+        find: '(piece.ids.get(request.entity) ?? 0) < limits.maxIds',
         replace: 'true',
       },
     ],
     tests: [unit, page],
+  },
+  {
+    name: 'a later entity opens a new piece rather than an earlier one with room (#459)',
+    edits: [
+      {
+        file: coalesce,
+        find: 'const piece = pieces.find(',
+        replace: 'const piece = pieces.slice(-1).find(',
+      },
+    ],
+    tests: [unit],
   },
   {
     name: 'a planned read settles none of the keys it was planned for',
@@ -70,7 +81,7 @@ export default [
   },
   {
     name: 'no cut by bytes',
-    edits: [{ file: coalesce, find: 'last.bytes + bytes <= limits.budget &&', replace: '' }],
+    edits: [{ file: coalesce, find: 'piece.bytes + bytes <= limits.budget &&', replace: '' }],
     tests: [unit],
   },
   {
