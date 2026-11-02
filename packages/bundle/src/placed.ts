@@ -154,7 +154,8 @@ export interface PlaceConfig<
    * The inputs the child's view is drawn with, from the parent's Model and the
    * inputs the parent's view gave, at every draw: a fact the parent holds and
    * the child's Model cannot, such as whether a write the child started is
-   * answered yet.
+   * answered yet. A view drawn without inputs (one that takes none) is not
+   * given any.
    */
   readonly viewInputs?: (parent: Parent, given: ViewInputs) => ViewInputs
 }
@@ -471,8 +472,12 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
         : Option.match(link.read(parent), {
             onNone: () => null,
             onSome: model => {
+              // A view drawn without inputs takes none: handing it some would
+              // shift its builder to the third argument.
               const viewInputs =
-                config.viewInputs === undefined ? given : config.viewInputs(parent, given)
+                config.viewInputs === undefined || given === undefined
+                  ? given
+                  : config.viewInputs(parent, given)
               // `h.submodel` passes inputs positionally whenever the key is present.
               return viewInputs === undefined
                 ? h.submodel({

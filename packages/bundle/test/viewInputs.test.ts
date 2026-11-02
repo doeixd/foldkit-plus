@@ -47,12 +47,16 @@ const textOf = (html: Html): string =>
 const drawing = <M>(): HtmlBuilder<M> =>
   ({
     ...inertHtml,
+    // As Foldkit's: inputs go positionally whenever the key is there, so a view
+    // that takes none and is handed some gets them where its builder belongs.
     submodel: (config: {
       readonly model: unknown
-      readonly view: (model: unknown, inputs: unknown, h: HtmlBuilder<unknown>) => Html
+      readonly view: (model: unknown, ...rest: ReadonlyArray<unknown>) => Html
       readonly viewInputs?: unknown
     }) =>
-      config.view(config.model, config.viewInputs, inertHtml as unknown as HtmlBuilder<unknown>),
+      Object.hasOwn(config, 'viewInputs')
+        ? config.view(config.model, config.viewInputs, inertHtml)
+        : config.view(config.model, inertHtml),
   }) as unknown as HtmlBuilder<M>
 const h = drawing<Message>()
 
@@ -71,6 +75,33 @@ describe('A placement’s viewInputs', () => {
       // @ts-expect-error the view takes a label, which this leaves out
       viewInputs: () => ({ busy: true }),
     })
+  })
+
+  it('gives a view that takes no inputs none, and does not ask for them', () => {
+    const Plain = Bundle.declare(
+      Bundle.make('Plain', {
+        Model: ToggleModel,
+        Message: ToggleMessage,
+        init: () => ({ model: { on: false } }),
+        update: model => ({ model }),
+      }).pipe(
+        Bundle.withView(
+          Submodel.defineView<ToggleModel, ToggleMessage>((model, h) =>
+            h.button([], [model.on ? 'on' : 'off']),
+          ),
+        ),
+      ),
+      'toggle',
+    )
+    let asked = 0
+    const Placed = Page.at(Plain, {
+      viewInputs: (_, given) => {
+        asked += 1
+        return given
+      },
+    })
+    expect(textOf(Placed.view({ toggle: { on: true }, saving: true }, h))).toBe('on')
+    expect(asked).toBe(0)
   })
 
   it('draws with the inputs given when there is none', () => {
