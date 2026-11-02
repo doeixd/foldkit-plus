@@ -46,8 +46,8 @@ export default [
     edits: [
       {
         file: '../src/server/remote.ts',
-        find: 'return isLabel(label) ? Option.some(label) : Option.none()',
-        replace: 'return Option.some(label)',
+        find: 'isLabel(label) && ',
+        replace: '',
       },
     ],
     tests,

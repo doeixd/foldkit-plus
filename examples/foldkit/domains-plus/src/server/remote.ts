@@ -1,23 +1,30 @@
 /**
  * The prices, served by `foldkit-remote-server` at `/remote`. Every name is
  * read by id: the server finds its label and extension, derives the sample
- * result upstream's `makeDemoDomains` gives for that label, and asks
+ * result upstream's `makeDemoDomains` gives for that one name, and asks
  * nothing outside. A name that is no label under a known extension answers
  * nothing, which the client reads as `NotFound`.
  */
 import { Effect, Layer, Option, Schema } from 'effect'
 import { RemoteServer } from 'foldkit-remote-server'
 import { pageReader, serveFetch } from 'foldkit-remote-server/fetch'
-import { makeDemoDomains } from '../shared/demoDomains'
-import { Domain as DomainCase, DomainLabel } from '../shared/domain'
+import { makeDemoDomain } from '../shared/demoDomains'
+import { Domain as DomainCase, DomainLabel, domainTlds } from '../shared/domain'
 import { Domain, MAX_BODY_BYTES, MAX_IDS_PER_READ } from '../shared/entity'
 
 const isLabel = Schema.is(DomainLabel)
+const tlds: ReadonlySet<string> = new Set(domainTlds)
 
-/** The label a name is read under, when it is one; its extension is checked by the results. */
-const labelOf = (name: string): Option.Option<string> => {
-  const label = name.slice(0, name.indexOf('.'))
-  return isLabel(label) ? Option.some(label) : Option.none()
+/**
+ * A name's label and extension, when it is a label under an extension the
+ * demo knows. A label holds no dot, so the extension is all after the first
+ * (`co.uk`).
+ */
+const partsOf = (name: string): Option.Option<{ label: string; tld: string }> => {
+  const dot = name.indexOf('.')
+  const label = name.slice(0, dot)
+  const tld = name.slice(dot + 1)
+  return dot > 0 && isLabel(label) && tlds.has(tld) ? Option.some({ label, tld }) : Option.none()
 }
 
 /** A sample result as the stored row: every case's fields, null where its case has none. */
@@ -42,21 +49,15 @@ const rowOf = (domain: DomainCase) =>
     }),
   })
 
-/** The rows for `ids`, each label's sample results made once. */
-export const readDomains = (ids: ReadonlyArray<string>) => {
-  const byLabel = new Map<string, Array<string>>()
-  for (const id of ids) {
-    const label = labelOf(id)
-    if (Option.isNone(label)) continue
-    const wanted = byLabel.get(label.value)
-    if (wanted === undefined) byLabel.set(label.value, [id])
-    else wanted.push(id)
-  }
-  return [...byLabel].flatMap(([label, wanted]) => {
-    const results = new Map(makeDemoDomains(label).map(domain => [domain.name, domain]))
-    return wanted.flatMap(id => Option.toArray(Option.fromNullishOr(results.get(id))).map(rowOf))
-  })
-}
+/**
+ * The rows for `ids`, each made from its name alone: a read costs what it
+ * names, never a label's whole catalog, since a cart cookie names whatever
+ * a visitor writes in it.
+ */
+export const readDomains = (ids: ReadonlyArray<string>) =>
+  ids.flatMap(id =>
+    Option.toArray(partsOf(id)).map(({ label, tld }) => rowOf(makeDemoDomain(label, tld))),
+  )
 
 export const server = RemoteServer.make({
   entities: [RemoteServer.entity(Domain, { read: ({ ids }) => Effect.succeed(readDomains(ids)) })],

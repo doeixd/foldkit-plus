@@ -29,22 +29,26 @@ const demoPrices: Readonly<Record<string, number>> = {
   tools: 24.99,
 }
 
-export const makeDemoDomains = (label: string): ReadonlyArray<Domain> =>
-  Array.map(domainCandidates(label), domain => {
-    const isUnconfirmed =
-      Array.contains(['vercel', 'google', 'github', 'foldkit'], label) &&
-      Array.contains(['com', 'dev'], domain.tld)
+/** The sample result for one name, `label.tld`: what `makeDemoDomains(label)` gives for it. */
+export const makeDemoDomain = (label: string, tld: string): Domain => {
+  const domain = { name: `${label}.${tld}`, tld }
+  const isUnconfirmed =
+    Array.contains(['vercel', 'google', 'github', 'foldkit'], label) &&
+    Array.contains(['com', 'dev'], tld)
 
-    if (isUnconfirmed) {
-      return Domain.Unconfirmed(domain)
-    } else {
-      const price = demoPrices[domain.tld] ?? 19.99
-      return Domain.Available({
-        ...domain,
-        price,
-        renewalPrice: price,
-        years: 1,
-        isPremium: false,
-      })
-    }
-  })
+  if (isUnconfirmed) {
+    return Domain.Unconfirmed(domain)
+  } else {
+    const price = (Object.hasOwn(demoPrices, tld) ? demoPrices[tld] : undefined) ?? 19.99
+    return Domain.Available({
+      ...domain,
+      price,
+      renewalPrice: price,
+      years: 1,
+      isPremium: false,
+    })
+  }
+}
+
+export const makeDemoDomains = (label: string): ReadonlyArray<Domain> =>
+  Array.map(domainCandidates(label), ({ tld }) => makeDemoDomain(label, tld))
