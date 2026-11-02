@@ -1,6 +1,11 @@
 # Performance: server CPU, client size, layout shift
 
-Status: plan (2026-11-02). Issues #413–#433, under #411.
+Status: plan (2026-11-02). Issues #413–#440, under #411. The principle
+behind the "Beyond parity" levers is
+[declared-optimization-DESIGN.md](./declared-optimization-DESIGN.md): Plus
+knows what each region reads and sends, what each page needs and who may
+see it, and every optimization that trusts a declaration ships a
+development-mode checker that catches a declaration that lies.
 
 ## Why
 
@@ -74,7 +79,13 @@ fixed at build (styles, routes). Every lever below spends that knowledge.
 
 | Lever | What Plus knows | Issues |
 | --- | --- | --- |
-| Data in the first paint, read once | A page's reads, resumed instead of refetched | built (#388); cheap with #413–#416 |
+| Data in the first paint, read once | A page's reads, resumed instead of refetched | built (#388); cheap with #413–#416; started at route match (#435) |
+| Render once what never changes | Which regions read nothing per request | #434 partial prerendering |
+| Send only what the client reads | Which Model slices interactive regions read | #436 |
+| Check only what a Message can change | Each region's reads against each Message's writes | #439 invalidation map |
+| Catch a slow Query at build | Every filter and order is declared | #437 index checks |
+| Split per route | The Site tree's Bundles and Surfaces | #438 |
+| Decode only what a page reads | Each page's Selections | #440 |
 | Fewer requests | A normalized store, derived refresh | built (#386 single flight, #401 Back and Forward); #428 caches public reads and pages at the edge |
 | Less work per update | What each region reads | #431 memoizes regions by it by default (built opt-in: #384, #385) |
 | Less work at build time | Styles and their classes are fixed per build | #419, #420 |
@@ -110,6 +121,8 @@ parallel.
     to let production skip them (a draft, posted only with the maintainer's
     go-ahead).
   - #414: the drawn classes come from the render.
+  - #434: prerender at build the regions that read nothing per request, so
+    they cost nothing per request whatever the serializer costs.
   - #415: render the first screen only.
   - #416: cold start.
 
@@ -131,7 +144,16 @@ parallel.
   and probably #418's shift with it.
 - #430: platform popups, removing floating-ui.
 - #431: regions memoized by default, measured with `pnpm bench:render`.
-- #427: streaming SSR.
+- #427: streaming SSR, with #435 starting every read at route match.
+- #436: resume only the slices an interactive region reads.
+
+Then, from the declared-optimization note:
+- #439: the invalidation map, after #431.
+- #437: index checks.
+- #438: route splitting.
+- #440: selection codecs, if #421 shows Schema is a real share.
+
+Each lands with its checker in the same change.
 
 One decision joins #415, #427 and #429: how much of a long list the server
 draws. Drawing all 556 rows as `content-visibility` rows is the best page
