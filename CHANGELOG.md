@@ -756,6 +756,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A Worker bundled by `Stack` draws the page's view identities**
+  (`foldkit-plus/testing/workers`, #412). esbuild skips
+  `@foldkit/vite-plugin`'s view-identity transform, so every page such a
+  Worker rendered was rebuilt on hydration, silently in production.
+  `Stack.start` and `Stack.writeBundle` now brand each module with that
+  plugin's `transformViewIdentity`, named from the new `pageRoot` option (the
+  folder of the Wrangler configuration by default), a module an esbuild
+  plugin of `plugins` loads included. A root that resolves no `foldkit` is
+  bundled as written. `@foldkit/vite-plugin` is a new optional peer of
+  `foldkit-plus`.
+
 - **A durable create restored after a reload counts its row once**
   (`foldkit-remote`, #410). A create whose answer was lost showed the
   counts of the rows it points at moved again over a page that already read
