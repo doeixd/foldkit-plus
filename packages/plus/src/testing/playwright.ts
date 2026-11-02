@@ -308,7 +308,10 @@ const optimistic = async (page: Page, options: OptimisticOptions): Promise<void>
     const ended = await Promise.race([acted.then(() => true), deadline])
     if (!ended) {
       release()
-      await acted
+      // The action is left running, so its eventual outcome is unobserved
+      // here: a rejection after the deadline must not surface as an
+      // unhandled rejection.
+      void acted.catch(() => {})
       throw new Error(
         `optimistic: the action did not end within ${Math.max(hold, ACT_LIMIT)} ms, and every write is held until it does: does it wait for its own write's answer?`,
       )

@@ -28,6 +28,13 @@ export default [
     'new Promise(resume => setTimeout(resume, hold))',
   ),
   edit('an action outlasting the limit is let go on', 'if (!ended) {', 'if (false) {'),
+  // #461: past the deadline the action was still awaited, so one that never
+  // ends hung the helper.
+  edit(
+    'an action that never ends is awaited after the deadline',
+    'void acted.catch(() => {})',
+    'await acted',
+  ),
   edit(
     'an action slower than a short hold is refused',
     'setTimeout(resolve, Math.max(hold, ACT_LIMIT), false)',

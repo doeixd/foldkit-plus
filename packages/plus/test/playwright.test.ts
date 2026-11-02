@@ -268,6 +268,37 @@ describe('optimistic', () => {
     ).rejects.toThrow(/did not end within 10000 ms[^]*wait for its own write/)
     await page.close()
   }, 30_000)
+
+  // #461: past the deadline the action was still awaited, so one that never
+  // ends hung the helper and its cleanup never ran.
+  it('fails an action that never ends and leaves its later rejection unobserved', async () => {
+    await open('?write=optimistic')
+    let rejectAct: (error: Error) => void = () => {}
+    const act = () =>
+      new Promise<void>((_, reject) => {
+        rejectAct = reject
+      })
+    const unhandled: Array<unknown> = []
+    const onUnhandled = (reason: unknown) => unhandled.push(reason)
+    const pageErrors: Array<Error> = []
+    const onPageError = (error: Error) => pageErrors.push(error)
+    process.on('unhandledRejection', onUnhandled)
+    page.on('pageerror', onPageError)
+    try {
+      await expect(Behaviors.optimistic(page, { act, shows: row(), ...timing })).rejects.toThrow(
+        /did not end within 10000 ms[^]*wait for its own write/,
+      )
+      rejectAct(new Error('the action failed after the deadline'))
+      await new Promise(resume => setTimeout(resume, 0))
+      await new Promise(resume => setTimeout(resume, 0))
+      expect(unhandled).toEqual([])
+      expect(pageErrors).toEqual([])
+    } finally {
+      process.off('unhandledRejection', onUnhandled)
+      page.off('pageerror', onPageError)
+    }
+    await page.close()
+  }, 30_000)
 })
 
 describe('neverShows', () => {
