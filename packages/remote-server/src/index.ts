@@ -2780,7 +2780,8 @@ export const RemoteServer = {
    * each answer says it is for (`principal`, the row's key), which a durable
    * write carries back: one made for another viewer than who asks is refused
    * before it runs (`RemotePrincipalChanged`). A server without `viewer`
-   * keeps no keys, so its writes are not checked (#405).
+   * names no one in its answers, and refuses a write that names someone,
+   * since it cannot check it; a write that names no one runs (#405).
    *
    * `clockSkew` is how far from this server's clock a client's time (the
    * `now` a write is sent with, when the reader acted) may be and still be
