@@ -1,6 +1,6 @@
 # foldkit-form
 
-Checked against `foldkit-form` 0.8.1, `foldkit-mixins-form` 0.10.0 and `foldkit-form-recipes` 0.1.1.
+Checked against `foldkit-form` 0.10.0, `foldkit-mixins-form` 0.12.0 and `foldkit-form-recipes` 0.3.0.
 
 A form as a Submodel: built from the input an operation accepts, holding what
 the user is typing, and handing the parent a decoded value once it is valid.
@@ -224,7 +224,8 @@ Render the placement with `placed.view(model, h, { options, words: { submit: 'Sa
 `options` is keyed by the form's keys and supplies each relation picker's
 choices (`{ value, label }`); loading them is the application's query.
 `locked: ['ownerId']` draws those keys `disabled` (a key the person may not set; a hint,
-the server still checks). `FormView.define(Rename)` alone is a complete unstyled form. `words.none` words the
+the server still checks). `submits: false` draws no submit button, for someone who may
+not submit. `FormView.define(Rename)` alone is a complete unstyled form. `words.none` words the
 blank choice of a picker; a chosen value the choices lack is shown as `? value`. `FieldSlots`: `root`,
 `label`, `description`, `error`, `checking`, and one per control kind (`text`, `multiline`,
 `number`, `toggle`, `select` with its `option`s, `choices`, `choiceLabel`, `choice`), plus `control`, `search`, `more` (the
