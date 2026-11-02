@@ -1,6 +1,6 @@
 # foldkit-guard
 
-Checked against `foldkit-guard` 0.6.0.
+Checked against `foldkit-guard` 0.8.0.
 
 A guard set is declared once, implemented on the server, attached to
 Entities, and enforced by each seam through a subpath: reads and writes
@@ -193,7 +193,10 @@ export const Todo = TodoFields.pipe(
   write, an `Unlink` over the row before alone; a create over what it proposes, an unset field matching no
   guard), refuses as `Forbidden` (a visitor as `Unauthenticated`, so a
   durable write waits for a sign-in), and answers as the writer now sees the row:
-  a row the write hid from them in `deleted`. The binding needs `visible`.
+  a row the write hid from them in `deleted`. The binding needs `visible`. It
+  passes on the writer's `cascades`, but judges only the row named: who may
+  delete the rows a cascade takes is not judged yet
+  ([#348](https://github.com/doeixd/foldkit-plus/issues/348)).
 - Who owns a new row is the Entity's to say, not the writer's:
   `Entity.sets({ ownerId: Expr.viewer(UserRow), createdAt: Expr.now }, { on: 'create' })`, and
   `RemoteServer.write` sets them before the rules run, so a rule over the owner
@@ -226,6 +229,7 @@ export const Todo = TodoFields.pipe(
   ({ input, row }) => …)` checks the row's rule for that interaction over the
   row as its writer sees it before the handler runs, and reads its answer's
   rows back as the writer now sees them; what it writes is its own to check.
+  It refuses as `Forbidden`, or a visitor as `Unauthenticated`, as the writer does.
   An `id` answering an `Option` (`Schema.OptionFromNullOr` in the input) is
   create-or-edit: `none` is checked against `Create`.
 

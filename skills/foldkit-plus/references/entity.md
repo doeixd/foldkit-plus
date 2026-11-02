@@ -1,6 +1,6 @@
 # foldkit-entity
 
-Checked against `foldkit-entity` 0.13.0.
+Checked against `foldkit-entity` 0.15.0.
 
 A domain entity declared once as a typed value: intrinsic fields, relations to
 other entities, and derived members. It **describes only**. It fetches, stores,
@@ -40,7 +40,9 @@ An Entity has one set of members: `Entity.relate`, `Entity.derived` and
 `Entity.sets` add to it, and every descriptor of it reads them, the one declared
 before `relate` and the one `target()` returns included. `Entity.annotate`,
 `annotateMembers` and `invariant` return a new descriptor carrying its own
-metadata. Compare with `Entity.same(a, b)`, never `===`.
+metadata. Compare with `Entity.same(a, b)`, never `===`. `Entity` is an ES module
+namespace: a page keeps only the members it calls, so one that declares and
+selects Entities keeps none of the invariant judge.
 
 ## Minimal example
 
@@ -655,8 +657,9 @@ rows })`), unknown where it lacks one. No list orders by one. `Entity.sets`
 `Schema.TaggedUnion` takes). `Domain.variants` is that tagged union, the row,
 branched on with its own `match`; `Domain.fields` is the stored row: `_tag`,
 shared fields as declared, every other field nullable. Each case with fields
-of its own gets an invariant (`variant_<Case>`), so judging and the Drizzle
-binding's CHECKs refuse a row mixing cases. `Expr.is` narrows to a case:
+of its own gets an invariant (`variant_<Case>`, built when first read through
+`Entity.invariants` or `Entity.judge`), so judging and the Drizzle binding's
+CHECKs refuse a row mixing cases. `Expr.is` narrows to a case:
 
 ```ts
 const DomainName = { id: Schema.String, name: Schema.String }
@@ -675,8 +678,11 @@ const priceOf = (row: typeof Domain.variants.Type) =>
 of the row it reaches. `Entity.variantsOf(entity)` is the union, the cases and
 the codec from a stored row to its case, or none. A Selection selecting
 `_tag` is a tagged union of the cases (`Quote.schema.match`); without `_tag`,
-selecting a field only some cases have is refused. Remote's store, forms and
-guards read the stored row for now.
+selecting a field only some cases have is refused, and Remote reads such a
+Selection's rows as their cases. A form over a variant input (`_tag`, and each
+case's own keys `Schema.optionalKey`) takes `_tag` as its case picker; a guard
+rule per case is a row guard over `Expr.is`. `Entity.selectFor(input, { also })`
+reads members beside the input's (`also: { revision: true }`, what a lock reads).
 
 ## Gotchas
 
