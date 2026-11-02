@@ -17,7 +17,7 @@
  *   node scripts/tags-check.mjs     list findings; exit 1 if there are any
  */
 import { existsSync, readdirSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 // The compiler API, which TypeScript 7 no longer ships: 6 is installed beside it.
 import ts from 'typescript-6'
@@ -143,8 +143,10 @@ for (const name of readdirSync(join(root, 'packages')).sort()) {
       onUnRecoverableConfigFileDiagnostic: () => {},
     },
   )
+  // TypeScript lists files with `/`; `join` writes `\` on Windows, where a
+  // raw comparison matched nothing and the check passed having read no file.
   const sources = join(root, 'packages', name, 'src')
-  const files = parsed?.fileNames.filter(file => file.startsWith(sources)) ?? []
+  const files = parsed?.fileNames.filter(file => resolve(file).startsWith(sources)) ?? []
   if (files.length === 0) continue
   const program = ts.createProgram({
     rootNames: files,
