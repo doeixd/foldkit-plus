@@ -22,6 +22,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Tabs' pill selection is raised by default, and a row can wrap** (#466).
+  The pill's chosen tab was the accent's tint, a muddy grey with a neutral
+  accent; it is now a raised surface with a hairline edge and shadow in the
+  default text colour, so every pill Tabs looks different until it passes
+  `selection: 'tint'`. `overflow: 'wrap'` lets the row fall to more rows so no
+  tab is cut off; the site's studio tabs use it.
+
 - **domains-plus's no-JavaScript TLD select carries no identity marker per
   option** (#465, #417). The view-identity transform brands what each function
   returns, and the mapper that drew the select's 557 options returned each
