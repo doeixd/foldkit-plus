@@ -1,6 +1,6 @@
 # foldkit-primitives
 
-Checked against `foldkit-primitives` 0.15.4.
+Checked against `foldkit-primitives` 0.17.0.
 
 Ready-made [`foldkit-bundle`](https://github.com/doeixd/foldkit-plus/blob/main/packages/bundle)
 primitives: media queries, breakpoints, visibility, presence, timers,
@@ -91,11 +91,14 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   observer API the Mount emits nothing.
 - **Window a list that scrolls with the page:** `WindowViewport()` (`/state`)
   on the list's own box reports `ViewportPlaced { top, height }`, the
-  viewport's top past the list's and its height, on every scroll, resize and
-  resize of the page; map `top` into `Virtual`'s `Scrolled`. `MeasureRow({ key })`
-  reports a row's border box, `MeasureRows({ attribute })` on the list every keyed
-  child's in one batch, first the rows drawn as it starts, read at once.
-  `foldkit-mixins-ui`'s `WindowList` draws such a list.
+  viewport's top past the list's (negative while the list is below it) and its
+  height, as it mounts, on the window's scroll and resize, and when the list's
+  box or the page resizes (content above it growing); an unchanged reading is
+  sent once. Map `top` into `Virtual`'s `Scrolled`. `MeasureRow({ key })`
+  reports a row's border box; `MeasureRows({ attribute })` on the list reports
+  every child carrying `attribute` (its value the key) as `RowsMeasured { rows }`,
+  one batch per frame, starting with the rows already drawn, read at once (a
+  batch that may be empty). `foldkit-mixins-ui`'s `WindowList` draws such a list.
 - **Roving tab stop:** place `RovingTabindex.bundle` (`{ orientation, loop, virtual }`)
   from `foldkit-primitives/interaction`; attach
   `RovingTabindex.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items: model => Behaviors.Collection.of(...), direction? })`
