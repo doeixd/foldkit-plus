@@ -1,6 +1,6 @@
 # Remote: server-owned data cached in the Model
 
-Checked against `foldkit-remote` 0.21.0, `foldkit-remote-server` 0.18.0 and `foldkit-remote-drizzle` 0.15.0.
+Checked against `foldkit-remote` 0.23.0, `foldkit-remote-server` 0.20.0, `foldkit-remote-drizzle` 0.17.0 and `foldkit-plus` 0.19.0.
 
 `foldkit-remote` keeps a **normalized, disposable cache of server-owned facts
 inside the Foldkit Model**. Features declare which entity fields they need;
@@ -501,7 +501,8 @@ const ssr = Effect.gen(function* () {
 ```
 
 To keep the cache across reloads, assemble `persistence(Data, …)` beside
-`Data.wiring`. It restores under a key and saves on every change, and needs a
+`Data.wiring`. It restores under a key and saves once the cache has been
+unchanged for `debounce` (250 ms), and needs a
 `KeyValueStore` (for example `BrowserKeyValueStore.layerLocalStorage`):
 
 <!-- docs-check
@@ -518,7 +519,7 @@ const cache = persistence(Data, {
   key: model => `remote-cache:${actorOf(model)}`,
   scope: actorOf,
   // optional: `connections: [ref.identity]`, `maxAge` (ms, default a day),
-  // `maxBytes`, or `snapshot: (remote, { maxAge }) => ...`
+  // `maxBytes`, `debounce`, or `snapshot: (remote, { maxAge }) => ...`
 })
 
 // What a call reads is saved for its own `maxAge`, or not at all:
@@ -983,7 +984,7 @@ await Behaviors.neverShows(page, {
     Behaviors.optimistic(page, {
       act: () => page.getByRole('button', { name: 'Add' }).click(),
       shows: page.getByRole('button', { name: 'Buy milk', exact: true }),
-    }), // every Remote mutation held 3 s; shows within 1 s, and after the answer
+    }), // every write held 3 s (`hold`); shows within 1 s (`within`) and stays put until the answer is drawn
 })
 expect(errors()).toEqual([]) // console.error, uncaught exceptions and error diagnostics
 ```
