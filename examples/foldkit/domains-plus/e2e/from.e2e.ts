@@ -53,6 +53,9 @@ test('the row a page opened at stays in place as the runtime takes the page over
   await page.goto(`${origin}/?q=acme&from=${FROM}`, { waitUntil: 'commit' })
   const row = page.locator(`#domain-results > [aria-posinset="${FROM + 1}"]`)
   await row.waitFor({ timeout: 60_000 })
+  // A swap from the fallback face moves the row by a line's difference, so
+  // measure only once the page's font is in; the swap is not Track's to hold.
+  await page.evaluate(() => document.fonts.load('400 14px "Geist Variable"'))
   const placed = async () => ({
     scrollY: await page.evaluate(() => window.scrollY),
     top: (await row.boundingBox())!.y,
