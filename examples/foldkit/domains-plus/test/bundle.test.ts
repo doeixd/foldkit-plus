@@ -11,9 +11,11 @@ import { formatReport, measure } from '../../../../scripts/bundle-report.mjs'
 import { record } from '../../../../scripts/perf-report.mjs'
 
 // Brotli bytes. Lower it as #419, #420, #422 and #423 land: never raise it
-// without saying here what the growth bought. 210.5 kB measured on 2026-11-02,
-// plus about 2%.
-const CEILING = 215_000
+// without saying here what the growth bought. 210.5 kB measured on 2026-11-02;
+// 215.5 kB that evening, after #428's edge caching and the day's fixes in
+// remote, mixins, primitives and ssr (#442, #450, #458 to #460), not bisected.
+// The ceiling is that plus about 1%.
+const CEILING = 217_500
 
 test('the search page loads at most the budgeted brotli JavaScript', async () => {
   const report = await measure(resolve(import.meta.dirname, '..'))

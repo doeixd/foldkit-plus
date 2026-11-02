@@ -83,6 +83,12 @@ const jsonBytes = (value: unknown): number => encoder.encode(JSON.stringify(valu
  * as `RemoteServer.answer` reads it. Effect RPC's frame may add its own, which
  * the server then refuses with a 413 rather than the client refusing.
  */
+/**
+ * What Effect RPC's request frame adds around a payload (`_tag`, `id`, `tag`,
+ * `headers`), with room to spare.
+ */
+const RPC_FRAME_BYTES = 256
+
 const envelopeBytes = (operation: 'read' | 'query' | 'mutate', payload: unknown): number =>
   jsonBytes({ operation, payload })
 
@@ -114,9 +120,13 @@ const limitsOf = (options: ClientOptions): Limits => {
     maxIds: Math.max(1, options.maxIdsPerEntity ?? DEFAULT_MAX_IDS_PER_ENTITY),
     maxBodyBytes,
     // The array's brackets and the batch's version are the envelope; `cut`
-    // charges each request a byte more than it takes, for its comma.
+    // charges each request a byte more than it takes, for its comma. A read
+    // also leaves room for an RPC frame, so one cut to the limit is not refused
+    // over Effect RPC.
     budget:
-      maxBodyBytes - envelopeBytes('read', { version: REMOTE_PROTOCOL_VERSION, requests: [] }),
+      maxBodyBytes -
+      envelopeBytes('read', { version: REMOTE_PROTOCOL_VERSION, requests: [] }) -
+      RPC_FRAME_BYTES,
   }
 }
 

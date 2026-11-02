@@ -89,11 +89,16 @@ export default [
     edits: [
       {
         file: coalesce,
-        find: "      maxBodyBytes - envelopeBytes('read', { version: REMOTE_PROTOCOL_VERSION, requests: [] }),",
-        replace: '      maxBodyBytes - 512,',
+        find: "      envelopeBytes('read', { version: REMOTE_PROTOCOL_VERSION, requests: [] }) -",
+        replace: '      512 -',
       },
     ],
     tests: [unit],
+  },
+  {
+    name: 'a read cut to the limit leaves no room for an RPC frame',
+    edits: [{ file: coalesce, find: '      RPC_FRAME_BYTES,', replace: '      0,' }],
+    tests: ['packages/remote-server/test/bodyLimit.test.ts'],
   },
   {
     name: 'a requirement too large alone is sent anyway',
