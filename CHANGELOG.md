@@ -676,6 +676,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **Any build of a package publishes the declarations a release does**
+  (workspace, #340). tsdown's declaration emitter reads each referenced
+  package's `.tsbuild/build` declarations, and where they were missing it
+  wrote `any` (`export declare const Query: any`), so a plain `pnpm -r build`
+  or one package's `build` packed declarations an application could not use.
+  Only the root `build` and `build:packages` wrote them first. Each package's
+  `build` now writes its own references' first (`scripts/declarations.mjs
+  <package>`), and fails when a published declaration is `any`
+  (`scripts/declared-any.mjs`).
+
 - **`returning(binding, fields).columns` goes to Postgres's `.returning`
   uncast** (`foldkit-remote-drizzle`, #338). Its columns were typed
   `Record<string, AnyColumn>`, which SQLite's `.returning` took and Postgres's

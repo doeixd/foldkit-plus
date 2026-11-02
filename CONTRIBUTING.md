@@ -96,6 +96,12 @@ Typechecking is split into build and test projects. Each package has a
 `pnpm typecheck` is incremental; `pnpm typecheck:force` (what CI runs) rebuilds
 every project, which is how to rule out a stale `.tsbuild` masking a change.
 
+A package's `build` writes its references' `.tsbuild/build` declarations
+first (`scripts/declarations.mjs`, unchecked), since tsdown's declaration
+emitter reads them and writes `any` where one is missing; it then fails if
+a published declaration is `any` (`scripts/declared-any.mjs`). So any build,
+`pnpm -r build` or one package's, publishes what a release does.
+
 ## Releasing
 
 See the "Releasing" section of the [root README](./README.md).

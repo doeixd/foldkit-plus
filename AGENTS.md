@@ -756,7 +756,10 @@ Foldkit's own behaviour that we work around is listed in
   first run `scripts/declarations.mjs` (`tsc -b --noCheck` over the packages'
   build projects: 10s here, where a checked root `tsc -b` took 4 minutes and
   added 3.5 to CI's `pack` job); a later checked `tsc -b` still reports what it
-  skipped. Reproduce a CI-only build fault in a fresh clone.
+  skipped. A plain `pnpm -r build` skipped it and published `declare const
+  Query: any` (#340): each package's `build` now runs it for its own
+  references and then `scripts/declared-any.mjs`. Reproduce a CI-only build
+  fault in a fresh clone.
 - **A linked package keeps what its modules run, read or not.** Without one
   namespace, `foldkit-entity`'s one linked file kept its top-level
   `Schema.Struct(...)` calls in every page: `Collation.binary` alone kept 73 kB

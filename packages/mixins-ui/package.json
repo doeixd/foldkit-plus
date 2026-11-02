@@ -39,7 +39,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsdown",
+    "build": "node ../../scripts/declarations.mjs . && tsdown && node ../../scripts/declared-any.mjs .",
     "specimen": "tsx specimen/specimen.ts",
     "typecheck": "tsc -b"
   },
