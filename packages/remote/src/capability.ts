@@ -104,11 +104,15 @@ export interface LayerCapability {
     identity: string,
     connection: Connection,
   ) => ReadonlyArray<Edge>
-  /** A list's edges as a read shows them: pending edits and inserts placed by its body. */
+  /**
+   * A list's edges as a read shows them: pending edits and inserts placed by
+   * its body, an exists decided over the `connections` held whole.
+   */
   readonly shown: (
     lists: Lists,
     entities: EntityStore,
     optimistic: OptimisticState,
+    connections: Readonly<Record<string, Connection>>,
     identity: string,
     connection: Connection,
   ) => ReadonlyArray<Edge>
@@ -338,10 +342,14 @@ export const edgesOf = (
 export const shownEdgesOf = (
   capabilities: Capabilities,
   lists: Lists,
-  { entities, optimistic }: Layered,
+  {
+    entities,
+    optimistic,
+    connections,
+  }: Layered & { readonly connections: Readonly<Record<string, Connection>> },
   identity: string,
   connection: Connection,
 ): ReadonlyArray<Edge> =>
   pending(optimistic)
-    ? layersIn(capabilities).shown(lists, entities, optimistic, identity, connection)
+    ? layersIn(capabilities).shown(lists, entities, optimistic, connections, identity, connection)
     : committed(entities, connection)

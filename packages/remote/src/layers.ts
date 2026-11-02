@@ -29,6 +29,7 @@ import { RowPlace, placeIn, withEdge } from './placement.js'
 import { placedHeld } from './placing.js'
 import { entityKey, type EntityStore } from './store.js'
 import { tableOf } from './table.js'
+import { wholeListsOf } from './whole.js'
 
 // The visible store is recomputed only when the base store or the layers
 // change, so reads and plans across renders of one Model share it. Keyed on
@@ -93,19 +94,22 @@ const layersContext = (layers: ReadonlyArray<EntityLayer>): ExprContext | undefi
 /**
  * A loaded list with the pending layers placed in its pages, so a row a
  * pending edit moves, or takes out of the list, shows where its answer
- * will be placed until the edit settles.
+ * will be placed until the edit settles. A layer writing what the body
+ * reads through other rows judges the whole list again, an exists decided
+ * over the `connections` held whole.
  */
 const pendingPlaced = (
   lists: Lists,
   entities: EntityStore,
   optimistic: OptimisticState,
+  connections: Readonly<Record<string, Connection>>,
   identity: string,
   pages: Connection,
 ): Connection => {
   const { layers } = optimistic
   if (layers.length === 0) return pages
   const operators = tableOf(lists.operators)
-  return memoRead([pages, layers, entities], `placed:${identity}`, () => {
+  return memoRead([pages, layers, entities, connections], `placed:${identity}`, () => {
     const changes = changesOf(
       {
         entities: resolvedPatches(entities, optimistic, operators),
@@ -123,7 +127,11 @@ const pendingPlaced = (
         const body = query.descriptor.body
         if (body === undefined || !changes.some(change => readsThrough(body, change))) return placed
         const holds = new Set(items(placed).map(edge => edge.key))
-        return rejudged({ ...query, connection: placed, holds }, store, operators, context)
+        return rejudged({ ...query, connection: placed, holds }, store, {
+          operators,
+          context,
+          whole: wholeListsOf(connections, lists.queryOf, context),
+        })
       },
     })
   })
@@ -188,10 +196,11 @@ const shown = (
   lists: Lists,
   entities: EntityStore,
   optimistic: OptimisticState,
+  connections: Readonly<Record<string, Connection>>,
   identity: string,
   connection: Connection,
 ): ReadonlyArray<Edge> => {
-  const pages = pendingPlaced(lists, entities, optimistic, identity, connection)
+  const pages = pendingPlaced(lists, entities, optimistic, connections, identity, connection)
   const inserts = optimistic.overlays.some(
     overlay => overlay.connection === identity && overlay.position !== 'remove',
   )

@@ -25,8 +25,8 @@ export default [
   edit(
     'belongsEncoded drops the context',
     '../src/matching.ts',
-    '{ among: [key], operators, context }',
-    '{ among: [key], operators }',
+    '{ ...options, among: [key] }',
+    '{ ...options, context: undefined, among: [key] }',
   ),
   edit(
     'the client reads the time as the epoch',

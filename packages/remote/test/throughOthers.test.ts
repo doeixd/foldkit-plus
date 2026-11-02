@@ -60,6 +60,14 @@ const Home = Query.define('Home', { accountId: Schema.String }, ({ input }) =>
   ),
 )
 
+/** Whom an account follows: a list whose body fixes only the follower, so read whole it is every follow of theirs. */
+const Following = Query.define('Following', { accountId: Schema.String }, ({ input }) =>
+  Query.from(Follow).pipe(
+    Query.where(Expr.eq(Follow.relations.follower, input.accountId)),
+    Query.orderBy(Order.asc(Follow.fields.id, { collation: Collation.binary })),
+  ),
+)
+
 /** Posts by whoever goes by a handle: a path the store follows to the author's row. */
 const ByHandle = Query.define('ByHandle', { handle: Schema.String }, ({ input }) =>
   Query.from(Post).pipe(
@@ -88,13 +96,16 @@ const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote
 const Data = Remote.make({
   model: App.model.remote,
   entities: [User, Post, Follow],
-  queries: [Home, ByHandle],
+  queries: [Home, ByHandle, Following],
   mutations: [FollowAccount, UnfollowAccount, Rename, DropUser],
 })
 
 const Shown = Entity.select(Post, { id: true, body: true })
 const home = Data.query(Home, { accountId: 'me' }, { select: Shown, first: 25 })
 const byBo = Data.query(ByHandle, { handle: 'bo' }, { select: Shown, first: 25 })
+const Followed = Entity.select(Follow, { id: true })
+const followsOf = (accountId: string) =>
+  Data.query(Following, { accountId }, { select: Followed, first: 25 })
 
 const user = (id: string): NormalizedPatch => ({ entity: 'User', id, values: { id, handle: id } })
 const post = (id: string, author: string, createdAt: number): NormalizedPatch => ({
@@ -330,6 +341,96 @@ describe('A pending unfollow', () => {
   })
 })
 
+/** `model` with `patches` read too. */
+const reading = (model: Model, patches: ReadonlyArray<NormalizedPatch>): Model =>
+  Data.reduce(model, {
+    _tag: 'ReadReceived',
+    requests: patches.map(row => ({
+      entity: row.entity,
+      id: row.id,
+      fields: Object.keys(row.values),
+    })),
+    result: { settled: [], entities: patches },
+    now: 0,
+  })
+
+/** `model` holding whom `accountId` follows as the server lists it: to its end, or with more. */
+const follows = (
+  model: Model,
+  ids: ReadonlyArray<string>,
+  options: { readonly accountId?: string; readonly more?: boolean } = {},
+): Model =>
+  Data.reduce(model, {
+    _tag: 'ConnectionMerged',
+    connection: followsOf(options.accountId ?? 'me').ref.identity,
+    page: {
+      edges: ids.map(id => ({ key: `Follow:${id}`, ref: { entity: 'Follow', id } })),
+      start: { _tag: 'Terminal' },
+      end: options.more === true ? { _tag: 'Cursor', cursor: 'next' } : { _tag: 'Terminal' },
+    },
+  })
+
+describe('A pending unfollow, with every follow of mine held (#409)', () => {
+  const whole = () => follows(loaded(), ['f1'])
+
+  it('takes the unfollowed account’s posts out of Home', () => {
+    expect(shown(unfollowing(whole()))).toEqual(['p1'])
+  })
+
+  it('keeps them while another follow of theirs is held', () => {
+    const twice = follows(reading(loaded(), [follow('f3', 'me', 'ada')]), ['f1', 'f3'])
+    expect(shown(unfollowing(twice))).toEqual(['p2', 'p1'])
+  })
+
+  it('takes them out once answered, and fetches Home again', () => {
+    const answered = Data.reduce(unfollowing(whole()), {
+      _tag: 'MutationSucceeded',
+      requestId: 'unfollow',
+      entities: [],
+      deleted: [{ entity: 'Follow', id: 'f1' }],
+      now: 1,
+    })
+    expect(shown(answered)).toEqual({ refreshing: ['p1'] })
+  })
+
+  it.each([
+    ['with more to load', () => follows(loaded(), ['f1'], { more: true })],
+    [
+      'gone stale',
+      () =>
+        Data.reduce(whole(), {
+          _tag: 'ConnectionInvalidated',
+          connection: followsOf('me').ref.identity,
+        }),
+    ],
+    ['of another account', () => follows(loaded(), [], { accountId: 'bo' })],
+    [
+      'holding a follow whose followee the store lacks',
+      () =>
+        follows(
+          reading(loaded(), [
+            { entity: 'Follow', id: 'f4', values: { id: 'f4', follower: 'User:me' } },
+          ]),
+          ['f1', 'f4'],
+        ),
+    ],
+    [
+      'holding another follow whose followee the store holds as stale',
+      () => {
+        const model = follows(reading(loaded(), [follow('f3', 'me', 'ada')]), ['f1', 'f3'])
+        return {
+          remote: {
+            ...model.remote,
+            entities: markStale(model.remote.entities, 'Follow:f3', ['followee']),
+          },
+        }
+      },
+    ],
+  ])('leaves Home to the server when the list of whom I follow is %s', (_, held) => {
+    expect(shown(unfollowing(held()))).toEqual(['p2', 'p1'])
+  })
+})
+
 describe('A pending write to a row a path reaches', () => {
   const renaming = (model: Model, handle: string) =>
     Data.mutate(
@@ -358,5 +459,102 @@ describe('A pending write to a row a path reaches', () => {
     const ada = Data.query(ByHandle, { handle: 'ada' }, { select: Shown, first: 25 })
     const model = holding(loaded(), ada.ref.identity, ['p2'])
     expect(shown(renaming(model, 'ada'), ada)).toEqual(['p2', 'p3', 'p4'])
+  })
+})
+
+describe('A pending write that reaches other rows and moves its own (#344)', () => {
+  const TaskFields = Entity.define(
+    'Task',
+    Schema.Struct({ id: Schema.String, rank: Schema.Number, done: Schema.Boolean }),
+  )
+  const { Task } = Entity.relate(
+    { Task: TaskFields },
+    { Task: { parent: Relation.one(TaskFields) } },
+  )
+  /** Tasks whose parent is still open, by rank: a task's own `done` is read through its children. */
+  const Open = Query.define('Open', {}, () =>
+    Query.from(Task).pipe(
+      Query.where(Expr.eq(Expr.path(Task.relations.parent, Task.fields.done), false)),
+      Query.orderBy(
+        Order.asc(Task.fields.rank),
+        Order.asc(Task.fields.id, { collation: Collation.binary }),
+      ),
+    ),
+  )
+  const Finish = Mutation.make('Finish', {
+    Input: { id: Schema.String, rank: Schema.Number },
+    Output: {},
+  })
+  const Tasks = Remote.make({
+    model: App.model.remote,
+    entities: [Task],
+    queries: [Open],
+    mutations: [Finish],
+  })
+  const open = Tasks.query(Open, {}, { select: Entity.select(Task, { id: true }), first: 25 })
+  const task = (id: string, rank: number, parent: string | null): NormalizedPatch => ({
+    entity: 'Task',
+    id,
+    values: { id, rank, done: false, parent: parent === null ? null : `Task:${parent}` },
+  })
+  // t1 and t4 are under t0; t2 and t3 under t1.
+  const all = [
+    task('t0', 0, null),
+    task('t1', 1, 't0'),
+    task('t2', 2, 't1'),
+    task('t3', 3, 't1'),
+    task('t4', 5, 't0'),
+  ]
+  const read = Tasks.reduce(
+    { remote: Remote.initial },
+    {
+      _tag: 'ReadReceived',
+      requests: all.map(row => ({ entity: 'Task', id: row.id, fields: Object.keys(row.values) })),
+      result: { settled: [], entities: all },
+      now: 0,
+    },
+  )
+  const listed = Tasks.reduce(read, {
+    _tag: 'ConnectionMerged',
+    connection: open.ref.identity,
+    page: {
+      edges: ['t1', 't2', 't3', 't4'].map(id => ({
+        key: `Task:${id}`,
+        ref: { entity: 'Task', id },
+      })),
+      start: { _tag: 'Terminal' },
+      end: { _tag: 'Terminal' },
+    },
+  })
+  const finishing = Tasks.mutate(
+    listed,
+    Finish,
+    { id: 't1', rank: 9 },
+    { requestId: 'finish', optimistic: [Remote.patch(Task, 't1', { done: true, rank: 9 })] },
+  ).model
+
+  it('takes out the rows it reaches, and moves its own by the order', () => {
+    expect(shown(listed, open)).toEqual(['t1', 't2', 't3', 't4'])
+    expect(shown(finishing, open)).toEqual(['t4', 't1'])
+  })
+
+  it('keeps both once answered, and fetches the list again', () => {
+    const answered = Tasks.reduce(finishing, {
+      _tag: 'MutationSucceeded',
+      requestId: 'finish',
+      entities: [{ entity: 'Task', id: 't1', values: { done: true, rank: 9 } }],
+      now: 1,
+    })
+    expect(shown(answered, open)).toEqual({ refreshing: ['t4', 't1'] })
+  })
+
+  it('places a row an answer makes once, though it also reaches other rows', () => {
+    const answered = Tasks.reduce(listed, {
+      _tag: 'MutationSucceeded',
+      requestId: 'add',
+      entities: [task('t5', 4, 't0')],
+      now: 1,
+    })
+    expect(shown(answered, open)).toEqual({ refreshing: ['t1', 't2', 't3', 't5', 't4'] })
   })
 })

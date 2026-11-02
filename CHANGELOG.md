@@ -684,6 +684,25 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A pending unfollow takes the unfollowed account's posts out of a feed,
+  where the store holds every follow** (`foldkit-remote`, `foldkit-entity`,
+  #409). Since #344 a pending follow brought the followed account's posts into
+  a list over `Expr.exists`, but an unfollow left them until the list's page,
+  since the store never claimed to hold every follow. An exists over the store
+  is now false where a list it holds whole (read to both ends, not stale)
+  has a body that only fixes fields to values
+  (`Expr.eq(Follow.relations.follower, input.accountId)`) that the exists'
+  filter fixes too, and the store holds each of its rows with the link the
+  exists reads: with the viewer's `Following` held whole, the posts leave
+  while the unfollow is pending and once it is answered, and `Law.check`
+  compares the feed. What cannot be proven so stays unknown.
+  `HeldRow.pointing(relation, pinned)` is given what the filter fixes
+  (`Pinned`), `Judge.pins(predicates, { input, context })` works it out, and
+  `belongsEncoded` takes its operators and context as options
+  (`BelongsOptions`). A change that reaches other rows and moves one of the
+  list's own by its order (a task finished and ranked last, whose subtasks
+  leave a list over its parent) now moves that row too, pending and answered.
+
 - **`Behaviors.optimistic` looks for what shows while every write is held**
   (`foldkit-plus`, #395). Once `act` outlasted `within` it waited 1 ms for
   `shows`, so a row drawn only by the answer, after an action slower than

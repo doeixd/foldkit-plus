@@ -732,7 +732,13 @@ A verdict is `Known` or `Unknown`. A known predicate's truth is SQL's three
 values, its null decided (a row is not kept on it); unknown means the answer
 rests on a field or row the holder lacks or may not see, or on an operator only
 the server runs. What can decide anyway does: a null beside an unheld value,
-`and`'s false, `or`'s true, an exists' held witness. `Judge.query(…, {
+`and`'s false, `or`'s true, an exists' held witness. An exists is false only
+where the holder's `pointing` says it misses no row: it is given what the
+filter fixes (`Pinned`, each `eq` of a field and a literal, an input or the
+viewer), so a holder that holds every row with those values (a client's list
+of whom the viewer follows) can say so without holding every pointing row.
+`Judge.pins(predicates, { input, context })` works out what a conjunction
+fixes, and whether that is all it says. `Judge.query(…, {
 serverOnly })` names a filter the server adds that the holder does not run. The
 law, checked against SQL by `foldkit-entity/conformance`'s `relationalCases`:
 where `Judge` knows, it is what the server answers.
@@ -1511,6 +1517,7 @@ server on different deploys see which side is behind.
 | `Expr.exists(relation, where?)` | Some row of another Entity points here through its `one` relation and holds `where`, a predicate over its own fields and the input. |
 | `Judge.predicate(p, row, options)` / `Judge.query(body, input, row, options)` | The reference semantics over a `HeldRow`: a `Verdict`, `Known` (SQL's answer) or `Unknown` with why. `Judge.match` reads one. |
 | `Held.fromRefs(query, row)` | A row holding each `one` relation as its ref key (`'User:ada'`), as a Source answers it and a Remote store keeps it, with each link the query reads given as the id it points at. |
+| `Judge.pins(predicates, { input, context })` | What a conjunction fixes by field (each `eq` of a field and a literal, an input or the viewer), and whether that is all it says (`whole`). What an exists passes `HeldRow.pointing`, so a holder holding every row with those values can say it misses none. |
 | `Held.isLink(identity, key)` | Whether `key` is a `one` relation of the Entity `identity` names: how a ref-keyed holder reads a row it knows only by identity, as a row `HeldRow.pointing` returns is. |
 | `Held.rows(tables)` | A holder over plain records, each table complete or not, with keys hidden; `row(entity, id)` and `rows(entity)` give `HeldRow`s. |
 | `Expr.whenGiven(input, given => predicate)` | A filter applying only when a nullable input is given: `or(isNull(input), predicate)`, the predicate seeing the input as never null. |

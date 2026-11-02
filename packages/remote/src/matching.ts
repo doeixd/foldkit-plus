@@ -39,6 +39,7 @@ import {
 import { holderOf, type StoreHolder } from './held.js'
 import type { QueryDescriptor } from './query.js'
 import type { EntityKey, EntityStore } from './store.js'
+import type { WholeLists } from './whole.js'
 
 /**
  * An answer over the rows the client holds — never over the rows that exist.
@@ -108,6 +109,15 @@ export interface MatchingOptions {
 }
 
 /**
+ * How one row is judged (`belongsEncoded`): `MatchingOptions` without `among`,
+ * and the lists the store holds whole, which decide an exists the store alone
+ * cannot.
+ */
+export interface BelongsOptions extends Omit<MatchingOptions, 'among'> {
+  readonly whole?: WholeLists | undefined
+}
+
+/**
  * The rows of `descriptor`'s Entity that the store holds and the body matches.
  *
  * The input is given **decoded**, as an application writes it, and encoded here
@@ -145,7 +155,7 @@ const matchingEncoded = <Name extends string, Input>(
   store: EntityStore,
   descriptor: QueryDescriptor<Name, Input, unknown>,
   encoded: Readonly<Record<string, unknown>>,
-  options: MatchingOptions = {},
+  options: MatchingOptions & BelongsOptions = {},
 ): Judged => {
   const body = descriptor.body
   if (body === undefined) {
@@ -198,7 +208,7 @@ const matchingEncoded = <Name extends string, Input>(
   // valued: a row whose answer rests on what the store lacks is skipped.
   // What it admits is then put in order by its terms alone.
   const reaching = reachesOtherRows(body)
-  const holder = reaching ? holderOf(store) : undefined
+  const holder = reaching ? holderOf(store, options.whole) : undefined
   const admitted =
     holder === undefined
       ? rows
@@ -299,8 +309,7 @@ export const belongsEncoded = <Name extends string, Input>(
   descriptor: QueryDescriptor<Name, Input, unknown>,
   encoded: Readonly<Record<string, unknown>>,
   key: EntityKey,
-  operators?: MemoryOperators | undefined,
-  context?: ExprContext | undefined,
+  options: BelongsOptions = {},
 ): Belongs => {
   const entry = store[key]
   // Never fetched: nothing to judge, and silence is the honest answer.
@@ -321,7 +330,7 @@ export const belongsEncoded = <Name extends string, Input>(
 
   let judged: Judged
   try {
-    judged = matchingEncoded(store, descriptor, encoded, { among: [key], operators, context })
+    judged = matchingEncoded(store, descriptor, encoded, { ...options, among: [key] })
   } catch (error) {
     // A body the reference interpreter refuses for this input (text holding
     // NUL) cannot settle membership; the server refuses it too.

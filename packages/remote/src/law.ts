@@ -251,9 +251,9 @@ const check = <AppModel>(
       const judged = [...predicted.keys(), ...shownKeys].every(
         key =>
           descriptor === undefined ||
-          belongsEncoded(shown, descriptor, encoded, key, tableOf(Data.operators), {
-            viewer: layer?.viewer ?? Option.none(),
-            now: Option.none(),
+          belongsEncoded(shown, descriptor, encoded, key, {
+            operators: tableOf(Data.operators),
+            context: { viewer: layer?.viewer ?? Option.none(), now: Option.none() },
           }) !== 'unknown',
       )
       if (connection === undefined || connection.stale || !judged) {

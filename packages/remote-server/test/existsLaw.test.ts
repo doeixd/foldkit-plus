@@ -4,7 +4,8 @@
  * follow and an unfollow run through the client and through a memory server.
  * A follow's Home is the server's while pending and once answered; an
  * unfollow's is left to the server, since the store may not hold every
- * follow that keeps a post in it.
+ * follow that keeps a post in it, unless it holds every follow of mine
+ * (#409).
  */
 import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
@@ -61,6 +62,14 @@ const homeBody = Query.from(Post).pipe(
 )
 const Home = Query.define('Home', { accountId: Schema.String }, () => homeBody)
 
+/** Whom an account follows: read whole, every follow an exists in Home may count. */
+const Following = Query.define('Following', { accountId: Schema.String }, ({ input }) =>
+  Query.from(Follow).pipe(
+    Query.where(Expr.eq(Follow.relations.follower, input.accountId)),
+    Query.orderBy(Order.asc(Follow.fields.id, { collation: Collation.binary })),
+  ),
+)
+
 const FollowAccount = Mutation.write(
   'FollowAccount',
   Write.insert(
@@ -80,7 +89,7 @@ const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote
 const Data = Remote.make({
   model: App.model.remote,
   entities: [User, Post, Follow],
-  queries: [Home],
+  queries: [Home, Following],
   mutations: [FollowAccount, UnfollowAccount],
   viewer: () => Option.some(Remote.ref(UserFields, 'me')),
 })
@@ -135,9 +144,10 @@ const homeOf = (stored: () => MemoryServed<string>): QuerySource<string> => ({
 /** A fresh server: mine is p1, ada's p2, whom I follow, and bo's p3 and p4, whom I do not. */
 const server = () => {
   const backend: MemoryBackend<string> = RemoteServer.memory({
-    // Home is served by `homeOf`, so the domain the backend interprets lists no query.
+    // Home is served by `homeOf`, so the domain the backend interprets lists Following alone.
     domain: Remote.define({
       entities: [User, Post, Follow],
+      queries: [Following],
       mutations: [FollowAccount, UnfollowAccount],
     }),
     rows: {
@@ -176,8 +186,13 @@ const server = () => {
 }
 
 const home = Home.ref({ accountId: 'me' })
+const following = Following.ref({ accountId: 'me' })
 
-const checked = (mutation: typeof FollowAccount | typeof UnfollowAccount, input: unknown) =>
+const checked = (
+  mutation: typeof FollowAccount | typeof UnfollowAccount,
+  input: unknown,
+  lists: ReadonlyArray<typeof home | typeof following> = [home],
+) =>
   Effect.runPromise(
     Law.check(Data, {
       model: { remote: Remote.initial },
@@ -186,7 +201,7 @@ const checked = (mutation: typeof FollowAccount | typeof UnfollowAccount, input:
         { entity: Post, ids: ['p1', 'p2', 'p3', 'p4'] },
         { entity: Follow, ids: ['f1'] },
       ],
-      lists: [home],
+      lists,
       mutation,
       input,
       now: 1,
@@ -207,5 +222,12 @@ describe('the law over a feed counting follows', () => {
     expect(report.disagreed).toEqual([])
     expect(report.agreed).toContain('Follow:f1')
     expect(report.unknown).toContain(home.identity)
+  })
+
+  it('agrees on Home while an unfollow is pending, holding every follow of mine', async () => {
+    const report = await checked(UnfollowAccount, { id: 'f1' }, [home, following])
+    expect(report.disagreed).toEqual([])
+    expect(report.agreed).toEqual(expect.arrayContaining([home.identity, following.identity]))
+    expect(report.unknown).not.toContain(home.identity)
   })
 })

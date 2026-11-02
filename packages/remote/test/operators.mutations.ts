@@ -43,8 +43,8 @@ export default [
     edits: [
       {
         file: '../src/liveReads.ts',
-        find: '        tableOf(lists.operators),\n        context,\n      )',
-        replace: '        undefined,\n        context,\n      )',
+        find: '{ operators: tableOf(lists.operators), context },',
+        replace: '{ operators: undefined, context },',
       },
     ],
     tests,
@@ -54,8 +54,9 @@ export default [
     edits: [
       {
         file: '../src/impact.ts',
-        find: 'belongsEncoded(store, descriptor, connection.encoded, key, operators, context)',
-        replace: 'belongsEncoded(store, descriptor, connection.encoded, key, undefined, context)',
+        find: 'belongsEncoded(store, descriptor, connection.encoded, key, { operators, context })',
+        replace:
+          'belongsEncoded(store, descriptor, connection.encoded, key, { operators: undefined, context })',
       },
     ],
     tests,

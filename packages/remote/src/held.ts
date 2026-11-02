@@ -1,9 +1,10 @@
 /**
  * The store as a holder of rows (`HeldRows`), which `Judge` reads to foresee
  * a write's rules: a field the store was not sent is unheld, a row it never
- * read is unheld, a tombstone is known absent. It never holds every row
- * pointing at one, so an exists over the store is true where a pointing row
- * it holds passes the filter, and unknown otherwise.
+ * read is unheld, a tombstone is known absent. An exists over the store is
+ * true where a pointing row it holds passes the filter, false where none does
+ * and a list held whole (`WholeLists`) holds every row the filter may count,
+ * and unknown otherwise.
  */
 import { Option } from 'effect'
 import {
@@ -14,8 +15,10 @@ import {
   type HeldRow,
   type HeldRows,
   type OneRelation,
+  type Pinned,
 } from 'foldkit-entity'
 import { entityKey, type EntityEntry, type EntityKey, type EntityStore } from './store.js'
+import type { WholeList, WholeLists } from './whole.js'
 
 /** One row's values: the store's, or the row a write leaves, which holds what it sets besides. */
 interface Values {
@@ -23,8 +26,10 @@ interface Values {
   readonly present: ReadonlySet<string>
 }
 
+const noWholeLists: WholeLists = () => []
+
 /** Holders by store: a store is replaced, never changed, and a holder indexes what points where. */
-const holders = new WeakMap<EntityStore, StoreHolder>()
+const holders = new WeakMap<WholeLists, WeakMap<EntityStore, StoreHolder>>()
 
 /** The store as a holder, and the row a write leaves in it. */
 export interface StoreHolder {
@@ -45,10 +50,16 @@ export interface StoreHolder {
 /**
  * `store` as `Judge` reads it. Links are kept as ref keys (`'User:ada'`);
  * a row is read with each `one` relation as the id it points at, as
- * `Held.rows` takes it.
+ * `Held.rows` takes it. `whole` are the lists the store holds whole, which
+ * an exists may be decided over.
  */
-export const holderOf = (store: EntityStore): StoreHolder => {
-  const known = holders.get(store)
+export const holderOf = (store: EntityStore, whole: WholeLists = noWholeLists): StoreHolder => {
+  let byStore = holders.get(whole)
+  if (byStore === undefined) {
+    byStore = new WeakMap()
+    holders.set(whole, byStore)
+  }
+  const known = byStore.get(store)
   if (known !== undefined) return known
   // By relation, the live rows linked through it, grouped by the ref key they hold. A stale
   // link may point elsewhere now, so it is left out: no row is ever all that points here.
@@ -90,14 +101,39 @@ export const holderOf = (store: EntityStore): StoreHolder => {
               : find(relation.target(), link),
           onUnheld: reason => Held.unheld<Option.Option<HeldRow>>(reason),
         }),
-      pointing: relation => ({
+      pointing: (relation, pinned) => ({
         rows: pointersOf(relation).get(at) ?? [],
-        missing: Option.some(
-          `the store may not hold every ${relation.owner.name} pointing through ${relation.key}`,
-        ),
+        missing: holdsEvery(relation, pinned)
+          ? Option.none()
+          : Option.some(
+              `the store may not hold every ${relation.owner.name} pointing through ${relation.key}`,
+            ),
       }),
     }
   }
+
+  // By relation, the lists held whole the store says where each row of points now.
+  const linked = new Map<OneRelation, ReadonlyArray<WholeList>>()
+  const linkedOf = (relation: OneRelation): ReadonlyArray<WholeList> => {
+    const known = linked.get(relation)
+    if (known !== undefined) return known
+    const lists = whole(relation.owner.name).filter(list =>
+      list.keys.every(key => {
+        const entry = store[key]
+        return (
+          entry !== undefined &&
+          (entry.tombstone || (entry.present.has(relation.key) && !entry.stale.has(relation.key)))
+        )
+      }),
+    )
+    linked.set(relation, lists)
+    return lists
+  }
+  // Every row the exists counts is in such a list whose body fixes no more than its filter does.
+  const holdsEvery = (relation: OneRelation, pinned: Pinned): boolean =>
+    linkedOf(relation).some(list =>
+      [...list.pins].every(([key, value]) => pinned.get(key) === value),
+    )
 
   const live = (entity: AnyEntity, id: unknown): EntityEntry | undefined => {
     const entry = store[entityKey(entity.name, String(id))]
@@ -137,6 +173,6 @@ export const holderOf = (store: EntityStore): StoreHolder => {
       })
     },
   }
-  holders.set(store, holder)
+  byStore.set(store, holder)
   return holder
 }

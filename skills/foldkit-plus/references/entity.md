@@ -594,8 +594,12 @@ Expr.path(Feed.Post.relations.author,
   input, row)` reads a `HeldRow` (`Held.rows(tables)` over plain records) and
   answers a `Verdict`: `Known` (SQL's answer) or `Unknown` with why, when the
   answer rests on a field or row the holder lacks or may not see, or an operator
-  only the server runs. SQL's null stays a known answer. The law, held by
-  `relationalCases` on SQLite and Postgres: where `Judge` knows, it is SQL's.
+  only the server runs. SQL's null stays a known answer. An exists is false only
+  where `HeldRow.pointing(relation, pinned)` misses no row: `pinned` is what its
+  filter fixes (`Judge.pins(predicates, { input, context })`: each `eq` of a field
+  and a literal, an input or the viewer, and whether that is all), so a holder of
+  every row with those values (the viewer's whole `Following`) may say so. The law,
+  held by `relationalCases` on SQLite and Postgres: where `Judge` knows, it is SQL's.
 
 ### Who asks, and when
 

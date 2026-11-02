@@ -12,6 +12,7 @@ const held = '../src/held.ts'
 const impact = '../src/impact.ts'
 const layers = '../src/layers.ts'
 const bodies = '../src/bodies.ts'
+const whole = '../src/whole.ts'
 
 export default [
   {
@@ -87,8 +88,20 @@ export default [
     tests,
   },
   {
-    name: 'an answer judges a change through other rows as its own',
-    edits: [{ file: bodies, find: '      if (through(change)) continue\n', replace: '' }],
+    name: 'a change through other rows does not move its own row',
+    edits: [
+      {
+        file: impact,
+        find: '  if (over !== change.entity) return kept\n',
+        replace:
+          "  if (body !== undefined && readsThrough(body, change)) return Impact.Invalidated({ reason: 'through' })\n  if (over !== change.entity) return kept\n",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an answer judges a list again over what it held before placing',
+    edits: [{ file: bodies, find: 'holds: now }', replace: 'holds }' }],
     tests,
   },
   {
@@ -107,11 +120,75 @@ export default [
     edits: [
       {
         file: bodies,
-        find: '      pages = rejudged({ ...query.value, connection: pages, holds }, visible, operators, context)\n      invalidated.push(identity)',
-        replace:
-          '      pages = rejudged({ ...query.value, connection: pages, holds }, visible, operators, context)',
+        find: '        whole,\n      })\n      invalidated.push(identity)',
+        replace: '        whole,\n      })',
       },
     ],
+    tests,
+  },
+  {
+    name: 'a list held whole never decides an exists',
+    edits: [
+      { file: held, find: 'missing: holdsEvery(relation, pinned)', replace: 'missing: false' },
+    ],
+    tests: [...tests, ...law],
+  },
+  {
+    name: 'a list held whole decides an exists whatever its body fixes',
+    edits: [
+      {
+        file: held,
+        find: '[...list.pins].every(([key, value]) => pinned.get(key) === value)',
+        replace: 'true',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row of a list held whole whose link the store lacks counts as held',
+    edits: [{ file: held, find: '(entry.present.has(relation.key) && ', replace: '(' }],
+    tests,
+  },
+  {
+    name: 'a row of a list held whole whose link is stale counts as held',
+    edits: [{ file: held, find: ' && !entry.stale.has(relation.key)))', replace: '))' }],
+    tests,
+  },
+  {
+    name: 'a list with more to load is held whole',
+    edits: [{ file: whole, find: "only.end._tag === 'Terminal'", replace: 'true' }],
+    tests,
+  },
+  {
+    name: 'a stale list is held whole',
+    edits: [{ file: whole, find: '    !connection.stale &&\n', replace: '' }],
+    tests,
+  },
+  {
+    name: 'an exists fixes nothing of the rows it counts',
+    edits: [
+      {
+        file: '../../entity/src/evaluate.ts',
+        find: '  const { rows, missing } = anchor.pointing(node.relation, pinned)',
+        replace: '  const { rows, missing } = anchor.pointing(node.relation, new Map())',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a pending layer decides no exists over the lists held whole',
+    edits: [
+      {
+        file: layers,
+        find: '          whole: wholeListsOf(connections, lists.queryOf, context),\n',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an answer decides no exists over the lists held whole',
+    edits: [{ file: bodies, find: '        whole,\n', replace: '' }],
     tests,
   },
   {

@@ -40,7 +40,7 @@ import type {
   Predicate,
   TestPredicate,
 } from './expr.js'
-import { Held, type HeldRow, type HeldRows } from './held.js'
+import { Held, type HeldRow, type HeldRows, type Pinned } from './held.js'
 import type { AnyEntity } from './index.js'
 import { Operators, type MemoryImplementation, type MemoryOperators } from './operators.js'
 import { contextValue, type ExprContext, type NowExpr, type ViewerExpr } from './context.js'
@@ -143,7 +143,10 @@ interface View {
   readonly field: (key: string) => unknown
   /** The row a `one` relation points at; null for none. */
   readonly follow: (relation: OneRelation) => View | null | Unheld
-  readonly pointing: (relation: OneRelation) => {
+  readonly pointing: (
+    relation: OneRelation,
+    pinned: Pinned,
+  ) => {
     readonly rows: ReadonlyArray<View>
     readonly missing: Option.Option<string>
   }
@@ -171,8 +174,8 @@ const viewOf = (row: HeldRow): View => ({
       onHeld: target => Option.match(target, { onNone: () => null, onSome: viewOf }),
       onUnheld: reason => new Unheld(reason),
     }),
-  pointing: relation => {
-    const { rows, missing } = row.pointing(relation)
+  pointing: (relation, pinned) => {
+    const { rows, missing } = row.pointing(relation, pinned)
     return { rows: rows.map(viewOf), missing }
   },
 })
@@ -193,6 +196,63 @@ const reached = (from: View, via: ReadonlyArray<OneRelation>): View | null | Unh
   return at
 }
 
+/** What a conjunction fixes by field, and whether that is all it says (`Judge.pins`). */
+export interface Pins {
+  readonly pins: Pinned
+  readonly whole: boolean
+}
+
+/** A value two `eq`s agree on exactly, on both sides of the wire: never null, NaN or a structure. */
+const pinnable = (value: unknown): boolean =>
+  typeof value === 'string' ||
+  typeof value === 'boolean' ||
+  typeof value === 'bigint' ||
+  (typeof value === 'number' && !Number.isNaN(value))
+
+/** An `eq` of a field of the row and something else, the field first. */
+const fieldAndSide = (
+  predicate: Predicate,
+): Option.Option<readonly [{ readonly key: string }, Operandish]> => {
+  if (predicate._tag !== 'Eq') return Option.none()
+  if (predicate.left._tag === 'Field') return Option.some([predicate.left, predicate.right])
+  if (predicate.right._tag === 'Field') return Option.some([predicate.right, predicate.left])
+  return Option.none()
+}
+
+const pinsOf = (
+  predicates: ReadonlyArray<Predicate>,
+  input: Row,
+  context: ExprContext | undefined,
+): Pins => {
+  const pins = new Map<string, unknown>()
+  let whole = true
+  const given = (node: Operandish): Option.Option<unknown> => {
+    switch (node._tag) {
+      case 'Literal':
+        return Option.some(node.value)
+      case 'Input':
+        return Option.some(own(input, node.key))
+      case 'Viewer':
+        return context === undefined ? Option.none() : contextValue(node, context)
+      default:
+        return Option.none()
+    }
+  }
+  for (const predicate of predicates) {
+    const pin = Option.flatMap(fieldAndSide(predicate), ([field, side]) =>
+      Option.map(Option.filter(given(side), pinnable), value => [field.key, value] as const),
+    )
+    if (Option.isNone(pin)) {
+      whole = false
+      continue
+    }
+    const [key, value] = pin.value
+    if (pins.has(key) && pins.get(key) !== value) whole = false
+    pins.set(key, value)
+  }
+  return { pins, whole }
+}
+
 /**
  * Whether some row pointing at the one `via` reaches holds the filter: true
  * as soon as a held one does, false only when every one is held and none
@@ -203,7 +263,12 @@ const exists = (node: ExistsPredicate, scope: Scope): Judged => {
   const anchor = reached(scope.row, node.via)
   if (anchor === null) return 'unknown'
   if (isUnheld(anchor)) return anchor
-  const { rows, missing } = anchor.pointing(node.relation)
+  const pinned = Option.match(node.where, {
+    onNone: (): Pinned => new Map(),
+    onSome: where =>
+      pinsOf(where._tag === 'And' ? where.operands : [where], scope.input, scope.context).pins,
+  })
+  const { rows, missing } = anchor.pointing(node.relation, pinned)
   let unheld = Option.map(missing, reason => new Unheld(reason))
   for (const row of rows) {
     const truth = Option.match(node.where, {
@@ -816,6 +881,18 @@ export const Judge = {
       ? known(true)
       : unknownBecause(`the server also filters by ${options.serverOnly}`)
   },
+
+  /**
+   * What a conjunction fixes by field: each `eq` of a field and a literal, an
+   * input or the viewer, by the field's key, and whether that is all it says
+   * (`whole`), so every row holding those values satisfies it. A holder holding
+   * every row a `whole` list's body fixes this way holds every row an exists
+   * whose filter fixes the same values counts.
+   */
+  pins: (
+    predicates: ReadonlyArray<Predicate>,
+    options: { readonly input?: Row | undefined; readonly context?: ExprContext | undefined } = {},
+  ): Pins => pinsOf(predicates, options.input ?? {}, options.context),
 
   match: <T, A>(
     verdict: Verdict<T>,

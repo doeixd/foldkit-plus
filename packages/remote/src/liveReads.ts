@@ -63,8 +63,7 @@ const policy: LiveCapability['policy'] = (lists, visible, event, context) => {
         descriptor,
         encoded,
         entityKey(event.edge.ref.entity, event.edge.ref.id),
-        tableOf(lists.operators),
-        context,
+        { operators: tableOf(lists.operators), context },
       )
       return decided === 'no' ? { prepend: 'ignore', append: 'ignore' } : declared
     },

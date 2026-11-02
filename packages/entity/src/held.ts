@@ -21,9 +21,20 @@ export type Held<A> =
 /** The rows pointing at one row through a relation, as far as a holder has them. */
 export interface Pointing {
   readonly rows: ReadonlyArray<HeldRow>
-  /** Why a row pointing here may be missing from `rows`; none when it holds every one. */
+  /**
+   * Why a row pointing here may be missing from `rows`; none when it holds
+   * every one whose fields hold the values `pinned` names.
+   */
   readonly missing: Option.Option<string>
 }
+
+/**
+ * The values an exists' filter fixes on the rows it counts, by field key (a
+ * link as the id it points at): a row with another value in one of them is
+ * not counted, so a holder holding every pointing row with these values holds
+ * every one that counts (`Judge.pins`).
+ */
+export type Pinned = ReadonlyMap<string, unknown>
 
 /**
  * One row as a holder has it. Values are **encoded**, as a store keeps them
@@ -37,8 +48,11 @@ export interface HeldRow {
    * a row the reader may not see when the holder knows it holds every row it may.
    */
   readonly follow: (relation: OneRelation) => Held<Option.Option<HeldRow>>
-  /** The rows pointing at this one through `relation`, a `one` relation of another Entity. */
-  readonly pointing: (relation: OneRelation) => Pointing
+  /**
+   * The rows pointing at this one through `relation`, a `one` relation of
+   * another Entity, for an exists whose filter fixes `pinned`.
+   */
+  readonly pointing: (relation: OneRelation, pinned: Pinned) => Pointing
 }
 
 /** One Entity's rows, as `Held.rows` takes them. */

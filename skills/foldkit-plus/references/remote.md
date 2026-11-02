@@ -629,8 +629,12 @@ as reads draw them. A body that reads through a path (or a path from the viewer)
 judged over every row the path reaches, and judged again when one of those changes,
 by a pending write as well (a follow brings the followed account's held posts into a
 feed over `Expr.exists`), and fetched once answered unless the answer carries its page;
-a row whose path reaches what the store lacks cannot be told, and an exists is true only
-where a held row points here and passes its filter, so an unfollow waits for that page. A `Query.make` list (no body) is
+a row whose path reaches what the store lacks cannot be told. An exists is true where a
+held row points here and passes its filter, and false only where a list held whole (both
+ends, not stale) whose body only fixes fields the exists' filter fixes to the same values
+holds every row it may count, each with the link held: with the viewer's whole `Following`
+loaded, an unfollow takes the posts out at once; without it, it waits for the page. A
+change through other rows that moves a row of the list by its order moves it too. A `Query.make` list (no body) is
 invalidated by any change to its Entity, and a list whose body declares no
 order (the server's `orderBy` decides it) by any change to a row it holds. `Data.refresh` remains for effects the answer does not name.
 

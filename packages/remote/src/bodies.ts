@@ -9,7 +9,7 @@ import { Option } from 'effect'
 import { Query as Relational } from 'foldkit-entity'
 import type { BodyCapability, Install } from './capability.js'
 import { edgesOf, visibleOf } from './capability.js'
-import type { Connection } from './connection.js'
+import { items, type Connection } from './connection.js'
 import {
   EntityChange,
   Impact,
@@ -22,6 +22,7 @@ import {
 import { placedHeld } from './placing.js'
 import { entityKey } from './store.js'
 import { tableOf } from './table.js'
+import { wholeListsOf } from './whole.js'
 
 const placedFields: BodyCapability['placedFields'] = (body, encoded, given) => {
   const operators = tableOf(given)
@@ -63,7 +64,8 @@ const news: BodyCapability['news'] = (lists, remote, patches, before, context) =
  * against the store as the write left it, a change it can place placed in its
  * pages, and one it cannot invalidated for its read entry to fetch. A change
  * to what a body reads through other rows is judged again over the store
- * (`rejudged`) and fetched too, since a row the store lacks may have joined.
+ * (`rejudged`) and fetched too, since a row the store lacks may have joined;
+ * an exists there is decided over the lists the store holds whole.
  */
 const answer: BodyCapability['answer'] = (
   capabilities,
@@ -87,6 +89,7 @@ const answer: BodyCapability['answer'] = (
   }
   const visible = visibleOf(capabilities, remote, lists.operators)
   const operators = tableOf(lists.operators)
+  const whole = wholeListsOf(remote.connections, lists.queryOf, context)
   for (const identity of Object.keys(remote.connections)) {
     const keys = named.get(identity)
     const judged =
@@ -110,7 +113,6 @@ const answer: BodyCapability['answer'] = (
     let pages = original
     let invalid = false
     for (const change of judged) {
-      if (through(change)) continue
       const held: HeldConnection = { ...query.value, connection: pages, holds }
       const after = Impact.$match(impactOn(held, visible, change, operators, context), {
         Kept: () => Option.some(pages),
@@ -128,7 +130,16 @@ const answer: BodyCapability['answer'] = (
       continue
     }
     if (judged.some(through)) {
-      pages = rejudged({ ...query.value, connection: pages, holds }, visible, operators, context)
+      // What the changes placed is held too, so a row they moved in is not placed twice.
+      const now = new Set([
+        ...holds,
+        ...items(pages).map(each => entityKey(each.ref.entity, each.ref.id)),
+      ])
+      pages = rejudged({ ...query.value, connection: pages, holds: now }, visible, {
+        operators,
+        context,
+        whole,
+      })
       invalidated.push(identity)
     }
     if (pages !== original) placed[identity] = pages

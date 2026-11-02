@@ -26,7 +26,7 @@ import {
 import { edge, hasNext, hasPrevious, isGapped, items, type Connection } from './connection.js'
 import { RowPlace, placeIn, withEdge, withoutEdge } from './placement.js'
 import { Data, Match, Option } from 'effect'
-import { belongsEncoded } from './matching.js'
+import { belongsEncoded, type BelongsOptions } from './matching.js'
 import type { ConnectionSpec, QueryDescriptor } from './query.js'
 import { entityKey, type EntityKey, type EntityStore } from './store.js'
 import { EntityChange } from './changes.js'
@@ -137,19 +137,19 @@ export const readsThrough = (body: AnyQuery, change: EntityChange): boolean => {
  * it. A row the store cannot judge, or a joining row it cannot place, is left
  * as it was, and none joins a list its server filters by a rule the client
  * does not run. Never complete: a row the store lacks may have joined too.
+ * An exists is decided over the lists held whole (`options.whole`).
  */
 export const rejudged = (
   connection: HeldConnection,
   store: EntityStore,
-  operators: MemoryOperators,
-  context?: ExprContext | undefined,
+  options: BelongsOptions & { readonly operators: MemoryOperators },
 ): Connection => {
   const { descriptor, encoded, holds } = connection
+  const { operators } = options
   const body = descriptor.body
   let pages = connection.connection
   if (body === undefined) return pages
-  const belongs = (key: EntityKey) =>
-    belongsEncoded(store, descriptor, encoded, key, operators, context)
+  const belongs = (key: EntityKey) => belongsEncoded(store, descriptor, encoded, key, options)
   for (const held of items(pages))
     if (belongs(entityKey(held.ref.entity, held.ref.id)) === 'no')
       pages = withoutEdge(pages, held.key)
@@ -182,7 +182,8 @@ const sameOrder = (left: Connection, right: Connection): boolean =>
 
 /**
  * What `change` does to `connection`, judged against `store`, the store after
- * the write.
+ * the write, through the changed row alone: what a change to what the body
+ * reads through other rows does to the rest of the list is `rejudged`'s.
  */
 export const impactOn = (
   connection: HeldConnection,
@@ -196,11 +197,6 @@ export const impactOn = (
   const body = descriptor.body
   const over = body?.entity.name ?? (descriptor.Result as Partial<ConnectionSpec>).entity
   const reached = body === undefined ? undefined : reachedOf(body)
-  if (body !== undefined && readsThrough(body, change)) {
-    return Impact.Invalidated({
-      reason: `${entityKey(change.entity, change.id)} changed what "${descriptor.name}" reads through another row`,
-    })
-  }
   if (over !== change.entity) return kept
   return EntityChange.match(change, {
     // A deletion leaves every list through its tombstone; nothing to fetch.
@@ -256,7 +252,7 @@ export const impactOn = (
       const belongs =
         held && !refilters
           ? 'yes'
-          : belongsEncoded(store, descriptor, connection.encoded, key, operators, context)
+          : belongsEncoded(store, descriptor, connection.encoded, key, { operators, context })
       if (belongs === 'unknown') {
         return Impact.Invalidated({
           reason: `${key} changed a field "${descriptor.name}" filters on, and the client cannot judge it`,
