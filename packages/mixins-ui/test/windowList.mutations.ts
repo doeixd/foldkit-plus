@@ -175,8 +175,41 @@ export default [
     edits: [
       {
         file: '../../primitives/src/state/virtual.ts',
-        find: 'return key === null || height === 0 ? [] : [{ key, height }]',
+        find: 'return key === null || !(height > 0) ? [] : [{ key, height }]',
         replace: 'return []',
+      },
+    ],
+    tests: [...browser, 'packages/primitives/test/virtual-mounts.test.ts'],
+  },
+  {
+    name: 'the start read takes the box an ancestor scales',
+    edits: [
+      {
+        file: '../../primitives/src/state/virtual.ts',
+        find: 'const height = borderBlockSize(row)',
+        replace: 'const height = row.getBoundingClientRect().height',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: "the start read keeps the style's four decimals",
+    edits: [
+      {
+        file: '../../primitives/src/state/virtual.ts',
+        find: 'return Math.round(box * 64) / 64',
+        replace: 'return box',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the start read leaves out the padding',
+    edits: [
+      {
+        file: '../../primitives/src/state/virtual.ts',
+        find: "style.boxSizing === 'border-box'",
+        replace: 'true',
       },
     ],
     tests: [...browser, 'packages/primitives/test/virtual-mounts.test.ts'],
@@ -186,7 +219,7 @@ export default [
     edits: [
       {
         file: '../../primitives/src/state/virtual.ts',
-        find: 'return key === null || height === 0 ? [] : [{ key, height }]',
+        find: 'return key === null || !(height > 0) ? [] : [{ key, height }]',
         replace: 'return key === null ? [] : [{ key, height }]',
       },
     ],

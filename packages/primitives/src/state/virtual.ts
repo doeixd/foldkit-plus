@@ -468,6 +468,31 @@ export const RowsMeasured = Schema.TaggedStruct('RowsMeasured', {
 export type RowsMeasured = typeof RowsMeasured.Type
 
 /**
+ * The border box's block size, as a ResizeObserver reports it: from the
+ * computed style, since `getBoundingClientRect` scales it by the
+ * ancestors' transforms (a dialog scaling in). The style is written to four
+ * decimals, so the sum is snapped to the 1/64px a layout unit is in
+ * Chromium and WebKit, where the observer reports exact units. `NaN` for a
+ * box with no size of its own (`display: none`, inline).
+ */
+const borderBlockSize = (row: Element): number => {
+  const style = getComputedStyle(row)
+  const [size, start, end] = /^(vertical|sideways)/.test(style.writingMode)
+    ? ['width', 'left', 'right']
+    : ['height', 'top', 'bottom']
+  const px = (property: string) => parseFloat(style.getPropertyValue(property))
+  const box =
+    style.boxSizing === 'border-box'
+      ? px(size)
+      : px(size) +
+        px(`padding-${start}`) +
+        px(`padding-${end}`) +
+        px(`border-${start}-width`) +
+        px(`border-${end}-width`)
+  return Math.round(box * 64) / 64
+}
+
+/**
  * The heights of an element's rows, border boxes, from one observer on the
  * list rather than a Mount per row: each child carrying `attribute` is a
  * row, its value the row's key. A row is reported when it is drawn and on
@@ -522,8 +547,8 @@ export const MeasureRows = Mount.defineStream('MeasureRows', {
               RowsMeasured.make({
                 rows: Array.from(observed).flatMap(row => {
                   const key = row.getAttribute(attribute)
-                  const height = row.getBoundingClientRect().height
-                  return key === null || height === 0 ? [] : [{ key, height }]
+                  const height = borderBlockSize(row)
+                  return key === null || !(height > 0) ? [] : [{ key, height }]
                 }),
               }),
             )

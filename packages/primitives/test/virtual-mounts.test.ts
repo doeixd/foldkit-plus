@@ -219,7 +219,8 @@ describe('MeasureRows', () => {
     const [a, b, c] = [row('a'), row('b'), row('c')]
     const spacer = document.createElement('div')
     // Drawn before it starts: `a` is read at once; `b`, of no height, is left to the observer.
-    a.getBoundingClientRect = () => DOMRect.fromRect({ x: 0, y: 0, width: 100, height: 20 })
+    a.style.height = '16px'
+    a.style.padding = '2px 0'
     list.append(spacer, a, b)
     document.body.appendChild(list)
     try {
@@ -248,6 +249,7 @@ describe('MeasureRows', () => {
         }),
       )
       expect(values).toEqual([
+        // Its border box: the padding counts.
         RowsMeasured.make({ rows: [{ key: 'a', height: 20 }] }),
         RowsMeasured.make({
           rows: [

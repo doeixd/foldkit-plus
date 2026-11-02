@@ -6,7 +6,8 @@
  * a handful of the thousand; the header stays stuck; content above growing
  * with no scroll still moves the rows drawn; once every row is measured each
  * starts at the sum of the heights above it, and the footer where the last
- * ends, even when a frame is drawn while the list's Mount starts.
+ * ends, even when a frame is drawn while the list's Mount starts, and the
+ * rows it reads then measure as the observer's do under a scaling ancestor.
  */
 import { Effect, Schema } from 'effect'
 import { renderToString } from 'foldkit/experimental/server'
@@ -222,6 +223,69 @@ test('a frame drawn while the Mount starts moves no row away unmeasured', async 
   for (const row of drawn) {
     expect(row.getBoundingClientRect().top - top).toBeCloseTo(prefix(indexOf(row)), 1)
   }
+})
+
+test('the rows read as the Mount starts measure as the observer does, under a scaling ancestor', async () => {
+  await page.viewport(1280, 800)
+  vi.stubGlobal('setTimeout', (handler: TimerHandler, delay?: number, ...rest: unknown[]) =>
+    delay === undefined || delay === 0
+      ? requestAnimationFrame(() => setTimeout(handler, 0, ...rest))
+      : setTimeout(handler, delay, ...rest),
+  )
+  // A Dialog scaling in as the list mounts; rows of fractional height.
+  const scaled = document.createElement('div')
+  scaled.style.cssText = 'transform: scale(0.5); transform-origin: 0 0'
+  const above = document.createElement('div')
+  above.style.height = '1500px'
+  const container = document.createElement('div')
+  container.id = 'window-list-scaled'
+  scaled.append(above, container)
+  document.body.append(scaled)
+  const fractional = (index: number) => (index % 2 === 0 ? 30.3 : 45.7)
+  const observed = (height: number) =>
+    new Promise<number>(resolve => {
+      const probe = document.createElement('div')
+      probe.style.cssText = `height: ${height}px; display: flow-root`
+      scaled.append(probe)
+      const observer = new ResizeObserver(([entry]) => {
+        observer.disconnect()
+        probe.remove()
+        resolve(entry!.borderBoxSize[0]!.blockSize)
+      })
+      observer.observe(probe)
+    })
+  let latest = WindowList.init({ id: 'results', estimatedHeight: 40 })
+  handle = Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => ({ model: { list: latest } }),
+      update: (model: Model, message: WindowList.Message) => {
+        latest = WindowList.update(model.list, message).model
+        return { model: { list: latest }, commands: [] }
+      },
+      view: (model, h) =>
+        WindowList.view(
+          {
+            model: model.list,
+            items,
+            itemToKey,
+            itemToView: index => h.div([h.Style({ height: `${fractional(index)}px` })], []),
+            onMessage: message => message,
+          },
+          h,
+        ),
+      slow: false,
+    }),
+  )
+  // Placed 750px below the viewport's top: the first frame's rows past the fold left.
+  await vi.waitFor(() => expect(indexOf(rows().at(-1)!)).toBeLessThan(25))
+  const [even, odd] = [await observed(30.3), await observed(45.7)]
+  await vi.waitFor(() => {
+    for (let index = 0; index < 30; index++) {
+      expect(latest.heights[itemToKey(index)]).toBe(index % 2 === 0 ? even : odd)
+    }
+  })
 })
 
 describe('a list opened at a row', () => {
