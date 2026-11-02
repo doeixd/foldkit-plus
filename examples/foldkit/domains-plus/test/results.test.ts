@@ -21,7 +21,11 @@ import {
 } from '../src/client/app.js'
 import { SearchInput } from '../src/client/message.js'
 import { arrangedOf, namesOf } from '../src/client/results.js'
-import { RESULTS_GROUP_HEIGHT_PX } from '../src/client/resultsList.js'
+import {
+  RESULTS_FIRST_SCREEN_GROUPS,
+  RESULTS_GROUP_HEIGHT_PX,
+  RESULTS_OVERSCAN_GROUPS,
+} from '../src/client/resultsList.js'
 import { readDomains } from '../src/server/remote.js'
 import { Quote } from '../src/shared/entity'
 
@@ -78,8 +82,8 @@ describe('All Results', () => {
     const settled = searched('acme').reduce((model, message) => update(model, message).model, empty)
     const names = readNames(settled)
     expect(names.slice(0, 4)).toEqual(['acme.com', 'acme.dev', 'acme.app', 'acme.io'])
-    // 1000 px assumed before the list is placed: nine rows of six and two more past them.
-    expect(names).toEqual(namesOfGroups(0, 11))
+    // The first screen assumed before the list is placed, and the overscan past it (#415).
+    expect(names).toEqual(namesOfGroups(0, RESULTS_FIRST_SCREEN_GROUPS + RESULTS_OVERSCAN_GROUPS))
   })
 
   test('a scroll further down reads the names it brings into view, and nothing else', async () => {
@@ -112,8 +116,9 @@ describe('All Results', () => {
     const checked = namesOf('acme').filter(
       name => Data.get(Quote, name).read(last)._tag === 'Ready',
     )
-    // The first eleven rows, the top four among them, and the twelve around row 40.
-    expect(checked).toHaveLength(11 * 6 + 12 * 6)
+    // The first screen's rows and their overscan, the top four among them, and the twelve around row 40.
+    const first = RESULTS_FIRST_SCREEN_GROUPS + RESULTS_OVERSCAN_GROUPS
+    expect(checked).toHaveLength(first * 6 + 12 * 6)
   })
 
   test('on a phone, the rows not yet measured take the height of those measured', () => {

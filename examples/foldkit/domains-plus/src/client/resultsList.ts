@@ -53,6 +53,14 @@ export const RESULTS_GROUP_HEIGHT_PX = 114
 /** Groups drawn, and read, past each end of the viewport. */
 export const RESULTS_OVERSCAN_GROUPS = 2
 
+/**
+ * The groups the list assumes in view before it is placed, on a server and in
+ * the first frame: two, which is a phone's first screen below the Top
+ * Results. `WindowList` adds the overscan, so the server prices and draws
+ * the first four groups (24 names) and leaves the rest as spacers (#415).
+ */
+export const RESULTS_FIRST_SCREEN_GROUPS = 2
+
 /** The list, opened at `from`: the row of a page's `?from=`, drawn first until the list is placed. */
 export const initResultsList = (from = 0): WindowList.Model =>
   WindowList.init({
@@ -60,5 +68,6 @@ export const initResultsList = (from = 0): WindowList.Model =>
     estimatedHeight: RESULTS_GROUP_HEIGHT_PX,
     unmeasured: 'mean',
     overscan: RESULTS_OVERSCAN_GROUPS,
+    viewportHeight: RESULTS_FIRST_SCREEN_GROUPS * RESULTS_GROUP_HEIGHT_PX,
     from,
   })

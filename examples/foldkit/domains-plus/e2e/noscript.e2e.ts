@@ -48,10 +48,10 @@ test('without JavaScript, the page searches, filters, pages and keeps a cart', a
   await search.fill('acme')
   await search.press('Enter')
   await page.waitForURL(/[?&]q=acme(&|$)/)
-  // Everything shown is priced: the cards, and every row of the list's window.
+  // Everything shown is priced: the cards, and every row of the list's window: the first screen's groups and their overscan (#415).
   expect(await page.locator('.domain-card .price').count()).toBe(4)
   const rows = page.locator('#domain-results .domain-row')
-  expect(await rows.count()).toBeGreaterThan(30)
+  expect(await rows.count()).toBeGreaterThan(20)
   expect(await page.locator('#domain-results .domain-row .skeleton-price').count()).toBe(0)
   expect(await page.locator('.result-count').textContent()).toMatch(/\d+ of 556 domains checked/)
 
@@ -63,7 +63,7 @@ test('without JavaScript, the page searches, filters, pages and keeps a cart', a
   await page.waitForURL(/availability=Available/)
   expect(new URL(page.url()).searchParams.get('q')).toBe('acme')
   const ascending = await rowPrices(page)
-  expect(ascending.length).toBeGreaterThan(30)
+  expect(ascending.length).toBeGreaterThan(20)
   expect(ascending).toEqual([...ascending].sort((a, b) => a - b))
   expect(await page.locator('#domain-results .unavailable').count()).toBe(0)
 

@@ -91,6 +91,14 @@ is the guide this port produced):
 - **The plain controls show under `(scripting: none)`** (`NO_SCRIPT` in
   `style.ts`, written with `Style.media`), and the scripted ones are hidden
   there; both are drawn on both sides, so hydration adopts the page as sent.
+- **The server prices only the first screen.** Each priced row costs view
+  time and HTML, so the Worker reads and draws the four Top Results and the
+  first screen's groups with their overscan (`RESULTS_FIRST_SCREEN_GROUPS`,
+  `src/client/resultsList.ts`: 24 names, assumed in view until the list is
+  placed); the rest stand as `WindowList` spacers of the estimated height,
+  and the browser reads and draws them as it scrolls (#415). `/?q=acme` is
+  98 KB (8.9 KB brotli) where it was 179 KB (10.5 KB). A page without
+  scripts draws the same count at every `?from=`.
 - **All Results pages by links.** A page opened at `?from=13` draws the list
   from that row (`WindowList.init({ from })`) in the page's flow
   (`Recipes.WindowList`), with Previous and Next (`WindowList.pageOf`). With

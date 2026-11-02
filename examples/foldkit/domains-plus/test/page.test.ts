@@ -9,6 +9,7 @@ import { parse } from 'parse5'
 import { describe, expect, test, vi } from 'vitest'
 import { FALLBACK_FIELD } from 'foldkit-ssr'
 import { renderPage } from '../src/server/entry.js'
+import { RESULTS_FIRST_SCREEN_GROUPS, RESULTS_OVERSCAN_GROUPS } from '../src/client/resultsList.js'
 import { domainCandidates } from '../src/shared/domain'
 
 // The build's id, which `vite build` gives both bundles; read when the entry is made.
@@ -72,6 +73,11 @@ const follow = (posted: Awaited<ReturnType<typeof post>>) =>
     headers: { cookie: posted.headers.get('set-cookie')!.split(';')[0]! },
   })
 
+/** The groups a served page draws, and so prices: the first screen's and the overscan past it. */
+const FIRST_PAGE_GROUPS = RESULTS_FIRST_SCREEN_GROUPS + RESULTS_OVERSCAN_GROUPS
+/** Six names to a group. */
+const FIRST_PAGE_NAMES = FIRST_PAGE_GROUPS * 6
+
 describe('a search served without scripts', () => {
   test('prices every card and row it shows, and draws no pending row', async () => {
     const { status, nodes } = await answer('/?q=acme')
@@ -81,8 +87,8 @@ describe('a search served without scripts', () => {
       classes(node).includes('domain-row'),
     )
     expect(cards).toHaveLength(4)
-    // The rows of the list's first window: more than one screen's worth.
-    expect(rows.length).toBeGreaterThan(30)
+    // The first screen's groups and their overscan, and no more (#415): the rest are spacers.
+    expect(rows).toHaveLength(FIRST_PAGE_NAMES)
     for (const shown of [...cards, ...rows]) {
       const text = textOf(shown)
       expect(text.includes('$') || text.includes('Not available'), text).toBe(true)
@@ -99,7 +105,7 @@ describe('a search served without scripts', () => {
     const prices = all(byId(nodes, 'domain-results')!)
       .filter(node => classes(node).includes('price'))
       .map(node => Number(textOf(node).replace(/[^\d.]/g, '')))
-    expect(prices.length).toBeGreaterThan(30)
+    expect(prices.length).toBeGreaterThan(10)
     expect(prices).toEqual([...prices].sort((a, b) => b - a))
     expect(textOf(byId(nodes, 'domain-results')!)).not.toContain('Not available')
   })
@@ -108,16 +114,21 @@ describe('a search served without scripts', () => {
     const first = await answer('/?q=acme')
     const links = pagingLinks(first.nodes)
     expect(links.prev).toBeUndefined()
-    expect(links.next).toBe('/?q=acme&from=11')
+    expect(links.next).toBe(`/?q=acme&from=${FIRST_PAGE_GROUPS}`)
     const opened = await answer(links.next!)
     const rows = all(byId(opened.nodes, 'domain-results')!).filter(
       node => attr(node, 'role') === 'listitem',
     )
-    // The twelfth row first, and no name the first page drew.
-    expect(attr(rows[0]!, 'aria-posinset')).toBe('12')
+    // A page opened at a row is as full as the first: the same count (#415).
+    expect(rowNames(opened.nodes)).toHaveLength(FIRST_PAGE_NAMES)
+    // The row the link names first, and no name the first page drew.
+    expect(attr(rows[0]!, 'aria-posinset')).toBe(String(FIRST_PAGE_GROUPS + 1))
     const drawn = new Set(rowNames(first.nodes))
     expect(rowNames(opened.nodes).filter(name => drawn.has(name))).toEqual([])
-    expect(pagingLinks(opened.nodes)).toEqual({ prev: '/?q=acme', next: '/?q=acme&from=22' })
+    expect(pagingLinks(opened.nodes)).toEqual({
+      prev: '/?q=acme',
+      next: `/?q=acme&from=${2 * FIRST_PAGE_GROUPS}`,
+    })
   })
 
   test('an address past the last row draws the last rows, and no next', async () => {
