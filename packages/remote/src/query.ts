@@ -12,6 +12,7 @@ import {
   type InputExpr,
 } from 'foldkit-entity'
 import { installBodies } from './bodies.js'
+import { cachePolicy, type CacheOptions, type CachePolicy } from './edgeCache.js'
 import { Installs, type Install } from './capability.js'
 import type { Cursor } from './connection.js'
 import { schemaOf, type SchemaOrFields, type TypeOf } from './schema.js'
@@ -64,6 +65,11 @@ export interface QueryDescriptor<Name extends string, Input, Result> {
    * body keeps none of the evaluator.
    */
   readonly [Installs]?: Install | undefined
+  /**
+   * How long an answer to it stays fresh, where a server proves the answer
+   * the same for whoever asks (`foldkit-remote-server`). None keeps nothing.
+   */
+  readonly cache?: CachePolicy | undefined
 }
 
 /**
@@ -180,12 +186,18 @@ export const Query = /* @__PURE__ */ (() => ({
    */
   make: <const Name extends string, Input extends SchemaOrFields, Result>(
     name: Name,
-    config: { readonly Input: Input; readonly Result: Result },
+    config: {
+      readonly Input: Input
+      readonly Result: Result
+      /** How long an answer stays fresh where a server proves it public. See `QueryDescriptor.cache`. */
+      readonly cache?: CacheOptions | undefined
+    },
   ): QueryDescriptor<Name, TypeOf<Input>, ResultOf<Result>> => {
     const Input = schemaOf(config.Input)
     const encode = Schema.encodeSync(Input)
     return {
       name,
+      ...(config.cache === undefined ? {} : { cache: cachePolicy(config.cache) }),
       Input,
       Result: (isEntityName(config.Result)
         ? Query.connection(config.Result)
@@ -228,13 +240,19 @@ export const Query = /* @__PURE__ */ (() => ({
     name: Name,
     Input: Input,
     body: (context: { readonly input: QueryInputs<TypeOf<Input>> }) => RelationalQueryOf<E>,
-    options?: { readonly edgeKey?: Schema.Schema<unknown>; readonly live?: LivePolicy },
+    options?: {
+      readonly edgeKey?: Schema.Schema<unknown>
+      readonly live?: LivePolicy
+      /** See `QueryDescriptor.cache`. */
+      readonly cache?: CacheOptions | undefined
+    },
   ): QueryDescriptor<Name, TypeOf<Input>, ConnectionSpec<E['name']>> => {
     const schema = schemaOf(Input)
     const built = body({ input: inputsOf(name, schema) as QueryInputs<TypeOf<Input>> })
     const descriptor = Query.make(name, {
       Input,
       Result: Query.connection(built.entity, options) as ConnectionSpec<E['name']>,
+      ...(options?.cache === undefined ? {} : { cache: options.cache }),
     })
     return { ...descriptor, body: built, [Installs]: installBodies }
   },

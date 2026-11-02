@@ -4,6 +4,7 @@
  * the types the bound domain is made of. Internal; `index.ts` exports its types
  * and `remote.ts` its operations.
  */
+import { EdgeCache, type CachePolicy } from './edgeCache.js'
 import { Clock, Duration, Effect, Option, Record, Result, Schema, Stream } from 'effect'
 import {
   Derivation,
@@ -199,6 +200,8 @@ export interface RemoteDescriptor<
      * moves: what a declared write predicts.
      */
     readonly derived: ReadonlyMap<string, ReadonlyArray<DerivedBy>>
+    /** Per entity name, how long a public read of its rows stays fresh (`EdgeCache.of`). */
+    readonly cached: ReadonlyMap<string, CachePolicy>
   }
 }
 
@@ -1281,6 +1284,13 @@ export const defineRemote = <
         ),
       ),
       derived: derivedMembersBy(config.entities),
+      cached: new Map(
+        config.entities.flatMap(entity =>
+          Option.toArray(
+            Option.map(EdgeCache.policyOf(entity), policy => [entity.name, policy] as const),
+          ),
+        ),
+      ),
     },
   }
 }
