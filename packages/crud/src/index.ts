@@ -547,7 +547,7 @@ export const Crud = {
 
       /**
        * The list where it lives. `input` is the query's input as the Model has
-       * it (filters, a search term), or `undefined` while the list is not shown.
+       * it (filters, a search term), or none while the list is not shown.
        */
       at: <Root>(where: {
         readonly data: DomainLike<Root>
