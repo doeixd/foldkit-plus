@@ -55,6 +55,27 @@ describe('A cascade', () => {
     expect(Object.keys(like!.owner.relations)).toEqual(['post', 'user'])
   })
 
+  it("is judged by each row's own Delete rule unless the relation says the parent's (#348)", () => {
+    expect(Feed.Like.relations.post.authorizedBy).toEqual(Option.some('child'))
+    const Topic = Entity.define('Post', Schema.Struct({ id: Schema.String }))
+    const Thread = Entity.relate(
+      { Post: Topic, Like: Entity.define('Like', Schema.Struct({ id: Schema.String })) },
+      { Like: { post: Relation.one(Topic, { onDelete: 'cascade', authorizedBy: 'parent' }) } },
+    )
+    expect(Thread.Like.relations.post.authorizedBy).toEqual(Option.some('parent'))
+    expect(Feed.Like.relations.user.authorizedBy).toEqual(Option.none())
+    expect(Feed.User.relations.posts.authorizedBy).toEqual(Option.none())
+  })
+
+  it('refuses authorizedBy without a cascade for it to authorize, or one it does not know', () => {
+    const loose = { authorizedBy: 'parent' } as unknown as { onDelete: 'cascade' }
+    expect(() => Relation.one(UserFields, loose)).toThrow(/needs onDelete/)
+    const unknown = { onDelete: 'cascade', authorizedBy: 'anyone' } as unknown as {
+      onDelete: 'cascade'
+    }
+    expect(() => Relation.one(UserFields, unknown)).toThrow(/'child' or 'parent'/)
+  })
+
   it('refuses an action it does not know where it is declared', () => {
     const unknown = 'setNull' as unknown as OnDelete
     expect(() => Relation.one(UserFields, { onDelete: unknown })).toThrow(/onDelete is 'cascade'/)

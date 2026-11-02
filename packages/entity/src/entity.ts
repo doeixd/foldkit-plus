@@ -542,6 +542,7 @@ export const relate = <const Es extends Entities, const Rs extends RelationMap<E
           cardinality: spec.cardinality,
           optional: spec.optional,
           onDelete: spec.onDelete,
+          authorizedBy: spec.authorizedBy,
           metadata: Metadata.empty,
         })
       },

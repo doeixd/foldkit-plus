@@ -104,8 +104,11 @@ removes the comments it holds while a delete of their post is pending (and
 their comments' counts move), the Drizzle writer removes them in the
 delete's transaction or D1 batch, without needing a foreign key, and `bind`
 refuses a table foreign key that says otherwise. `Entity.cascading(Post)`
-lists the relations that take rows with a deleted post. Who may delete those
-rows is not judged yet: the guard judges the row named (#348).
+lists the relations that take rows with a deleted post. Each row a cascade
+takes is held to its own `Delete` rule for whoever deletes (Guard's
+`GuardServer.writer`, `children`), refusing the whole delete; `{ onDelete:
+'cascade', authorizedBy: 'parent' }` lets whoever may delete the post take
+the comments too, whoever wrote them.
 
 `Derived.exists(relation, { viewer })` is a viewer-relative member: the id of a
 row pointing here through `relation` whose `viewer` relation points at whoever

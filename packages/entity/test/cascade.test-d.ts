@@ -12,6 +12,16 @@ expectTypeOf(Relation.one(UserFields, { optional: true, onDelete: 'cascade' })).
   RelationSpec<typeof UserFields, 'one', true>
 >()
 
+expectTypeOf(
+  Relation.one(UserFields, { onDelete: 'cascade', authorizedBy: 'parent' }),
+).toEqualTypeOf<RelationSpec<typeof UserFields, 'one', false>>()
+
+// @ts-expect-error authorizedBy says who lets a cascade take the row: there is none to authorize
+Relation.one(UserFields, { authorizedBy: 'parent' })
+
+// @ts-expect-error the parent or the child, no one else
+Relation.one(UserFields, { onDelete: 'cascade', authorizedBy: 'anyone' })
+
 // @ts-expect-error setNull and restrict are not declared yet (#348)
 Relation.one(UserFields, { onDelete: 'setNull' })
 
