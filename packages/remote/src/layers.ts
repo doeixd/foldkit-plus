@@ -109,7 +109,8 @@ const pendingPlaced = (
   const { layers } = optimistic
   if (layers.length === 0) return pages
   const operators = tableOf(lists.operators)
-  return memoRead([pages, layers, entities, connections], `placed:${identity}`, () => {
+  // Two domains may read one Model with different tables, so the table is a scope too.
+  return memoRead([pages, layers, entities, connections, operators], `placed:${identity}`, () => {
     const changes = changesOf(
       {
         entities: resolvedPatches(entities, optimistic, operators),

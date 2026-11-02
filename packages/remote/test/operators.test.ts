@@ -156,6 +156,24 @@ describe("A list whose body calls an application's operator", () => {
   })
 })
 
+describe('Two domains reading one Model', () => {
+  it("does not let one domain's table place the other's rows", () => {
+    const withTable = remote(table)
+    const withoutTable = remote()
+    const model = withTable.pending(withTable.loaded())
+    expect(withTable.shown(model).ids).toEqual(['p2'])
+    expect(withoutTable.shown(model).ids).toEqual(['p1', 'p2'])
+  })
+
+  it('does not let a domain without a table place the rows of one with it', () => {
+    const withTable = remote(table)
+    const withoutTable = remote()
+    const model = withTable.pending(withTable.loaded())
+    expect(withoutTable.shown(model).ids).toEqual(['p1', 'p2'])
+    expect(withTable.shown(model).ids).toEqual(['p2'])
+  })
+})
+
 /** How far a price lies from a target: an order the input decides. */
 const distance = Expr.operator('acme.distance', {
   input: [Schema.Number, Schema.Number],

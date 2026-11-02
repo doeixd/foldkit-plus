@@ -127,4 +127,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a pending placement is shared across domains with different tables',
+    edits: [
+      {
+        file: '../src/layers.ts',
+        find: 'memoRead([pages, layers, entities, connections, operators], `placed:${identity}`',
+        replace: 'memoRead([pages, layers, entities, connections], `placed:${identity}`',
+      },
+    ],
+    tests,
+  },
 ]
