@@ -17,6 +17,7 @@
  * between packages is an estimate.
  */
 import {
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -29,7 +30,7 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { brotliCompressSync, constants } from 'node:zlib'
+import { brotliCompressSync, constants, gzipSync } from 'node:zlib'
 
 const repo = resolve(import.meta.dirname, '..')
 const SOURCE_CONDITION = 'foldkit-plus:source'
@@ -86,7 +87,7 @@ const ensureDist = async (dirs, rebuild) => {
  * Builds the example's client and returns what it wrote.
  * `dir` is a folder this call owns; it holds `client/` and `server/`.
  */
-export const buildClient = async (exampleDirectory, { rebuild = false } = {}) => {
+export const buildClient = async (exampleDirectory, { rebuild = false, server = false } = {}) => {
   const exampleDir = resolve(exampleDirectory)
   await ensureDist(workspaceClosure(exampleDir), rebuild)
 
@@ -131,9 +132,10 @@ export const buildClient = async (exampleDirectory, { rebuild = false } = {}) =>
           order: 'post',
           handler: name => ({
             build: {
-              outDir: join(dir, name),
+              outDir: join(dir, name === 'ssr' ? 'server' : name),
               emptyOutDir: true,
               ...(name === 'client' ? { sourcemap: true, manifest: true } : {}),
+              ...(name === 'ssr' && server ? { sourcemap: true } : {}),
             },
           }),
         },
@@ -147,6 +149,7 @@ export const buildClient = async (exampleDirectory, { rebuild = false } = {}) =>
   try {
     const builder = await vite.createBuilder(config)
     await builder.build(builder.environments.client)
+    if (server) await builder.build(builder.environments.ssr)
   } finally {
     if (nodeEnv === undefined) delete process.env.NODE_ENV
     else process.env.NODE_ENV = nodeEnv
@@ -154,6 +157,7 @@ export const buildClient = async (exampleDirectory, { rebuild = false } = {}) =>
   return {
     dir,
     client: join(dir, 'client'),
+    server: join(dir, 'server'),
     cleanup: () => rmSync(dir, { recursive: true, force: true }),
   }
 }
@@ -423,6 +427,110 @@ export const measure = async (exampleDirectory, options) => {
   }
 }
 
+/**
+ * A server bundle: one file with a source map, by package (#416). A Worker is
+ * uploaded whole and its isolate evaluates all of it, so the figures are raw
+ * bytes, and gzip, which is what the upload is measured in.
+ */
+export const reportServerFile = (file, label) => {
+  const code = readFileSync(file, 'utf8')
+  const mapFile = `${file}.map`
+  const map = existsSync(mapFile) ? readJson(mapFile) : null
+  const bySource = map === null ? new Map([['(unmapped)', code.length]]) : attribute(code, map)
+  const sum = [...bySource.values()].reduce((a, b) => a + b, 0)
+  const bytes = Buffer.byteLength(code)
+  const groups = new Map()
+  const modules = new Map()
+  for (const [source, chars] of bySource) {
+    const share = Math.round(bytes * (chars / sum))
+    const id =
+      source === '(unmapped)'
+        ? { name: '(unmapped)', file: '' }
+        : packageOf(resolve(dirname(file), source))
+    const grouped = source === '(unmapped)' ? '(unmapped)' : groupOf(id)
+    // A server's libraries are named: the client's lump is too coarse to cut by.
+    const name = grouped === 'other node_modules' ? id.name : grouped
+    groups.set(name, (groups.get(name) ?? 0) + share)
+    const key = `${id.name}/${id.file}`
+    modules.set(key, (modules.get(key) ?? 0) + share)
+  }
+  const ranked = entries =>
+    [...entries].map(([name, size]) => ({ name, bytes: size })).sort((a, b) => b.bytes - a.bytes)
+  return {
+    example: label,
+    bytes,
+    gzip: gzipSync(code, { level: 9 }).length,
+    rows: ranked(groups),
+    modules: ranked(modules).slice(0, 80),
+  }
+}
+
+export const formatServerReport = report => {
+  const width = Math.max(...report.rows.map(entry => entry.name.length), 7)
+  return [
+    `${report.example}: ${kb(report.bytes)} raw, ${kb(report.gzip)} gzip`,
+    '',
+    ...report.rows.map(
+      entry =>
+        `${entry.name.padEnd(width)}  ${kb(entry.bytes).padStart(10)}  ${((entry.bytes / report.bytes) * 100).toFixed(1).padStart(5)}%`,
+    ),
+    '',
+    'largest modules:',
+    ...report.modules
+      .slice(0, Number(process.env.MODULES ?? 15))
+      .map(entry => `  ${entry.name.padEnd(60)} ${kb(entry.bytes)}`),
+  ].join(String.fromCharCode(10))
+}
+
+/**
+ * Bundles a server entry the way `wrangler deploy` does (esbuild, Workers
+ * conditions) with a source map, and reports it. Vite's server build leaves
+ * node_modules external, so its own file is only what Wrangler starts from.
+ */
+export const measureWorker = async (exampleDirectory, entry) => {
+  const exampleDir = resolve(exampleDirectory)
+  await ensureDist(workspaceClosure(exampleDir), false)
+  const esbuild = await import(
+    pathToFileURL(createRequire(join(exampleDir, 'package.json')).resolve('esbuild')).href
+  )
+  const dir = mkdtempSync(join(tmpdir(), 'bundle-report-'))
+  try {
+    await esbuild.build({
+      entryPoints: [resolve(exampleDir, entry)],
+      bundle: true,
+      format: 'esm',
+      platform: 'browser',
+      conditions: ['workerd', 'worker', 'browser'],
+      nodePaths: [join(exampleDir, 'node_modules')],
+      external: ['cloudflare:workers', 'node:*'],
+      loader: { '.wasm': 'copy' },
+      sourcemap: 'external',
+      outfile: join(dir, 'worker.js'),
+      logLevel: 'silent',
+    })
+    return reportServerFile(
+      join(dir, 'worker.js'),
+      relative(repo, exampleDir).replaceAll(String.fromCharCode(92), '/'),
+    )
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+/** An example whose Vite build makes the Worker (`dist/server/fetch.js`): built, then bundled. */
+export const measureServer = async (exampleDirectory, options) => {
+  const built = await buildClient(exampleDirectory, { ...options, server: true })
+  // Beside the example, so its bare imports resolve as Wrangler's would.
+  const beside = join(resolve(exampleDirectory), `.bundle-report-${process.pid}`)
+  try {
+    cpSync(built.server, beside, { recursive: true })
+    return await measureWorker(exampleDirectory, join(beside, 'fetch.js'))
+  } finally {
+    rmSync(beside, { recursive: true, force: true })
+    built.cleanup()
+  }
+}
+
 if (
   process.argv[1] !== undefined &&
   import.meta.url === pathToFileURL(resolve(process.argv[1])).href
@@ -431,10 +539,22 @@ if (
   const flag = name => args.indexOf(name)
   const jsonAt = flag('--json')
   const jsonPath = jsonAt === -1 ? undefined : args[jsonAt + 1]
-  const target = args.find((arg, index) => !arg.startsWith('--') && args[index - 1] !== '--json')
+  const target = args.find(
+    (arg, index) =>
+      !arg.startsWith('--') && args[index - 1] !== '--json' && args[index - 1] !== '--worker',
+  )
   if (target === undefined) {
     console.error('usage: node scripts/bundle-report.mjs <example dir> [--json <file>] [--rebuild]')
     process.exit(2)
+  }
+  const workerAt = flag('--worker')
+  if (flag('--server') !== -1 || workerAt !== -1) {
+    const report =
+      workerAt === -1
+        ? await measureServer(target, { rebuild: flag('--rebuild') !== -1 })
+        : await measureWorker(target, args[workerAt + 1])
+    console.log(formatServerReport(report))
+    process.exit(0)
   }
   const report = await measure(target, { rebuild: flag('--rebuild') !== -1 })
   console.log(formatReport(report))

@@ -239,6 +239,15 @@ the upgrade and then drops the socket's replies. Run one Wrangler command at
 a time. The worker needs no account to run locally. The published page is
 <https://foldkit-crud.pages.dev>.
 
+## Cold start
+
+A new isolate parses and evaluates the whole Worker before its first request (#416).
+Measured 2026-11-02, bundling `src/worker.ts` as Wrangler does (`node scripts/bundle-report.mjs examples/cloudflare --worker src/worker.ts`; `test/serverBundle.test.ts` holds the size):
+
+- Bundle: 4.83 MB raw, 0.99 MB gzip. `effect` is 33%, `@yielded/auth` and its persistence 18%, Drizzle 10%, Foldkit 7%, Remote 8%.
+- First request in a fresh `Stack.start`, `/me`: 31 ms CPU cold, 3 to 6 ms warm (the meter ticks at 15.6 ms on Windows).
+- Nothing in it is a client-only module the server could drop: Foldkit's DevTools is 63 kB (1.3%), the rest is what the routes run.
+
 ## See also
 
 - [`packages/entity`](../../packages/entity) — the `Todo` declaration.

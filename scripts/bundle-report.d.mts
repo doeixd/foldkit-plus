@@ -25,3 +25,21 @@ export declare const measure: (
   options?: { readonly rebuild?: boolean },
 ) => Promise<BundleReport>
 export declare const formatReport: (report: BundleReport) => string
+
+export interface ServerReport {
+  readonly example: string
+  readonly bytes: number
+  readonly gzip: number
+  readonly rows: ReadonlyArray<{ readonly name: string; readonly bytes: number }>
+  readonly modules: ReadonlyArray<{ readonly name: string; readonly bytes: number }>
+}
+
+export declare const measureServer: (
+  exampleDirectory: string,
+  options?: { readonly rebuild?: boolean },
+) => Promise<ServerReport>
+export declare const measureWorker: (
+  exampleDirectory: string,
+  entry: string,
+) => Promise<ServerReport>
+export declare const formatServerReport: (report: ServerReport) => string

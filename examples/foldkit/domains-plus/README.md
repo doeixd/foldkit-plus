@@ -288,6 +288,15 @@ compression), where upstream links its CSS file.
 | Reloads and history restore queries; unknown routes are 404 | `e2e/dev.e2e.ts` |
 | Typing is answered before hydration | none: [#372](https://github.com/doeixd/foldkit-plus/issues/372) |
 
+## Cold start
+
+A new isolate parses and evaluates the whole Worker before its first request (#416).
+Measured 2026-11-02, Vite's server build bundled as Wrangler does (`node scripts/bundle-report.mjs examples/foldkit/domains-plus --server`; `test/serverBundle.test.ts` holds the size):
+
+- Bundle: 3.11 MB raw, 0.69 MB gzip. `effect` is 36%, Foldkit 13%, `parse5` 7% (Foldkit's check that the markup parses back), Remote 7%, the app 3%.
+- First request in a fresh `Stack.start`, through workerd (Windows): `/` 190 to 220 ms CPU cold, 70 ms warm; `/?q=acme` 230 to 310 ms cold, 180 ms warm. Rendering the page, not module evaluation, is the cost: it is #411's, and past any plan's limit warm.
+- Nothing in the bundle is dead weight a server could drop: Foldkit's DevTools is 18 kB (0.6%), the views' UI and floating-ui are reached by the markup the server draws.
+
 ## Run it
 
 From the repository root:
