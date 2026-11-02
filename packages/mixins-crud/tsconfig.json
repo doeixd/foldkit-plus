@@ -29,6 +29,7 @@
       "foldkit-mixins/testing": ["../mixins/src/testing.ts"],
       "foldkit-mixins/theme": ["../mixins/src/theme.ts"],
       "foldkit-mixins/utilities": ["../mixins/src/utilities.ts"],
+      "foldkit-mixins/vite": ["../mixins/src/vite.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
       "foldkit-remote/filter": ["../remote/src/filter.ts"],
       "foldkit-remote/live": ["../remote/src/live.ts"],

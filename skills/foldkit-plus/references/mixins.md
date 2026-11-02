@@ -637,6 +637,15 @@ export const stylesheet: string = Style.stylesheet(
   server, `Style.usedIn(html)` is the CSS of the classes the rendered markup uses, with the
   global rules of the Styles behind them (keyframes, `raise`'s depth rules).
 
+- A server can link the stylesheet as a hashed file instead of writing it into every page:
+  `styles({ sheet: '/src/style.ts' })` from `foldkit-mixins/vite` (Node only) writes
+  `assets/styles-<hash>.css` (the sheet module's `stylesheet` export, then every compiled
+  class and global rule it lacks, `Style.complete`), and `import { href } from
+  'virtual:foldkit-styles'` is its address (dev serves the same `href`). Put
+  `<link rel="stylesheet" href="${href}" data-foldkit-styles-href>` in the document's head;
+  the browser's injection treats the linked sheet's classes as present. Declare the virtual
+  module's type yourself.
+
 ## 8. Known traps
 
 Met in applications on this stack: what failed, and what to do instead.

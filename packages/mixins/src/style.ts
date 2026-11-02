@@ -27,7 +27,7 @@ import { define as defineSlots, type Contract as SlotsContract } from './slots.j
 import type { Placement } from './layers.js'
 import type { SlotItem } from './slotItem.js'
 import * as SlotView from './slotView.js'
-import { register, usedIn } from './inject.js'
+import { complete, register, usedIn } from './inject.js'
 import * as Rules from './styleRules.js'
 import {
   allowDiscrete,
@@ -767,4 +767,5 @@ export const Style = {
   stylesheet,
   install,
   usedIn,
+  complete,
 } as const

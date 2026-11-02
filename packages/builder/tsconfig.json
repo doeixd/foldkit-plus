@@ -32,6 +32,7 @@
       "foldkit-mixins/testing": ["../mixins/src/testing.ts"],
       "foldkit-mixins/theme": ["../mixins/src/theme.ts"],
       "foldkit-mixins/utilities": ["../mixins/src/utilities.ts"],
+      "foldkit-mixins/vite": ["../mixins/src/vite.ts"],
       "foldkit-primitives": ["../primitives/src/index.ts"],
       "foldkit-primitives/device": ["../primitives/src/device/index.ts"],
       "foldkit-primitives/dom": ["../primitives/src/dom/index.ts"],

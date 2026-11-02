@@ -77,6 +77,11 @@
       "types": "./dist/foundations.d.ts",
       "import": "./dist/foundations.js"
     },
+    "./vite": {
+      "foldkit-plus:source": "./src/vite.ts",
+      "types": "./dist/vite.d.ts",
+      "import": "./dist/vite.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -90,7 +95,13 @@
   },
   "peerDependencies": {
     "effect": "^4.1.0",
-    "foldkit": "^0.170.0"
+    "foldkit": "^0.170.0",
+    "vite": "^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@effect/platform-browser": "^4.1.1",

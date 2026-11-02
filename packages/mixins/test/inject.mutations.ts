@@ -68,7 +68,7 @@ export default [
     edits: [
       {
         file: '../src/inject.ts',
-        find: 'if (!into.text.includes(css)) pending.push(css)',
+        find: 'if (!into.text.includes(css) && !linkedHolds(into, css)) pending.push(css)',
         replace: 'pending.push(css)',
       },
     ],

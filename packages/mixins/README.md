@@ -1118,6 +1118,50 @@ runs from. `loadFoundations(options)` is the same compile without the plugin,
 returning the text for a caller that writes it itself. The subpath is node-only:
 a page that imports it fails fast naming `vite`.
 
+## The stylesheet as a file
+
+Written into every page, the stylesheet is sent again with each response and
+parsed again by the server's checks of the page. `foldkit-mixins/vite` writes
+it once, as a hashed file in the browser build, and gives the server its
+address; the page links it:
+
+```ts
+// vite.config.ts
+import { styles } from 'foldkit-mixins/vite'
+
+export default defineConfig({
+  plugins: [styles({ sheet: '/src/style.ts' })],
+})
+```
+
+```ts
+// the server entry: a link in the document's head, so the first paint waits for it
+import { href } from 'virtual:foldkit-styles'
+
+const head = `<link rel="stylesheet" href="${href}" data-foldkit-styles-href>`
+```
+
+`sheet` is a module that exports the stylesheet text as `stylesheet`
+(`Style.stylesheet(...)`, or an `AppStyle.make` result). The file is that
+sheet followed by `Style.complete(sheet)`'s addition: every class and global
+rule the process compiled that the sheet does not hold. The plugin bundles the
+sheet module (every module it imports is kept, since compiling a Style is a
+side effect), so import the application's styled modules from it. Declare the
+virtual module for TypeScript (`declare module 'virtual:foldkit-styles' { export const href: string }`).
+
+- **Build.** `assets/styles-<hash>.css` is written by the `client` build, named
+  by its content; `href` carries Vite's `base`, which must be absolute. A
+  `?url` import in the sheet (a font) is the address the browser build gives it.
+- **Dev.** `href` is `/__foldkit-styles.css`, served by the dev server from the
+  modules it has loaded and read again after an edit, so the server entry has
+  one code path.
+- **Browser.** The `data-foldkit-styles-href` mark tells the injector the link
+  is a stylesheet: once it loads, the injector reads its rules and skips every
+  class and global rule it holds; a class drawn before it loads waits for it. A
+  sheet the browser withholds (cross-origin without CORS) counts as empty, so
+  its classes are injected again rather than lost.
+- **Without the plugin**, `Style.usedIn(html)` still writes what one page uses.
+
 ## `@foldkit/ui`
 
 `foldkit-mixins-ui` adapts `@foldkit/ui` components that expose attribute bundles or a consumer

@@ -9,7 +9,10 @@
  * later (after the patch, before the browser paints) appended to a single
  * `<style data-foldkit-styles>` element, unless a stylesheet on the page
  * already carries the class: a static sheet and injection never repeat each
- * other.
+ * other. A sheet is a `<style>` or a `<link data-foldkit-styles-href>`, the
+ * mark a build's linked sheet carries (`foldkit-mixins/vite`); a link's classes
+ * are read from its parsed rules, and a draw that comes before it loads waits
+ * for it rather than injecting what it is about to bring.
  *
  * The registry holds every class compiled in the process and never lets one
  * go, which is bounded by the code when Styles are defined once, as they are
@@ -74,6 +77,54 @@ export const usedIn = (html: string): string => {
   ].join('')
 }
 
+/**
+ * `sheet` followed by every compiled class and global rule it does not hold:
+ * a build's complete stylesheet, where `usedIn` finds the classes of one
+ * page at request time. Which classes exist is whatever the process has
+ * compiled, so load the application's styled modules first.
+ */
+export const complete = (sheet: string): string => {
+  const held = new Set(Array.from(sheet.matchAll(COMPILED_CLASS), ([, name]) => name))
+  const rules: Array<string> = []
+  const globals = new Set<string>()
+  for (const [className, entry] of registry) {
+    if (!held.has(className)) rules.push(entry.css)
+    for (const css of entry.globals) globals.add(withoutOrder(css))
+  }
+  const missing = [...globals].filter(css => css !== '' && !sheet.includes(css))
+  return [sheet, ...missing, ...rules].join('')
+}
+
+/** The mark on a `<link>` to a stylesheet the page's build wrote. */
+const LINKED = 'link[data-foldkit-styles-href]'
+
+/** Links that failed to load: counted as holding nothing, so a draw stops waiting. */
+const failed = new WeakSet<Element>()
+
+/**
+ * The rules of a linked sheet, or none where the browser withholds them (a
+ * cross-origin sheet): its classes are then injected, which repeats rules
+ * rather than losing them.
+ */
+const rulesOf = (sheet: CSSStyleSheet): ReadonlyArray<CSSRule> => {
+  try {
+    return Array.from(sheet.cssRules)
+  } catch {
+    return []
+  }
+}
+
+/** Every compiled class a rule, or a rule nested in it (a layer, a media query), selects. */
+const classesIn = (rules: ReadonlyArray<CSSRule>, into: Set<string>): void => {
+  for (const rule of rules) {
+    if ('selectorText' in rule && typeof rule.selectorText === 'string') {
+      for (const [, className] of rule.selectorText.matchAll(COMPILED_CLASS))
+        if (className !== undefined) into.add(className)
+    }
+    if ('cssRules' in rule) classesIn(Array.from(rule.cssRules as CSSRuleList), into)
+  }
+}
+
 /** What the page carries: counted from its sheets once, then kept as CSS is queued. */
 interface Page {
   readonly present: Set<string>
@@ -84,8 +135,14 @@ interface Page {
   readonly handled: WeakSet<object>
   /** The layer order a sheet on the page declares, which the injected sheet repeats. */
   readonly order: string | undefined
+  /** The parsed sheets of the linked stylesheets that have loaded. */
+  readonly linked: ReadonlyArray<CSSStyleSheet>
+  /** Linked stylesheets still loading, which a draw waits for. */
+  readonly waiting: ReadonlyArray<HTMLLinkElement>
   /** The sheets counted, so a removed one means counting again. */
-  readonly counted: ReadonlyArray<HTMLStyleElement>
+  readonly counted: ReadonlyArray<Element>
+  /** The serialized top-level rules of `linked`, read once a global needs them. */
+  linkedRules: Set<string> | undefined
   element: HTMLStyleElement | undefined
 }
 
@@ -102,13 +159,19 @@ const current = (): Page => {
   if (
     page !== undefined &&
     (page.element === undefined || page.element.isConnected) &&
-    page.counted.every(sheet => sheet.isConnected)
+    page.counted.every(sheet => sheet.isConnected) &&
+    page.waiting.every(link => link.sheet === null && !failed.has(link))
   )
     return page
   const present = new Set<string>()
   let order: string | undefined
-  const counted = Array.from(document.querySelectorAll('style'))
-  const texts = counted.map(sheet => sheet.textContent ?? '')
+  const links = Array.from(document.querySelectorAll<HTMLLinkElement>(LINKED))
+  const linked = links.flatMap(link => (link.sheet === null ? [] : [link.sheet]))
+  for (const sheet of linked) classesIn(rulesOf(sheet), present)
+  const counted = [...document.querySelectorAll('style'), ...links]
+  const texts = counted.map(
+    sheet => (sheet instanceof HTMLStyleElement ? sheet.textContent : '') ?? '',
+  )
   for (const text of texts) {
     for (const [, className] of text.matchAll(COMPILED_CLASS))
       if (className !== undefined) present.add(className)
@@ -120,7 +183,10 @@ const current = (): Page => {
     text: texts.join(''),
     handled: new WeakSet(),
     order,
+    linked,
+    waiting: links.filter(link => link.sheet === null && !failed.has(link)),
     counted,
+    linkedRules: undefined,
     element: undefined,
   }
   return page
@@ -146,6 +212,23 @@ const flush = (): void => {
   pending = []
 }
 
+/** Contributions drawn while a linked sheet was loading, drawn again once it has. */
+const deferred: Array<Parameters<typeof ensure>[0]> = []
+const watched = new WeakSet<Element>()
+
+/** Whether the linked sheets hold every top-level rule of `css`, as the browser writes them. */
+const linkedHolds = (into: Page, css: string): boolean => {
+  if (into.linked.length === 0 || typeof CSSStyleSheet === 'undefined') return false
+  const probe = new CSSStyleSheet()
+  probe.replaceSync(css)
+  const rules = Array.from(probe.cssRules)
+  into.linkedRules ??= new Set(
+    into.linked.flatMap(sheet => rulesOf(sheet).map(rule => rule.cssText)),
+  )
+  const held = into.linkedRules
+  return rules.length > 0 && rules.every(rule => held.has(rule.cssText))
+}
+
 /**
  * Queues the CSS of each registered class a contribution draws that the page
  * does not carry yet, and its global CSS (keyframes, a theme root) once.
@@ -157,6 +240,27 @@ export const ensure = (contribution: {
 }): void => {
   if (typeof document === 'undefined') return
   const into = current()
+  if (into.waiting.length > 0) {
+    deferred.push(contribution)
+    for (const link of into.waiting) {
+      if (watched.has(link)) continue
+      watched.add(link)
+      const retry = () => {
+        page = undefined
+        for (const waiting of deferred.splice(0)) ensure(waiting)
+      }
+      link.addEventListener('load', retry, { once: true })
+      link.addEventListener(
+        'error',
+        () => {
+          failed.add(link)
+          retry()
+        },
+        { once: true },
+      )
+    }
+    return
+  }
   if (into.handled.has(contribution)) return
   for (const className of contribution.classes ?? []) {
     if (into.present.has(className)) continue
@@ -170,7 +274,7 @@ export const ensure = (contribution: {
     into.globals.add(globalCss)
     const css = withoutOrder(globalCss)
     // A server's `usedIn` writes the same text, so a page it rendered has it.
-    if (!into.text.includes(css)) pending.push(css)
+    if (!into.text.includes(css) && !linkedHolds(into, css)) pending.push(css)
   }
   // Frozen, a contribution cannot draw other classes next time it is drawn.
   if (Object.isFrozen(contribution)) into.handled.add(contribution)

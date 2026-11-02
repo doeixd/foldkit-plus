@@ -50,6 +50,7 @@
       "foldkit-mixins/testing": ["../../packages/mixins/src/testing.ts"],
       "foldkit-mixins/theme": ["../../packages/mixins/src/theme.ts"],
       "foldkit-mixins/utilities": ["../../packages/mixins/src/utilities.ts"],
+      "foldkit-mixins/vite": ["../../packages/mixins/src/vite.ts"],
       "foldkit-plus": ["../../packages/plus/src/index.ts"],
       "foldkit-plus/agent": ["../../packages/plus/src/agent.ts"],
       "foldkit-plus/agent-a2a": ["../../packages/plus/src/agent-a2a.ts"],

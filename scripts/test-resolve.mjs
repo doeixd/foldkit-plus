@@ -22,4 +22,8 @@ export const alias = {
   // builtin, so a static `node:sqlite` import resolves to this shim under
   // Vitest. Node and tsx still resolve the real builtin.
   'node:sqlite': fileURLToPath(new URL('../test-support/sqlite.ts', import.meta.url)),
+  // `foldkit-mixins/vite` answers this module in a build and the dev server.
+  'virtual:foldkit-styles': fileURLToPath(
+    new URL('../test-support/foldkit-styles.ts', import.meta.url),
+  ),
 }

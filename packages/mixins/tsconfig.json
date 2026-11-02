@@ -18,6 +18,7 @@
       "foldkit-mixins/testing": ["./src/testing.ts"],
       "foldkit-mixins/theme": ["./src/theme.ts"],
       "foldkit-mixins/utilities": ["./src/utilities.ts"],
+      "foldkit-mixins/vite": ["./src/vite.ts"],
       "foldkit-surface": ["../surface/src/index.ts"]
     }
   },
