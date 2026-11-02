@@ -39,7 +39,7 @@ const readBounded = async (request: Request, limit: number): Promise<Uint8Array<
     if (done) break
     total += value.byteLength
     if (total > limit) {
-      await reader.cancel()
+      void reader.cancel().catch(() => {})
       throw new BodyTooLarge()
     }
     chunks.push(value)

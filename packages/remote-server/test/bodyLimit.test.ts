@@ -50,8 +50,8 @@ const readOf = (count: number) => ({
   },
 })
 
-/** A body of `text` that says nothing of its length, sent in `chunk`-byte pieces as they are pulled. */
-const streamed = (text: string, chunk: number) => {
+/** A body of `text` that says nothing of its length, sent in `chunk`-byte pieces as they are pulled, cancelled by `cancel`. */
+const streamed = (text: string, chunk: number, cancel?: () => Promise<void>) => {
   const bytes = new TextEncoder().encode(text)
   const state = { pulled: 0, cancelled: false }
   const body = new ReadableStream<Uint8Array>(
@@ -64,6 +64,7 @@ const streamed = (text: string, chunk: number) => {
       },
       cancel: () => {
         state.cancelled = true
+        return cancel?.()
       },
     },
     { highWaterMark: 0 },
@@ -112,6 +113,25 @@ describe('serveFetch’s maxBodyBytes', () => {
     expect(state.cancelled).toBe(true)
     // At most the pieces that reach the limit and the one that passes it, and what the reader buffers ahead.
     expect(state.pulled * chunk).toBeLessThan(limit + 4 * chunk)
+  })
+
+  it('refuses a body whose cancellation throws, rather than calling it unreadable', async () => {
+    const { body } = streamed(JSON.stringify(readOf(300)), 512, () =>
+      Promise.reject(new Error('cancel failed')),
+    )
+    const response = await post(body)
+    expect(response.status).toBe(413)
+    expect(await response.json()).toEqual({
+      error: `The request body is larger than ${limit} bytes`,
+      tooLarge: { limit },
+    })
+  })
+
+  it('refuses a body whose cancellation never settles, without waiting for it', async () => {
+    const { body } = streamed(JSON.stringify(readOf(300)), 512, () => new Promise<void>(() => {}))
+    const response = await post(body)
+    expect(response.status).toBe(413)
+    expect((await response.json()).tooLarge).toEqual({ limit })
   })
 
   it('answers a body at the limit', async () => {

@@ -47,7 +47,18 @@ export default [
   },
   {
     name: 'a body past the limit is left streaming',
-    edits: [{ file: body, find: '      await reader.cancel()\n', replace: '' }],
+    edits: [{ file: body, find: '      void reader.cancel().catch(() => {})\n', replace: '' }],
+    tests,
+  },
+  {
+    name: 'refusing a body past the limit waits on its cancellation',
+    edits: [
+      {
+        file: body,
+        find: '      void reader.cancel().catch(() => {})\n',
+        replace: '      await reader.cancel()\n',
+      },
+    ],
     tests,
   },
   {
