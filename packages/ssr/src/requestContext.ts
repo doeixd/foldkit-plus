@@ -11,22 +11,38 @@
  */
 import { Option } from 'effect'
 
-const KEY = Symbol.for('foldkit-ssr/request-context')
-
-type Values = WeakMap<Request, Map<string, unknown>>
-
-const valuesOf = (): Values => {
-  const global = globalThis as { [KEY]?: unknown }
-  const held = global[KEY]
-  if (held === undefined) {
-    const made: Values = new WeakMap()
-    global[KEY] = made
-    return made
+/**
+ * The map on `globalThis` under `name`'s registered symbol, made the first
+ * time it is asked for: every bundle's copy of this module finds the same one.
+ */
+const globalMap = <V>(name: string) => {
+  const key = Symbol.for(name)
+  return (): WeakMap<Request, V> => {
+    const global = globalThis as { [key]?: unknown }
+    const held = global[key]
+    if (held === undefined) {
+      const made = new WeakMap<Request, V>()
+      global[key] = made
+      return made
+    }
+    if (!(held instanceof WeakMap))
+      throw new Error(`foldkit-ssr: globalThis holds something else under ${String(key)}`)
+    return held as WeakMap<Request, V>
   }
-  if (!(held instanceof WeakMap))
-    throw new Error(`foldkit-ssr: globalThis holds something else under ${String(KEY)}`)
-  return held as Values
 }
+
+const valuesOf = globalMap<Map<string, unknown>>('foldkit-ssr/request-context')
+
+/**
+ * The request a render that may be kept reads in place of the host's, to the
+ * host's, with what to record when the render reads a context of it. On
+ * `globalThis`, as the values are, since the Worker's copy of this module
+ * may be asked about a request the page bundle's `SSR.entry` made.
+ */
+export const watchedOf = globalMap<{
+  readonly original: Request
+  readonly readContext: () => void
+}>('foldkit-ssr/watched-requests')
 
 /** A value of type `C` the host attaches to a request, for its `renderPage` to read. */
 export interface RequestContext<C> {
@@ -57,7 +73,11 @@ export const requestContext = <C>(name: string): RequestContext<C> => ({
     values.set(request, held)
     return request
   },
-  of: request => {
+  of: given => {
+    const watched = watchedOf().get(given)
+    // A context may say who is asking, which a kept page must not depend on.
+    watched?.readContext()
+    const request = watched?.original ?? given
     const held = valuesOf().get(request)
     return held !== undefined && held.has(name) ? Option.some(held.get(name) as C) : Option.none()
   },

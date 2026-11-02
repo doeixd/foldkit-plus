@@ -267,7 +267,7 @@ would rebuild those elements.
   root's last children for a served page, which has no template head to
   write to; `SSR.hydrate` moves them into the head (hydration would remove
   them), and styles for a void root are refused with `VoidRootWithStyles`.
-- `SSR.entry(config, plan, { buildId, flags?, prepare?, headers?, resources?, origins?, styles?, status?, answerPost?, prerendered?, diagnostics? })` returns the
+- `SSR.entry(config, plan, { buildId, flags?, prepare?, headers?, resources?, origins?, styles?, status?, answerPost?, prerendered?, diagnostics?, cache? })` returns the
   `{ renderPage }` a Foldkit server entry exports for `handleRequest` (or the
   `foldkit` Vite plugin's dev server). `GET` and `HEAD` render, `POST` is
   handled for a plan with `fallback: 'server'`; other methods get `405`; a
@@ -278,6 +278,21 @@ would rebuild those elements.
   root beside Foldkit's own stamps. A plan with `meta` is refused at
   construction: `meta` is written into a head the host owns, so serve it with
   `SSR.generate`.
+- `cache: { store, maxAge, check? }` (`PageCache`, #428) keeps a `GET`/`HEAD`
+  page by build id and full URL when it was drawn from the URL alone: every
+  read through `pageReader` public (`PageReads`), every request header that
+  `flags`/`prepare`/`headers`/`status` read absent (they get a request that
+  records reads; reading all headers, `clone`, or an `SSR.requestContext`
+  keeps nothing; handing it to `fetch`/`new Request` fails), no `set-cookie`
+  or own `cache-control`, status 200. Kept for the shortest of `maxAge` and
+  its reads, `cache-control: public, max-age=…`, `vary` with the absent
+  headers read; served only to requests lacking them. Anything else says
+  `private, no-store`. Wrap the entry's `renderDocument` in
+  `SSR.keptDocuments(render)`, or the host parses a kept page again every
+  request. Checker: `check` draws a kept page again and reports
+  `CachedPageDiffers` (times within a day of now are not compared);
+  `SSR.checkCache(options => SSR.entry(config, plan, { buildId, ...options }),
+  requests)` rejects a difference or no kept page.
 - `lazy: [Upload]` in the config (each a `Bundle.lazy`): `SSR.render` loads
   the bodies first; `SSR.hydrate` loads them before boot, answering from the
   markers meanwhile whatever `start` is, then replays. A placement's view

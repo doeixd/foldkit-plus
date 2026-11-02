@@ -12,8 +12,8 @@ export default [
     edits: [
       {
         file,
-        find: "const KEY = Symbol.for('foldkit-ssr/request-context')",
-        replace: "const KEY = Symbol('foldkit-ssr/request-context')",
+        find: 'const key = Symbol.for(name)',
+        replace: 'const key = Symbol(name)',
       },
     ],
     tests,
@@ -36,7 +36,7 @@ export default [
   },
   {
     name: 'whatever globalThis holds is taken for the map',
-    edits: [{ file, find: '  if (!(held instanceof WeakMap))\n', replace: '  if (false)\n' }],
+    edits: [{ file, find: '    if (!(held instanceof WeakMap))\n', replace: '    if (false)\n' }],
     tests,
   },
 ]

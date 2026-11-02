@@ -529,6 +529,7 @@ export type { UnnamedHandler } from './context.js'
 export { Diagnostics, type Diagnostic, type ReportDiagnostic } from 'foldkit-surface'
 export type {
   BundleUnloaded,
+  CachedPageDiffers,
   HandlerUnnamed,
   PageContained,
   PageFailed,

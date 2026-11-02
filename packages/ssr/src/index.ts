@@ -25,7 +25,20 @@ import {
   type RenderError,
   type RenderedApplication,
 } from 'foldkit/experimental/server'
-import { Diagnostics, Metadata, type Diagnostic, type MetadataSummary } from 'foldkit-surface'
+import {
+  CacheStore,
+  CachedRead,
+  Diagnostics,
+  Metadata,
+  PageReads,
+  cachePolicy,
+  maxAgeSeconds,
+  shorterPolicy,
+  type CacheOptions,
+  type CachePolicy,
+  type Diagnostic,
+  type MetadataSummary,
+} from 'foldkit-surface'
 import type { HtmlBuilder } from 'foldkit/html'
 import type {
   Activation,
@@ -35,7 +48,19 @@ import type {
   SurfaceSource,
 } from 'foldkit-surface'
 import { withContext, type Binding, type Region, type UnnamedHandler } from './context.js'
-import { handlerUnnamed, pageFailed, reportingTo } from './diagnostics.js'
+import { cachedPageDiffers, handlerUnnamed, pageFailed, reportingTo } from './diagnostics.js'
+import {
+  decodeKept,
+  fits,
+  headerOf,
+  keptApplications,
+  keptDocuments,
+  pageKey,
+  samePage,
+  tracked,
+  type HeadersRead,
+  type KeptPage,
+} from './pageCache.js'
 import { type EncodedBinding } from './listen.js'
 import { FALLBACK_DEPTH_FIELD, FALLBACK_FIELD, KEEP_ATTRIBUTE, UNPLACED_KEEP } from './resumable.js'
 import { requestContext } from './requestContext.js'
@@ -1225,8 +1250,32 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     readonly diagnostics?:
       | ((diagnostic: Diagnostic, request: Request) => Effect.Effect<void>)
       | undefined
+    /**
+     * Keeps rendered `GET` and `HEAD` pages in `store` by build and URL
+     * (#428). A page is kept only when every read the render made through
+     * `foldkit-remote-server`'s `pageReader` was public, every request
+     * header `flags`, `prepare`, `headers` or `status` read was absent (the
+     * request's `cookie` included), `headers` set no `cookie` or
+     * `cache-control` of its own, and the status is `200`: drawn from the
+     * URL alone. It is kept for `maxAge` or its reads' shortest, and serves
+     * each later request that also lacks the headers it read; it says
+     * `cache-control: public, max-age=…` and `vary` with those names. Every
+     * other page says `private, no-store`. A read made other than through
+     * `pageReader` is not seen, so `maxAge` is all that bounds it.
+     *
+     * The render reads a request that records its headers: one handed to
+     * `fetch` or `new Request` fails the render. With `check`, for
+     * development and tests, a kept page is drawn again for the request it
+     * serves, and a difference is reported (`CachedPageDiffers`) and
+     * answered with the page drawn again.
+     */
+    readonly cache?: PageCache | undefined
   },
 ): EntryModule => {
+  const cache = Option.map(Option.fromUndefinedOr(options.cache), given => ({
+    ...given,
+    policy: cachePolicy(given),
+  }))
   if (plan.meta !== undefined) {
     throw new Error(
       `foldkit-ssr: plan "${plan.id}" says what the page says of itself (meta), which is written into the template's head, and the template is the host's: serve it with SSR.generate, not SSR.entry`,
@@ -1284,13 +1333,28 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     }
     return headers
   }
-  const answer = async (request: Request): Promise<EntryResult> => {
+  /**
+   * One request answered. `watched`, for a render that may be kept, records
+   * what the render read of the request's headers and through `pageReader`.
+   */
+  const answer = async (given: Request, watched?: Watched): Promise<EntryResult> => {
+    const request = watched === undefined ? given : tracked(given, watched.read)
     const method = request.method.toUpperCase()
     const posting = method === 'POST' && plan.fallback === 'server'
     const { diagnostics } = options
-    const reporting = reportingTo(
-      diagnostics === undefined ? undefined : diagnostic => diagnostics(diagnostic, request),
+    const reported = reportingTo(
+      diagnostics === undefined ? undefined : diagnostic => diagnostics(diagnostic, given),
     )
+    const reporting = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
+      reported(
+        watched === undefined
+          ? effect
+          : Effect.provideService(
+              effect,
+              PageReads,
+              Option.some(read => watched.reads.push(read)),
+            ),
+      )
     // An answer that rendered nothing, with the headers given no Model. A 500
     // is reported already, so `headers` failing again for it is not.
     const responded = async (
@@ -1393,7 +1457,146 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     }
     return exit.value
   }
-  return { renderPage: answer }
+  if (Option.isNone(cache)) return { renderPage: request => answer(request) }
+  const { store, check, policy } = cache.value
+  const reportTo = (request: Request) => {
+    const { diagnostics } = options
+    return reportingTo(
+      diagnostics === undefined ? undefined : diagnostic => diagnostics(diagnostic, request),
+    )
+  }
+  /** A page no store may keep for another request: its own `cache-control` stands. */
+  const unkept = (result: EntryResult): EntryResult => {
+    if (result._tag !== 'Rendered' || Option.isSome(headerOf(result.headers, 'cache-control')))
+      return result
+    const headers = new Headers(result.headers)
+    headers.set('cache-control', 'private, no-store')
+    return Rendered(result.application, { ...result, headers })
+  }
+  /** The page as a store keeps it, when nothing it was drawn from was the request's own. */
+  const keepable = (
+    request: Request,
+    result: EntryResult,
+    watched: Watched,
+  ): Option.Option<{
+    readonly page: KeptPage
+    readonly maxAge: CachePolicy
+    readonly tags: ReadonlyArray<string>
+  }> => {
+    if (result._tag !== 'Rendered' || (result.status ?? 200) !== 200 || watched.read.all)
+      return Option.none()
+    if (![...watched.read.names].every(name => !request.headers.has(name))) return Option.none()
+    if (
+      Option.isSome(headerOf(result.headers, 'set-cookie')) ||
+      Option.isSome(headerOf(result.headers, 'cache-control'))
+    )
+      return Option.none()
+    let shortest = policy
+    const tags = new Set<string>()
+    for (const read of watched.reads) {
+      if (read._tag === 'Private') return Option.none()
+      shortest = shorterPolicy(shortest, read.policy)
+      for (const tag of read.tags) tags.add(tag)
+    }
+    const vary = [...watched.read.names].sort()
+    const headers = new Headers(result.headers)
+    headers.set('cache-control', `public, max-age=${maxAgeSeconds(shortest)}`)
+    if (vary.length > 0) headers.set('vary', vary.join(', '))
+    return Option.some({
+      page: {
+        application: result.application,
+        ...(result.status === undefined ? {} : { status: result.status }),
+        headers: [...headers],
+        vary,
+      },
+      maxAge: shortest,
+      tags: [...tags],
+    })
+  }
+  const served = (page: KeptPage): EntryResult => {
+    keptApplications.add(page.application)
+    return Rendered(page.application, {
+      ...(page.status === undefined ? {} : { status: page.status }),
+      headers: page.headers.map(([name, value]): [string, string] => [name, value]),
+    })
+  }
+  const renderPage = async (request: Request): Promise<EntryResult> => {
+    const method = request.method.toUpperCase()
+    if (method !== 'GET' && method !== 'HEAD') return unkept(await answer(request))
+    const key = await Effect.runPromise(pageKey(options.buildId, request.url))
+    const kept = Option.filter(
+      Option.flatMap(await Effect.runPromise(store.match(key)), decodeKept),
+      page => fits(request, page.vary),
+    )
+    if (Option.isSome(kept)) {
+      if (check !== true) return served(kept.value)
+      const again = await answer(request)
+      if (again._tag === 'Rendered' && samePage(again, kept.value, Date.now()))
+        return served(kept.value)
+      await Effect.runPromise(reportTo(request)(Diagnostics.report(cachedPageDiffers(request.url))))
+      return unkept(again)
+    }
+    const watched: Watched = { read: { names: new Set(), all: false }, reads: [] }
+    const result = await answer(request, watched)
+    return Option.match(keepable(request, result, watched), {
+      onNone: () => unkept(result),
+      onSome: ({ page, maxAge, tags }) =>
+        Effect.runPromise(
+          Effect.as(
+            store.put(key, JSON.stringify(page), { maxAge: maxAge.maxAge, tags }),
+            served(page),
+          ),
+        ),
+    })
+  }
+  return { renderPage }
+}
+
+/** What a render that may be kept read: of its request's headers, and through `pageReader`. */
+interface Watched {
+  readonly read: HeadersRead
+  readonly reads: Array<CachedRead>
+}
+
+/** Where `SSR.entry` keeps pages, for how long, and whether it checks them (`cache`). */
+export type PageCache = CacheOptions & {
+  readonly store: CacheStore
+  readonly check?: boolean | undefined
+}
+
+/**
+ * The page cache's checker, for a test: builds the entry with `make`, given a
+ * store in memory and `check`, and answers each request twice, so a page
+ * kept for one request is drawn again for every later one it serves.
+ * Rejects naming each page drawn otherwise for a request it served, and
+ * when no page was kept, which would check nothing. Give requests that
+ * differ in who asks (a visitor's, and one with someone's cookie); each is a
+ * function, since a request is read once.
+ */
+const checkCache = async (
+  make: (options: {
+    readonly cache: PageCache
+    readonly diagnostics: (diagnostic: Diagnostic) => Effect.Effect<void>
+  }) => EntryModule,
+  requests: ReadonlyArray<() => Request>,
+): Promise<void> => {
+  const store = CacheStore.memory()
+  const differs: Array<string> = []
+  const entry = make({
+    cache: { store, maxAge: '1 hour', check: true },
+    diagnostics: diagnostic =>
+      Effect.sync(() => {
+        // tag-check: open -- a Diagnostic's tag is any package's; this one is ours.
+        if (diagnostic._tag === 'CachedPageDiffers') differs.push(diagnostic.message)
+      }),
+  })
+  for (const _round of [1, 2]) {
+    for (const request of requests) await entry.renderPage(request())
+  }
+  if (differs.length > 0) throw new Error(differs.join('\n'))
+  if (store.size() === 0) {
+    throw new Error('SSR.checkCache: no page was kept, so nothing was checked')
+  }
 }
 
 /**
@@ -1721,6 +1924,8 @@ export const SSR = {
   serving,
   generate,
   entry,
+  checkCache,
+  keptDocuments,
   handle,
   serializeJsonScript,
   sitemap,

@@ -460,6 +460,87 @@ serves. [`examples/auth`](../../examples/auth)'s `src/host.ts` is the whole
 site behind one handler; its development server, another process, attaches
 an HTTP reader instead.
 
+### Keeping pages: `cache`
+
+A page drawn from its URL alone is the same page for everyone who asks for
+that URL, and drawing it again costs the same every time. With `cache`, the
+entry keeps such a page and answers the next request for it from a store:
+
+```text
+GET url -> kept for this build and url, and the request lacks every header it read?
+        -> yes: the kept page
+        -> no:  render, watching what the render reads
+                every read public, every header it read absent, no cookie set, 200?
+                -> keep it, cache-control: public, max-age=…, vary: <headers read>
+                -> otherwise cache-control: private, no-store
+```
+
+```ts
+import { CacheStore } from 'foldkit-surface'
+
+export const cached = SSR.entry(config, Post, {
+  buildId,
+  cache: { store: CacheStore.memory(), maxAge: '60 seconds' },
+})
+```
+
+Whether a page may be kept is decided from what its render read, not from
+a declaration. The render is handed a request that records each header
+`flags`, `prepare`, `headers` or `status` reads; a page is kept only when
+every one of them was absent from the request, so it was drawn from the URL
+alone. A header read by name (the cart cookie, say) that was absent goes in
+`vary`, and the kept page serves only requests that lack it too: a request
+with that cookie is drawn for itself, and is never kept. Reading every
+header, cloning the request, or reading an `SSR.requestContext` (which may
+say who is asking) keeps nothing. Handing the request itself to `fetch` or
+`new Request` fails the render, since the platform cannot read the watched
+request.
+
+Reads count through `foldkit-remote-server`'s `pageReader`, which notes each
+one (`PageReads`): the page is kept only when every read was public, for the
+shortest of `maxAge` and their freshness, tagged with the rows they hold. A
+write `serveFetch` answers purges, from the same store, the pages holding a
+row it names. A read made other than through `pageReader` is not seen, so
+`maxAge` is all that bounds it. A page whose `headers` set a cookie or a
+`cache-control` of their own, one not `200`, and every post, are not kept;
+an unkept page says `private, no-store` unless `headers` said otherwise.
+
+The key is the build id and the full URL, so a deploy never serves another
+build's page (the browser would refuse it anyway, as `OtherBuild`).
+`CacheStore.workers(caches.default)` keeps pages in the Workers Cache API.
+
+The host draws each page into its document, which parses the page again
+(Foldkit's `injectIntoTemplate`), so a kept page would still cost that on
+every request. Wrap the server entry's `renderDocument` in
+`SSR.keptDocuments` and the document of a kept page is drawn once per set
+of assets (the last 32 are held):
+
+```ts
+import { renderDocument as renderShell, type DocumentRenderer } from 'foldkit/experimental/server'
+
+export const renderDocument: DocumentRenderer = SSR.keptDocuments(renderShell)
+```
+
+The checker draws a kept page again for each request it serves.
+`cache.check` does so on every request a kept page serves, and where the
+two differ reports `CachedPageDiffers` and answers with the page drawn
+again: a development mode. Times stamped on the page (13 digits within a day
+of now, as a read's `updatedAt`) are not compared. `SSR.checkCache(make,
+requests)` is the same, for a test: `make` builds the entry from the
+`cache` and `diagnostics` it is given, and each request is answered twice;
+it rejects a difference, or a set of requests that kept no page. Give it
+requests from more than one reader, a visitor's and one with a cookie:
+
+```ts
+export const checked = SSR.checkCache(
+  options => SSR.entry(config, Post, { buildId, ...options }),
+  [
+    () => new Request('https://example.com/posts/1'),
+    () => new Request('https://example.com/posts/1', { headers: { cookie: 'session=abc' } }),
+  ],
+)
+```
+
 ### At build time
 
 ```ts

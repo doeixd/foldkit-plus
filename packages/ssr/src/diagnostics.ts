@@ -47,6 +47,17 @@ export interface HandlerUnnamed extends Diagnostic {
   readonly event: string
 }
 
+/**
+ * A kept page drawn otherwise for the request it served (`SSR.entry`'s
+ * `cache.check`): the render read something of the request, or anything
+ * else that differs between requests, that the cache could not see. The
+ * request was given the page drawn again.
+ */
+export interface CachedPageDiffers extends Diagnostic {
+  readonly _tag: 'CachedPageDiffers'
+  readonly url: string
+}
+
 /** Every diagnostic SSR reports. */
 export type SsrDiagnostic =
   | PageContained
@@ -54,6 +65,7 @@ export type SsrDiagnostic =
   | BundleUnloaded
   | PageFailed
   | HandlerUnnamed
+  | CachedPageDiffers
 
 export const pageContained = (reason: PageContained['reason'], detail: string): PageContained => ({
   _tag: 'PageContained',
@@ -118,3 +130,11 @@ export const reportingTo =
   (report: ReportDiagnostic | undefined) =>
   <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
     report === undefined ? effect : Effect.provideService(effect, Diagnostics.Reporter, report)
+
+export const cachedPageDiffers = (url: string): CachedPageDiffers => ({
+  _tag: 'CachedPageDiffers',
+  source,
+  level: 'error',
+  message: `the page kept for ${url} was drawn otherwise for a request it served, so something the render read is not the URL alone; find what in flags, prepare, headers, status or the view differs between requests`,
+  url,
+})
