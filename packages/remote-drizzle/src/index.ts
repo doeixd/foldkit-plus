@@ -1201,6 +1201,8 @@ interface CascadeTx {
       ): SyncStatement & PromiseLike<ReadonlyArray<Record<string, unknown>>>
     }
   }
+  /** Postgres's only: a statement run as written (the row lock a cascade holds). */
+  execute(query: SQL): PromiseLike<unknown>
 }
 
 /** The provided Drizzle database, as far as a cascading delete needs it. */
@@ -1434,9 +1436,10 @@ export const writer = <P = unknown>(
   /**
    * The row deleted and every row declared to go with it, in one transaction,
    * or on D1 in one batch: first what each Entity's removal will take, as the
-   * principal may see it (`visible`), then the row, then the rest, leaves
-   * first, each only while the row is gone, so a delete that missed removes
-   * nothing. What was taken is answered only when the row went.
+   * principal may see it (`visible`), then the rest, leaves first, each only
+   * while the row named is still there and holds what the delete asks, then
+   * the row itself, so a delete that missed removes nothing. What was taken is
+   * answered only when the row went.
    */
   const withCascade = (
     held: CascadePlan,
@@ -1454,7 +1457,11 @@ export const writer = <P = unknown>(
       const seen = yield* Effect.forEach(held.steps, step =>
         Effect.map(visibleFor(step.binding, principal), visible => ({ step, visible })),
       )
-      const gone = sql`not exists (select 1 from ${binding.table} where ${eq(idColumn(binding), id)})`
+      const rootWhere = and(where, ...refusing.map(({ refused }) => sql`not exists (${refused})`))
+      // The row named is still there and holds what the delete asks, so the
+      // delete will remove it: leaves go only then, and a delete that misses
+      // takes nothing with it.
+      const taken = sql`exists (select 1 from ${binding.table} where ${rootWhere ?? sql`1 = 1`})`
       const links = (step: CascadeStep) =>
         Object.entries(step.binding.relations).flatMap(([key, relation]) =>
           relation.kind === 'one' ? [[key, relation] as const] : [],
@@ -1475,19 +1482,19 @@ export const writer = <P = unknown>(
             .from(step.binding.table)
             .where(sql`${idColumn(step.binding)} in (${held.removed(step, id)})`),
         ),
-        // Each row the cascade takes is judged in the statement that deletes the row
-        // named, before anything is removed: one refused, and the row stays, so the
-        // rest, which go only once it is gone, stay with it.
-        db
-          .delete(binding.table)
-          .where(and(where, ...refusing.map(({ refused }) => sql`not exists (${refused})`)))
-          .returning({ id: idColumn(binding) }),
+        // Each row the cascade takes is judged before anything is removed: one
+        // refused, and no row is taken, so the row named stays too. The leaves
+        // go first, while the row named is still there to reach them through.
         ...held.steps.map(step =>
           db
             .delete(step.binding.table)
-            .where(sql`${idColumn(step.binding)} in (${held.removed(step, id)}) and ${gone}`)
+            .where(sql`${idColumn(step.binding)} in (${held.removed(step, id)}) and ${taken}`)
             .returning({ id: idColumn(step.binding) }),
         ),
+        db
+          .delete(binding.table)
+          .where(rootWhere)
+          .returning({ id: idColumn(binding) }),
       ]
       const failed = 'Database write failed'
       const results: ReadonlyArray<ReadonlyArray<Record<string, unknown>>> = isD1(database)
@@ -1502,13 +1509,20 @@ export const writer = <P = unknown>(
           : yield* runStatement(
               () =>
                 database.transaction(async tx => {
+                  // Postgres: hold the row named until this transaction ends, so
+                  // what the leaf gate read is what the root delete sees.
+                  if (!is(binding.table, SQLiteTable)) {
+                    await tx.execute(
+                      sql`select 1 from ${binding.table} where ${rootWhere ?? sql`1 = 1`} for update`,
+                    )
+                  }
                   const done: Array<ReadonlyArray<Record<string, unknown>>> = []
                   for (const each of statements(tx)) done.push(await each)
                   return done
                 }),
               failed,
             )
-      const deleted = (results[seen.length] ?? []).length > 0
+      const deleted = (results[seen.length + held.steps.length] ?? []).length > 0
       if (!deleted) return { deleted, cascaded: [] }
       const cascaded = seen.flatMap(({ step }, at) =>
         (results[at] ?? [])

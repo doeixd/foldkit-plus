@@ -272,7 +272,8 @@ const onDeleteOf = (table: DrizzleTable, column: AnyColumn): Option.Option<strin
 /**
  * Refuses a `one` relation whose table's foreign key says otherwise than the
  * Entity on delete: a cascade the domain does not declare goes unforeseen by
- * the client, and one it declares and the table refuses fails every delete.
+ * the client, and one it declares and the table refuses leaves the writer's
+ * removal and the table's rule at odds.
  */
 const agreesOnDelete = (
   table: DrizzleTable,

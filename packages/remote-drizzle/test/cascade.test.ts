@@ -311,6 +311,17 @@ describe.each(backends)('A declared cascade, on %s', (_, open) => {
     expect(await backend.ids('likes')).toEqual(['l1', 'l2', 'l3', 'l8', 'l9'])
   })
 
+  it('takes nothing when the row named is not there, even with rows pointing at its id', async () => {
+    const backend = await open()
+    await backend.exec("insert into likes values ('l4', 'missing', 'bo')")
+    const answer = await sent(backend, 'DeletePost', { id: 'missing' })
+    expect(answer).toMatchObject({ _tag: 'Success' })
+    const deleted = answer._tag === 'Success' ? (answer.success.deleted ?? []) : []
+    expect(deleted.map(({ entity, id }) => `${entity}:${id}`)).toEqual(['Post:missing'])
+    expect(await backend.ids('posts')).toEqual(['p1', 'p2', 'p3', 'p8', 'p9'])
+    expect(await backend.ids('likes')).toEqual(['l1', 'l2', 'l3', 'l4', 'l8', 'l9'])
+  })
+
   it('removes only what points at the row deleted', async () => {
     const backend = await open()
     await sent(backend, 'DeletePost', { id: 'p2' })

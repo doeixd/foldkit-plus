@@ -50,7 +50,18 @@ export default [
     'if (visiting.includes(edge.owner))',
     'if (false)',
   ),
-  edit('a delete that missed still takes the rest', '../src/index.ts', ' and ${gone}`)', '`)'),
+  edit(
+    'a delete that missed still takes the rest',
+    '../src/index.ts',
+    'const taken = sql`exists (select 1 from ${binding.table} where ${rootWhere ?? sql`1 = 1`})`',
+    'const taken = sql`exists (select 1 from ${binding.table} where ${where ?? sql`1 = 1`})`',
+  ),
+  edit(
+    'a delete of a row that is not there still takes its children',
+    '../src/index.ts',
+    ' and ${taken}`)',
+    '`)',
+  ),
   edit(
     'every row removed is named, seen or not',
     '../src/index.ts',
@@ -117,26 +128,15 @@ export default [
   edit(
     'the rows a cascade takes are not judged',
     '../src/index.ts',
-    '.where(and(where, ...refusing.map(({ refused }) => sql`not exists (${refused})`)))',
+    'const rootWhere = and(where, ...refusing.map(({ refused }) => sql`not exists (${refused})`))',
+    'const rootWhere = and(where)',
+  ),
+  edit(
+    'the row named is deleted though a row its cascade would take is refused',
+    '../src/index.ts',
+    '.where(rootWhere)',
     '.where(where)',
   ),
-  {
-    name: 'the rows a cascade takes are judged once the row named is gone',
-    edits: [
-      {
-        file: '../src/index.ts',
-        find: '.where(and(where, ...refusing.map(({ refused }) => sql`not exists (${refused})`)))',
-        replace: '.where(where)',
-      },
-      {
-        file: '../src/index.ts',
-        find: '.where(sql`${idColumn(step.binding)} in (${held.removed(step, id)}) and ${gone}`)',
-        replace:
-          '.where(and(sql`${idColumn(step.binding)} in (${held.removed(step, id)}) and ${gone}`, ...refusing.map(({ refused }) => sql`not exists (${refused})`)))',
-      },
-    ],
-    tests,
-  },
   edit(
     'a rule unknown for a row lets the cascade take it',
     '../src/index.ts',
