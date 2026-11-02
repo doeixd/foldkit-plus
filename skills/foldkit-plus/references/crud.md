@@ -120,7 +120,9 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
   a `failure` the page passes in the view inputs wins. After a failure the button
   reads "Try again" and a submit sends the same write again through `Data.retry`
   (same request and operation ids). An edit makes the next submit a new write. Extend the placement by spreading it:
-  `{ ...PostEditor.placement, onOut: out => model => … }`.
+  `{ ...PostEditor.placement, onOut: out => model => … }`. The placement is a type
+  error on an editor whose view takes no inputs (`(model, h)`), which could show
+  none of this; an editor with no view takes it.
 - **Draw it:** give the editor's Bundle the form's view, lifted:
   `Editor.bundle.pipe(Bundle.withView(Crud.editorView(FormView.submodel(EditPostForm, view))))`,
   then `Placed.view(model, h, { options: pickers(model) })`. Or draw from

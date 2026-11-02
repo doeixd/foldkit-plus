@@ -9,7 +9,7 @@
  * generated from an Entity alone; each capability is declared.
  */
 import { Effect, Match, Option, Schema } from 'effect'
-import { Bundle } from 'foldkit-bundle'
+import { Bundle, type NoView } from 'foldkit-bundle'
 import {
   Entity,
   SelectionPageTypeId,
@@ -1210,10 +1210,14 @@ export const Crud = {
            */
           placement: {
             onOut,
-            // `void` admits an editor placed with no view, or one taking no
-            // inputs: a placement never calls this for a view drawn without
-            // inputs. A failure the page passes is its own wording, so it wins.
-            viewInputs: <Inputs extends SubmitInputs | void>(root: Root, given: Inputs): Inputs => {
+            // `NoView` admits an editor placed with no view, whose form the
+            // page draws from its controls; a view taking no inputs is refused,
+            // since it would show no busy state. A failure the page passes is
+            // its own wording, so it wins.
+            viewInputs: <Inputs extends SubmitInputs | NoView>(
+              root: Root,
+              given: Inputs,
+            ): Inputs => {
               const own = given as SubmitInputs
               return {
                 ...own,

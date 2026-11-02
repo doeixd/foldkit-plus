@@ -3,6 +3,7 @@ import { Bundle } from 'foldkit-bundle'
 import { Derived, Entity, Relation } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
 import { defineMessageUnion } from 'foldkit/message'
+import * as Submodel from 'foldkit/submodel'
 import {
   Mutation,
   Refusal,
@@ -177,6 +178,19 @@ beforeEach(() => {
 })
 
 describe('Crud.editor', () => {
+  it('refuses its placement for a view that takes no inputs, which could show no busy state', () => {
+    type EditorModel = typeof Editor.bundle.Model.Type
+    type EditorMessage = typeof Editor.bundle.Message.Type
+    const Plain = Bundle.declare(
+      Editor.bundle.pipe(
+        Bundle.withView(Submodel.defineView<EditorModel, EditorMessage>((_, h) => h.div([], []))),
+      ),
+      'editor',
+    )
+    // @ts-expect-error the view takes no inputs, so the placement's viewInputs would never be called
+    Page.at(Plain, PostEditor.placement)
+  })
+
   it('starts closed, requiring and showing nothing', () => {
     expect(PostEditor.status(initial)).toBe('Closed')
     expect(Option.isNone(PostEditor.active.projectionOf(initial))).toBe(true)

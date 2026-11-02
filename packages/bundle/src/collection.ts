@@ -18,6 +18,7 @@ import {
   writeIfChanged,
   type ArgsSource,
   type BuilderLike,
+  type DrawnWithoutInputs,
   type TagOf,
   type ViewBuilder,
 } from './placed.js'
@@ -58,16 +59,15 @@ export interface EachConfig<
   readonly when?: (parent: Parent, key: Key) => boolean
 }
 
-export type CollectionView<Parent, ParentMessage, ViewInputs, Key extends string = string> = [
-  ViewInputs,
-] extends [void]
-  ? <H extends BuilderLike>(parent: Parent, h: ViewBuilder<H, ParentMessage>, key: Key) => Html
-  : <H extends BuilderLike>(
-      parent: Parent,
-      h: ViewBuilder<H, ParentMessage>,
-      key: Key,
-      viewInputs: ViewInputs,
-    ) => Html
+export type CollectionView<Parent, ParentMessage, ViewInputs, Key extends string = string> =
+  DrawnWithoutInputs<ViewInputs> extends true
+    ? <H extends BuilderLike>(parent: Parent, h: ViewBuilder<H, ParentMessage>, key: Key) => Html
+    : <H extends BuilderLike>(
+        parent: Parent,
+        h: ViewBuilder<H, ParentMessage>,
+        key: Key,
+        viewInputs: ViewInputs,
+      ) => Html
 
 export type CollectionHelpers<Parent, ParentMessage, R, Helpers, Key extends string = string> = {
   readonly [K in keyof Helpers]: Helpers[K] extends (model: any, ...input: infer Input) => any
@@ -130,7 +130,7 @@ export interface PlacedCollection<
   readonly viewAll: <H extends BuilderLike>(
     parent: Parent,
     h: ViewBuilder<H, ParentMessage>,
-    ...viewInputs: [ViewInputs] extends [void] ? [] : [viewInputs: ViewInputs]
+    ...viewInputs: DrawnWithoutInputs<ViewInputs> extends true ? [] : [viewInputs: ViewInputs]
   ) => ReadonlyArray<Html>
   readonly helpers: CollectionHelpers<Parent, ParentMessage, R, Helpers, Key>
 }

@@ -95,13 +95,28 @@ describe('A placement’s viewInputs', () => {
     )
     let asked = 0
     const Placed = Page.at(Plain, {
-      viewInputs: (_, given) => {
+      // @ts-expect-error the view takes no inputs, so this would never be called
+      viewInputs: (_: Model, given: void) => {
         asked += 1
         return given
       },
     })
     expect(textOf(Placed.view({ toggle: { on: true }, saving: true }, h))).toBe('on')
     expect(asked).toBe(0)
+  })
+
+  it('is taken for a bundle with no view, whose form the page draws itself', () => {
+    const Headless = Bundle.declare(
+      Bundle.make('Headless', {
+        Model: ToggleModel,
+        Message: ToggleMessage,
+        init: () => ({ model: { on: false } }),
+        update: model => ({ model }),
+      }),
+      'toggle',
+    )
+    const Placed = Page.at(Headless, { viewInputs: (_, given) => given })
+    expect(Placed.view({ toggle: { on: true }, saving: true }, h)).toBeNull()
   })
 
   it('draws with the inputs given when there is none', () => {

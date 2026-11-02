@@ -196,7 +196,8 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   ({ ...given, offline: !model.online })` in a placement's config rewrites the
   inputs its view is drawn with at every draw, from the parent's Model: a fact
   the child's Model cannot hold (`Crud.editor`'s form reads its save's busy
-  state this way).
+  state this way). A `(model, h)` view, which takes no inputs, refuses it as
+  a type error; a bundle with no view (its inputs are `NoView`) takes it.
 - **An ask that waits for its owner:** `follow(placed, { pending:
   model => …, release, ready: (child, model) => …, toMessages: (ask, child,
   model) => …, send? })` (from `foldkit-bundle`) wraps an update result: while a pending ask

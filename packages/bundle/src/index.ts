@@ -24,6 +24,7 @@ export type {
   AnyPlaced,
   ArgsSource,
   Invalid,
+  NoView,
   PlaceConfig,
   Placed,
   PlacedHelpers,

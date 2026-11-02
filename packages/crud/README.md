@@ -223,7 +223,9 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
     `Data.mutate` and remembers the request id, and its `viewInputs` draw the
     form busy and with why a save did not land (see
     [a save in flight](#a-save-in-flight)). Spread it to add to it:
-    `{ ...PostEditor.placement, onOut: ... }`.
+    `{ ...PostEditor.placement, onOut: ... }`. It is a type error on an
+    editor whose view takes no inputs (`(model, h)`), which could show none
+    of it; an editor with no view, whose form the page draws, takes it.
   - `busy(model)`: the save is in flight.
   - `active`: while an id is open, what the form writes is fetched and
     retained. Its `projectionOf(model)` reads that value, typed by the

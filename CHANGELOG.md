@@ -88,8 +88,9 @@ version changed; `pnpm` skips versions already in the registry.
   #387). `viewInputs: (model, given) => inputs` in a placement's config
   rewrites the inputs the child's view is drawn with, at every draw, from the
   parent's Model: a fact the child's Model cannot hold, such as whether a write
-  it started is answered. A view drawn without inputs (one that takes none)
-  is handed none.
+  it started is answered. On a view that takes no inputs (`(model, h)`) it is a
+  type error (#407), since it would never be called; a bundle made without a
+  view takes it.
 
 - **A drawn form says why its write did not land** (`foldkit-mixins-form`,
   #387). `FormView`'s inputs take `failure: { error, retry }`, drawn in a new
@@ -385,6 +386,13 @@ version changed; `pnpm` skips versions already in the registry.
   read-only and `typeof Remote` is the module's type. `foldkit-remote`'s
   build leaves relative imports as written, one file per module, so the
   published namespace stays one.
+
+- **A bundle made without a view has `NoView` inputs** (`foldkit-bundle`,
+  #407; breaking). Its `ViewInputs` was `void`, the same as a view that takes
+  none, so a placement's `viewInputs` could not be refused for the one and
+  allowed for the other. `NoView` is exported; a type naming a headless
+  bundle's `ViewInputs` as `void` names `NoView`. `Crud.editor`'s `placement`
+  takes a form view's inputs or `NoView`.
 
 - **`Crud.editor`'s form is busy until its save is answered** (`foldkit-crud`,
   #387; breaking). A placed editor's `onOut` moved into `placement` (`{ onOut,

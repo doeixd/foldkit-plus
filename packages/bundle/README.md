@@ -475,6 +475,11 @@ function returns the inputs the child's view takes. It reads; it changes no
 Model. `Crud.editor` places its form this way, so the drawn form reads busy
 while its save is in flight.
 
+A view that takes no inputs (`(model, h)`) refuses `viewInputs` as a type
+error: it would never be called, so what it adds would never show. A bundle
+made without a view takes it, since its view is the page's to draw: its
+inputs are `NoView`, not `void`.
+
 ## Presets
 
 `bundle.with(args)` binds the args, so a placement gives none:

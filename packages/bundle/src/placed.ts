@@ -14,6 +14,21 @@ import type { BundleSpec, Helper, ResourceEntries } from './bundle.js'
 
 const PlacedTypeId: unique symbol = Symbol.for('foldkit-bundle/Placed')
 
+declare const NoViewTypeId: unique symbol
+
+/**
+ * The `ViewInputs` of a bundle made without a view. It is not `void`, which is
+ * a view that takes no inputs, so a placement's `viewInputs` can be refused for
+ * the second (it would be handed nothing) and allowed for the first (an editor
+ * whose form the page draws itself).
+ */
+export interface NoView {
+  readonly [NoViewTypeId]: typeof NoViewTypeId
+}
+
+/** Whether a placement's view is drawn without inputs: no view, or one taking none. */
+export type DrawnWithoutInputs<ViewInputs> = [ViewInputs] extends [void | NoView] ? true : false
+
 /**
  * Checks args against the bundle's args Schema, naming where they were given,
  * and returns their encoded form as text for Module, or `undefined` without a Schema.
@@ -264,13 +279,14 @@ export interface Placed<
  */
 export type BuilderLike = Pick<HtmlBuilder<any>, 'submodel' | 'OnClick'>
 
-export type PlacedView<Parent, ParentMessage, ViewInputs> = [ViewInputs] extends [void]
-  ? <H extends BuilderLike>(parent: Parent, h: ViewBuilder<H, ParentMessage>) => Html
-  : <H extends BuilderLike>(
-      parent: Parent,
-      h: ViewBuilder<H, ParentMessage>,
-      viewInputs: ViewInputs,
-    ) => Html
+export type PlacedView<Parent, ParentMessage, ViewInputs> =
+  DrawnWithoutInputs<ViewInputs> extends true
+    ? <H extends BuilderLike>(parent: Parent, h: ViewBuilder<H, ParentMessage>) => Html
+    : <H extends BuilderLike>(
+        parent: Parent,
+        h: ViewBuilder<H, ParentMessage>,
+        viewInputs: ViewInputs,
+      ) => Html
 
 /** A readable type error: intersected onto a parameter, its message names the fix. */
 export interface Invalid<Message extends string> {

@@ -157,6 +157,6 @@ export const lazy = <
           }
         : body.update(model, message, args),
     view,
-  } as BundleSpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>)
+  } as MakeSpec<Name, Args, Model, Message, OutMessage, R, R, S, ViewInputs, Resources, Helpers>)
   return { ...bundle, load: start, isLoaded: () => body !== undefined }
 }

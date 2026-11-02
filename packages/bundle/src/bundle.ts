@@ -16,6 +16,7 @@ import {
   place,
   type ArgsSource,
   type Invalid,
+  type NoView,
   type PlaceConfig,
   type Placed,
   type TagOf,
@@ -76,6 +77,16 @@ export type HelperRequirements<H> = {
     : never
 }[keyof H]
 
+/**
+ * A bundle's view: none for one made without a view (`NoView`). Erased
+ * (`any`) inputs keep any view, so every bundle is an `AnyBundle`.
+ */
+type ViewFor<Model, Message, ViewInputs> = 0 extends 1 & ViewInputs
+  ? Submodel.View<Model, Message, any>
+  : [ViewInputs] extends [NoView]
+    ? never
+    : Submodel.View<Model, Message, ViewInputs>
+
 export interface BundleSpec<
   Name extends string,
   Args,
@@ -107,7 +118,7 @@ export interface BundleSpec<
   ) => Update.ReturnWithOutMessage<Model, Message, OutMessage, R>
   readonly subscriptions?: (args: Args) => Subscription.Subscriptions<Model, Message, S>
   readonly resources?: (args: Args) => Resources
-  readonly view?: Submodel.View<Model, Message, ViewInputs>
+  readonly view?: ViewFor<Model, Message, ViewInputs>
   readonly helpers?: Helpers
 }
 
@@ -227,8 +238,14 @@ export type PlacementConfig<
   readonly onMessage?: Required<
     PlaceConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2, ParentSeed>
   >['onMessage']
-  /** The inputs the child's view is drawn with, from the parent's Model and the inputs given, at every draw. */
-  readonly viewInputs?: (parent: Parent, given: ViewInputs) => ViewInputs
+  /**
+   * The inputs the child's view is drawn with, from the parent's Model and the
+   * inputs given, at every draw. Refused for a view that takes no inputs, which
+   * would be handed none.
+   */
+  readonly viewInputs?: [ViewInputs] extends [void]
+    ? Invalid<'This view takes no inputs, so viewInputs would never be called'>
+    : (parent: Parent, given: ViewInputs) => ViewInputs
 } & ([Args] extends [void]
   ? { readonly args?: never }
   : { readonly args: ArgsSource<ParentSeed, Args> }) &
@@ -407,7 +424,7 @@ const build = <
   OutMessage = never,
   R = never,
   S = never,
-  ViewInputs = void,
+  ViewInputs = NoView,
   Resources extends ResourceEntries<Model, Message> = {},
   Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>> = {},
 >(
@@ -448,7 +465,8 @@ const build = <
         ...(spec.helpers === undefined ? {} : { helpers: spec.helpers }),
       })
     },
-    at: (link, ...[config]) => place(bundle, link, config),
+    // A refused `viewInputs` is a type error at the call, never a value here.
+    at: (link, ...[config]) => place(bundle, link, config as never),
     // The conditional type only hides `each` from bundles with resources; the function is the same.
     each: ((
       link: CollectionLink<any, any, Model, Message>,
@@ -531,7 +549,7 @@ export function make<
   RInit = never,
   RUpdate = never,
   S = never,
-  ViewInputs = void,
+  ViewInputs = NoView,
   Resources extends ResourceEntries<Model, Message> = {},
   Helpers extends HelperRecord<Model, Message, OutMessage> = {},
 >(
@@ -573,7 +591,7 @@ export function make<
   RInit = never,
   RUpdate = never,
   S = never,
-  ViewInputs = void,
+  ViewInputs = NoView,
   Resources extends ResourceEntries<Model, Message> = {},
   Helpers extends HelperRecord<Model, Message, OutMessage> = {},
 >(
@@ -653,7 +671,7 @@ export function fromParts<
   OutMessage = never,
   R = never,
   S = never,
-  ViewInputs = void,
+  ViewInputs = NoView,
   Helpers extends HelperRecord<Model, Message, OutMessage> = {},
 >(
   name: Name,
@@ -683,7 +701,7 @@ export function fromParts<
   OutMessage = never,
   R = never,
   S = never,
-  ViewInputs = void,
+  ViewInputs = NoView,
   Helpers extends HelperRecord<Model, Message, OutMessage> = {},
 >(
   config: PartsConfig<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Helpers>,
