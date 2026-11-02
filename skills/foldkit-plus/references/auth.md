@@ -1,6 +1,6 @@
 # foldkit-auth
 
-Checked against `foldkit-auth` 0.1.5.
+Checked against `foldkit-auth` 0.3.0.
 
 A [Yielded Auth](https://github.com/yielded-dev/auth) session read from a
 request and handed to Remote's `serveFetch` (`AuthServer.resolver`), a page's
@@ -85,7 +85,9 @@ const transport = httpWithLive('/remote', {
 | The session store fails | defect, a 500 |
 
 A 401 reaches the client as `RemoteUnauthenticated` (`_tag: 'Unauthenticated'`)
-on every Remote call kind.
+on every Remote call kind. A durable write so refused is not failed: it waits,
+`WaitingForSignIn`, until `update` reports a sign-in with `Data.signedIn(model)`
+([remote.md](remote.md)), and a guarded write refuses a visitor the same way.
 
 ## Requests the page's script does not make
 

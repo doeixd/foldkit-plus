@@ -1,6 +1,6 @@
 # foldkit-ssr
 
-Checked against `foldkit-ssr` 0.8.2.
+Checked against `foldkit-ssr` 0.10.0.
 
 Server rendering that hands the browser **the Model the server reached**, not
 the inputs to rebuild it: `init` runs once, on the server, and the browser
@@ -261,7 +261,7 @@ would rebuild those elements.
   root's last children for a served page, which has no template head to
   write to; `SSR.hydrate` moves them into the head (hydration would remove
   them), and styles for a void root are refused with `VoidRootWithStyles`.
-- `SSR.entry(config, plan, { buildId, flags?, prepare?, headers?, status?, origins?, answerPost?, prerendered?, diagnostics? })` returns the
+- `SSR.entry(config, plan, { buildId, flags?, prepare?, headers?, resources?, origins?, styles?, status?, answerPost?, prerendered?, diagnostics? })` returns the
   `{ renderPage }` a Foldkit server entry exports for `handleRequest` (or the
   `foldkit` Vite plugin's dev server). `GET` and `HEAD` render, `POST` is
   handled for a plan with `fallback: 'server'`; other methods get `405`; a
@@ -312,7 +312,7 @@ would rebuild those elements.
   Vite's dev server, which builds its own `Request`). It crosses bundles by
   name. The reader for `Data.satisfy` is `foldkit-remote-server/fetch`'s
   `pageReader`; `examples/auth/src/host.ts` wires both.
-- `SSR.entry`'s `resources: request => Layer` gives a post's Commands its own
+- `SSR.entry`'s `resources: request => Layer`, built for a post alone, gives its Commands their own
   services (who posted: `AuthServer.resolver({ …, requests: 'browser' })`
   from `foldkit-auth`). A plan with a server fallback requires `origins`: a
   post whose `Origin` is not among them is `403`, since a form cannot carry a
@@ -322,7 +322,8 @@ would rebuild those elements.
   `https://` Origin), so pass the public origin there
   (`origins: ['https://example.com']`). `answerPost: 'redirect'`
   answers a handled post `303` to its own path and query (relative, never
-  another origin) instead of the page, so a reload does not post again;
+  another origin) instead of the page, so a reload does not post again (a
+  plan without `fallback: 'server'` given it throws when the entry is made);
   what the post changed reaches the next `GET` only through what `headers`
   wrote from the Model it reached (a cookie), which `prepare` reads back.
 - The route check compares path and query with the URL the server rendered.

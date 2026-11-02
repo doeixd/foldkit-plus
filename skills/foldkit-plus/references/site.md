@@ -1,6 +1,6 @@
 # `foldkit-site`
 
-Checked against `foldkit-site` 0.4.4.
+Checked against `foldkit-site` 0.6.0.
 
 The deployed route topology: stable route nodes in a hierarchy, typed
 targets, and per-node metadata — compiling to the Router, Surface, and Bundle
