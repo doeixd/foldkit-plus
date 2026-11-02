@@ -27,6 +27,12 @@ export interface NormalizedPatch {
 export interface PendingPatch extends NormalizedPatch {
   readonly adds?: Readonly<Record<string, number>>
   readonly computes?: Readonly<Record<string, Computation>>
+  /**
+   * The row whose create moves `adds` (a count of the rows pointing here). A
+   * stored write restored over a store that holds it adds none of them: the
+   * server ran it before the page read those counts (#410).
+   */
+  readonly creates?: { readonly entity: string; readonly id: string }
 }
 
 /**

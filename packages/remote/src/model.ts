@@ -24,6 +24,7 @@ import {
   type Segment,
 } from './connection.js'
 import { emptyOptimistic, layersIn, liveIn, type Capabilities } from './capability.js'
+import { isPatch } from './shown.js'
 import type { ConnectionChange, OptimisticState, OptimisticOperation } from './optimistic.js'
 import { emptyLiveState, type LiveEvent, type LiveState } from './liveState.js'
 import {
@@ -1521,6 +1522,23 @@ const releasedFrom = (
   }
 }
 
+/** The row whose create an operation moves counts for (`PendingPatch.creates`), if any. */
+const createdBy = (operation: OptimisticOperation): Option.Option<EntityKey> =>
+  isPatch(operation) && operation.creates !== undefined
+    ? Option.some(entityKey(operation.creates.entity, operation.creates.id))
+    : Option.none()
+
+/** Whether `store` holds, live, the row whose create `operation` counts. */
+const createdIn = (store: EntityStore, operation: OptimisticOperation): boolean =>
+  Option.exists(createdBy(operation), key => store[key]?.tombstone === false)
+
+/** `operation` without the counts a create moves, which a store holding its row already has. */
+const uncounted = (operation: OptimisticOperation): OptimisticOperation => {
+  if (!isPatch(operation) || operation.creates === undefined) return operation
+  const { adds: _adds, creates: _creates, ...rest } = operation
+  return rest
+}
+
 /**
  * The ledger and layers with a stored entry adopted in place of what the
  * page held of it (`prior`): a write waiting is begun, its layer shown; one
@@ -1546,6 +1564,11 @@ const adopted = (
   const released = prior === undefined ? model : releasedFrom(capabilities, model, prior)
   if (entry._tag === 'Unreadable') return released
   const { write } = entry
+  // A store holding the row a restored create makes read its counts with it there: the
+  // server ran the write before this page read them (#410).
+  const optimistic = write.optimistic.map(operation =>
+    createdIn(released.entities, operation) ? uncounted(operation) : operation,
+  )
   const begun = {
     ...released,
     mutations: beginMutation(released.mutations, write.operation, {
@@ -1553,7 +1576,7 @@ const adopted = (
       input: entry.input,
       keys: write.keys,
       now: Option.fromUndefinedOr(write.now),
-      optimistic: write.optimistic,
+      optimistic,
     }),
   }
   const shown = (): RemoteModel => ({
@@ -1561,7 +1584,7 @@ const adopted = (
     optimistic: layersIn(capabilities).begin(
       begun.optimistic,
       write.operation,
-      write.optimistic,
+      optimistic,
       Option.fromUndefinedOr(write.viewer),
     ),
   })

@@ -756,6 +756,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A durable create restored after a reload counts its row once**
+  (`foldkit-remote`, #410). A create whose answer was lost showed the
+  counts of the rows it points at moved again over a page that already read
+  them with its row there ("you have written 2 notes" until the resend was
+  answered, and a `PredictionMismatch` once it was). A count a create moves
+  now names the row it makes (`PendingPatch.creates`, stored with the
+  write), and a stored write restored over a store that holds that row shows
+  no such count: the server ran it before the page read them. A store that
+  holds the row deleted, or not at all, still shows the count. A read that
+  brings the row while a write made on this page is pending is not judged:
+  the client cannot tell whether that read's counts include it.
+
 - **A pending unfollow takes the unfollowed account's posts out of a feed,
   where the store holds every follow** (`foldkit-remote`, `foldkit-entity`,
   #409). Since #344 a pending follow brought the followed account's posts into

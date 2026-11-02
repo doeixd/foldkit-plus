@@ -305,7 +305,10 @@ test('a note whose answer was lost is shown once after a reload, and written onc
   // The queue has joined the page once a send of it goes unanswered again.
   await hopper.getByText('1 note not sent yet').waitFor()
   expect(await row.count()).toBe(1)
-  // Its author's count reads 2 until the resend is answered (#410).
+  // The server render counted it, so the restored create counts it no more (#410).
+  await expect
+    .poll(() => hopper.locator('#mine').textContent())
+    .toBe('Hopper, you have written 1 note.')
 
   await context.unroute('**/remote', lost)
   await cameOnline(hopper)
@@ -315,10 +318,6 @@ test('a note whose answer was lost is shown once after a reload, and written onc
   expect(await row.count()).toBe(1)
   await hopper.getByText('Hopper, you have written 1 note.').waitFor()
 
-  // Remote reports the count it doubled (#410); this line
-  // goes red once that is fixed, and is then `toEqual([])`.
-  expect(errors().filter(unheld)).toEqual([
-    expect.stringContaining('noteCount as 2 while it was pending, and the server answered 1'),
-  ])
+  expect(errors().filter(unheld)).toEqual([])
   await context.close()
 })

@@ -60,6 +60,7 @@ const OptimisticSchema: Schema.Codec<OptimisticOperation> = Schema.Union([
     values: Schema.Record(Schema.String, Schema.Unknown),
     adds: Schema.optionalKey(Schema.Record(Schema.String, Schema.Number)),
     computes: Schema.optionalKey(Schema.Record(Schema.String, ComputationSchema)),
+    creates: Schema.optionalKey(Ref),
   }),
   Schema.Struct({ _tag: Schema.Literal('Delete'), entity: Schema.String, id: Schema.String }),
   Schema.Struct({
