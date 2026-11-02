@@ -1,10 +1,10 @@
 /** What the page asks of the browser: navigation, focus, the keyboard. */
-import { Effect, Schema } from 'effect'
+import { Effect, Match, Schema } from 'effect'
 import * as Command from 'foldkit/command'
 import { focus } from 'foldkit/dom'
 import { load, pushUrl } from 'foldkit/navigation'
 import { Message } from './message.js'
-import { RESULTS_LIST_ID } from './resultsList.js'
+import { RESULTS_LIST_ID, ResultsListScrollKey } from './resultsList.js'
 
 export const SEARCH_INPUT_ID = 'domain-search'
 /** The search form, which the filters' plain selects belong to on a page without scripts. */
@@ -95,6 +95,30 @@ export const RevealResultsListStart = Command.define('RevealResultsListStart', {
       results.scrollIntoView({ block: 'start', behavior: 'instant' })
     return Message.CompletedRevealResultsListStart()
   }),
+})
+
+const ARROW_SCROLL_PX = 40
+const PAGE_SCROLL_FRACTION = 0.9
+
+/** A scroll key pressed on the results list moves the page at once, by upstream's distances. */
+export const ScrollPage = Command.define('ScrollPage', {
+  args: { key: ResultsListScrollKey },
+  messages: [Message.CompletedScrollPage],
+  execute: ({ key }) =>
+    Effect.sync(() => {
+      const page = window.innerHeight * PAGE_SCROLL_FRACTION
+      const top = Match.value(key).pipe(
+        Match.when('ArrowUp', () => window.scrollY - ARROW_SCROLL_PX),
+        Match.when('ArrowDown', () => window.scrollY + ARROW_SCROLL_PX),
+        Match.when('PageUp', () => window.scrollY - page),
+        Match.when('PageDown', () => window.scrollY + page),
+        Match.when('Home', () => 0),
+        Match.when('End', () => document.documentElement.scrollHeight),
+        Match.exhaustive,
+      )
+      window.scrollTo({ top, behavior: 'instant' })
+      return Message.CompletedScrollPage()
+    }),
 })
 
 /** An emptied search shows the landing's empty page from its top, as upstream's does. */

@@ -28,6 +28,22 @@ export const groupDomainListings = (
   )
 
 export const RESULTS_LIST_ID = 'domain-results'
+
+/**
+ * The keys the focused list scrolls the page by, as upstream's: at once, by
+ * a Command. Chromium drops a key pressed in the last frame of the browser's
+ * own animated scroll, so a quick End after Page Down could do nothing (#406).
+ */
+export const ResultsListScrollKey = Schema.Literals([
+  'ArrowUp',
+  'ArrowDown',
+  'PageUp',
+  'PageDown',
+  'Home',
+  'End',
+])
+export type ResultsListScrollKey = typeof ResultsListScrollKey.Type
+
 /**
  * Two rows of three at upstream's desktop row height, until a group is
  * measured; then the mean of those measured, since a group of six names is

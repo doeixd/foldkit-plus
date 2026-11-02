@@ -4,7 +4,7 @@
  * so a reader, a screen reader and upstream's Playwright suites meet the
  * same page.
  */
-import { Array, Option, String, pipe } from 'effect'
+import { Array, Option, Schema, String, pipe } from 'effect'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { Icon, type IconData } from 'foldkit-media'
 import { Behavior, SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
@@ -46,7 +46,7 @@ import {
 } from './cart.js'
 import { filters } from './filters.js'
 import { type Arranged, arrangedOf } from './results.js'
-import type { DomainListingGroup } from './resultsList.js'
+import { ResultsListScrollKey, type DomainListingGroup } from './resultsList.js'
 import { Page, ResultsListStyle } from './style.js'
 
 type H = HtmlBuilder<Message>
@@ -376,14 +376,19 @@ const allResults = (
       onMessage: message => Message.GotResultsListMessage({ message }),
       label: 'All domain results',
       style: ResultsListStyle,
-      // A tab stop that says how it moves: the page scrolls, so the browser's
-      // arrows, Page Up and Down, Home and End move it, as upstream's keys do.
+      // A tab stop that says how it moves: the page scrolls, and its keys
+      // scroll it at once (`ScrollPage`).
       mixins: [
         Behavior.forSlots(WindowListSlots)<undefined, Message>({
           root: Behavior.slot({
             attributes: ({ h }) => [
               h.Tabindex(0),
               h.OnFocus(Message.FocusedResultsList()),
+              h.OnKeyDownSelfPreventDefault(key =>
+                Option.map(Option.liftPredicate(key, Schema.is(ResultsListScrollKey)), key =>
+                  Message.PressedResultsListScrollKey({ key }),
+                ),
+              ),
               h.AriaDescription(
                 `${arranged.count} domains. Use arrow keys, Page Up, Page Down, Home, and End to scroll the page.`,
               ),

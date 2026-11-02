@@ -159,10 +159,6 @@ What still fails falls into these groups:
   Playwright's WebKit on Windows; upstream's own build fails the same three
   there.
 
-`domains.a11y.spec.ts:396` passes in Chromium in most runs; in about one in
-four, End stops short of the last row while the rows it passes are read
-([#406](https://github.com/doeixd/foldkit-plus/issues/406)).
-
 | Spec | Chromium | WebKit |
 | --- | --- | --- |
 | `domains.a11y.spec.ts` | 13 of 17 | 10 of 17 |
@@ -181,7 +177,7 @@ four, End stops short of the last row while the rows it passes are read
 | `domains.a11y.spec.ts:233` pending quotes and search failure pass accessibility scans at 320px | fail | fail | server read |
 | `domains.a11y.spec.ts:268` keyboard cart removal and retry preserve a useful focus target | pass | pass |  |
 | `domains.a11y.spec.ts:317` filter listboxes support keyboard navigation, typeahead, selection, and dismissal | pass | pass |  |
-| `domains.a11y.spec.ts:396` keyboard users can skip navigation, scroll the complete catalog, and leave the results | pass | fail | WebKit on Windows (upstream fails it too); Chromium fails it now and then (#406) |
+| `domains.a11y.spec.ts:396` keyboard users can skip navigation, scroll the complete catalog, and leave the results | pass | fail | WebKit on Windows (upstream fails it too) |
 | `domains.a11y.spec.ts:478` Tab focus keeps the first virtual row below the navigation at 1440px | pass | pass |  |
 | `domains.a11y.spec.ts:478` Tab focus keeps the first virtual row below the navigation at 390px | pass | pass |  |
 | `domains.a11y.spec.ts:515` loading announcements retain their node outside the busy region and respect reduced motion | fail | fail | server read |

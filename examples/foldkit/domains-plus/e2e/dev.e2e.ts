@@ -344,6 +344,34 @@ test('the results list focused from the keys shows its start below the header on
   await page.close()
 })
 
+// The browser's own scroll keys animate, and Chromium drops a key pressed in
+// that animation's last frame (#406), so the list scrolls the page at once.
+// `pnpm mutate` does not reach this dev server; with the list's key handler
+// removed by hand, the read after PageDown fails.
+test("the results list's keys scroll the page at once, as upstream's do", async () => {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+  await page.goto(`${origin}/?q=acme`)
+  await live(page)
+  await page.locator('#domain-results').focus()
+  const offset = () => page.evaluate(() => window.scrollY)
+  const before = await offset()
+  await page.keyboard.press('PageDown')
+  // Read straight after the press: an animated scroll has barely begun.
+  expect(await offset()).toBe(before + 900 * 0.9)
+  await page.keyboard.press('End')
+  expect(await offset()).toBe(
+    await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight),
+  )
+  await expect
+    .poll(() => page.locator('#domain-results .domain-row').last().textContent(), {
+      timeout: 30_000,
+    })
+    .toContain('acme.zone')
+  await page.keyboard.press('Home')
+  expect(await offset()).toBe(0)
+  await page.close()
+})
+
 test('the cart takes domains once, and focus moves as upstream moves it', async () => {
   const { page, problems } = await opened()
   await page.goto(`${origin}/?q=vercel`)

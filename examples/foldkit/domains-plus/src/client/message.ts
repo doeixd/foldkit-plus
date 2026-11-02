@@ -13,6 +13,7 @@ import { debounce } from 'foldkit-primitives/time'
 import { Remote } from 'foldkit-remote'
 import { Domain } from '../shared/domain'
 import { AvailabilityFilter, Cart, SortOrder, TldFilter } from './domain'
+import { ResultsListScrollKey } from './resultsList'
 
 /**
  * The search text on its way to the reads. Each keystroke is `Changed`; the
@@ -34,6 +35,8 @@ const own = {
   GotResultsListMessage: { message: WindowList.Message },
   FocusedResultsList: {},
   CompletedRevealResultsListStart: {},
+  PressedResultsListScrollKey: { key: ResultsListScrollKey },
+  CompletedScrollPage: {},
   GotTldListboxMessage: { message: UiListbox.Message },
   GotAvailabilityListboxMessage: { message: UiListbox.Message },
   GotSortListboxMessage: { message: UiListbox.Message },

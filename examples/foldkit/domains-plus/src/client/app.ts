@@ -35,6 +35,7 @@ import {
   LoadExternal,
   NavigateInternal,
   RevealResultsListStart,
+  ScrollPage,
   ScrollPageToTop,
 } from './command.js'
 import {
@@ -363,6 +364,8 @@ const own = (model: Model, message: Own): Return =>
     },
     FocusedResultsList: () => ({ model, commands: [RevealResultsListStart()] }),
     CompletedRevealResultsListStart: () => ({ model }),
+    PressedResultsListScrollKey: ({ key }) => ({ model, commands: [ScrollPage({ key })] }),
+    CompletedScrollPage: () => ({ model }),
     CompletedNavigateInternal: () => ({ model }),
     CompletedLoadExternal: () => ({ model }),
     CompletedFocusSearchInput: () => ({ model }),
