@@ -1,6 +1,6 @@
 # foldkit-bundle
 
-Checked against `foldkit-bundle` 0.8.1 and `foldkit-bundle-surface` 0.4.3.
+Checked against `foldkit-bundle` 0.10.0 and `foldkit-bundle-surface` 0.6.0.
 
 Packages a Foldkit **Submodel once** (Model, Message, init, update,
 Subscriptions, Managed Resources, view, helpers) and places it in a parent.
@@ -235,7 +235,7 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   placement in a second position.
 - **Gates:** `Page.at(Dark, { …, when: model => model.open })`; for a collection,
   `when: (model, key) => …`.
-- **A helper typed by a declaration:** `Declared<typeof Bundle, Field>` (exported
+- **A helper typed by a declaration:** `Declared<typeof MyBundle, Field>` (exported
   type) is what a function takes to read `declared.field` and dispatch
   `declared.wrapper.make(message)` for a placement it did not make.
 - **Many of one:** `const Rows = Bundle.declareEach(Row, 'rows')`, spread
@@ -322,10 +322,6 @@ Met in applications on this stack: what failed, and what to do instead.
 - **A module-level call keeps its module in the entry chunk**, read or not:
   what `Resource.lazy` should defer must live in a module the entry does not
   import for another name.
-
-More: https://github.com/doeixd/foldkit-plus/tree/main/packages/bundle and the
-example https://github.com/doeixd/foldkit-plus/tree/main/examples/bundle
-Ready-made bundles live in https://github.com/doeixd/foldkit-plus/tree/main/packages/primitives
 
 More: https://github.com/doeixd/foldkit-plus/tree/main/packages/bundle and the
 example https://github.com/doeixd/foldkit-plus/tree/main/examples/bundle

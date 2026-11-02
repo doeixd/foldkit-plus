@@ -1,6 +1,6 @@
 # foldkit-mirror
 
-Checked against `foldkit-mirror` 0.6.3.
+Checked against `foldkit-mirror` 0.8.0.
 
 Keeps part of a Foldkit Model **represented** in the URL, an Effect
 `KeyValueStore`, or a cookie. The Model stays authoritative, and `update` stays the only
