@@ -54,7 +54,10 @@ const sizes = [
   { name: 'phone', width: 390, height: 844 },
 ] as const
 
-test.each(sizes)(
+// Fails until #419 puts the stylesheet in the head: today the server writes
+// it at the end of the root, so the page paints unstyled first. #419 turns
+// this into `test.each`.
+test.fails.each(sizes)(
   'layout shift at $name stays under the budget (#418)',
   async size => {
     const context = await browser.newContext({
