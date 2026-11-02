@@ -91,6 +91,10 @@ is the guide this port produced):
 - **The plain controls show under `(scripting: none)`** (`NO_SCRIPT` in
   `style.ts`, written with `Style.media`), and the scripted ones are hidden
   there; both are drawn on both sides, so hydration adopts the page as sent.
+- **The plain selects stay lean.** The TLD select has 557 options, and the
+  view-identity transform would mark each one for hydration (23 KB of `/`),
+  so `plainSelect` builds them in a loop rather than a mapper's return, and
+  only the select carries a marker (#465).
 - **The server prices only the first screen.** Each priced row costs view
   time and HTML, so the Worker reads and draws the four Top Results and the
   first screen's groups with their overscan (`RESULTS_FIRST_SCREEN_GROUPS`,

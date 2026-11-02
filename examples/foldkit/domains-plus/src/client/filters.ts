@@ -292,17 +292,26 @@ const plainSelect = <Value extends string>(
   },
   slots: Slots,
   h: H,
-): Html =>
-  h.select(
+): Html => {
+  // A loop, not a mapper: the view-identity transform brands what each
+  // function returns, and the serializer writes a `data-foldkit-identity`
+  // marker per branded vnode, 557 of them on the TLD select (#465). The
+  // options are children of the select, which is branded once.
+  const options: Array<Html> = []
+  for (const value of config.values) {
+    options.push(
+      h.option([h.Value(value), h.Selected(value === config.value)], [config.labelOf(value)]),
+    )
+  }
+  return h.select(
     slots.plainSelect.attrs([
       h.Name(config.name),
       h.AriaLabel(config.label),
       h.Attribute('form', SEARCH_FORM_ID),
     ]),
-    Array.map(config.values, value =>
-      h.option([h.Value(value), h.Selected(value === config.value)], [config.labelOf(value)]),
-    ),
+    options,
   )
+}
 
 /**
  * The filters on a page without scripts: plain selects that belong to the
