@@ -45,6 +45,7 @@ interface Fixture {
   readonly orientation?: UiTabs.Orientation
   /** The tablist's width, to make a row overflow. */
   readonly width?: string
+  readonly scheme?: 'light' | 'dark'
 }
 
 const sheetOf = (css: string) => {
@@ -57,7 +58,10 @@ const sheetOf = (css: string) => {
 const mount = (fixture: Fixture) => {
   const style = Style.forSlots(TabsSlots)(Recipes.Tabs(fixture.recipe ?? {}))
   sheetOf(
-    Style.stylesheet(Layers.standard.declare, Layers.standard.in('theme', Theme.root(theme))) +
+    Style.stylesheet(
+      Layers.standard.declare,
+      Layers.standard.in('theme', Theme.root(theme, { colorScheme: fixture.scheme ?? 'light' })),
+    ) +
       style.css +
       // Nothing else that would measure again, so only the change under test moves anything.
       '* { transition: none !important; }',
@@ -205,7 +209,13 @@ test('a press on a close button closes its tab and leaves the chosen one chosen'
 const edges = (target: HTMLElement) => {
   const over = indicator().getBoundingClientRect()
   const under = target.getBoundingClientRect()
-  return { left: over.left - under.left, right: under.right - over.right, width: over.width }
+  return {
+    left: over.left - under.left,
+    right: under.right - over.right,
+    top: over.top - under.top,
+    bottom: under.bottom - over.bottom,
+    width: over.width,
+  }
 }
 
 test.each(['ltr', 'rtl'] as const)(
@@ -250,6 +260,78 @@ test('a scrolling row stays one line and the indicator follows a tab scrolled to
       const at = edges(tab('Document 12')!)
       expect(Math.abs(at.left)).toBeLessThan(1)
       expect(Math.abs(at.right)).toBeLessThan(1)
+    })
+  } finally {
+    handle.dispose()
+  }
+})
+
+test.each(['light', 'dark'] as const)(
+  'a raised pill stands apart from its tray in a %s scheme',
+  async scheme => {
+    const values = ['One', 'Two', 'Three']
+    const handle = mount({ values, scheme, recipe: { variant: 'pill' } })
+    try {
+      await vi.waitFor(() => expect(tab('Two')).toBeTruthy())
+      const list = document.querySelector<HTMLElement>('[role="tablist"]')!
+      const tray = getComputedStyle(list)
+      const pill = getComputedStyle(indicator())
+      console.log(
+        scheme,
+        'tray',
+        tray.backgroundColor,
+        'pill',
+        pill.backgroundColor,
+        pill.boxShadow,
+      )
+      expect(pill.backgroundColor).not.toBe(tray.backgroundColor)
+      expect(pill.boxShadow).not.toBe('none')
+    } finally {
+      handle.dispose()
+    }
+  },
+)
+
+test('a tint pill keeps the accent tint and no shadow', async () => {
+  const handle = mount({ values: ['One', 'Two'], recipe: { variant: 'pill', selection: 'tint' } })
+  try {
+    await vi.waitFor(() => expect(tab('Two')).toBeTruthy())
+    const pill = getComputedStyle(indicator())
+    expect(pill.boxShadow).toBe('none')
+    // The accent's tint: painted, in the accent's hue (265), not the raised white.
+    expect(pill.backgroundColor).toMatch(/^oklch\([\d.]+ [\d.]+ 265\)$/)
+    expect(pill.backgroundColor).not.toBe('oklch(1 0 265)')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a wrapping row keeps every tab inside it, and the indicator follows a tab on the second row', async () => {
+  const values = Array.from({ length: 8 }, (_, index) => `Section ${index + 1}`)
+  const handle = mount({ values, recipe: { variant: 'pill', overflow: 'wrap' }, width: '20rem' })
+  try {
+    await vi.waitFor(() => expect(tab('Section 8')).toBeTruthy())
+    const list = document.querySelector<HTMLElement>('[role="tablist"]')!
+    expect(list.scrollWidth).toBeLessThanOrEqual(list.clientWidth)
+    const box = list.getBoundingClientRect()
+    for (const each of document.querySelectorAll<HTMLElement>('[role="tab"]')) {
+      const at = each.getBoundingClientRect()
+      expect(at.left).toBeGreaterThanOrEqual(box.left - 0.5)
+      expect(at.right).toBeLessThanOrEqual(box.right + 0.5)
+      expect(at.bottom).toBeLessThanOrEqual(box.bottom + 0.5)
+    }
+    expect(tab('Section 8')!.getBoundingClientRect().top).toBeGreaterThan(
+      tab('Section 1')!.getBoundingClientRect().top + 1,
+    )
+    tab('Section 1')!.focus()
+    await userEvent.keyboard('{End}')
+    await vi.waitFor(() => {
+      expect(tab('Section 8')!.getAttribute('aria-selected')).toBe('true')
+      const at = edges(tab('Section 8')!)
+      expect(Math.abs(at.left)).toBeLessThan(1)
+      expect(Math.abs(at.right)).toBeLessThan(1)
+      expect(Math.abs(at.top)).toBeLessThan(1)
+      expect(Math.abs(at.bottom)).toBeLessThan(1)
     })
   } finally {
     handle.dispose()

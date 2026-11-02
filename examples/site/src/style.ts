@@ -1308,7 +1308,7 @@ export const StudioDrawerStyle = Style.forSlots(DrawerSlots)(
 
 /**
  * `/create`'s pane names, across the whole knobs column and sharing what
- * their words leave; past its width (a phone's drawer) they scroll.
+ * their words leave; past its width (a phone's drawer) they wrap, none cut off.
  */
 export const StudioTabsStyle = Style.forSlots(TabsSlots)(
   Recipes.Tabs.extend({
@@ -1317,7 +1317,7 @@ export const StudioTabsStyle = Style.forSlots(TabsSlots)(
       // The least room around each name, so five fit the column; the spare width is shared out.
       tab: Style.self({ flexGrow: '1', paddingInline: t.space['2xs'] }),
     },
-  })({ variant: 'pill', size: 'sm', overflow: 'scroll' }),
+  })({ variant: 'pill', size: 'sm', overflow: 'wrap' }),
 )
 
 /**

@@ -1,8 +1,10 @@
 /**
  * Tabs: the selected tab is `aria-selected`, which `@foldkit/ui` writes.
  * `variant` is an underline under a rule or a pill in a tray; `size` the
- * tabs' step on the size ladder; `overflow: 'scroll'` keeps a long row on
- * one line, scrolled, its edges fading where more lies past them. Drawn with
+ * tabs' step on the size ladder; the pill's `selection` is a `raised` surface
+ * (default) or the accent's `tint`; `overflow: 'scroll'` keeps a long row on
+ * one line, scrolled, its edges fading where more lies past them, and `'wrap'`
+ * lets it fall to more rows so no tab is cut off. Drawn with
  * its `indicator` and `highlight`, and given `Tabs.fluid`, the underline or
  * pill glides to the chosen tab and a hover follows the pointer; until
  * `Tabs.fluid` runs, the chosen tab marks itself. A vertical tablist
@@ -10,7 +12,7 @@
  * and draws its rule and underline at the inline end.
  */
 import { Style } from 'foldkit-mixins'
-import { ladder, nested, nests } from 'foldkit-mixins/theme'
+import { ladder, nested, nests, raise, raisedSurface } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
 import { TabsSlots } from '../tabs.js'
 import {
@@ -44,6 +46,8 @@ const upright = '[aria-orientation="vertical"]'
 const vertical = `:where(${upright})`
 /** A vertical tablist right to left, whose inline end is the left. */
 const verticalRtl = `:where(${upright}:dir(rtl))`
+
+const raisedEdge = `${ref.shadow.xs}, 0 0 0 ${ref.border.thin} ${ref.outline.subtle}`
 
 const hovered = (part: 'x' | 'y' | 'w' | 'h' | 'shown' | 'moving') => `var(--fk-tabs-hover-${part})`
 const chosen = (part: 'x' | 'y' | 'w' | 'h' | 'display') =>
@@ -227,10 +231,6 @@ export const Tabs = Style.recipeFor(TabsSlots)({
         tab: variant(
           // Concentric with the tray's corner, inside its padding.
           Style.self({ borderRadius: nested() }),
-          // The accent's tint and ink, as a pressed Segmented option: the base
-          // surface on the tray barely differed from it in a dark scheme.
-          Style.pseudo(selected, { color: ref.accent.ink }),
-          Style.nest(markedIn(unlit), { background: ref.accent.subtle }),
         ),
         // The chosen tab's pill, under it; it dims while another tab is hovered.
         indicator: variant(
@@ -240,7 +240,6 @@ export const Tabs = Style.recipeFor(TabsSlots)({
             translate: `${chosen('x')} ${chosen('y')}`,
             // The tab's own corner, so the pill meets the tab it marks.
             borderRadius: nested(),
-            background: ref.accent.subtle,
             opacity: `calc(1 - 0.15 * ${hovered('shown')})`,
           }),
         ),
@@ -262,7 +261,14 @@ export const Tabs = Style.recipeFor(TabsSlots)({
       md: { tablist: steps.md },
       lg: { tablist: steps.lg },
     },
+    // How the chosen pill is drawn; only the pill has one (see `compound`).
+    selection: {
+      raised: {},
+      tint: {},
+    },
     overflow: {
+      // Every tab stays whole: past the row's width the tabs fall to the next row.
+      wrap: { tablist: variant(Style.self({ flexWrap: 'wrap', maxInlineSize: '100%' })) },
       // Past the row's width the tabs scroll, as a browser's tab strip; none shrinks or wraps.
       scroll: {
         tablist: variant(
@@ -288,5 +294,33 @@ export const Tabs = Style.recipeFor(TabsSlots)({
       },
     },
   },
-  defaults: { variant: 'line' },
+  defaults: { variant: 'line', selection: 'raised' },
+  compound: [
+    {
+      // A raised surface and its shadow, on the tray's muted one: the shadow and a
+      // hairline keep it apart in a dark scheme, where the two surfaces are near.
+      when: { variant: 'pill', selection: 'raised' },
+      style: {
+        tab: variant(
+          raise(1),
+          Style.nest(markedIn(unlit), { background: raisedSurface(), boxShadow: raisedEdge }),
+        ),
+        indicator: variant(
+          raise(1),
+          Style.self({ background: raisedSurface(), boxShadow: raisedEdge }),
+        ),
+      },
+    },
+    {
+      // The accent's tint and ink, as a pressed Segmented option.
+      when: { variant: 'pill', selection: 'tint' },
+      style: {
+        tab: variant(
+          Style.pseudo(selected, { color: ref.accent.ink }),
+          Style.nest(markedIn(unlit), { background: ref.accent.subtle }),
+        ),
+        indicator: variant(Style.self({ background: ref.accent.subtle })),
+      },
+    },
+  ],
 })

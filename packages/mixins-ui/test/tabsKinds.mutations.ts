@@ -106,4 +106,42 @@ export default [
     edits: [{ file: recipe, find: "overflowX: 'auto',", replace: '' }],
     tests,
   },
+  {
+    name: 'a raised pill draws no raised surface',
+    edits: [
+      {
+        file: recipe,
+        find: 'Style.self({ background: raisedSurface(), boxShadow: raisedEdge }),',
+        replace: 'Style.self({ background: ref.surface.muted }),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a raised pill has no edge or shadow',
+    edits: [
+      {
+        file: recipe,
+        find: 'Style.self({ background: raisedSurface(), boxShadow: raisedEdge }),',
+        replace: 'Style.self({ background: raisedSurface() }),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a tint pill is drawn raised',
+    edits: [
+      {
+        file: recipe,
+        find: "when: { variant: 'pill', selection: 'tint' },",
+        replace: "when: { variant: 'pill', selection: 'never' },",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a wrapping row does not wrap',
+    edits: [{ file: recipe, find: "flexWrap: 'wrap', ", replace: '' }],
+    tests,
+  },
 ]
