@@ -75,8 +75,15 @@ describe('a page request', () => {
     const { html, page } = await pageFor(`${COUNT_COOKIE}=3`)
     // Except for the one newline a parser drops after <pre> and <textarea>,
     // which the server writes so the text keeps the newline it starts with.
-    const parsed = html.replace(/(<(?:pre|textarea)\b[^>]*>)\n/g, '$1')
-    expect(parsed).toContain(rootOf(page).outerHTML)
+    // And except for the resume envelope, written in single quotes so its
+    // JSON needs no `&quot;`, where a parser writes double; foldkit-ssr's own
+    // tests hold the envelope to what `getAttribute` reads back.
+    const parsed = html
+      .replace(/(<(?:pre|textarea)\b[^>]*>)\n/g, '$1')
+      .replace(/ data-foldkit-plus-resume='[^']*'/, '')
+    const root = rootOf(page)
+    root.removeAttribute('data-foldkit-plus-resume')
+    expect(parsed).toContain(root.outerHTML)
   })
 
   test('keeps the parse-equivalence elements as the browser reads them', async () => {

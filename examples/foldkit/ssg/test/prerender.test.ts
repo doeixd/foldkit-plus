@@ -88,7 +88,12 @@ describe('the generated pages', () => {
   test('is the markup a parser builds from it', async () => {
     const { pages } = await generate(template, BUILD_ID)
     for (const { html } of pages) {
-      expect(html).toContain(rootOf(parse(html)).outerHTML)
+      // The resume envelope is written in single quotes, so its JSON needs no
+      // `&quot;`, where a parser writes double; foldkit-ssr's own tests hold
+      // it to what `getAttribute` reads back.
+      const root = rootOf(parse(html))
+      root.removeAttribute('data-foldkit-plus-resume')
+      expect(html.replace(/ data-foldkit-plus-resume='[^']*'/, '')).toContain(root.outerHTML)
     }
   })
 
