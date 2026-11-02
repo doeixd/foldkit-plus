@@ -609,8 +609,7 @@ The first reason is the one that decides `Initial`:
   Right after a Message that is the moment before the read entry asks; if it
   stays so, Remote's Subscriptions are not installed in the runtime.
 - `CacheOnly`: the active Surfaces reading it read under
-  `RemotePolicy.cacheOnly`, which asks for nothing on purpose. It comes first
-  for a stale value under that policy too.
+  `RemotePolicy.cacheOnly`, which asks for nothing on purpose.
 - `NoActiveRecord`: no `surfaces` were given, so it cannot tell which.
 
 `Data.plan(model, projection)` shows whether Remote believes anything is
@@ -916,10 +915,7 @@ What Remote should do when the Model already contains the selected fields is a
   what changes the store still reaches the read (an answer another read
   brought, a live event, a write); what it lacks reads `Initial`, and `why`
   says `CacheOnly`. A value held stale reads `Refreshing`, though nothing
-  fetches it until the policy changes; `why` says `CacheOnly` for it too.
-  A read in flight when the policy changes to it is interrupted, and its
-  entry takes back the `Loading` it set (`ReadAbandoned`), so what it lacks
-  reads `Initial` rather than `Loading` for good.
+  fetches it until the policy changes.
 
 A refreshing policy emits `RefreshStarted` before the read, naming the fields
 and the held lists it asks for again though the Model holds them (aged out,
