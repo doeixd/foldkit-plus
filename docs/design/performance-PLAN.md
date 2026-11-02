@@ -63,9 +63,34 @@ cost upstream is already cutting for every Foldkit SSR app. Effect Schema
 and seroval serialize data, not HTML. The resume data already goes through
 Effect Schema, and JSON encoding does not show in the profile.
 
-**Client JavaScript**: one 249 KB-brotli chunk, unattributed (#421), holding
-DevTools (~23 KB, #422), every sheet and picker (#423), and the whole style
-system: compiler, hasher, theme builder, recipes as data, injector (#420).
+**Client JavaScript** (`node scripts/bundle-report.mjs examples/foldkit/domains-plus`,
+#421; a production build against `dist` with the workspace branding plugin
+removed, 2026-11-02, after DevTools went dev-only in #422): one chunk of 210.5 KB
+brotli. Brotli per package is each module's share of the chunk's minified bytes
+scaled to the chunk's real size, so the split is an estimate and the total is real.
+
+| Package | Brotli (est.) | Share |
+| --- | --- | --- |
+| `effect` | 50.3 KB | 23.9% |
+| `foldkit` (and 1.7 KB more of its DevTools host code) | 40.8 KB | 19.4% |
+| `foldkit-remote` | 24.4 KB | 11.6% |
+| the app's own `src` | 16.6 KB | 7.9% |
+| `foldkit-mixins` style runtime (compile, hash, inject, theme builder) | 12.8 KB | 6.1% |
+| `@foldkit/ui` | 11.7 KB | 5.6% |
+| `foldkit-mixins-ui` (recipes as data) | 10.7 KB | 5.1% |
+| `foldkit-ssr` | 6.3 KB | 3.0% |
+| `foldkit-mixins` style data (tokens, defaults, utilities, layout, prose) | 5.8 KB | 2.8% |
+| `foldkit-primitives` | 5.5 KB | 2.6% |
+| `@floating-ui/*` | 4.7 KB | 2.2% |
+| `foldkit-bundle` | 3.7 KB | 1.7% |
+| the rest of `foldkit-mixins` | 3.3 KB | 1.6% |
+| `foldkit-mirror`, `-surface`, `-site`, `-entity`, `-media`, `-metadata` | 9.5 KB | 4.5% |
+| unmapped | 2.3 KB | 1.1% |
+
+The style system (mixins runtime and data, plus `foldkit-mixins-ui`) is about
+29 KB, 14% of the chunk (#420, #423). Foldkit and Effect are 91 KB together,
+the floor below (its estimate of 100-150 KB was high); `foldkit-remote` at 24 KB
+is the largest Plus package. A budget test (`test/bundle.test.ts`) holds the total.
 
 **HTML**: the theme stylesheet, about 92 KB uncompressed, inlined into every
 response (#419).
@@ -123,8 +148,8 @@ alone cannot reach.
 ## The floor
 
 Foldkit's virtual DOM plus Effect's runtime is a floor on client bytes that
-nothing short of #432 or #433 lowers: an estimated 100–150 KB brotli, to be
-measured by #421. Solid's 79 KB is below it. Plus also adds code base
+nothing short of #432 or #433 lowers: 91 KB brotli for Foldkit and Effect in
+domains-plus, measured by #421. Solid's 79 KB is below it. Plus also adds code base
 Foldkit does not have (Remote, Entity, Site); it is a net gain only where it
 replaces application code and requests, as it does in domains-plus (2,928
 lines against 3,280, prices in the first paint). #378, #396 and #397 keep a
