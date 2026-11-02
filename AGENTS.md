@@ -616,6 +616,13 @@ Foldkit's own behaviour that we work around is listed in
 
 **Library behaviour**
 
+- **Chromium drops a scroll key pressed in the last frame of its own
+  animated scroll.** On a page with no script, End pressed about 150ms after
+  Page Down did nothing. domains-plus left its list's keys to the browser,
+  and upstream's parity test, which presses End as soon as Page Down has
+  moved the page, failed one run in four (#406); Home and ArrowUp failed the
+  same way. Handle such keys and scroll with `behavior: 'instant'`, as
+  upstream does, and test a key by reading the offset straight after it.
 - **Vite 8's `port: 0` is a probe, not a bind.** `httpServerStart` listens on
   an ephemeral port, closes it, and binds it again, so another process can
   take it between: CI's cloudflare e2e failed "Port 41893 is already in use",
