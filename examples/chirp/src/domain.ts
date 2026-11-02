@@ -38,8 +38,11 @@ export const Chirp = Entity.relate(
     Post: { author: Relation.one(UserFields) },
     User: { posts: Relation.many(PostFields) },
     // A like goes with its post: the page drops it at once, and the server's writer removes it.
+    // Whoever may take a chirp down takes everyone's likes of it with it, though only its liker
+    // may take a like back (`authorizedBy: 'parent'`); left to each like's own rule, its author
+    // could not delete a chirp anyone else had liked.
     Like: {
-      post: Relation.one(PostFields, { onDelete: 'cascade' }),
+      post: Relation.one(PostFields, { onDelete: 'cascade', authorizedBy: 'parent' }),
       user: Relation.one(UserFields),
     },
   },

@@ -1,4 +1,4 @@
-# Cascading deletes, declared (#343, toward #348)
+# Cascading deletes, declared and authorized (#343, #348)
 
 ## The problem
 
@@ -81,17 +81,57 @@ built in #348's shape:
 | `bind` derives or checks the foreign key's action | checks a Drizzle table's; derives nothing yet |
 | `Data.mutate` removes cascading rows and moves counts | yes, over what the store holds |
 | `Law.check` holds the prediction to the server | yes, pending and answered |
-| a cascade judged by each child's `Delete` rule | **not yet** |
+| a cascade judged by each child's `Delete` rule | yes, with `authorizedBy: 'parent'` to opt out |
 | `restrict`, `setNull` | **not yet** |
 
-**Authorization is unchanged, and still #348's.** A cascade today is what it
-was: the guard judges the row named, and its likes or replies go with it
-whoever wrote them. That was true of the table's `on delete cascade` before
-this change; declaring it makes it visible in the domain, which is where
-#348's rule (each child's `Delete` rule judged, `Forbidden` if any fails,
-with an explicit opt-out) will read it. The writer already reads every row
-it removes before it removes it, in the same transaction, so the guard's
-check can be added there.
+**Authorization: each row a cascade takes is judged by its own rule (#348).**
+A cascade used to be what a table's `on delete cascade` was: the guard
+judged the row named, and its likes or replies went with it whoever wrote
+them. Now:
+
+```text
+Relation.one(Post, { onDelete: 'cascade' })            authorizedBy: 'child', the default
+Relation.one(Post, { onDelete: 'cascade',
+                     authorizedBy: 'parent' })          the post's deleter takes them unjudged
+  -> GuardServer.writer(Post, Policy, w, { children: [Like] })
+       each judged Entity's Delete rule, for the person deleting  (CascadeRequirement)
+  -> writer.delete({ cascading })
+       delete from posts where <row, revision, when, requires>
+         and not exists (select id from likes where id in <judged likes>
+                         and (<Like's rule>) is not true)
+  -> refused: the row stays, so nothing after it goes; Forbidden, naming the Entity
+```
+
+- **Judged where the delete commits.** The rule sits in the root's own
+  `DELETE`, whose subqueries read the rows as they are before the statement
+  removes anything, so a rule reading the parent (a like's "the post's author
+  may") sees it. The children's deletes run only once the root is gone, so a
+  refusal removes nothing. On D1 that statement is in the same `batch`: the
+  decision is read before anything is written, as a transaction would.
+- **Unknown refuses.** `(rule) is not true` counts a row whose rule is null
+  (a like of no one, compared with the viewer) as refused; `not (rule)` would
+  have let it go.
+- **Per relation, not per Entity.** A row is judged where any relation
+  reaching it is `child`, though another reaching it is `parent`, on the
+  server and on the page alike: the stricter wins.
+- **The guard needs the child's guarded descriptor** (`children`), since an
+  Entity's guards are its descriptor's metadata, and `Entity.cascading` names
+  the Entity as related. One missing, or one given that nothing judges, is
+  refused where the writer is made; so is a writer without `requires` and
+  `cascades`. A plain writer judges what it is handed: given nothing, there is
+  no rule, as with no guard at all.
+- **The refusal names the Entity, never the row.** "It would delete a Like
+  you may not delete", with the Like rule's `explain`. It does tell the
+  deleter that such a row exists under the post, which any refusal would.
+- **The page predicts it where it can.** `Data.mutate` refuses a delete that
+  would take a held row whose own `may` refuses `Delete`, in the server's
+  words; a row taken whose `may` it does not hold is shown gone, and the
+  server's refusal brings it back. `Law.check` agrees on both.
+- **Chirp opts out.** A chirp's author takes everyone's likes of it
+  (`authorizedBy: 'parent'`), since each like is otherwise its liker's alone.
+
+**Not built.** `setNull` and `restrict` are not declared. Whether `when` on
+`Write.delete` takes `Expr.exists` over other rows is still unverified.
 
 **The default stays "whatever the table says".** An undeclared relation
 does nothing on delete, as before, and a table foreign key that cascades

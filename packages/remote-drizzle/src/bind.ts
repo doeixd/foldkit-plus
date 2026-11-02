@@ -14,7 +14,7 @@ import { holdsChecks } from './checks.js'
 import { contextSharers } from './columns.js'
 import { operatorsFrom, type BindingOperators } from './operators.js'
 import { Option, Schema, SchemaAST } from 'effect'
-import { SchemaShape } from 'foldkit-entity'
+import { SchemaShape, type AuthorizedBy } from 'foldkit-entity'
 import * as Domain from 'foldkit-entity'
 import { Entity, type FieldsFrom } from 'foldkit-remote'
 import type {
@@ -497,8 +497,10 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
         fail(
           `${relation.owner.name}.${relation.key} cascades into ${name} on delete, so it must be stored on ${relation.owner.name}'s own table ({ field })`,
         )
+      // Some wherever it cascades; were it not, the child's own rule, the stricter.
+      const authorizedBy: AuthorizedBy = Option.getOrElse(relation.authorizedBy, () => 'child')
       return Object.defineProperty(
-        { relation: `${relation.owner.name}.${relation.key}`, column },
+        { relation: `${relation.owner.name}.${relation.key}`, column, authorizedBy },
         'owner',
         { get: () => bindings[pointingKey], enumerable: true },
       ) as CascadeEdge

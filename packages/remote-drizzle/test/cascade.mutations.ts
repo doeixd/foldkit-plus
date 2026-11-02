@@ -4,6 +4,7 @@
  */
 const tests = ['packages/remote-drizzle/test/cascade.test.ts']
 const entityTests = ['packages/entity/test/cascade.test.ts', ...tests]
+const guardTests = ['packages/guard/test/cascade.test.ts']
 const edit = (name: string, file: string, find: string, replace: string, at = tests) => ({
   name,
   edits: [{ file, find, replace }],
@@ -111,5 +112,127 @@ export default [
     '...(writer.cascades === true ? { cascades: true } : {}),',
     '',
     ['packages/guard/test/cascade.test.ts'],
+  ),
+  // #348: who may let a cascade take a row.
+  edit(
+    'the rows a cascade takes are not judged',
+    '../src/index.ts',
+    '.where(and(where, ...refusing.map(({ refused }) => sql`not exists (${refused})`)))',
+    '.where(where)',
+  ),
+  {
+    name: 'the rows a cascade takes are judged once the row named is gone',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: '.where(and(where, ...refusing.map(({ refused }) => sql`not exists (${refused})`)))',
+        replace: '.where(where)',
+      },
+      {
+        file: '../src/index.ts',
+        find: '.where(sql`${idColumn(step.binding)} in (${held.removed(step, id)}) and ${gone}`)',
+        replace:
+          '.where(and(sql`${idColumn(step.binding)} in (${held.removed(step, id)}) and ${gone}`, ...refusing.map(({ refused }) => sql`not exists (${refused})`)))',
+      },
+    ],
+    tests,
+  },
+  edit(
+    'a rule unknown for a row lets the cascade take it',
+    '../src/index.ts',
+    'and (${rule}) is not true`',
+    'and (${rule}) = false`',
+  ),
+  edit(
+    "authorizedBy: 'parent' is judged all the same",
+    '../src/cascade.ts',
+    "const judged = edge.authorizedBy === 'child'",
+    'const judged = true',
+  ),
+  edit(
+    "a row reached through a parent's relation is judged",
+    '../src/cascade.ts',
+    '        step.from.filter(edge => edge.judged),',
+    '        step.from,',
+  ),
+  edit(
+    "a reply to the row named is not judged, only a reply's reply",
+    '../src/cascade.ts',
+    '...(step.binding === root ? [sql`${column} = ${id}`] : []),',
+    '',
+  ),
+  edit(
+    'a refused cascade answers as a row that is gone',
+    '../src/index.ts',
+    'requires === undefined &&\n          refusing.length === 0',
+    'requires === undefined',
+  ),
+  edit(
+    'a refused cascade answers as a row that moved',
+    '../src/index.ts',
+    'for (const { entity, step, reason, refused } of refusing) {',
+    'for (const { entity, step, reason, refused } of []) {',
+  ),
+  edit(
+    "a refusal drops its rule's words",
+    '../src/index.ts',
+    'onSome: said => `It would delete a ${entity} you may not delete: ${said}`,',
+    'onSome: () => `It would delete a ${entity} you may not delete`,',
+  ),
+  edit(
+    'the guard hands its writer no rule for the rows a cascade takes',
+    '../../guard/src/server.ts',
+    '...(judging.length === 0 ? {} : { cascading }),',
+    '',
+    guardTests,
+  ),
+  edit(
+    'a guarded writer is made without the Entity whose rules judge what it takes',
+    '../../guard/src/server.ts',
+    'if (guarded === undefined)',
+    'if (false)',
+    guardTests,
+  ),
+  edit(
+    'a guarded writer takes a child nothing judges',
+    '../../guard/src/server.ts',
+    'if (unused.length > 0)',
+    'if (false)',
+    guardTests,
+  ),
+  edit(
+    "the guard judges rows taken under their parent's rule",
+    '../../guard/src/server.ts',
+    "const own = Option.getOrElse(relation.authorizedBy, () => 'child' as const) === 'child'",
+    'const own = true',
+    guardTests,
+  ),
+  edit(
+    'a guarded writer judges through a writer that cannot',
+    '../../guard/src/server.ts',
+    'if (judging.length > 0 && (writer.requires !== true || writer.cascades !== true)) {',
+    'if (false) {',
+    guardTests,
+  ),
+  edit(
+    'the page does not judge the rows a delete takes',
+    '../../remote/src/mutation.ts',
+    '.filter(row => row.judged)',
+    '.filter(() => false)',
+    guardTests,
+  ),
+  edit(
+    "the page judges rows taken under their parent's rule",
+    '../../remote/src/mutation.ts',
+    "const judged = Option.getOrElse(relation.authorizedBy, () => 'child') === 'child'",
+    'const judged = true',
+    guardTests,
+  ),
+  edit(
+    "the page refuses in its own words, not the server's",
+    '../../remote/src/mutation.ts',
+    'onSome: said => `It would delete a ${row.entity} you may not delete: ${said}`,',
+    'onSome: said => said,',
+    guardTests,
   ),
 ]

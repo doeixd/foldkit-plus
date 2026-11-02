@@ -15,10 +15,21 @@ import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Layer, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Collation, Derived, Entity, Expr, Order, Relation, Write } from 'foldkit-entity'
+import {
+  Collation,
+  Derived,
+  Entity,
+  Expr,
+  Order,
+  Query as Body,
+  Relation,
+  Write,
+  type AnyQuery,
+  type AuthorizedBy,
+} from 'foldkit-entity'
 import { Mutation, Query, Remote } from 'foldkit-remote'
 import { Law } from 'foldkit-remote/testing'
-import { RemoteServer } from 'foldkit-remote-server'
+import { RemoteServer, RowRequirement, type CascadeRequirement } from 'foldkit-remote-server'
 import { Surface } from 'foldkit-surface'
 import { Miniflare } from 'miniflare'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -43,6 +54,31 @@ const Feed = Entity.relate(
     },
   },
 )
+/**
+ * The same thread where a post's author may take the likes under it
+ * (`authorizedBy: 'parent'`), while each reply is still its own author's.
+ */
+const Parented = (() => {
+  const User = Entity.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
+  const Post = Entity.define(
+    'Post',
+    Schema.Struct({ id: Schema.String, body: Schema.String, pinned: Schema.Boolean }),
+  )
+  const parent: AuthorizedBy = 'parent'
+  return Entity.relate(
+    { User, Post, Like: Entity.define('Like', Schema.Struct({ id: Schema.String })) },
+    {
+      Post: {
+        author: Relation.one(User),
+        replyTo: Relation.one(Post, { optional: true, onDelete: 'cascade' }),
+      },
+      Like: {
+        post: Relation.one(Post, { onDelete: 'cascade', authorizedBy: parent }),
+        user: Relation.one(User),
+      },
+    },
+  )
+})()
 const User = Feed.User.pipe(
   Entity.derived({ postCount: Derived.count(Feed.Post.relations.author) }),
 )
@@ -98,30 +134,30 @@ const pgTables = {
 }
 type Tables = typeof sqliteTables | typeof pgTables
 
-const bindOn = ({ users, posts, likes }: Tables, ownLikes = false) =>
-  bind(
-    { User, Post, Like },
-    {
-      User: { table: users },
-      Post: {
-        table: posts,
-        relations: { author: { field: posts.authorId }, replyTo: { field: posts.replyToId } },
-      },
-      Like: {
-        table: likes,
-        relations: { post: { field: likes.postId }, user: { field: likes.userId } },
-        // Where asked: each reader sees only their own likes.
-        ...(ownLikes
-          ? { visible: (principal: unknown) => eq(likes.userId, String(principal)) }
-          : {}),
-      },
+const tablesOf = ({ users, posts, likes }: Tables, ownLikes: boolean) =>
+  ({
+    User: { table: users },
+    Post: {
+      table: posts,
+      relations: { author: { field: posts.authorId }, replyTo: { field: posts.replyToId } },
     },
-  )
+    Like: {
+      table: likes,
+      relations: { post: { field: likes.postId }, user: { field: likes.userId } },
+      // Where asked: each reader sees only their own likes.
+      ...(ownLikes ? { visible: (principal: unknown) => eq(likes.userId, String(principal)) } : {}),
+    },
+  }) as const
+const bindOn = (tables: Tables, ownLikes = false) =>
+  bind({ User, Post, Like }, tablesOf(tables, ownLikes))
+const bindParented = (tables: Tables) =>
+  bind({ User: Parented.User, Post: Parented.Post, Like: Parented.Like }, tablesOf(tables, false))
 
 const SCHEMA = [
   'create table users (id text primary key, name text not null)',
   'create table posts (id text primary key, body text not null, pinned boolean not null, author_id text not null, reply_to_id text)',
-  'create table likes (id text primary key, post_id text not null, user_id text not null)',
+  // No user is a like the rules cannot judge: `user_id = ?` is unknown for it.
+  'create table likes (id text primary key, post_id text not null, user_id text)',
   "insert into users values ('ada', 'Ada'), ('bo', 'Bo')",
   `insert into posts values
     ('p1', 'root', false, 'ada', null),
@@ -139,6 +175,8 @@ interface Backend {
   readonly Db: ReturnType<typeof bindOn>
   /** The same tables, each reader seeing only their own likes. */
   readonly Own: ReturnType<typeof bindOn>
+  readonly Parented: ReturnType<typeof bindParented>
+  readonly exec: (statement: string) => Promise<void>
 }
 
 const sqliteBackend = (): Backend => {
@@ -156,6 +194,8 @@ const sqliteBackend = (): Backend => {
         .map(row => String(row['id'])),
     Db: bindOn(sqliteTables),
     Own: bindOn(sqliteTables, true),
+    Parented: bindParented(sqliteTables),
+    exec: async statement => void sqlite.exec(statement),
   }
 }
 
@@ -187,6 +227,8 @@ const pgBackend = async (): Promise<Backend> => {
       ),
     Db: bindOn(pgTables),
     Own: bindOn(pgTables, true),
+    Parented: bindParented(pgTables),
+    exec: async statement => void (await pglite.exec(statement)),
   }
 }
 
@@ -205,6 +247,8 @@ const d1Backend = async (): Promise<Backend> => {
       ),
     Db: bindOn(sqliteTables),
     Own: bindOn(sqliteTables, true),
+    Parented: bindParented(sqliteTables),
+    exec: async statement => void (await db.prepare(statement).run()),
   }
 }
 
@@ -272,6 +316,125 @@ describe.each(backends)('A declared cascade, on %s', (_, open) => {
     await sent(backend, 'DeletePost', { id: 'p2' })
     expect(await backend.ids('posts')).toEqual(['p1', 'p8', 'p9'])
     expect(await backend.ids('likes')).toEqual(['l1', 'l8', 'l9'])
+  })
+})
+
+/** A Delete rule as a guard hands it to the writer: a body over the row, for `viewer`. */
+const ruleOf = (
+  entity: string,
+  body: AnyQuery,
+  viewer: string,
+  reason: Option.Option<string> = Option.none(),
+): CascadeRequirement => ({
+  entity,
+  requires: {
+    holds: RowRequirement.Body({
+      query: body,
+      input: {},
+      context: { viewer: Option.some({ entity: 'User', id: viewer }), now: Option.none() },
+    }),
+    reason,
+  },
+})
+const likerOnly = (viewer: string, reason?: string) =>
+  ruleOf(
+    'Like',
+    Body.from(Like).pipe(Body.where(Expr.eq(Like.relations.user, Expr.viewer(UserFields)))),
+    viewer,
+    Option.fromUndefinedOr(reason),
+  )
+const authorOnly = (viewer: string, over: typeof Post | typeof Parented.Post = Post) =>
+  ruleOf(
+    'Post',
+    Body.from(over).pipe(Body.where(Expr.eq(over.relations.author, Expr.viewer(UserFields)))),
+    viewer,
+  )
+
+/**
+ * Who may let a cascade take a row (#348): each row's own Delete rule, as
+ * a guard hands it to the writer, judged in the statement that deletes the
+ * row named, before anything goes.
+ */
+describe.each(backends)('A cascade judged by each row it takes, on %s', (_, open) => {
+  const deleting = (
+    backend: Backend,
+    binding: Backend['Db']['Post'] | Backend['Parented']['Post'],
+    id: string,
+    cascading: ReadonlyArray<CascadeRequirement>,
+    principal = 'ada',
+  ) =>
+    Effect.runPromise(
+      writer(binding)
+        .delete({ id, expect: Option.none(), when: Option.none(), cascading, principal })
+        .pipe(Effect.result, Effect.provide(backend.layer)),
+    )
+  const unchanged = async (backend: Backend) => {
+    expect(await backend.ids('posts')).toEqual(['p1', 'p2', 'p3', 'p8', 'p9'])
+    expect(await backend.ids('likes')).toEqual(['l1', 'l2', 'l3', 'l8', 'l9'])
+  }
+
+  it("is refused whole when it would take another's like, and removes nothing", async () => {
+    const backend = await open()
+    const answer = await deleting(backend, backend.Db.Post, 'p1', [likerOnly('ada')])
+    expect(answer).toMatchObject({ _tag: 'Failure', failure: { _tag: 'Forbidden' } })
+    await unchanged(backend)
+  })
+
+  it('names the Entity it refused for, never the row: not its id, nor whose it is', async () => {
+    const backend = await open()
+    const answer = await deleting(backend, backend.Db.Post, 'p1', [
+      likerOnly('ada', 'Only its liker may take a like back.'),
+    ])
+    const message = answer._tag === 'Failure' ? String(answer.failure.message) : ''
+    expect(message).toBe(
+      'It would delete a Like you may not delete: Only its liker may take a like back.',
+    )
+    expect(message).not.toMatch(/l1|l3|bo|p2|p3/)
+  })
+
+  it('is refused for a reply by someone else, deeper in the thread', async () => {
+    const backend = await open()
+    const answer = await deleting(backend, backend.Db.Post, 'p1', [authorOnly('ada')])
+    expect(answer).toMatchObject({ _tag: 'Failure', failure: { _tag: 'Forbidden' } })
+    await unchanged(backend)
+  })
+
+  it('takes what every rule allows', async () => {
+    const backend = await open()
+    // p3 is Ada's, and has only Bo's like: Bo may not take p3, Ada may.
+    expect(
+      await deleting(backend, backend.Db.Post, 'p3', [likerOnly('bo'), authorOnly('bo')], 'bo'),
+    ).toMatchObject({ _tag: 'Success', success: { _tag: 'Deleted' } })
+    expect(await backend.ids('likes')).toEqual(['l1', 'l2', 'l8', 'l9'])
+  })
+
+  it('refuses a row its rule cannot judge (a like of no one), rather than taking it', async () => {
+    const backend = await open()
+    await backend.exec("insert into likes values ('l7', 'p9', null)")
+    const answer = await deleting(backend, backend.Db.Post, 'p9', [likerOnly('ada')])
+    expect(answer).toMatchObject({ _tag: 'Failure', failure: { _tag: 'Forbidden' } })
+    expect(await backend.ids('likes')).toEqual(['l1', 'l2', 'l3', 'l7', 'l8', 'l9'])
+  })
+
+  it('takes, under authorizedBy: parent, the likes their own rule would refuse', async () => {
+    const backend = await open()
+    // Ada's p3 has Bo's like l3: the parent's delete takes it; Post's own rule still judges replies.
+    expect(
+      await deleting(backend, backend.Parented.Post, 'p3', [authorOnly('ada', Parented.Post)]),
+    ).toMatchObject({ _tag: 'Success', success: { _tag: 'Deleted' } })
+    expect(await backend.ids('likes')).toEqual(['l1', 'l2', 'l8', 'l9'])
+    const deeper = await deleting(backend, backend.Parented.Post, 'p1', [
+      authorOnly('ada', Parented.Post),
+    ])
+    expect(deeper).toMatchObject({ _tag: 'Failure', failure: { _tag: 'Forbidden' } })
+    expect(await backend.ids('posts')).toEqual(['p1', 'p2', 'p8', 'p9'])
+  })
+
+  it("refuses a rule for rows it takes under their parent's, as its caller's mistake", async () => {
+    const backend = await open()
+    const answer = await deleting(backend, backend.Parented.Post, 'p1', [likerOnly('ada')])
+    expect(answer).toMatchObject({ _tag: 'Failure', failure: { _tag: 'RemoteServerError' } })
+    await unchanged(backend)
   })
 })
 

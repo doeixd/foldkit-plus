@@ -436,13 +436,19 @@ export const predictionOfWrite = (
  * each pointing at a removed row through a relation declared `onDelete:
  * 'cascade'` (`Entity.cascading`), and so on from those. A row the store does
  * not hold, or holds without the link, is the server's to remove, and its
- * answer names it.
+ * answer names it. `judged`: a row reached through a relation that holds it to
+ * its own `Delete` rule (`authorizedBy: 'child'`), as the server judges it.
  */
 const cascadedBy = (
   entity: AnyEntity,
   id: string,
   store: EntityStore,
-): ReadonlyArray<{ readonly entity: string; readonly id: string }> => {
+): ReadonlyArray<{
+  readonly entity: string
+  readonly id: string
+  readonly owner: AnyEntity
+  readonly judged: boolean
+}> => {
   // Each cascading relation's rows by the ref they point at, built once per relation.
   const pointing = new Map<string, Map<string, Array<string>>>()
   const rowsPointing = (owner: string, key: string, at: string): ReadonlyArray<string> => {
@@ -460,21 +466,29 @@ const cascadedBy = (
     }
     return index.get(at) ?? []
   }
-  const removed: Array<{ readonly entity: string; readonly id: string }> = []
-  const seen = new Set([entityKey(entity.name, id)])
+  const removed = new Map<
+    string,
+    { entity: string; id: string; owner: AnyEntity; judged: boolean }
+  >()
   const queue: Array<{ readonly entity: AnyEntity; readonly id: string }> = [{ entity, id }]
   for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
     const at = entityKey(next.entity.name, next.id)
-    for (const { relation, owner } of DomainEntity.cascading(next.entity))
+    for (const { relation, owner } of DomainEntity.cascading(next.entity)) {
+      const judged = Option.getOrElse(relation.authorizedBy, () => 'child') === 'child'
       for (const held of rowsPointing(owner.name, relation.key, at)) {
-        if (seen.has(held)) continue
-        seen.add(held)
-        const row = { entity: owner, id: refParts(held).id }
-        removed.push({ entity: owner.name, id: row.id })
-        queue.push(row)
+        const known = removed.get(held)
+        // Reached again: judged where any relation reaching it judges it, as the server does.
+        if (known !== undefined || held === entityKey(entity.name, id)) {
+          if (known !== undefined) known.judged ||= judged
+          continue
+        }
+        const row = { entity: owner.name, id: refParts(held).id, owner, judged }
+        removed.set(held, row)
+        queue.push({ entity: owner, id: row.id })
       }
+    }
   }
-  return removed
+  return [...removed.values()]
 }
 
 /**
@@ -555,11 +569,32 @@ const forbiddersOf = (entity: AnyEntity): ReadonlyArray<readonly [string, Forbid
   return found
 }
 
+/** What a held row's supplied members (Guard's `may`) say of `surface` done to it; none unheld. */
+const forbiddenOf = (
+  entity: AnyEntity,
+  id: string,
+  surface: WriteSurface,
+  store: EntityStore,
+): Option.Option<{ readonly reason: Option.Option<string> }> => {
+  const held = store[entityKey(entity.name, id)]
+  if (held === undefined) return Option.none()
+  return Option.firstSomeOf(
+    forbiddersOf(entity).map(([key, forbids]) =>
+      held.present.has(key) ? forbids(held.values[key], surface) : Option.none(),
+    ),
+  )
+}
+
+const deleting: WriteSurface = { kind: 'Delete', members: [], relations: [] }
+
 /**
- * Why a declared write is refused by what the client holds of its row: a
- * supplied member (Guard's `may`) whose value, as the store shows it, forbids
- * what the write does to the row. None where nothing held says so: an
- * insert, a row not held, or a member not held or not refusing.
+ * Why a declared write is refused by what the client holds: a supplied member
+ * (Guard's `may`) whose value, as the store shows it, forbids what the write
+ * does to the row, or, for a delete, to a row it takes with it under that
+ * row's own rule (#348), in the words the server refuses it with. None where
+ * nothing held says so: an insert, a row not held, or a member not held or
+ * not refusing. A row the client does not hold it cannot judge, and leaves
+ * to the server, whose refusal rolls the prediction back.
  */
 export const forbiddenByWrite = (
   write: AnyWrite,
@@ -568,34 +603,48 @@ export const forbiddenByWrite = (
   store: EntityStore,
 ): Option.Option<{ readonly reason: Option.Option<string> }> => {
   const entity = write.input.entity
-  const forbidders = forbiddersOf(entity)
-  if (forbidders.length === 0) return Option.none()
-  const bound = DomainWrite.bind(write, input as never, keys)
-  const held = store[entityKey(entity.name, bound.id)]
-  if (held === undefined) return Option.none()
-  // An insert finds no row, so nothing held of one can refuse it.
-  const surface = Match.valueTags(write, {
-    Insert: (): Option.Option<WriteSurface> => Option.none(),
-    Delete: () => Option.some<WriteSurface>({ kind: 'Delete', members: [], relations: [] }),
-    Update: () =>
-      Option.some<WriteSurface>({
-        kind: 'Update',
-        members: [
-          ...Object.keys(bound.values),
-          ...Object.keys(bound.increments),
-          ...Object.keys(bound.assignments),
-        ],
-        relations: Object.entries(bound.links).map(([relation, link]) => ({
-          relation,
-          interaction: Option.isSome(link) ? 'Link' : 'Unlink',
-        })),
-      }),
+  const bound = () => DomainWrite.bind(write, input as never, keys)
+  return Match.valueTags(write, {
+    // An insert finds no row, so nothing held of one can refuse it.
+    Insert: () => Option.none(),
+    Delete: () => {
+      const { id } = bound()
+      return Option.orElse(forbiddenOf(entity, id, deleting, store), () =>
+        Option.firstSomeOf(
+          cascadedBy(entity, id, store)
+            .filter(row => row.judged)
+            .map(row =>
+              Option.map(forbiddenOf(row.owner, row.id, deleting, store), ({ reason }) => ({
+                reason: Option.some(
+                  Option.match(reason, {
+                    onNone: () => `It would delete a ${row.entity} you may not delete`,
+                    onSome: said => `It would delete a ${row.entity} you may not delete: ${said}`,
+                  }),
+                ),
+              })),
+            ),
+        ),
+      )
+    },
+    Update: () => {
+      const { id, values, increments, assignments, links } = bound()
+      return forbiddenOf(
+        entity,
+        id,
+        {
+          kind: 'Update',
+          members: [
+            ...Object.keys(values),
+            ...Object.keys(increments),
+            ...Object.keys(assignments),
+          ],
+          relations: Object.entries(links).map(([relation, link]) => ({
+            relation,
+            interaction: Option.isSome(link) ? 'Link' : 'Unlink',
+          })),
+        },
+        store,
+      )
+    },
   })
-  return Option.flatMap(surface, asked =>
-    Option.firstSomeOf(
-      forbidders.map(([key, forbids]) =>
-        held.present.has(key) ? forbids(held.values[key], asked) : Option.none(),
-      ),
-    ),
-  )
 }

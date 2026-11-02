@@ -39,6 +39,7 @@ import {
   type MemoryReadable,
   type ReadPlan,
   type ServerDefinition,
+  type CascadeRequirement,
   type WriteRequirement,
   type WriteWhen,
 } from 'foldkit-remote-server'
@@ -348,8 +349,18 @@ export const GuardServer = {
    * revision the row read is not at is a `Conflict`, decided before any rule;
    * an input may expect only the field the writer pins.
    *
+   * A delete that cascades (`Relation.one(…, { onDelete: 'cascade' })`) holds
+   * each row it takes to that row's own `Delete` rule, for the same person, in
+   * the statement that deletes (#348): one refused, and the whole delete is
+   * `Forbidden`, naming the Entity, and nothing is removed. A relation declared
+   * `authorizedBy: 'parent'` lets whoever may delete the row take the rows
+   * pointing at it through that relation unjudged. The rules of an Entity
+   * taken under its own are read from its guarded descriptor, given as
+   * `children`; one missing is refused where the writer is made.
+   *
    * ```ts
    * RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
+   * GuardServer.writer(Post, Policy, writer(Db.Post), { children: [Like] })
    * ```
    */
   writer: <E extends AnyEntity, User, R, RW>(
@@ -358,6 +369,11 @@ export const GuardServer = {
     writer: EntityWriter<Option.Option<User>, RW>,
     options: {
       readonly revision?: keyof E['fields'] & string
+      /**
+       * The guarded descriptor of each Entity a delete takes rows of under
+       * their own `Delete` rule (`authorizedBy: 'child'`), whose rules judge them.
+       */
+      readonly children?: ReadonlyArray<AnyEntity>
     } = {},
   ): EntityWriter<Option.Option<User>, R | RW> => {
     const revision = options.revision
@@ -407,6 +423,12 @@ export const GuardServer = {
     if (reaching.length > 0 && writer.requires !== true) {
       throw new Error(
         `[foldkit-guard] GuardServer.writer: ${entity.name}'s ${reaching.join(', ')} reads another row, which only a writer judging rules in its statement can hold it to (foldkit-remote-drizzle's writer); this writer does not`,
+      )
+    }
+    const judging = cascadeJudges(entity, options.children ?? [])
+    if (judging.length > 0 && (writer.requires !== true || writer.cascades !== true)) {
+      throw new Error(
+        `[foldkit-guard] GuardServer.writer: a delete of ${entity.name} takes ${judging.map(child => child.name).join(', ')} rows under their own Delete rule, which only a writer judging rules in its statement and removing what cascades can hold it to (foldkit-remote-drizzle's writer); this writer does not`,
       )
     }
     /**
@@ -934,6 +956,17 @@ export const GuardServer = {
               if (Option.isNone(current)) return DeleteOutcome.Absent()
               if (moved(context.expect, current.value)) return DeleteOutcome.Moved()
               const requires = yield* rowRule(row, current.value, context.principal)
+              // Each row the cascade takes under its own rule, judged by the writer over the
+              // rows as they are when it deletes, before it removes any.
+              const cascading = yield* Effect.forEach(judging, child =>
+                Effect.map(
+                  policy.writable(child, context.principal, 'Delete'),
+                  ({ condition, deny }): CascadeRequirement => ({
+                    entity: child.name,
+                    requires: required(condition, deny, context.principal),
+                  }),
+                ),
+              )
               return yield* writer.delete({
                 ...context,
                 expect: pin(context.expect, current.value),
@@ -941,6 +974,7 @@ export const GuardServer = {
                   onNone: () => ({}),
                   onSome: held => ({ requires: held }),
                 }),
+                ...(judging.length === 0 ? {} : { cascading }),
               })
             }),
           ),
@@ -1399,6 +1433,47 @@ const explained = (deny: Deny): Option.Option<string> =>
     Omit: () => Option.none(),
     Redact: () => Option.none(),
   })
+
+/**
+ * The guarded descriptor of each Entity a delete of `root`'s row takes rows of
+ * under their own `Delete` rule (`authorizedBy: 'child'`), followed through
+ * every cascade, `root` itself for a cascade into its own Entity. Refused
+ * where one is not among `children`, and where a child is given that no
+ * such cascade reaches, so the option cannot quietly say nothing.
+ */
+const cascadeJudges = (
+  root: AnyEntity,
+  children: ReadonlyArray<AnyEntity>,
+): ReadonlyArray<AnyEntity> => {
+  const given = new Map(children.map(child => [child.identity.token, child]))
+  given.set(root.identity.token, root)
+  const judged = new Map<symbol, AnyEntity>()
+  const seen = new Set([root.identity.token])
+  const queue: Array<AnyEntity> = [root]
+  for (let next = queue.shift(); next !== undefined; next = queue.shift())
+    for (const { relation, owner } of Entity.cascading(next)) {
+      const token = owner.identity.token
+      const own = Option.getOrElse(relation.authorizedBy, () => 'child' as const) === 'child'
+      if (own && !judged.has(token)) {
+        const guarded = given.get(token)
+        if (guarded === undefined)
+          throw new Error(
+            `[foldkit-guard] GuardServer.writer: a delete of ${root.name} takes ${owner.name} rows under their own Delete rule (${owner.name}.${relation.key}); give ${owner.name}'s guarded Entity as children: [${owner.name}], or declare the relation authorizedBy: 'parent'`,
+          )
+        judged.set(token, guarded)
+      }
+      if (!seen.has(token)) {
+        seen.add(token)
+        queue.push(owner)
+      }
+    }
+  const unused = children.filter(child => !judged.has(child.identity.token))
+  if (unused.length > 0)
+    throw new Error(
+      `[foldkit-guard] GuardServer.writer: a delete of ${root.name} takes no ${unused.map(child => child.name).join(', ')} rows under their own Delete rule, so children has nothing to judge them by`,
+    )
+  return [...judged.values()]
+}
 
 /**
  * What is left of a condition, as a writer's statement judges it: each row

@@ -197,10 +197,16 @@ export const Todo = TodoFields.pipe(
   write, an `Unlink` over the row before alone; a create over what it proposes, an unset field matching no
   guard), refuses as `Forbidden` (a visitor as `Unauthenticated`, so a
   durable write waits for a sign-in), and answers as the writer now sees the row:
-  a row the write hid from them in `deleted`. The binding needs `visible`. It
-  passes on the writer's `cascades`, but judges only the row named: who may
-  delete the rows a cascade takes is not judged yet
-  ([#348](https://github.com/doeixd/foldkit-plus/issues/348)).
+  a row the write hid from them in `deleted`. The binding needs `visible`. A
+  delete that cascades holds each row it takes to that row's own `Delete`
+  rule, for the same person, in the writer's statement before anything goes:
+  one refused, and the whole delete is `Forbidden` ("It would delete a Like
+  you may not delete"), naming the Entity, never the row. Give each child's
+  guarded Entity: `GuardServer.writer(Post, Policy, writer(Db.Post), {
+  children: [Like] })` (one missing, or one nothing judges, is refused where
+  it is made); a relation declared `authorizedBy: 'parent'` takes its rows
+  unjudged. A held `may` refusing a taken row's `Delete` refuses the delete
+  on the page too.
 - Who owns a new row is the Entity's to say, not the writer's:
   `Entity.sets({ ownerId: Expr.viewer(UserRow), createdAt: Expr.now }, { on: 'create' })`, and
   `RemoteServer.write` sets them before the rules run, so a rule over the owner

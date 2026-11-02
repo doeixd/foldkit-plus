@@ -28,6 +28,17 @@ const pastGuards = (name: string, find: string, replace: string, survives?: stri
 })
 
 export default [
+  {
+    name: "a chirp's likes are each judged by their liker's rule when it is taken down",
+    edits: [
+      {
+        file: '../src/domain.ts',
+        find: "{ onDelete: 'cascade', authorizedBy: 'parent' }",
+        replace: "{ onDelete: 'cascade' }",
+      },
+    ],
+    tests: server,
+  },
   pastGuards(
     'a chirp is deleted past its guards',
     'RemoteServer.write(DeletePost, guarded)',

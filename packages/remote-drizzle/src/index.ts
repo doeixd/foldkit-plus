@@ -62,6 +62,7 @@ import {
   RowRequirement,
   exprContext,
   type CascadedRow,
+  type CascadeRequirement,
   type EntityRecord,
   type EntityWriter,
   type LiveHub,
@@ -1211,6 +1212,17 @@ interface CascadeDatabase extends CascadeTx {
   ): PromiseLike<ReadonlyArray<ReadonlyArray<Record<string, unknown>>>>
 }
 
+/**
+ * The rows of one Entity a cascading delete would take that its requirement
+ * refuses (`refused`, a select of their ids), and what a refusal says.
+ */
+interface CascadeRefusal {
+  readonly entity: string
+  readonly step: AnyEntityBinding
+  readonly reason: Option.Option<string>
+  readonly refused: SQL
+}
+
 /** Whether the database is D1's, which refuses the `BEGIN` its Drizzle `transaction` sends. */
 const isD1 = (database: unknown): boolean =>
   (database as { readonly constructor: { readonly [entityKind]?: string } }).constructor[
@@ -1430,6 +1442,7 @@ export const writer = <P = unknown>(
     held: CascadePlan,
     id: string,
     where: SQL | undefined,
+    refusing: ReadonlyArray<CascadeRefusal>,
     principal: P,
   ): Effect.Effect<
     { readonly deleted: boolean; readonly cascaded: ReadonlyArray<CascadedRow> },
@@ -1462,9 +1475,12 @@ export const writer = <P = unknown>(
             .from(step.binding.table)
             .where(sql`${idColumn(step.binding)} in (${held.removed(step, id)})`),
         ),
+        // Each row the cascade takes is judged in the statement that deletes the row
+        // named, before anything is removed: one refused, and the row stays, so the
+        // rest, which go only once it is gone, stay with it.
         db
           .delete(binding.table)
-          .where(where)
+          .where(and(where, ...refusing.map(({ refused }) => sql`not exists (${refused})`)))
           .returning({ id: idColumn(binding) }),
         ...held.steps.map(step =>
           db
@@ -1597,6 +1613,7 @@ export const writer = <P = unknown>(
    */
   const requiredOf = (
     requires: WriteRequirement | undefined,
+    over: AnyEntityBinding = binding,
   ): Effect.Effect<ReadonlyArray<SQL>, RemoteServerError> => {
     if (requires === undefined) return Effect.succeed([])
     const compile = RowRequirement.$match({
@@ -1604,9 +1621,9 @@ export const writer = <P = unknown>(
         and(
           ...compileWhere(
             query,
-            { ...binding, context, visibleOf: () => Option.none() },
+            { ...over, context, visibleOf: () => Option.none() },
             input,
-            `${binding.name}'s write rule`,
+            `${over.name}'s write rule`,
           ),
         ) ?? sql`true`,
       All: ({ of }): SQL => and(...of.map(compile)) ?? sql`true`,
@@ -1636,6 +1653,42 @@ export const writer = <P = unknown>(
       if (holding.length > 0) return
       return yield* Effect.fail(RemoteServer.forbid(Option.getOrUndefined(requires.reason)))
     })
+
+  /**
+   * Each Entity's rows a cascade would take that do not hold its requirement:
+   * those reached through a relation that holds them to their own rule
+   * (`authorizedBy: 'child'`), as a select of their ids. A rule that is unknown
+   * for a row (a null it compares) refuses it. A requirement for rows the
+   * cascade takes none of under their own rule is a mistake of its caller,
+   * refused rather than dropped.
+   */
+  const cascadeRefusals = (
+    held: Option.Option<CascadePlan>,
+    id: string,
+    cascading: ReadonlyArray<CascadeRequirement>,
+  ): Effect.Effect<ReadonlyArray<CascadeRefusal>, RemoteServerError> =>
+    Effect.forEach(cascading, ({ entity, requires }) =>
+      Effect.gen(function* () {
+        const found = Option.flatMap(held, plan =>
+          Option.flatMap(
+            Option.fromUndefinedOr(plan.steps.find(step => step.binding.name === entity)),
+            step => Option.map(plan.judged(step, id), judged => ({ step: step.binding, judged })),
+          ),
+        )
+        if (Option.isNone(found))
+          return yield* new RemoteServerError({
+            message: `${binding.name}'s writer was asked to hold ${entity}'s rows to their Delete rule, but a delete of ${binding.name} takes none of them under it`,
+          })
+        const { step, judged } = found.value
+        const rule = and(...(yield* requiredOf(requires, step))) ?? sql`true`
+        return {
+          entity,
+          step,
+          reason: requires.reason,
+          refused: sql`select ${idColumn(step)} from ${step.table} where ${idColumn(step)} in (${judged}) and (${rule}) is not true`,
+        }
+      }),
+    )
 
   /** Each assignment as its compiled computation, in the statement that writes. */
   const assignmentsOf = (
@@ -2220,12 +2273,13 @@ export const writer = <P = unknown>(
           onSome: Effect.succeed,
         })
       }),
-    delete: ({ id, expect, when, requires, principal }) =>
+    delete: ({ id, expect, when, requires, cascading = [], principal }) =>
       Effect.gen(function* () {
         yield* serverOnly
         const at = yield* rowOf(id, expect, when)
         const required = yield* requiredOf(requires)
         const where = and(at.where, ...required)
+        const refusing = yield* cascadeRefusals(plan, id, cascading)
         const removal = yield* Option.match(plan, {
           onNone: () =>
             Effect.gen(function* () {
@@ -2240,10 +2294,15 @@ export const writer = <P = unknown>(
               )
               return { deleted: rows.length > 0, cascaded: [] }
             }),
-          onSome: held => withCascade(held, id, where, principal),
+          onSome: held => withCascade(held, id, where, refusing, principal),
         })
         if (removal.deleted) return DeleteOutcome.Deleted({ cascaded: removal.cascaded })
-        if (Option.isNone(expect) && Option.isNone(when) && requires === undefined)
+        if (
+          Option.isNone(expect) &&
+          Option.isNone(when) &&
+          requires === undefined &&
+          refusing.length === 0
+        )
           return DeleteOutcome.Absent()
         // The delete missed: gone is gone (a retry of this delete, or another's);
         // still there, it moved past the revision this delete expected, or else
@@ -2267,6 +2326,22 @@ export const writer = <P = unknown>(
         const row = still[0]
         if (row === undefined) return DeleteOutcome.Absent()
         yield* refusedBy(id, requires, required)
+        // Named by its Entity alone: what the row holds is not the asker's to read.
+        for (const { entity, step, reason, refused } of refusing) {
+          const found = yield* selectRows(
+            yield* DrizzleDatabase,
+            step.table,
+            { id: idColumn(step) },
+            { where: sql`${idColumn(step)} in (${refused})` },
+          )
+          if (found.length > 0)
+            return yield* RemoteServer.forbid(
+              Option.match(reason, {
+                onNone: () => `It would delete a ${entity} you may not delete`,
+                onSome: said => `It would delete a ${entity} you may not delete: ${said}`,
+              }),
+            )
+        }
         if (
           Option.isNone(when) ||
           (Option.isSome(expect) && !sameStored(row['revision'], expect.value.revision))

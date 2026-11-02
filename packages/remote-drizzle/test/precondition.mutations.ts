@@ -55,8 +55,8 @@ export default [
   edit(
     'a delete’s miss is not read back when only the precondition could explain it',
     drizzle,
-    'if (Option.isNone(expect) && Option.isNone(when) && requires === undefined)',
-    'if (Option.isNone(expect) && requires === undefined)',
+    'Option.isNone(expect) &&\n          Option.isNone(when) &&\n          requires === undefined &&',
+    'Option.isNone(expect) &&\n          requires === undefined &&',
   ),
   edit('an unmet delete reads as moved', drizzle, 'Option.isNone(when) ||', 'true ||'),
   edit(

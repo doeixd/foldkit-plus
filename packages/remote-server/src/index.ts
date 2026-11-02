@@ -311,6 +311,18 @@ export interface WriteRequirement {
   readonly reason: Option.Option<string>
 }
 
+/**
+ * What each row of `entity` a cascading delete would take must hold (#348):
+ * that Entity's `Delete` rule for the person deleting. A writer with
+ * `cascades` refuses the whole delete as `Forbidden` when any such row does
+ * not, and removes nothing. Only rows reached through a relation whose
+ * `authorizedBy` is `child` are held to it.
+ */
+export interface CascadeRequirement {
+  readonly entity: string
+  readonly requires: WriteRequirement
+}
+
 /** A row a delete removed with the row it was asked to delete (`onDelete: 'cascade'`). */
 export interface CascadedRow {
   readonly entity: string
@@ -398,7 +410,9 @@ export interface EntityWriter<P, R = never> {
   /**
    * Whether `delete` removes, in the transaction that deletes the row, every
    * row declared to go with it (`Entity.cascading`), and answers them as
-   * `cascaded`. `RemoteServer.write` refuses a delete of an Entity that
+   * `cascaded`; and holds those rows to the `cascading` requirements it is
+   * given, judged before anything is removed, refusing the whole delete
+   * where one fails. `RemoteServer.write` refuses a delete of an Entity that
    * cascades through a writer without it.
    */
   readonly cascades?: true
@@ -495,6 +509,11 @@ export interface EntityWriter<P, R = never> {
     readonly when: Option.Option<WriteWhen>
     /** What the row must hold, judged where it is deleted; only a writer with `requires` is given one. */
     readonly requires?: WriteRequirement | undefined
+    /**
+     * What the rows a cascade takes must hold, by Entity; only a writer with
+     * `cascades` is given them.
+     */
+    readonly cascading?: ReadonlyArray<CascadeRequirement> | undefined
     readonly principal: P
   }) => Effect.Effect<
     DeleteOutcome,

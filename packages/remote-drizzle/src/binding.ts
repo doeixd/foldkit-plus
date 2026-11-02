@@ -15,7 +15,7 @@ import type { BuildSchema } from 'drizzle-orm/effect-schema'
 import { getTableColumns, type AnyColumn, type SQL, type Table as DrizzleTable } from 'drizzle-orm'
 import { Entity, type EntityDescriptor, type EntityRef } from 'foldkit-remote'
 import { Effect, type Option, Schema } from 'effect'
-import type { EntityIdentity, Invariant } from 'foldkit-entity'
+import type { AuthorizedBy, EntityIdentity, Invariant } from 'foldkit-entity'
 import type { RemoteServerError } from 'foldkit-remote-server'
 import type { OrderTerm } from './cursor.js'
 import { operatorsFrom, type BindingOperators } from './operators.js'
@@ -170,6 +170,8 @@ export interface CascadeEdge {
   readonly relation: string
   readonly owner: AnyEntityBinding
   readonly column: AnyColumn
+  /** Whose `Delete` rule lets the cascade take a row: its own, or the row's it points at. */
+  readonly authorizedBy: AuthorizedBy
 }
 
 /**

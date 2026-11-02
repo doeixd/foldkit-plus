@@ -677,7 +677,9 @@ viewer shows its id there, and a delete or relink takes it from the post showing
 which also tells the count where a Like the client never read pointed. A delete also
 removes every held row declared to go with it (`Relation.one(Post, { onDelete: 'cascade' })`,
 transitively: a reply's replies, the likes of each), from every list, and moves the counts
-and exists over each; a row the client does not hold is the answer's to name. The store is
+and exists over each; a row the client does not hold is the answer's to name. A held row
+it takes whose own `may` refuses `Delete` (unless the relation says `authorizedBy: 'parent'`)
+refuses the delete where it is made, as the server would. The store is
 one viewer's, so a change of viewer is `Data.forget`. A write of an Entity with
 `Entity.sets` shows what the server will set: the viewer, and as the time
 `Data.mutate(model, M, input, { now })`, the time the reader acted (an update those set
@@ -1145,7 +1147,8 @@ const ProjectsByOwner = Query.make('ProjectsByOwner', { Input: { ownerId: Schema
 // answers a retry of it, by operation, with its row; a delete of a row already gone succeeds;
 // a guarded write retried after it landed answers its row (EntityWriter.delete answers a
 // DeleteOutcome: Deleted({ cascaded }), Absent or Moved; a writer that removes what a
-// delete takes with it says `cascades: true`). A binding with `visible` reads the answer back
+// delete takes with it says `cascades: true`, and holds those rows to the `cascading`
+// rules a guard hands it, refusing the whole delete). A binding with `visible` reads the answer back
 // through it (EntityWriter.read): a row the write hid from its writer answers in `deleted`.
 const Server = RemoteServer.make({
   entities: [source(User), source(Project)], // source(binding, { authorize }) for field policy

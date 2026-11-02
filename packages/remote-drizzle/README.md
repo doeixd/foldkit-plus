@@ -1257,6 +1257,20 @@ foreign key on such a column says otherwise: one that cascades where the
 relation does not declare it, and one that does not where it does (a table's
 `on delete restrict` would fail every delete, since the row goes first).
 
+**A cascade takes no row its deleter may not delete.** `delete` takes
+`cascading`, each Entity's `Delete` rule as a `CascadeRequirement` (Guard's
+`GuardServer.writer` hands them over), and judges it in the statement that
+deletes the row named, over every row the cascade would take through a
+relation that holds rows to their own rule (`authorizedBy: 'child'`, the
+default): `not exists` a row that does not hold it. A rule unknown for a row
+(a null it compares) refuses it. Refused, the row stays, so nothing after it
+goes, and the writer fails `Forbidden`, naming the Entity, never the row; on
+D1 the same statement sits in the same batch, so the decision is read before
+anything is written. A row reached only through `authorizedBy: 'parent'` is
+not judged, and a requirement for an Entity the delete takes nothing of under
+its own rule is refused as its caller's mistake. A writer given none judges
+nothing: without a guard there is no rule.
+
 **A retry is safe without a request log.** A guarded write whose answer was
 lost is sent again with the same revision, and the guard misses. The writer
 then reads the row: one revision past the expected one and holding exactly

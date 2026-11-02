@@ -449,6 +449,19 @@ RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
   member Read rules: the row as its writer may now see it, with no more
   fields than the write set, and a row the write hid from them in `deleted`,
   so the client takes it out of its lists instead of placing it.
+- A delete that cascades (`Relation.one(Post, { onDelete: 'cascade' })`)
+  takes no row its deleter may not delete. Each row it takes is held to its
+  own `Delete` rule, for the same person, in the statement that deletes the
+  row named, before anything is removed (on D1, in the same batch): one
+  refused, and the whole delete is `Forbidden`, nothing removed, saying
+  "It would delete a Like you may not delete" with the like's `explain`.
+  The refusal names the Entity, never which row or whose. The rules come
+  from each child's guarded Entity, given as `children`:
+  `GuardServer.writer(Post, Policy, writer(Db.Post), { children: [Like] })`;
+  one missing, or one given that no cascade judges, is refused where the
+  writer is made. A relation declared `authorizedBy: 'parent'` lets whoever
+  may delete the post take those rows unjudged, which is a choice the domain
+  states: a post's author removing everyone's likes of it.
 
 Reading the row and writing it are two statements, so another write can land
 between the check and the write. Name a revision, a field stored as a number
@@ -748,7 +761,10 @@ A held `may` also refuses a write where it is made (`Derived.make`'s
 `forbids`): `Data.mutate` of an update whose row's `may.row.Update` is `false`,
 or whose written member or relinked relation reads `false`, or of a delete
 whose `Delete` does, is refused at once with `Forbidden` and the `explain` as
-`reason`, as the server would refuse it. Each is judged over the row before the
+`reason`, as the server would refuse it. So is a delete that would take a
+held row whose own `may` refuses `Delete` (under `authorizedBy: 'child'`), in
+the server's words; a row taken whose `may` the page does not hold is shown
+gone, and the server's refusal brings it back. Each is judged over the row before the
 write, which is where the server's writer judges it first. It spares a round
 trip and decides nothing for the server, which judges the write again when it
 arrives. `Law.check` (`foldkit-remote/testing`) runs one write through both and
