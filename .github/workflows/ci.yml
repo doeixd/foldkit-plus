@@ -192,7 +192,7 @@ jobs:
       # against the packages' `dist` themselves (`scripts/bundle-report.mjs`).
       - run: pnpm exec playwright install --with-deps chromium
 
-        run: >-
+      - run: >-
           pnpm exec vitest run --project unit --no-file-parallelism
           examples/foldkit/domains-plus/test/cpu.test.ts
           examples/foldkit/domains-plus/test/bundle.test.ts
