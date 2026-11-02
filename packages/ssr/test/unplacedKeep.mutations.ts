@@ -27,6 +27,11 @@ export default [
     tests: refused,
   },
   {
+    name: 'a marker in ordinary text is refused',
+    edits: [{ file: index, find: '    if (!opensAttribute(html, at)) continue\n', replace: '' }],
+    tests: refused,
+  },
+  {
     name: 'the refusal names the tag alone',
     edits: [
       {

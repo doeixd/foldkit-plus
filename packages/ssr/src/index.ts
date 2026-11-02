@@ -538,16 +538,38 @@ const unlistedBindings = <Model, Fields extends Schema.Struct.Fields>(
 }
 
 /**
+ * Whether `at` starts an attribute inside the start tag opened before it.
+ * A marker in a text node follows that tag's `>`, and one inside another
+ * attribute's value has its quotes escaped (`&quot;`), so only a marker
+ * between a tag's `<` and a `>` outside a quoted value is an attribute.
+ */
+const opensAttribute = (html: string, at: number): boolean => {
+  if (at === 0 || !/[ \t\r\n]/.test(html[at - 1]!)) return false
+  const open = html.lastIndexOf('<', at)
+  if (open === -1 || html.startsWith('<!--', open)) return false
+  let quote: string | undefined
+  for (let index = open + 1; index < at; index++) {
+    const char = html[index]
+    if (quote !== undefined) {
+      if (char === quote) quote = undefined
+    } else if (char === '"' || char === "'") quote = char
+    else if (char === '>') return false
+  }
+  return quote === undefined
+}
+
+/**
  * A line for each `KeepTyped` the render drew on an element the resumable
  * builder did not build, whose marker still holds its server-render value:
  * nothing marks which binding replays such a field, so every browser would
- * refuse the page. Foldkit escapes `<` in text and attribute values, so the
- * last `<` before the marker opens its element.
+ * refuse the page. Only a marker that is an attribute counts: ordinary text
+ * can spell the same characters.
  */
 const unplacedKeeps = (html: string): ReadonlyArray<string> => {
   const marker = `${KEEP_ATTRIBUTE}="${UNPLACED_KEEP}"`
   const found: Array<string> = []
   for (let at = html.indexOf(marker); at !== -1; at = html.indexOf(marker, at + 1)) {
+    if (!opensAttribute(html, at)) continue
     const open = html.lastIndexOf('<', at)
     const tag = /^<([A-Za-z][A-Za-z0-9._-]*)/.exec(html.slice(open))?.[1] ?? 'an element'
     const id = /\sid="([^"]*)"/.exec(html.slice(open, html.indexOf('>', at)))?.[1]

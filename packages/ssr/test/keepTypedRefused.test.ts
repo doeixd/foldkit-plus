@@ -107,4 +107,21 @@ describe('KeepTyped is refused', () => {
     )
     expect(page.rendered.html).toContain('data-foldkit-plus-keep="0"')
   })
+
+  it('but not on text that spells the marker', async () => {
+    const page = await Effect.runPromise(
+      SSR.render(
+        {
+          ...config,
+          view: (_model: Model, h: HtmlBuilder<Message>) => ({
+            title: 'Search',
+            body: h.main([], [h.p([], ['data-foldkit-plus-keep="?"'])]),
+          }),
+        },
+        plan(),
+        { buildId: 'b' },
+      ),
+    )
+    expect(page.rendered.html).toContain('data-foldkit-plus-keep="?"')
+  })
 })
