@@ -121,7 +121,9 @@ describe('WindowViewport', () => {
           for (let i = 0; i < 100 && instances.length === 0; i++) {
             yield* Effect.yieldNow
           }
-          expect(instances[0]!.observed).toEqual([box, document.documentElement])
+          expect(instances[0]!.observed).toEqual(
+            expect.arrayContaining([box, document.body, document.documentElement]),
+          )
           // An unchanged reading is not sent again.
           scrolled()
           top = -120
@@ -142,6 +144,41 @@ describe('WindowViewport', () => {
       ])
       expect(instances[0]!.disconnected).toBe(true)
     } finally {
+      box.remove()
+    }
+  })
+
+  it('reports the list moving when a box preceding it resizes, with no scroll', async () => {
+    const instances = installResizeObserver()
+    const header = document.createElement('div')
+    const box = document.createElement('div')
+    document.body.append(header, box)
+    let top = 20
+    box.getBoundingClientRect = () => DOMRect.fromRect({ x: 0, y: top, width: 100, height: 50 })
+    try {
+      const values = await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* Effect.forkChild(
+            takeMessages(WindowViewport().f(box, Mount.liveViewStateChanges), 2),
+          )
+          for (let i = 0; i < 100 && instances.length === 0; i++) {
+            yield* Effect.yieldNow
+          }
+          const sizes = instances[0]!
+          // The header is the list's previous sibling: a resize of it moves
+          // the list without changing either the list or the page.
+          expect(sizes.observed).toContain(header)
+          top = 60
+          sizes.fireAt([[header, 60]])
+          return yield* Fiber.join(fiber)
+        }),
+      )
+      expect(values).toEqual([
+        ViewportPlaced.make({ top: -20, height: 768 }),
+        ViewportPlaced.make({ top: -60, height: 768 }),
+      ])
+    } finally {
+      header.remove()
       box.remove()
     }
   })
@@ -258,6 +295,54 @@ describe('MeasureRows', () => {
           ],
         }),
         RowsMeasured.make({ rows: [{ key: 'c', height: 44 }] }),
+      ])
+      expect(instances[0]!.disconnected).toBe(true)
+    } finally {
+      list.remove()
+    }
+  })
+
+  it('reports a row reused for a new key at the same size, and observes or lets go a row that gains or loses the key', async () => {
+    const instances = installResizeObserver()
+    const list = document.createElement('div')
+    const a = row('a')
+    a.style.height = '16px'
+    const plain = document.createElement('div')
+    plain.style.height = '10px'
+    list.append(a, plain)
+    document.body.appendChild(list)
+    try {
+      const values = await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* Effect.forkChild(
+            takeMessages(
+              MeasureRows({ attribute: 'data-key' }).f(list, Mount.liveViewStateChanges),
+              3,
+            ),
+          )
+          yield* settle
+          const sizes = instances[0]!
+          expect(sizes.observed).toEqual([a])
+          // Reused for a different key, at the same size: the observer sees no
+          // resize, so the new key is read and reported.
+          a.setAttribute('data-key', 'z')
+          yield* settle
+          // A child that gains the attribute is observed, and one that loses
+          // it is let go.
+          plain.setAttribute('data-key', 'p')
+          yield* settle
+          expect(sizes.observed).toEqual([a, plain])
+          a.removeAttribute('data-key')
+          yield* settle
+          expect(sizes.observed).toEqual([plain])
+          sizes.fireAt([[plain, 10]])
+          return yield* Fiber.join(fiber)
+        }),
+      )
+      expect(values).toEqual([
+        RowsMeasured.make({ rows: [{ key: 'a', height: 16 }] }),
+        RowsMeasured.make({ rows: [{ key: 'z', height: 16 }] }),
+        RowsMeasured.make({ rows: [{ key: 'p', height: 10 }] }),
       ])
       expect(instances[0]!.disconnected).toBe(true)
     } finally {

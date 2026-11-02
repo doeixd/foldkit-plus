@@ -175,7 +175,7 @@ export default [
     edits: [
       {
         file: '../../primitives/src/state/virtual.ts',
-        find: 'return key === null || !(height > 0) ? [] : [{ key, height }]',
+        find: 'return height > 0 ? [{ key, height }] : []',
         replace: 'return []',
       },
     ],
@@ -219,8 +219,8 @@ export default [
     edits: [
       {
         file: '../../primitives/src/state/virtual.ts',
-        find: 'return key === null || !(height > 0) ? [] : [{ key, height }]',
-        replace: 'return key === null ? [] : [{ key, height }]',
+        find: 'return height > 0 ? [{ key, height }] : []',
+        replace: 'return [{ key, height }]',
       },
     ],
     tests: ['packages/primitives/test/virtual-mounts.test.ts'],

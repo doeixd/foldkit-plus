@@ -385,9 +385,10 @@ type ObserverCtor = new (callback: ResizeObserverCallback) => ResizeObserver
  * document: `top` is how far the viewport's top edge is past the element's
  * (negative while the element is still below it), `height` the viewport's.
  * Attach to the list's own box. It reports as it mounts, on the window's
- * `scroll` and `resize`, and when the box or the document's root element
- * changes size, which is how content above the list growing shows: the
- * offset moves with no scroll. An unchanged reading is sent once.
+ * `scroll` and `resize`, and when anything that can move the list does: the
+ * element, its ancestors, and the boxes preceding it at every level. Content
+ * above the list growing therefore reports with no scroll and no change to
+ * the list's own box. An unchanged reading is sent once.
  */
 export const WindowViewport = Mount.defineStream('WindowViewport', {
   messages: [ViewportPlaced],
@@ -408,16 +409,61 @@ export const WindowViewport = Mount.defineStream('WindowViewport', {
             Queue.offerUnsafe(queue, placed)
           }
           const Observed = (globalThis as { ResizeObserver?: ObserverCtor }).ResizeObserver
-          const observer = Observed === undefined ? undefined : new Observed(report)
+          const sizes = Observed === undefined ? undefined : new Observed(report)
+          const watched = new Set<Element>()
+          // Every box whose size can push the list down: the element itself,
+          // every ancestor, and every element preceding it at each level.
+          const include = (node: Element, into: Set<Element>) => {
+            into.add(node)
+            for (
+              let sibling = node.previousElementSibling;
+              sibling !== null;
+              sibling = sibling.previousElementSibling
+            ) {
+              into.add(sibling)
+            }
+          }
+          const above = new MutationObserver(() => reconcile())
+          function reconcile() {
+            if (sizes === undefined) return
+            above.disconnect()
+            const next = new Set<Element>()
+            include(element, next)
+            for (
+              let node = element.parentElement;
+              node !== null && node !== document.documentElement;
+              node = node.parentElement
+            ) {
+              include(node, next)
+            }
+            next.add(document.documentElement)
+            for (const each of watched) {
+              if (!next.has(each)) {
+                sizes.unobserve(each)
+                watched.delete(each)
+              }
+            }
+            for (const each of next) {
+              if (!watched.has(each)) {
+                sizes.observe(each)
+                watched.add(each)
+              }
+            }
+            // Moving or replacing a box above the list changes the set to
+            // watch, so the observers are retargeted with it.
+            for (let node = element.parentElement; node !== null; node = node.parentElement) {
+              above.observe(node, { childList: true })
+            }
+          }
           report()
           window.addEventListener('scroll', report, { passive: true })
           window.addEventListener('resize', report, { passive: true })
-          observer?.observe(element)
-          observer?.observe(document.documentElement)
+          reconcile()
           return () => {
             window.removeEventListener('scroll', report)
             window.removeEventListener('resize', report)
-            observer?.disconnect()
+            sizes?.disconnect()
+            above.disconnect()
           }
         }),
         detach => Effect.sync(detach),
@@ -501,6 +547,9 @@ const borderBlockSize = (row: Element): number => {
  * drawn when it starts are read at once, and reported first, as a batch that
  * may be empty: a row the next frame takes away would otherwise go before
  * the observer's first report. A row of no height is left to the observer.
+ * A row whose key attribute changes is the same box with a new identity: it
+ * is read and reported under the new key, and a child that gains or loses
+ * the attribute is observed or let go.
  */
 export const MeasureRows = Mount.defineStream('MeasureRows', {
   messages: [RowsMeasured],
@@ -520,40 +569,57 @@ export const MeasureRows = Mount.defineStream('MeasureRows', {
               })
               if (rows.length > 0) Queue.offerUnsafe(queue, RowsMeasured.make({ rows }))
             })
-            const observed = new Set<Element>()
-            // A row drawn is observed, which reports it at once; a row gone is let go.
+            const keys = new Map<Element, string>()
+            // A row drawn is observed, which reports it at once; a row gone is
+            // let go. A key change reports at once too, since the observer has
+            // no size change to announce it with.
             const reconcile = () => {
-              const rows = new Set(
-                Array.from(element.children).filter(child => child.hasAttribute(attribute)),
-              )
-              for (const row of observed) {
+              const rows = new Set<Element>()
+              const changed: Array<{ key: string; height: number }> = []
+              for (const child of Array.from(element.children)) {
+                const key = child.getAttribute(attribute)
+                if (key === null) continue
+                rows.add(child)
+                const previous = keys.get(child)
+                if (previous === undefined) {
+                  sizes.observe(child)
+                } else if (previous !== key) {
+                  const height = borderBlockSize(child)
+                  if (height > 0) changed.push({ key, height })
+                }
+                keys.set(child, key)
+              }
+              for (const row of keys.keys()) {
                 if (!rows.has(row)) {
                   sizes.unobserve(row)
-                  observed.delete(row)
+                  keys.delete(row)
                 }
               }
-              for (const row of rows) {
-                if (!observed.has(row)) {
-                  sizes.observe(row)
-                  observed.add(row)
-                }
+              if (changed.length > 0) {
+                Queue.offerUnsafe(queue, RowsMeasured.make({ rows: changed }))
               }
             }
             const children = new MutationObserver(reconcile)
             children.observe(element, { childList: true })
+            const attributes = new MutationObserver(reconcile)
+            attributes.observe(element, {
+              attributes: true,
+              attributeFilter: [attribute],
+              subtree: true,
+            })
             reconcile()
             Queue.offerUnsafe(
               queue,
               RowsMeasured.make({
-                rows: Array.from(observed).flatMap(row => {
-                  const key = row.getAttribute(attribute)
+                rows: Array.from(keys.entries()).flatMap(([row, key]) => {
                   const height = borderBlockSize(row)
-                  return key === null || !(height > 0) ? [] : [{ key, height }]
+                  return height > 0 ? [{ key, height }] : []
                 }),
               }),
             )
             return () => {
               children.disconnect()
+              attributes.disconnect()
               sizes.disconnect()
             }
           }),

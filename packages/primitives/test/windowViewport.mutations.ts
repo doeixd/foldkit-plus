@@ -4,6 +4,7 @@
  * `pnpm mutate packages/primitives/test/windowViewport.mutations.ts`.
  */
 const tests = ['packages/primitives/test/virtual-mounts.test.ts']
+const layoutTests = [...tests, 'packages/primitives/test/virtual-mounts.browser.test.ts']
 const file = '../src/state/virtual.ts'
 
 export default [
@@ -34,8 +35,30 @@ export default [
   },
   {
     name: 'the page resizing is not observed',
-    edits: [{ file, find: 'observer?.observe(document.documentElement)', replace: '' }],
+    edits: [{ file, find: 'next.add(document.documentElement)', replace: '' }],
     tests,
+  },
+  {
+    name: 'only the list and the page are observed, not what precedes the list',
+    edits: [
+      {
+        file,
+        find: `            const next = new Set<Element>()
+            include(element, next)
+            for (
+              let node = element.parentElement;
+              node !== null && node !== document.documentElement;
+              node = node.parentElement
+            ) {
+              include(node, next)
+            }
+            next.add(document.documentElement)`,
+        replace: `            const next = new Set<Element>()
+            next.add(element)
+            next.add(document.documentElement)`,
+      },
+    ],
+    tests: layoutTests,
   },
   {
     name: 'the window listeners outlive the Mount',
@@ -44,7 +67,7 @@ export default [
   },
   {
     name: 'the observer outlives the Mount',
-    edits: [{ file, find: '            observer?.disconnect()', replace: '' }],
+    edits: [{ file, find: '            sizes?.disconnect()', replace: '' }],
     tests,
   },
   {
@@ -63,8 +86,12 @@ export default [
     edits: [
       {
         file,
-        find: 'Array.from(element.children).filter(child => child.hasAttribute(attribute)),',
-        replace: 'Array.from(element.children),',
+        find: '                if (key === null) continue',
+        replace: `                if (key === null) {
+                  rows.add(child)
+                  sizes.observe(child)
+                  continue
+                }`,
       },
     ],
     tests,
@@ -77,6 +104,35 @@ export default [
   {
     name: 'rows drawn later are not observed',
     edits: [{ file, find: 'children.observe(element, { childList: true })', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a row key attribute change is not heard',
+    edits: [
+      {
+        file,
+        find: `            attributes.observe(element, {
+              attributes: true,
+              attributeFilter: [attribute],
+              subtree: true,
+            })`,
+        replace: `            attributes.observe(element, { childList: true })`,
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a reused row keeps its old key',
+    edits: [
+      {
+        file,
+        find: `                } else if (previous !== key) {
+                  const height = borderBlockSize(child)
+                  if (height > 0) changed.push({ key, height })
+                }`,
+        replace: '                }',
+      },
+    ],
     tests,
   },
   {
