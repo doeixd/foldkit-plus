@@ -60,9 +60,11 @@ const raisedEdge = `0 1px 2px 0 color-mix(in oklch, black 14%, transparent), ${r
 /**
  * The narrowest a wrapping row's tabs go before it falls to fewer columns,
  * on the tabs' size step: a short label ("Themes") and its padding.
- * `--fk-tab-min` tunes it.
+ * A private property of the recipe, not a token: an app tunes one row with
+ * `Recipes.Tabs.extend({ base: { tablist: Style.self({ '--_fk-tab-min': '8rem' }) } })`.
  */
-const tabMin = `var(--fk-tab-min, calc(${controlHeight} * 3))`
+const TAB_MIN = '--_fk-tab-min'
+const tabMin = `var(${TAB_MIN})`
 
 const trayPadding = `calc(${ref.space['2xs']} * 0.75)`
 
@@ -86,6 +88,7 @@ export const Tabs = Style.recipeFor(TabsSlots)({
         display: 'flex',
         gap: ref.space['2xs'],
         isolation: 'isolate',
+        [TAB_MIN]: `calc(${controlHeight} * 3)`,
       }),
       // As wide as its widest tab, so the rule at its end stays beside them.
       Style.pseudo(upright, {

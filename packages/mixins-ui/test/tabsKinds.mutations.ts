@@ -156,9 +156,13 @@ export default [
     tests,
   },
   {
-    name: 'a wrapping row ignores --fk-tab-min',
+    name: 'a wrapping row ignores --_fk-tab-min',
     edits: [
-      { file: recipe, find: 'var(--fk-tab-min, calc(', replace: 'var(--fk-tab-unset, calc(' },
+      {
+        file: recipe,
+        find: 'const tabMin = `var(${TAB_MIN})`',
+        replace: 'const tabMin = `calc(${controlHeight} * 3)`',
+      },
     ],
     tests,
   },

@@ -45,7 +45,7 @@ interface Fixture {
   readonly orientation?: UiTabs.Orientation
   /** The tablist's width, to make a row overflow. */
   readonly width?: string
-  /** `--fk-tab-min`, which a wrapping row's columns are no narrower than. */
+  /** `--_fk-tab-min`, which a wrapping row's columns are no narrower than. */
   readonly tabMin?: string
   readonly scheme?: 'light' | 'dark'
 }
@@ -58,7 +58,13 @@ const sheetOf = (css: string) => {
 }
 
 const mount = (fixture: Fixture) => {
-  const style = Style.forSlots(TabsSlots)(Recipes.Tabs(fixture.recipe ?? {}))
+  const recipe =
+    fixture.tabMin === undefined
+      ? Recipes.Tabs
+      : Recipes.Tabs.extend({
+          base: { tablist: Style.self({ '--_fk-tab-min': fixture.tabMin }) },
+        })
+  const style = Style.forSlots(TabsSlots)(recipe(fixture.recipe ?? {}))
   sheetOf(
     Style.stylesheet(
       Layers.standard.declare,
@@ -71,7 +77,6 @@ const mount = (fixture: Fixture) => {
   // The runtime draws in place of its container, so the width goes on a box around it.
   const box = document.createElement('div')
   if (fixture.width !== undefined) box.style.width = fixture.width
-  if (fixture.tabMin !== undefined) box.style.setProperty('--fk-tab-min', fixture.tabMin)
   const container = document.createElement('div')
   container.id = 'tabs-kinds'
   box.appendChild(container)
@@ -353,7 +358,7 @@ test.each([
   },
 )
 
-test("--fk-tab-min sets how narrow a wrapping row's tabs go", async () => {
+test("--_fk-tab-min sets how narrow a wrapping row's tabs go", async () => {
   const handle = mount({
     values: panes,
     recipe: { variant: 'pill', size: 'sm', overflow: 'wrap' },
