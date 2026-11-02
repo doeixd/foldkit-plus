@@ -345,30 +345,48 @@ test('the results list focused from the keys shows its start below the header on
 })
 
 // The browser's own scroll keys animate, and Chromium drops a key pressed in
-// that animation's last frame (#406), so the list scrolls the page at once.
-// `pnpm mutate` does not reach this dev server; with the list's key handler
-// removed by hand, the read after PageDown fails.
-test("the results list's keys scroll the page at once, as upstream's do", async () => {
+// that animation's last frame (#406), so the list takes its keys and scrolls
+// the page at once by a Command. That the browser was told not to scroll is
+// read off the key itself. Where the page lands is polled, with a long
+// timeout: the Command can run frames after the press on a loaded runner, and
+// the page shifts as prices land. `pnpm mutate` does not reach this dev
+// server; with the list's key handler removed by hand, PageDown is not
+// prevented.
+test("the results list takes its keys and scrolls the page itself, as upstream's does", async () => {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
   await page.goto(`${origin}/?q=acme`)
   await live(page)
   await page.locator('#domain-results').focus()
+  /** Whether the page prevented the browser's own scroll for `key`. */
+  const prevented = async (key: string) => {
+    await page.evaluate(() => {
+      Object.assign(window, {
+        keyPrevented: new Promise(resolve =>
+          window.addEventListener('keydown', event => resolve(event.defaultPrevented), {
+            once: true,
+          }),
+        ),
+      })
+    })
+    await page.keyboard.press(key)
+    return page.evaluate(
+      () => (window as unknown as { keyPrevented: Promise<boolean> }).keyPrevented,
+    )
+  }
   const offset = () => page.evaluate(() => window.scrollY)
+  const end = () => page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)
   const before = await offset()
-  await page.keyboard.press('PageDown')
-  // Read straight after the press: an animated scroll has barely begun.
-  expect(await offset()).toBe(before + 900 * 0.9)
-  await page.keyboard.press('End')
-  expect(await offset()).toBe(
-    await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight),
-  )
+  expect(await prevented('PageDown')).toBe(true)
+  await expect.poll(offset, { timeout: 30_000 }).toBeGreaterThan(before)
+  expect(await prevented('End')).toBe(true)
+  await expect.poll(async () => (await offset()) === (await end()), { timeout: 30_000 }).toBe(true)
   await expect
     .poll(() => page.locator('#domain-results .domain-row').last().textContent(), {
       timeout: 30_000,
     })
     .toContain('acme.zone')
-  await page.keyboard.press('Home')
-  expect(await offset()).toBe(0)
+  expect(await prevented('Home')).toBe(true)
+  await expect.poll(offset, { timeout: 30_000 }).toBe(0)
   await page.close()
 })
 

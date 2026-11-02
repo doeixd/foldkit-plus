@@ -622,7 +622,9 @@ Foldkit's own behaviour that we work around is listed in
   and upstream's parity test, which presses End as soon as Page Down has
   moved the page, failed one run in four (#406); Home and ArrowUp failed the
   same way. Handle such keys and scroll with `behavior: 'instant'`, as
-  upstream does, and test a key by reading the offset straight after it.
+  upstream does. Test such a key by its `defaultPrevented` and poll where the
+  page lands: reading the offset straight after the press failed on CI, where
+  the Command ran frames later.
 - **Vite 8's `port: 0` is a probe, not a bind.** `httpServerStart` listens on
   an ephemeral port, closes it, and binds it again, so another process can
   take it between: CI's cloudflare e2e failed "Port 41893 is already in use",
