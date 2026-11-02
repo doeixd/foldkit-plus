@@ -676,6 +676,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`returning(binding, fields).columns` goes to Postgres's `.returning`
+  uncast** (`foldkit-remote-drizzle`, #338). Its columns were typed
+  `Record<string, AnyColumn>`, which SQLite's `.returning` took and Postgres's
+  refused, so a Postgres mutation handler needed a cast. They are now typed by
+  the binding's table: `PgColumn` for a `pgTable`, `SQLiteColumn` for a
+  `sqliteTable`. What it returns is named `Returning<Column>`.
+
 - **A read interrupted by a change of policy no longer stays `Loading`**
   (`foldkit-remote`, #402). A read entry that restarts and no longer asks for
   what its interrupted read marked `Loading` (`cacheOnly` picked mid-read, a

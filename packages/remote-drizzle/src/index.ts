@@ -27,8 +27,12 @@ import {
   type SQL,
   type Table,
 } from 'drizzle-orm'
-import { getTableConfig as getPgTableConfig, type PgTable } from 'drizzle-orm/pg-core'
-import { SQLiteTable } from 'drizzle-orm/sqlite-core'
+import {
+  getTableConfig as getPgTableConfig,
+  type PgColumn,
+  type PgTable,
+} from 'drizzle-orm/pg-core'
+import { type SQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { Array as Arr, Clock, Effect, Match, Option, Result, Schema } from 'effect'
 import {
   Entity as DomainEntity,
@@ -281,55 +285,68 @@ export const normalize = (
 
 /**
  * The `returning` columns for `fields` and the normalization of the rows they
+ * yield. `columns` are the table's own dialect's, so Drizzle's `returning`
+ * takes them as they are.
+ */
+export interface Returning<Column extends AnyColumn = AnyColumn> {
+  readonly columns: Record<string, Column>
+  readonly patches: (rows: ReadonlyArray<Record<string, unknown>>) => ReadonlyArray<NormalizedPatch>
+}
+
+// Postgres first: a `PgTable` is structurally a `SQLiteTable`, so the SQLite
+// signature would take a Postgres binding and give it columns Postgres refuses.
+function returningOf(
+  binding: AnyEntityBinding & { readonly table: PgTable },
+  fields: readonly string[],
+): Returning<PgColumn>
+function returningOf(
+  binding: AnyEntityBinding & { readonly table: SQLiteTable },
+  fields: readonly string[],
+): Returning<SQLiteColumn>
+function returningOf(binding: AnyEntityBinding, fields: readonly string[]): Returning {
+  return {
+    columns: selectColumns(binding, fields),
+    patches: rows => normalize(binding, rows, fields),
+  }
+}
+
+/**
+ * The `returning` columns for `fields` and the normalization of the rows they
  * yield, paired so a mutation cannot select one set of columns and normalize
  * another.
  */
-export const returning = Object.assign(
-  (
+export const returning = Object.assign(returningOf, {
+  /**
+   * Every column of row `id` as it now is, with each `one` relation as its ref,
+   * as patches: what a mutation handler returns in `entities` so the client's
+   * store learns all it wrote, not only the fields it patched. Empty when there
+   * is no such row. A collection relation is not read; load it with `source`.
+   */
+  row: (
     binding: AnyEntityBinding,
-    fields: readonly string[],
-  ): {
-    readonly columns: Record<string, AnyColumn>
-    readonly patches: (
-      rows: ReadonlyArray<Record<string, unknown>>,
-    ) => ReadonlyArray<NormalizedPatch>
-  } => ({
-    columns: selectColumns(binding, fields),
-    patches: rows => normalize(binding, rows, fields),
-  }),
-  {
-    /**
-     * Every column of row `id` as it now is, with each `one` relation as its ref,
-     * as patches: what a mutation handler returns in `entities` so the client's
-     * store learns all it wrote, not only the fields it patched. Empty when there
-     * is no such row. A collection relation is not read; load it with `source`.
-     */
-    row: (
-      binding: AnyEntityBinding,
-      id: string,
-    ): Effect.Effect<ReadonlyArray<NormalizedPatch>, RemoteServerError, DrizzleDatabase> =>
-      Effect.gen(function* () {
-        // Every column, and each `one` relation as the ref its foreign key encodes.
-        const fields = [
-          ...Object.keys(binding.columns),
-          ...Object.entries(binding.relations).flatMap(([field, relation]) =>
-            relation.kind === 'one' ? [field] : [],
-          ),
-        ]
-        const columns = selectColumns(binding, fields)
-        const database = yield* DrizzleDatabase
-        const rows = yield* runStatement(
-          () =>
-            database
-              .select(columns)
-              .from(binding.table)
-              .where(whereIds(binding, [id])),
-          'Database query failed',
-        )
-        return normalize(binding, rows, fields)
-      }),
-  },
-)
+    id: string,
+  ): Effect.Effect<ReadonlyArray<NormalizedPatch>, RemoteServerError, DrizzleDatabase> =>
+    Effect.gen(function* () {
+      // Every column, and each `one` relation as the ref its foreign key encodes.
+      const fields = [
+        ...Object.keys(binding.columns),
+        ...Object.entries(binding.relations).flatMap(([field, relation]) =>
+          relation.kind === 'one' ? [field] : [],
+        ),
+      ]
+      const columns = selectColumns(binding, fields)
+      const database = yield* DrizzleDatabase
+      const rows = yield* runStatement(
+        () =>
+          database
+            .select(columns)
+            .from(binding.table)
+            .where(whereIds(binding, [id])),
+        'Database query failed',
+      )
+      return normalize(binding, rows, fields)
+    }),
+})
 
 /**
  * A pruned reader backed by an injected executor. Use it when the database is
@@ -1530,7 +1547,7 @@ export const writer = <P = unknown>(
 
   const answeredOf = (
     rows: ReadonlyArray<Record<string, unknown>>,
-    answered: ReturnType<typeof returning>,
+    answered: Returning,
   ): Option.Option<Readonly<Record<string, unknown>>> =>
     Option.map(Option.fromUndefinedOr(answered.patches(rows)[0]), patch => patch.values)
 
@@ -1569,7 +1586,7 @@ export const writer = <P = unknown>(
     request: string,
     id: string,
     update: (database: unknown) => unknown,
-    answered: ReturnType<typeof returning>,
+    answered: Returning,
   ): Effect.Effect<Ledgered, RemoteServerError, DrizzleDatabase> =>
     Effect.gen(function* () {
       const digest = yield* digestOf(request)
@@ -1750,7 +1767,7 @@ export const writer = <P = unknown>(
    */
   const answerOfRecord = (
     id: string,
-    answered: ReturnType<typeof returning>,
+    answered: Returning,
     record: string,
   ): Effect.Effect<Readonly<Record<string, unknown>>, RemoteServerError, DrizzleDatabase> =>
     Effect.gen(function* () {

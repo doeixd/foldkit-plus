@@ -1120,7 +1120,9 @@ const RemoteClientLive = Remote.clientLayer(RemoteServer.handlers(Server, 'user-
 // failed')` (a refusal fails as a RemoteServerError; the driver's error, with its SQL, is
 // reported as a StatementFailed diagnostic, never sent), then name each row it wrote in `entities` (`yield* returning.row(Project,
 // id)`, its stored values, or `Remote.patch(Project, id, {})`): the answer carries what the
-// page shows of each row it names, and only those.
+// page shows of each row it names, and only those. `returning(Project, fields)` gives
+// `columns` for the driver's own `.returning(…)` (typed by the table's dialect: Postgres and
+// SQLite both take them uncast) and `patches(rows)` for `entities`.
 ```
 
 Nullable foreign keys must say `one(User, { field, nullable: true })` (a NULL

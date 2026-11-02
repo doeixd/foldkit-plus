@@ -1488,13 +1488,13 @@ driver's own (which carries the SQL and its parameters) reported as a
 `StatementFailed` [diagnostic](#diagnostics), never sent:
 
 <!-- docs-check standalone
-import type { NodeSQLiteDatabase } from 'drizzle-orm/node-sqlite'
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
+import { pgTable, text } from 'drizzle-orm/pg-core'
 import { Schema } from 'effect'
 import { Mutation } from 'foldkit-remote'
 import { entity, one } from 'foldkit-remote-drizzle'
-const users = sqliteTable('users', { id: text('id').primaryKey(), name: text('name').notNull() })
-const projects = sqliteTable('projects', {
+const users = pgTable('users', { id: text('id').primaryKey(), name: text('name').notNull() })
+const projects = pgTable('projects', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   ownerId: text('owner_id').notNull(),
@@ -1508,7 +1508,7 @@ const RenameProject = Mutation.make('RenameProject', {
   Output: { id: Schema.String },
 })
 // The application's Drizzle database.
-declare const db: NodeSQLiteDatabase
+declare const db: NodePgDatabase
 -->
 
 ```ts
@@ -1548,7 +1548,9 @@ const RenameProjectSource = RemoteServer.mutation(
 `returning(binding, fields)` pairs the Drizzle column projection with the
 normalizer for those exact fields, so the mutation cannot accidentally select
 one shape and normalize another. Singular relation foreign keys are rewritten
-to Remote ref keys.
+to Remote ref keys. The columns are typed by the table's dialect (`PgColumn`
+for a `pgTable`, `SQLiteColumn` for a `sqliteTable`), so either dialect's
+`.returning` takes them without a cast.
 
 `selectColumns` and `normalize` are the lower-level halves when you need them
 separately.
