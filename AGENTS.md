@@ -816,6 +816,14 @@ Foldkit's own behaviour that we work around is listed in
   there was one. Make each source file an entry (#215), and add the package to
   `scripts/test/publishedBuild.test.ts`, which compares a page against the
   build and against the source.
+- **Caching a `Rendered` page saves little: the host parses it again.**
+  Foldkit's `renderDocument` calls `injectIntoTemplate`, which parses the
+  page with parse5 on every request; a kept domains-plus search still cost
+  50 ms of 140 until the entry's `renderDocument` was wrapped in
+  `SSR.keptDocuments` (0.8 ms). Measure the whole `handleRequest`, not
+  `renderPage`. And two renders of one page differ by the time a read was
+  stamped (`updatedAt` in the resumed Model), so a check comparing them
+  must leave such times out.
 - **A Mount runs outside the application's `resources`.** Only Commands and
   Subscriptions get them, so a service given there (a diagnostics reporter)
   never reaches a Mount; `MountFailed` goes to the default log (#333).

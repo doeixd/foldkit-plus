@@ -14,7 +14,7 @@ import {
 import { href } from 'virtual:foldkit-styles'
 import { modifyFields } from 'foldkit/struct'
 import { fromString } from 'foldkit/url'
-import { SSR } from 'foldkit-ssr'
+import { SSR, type Diagnostic, type PageCache } from 'foldkit-ssr'
 import {
   CartInCookie,
   Data,
@@ -29,6 +29,8 @@ import {
 import { documentHead } from '../client/documentHead.js'
 import { AppRoute } from '../client/site.js'
 import { view } from '../client/view.js'
+import { FRESH_FOR } from '../shared/entity'
+import { store } from './cache.js'
 import { cartOf, hasCart } from './cart.js'
 import { readPrices, serveRemote } from './remote.js'
 
@@ -41,9 +43,13 @@ import { readPrices, serveRemote } from './remote.js'
 const head = `${documentHead}
 <link rel="stylesheet" href="${href}" data-foldkit-styles-href>`
 
-/** The document around a rendered page. */
-export const renderDocument: DocumentRenderer = (application, assets) =>
-  renderShell(application, assets, { head })
+/**
+ * The document around a rendered page, remembered for a page served from
+ * the cache: drawing a page into it parses the page again.
+ */
+export const renderDocument: DocumentRenderer = SSR.keptDocuments((application, assets) =>
+  renderShell(application, assets, { head }),
+)
 
 /**
  * The page at the request's address, holding the cart its cookie keeps,
@@ -67,11 +73,17 @@ const readPage = (model: Model, request: Request): Effect.Effect<Model> => {
  * post reached is kept in the cookie the next request reads, and the post is
  * answered with a redirect to its page, so a reload asks for the page again
  * and posts nothing.
+ *
+ * A page whose reads were public and whose request carried no cookie is kept
+ * by its URL (`cache`); a page with a cart read the cookie, and is never kept.
+ * Made from where it keeps them, so a test can check what it keeps.
  */
-const pages = SSR.entry(
-  { Model, init, update, view, subscriptions, routing, container: null },
-  plan,
-  {
+export const pagesWith = (kept: {
+  readonly cache: PageCache
+  readonly diagnostics?: ((diagnostic: Diagnostic) => Effect.Effect<void>) | undefined
+}) =>
+  SSR.entry({ Model, init, update, view, subscriptions, routing, container: null }, plan, {
+    ...kept,
     buildId: import.meta.env.FOLDKIT_BUILD_ID,
     // A form may be posted from this page's own origin, and no other.
     origins: 'same-origin',
@@ -94,8 +106,9 @@ const pages = SSR.entry(
       }),
     }),
     status: model => AppRoute.match(model.route, { Search: () => 200, NotFound: () => 404 }),
-  },
-)
+  })
+
+const pages = pagesWith({ cache: { store, maxAge: FRESH_FOR } })
 
 /** `/remote` answers the prices; every other path is a page. */
 export const renderPage = async (request: Request): Promise<EntryResult> =>

@@ -91,4 +91,17 @@ describe('within the CPU budget', () => {
     })
     expect(readings.map(reading => reading.status)).toEqual([200, 200, 200])
   }, 120_000)
+
+  /**
+   * A page drawn from its URL alone is kept at the edge (#428), and served
+   * again without a read or a render: under a millisecond warm here, where
+   * the render it saves takes 40 to 140 ms.
+   */
+  test('a kept page', async () => {
+    const readings = await Cpu.budget(meter, {
+      warm: 5,
+      routes: { 'the landing page': '/', 'a search': '/?q=sunbeam' },
+    })
+    expect(readings.map(reading => reading.status)).toEqual([200, 200])
+  }, 60_000)
 })

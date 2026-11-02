@@ -6,12 +6,20 @@
  */
 import { Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
+import { EdgeCache } from 'foldkit-remote'
 import { DomainName, DomainQuote } from './domain'
 
+/** How long a price, and a page of them, is served as it was read. */
+export const FRESH_FOR = '60 seconds'
+
+/**
+ * A name's price is the same for every visitor, so a server may keep a read
+ * of it for `FRESH_FOR` (`EdgeCache.of`); the server proves the read public.
+ */
 export const Domain = Entity.defineVariants('Domain', {
   Available: { id: Schema.String, ...DomainName.fields, ...DomainQuote.fields },
   Unconfirmed: { id: Schema.String, ...DomainName.fields },
-})
+}).pipe(Entity.annotate(EdgeCache.of({ maxAge: FRESH_FOR })))
 
 /** Everything a card or a row shows of a name: its case, its price and its terms. */
 export const Quote = Entity.select(Domain, {
