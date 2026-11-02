@@ -114,6 +114,16 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
      */
     readonly fresh?: ((version: unknown) => boolean) | undefined
     /**
+     * What only this browser adds to the resumed Model before it is adopted,
+     * and the view does not draw: a session minted for this page load (an
+     * outbox's `session`). Run once, for a page that resumes; the runtime
+     * starts when it succeeds. What the view draws, such as a queue read from
+     * storage, arrives after, as a Message: here it would make the first
+     * client view differ from the served page. Must not fail, as `when` must
+     * not throw.
+     */
+    readonly prepare?: ((model: Model) => Effect.Effect<Model>) | undefined
+    /**
      * Where what the page met goes: a page contained rather than resumed, a
      * static region the server's page lacked, a lazy bundle that did not
      * load. Each is reported before or apart from the runtime, so its
@@ -176,99 +186,103 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     contain()
     return
   }
-  const model = resumed.success
-  // A page recorded for its path, opened at a query: the application learns
-  // the URL, as from a navigation, and the page starts now, since what it
-  // shows is not yet the address.
-  const arrived = arrival(config, document, window.location.href)
-  const commands = (plan.boot?.(model) as ReadonlyArray<unknown> | undefined) ?? []
-  const resuming: RenderContext = {
-    mode: 'resume',
-    snapshots: snapshotsOf(root),
-    reported: new Set(),
-    report,
-  }
-  // The runtime starts from the resumed Model, so its first render is the
-  // served markup and Foldkit adopts every node. The Messages the page
-  // answered before the live page listened wait in `answered`, and the first
-  // Message the runtime processes, whatever it is, runs them through `update`
-  // ahead of itself: they reach the Model before anything the live page
-  // answers, an event dispatched in the task that boots it included.
-  const answered: Array<unknown> = []
-  // Each answered Message was decoded through the plan's Message Schema.
-  const apply: ResumableConfig<Model>['update'] = config.update
-  const update = (current: Model, message: unknown) => {
-    const handingOver = message === HANDOVER
-    if (answered.length === 0) return handingOver ? { model: current } : apply(current, message)
-    const returned: Array<unknown> = []
-    for (const next of [...answered.splice(0), ...(handingOver ? [] : [message])]) {
-      const step = apply(current, next) as {
-        readonly model: Model
-        readonly commands?: ReadonlyArray<unknown> | undefined
-      }
-      current = step.model
-      returned.push(...(step.commands ?? []))
+  const adoptFrom = (model: Model): void => {
+    // A page recorded for its path, opened at a query: the application learns
+    // the URL, as from a navigation, and the page starts now, since what it
+    // shows is not yet the address.
+    const arrived = arrival(config, document, window.location.href)
+    const commands = (plan.boot?.(model) as ReadonlyArray<unknown> | undefined) ?? []
+    const resuming: RenderContext = {
+      mode: 'resume',
+      snapshots: snapshotsOf(root),
+      reported: new Set(),
+      report,
     }
-    return { model: current, commands: returned }
-  }
-  // The URL goes into the Model the runtime starts from, not into `answered`:
-  // Subscriptions start from that Model before any Message lands, and a URL
-  // mirror among them would write the served address back over the real one.
-  // The first render then differs from the served page where the URL does, and
-  // Foldkit rebuilds that part, as a navigation would redraw it. Applied at
-  // boot, once any lazy bundle's `update` has loaded.
-  const startOf = () =>
-    Option.match(arrived, {
-      onNone: () => ({ model, commands }),
-      onSome: message => {
-        const step = apply(model, message) as {
+    // The runtime starts from the resumed Model, so its first render is the
+    // served markup and Foldkit adopts every node. The Messages the page
+    // answered before the live page listened wait in `answered`, and the first
+    // Message the runtime processes, whatever it is, runs them through `update`
+    // ahead of itself: they reach the Model before anything the live page
+    // answers, an event dispatched in the task that boots it included.
+    const answered: Array<unknown> = []
+    // Each answered Message was decoded through the plan's Message Schema.
+    const apply: ResumableConfig<Model>['update'] = config.update
+    const update = (current: Model, message: unknown) => {
+      const handingOver = message === HANDOVER
+      if (answered.length === 0) return handingOver ? { model: current } : apply(current, message)
+      const returned: Array<unknown> = []
+      for (const next of [...answered.splice(0), ...(handingOver ? [] : [message])]) {
+        const step = apply(current, next) as {
           readonly model: Model
           readonly commands?: ReadonlyArray<unknown> | undefined
         }
-        return { model: step.model, commands: [...commands, ...(step.commands ?? [])] }
-      },
-    })
-  const boot = (entries: Readonly<Record<string, unknown>> = {}) => {
-    unmark(root)
-    return adopt(
-      makeApplication({
-        ...withContext(startingFrom({ ...config, update }, startOf()), resuming),
-        container: root,
-        subscriptions: { ...config.subscriptions, ...entries },
-      } as never),
-      { buildId: options.buildId },
-    )
+        current = step.model
+        returned.push(...(step.commands ?? []))
+      }
+      return { model: current, commands: returned }
+    }
+    // The URL goes into the Model the runtime starts from, not into `answered`:
+    // Subscriptions start from that Model before any Message lands, and a URL
+    // mirror among them would write the served address back over the real one.
+    // The first render then differs from the served page where the URL does, and
+    // Foldkit rebuilds that part, as a navigation would redraw it. Applied at
+    // boot, once any lazy bundle's `update` has loaded.
+    const startOf = () =>
+      Option.match(arrived, {
+        onNone: () => ({ model, commands }),
+        onSome: message => {
+          const step = apply(model, message) as {
+            readonly model: Model
+            readonly commands?: ReadonlyArray<unknown> | undefined
+          }
+          return { model: step.model, commands: [...commands, ...(step.commands ?? [])] }
+        },
+      })
+    const boot = (entries: Readonly<Record<string, unknown>> = {}) => {
+      unmark(root)
+      return adopt(
+        makeApplication({
+          ...withContext(startingFrom({ ...config, update }, startOf()), resuming),
+          container: root,
+          subscriptions: { ...config.subscriptions, ...entries },
+        } as never),
+        { buildId: options.buildId },
+      )
+    }
+    const pending = (config.lazy ?? []).filter(bundle => !bundle.isLoaded())
+    const start = Option.isSome(arrived) ? 'now' : plan.start
+    const eager = start === 'now' && pending.length === 0
+    if (eager && root.querySelector(`[${KEEP_ATTRIBUTE}]`) === null) {
+      boot()
+      return
+    }
+    const decoded = bindingsAndEvents(plan, document, root, model)
+    if (Result.isFailure(decoded)) {
+      report(pageContained(decoded.failure.reason, decoded.failure.message))
+      contain()
+      return
+    }
+    const kept = keptFields(root, decoded.success.bindings)
+    if (Result.isFailure(kept)) {
+      report(pageContained('Invalid', kept.failure))
+      contain()
+      return
+    }
+    // What was typed before this script ran, first in the queue: everything the
+    // page answers from here on happened after it.
+    answered.push(...typedMessages(kept.success))
+    if (eager && answered.length === 0) {
+      boot()
+      return
+    }
+    // Typing is an interaction, whenever it happened: a page that waits for
+    // one starts now, so what was typed is answered as soon as the script runs.
+    const typed = answered.length > 0 ? 'now' : start
+    deferBoot(root, decoded.success, typed, { boot, answered }, pending, report, kept.success)
   }
-  const pending = (config.lazy ?? []).filter(bundle => !bundle.isLoaded())
-  const start = Option.isSome(arrived) ? 'now' : plan.start
-  const eager = start === 'now' && pending.length === 0
-  if (eager && root.querySelector(`[${KEEP_ATTRIBUTE}]`) === null) {
-    boot()
-    return
-  }
-  const decoded = bindingsAndEvents(plan, document, root, model)
-  if (Result.isFailure(decoded)) {
-    report(pageContained(decoded.failure.reason, decoded.failure.message))
-    contain()
-    return
-  }
-  const kept = keptFields(root, decoded.success.bindings)
-  if (Result.isFailure(kept)) {
-    report(pageContained('Invalid', kept.failure))
-    contain()
-    return
-  }
-  // What was typed before this script ran, first in the queue: everything the
-  // page answers from here on happened after it.
-  answered.push(...typedMessages(kept.success))
-  if (eager && answered.length === 0) {
-    boot()
-    return
-  }
-  // Typing is an interaction, whenever it happened: a page that waits for
-  // one starts now, so what was typed is answered as soon as the script runs.
-  const typed = answered.length > 0 ? 'now' : start
-  deferBoot(root, decoded.success, typed, { boot, answered }, pending, report, kept.success)
+  const prepare = options.prepare
+  if (prepare === undefined) adoptFrom(resumed.success)
+  else void Effect.runPromise(prepare(resumed.success)).then(adoptFrom)
 }
 
 /**

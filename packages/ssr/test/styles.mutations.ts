@@ -35,8 +35,8 @@ export default [
       { file: client, find: '  if (root !== null) keepStyles(root)\n', replace: '' },
       {
         file: client,
-        find: '  const model = resumed.success\n',
-        replace: '  const model = resumed.success\n  keepStyles(root)\n',
+        find: '  const adoptFrom = (model: Model): void => {\n',
+        replace: '  const adoptFrom = (model: Model): void => {\n    keepStyles(root)\n',
       },
     ],
     tests: styles,

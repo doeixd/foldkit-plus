@@ -88,6 +88,14 @@ contained, or with `otherwise: 'render'` drawn afresh in its place. Give `until:
 served page stays in view while the fresh one draws hidden, and is swapped once it is ready
 (at most `UNTIL_LIMIT_MS`, 3 s): otherwise the page blinks to its loading state and back.
 
+What only the browser has (a queue it stored, an id this page load mints) never crosses:
+the server cannot read it. `SSR.hydrate`'s `prepare: model => Effect` adds to the resumed
+Model, before adoption, only what no view draws; what is drawn arrives after as a Message. A
+page with Remote's durable outbox passes `prepare: durable.session` (the session, nothing
+read), and the outbox's own Subscription brings the queue after the first frame. Restoring
+the queue there instead (`durable.restore`) would draw what the served page lacks, and Foldkit
+would rebuild those elements.
+
 ## Gotchas
 
 - **A served page with `foldkit-mixins` styles needs `styles`, or it flashes

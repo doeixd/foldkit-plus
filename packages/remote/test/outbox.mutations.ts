@@ -240,4 +240,16 @@ export default [
     ],
     tests: ['examples/chirp/test/post.test.ts'],
   },
+  // #347: a page resumed from a server render starts from the session alone.
+  {
+    name: "the outbox's session mints none",
+    edits: [
+      {
+        file: outbox,
+        find: 'outbox: { ...remote.outbox, session: Option.some(mintOperation()) },',
+        replace: 'outbox: remote.outbox,',
+      },
+    ],
+    tests: ['packages/remote/test/outboxReload.test.ts'],
+  },
 ]

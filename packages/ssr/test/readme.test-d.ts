@@ -6,6 +6,8 @@ import { Effect, Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { defineRouteUnion } from 'foldkit/route'
+import { Remote } from 'foldkit-remote'
+import { outbox } from 'foldkit-remote/outbox'
 import { Projection, Surface } from 'foldkit-surface'
 import { SSR as Server, type Diagnostic, type SsrDiagnostic } from 'foldkit-ssr'
 import { SSR } from 'foldkit-ssr/client'
@@ -70,4 +72,34 @@ SSR.hydrate(config, plan, { buildId, diagnostics: async () => {} })
 {
   const prerenderPaths = ['/']
   Server.entry(config, plan, { buildId, prerendered: prerenderPaths })
+}
+
+// The README's `prepare` snippet: a page with Remote's durable outbox resumes
+// from its session, which needs no service.
+{
+  const Model = Schema.Struct({ userId: Schema.String, remote: Remote.Model })
+  const App = Surface.application({
+    Model,
+    Message: defineMessageUnion({ ...Remote.messages }),
+    initial: { userId: 'ada', remote: Remote.initial },
+    update: model => ({ model }),
+  })
+  const Data = Remote.make({ model: App.model.remote, entities: [] })
+  const plan = SSR.plan(App, { id: 'outbox', state: Projection.pick(App.model.userId) })
+  const config = {
+    Model,
+    init: () => ({ model: App.initial }),
+    update: (model: typeof Model.Type) => ({ model }),
+    view: (_model: typeof Model.Type, h: HtmlBuilder<never>) => h.p([], []),
+    container: null,
+  }
+
+  const durable = outbox(Data, {
+    key: model => `outbox:${model.userId}`,
+    scope: model => model.userId,
+  })
+
+  SSR.hydrate(config, plan, { buildId, prepare: durable.session })
+  // @ts-expect-error: the restore reads a KeyValueStore, which nothing provides before adoption
+  SSR.hydrate(config, plan, { buildId, prepare: durable.restore })
 }

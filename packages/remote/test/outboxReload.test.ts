@@ -5,7 +5,7 @@
  * starts from the outbox's restore, shows the write from its first frame,
  * and sends it with the same operation id and the same `now`.
  */
-import { Effect, Layer, Schema, Stream } from 'effect'
+import { Deferred, Effect, Layer, Schema, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
@@ -106,8 +106,17 @@ const server = (offline: boolean) => {
 
 const text = (id: string) => document.getElementById(id)?.textContent
 
-/** A page of the application on the runtime, over `kv`, started from the outbox's restore. */
-const open = (kv: KeyValueStore.KeyValueStore, client: RemoteClient['Service']) => {
+/**
+ * A page of the application on the runtime, over `kv`, started from the
+ * outbox's restore, or from its session alone, as a page resumed from a
+ * server render starts (#347).
+ */
+const open = (
+  kv: KeyValueStore.KeyValueStore,
+  client: RemoteClient['Service'],
+  start: (model: Model) => Effect.Effect<Model> = model =>
+    durable.restore(model).pipe(Effect.provideService(KeyValueStore.KeyValueStore, kv)),
+) => {
   const container = document.createElement('div')
   container.id = `page-${Math.random().toString(36).slice(2)}`
   document.body.appendChild(container)
@@ -115,7 +124,7 @@ const open = (kv: KeyValueStore.KeyValueStore, client: RemoteClient['Service']) 
     Runtime.makeElement({
       Model,
       Flags: Model,
-      flags: durable.restore(initial),
+      flags: start(initial),
       init: (model: Model) => ({ model }),
       update,
       view,
@@ -129,7 +138,8 @@ const open = (kv: KeyValueStore.KeyValueStore, client: RemoteClient['Service']) 
   )
 }
 
-it('keeps a write made offline across a reload, and sends it as itself', async () => {
+/** A store in memory, with a page that made a write offline and went. */
+const leftOffline = async () => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
     setTimeout(() => callback(performance.now()), 0),
   )
@@ -139,7 +149,6 @@ it('keeps a write made offline across a reload, and sends it as itself', async (
       return yield* KeyValueStore.KeyValueStore
     }).pipe(Effect.provide(KeyValueStore.layerMemory)),
   )
-
   const offline = server(true)
   const first = open(kv, offline.client)
   try {
@@ -152,6 +161,11 @@ it('keeps a write made offline across a reload, and sends it as itself', async (
     first.dispose()
   }
   document.body.innerHTML = ''
+  return { kv, offline }
+}
+
+it('keeps a write made offline across a reload, and sends it as itself', async () => {
+  const { kv, offline } = await leftOffline()
   expect(Effect.runSync(kv.get('outbox:ada'))).toContain('"now":4321')
 
   const online = server(false)
@@ -161,6 +175,35 @@ it('keeps a write made offline across a reload, and sends it as itself', async (
     await vi.waitFor(() => expect(text('waiting')).toBe('0'))
     expect(online.sent).toEqual([{ operation: offline.sent[0]!.operation, now: 4321 }])
     expect(offline.sent.every(each => each.operation === online.sent[0]!.operation)).toBe(true)
+  } finally {
+    second.dispose()
+  }
+})
+
+it('takes a write made before the queue is read, from a page started from its session (#347)', async () => {
+  const { kv, offline } = await leftOffline()
+  // The store answers once the test says, so the write lands before the read.
+  const opened = Deferred.makeUnsafe<void>()
+  const late: KeyValueStore.KeyValueStore = {
+    ...kv,
+    get: key => Effect.andThen(Deferred.await(opened), kv.get(key)),
+  }
+
+  const online = server(false)
+  const second = open(late, online.client, durable.session)
+  try {
+    await vi.waitFor(() => expect(text('count')).toBe('1'))
+    ;(document.getElementById('press') as HTMLElement).click()
+    await vi.waitFor(() => expect(text('waiting')).toBe('1'))
+    expect(online.sent).toEqual([])
+
+    Deferred.doneUnsafe(opened, Effect.void)
+    await vi.waitFor(() => expect(online.sent.length).toBe(2))
+    const [stored, made] = online.sent
+    // The write the reload left goes first, then the one made before it was read.
+    expect(stored).toEqual({ operation: offline.sent[0]!.operation, now: 4321 })
+    expect(made!.operation).not.toBe(stored!.operation)
+    await vi.waitFor(() => expect(text('waiting')).toBe('0'))
   } finally {
     second.dispose()
   }

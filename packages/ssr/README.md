@@ -70,6 +70,9 @@ and the checks that the browser can start from it.
   state of its own, and every change after boot goes through `update`.
 - **Data belongs to its package.** Remote's store crosses through Remote's own
   part (`Remote.resume`), which decides what to capture.
+- **What the browser stored stays the browser's.** The server cannot read a
+  queue kept in `localStorage`, so it is never in the page: it joins after
+  the first frame ([`prepare`](#what-only-the-browser-has-prepare)).
 
 ## The mental model
 
@@ -673,6 +676,57 @@ content a Message should change belongs in a Surface. A region the browser
 needs that is not in the page, say after a Message shows one, is reported
 ([`StaticRegionMissing`](#diagnostics), once per page) and rendered in the
 browser.
+
+### What only the browser has: `prepare`
+
+The server cannot send what it cannot see. What this browser stored (a
+queue of writes kept in `localStorage` or IndexedDB) and what this page
+load mints (an id its writes are named by) exist only in the browser. The
+rule above still holds, so the first client view is the served page, and
+such state is split by whether the view draws it:
+
+```text
+envelope ──▶ resumed Model ──▶ prepare: what the view does not draw ──▶ Runtime.hydrate adopts the served page
+                                                                          └─▶ a Subscription reads the store ──▶ Message ──▶ update ──▶ drawn
+```
+
+`prepare: model => Effect` runs once, on the Model a page resumes, before
+anything is adopted, and the runtime starts when it succeeds. Keep it to
+what no view draws. What the view draws arrives after, as a Message,
+reduced over whatever the Model is by then. A `prepare` that changes what is
+drawn makes the first client view differ from the served page: Foldkit
+rebuilds every element that differs, and a development build warns that the
+server DOM did not match. It must not fail, as `when` must not throw. A page
+drawn afresh (no served page, or `otherwise: 'render'`) starts from `init`,
+as it would without a server render, and does not run it.
+
+Remote's durable outbox is the case it was made for. A page that makes
+durable writes ([`foldkit-remote`'s outbox](../remote/README.md#a-write-that-outlives-the-page-outbox))
+resumes from the outbox's `session`:
+
+```ts
+import { outbox } from 'foldkit-remote/outbox'
+
+const durable = outbox(Data, { key: model => `outbox:${model.userId}`, scope: model => model.userId })
+
+SSR.hydrate(config, plan, { buildId, prepare: durable.session })
+```
+
+- **The server's page holds none of the queue.** `Remote.resume` carries no
+  outbox, and the server has no store to read.
+- **`durable.session` mints the page's id and reads nothing.** A durable
+  write made before the queue is read is queued at once, not refused.
+- **The queue arrives through the outbox's own Subscription.** It reads the
+  store after the first frame and sends `OutboxRead`, which keeps any write
+  made before it and saves it with the rest. The unsent writes then join the
+  page, and every tab on the key shows them.
+- **Not `durable.restore`.** As `prepare`, it would read the store before
+  adoption and show the queue in a first view the server did not draw. As
+  the config's `flags`, it never runs: a resumed page does not run `init`.
+
+[`examples/reference`](../../examples/reference) does this on Workers: a
+note added while the server is out of reach survives a reload of the
+Worker's page, shows in a second tab, and is sent once the server answers.
 
 ### Markup the browser adopts: `SSR.serving`
 

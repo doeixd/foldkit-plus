@@ -2225,6 +2225,20 @@ runtime's `flags` and start `init` from it. It reads back what a reload left and
 mints the page's session, which names its writes; `Data.mutate` with `durable`
 before it has run throws.
 
+A page a server rendered (`foldkit-ssr`'s `SSR.hydrate`) runs no `init` and
+must first draw what the server drew, which cannot include a queue only this
+browser stored. It resumes from `durable.session` instead, which mints the
+session and reads nothing, so a durable write can be made at once; the
+outbox's own Subscription reads the queue after the first frame, and its
+`OutboxRead` keeps any write made before it:
+
+```ts
+SSR.hydrate(config, plan, { buildId, prepare: durable.session })
+```
+
+See [what only the browser has](../ssr/README.md#what-only-the-browser-has-prepare)
+in `foldkit-ssr`.
+
 ```text
 Data.mutate(…, { durable }) → queued in the Model, layer shown   (its Command answers MutationQueued)
 outbox.save  → the queue written to the store, merged with other tabs' → OutboxRead (stored)
@@ -2234,6 +2248,7 @@ Data.signedIn → each write waiting for a sign-in waits its turn again → sent
 outbox.adopt → a visitor's writes, once an answer names who signed in: stamped as them → OutboxMoved
 outbox.hold  → writes made for someone other than whom an answer names: not sent → OutboxHeld
 reload       → outbox.restore: the queue back, layers shown → sent again, same operation id, same now
+server page  → durable.session (prepare) → the served page adopted → outbox.restore's Subscription → OutboxRead → layers shown
 ```
 
 - **Stored before sent.** A write is sent only once the store holds it, so a

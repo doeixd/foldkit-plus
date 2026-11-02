@@ -725,7 +725,11 @@ is its operation id (`<session>-<n>`), and its Command answers `MutationQueued`.
 Assemble `outbox(Data, { key, scope, retry? })` from `foldkit-remote/outbox`
 beside `Data.wiring` (it needs a `KeyValueStore` and `RemoteClient`), and start
 `init` from its `restore(model)` as the runtime's `flags`, which mints the session (a
-durable `mutate` before it throws) and shows what a reload left. The outbox
+durable `mutate` before it throws) and shows what a reload left. A page a
+server rendered (`SSR.hydrate`) runs no `init` and must first draw the served
+page: pass `prepare: durable.session` to `SSR.hydrate`, which mints the
+session and reads nothing; the outbox's `outbox.restore` Subscription reads
+the queue after the first frame, keeping any write made before it. The outbox
 stores a write before sending it, sends the oldest one at a time under a Web
 Lock (one tab sends), sends again with the same operation id and `now` after a
 reload or an `Unreachable` failure (backoff 1 s doubling to 30 s, and on

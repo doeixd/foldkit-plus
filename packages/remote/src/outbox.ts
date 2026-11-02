@@ -46,7 +46,10 @@ export interface OutboxDomain<AppModel> {
   readonly registry: {
     readonly mutations: ReadonlyMap<string, MutationDescriptor<any, any, any>>
   }
-  readonly store: { get(model: AppModel): RemoteModel }
+  readonly store: {
+    get(model: AppModel): RemoteModel
+    set(model: AppModel, remote: RemoteModel): AppModel
+  }
   readonly contract: { readonly name: string }
   reduce(model: AppModel, message: RemoteMessage): AppModel
 }
@@ -81,6 +84,14 @@ export interface OutboxWiring<AppModel> extends Wiring<
    * the first frame then shows the waiting writes.
    */
   readonly restore: (model: AppModel) => Effect.Effect<AppModel, never, KeyValueStore.KeyValueStore>
+  /**
+   * The Model with this page's session minted, and nothing read: what a page
+   * resumed from a server render starts from (`SSR.hydrate`'s `prepare`),
+   * since the server cannot read the store and the first client view must be
+   * the served page. A durable write can then be made at once; the stored
+   * queue arrives after the first frame, as an `OutboxRead`, and keeps it.
+   */
+  readonly session: (model: AppModel) => Effect.Effect<AppModel>
 }
 
 /**
@@ -88,7 +99,8 @@ export interface OutboxWiring<AppModel> extends Wiring<
  * sends them, as a wiring beside `Data.wiring`: the queue is written to `key`
  * before a write is sent, sent oldest first by one tab (a Web Lock), sent
  * again after a failure that nothing answered with a backoff, and read back
- * by every tab. Start `init` from its `restore`. A change of principal should
+ * by every tab. Start `init` from its `restore`, or a page resumed from a
+ * server render from its `session`. A change of principal should
  * `forget` in `update`, and name another `key`. Each write is sent naming
  * whom the server last said it answered as when it was queued, and the
  * server runs it for no one else: one made for someone other than whom an
@@ -646,6 +658,14 @@ export const outbox = <AppModel>(
       'outbox.adopt': adopt,
       'outbox.hold': hold,
     })),
+    session: model =>
+      Effect.sync(() => {
+        const remote = domain.store.get(model)
+        return domain.store.set(model, {
+          ...remote,
+          outbox: { ...remote.outbox, session: Option.some(mintOperation()) },
+        })
+      }),
     restore: model =>
       Effect.map(
         Effect.flatMap(minted(Option.isSome(domain.store.get(model).outbox.session)), mint =>

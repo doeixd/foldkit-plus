@@ -173,7 +173,7 @@ const writes: WriteCapability = {
       return Option.match(remote.outbox.session, {
         onNone: () => {
           throw new Error(
-            `[foldkit-remote] Data.mutate(${mutation}, { durable: true }) before the outbox's restore has run: start init from outbox(Data, …).restore(model), as the runtime's flags, so a durable write has an id no other tab or page load uses`,
+            `[foldkit-remote] Data.mutate(${mutation}, { durable: true }) before the outbox's restore has run: start init from outbox(Data, …).restore(model), as the runtime's flags, or pass its session as SSR.hydrate's prepare, so a durable write has an id no other tab or page load uses`,
           )
         },
         onSome: session => `${session}-${remote.mutations.sequence + 1}`,

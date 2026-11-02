@@ -9,6 +9,19 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **A durable outbox under a server render: `SSR.hydrate`'s `prepare` and
+  the outbox's `session`** (`foldkit-ssr`, `foldkit-remote`, #347).
+  `prepare: model => Effect<Model>` adds to the Model a page resumes what
+  only the browser has and no view draws, before anything is adopted; the
+  runtime starts once it succeeds. `outbox(Data, …).session(model)` mints
+  the page's session and reads nothing, so with `SSR.hydrate(config, plan,
+  { buildId, prepare: durable.session })` a durable write can be made at
+  once, and the outbox's own Subscription reads the stored queue after the
+  first frame and keeps a write made before it. The served page is adopted
+  as it was drawn: restoring the queue before adoption would draw what the
+  server did not. `outbox` now needs `store.set` of its domain, which
+  `Remote.make`'s value has.
+
 - **An invariant reads `one` relations** (`foldkit-entity`,
   `foldkit-remote-drizzle`, #345). `before` and `after` in
   `Entity.invariant` hold each `one` relation as the id it points at, as a
