@@ -112,15 +112,15 @@ const editorNote = (model: Model): string => {
       return 'Saving…'
     case 'Saved':
       return 'Saved.'
-    case 'SaveFailed':
-      return PostEditor.saveError(model)?.message ?? 'The server refused it.'
     case 'NotFound':
       return 'This post is gone.'
     case 'LoadFailed':
       return 'Could not load it.'
-    case 'Conflict':
     case 'Moved':
       return 'Someone changed it meanwhile.'
+    // The form says why a save did not land, beside its button.
+    case 'SaveFailed':
+    case 'Conflict':
     case 'Editing':
     case 'Closed':
       return ''

@@ -244,7 +244,6 @@ PostEditorView(
     status: PostEditor.status(model),
     title: 'Edit post',
     form: EditForm.view(model, h, { options: pickers(model) }),
-    error: PostEditor.saveError(model)?.message,
     onClose: Message.ClosedPost(),
   },
   h,
@@ -273,7 +272,7 @@ something to edit:
 | `NotFound`, `LoadFailed` | a status; a failed read as an alert, with `onRetry`'s button | no |
 | `Editing` | nothing | yes |
 | `Saving`, `Saved` | `Saving…` (busy), `Saved.` | yes |
-| `SaveFailed`, `Conflict` | an alert: the error, or that someone saved first | yes: a failed save keeps the draft |
+| `SaveFailed`, `Conflict` | nothing: the form says why in its `failure` Slot, beside its button, so it is announced once | yes: a failed save keeps the draft |
 | `Moved` | that someone else has saved since | yes |
 
 The root is a `section` named by its title (`h2`), with the status in
@@ -288,7 +287,8 @@ Escape and the backdrop close the Dialog by itself: answer its `Closed`
 OutMessage with the editor's close (`Placed.helpers.close()`), as `onClose`
 does for the Close button, or the dialog hides while the editor stays open and
 its row stays required. Every word is the view's `words`, text with
-blanks (`saveFailed: 'Not saved: {message}'`, `question: 'Delete {name}?'`).
+blanks (`question: 'Delete {name}?'`). What a failed save says is the
+editor's (`Crud.editor`'s `words`), drawn by the form.
 
 ## A look for each view
 

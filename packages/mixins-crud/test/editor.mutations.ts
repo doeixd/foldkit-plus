@@ -24,8 +24,8 @@ export default [
     edits: [
       {
         file,
-        find: "SaveFailed: { line: 'alert', words: 'saveFailed', form: true },",
-        replace: "SaveFailed: { line: 'alert', words: 'saveFailed', form: false },",
+        find: "SaveFailed: { line: 'none', words: undefined, form: true },",
+        replace: "SaveFailed: { line: 'none', words: undefined, form: false },",
       },
     ],
     tests,

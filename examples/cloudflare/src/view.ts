@@ -66,7 +66,6 @@ const editor = (model: Model, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
         status: state,
         title: 'Rename',
         form: RenameForm.view(model, h, { words: { submit: 'Save' } }),
-        error: Rename.saveError(model)?.message,
         onClose: Message.ClosedEditor(),
         words: { notFound: 'That todo does not exist.', loadFailed: 'The todo could not be read.' },
       },

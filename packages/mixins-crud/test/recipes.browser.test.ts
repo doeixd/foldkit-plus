@@ -140,10 +140,10 @@ test('an editor’s failure reads in the error’s ink, and a delete’s yes in 
         EditorStyled(
           {
             id: 'editor',
-            status: 'SaveFailed',
+            // A failed save is the form's to say; a failed read is the editor's.
+            status: 'LoadFailed',
             title: 'Edit post',
             form: h.p([], ['The form']),
-            error: 'offline',
           },
           h,
         ),

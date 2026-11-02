@@ -79,7 +79,6 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
           more: pickers.more(model),
           words,
         }),
-        error: PostEditor.saveError(model)?.message,
         onClose: Message.ClosedPost(),
         words: editorWords,
       },

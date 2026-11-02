@@ -33,7 +33,6 @@ const drawn = (status: EditorStatus, extra: Partial<Parameters<typeof Editor>[0]
       status,
       title: 'Edit post',
       form,
-      error: 'slug taken',
       onClose: { _tag: 'Closed' },
       onRetry: { _tag: 'Retried' },
       ...extra,
@@ -63,14 +62,9 @@ describe('EditorView', () => {
     ['Editing', undefined, undefined, true, ['Close']],
     ['Saving', 'true', ['status', 'Saving…'], true, ['Close']],
     ['Saved', undefined, ['status', 'Saved.'], true, ['Close']],
-    ['SaveFailed', undefined, ['alert', 'Not saved: slug taken'], true, ['Close']],
-    [
-      'Conflict',
-      undefined,
-      ['alert', 'Someone else saved this first, so your changes were not saved.'],
-      true,
-      ['Close'],
-    ],
+    // The form says why a save did not land, beside its button: said once.
+    ['SaveFailed', undefined, undefined, true, ['Close']],
+    ['Conflict', undefined, undefined, true, ['Close']],
     [
       'Moved',
       undefined,
@@ -98,9 +92,10 @@ describe('EditorView', () => {
   })
 
   it('says its states in the application’s words', () => {
-    expect(
-      read(drawn('SaveFailed', { words: { saveFailed: 'Nicht gespeichert: {message}' } })).line,
-    ).toEqual(['alert', 'Nicht gespeichert: slug taken'])
+    expect(read(drawn('Saved', { words: { saved: 'Gespeichert.' } })).line).toEqual([
+      'status',
+      'Gespeichert.',
+    ])
   })
 
   it('draws every element in a Slot', () => {

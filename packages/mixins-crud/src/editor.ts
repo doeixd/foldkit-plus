@@ -13,15 +13,16 @@ import { Attr, Capability, Event, Slot, Slots, SlotView } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { Empty, Failure, Loading } from './index.js'
 
-/** What an editor says itself. `{message}` is the error's. */
+/**
+ * What an editor says itself. A save that did not land is the form's to say,
+ * beside its button (`Crud.editor`'s `words`), so it is announced once.
+ */
 export interface EditorWords {
   readonly loading?: string
   readonly notFound?: string
   readonly loadFailed?: string
   readonly saving?: string
   readonly saved?: string
-  readonly saveFailed?: string
-  readonly conflict?: string
   readonly moved?: string
   readonly close?: string
   readonly retry?: string
@@ -33,8 +34,6 @@ const editorWords: Required<EditorWords> = {
   loadFailed: 'It could not be read.',
   saving: 'Saving…',
   saved: 'Saved.',
-  saveFailed: 'Not saved: {message}',
-  conflict: 'Someone else saved this first, so your changes were not saved.',
   moved: 'Someone else has saved this since you opened it.',
   close: 'Close',
   retry: 'Try again',
@@ -60,8 +59,6 @@ export interface EditorInput<Message> {
   readonly title: string
   /** The form, drawn by its own view (`EditForm.view(model, h, inputs)`). Shown while there is something to edit. */
   readonly form: Html
-  /** Why the last save failed: the editor's `saveError(model)?.message`. */
-  readonly error?: string | undefined
   /** Closes the editor. Given, a close button sends it. */
   readonly onClose?: Message | undefined
   /** Asks again after a failed read: a Message whose `update` calls `refresh`. */
@@ -86,9 +83,10 @@ const states: {
   Editing: { line: 'none', words: undefined, form: true },
   Saving: { line: 'busy', words: 'saving', form: true },
   Saved: { line: 'said', words: 'saved', form: true },
-  // A failed save keeps the form: the draft is what the person wrote.
-  SaveFailed: { line: 'alert', words: 'saveFailed', form: true },
-  Conflict: { line: 'alert', words: 'conflict', form: true },
+  // A failed save keeps the form: the draft is what the person wrote. The
+  // form says why, in its own failure Slot, so nothing here says it again.
+  SaveFailed: { line: 'none', words: undefined, form: true },
+  Conflict: { line: 'none', words: undefined, form: true },
   Moved: { line: 'said', words: 'moved', form: true },
 }
 
@@ -100,10 +98,7 @@ const editor = <Message>() => ({
         if (input.status === 'Closed') return h.empty
         const words = { ...editorWords, ...input.words }
         const state = states[input.status]
-        const said =
-          state.words === undefined
-            ? ''
-            : fillWords(words[state.words], { message: input.error ?? '' })
+        const said = state.words === undefined ? '' : words[state.words]
         const titleId = `${input.id}-title`
         const line = {
           busy: () => [Loading.view(slots.status, h, said)],
