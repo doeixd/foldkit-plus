@@ -88,13 +88,16 @@ version changed; `pnpm` skips versions already in the registry.
   #387). `viewInputs: (model, given) => inputs` in a placement's config
   rewrites the inputs the child's view is drawn with, at every draw, from the
   parent's Model: a fact the child's Model cannot hold, such as whether a write
-  it started is answered.
+  it started is answered. A view drawn without inputs (one that takes none)
+  is handed none.
 
 - **A drawn form says why its write did not land** (`foldkit-mixins-form`,
   #387). `FormView`'s inputs take `failure: { error, retry }`, drawn in a new
   `failure` Slot (`role="alert"`); with `retry` the submit button reads
   `words.resubmit` (default `Try again`). `submitting` is documented as read
   from Remote's ledger by the write's request id, never a flag of the page's.
+  While submitting, the button is `aria-disabled` rather than `disabled`, so it
+  keeps the focus a press gave it.
 
 - **`Projection.derive`: a value worked out again by the Model paths it
   reads** (`foldkit-surface`, #384). `Projection.derive(on, derive)` takes
@@ -393,7 +396,13 @@ version changed; `pnpm` skips versions already in the registry.
   of the form, or a failure, after which a submit sends the same write again
   through `Data.retry` (same request and operation ids). A submit while busy
   writes nothing and returns the Model it was given. `busy(model)` reads the
-  same fact; the domain an editor is given now needs `retry`.
+  same fact; the domain an editor is given now needs `retry`. The failure says
+  `Crud.editor`'s `words` (`failed`, `conflict`, `refused`, with plain
+  defaults; an invariant says its own message), never the transport's message,
+  which stays at `saveError(model)`; a `failure` the page passes wins.
+  `foldkit-mixins-crud`'s `EditorView` no longer announces `SaveFailed` or
+  `Conflict`, so a failed save is announced once, by the form, and it loses
+  its `error` input and its `saveFailed` and `conflict` words.
 
 - **A page whose lists have no body keeps none of the relational evaluator**
   (`foldkit-remote`, #378). What a query's body does on the client (the fields
