@@ -7,6 +7,42 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+Remote's cache gets a lifecycle, and pages work before and without their
+script. A list ages like a row, the store keeps what Surfaces left within a
+budget, Back and Forward show a list left as it was, `RemotePolicy.cacheOnly`
+serves a screen offline, and saved reads have their own age. Remote's calls
+have deadlines, are aborted when nobody waits, and are cut to the server's
+limits, which the server now enforces on bodies; a write that moves a list
+answers with the list's page. A durable write is made for one person and waits
+for a sign-in. A read-only page keeps none of the write, outbox, live, `why`
+or expression code (#378). An Entity may have variants, cascading deletes and
+invariants over `one` relations. `foldkit-ssr` keeps typing before the script
+runs, answers a status, headers and a redirect from the Model, and reads
+before it renders in one entry; `Mirror.cookie` is a slice the server reads.
+`WindowList` and `Picker` are new, regions redraw by the Model paths they
+read, and `Cpu.budget` holds a Worker's routes to a CPU budget.
+
+Breaking, under Changed: a headless bundle's `ViewInputs` is `NoView`;
+`Crud.editor`'s `onOut` moved into `Editor.placement`, and
+`foldkit-mixins-crud`'s `EditorView` loses `error`, `saveFailed` and
+`conflict`; `Why` has `CacheOnly` and `HeldForHistory`, and `RemoteMessage`
+`Navigated`, `ReadAbandoned`, `OutboxHeld` and `OutboxMoved`; Remote's read
+options take the Model as a type parameter; a Remote snapshot is version 6
+with a new shape; a visitor's refused write is `Unauthenticated`, which
+`EntityWriter`'s and `MutationSource`'s errors take; `Remote` and `Entity`
+are module namespaces; live reads, the outbox, persistence, `why`,
+`timeline`, `explain`, `overlay`, `lift`, `overlays` and `filtered` are
+functions of their own entries, `mutate` and `retry` come with registered
+Mutations, and `Data.update` is gone; `BoundRemote.operators` is an
+`Option`; the data grid's Mounts send `MountStarted`, `DataGridHeaderDrag` is
+`DataGridHeaderPress` and `ResizeStarted` takes `{ header }`;
+`PredictionMismatch` is an error; `Behaviors.optimistic` asserts more; a
+failed read or query is `RemoteUnreachable`; `CoalesceOptions` is
+`ClientOptions`; a `Connection` needs `receivedAt`; `departedLimit` and
+`recentRoots` are gone. Under Added: `EntityWriter.delete` answers a
+`DeleteOutcome`. Under Fixed: `HeldRow.pointing` takes `pinned`, and
+`belongsEncoded` takes `BelongsOptions`.
+
 ### Added
 
 - **CPU budgets for Workers** (`foldkit-plus/testing/workers`, #339).
@@ -33,9 +69,10 @@ version changed; `pnpm` skips versions already in the registry.
   transaction or D1 batch, after the row and only once it is gone, so the
   cascade holds without foreign keys; a cascade back through another Entity
   is refused where the writer is made, and `bind` refuses a table foreign
-  key that says otherwise than the relation. `EntityWriter.delete` now
-  answers a `DeleteOutcome` (`Deleted({ cascaded })`, `Absent`, `Moved`)
-  in place of `'deleted' | 'absent' | 'moved'`; a writer that removes the
+  key that says otherwise than the relation. Breaking: `EntityWriter.delete`
+  answers a `DeleteOutcome` (`DeleteOutcome.Deleted({ cascaded })`,
+  `Absent()`, `Moved()`) in place of `'deleted' | 'absent' | 'moved'`, so a
+  writer written by hand returns those; a writer that removes the
   cascade says `cascades: true`, which `GuardServer.writer` passes on, and
   `RemoteServer.write` refuses a cascading delete through one that does
   not. Its answer names each removed row its asker may see as deleted and
@@ -173,11 +210,15 @@ version changed; `pnpm` skips versions already in the registry.
   keeps the focus a press gave it.
 
 - **`Projection.derive`: a value worked out again by the Model paths it
-  reads** (`foldkit-surface`, #384). `Projection.derive(on, derive)` takes
-  the field references and Projections `derive` reads and gives `{
+  reads** (`foldkit-surface`, #384, #385). `Projection.derive(on, derive)`
+  takes the field references and Projections `derive` reads and gives `{
   dependencies, read }`: `read(model)` works the value out again only when a
   value at one of their paths is a new object, and hands back the last value
-  when a new one has the same fields (shallowly). The value counterpart of
+  when a new one has the same fields (shallowly). An entry that reads what
+  no path of its names (a Remote read, or a `Projection.struct`, `of`,
+  `array` or `option` holding one, which now remember such a part) is worked
+  out on every read, keeping the last value while its
+  fields are the same. The value counterpart of
   `SlotView.region`, which is now built on it and can be drawn from one. An
   empty `on` is refused.
 
@@ -187,30 +228,34 @@ version changed; `pnpm` skips versions already in the registry.
   App.model.cart })`, or any `{ dependencies, read }`) and a drawing given only
   what it reads; `Region(model, slots, h)` in a SlotView's render reuses the
   last drawing, unread and undiffed, while every path holds the value it held
-  by identity, and while a read gives the same fields. A Projection with no
-  dependencies is refused.
+  by identity, and while a read gives the same fields. What reads no path of
+  its own (a Remote read, alone or in a `Projection.struct` beside a field,
+  #385) is read on every render, and the region is drawn again when that
+  gives other fields.
 
-- **Variants of an Entity** (`foldkit-entity`, #357): `Entity.defineVariants(name,
-  { Available: fields, Unconfirmed: fields })` declares an Entity whose row is
-  one of its cases. `entity.variants` is Effect's `Schema.TaggedUnion` of the
-  cases, read with its own `match`; `fields` and `schema` are the stored row
-  (`_tag`, the fields every case has, the rest nullable), so every interpreter
-  reads it unchanged. Each case with fields of its own gets an invariant
-  (`variant_<Case>`), which `Entity.judge` applies and the Drizzle binding
-  writes as a CHECK. `Expr.is(entity, tag, fields => predicate)` narrows to a
-  case, over the row or through a `one` relation, handing out the case's fields
-  never null. `Entity.variantsOf` gives an interpreter the union, the cases and
-  the codec from a stored row to its case; `foldkit-entity/conformance` adds
-  `Variant`, `variantRows` and `variantCases`, which the in-memory interpreter
-  and the Drizzle compiler run. A Selection selecting `_tag` is a tagged union
-  of the cases, each holding the selected fields it has; without `_tag`, a
-  field only some cases have is refused. `Entity.selectionSchema` builds that
-  schema from member schemas, and Remote reads such a Selection's rows as their
-  cases. A form over a variant input (`_tag`, and each field of some cases a
+- **Variants of an Entity** (`foldkit-entity`, #357):
+  `Entity.defineVariants(name, { Available: fields, Unconfirmed: fields })`
+  declares an Entity whose row is one of its cases. `entity.variants` is
+  Effect's `Schema.TaggedUnion` of the cases, read with its own `match`;
+  `fields` and `schema` are the stored row (`_tag`, the fields every case has,
+  the rest nullable), so every interpreter reads it unchanged. Each case with
+  fields of its own gets an invariant (`variant_<Case>`), built when first
+  read (`Entity.invariants`) rather than kept in the Entity's metadata, which
+  `Entity.judge` applies and the Drizzle binding writes as a CHECK.
+  `Expr.is(entity, tag, fields => predicate)` narrows to a case, over the row
+  or through a `one` relation, handing out the case's fields never null.
+  `Entity.variantsOf` gives an interpreter the union, the cases and the codec
+  from a stored row to its case; `foldkit-entity/conformance` adds `Variant`,
+  `variantRows` and `variantCases`, which the in-memory interpreter and the
+  Drizzle compiler run. A Selection selecting `_tag` is a tagged union of the
+  cases, each holding the selected fields it has; without `_tag`, a field only
+  some cases have is refused. `Entity.selectionSchema` builds that schema from
+  member schemas, and Remote reads such a Selection's rows as their cases. A
+  form over a variant input (`_tag`, and each field of some cases a
   `Schema.optionalKey`) takes `_tag` as its case picker and asks, validates
   and sends a case's keys only in that case (`form.chosen`, `form.shows`);
-  `Crud.editor` loads each row as its case, through `Entity.selectFor(input,
-  { also })`. A guard rule per case is a row guard over `Expr.is`.
+  `Crud.editor` loads each row as its case, through `Entity.selectFor(input, {
+  also })`. A guard rule per case is a row guard over `Expr.is`.
 
 - **`rh.KeepTyped()`** (`foldkit-ssr`, #356): a field marked with it keeps
   what is typed into it before the page's script runs. `SSR.hydrate` reads
@@ -269,7 +314,6 @@ version changed; `pnpm` skips versions already in the registry.
   operation id. The deadline is each caller's, so
   one giving up does not fail another that joined the same read.
 
-
 - **A read nobody waits on is aborted** (`foldkit-remote`, #355). The client
   counts who waits on each requirement in flight; when nobody has waited on
   any of a read's requirements for a frame (its read entry restarted on other
@@ -277,7 +321,6 @@ version changed; `pnpm` skips versions already in the registry.
   its request aborted. A restart that asks again for some of the same rows
   joins the read instead, and every waiter still gets its whole answer. Lists
   are aborted the same way.
-
 
 - **A batch is cut to the server's limits** (`foldkit-remote`, #354).
   `ClientOptions.maxIdsPerEntity` (default 1000, the server's) and
@@ -363,74 +406,81 @@ version changed; `pnpm` skips versions already in the registry.
   form given `Method('post')` posts no Message either, which the entry
   answers `400`; leave `Method` out for a form that posts its Message.
 
-- **`SSR.entry`'s `headers` is given the Model the page reached** (`foldkit-ssr`,
-  #389). `headers: (request, model: Option<Model>) => HeadersInit`: `some` of
-  the server's Model for a rendered page, a posted form's after `update`, so a
-  cookie kept from the Model is written there; `none` for an answer that
-  rendered nothing (`OPTIONS`, `405`, `403`, a refused post, a `500`). A
-  `headers(request)` written before still compiles. `headers` that set
-  `location` or a header that frames the response (`content-length`,
-  `transfer-encoding`, `connection` and their kin) are now answered `500` and
-  reported, as a name or value `Headers` refuses (CR or LF in a value) is.
+- **`SSR.entry`'s `headers` is given the Model the page reached**
+  (`foldkit-ssr`, #389). `headers: (request, model: Option<Model>) =>
+  HeadersInit`: `some` of the server's Model for a rendered page, a posted
+  form's after `update`, so a cookie kept from the Model is written there;
+  `none` for an answer that rendered nothing (`OPTIONS`, `405`, `403`, a
+  refused post, a `500`). A `headers(request)` written before still compiles.
+  `headers` that set `location` or a header that frames the response
+  (`content-length`, `transfer-encoding`, `connection` and their kin) are now
+  answered `500` and reported, as a name or value `Headers` refuses (CR or LF
+  in a value) is.
 
 - **Remote's read options name the Model** (`foldkit-remote`, #402).
   `ObserveOptions`, `SubscriptionsOptions` and `WiringOptions` take the
   application Model as a type parameter (`WiringOptions<Shared, AppModel>`),
   for a `policy` picked from it; a list left keeps its age only while every
   call reading it reads it under `staleWhileRevalidate` for the Model as it
-  is. `Why` has a new case, `CacheOnly { surfaces }`, which an exhaustive
-  `Why.match` must handle.
+  is. Breaking: `Why` has a new case, `CacheOnly { surfaces }`, which an
+  exhaustive `Why.match` must handle.
 
 - **`RetentionChanged` says when the roots changed** (`foldkit-remote`, #401).
   The retain entry stamps it with Effect's `Clock` (`now`, after its `grace`)
   and names `historyWindow` when one was given; a hand-written one without
-  `now` holds no list for going back, as before. `Why` has a new case,
-  `HeldForHistory { list }`, which an exhaustive `Why.match` must handle.
+  `now` holds no list for going back, as before. Breaking: `Why` has a new
+  case, `HeldForHistory { list }`, which an exhaustive `Why.match` must
+  handle, and `RemoteMessage` gains `Navigated` (with `ReadAbandoned`,
+  `OutboxHeld` and `OutboxMoved` from #402 and #405), which an exhaustive
+  match over it must handle.
 
 - **A durable write is made for one person** (`foldkit-remote`,
   `foldkit-remote-server`, #405). Every answer to a read, a list or a
   mutation carries `principal`: the key of the server's `viewer` for who
-  asked (`'User:ada'`), or `null` for a visitor, and nothing from a server
-  with no `viewer`. A durable write is stamped, when queued, with whom the
-  last answer named (a retry keeps its stamp), and is sent naming them
+  asked (`'User:ada'`), `null` for a visitor, and nothing from a server with
+  no `viewer`. `ReadReceived`'s result, `ConnectionMerged` and
+  `MutationSucceeded` carry it as `Visitor` or `Signed { key }`, with the
+  refresh `generation` their request was sent under, so an answer to a
+  request sent before `Data.forget` is not heard. A scope's queue is owned by
+  the first person signed in heard under it, and the owner is saved with the
+  queue. A durable write is stamped, when queued, with whom the page last
+  heard, or with the owner where the page heard a visitor and someone owns
+  the queue; a reloaded page stamps from the saved owner before its first
+  answer, and a retry keeps its stamp. It is sent naming them
   (`MutationRequest.principal`; `null` for a visitor's write, which the
-  server runs only for a visitor). A queue is owned by the first person
-  signed in heard under its scope: a write made while the page heard a
-  visitor is the owner's, when someone owns it, and the owner is saved with
-  the queue, so a reloaded page stamps its writes before its first answer; `ReadReceived`, `ConnectionMerged` and `MutationSucceeded` carry the
-  refresh `generation` they were sent under, and an answer to a request sent
-  before `Data.forget` is not heard. `RemoteServer.handlers` refuses a write
+  server runs only for a visitor). `RemoteServer.handlers` refuses a write
   naming someone other than who asks before its Source runs, a ledger's
-  replay included, with the new `RemotePrincipalChanged`
-  (`_tag: 'PrincipalChanged'`, a 409 `{ error, principalChanged }` over
-  JSON), or `Unauthenticated` for a visitor; a server with no `viewer`
-  refuses any write that names someone. The outbox keeps such a write
-  `WaitingForSignIn`, with that error, until `Data.signedIn` finds its person
-  signed in; and where an answer names someone else while the scope stays,
-  it sends none of the queue's writes made for another and says so with the
-  new `OutboxHeld { requestIds, scope }` Message. A visitor's waiting writes
-  move, once an answer names who signed in and out of a queue no one signed
-  in owns, to the queue the page holds now
-  (stamped in place, with writes queued before any answer said who, where
-  the scope did not move), stamped as them, and the tab that moved them says
-  so once with the new `OutboxMoved { requestIds, from, to }` Message.
-  `ConnectionMerged` and `MutationSucceeded` carry `principal` too.
+  replay included, with the new `RemotePrincipalChanged` (`_tag:
+  'PrincipalChanged'`, a 409 `{ error, principalChanged }` over JSON), or
+  `Unauthenticated` when a visitor asks; a server with no `viewer` refuses
+  any write that names someone. The outbox keeps such a write
+  `WaitingForSignIn`, with that error, until `Data.signedIn` finds its
+  person signed in. Where an answer names someone else while the scope
+  stays, none of the queue's writes made for another is sent, and the new
+  `OutboxHeld { requestIds, scope }` Message says so. Once an answer names
+  who signed in, a visitor's waiting writes in a queue no one signed in owns
+  move to the queue the page holds now, stamped as them (where the scope did
+  not move they are stamped in place, as are writes queued before any answer
+  said who), and the tab that moved them says so once with the new
+  `OutboxMoved { requestIds, from, to }` Message.
 
-- **A Remote snapshot carries ages and an order** (`foldkit-remote/persistence`,
-  #404). `Snapshot` is `{ entities, connections, expires, recency }`: a kept
-  list is `{ segments, receivedAt }`, `expires` names when each row and list
-  expires, and `recency` the batches to drop past `maxBytes`, most recent
-  first. `REMOTE_CACHE_VERSION` is 6, so a stored version-5 snapshot is
-  refused and removed, and the planner refetches. `snapshotOf` reads the
-  Model's `recent` and takes `maxAge`; `dehydrate` and `hydrate` take `now`
-  and drop what has expired by then, and `save` and `restore` read Effect's
-  `Clock`. A `dehydrate` past `maxBytes` drops what was read least recently
-  until it fits, instead of refusing the whole; one with no `recency` still
-  returns `undefined`. `persistence`'s `snapshot` option is given `{ maxAge }`
-  as its second argument, and the wiring builds the snapshot when it writes,
-  not on each change. A query page with no rows' fields (an empty list) now
-  carries `now` and dates its list, as one with them did; undated, a saved
-  empty list read as fetched at 0 and expired at once.
+- **A Remote snapshot carries ages and an order**
+  (`foldkit-remote/persistence`, #404; breaking). `Snapshot` is `{ entities,
+  connections, expires, recency }`: a kept list is `{ segments, receivedAt }`,
+  `expires` names when each row and list expires, and `recency` the batches to
+  drop past `maxBytes`, most recent first. `REMOTE_CACHE_VERSION` is 6, so a
+  stored version-5 snapshot is refused and removed, and the planner refetches.
+  `snapshotOf` reads the Model's `recent` and takes `maxAge`; `dehydrate` and
+  `hydrate` take `now` and drop what has expired by then, and `save` and
+  `restore` read Effect's `Clock`. A `dehydrate` past `maxBytes` drops what
+  was read least recently until it fits, instead of refusing the whole; one
+  with no `recency` still returns `undefined`. `persistence`'s `snapshot`
+  option is given `{ maxAge }` as its second argument, and the wiring builds
+  the snapshot when it writes, not on each change. A query page with no rows'
+  fields (an empty list) now carries `now` and dates its list, as one with
+  them did; undated, a saved empty list read as fetched at 0 and expired at
+  once. A `snapshot` option written by hand returns the new shape
+  (`RemotePersistence.emptySnapshot` shows it).
 
 - **A durable write no one is signed in to send waits for a sign-in**
   (`foldkit-remote`, `foldkit-remote-server`, `foldkit-guard`, #403). A send
@@ -440,15 +490,17 @@ version changed; `pnpm` skips versions already in the registry.
   in every tab, until `update` reports a sign-in with `Data.signedIn(model)`.
   Only the queue of the page's `scope` is sent then, never another person's.
   `outboxStatus` counts them in `waitingForSignIn`, and an item's `state` is
-  `WaitingForSignIn { error }`. `Forbidden` stays final. So that a session
-  whose cookie the browser dropped reads as one that ended, a visitor's
-  refused write is now `Unauthenticated` (a 401) rather than `Forbidden`:
-  `GuardServer.writer` and `GuardServer.mutation` refuse a visitor so, and
-  `RemoteServer.write` refuses a visitor a write whose Entity sets a member
-  from who asks. `EntityWriter`'s and `MutationSource`'s error channels (and
-  `RemoteServer.mutation`'s `run`) take `RemoteUnauthenticated`.
+  `WaitingForSignIn { error }`. `Forbidden` stays final. Breaking: so that a
+  session whose cookie the browser dropped reads as one that ended, a
+  visitor's refused write is now `Unauthenticated` (a 401) rather than
+  `Forbidden`: `GuardServer.writer` and `GuardServer.mutation` refuse a
+  visitor so, and `RemoteServer.write` refuses a visitor a write whose Entity
+  sets a member from who asks. `EntityWriter`'s and `MutationSource`'s error
+  channels (and `RemoteServer.mutation`'s `run`) take `RemoteUnauthenticated`.
+  Code that told a visitor apart by `Forbidden` reads `Unauthenticated`.
 
-- **`Remote` is an ES module namespace** (`foldkit-remote`, #396), as
+- **`Remote` is an ES module namespace** (`foldkit-remote`, #396; breaking
+  only for code that writes to `Remote` or names `typeof Remote`), as
   `Entity` is: a page keeps only the members it calls. A page that never
   calls `Remote.http`, `Remote.json`, `Remote.clientLayer`,
   `Remote.coalesced`, `Remote.rpcProtocolHttp` or `Remote.resume` keeps none
@@ -544,18 +596,18 @@ version changed; `pnpm` skips versions already in the registry.
   `foldkit-remote` where it kept 245.1 kB (rendered, built from source).
 
 - **A page that declares Entities keeps none of the invariant judge**
-  (`foldkit-entity`, #378). `Entity` is an ES module namespace rather than an
-  object, and the build leaves relative imports as written so it stays one: a
-  page keeps only the members it calls. One that declares Entities with
-  `Entity.define` and `Entity.defineVariants` and selects them keeps 10.6 kB of
-  `foldkit-entity` where it kept 94.8 kB (rendered; the page 210.9 kB to 110.5
-  kB minified, 57.8 kB to 30.7 kB gzipped), and a read-only `Remote.make` page
-  106.3 kB where it kept 122.6 kB (the page 538.2 kB to 526.1 kB minified,
-  148.5 kB to 145.1 kB gzipped). A variant Entity's per-case invariants
-  (`variant_<Case>`) are built when first read (`Entity.invariants`,
-  `Entity.judge`), not when declared, so they are no longer in the Entity's
-  metadata. `InputMembers`, `WrittenAs`, `WrittenKey` and `WrittenSpec` are
-  also reachable as `Entity.InputMembers` and so on.
+  (`foldkit-entity`, #378; breaking only for code that writes to `Entity` or
+  names `typeof Entity`). `Entity` is an ES module namespace rather than an
+  object, so it is read-only, and the build leaves relative imports as written
+  so it stays one: a page keeps only the members it calls. One that declares
+  Entities with `Entity.define` and `Entity.defineVariants` and selects them
+  keeps 10.6 kB of `foldkit-entity` where it kept 94.8 kB (rendered; the page
+  210.9 kB to 110.5 kB minified, 57.8 kB to 30.7 kB gzipped), and a read-only
+  `Remote.make` page 106.3 kB where it kept 122.6 kB (the page 538.2 kB to
+  526.1 kB minified, 148.5 kB to 145.1 kB gzipped). `InputMembers`,
+  `WrittenAs`, `WrittenKey` and `WrittenSpec` are also reachable as
+  `Entity.InputMembers` and so on.
+
 - **Breaking: `why`, `timeline` and `explain` are functions of
   `foldkit-remote/why`, not domain methods** (`foldkit-remote`, #378).
   `Data.why(model, read, options)` is `why(Data, model, read, options)`,
@@ -568,7 +620,6 @@ version changed; `pnpm` skips versions already in the registry.
   `Remote.make` page keeps 260.2 kB of `foldkit-remote` where it kept 282.2
   kB (rendered; the page 526.1 kB to 508.8 kB minified, 145.1 kB to 140.2 kB
   gzipped).
-
 
 - **Breaking: `mutate` and `retry` come with the Mutations a domain
   registers** (`foldkit-remote`, #378). A Mutation descriptor carries the
@@ -595,7 +646,8 @@ version changed; `pnpm` skips versions already in the registry.
   what makes one** (`foldkit-remote`, #378). Showing pending writes, overlays
   and live inserts over the store is a capability a domain installs from what
   makes a layer: a Mutation it registers (a descriptor carries it under
-  `[Installs]`), `Data.overlay`, a live insert and `Remote.mutateInto`. A
+  `[Installs]`), `overlay` (`foldkit-remote/overlay`), a live insert and
+  `Remote.mutateInto`. A
   domain whose Model holds no layer reads the committed store directly, and
   one handed a layer nothing installed (a hand-made `MutationStarted` on a
   domain that registers no mutation) fails, naming the domain, rather than
@@ -637,9 +689,7 @@ version changed; `pnpm` skips versions already in the registry.
   a choice's list) that sent nothing when it started, so a Scene test could
   not open one. They now send the grid's `MountStarted`, which changes
   nothing, and `DataGridView<Message>().resolveOpened(Grid, { wrap, opened })`
-  resolves what an open `'editor'`, `'choice'` or `'menu'` starts. The grid's
-  `PressListening` is renamed `MountStarted`, since the pointer listeners
-  are no longer the only Mounts that send it.
+  resolves what an open `'editor'`, `'choice'` or `'menu'` starts.
 
 - **A page holding a data grid draws in Scene** (`foldkit-mixins-data-grid`,
   `foldkit-data-grid`, #380; breaking). The grid drew three Mounts that sent
@@ -656,7 +706,8 @@ version changed; `pnpm` skips versions already in the registry.
   DOM id (`{ header }`, `GridFocus.headerId`), as `ColumnDragStarted` does,
   where it took `{ column }`. `GridViewport.Measure` sends a reading only
   when it changes, so a browser's `ResizeObserver` no longer repeats the one
-  it sent on starting.
+  it sent on starting. `foldkit-mixins-data-grid` no longer depends on
+  `foldkit-primitives`.
 
 - **A page recorded for its path starts from the URL it is opened at**
   (`foldkit-ssr`, #373). A page from `SSR.generate`, or one `SSR.entry`
@@ -683,14 +734,16 @@ version changed; `pnpm` skips versions already in the registry.
 - **`Behaviors.optimistic` asserts the prediction holds still**
   (`foldkit-plus/testing/playwright`, #349). From the moment `shows` shows
   until the write settles, each element it resolves to must stay the same
-  node, in the same place in its parent, within 1px of where it was drawn,
-  and visible; one drawn again, pushed by a line said only while the write is
+  node, in the same place in its parent, within 1px of where it was drawn, and
+  visible; one drawn again, pushed by a line said only while the write is
   pending (Chirp's post), or hidden for a frame fails with what moved and
   when. Settled waits for evidence: no Remote request of the page in flight,
-  then three quiet frames. An error the page logs meanwhile fails it too.
-  `stays` watches a `Locator` instead, or `'shown'` keeps only the old check;
-  `writes: { answered }` covers writes that reach the server past the
-  network, which `examples/chirp`'s end-to-end test (`?latency=1500`) uses.
+  then three quiet frames that begin after the last answer, since a page draws
+  an answer on a frame after the network finishes. An error the page logs
+  meanwhile fails it too. `stays` watches a `Locator` instead, or `'shown'`
+  keeps only the old check; `writes: { answered }` covers writes that reach
+  the server past the network, which `examples/chirp`'s end-to-end test
+  (`?latency=1500`) uses.
 
 - **`guard.row` refuses a predicate over another Entity where it is
   written** (`foldkit-guard`, #363). A rule reads its own Entity's fields,
@@ -718,12 +771,10 @@ version changed; `pnpm` skips versions already in the registry.
   on the call any more or its deadline passed; `Remote.http` passes it to
   `fetch`. A send that ignores it still works, and its request runs on.
 
-
-- **`CoalesceOptions` is `ClientOptions`** (`foldkit-remote`): it holds
-  `timeout`, `maxIdsPerEntity` and `maxBodyBytes` beside `window`.
-  `coalescedLayer` moved from `client.ts` to `coalesce.ts`; its name and
-  export are unchanged.
-
+- **`CoalesceOptions` is `ClientOptions`** (`foldkit-remote`, #353;
+  breaking). The options of `Remote.clientLayer` and `Remote.coalesced` hold
+  `timeout`, `maxIdsPerEntity` and `maxBodyBytes` beside `window`. A type
+  import of `CoalesceOptions` now names `ClientOptions`.
 
 - **A list ages under `staleWhileRevalidate`** (`foldkit-remote`, #234). A
   list is dated by the page that last answered it whole
@@ -732,11 +783,12 @@ version changed; `pnpm` skips versions already in the registry.
   `Refreshing` with its rows meanwhile. The read entry's deadline names lists
   (`ReadDeadline.connections`), its `RefreshStarted` carries them
   (`connections`), and `ReadDependencies.refreshing` names the held lists it
-  asks for whole. A list left keeps its age when every `Data.subscriptions`
-  call reading it ages it (`ConnectionRoot.ages`), so going back inside
-  `maxAge` draws it with no request; under `cacheFirst` it is held stale and
-  refetched on going back, as before. Breaking: a `Connection` built by hand
-  needs `receivedAt`; an active list under `staleWhileRevalidate` is
+  asks for whole once they aged out or are forced (#399). A list left keeps
+  its age when every `Data.subscriptions` call reading it ages it
+  (`ConnectionRoot.ages`), so going back inside `maxAge` draws it with no
+  request; under `cacheFirst` it is held stale, and refetched on going back
+  after `historyWindow` or by a `push` (#401). Breaking: a `Connection` built
+  by hand needs `receivedAt`; an active list under `staleWhileRevalidate` is
   re-queried once older than `maxAge`; a held list under `networkOnly` reads
   `Refreshing` while it is re-queried, and the page replaces it.
 
@@ -779,52 +831,47 @@ version changed; `pnpm` skips versions already in the registry.
   brings the row while a write made on this page is pending is not judged:
   the client cannot tell whether that read's counts include it.
 
-- **A pending unfollow takes the unfollowed account's posts out of a feed,
-  where the store holds every follow** (`foldkit-remote`, `foldkit-entity`,
-  #409). Since #344 a pending follow brought the followed account's posts into
-  a list over `Expr.exists`, but an unfollow left them until the list's page,
-  since the store never claimed to hold every follow. An exists over the store
-  is now false where a list it holds whole (read to both ends, not stale)
-  has a body that only fixes fields to values
-  (`Expr.eq(Follow.relations.follower, input.accountId)`) that the exists'
-  filter fixes too, and the store holds each of its rows with the link the
-  exists reads: with the viewer's `Following` held whole, the posts leave
-  while the unfollow is pending and once it is answered, and `Law.check`
-  compares the feed. What cannot be proven so stays unknown.
-  `HeldRow.pointing(relation, pinned)` is given what the filter fixes
-  (`Pinned`), `Judge.pins(predicates, { input, context })` works it out, and
-  `belongsEncoded` takes its operators and context as options
-  (`BelongsOptions`). A change that reaches other rows and moves one of the
-  list's own by its order (a task finished and ranked last, whose subtasks
-  leave a list over its parent) now moves that row too, pending and answered.
-
-- **`Behaviors.optimistic` looks for what shows while every write is held**
-  (`foldkit-plus`, #395). Once `act` outlasted `within` it waited 1 ms for
-  `shows`, so a row drawn only by the answer, after an action slower than
-  `hold`, passed. Each Remote mutation is now held until `act` has ended and
-  `shows` has been looked for (and watched), and for `hold` at least, and
-  `shows` is looked for from the moment `act` begins; an action still running
-  10 seconds (or `hold`, if longer) after it began is refused, since one
-  waiting for its own write's answer would wait for good. `within` no longer
-  has to be shorter than `hold`.
-
 - **A list over an exists is judged again when a pending write moves what it
-  counts** (`foldkit-remote`, `foldkit-entity`, #344). A feed of an
+  counts** (`foldkit-remote`, `foldkit-entity`, #344, #409). A feed of an
   account's own posts and those of everyone it follows
   (`Expr.path(Post.relations.author, Expr.exists(Follow.relations.followee,
-  …))`) stayed as the server listed it while a follow was pending: a write to
-  what a body reads through other rows (a row a path reaches, or one an
-  exists counts, made, deleted or changed) only invalidated the list once
-  answered. The list is now judged again over the store and the pending
-  layers: a row the body no longer admits leaves, and one the store holds
-  that it now admits joins where the order puts it, while the write is
-  pending and once it is answered, when the list is also fetched (or written
-  from the page the answer carries). An exists over the store is true where a
-  row the store holds points here and passes the filter (`HeldRow.pointing`
-  returned no rows before), and unknown otherwise, so an unfollow leaves the
-  posts it may remove to that page. `Held.isLink(identity, key)` reads a
-  link of a row known only by its Entity's identity. `Law.check` leaves to
-  the server a list showing a row the client cannot judge.
+  …))`) stayed as the server listed it while a follow or an unfollow was
+  pending: a write to what a body reads through other rows (a row a path
+  reaches, or one an exists counts, made, deleted or changed) only
+  invalidated the list once answered. The list is now judged again over the
+  store and the pending layers, while the write is pending and once it is
+  answered (when the list is also fetched, or written from the page the
+  answer carries): a row the body no longer admits leaves, and one the store
+  holds that it now admits joins where the order puts it. An exists over the
+  store is true where a held row points here and passes the filter
+  (`HeldRow.pointing` returned no rows before). It is false where the store
+  holds whole (read to both ends, not stale) a list whose body only fixes
+  fields to values the exists' filter fixes too
+  (`Expr.eq(Follow.relations.follower, input.accountId)`), and holds each of
+  its rows with the link the exists reads: with the viewer's `Following`
+  held whole, an unfollowed account's posts leave. Otherwise it is unknown,
+  and the list's page decides. A change that reaches other rows and moves
+  one of the list's own by its order (a task finished and ranked last, whose
+  subtasks leave a list over its parent) moves that row too.
+  `Held.isLink(identity, key)` reads a link of a row known only by its
+  Entity's identity, `Judge.pins(predicates, { input, context })` works out
+  what a body fixes, and `Law.check` compares such a feed, leaving to the
+  server a list showing a row the client cannot judge. Breaking:
+  `HeldRow.pointing(relation, pinned)` is given what the filter fixes
+  (`Pinned`), so a holder written by hand takes the second argument; and
+  `belongsEncoded(store, descriptor, encoded, key, options)` takes its
+  operators and context in `BelongsOptions` (`{ operators, context, whole }`)
+  where it took them as its fifth and sixth arguments.
+
+- **`Behaviors.optimistic` looks for what shows while every write is held**
+  (`foldkit-plus/testing/playwright`, #395). Once `act` outlasted `within` it
+  waited 1 ms for `shows`, so a row drawn only by the answer, after an action
+  slower than `hold`, passed. Each Remote mutation is now held until `act` has
+  ended and `shows` has been looked for (and watched), and for `hold` at
+  least, and `shows` is looked for from the moment `act` begins; an action
+  still running 10 seconds (or `hold`, if longer) after it began is refused,
+  since one waiting for its own write's answer would wait for good. `within`
+  no longer has to be shorter than `hold`.
 
 - **A create's form, started again blank, keeps the focus its button had**
   (`foldkit-mixins-form`, `foldkit-crud`, #408). A blank form cannot submit,
@@ -833,18 +880,6 @@ version changed; `pnpm` skips versions already in the registry.
   landed and the form is not edited since); while it holds, a button that
   cannot submit is `aria-disabled` instead of `disabled`, and a press shows
   what the form lacks. `Crud.editor`'s placement passes it.
-
-- **A region over a Remote read beside a field is drawn again when the store
-  changes** (`foldkit-surface`, `foldkit-mixins`, #385). A Remote read declares
-  no Model path, and `Projection.struct` merged only its other entries' paths,
-  so `SlotView.region(Projection.struct({ quote: Data.get(Quote, id), cart:
-  App.model.cart }), …)` compared `cart` alone and showed a stale price until
-  the cart changed. `struct`, `of`, `array` and `option` now remember a part
-  that reads what no path of its names, and `Projection.derive`, which a region
-  is built on, works such a value out on every read, keeping the last while
-  its fields are the same, so the region is drawn again only when the read
-  gives something new. `derive` no longer refuses an entry that declares no
-  path; it still refuses an empty `on`.
 
 - **Any build of a package publishes the declarations a release does**
   (workspace, #340). tsdown's declaration emitter reads each referenced
@@ -899,15 +934,6 @@ version changed; `pnpm` skips versions already in the registry.
   #387). It handed the value out again in a new, equal Model, so a parent that
   refused the value could not return the Model it was given.
 
-- **`Behaviors.optimistic` waits for the answer to be drawn**
-  (`foldkit-plus/testing/playwright`). It looked for a write's faults once
-  the page was quiet and no Remote request was in flight, but a quiet that
-  began before the last answer could end before the page drew it: the
-  network finishes before the page reads the answer, and an application
-  draws the Message it caused on a later frame. A write pushed by its
-  answer three frames on passed every time, and one drawn on the next frame
-  now and then. It now waits for a quiet that begins after the last answer.
-
 - **A server render draws a memoized SlotView drawing afresh**
   (`foldkit-ssr`, `foldkit-mixins`, #388). Foldkit keeps a `createLazy`
   drawing under `renderToString` too, so a SlotView item or part drawn in one
@@ -920,7 +946,7 @@ version changed; `pnpm` skips versions already in the registry.
   longer draws the application's view while it rebuilds the Model.
 
 - **A resumed page is adopted as the browser draws it** (`foldkit-ssr`,
-  #388). The served page carries what the server wrote for the browser's
+  #388, #375). The served page carries what the server wrote for the browser's
   script and no view draws: the envelope on the root, each binding's and
   kept field's marker, each placement's slot, and, for `fallback: 'server'`,
   each form's `method="post"` and hidden Message field. Foldkit's first patch
@@ -963,7 +989,8 @@ version changed; `pnpm` skips versions already in the registry.
   `@effect/platform-node` 4.1.1 under `@foldkit/vite-plugin`, and npm keeps
   it rather than move it down to setup's 4.1.0 pins, so `npm ls` called it
   invalid. Setup now pins the newest patch of its tested Effect minor that
-  the project's `package-lock.json` already holds.
+  the project's `package-lock.json` already holds. Its tested Effect is now
+  4.1.1; packages' peer ranges stay `^4.1.0`.
 
 - **A served page keeps the styles it was sent** (`foldkit-ssr`, #365). The
   `styles` of `SSR.render`, `SSR.entry` and `SSR.handle` ride in the rendered
@@ -1000,17 +1027,18 @@ version changed; `pnpm` skips versions already in the registry.
   The outbox settles each `Failed`. Use it in place of `layerProtocolHttp`
   for `RemoteRpc`.
 
-- **A list a pending write changes keeps its rows** (`foldkit-remote`).
+- **A list a pending write changes keeps its rows** (`foldkit-remote`, #352).
   Retention kept the list for the write but collected its rows when no
   Surface read it, so it read `Initial` once the write failed and the overlay
   lifted, though a Surface showed it again meanwhile.
 
-- **A list no page answered is not made fresh** (`foldkit-remote`).
+- **A list no page answered is not made fresh** (`foldkit-remote`, #352).
   `ConnectionRefreshed` for a list the store does not hold, or one
   invalidated before it loaded, made it fresh and empty, so it read `Ready`
   with no rows.
 
-- **The resumable builder's value events fit every element** (`foldkit-ssr`).
+- **The resumable builder's value events fit every element** (`foldkit-ssr`,
+  #356).
   `rh.OnInput`, `rh.OnChange`, `rh.OnKeyDown` and `rh.OnKeyUp` returned
   `Attribute<Message>`, which includes `InnerHTML`, so `rh.textarea` refused
   them; each now returns its own attribute, as Foldkit's builder does.
