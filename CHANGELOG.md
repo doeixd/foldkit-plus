@@ -927,6 +927,20 @@ For the new versions they depend on, or changes inside them alone:
 
 ### Fixed
 
+- **A row reused for a new key is measured at once, and a list sees the
+  boxes that move it** (`foldkit-primitives`, #458, #456). `MeasureRows`
+  watched children and resizes but missed a key attribute changed on an
+  existing row, and adding or removing the attribute; it now watches the key
+  attribute and reports the new key at once. `WindowViewport` watched only
+  the list and the document root, so a header growing without a scroll moved
+  the list unobserved; it now watches the ancestors and preceding boxes that
+  can move it, retargeting when the DOM above changes.
+
+- **A mixed-entity read takes the batches it can pack** (`foldkit-remote`,
+  #459). The batch cutter only filled the most recent request, so a later
+  entity opened a new read while an earlier one had room; each request now
+  goes into the first piece with room under both limits.
+
 - **A read is cut by the request it actually sends** (`foldkit-remote`, #450).
   The client reserved a fixed 512 bytes for the envelope, so a
   `maxBodyBytes` at or below 512 refused every nonempty read, query or
