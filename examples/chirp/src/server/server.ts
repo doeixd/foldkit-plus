@@ -203,9 +203,9 @@ GuardServer.validate(Policy, {
 
 /** The server over `sqlite`: its tables made and seeded when the database is new. */
 export const openServer = (sqlite: Sqlite) => {
-  // A chirp's likes go with it: SQLite holds a table to its references (and
-  // cascades) only where the connection asks, which Node's does by default
-  // and sql.js's does not.
+  // SQLite holds a table to its references only where the connection asks,
+  // which Node's does by default and sql.js's does not. A chirp's likes go
+  // with it either way: the writer removes them, as the domain declares.
   sqlite.exec('pragma foreign_keys = on')
   if (sqlite.fresh) {
     sqlite.exec(SCHEMA)

@@ -96,6 +96,15 @@ const CountedPost = Blog.Post.pipe(
 predicts it while a declared write that inserts, deletes or relinks a Comment is
 pending. A `many` relation, or a relation pointing at another Entity, is refused.
 
+A row that goes when the row it points at is deleted says so on its link:
+`Comment: { post: Relation.one(Post, { onDelete: 'cascade' }) }`. Remote then
+removes the comments it holds while a delete of their post is pending (and
+their comments' counts move), the Drizzle writer removes them in the
+delete's transaction or D1 batch, without needing a foreign key, and `bind`
+refuses a table foreign key that says otherwise. `Entity.cascading(Post)`
+lists the relations that take rows with a deleted post. Who may delete those
+rows is not judged yet: the guard judges the row named (#348).
+
 `Derived.exists(relation, { viewer })` is a viewer-relative member: the id of a
 row pointing here through `relation` whose `viewer` relation points at whoever
 reads it, or none.

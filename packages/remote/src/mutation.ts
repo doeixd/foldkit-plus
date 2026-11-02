@@ -150,16 +150,26 @@ export const derivedOfWrite = (
   derived: ReadonlyArray<DerivedBy>,
   store: EntityStore,
   context: ExprContext,
+): ReadonlyArray<PendingPatch> =>
+  derived.length === 0
+    ? []
+    : movedBy(
+        write._tag,
+        // A link the context sets (whoever asks) moves what it points at as an input's would.
+        contextBound(write, input, write._tag === 'Update' ? keys : undefined, context, store),
+        derived,
+        store,
+        context,
+      )
+
+/** The derived members a write of `kind`, bound as `bound`, moves on the rows its row points at. */
+const movedBy = (
+  kind: AnyWrite['_tag'],
+  bound: BoundWrite,
+  derived: ReadonlyArray<DerivedBy>,
+  store: EntityStore,
+  context: ExprContext,
 ): ReadonlyArray<PendingPatch> => {
-  if (derived.length === 0) return []
-  // A link the context sets (whoever asks) moves what it points at as an input's would.
-  const bound = contextBound(
-    write,
-    input,
-    write._tag === 'Update' ? keys : undefined,
-    context,
-    store,
-  )
   const row = store[entityKey(bound.entity, bound.id)]
   const held = row === undefined || row.tombstone ? undefined : row
   const viewerKey = Option.map(context.viewer, ref => entityKey(ref.entity, ref.id))
@@ -170,7 +180,7 @@ export const derivedOfWrite = (
     )
   // The rows each exists shows as found by this row: a new row is found on none yet.
   const found = new Map<ExistsBy, ReadonlyArray<string>>()
-  if (write._tag !== 'Insert')
+  if (kind !== 'Insert')
     for (const member of derived.filter(DerivedBy.$is('Exists')))
       found.set(
         member,
@@ -189,17 +199,19 @@ export const derivedOfWrite = (
       if (member.viewer === relation && Option.isSome(viewerKey)) return viewerKey
     }
     // A row not there points nowhere, unless an update or a delete expected one.
-    return write._tag === 'Insert' ? Option.some(null) : Option.none()
+    return kind === 'Insert' ? Option.some(null) : Option.none()
   }
   const patched = patchOfWrite(bound).values
   const after = (relation: string): Option.Option<unknown> =>
-    Match.value(write).pipe(
-      Match.tagsExhaustive({
-        Delete: () => Option.some<unknown>(null),
-        Insert: () => Option.some(Object.hasOwn(bound.links, relation) ? patched[relation] : null),
-        Update: () =>
-          Object.hasOwn(bound.links, relation) ? Option.some(patched[relation]) : before(relation),
-      }),
+    Match.value(kind).pipe(
+      Match.when('Delete', () => Option.some<unknown>(null)),
+      Match.when('Insert', () =>
+        Option.some(Object.hasOwn(bound.links, relation) ? patched[relation] : null),
+      ),
+      Match.when('Update', () =>
+        Object.hasOwn(bound.links, relation) ? Option.some(patched[relation]) : before(relation),
+      ),
+      Match.exhaustive,
     )
   const moves = new Map<
     string,
@@ -251,6 +263,9 @@ export const derivedOfWrite = (
             id: refParts(ref).id,
             values,
             ...(Object.keys(moved).length === 0 ? {} : { adds: moved }),
+            ...(kind === 'Insert' && Object.keys(moved).length > 0
+              ? { creates: { entity: bound.entity, id: bound.id } }
+              : {}),
           },
         ]
   })
@@ -363,6 +378,35 @@ export const predictionOfWrite = (
 ): ReadonlyArray<PendingPatch | PendingDelete> => {
   const by: ExprContext = { viewer: context.viewer, now: context.now }
   const own = optimisticOfWrite(write, input, keys, by, context.store)
+  // The rows a delete takes with it, as the store holds them, each removed as a delete of its own.
+  const cascaded = Match.value(write).pipe(
+    Match.tagsExhaustive({
+      Insert: () => [],
+      Update: () => [],
+      Delete: () => {
+        const { id } = DomainWrite.bind(write, input as never)
+        return cascadedBy(write.input.entity, id, context.store).flatMap(
+          (row): ReadonlyArray<PendingPatch | PendingDelete> => [
+            { _tag: 'Delete', entity: row.entity, id: row.id },
+            ...movedBy(
+              'Delete',
+              {
+                entity: row.entity,
+                id: row.id,
+                values: {},
+                links: {},
+                increments: {},
+                assignments: {},
+              },
+              context.derived.get(row.entity) ?? [],
+              context.store,
+              by,
+            ),
+          ],
+        )
+      },
+    }),
+  )
   return [
     ...Match.value(write).pipe(
       Match.tagsExhaustive({
@@ -383,7 +427,54 @@ export const predictionOfWrite = (
       context.store,
       by,
     ),
+    ...cascaded,
   ]
+}
+
+/**
+ * The rows the store holds that a delete of `entity`'s row `id` takes with it:
+ * each pointing at a removed row through a relation declared `onDelete:
+ * 'cascade'` (`Entity.cascading`), and so on from those. A row the store does
+ * not hold, or holds without the link, is the server's to remove, and its
+ * answer names it.
+ */
+const cascadedBy = (
+  entity: AnyEntity,
+  id: string,
+  store: EntityStore,
+): ReadonlyArray<{ readonly entity: string; readonly id: string }> => {
+  // Each cascading relation's rows by the ref they point at, built once per relation.
+  const pointing = new Map<string, Map<string, Array<string>>>()
+  const rowsPointing = (owner: string, key: string, at: string): ReadonlyArray<string> => {
+    const name = `${owner}.${key}`
+    let index = pointing.get(name)
+    if (index === undefined) {
+      index = new Map()
+      for (const [held, entry] of Object.entries(store)) {
+        if (entry.tombstone || !held.startsWith(`${owner}:`)) continue
+        const ref = entry.values[key]
+        if (typeof ref !== 'string') continue
+        index.set(ref, [...(index.get(ref) ?? []), held])
+      }
+      pointing.set(name, index)
+    }
+    return index.get(at) ?? []
+  }
+  const removed: Array<{ readonly entity: string; readonly id: string }> = []
+  const seen = new Set([entityKey(entity.name, id)])
+  const queue: Array<{ readonly entity: AnyEntity; readonly id: string }> = [{ entity, id }]
+  for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
+    const at = entityKey(next.entity.name, next.id)
+    for (const { relation, owner } of DomainEntity.cascading(next.entity))
+      for (const held of rowsPointing(owner.name, relation.key, at)) {
+        if (seen.has(held)) continue
+        seen.add(held)
+        const row = { entity: owner, id: refParts(held).id }
+        removed.push({ entity: owner.name, id: row.id })
+        queue.push(row)
+      }
+  }
+  return removed
 }
 
 /**

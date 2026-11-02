@@ -541,6 +541,7 @@ export const relate = <const Es extends Entities, const Rs extends RelationMap<E
           target: () => related[targetKey]!,
           cardinality: spec.cardinality,
           optional: spec.optional,
+          onDelete: spec.onDelete,
           metadata: Metadata.empty,
         })
       },
@@ -549,8 +550,35 @@ export const relate = <const Es extends Entities, const Rs extends RelationMap<E
     put(related, ownerKey, entity)
   }
   for (const [entity, added] of additions) extend(entity, { relations: added })
+  // Once every relation is added, so each target is the one `relate` returns.
+  for (const [entity, added] of additions)
+    for (const member of Object.values(added))
+      if (member._tag === 'Relation' && Option.isSome(member.onDelete))
+        cascadeInto(member.target().identity, { relation: member as OneRelation, owner: entity })
   return Object.freeze(related) as never
 }
+
+/** A `one` relation a delete cascades through, and the Entity that owns it, whose rows go. */
+export interface Cascade {
+  readonly relation: OneRelation
+  readonly owner: AnyEntity
+}
+
+const cascades = new WeakMap<EntityIdentity<string>, Array<Cascade>>()
+const cascadeInto = (target: EntityIdentity<string>, cascade: Cascade): void => {
+  const known = cascades.get(target) ?? []
+  known.push(cascade)
+  cascades.set(target, known)
+}
+
+/**
+ * The `one` relations, of any Entity, declared `onDelete: 'cascade'` that point
+ * at `entity`: deleting one of its rows deletes each row pointing at it through
+ * one, and so on from those. The owner is the Entity as it was related, whose
+ * members every descriptor of it shares.
+ */
+export const cascading = (entity: AnyEntity): ReadonlyArray<Cascade> =>
+  cascades.get(entity.identity) ?? []
 
 /**
  * Selects members of an Entity and assembles the schema of the result. A

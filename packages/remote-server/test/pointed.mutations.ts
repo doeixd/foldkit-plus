@@ -55,8 +55,8 @@ export default [
     edits: [
       {
         file,
-        find: "return outcome === 'deleted' ? naming(gone, before) : gone",
-        replace: 'return naming(gone, before)',
+        find: 'Absent: () => Effect.succeed(gone([])),',
+        replace: 'Absent: () => Effect.succeed(naming(gone([]), before)),',
       },
     ],
     tests,

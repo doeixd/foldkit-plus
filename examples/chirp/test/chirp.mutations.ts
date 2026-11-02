@@ -45,7 +45,7 @@ export default [
     tests: [...server, ...page],
   },
   {
-    name: "a chirp's likes stay behind it",
+    name: 'the table refuses to let a chirp take its likes',
     edits: [
       {
         file: '../src/server/server.ts',
@@ -65,6 +65,8 @@ export default [
       },
     ],
     tests: [...server, ...wasm],
+    survives:
+      "a chirp's likes are removed by the writer (onDelete: 'cascade'), so no test reaches the pragma; it keeps the database to its other references, which no write breaks",
   },
   {
     name: 'a delete is sent at once, not kept in the outbox',

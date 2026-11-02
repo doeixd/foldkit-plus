@@ -42,6 +42,13 @@ export interface EntityField<Name extends string, Key extends string, S extends 
 
 export type Cardinality = 'one' | 'many'
 
+/**
+ * What happens to a row when the row its `one` relation points at is deleted
+ * (`Relation.one(Post, { onDelete: 'cascade' })`): `cascade`, it is deleted
+ * with it, by the server in the write that deletes, and foreseen by a client.
+ */
+export type OnDelete = 'cascade'
+
 /** What `Relation.one` / `Relation.many` return, before `Entity.relate` binds it to an owner. */
 export interface RelationSpec<
   Target extends AnyEntity,
@@ -51,6 +58,7 @@ export interface RelationSpec<
   readonly target: Target
   readonly cardinality: C
   readonly optional: Optional
+  readonly onDelete: Option.Option<OnDelete>
 }
 
 /**
@@ -72,6 +80,11 @@ export interface EntityRelation<
   readonly target: () => Target
   readonly cardinality: C
   readonly optional: Optional
+  /**
+   * What happens to this row when the row a `one` relation points at is
+   * deleted; none for a `many`, and for a `one` declared with nothing.
+   */
+  readonly onDelete: Option.Option<OnDelete>
   readonly metadata: Metadata
 }
 
@@ -410,16 +423,37 @@ export interface EntityInput<E extends AnyEntity, Fields extends Schema.Struct.F
 export type { InputMembers, WrittenAs, WrittenKey, WrittenSpec } from './entity.js'
 export { EntityMembers as Entity }
 
+/** How a `one` relation is declared: whether it may point nowhere, and what a delete of its target does. */
+export interface OneOptions<Optional extends boolean> {
+  readonly optional?: Optional
+  /** `cascade`: a row pointing here is deleted with the row it points at. */
+  readonly onDelete?: OnDelete
+}
+
 function one<Target extends AnyEntity>(target: Target): RelationSpec<Target, 'one', false>
 function one<Target extends AnyEntity, const Optional extends boolean>(
   target: Target,
-  options: { readonly optional: Optional },
+  options: OneOptions<Optional> & { readonly optional: Optional },
 ): RelationSpec<Target, 'one', Optional>
+function one<Target extends AnyEntity>(
+  target: Target,
+  options: OneOptions<false>,
+): RelationSpec<Target, 'one', false>
 function one(
   target: AnyEntity,
-  options?: { readonly optional: boolean },
+  options?: OneOptions<boolean>,
 ): RelationSpec<AnyEntity, 'one', boolean> {
-  return { target, cardinality: 'one', optional: options?.optional ?? false }
+  const onDelete = options?.onDelete
+  if (onDelete !== undefined && onDelete !== 'cascade')
+    throw new Error(
+      `[foldkit-entity] Relation.one(${target.name}): onDelete is 'cascade'; ${String(onDelete)} is not one`,
+    )
+  return {
+    target,
+    cardinality: 'one',
+    optional: options?.optional ?? false,
+    onDelete: Option.fromUndefinedOr(onDelete),
+  }
 }
 
 /** What the owner sees: one or many of `target`. Used inside `Entity.relate`. */
@@ -443,6 +477,7 @@ export const Relation = {
     target,
     cardinality: 'many',
     optional: false,
+    onDelete: Option.none(),
   }),
 }
 

@@ -28,9 +28,8 @@ export default [
   ),
   edit(
     'the derived members do not see a link the context sets',
-    '  const bound = contextBound(\n    write,',
-    "  const bound = ((..._: unknown[]) => DomainWrite.bind(write, input as never, write._tag === 'Update' ? keys : undefined))(" +
-      '\n    write,',
+    "contextBound(write, input, write._tag === 'Update' ? keys : undefined, context, store),",
+    "DomainWrite.bind(write, input as never, write._tag === 'Update' ? keys : undefined),",
   ),
   edit(
     'the time is predicted from nothing',

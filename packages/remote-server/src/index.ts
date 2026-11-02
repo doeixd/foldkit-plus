@@ -29,6 +29,7 @@ import {
   assertSupported,
   evaluate,
   Query,
+  type AnyEntity,
   type AnyQuery,
   type ExprContext,
   type MemoryOperators,
@@ -302,6 +303,27 @@ export interface WriteRequirement {
   readonly reason: Option.Option<string>
 }
 
+/** A row a delete removed with the row it was asked to delete (`onDelete: 'cascade'`). */
+export interface CascadedRow {
+  readonly entity: string
+  readonly id: string
+  /** Each `one` relation it pointed, by key: what the answer re-reads (the counts it moved). */
+  readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
+}
+
+/**
+ * What a writer's `delete` did. `Deleted`: the row is gone, with `cascaded`,
+ * the rows declared to go with it (`Relation.one(…, { onDelete: 'cascade' })`)
+ * that the principal may see. `Absent`: no row, so nothing to delete (a
+ * retry's case). `Moved`: the row is there at another revision, and stays.
+ */
+export type DeleteOutcome = Data.TaggedEnum<{
+  Deleted: { readonly cascaded: ReadonlyArray<CascadedRow> }
+  Absent: {}
+  Moved: {}
+}>
+export const DeleteOutcome = Data.taggedEnum<DeleteOutcome>()
+
 export interface EntityWriter<P, R = never> {
   readonly entity: string
   /**
@@ -365,6 +387,13 @@ export interface EntityWriter<P, R = never> {
    * a writer without it.
    */
   readonly invariants?: true
+  /**
+   * Whether `delete` removes, in the transaction that deletes the row, every
+   * row declared to go with it (`Entity.cascading`), and answers them as
+   * `cascaded`. `RemoteServer.write` refuses a delete of an Entity that
+   * cascades through a writer without it.
+   */
+  readonly cascades?: true
   /**
    * Why this writer cannot land `write`, each a sentence; none when it can.
    * `RemoteServer.write` asks once, where the write is registered, for what
@@ -448,9 +477,9 @@ export interface EntityWriter<P, R = never> {
     R
   >
   /**
-   * Deletes the row, while it is still at the revision when one is expected:
-   * `deleted`, `absent` (no row, so nothing to delete; a retry's case), or
-   * `moved` (the row is there at another revision, and stays).
+   * Deletes the row, while it is still at the revision when one is expected,
+   * and, when it `cascades`, the rows declared to go with it, in the same
+   * transaction: a `DeleteOutcome`.
    */
   readonly delete: (context: {
     readonly id: string
@@ -460,7 +489,7 @@ export interface EntityWriter<P, R = never> {
     readonly requires?: WriteRequirement | undefined
     readonly principal: P
   }) => Effect.Effect<
-    'deleted' | 'absent' | 'moved',
+    DeleteOutcome,
     RemoteServerError | RemoteForbidden | RemoteUnauthenticated | RemoteUnmet,
     R
   >
@@ -2344,22 +2373,51 @@ export const RemoteServer = {
     // every one. The links are read as the asker may see the row (`writer.read`),
     // so a write names no row its writer could not have reached by reading; only a
     // writer with no read rule to apply has its links read as stored.
-    const relations: Readonly<Record<string, EntityMember>> = write.input.entity.relations
-    const pointers = Object.values(relations).flatMap(relation => {
-      if (relation._tag !== 'Relation' || relation.cardinality !== 'one') return []
-      const isThis = (read: EntityMember) =>
-        read.owner.token === relation.owner.token && read.key === relation.key
-      const changes = Object.values(relation.target().derived).some(
-        member =>
-          member._tag === 'Derived' &&
-          Derivation.$match(member.derives, {
-            Supplied: () => true,
-            Count: ({ relation: read }) => isThis(read),
-            Exists: ({ relation: read }) => isThis(read),
-          }),
+    const pointersOf = (entity: AnyEntity): ReadonlyArray<string> => {
+      const relations: Readonly<Record<string, EntityMember>> = entity.relations
+      return Object.values(relations).flatMap(relation => {
+        if (relation._tag !== 'Relation' || relation.cardinality !== 'one') return []
+        const isThis = (read: EntityMember) =>
+          read.owner.token === relation.owner.token && read.key === relation.key
+        const changes = Object.values(relation.target().derived).some(
+          member =>
+            member._tag === 'Derived' &&
+            Derivation.$match(member.derives, {
+              Supplied: () => true,
+              Count: ({ relation: read }) => isThis(read),
+              Exists: ({ relation: read }) => isThis(read),
+            }),
+        )
+        return changes ? [relation.key] : []
+      })
+    }
+    const pointers = pointersOf(write.input.entity)
+    // Every Entity a delete of this one removes rows of, by name, and what each points at
+    // whose derived members the removal moves: the answer re-reads them as it does the row's.
+    const cascadePointers = new Map<string, ReadonlyArray<string>>()
+    if (write._tag === 'Delete') {
+      const reach = (entity: AnyEntity): void => {
+        for (const { owner } of Entity.cascading(entity)) {
+          if (cascadePointers.has(owner.name)) continue
+          cascadePointers.set(owner.name, pointersOf(owner))
+          reach(owner)
+        }
+      }
+      reach(write.input.entity)
+      if (cascadePointers.size > 0 && writer.cascades !== true) {
+        throw new Error(
+          `[foldkit-remote-server] delete "${mutation.name}" removes ${write.input.entity.name}, whose rows take ${[...cascadePointers.keys()].join(', ')} with them (onDelete: 'cascade'), but its writer does not remove them (cascades)`,
+        )
+      }
+    }
+    /** What a removed row pointed at that its removal moves, as refs. */
+    const pointedBy = (row: CascadedRow): ReadonlyArray<EntityRef> =>
+      (cascadePointers.get(row.entity) ?? []).flatMap(key =>
+        Option.match(Option.flatten(Option.fromUndefinedOr(row.links[key])), {
+          onNone: () => [],
+          onSome: ref => [ref],
+        }),
       )
-      return changes ? [relation.key] : []
-    })
     const seenLinks = (
       id: string,
       principal: P,
@@ -2621,17 +2679,26 @@ export const RemoteServer = {
                     writer.delete({ id: bound.id, expect, when: yield* when, principal }),
                   ),
                 )
-                // Gone already is gone: only a revision the row moved past refuses.
-                if (outcome === 'moved') return yield* Effect.fail(conflict(bound))
-                const gone = {
+                const gone = (cascaded: ReadonlyArray<CascadedRow>) => ({
                   output: {},
                   entities: [],
                   connections: [],
-                  deleted: [{ entity: bound.entity, id: bound.id }],
-                }
-                // A delete that wrote nothing (the row gone, or hidden from its
-                // writer) names nothing more, so it answers alike either way.
-                return outcome === 'deleted' ? naming(gone, before) : gone
+                  deleted: [
+                    { entity: bound.entity, id: bound.id },
+                    ...cascaded.map(({ entity, id }) => ({ entity, id })),
+                  ],
+                })
+                return yield* DeleteOutcome.$match(outcome, {
+                  // Gone already is gone: only a revision the row moved past refuses.
+                  Moved: () => Effect.fail(conflict(bound)),
+                  // A delete that wrote nothing (the row gone, or hidden from its
+                  // writer) names nothing more, so it answers alike either way.
+                  Absent: () => Effect.succeed(gone([])),
+                  Deleted: ({ cascaded }) =>
+                    Effect.succeed(
+                      naming(gone(cascaded), [...before, ...cascaded.flatMap(pointedBy)]),
+                    ),
+                })
               }),
           }),
         )

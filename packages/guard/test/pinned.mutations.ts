@@ -19,8 +19,8 @@ export default [
   ),
   edit(
     'a delete is not pinned',
-    'return yield* writer.delete({\n                  ...context,\n                  expect: pin(context.expect, current.value),',
-    'return yield* writer.delete({\n                  ...context,\n                  expect: context.expect,',
+    'return yield* writer.delete({\n                ...context,\n                expect: pin(context.expect, current.value),',
+    'return yield* writer.delete({\n                ...context,\n                expect: context.expect,',
   ),
   edit('a miss is not decided again', '? loop(left - 1)', '? Effect.succeed(outcome)'),
   edit('two attempts, not three', 'return loop(3)', 'return loop(2)'),
@@ -32,7 +32,7 @@ export default [
   ),
   edit(
     'a delete ignores the revision its input expects',
-    "if (moved(context.expect, current.value)) return 'moved' as const",
+    'if (moved(context.expect, current.value)) return DeleteOutcome.Moved()',
     '',
   ),
   edit(

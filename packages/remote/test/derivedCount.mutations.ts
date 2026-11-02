@@ -25,7 +25,7 @@ export default [
   edit(
     'a row not held points nowhere',
     '../src/mutation.ts',
-    "return write._tag === 'Insert' ? Option.some(null) : Option.none()",
+    "return kind === 'Insert' ? Option.some(null) : Option.none()",
     'return Option.some(null)',
   ),
   edit(
@@ -43,8 +43,8 @@ export default [
   edit(
     'a delete points where it did',
     '../src/mutation.ts',
-    'Delete: () => Option.some<unknown>(null),',
-    'Delete: () => Option.none(),',
+    "Match.when('Delete', () => Option.some<unknown>(null)),",
+    "Match.when('Delete', () => Option.none()),",
   ),
   edit('nothing is taken away', '../src/mutation.ts', 'count(from.value, owner, field, -1)', ''),
 ]

@@ -9,6 +9,27 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Cascading deletes, declared once** (`foldkit-entity`, `foldkit-remote`,
+  `foldkit-remote-server`, `foldkit-remote-drizzle`, `foldkit-guard`, #343).
+  `Relation.one(Post, { onDelete: 'cascade' })` says a row goes when the row
+  it points at is deleted, and `Entity.cascading(Post)` lists the relations
+  that take rows with a deleted post. `Data.mutate` of a declared
+  `Write.delete` removes every held row reached, transitively (a reply's
+  replies, the likes of each), from every list, and moves the counts and
+  exists over each; `Law.check` agrees while it is pending and once
+  answered. The Drizzle `writer` removes them itself, in the delete's
+  transaction or D1 batch, after the row and only once it is gone, so the
+  cascade holds without foreign keys; a cascade back through another Entity
+  is refused where the writer is made, and `bind` refuses a table foreign
+  key that says otherwise than the relation. `EntityWriter.delete` now
+  answers a `DeleteOutcome` (`Deleted({ cascaded })`, `Absent`, `Moved`)
+  in place of `'deleted' | 'absent' | 'moved'`; a writer that removes the
+  cascade says `cascades: true`, which `GuardServer.writer` passes on, and
+  `RemoteServer.write` refuses a cascading delete through one that does
+  not. Its answer names each removed row its asker may see as deleted and
+  re-reads what each pointed at. Chirp's likes go with their post this way.
+  Who may delete the rows a cascade takes is not judged yet (#348).
+
 - **A durable outbox under a server render: `SSR.hydrate`'s `prepare` and
   the outbox's `session`** (`foldkit-ssr`, `foldkit-remote`, #347).
   `prepare: model => Effect<Model>` adds to the Model a page resumes what

@@ -194,6 +194,15 @@ Object.keys(Blog.Post.members) // id, title, published, author, editor, comments
   names it.
 - `target()` returns the related entity, so relations can be followed from
   there, around a cycle too.
+- `Relation.one(Post, { onDelete: 'cascade' })` says a row goes when the row
+  it points at is deleted: a comment with its post, a reply with the post it
+  answers. It is declared on the link the row holds, as its foreign key is,
+  and a `many` declares nothing. `Entity.cascading(Post)` lists every relation
+  that takes rows with a deleted post (`{ relation, owner }`), so Remote
+  removes those it holds while the delete is pending, counts and lists with
+  them, and `remote-drizzle`'s writer removes them where it deletes, on a store
+  without foreign keys too. `cascade` is the one action; `setNull` and
+  `restrict` are not declared yet (#348).
 
 `Entity.relate` throws, and the types reject, a relation key that is already a
 member, an owner that is not in the first argument, and a target that is not

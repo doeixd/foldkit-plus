@@ -37,7 +37,11 @@ export const Chirp = Entity.relate(
   {
     Post: { author: Relation.one(UserFields) },
     User: { posts: Relation.many(PostFields) },
-    Like: { post: Relation.one(PostFields), user: Relation.one(UserFields) },
+    // A like goes with its post: the page drops it at once, and the server's writer removes it.
+    Like: {
+      post: Relation.one(PostFields, { onDelete: 'cascade' }),
+      user: Relation.one(UserFields),
+    },
   },
 )
 // #endregion

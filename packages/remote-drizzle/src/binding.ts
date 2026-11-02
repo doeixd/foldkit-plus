@@ -155,6 +155,21 @@ export interface EntityBinding<
    * `entity` reaches nothing.
    */
   readonly reach?: ((owner: EntityIdentity<string>) => Option.Option<AnyEntityBinding>) | undefined
+  /**
+   * The relations of Entities bound beside this one that a delete of its row
+   * cascades through (`Relation.one(…, { onDelete: 'cascade' })`): what the
+   * writer removes with the row. `bind` sets it; a binding made with `entity`
+   * cascades into nothing.
+   */
+  readonly cascades?: ReadonlyArray<CascadeEdge> | undefined
+}
+
+/** One relation a delete cascades through: the pointing binding, and the column its link is on. */
+export interface CascadeEdge {
+  /** `Like.post`, for what a refusal names. */
+  readonly relation: string
+  readonly owner: AnyEntityBinding
+  readonly column: AnyColumn
 }
 
 /**

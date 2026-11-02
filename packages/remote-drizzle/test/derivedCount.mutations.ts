@@ -55,8 +55,8 @@ export default [
   edit(
     'a delete names nothing',
     '../../remote-server/src/index.ts',
-    "return outcome === 'deleted' ? naming(gone, before) : gone",
-    'return naming(gone, [])',
+    'naming(gone(cascaded), [...before, ...cascaded.flatMap(pointedBy)]),',
+    'naming(gone(cascaded), []),',
   ),
   edit(
     'an insert names nothing',

@@ -148,7 +148,7 @@ export default [
     edits: [
       {
         file,
-        find: "if (Option.isNone(current)) return 'absent' as const",
+        find: 'if (Option.isNone(current)) return DeleteOutcome.Absent()',
         replace: 'if (Option.isNone(current)) return yield* writer.delete(context)',
       },
     ],

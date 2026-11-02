@@ -86,8 +86,9 @@ export const EditPost = Mutation.write(
 
 /**
  * A chirp taken down, by its author alone (`guard.ts`). The page drops it
- * from every list and its author's count at once; the server deletes its
- * likes with it (`on delete cascade`).
+ * from every list and its author's count at once, and its likes with it,
+ * which the domain declares go with their post (`onDelete: 'cascade'`); the
+ * server's writer removes them in the same transaction.
  */
 export const DeletePost = Mutation.write(
   'DeletePost',

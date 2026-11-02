@@ -7,7 +7,9 @@
  * take it unchanged.
  */
 import type { AnyColumn, SQL, Table as DrizzleTable } from 'drizzle-orm'
-import { getTableColumns } from 'drizzle-orm'
+import { getTableColumns, is } from 'drizzle-orm'
+import { getTableConfig as pgTableConfig, PgTable } from 'drizzle-orm/pg-core'
+import { getTableConfig as sqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { holdsChecks } from './checks.js'
 import { contextSharers } from './columns.js'
 import { operatorsFrom, type BindingOperators } from './operators.js'
@@ -17,6 +19,7 @@ import * as Domain from 'foldkit-entity'
 import { Entity, type FieldsFrom } from 'foldkit-remote'
 import type {
   AnyEntityBinding,
+  CascadeEdge,
   ComputedConfig,
   EntityBinding,
   ManyRelation,
@@ -251,6 +254,48 @@ const inverseOne = (
   }
 }
 
+/** What the table's own foreign key on `column` does on delete, where it declares one. */
+const onDeleteOf = (table: DrizzleTable, column: AnyColumn): Option.Option<string> => {
+  const foreignKeys = is(table, PgTable)
+    ? pgTableConfig(table).foreignKeys
+    : is(table, SQLiteTable)
+      ? sqliteTableConfig(table).foreignKeys
+      : []
+  for (const key of foreignKeys) {
+    const { columns } = key.reference()
+    if (columns.length === 1 && columns[0] === column)
+      return Option.some(key.onDelete ?? 'no action')
+  }
+  return Option.none()
+}
+
+/**
+ * Refuses a `one` relation whose table's foreign key says otherwise than the
+ * Entity on delete: a cascade the domain does not declare goes unforeseen by
+ * the client, and one it declares and the table refuses fails every delete.
+ */
+const agreesOnDelete = (
+  table: DrizzleTable,
+  relation: Domain.EntityMember & { readonly _tag: 'Relation' },
+  column: AnyColumn,
+  name: string,
+  field: string,
+): void =>
+  Option.match(onDeleteOf(table, column), {
+    onNone: () => undefined,
+    onSome: action => {
+      const declared = Option.isSome(relation.onDelete)
+      if (action === 'cascade' && !declared)
+        fail(
+          `relation "${field}" on entity "${name}" is stored on "${column.name}", whose foreign key cascades on delete; declare it Relation.one(${relation.target().name}, { onDelete: 'cascade' }), so a client foresees it and every store holds it`,
+        )
+      if (declared && action !== 'cascade')
+        fail(
+          `relation "${field}" on entity "${name}" is declared onDelete: 'cascade', but the foreign key on "${column.name}" says on delete ${action}; make it on delete cascade, or drop the foreign key and let the writer remove the rows`,
+        )
+    },
+  })
+
 const oneColumn = (
   stored: AnyStorage,
   relation: Domain.EntityMember & { readonly _tag: 'Relation' },
@@ -433,6 +478,32 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
       }) as RelationBinding
     }
 
+    for (const [field, relation] of Object.entries(members))
+      if (relation._tag === 'Relation') {
+        const link = relations[field]
+        if (link?.kind === 'one') agreesOnDelete(config.table, relation, link.field, name, field)
+      }
+
+    // Each relation of an Entity bound beside this one that a delete of its row cascades
+    // through, read on use: the pointing Entity may be bound after this one.
+    const cascades = Domain.Entity.cascading(entity).map(({ relation, owner }) => {
+      const pointingKey =
+        Object.keys(entities).find(key => Domain.Entity.same(entities[key]!, owner)) ??
+        fail(
+          `${relation.owner.name}.${relation.key} cascades into ${name} on delete, but ${relation.owner.name} is not being bound beside it; bind them together, so a delete removes its rows`,
+        )
+      const column =
+        tables[pointingKey]?.relations?.[relation.key]?.field ??
+        fail(
+          `${relation.owner.name}.${relation.key} cascades into ${name} on delete, so it must be stored on ${relation.owner.name}'s own table ({ field })`,
+        )
+      return Object.defineProperty(
+        { relation: `${relation.owner.name}.${relation.key}`, column },
+        'owner',
+        { get: () => bindings[pointingKey], enumerable: true },
+      ) as CascadeEdge
+    })
+
     // An invariant may read a `one` relation, so the checks are read once relations are bound.
     holdsChecks(entity, config.table, columns, relations, operators)
 
@@ -505,6 +576,7 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
         .map(([field]) => field),
       operators,
       reach,
+      cascades,
       ...(config.visible === undefined ? {} : { visible: config.visible }),
     } as unknown as EntityBinding<string, DrizzleTable>
   }

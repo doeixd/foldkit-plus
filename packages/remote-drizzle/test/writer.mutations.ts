@@ -101,13 +101,23 @@ export default [
   },
   {
     name: 'a delete from a moved revision succeeds',
-    edits: [{ file: server, find: "if (outcome === 'moved')", replace: 'if (false)' }],
+    edits: [
+      {
+        file: server,
+        find: 'Moved: () => Effect.fail(conflict(bound)),',
+        replace: 'Moved: () => Effect.succeed(gone([])),',
+      },
+    ],
     tests,
   },
   {
     name: 'a delete of a row already gone fails',
     edits: [
-      { file: server, find: "if (outcome === 'moved')", replace: "if (outcome !== 'deleted')" },
+      {
+        file: server,
+        find: 'Absent: () => Effect.succeed(gone([])),',
+        replace: 'Absent: () => Effect.fail(conflict(bound)),',
+      },
     ],
     tests,
   },
@@ -143,8 +153,8 @@ export default [
     edits: [
       {
         file: drizzle,
-        find: "if (row === undefined) return 'absent'",
-        replace: "if (row === undefined) return 'moved'",
+        find: 'if (row === undefined) return DeleteOutcome.Absent()',
+        replace: 'if (row === undefined) return DeleteOutcome.Moved()',
       },
     ],
     tests,

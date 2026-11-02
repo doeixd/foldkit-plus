@@ -27,6 +27,7 @@ import {
 import {
   RemoteInvalid,
   RemoteServer,
+  DeleteOutcome,
   RemoteServerError,
   RowRequirement,
   type EntityRecord,
@@ -834,6 +835,8 @@ export const GuardServer = {
       ...(writer.ledger === true ? { ledger: true } : {}),
       // Invariants are the writer's to judge, over the row its statement writes.
       ...(writer.invariants === true ? { invariants: true } : {}),
+      // The rows a delete takes with it are the writer's to remove; the guard judges the row named.
+      ...(writer.cascades === true ? { cascades: true } : {}),
       // What the store refuses, the store knows: the guard drops none of its reasons. It
       // adds one: its rules judge the row the write leaves, worked out by the policy's
       // table, so an assignment that table cannot run would be judged as its old value.
@@ -919,31 +922,27 @@ export const GuardServer = {
         ),
       delete: context =>
         Effect.andThen(discloses(context.expect, context.when), () =>
-          pinned(
-            context.id,
-            context.expect,
-            outcome => outcome === 'moved',
-            () =>
-              Effect.gen(function* () {
-                const row = yield* policy.writable(entity, context.principal, 'Delete')
-                const current = yield* read({
-                  id: context.id,
-                  fields: fieldsOf([row], versionFields(context.expect)),
-                  principal: context.principal,
-                })
-                // Hidden or gone, the writer sees no row: there is nothing of theirs to delete.
-                if (Option.isNone(current)) return 'absent' as const
-                if (moved(context.expect, current.value)) return 'moved' as const
-                const requires = yield* rowRule(row, current.value, context.principal)
-                return yield* writer.delete({
-                  ...context,
-                  expect: pin(context.expect, current.value),
-                  ...Option.match(requires, {
-                    onNone: () => ({}),
-                    onSome: held => ({ requires: held }),
-                  }),
-                })
-              }),
+          pinned(context.id, context.expect, DeleteOutcome.$is('Moved'), () =>
+            Effect.gen(function* () {
+              const row = yield* policy.writable(entity, context.principal, 'Delete')
+              const current = yield* read({
+                id: context.id,
+                fields: fieldsOf([row], versionFields(context.expect)),
+                principal: context.principal,
+              })
+              // Hidden or gone, the writer sees no row: there is nothing of theirs to delete.
+              if (Option.isNone(current)) return DeleteOutcome.Absent()
+              if (moved(context.expect, current.value)) return DeleteOutcome.Moved()
+              const requires = yield* rowRule(row, current.value, context.principal)
+              return yield* writer.delete({
+                ...context,
+                expect: pin(context.expect, current.value),
+                ...Option.match(requires, {
+                  onNone: () => ({}),
+                  onSome: held => ({ requires: held }),
+                }),
+              })
+            }),
           ),
         ),
     }

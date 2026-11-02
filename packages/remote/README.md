@@ -1568,6 +1568,10 @@ every relation that lists it, as a settled delete does. It is a layer like a
 patch, so the server's store is untouched (`Data.confirmed` still reads the
 row), a failure brings the row back everywhere, and the answer's `deleted`
 keeps it gone. A pending delete wins over every pending patch of its row.
+A declared `Write.delete` shows this without being asked, and with it every
+row the store holds that is declared to go with the row
+(`Relation.one(Post, { onDelete: 'cascade' })`: its replies, theirs, the likes
+of each), each moving the counts over it; the answer names them deleted.
 
 ```ts
 Data.mutate(model, DeletePost, { id }, { optimistic: [Remote.tombstone(Post, id)] })

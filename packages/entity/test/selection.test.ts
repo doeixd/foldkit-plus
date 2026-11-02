@@ -84,7 +84,7 @@ describe('Entity.select', () => {
     const Bare = Entity.define('Bare', Schema.Struct({ id: Schema.String }))
     const { Owner, Owned } = Entity.relate(
       { Owner: Entity.define('Owner', Schema.Struct({ id: Schema.String })), Owned: Bare },
-      { Owner: { owned: { target: Bare, cardinality: 'one', optional: false } } },
+      { Owner: { owned: Relation.one(Bare) } },
     )
     // Selected from the bare definition, used where the related one is the target.
     const selection = Entity.select(Owner, { owned: Entity.select(Bare, { id: true }) })

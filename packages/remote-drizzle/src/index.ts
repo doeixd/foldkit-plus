@@ -56,10 +56,12 @@ import {
 import type { ConnectionSpec, NormalizedPatch, QueryDescriptor } from 'foldkit-remote'
 import { Diagnostics, Entity } from 'foldkit-remote'
 import {
+  DeleteOutcome,
   RemoteServer,
   RemoteServerError,
   RowRequirement,
   exprContext,
+  type CascadedRow,
   type EntityRecord,
   type EntityWriter,
   type LiveHub,
@@ -103,6 +105,7 @@ import {
   type DrizzleWrites,
 } from './database.js'
 import { toQueryPage } from './page.js'
+import { cascadePlan, type CascadePlan, type CascadeStep } from './cascade.js'
 import { quoted } from './quoted.js'
 import { buildPage } from './pagination.js'
 import { shapeWindow } from './window.js'
@@ -1183,6 +1186,31 @@ interface LedgerDatabase extends LedgerTx {
   run(query: SQL): unknown
 }
 
+/** A cascading delete's builders, typed only as far as it uses them. */
+interface CascadeTx {
+  select(columns: Record<string, AnyColumn | SQL | SQL.Aliased>): {
+    from(table: Table): {
+      where(condition: SQL): SyncStatement & PromiseLike<ReadonlyArray<Record<string, unknown>>>
+    }
+  }
+  delete(table: Table): {
+    where(condition: SQL | undefined): {
+      returning(
+        columns: Record<string, AnyColumn>,
+      ): SyncStatement & PromiseLike<ReadonlyArray<Record<string, unknown>>>
+    }
+  }
+}
+
+/** The provided Drizzle database, as far as a cascading delete needs it. */
+interface CascadeDatabase extends CascadeTx {
+  readonly resultKind?: string
+  transaction<A>(body: (tx: CascadeTx) => A): A
+  batch(
+    statements: ReadonlyArray<unknown>,
+  ): PromiseLike<ReadonlyArray<ReadonlyArray<Record<string, unknown>>>>
+}
+
 /** Whether the database is D1's, which refuses the `BEGIN` its Drizzle `transaction` sends. */
 const isD1 = (database: unknown): boolean =>
   (database as { readonly constructor: { readonly [entityKind]?: string } }).constructor[
@@ -1386,6 +1414,105 @@ export const writer = <P = unknown>(
         read[key] = idOfRef(row[key], `${binding.name}.${key}`)
     return read
   }
+
+  // What a delete takes with it (`onDelete: 'cascade'`), worked out once: a cycle is refused here.
+  const plan =
+    (binding.cascades ?? []).length === 0 ? Option.none() : Option.some(cascadePlan(binding))
+
+  /**
+   * The row deleted and every row declared to go with it, in one transaction,
+   * or on D1 in one batch: first what each Entity's removal will take, as the
+   * principal may see it (`visible`), then the row, then the rest, leaves
+   * first, each only while the row is gone, so a delete that missed removes
+   * nothing. What was taken is answered only when the row went.
+   */
+  const withCascade = (
+    held: CascadePlan,
+    id: string,
+    where: SQL | undefined,
+    principal: P,
+  ): Effect.Effect<
+    { readonly deleted: boolean; readonly cascaded: ReadonlyArray<CascadedRow> },
+    RemoteServerError,
+    DrizzleDatabase
+  > =>
+    Effect.gen(function* () {
+      const database = (yield* DrizzleDatabase) as unknown as CascadeDatabase
+      const seen = yield* Effect.forEach(held.steps, step =>
+        Effect.map(visibleFor(step.binding, principal), visible => ({ step, visible })),
+      )
+      const gone = sql`not exists (select 1 from ${binding.table} where ${eq(idColumn(binding), id)})`
+      const links = (step: CascadeStep) =>
+        Object.entries(step.binding.relations).flatMap(([key, relation]) =>
+          relation.kind === 'one' ? [[key, relation] as const] : [],
+        )
+      const statements = (db: CascadeTx) => [
+        ...seen.map(({ step, visible }) =>
+          db
+            .select({
+              id: idColumn(step.binding),
+              ...Object.fromEntries(links(step).map(([key, relation]) => [key, relation.field])),
+              // Named: D1 hands a batch's rows back keyed by column name, and a column named `1`
+              // sorts before every other key, so its values would land on the wrong fields.
+              seen: (visible === undefined
+                ? sql`1`
+                : sql`case when ${visible} then 1 else 0 end`
+              ).as('seen'),
+            })
+            .from(step.binding.table)
+            .where(sql`${idColumn(step.binding)} in (${held.removed(step, id)})`),
+        ),
+        db
+          .delete(binding.table)
+          .where(where)
+          .returning({ id: idColumn(binding) }),
+        ...held.steps.map(step =>
+          db
+            .delete(step.binding.table)
+            .where(sql`${idColumn(step.binding)} in (${held.removed(step, id)}) and ${gone}`)
+            .returning({ id: idColumn(step.binding) }),
+        ),
+      ]
+      const failed = 'Database write failed'
+      const results: ReadonlyArray<ReadonlyArray<Record<string, unknown>>> = isD1(database)
+        ? yield* runStatement(() => database.batch(statements(database)), failed)
+        : database.resultKind === 'sync'
+          ? // A synchronous driver's transaction commits as its body returns: no await in it.
+            yield* runStatement(
+              () =>
+                Promise.resolve(database.transaction(tx => statements(tx).map(each => each.all()))),
+              failed,
+            )
+          : yield* runStatement(
+              () =>
+                database.transaction(async tx => {
+                  const done: Array<ReadonlyArray<Record<string, unknown>>> = []
+                  for (const each of statements(tx)) done.push(await each)
+                  return done
+                }),
+              failed,
+            )
+      const deleted = (results[seen.length] ?? []).length > 0
+      if (!deleted) return { deleted, cascaded: [] }
+      const cascaded = seen.flatMap(({ step }, at) =>
+        (results[at] ?? [])
+          .filter(row => Number(row['seen']) === 1)
+          .map((row): CascadedRow => ({
+            entity: step.binding.name,
+            id: String(row['id']),
+            links: Object.fromEntries(
+              links(step).map(([key, relation]) => [
+                key,
+                Option.map(Option.fromNullishOr(row[key]), target => ({
+                  entity: relation.entity.name,
+                  id: String(target),
+                })),
+              ]),
+            ),
+          })),
+      )
+      return { deleted, cascaded }
+    })
 
   /** The first of the invariants broken, as the refusal a writer answers it with. */
   const refusalOf = (failures: ReadonlyArray<Invariant>) =>
@@ -1811,6 +1938,7 @@ export const writer = <P = unknown>(
     operators: binding.operators.memory,
     commutes,
     invariants: true,
+    cascades: true,
     // A fraction added to an integer column splits the dialects: Postgres refuses the
     // statement, SQLite stores the fraction. A field declared Schema.Number hides the column.
     refuses: write => [
@@ -2092,23 +2220,31 @@ export const writer = <P = unknown>(
           onSome: Effect.succeed,
         })
       }),
-    delete: ({ id, expect, when, requires }) =>
+    delete: ({ id, expect, when, requires, principal }) =>
       Effect.gen(function* () {
         yield* serverOnly
         const at = yield* rowOf(id, expect, when)
         const required = yield* requiredOf(requires)
         const where = and(at.where, ...required)
-        const writes = yield* drizzleWrites
-        const deleted = yield* runStatement(
-          () =>
-            writes
-              .delete(binding.table)
-              .where(where)
-              .returning({ id: idColumn(binding) }),
-          'Database write failed',
-        )
-        if (deleted.length > 0) return 'deleted'
-        if (Option.isNone(expect) && Option.isNone(when) && requires === undefined) return 'absent'
+        const removal = yield* Option.match(plan, {
+          onNone: () =>
+            Effect.gen(function* () {
+              const writes = yield* drizzleWrites
+              const rows = yield* runStatement(
+                () =>
+                  writes
+                    .delete(binding.table)
+                    .where(where)
+                    .returning({ id: idColumn(binding) }),
+                'Database write failed',
+              )
+              return { deleted: rows.length > 0, cascaded: [] }
+            }),
+          onSome: held => withCascade(held, id, where, principal),
+        })
+        if (removal.deleted) return DeleteOutcome.Deleted({ cascaded: removal.cascaded })
+        if (Option.isNone(expect) && Option.isNone(when) && requires === undefined)
+          return DeleteOutcome.Absent()
         // The delete missed: gone is gone (a retry of this delete, or another's);
         // still there, it moved past the revision this delete expected, or else
         // does not hold its precondition.
@@ -2129,13 +2265,13 @@ export const writer = <P = unknown>(
           { where: eq(idColumn(binding), id) },
         )
         const row = still[0]
-        if (row === undefined) return 'absent'
+        if (row === undefined) return DeleteOutcome.Absent()
         yield* refusedBy(id, requires, required)
         if (
           Option.isNone(when) ||
           (Option.isSome(expect) && !sameStored(row['revision'], expect.value.revision))
         ) {
-          return 'moved'
+          return DeleteOutcome.Moved()
         }
         return yield* RemoteServer.unmet(
           `${binding.name} ${id} does not hold what the delete asks of it`,

@@ -8,7 +8,7 @@ import { Effect, Option, Schema } from 'effect'
 import { Derived, Entity, Relation, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
-import { RemoteServer, type EntitySource, type EntityWriter } from '../src/index.js'
+import { DeleteOutcome, RemoteServer, type EntitySource, type EntityWriter } from '../src/index.js'
 
 const ProjectFields = Entity.define(
   'Project',
@@ -90,7 +90,10 @@ const notes = (
     entity: 'Note',
     update: () => Effect.die('no updates'),
     insert: () => Effect.die('no inserts'),
-    delete: () => Effect.succeed(outcome),
+    delete: () =>
+      Effect.succeed(
+        outcome === 'deleted' ? DeleteOutcome.Deleted({ cascaded: [] }) : DeleteOutcome.Absent(),
+      ),
     linked: () => Effect.succeed(Option.some(links)),
     read: ({ principal }) =>
       Effect.succeed(seen(principal) ? Option.some({ id: 'n1', ...links }) : Option.none()),

@@ -1239,6 +1239,24 @@ the insert would tell the asker what it holds; only a
 create of that id. A delete is one `delete` by id, guarded by the revision when
 it expects one; a row already gone is gone.
 
+**A delete takes what the domain says goes with it.** A row pointing at the
+deleted one through a relation declared `Relation.one(Post, { onDelete:
+'cascade' })` is removed too, and so on from it (a reply's replies, the likes
+of each), by the writer itself in the transaction that deletes, or on D1 in
+the same `batch`: the row first, under its revision, `when` and guard, then
+the rest, leaves first, each only once the row is gone, so a delete that
+missed removes nothing. It holds on a store without foreign keys (sql.js, a
+connection without `pragma foreign_keys = on`). The writer answers what it
+removed that the principal may see (`visible`) as `DeleteOutcome.Deleted({
+cascaded })`, which `RemoteServer.write` names as deleted, re-reading what each
+pointed at; the client predicted the same over the rows it holds. Every
+Entity a cascade reaches is bound beside it (`bind`), with its relation stored
+on its own table (`{ field }`); a cascade that comes back through another
+Entity is refused where the writer is made. `bind` refuses a table whose
+foreign key on such a column says otherwise: one that cascades where the
+relation does not declare it, and one that does not where it does (a table's
+`on delete restrict` would fail every delete, since the row goes first).
+
 **A retry is safe without a request log.** A guarded write whose answer was
 lost is sent again with the same revision, and the guard misses. The writer
 then reads the row: one revision past the expected one and holding exactly
