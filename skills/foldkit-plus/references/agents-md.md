@@ -1,6 +1,6 @@
 # A recommended AGENTS.md block
 
-Checked against `foldkit-plus` 0.17.0.
+Checked against `foldkit-plus` 0.19.0.
 
 An application scaffolded with `create-foldkit-app` has an `AGENTS.md` that
 points at `FOLDKIT.md` and ends in an empty **Project Notes** section, which
@@ -121,16 +121,20 @@ Remote
 - A Projection no active Surface reads stays `Initial` for good: check the
   Surface wiring before drawing `Initial` as a spinner.
 - A `Query.make` list is invalidated by any change to its Entity; use
-  `Query.define` for a list the client should place (#238).
+  `Query.define` for a list the client should place.
 - A mutation handler's answer is read back only for the rows it names: name
   each row it changed (`Remote.patch(Entity, id, {})`), or what it moved
-  reverts. `Remote.make({ verifyPredictions: true })` reports such gaps in
-  development (#226).
+  reverts. `Remote.make({ verifyPredictions: import.meta.env?.DEV === true })`
+  reports such gaps at error level in development and tests.
+- A durable write refused for want of a session waits (`WaitingForSignIn`)
+  until `update` calls `Data.signedIn(model)` after a sign-in; without that
+  call it waits for good.
 - `Expr.input(...)` is a placeholder built once: compare it, never `input.x ? a : b`.
 
 SSR
 - Set `FOLDKIT_BUILD_ID` for every build, one value for client and server;
-  without it `SSR.hydrate` contains the server's page instead of resuming it (#210).
+  without it `SSR.hydrate` contains the server's page instead of resuming it
+  (reported as `NoBuildId` or `OtherBuild`).
 - Give `SSR.entry` `styles` with the stylesheet and `Style.usedIn(rendered.html)`,
   or served pages flash unstyled. Import `foldkit-plus/ssr/client` in the browser.
 
