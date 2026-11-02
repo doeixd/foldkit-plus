@@ -102,8 +102,8 @@ export default [
   edit('every read is Initial for why', "data._tag !== 'Initial'", 'false', why),
   edit(
     'an unread read blames the Subscriptions',
-    'if (names.length === 0) return Why.NotObserved()',
-    '',
+    'names.length === 0 ? Why.NotObserved() : Why.NotFetching({ surfaces: names }),',
+    'Why.NotFetching({ surfaces: names }),',
     why,
   ),
   edit(

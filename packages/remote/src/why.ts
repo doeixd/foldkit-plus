@@ -222,19 +222,21 @@ export const why = <Domain extends AnyDomain>(
     options?.surfaces === undefined
       ? Option.none()
       : Option.some(reading.flatMap(read => read.names))
+  const { unasked } = innerOf<ModelOfDomain<Domain>>(domain)
+  // Every active Surface reading it reads it under `cacheOnly`, which asks for
+  // nothing: what it lacks, or holds out of date, stays so.
+  const cacheOnly: ReadonlyArray<Why> =
+    reading.length > 0 && reading.every(({ entry }) => unasked(model, entry))
+      ? [Why.CacheOnly({ surfaces: reading.flatMap(read => read.names) })]
+      : []
   const initial: ReadonlyArray<Why> =
-    data._tag !== 'Initial'
+    data._tag !== 'Initial' || cacheOnly.length > 0
       ? []
       : [
           Option.match(surfaces, {
             onNone: () => Why.NoActiveRecord(),
-            onSome: names => {
-              if (names.length === 0) return Why.NotObserved()
-              const { unasked } = innerOf<ModelOfDomain<Domain>>(domain)
-              return reading.every(({ entry }) => unasked(model, entry))
-                ? Why.CacheOnly({ surfaces: names })
-                : Why.NotFetching({ surfaces: names })
-            },
+            onSome: names =>
+              names.length === 0 ? Why.NotObserved() : Why.NotFetching({ surfaces: names }),
           }),
         ]
   const live =
@@ -255,14 +257,41 @@ export const why = <Domain extends AnyDomain>(
   return readWhy(
     data._tag,
     [
+      ...cacheOnly,
       ...initial,
       ...failedReasons(data),
-      ...reasonsOf(innerOf<ModelOfDomain<Domain>>(domain).why(model), asked),
+      // A stale value nothing is fetching is no read entry's to fetch again.
+      ...reasonsOf(innerOf<ModelOfDomain<Domain>>(domain).why(model), asked).filter(
+        reason => cacheOnly.length === 0 || !isStaleUnasked(reason),
+      ),
       ...streams,
     ],
     surfaces,
   )
 }
+
+/** A list or row held stale with nothing in flight: what `cacheOnly` leaves as it is. */
+const isStaleUnasked = (reason: Why): boolean =>
+  Why.match(reason, {
+    List: ({ held, inFlight }) => held === 'Stale' && !inFlight,
+    Fields: ({ held, inFlight }) => held === 'Stale' && !inFlight,
+    NotObserved: () => false,
+    NotFetching: () => false,
+    CacheOnly: () => false,
+    NoActiveRecord: () => false,
+    HeldForHistory: () => false,
+    ListFailed: () => false,
+    FieldsFailed: () => false,
+    Unavailable: () => false,
+    Undecodable: () => false,
+    OverlayOnly: () => false,
+    Deleted: () => false,
+    LiveReconnecting: () => false,
+    LiveRefused: () => false,
+    Pending: () => false,
+    Joined: () => false,
+    Left: () => false,
+  })
 
 /**
  * Each change of each read's tag across a recorded history (the Messages

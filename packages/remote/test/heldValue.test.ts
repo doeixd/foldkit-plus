@@ -32,6 +32,7 @@ import {
   emptyLiveState,
   emptyStore,
   entityKey,
+  fieldMark,
   heldRoots,
   isTombstone,
   predictionOfWrite,
@@ -341,6 +342,11 @@ const messages = {
   },
   ReadStarted: {
     'p1 being read': () => ({ _tag: 'ReadStarted', requests: [nameOf('p1')] }),
+    'an unlisted row being read by an entry': () => ({
+      _tag: 'ReadStarted',
+      requests: [nameOf('p5')],
+      by: 'entry',
+    }),
     "p1's owner being read": () => ({ _tag: 'ReadStarted', requests: [userName('u1')] }),
     'the rows being read again': model => ({
       _tag: 'ReadStarted',
@@ -348,6 +354,13 @@ const messages = {
       refresh: model.remote.refresh.generation,
     }),
     'an unlisted row being read': () => ({ _tag: 'ReadStarted', requests: [nameOf('p5')] }),
+  },
+  ReadAbandoned: {
+    'an entry no longer asking for the rows it read': () => ({
+      _tag: 'ReadAbandoned',
+      by: 'entry',
+      marks: [fieldMark('Project', 'p5', 'name'), fieldMark('Project', 'p1', 'name')],
+    }),
   },
   QueryStarted: {
     'both lists queried': () => ({

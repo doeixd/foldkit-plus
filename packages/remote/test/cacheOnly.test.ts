@@ -17,6 +17,7 @@ import {
   Remote,
   RemotePolicy,
   RemoteClient,
+  fieldMark,
   isRemoteMessage,
   type RemoteMessage,
 } from '../src/index.js'
@@ -175,6 +176,20 @@ describe('A cacheOnly read', () => {
     expect(other.read(last)._tag).toBe('Initial')
   })
 
+  it('says the policy leaves a stale list as it is', async () => {
+    const stale = Data.reduce(holding, {
+      _tag: 'ConnectionInvalidated',
+      connection: projects.ref.identity,
+    })
+    const { trace, last } = await run(stale, [Respond.all])
+    const said = trace.why(last, projects)
+
+    expect(projects.read(last)._tag).toBe('Refreshing')
+    expect(said.because[0]).toEqual(Why.CacheOnly({ surfaces: ['projects'] }))
+    expect(said.because.filter(Why.guards.List)).toEqual([])
+    expect(said.message).toMatch(/cacheOnly/)
+  })
+
   it('says the policy left what it lacks unasked', async () => {
     const { trace, last } = await run(holding, [Respond.all])
     const said = trace.why(last, other)
@@ -219,6 +234,59 @@ describe('A cacheOnly read', () => {
     })
     expect(other.read(patched)).toEqual({ _tag: 'Ready', value: { id: 'p2', name: 'Live' } })
     expect(one.read(written)).toEqual({ _tag: 'Ready', value: { id: 'p1', name: 'Pending' } })
+  })
+})
+
+describe('Going offline while a read is in flight', () => {
+  const online: Model = { remote: Remote.initial, online: true }
+
+  it('takes its Loading marks back, so what it lacks reads Initial', async () => {
+    const { trace, asked, last } = await run(online, [Message.WentOnline({ online: false })])
+
+    expect(asked).toEqual([])
+    expect([other.read(last)._tag, projects.read(last)._tag]).toEqual(['Initial', 'Initial'])
+    expect(last.remote.loading.size).toBe(0)
+    expect(trace.why(last, other).because[0]).toEqual(Why.CacheOnly({ surfaces: ['other'] }))
+  })
+
+  it('asks again once back online', async () => {
+    const { asked, last } = await run(
+      online,
+      [Message.WentOnline({ online: false }), Message.WentOnline({ online: true }), Respond.all],
+      model => (model.online ? RemotePolicy.cacheFirst : RemotePolicy.cacheOnly),
+    )
+
+    expect([...asked].sort()).toEqual([
+      'query ProjectsByOwner',
+      'read Project:p1',
+      'read Project:p2',
+    ])
+    expect([other.read(last)._tag, projects.read(last)._tag]).toEqual(['Ready', 'Ready'])
+  })
+
+  it("leaves another entry's read Loading", () => {
+    const loading = Data.reduce(offline, {
+      _tag: 'ReadStarted',
+      requests: [{ entity: 'Project', id: 'p2', fields: ['id', 'name'] }],
+      by: 'another',
+    })
+    const unasked = Data.subscriptions({ other: active.other }, { policy })['other.read']
+    const reading = Data.reduce(loading, {
+      _tag: 'ReadStarted',
+      requests: [{ entity: 'Project', id: 'p2', fields: ['id', 'name'] }],
+      by: 'mine',
+    })
+
+    expect(unasked.modelToDependencies(loading).abandoned).toEqual([])
+    expect(
+      other.read(
+        Data.reduce(reading, {
+          _tag: 'ReadAbandoned',
+          by: 'mine',
+          marks: [fieldMark('Project', 'p2', 'id'), fieldMark('Project', 'p2', 'name')],
+        }),
+      )._tag,
+    ).toBe('Loading')
   })
 })
 
@@ -335,8 +403,8 @@ describe('why, where something asks', () => {
 
   it('says nothing is fetching what a Surface another call asks for reads', () => {
     const both = Data.active('both', () => Option.some(other))
-    Data.subscriptions({ both })
-    Data.subscriptions({ both }, { policy: RemotePolicy.cacheOnly })
+    Data.subscriptions({ asked: both })
+    Data.subscriptions({ unasked: both }, { policy: RemotePolicy.cacheOnly })
 
     expect(says({ both })).toEqual(Why.NotFetching({ surfaces: ['both'] }))
   })
@@ -350,6 +418,14 @@ describe('why, where something asks', () => {
     expect(says({ unasking, asking })).toEqual(
       Why.NotFetching({ surfaces: ['unasking', 'asking'] }),
     )
+  })
+
+  it('takes the policy of a reader wired again under its key', () => {
+    const rewired = Data.active('rewired', () => Option.some(other))
+    Data.subscriptions({ page: rewired })
+    Data.subscriptions({ page: rewired }, { policy: RemotePolicy.cacheOnly })
+
+    expect(says({ rewired })).toEqual(Why.CacheOnly({ surfaces: ['rewired'] }))
   })
 
   it('says nothing is fetching what a Surface no call names reads', () => {

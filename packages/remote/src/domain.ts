@@ -51,12 +51,14 @@ import { resolvedOf, type Asked, type NamedProjection } from './active.js'
 import type { RemoteInspection } from './inspect.js'
 import type { LiveCursor } from './liveState.js'
 import {
+  connectionMark,
   failureOf,
   fieldMark,
   initialRemoteModel,
   isFieldFailed,
   isLoadingThrough,
   onlyOverlaid,
+  ownedMarks,
   windowGrowthKey,
   isQueryLoading,
   refreshedAt,
@@ -1773,6 +1775,13 @@ export interface ReadDependencies {
    * change past its `maxAge` is otherwise never looked at again.
    */
   readonly expires: ReadDeadline | null
+  /**
+   * The `loading` marks this entry set that its plan no longer asks for: the
+   * read that set them was interrupted when the entry restarted (a change of
+   * policy to `cacheOnly`, a row a pending write now holds), and no answer
+   * will clear them. The entry's first Message takes them back.
+   */
+  readonly abandoned: ReadonlyArray<string>
 }
 
 /** `RefreshStarted` for these fields and lists, naming lists only when there are some. */
@@ -1783,6 +1792,9 @@ const refreshStarted = (
   connections.length === 0
     ? { _tag: 'RefreshStarted', requests }
     : { _tag: 'RefreshStarted', requests, connections }
+
+/** How many read entries were made: each one's `by` is its own. */
+let readEntries = 0
 
 /**
  * The read entry: plans what `askedOf(model)` asks against the Model and runs
@@ -1800,6 +1812,8 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
   options: ObserveOptions<AppModel>,
 ): EntryWithoutKeepAlive<AppModel, Message, ReadDependencies, RemoteClient> => {
   const { now = wallClock, timeout } = options
+  // Who set a `loading` mark, so a restart takes back its own and no other's.
+  const by = `read:${++readEntries}`
   const read = (requirements: ReadonlyArray<Requirement>, generation: number) =>
     Effect.map(withCallTimeout(readMessage(requirements, now, generation), timeout), toMessage)
   const run = (query: ReadDependencies['queries'][number], generation: number) =>
@@ -1826,6 +1840,9 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
           connections: Schema.Array(Schema.String),
         }),
       ),
+      // What the restart a plan change caused takes back, so no part of what
+      // restarts the entry: taking it back must not restart it again.
+      abandoned: Schema.Array(Schema.String).pipe(Schema.overrideToEquivalence(() => () => true)),
     }),
     modelToDependencies: model => {
       const policy = policyAt(options.policy, model)
@@ -1838,6 +1855,12 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       const known = byAsked?.get(askedKey)
       if (known !== undefined && at < known.until) return known.dependencies
       const plan = planAsked(bound, remote, asked, RemotePolicy.toPlan(policy, at))
+      const asking = new Set([
+        ...plan.requirements.flatMap(({ entity, id, fields }) =>
+          fields.map(field => fieldMark(entity, id, field)),
+        ),
+        ...plan.queries.map(query => connectionMark(query.identity)),
+      ])
       const dependencies: ReadDependencies = {
         refresh: refreshedAt(
           remote.refresh,
@@ -1853,6 +1876,7 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
         refreshing: plan.refreshing,
         refreshes: RemotePolicy.refreshes(policy) ? plan.refreshes : [],
         expires: plan.expires,
+        abandoned: ownedMarks(remote, by).filter(mark => !asking.has(mark)),
       }
       if (byAsked === undefined) {
         byAsked = new Map()
@@ -1861,13 +1885,24 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       byAsked.set(askedKey, { until: plan.expires?.at ?? Infinity, dependencies })
       return dependencies
     },
-    dependenciesToStream: ({ requirements, queries, refresh, refreshing, refreshes, expires }) =>
+    dependenciesToStream: ({
+      requirements,
+      queries,
+      refresh,
+      refreshing,
+      refreshes,
+      expires,
+      abandoned,
+    }) =>
       Stream.concat(
         Stream.fromIterable([
+          ...(abandoned.length === 0
+            ? []
+            : [toMessage({ _tag: 'ReadAbandoned', by, marks: abandoned })]),
           // Absent fields read as `Loading` until the read lands.
           ...(requirements.length === 0
             ? []
-            : [toMessage({ _tag: 'ReadStarted', requests: requirements, refresh })]),
+            : [toMessage({ _tag: 'ReadStarted', requests: requirements, refresh, by })]),
           // A refreshing policy also marks the present fields, and the held
           // lists it asks for whole, stale.
           ...(refreshes.length > 0 || refreshing.length > 0
@@ -1880,6 +1915,7 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
                 toMessage({
                   _tag: 'QueryStarted',
                   connections: queries.map(query => query.identity),
+                  by,
                 }),
               ]),
         ]),

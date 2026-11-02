@@ -676,6 +676,19 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A read interrupted by a change of policy no longer stays `Loading`**
+  (`foldkit-remote`, #402). A read entry that restarts and no longer asks for
+  what its interrupted read marked `Loading` (`cacheOnly` picked mid-read, a
+  row a pending write now holds) takes its marks back with a new Message,
+  `ReadAbandoned { by, marks }`; `ReadStarted` and `QueryStarted` name the
+  entry (`by`), and `RemoteModel.loadingBy` keeps whose marks are whose, so
+  another entry's read stays `Loading`. `why` says `CacheOnly` for a stale
+  value under `cacheOnly` too, rather than that the read entry fetches it.
+  A reader wired again under the same key in a `subscriptions` call replaces
+  its policy rather than adding one, so an old call's policy no longer
+  decides `why` or whether a list left ages. `ReadDependencies` has
+  `abandoned`.
+
 - **Two overlapping reads no longer refresh each other for good**
   (`foldkit-remote`, #399). Under a refreshing policy a read entry's
   `RefreshStarted` named every field it read, and Foldkit reduces it after

@@ -156,7 +156,7 @@ describe('A list under staleWhileRevalidate', () => {
     )
     expect(messages).toEqual([
       { _tag: 'RefreshStarted', requests: [], connections: [identity] },
-      { _tag: 'QueryStarted', connections: [identity] },
+      { _tag: 'QueryStarted', connections: [identity], by: expect.any(String) },
     ])
 
     const refreshing = messages.reduce(Data.reduce, loadedAt(0))
@@ -297,9 +297,13 @@ describe('A list left and gone back to', () => {
 })
 
 describe("A list's retention root", () => {
-  const roots = (calls: ReadonlyArray<RemotePolicy>) => {
+  // Each call names the reader under a key of its own, as calls spread into
+  // one Subscriptions record must; `same` gives every call the same key.
+  const roots = (calls: ReadonlyArray<RemotePolicy>, same = false) => {
     const Domain = domain()
-    const entries = calls.map(policy => Domain.subscriptions(active, { policy }))
+    const entries = calls.map((policy, at) =>
+      Domain.subscriptions({ [same ? 'owner' : `owner${at}`]: active.owner }, { policy }),
+    )
     return entries[0]!.retain.modelToDependencies(start).connections
   }
 
@@ -310,5 +314,10 @@ describe("A list's retention root", () => {
   it('does not when one call reading it does not', () => {
     expect(roots([ageing, RemotePolicy.cacheFirst])[0]).not.toHaveProperty('ages')
     expect(roots([RemotePolicy.cacheFirst, ageing])[0]).not.toHaveProperty('ages')
+  })
+
+  it('takes the policy of the call that wired the reader under a key last', () => {
+    expect(roots([RemotePolicy.cacheFirst, ageing], true)).toMatchObject([{ identity, ages: true }])
+    expect(roots([ageing, RemotePolicy.cacheFirst], true)[0]).not.toHaveProperty('ages')
   })
 })

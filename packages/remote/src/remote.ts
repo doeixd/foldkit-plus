@@ -1028,7 +1028,14 @@ const bindDomain = <
   >()
   const keptConnections = new Set<string>()
   // The policy of each call naming a reader, `undefined` for the default.
-  const policies = new Map<ActiveEntry<AppModel>, Array<PolicyOption<AppModel> | undefined>>()
+  // A reader's policies by the key it has in a call's record, `undefined` for
+  // the default: the key names its Subscription entries (`${key}.read`), so a
+  // call wiring it again under that key replaces its policy, as the runtime
+  // keeps one entry by that name.
+  const policies = new Map<
+    ActiveEntry<AppModel>,
+    ReadonlyMap<string, PolicyOption<AppModel> | undefined>
+  >()
   // Whether every call naming a reader reads it under `tag` for this Model.
   const readsUnder = (
     entry: ActiveEntry<AppModel>,
@@ -1036,7 +1043,7 @@ const bindDomain = <
     tag: RemotePolicy['_tag'],
   ): boolean =>
     policies.has(entry) &&
-    policies.get(entry)!.every(policy => policyAt(policy, model)._tag === tag)
+    [...policies.get(entry)!.values()].every(policy => policyAt(policy, model)._tag === tag)
   // What the calls naming a reader say of saving what it reads (`persist`).
   const persisting = new Map<ActiveEntry<AppModel>, Persist>()
   // The lists a call keeps by name, marked with what it says of saving them.
@@ -1711,7 +1718,7 @@ const bindDomain = <
         readers.set(entry, resolvedAt)
         if (persist !== undefined)
           persisting.set(entry, combinePersist(persisting.get(entry), persist))
-        policies.set(entry, [...(policies.get(entry) ?? []), options.policy])
+        policies.set(entry, new Map(policies.get(entry)).set(key, options.policy))
         const asked = (model: AppModel) =>
           askedUnion(resolvedAt(model).map(({ projection }) => projection))
         entries[`${key}.read`] = observeEntry(bound, asked, identityMessage, options)

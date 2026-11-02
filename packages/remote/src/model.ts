@@ -149,6 +149,12 @@ export interface RemoteModel {
    */
   readonly loading: ReadonlySet<string>
   /**
+   * The marks of `loading` each read entry set, by the entry's key (`by`), so
+   * a restart that no longer asks for them takes back its own and leaves
+   * another entry's. A mark an answer cleared is ignored here.
+   */
+  readonly loadingBy: Readonly<Record<string, ReadonlySet<string>>>
+  /**
    * `Remote.refresh` generations, held per field rather than for the store as a
    * whole. A read entry restarts when the generation over the fields it plans
    * moves, so a read sent before a refresh of its own fields cannot land after
@@ -349,6 +355,7 @@ export const initialRemoteModel: RemoteModel = {
   gaps: new Set(),
   streams: {},
   loading: new Set(),
+  loadingBy: {},
   refresh: emptyRefresh,
   failures: noFailures,
   restoredFrom: Option.none(),
@@ -375,6 +382,7 @@ export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
     gaps: runtimeSchema,
     streams: Schema.Record(Schema.String, runtimeSchema),
     loading: runtimeSchema,
+    loadingBy: runtimeSchema,
     refresh: runtimeSchema,
     failures: Schema.Struct({
       connections: Schema.Record(Schema.String, remoteErrorSchema),
@@ -430,13 +438,26 @@ export type RemoteMessage =
       readonly requests: readonly Requirement[]
       /** The refresh generation the read was planned under. */
       readonly refresh?: number | undefined
+      /** The read entry that started it, which owns its marks (`loadingBy`). */
+      readonly by?: string | undefined
     }
+  /**
+   * A read entry restarted and no longer asks for what these marks name: the
+   * read it sent was interrupted, and no answer will clear them. Each goes
+   * unless another entry's read set it too.
+   */
+  | { readonly _tag: 'ReadAbandoned'; readonly by: string; readonly marks: readonly string[] }
   /**
    * Queries for these connections were sent. One with nothing to show reads
    * `Loading` until its page or its failure arrives, which is what separates
    * "being fetched" from `Initial`, "nothing is fetching this".
    */
-  | { readonly _tag: 'QueryStarted'; readonly connections: readonly string[] }
+  | {
+      readonly _tag: 'QueryStarted'
+      readonly connections: readonly string[]
+      /** The read entry that started it, which owns its marks (`loadingBy`). */
+      readonly by?: string | undefined
+    }
   /**
    * The active Surfaces' roots changed; everything they and the roots kept
    * for going back do not reach is collected.
@@ -737,8 +758,13 @@ export const remoteMessageCases = {
     requests: Schema.Array(ReadRequest),
     connections: Schema.optional(Schema.Array(Schema.String)),
   },
-  ReadStarted: { requests: Schema.Array(ReadRequest), refresh: Schema.optional(Schema.Number) },
-  QueryStarted: { connections: Schema.Array(Schema.String) },
+  ReadStarted: {
+    requests: Schema.Array(ReadRequest),
+    refresh: Schema.optional(Schema.Number),
+    by: Schema.optional(Schema.String),
+  },
+  ReadAbandoned: { by: Schema.String, marks: Schema.Array(Schema.String) },
+  QueryStarted: { connections: Schema.Array(Schema.String), by: Schema.optional(Schema.String) },
   RetentionChanged: {
     roots: retentionRootsSchema,
     budget: Schema.optional(Schema.Number),
@@ -937,7 +963,28 @@ const withoutLoading = (
  * space, whatever a connection identity happens to spell.
  */
 const connectionPrefix = '\u0000connection\u0000'
-const connectionMark = (identity: string): string => `${connectionPrefix}${identity}`
+export const connectionMark = (identity: string): string => `${connectionPrefix}${identity}`
+
+/**
+ * `loadingBy` once `by` has set `marks`: what it set before and is still
+ * loading, and these. Itself without an owner, or when nothing changes.
+ */
+const ownedBy = (
+  model: RemoteModel,
+  by: string | undefined,
+  marks: ReadonlyArray<string>,
+): RemoteModel['loadingBy'] => {
+  if (by === undefined) return model.loadingBy
+  const before = model.loadingBy[by]
+  const still = [...(before ?? [])].filter(mark => model.loading.has(mark))
+  if (before !== undefined && still.length === before.size && marks.every(mark => before.has(mark)))
+    return model.loadingBy
+  return { ...model.loadingBy, [by]: new Set([...still, ...marks]) }
+}
+
+/** The marks `by` set that are still loading: what an answer has not cleared. */
+export const ownedMarks = (model: RemoteModel, by: string): ReadonlyArray<string> =>
+  [...(model.loadingBy[by] ?? [])].filter(mark => model.loading.has(mark))
 
 /** Whether a query for this connection is in flight. */
 export const isQueryLoading = (model: RemoteModel, identity: string): boolean =>
@@ -1912,16 +1959,28 @@ const reduceRemote = (
         },
       }
     case 'QueryStarted': {
-      const loading = new Set(model.loading)
-      for (const identity of message.connections) loading.add(connectionMark(identity))
-      return loading.size === model.loading.size ? model : { ...model, loading }
+      const marks = message.connections.map(connectionMark)
+      const loading = new Set([...model.loading, ...marks])
+      const loadingBy = ownedBy(model, message.by, marks)
+      return loading.size === model.loading.size && loadingBy === model.loadingBy
+        ? model
+        : { ...model, loading, loadingBy }
     }
     case 'ReadStarted':
       return {
         ...model,
         loading: withLoading(model.loading, message.requests),
+        loadingBy: ownedBy(model, message.by, [...fieldMarks(message.requests)]),
         refresh: withRefreshStarted(model.refresh, message.requests, message.refresh),
       }
+    case 'ReadAbandoned': {
+      const others = Object.entries(model.loadingBy).filter(([by]) => by !== message.by)
+      const kept = new Set(message.marks.filter(mark => others.some(([, set]) => set.has(mark))))
+      const loading = new Set(model.loading)
+      for (const mark of message.marks) if (!kept.has(mark)) loading.delete(mark)
+      const { [message.by]: _abandoned, ...loadingBy } = model.loadingBy
+      return { ...model, loading, loadingBy }
+    }
     case 'MutationStarted':
       return {
         ...model,

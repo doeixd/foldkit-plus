@@ -46,7 +46,11 @@ export const Why = defineTaggedUnion({
   NotObserved: {},
   /** `Initial`, and these active Surfaces read it: Remote's Subscriptions are not running. */
   NotFetching: { surfaces: Names },
-  /** `Initial`, and the active Surfaces reading it read under `RemotePolicy.cacheOnly`, which asks for nothing. */
+  /**
+   * The active Surfaces reading it read under `RemotePolicy.cacheOnly`, which
+   * asks for nothing: what the store lacks reads `Initial`, and what it holds
+   * stale `Refreshing`, until the store or the policy changes.
+   */
   CacheOnly: { surfaces: Names },
   /** `Initial`, and no active record was given to tell which mistake it is. */
   NoActiveRecord: {},
@@ -180,7 +184,7 @@ export const whyWords = (why: Why): string =>
     NoActiveRecord: () =>
       'Nothing is fetching it. Pass the active record you give Data.subscriptions as `surfaces` to tell whether an active Surface reads it.',
     CacheOnly: ({ surfaces }) =>
-      `${surfaces.join(', ')} ${surfaces.length === 1 ? 'reads' : 'read'} it under RemotePolicy.cacheOnly, which asks for nothing: it shows once the store holds it (an answer, a live event, a write), or when the policy the Model picks asks for it.`,
+      `${surfaces.join(', ')} ${surfaces.length === 1 ? 'reads' : 'read'} it under RemotePolicy.cacheOnly, which asks for nothing: what the store lacks or holds out of date stays so until the store changes (an answer, a live event, a write), or the policy the Model picks asks for it.`,
     List: ({ list, held, inFlight }) => heldWords[held][`${inFlight}`](`Its list "${list.query}"`),
     HeldForHistory: ({ list }) =>
       `Its list "${list.query}" shows as it was left: a history navigation came back to it within Remote.make's historyWindow, so nothing fetches it. A navigation the reader starts fetches it again.`,
@@ -241,7 +245,7 @@ const decides = (why: Why): ReadonlyArray<State> =>
     NotObserved: () => ['Initial'],
     NotFetching: () => ['Initial'],
     NoActiveRecord: () => ['Initial'],
-    CacheOnly: () => ['Initial'],
+    CacheOnly: () => ['Initial', 'Refreshing'],
     List: ({ held, inFlight }) => listDecides[held][`${inFlight}`],
     HeldForHistory: () => ['Ready'],
     Fields: ({ held, inFlight }) => fieldsDecide[held][`${inFlight}`],

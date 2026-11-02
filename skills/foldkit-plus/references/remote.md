@@ -1327,7 +1327,10 @@ handler's write and raw SQL are held to the invariants and move the revision too
   answers, live events and writes, and what it lacks reads `Initial` (`why`:
   `CacheOnly`). A call's `policy` may be `model => RemotePolicy` (an offline
   screen: `model.online ? cacheFirst : cacheOnly`); a change of it restarts
-  the read entry, so going online asks what `cacheOnly` left missing.
+  the read entry, so going online asks what `cacheOnly` left missing. A
+  read entry that restarts and no longer asks for what it marked `Loading`
+  takes its marks back (`ReadAbandoned`); calls wiring a reader under the
+  same key replace its policy.
 - Live cursors count on from the `after` a stream opened with (a new stream's
   first event is `1`): duplicates ignored, an ahead-of-cursor event is a **gap** (not
   applied, recorded in `remote.gaps`). It restarts the stream; only the
