@@ -36,15 +36,9 @@ import {
   SearchViewState,
   searchViewState,
 } from './searchViewState.js'
-import {
-  type CartInput,
-  cartAnnouncement,
-  cartButton,
-  cartSheet,
-  plainCart,
-  plainCartLink,
-} from './cart.js'
+import { type CartInput, cartAnnouncement, cartButton, plainCart, plainCartLink } from './cart.js'
 import { filters } from './filters.js'
+import { viewsOf } from './sheets.js'
 import { type Arranged, arrangedOf } from './results.js'
 import { ResultsListScrollKey, type DomainListingGroup } from './resultsList.js'
 import { Page, ResultsListStyle } from './style.js'
@@ -549,7 +543,20 @@ const footer = (slots: Slots, h: H): Html =>
 // a keystroke leaves the header, the filters and the cart as they were.
 const cartReads = Projection.struct({ cart: App.model.cart, cartSheet: App.model.cartSheet })
 const Header = SlotView.region(cartReads, header)
-const CartPanel = SlotView.region(cartReads, cartSheet)
+/** The cart's sheet: the loaded view, or the bare dialog it fills (`sheets.ts`). */
+const cartPanel = (model: CartInput & Pick<Model, 'sheetsLoaded'>, slots: Slots, h: H): Html =>
+  Option.match(model.sheetsLoaded ? viewsOf() : Option.none(), {
+    onNone: () => h.dialog([h.Id(model.cartSheet.dialog.id)], []),
+    onSome: views => views.cartSheet(model, slots, h),
+  })
+const CartPanel = SlotView.region(
+  Projection.struct({
+    cart: App.model.cart,
+    cartSheet: App.model.cartSheet,
+    sheetsLoaded: App.model.sheetsLoaded,
+  }),
+  cartPanel,
+)
 const PlainCart = SlotView.region(Projection.struct({ cart: App.model.cart }), plainCart)
 const Filters = SlotView.region(
   Projection.struct({
@@ -562,6 +569,7 @@ const Filters = SlotView.region(
     sortOrder: App.model.sortOrder,
     sortListbox: App.model.sortListbox,
     filtersSheet: App.model.filtersSheet,
+    sheetsLoaded: App.model.sheetsLoaded,
   }),
   filters,
 )

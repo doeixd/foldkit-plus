@@ -29,6 +29,8 @@ import { namesOf } from '../src/client/results.js'
 import { readDomains } from '../src/server/remote.js'
 
 const empty = init(Option.getOrThrow(fromString('https://domains.test/'))).model
+/** The page once the sheets' views are in: a press opens a sheet at once. */
+const withSheets = update(empty, Message.LoadedSheets({ opens: Option.none() })).model
 
 const client: RemoteClient['Service'] = {
   read: batch =>
@@ -143,7 +145,7 @@ describe('reading for the filters', () => {
 describe('the TLD filter on a phone', () => {
   test('opens with an empty search, filters by the extension chosen and closes', () => {
     const typed = update(
-      update(empty, Message.ClickedTldFilter()).model,
+      update(withSheets, Message.ClickedTldFilter()).model,
       Message.UpdatedTldSearch({ value: '.de' }),
     ).model
     expect(Sheet.isOpen(typed.tldSheet)).toBe(true)
@@ -177,7 +179,7 @@ describe('availability and sort on a phone', () => {
     )
 
   test('one sheet holds both: a choice applies, closes it, and gives focus back to its button once closed', () => {
-    const opened = update(empty, Message.ClickedFilters()).model
+    const opened = update(withSheets, Message.ClickedFilters()).model
     expect(Sheet.isOpen(opened.filtersSheet)).toBe(true)
     const sorted = update(opened, Message.ClickedMobileSortOption({ value: 'PriceAscending' }))
     expect(sorted.model.sortOrder).toBe('PriceAscending')

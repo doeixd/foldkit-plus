@@ -1,21 +1,21 @@
 /**
  * The cart: the Cart button in the header with its count, a polite live
- * region saying the count, and the cart itself, a `Sheet` at the window's
- * right edge, as upstream's panel stands. Nothing is reserved or bought.
+ * region saying the count, and the cart's contents. The cart's sheet, at the
+ * window's right edge, is `sheetViews.ts`. Nothing is reserved or bought.
  */
 import { Array, Number, pipe } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { Icon } from 'foldkit-media'
 import type { SlotBuilders } from 'foldkit-mixins'
-import { Sheet } from 'foldkit-mixins-ui'
 import { Resume } from 'foldkit-ssr/client'
 import type { AvailableDomain } from '../shared/domain'
 import type { Model } from './app.js'
-import { CART_BUTTON_ID, CART_CLOSE_BUTTON_ID } from './command.js'
+import { CART_BUTTON_ID } from './command.js'
 import { formatPrice, formatRegistrationPrice, formatRenewalPrice } from './domain'
 import { icons } from './iconData.js'
 import { Message } from './message.js'
-import { CartSheetLook, CartSheetStyle, type Page, SheetLook } from './style.js'
+import { onIntent } from './sheets.js'
+import type { Page } from './style.js'
 
 type H = HtmlBuilder<Message>
 type Slots = SlotBuilders<typeof Page.slots, Message>
@@ -36,6 +36,7 @@ export const cartButton = (model: CartInput, slots: Slots, h: H): Html =>
       h.AriaLabel(`Cart, ${count(model)} domains`),
       h.AriaHasPopup('dialog'),
       h.AriaControls(model.cartSheet.dialog.id),
+      ...onIntent(h),
       h.OnClick(Message.ClickedCart()),
     ]),
     [
@@ -62,7 +63,7 @@ export const plainCartLink = (model: Pick<Model, 'cart'>, slots: Slots, h: H): H
   ])
 
 /** The cart's names, each with the control that takes it out. */
-const items = (
+export const items = (
   model: Pick<Model, 'cart'>,
   remove: (domain: AvailableDomain) => Html,
   slots: Slots,
@@ -92,7 +93,7 @@ const items = (
       ),
   })
 
-const total = (model: Pick<Model, 'cart'>, slot: Slots['cartTotal'], h: H): Html =>
+export const total = (model: Pick<Model, 'cart'>, slot: Slots['cartTotal'], h: H): Html =>
   h.div(slot.attrs(), [
     h.span([], ['Registration total']),
     h.strong(
@@ -108,63 +109,6 @@ const total = (model: Pick<Model, 'cart'>, slot: Slots['cartTotal'], h: H): Html
       ],
     ),
   ])
-
-export const cartSheet = (model: CartInput, slots: Slots, h: H): Html =>
-  Sheet.view(
-    {
-      model: model.cartSheet,
-      onMessage: message => Message.GotCartSheetMessage({ message }),
-      mixins: [CartSheetStyle.mixin, SheetLook.mixin, CartSheetLook.mixin],
-      hasDescription: true,
-      draw: sheet =>
-        h.dialog(
-          sheet.dialog,
-          sheet.isVisible
-            ? [
-                h.div(sheet.backdrop),
-                h.section(
-                  [...sheet.panel, h.AriaLabel('Your cart')],
-                  [
-                    h.div(slots.cartPanel.attrs(), [
-                      h.div(slots.cartHeading.attrs(), [
-                        h.h2(sheet.title, ['Your cart']),
-                        h.button(
-                          [
-                            ...sheet.closeButton,
-                            ...sheet.initialFocus,
-                            h.Id(CART_CLOSE_BUTTON_ID),
-                            h.AriaLabel('Close cart panel'),
-                          ],
-                          [Icon.draw(icons.close, h, { size: '18px' })],
-                        ),
-                      ]),
-                      items(
-                        model,
-                        domain =>
-                          h.button(
-                            slots.iconButton.attrs([
-                              h.Type('button'),
-                              h.AriaLabel(`Remove ${domain.name}`),
-                              h.OnClick(Message.ClickedRemoveCartDomain({ name: domain.name })),
-                            ]),
-                            [Icon.draw(icons.close, h, { size: '18px' })],
-                          ),
-                        slots,
-                        h,
-                      ),
-                      total(model, slots.cartTotal, h),
-                      h.p(sheet.description, [
-                        'Demo cart with sample prices and availability. No domains are reserved. No purchases are made.',
-                      ]),
-                    ]),
-                  ],
-                ),
-              ]
-            : [],
-        ),
-    },
-    h,
-  )
 
 /**
  * The cart on a page without scripts, where the sheet cannot open: a
