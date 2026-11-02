@@ -1,3 +1,8 @@
+/** The newest modification time of any file under `dir`, skipping `node_modules`; -Infinity when there is none. */
+export declare const newestMtime: (dir: string) => number
+/** Whether a package's `dist` is missing or older than its `src` or `package.json`. */
+export declare const isStale: (packageDir: string) => boolean
+
 export interface BundleReport {
   readonly example: string
   readonly total: {
