@@ -14,7 +14,7 @@ import { KeyValueStore } from 'effect/persistence'
 import type { Computation } from 'foldkit-entity'
 import type { OptimisticOperation } from './optimistic.js'
 import { remoteErrorSchema, type RemoteError } from './remoteData.js'
-import { MadeAs, Queued, withDone, type OutboxState, type ReadEntry } from './queue.js'
+import { MadeAs, ownerOf, Queued, withDone, type OutboxState, type ReadEntry } from './queue.js'
 import { QueryRequest, RelationRequest } from './wire.js'
 
 /**
@@ -121,7 +121,7 @@ const StoredOutboxSchema = Schema.Struct({
   scope: Schema.String,
   entries: Schema.Array(Schema.Unknown),
   done: Schema.Array(Schema.String),
-  principal: Schema.optionalKey(MadeAs),
+  owner: Schema.optionalKey(MadeAs),
 })
 
 /** A key's queue as stored, each entry as it was written, read or not. */
@@ -129,25 +129,25 @@ export interface StoredOutbox {
   readonly entries: ReadonlyArray<unknown>
   readonly done: ReadonlyArray<string>
   /**
-   * Whom the server last said it answered as on a page holding this queue:
-   * what a reloaded page stamps its writes with before its first answer
-   * (#405). None where no page has heard.
+   * Who owns the queue (`ownerAfter`), as pages holding it heard: what a
+   * reloaded page stamps its writes with before its first answer (#405).
+   * None where no page has heard.
    */
-  readonly principal: Option.Option<MadeAs>
+  readonly owner: Option.Option<MadeAs>
 }
 
-export const emptyStoredOutbox: StoredOutbox = { entries: [], done: [], principal: Option.none() }
+export const emptyStoredOutbox: StoredOutbox = { entries: [], done: [], owner: Option.none() }
 
 /** A change to a stored queue: these entries and settled operations, and no word on whom. */
 export const storedChange = (
   entries: ReadonlyArray<unknown>,
   done: ReadonlyArray<string>,
-): StoredOutbox => ({ entries, done, principal: Option.none() })
+): StoredOutbox => ({ entries, done, owner: Option.none() })
 
 const fromRecord = (record: typeof StoredOutboxSchema.Type): StoredOutbox => ({
   entries: record.entries,
   done: record.done,
-  principal: Option.fromUndefinedOr(record.principal),
+  owner: Option.fromUndefinedOr(record.owner),
 })
 
 /**
@@ -171,7 +171,7 @@ export const mergeStored = (store: StoredOutbox, mine: StoredOutbox): StoredOutb
   return {
     entries: [...kept.values()].map(({ raw }) => raw),
     done,
-    principal: Option.orElse(mine.principal, () => store.principal),
+    owner: ownerOf(store.owner, mine.owner),
   }
 }
 
@@ -216,7 +216,7 @@ export const storedText = (outbox: StoredOutbox, scope: string): string =>
     scope,
     entries: outbox.entries,
     done: outbox.done,
-    ...Option.match(outbox.principal, { onNone: () => ({}), onSome: principal => ({ principal }) }),
+    ...Option.match(outbox.owner, { onNone: () => ({}), onSome: owner => ({ owner }) }),
   })
 
 /** A queue's text, as `storedText` wrote it, read back. */
@@ -246,7 +246,7 @@ export const storedOf = (outbox: OutboxState): StoredOutbox => ({
     Queued.$match({ Readable: ({ write }) => write, Unreadable: ({ raw }) => raw }),
   ),
   done: outbox.done,
-  principal: outbox.principal,
+  owner: outbox.owner,
 })
 
 /**

@@ -84,4 +84,16 @@ export default [
     '    RemoteUnauthenticated,\n    RemotePrincipalChanged,\n  ]),',
     '    RemoteUnauthenticated,\n  ]),',
   ),
+  edit(
+    "a visitor's write runs for anyone",
+    server,
+    'if (asking === key) return Effect.void',
+    'if (asking === key || key === null) return Effect.void',
+  ),
+  edit(
+    "the wire cannot carry a visitor's stamp",
+    '../../remote/src/wire.ts',
+    'principal: Schema.optional(Schema.NullOr(PrincipalKey)),',
+    'principal: Schema.optional(PrincipalKey),',
+  ),
 ]

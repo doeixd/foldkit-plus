@@ -35,7 +35,7 @@ import {
   type RetryOptions,
   type StoredOutbox,
 } from './outboxStore.js'
-import { madeAsOf, Queued, type MadeAs, type OutboxState } from './queue.js'
+import { madeAsOf, Queued, signedOwner, type MadeAs, type OutboxState } from './queue.js'
 import { RemotePrincipalChanged } from './wire.js'
 import type { RemoteError } from './remoteData.js'
 
@@ -130,7 +130,7 @@ export const outbox = <AppModel>(
     scope,
     entries: readEntries(stored, inputOf),
     done: stored.done,
-    ...Option.match(stored.principal, { onNone: () => ({}), onSome: principal => ({ principal }) }),
+    ...Option.match(stored.owner, { onNone: () => ({}), onSome: owner => ({ owner }) }),
     ...extra,
   })
   /** Tells the other tabs on `key` the store changed, with the answer that changed it. */
@@ -321,7 +321,7 @@ export const outbox = <AppModel>(
                 shown: write.shown,
                 lists: write.lists,
                 now: write.now,
-                principal: Option.getOrUndefined(signedKey(write.madeAs)),
+                principal: expectedOf(write.madeAs),
               }),
             )
             if (Result.isSuccess(result)) {
@@ -457,6 +457,17 @@ export const outbox = <AppModel>(
       Effect.gen(function* () {
         const inPlace = from.key === to.key && from.scope === to.scope
         const there = yield* readStored(from.key, from.scope)
+        // Never out of a queue someone signed in owns, unless in place for them:
+        // a dropped cookie under Ada's scope does not make her writes anyone's.
+        const claimable = Option.match(there.owner, {
+          onNone: () => true,
+          onSome: owner =>
+            Match.valueTags(owner, {
+              Visitor: () => true,
+              Signed: ({ key: own }) => inPlace && own === key,
+            }),
+        })
+        if (!claimable) return []
         const unclaimed = there.entries.flatMap(raw =>
           Option.toArray(
             Option.filter(
@@ -476,7 +487,9 @@ export const outbox = <AppModel>(
             unclaimed.map(write => ({
               ...write,
               madeAs: signed,
-              revision: write.revision + 1,
+              // Past any one change another tab makes to it meanwhile (a send
+              // of it refused), so the store keeps the stamp.
+              revision: write.revision + 2,
               state: { _tag: 'Waiting' } as const,
             })),
             [],
@@ -662,15 +675,30 @@ const unclaimedIn = (outbox: OutboxState): ReadonlyArray<string> =>
 
 /** The writes of `outbox` made for someone other than whom the page heard last. */
 const heldIn = (outbox: OutboxState): ReadonlyArray<string> =>
-  operationsIn(outbox, write => heldFrom(write, outbox.principal))
+  operationsIn(outbox, write => heldFrom(write, outbox))
 
 /**
  * Whether `write` was made for someone other than whom the page heard last:
- * held, not sent, until they are heard again. A visitor's or an unstamped
- * one is not held but claimed (`outbox.adopt`).
+ * held, not sent, until they are heard again. So is a visitor's or an
+ * unstamped one in a queue someone else signed in owns; elsewhere such a
+ * write is not held but claimed (`outbox.adopt`).
  */
-const heldFrom = (write: StoredWrite, heard: Option.Option<MadeAs>): boolean =>
-  write.madeAs?._tag === 'Signed' && !sendable(write.madeAs, heard)
+const heldFrom = (write: StoredWrite, outbox: OutboxState): boolean =>
+  !sendable(write.madeAs, outbox.principal) &&
+  (write.madeAs?._tag === 'Signed' ||
+    (signedOwner(outbox.owner) &&
+      !Option.exists(Option.flatMap(outbox.principal, signedKey), heard =>
+        Option.contains(Option.flatMap(outbox.owner, signedKey), heard),
+      )))
+
+/** What a write sends as whom it was made for: a key, `null` a visitor, nothing before any answer said. */
+const expectedOf = (madeAs: MadeAs | undefined): string | null | undefined =>
+  madeAs === undefined
+    ? undefined
+    : Match.valueTags(madeAs, {
+        Visitor: () => null,
+        Signed: ({ key }) => key,
+      })
 
 /** The key a write made for someone is sent with; none for a visitor's, or one queued before any answer said. */
 const signedKey = (madeAs: MadeAs | undefined): Option.Option<string> =>
@@ -754,7 +782,7 @@ const statusOf = (outbox: OutboxState): OutboxStatus => {
         state: Match.valueTags(write.state, {
           // Held for whom it was made for, as a refusal from the server would leave it.
           Waiting: () =>
-            heldFrom(write, outbox.principal)
+            heldFrom(write, outbox)
               ? OutboxItemState.WaitingForSignIn({ error: heldFor })
               : OutboxItemState.Waiting({ attempt, error: delayed }),
           Failed: ({ error }) => OutboxItemState.Failed({ error }),

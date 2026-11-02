@@ -293,11 +293,12 @@ export const MutationRequest = Schema.Struct({
   /**
    * The principal the write was made for, as an answer named it
    * (`MutationResult.principal`): the server refuses it as anyone else,
-   * before running it, with `RemotePrincipalChanged`. Absent for a write
-   * made with no one signed in, or before any answer said who: it runs as
-   * whoever asks. The outbox sends it with every durable write (#405).
+   * before running it, with `RemotePrincipalChanged`. `null` for a write
+   * made with no one signed in: it runs only for a visitor. Absent for one
+   * made before any answer said who: it runs as whoever asks. The outbox
+   * sends it with every durable write (#405).
    */
-  principal: Schema.optional(PrincipalKey),
+  principal: Schema.optional(Schema.NullOr(PrincipalKey)),
 })
 
 /** A list a mutation's answer carries: the query as the client asked it, and its page. */

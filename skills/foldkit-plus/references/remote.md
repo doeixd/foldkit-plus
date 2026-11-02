@@ -736,15 +736,18 @@ forgets it; a retry keeps its stamp) and sent with it as `MutationRequest.princi
 `RemoteServer.handlers` refuses one naming someone else before its Source runs,
 a ledger replay included: `RemotePrincipalChanged` (`_tag: 'PrincipalChanged'`,
 a 409 `{ error, principalChanged }` over JSON), or `Unauthenticated` for a
-visitor, and the outbox keeps it `WaitingForSignIn` with that error. Whom
-the page heard is saved with the scope's queue and stamps a reloaded page's
-writes before its first answer; an answer to a request sent before
+visitor, and the outbox keeps it `WaitingForSignIn` with that error. A
+visitor's write sends `principal: null`, run only for a visitor (refused
+`PrincipalChanged` to anyone signed in). A queue's owner is the first person
+signed in heard under its scope, saved with it: a write made while the page
+heard a visitor is the owner's when someone owns it, and a reloaded page
+stamps its writes with it before its first answer; an answer to a request sent before
 `Data.forget` (each Message carries the `generation` it was sent under) is
 not heard. An answer naming someone other than whom the queue's writes were
 made for, under the same scope, holds them unsent (`outboxStatus`:
 `WaitingForSignIn` with `PrincipalChanged`) and says `OutboxHeld { requestIds,
 scope }` once per page. A visitor's waiting writes in the queue the page held
-before move, once an answer names who signed in, into the queue it holds now,
+before (never one someone signed in owns) move, once an answer names who signed in, into the queue it holds now,
 stamped as them; under the same scope they, and writes queued before any
 answer said who, are stamped in place before any is sent. The moving tab says
 `OutboxMoved { requestIds, from, to }` once (share both Messages from
@@ -1324,7 +1327,10 @@ handler's write and raw SQL are held to the invariants and move the revision too
   answers, live events and writes, and what it lacks reads `Initial` (`why`:
   `CacheOnly`). A call's `policy` may be `model => RemotePolicy` (an offline
   screen: `model.online ? cacheFirst : cacheOnly`); a change of it restarts
-  the read entry, so going online asks what `cacheOnly` left missing.
+  the read entry, so going online asks what `cacheOnly` left missing. A
+  read entry that restarts and no longer asks for what it marked `Loading`
+  takes its marks back (`ReadAbandoned`); calls wiring a reader under the
+  same key replace its policy.
 - Live cursors count on from the `after` a stream opened with (a new stream's
   first event is `1`): duplicates ignored, an ahead-of-cursor event is a **gap** (not
   applied, recorded in `remote.gaps`). It restarts the stream; only the

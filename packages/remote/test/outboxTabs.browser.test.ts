@@ -18,6 +18,7 @@ import {
   Mutation,
   Remote,
   RemoteClient,
+  RemotePrincipalChanged,
   RemoteUnauthenticated,
   isRemoteMessage,
   terminal,
@@ -31,6 +32,8 @@ afterEach(() => {
   signedOut = false
   atOnce = false
   moves.length = 0
+  cookie = undefined
+  ran.length = 0
 })
 
 const Item = Entity.define('Item', Schema.Struct({ id: Schema.String, count: Schema.Number }))
@@ -97,6 +100,13 @@ let answer: () => void = () => undefined
 let signedOut = false
 /** Answers each write as it arrives, rather than when a test lets it. */
 let atOnce = false
+/**
+ * Whom the session cookie names, `null` no one: given, the server judges a
+ * write's `principal` as `RemoteServer.handlers` does, and `ran` lists what
+ * ran, and as whom it was sent.
+ */
+let cookie: string | null | undefined = undefined
+const ran: Array<{ readonly operation: string | undefined; readonly as: unknown }> = []
 const applied = {
   output: {},
   entities: [{ entity: 'Item', id: 'i1', values: { count: 2 } }],
@@ -108,7 +118,16 @@ const client: RemoteClient['Service'] = {
   query: () => Effect.succeed({ edges: [], start: terminal, end: terminal }),
   mutate: request =>
     atOnce
-      ? Effect.sync(() => sent.push(request.operation)).pipe(Effect.as(applied))
+      ? Effect.sync(() => sent.push(request.operation)).pipe(
+          Effect.andThen(
+            cookie !== undefined && request.principal !== undefined && request.principal !== cookie
+              ? Effect.fail(new RemotePrincipalChanged({ message: 'Someone else' }))
+              : Effect.sync(() =>
+                  ran.push({ operation: request.operation, as: request.principal }),
+                ),
+          ),
+          Effect.as(applied),
+        )
       : signedOut
         ? Effect.sync(() => sent.push(request.operation)).pipe(
             Effect.andThen(
@@ -266,6 +285,75 @@ it("moves a visitor's writes once when two tabs race to: said once, none lost or
         done: expect.arrayContaining(['v-1', 'v-2']),
       }),
     )
+  } finally {
+    a.handle.dispose()
+    b.handle.dispose()
+  }
+})
+
+it("never runs a visitor's write unstamped as who signed in, while another tab moves it (#405)", async () => {
+  localStorage.setItem(
+    'tabs:visitor',
+    JSON.stringify({
+      version: 1,
+      scope: 'visitor',
+      owner: { _tag: 'Visitor' },
+      entries: [
+        {
+          operation: 'v-1',
+          mutation: 'SetCount',
+          input: { id: 'i1', count: 2 },
+          optimistic: [],
+          shown: [],
+          madeAs: { _tag: 'Visitor' },
+          revision: 1,
+          state: {
+            _tag: 'WaitingForSignIn',
+            error: { _tag: 'Unauthenticated', message: 'Sign in.' },
+          },
+        },
+      ],
+      done: [],
+    }),
+  )
+  // Ada has signed in. One tab still holds the visitor's queue, and reports the sign-in
+  // before any answer names her; the other holds hers, having heard her.
+  cookie = 'User:ada'
+  atOnce = true
+  const visitor = Data.reduce(
+    { ...initial, actor: 'visitor' },
+    {
+      _tag: 'ReadReceived',
+      requests: [],
+      result: { entities: [], settled: [], principal: null },
+      now: 0,
+      generation: 0,
+    },
+  )
+  const held = Data.reduce(visitor, {
+    _tag: 'OutboxRead',
+    key: 'tabs:visitor',
+    scope: 'visitor',
+    entries: [],
+    done: [],
+  })
+  const forgotten = { ...Data.forget(held), actor: 'ada' }
+  const ada = Data.reduce(forgotten, {
+    _tag: 'ReadReceived',
+    requests: [],
+    result: { entities: [], settled: [], principal: 'User:ada' },
+    now: 0,
+    generation: forgotten.remote.refresh.floor,
+  })
+  const b = tab('b', visitor)
+  await vi.waitFor(() => expect(b.read('signIn')).toBe('1'))
+  b.signIn()
+  const a = tab('a', ada)
+  try {
+    await vi.waitFor(() => expect(ran).toEqual([{ operation: 'v-1', as: 'User:ada' }]))
+    await new Promise(resolve => setTimeout(resolve, 200))
+    expect(ran).toEqual([{ operation: 'v-1', as: 'User:ada' }])
+    expect(moves).toEqual([['v-1']])
   } finally {
     a.handle.dispose()
     b.handle.dispose()

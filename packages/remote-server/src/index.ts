@@ -769,14 +769,15 @@ const answeredFor = <P, R>(
 
 /**
  * Refuses a write made for someone other than who asks, before anything of
- * it runs (#405): a visitor is asked to sign in, anyone else told who is
- * signed in changed. A server that keeps no keys cannot tell, and refuses
- * any write that names one.
+ * it runs (#405): one made for someone, asked by a visitor, is asked to sign
+ * in; any other told who is signed in changed, a visitor's (`null`) asked by
+ * someone signed in included. A server that keeps no keys cannot tell, and
+ * refuses any write that names one.
  */
 const madeFor = <P, R>(
   server: ServerDefinition<P, R>,
   principal: P,
-  expected: Option.Option<string>,
+  expected: Option.Option<string | null>,
 ): Effect.Effect<void, RemotePrincipalChanged | RemoteUnauthenticated> =>
   Option.match(expected, {
     onNone: () => Effect.void,

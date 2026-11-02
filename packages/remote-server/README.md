@@ -868,8 +868,10 @@ handlers compare it with whom they answer as before the mutation's Source
 runs: another person is refused with `RemotePrincipalChanged` (a 409 over
 JSON), a visitor with `Unauthenticated`, and nothing runs, a ledger's replay
 included, so a write resent after the cookie changed hands is never run, or
-answered from its record, as someone else. A write that names no one (made
-with no one signed in, or before any answer said who) runs as whoever asks.
+answered from its record, as someone else. A write that names `null` (made
+with no one signed in) runs only for a visitor; asked by someone signed in it
+is refused with `RemotePrincipalChanged`, unrun. A write that names no one
+(made before any answer said who) runs as whoever asks.
 A server with no `viewer` keeps no keys: its answers carry no `principal`, and
 it refuses a write that names one, which it cannot check.
 

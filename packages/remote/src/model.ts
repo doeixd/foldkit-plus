@@ -40,6 +40,9 @@ import {
   leftOf,
   MadeAs,
   madeAsOf,
+  ownerAfter,
+  ownerOf,
+  stampOf,
   operationOf,
   Queued,
   revisionOf,
@@ -539,10 +542,10 @@ export type RemoteMessage =
       readonly done: ReadonlyArray<string>
       readonly unsaved?: string | undefined
       /**
-       * Whom a page holding this queue last heard the server answer as: a
-       * page that has heard no one yet stamps its writes with it (#405).
+       * Who owns the queue, as pages holding it heard (`ownerAfter`): a page
+       * that has heard no one yet stamps its writes with it (#405).
        */
-      readonly principal?: MadeAs | undefined
+      readonly owner?: MadeAs | undefined
     }
   /** A durable write was sent and nothing answered; it is sent again after a wait. */
   | {
@@ -778,7 +781,7 @@ export const remoteMessageCases = {
     entries: Schema.Array(Schema.Unknown),
     done: Schema.Array(Schema.String),
     unsaved: Schema.optional(Schema.String),
-    principal: Schema.optional(MadeAs),
+    owner: Schema.optional(MadeAs),
   },
   OutboxDelayed: { requestId: Schema.String, attempt: Schema.Number, error: remoteErrorSchema },
   OutboxMoved: {
@@ -1343,7 +1346,10 @@ const heardAs = (
       Signed: ({ key }) => heard._tag === 'Signed' && heard.key === key,
     }),
   )
-  return same ? outbox : { ...outbox, principal: Option.some(heard) }
+  const owner = ownerAfter(outbox.owner, heard)
+  return same && owner === outbox.owner
+    ? outbox
+    : { ...outbox, principal: Option.some(heard), owner }
 }
 
 /** A durable write queued to wait its turn: new, or a failed one retried, its revision moved on. */
@@ -1365,10 +1371,10 @@ const queuedWrite = (
     // A write retried keeps who it was made for; a new one is whom the server last named.
     ...Option.match(
       prior === undefined
-        ? outbox.principal
+        ? stampOf(outbox)
         : Queued.$match(prior, {
             Readable: ({ write: queued }) => Option.fromUndefinedOr(queued.madeAs),
-            Unreadable: () => outbox.principal,
+            Unreadable: () => stampOf(outbox),
           }),
       { onNone: () => ({}), onSome: madeAs => ({ madeAs }) },
     ),
@@ -1626,10 +1632,11 @@ const readOutbox = (
     recorded.push(outboxUnsaved({ key: message.key, reason: message.unsaved }))
   }
   const session = Option.orElse(before.session, () => Option.fromUndefinedOr(message.session))
-  // A page that has heard no one yet takes whom a page holding the queue last heard.
-  const principal = Option.isSome(before.principal)
-    ? before.principal
-    : Option.fromUndefinedOr(message.principal)
+  const stored = Option.fromUndefinedOr(message.owner)
+  // The queue's owner: the new one's alone, after a move to another queue.
+  const owner = switching ? stored : ownerOf(before.owner, stored)
+  // A page that has heard no one yet takes the queue's owner as whom it heard.
+  const principal = Option.isSome(before.principal) ? before.principal : stored
   const unchanged =
     !switching &&
     next === start &&
@@ -1638,7 +1645,7 @@ const readOutbox = (
     Option.contains(before.key, message.key) &&
     Option.contains(before.scope, message.scope) &&
     Option.isSome(before.session) === Option.isSome(session) &&
-    Option.isSome(before.principal) === Option.isSome(principal) &&
+    (Option.isNone(owner) ? Option.isNone(before.owner) : owner === before.owner) &&
     queue.length === before.queue.length &&
     queue.every((queued, index) => queued === before.queue[index])
   if (unchanged) return model
@@ -1651,6 +1658,7 @@ const readOutbox = (
       queue,
       done,
       principal,
+      owner,
       left: switching ? leftOf(model.outbox) : before.left,
     },
     diagnostics: withDiagnostics(next.diagnostics, recorded),

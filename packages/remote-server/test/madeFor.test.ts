@@ -150,14 +150,15 @@ const as = <A, E>(
   use: (client: RemoteClient['Service']) => Effect.Effect<A, E>,
 ) => Effect.runPromise(Effect.flatMap(RemoteClient, use).pipe(Effect.provide(layer)))
 
-const rename = (operation: string, principal?: string) => (client: RemoteClient['Service']) =>
-  client.mutate({
-    requestId: operation,
-    operation,
-    mutation: 'Rename',
-    input: { id: 'a' },
-    ...(principal === undefined ? {} : { principal }),
-  })
+const rename =
+  (operation: string, principal?: string | null) => (client: RemoteClient['Service']) =>
+    client.mutate({
+      requestId: operation,
+      operation,
+      mutation: 'Rename',
+      input: { id: 'a' },
+      ...(principal === undefined ? {} : { principal }),
+    })
 
 describe.each(transports)('a write made for someone, over %s', (_, clientAs) => {
   it('is told whom each answer was for: the viewer’s key, or no one', async () => {
@@ -205,6 +206,14 @@ describe.each(transports)('a write made for someone, over %s', (_, clientAs) => 
     expect(runs).toEqual([{ operation: 'o1', by: Option.some('ada') }])
   })
 
+  it("runs a visitor's write for a visitor, and refuses it, unrun, to someone signed in", async () => {
+    await as(clientAs('visitor'), rename('o1', null))
+    expect(runs).toEqual([{ operation: 'o1', by: Option.none() }])
+    const error = await as(clientAs('ada'), client => Effect.flip(rename('o2', null)(client)))
+    expect(error._tag).toBe('PrincipalChanged')
+    expect(runs).toHaveLength(1)
+  })
+
   it('runs as whoever asks when it names no one', async () => {
     await as(clientAs('grace'), rename('o1'))
     expect(runs).toEqual([{ operation: 'o1', by: Option.some('grace') }])
@@ -231,6 +240,22 @@ describe('a server with no viewer', () => {
           mutation: 'Rename',
           input: { id: 'a' },
           principal: 'User:ada',
+        }),
+      ),
+    )
+    expect(error._tag).toBe('PrincipalChanged')
+    expect(runs).toEqual([])
+  })
+
+  it("refuses a visitor's write too, since it cannot tell a visitor", async () => {
+    const error = await Effect.runPromise(
+      Effect.flip(
+        handlers.FoldkitRemoteMutate({
+          requestId: 'o1',
+          operation: 'o1',
+          mutation: 'Rename',
+          input: { id: 'a' },
+          principal: null,
         }),
       ),
     )

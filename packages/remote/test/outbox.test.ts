@@ -95,7 +95,7 @@ const server = (script: ReadonlyArray<Answer> = [], cookie?: { current: string |
     readonly operation: string | undefined
     readonly input: unknown
     readonly now: number | undefined
-    readonly principal?: string | undefined
+    readonly principal?: string | null | undefined
   }> = []
   const ran: Array<string> = []
   /** What each send says the page shows. */
@@ -112,8 +112,9 @@ const server = (script: ReadonlyArray<Answer> = [], cookie?: { current: string |
         ...(request.principal === undefined ? {} : { principal: request.principal }),
       })
       shown.push(request.shown)
+      // As `RemoteServer.handlers` judges `principal`: `null` a visitor's write.
       if (cookie !== undefined && request.principal !== undefined) {
-        if (cookie.current === null) {
+        if (request.principal !== null && cookie.current === null) {
           return Effect.fail(new RemoteUnauthenticated({ message: 'Sign in.' }))
         }
         if (cookie.current !== request.principal) {
@@ -693,7 +694,7 @@ describe('a durable write made for someone', () => {
     expect(later.sent.map(each => each.principal)).toEqual(['User:ada'])
   })
 
-  it('takes whom its queue heard from a read of the store that brings nothing else', async () => {
+  it('takes its queue’s owner from a read of the store that brings nothing else', async () => {
     const tab = { kv: memory(), ...server() }
     const held = await restored(tab, page('ada'))
     const read = Data.reduce(held, {
@@ -702,7 +703,7 @@ describe('a durable write made for someone', () => {
       scope: 'ada',
       entries: [],
       done: [],
-      principal: { _tag: 'Signed', key: 'User:ada' },
+      owner: { _tag: 'Signed', key: 'User:ada' },
     })
     await settle(tab, setCount(read, 'i1', 2).model)
     expect(tab.sent.map(each => each.principal)).toEqual(['User:ada'])
@@ -825,7 +826,7 @@ describe('a durable write made for someone', () => {
         { _tag: 'OutboxMoved', requestIds: [started.requestId], from: 'visitor', to: 'ada' },
       ])
       expect(storedOperations(tab.kv, 'outbox:visitor')).toEqual([])
-      expect(tab.sent.map(each => each.principal)).toEqual([undefined, 'User:ada'])
+      expect(tab.sent.map(each => each.principal)).toEqual([null, 'User:ada'])
       expect(tab.ran).toEqual([started.requestId])
       expect(outboxStatus(Data, settled).items).toEqual([])
       // Another page of hers finds nothing left to move, and says nothing.
@@ -844,7 +845,7 @@ describe('a durable write made for someone', () => {
       { _tag: 'OutboxMoved', requestIds: [started.requestId], from: 'visitor', to: 'visitor' },
     ])
     // Sent once, as Ada, and only after the report: never unstamped as her.
-    expect(tab.sent.map(each => each.principal)).toEqual([undefined, 'User:ada'])
+    expect(tab.sent.map(each => each.principal)).toEqual([null, 'User:ada'])
     expect(tab.ran).toEqual([started.requestId])
   })
 
@@ -872,6 +873,178 @@ describe('a durable write made for someone', () => {
       { operation: started.requestId, madeAs: { _tag: 'Signed', key: 'User:ada' } },
     ])
     expect(tab.ran).toEqual([])
+  })
+
+  it("keeps Ada's writes Ada's when her cookie drops in her own scope, and never runs them as Grace", async () => {
+    // Ada signed in under `ada`; her cookie drops, and a read answers no one.
+    const cookie: { current: string | null } = { current: 'User:ada' }
+    const tab = { kv: memory(), ...server([], cookie) }
+    const ada = await restored(tab, page('ada', 'User:ada'))
+    const first = setCount(ada, 'i1', 2)
+    cookie.current = null
+    const second = setCount(answeredAs(first.model, null), 'i2', 3)
+    const dropped = await settle(tab, second.model)
+    // She kept writing: the second is still hers, not a visitor's.
+    expect(stamped(tab.kv, 'outbox:ada')).toEqual([
+      { operation: first.requestId, madeAs: { _tag: 'Signed', key: 'User:ada' } },
+      { operation: second.requestId, madeAs: { _tag: 'Signed', key: 'User:ada' } },
+    ])
+    // Grace signs in on the device.
+    cookie.current = 'User:grace'
+    const grace = answeredAs({ ...Data.forget(dropped), actor: 'grace' }, 'User:grace')
+    const heard: Array<RemoteMessage> = []
+    await settle(tab, Data.signedIn(grace), entries, heard)
+    expect(moves(heard)).toEqual([])
+    expect(tab.ran).toEqual([])
+    expect(storedOperations(tab.kv, 'outbox:ada')).toEqual([first.requestId, second.requestId])
+    expect(storedOperations(tab.kv, 'outbox:grace')).toEqual([])
+  })
+
+  it("holds, never claims, an unstamped write in Ada's queue when Grace is heard under it", async () => {
+    // Ada's queue, owned by her, holds a write queued before any answer on a reloaded page.
+    const kv = memory()
+    Effect.runSync(
+      kv.set(
+        'outbox:ada',
+        JSON.stringify({
+          version: 1,
+          scope: 'ada',
+          entries: [storedWrite('w-1', 'SetCount', { id: 'i1', count: 2 })],
+          done: [],
+          owner: { _tag: 'Signed', key: 'User:ada' },
+        }),
+      ),
+    )
+    const cookie: { current: string | null } = { current: 'User:grace' }
+    const tab = { kv, ...server([], cookie) }
+    const heard: Array<RemoteMessage> = []
+    const held = await settle(tab, answeredAs(await restored(tab), 'User:grace'), entries, heard)
+    expect(moves(heard)).toEqual([])
+    expect(heard.filter(message => message._tag === 'OutboxHeld')).toEqual([
+      { _tag: 'OutboxHeld', requestIds: ['w-1'], scope: 'ada' },
+    ])
+    expect(outboxStatus(Data, held).waitingForSignIn).toBe(1)
+    expect(tab.sent).toEqual([])
+    // Ada heard again: claimed for her, said once, and run as her.
+    cookie.current = 'User:ada'
+    await settle(tab, answeredAs(held, 'User:ada'), entries, heard)
+    expect(tab.ran).toEqual(['w-1'])
+    expect(tab.sent.map(each => each.principal)).toEqual(['User:ada'])
+  })
+
+  it('takes the owner of the queue it moves to, not of the one it left', async () => {
+    const tab = { kv: memory(), ...server() }
+    const ada = await restored(tab, page('ada', 'User:ada'))
+    // The scope moves to Grace's without a forget, and a read answers no one.
+    const grace = answeredAs(await restored(tab, { ...ada, actor: 'grace' }), null)
+    await settle(tab, setCount(grace, 'i1', 2).model)
+    expect(tab.sent.map(each => each.principal)).toEqual([null])
+  })
+
+  it('keeps the outbox as it was for a second answer naming no one', async () => {
+    const tab = { kv: memory(), ...server() }
+    const visitor = answeredAs(await restored(tab, page('visitor', null)), null)
+    expect(answeredAs(visitor, null).remote.outbox).toBe(visitor.remote.outbox)
+  })
+
+  it("holds Ada's writes when, her cookie dropped, an answer names Grace under her scope", async () => {
+    const cookie: { current: string | null } = { current: 'User:ada' }
+    const tab = { kv: memory(), ...server([], cookie) }
+    const ada = await restored(tab, page('ada', 'User:ada'))
+    cookie.current = null
+    const started = setCount(answeredAs(ada, null), 'i1', 2)
+    // Grace's cookie now, and the scope still Ada's.
+    cookie.current = 'User:grace'
+    const heard: Array<RemoteMessage> = []
+    await settle(tab, answeredAs(started.model, 'User:grace'), entries, heard)
+    expect(heard.filter(message => message._tag === 'OutboxHeld')).toEqual([
+      { _tag: 'OutboxHeld', requestIds: [started.requestId], scope: 'ada' },
+    ])
+    expect(tab.sent).toEqual([])
+  })
+
+  it('never moves a write queued before any answer out of a queue no one owns', async () => {
+    // The visitor's queue, owned by no one, holds a write made before any answer said who.
+    const kv = memory()
+    Effect.runSync(
+      kv.set(
+        'outbox:visitor',
+        JSON.stringify({
+          version: 1,
+          scope: 'visitor',
+          entries: [storedWrite('w-1', 'SetCount', { id: 'i1', count: 2 })],
+          done: [],
+        }),
+      ),
+    )
+    const cookie: { current: string | null } = { current: 'User:ada' }
+    const tab = { kv, ...server([], cookie) }
+    const held = Data.reduce(await restored(tab, page('visitor')), {
+      _tag: 'OutboxRead',
+      key: 'outbox:visitor',
+      scope: 'visitor',
+      entries: [],
+      done: [],
+    })
+    const ada = answeredAs({ ...Data.forget(held), actor: 'ada' }, 'User:ada')
+    const heard: Array<RemoteMessage> = []
+    await settle(tab, ada, entries, heard)
+    expect(moves(heard)).toEqual([])
+    expect(storedOperations(tab.kv, 'outbox:visitor')).toEqual(['w-1'])
+  })
+
+  it("never moves a visitor's write out of a queue someone signed in owns", async () => {
+    // A write stored as a visitor's under Ada's queue, which Ada owns.
+    const kv = memory()
+    const write = {
+      ...storedWrite('w-1', 'SetCount', { id: 'i1', count: 2 }),
+      madeAs: { _tag: 'Visitor' },
+    }
+    Effect.runSync(
+      kv.set(
+        'outbox:ada',
+        JSON.stringify({
+          version: 1,
+          scope: 'ada',
+          entries: [write],
+          done: [],
+          owner: { _tag: 'Signed', key: 'User:ada' },
+        }),
+      ),
+    )
+    const cookie: { current: string | null } = { current: 'User:grace' }
+    const tab = { kv, ...server([], cookie) }
+    const ada = await restored(tab, page('ada', 'User:ada'))
+    const grace = answeredAs({ ...Data.forget(ada), actor: 'grace' }, 'User:grace')
+    const heard: Array<RemoteMessage> = []
+    await settle(tab, Data.signedIn(grace), entries, heard)
+    expect(moves(heard)).toEqual([])
+    expect(tab.ran).toEqual([])
+    expect(storedOperations(tab.kv, 'outbox:ada')).toEqual(['w-1'])
+  })
+
+  it("sends a visitor's write refused for a sign-in as a visitor's, so it never runs unstamped as who signed in", async () => {
+    // A visitor's write, refused for want of a sign-in.
+    const cookie: { current: string | null } = { current: null }
+    const tab = { kv: memory(), ...server(['signedOut'], cookie) }
+    const started = setCount(await restored(tab, page('visitor', null)), 'i1', 2)
+    const waiting = await settle(tab, started.model)
+    // Ada signs in: the same scope, no forget, and the sign-in reported before any answer names her.
+    cookie.current = 'User:ada'
+    const heard: Array<RemoteMessage> = []
+    const resent = await settle(tab, Data.signedIn(waiting), entries, heard)
+    expect(tab.sent.map(each => each.principal)).toEqual([null, null])
+    expect(tab.ran).toEqual([])
+    expect(outboxStatus(Data, resent).items).toMatchObject([
+      { state: { _tag: 'WaitingForSignIn', error: { _tag: 'PrincipalChanged' } } },
+    ])
+    // An answer names her: claimed, said once, and sent once as her.
+    await settle(tab, answeredAs(resent, 'User:ada'), entries, heard)
+    expect(moves(heard)).toEqual([
+      { _tag: 'OutboxMoved', requestIds: [started.requestId], from: 'visitor', to: 'visitor' },
+    ])
+    expect(tab.sent.map(each => each.principal)).toEqual([null, null, 'User:ada'])
+    expect(tab.ran).toEqual([started.requestId])
   })
 
   it("never moves anyone's but a visitor's", async () => {
@@ -945,15 +1118,17 @@ describe('a stored write this version cannot read', () => {
 })
 
 describe('the store between tabs', () => {
-  it('keeps whom a page heard last: mine where I heard, else what the store holds (#405)', () => {
+  it('keeps the first owner signed in over another, a visitor, or none (#405)', () => {
     const ada = { _tag: 'Signed', key: 'User:ada' } as const
     const grace = { _tag: 'Signed', key: 'User:grace' } as const
-    const heard = (principal: MadeAs) => ({
-      ...storedChange([], []),
-      principal: Option.some(principal),
-    })
-    expect(mergeStored(heard(ada), heard(grace)).principal).toEqual(Option.some(grace))
-    expect(mergeStored(heard(ada), storedChange([], [])).principal).toEqual(Option.some(ada))
+    const visitor = { _tag: 'Visitor' } as const
+    const owned = (owner: MadeAs) => ({ ...storedChange([], []), owner: Option.some(owner) })
+    const none = storedChange([], [])
+    expect(mergeStored(owned(ada), owned(grace)).owner).toEqual(Option.some(ada))
+    expect(mergeStored(owned(visitor), owned(grace)).owner).toEqual(Option.some(grace))
+    expect(mergeStored(owned(ada), owned(visitor)).owner).toEqual(Option.some(ada))
+    expect(mergeStored(none, owned(visitor)).owner).toEqual(Option.some(visitor))
+    expect(mergeStored(owned(ada), none).owner).toEqual(Option.some(ada))
   })
 
   it('merges two copies saved at once: both writes kept, the higher revision of each, none settled', () => {
@@ -967,7 +1142,7 @@ describe('the store between tabs', () => {
     expect(mergeStored(storedChange([a], []), storedChange([b], []))).toEqual({
       entries: [a, b],
       done: [],
-      principal: Option.none(),
+      owner: Option.none(),
     })
     expect(mergeStored(storedChange([failedA, b], []), storedChange([a], [])).entries).toEqual([
       failedA,

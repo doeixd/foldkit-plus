@@ -226,8 +226,11 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
     readonly lists?: ReadonlyArray<Schema.Schema.Type<typeof QueryRequest>> | undefined
     /** How long this send waits for its answer, over the client's `timeout`. */
     readonly timeout?: Duration.Input | undefined
-    /** Who the write was made for, as an answer named them: refused as anyone else (#405). */
-    readonly principal?: string | undefined
+    /**
+     * Who the write was made for, as an answer named them, `null` a visitor:
+     * refused as anyone else (#405).
+     */
+    readonly principal?: string | null | undefined
   } = {},
 ) {
   const { keys, shown, now, lists, principal } = options

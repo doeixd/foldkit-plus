@@ -3,7 +3,7 @@
  * durable writes. The store, the locks and the sending are
  * `foldkit-remote/outbox`'s, so a page with no outbox keeps none of them.
  */
-import { Data, Option, Schema } from 'effect'
+import { Data, Match, Option, Schema } from 'effect'
 import type { StoredWrite } from './outboxStore.js'
 import type { RemoteError } from './remoteData.js'
 
@@ -34,6 +34,44 @@ export const MadeAs = Schema.Union([
   Schema.TaggedStruct('Signed', { key: Schema.String }),
 ])
 export type MadeAs = typeof MadeAs.Type
+
+/** Whether `owner` names someone signed in, rather than a visitor or no one. */
+export const signedOwner = (owner: Option.Option<MadeAs>): boolean =>
+  Option.exists(owner, made => made._tag === 'Signed')
+
+/**
+ * Who owns a scope's queue once `heard` is heard (#405): the first person
+ * signed in heard under it, for good; a visitor only while no one has been.
+ * A cookie dropped, or another's, under Ada's scope leaves it Ada's.
+ */
+export const ownerAfter = (owner: Option.Option<MadeAs>, heard: MadeAs): Option.Option<MadeAs> =>
+  signedOwner(owner) || (Option.isSome(owner) && heard._tag === 'Visitor')
+    ? owner
+    : Option.some(heard)
+
+/** Two copies' owners as one: a signed-in owner over a visitor or none, the first if both. */
+export const ownerOf = (
+  first: Option.Option<MadeAs>,
+  second: Option.Option<MadeAs>,
+): Option.Option<MadeAs> =>
+  signedOwner(first) || !signedOwner(second) ? Option.orElse(first, () => second) : second
+
+/**
+ * Who a durable write queued now is made for (#405): whom the page heard
+ * last, except that one made while it heard a visitor is the queue's
+ * owner's, when someone signed in owns it. None before any answer said.
+ */
+export const stampOf = (outbox: OutboxState): Option.Option<MadeAs> =>
+  Option.map(outbox.principal, heard =>
+    Match.valueTags(heard, {
+      Visitor: () =>
+        Option.getOrElse(
+          Option.filter(outbox.owner, owner => owner._tag === 'Signed'),
+          () => heard,
+        ),
+      Signed: () => heard,
+    }),
+  )
 
 /** An answer's `principal` as the wire says it: `null` a visitor, a key someone. */
 export const madeAsOf = (said: string | null): MadeAs =>
@@ -85,6 +123,13 @@ export interface OutboxState {
    */
   readonly principal: Option.Option<MadeAs>
   /**
+   * Who owns the queue the page holds (`ownerAfter`), as heard here and as
+   * saved with it: a write made while the page last heard a visitor is
+   * stamped as its owner, when someone is, and a visitor's writes are moved
+   * only out of a queue no one signed in owns (#405).
+   */
+  readonly owner: Option.Option<MadeAs>
+  /**
    * The queue this page held before its key or scope moved on: a visitor's
    * writes there move to the queue it holds now once an answer names who is
    * signed in (#405).
@@ -99,6 +144,7 @@ export const emptyOutbox: OutboxState = {
   queue: [],
   done: [],
   principal: Option.none(),
+  owner: Option.none(),
   left: Option.none(),
 }
 
