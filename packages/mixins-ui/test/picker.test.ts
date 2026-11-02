@@ -62,6 +62,14 @@ describe('Picker.update', () => {
     ])
   })
 
+  it('escapes an id that is not a CSS identifier', () => {
+    const numeric = Picker.init({ id: '1' })
+    const next = step(numeric, Picker.Message.Stepped({ to: 1 }))
+    expect(next.commands?.map(command => [command.name, command.args])).toEqual([
+      ['FocusPickerOption', { selector: '#\\31 -option-1' }],
+    ])
+  })
+
   it.each([
     ['a focus landing', Picker.Message.CompletedFocus()],
     [

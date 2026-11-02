@@ -36,6 +36,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type { ReturnWithOutMessage } from 'foldkit/update'
 import type { ResolvedDialog } from './dialog.js'
+import { idSelector } from './datePickerUtils.js'
 import * as Listbox from './listbox.js'
 import * as ListboxView from './listboxView.js'
 import type { MixinList } from './resolve.js'
@@ -150,7 +151,10 @@ export const update = (model: Model, message: Message): Return =>
       ...sheetStep(model, Sheet.close(model.sheet)),
       outMessage: OutMessage.Chose({ value }),
     }),
-    Stepped: ({ to }) => ({ model, commands: [Focus({ selector: `#${optionId(model.id, to)}` })] }),
+    Stepped: ({ to }) => ({
+      model,
+      commands: [Focus({ selector: idSelector(optionId(model.id, to)) })],
+    }),
     CompletedFocus: () => ({ model }),
   })
 

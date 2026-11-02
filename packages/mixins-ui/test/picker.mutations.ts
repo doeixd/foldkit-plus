@@ -41,8 +41,8 @@ export default [
     edits: [
       {
         file,
-        find: 'Stepped: ({ to }) => ({ model, commands:',
-        replace: 'Stepped: ({ to }) => ({ model: { ...model }, commands:',
+        find: 'Stepped: ({ to }) => ({\n      model,\n      commands:',
+        replace: 'Stepped: ({ to }) => ({\n      model: { ...model },\n      commands:',
       },
     ],
     tests: unit,
@@ -54,6 +54,17 @@ export default [
         file,
         find: 'model: next.model === model.listbox ? model : modifyFields(',
         replace: 'model: false ? model : modifyFields(',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'an option id is not escaped',
+    edits: [
+      {
+        file,
+        find: 'idSelector(optionId(model.id, to))',
+        replace: '`#${optionId(model.id, to)}`',
       },
     ],
     tests: unit,
