@@ -99,10 +99,16 @@ const OWN = Object.fromEntries(
 
 /**
  * The tools `foldkit-plus/testing/*` drive, optional peers so that no
- * application installs them for its browser code: `wrangler` and `esbuild`
- * for the Workers stack, `playwright` for its types alone.
+ * application installs them for its browser code: `wrangler`, `esbuild` and
+ * `@foldkit/vite-plugin` (whose view-identity brand the bundle takes) for the
+ * Workers stack, `playwright` for its types alone.
  */
-const TESTING_PEERS = { esbuild: '^0.28.0', playwright: '^1.64.0', wrangler: '^4.116.0' } as const
+const TESTING_PEERS = {
+  '@foldkit/vite-plugin': '^0.29.0',
+  esbuild: '^0.28.0',
+  playwright: '^1.64.0',
+  wrangler: '^4.116.0',
+} as const
 
 /**
  * The fields of `foldkit-plus`'s manifest that follow the workspace. The
