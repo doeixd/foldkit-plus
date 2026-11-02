@@ -248,7 +248,7 @@ type MappingFor<Name extends string, Input, M> = M extends Unmapped
           ? M
           : 'the input value does not fit this field'
         : M extends RelationInput<infer R>
-          ? Present<Input> extends RelationIds<R>
+          ? Held<Input> extends RelationIds<R>
             ? M
             : 'the input value is not the id shape of this relation'
           : M extends NestedInput<infer R, infer I>

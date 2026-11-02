@@ -31,6 +31,17 @@ export default [
     tests: entityTests,
   },
   {
+    name: 'a relation input given nothing is judged as a null link',
+    edits: [
+      {
+        file: '../src/invariant.ts',
+        find: 'Option.isOption(given) ? Option.getOrUndefined(given) : given',
+        replace: 'Option.isOption(given) ? Option.getOrNull(given) : given',
+      },
+    ],
+    tests: entityTests,
+  },
+  {
     name: 'a path may name no relation',
     edits: [
       {

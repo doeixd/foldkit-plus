@@ -380,7 +380,7 @@ export const judgeInput = (
     // A `one` relation's key holds the id it points at: the row holds that id, or null.
     if (member._tag === 'RelationInput' && member.relation.cardinality === 'one') {
       const given = value[key]
-      const id = Option.isOption(given) ? Option.getOrNull(given) : given
+      const id = Option.isOption(given) ? Option.getOrUndefined(given) : given
       if (id === null || typeof id === 'string') put(row, member.relation.key, id)
       continue
     }

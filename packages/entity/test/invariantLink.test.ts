@@ -3,7 +3,7 @@
  * and may not point at one person twice. The relations are operands, the id
  * each points at, as they are in a query or a guard.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Entity, Expr, Relation } from '../src/index.js'
 
@@ -83,6 +83,26 @@ describe('An invariant over one relations', () => {
     })
     expect(Entity.judgeInput(input, { by: null })._tag).toBe('Invalid')
     expect(Entity.judgeInput(input, { by: 'ada' })._tag).toBe('Valid')
+  })
+
+  it('reads an optional relation input given nothing as undecided, not as null', () => {
+    const Routed = Entity.define('Routed', Schema.Struct({ id: Schema.String }))
+    const { Routed: Linked } = Entity.relate(
+      { Routed, Person: PersonFields },
+      { Routed: { by: Relation.one(PersonFields, { optional: true }) } },
+    )
+    const Each = Linked.pipe(
+      Entity.invariant('routed', ({ after }) => Expr.isNotNull(after.by), { message: 'Route it' }),
+    )
+    const input = Entity.input(Each, Schema.Struct({ by: Schema.Option(Schema.String) }), {
+      by: 'by',
+    })
+    expect(Entity.judgeInput(input, { by: Option.none() })).toEqual({
+      _tag: 'Undecided',
+      fields: ['by'],
+      operators: [],
+    })
+    expect(Entity.judgeInput(input, { by: Option.some('ada') })._tag).toBe('Valid')
   })
 
   it('compares a relation before and after: a transition over where a row points', () => {

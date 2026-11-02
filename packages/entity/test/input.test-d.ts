@@ -71,6 +71,15 @@ Entity.input(
 // @ts-expect-error an `Option` holds what it holds: a number does not fit `title`
 Entity.input(Post, Schema.Struct({ title: Schema.Option(Schema.Number) }))
 
+// An `Option`-mapped one relation: its value fits as what it holds.
+Entity.input(Post, Schema.Struct({ authorId: Schema.Option(Schema.String) }), {
+  authorId: Relation.input(Post.relations.author),
+})
+Entity.input(Post, Schema.Struct({ authorId: Schema.Option(Schema.Number) }), {
+  // @ts-expect-error an `Option` holds what it holds: a number is not an id
+  authorId: Relation.input(Post.relations.author),
+})
+
 // @ts-expect-error `name` is a field of Author, not of Post
 Entity.input(Post, input, { authorId: Author.fields.name })
 Entity.input(Post, Schema.Struct({ ids: Schema.Array(Schema.String) }), {
