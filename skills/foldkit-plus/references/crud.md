@@ -109,13 +109,17 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
   `PostEditor.target(model)` the id being edited (`null` for a new one). The form's Model is
   `model.editor.form`.
 - **A save in flight:** placed with `PostEditor.placement`, the drawn form reads
-  `submitting` (`aria-busy` on the form Slot, button disabled) from submit until
+  `submitting` (`aria-busy` on the form Slot, button `aria-disabled`) from submit until
   Remote has the answer; `PostEditor.busy(model)` is the same fact. A submit
   while busy does nothing (no write, the Model as given). A refusal naming no
-  form key, and a failure, are the form's `failure` (`failure` Slot); after a
-  failure the button reads "Try again" and a submit sends the same write again
-  through `Data.retry` (same request and operation ids). An edit makes the
-  next submit a new write. Extend the placement by spreading it:
+  form key, and a failure, are the form's `failure` (`failure` Slot), the one
+  place it is announced (`EditorView` says nothing for `SaveFailed`/`Conflict`).
+  Its text is the editor's words, never the transport's message (that stays at
+  `saveError(model)`): `Crud.editor(name, { form, mutation, words: { failed,
+  conflict, refused } })`, each optional; an invariant says its own message, and
+  a `failure` the page passes in the view inputs wins. After a failure the button
+  reads "Try again" and a submit sends the same write again through `Data.retry`
+  (same request and operation ids). An edit makes the next submit a new write. Extend the placement by spreading it:
   `{ ...PostEditor.placement, onOut: out => model => … }`.
 - **Draw it:** give the editor's Bundle the form's view, lifted:
   `Editor.bundle.pipe(Bundle.withView(Crud.editorView(FormView.submodel(EditPostForm, view))))`,
@@ -292,9 +296,9 @@ PageList(
 
 `EditorView`, `ConfirmView` and `Toolbar` (all `.forMessages<Message>().define()`)
 draw around an editor and a remover, given their state: `EditorView({ id, status:
-Editor.status(model), title, form: EditForm.view(model, h, inputs), error:
-Editor.saveError(model)?.message, onClose?, onRetry? })` draws each status's line and
-keeps the form while there is something to edit (a failed save keeps the draft);
+Editor.status(model), title, form: EditForm.view(model, h, inputs), onClose?, onRetry? })` draws each
+status's line and keeps the form while there is something to edit (a failed save
+keeps the draft, and the form, not the editor, says why);
 `ConfirmView({ id, status: Remover.status(model), name: Option<string>, onConfirm,
 onCancel, error? })` asks `Delete {name}?` and cannot confirm with no name;
 `Toolbar({ search?, filters?, sort?, actions? })` holds your controls in slots. For a

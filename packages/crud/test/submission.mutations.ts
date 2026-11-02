@@ -34,26 +34,43 @@ export default [
   ),
   edit('a refusal of a field shows on the form too', 'namedBy(refusal).length > 0', 'false'),
   edit(
-    'an invariant’s refusal says the transport’s words',
-    'error: Refusal.isInvalid(refusal) ? refusal.message : save.error.message,',
-    'error: save.error.message,',
+    'an invariant’s refusal says the generic words',
+    'if (Refusal.isInvalid(refusal)) return refusal.message',
+    'if (Refusal.isInvalid(refusal)) return words.refused',
+  ),
+  edit(
+    'a conflict says the generic words',
+    'if (Refusal.isConflict(refusal)) return words.conflict',
+    '',
+  ),
+  edit(
+    'a failure says the transport’s message',
+    '? { error: words.failed, retry: true }',
+    '? { error: save.error.message, retry: true }',
   ),
   edit(
     'a failure is not offered again',
-    'Option.some({ error: save.error.message, retry: save.error.refusal === undefined }),',
-    'Option.some({ error: save.error.message, retry: false }),',
+    '? { error: words.failed, retry: true }',
+    '? { error: words.failed, retry: false }',
+  ),
+  edit(
+    'an undeclared refusal is offered again',
+    ': { error: words.refused, retry: false },',
+    ': { error: words.refused, retry: true },',
+  ),
+  edit(
+    'the page’s words are ignored',
+    'refused: config.words?.refused ?? saveWords.refused,',
+    'refused: saveWords.refused,',
   ),
   edit(
     'the page’s own busy flag is dropped',
-    'submitting: busy(root) || (given as SubmitInputs | undefined)?.submitting === true,',
+    'submitting: busy(root) || own.submitting === true,',
     'submitting: busy(root),',
   ),
   edit(
-    'the page’s own failure is dropped',
-    `failure: Option.getOrElse(
-                  failure(root),
-                  () => (given as SubmitInputs | undefined)?.failure,
-                ),`,
-    'failure: Option.getOrUndefined(failure(root)),',
+    'the editor’s failure beats the page’s',
+    'failure: own.failure ?? Option.getOrUndefined(failure(root)),',
+    'failure: Option.getOrElse(failure(root), () => own.failure),',
   ),
 ]

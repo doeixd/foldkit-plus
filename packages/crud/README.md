@@ -322,7 +322,7 @@ status and `saveError`.
 From a submit until Remote has the save's answer, the editor is `busy(model)`,
 and the form drawn through its placement reads `submitting`: with
 `foldkit-mixins-form`, the `form` carries `aria-busy` and `data-submitting` and
-its button is disabled. Busy is read from Remote's ledger by the save's request
+its button is `aria-disabled`, keeping its focus. Busy is read from Remote's ledger by the save's request
 id at every draw; the editor keeps no flag of its own, and your page passes
 none. It ends at the answer, when the save's pending layer is released: a list
 refetched after the write shows that through its own `Refreshing`, and a
@@ -332,17 +332,35 @@ navigation your `update` sends after the save is yours, not the save's.
   returned as it was given.
 - **A refusal naming one of the form's keys** shows on that key (below).
 - **A refusal naming none** (a conflict, an invariant over another field) is
-  the form's `failure`, drawn in the form's `failure` Slot, with the
-  invariant's message or the server's words. It is not offered again: the same
-  write would be refused again.
+  the form's `failure`, drawn in the form's `failure` Slot: the invariant's own
+  message, or the editor's words for a conflict or another refusal. It is not
+  offered again: the same write would be refused again.
 - **A failure** (the server could not be reached) is the form's `failure` with
   `retry`: the button reads "Try again", and a submit sends the same write
   again through `Data.retry`, with its request and operation ids, so a server
   that applied it answers from its record. An edit since makes the next submit
   a new write.
 
-The failure shows only while the form is as it was saved. `status` still says
-`SaveFailed` or `Conflict` for a view around the form.
+The failure shows only while the form is as it was saved, and it is the one
+place a failed save is announced: `foldkit-mixins-crud`'s `EditorView` says
+nothing for `SaveFailed` or `Conflict`. Its words are plain sentences, never the
+transport's message, which stays at `saveError(model)` for diagnostics. Word
+them with `Crud.editor`'s `words`; each is optional:
+
+```ts
+const Worded = Crud.editor('PostEditor', {
+  form: EditPostForm,
+  mutation: EditPostMutation,
+  words: {
+    failed: 'Could not save. Check your connection and try again.',
+    conflict: 'Someone else saved this first, so your changes were not saved.',
+    refused: 'This could not be saved.',
+  },
+})
+```
+
+A page that passes a `failure` of its own in the form's view inputs words it
+itself, and that one is drawn instead.
 
 ### How it treats the form
 

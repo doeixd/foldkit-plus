@@ -220,6 +220,27 @@ export interface SubmitInputs {
   readonly failure?: { readonly error: string; readonly retry: boolean } | undefined
 }
 
+/**
+ * What an editor's form says when a save did not land and names none of the
+ * form's keys: plain sentences for a reader, never the transport's message,
+ * which stays at `saveError(model)` for diagnostics. An invariant's refusal
+ * says the invariant's own message.
+ */
+export interface SaveWords {
+  /** The save failed for another reason than a refusal: the network, the server erring. */
+  readonly failed?: string | undefined
+  /** The server refused it with `Refusal.conflict`: the row moved on since it was read. */
+  readonly conflict?: string | undefined
+  /** Any other refusal naming none of the form's keys. */
+  readonly refused?: string | undefined
+}
+
+const saveWords: { readonly [K in keyof SaveWords]-?: string } = {
+  failed: 'Could not save. Check your connection and try again.',
+  conflict: 'Someone else saved this first, so your changes were not saved.',
+  refused: 'This could not be saved.',
+}
+
 /** One thing a relation picker offers. */
 export interface Choice {
   readonly value: string
@@ -800,10 +821,23 @@ export const Crud = {
        * `May.locks(Todo)`. Read with `locked`.
        */
       readonly locks?: Locks | undefined
+      /** What the form says when a save did not land; each word is optional. */
+      readonly words?: SaveWords | undefined
     },
   ) => {
     type Model = EditorModel<FormModel>
     const { form, mutation, locks } = config
+    const words: typeof saveWords = {
+      failed: config.words?.failed ?? saveWords.failed,
+      conflict: config.words?.conflict ?? saveWords.conflict,
+      refused: config.words?.refused ?? saveWords.refused,
+    }
+    /** What the form says of a refusal naming none of its keys. */
+    const refusedWith = (refusal: unknown): string => {
+      if (Refusal.isInvalid(refusal)) return refusal.message
+      if (Refusal.isConflict(refusal)) return words.conflict
+      return words.refused
+    }
     // How each input key's value is compared, built once from its own schema.
     const sameValue: Readonly<Record<string, (left: unknown, right: unknown) => boolean>> =
       Object.fromEntries(
@@ -1116,15 +1150,17 @@ export const Crud = {
           const save = saveOf(root)
           if (save._tag !== 'Failed' || slice.get(root).edited) return Option.none()
           return Option.match(refusalOf(root), {
+            // A refusal that does not decode as the mutation's is still a refusal.
             onNone: () =>
-              Option.some({ error: save.error.message, retry: save.error.refusal === undefined }),
+              Option.some(
+                save.error.refusal === undefined
+                  ? { error: words.failed, retry: true }
+                  : { error: words.refused, retry: false },
+              ),
             onSome: refusal =>
               namedBy(refusal).length > 0
                 ? Option.none()
-                : Option.some({
-                    error: Refusal.isInvalid(refusal) ? refusal.message : save.error.message,
-                    retry: false,
-                  }),
+                : Option.some({ error: refusedWith(refusal), retry: false }),
           })
         }
 
@@ -1174,15 +1210,17 @@ export const Crud = {
            */
           placement: {
             onOut,
-            viewInputs: <Inputs extends SubmitInputs | void>(root: Root, given: Inputs): Inputs =>
-              ({
-                ...given,
-                submitting: busy(root) || (given as SubmitInputs | undefined)?.submitting === true,
-                failure: Option.getOrElse(
-                  failure(root),
-                  () => (given as SubmitInputs | undefined)?.failure,
-                ),
-              }) as Inputs,
+            // `void` admits an editor placed with no view, or one taking no
+            // inputs: a placement never calls this for a view drawn without
+            // inputs. A failure the page passes is its own wording, so it wins.
+            viewInputs: <Inputs extends SubmitInputs | void>(root: Root, given: Inputs): Inputs => {
+              const own = given as SubmitInputs
+              return {
+                ...own,
+                submitting: busy(root) || own.submitting === true,
+                failure: own.failure ?? Option.getOrUndefined(failure(root)),
+              } as Inputs
+            },
           },
 
           /** Whether the save is in flight: from submit until Remote has its answer. */

@@ -32,7 +32,12 @@ const EditNoteForm = Form.make('EditNote', EditNoteInput, {
   inputs: { id: Input.hidden() },
   debounce: 0,
 })
-const Editor = Crud.editor('NoteEditor', { form: EditNoteForm, mutation: EditNote })
+// The page words one kind of failure; the others keep the editor's own.
+const Editor = Crud.editor('NoteEditor', {
+  form: EditNoteForm,
+  mutation: EditNote,
+  words: { refused: 'Notes like this cannot be saved.' },
+})
 const Slot = Bundle.declare(Editor.bundle, 'editor')
 
 const Model = Schema.Struct({ remote: Remote.Model, ...Slot.fields })
@@ -87,7 +92,8 @@ const Client = Layer.succeed(RemoteClient, {
       case 'Refuse':
         return Effect.fail(new RemoteMutationError({ message: 'refused', refusal: answer.refusal }))
       case 'Fail':
-        return Effect.fail(new RemoteMutationError({ message: 'The server could not be reached' }))
+        // What a transport says is for diagnostics, not for the reader.
+        return Effect.fail(new RemoteMutationError({ message: 'SchemaError: Expected string' }))
     }
   },
   live: () => Stream.empty,
@@ -159,11 +165,14 @@ describe('An editor’s submission', () => {
     expect(sent).toHaveLength(1)
   })
 
-  it('keeps a submit’s busy flag where the page gave one, and adds its own', async () => {
+  it('keeps a busy flag and a failure the page gives, over its own', async () => {
     const ready = await opened()
     expect(NoteEditor.placement.viewInputs(ready, { submitting: true }).submitting).toBe(true)
-    const failure = { error: 'Elsewhere', retry: false }
-    expect(NoteEditor.placement.viewInputs(ready, { failure }).failure).toBe(failure)
+    answers = [{ _tag: 'Fail' }]
+    const submitted = submit(typed(ready, 'Revised'))
+    const failed = await answer(submitted.model, submitted.commands![0]!)
+    const failure = { error: 'Saved for later, once you are online.', retry: true }
+    expect(NoteEditor.placement.viewInputs(failed, { failure }).failure).toBe(failure)
   })
 
   it('shows a refusal of a field on that field, and nothing on the form', async () => {
@@ -200,14 +209,24 @@ describe('An editor’s submission', () => {
       retry: false,
     })
     expect(EditNoteForm.field(refused.editor.form, 'title')._tag).toBe('Valid')
-    // A conflict names no field either, and says the server's words.
+    // A conflict names no field either, and says the editor's words for it.
     answers = [{ _tag: 'Refuse', refusal: { _tag: 'Conflict' } }]
     const again = submit(refused)
     const conflicted = await answer(again.model, again.commands![0]!)
-    expect(inputs(conflicted).failure).toEqual({ error: 'refused', retry: false })
-    // A refusal is not sent again as itself: the second was a write of its own.
-    expect(sent).toHaveLength(2)
-    expect(sent[1]!.requestId).not.toBe(sent[0]!.requestId)
+    expect(inputs(conflicted).failure).toEqual({
+      error: 'Someone else saved this first, so your changes were not saved.',
+      retry: false,
+    })
+    // A refusal the mutation does not declare says the page's words for a refusal.
+    answers = [{ _tag: 'Refuse', refusal: { _tag: 'Field', key: 'slug', reason: 'Taken' } }]
+    const third = submit(conflicted)
+    const undeclared = await answer(third.model, third.commands![0]!)
+    expect(inputs(undeclared).failure).toEqual({
+      error: 'Notes like this cannot be saved.',
+      retry: false,
+    })
+    // A refusal is not sent again as itself: each was a write of its own.
+    expect(new Set(sent.map(request => request.requestId)).size).toBe(3)
   })
 
   it('offers a failed save again, sends it as itself, and is busy until it lands', async () => {
@@ -216,9 +235,10 @@ describe('An editor’s submission', () => {
     const failed = await answer(submitted.model, submitted.commands![0]!)
     expect(NoteEditor.busy(failed)).toBe(false)
     expect(inputs(failed).failure).toEqual({
-      error: 'The server could not be reached',
+      error: 'Could not save. Check your connection and try again.',
       retry: true,
     })
+    expect(NoteEditor.saveError(failed)?.message).toBe('SchemaError: Expected string')
 
     const retried = submit(failed)
     expect(NoteEditor.busy(retried.model)).toBe(true)

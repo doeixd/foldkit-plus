@@ -37,6 +37,24 @@ const EditPostForm = Form.make(
 
 const Editor = Crud.editor('PostEditor', { form: EditPostForm, mutation: EditPostMutation })
 
+// --- A save in flight: the words its form says ---
+
+export const Worded = Crud.editor('PostEditor', {
+  form: EditPostForm,
+  mutation: EditPostMutation,
+  words: {
+    failed: 'Could not save. Check your connection and try again.',
+    conflict: 'Someone else saved this first, so your changes were not saved.',
+    refused: 'This could not be saved.',
+  },
+})
+Crud.editor('PostEditor', {
+  form: EditPostForm,
+  mutation: EditPostMutation,
+  // @ts-expect-error the words are the editor's three kinds, no others
+  words: { saved: 'Saved.' },
+})
+
 const DeletePostMutation = Mutation.make('DeletePost', {
   Input: { id: Schema.String },
   Output: { id: Schema.String },
