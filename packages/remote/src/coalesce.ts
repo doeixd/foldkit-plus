@@ -166,16 +166,23 @@ const readsOf = (
   const plain = [...owned].filter(([, requirement]) => !hasWindows(requirement))
   const paged = [...owned].filter(([, requirement]) => hasWindows(requirement))
   const target = (requirement: Requirement) => `${requirement.entity}\u0000${requirement.id}`
+  // Each target's keys once, with their place in the batch so a read's keys
+  // keep the order the callers asked in.
+  const keysByTarget = new Map<string, Array<{ readonly key: string; readonly index: number }>>()
+  plain.forEach(([key, requirement], index) => {
+    const at = target(requirement)
+    const keys = keysByTarget.get(at)
+    if (keys === undefined) keysByTarget.set(at, [{ key, index }])
+    else keys.push({ key, index })
+  })
   return [
-    ...cut(Requirement.merge(plain.map(([, requirement]) => requirement)), limits).map(piece => {
-      const targets = new Set(piece.requests.map(target))
-      return {
-        keys: plain
-          .filter(([, requirement]) => targets.has(target(requirement)))
-          .map(([key]) => key),
-        ...piece,
-      }
-    }),
+    ...cut(Requirement.merge(plain.map(([, requirement]) => requirement)), limits).map(piece => ({
+      keys: piece.requests
+        .flatMap(request => keysByTarget.get(target(request)) ?? [])
+        .sort((a, b) => a.index - b.index)
+        .map(({ key }) => key),
+      ...piece,
+    })),
     ...paged.flatMap(([key, requirement]) =>
       cut([requirement], limits).map(piece => ({ keys: [key], ...piece })),
     ),

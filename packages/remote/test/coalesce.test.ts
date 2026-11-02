@@ -133,6 +133,30 @@ describe('coalesceReads', () => {
     expect(results[0].entities.map(entity => entity.id)).toEqual(['u1', 'u2'])
   })
 
+  it('settles every key when a read mixes entities and repeats a target', async () => {
+    const raw = recording()
+    const results = await Effect.runPromise(
+      Effect.gen(function* () {
+        const read = yield* coalesceReads(raw.read, { maxIdsPerEntity: 1 })
+        return yield* Effect.all(
+          [
+            read(batch(req('u1', ['name']))),
+            read(batch({ entity: 'Post', id: 'p1', fields: ['title'] })),
+            read(batch(req('u1', ['email']))),
+            read(batch({ entity: 'Post', id: 'p2', fields: ['title'] })),
+          ],
+          { concurrency: 'unbounded' },
+        )
+      }),
+    )
+    expect(
+      raw.batches.map(sent => sent.requests.map(request => `${request.entity}:${request.id}`)),
+    ).toEqual([['User:u1', 'Post:p1'], ['Post:p2']])
+    expect(
+      results.map(result => result.entities.map(entity => `${entity.entity}:${entity.id}`)),
+    ).toEqual([['User:u1', 'Post:p1'], ['User:u1', 'Post:p1'], ['User:u1', 'Post:p1'], ['Post:p2']])
+  })
+
   it('joins a requirement already in flight instead of reading it again', async () => {
     const raw = recording({ hold: true })
     const [first, second] = await Effect.runPromise(

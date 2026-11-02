@@ -58,6 +58,17 @@ export default [
     tests: [unit, page],
   },
   {
+    name: 'a planned read settles none of the keys it was planned for',
+    edits: [
+      {
+        file: coalesce,
+        find: 'keysByTarget.get(target(request)) ?? []',
+        replace: '[]',
+      },
+    ],
+    tests: [unit],
+  },
+  {
     name: 'no cut by bytes',
     edits: [{ file: coalesce, find: 'last.bytes + bytes <= limits.budget &&', replace: '' }],
     tests: [unit],
