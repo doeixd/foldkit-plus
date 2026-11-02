@@ -56,6 +56,16 @@ describe('Projection.derive', () => {
     expect(runs()).toBe(2)
   })
 
+  it('works out a sparse array of a new length again', () => {
+    const lengths = Projection.derive([App.model.todos], (root: Model) => Array(root.todos.length))
+    expect(lengths.read(model).length).toBe(1)
+    const three = {
+      ...model,
+      todos: [...model.todos, { id: 'b', title: 'B' }, { id: 'c', title: 'C' }],
+    }
+    expect(lengths.read(three).length).toBe(3)
+  })
+
   it('refuses to derive from nothing it names', () => {
     expect(() => Projection.derive([], () => 1)).toThrow(/names nothing it reads/)
   })

@@ -468,6 +468,8 @@ const sameFields = (left: unknown, right: unknown): boolean => {
   const prototype = Object.getPrototypeOf(left)
   const plain = prototype === Object.prototype || prototype === null || Array.isArray(left)
   if (!plain || Object.getPrototypeOf(right) !== prototype) return false
+  // Object.keys omits `length`, so two sparse arrays can share every key.
+  if (Array.isArray(left) && left.length !== (right as ReadonlyArray<unknown>).length) return false
   const keys = Object.keys(left)
   return (
     keys.length === Object.keys(right).length &&

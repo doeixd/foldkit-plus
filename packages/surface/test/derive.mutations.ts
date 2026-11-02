@@ -16,6 +16,11 @@ export default [
     ': keepAlike(before.value, derive(root))',
     ': derive(root)',
   ),
+  edit(
+    'a sparse array of a new length keeps the old value',
+    '  // Object.keys omits `length`, so two sparse arrays can share every key.\n  if (Array.isArray(left) && left.length !== (right as ReadonlyArray<unknown>).length) return false\n',
+    '',
+  ),
   {
     ...edit(
       "a Projection's paths are not read",
