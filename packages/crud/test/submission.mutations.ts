@@ -69,6 +69,21 @@ export default [
     'submitting: busy(root),',
   ),
   edit(
+    'the page’s own saved flag is dropped',
+    'saved: saved(root) || own.saved === true,',
+    'saved: saved(root),',
+  ),
+  edit(
+    'the editor never says its save landed',
+    'saved: saved(root) || own.saved === true,',
+    'saved: own.saved === true,',
+  ),
+  edit(
+    'a landed save stays so through an edit',
+    'return requestId !== null && Option.contains(settledFor, requestId) && !edited',
+    'return requestId !== null && Option.contains(settledFor, requestId)',
+  ),
+  edit(
     'the editor’s failure beats the page’s',
     'failure: own.failure ?? Option.getOrUndefined(failure(root)),',
     'failure: Option.getOrElse(failure(root), () => own.failure),',

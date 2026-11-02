@@ -236,6 +236,21 @@ describe('FormView markup', () => {
     expect(Inert.text(button(idle))).toBe('Submit')
   })
 
+  it('keeps a saved form’s button focusable while it cannot submit, and only then', () => {
+    // [canSubmit, saved] -> [disabled, aria-disabled]
+    const drawn = (canSubmit: boolean, saved: boolean) => {
+      const root = FormView.define(Edit)(
+        { model: initial, errors: [], canSubmit, saved },
+        SlotView.inertBuilder(),
+      )
+      const button = Inert.all(root).find(node => node.sel === 'button')
+      return [button?.data?.props?.disabled, button?.data?.attrs?.['aria-disabled']]
+    }
+    expect(drawn(false, true)).toEqual([false, 'true'])
+    expect(drawn(true, true)).toEqual([false, undefined])
+    expect(drawn(false, false)).toEqual([true, undefined])
+  })
+
   it('says why its write did not land, and offers the same write again only for a failure', () => {
     const draw = (failure?: { readonly error: string; readonly retry: boolean }) =>
       FormView.define(Edit)(

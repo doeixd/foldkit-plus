@@ -403,6 +403,13 @@ focus a press gave it, and a press meanwhile reaches a submit that waits or a
 write in flight, which ignores it. Busy ends when the write is
 answered: a list refreshed after it shows that through its own `Refreshing`.
 
+A write that landed may leave the form unable to submit: a create's form
+starts again blank, and its button would then be disabled under the focus a
+press gave it, which drops to the page. The view input `saved` says the
+write landed and the form is not edited since; while it holds, a button that
+cannot submit is `aria-disabled` instead, and a press shows what the blank
+form lacks. `foldkit-crud`'s editor passes it.
+
 When the write did not land, the view input `failure` (`{ error, retry }`) says
 why, in the `failure` slot (`role="alert"`, above the submit button): a refusal
 that names none of the form's keys (a refusal that names one shows on that
@@ -438,7 +445,7 @@ Each control has an `id` of `<form name>-<key>` (in a row,
 required, and `aria-describedby` naming its description, the `checking` line
 while a check runs, and its error while invalid. An error is `role="alert"`.
 The submit button is disabled until the form would submit, and
-`aria-disabled` while it is submitting, so it keeps its focus.
+`aria-disabled` while it is submitting or `saved`, so it keeps its focus.
 
 Those attributes belong to the view: an attachment that also supplies one is an
 attribute conflict, reported when the view renders. The slots declare

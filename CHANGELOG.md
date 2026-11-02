@@ -684,6 +684,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A create's form, started again blank, keeps the focus its button had**
+  (`foldkit-mixins-form`, `foldkit-crud`, #408). A blank form cannot submit,
+  so after a create landed its button was `disabled`, and a keyboard's focus
+  on it dropped to the page. `FormView` takes a `saved` input (the write
+  landed and the form is not edited since); while it holds, a button that
+  cannot submit is `aria-disabled` instead of `disabled`, and a press shows
+  what the form lacks. `Crud.editor`'s placement passes it.
+
 - **A region over a Remote read beside a field is drawn again when the store
   changes** (`foldkit-surface`, `foldkit-mixins`, #385). A Remote read declares
   no Model path, and `Projection.struct` merged only its other entries' paths,

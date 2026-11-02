@@ -172,9 +172,30 @@ test('the form is aria-busy until the save is answered, and keeps the focus a pr
 
     answer()
     await vi.waitFor(() => expect(form().getAttribute('aria-busy')).toBeNull())
-    // The create landed, so its form starts blank again, with its own words.
+    await frames.settle()
+    // The create landed, so its form starts blank again, with its own words,
+    // and the button that cannot submit it yet keeps the focus.
+    expect(title()).toHaveProperty('value', '')
     expect(save().textContent).toBe('Save')
     expect(saves).toBe(1)
+    expect(document.activeElement).toBe(save())
+    expect(save().disabled).toBe(false)
+    expect(save().getAttribute('aria-disabled')).toBe('true')
+
+    // A press says what the blank form lacks, and writes nothing.
+    await userEvent.type(save(), '{Enter}')
+    await vi.waitFor(() => expect(submits).toBe(3))
+    await frames.settle()
+    expect(saves).toBe(1)
+    expect(document.activeElement).toBe(save())
+
+    // An edit ends it: the form is the author's again, and drawn by its own rule.
+    await userEvent.fill(title(), 'Milk')
+    await frames.settle()
+    expect(save().getAttribute('aria-disabled')).toBeNull()
+    await userEvent.fill(title(), '')
+    await frames.settle()
+    expect(save().disabled).toBe(true)
   } finally {
     handle.dispose()
     frames.dispose()

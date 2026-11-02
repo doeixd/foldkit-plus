@@ -119,7 +119,9 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
   conflict, refused } })`, each optional; an invariant says its own message, and
   a `failure` the page passes in the view inputs wins. After a failure the button
   reads "Try again" and a submit sends the same write again through `Data.retry`
-  (same request and operation ids). An edit makes the next submit a new write. Extend the placement by spreading it:
+  (same request and operation ids). An edit makes the next submit a new write. A
+  create that landed starts its form again blank; `saved` (until the next edit)
+  keeps its button `aria-disabled` rather than `disabled`, so focus stays on it. Extend the placement by spreading it:
   `{ ...PostEditor.placement, onOut: out => model => … }`. The placement is a type
   error on an editor whose view takes no inputs (`(model, h)`), which could show
   none of this; an editor with no view takes it.
