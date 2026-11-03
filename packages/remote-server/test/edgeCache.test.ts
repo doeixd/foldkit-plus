@@ -421,7 +421,7 @@ describe('pageReader', () => {
     server: ServerDefinition<Who>,
     cache: boolean,
     user?: string,
-    ids: ReadonlyArray<string> = ['a'],
+    asked: ReadonlyArray<string> | 'Cheap' = ['a'],
   ) => {
     const reads: Array<CachedRead> = []
     const reader = pageReader({
@@ -433,7 +433,9 @@ describe('pageReader', () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const client = yield* RemoteClient
-        return yield* client.read(read(ids).payload)
+        return asked === 'Cheap'
+          ? yield* client.query(cheap.payload)
+          : yield* client.read(read(asked).payload)
       }).pipe(
         Effect.provide(reader),
         Effect.provideService(
@@ -487,6 +489,17 @@ describe('pageReader', () => {
       'e',
     ])
     expect(reads).toEqual([CachedRead.Private({ read: 'Price a, Price b, Price c and 2 more' })])
+  })
+
+  it('names a private query by its name', async () => {
+    const { price, query } = world()
+    const { reads } = await noted(
+      RemoteServer.make({ entities: [price], queries: [query] }),
+      false,
+      undefined,
+      'Cheap',
+    )
+    expect(reads).toEqual([CachedRead.Private({ read: 'query Cheap' })])
   })
 
   it('notes a read that failed private', async () => {

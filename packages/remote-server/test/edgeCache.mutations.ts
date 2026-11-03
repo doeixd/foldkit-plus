@@ -172,4 +172,5 @@ export default [
   ),
   edit('a private read names every row it asked for', policy, 'rows.slice(0, NAMED_ROWS)', 'rows'),
   edit('a private read hides how many more it asked for', policy, 'more > 0 ?', 'false ?'),
+  edit('a private query is named as nothing', policy, 'read: `query ${request.query}`', "read: ''"),
 ]
