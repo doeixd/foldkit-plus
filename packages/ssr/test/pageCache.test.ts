@@ -107,7 +107,7 @@ describe('a page drawn from more than its URL is not kept', () => {
   > = [
     [
       'after a private read',
-      { prepare: model => Effect.as(reads(CachedRead.Private()), model) },
+      { prepare: model => Effect.as(reads(CachedRead.Private({ read: 'Price a' })), model) },
       {},
       'private, no-store',
     ],
@@ -229,7 +229,9 @@ describe('SSR.keptDocuments', () => {
       drawn += 1
       return application.html
     })
-    const { entry } = counted({ prepare: model => Effect.as(reads(CachedRead.Private()), model) })
+    const { entry } = counted({
+      prepare: model => Effect.as(reads(CachedRead.Private({ read: 'Price a' })), model),
+    })
     for (const _ of [1, 2]) draw(applicationOf(await entry.renderPage(get())), undefined)
     expect(drawn).toBe(2)
   })

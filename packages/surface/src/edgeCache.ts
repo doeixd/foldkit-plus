@@ -286,11 +286,13 @@ function kv(
 
 /**
  * One read a page render made, as the reader judged it: public and fresh for
- * `maxAge`, tagged with the rows and lists it holds, or private.
+ * `maxAge`, tagged with the rows and lists it holds, or private, named by
+ * what it asked for (`Price a, Price b`, `query Search`) so a refusal can
+ * say which read kept a page from being shared.
  */
 export type CachedRead = Data.TaggedEnum<{
   Public: { readonly policy: CachePolicy; readonly tags: ReadonlyArray<string> }
-  Private: {}
+  Private: { readonly read: string }
 }>
 export const CachedRead = Data.taggedEnum<CachedRead>()
 

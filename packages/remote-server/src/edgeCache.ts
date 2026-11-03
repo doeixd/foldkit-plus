@@ -156,6 +156,16 @@ export const cacheKey = (url: string, kind: string, text: string): Effect.Effect
     Effect.map(digest => `${new URL(url).origin}/__foldkit/cache/${kind}/${hex(digest)}`),
   )
 
+/** The most rows a private read names: a batch can ask for hundreds. */
+const NAMED_ROWS = 3
+
+/** What a read batch asked for, as a refusal names it: its first rows, and how many more. */
+const batchName = (batch: Batch): string => {
+  const rows = batch.requests.map(request => `${request.entity} ${request.id}`)
+  const more = rows.length - NAMED_ROWS
+  return `${rows.slice(0, NAMED_ROWS).join(', ')}${more > 0 ? ` and ${more} more` : ''}`
+}
+
 /**
  * Handlers that answer every read and query proved public as `visitor`, and
  * note each read in the render's `PageReads`: public with its policy and
@@ -173,38 +183,41 @@ export const notingHandlers = <P, R>(
     )
   return {
     ...own,
-    FoldkitRemoteRead: batch =>
-      Option.match(
+    FoldkitRemoteRead: batch => {
+      const unshared = note(CachedRead.Private({ read: batchName(batch) }))
+      return Option.match(
         Option.flatMap(visitor, handlers =>
           Option.map(readPolicy(server, batch), policy => ({ handlers, policy })),
         ),
         {
-          onNone: () => Effect.ensuring(own.FoldkitRemoteRead(batch), note(CachedRead.Private())),
+          onNone: () => Effect.ensuring(own.FoldkitRemoteRead(batch), unshared),
           onSome: ({ handlers, policy }) =>
             Effect.flatMap(handlers.FoldkitRemoteRead(batch), result =>
               Effect.as(
                 note(CachedRead.Public({ policy, tags: readTags(batch, result) })),
                 unaddressed(result),
               ),
-            ).pipe(Effect.onError(() => note(CachedRead.Private()))),
+            ).pipe(Effect.onError(() => unshared)),
         },
-      ),
-    FoldkitRemoteQuery: request =>
-      Option.match(
+      )
+    },
+    FoldkitRemoteQuery: request => {
+      const unshared = note(CachedRead.Private({ read: `query ${request.query}` }))
+      return Option.match(
         Option.flatMap(visitor, handlers =>
           Option.map(queryPolicy(server, request), policy => ({ handlers, policy })),
         ),
         {
-          onNone: () =>
-            Effect.ensuring(own.FoldkitRemoteQuery(request), note(CachedRead.Private())),
+          onNone: () => Effect.ensuring(own.FoldkitRemoteQuery(request), unshared),
           onSome: ({ handlers, policy }) =>
             Effect.flatMap(handlers.FoldkitRemoteQuery(request), result =>
               Effect.as(
                 note(CachedRead.Public({ policy, tags: queryTags(server, request, result) })),
                 unaddressed(result),
               ),
-            ).pipe(Effect.onError(() => note(CachedRead.Private()))),
+            ).pipe(Effect.onError(() => unshared)),
         },
-      ),
+      )
+    },
   }
 }

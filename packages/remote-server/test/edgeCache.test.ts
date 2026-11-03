@@ -417,7 +417,12 @@ describe('checkCache', () => {
 })
 
 describe('pageReader', () => {
-  const noted = (server: ServerDefinition<Who>, cache: boolean, user?: string) => {
+  const noted = (
+    server: ServerDefinition<Who>,
+    cache: boolean,
+    user?: string,
+    ids: ReadonlyArray<string> = ['a'],
+  ) => {
     const reads: Array<CachedRead> = []
     const reader = pageReader({
       server,
@@ -428,7 +433,7 @@ describe('pageReader', () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const client = yield* RemoteClient
-        return yield* client.read(read(['a']).payload)
+        return yield* client.read(read(ids).payload)
       }).pipe(
         Effect.provide(reader),
         Effect.provideService(
@@ -460,7 +465,7 @@ describe('pageReader', () => {
   it('notes a read private without a cache', async () => {
     const { price } = world()
     const { reads } = await noted(RemoteServer.make({ entities: [price] }), false)
-    expect(reads).toEqual([CachedRead.Private()])
+    expect(reads).toEqual([CachedRead.Private({ read: 'Price a' })])
   })
 
   it('notes a read private under a rule', async () => {
@@ -469,7 +474,19 @@ describe('pageReader', () => {
       RemoteServer.make({ entities: [{ ...price, authorize: (_, fields) => fields }] }),
       true,
     )
-    expect(reads).toEqual([CachedRead.Private()])
+    expect(reads).toEqual([CachedRead.Private({ read: 'Price a' })])
+  })
+
+  it('names a private read by its first rows', async () => {
+    const { price } = world()
+    const { reads } = await noted(RemoteServer.make({ entities: [price] }), false, undefined, [
+      'a',
+      'b',
+      'c',
+      'd',
+      'e',
+    ])
+    expect(reads).toEqual([CachedRead.Private({ read: 'Price a, Price b, Price c and 2 more' })])
   })
 
   it('notes a read that failed private', async () => {
@@ -477,6 +494,6 @@ describe('pageReader', () => {
       read: () => Effect.fail(new RemoteServerError({ message: 'gone' })),
     })
     const { reads } = await noted(RemoteServer.make({ entities: [failing] }), true)
-    expect(reads).toEqual([CachedRead.Private()])
+    expect(reads).toEqual([CachedRead.Private({ read: 'Price a' })])
   })
 })
