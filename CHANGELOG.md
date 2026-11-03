@@ -54,6 +54,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **domains-plus's no-script TLD choice is its own page**
+  (`examples/foldkit/domains-plus`, #473). A page without scripts links to
+  `/tlds`, which lists every extension and links back to the search with
+  `?tld=`; the search page no longer draws 557 `<option>`s. Its application
+  HTML falls by 21,179 bytes (`/?q=acme` brotli 8,803 → 5,506), and the TLD
+  page reads no prices.
+
 - **A SQLite app bundles no Drizzle Postgres core** (`foldkit-remote-drizzle`,
   #464). **Breaking:** a Postgres app calls `postgres()` once from
   `foldkit-remote-drizzle/pg` before binding its tables; a Postgres table
