@@ -3,6 +3,7 @@
  * of it, on SQLite and on Postgres, joins up to the order the reference
  * interpreter gives. expr-operations-DESIGN §8.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { PgDialect, integer as pgInteger, pgTable, text as pgText } from 'drizzle-orm/pg-core'
@@ -26,6 +27,8 @@ import { Query } from 'foldkit-remote'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { compileOrderBy } from '../src/compile.js'
 import { DrizzleOperators, databaseLayer, entity, orderByTerms, query } from '../src/index.js'
+
+postgres()
 
 const Part = Entity.define(
   'Part',

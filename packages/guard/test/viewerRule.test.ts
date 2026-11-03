@@ -16,9 +16,12 @@ import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Schema } from 'effect'
 import { Entity, Expr, Relation } from 'foldkit-entity'
 import { bind } from 'foldkit-remote-drizzle'
+import { postgres } from 'foldkit-remote-drizzle/pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Condition, Guards } from '../src/index.js'
 import { GuardDrizzle } from '../src/drizzle.js'
+
+postgres()
 
 const Fields = {
   Team: Entity.define('Team', Schema.Struct({ id: Schema.String, orgId: Schema.String })),

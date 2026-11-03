@@ -18,11 +18,14 @@ import { Effect, Layer, Option, Result, Schema } from 'effect'
 import { Entity, Expr, Relation, Write } from 'foldkit-entity'
 import { Mutation, REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
 import { bind, databaseLayer, source, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
+import { postgres } from 'foldkit-remote-drizzle/pg'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { GuardDrizzle } from '../src/drizzle.js'
 import { Guards } from '../src/index.js'
 import { Condition } from '../src/condition.js'
+
+postgres()
 import { GuardServer } from '../src/server.js'
 
 const Fields = {

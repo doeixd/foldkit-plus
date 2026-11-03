@@ -1,3 +1,4 @@
+import { postgres } from '../src/pg.js'
 import { eq, type SQL } from 'drizzle-orm'
 import { pgTable, PgDialect, text, uuid } from 'drizzle-orm/pg-core'
 import { Effect, Schema } from 'effect'
@@ -10,6 +11,8 @@ import {
   type DrizzleDatabaseService,
   type DrizzleStatement,
 } from '../src/index.js'
+
+postgres()
 
 const projects = pgTable('projects', {
   id: uuid('id').primaryKey(),

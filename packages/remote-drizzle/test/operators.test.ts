@@ -2,6 +2,7 @@
  * Primitive operators compiled by a binding's SQL table, beside its memory
  * table: expr-operations-DESIGN §5.4 to §5.6.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { sql, type SQL } from 'drizzle-orm'
@@ -25,6 +26,8 @@ import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { compilePredicates, computationSql } from '../src/compile.js'
 import { DrizzleOperators, bind, databaseLayer, entity, query, writer } from '../src/index.js'
+
+postgres()
 
 const Item = Entity.define(
   'Item',

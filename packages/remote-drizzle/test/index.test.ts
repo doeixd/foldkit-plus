@@ -1,3 +1,4 @@
+import { postgres } from '../src/pg.js'
 import { sql } from 'drizzle-orm'
 import { text, uuid, pgTable, PgDialect } from 'drizzle-orm/pg-core'
 import { Effect, Schema } from 'effect'
@@ -13,6 +14,8 @@ import {
   whereIds,
   type SourceQuery,
 } from '../src/index.js'
+
+postgres()
 
 const users = pgTable('users', {
   id: uuid('id').primaryKey(),

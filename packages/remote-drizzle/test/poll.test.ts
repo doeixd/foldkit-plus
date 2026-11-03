@@ -5,6 +5,7 @@
  * (a `LiveQuery`, as `handlers` resolve one) has its rows join and leave by it. `rowChangeLog` keeps that log over real SQLite, and
  * `rowLog` reads it.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { pgTable, text as pgText } from 'drizzle-orm/pg-core'
 import { drizzle } from 'drizzle-orm/node-sqlite'
@@ -23,6 +24,8 @@ import {
   type DrizzleDatabase,
   type RowLog,
 } from '../src/index.js'
+
+postgres()
 
 /**
  * A table whose reads are counted by row, and a log of the rows each write

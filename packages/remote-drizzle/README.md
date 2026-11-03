@@ -91,6 +91,23 @@ the adapter reads the tables you define with your own Drizzle, not a copy of
 its own; `foldkit-entity`, `foldkit-remote` and `foldkit-remote-server` come
 with the package.
 
+### SQLite and Postgres
+
+SQLite needs no extra setup. The package reads a table's dialect from
+Drizzle's own entity kinds, so a SQLite application never loads
+`drizzle-orm/pg-core`.
+
+Postgres support is a separate entry point. Register it once, at the top of the
+module that binds your tables, before the first binding:
+
+```ts
+import { postgres } from 'foldkit-remote-drizzle/pg'
+
+postgres()
+```
+
+A Postgres table reached without it throws an error naming this entry.
+
 For the ownership and requirement-planning model first, read
 [Server-derived state](../../docs/remote.md).
 
@@ -99,7 +116,10 @@ For the ownership and requirement-planning model first, read
 Start with a normal Drizzle table:
 
 ```ts
+import { postgres } from 'foldkit-remote-drizzle/pg'
 import { pgTable, text, uuid } from 'drizzle-orm/pg-core'
+
+postgres()
 
 export const projects = pgTable('projects', {
   id: uuid('id').primaryKey(),

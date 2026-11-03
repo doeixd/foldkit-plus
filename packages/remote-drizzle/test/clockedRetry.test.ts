@@ -6,6 +6,7 @@
  * sets from its clock (`Entity.sets` with `Expr.now`) is no evidence the write
  * differs. ops-4-captured-now-DESIGN, "A retry without a ledger".
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { integer as pgInteger, pgTable, text as pgText } from 'drizzle-orm/pg-core'
@@ -18,6 +19,8 @@ import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { bind, databaseLayer, writer } from '../src/index.js'
+
+postgres()
 
 const Note = Entity.define(
   'Note',

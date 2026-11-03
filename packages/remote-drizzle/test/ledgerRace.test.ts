@@ -4,6 +4,7 @@
  * the race. Runs when `FOLDKIT_LOCALE_PG` names a Postgres (see
  * `conformance.test.ts`); any locale will do.
  */
+import { postgres } from '../src/pg.js'
 import { drizzle as drizzleNodePg } from 'drizzle-orm/node-postgres'
 import {
   bigint as pgBigint,
@@ -19,6 +20,8 @@ import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { bind, databaseLayer, writer, type DrizzleDatabase } from '../src/index.js'
+
+postgres()
 
 const Item = Entity.define(
   'Item',

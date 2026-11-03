@@ -7,10 +7,10 @@
  * take it unchanged.
  */
 import type { AnyColumn, SQL, Table as DrizzleTable } from 'drizzle-orm'
-import { getTableColumns, is } from 'drizzle-orm'
-import { getTableConfig as pgTableConfig, PgTable } from 'drizzle-orm/pg-core'
-import { getTableConfig as sqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core'
+import { getTableColumns } from 'drizzle-orm'
+import { getTableConfig as sqliteTableConfig } from 'drizzle-orm/sqlite-core'
 import { holdsChecks } from './checks.js'
+import { isPostgresTable, isSqliteTable, postgresOperations } from './dialect.js'
 import { contextSharers } from './columns.js'
 import { operatorsFrom, type BindingOperators } from './operators.js'
 import { Option, Schema, SchemaAST } from 'effect'
@@ -256,9 +256,9 @@ const inverseOne = (
 
 /** What the table's own foreign key on `column` does on delete, where it declares one. */
 const onDeleteOf = (table: DrizzleTable, column: AnyColumn): Option.Option<string> => {
-  const foreignKeys = is(table, PgTable)
-    ? pgTableConfig(table).foreignKeys
-    : is(table, SQLiteTable)
+  const foreignKeys = isPostgresTable(table)
+    ? postgresOperations().tableConfig(table).foreignKeys
+    : isSqliteTable(table)
       ? sqliteTableConfig(table).foreignKeys
       : []
   for (const key of foreignKeys) {

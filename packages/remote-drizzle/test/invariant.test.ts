@@ -5,6 +5,7 @@
  * after a stale revision and an unmet precondition. Each case runs on SQLite and
  * on Postgres.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { integer as pgInteger, pgTable, text as pgText } from 'drizzle-orm/pg-core'
@@ -23,6 +24,8 @@ import {
   writer,
   type DrizzleDatabase,
 } from '../src/index.js'
+
+postgres()
 
 const StockFields = Entity.define(
   'Stock',

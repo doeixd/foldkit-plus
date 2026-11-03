@@ -4,6 +4,7 @@
  * (#290): one the relation's `policies` filter hides answers as a missing one
  * does, by a foreign key and through a table, on SQLite and Postgres.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { ne, sql } from 'drizzle-orm'
@@ -15,6 +16,8 @@ import { Effect, type Layer, Schema } from 'effect'
 import { Entity, Relation } from 'foldkit-entity'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { bind, databaseLayer, source, type DrizzleDatabase } from '../src/index.js'
+
+postgres()
 
 const Fields = {
   Project: Entity.define('Project', Schema.Struct({ id: Schema.String })),

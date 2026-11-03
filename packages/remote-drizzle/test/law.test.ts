@@ -6,6 +6,7 @@
  * equal what the server then holds, on SQLite, on PGlite and, where
  * `FOLDKIT_LOCALE_PG` names one, on a Postgres that collates by a locale.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { sql, type SQL } from 'drizzle-orm'
@@ -31,6 +32,8 @@ import {
   writer,
   type DrizzleDatabase,
 } from '../src/index.js'
+
+postgres()
 
 const TeamFields = Entity.define('Team', Schema.Struct({ id: Schema.String, org: Schema.String }))
 const UserFields = Entity.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))

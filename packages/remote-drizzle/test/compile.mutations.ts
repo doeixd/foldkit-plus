@@ -22,7 +22,7 @@ export default [
     edits: [
       {
         file: '../src/compile.ts',
-        find: 'return is(target.table, PgTable)',
+        find: 'return isPostgresTable(target.table)',
         replace: 'return false',
       },
     ],

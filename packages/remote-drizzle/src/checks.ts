@@ -15,25 +15,16 @@
 import {
   getColumnTable,
   getTableName,
-  is,
   sql,
   type AnyColumn,
   type SQL,
   type Table,
 } from 'drizzle-orm'
-import {
-  check as pgCheck,
-  getTableConfig as pgTableConfig,
-  PgDialect,
-  PgTable,
-  type CheckBuilder as PgCheckBuilder,
-  type PgColumn,
-} from 'drizzle-orm/pg-core'
+import type { CheckBuilder as PgCheckBuilder, PgColumn } from 'drizzle-orm/pg-core'
 import {
   check as sqliteCheck,
   getTableConfig as sqliteTableConfig,
   SQLiteDialect,
-  SQLiteTable,
   type CheckBuilder as SQLiteCheckBuilder,
   type SQLiteColumn,
 } from 'drizzle-orm/sqlite-core'
@@ -47,6 +38,7 @@ import {
   type CompileTarget,
   type StoredRelation,
 } from './compile.js'
+import { isPostgresTable, isSqliteTable, postgresOperations } from './dialect.js'
 import { operatorsFrom, type BindingOperators } from './operators.js'
 import { quoted } from './quoted.js'
 
@@ -67,16 +59,16 @@ const fail = (message: string): never => {
   throw new Error(`[foldkit-remote-drizzle] ${message}`)
 }
 
-const dialectOf = (table: Table): Dialect => (is(table, PgTable) ? 'postgres' : 'sqlite')
+const dialectOf = (table: Table): Dialect => (isPostgresTable(table) ? 'postgres' : 'sqlite')
 
 /**
  * SQL as its dialect writes it, with no parameter left: a constraint binds none.
  * Wrapped, so a table's own check is read without being marked to inline.
  */
 const render = (table: Table, condition: SQL, what: string): string => {
-  const query = (is(table, PgTable) ? new PgDialect() : new SQLiteDialect()).sqlToQuery(
-    sql`${condition}`.inlineParams(),
-  )
+  const query = (
+    isPostgresTable(table) ? postgresOperations().dialect() : new SQLiteDialect()
+  ).sqlToQuery(sql`${condition}`.inlineParams())
   if (query.params.length > 0)
     throw new QueryCompileError(`${what} compares a value a constraint cannot hold`)
   return query.sql
@@ -624,8 +616,8 @@ export function entityChecks(
     relations: linksOf(options.relations ?? {}),
     operators: operatorsFrom(options.operators),
   })
-  return is(table, PgTable)
-    ? checks.map(({ name, condition }) => pgCheck(name, sql.raw(condition)))
+  return isPostgresTable(table)
+    ? checks.map(({ name, condition }) => postgresOperations().check(name, sql.raw(condition)))
     : checks.map(({ name, condition }) => sqliteCheck(name, sql.raw(condition)))
 }
 
@@ -700,9 +692,9 @@ export const holdsChecks = (
   operators: BindingOperators,
 ): void => {
   const tableName = getTableName(table)
-  const config = is(table, PgTable)
-    ? pgTableConfig(table)
-    : is(table, SQLiteTable)
+  const config = isPostgresTable(table)
+    ? postgresOperations().tableConfig(table)
+    : isSqliteTable(table)
       ? sqliteTableConfig(table)
       : fail(`table "${tableName}" is neither SQLite's nor Postgres'`)
   const declared = config.checks.map(({ name, value }) => ({

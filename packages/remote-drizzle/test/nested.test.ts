@@ -4,6 +4,7 @@
  * statement per level and entity, and a windowed relation paging every parent
  * in one ranked statement, however many parents.
  */
+import { postgres } from '../src/pg.js'
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
@@ -26,6 +27,8 @@ import { RemoteServer } from 'foldkit-remote-server'
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
 import { databaseLayer, entity, many, one, source } from '../src/index.js'
+
+postgres()
 
 const schema = `
   create table users (id text primary key, name text not null);

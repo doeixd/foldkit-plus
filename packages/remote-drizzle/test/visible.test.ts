@@ -5,6 +5,7 @@
  * the others open, so each is checked, a visitor against an author, over the
  * same rows in real SQL.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { isNotNull } from 'drizzle-orm'
@@ -17,6 +18,8 @@ import { Derived, Entity, Relation } from 'foldkit-entity'
 import { Query } from 'foldkit-remote'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { bind, databaseLayer, query, source, type AnyEntityBinding } from '../src/index.js'
+
+postgres()
 
 const users = sqliteTable('users', { id: text('id').primaryKey(), name: text('name').notNull() })
 const posts = sqliteTable('posts', {

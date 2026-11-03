@@ -6,6 +6,7 @@
  * past the bound a parent. A window, or the one row of an inverse one-to-one,
  * is not held to it. On SQLite and PGlite.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
@@ -17,6 +18,8 @@ import { Entity as Domain, Relation } from 'foldkit-entity'
 import { Entity } from 'foldkit-remote'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { bind, databaseLayer, source, type DrizzleDatabase } from '../src/index.js'
+
+postgres()
 
 const Fields = {
   Project: Domain.define('Project', Schema.Struct({ id: Schema.String, title: Schema.String })),

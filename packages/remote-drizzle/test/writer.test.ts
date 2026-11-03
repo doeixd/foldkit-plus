@@ -2,6 +2,7 @@
  * A declared `Write` served with no handler: `RemoteServer.write` binds the
  * input, and `writer` lands it in the table in one `update ... returning`.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
@@ -14,6 +15,8 @@ import { Mutation } from 'foldkit-remote'
 import { RemoteServer, type LiveHub } from 'foldkit-remote-server'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { applyEdits, bind, databaseLayer, writer, type DrizzleDatabase } from '../src/index.js'
+
+postgres()
 
 const Project = Entity.define(
   'Project',

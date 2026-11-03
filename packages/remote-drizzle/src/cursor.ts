@@ -28,9 +28,9 @@ import {
   type AnyColumn,
   type SQL,
 } from 'drizzle-orm'
-import { PgColumn } from 'drizzle-orm/pg-core'
 import { Data, Match, Option } from 'effect'
 import type { Collation } from 'foldkit-entity'
+import { isPostgresColumn } from './dialect.js'
 
 export interface OrderTerm {
   /**
@@ -74,7 +74,7 @@ export const collatedColumn = (
 ): Option.Option<{ readonly key: SQL; readonly value: (value: unknown) => unknown }> => {
   const plain = (value: unknown) => value
   if (collation === undefined) return Option.none()
-  const postgres = is(column, PgColumn)
+  const postgres = isPostgresColumn(column)
   const text =
     postgres && postgresEnum.has(column.columnType) ? sql`cast(${column} as text)` : sql`${column}`
   const collates =

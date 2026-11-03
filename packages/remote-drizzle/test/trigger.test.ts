@@ -2,6 +2,7 @@
  * `revisionTrigger`: the database moves a revision on an update that does not
  * move it itself, and leaves alone one that does, so nothing moves twice.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { integer as pgInteger, pgSchema, pgTable, text as pgText } from 'drizzle-orm/pg-core'
@@ -13,6 +14,8 @@ import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { bind, databaseLayer, revisionTrigger, writer } from '../src/index.js'
+
+postgres()
 
 const Note = Entity.define(
   'Note',

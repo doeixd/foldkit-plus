@@ -28,7 +28,6 @@ import {
   type SQL,
   type Table,
 } from 'drizzle-orm'
-import { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import { Match, Option, Schema, SchemaAST } from 'effect'
 import { absurd } from 'effect/Function'
 import {
@@ -69,6 +68,7 @@ import type {
 } from 'foldkit-entity'
 import type { RelationBinding } from './binding.js'
 import { collatedColumn, type OrderTerm } from './cursor.js'
+import { isPostgresColumn, isPostgresTable } from './dialect.js'
 import { kernelOperators, type BindingOperators } from './operators.js'
 
 /** How a relation is stored, as far as compiling reads it: a `one` by the column it is stored on. */
@@ -250,7 +250,7 @@ const contextFor = (
 const operatorsOf = (target: CompileTarget): BindingOperators => target.operators ?? kernelOperators
 
 const dialectOf = (target: CompileTarget): 'sqlite' | 'postgres' =>
-  is(target.table, PgTable) ? 'postgres' : 'sqlite'
+  isPostgresTable(target.table) ? 'postgres' : 'sqlite'
 
 /** Text under a collation as `dialect` writes it (expr-operations-DESIGN §7); itself under none. */
 const collateFor =
@@ -817,7 +817,7 @@ const undecided = (
       // collation, which folds ASCII alone too. Decided by the table, not the
       // operand: the searched value may be an input rather than a column.
       const pattern = `%${escapeLike(search)}%`
-      return is(target.table, PgTable)
+      return isPostgresTable(target.table)
         ? sql`lower(${value} collate "C") like lower(${pattern} collate "C") escape '\\'`
         : sql`lower(${value}) like lower(${pattern}) escape '\\'`
     }
@@ -975,7 +975,7 @@ const localeOnSqlite = (
   Option.match(collation, {
     onNone: () => undefined,
     onSome: each => {
-      if (each._tag === 'Locale' && !is(column, PgColumn)) {
+      if (each._tag === 'Locale' && !isPostgresColumn(column)) {
         throw new QueryCompileError(
           `query "${query}" orders "${key}" by the "${each.locale}" collation, and SQLite has no locales`,
         )

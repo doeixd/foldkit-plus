@@ -4,6 +4,7 @@
  * conformance set's answers come from the SQL `Expr.is` compiles to, and the
  * CHECK each case's invariant becomes refuses a row mixing cases.
  */
+import { postgres } from '../src/pg.js'
 import { PGlite } from '@electric-sql/pglite'
 import { Effect } from 'effect'
 import { drizzle } from 'drizzle-orm/node-sqlite'
@@ -20,6 +21,8 @@ import {
 } from 'foldkit-entity/conformance'
 import { Query } from 'foldkit-remote'
 import { bind, checkConstraints, databaseLayer, entityChecks, query } from '../src/index.js'
+
+postgres()
 
 const sqliteRows = sqliteTable(
   'variant_rows',

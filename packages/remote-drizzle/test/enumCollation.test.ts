@@ -5,6 +5,7 @@
  * paged, by its labels as text under the term's collation, as the reference
  * interpreter orders them. SQLite, with no enums, stores the labels as text.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { pgEnum, pgTable, text as pgText } from 'drizzle-orm/pg-core'
@@ -16,6 +17,8 @@ import { Collation, Entity, Order, Query as Relational, evaluate } from 'foldkit
 import { Query } from 'foldkit-remote'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { databaseLayer, entity, query } from '../src/index.js'
+
+postgres()
 
 // Declared in neither code point nor folded order, so each of the three reads differently.
 const labels = ['b', 'C', 'a'] as const

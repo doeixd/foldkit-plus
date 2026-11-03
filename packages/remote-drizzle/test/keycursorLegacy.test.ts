@@ -5,6 +5,7 @@
  * the row it names, whether the rest reads as key values or as nothing, on
  * SQLite and Postgres. An id cursor minted now says it is one.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { pgTable, integer as pgInteger, text as pgText } from 'drizzle-orm/pg-core'
@@ -17,6 +18,8 @@ import { Query } from 'foldkit-remote'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { CursorRead, idCursor, readCursor } from '../src/cursor.js'
 import { databaseLayer, entity, query } from '../src/index.js'
+
+postgres()
 
 const Item = Entity.define('Item', Schema.Struct({ id: Schema.String, rank: Schema.Number }))
 const ByRank = Query.define('ByRank', {}, () =>

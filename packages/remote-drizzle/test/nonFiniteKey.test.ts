@@ -4,6 +4,7 @@
  * way paged on as if the row it ended on held no value, and skipped the rows
  * tied with it.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { sql } from 'drizzle-orm'
@@ -16,6 +17,8 @@ import { Entity, Expr, Operators, Order, Query as Relational } from 'foldkit-ent
 import { Query } from 'foldkit-remote'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { DrizzleOperators, databaseLayer, entity, query } from '../src/index.js'
+
+postgres()
 
 const Score = Entity.define('Score', Schema.Struct({ id: Schema.String, score: Schema.Number }))
 const twice = Expr.operator('acme.twice', { input: [Schema.Number], output: Schema.Number })

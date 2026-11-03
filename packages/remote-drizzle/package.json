@@ -31,6 +31,11 @@
       "foldkit-plus:source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./pg": {
+      "foldkit-plus:source": "./src/pg.ts",
+      "types": "./dist/pg.d.ts",
+      "import": "./dist/pg.js"
     }
   },
   "files": [

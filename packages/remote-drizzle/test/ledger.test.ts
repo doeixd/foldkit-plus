@@ -3,6 +3,7 @@
  * that asked for it, in the same transaction, so a retry is answered from the
  * record and concurrent increments, expecting no revision, both land.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
@@ -21,6 +22,8 @@ import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { bind, databaseLayer, writer, type DrizzleDatabase } from '../src/index.js'
+
+postgres()
 
 const Item = Entity.define(
   'Item',

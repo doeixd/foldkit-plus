@@ -7,7 +7,9 @@ boundary** is enforced, by a [`foldkit-guard`](../guard/README.md) guard set:
 who is not an author is refused entries, drafts and revisions outright, and sees
 of your content only what its Read rules show, such as what is published.
 
-Supports SQLite and Postgres. The conflict check requires `returning`, so this
+Supports SQLite and Postgres. A Postgres app calls `postgres()` from
+`foldkit-remote-drizzle/pg` once before binding its tables. The conflict check
+requires `returning`, so this
 adapter does not support MySQL. The [CMS example](../../examples/cms/README.md)
 includes the server, in-app preview, and a browser mode over an in-memory database.
 

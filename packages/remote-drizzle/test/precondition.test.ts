@@ -2,6 +2,7 @@
  * A declared write's `when`, compiled into the statement that writes: the
  * row is written only while it holds it, and a miss says why.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
@@ -14,6 +15,8 @@ import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { bind, databaseLayer, writer } from '../src/index.js'
+
+postgres()
 
 const Project = Entity.define(
   'Project',

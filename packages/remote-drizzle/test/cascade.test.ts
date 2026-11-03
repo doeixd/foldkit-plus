@@ -5,6 +5,7 @@
  * deletes the post. A thread: p1 by Ada, its reply p2 by Bo, p2's reply p3 by
  * Ada; a like on each, and p9, which nothing points at.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { eq, getTableColumns } from 'drizzle-orm'
@@ -34,6 +35,8 @@ import { Surface } from 'foldkit-surface'
 import { Miniflare } from 'miniflare'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { bind, databaseLayer, query, source, writer, type DrizzleDatabase } from '../src/index.js'
+
+postgres()
 
 const UserFields = Entity.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const PostFields = Entity.define(

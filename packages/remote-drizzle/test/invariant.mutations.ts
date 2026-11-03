@@ -19,7 +19,7 @@ export default [
   edit(
     'the statement does not judge the row',
     drizzle,
-    '...(yield* holdingInvariants({ ...values, ...linkIds(links) }, increments, assignments))',
+    '...(yield* holdingInvariants({ ...values, ...linkIds(links) }, increments, assignments)),',
     '',
   ),
   edit(
@@ -88,12 +88,6 @@ export default [
     checks,
     'sql`(${condition}) is true`',
     'sql`(${condition})`',
-  ),
-  edit(
-    'a constraint is sent its values as parameters',
-    checks,
-    'sql`${condition}`.inlineParams(),',
-    'sql`${condition}`,',
   ),
   {
     ...edit(

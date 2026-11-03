@@ -1,8 +1,11 @@
+import { postgres } from '../src/pg.js'
 import { sql } from 'drizzle-orm'
 import { integer, pgTable, PgDialect, text } from 'drizzle-orm/pg-core'
 import { Collation } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
 import { cursorSelection, keysetWhere, type OrderTerm } from '../src/index.js'
+
+postgres()
 
 const events = pgTable('events', {
   id: text('id').primaryKey(),

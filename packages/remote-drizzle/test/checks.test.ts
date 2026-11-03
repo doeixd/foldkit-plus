@@ -5,6 +5,7 @@
  * on SQLite and on Postgres. Then what stays the server's, and `bind` refusing
  * a table whose own checks say something else.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { sql, type SQL } from 'drizzle-orm'
@@ -28,6 +29,8 @@ import { Schema } from 'effect'
 import { Entity, Expr } from 'foldkit-entity'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { bind, checkConstraints, entityChecks } from '../src/index.js'
+
+postgres()
 
 const Rule = Entity.define(
   'Rule',

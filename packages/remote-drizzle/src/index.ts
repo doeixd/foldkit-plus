@@ -27,11 +27,7 @@ import {
   type SQL,
   type Table,
 } from 'drizzle-orm'
-import {
-  getTableConfig as getPgTableConfig,
-  type PgColumn,
-  type PgTable,
-} from 'drizzle-orm/pg-core'
+import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import { type SQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { Array as Arr, Clock, Effect, Match, Option, Result, Schema } from 'effect'
 import {
@@ -74,6 +70,7 @@ import {
 } from 'foldkit-remote-server'
 import type { AnyEntityBinding, ManyRelation, ManyToManyRelation } from './binding.js'
 import { checkConstraints } from './checks.js'
+import { postgresOperations } from './dialect.js'
 import { serverOnlyRules, statementFailed } from './diagnostics.js'
 import { idColumn, projectsAny, contextOverwrites } from './columns.js'
 import {
@@ -1104,7 +1101,7 @@ export const revisionTrigger = (binding: AnyEntityBinding, revision: string): st
 begin update ${table} set ${moved} = old.${moved} + 1 where ${id} = new.${id}; end;`
   }
   // A table in a `pgSchema` is named by it, and so is its function.
-  const schema = getPgTableConfig(binding.table as PgTable).schema
+  const schema = postgresOperations().tableConfig(binding.table).schema
   const within = (name: string) =>
     schema === undefined ? quoted(name) : `${quoted(schema)}.${quoted(name)}`
   const table = within(getTableName(binding.table))

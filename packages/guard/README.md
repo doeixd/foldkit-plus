@@ -595,7 +595,8 @@ where … and <rule>`), so it reads the other row as the write lands, not as it
 was read a moment before. `GuardServer.writer` judges what the row alone
 decides in memory and hands the rest to its writer as `requires`, which
 remote-drizzle's `writer` holds the row to, refusing with `Forbidden` (and the
-`explain`) where it fails, on SQLite and Postgres.
+`explain`) where it fails, on SQLite and Postgres. A Postgres app calls
+`postgres()` from `foldkit-remote-drizzle/pg` once before binding its tables.
 
 - Such a rule is judged over the row as stored, so a write that would change
   what it reads of its own row (its fields, the relation its path leaves by)

@@ -3,6 +3,7 @@
  * field moves by the amount once, and a retry of a write that landed is a
  * conflict, never a second increment.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { sql } from 'drizzle-orm'
@@ -24,6 +25,8 @@ import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { DrizzleOperators, bind, databaseLayer, writer } from '../src/index.js'
+
+postgres()
 
 const Item = Entity.define(
   'Item',

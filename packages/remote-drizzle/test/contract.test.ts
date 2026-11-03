@@ -1,3 +1,4 @@
+import { postgres } from '../src/pg.js'
 import { pgTable, text } from 'drizzle-orm/pg-core'
 import { Effect } from 'effect'
 import { Operators } from 'foldkit-entity'
@@ -14,6 +15,8 @@ import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { DrizzleDatabase, entity, many, one, source } from '../src/index.js'
 import { fakeDatabaseQueue } from './fakeDatabase.js'
+
+postgres()
 
 const users = pgTable('users', {
   id: text('id').primaryKey(),

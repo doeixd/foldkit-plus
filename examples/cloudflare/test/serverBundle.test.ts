@@ -10,9 +10,11 @@ import { expect, test } from 'vitest'
 import { formatServerReport, measureWorker } from '../../../scripts/bundle-report.mjs'
 import { record } from '../../../scripts/perf-report.mjs'
 
-// Raw bytes, not minified. 4,828.0 kB measured on 2026-11-02, plus about 2%.
+// Raw bytes, not minified. 4,817.6 kB measured on 2026-11-03, plus about 1.7%;
+// 26.2 kB less than before, because a SQLite app no longer bundles
+// `drizzle-orm/pg-core`'s dialect (#464).
 // Never raise it without saying here what the growth bought.
-const CEILING = 4_925_000
+const CEILING = 4_898_800
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureWorker(resolve(import.meta.dirname, '..'), 'src/worker.ts')

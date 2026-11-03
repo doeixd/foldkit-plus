@@ -1,6 +1,6 @@
 # Remote: server-owned data cached in the Model
 
-Checked against `foldkit-remote` 0.23.0, `foldkit-remote-server` 0.20.0, `foldkit-remote-drizzle` 0.17.0 and `foldkit-plus` 0.19.0.
+Checked against `foldkit-remote` 0.23.0, `foldkit-remote-server` 0.20.0, `foldkit-remote-drizzle` 0.18.0 and `foldkit-plus` 0.19.0.
 
 `foldkit-remote` keeps a **normalized, disposable cache of server-owned facts
 inside the Foldkit Model**. Features declare which entity fields they need;
@@ -1125,6 +1125,12 @@ refetches it and a read of it is `Refreshing`.
 
 `foldkit-remote-drizzle` peers on `drizzle-orm` `1.0.0-rc.5` exactly: install
 that version beside it, so the app and the adapter share one copy.
+
+SQLite needs no extra setup. A Postgres app calls `postgres()` from
+`foldkit-remote-drizzle/pg` once, at the top of the module that binds its
+tables; a Postgres table bound without it throws an error naming that entry.
+The main entry therefore bundles no `drizzle-orm/pg-core` into a SQLite-only
+application.
 
 ```ts standalone
 import { eq } from 'drizzle-orm'

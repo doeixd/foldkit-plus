@@ -493,6 +493,11 @@
       "types": "./dist/remote-drizzle.d.mts",
       "import": "./dist/remote-drizzle.mjs"
     },
+    "./remote-drizzle/pg": {
+      "foldkit-plus:source": "./src/remote-drizzle/pg.ts",
+      "types": "./dist/remote-drizzle/pg.d.mts",
+      "import": "./dist/remote-drizzle/pg.mjs"
+    },
     "./remote-server": {
       "foldkit-plus:source": "./src/remote-server.ts",
       "types": "./dist/remote-server.d.mts",

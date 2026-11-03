@@ -5,6 +5,7 @@
  * without a revision only by an operator shown to commute.
  * expr-operations-DESIGN §9.2, §9.3.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { sql, type SQL } from 'drizzle-orm'
@@ -35,6 +36,8 @@ import {
   writer,
   type DrizzleDatabase,
 } from '../src/index.js'
+
+postgres()
 
 const concat = Expr.operator('acme.concat', {
   input: [Schema.String, Schema.String],

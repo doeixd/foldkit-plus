@@ -5,6 +5,7 @@
  * and written as a CHECK over the columns the relations are stored on. On
  * SQLite and on Postgres.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { getTableColumns } from 'drizzle-orm'
@@ -25,6 +26,8 @@ import {
   writer,
   type DrizzleDatabase,
 } from '../src/index.js'
+
+postgres()
 
 const PersonFields = Entity.define('Person', Schema.Struct({ id: Schema.String }))
 const FollowFields = Entity.define('Follow', Schema.Struct({ id: Schema.String }))

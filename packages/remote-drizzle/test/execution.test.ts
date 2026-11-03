@@ -1,3 +1,4 @@
+import { postgres } from '../src/pg.js'
 import { eq, type SQL } from 'drizzle-orm'
 import { pgTable, PgDialect, text } from 'drizzle-orm/pg-core'
 import { Effect, Schema } from 'effect'
@@ -17,6 +18,8 @@ import {
   type DrizzleStatement,
 } from '../src/index.js'
 import { fakeDatabase, fakeDatabaseQueue } from './fakeDatabase.js'
+
+postgres()
 
 const users = pgTable('users', {
   id: text('id').primaryKey(),

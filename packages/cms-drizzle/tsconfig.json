@@ -22,6 +22,7 @@
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
       "foldkit-remote-drizzle": ["../remote-drizzle/src/index.ts"],
+      "foldkit-remote-drizzle/pg": ["../remote-drizzle/src/pg.ts"],
       "foldkit-remote-server": ["../remote-server/src/index.ts"],
       "foldkit-remote-server/fetch": ["../remote-server/src/fetch.ts"],
       "foldkit-remote-server/port": ["../remote-server/src/port.ts"],

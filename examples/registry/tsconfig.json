@@ -55,6 +55,7 @@
       "foldkit-primitives/time": ["../../packages/primitives/src/time/index.ts"],
       "foldkit-remote": ["../../packages/remote/src/index.ts"],
       "foldkit-remote-drizzle": ["../../packages/remote-drizzle/src/index.ts"],
+      "foldkit-remote-drizzle/pg": ["../../packages/remote-drizzle/src/pg.ts"],
       "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],
       "foldkit-remote-server/fetch": ["../../packages/remote-server/src/fetch.ts"],
       "foldkit-remote-server/port": ["../../packages/remote-server/src/port.ts"],

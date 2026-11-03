@@ -20,12 +20,15 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Mutation, Remote, RemoteClient } from 'foldkit-remote'
 import { Law } from 'foldkit-remote/testing'
 import { bind, databaseLayer, source, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
+import { postgres } from 'foldkit-remote-drizzle/pg'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Surface } from 'foldkit-surface'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { GuardDrizzle } from '../src/drizzle.js'
 import { Guards } from '../src/index.js'
 import { GuardServer } from '../src/server.js'
+
+postgres()
 
 const User = Schema.Struct({ id: Schema.String })
 type User = typeof User.Type

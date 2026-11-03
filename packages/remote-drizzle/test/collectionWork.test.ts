@@ -10,6 +10,7 @@
  * statement the read ran. Below a few thousand rows Postgres may choose a
  * sequential scan, which is cheap there and visits more.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
@@ -20,6 +21,8 @@ import { Effect, type Layer, Schema } from 'effect'
 import { Entity, Relation } from 'foldkit-entity'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { bind, databaseLayer, source, type DrizzleDatabase } from '../src/index.js'
+
+postgres()
 
 const Fields = {
   Project: Entity.define('Project', Schema.Struct({ id: Schema.String })),

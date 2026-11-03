@@ -121,6 +121,7 @@
       "foldkit-plus/react-codegen": ["../../../packages/plus/src/react-codegen.ts"],
       "foldkit-plus/remote": ["../../../packages/plus/src/remote.ts"],
       "foldkit-plus/remote-drizzle": ["../../../packages/plus/src/remote-drizzle.ts"],
+      "foldkit-plus/remote-drizzle/pg": ["../../../packages/plus/src/remote-drizzle/pg.ts"],
       "foldkit-plus/remote-server": ["../../../packages/plus/src/remote-server.ts"],
       "foldkit-plus/remote-server/fetch": ["../../../packages/plus/src/remote-server/fetch.ts"],
       "foldkit-plus/remote-server/port": ["../../../packages/plus/src/remote-server/port.ts"],

@@ -5,6 +5,7 @@
  * `foldkit-remote-server`'s `evaluate`; a body that means two things, in one
  * dialect or between them, fails in whichever is wrong.
  */
+import { postgres } from '../src/pg.js'
 import { PGlite } from '@electric-sql/pglite'
 import { Effect } from 'effect'
 import { drizzle } from 'drizzle-orm/node-sqlite'
@@ -31,6 +32,8 @@ import {
   type RelationalCase,
 } from 'foldkit-entity/conformance'
 import { bind, databaseLayer, entity, query } from '../src/index.js'
+
+postgres()
 
 const table = sqliteTable('conformance_rows', {
   id: text('id').primaryKey(),

@@ -4,6 +4,7 @@
  * — same SQL, same parameters — and that compiling one cannot get past what the
  * binding says a principal may see.
  */
+import { postgres } from '../src/pg.js'
 import { eq, isNotNull, type SQL } from 'drizzle-orm'
 import { pgTable, PgDialect, text, uuid } from 'drizzle-orm/pg-core'
 import { sqliteTable, text as sqliteText } from 'drizzle-orm/sqlite-core'
@@ -29,6 +30,8 @@ import {
   type DrizzleStatement,
 } from '../src/index.js'
 import { compilePredicates } from '../src/compile.js'
+
+postgres()
 
 const posts = pgTable('posts', {
   id: uuid('id').primaryKey(),

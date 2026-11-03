@@ -5,6 +5,7 @@
  * compared with what the reference interpreter answers.
  * expr-operations-DESIGN §10.4.
  */
+import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { sql, type SQL } from 'drizzle-orm'
@@ -15,6 +16,8 @@ import { Conformance, type Runner } from 'foldkit-entity/conformance'
 import { Expr, Law, Operators, Text, isPredicate } from 'foldkit-entity'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { DrizzleOperators, compileCall, entity, type CompileTarget } from '../src/index.js'
+
+postgres()
 
 /** Text after text, under the collation its operands share. */
 const concat = Expr.operator('acme.concat', {
