@@ -1258,11 +1258,18 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     readonly answerPost?: 'page' | 'redirect' | undefined
     /**
      * The paths a build prerenders through this entry (Foldkit's plugin,
-     * `ssr.build.prerender`), whose files a static host serves for every
-     * query. A request for one of them with no query records its path alone,
-     * as `SSR.generate` does, so the file resumes at `/?q=…` and the
-     * application starts from that URL. Export the same list as the entry
-     * module's `prerenderPaths`, which the plugin reads.
+     * `ssr.build.prerender`), each one file a static host serves to every
+     * visitor, at every query. A request for one of them with no query records
+     * its path alone, as `SSR.generate` does, so the file resumes at `/?q=…`
+     * and the application starts from that URL. Export the same list as the
+     * entry module's `prerenderPaths`, which the plugin reads.
+     *
+     * Such a page must be one `cache` would keep for every visitor: every
+     * read through `pageReader` public, no request header read (not even an
+     * absent one, which a file cannot vary by), nothing set by `headers`,
+     * and status `200`. Otherwise `renderPage` rejects naming the read, the
+     * header or the status, so the build fails. The page answers with no
+     * headers of its own, and the cache is not consulted for it.
      */
     readonly prerendered?: ReadonlyArray<string> | undefined
     /**
@@ -1487,7 +1494,44 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     }
     return exit.value
   }
-  if (Option.isNone(cache)) return { renderPage: request => answer(request) }
+  /**
+   * A prerendered page, as the file every visitor is given: refused, by
+   * rejecting, unless it was drawn from its URL alone and sets nothing a
+   * file cannot carry.
+   */
+  const prerender = async (request: Request): Promise<EntryResult> => {
+    const watched: Watched = { read: { names: new Set(), all: false }, reads: [] }
+    const result = await answer(request, watched)
+    const refuse = (reason: string) =>
+      new Error(
+        `foldkit-ssr: ${routeOf(request.url)} is prerendered, a file every visitor is given, but ${reason}; render it per request instead (leave it out of prerendered)`,
+      )
+    if (result._tag !== 'Rendered') throw refuse(`it was answered ${result.response.status}`)
+    const set = [...new Headers(result.headers).keys()]
+    const refused = notPublic(result.status ?? 200, watched).pipe(
+      Option.orElse(() =>
+        watched.read.names.size === 0
+          ? Option.none()
+          : Option.some(
+              `it read the request's ${inWords([...watched.read.names])} header${watched.read.names.size > 1 ? 's' : ''}`,
+            ),
+      ),
+      Option.orElse(() =>
+        set.length === 0 ? Option.none() : Option.some(`its headers set ${inWords(set)}`),
+      ),
+    )
+    if (Option.isSome(refused)) throw refuse(refused.value)
+    return Rendered(result.application)
+  }
+  const prerendering = (request: Request): boolean => {
+    const method = request.method.toUpperCase()
+    return (method === 'GET' || method === 'HEAD') && matchOf(request.url) === 'path'
+  }
+  if (Option.isNone(cache)) {
+    return {
+      renderPage: request => (prerendering(request) ? prerender(request) : answer(request)),
+    }
+  }
   const { store, check, policy } = cache.value
   const reportTo = (request: Request) => {
     const { diagnostics } = options
@@ -1513,7 +1557,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     readonly maxAge: CachePolicy
     readonly tags: ReadonlyArray<string>
   }> => {
-    if (result._tag !== 'Rendered' || (result.status ?? 200) !== 200 || watched.read.all)
+    if (result._tag !== 'Rendered' || Option.isSome(notPublic(result.status ?? 200, watched)))
       return Option.none()
     if (![...watched.read.names].every(name => !request.headers.has(name))) return Option.none()
     if (
@@ -1524,7 +1568,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     let shortest = policy
     const tags = new Set<string>()
     for (const read of watched.reads) {
-      if (read._tag === 'Private') return Option.none()
+      if (read._tag === 'Private') continue
       shortest = shorterPolicy(shortest, read.policy)
       for (const tag of read.tags) tags.add(tag)
     }
@@ -1551,6 +1595,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     })
   }
   const renderPage = async (request: Request): Promise<EntryResult> => {
+    if (prerendering(request)) return prerender(request)
     const method = request.method.toUpperCase()
     if (method !== 'GET' && method !== 'HEAD') return unkept(await answer(request))
     const key = await Effect.runPromise(pageKey(options.buildId, request.url))
@@ -1587,6 +1632,34 @@ interface Watched {
   readonly read: HeadersRead
   readonly reads: Array<CachedRead>
 }
+
+/**
+ * Why a render drew a page from more than its URL, so it is no page every
+ * visitor may be given: one not answered `200`, one that read every header,
+ * or one that made a private read. None when it drew it from the URL alone,
+ * the headers it read by name aside, which `cache` varies by and a
+ * prerendered file cannot.
+ */
+const notPublic = (status: number, watched: Watched): Option.Option<string> => {
+  if (status !== 200) return Option.some(`it was answered ${status}`)
+  if (watched.read.all) {
+    return Option.some(
+      'it read every header of its request (it listed them, cloned the request or read a request context)',
+    )
+  }
+  for (const read of watched.reads) {
+    if (read._tag === 'Private') {
+      return Option.some(
+        `it read ${read.read}, which is not public (a source with authorize, filter, visible or a per-viewer member, one with no cache, or a read that failed)`,
+      )
+    }
+  }
+  return Option.none()
+}
+
+/** Names in a sentence: `a`, `a and b`, `a, b and c`. */
+const inWords = (names: ReadonlyArray<string>): string =>
+  names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
 
 /** Where `SSR.entry` keeps pages, for how long, and whether it checks them (`cache`). */
 export type PageCache = CacheOptions & {

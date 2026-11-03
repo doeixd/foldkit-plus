@@ -360,9 +360,18 @@ would rebuild those elements.
   prerenders through `SSR.entry` (`ssr.build.prerender`) needs
   `SSR.entry(..., { prerendered: prerenderPaths })`, the list the entry module
   also exports as `prerenderPaths`; otherwise the file is refused at `?q=…`.
-  Until the bundle runs a file shows its recorded state, so a page whose
-  first paint reads its query (a search box from `?q=`) is rendered per
-  request instead.
+  Such a page is one file every visitor is given (#469), so its render is
+  held to `cache`'s rule and stricter: every `pageReader` read public, no
+  request header read at all (absent included), `headers` setting nothing,
+  status 200. Otherwise `renderPage` rejects naming the read
+  (`CachedRead.Private({ read })`, e.g. `Price a`), header or status, and the
+  build fails; it answers with no headers and skips the page cache. It is
+  fresh as of the build: a client with `RemotePolicy.staleWhileRevalidate`
+  re-reads at boot every read older than `maxAge`, and the server never
+  renders it again. Until the bundle runs a file shows its recorded state,
+  and Workers static assets match by path alone (a prerendered `/` answers
+  `/?q=…`), so a page whose first paint reads its query (a search box from
+  `?q=`) is rendered per request instead.
 - `Projection.pick` refuses two fields with the same last key (`post.id` and
   `viewer.id`), which would otherwise merge into one.
 - Lower level: `SSR.envelope(plan, model, { route? })` and

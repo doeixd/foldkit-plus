@@ -276,7 +276,8 @@ A transport failure becomes the call's Remote error, not a defect.
   page past a shorter `maxAge` and makes it a `PageCacheStore`, which
   `foldkit-ssr`'s `cache` takes and `serveFetch` refuses at the type). `pageReader` with the same `cache` answers public
   reads as the visitor and notes each read in `PageReads` for
-  `foldkit-ssr`'s page cache. Checker: `cache.check` reports
+  `foldkit-ssr`'s page cache and prerender check (a private one named by its
+  rows or query: `CachedRead.Private({ read: 'Price a' })`). Checker: `cache.check` reports
   `CachedReadDiffers`; `checkCache(config, requests, env)` rejects a
   difference between the visitor's and each asker's answer, or no public read.
 

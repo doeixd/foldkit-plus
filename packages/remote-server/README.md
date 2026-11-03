@@ -1296,8 +1296,10 @@ principal it resolves must never write, and a render keeps no stream.
 
 With `cache`, the reader answers each read it proves public as the visitor,
 and notes every read for the render (`PageReads`): public with its
-freshness and the rows it holds, or private. `foldkit-ssr`'s `SSR.entry`
-keeps a page only when every read it made was public.
+freshness and the rows it holds, or private, named by the rows or query it
+asked for (`Price a, Price b`, `query Search`). `foldkit-ssr`'s `SSR.entry`
+keeps a page only when every read it made was public, and refuses a
+prerendered page naming the first read that was not.
 
 ### Keeping public reads: `cache`
 

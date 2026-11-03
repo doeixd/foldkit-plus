@@ -590,27 +590,6 @@ The Message goes into the starting Model rather than after boot, so a URL
 mirror does not write the served address back over the real one. A
 server-rendered page records its path and query, and resumes only there.
 
-Foldkit's Vite plugin prerenders pages through the server entry itself
-(`ssr.build.prerender`), so `SSR.entry` cannot tell a build's request from a
-visitor's. Name those paths in `prerendered`, and a request for one with no
-query records its path alone, as `SSR.generate` does; export the same list
-as `prerenderPaths`, which the plugin reads:
-
-```ts
-export const prerenderPaths = ['/']
-
-export const { renderPage } = SSR.entry(config, Post, { buildId, prerendered: prerenderPaths })
-```
-
-A prerendered file the entry was not told of is refused at any other query,
-and the reason says so.
-
-Until the bundle runs, a file shows the state it was recorded with: the
-query reaches the Model only when the browser starts. A page whose first
-paint depends on its query (a search box filled from `?q=`) is better
-rendered per request, which records the query and resumes with nothing
-redrawn; `examples/foldkit/domains-plus` prerenders nothing for that reason.
-
 A generated site also wants a sitemap and a `robots.txt` that names it.
 `SSR.sitemap` takes the pages, with a `modified` date where one is known, and
 `SSR.robots` the origin:
@@ -685,6 +664,70 @@ path and returns `{ pages, sitemap?, robots?, emitted }`; `writeEmitted(outDir,
 emitted)` writes the emitted files as the plugin does. `fileFor(path, layout)` maps
 one path to the file a host serves it from, so a caller writes the files
 itself; `generateStaticSite` refuses two paths that would claim one file.
+
+### Pages rendered once, at build: `prerendered`
+
+A page that is the same for every visitor need not be rendered by the
+server at all. Rendered once when the application is built, it is a file
+the host serves before any server code runs: on Workers, a static asset,
+which costs no CPU.
+
+Foldkit's Vite plugin prerenders pages through the server entry itself
+(`ssr.build.prerender`), so `SSR.entry` cannot tell a build's request from a
+visitor's. Name those paths in `prerendered`, and export the same list as
+`prerenderPaths`, which the plugin reads:
+
+```ts
+export const prerenderPaths = ['/']
+
+export const { renderPage } = SSR.entry(config, Post, { buildId, prerendered: prerenderPaths })
+```
+
+```ts
+// vite.config.ts
+foldkit({ ssr: { serverEntry: '/src/entry.server.ts', build: { prerender: true } } })
+```
+
+A file is given to every visitor, so a prerendered page is held to the rule
+`cache` keeps a page by, and stricter on headers, since a file cannot vary:
+
+```text
+render "/" -> every read through pageReader public?
+           -> no request header read, not even an absent one?
+           -> headers set nothing, status 200?
+           -> yes: the page, with no headers of its own, written to a file
+           -> no:  renderPage rejects naming the read, header or status,
+                   and the build fails
+```
+
+```text
+foldkit-ssr: / is prerendered, a file every visitor is given, but it read the
+request's cookie header; render it per request instead (leave it out of prerendered)
+```
+
+A read made other than through `pageReader` is not seen. The rule is checked
+on every render of the path, a request for it in development included, and
+the page cache is not consulted for it.
+
+The page is fresh as of the build, and the server never renders it again.
+Its resumed Model says when each read was made, so a browser whose Remote
+freshness has a `maxAge` (`RemotePolicy.staleWhileRevalidate`) reads again,
+at boot, every read older than that. The client refreshes the data through
+Remote, which is cheap; only a deploy renders the page anew.
+
+A request for a prerendered path with no query records its path alone, as
+`SSR.generate` does, so the file resumes at `/?q=…` too, and the application
+starts from that URL. A prerendered file the entry was not told of is
+refused at any other query, and the reason says so.
+
+Until the bundle runs, a file shows the state it was recorded with: the
+query reaches the Model only when the browser starts. And the host, not the
+entry, decides which requests get the file: Workers static assets match by
+path alone, so a prerendered `/` answers `/?q=…` as well, before the Worker
+runs. A page whose first paint depends on its query (a search box filled from
+`?q=`) is better rendered per request, which records the query and resumes
+with nothing redrawn. `examples/foldkit/domains-plus` prerenders nothing for
+that reason, and because its pages read the cart cookie.
 
 ## Checking what the browser will read
 

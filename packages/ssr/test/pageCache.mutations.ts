@@ -33,8 +33,8 @@ export default [
     "if (method !== 'GET' && method !== 'HEAD') return unkept(await answer(request))",
     '',
   ),
-  edit('a page not found is kept', entry, '(result.status ?? 200) !== 200 || ', ''),
-  edit('a render that read every header is kept', entry, ' || watched.read.all)', ')'),
+  edit('a page not found is kept', entry, 'if (status !== 200) return', 'if (false) return'),
+  edit('a render that read every header is kept', entry, 'if (watched.read.all) {', 'if (false) {'),
   edit(
     'a header the render read and found is ignored',
     entry,
@@ -53,7 +53,13 @@ export default [
     "||\n      Option.isSome(headerOf(result.headers, 'cache-control'))\n    )",
     ')',
   ),
-  edit('a private read is ignored', entry, "if (read._tag === 'Private') return Option.none()", ''),
+  edit('a private read is ignored', entry, "if (read._tag === 'Private') {", 'if (false) {'),
+  edit(
+    'a page drawn from more than its URL is kept',
+    entry,
+    "if (result._tag !== 'Rendered' || Option.isSome(notPublic(result.status ?? 200, watched)))",
+    "if (result._tag !== 'Rendered')",
+  ),
   edit(
     "the render's reads are not noted",
     entry,

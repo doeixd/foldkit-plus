@@ -21,7 +21,9 @@ export default defineConfig(({ command }) => {
           clientEntry: '/src/client/entry.ts',
           // Every page is rendered per request. A prerendered `/` would be the
           // file the static host serves for every `?q=`, whose box is empty
-          // until the bundle runs; a render carries the query (#383).
+          // until the bundle runs; a render carries the query (#383). And
+          // `prepare` reads the cart cookie, so `SSR.entry` refuses `/` as
+          // prerendered: one file cannot hold each visitor's cart (#469).
           build: { prerender: false },
         },
       }),
