@@ -9,6 +9,8 @@
     "enable_request_signal",
     "request_signal_passthrough",
   ],
+  // Pages kept for hours (`src/server/cache.ts`), so a URL asked again renders nothing.
+  "kv_namespaces": [{ "binding": "PAGE_CACHE", "id": "0e073d3b85244309919bf2cacd8e0b48" }],
   "assets": {
     "directory": "./dist/client",
   },

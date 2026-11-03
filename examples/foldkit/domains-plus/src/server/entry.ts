@@ -30,7 +30,7 @@ import { documentHead } from '../client/documentHead.js'
 import { AppRoute } from '../client/site.js'
 import { view } from '../client/view.js'
 import { FRESH_FOR } from '../shared/entity'
-import { store } from './cache.js'
+import { pageStore } from './cache.js'
 import { cartOf, hasCart } from './cart.js'
 import { readPrices, serveRemote } from './remote.js'
 
@@ -108,7 +108,7 @@ export const pagesWith = (kept: {
     status: model => AppRoute.match(model.route, { Search: () => 200, NotFound: () => 404 }),
   })
 
-const pages = pagesWith({ cache: { store, maxAge: FRESH_FOR } })
+const pages = pagesWith({ cache: { store: pageStore, maxAge: FRESH_FOR } })
 
 /** `/remote` answers the prices; every other path is a page. */
 export const renderPage = async (request: Request): Promise<EntryResult> =>
