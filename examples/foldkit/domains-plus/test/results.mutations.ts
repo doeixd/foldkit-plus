@@ -59,4 +59,28 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the answers are kept for every store, not the one they were read from',
+    edits: [
+      {
+        file: '../src/client/app.ts',
+        find: 'answeredKept.get(model.remote) ?? new Map()',
+        replace: 'sharedAnswers',
+      },
+      {
+        file: '../src/client/app.ts',
+        find: 'const answeredKept =',
+        replace:
+          'const sharedAnswers = new Map<string, ReadonlyArray<DomainValue>>(); const answeredKept =',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the answers are read again for the same store',
+    edits: [
+      { file: '../src/client/app.ts', find: 'if (kept !== undefined) return kept', replace: '' },
+    ],
+    tests,
+  },
 ]

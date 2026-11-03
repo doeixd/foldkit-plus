@@ -479,9 +479,25 @@ const shown = (data: RemoteData<DomainValue>): ReadonlyArray<DomainValue> =>
     NotFound: () => [],
   })
 
+/**
+ * The answers by label, kept per Remote store. A label has hundreds of names
+ * and each read walks the store, while a render asks for the same label's
+ * answers several times (the count, the arrangement, the reads the page
+ * makes). A read depends on the Model's `remote` alone, so a store that is
+ * the same object gives the same answers; a new store starts a new table.
+ */
+const answeredKept = new WeakMap<Model['remote'], Map<string, ReadonlyArray<DomainValue>>>()
+
 /** Every name of `label` read so far, in upstream's order: what is checked. */
-export const answeredOf = (model: Model, label: string): ReadonlyArray<DomainValue> =>
-  Array.flatMap(namesOf(label), name => shown(Data.get(Quote, name).read(model)))
+export const answeredOf = (model: Model, label: string): ReadonlyArray<DomainValue> => {
+  const labels = answeredKept.get(model.remote) ?? new Map()
+  answeredKept.set(model.remote, labels)
+  const kept = labels.get(label)
+  if (kept !== undefined) return kept
+  const answered = Array.flatMap(namesOf(label), name => shown(Data.get(Quote, name).read(model)))
+  labels.set(label, answered)
+  return answered
+}
 
 /** All Results for `label`, as the Model's filters and sort arrange it. */
 export const arrangementOf = (model: Model, label: string) =>

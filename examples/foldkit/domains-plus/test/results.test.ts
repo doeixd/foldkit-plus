@@ -13,6 +13,7 @@ import {
   Data,
   Message,
   actives,
+  answeredOf,
   freshness,
   init,
   readNames,
@@ -119,6 +120,19 @@ describe('All Results', () => {
     // The first screen's rows and their overscan, the top four among them, and the twelve around row 40.
     const first = RESULTS_FIRST_SCREEN_GROUPS + RESULTS_OVERSCAN_GROUPS
     expect(checked).toHaveLength(first * 6 + 12 * 6)
+  })
+
+  test('the answers are read once for a store, and again when the store changes', async () => {
+    const modelOf = async (steps: ReadonlyArray<Message | Respond>) => {
+      const trace = await run(steps)
+      return trace.entries.at(-1)?.model ?? trace.start
+    }
+    const asking = await modelOf(searched('acme'))
+    const answered = await modelOf([...searched('acme'), Respond.all])
+    expect(answeredOf(asking, 'acme')).toEqual([])
+    expect(answeredOf(answered, 'acme').length).toBeGreaterThan(0)
+    // A change to the Model's other fields leaves the store, so the answers.
+    expect(answeredOf({ ...answered, query: 'acme!' }, 'acme')).toBe(answeredOf(answered, 'acme'))
   })
 
   test('on a phone, the rows not yet measured take the height of those measured', () => {
