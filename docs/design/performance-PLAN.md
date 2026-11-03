@@ -238,6 +238,19 @@ The likely cause, still to confirm, is that the Cache API keeps nothing on
    HTML at build; tuning our interpreted path is unlikely to reach 10 ms. If
    the spike pays, it is the first slice of #433 and #434, which move here
    from Phase 4. Then the 557-option TLD select moves to a page of its own.
+
+   **Measured** (2026-11-02, Windows, Node, warm, in-process handler): a
+   never-seen search costs 102–112 ms with Foldkit's checks and 31–33 ms
+   with them patched out; `/` 39–42 and 9–12 ms. Of a search without the
+   checks, `answeredOf`'s 557 Remote reads of the Model take about 26%,
+   building the view 34% (profiled: rows and cards 4.2 ms, filters 3.6, the
+   TLD select 1.5 plus 1.2 to serialize), serializing 13%, Remote's read and the SSR
+   plumbing about 20%, and pricing nothing. The compiled row
+   (`examples/foldkit/domains-plus/test/compiledRow.ts`) writes the served
+   bytes and fills the window's 24 rows in 0.08–0.15 ms where the
+   interpreted path takes 3.6–4.7 ms. Rows alone leave a search near 27 ms:
+   compiling pays only for whole regions, after the checks leave (#413) and
+   `answeredOf` reads the label once.
 5. #472: the runtime starts on intent, its chunk downloaded on idle, every
    form control's state and the scroll read into the Model at boot. Report
    total JS and first-interaction INP beside JS at load.
