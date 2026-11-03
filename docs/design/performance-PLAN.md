@@ -111,6 +111,9 @@ look (#424).
 - JavaScript under stock Foldkit's;
 - HTML under 8 KB brotli;
 - CLS under 0.1;
+- Total Blocking Time and Speed Index within stock Foldkit's, on mobile and
+  desktop (#475);
+- a new search no slower than stock Foldkit's (#474);
 - `style.ts` under 700 lines.
 
 ## How Foldkit Plus can beat base Foldkit
@@ -171,6 +174,9 @@ interleaved cold loads of `/?q=sunbeam`):
 | CSS, brotli | 8.9 KB | 8.0 KB | 18.1 KB | #471 |
 | HTML, brotli | 5.4 KB | 4.5 KB | 11.1 KB | #470, #473 (it carries the prices; compare HTML with data) |
 | Failed loads (1102) | 0 | 0 | 13 of 15 never-seen searches | #473; #469 and #468 for repeated pages |
+| New search | 215 ms | 246 ms | 307 ms | #474 |
+| Speed Index, mobile (v0.37.0) | 0.9–2.4 s | 1.5–1.6 s | 3.2–4.1 s | #475 |
+| First 60 names priced | 213 ms | 638 ms | not reached (24 drawn) | #475 |
 
 Server CPU is the one number that decides the rest. Solid spends 5–12 ms on
 this page; domains-plus about 60 ms on `/` and 190 ms on a search, against
@@ -230,7 +236,10 @@ The likely cause, still to confirm, is that the Cache API keeps nothing on
 5. #472: the runtime starts on intent, its chunk downloaded on idle, every
    form control's state and the scroll read into the Model at boot. Report
    total JS and first-interaction INP beside JS at load.
-6. #470 (with #436), #471, #420, #430.
+6. #474: profile a new search and cut its largest part. #475: rerun
+   PageSpeed on 0.38.0, fix what paints late, and give the comparison a
+   milestone all three reach.
+7. #470 (with #436), #471, #420, #430.
 
 **Phase 1: fix what is broken.** These touch separate code and can run in
 parallel.
