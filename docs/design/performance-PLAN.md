@@ -185,10 +185,13 @@ the free plan's 10 ms. About 85% is Foldkit's checks of the server markup
 fix leaves never-seen searches over the limit. Caching and prerendering
 cover repeated pages only; the render itself must cost less (#473).
 
-#428's cache held copies only while the Worker was warm: a URL left idle for
-minutes failed 15 of 15 times, and responses carried no `cf-cache-status`.
-The likely cause, still to confirm, is that the Cache API keeps nothing on
-`workers.dev`, so the isolate's memory was the only store (#468).
+In 0.38.0 a URL left idle for minutes failed 15 of 15 times. A probe
+disproved the first guess: the Cache API does keep responses on
+`workers.dev` (3 of 3 hits after 5.5 idle minutes). domains-plus kept a page
+for its 60 s freshness only, so an idle URL had expired and rendered again.
+#468's `CacheStore.kv` with `keep: '6 hours'` fixed it: after six idle
+minutes, 10 of 10 loads were served from KV, and Worker startup fell from
+539 to 327 ms.
 
 ## What the work so far taught
 
