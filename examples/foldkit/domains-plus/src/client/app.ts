@@ -15,7 +15,7 @@ import { Url, toString as urlToString } from 'foldkit/url'
 import { Bundle } from 'foldkit-bundle'
 import { Mirror } from 'foldkit-mirror'
 import { ListboxView, Sheet, WindowList } from 'foldkit-mixins-ui'
-import { Remote, RemoteData, RemotePolicy, type RemoteClient } from 'foldkit-remote'
+import { Remote, RemoteData, RemotePolicy, entityKey, type RemoteClient } from 'foldkit-remote'
 import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
 import {
@@ -494,7 +494,15 @@ export const answeredOf = (model: Model, label: string): ReadonlyArray<DomainVal
   answeredKept.set(model.remote, labels)
   const kept = labels.get(label)
   if (kept !== undefined) return kept
-  const answered = Array.flatMap(namesOf(label), name => shown(Data.get(Quote, name).read(model)))
+  // A name shows a value only from a row in the store, and a label has hundreds
+  // of names where a search has asked for a few dozen: a name with no row
+  // is skipped without the full read, which was most of a new search's CPU.
+  const { entities } = model.remote
+  const answered = Array.flatMap(namesOf(label), name =>
+    Object.hasOwn(entities, entityKey(Domain.name, name))
+      ? shown(Data.get(Quote, name).read(model))
+      : [],
+  )
   labels.set(label, answered)
   return answered
 }

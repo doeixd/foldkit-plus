@@ -8,7 +8,7 @@ import { fromString } from 'foldkit/url'
 import { WindowList } from 'foldkit-mixins-ui'
 import type { RemoteClient } from 'foldkit-remote'
 import { Respond, Trace } from 'foldkit-remote/testing'
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import {
   Data,
   Message,
@@ -133,6 +133,23 @@ describe('All Results', () => {
     expect(answeredOf(answered, 'acme').length).toBeGreaterThan(0)
     // A change to the Model's other fields leaves the store, so the answers.
     expect(answeredOf({ ...answered, query: 'acme!' }, 'acme')).toBe(answeredOf(answered, 'acme'))
+  })
+
+  test('a store with a few dozen rows is read for those rows, not for the 557 names of the label', async () => {
+    const trace = await run([...searched('acme'), Respond.all])
+    const answered = trace.entries.at(-1)?.model ?? trace.start
+    const rows = Object.keys(answered.remote.entities).length
+    expect(rows).toBeGreaterThan(0)
+    expect(rows).toBeLessThan(namesOf('acme').length / 4)
+    const get = vi.spyOn(Data, 'get')
+    try {
+      // A copy of the store is a new store, which the kept answers do not cover.
+      const fresh = { ...answered, remote: { ...answered.remote } }
+      expect(answeredOf(fresh, 'acme')).toEqual(answeredOf(answered, 'acme'))
+      expect(get).toHaveBeenCalledTimes(rows)
+    } finally {
+      get.mockRestore()
+    }
   })
 
   test('on a phone, the rows not yet measured take the height of those measured', () => {

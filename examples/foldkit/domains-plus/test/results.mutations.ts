@@ -83,4 +83,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'every name of the label is read, answered or not',
+    edits: [
+      {
+        file: '../src/client/app.ts',
+        find: 'Object.hasOwn(entities, entityKey(Domain.name, name))',
+        replace: 'true',
+      },
+    ],
+    tests,
+  },
 ]
