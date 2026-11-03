@@ -38,6 +38,7 @@ import {
   type CachePolicy,
   type Diagnostic,
   type MetadataSummary,
+  type PageCacheStore,
 } from 'foldkit-surface'
 import type { HtmlBuilder } from 'foldkit/html'
 import type {
@@ -1589,7 +1590,7 @@ interface Watched {
 
 /** Where `SSR.entry` keeps pages, for how long, and whether it checks them (`cache`). */
 export type PageCache = CacheOptions & {
-  readonly store: CacheStore
+  readonly store: PageCacheStore
   readonly check?: boolean | undefined
 }
 

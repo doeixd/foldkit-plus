@@ -289,7 +289,8 @@ would rebuild those elements.
   headers read; served only to requests lacking them. Anything else says
   `private, no-store`. `store: CacheStore.kv(env.CACHE, { keep: '6 hours' })`
   serves a kept page for `keep`, past its freshness, from Workers KV (a
-  client with `RemotePolicy.staleWhileRevalidate` re-reads stale reads). Wrap the entry's `renderDocument` in
+  client with `RemotePolicy.staleWhileRevalidate` re-reads stale reads);
+  it is a `PageCacheStore`, which `serveFetch` refuses. Wrap the entry's `renderDocument` in
   `SSR.keptDocuments(render)`, or the host parses a kept page again every
   request. Checker: `check` draws a kept page again and reports
   `CachedPageDiffers` (times within a day of now are not compared);

@@ -30,6 +30,7 @@ export {
   shorterPolicy,
   type CacheOptions,
   type CachePolicy,
+  type PageCacheStore,
   type WorkersCache,
   type WorkersKv,
 } from './edgeCache.js'

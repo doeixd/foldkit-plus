@@ -143,6 +143,10 @@ export interface FetchConfig<P, R, Env, RP = never> {
    * says `private, no-store`. A write answered here purges the kept reads
    * holding a row it names, and every list of that row's entity.
    *
+   * `store` is a `CacheStore`, which serves nothing past its `maxAge`: an
+   * answer carries no age, so one kept longer would read as fresh. A
+   * `PageCacheStore` (`CacheStore.kv` with `keep`) is refused.
+   *
    * `visitor` is the principal of someone not signed in: refused when the
    * server's `viewer` names a row for it. With `check`, for development and
    * tests, each public read is also answered as who asks, and a difference

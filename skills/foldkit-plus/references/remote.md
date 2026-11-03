@@ -273,7 +273,8 @@ A transport failure becomes the call's Remote error, not a defect.
   / `CacheStore.kv(env.CACHE, { keep? })` (per-isolate purge index; KV writes
   an answer on its second ask, serves it for its `maxAge`, and fails open:
   a failed read is a miss, a refused write keeps nothing; `keep` serves a
-  page past a shorter `maxAge`, for `foldkit-ssr`'s `cache` only). `pageReader` with the same `cache` answers public
+  page past a shorter `maxAge` and makes it a `PageCacheStore`, which
+  `foldkit-ssr`'s `cache` takes and `serveFetch` refuses at the type). `pageReader` with the same `cache` answers public
   reads as the visitor and notes each read in `PageReads` for
   `foldkit-ssr`'s page cache. Checker: `cache.check` reports
   `CachedReadDiffers`; `checkCache(config, requests, env)` rejects a

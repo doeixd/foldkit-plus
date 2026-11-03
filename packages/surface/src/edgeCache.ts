@@ -38,10 +38,13 @@ export const shorterPolicy = (a: CachePolicy, b: CachePolicy): CachePolicy =>
   Duration.isLessThan(b.maxAge, a.maxAge) ? b : a
 
 /**
- * What a cache store keeps: an answer's text by key, for `maxAge`, dropped
- * early when a write names one of its `tags`.
+ * What a store for pages keeps: an answer's text by key, served for its
+ * `maxAge` or, with `keep`, up to `keep` after it was kept, and dropped early
+ * when a write names one of its `tags`. `foldkit-ssr`'s page cache takes one:
+ * a page carries when each of its reads was made, and the browser reads again
+ * what is past its `maxAge`.
  */
-export interface CacheStore {
+export interface PageCacheStore {
   readonly match: (key: string) => Effect.Effect<Option.Option<string>>
   readonly put: (
     key: string,
@@ -49,6 +52,18 @@ export interface CacheStore {
     options: { readonly maxAge: Duration.Duration; readonly tags: ReadonlyArray<string> },
   ) => Effect.Effect<void>
   readonly purge: (tags: ReadonlyArray<string>) => Effect.Effect<void>
+  /** How long after it was kept an answer is served, past a shorter `maxAge`. */
+  readonly keep?: Duration.Duration
+}
+
+/**
+ * A store that never serves an answer past its `maxAge`, so it may keep reads
+ * (`foldkit-remote-server`'s `serveFetch`) as well as pages: a read's answer
+ * carries no age, and one served past its `maxAge` would read as fresh. A
+ * store with `keep` is not one.
+ */
+export interface CacheStore extends PageCacheStore {
+  readonly keep?: never
 }
 
 /** What `CacheStore.workers` needs of a Workers `Cache` (`caches.default`). */
@@ -202,13 +217,19 @@ const KV_ASKED_ONCE = 10_000
  * `maxAge`, and is for pages alone (`foldkit-ssr`'s `cache`): a page carries
  * when each of its reads was made, and a browser whose Remote freshness has a
  * `maxAge` (`RemotePolicy.staleWhileRevalidate`) reads again what is past it.
- * Never give such a store to `serveFetch`: a read's answer carries no age,
- * so the browser would take a stale one as fresh, and read the same one again.
+ * With `keep` the store is a `PageCacheStore`, which `serveFetch` refuses: a
+ * read's answer carries no age, so the browser would take a stale one as
+ * fresh, and read the same one again.
  */
-const kv = (
+function kv(namespace: WorkersKv, options?: { readonly keep?: undefined }): CacheStore
+function kv(
+  namespace: WorkersKv,
+  options: { readonly keep?: Duration.Input | undefined },
+): PageCacheStore
+function kv(
   namespace: WorkersKv,
   options: { readonly keep?: Duration.Input | undefined } = {},
-): CacheStore => {
+): PageCacheStore {
   const keep = Duration.fromInputUnsafe(options.keep ?? Duration.zero)
   if (!Duration.isFinite(keep)) {
     throw new Error(
@@ -219,7 +240,7 @@ const kv = (
   const askedOnce = new Set<string>()
   const warn = (doing: string) => (cause: unknown) =>
     Effect.logWarning(`foldkit: CacheStore.kv could not ${doing}`, cause)
-  return {
+  const store: CacheStore = {
     match: key =>
       Effect.tryPromise(() => namespace.get(key)).pipe(
         Effect.flatMap(value =>
@@ -260,6 +281,7 @@ const kv = (
         Promise.all([...index.take(tags)].map(key => namespace.delete(key))),
       ).pipe(Effect.asVoid, Effect.catch(warn(`purge ${tags.join(', ')}`))),
   }
+  return options.keep === undefined ? store : { ...store, keep }
 }
 
 /**

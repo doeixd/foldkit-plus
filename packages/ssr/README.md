@@ -516,8 +516,9 @@ shorter `maxAge`: the page carries when each of its reads was made, and a
 browser whose Remote freshness has a `maxAge`
 (`RemotePolicy.staleWhileRevalidate`) reads again what is past it, so the
 server renders a page once in `keep` instead of once a minute. KV writes a page only on its second
-ask and fails open (`foldkit-remote-server`'s README says how). Give
-`serveFetch` a store without `keep`: a read's answer carries no age.
+ask and fails open (`foldkit-remote-server`'s README says how). With
+`keep` it is a `PageCacheStore`, which `cache.store` here takes and
+`serveFetch` refuses: a read's answer carries no age.
 
 The host draws each page into its document, which parses the page again
 (Foldkit's `injectIntoTemplate`), so a kept page would still cost that on

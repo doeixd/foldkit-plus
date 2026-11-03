@@ -1392,8 +1392,9 @@ is a miss, a refused write (the day's writes spent, a key over 512 bytes)
 keeps nothing, and each is logged as a warning. KV keeps an entry a minute
 at least; the store serves it for its `maxAge` alone. Its purge, like the
 Workers store's, reaches what this isolate kept. Its `keep` option is for
-pages (`foldkit-ssr`), never for `serveFetch`: a read's answer carries no
-age, so one served past its `maxAge` would read as fresh.
+pages (`foldkit-ssr`): with it, `kv` returns a `PageCacheStore`, which
+`serveFetch`'s `cache.store` refuses as a type error, since a read's answer
+carries no age and one served past its `maxAge` would read as fresh.
 
 The checker answers each public read as two principals. `cache.check`
 answers it as who asks too, and where the two differ reports
