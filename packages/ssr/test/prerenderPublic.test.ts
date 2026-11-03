@@ -12,17 +12,12 @@ import {
   type DocumentAssets,
   type EntryResult,
 } from 'foldkit/experimental/server'
-import { CacheStore, CachedRead, PageReads } from 'foldkit-surface'
+import { CacheStore, CachedRead } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { SSR } from 'foldkit-ssr'
 import { config, plan, type Model } from './handoverFixture.js'
+import { reads } from './pageReads.js'
 import { Data, config as authorConfig, initial, plan as authorPlan } from './remoteFixture.js'
-
-/** A read the render makes, noted as `pageReader` notes one. */
-const reads = (read: CachedRead) =>
-  Effect.flatMap(Effect.service(PageReads), noted =>
-    Effect.sync(() => Option.map(noted, note => note(read))),
-  )
 
 const publicRead = CachedRead.Public({ policy: { maxAge: Duration.minutes(1) }, tags: [] })
 

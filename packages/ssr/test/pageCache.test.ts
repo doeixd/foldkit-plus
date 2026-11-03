@@ -7,19 +7,14 @@
  */
 import { Duration, Effect, Option } from 'effect'
 import type { EntryResult, RenderedApplication } from 'foldkit/experimental/server'
-import { CacheStore, CachedRead, PageReads, type CachePolicy } from 'foldkit-surface'
+import { CacheStore, CachedRead, type CachePolicy } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { FALLBACK_FIELD, SSR } from 'foldkit-ssr'
 import { config as todos, plan as todosPlan } from './fallbackFixture.js'
 import { config, plan, type Model } from './handoverFixture.js'
+import { reads } from './pageReads.js'
 
 const minute: CachePolicy = { maxAge: Duration.minutes(1) }
-
-/** A read the render makes, noted as `pageReader` notes one. */
-const reads = (read: CachedRead) =>
-  Effect.flatMap(Effect.service(PageReads), noted =>
-    Effect.sync(() => Option.map(noted, note => note(read))),
-  )
 
 /** The page's count, and whether the cached page or a new render answered. */
 const counted = (
