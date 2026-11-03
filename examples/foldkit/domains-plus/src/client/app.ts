@@ -555,18 +555,27 @@ export const readNames = (model: Model): ReadonlyArray<string> =>
           ]),
   })
 
+/** The TLD list draws no prices: only the search page reads them. */
+const onSearch = (model: Model): boolean => model.route._tag === 'Search'
+
 /** Every read the page makes, each while the settled label is a name. */
 export const actives = {
   top: Surface.at(TopResults, (model: Model) =>
-    Option.map(model.settledLabel, label => ({ label })),
+    Option.filter(
+      Option.map(model.settledLabel, label => ({ label })),
+      () => onSearch(model),
+    ),
   ),
   visible: Surface.at(VisibleResults, (model: Model) =>
-    Option.map(model.settledLabel, label => ({ names: visibleNames(model, label) })),
+    Option.filter(
+      Option.map(model.settledLabel, label => ({ names: visibleNames(model, label) })),
+      () => onSearch(model),
+    ),
   ),
   whole: Surface.at(WholeCatalog, (model: Model) =>
     Option.filter(
       Option.map(model.settledLabel, label => ({ label })),
-      () => needsWholeCatalog(model),
+      () => needsWholeCatalog(model) && onSearch(model),
     ),
   ),
 }

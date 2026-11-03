@@ -29,7 +29,7 @@ import {
 type H = HtmlBuilder<Message>
 type Slots = SlotBuilders<typeof Page.slots, Message>
 
-/** What the filters read: each value, and the dropdown or sheet that chooses it. */
+/** What the scripted filters read: each value, and the dropdown or sheet that chooses it. */
 type FiltersInput = Pick<
   Model,
   | 'tldFilter'
@@ -42,6 +42,14 @@ type FiltersInput = Pick<
   | 'sortListbox'
   | 'filtersSheet'
 >
+
+/**
+ * What the page without scripts reads: the values its selects send, and the
+ * address of the TLD list, which carries the current search.
+ */
+export type PlainFiltersInput = Pick<Model, 'tldFilter' | 'availabilityFilter' | 'sortOrder'> & {
+  readonly tldsHref: string
+}
 
 const availabilityLabels: Readonly<Record<AvailabilityFilter, string>> = {
   All: 'Show All',
@@ -314,22 +322,21 @@ const plainSelect = <Value extends string>(
 }
 
 /**
- * The filters on a page without scripts: plain selects that belong to the
+ * The filters on a page without scripts: the TLD choice is a link to the
+ * list page, and the other filters are plain selects that belong to the
  * search form, so Apply, or Enter in the box, sends the text and the filters
  * together as a GET of the address the Mirror reads (`?q=&tld=&availability=&sort=`).
+ * The TLD list is a page of its own because 557 `<option>`s in every page
+ * cost more to render than the page is worth (#473).
  */
-const plainFilters = (model: FiltersInput, slots: Slots, h: H): Html =>
+export const plainFilters = (model: PlainFiltersInput, slots: Slots, h: H): Html =>
   h.div(slots.plainFilters.attrs(), [
-    plainSelect(
-      {
-        name: 'tld',
-        label: 'Filter by TLD',
-        values: TldFilter.literals,
-        labelOf: tldLabel,
-        value: model.tldFilter,
-      },
-      slots,
-      h,
+    h.a(
+      slots.plainTldLink.attrs([
+        h.Href(model.tldsHref),
+        h.AriaLabel(`Filter by TLD: ${tldLabel(model.tldFilter)}`),
+      ]),
+      [tldLabel(model.tldFilter)],
     ),
     plainSelect(
       {
@@ -427,7 +434,6 @@ export const filters = (model: FiltersInput, slots: Slots, h: H): Html =>
       ]),
       [Icon.draw(icons.filter, h, { size: '18px' })],
     ),
-    plainFilters(model, slots, h),
     tldSheet(model, slots, h),
     filtersSheet(model, slots, h),
   ])

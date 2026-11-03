@@ -608,6 +608,18 @@ export const Page = slots({
     { height: '34px', padding: '0 8px', fontSize: '13px', colorScheme: 'dark' },
     Style.media(NARROW, { minHeight: '44px' }),
   ],
+  /** The TLD choice on a page without scripts: a link to the list page. */
+  plainTldLink: [
+    control,
+    {
+      height: '34px',
+      padding: '0 8px',
+      fontSize: '13px',
+      textDecoration: 'none',
+      whiteSpace: 'nowrap',
+    },
+    Style.media(NARROW, { minHeight: '44px' }),
+  ],
   /** All Results' paging links on a page without scripts, under the rows. */
   paging: [
     plainOnly('flex'),
@@ -1022,6 +1034,56 @@ export const Page = slots({
       textUnderlineOffset: '4px',
     },
     focusRing,
+  ],
+  /** The TLD list: a page of links, so a page without scripts can choose an extension. */
+  tldsPage: [
+    Style.class('tlds-page'),
+    { margin: '0 auto', maxWidth: '1080px', padding: '40px 28px 64px' },
+    Style.media(NARROW, { padding: '24px 16px 48px' }),
+  ],
+  tldsHeading: [
+    { margin: '0', fontSize: '22px', fontWeight: '550', letterSpacing: '-0.7px' },
+    Style.media(NARROW, { fontSize: '20px' }),
+  ],
+  tldsIntro: [{ margin: '12px 0 20px', fontSize: '14px', color: d.muted }],
+  tldsBack: [
+    {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '4px',
+      marginBottom: '24px',
+      fontSize: '13px',
+      color: 'inherit',
+      textDecoration: 'underline',
+      textUnderlineOffset: '4px',
+    },
+    focusRing,
+  ],
+  tldsList: [
+    Style.class('tlds-list'),
+    {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+      gap: '6px',
+      margin: '0',
+      padding: '0',
+      listStyle: 'none',
+    },
+  ],
+  tldsItem: [{}],
+  tldsLink: [
+    control,
+    {
+      display: 'flex',
+      height: '34px',
+      alignItems: 'center',
+      justifyContent: 'flex-start',
+      padding: '0 12px',
+      fontSize: '13px',
+      textDecoration: 'none',
+    },
+    Style.nest('&[aria-current="true"]', { borderColor: d.lineFocus, background: d.raised }),
+    Style.media(NARROW, { minHeight: '44px' }),
   ],
 })
 

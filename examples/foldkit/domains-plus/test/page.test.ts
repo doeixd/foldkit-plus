@@ -10,7 +10,8 @@ import { describe, expect, test, vi } from 'vitest'
 import { FALLBACK_FIELD } from 'foldkit-ssr'
 import { renderPage } from '../src/server/entry.js'
 import { RESULTS_FIRST_SCREEN_GROUPS, RESULTS_OVERSCAN_GROUPS } from '../src/client/resultsList.js'
-import { domainCandidates } from '../src/shared/domain'
+import { SITE_ORIGIN } from '../src/client/site.js'
+import { domainCandidates, domainTlds } from '../src/shared/domain'
 
 // The build's id, which `vite build` gives both bundles; read when the entry is made.
 vi.hoisted(() => vi.stubEnv('FOLDKIT_BUILD_ID', 'page-test'))
@@ -33,15 +34,23 @@ const classes = (node: Node) => (attr(node, 'class') ?? '').split(/\s+/)
 const textOf = (node: Node): string =>
   node.nodeName === '#text' ? (node.value ?? '') : (node.childNodes ?? []).map(textOf).join('')
 
-/** A page as the entry answers it: its status, headers and parsed application markup. */
+/** A page as the entry answers it: its status, headers, head and parsed application markup. */
 const answer = async (path: string, init?: RequestInit) => {
   const result = await renderPage(new Request(`${ORIGIN}${path}`, init))
   if (result._tag !== 'Rendered') {
-    return { status: result.response.status, headers: result.response.headers, nodes: [] }
+    return {
+      status: result.response.status,
+      headers: result.response.headers,
+      title: '',
+      canonical: undefined,
+      nodes: [],
+    }
   }
   return {
     status: result.status ?? 200,
     headers: new Headers(result.headers),
+    title: result.application.title,
+    canonical: result.application.canonical,
     nodes: all(parse(result.application.html) as Node),
   }
 }
@@ -101,13 +110,68 @@ describe('a search served without scripts', () => {
     const chosen = nodes
       .filter(node => node.nodeName === 'option' && attr(node, 'selected') !== undefined)
       .map(node => attr(node, 'value'))
-    expect(chosen).toEqual(['All', 'Available', 'PriceDescending'])
+    // The TLD is no longer a select: its 557 options made every page heavier (#473).
+    expect(chosen).toEqual(['Available', 'PriceDescending'])
+    expect(
+      nodes.filter(node => node.nodeName === 'select').map(node => attr(node, 'name')),
+    ).toEqual(['availability', 'sort'])
+    const tld = nodes.find(
+      node => node.nodeName === 'a' && attr(node, 'aria-label')?.startsWith('Filter by TLD'),
+    )
+    expect(attr(tld!, 'href')).toBe('/tlds?q=acme&availability=Available&sort=PriceDescending')
+    expect(textOf(tld!)).toBe('All TLDs')
     const prices = all(byId(nodes, 'domain-results')!)
       .filter(node => classes(node).includes('price'))
       .map(node => Number(textOf(node).replace(/[^\d.]/g, '')))
     expect(prices.length).toBeGreaterThan(10)
     expect(prices).toEqual([...prices].sort((a, b) => b - a))
     expect(textOf(byId(nodes, 'domain-results')!)).not.toContain('Not available')
+  })
+
+  test('the TLD link carries the whole search, the row a page opened at included', async () => {
+    const { nodes } = await answer('/?q=acme&from=13')
+    const tld = nodes.find(
+      node => node.nodeName === 'a' && attr(node, 'aria-label')?.startsWith('Filter by TLD'),
+    )
+    expect(attr(tld!, 'href')).toBe('/tlds?q=acme&from=13')
+  })
+
+  test('the TLD page lists every extension and links back to the search with it chosen', async () => {
+    const { status, title, canonical, nodes } = await answer(
+      '/tlds?q=acme&tld=Dev&availability=Available&sort=PriceDescending&from=13',
+    )
+    expect(status).toBe(200)
+    expect(title).toBe('Filter by TLD | Domains | Foldkit')
+    expect(canonical).toBe(`${SITE_ORIGIN}/tlds`)
+    const links = nodes.filter(
+      node =>
+        node.nodeName === 'a' &&
+        attr(node, 'href')?.startsWith('/?q=acme') &&
+        textOf(node) !== '← Back to search',
+    )
+    // Every TLD, and "All TLDs" to clear the filter.
+    expect(links).toHaveLength(domainTlds.length + 1)
+    // The links are built in a loop and the list never reorders, so the
+    // serializer marks none of them (#465).
+    const listNodes = all(nodes.find(node => classes(node).includes('tlds-list'))!)
+    expect(
+      listNodes.filter(node => attr(node, 'data-foldkit-identity') !== undefined),
+    ).toHaveLength(0)
+    expect(listNodes.filter(node => attr(node, 'data-foldkit-key') !== undefined)).toHaveLength(0)
+    const dev = links.find(node => textOf(node) === '.dev')
+    expect(attr(dev!, 'href')).toBe(
+      '/?q=acme&tld=Dev&availability=Available&sort=PriceDescending&from=13',
+    )
+    expect(attr(dev!, 'aria-current')).toBe('true')
+    const allTlds = links.find(node => textOf(node) === 'All TLDs')
+    expect(attr(allTlds!, 'href')).toBe(
+      '/?q=acme&availability=Available&sort=PriceDescending&from=13',
+    )
+    // The way back keeps the search too.
+    const back = nodes.find(node => node.nodeName === 'a' && textOf(node) === '← Back to search')
+    expect(attr(back!, 'href')).toBe(
+      '/?q=acme&tld=Dev&availability=Available&sort=PriceDescending&from=13',
+    )
   })
 
   test('the list draws from ?from=, with links to the rows before and after', async () => {

@@ -23,13 +23,14 @@ import { SEARCH_FORM_ID, SEARCH_INPUT_ID } from './command.js'
 import {
   DomainListing,
   TOP_RESULT_COUNT,
+  TldFilter,
   domainToReadyListing,
   formatRegistrationPrice,
   formatRenewalPrice,
   queryToDomainListings,
 } from './domain'
 import { icons } from './iconData.js'
-import { AppRoute, canonicalOf, searchHref, titleOf } from './site.js'
+import { AppRoute, canonicalOf, searchHref, tldsHref as tldsPath, titleOf } from './site.js'
 import {
   DomainRequest,
   INVALID_LABEL,
@@ -44,7 +45,7 @@ import {
   plainCart,
   plainCartLink,
 } from './cart.js'
-import { filters } from './filters.js'
+import { type PlainFiltersInput, filters, plainFilters, tldLabel } from './filters.js'
 import { type Arranged, arrangedOf } from './results.js'
 import { ResultsListScrollKey, type DomainListingGroup } from './resultsList.js'
 import { Page, ResultsListStyle } from './style.js'
@@ -481,6 +482,7 @@ const searchResults = (model: Model, search: SearchViewState, slots: Slots, h: H
         h.div(slots.resultsHeading.attrs(), [
           h.h2(slots.resultsTitle.attrs(), ['All Results']),
           Filters(model, slots, h),
+          PlainFilters(model, slots, h),
         ]),
         arranged.count === 0
           ? h.p(slots.emptyResults.attrs([h.Role('status')]), [
@@ -566,6 +568,28 @@ const Filters = SlotView.region(
   filters,
 )
 
+/**
+ * The plain filters, drawn apart from the scripted ones: their link carries
+ * the whole search, so the region follows the text and the row a page opened
+ * at too. They are cheap, so a keystroke drawing them again costs little.
+ */
+const plainFiltersReads: SlotView.Reads<Model, PlainFiltersInput> = {
+  dependencies: Projection.pick(
+    App.model.query,
+    App.model.tldFilter,
+    App.model.availabilityFilter,
+    App.model.sortOrder,
+    App.model.from,
+  ).dependencies,
+  read: model => ({
+    tldFilter: model.tldFilter,
+    availabilityFilter: model.availabilityFilter,
+    sortOrder: model.sortOrder,
+    tldsHref: SearchInUrl.href(model, {}, tldsPath),
+  }),
+}
+const PlainFilters = SlotView.region(plainFiltersReads, plainFilters)
+
 const searchPage = (model: Model, slots: Slots, h: H): Html =>
   h.div(
     slots.app.attrs([
@@ -597,6 +621,48 @@ const searchPage = (model: Model, slots: Slots, h: H): Html =>
     ],
   )
 
+/**
+ * Every TLD as a link back to the search with it chosen: the page without
+ * scripts' replacement for the 557-option select (#473). The links are built
+ * in a loop, not a mapper, so the view-identity transform marks none of them
+ * (#465), and the list is not keyed: it never reorders, so a key would only
+ * add a marker to every row.
+ */
+const tldsPage = (model: Model, slots: Slots, h: H): Html => {
+  const links: Array<Html> = []
+  for (const value of TldFilter.literals) {
+    links.push(
+      h.li(slots.tldsItem.attrs(), [
+        h.a(
+          slots.tldsLink.attrs([
+            h.Href(SearchInUrl.href(model, { tldFilter: value }, searchHref)),
+            ...(value === model.tldFilter ? [h.AriaCurrent('true')] : []),
+          ]),
+          [tldLabel(value)],
+        ),
+      ]),
+    )
+  }
+  return h.div(slots.app.attrs([h.Id('domains-app')]), [
+    Header(model, slots, h),
+    h.main(slots.main.attrs([h.Id('main'), h.Tabindex(-1)]), [
+      h.div(slots.tldsPage.attrs(), [
+        h.h1(slots.tldsHeading.attrs(), ['Filter by TLD']),
+        h.p(slots.tldsIntro.attrs(), [
+          'Choose an extension to search under. Your search and filters are kept.',
+        ]),
+        h.a(slots.tldsBack.attrs([h.Href(SearchInUrl.href(model, {}, searchHref))]), [
+          '← Back to search',
+        ]),
+        h.ul(slots.tldsList.attrs([h.AriaLabel('All TLDs')]), links),
+      ]),
+      PlainCart(model, slots, h),
+    ]),
+    footer(slots, h),
+    CartPanel(model, slots, h),
+  ])
+}
+
 const notFound = (path: string, slots: Slots, h: H): Html =>
   h.main(slots.notFound.attrs(), [
     h.h1(slots.notFoundTitle.attrs(), ['404 — Page Not Found']),
@@ -608,6 +674,7 @@ const PageView = SlotView.forMessages<Message>()
   .define(Page.slots, (model: Model, slots, h) =>
     AppRoute.match(model.route, {
       Search: () => searchPage(model, slots, h),
+      Tlds: () => tldsPage(model, slots, h),
       NotFound: ({ path }) => notFound(path, slots, h),
     }),
   )

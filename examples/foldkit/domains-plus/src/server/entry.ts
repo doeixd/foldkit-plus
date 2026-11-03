@@ -105,7 +105,12 @@ export const pagesWith = (kept: {
             : {},
       }),
     }),
-    status: model => AppRoute.match(model.route, { Search: () => 200, NotFound: () => 404 }),
+    status: model =>
+      AppRoute.match(model.route, {
+        Search: () => 200,
+        Tlds: () => 200,
+        NotFound: () => 404,
+      }),
   })
 
 const pages = pagesWith({ cache: { store: pageStore, maxAge: FRESH_FOR } })

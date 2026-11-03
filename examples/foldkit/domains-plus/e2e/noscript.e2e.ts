@@ -100,6 +100,23 @@ test('without JavaScript, the page searches, filters, pages and keeps a cart', a
   await context.close()
 })
 
+test('without JavaScript, the TLD list chooses an extension and keeps the search', async () => {
+  const context = await browser.newContext({ javaScriptEnabled: false })
+  const page = await context.newPage()
+  await page.goto(`${origin}/?q=acme`)
+
+  await page.getByRole('link', { name: 'Filter by TLD: All TLDs' }).click()
+  await page.waitForURL(/\/tlds\?/)
+  expect(await page.getByRole('heading', { name: 'Filter by TLD' }).count()).toBe(1)
+  expect(await page.locator('.tlds-list a').count()).toBe(557)
+
+  await page.getByRole('link', { name: '.dev', exact: true }).click()
+  await page.waitForURL(/[?&]tld=Dev(&|$)/)
+  expect(new URL(page.url()).searchParams.get('q')).toBe('acme')
+  expect(await page.locator('#domain-results .domain-row').count()).toBe(1)
+  await context.close()
+})
+
 test('with JavaScript, the same page sends no form, loads no new chunk and adopts without a warning', async () => {
   const page = await browser.newPage()
   const posted: Array<string> = []
@@ -138,6 +155,29 @@ test('with JavaScript, the same page sends no form, loads no new chunk and adopt
 
   expect(posted).toEqual([])
   expect(scripts).toEqual([])
+  expect(warnings).toEqual([])
+  await page.close()
+})
+
+test('with JavaScript, the TLD page hydrates and links back to the search', async () => {
+  const page = await browser.newPage()
+  const warnings: Array<string> = []
+  page.on('console', message => {
+    if (message.type() === 'error' || message.text().includes('did not match')) {
+      warnings.push(message.text())
+    }
+  })
+  page.on('pageerror', error => warnings.push(String(error)))
+
+  await page.goto(`${origin}/tlds?q=acme`)
+  await page.locator('#domains-app:not([data-foldkit-plus-resume])').waitFor({ timeout: 60_000 })
+  expect(await page.getByRole('heading', { name: 'Filter by TLD' }).count()).toBe(1)
+
+  // The app's own link handler keeps the search and patches only the TLD.
+  await page.getByRole('link', { name: '.dev', exact: true }).click()
+  await page.waitForURL(/[?&]tld=Dev(&|$)/)
+  expect(new URL(page.url()).searchParams.get('q')).toBe('acme')
+  expect(await page.locator('#domain-results .domain-row').count()).toBe(1)
   expect(warnings).toEqual([])
   await page.close()
 })

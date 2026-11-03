@@ -51,7 +51,7 @@ settledLabel + WindowList window + filters ─▶ TopResults · VisibleResults �
 | Upstream (Blocks preview) | Here |
 | --- | --- |
 | `Program.make` + `Runtime.hydrate`, `Server.renderToString` | `foldkit-ssr`'s `SSR.entry` and `SSR.hydrate` with a resume plan (`app.ts`'s `plan`) |
-| `route.ts`'s parser and titles | `foldkit-site`: one node for `/`, `Site.parse` falling back to NotFound |
+| `route.ts`'s parser and titles | `foldkit-site`: nodes for `/` and `/tlds`, `Site.parse` falling back to NotFound |
 | `?q=` in the route, written by a `ReplaceSearchUrl` Command per keystroke | `query` in the Model, kept in `?q=` by `Mirror.url` (replace) |
 | A 150 ms sleep inside the fetch, cancelled by interruption | `debounce` from `foldkit-primitives/time` between the box and `settledLabel` |
 | `SearchDomains({ label, offset, limit })` over Effect RPC at `/rpc`, cached by a `KeyedQuery` per range | `Domain` as a variant Entity read by name; the rows on screen declare what they need and Remote batches it (`foldkit-remote`, `/remote`) |
@@ -84,25 +84,29 @@ is the guide this port produced):
   renders from that Model; the plan sends them with `Remote.resume(Data)`,
   so the browser asks for none of them again.
 - **Search and filters are a GET of `/`.** The search box is named `q`; the
-  filters' plain selects (`tld`, `availability`, `sort`) belong to the same
-  form through its id, and Apply sends them all. The server reads them with
-  the URL mirror's `reduce`. With scripts, the dropdowns and sheets choose
-  them and the mirror writes the same keys.
+  filters' plain selects (`availability`, `sort`) belong to the same form
+  through its id, and Apply sends them all. The TLD is a link to `/tlds`
+  instead, which lists every extension and links back with `?tld=`, carrying
+  the search and the other filters. The server reads them with the URL
+  mirror's `reduce`. With scripts, the dropdowns and sheets choose them and
+  the mirror writes the same keys.
 - **The plain controls show under `(scripting: none)`** (`NO_SCRIPT` in
   `style.ts`, written with `Style.media`), and the scripted ones are hidden
   there; both are drawn on both sides, so hydration adopts the page as sent.
-- **The plain selects stay lean.** The TLD select has 557 options, and the
-  view-identity transform would mark each one for hydration (23 KB of `/`),
-  so `plainSelect` builds them in a loop rather than a mapper's return, and
-  only the select carries a marker (#465).
+- **The TLD choice is a page of its own.** Drawing 557 `<option>`s into every
+  page cost about 21 KB of HTML and a share of the render, so a page without
+  scripts links to `/tlds` and back (#473). Its links are built in a loop,
+  not a mapper's return, so the view-identity transform marks none of them
+  (#465).
 - **The server prices only the first screen.** Each priced row costs view
   time and HTML, so the Worker reads and draws the four Top Results and the
   first screen's groups with their overscan (`RESULTS_FIRST_SCREEN_GROUPS`,
   `src/client/resultsList.ts`: 24 names, assumed in view until the list is
   placed); the rest stand as `WindowList` spacers of the estimated height,
   and the browser reads and draws them as it scrolls (#415). `/?q=acme` is
-  98 KB (8.9 KB brotli) where it was 179 KB (10.5 KB). A page without
-  scripts draws the same count at every `?from=`.
+  69 KB (5.5 KB brotli); moving the TLD list to its own page took about
+  21 KB off every page (#473). A page without scripts draws the same count at
+  every `?from=`.
 - **All Results pages by links.** A page opened at `?from=13` draws the list
   from that row (`WindowList.init({ from })`) in the page's flow
   (`Recipes.WindowList`), with Previous and Next (`WindowList.pageOf`). With

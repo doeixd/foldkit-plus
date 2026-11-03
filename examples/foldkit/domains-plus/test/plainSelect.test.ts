@@ -3,9 +3,10 @@
  * The no-JavaScript selects carry no hydration identity per option (#465).
  * The view-identity transform brands what every function returns and the
  * serializer writes a `data-foldkit-identity` marker for each branded vnode,
- * so an option built in a mapper's return is one marker, 557 times on the TLD
- * select. The transform's own output is the evidence: no option is built in a
- * branded position.
+ * so an option built in a mapper's return is one marker per option. The TLD
+ * select is gone (#473), but the availability and sort selects keep the rule,
+ * and the TLD page's links follow it too. The transform's own output is the
+ * evidence: no option is built in a branded position.
  */
 import { resolve } from 'node:path'
 import { transformViewIdentity } from '@foldkit/vite-plugin'

@@ -36,6 +36,17 @@ describe('the landing page', () => {
       expectScene(role('searchbox')).not.toExist(),
     )
   })
+
+  test('the TLD list is a page of its own, with a way back to the search', () => {
+    expect(AppRoute.guards.Tlds(routeOf(url('/tlds')))).toBe(true)
+    scene(
+      { update, view },
+      given(init(url('/tlds?q=acme&tld=Dev')).model),
+      expectScene(role('heading', { name: 'Filter by TLD' })).toExist(),
+      expectScene(role('link', { name: '← Back to search' })).toExist(),
+      expectScene(role('link', { name: '.dev' })).toExist(),
+    )
+  })
 })
 
 describe('the copied domain code', () => {

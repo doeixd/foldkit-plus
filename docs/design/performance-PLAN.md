@@ -240,7 +240,9 @@ minutes, 10 of 10 loads were served from KV, and Worker startup fell from
    render. Solid spends 5–12 ms on this page because its compiler writes the
    HTML at build; tuning our interpreted path is unlikely to reach 10 ms. If
    the spike pays, it is the first slice of #433 and #434, which move here
-   from Phase 4. Then the 557-option TLD select moves to a page of its own.
+   from Phase 4. Then the 557-option TLD select moves to a page of its own
+   (done: `/tlds`, taking about 21 KB of HTML and the profiled 1.5 ms of
+   building plus 1.2 ms of serializing off every page).
 
    **Measured** (2026-11-02, Windows, Node, warm, in-process handler): a
    never-seen search costs 102–112 ms with Foldkit's checks and 31–33 ms
