@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **A page's stylesheet comes from the classes the render drew**
+  (`foldkit-mixins`, `foldkit-ssr`, #414). The Mixins resolver records each
+  compiled class a server render draws; `SSR.render` gives that set to `styles`
+  and `head` as a second argument, and `Style.usedDrawn(drawn)` writes their
+  rules without scanning the HTML. `Style.usedIn(html)` remains for a caller
+  holding only the markup, and `RenderedPage.drawn` carries the set to a host.
+  The examples that scanned their pages now use the drawn set.
+
 - **A resume plan leaves out the Model the browser reads again** (`foldkit-ssr`,
   #470). `SSR.plan` takes `restored`, the Model refs a URL or cookie mirror
   owns, and `restore`, a browser-only function reading them again before the
