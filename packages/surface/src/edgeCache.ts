@@ -59,6 +59,17 @@ export interface WorkersCache {
 }
 
 /**
+ * What `CacheStore.kv` needs of a Workers KV namespace binding. KV refuses a
+ * key over 512 bytes, a value over 25 MiB, an `expirationTtl` under 60
+ * seconds, and, on the free plan, every write past 1,000 a day.
+ */
+export interface WorkersKv {
+  get(key: string): Promise<string | null>
+  put(key: string, value: string, options: { readonly expirationTtl: number }): Promise<void>
+  delete(key: string): Promise<void>
+}
+
+/**
  * Which keys each tag names, bounded: past `limit` keys the oldest tags are
  * forgotten, and a write naming one of them leaves its answers to expire.
  */
@@ -161,6 +172,96 @@ const workers = (cache: WorkersCache): CacheStore => {
   }
 }
 
+/** The shortest `expirationTtl` KV takes, in seconds. */
+const KV_SHORTEST_TTL = 60
+
+/** How many keys `CacheStore.kv` remembers asked for once, the oldest forgotten first. */
+const KV_ASKED_ONCE = 10_000
+
+/**
+ * A store over a Workers KV namespace: one copy for every isolate and data
+ * centre, which outlives the isolate that kept it (a `caches.default` copy
+ * is one data centre's).
+ *
+ * KV's free plan allows 1,000 writes a day, so an answer is written only
+ * when it is asked for a second time: a crawler asking a thousand distinct
+ * URLs once each spends no write. This isolate's memory counts the asking,
+ * since counting in KV would spend a write on every first ask, the write the
+ * count exists to save; an answer asked twice in different isolates is
+ * written later, or not at all.
+ *
+ * Nothing KV refuses or fails fails the request: a read that fails is a
+ * miss, a write that fails (the day's writes spent, a key over 512 bytes)
+ * keeps nothing, and a purge that fails leaves its answers to expire. Each
+ * is logged as a warning.
+ *
+ * Which answers a tag names is known to this isolate alone, as with
+ * `workers`: a write purges what this isolate kept.
+ *
+ * `keep` serves an answer that long after it was kept, past a shorter
+ * `maxAge`, and is for pages alone (`foldkit-ssr`'s `cache`): a page carries
+ * when each of its reads was made, and a browser whose Remote freshness has a
+ * `maxAge` (`RemotePolicy.staleWhileRevalidate`) reads again what is past it.
+ * Never give such a store to `serveFetch`: a read's answer carries no age,
+ * so the browser would take a stale one as fresh, and read the same one again.
+ */
+const kv = (
+  namespace: WorkersKv,
+  options: { readonly keep?: Duration.Input | undefined } = {},
+): CacheStore => {
+  const keep = Duration.fromInputUnsafe(options.keep ?? Duration.zero)
+  if (!Duration.isFinite(keep)) {
+    throw new Error(
+      `foldkit: CacheStore.kv's keep must be a finite time; ${JSON.stringify(options.keep)} is not`,
+    )
+  }
+  const index = tagIndex(16_000)
+  const askedOnce = new Set<string>()
+  const warn = (doing: string) => (cause: unknown) =>
+    Effect.logWarning(`foldkit: CacheStore.kv could not ${doing}`, cause)
+  return {
+    match: key =>
+      Effect.tryPromise(() => namespace.get(key)).pipe(
+        Effect.flatMap(value =>
+          Effect.map(Clock.currentTimeMillis, now => {
+            if (value === null) return Option.none<string>()
+            // Kept as `<expiry in ms> <body>`: KV holds an entry at least a minute.
+            const space = value.indexOf(' ')
+            return space > 0 && Number(value.slice(0, space)) > now
+              ? Option.some(value.slice(space + 1))
+              : Option.none()
+          }),
+        ),
+        Effect.catch(cause => Effect.as(warn(`read ${key}`)(cause), Option.none())),
+      ),
+    put: (key, body, { maxAge, tags }) =>
+      Effect.gen(function* () {
+        if (!askedOnce.delete(key)) {
+          askedOnce.add(key)
+          for (const oldest of askedOnce) {
+            if (askedOnce.size <= KV_ASKED_ONCE) break
+            askedOnce.delete(oldest)
+          }
+          return
+        }
+        const lasts = Duration.toMillis(Duration.max(maxAge, keep))
+        const now = yield* Clock.currentTimeMillis
+        yield* Effect.tryPromise(() =>
+          namespace.put(key, `${now + lasts} ${body}`, {
+            expirationTtl: Math.max(KV_SHORTEST_TTL, Math.ceil(lasts / 1000)),
+          }),
+        ).pipe(
+          Effect.map(() => index.add(key, tags)),
+          Effect.catch(warn(`keep ${key}`)),
+        )
+      }),
+    purge: tags =>
+      Effect.tryPromise(() =>
+        Promise.all([...index.take(tags)].map(key => namespace.delete(key))),
+      ).pipe(Effect.asVoid, Effect.catch(warn(`purge ${tags.join(', ')}`))),
+  }
+}
+
 /**
  * One read a page render made, as the reader judged it: public and fresh for
  * `maxAge`, tagged with the rows and lists it holds, or private.
@@ -187,4 +288,10 @@ export const CacheStore = {
 
   /** A store over a Workers `Cache` (`caches.default`). */
   workers,
+
+  /**
+   * A store over a Workers KV namespace, kept across isolates, writing an
+   * answer on its second ask and failing open.
+   */
+  kv,
 }

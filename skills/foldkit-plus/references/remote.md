@@ -270,7 +270,10 @@ A transport failure becomes the call's Remote error, not a defect.
   `maxAge`, `cache-control: public, max-age=…`. A write answered there purges
   each row its answer names and every list of their entities; other writers
   purge nothing. `CacheStore.memory()` / `CacheStore.workers(caches.default)`
-  (per-isolate purge index). `pageReader` with the same `cache` answers public
+  / `CacheStore.kv(env.CACHE, { keep? })` (per-isolate purge index; KV writes
+  an answer on its second ask, serves it for its `maxAge`, and fails open:
+  a failed read is a miss, a refused write keeps nothing; `keep` serves a
+  page past a shorter `maxAge`, for `foldkit-ssr`'s `cache` only). `pageReader` with the same `cache` answers public
   reads as the visitor and notes each read in `PageReads` for
   `foldkit-ssr`'s page cache. Checker: `cache.check` reports
   `CachedReadDiffers`; `checkCache(config, requests, env)` rejects a

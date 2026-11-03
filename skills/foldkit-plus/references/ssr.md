@@ -287,7 +287,9 @@ would rebuild those elements.
   or own `cache-control`, status 200. Kept for the shortest of `maxAge` and
   its reads, `cache-control: public, max-age=…`, `vary` with the absent
   headers read; served only to requests lacking them. Anything else says
-  `private, no-store`. Wrap the entry's `renderDocument` in
+  `private, no-store`. `store: CacheStore.kv(env.CACHE, { keep: '6 hours' })`
+  serves a kept page for `keep`, past its freshness, from Workers KV (a
+  client with `RemotePolicy.staleWhileRevalidate` re-reads stale reads). Wrap the entry's `renderDocument` in
   `SSR.keptDocuments(render)`, or the host parses a kept page again every
   request. Checker: `check` draws a kept page again and reports
   `CachedPageDiffers` (times within a day of now are not compared);

@@ -1383,6 +1383,18 @@ write purges what this isolate kept, and another isolate's or data centre's
 copy stays until its `maxAge`. Give `pageReader` the same config, and pages
 read through it are judged the same way (`foldkit-ssr`'s `cache`).
 
+`CacheStore.kv(env.CACHE)` keeps them in a Workers KV namespace: one copy for
+every isolate and data centre. KV's free plan allows 1,000 writes a day, so
+an answer is written only when it is asked for a second time; this isolate's
+memory counts the asking, since counting in KV would spend the write the
+count saves. What KV refuses or fails never fails a request: a failed read
+is a miss, a refused write (the day's writes spent, a key over 512 bytes)
+keeps nothing, and each is logged as a warning. KV keeps an entry a minute
+at least; the store serves it for its `maxAge` alone. Its purge, like the
+Workers store's, reaches what this isolate kept. Its `keep` option is for
+pages (`foldkit-ssr`), never for `serveFetch`: a read's answer carries no
+age, so one served past its `maxAge` would read as fresh.
+
 The checker answers each public read as two principals. `cache.check`
 answers it as who asks too, and where the two differ reports
 `CachedReadDiffers` and gives the asker their own: a development mode.

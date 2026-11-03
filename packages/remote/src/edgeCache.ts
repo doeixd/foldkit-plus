@@ -18,6 +18,7 @@ export {
   type CacheOptions,
   type CachePolicy,
   type WorkersCache,
+  type WorkersKv,
 } from 'foldkit-surface'
 
 const key = Metadata.key<CachePolicy>('foldkit-remote/cache', {

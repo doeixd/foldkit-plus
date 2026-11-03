@@ -1,0 +1,7 @@
+{
+  "name": "foldkit-plus-kv-cache",
+  "main": "dist/worker.js",
+  "no_bundle": true,
+  "compatibility_date": "2026-07-30",
+  "kv_namespaces": [{ "binding": "CACHE", "id": "00000000000000000000000000000000" }],
+}

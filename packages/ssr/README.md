@@ -509,6 +509,16 @@ The key is the build id and the full URL, so a deploy never serves another
 build's page (the browser would refuse it anyway, as `OtherBuild`).
 `CacheStore.workers(caches.default)` keeps pages in the Workers Cache API.
 
+A page is kept for its freshness, often a minute, so a URL asked again after
+that renders again. `CacheStore.kv(env.CACHE, { keep: '6 hours' })` keeps
+pages in Workers KV and serves each for `keep` after it was kept, past a
+shorter `maxAge`: the page carries when each of its reads was made, and a
+browser whose Remote freshness has a `maxAge`
+(`RemotePolicy.staleWhileRevalidate`) reads again what is past it, so the
+server renders a page once in `keep` instead of once a minute. KV writes a page only on its second
+ask and fails open (`foldkit-remote-server`'s README says how). Give
+`serveFetch` a store without `keep`: a read's answer carries no age.
+
 The host draws each page into its document, which parses the page again
 (Foldkit's `injectIntoTemplate`), so a kept page would still cost that on
 every request. Wrap the server entry's `renderDocument` in

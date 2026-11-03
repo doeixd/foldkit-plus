@@ -31,6 +31,7 @@ export {
   type CacheOptions,
   type CachePolicy,
   type WorkersCache,
+  type WorkersKv,
 } from './edgeCache.js'
 
 // ===========================================================================
