@@ -9,6 +9,22 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **A public page rendered once, at build** (`foldkit-ssr`, `foldkit-surface`,
+  `foldkit-remote-server`, #469). A path in `SSR.entry`'s `prerendered`, which
+  Foldkit's plugin renders into a file (`ssr.build.prerender`), is held to the
+  rule `cache` keeps a page by, and stricter on headers: every read through
+  `pageReader` public, no request header read (an absent one included, which a
+  file cannot vary by), `headers` setting nothing, status 200. Otherwise
+  `renderPage` rejects naming the read, header or status, and the build fails;
+  a page that passes answers with no headers and skips the page cache. The page
+  is fresh as of the build, and a client with `RemotePolicy.staleWhileRevalidate`
+  re-reads at boot every read past its `maxAge`. Breaking:
+  `CachedRead.Private` carries `read`, the rows or query it asked for
+  (`Price a, Price b`, `query Search`), which `pageReader` fills. domains-plus
+  still renders `/` per request: its `prepare` reads the cart cookie, and
+  Workers static assets match by path alone, so a prerendered `/` would answer
+  `/?q=…` too.
+
 - **`CacheStore.kv`, a store over Workers KV** (`foldkit-surface`,
   re-exported by `foldkit-remote`, #468). One copy for every isolate and data
   centre. An answer is written on its second ask, counted in the isolate's
