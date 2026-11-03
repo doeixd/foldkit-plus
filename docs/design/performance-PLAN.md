@@ -156,7 +156,81 @@ lines against 3,280, prices in the first paint). #378, #396 and #397 keep a
 read-only page free of what it does not use; #421 extends that discipline to
 whole applications with a budget.
 
+## Where 0.38.0 stands
+
+Measured on the live Workers on 2026-11-02 (solid-domains `/compare`, 15
+interleaved cold loads of `/?q=sunbeam`):
+
+| | Solid | stock Foldkit | Plus 0.38.0 | Plus can win by |
+| --- | --: | --: | --: | --- |
+| Top Results priced | 188 ms | 589 ms | 192 ms | already ahead |
+| Requests at load | 7 | 9 | 6 | already ahead |
+| Without JavaScript | works | no prices | works | already ahead |
+| Time to first byte | 71 ms | 55 ms | 81 ms | #469, #468 |
+| JS at load, brotli | 79 KB | 215 KB | 268 KB | #472; then #420, #430 |
+| CSS, brotli | 8.9 KB | 8.0 KB | 18.1 KB | #471 |
+| HTML, brotli | 5.4 KB | 4.5 KB | 11.1 KB | #470, #473 (it carries the prices; compare HTML with data) |
+| Failed loads (1102) | 0 | 0 | 13 of 15 never-seen searches | #473; #469 and #468 for repeated pages |
+
+Server CPU is the one number that decides the rest. Solid spends 5–12 ms on
+this page; domains-plus about 60 ms on `/` and 190 ms on a search, against
+the free plan's 10 ms. About 85% is Foldkit's checks of the server markup
+(#413), but without them a search is still about 28 ms, so even upstream's
+fix leaves never-seen searches over the limit. Caching and prerendering
+cover repeated pages only; the render itself must cost less (#473).
+
+#428's cache held copies only while the Worker was warm: a URL left idle for
+minutes failed 15 of 15 times, and responses carried no `cf-cache-status`.
+The likely cause, still to confirm, is that the Cache API keeps nothing on
+`workers.dev`, so the isolate's memory was the only store (#468).
+
+## What the work so far taught
+
+- **Remove code; do not defer it.** #423 moved the cart and phone sheets
+  behind `Resource.lazy` and saved 0.9 of 214.8 KB: the app's own code is
+  small, and the weight is in libraries (Effect, Foldkit, `@foldkit/ui`,
+  floating-ui, the style system). It was reverted. #430, #420 and #472
+  remove or skip code instead.
+- **A component's update and view in one module cannot be split.** The
+  Model needs the update from the first frame, so `foldkit-mixins-ui/sheet`
+  keeps its view in the first chunk too. New components should keep them in
+  separate modules.
+- **A view cannot wait on `Resource.lazy`.** Loading a view's code later
+  needed a module-level cell outside the Model. If deferring views ever pays,
+  that is a missing API (loaded code as Model state), not app code to write.
+- **Measure before filing.** #423 and #464 were cut with estimated savings,
+  and both measured a tenth of the estimate or less (#464's bytes come from
+  `@yielded/auth-persistence-drizzle`, not from us). The JS budget had 4 KB
+  of slack and 4 KB of growth passed unnoticed; a budget sits about 1% above
+  what it measures.
+- **The free plan's CPU limit binds every render, background ones too.**
+  Re-rendering a kept page in `waitUntil` fails like the request would, so a
+  kept page cannot refresh itself there. Freshness comes from the client
+  re-reading data past its `maxAge`, which is cheap; the server renders a
+  page once, at build (#469) or on its first request (#468).
+- **A cheap server makes the no-JavaScript path safe to lean on.** #472
+  starts the runtime on intent, so until then a search is the GET form, a
+  full server render. That only helps once the render fits the limit (#473),
+  and the runtime should start on hover or focus so the form stays a
+  fallback.
+
 ## Order
+
+**Next, from 0.38.0.**
+1. Three probes, which decide the rest: does the Cache API keep anything on
+   `workers.dev` (#468); how much CPU is left with Foldkit's checks patched
+   out locally (#473); where the rest of a search's CPU goes (#473).
+2. #469: prerender `/` and other public routes at build, the one way the
+   free plan serves a page with no render. With #434, which prerenders the
+   regions inside a dynamic page.
+3. #468: KV as a `CacheStore`, admitting an entry on its second request and
+   failing open, with entries kept for hours.
+4. #473: a render does less work, starting with the 557-option TLD select
+   moved to a page of its own.
+5. #472: the runtime starts on intent, its chunk downloaded on idle, every
+   form control's state and the scroll read into the Model at boot. Report
+   total JS and first-interaction INP beside JS at load.
+6. #470 (with #436), #471, #420, #430.
 
 **Phase 1: fix what is broken.** These touch separate code and can run in
 parallel.
@@ -189,12 +263,13 @@ parallel.
 
 **Phase 2: bytes.**
 - #422: DevTools in development only.
-- #423: sheets and pickers on intent.
+- #423: sheets and pickers on intent. Tried and reverted: 0.9 KB saved.
 - #420: zero-runtime style modules, if #421 shows the style system is worth
   removing.
 
 **Phase 3: beyond parity, cheap and visible.**
 - #428: edge caching from the declarations. A cached page also costs no CPU.
+  Built in 0.38.0; on `workers.dev` it held copies only while warm (#468).
 - #429: `content-visibility` lists. They remove the list's measuring code,
   and probably #418's shift with it.
 - #430: platform popups, removing floating-ui.
