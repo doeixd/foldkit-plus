@@ -1,6 +1,6 @@
 # foldkit-ssr
 
-Checked against `foldkit-ssr` 0.10.0.
+Checked against `foldkit-ssr` 0.11.0.
 
 Server rendering that hands the browser **the Model the server reached**, not
 the inputs to rebuild it: `init` runs once, on the server, and the browser
@@ -35,16 +35,22 @@ the built `index.html`:
 import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
-const Model = Schema.Struct({ draft: Schema.String, count: Schema.Number, menuOpen: Schema.Boolean })
+const Model = Schema.Struct({
+  draft: Schema.String,
+  count: Schema.Number,
+  menuOpen: Schema.Boolean,
+  query: Schema.String,
+})
 type Model = typeof Model.Type
 const Message = defineMessageUnion({ ToggledMenu: {} })
 type Message = typeof Message.Type
 const App = Surface.application({
   Model,
   Message,
-  initial: { draft: '', count: 0, menuOpen: false },
+  initial: { draft: '', count: 0, menuOpen: false, query: '' },
   update: model => ({ model }),
 })
+const SearchInUrl = { reduce: (model: Model, _href: string) => model }
 const EditorToolbar = App.surface('EditorToolbar', {
   model: ({ model }) => ({ draft: model.draft, menuOpen: model.menuOpen }),
   messages: [Message.ToggledMenu],
@@ -71,7 +77,9 @@ const Editor = SSR.plan(App, {
   state: Projection.pick(App.model.draft, App.model.count), // what the browser owns
   // baseline defaults to App.initial; boot: model => Commands to run on load
   local: [App.model.menuOpen], // refs that may start from the baseline
-  surfaces: [Surface.at(EditorToolbar, undefined)], // checked against state + local
+  restored: [App.model.query], // fields the browser reads again, left out of the envelope
+  restore: model => SearchInUrl.reduce(model, window.location.href), // browser only, before the first render
+  surfaces: [Surface.at(EditorToolbar, undefined)], // checked against state + restored + local
 })
 
 // server
@@ -81,6 +89,11 @@ const html = SSR.page(template, result) // the envelope rides the stamped root; 
 // browser, instead of Runtime.hydrate: import { SSR } from 'foldkit-ssr/client'
 SSR.hydrate(config, Editor, { buildId })
 ```
+
+`local` fields start from the baseline and are never sent. `restored` fields
+are left out of the envelope and read again by the browser in `restore`, before
+the first render, such as a URL or cookie mirror's; `state` must not also send
+a restored path.
 
 A page the browser declines (`when: page => …`) or finds stale (`fresh: version => …`) is
 contained, or with `otherwise: 'render'` drawn afresh in its place. Give `until: model => …`
@@ -155,8 +168,8 @@ would rebuild those elements.
   `twitter:card`, `article:*`, `robots`, alternates and JSON-LD into the head,
   escaped and checked like the view, and `SSR.hydrate` replaces them as the
   Model changes. `Meta` is typed (`import type { Meta } from 'foldkit-ssr'`).
-- A Surface in `surfaces` that reads or is activated by a field in neither
-  `state` nor `local`, reads Remote data no part resumes, or activates
+- A Surface in `surfaces` that reads or is activated by a field in none of
+  `state`, `restored` or `local`, reads Remote data no part resumes, or activates
   differently from the browser's Model fails with `Uncovered`. A
   `Surface.each` family is one entry: the envelope carries its parent's reads
   with its instances', and coverage inspects each instance (`Child[key]`,

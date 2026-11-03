@@ -749,13 +749,36 @@ const Post = SSR.plan(App, {
 ```
 
 `SSR.render` then refuses the plan, naming the Surface and the field, when an
-active Surface reads a field that is in neither `state` nor `local`, is
-activated by one, reads data no part of the plan resumes, or would activate
+active Surface reads a field that is in none of `state`, `restored` or `local`,
+is activated by one, reads data no part of the plan resumes, or would activate
 differently from the Model the browser starts from. The check runs for the
 server's Model, because a Surface's reads follow its params.
 `SSR.inspect(plan, model)` returns the same findings as data, for a test or a
 debugging session: for each Surface, whether it is active, and where each read
-comes from, `state`, `local` or `missing`.
+comes from, `state`, `restored`, `local` or `missing`.
+
+### Fields the browser reads again
+
+A field a URL or cookie mirror owns is one the browser can read for itself, so
+the envelope need not carry it. Name it in `restored` and give `restore` a
+function applying the browser's values before the first render:
+
+```ts
+const SearchPlan = SSR.plan(App, {
+  id: 'search',
+  state: Projection.pick(App.model.route, App.model.results),
+  restored: [App.model.query, App.model.tld],
+  restore: model => SearchInUrl.reduce(model, window.location.href),
+  surfaces: [Surface.at(SearchFilters, undefined)],
+})
+```
+
+Each restored path is handed the server's value for the coverage check, since
+the browser reads the same address or cookie; a path that `state` also sends is
+refused. The first render differs from the served page only where the browser's
+values differ from the server's, and Foldkit rebuilds that part, as a
+navigation would. `restore` runs in the browser alone, before adoption, and may
+throw; the page is then contained and reported as `Invalid`.
 
 A `Surface.each` family is one entry of `surfaces`: the envelope carries its
 parent's reads with its instances', and coverage inspects each instance by key
@@ -1296,9 +1319,9 @@ of:
 
 | `reason`                   | What it means                                                                 | The fix                                                             |
 | -------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `ViewDependsOnUnsentState` | The view, or its head, renders differently from the browser's Model           | Add the field the message names to `state`, or stop the view reading it |
+| `ViewDependsOnUnsentState` | The view, or its head, renders differently from the browser's Model           | Add the field the message names to `state`, name it `restored` with a `restore`, or stop the view reading it |
 | `UndeclaredStartup`        | `init` returned Commands and the plan has no `boot`                           | Name them in `boot`                                                  |
-| `Uncovered`                | An active Surface reads or is activated by an unsent field, or a binding sends a Message no active Surface lists | Send the field, name it `local`, or list the Message on the Surface |
+| `Uncovered`                | An active Surface reads or is activated by an unsent field, or a binding sends a Message no active Surface lists | Send the field, name it `restored` or `local`, or list the Message on the Surface |
 | `UnrestorablePart`         | A part cannot restore its own capture                                          | A bug in that part                                                   |
 | `DuplicateStaticRegion`    | Two `SSR.static` regions share an id                                          | Give each its own id                                                 |
 | `BindingInStaticRegion`    | A handler inside an `SSR.static` region                                        | Move the element out, into a Surface                                 |

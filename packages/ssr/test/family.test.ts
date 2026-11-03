@@ -31,6 +31,7 @@ describe('SSR.inspect with a family', () => {
       id: 'team',
       state: ['route', 'members'],
       local: [],
+      restored: [],
       parts: ['remote'],
       surfaces: [
         {
@@ -91,6 +92,7 @@ describe('SSR.inspect with a family', () => {
       id: 'team',
       state: ['route', 'members'],
       local: [],
+      restored: [],
       parts: ['remote'],
       surfaces: [
         {

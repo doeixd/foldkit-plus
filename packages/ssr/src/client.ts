@@ -287,8 +287,16 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     deferBoot(root, decoded.success, typed, { boot, answered }, pending, report, kept.success)
   }
   const prepare = options.prepare
-  if (prepare === undefined) adoptFrom(resumed.success)
-  else void Effect.runPromise(prepare(resumed.success)).then(adoptFrom)
+  let startingModel: Model
+  try {
+    startingModel = plan.restore === undefined ? resumed.success : plan.restore(resumed.success)
+  } catch (error) {
+    report(pageContained('Invalid', error instanceof Error ? error.message : String(error)))
+    contain()
+    return
+  }
+  if (prepare === undefined) adoptFrom(startingModel)
+  else void Effect.runPromise(prepare(startingModel)).then(adoptFrom)
 }
 
 /**

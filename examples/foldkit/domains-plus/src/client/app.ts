@@ -663,7 +663,9 @@ export const CartControls = App.surface('CartControls', {
  * server reads every price the page shows before it renders
  * (`server/entry.ts`), and Remote's part sends what the reading Surfaces
  * read, so the page is whole without a script and the browser asks for none
- * of it again.
+ * of it again. The search mirror is read again in the browser, so the envelope
+ * does not carry it; the cart's cookie holds names only, which the server
+ * prices, so the cart crosses.
  */
 export const plan = SSR.plan(
   { owner: App.owner, Message, initial: empty },
@@ -671,17 +673,22 @@ export const plan = SSR.plan(
     id: 'domains',
     state: Projection.pick(
       App.model.route,
-      App.model.query,
       App.model.settledLabel,
       App.model.searchLayout,
       // What the reading Surfaces follow, so the browser reads what the server read.
       App.model.resultsList,
+      // The cart's cookie holds names only, which the server prices again: the
+      // browser cannot rebuild it, so it crosses.
+      App.model.cart,
+    ),
+    restored: [
+      App.model.query,
       App.model.tldFilter,
       App.model.availabilityFilter,
       App.model.sortOrder,
       App.model.from,
-      App.model.cart,
-    ),
+    ],
+    restore: model => SearchInUrl.reduce(model, window.location.href),
     local: [App.model.search],
     surfaces: [
       Surface.at(SearchBox, undefined),

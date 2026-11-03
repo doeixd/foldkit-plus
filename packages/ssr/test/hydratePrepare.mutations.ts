@@ -5,7 +5,7 @@
  */
 const client = '../src/client.ts'
 const tests = ['packages/ssr/test/hydratePrepare.test.ts']
-const call = '  else void Effect.runPromise(prepare(resumed.success)).then(adoptFrom)\n'
+const call = '  else void Effect.runPromise(prepare(startingModel)).then(adoptFrom)\n'
 
 export default [
   {
@@ -15,7 +15,7 @@ export default [
         file: client,
         find: call,
         replace:
-          '  else void Effect.runPromise(prepare(resumed.success)).then(() => adoptFrom(resumed.success))\n',
+          '  else void Effect.runPromise(prepare(startingModel)).then(() => adoptFrom(startingModel))\n',
       },
     ],
     tests,
@@ -27,7 +27,7 @@ export default [
         file: client,
         find: call,
         replace:
-          '  else {\n    void Effect.runPromise(prepare(resumed.success))\n    adoptFrom(resumed.success)\n  }\n',
+          '  else {\n    void Effect.runPromise(prepare(startingModel))\n    adoptFrom(startingModel)\n  }\n',
       },
     ],
     tests,

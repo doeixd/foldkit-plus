@@ -241,16 +241,25 @@ const withInRoot = (html: string, extra: string): Result.Result<string, ResumeUn
 /**
  * The Model the browser will start from when the server's Model is `model`:
  * the payload taken through the page as the envelope carries it, as JSON, and
- * resumed exactly as `SSR.resume` resumes it. A part that cannot restore its
- * own capture fails here, on the server.
+ * resumed exactly as `SSR.resume` resumes it, with each restored path taking
+ * the server's value (the browser reads the same address and cookie). A part
+ * that cannot restore its own capture fails here, on the server.
  */
 const browserModelOf = <Model, Fields extends Schema.Struct.Fields>(
   plan: ResumePlan<Model, Fields>,
   payload: Payload,
-): Result.Result<Model, string> => modelFrom(plan, JSON.parse(serializeJsonScript(payload)))
+  model: Model,
+): Result.Result<Model, string> => {
+  const resumed = modelFrom(plan, JSON.parse(serializeJsonScript(payload)))
+  return Result.isFailure(resumed)
+    ? resumed
+    : Result.succeed(
+        plan.restored.reduce((browser, place) => place.copy(browser, model), resumed.success),
+      )
+}
 
-/** Where the browser gets a Model path's value: the envelope, the baseline, or nowhere it may. */
-export type Cover = 'state' | 'local' | 'missing'
+/** Where the browser gets a Model path's value: the envelope, itself, or nowhere it may. */
+export type Cover = 'state' | 'restored' | 'local' | 'missing'
 
 /** One Surface as a plan covers it, for the server's Model. */
 export interface SurfaceCoverage {
@@ -282,11 +291,13 @@ export interface SurfaceCoverage {
   readonly sameInBrowser: boolean
 }
 
-/** What a plan sends, what it leaves local, and how it covers each Surface. */
+/** What a plan sends, what it leaves local or restored, and how it covers each Surface. */
 export interface PlanInspection {
   readonly id: string
   readonly state: ReadonlyArray<string>
   readonly local: ReadonlyArray<string>
+  /** Model paths the browser reads again before the first render. */
+  readonly restored: ReadonlyArray<string>
   /** The ids of the parts that resume state the slice cannot carry. */
   readonly parts: ReadonlyArray<string>
   readonly surfaces: ReadonlyArray<SurfaceCoverage>
@@ -296,13 +307,14 @@ const pathOf = (path: ReadonlyArray<string>): string =>
   path.length === 0 ? '(the whole Model)' : path.join('.')
 
 /**
- * A path is covered by a sent or local path equal to it or containing it. An
- * empty path is the whole Model, which no pick covers.
+ * A path is covered by a sent, restored or local path equal to it or
+ * containing it. An empty path is the whole Model, which no pick covers.
  */
 const coverOf = (
   path: ReadonlyArray<string>,
   plan: {
     readonly state: { readonly dependencies: ReadonlyArray<ReadonlyArray<string>> }
+    readonly restored: ReadonlyArray<{ readonly path: ReadonlyArray<string> }>
     readonly local: ReadonlyArray<ReadonlyArray<string>>
   },
 ): Cover => {
@@ -311,6 +323,7 @@ const coverOf = (
     outer.length <= path.length &&
     outer.every((key, index) => path[index] === key)
   if (plan.state.dependencies.some(contains)) return 'state'
+  if (plan.restored.some(({ path: outer }) => contains(outer))) return 'restored'
   if (plan.local.some(contains)) return 'local'
   return 'missing'
 }
@@ -337,7 +350,7 @@ const inspect = <Model, Fields extends Schema.Struct.Fields>(
   plan: ResumePlan<Model, Fields>,
   model: Model,
 ): PlanInspection => {
-  const resumed = browserModelOf(plan, payloadOf(plan, model))
+  const resumed = browserModelOf(plan, payloadOf(plan, model), model)
   if (Result.isFailure(resumed)) throw new Error(`SSR.inspect: ${resumed.failure}`)
   return coverage(plan, model, resumed.success)
 }
@@ -362,6 +375,7 @@ const coverage = <Model, Fields extends Schema.Struct.Fields>(
     id: plan.id,
     state: plan.state.dependencies.map(pathOf),
     local: plan.local.map(pathOf),
+    restored: plan.restored.map(({ path }) => pathOf(path)),
     parts: plan.parts.map(part => part.id),
     surfaces: plan.surfaces.flatMap(source => {
       const surface = Option.match(familyOf(source), {
@@ -803,7 +817,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
 
     // Built once: each part's capture reads the whole store it owns.
     const payload = payloadOf(plan, started.model)
-    const resumed = browserModelOf(plan, payload)
+    const resumed = browserModelOf(plan, payload, started.model)
     if (Result.isFailure(resumed)) {
       return yield* new ResumeUnsafe({ reason: 'UnrestorablePart', message: resumed.failure })
     }

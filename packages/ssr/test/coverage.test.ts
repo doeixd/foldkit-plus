@@ -37,6 +37,7 @@ describe('SSR.inspect', () => {
       id: 'post',
       state: ['route', 'post.id', 'post.liked'],
       local: ['menuOpen'],
+      restored: [],
       parts: [],
       surfaces: [
         {

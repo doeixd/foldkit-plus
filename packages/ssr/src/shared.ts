@@ -194,6 +194,16 @@ export const projectionsOf = <Model>(
 }
 
 /**
+ * A Model path the browser can read again for itself, such as one a URL or
+ * cookie mirror owns, and how to copy the server's value for the coverage
+ * check. The envelope leaves the path out.
+ */
+export interface RestoredPlace<Model> {
+  readonly path: ReadonlyArray<string>
+  readonly copy: (target: Model, source: Model) => Model
+}
+
+/**
  * Which part of the Model the browser owns, and what it starts from.
  *
  * `state` is a writable projection of that part, from `Projection.pick` or
@@ -208,6 +218,13 @@ export interface ResumePlan<Model, Fields extends Schema.Struct.Fields, Commands
   readonly boot?: ((model: Model) => Commands) | undefined
   /** Model paths allowed to start from the baseline, as each place's focus gives them. */
   readonly local: ReadonlyArray<ReadonlyArray<string>>
+  /**
+   * Model paths the browser reads again before the first render, such as the
+   * fields a URL or cookie mirror owns. The envelope leaves them out.
+   */
+  readonly restored: ReadonlyArray<RestoredPlace<Model>>
+  /** The browser's own values for `restored`, read before the first render; never run on the server. */
+  readonly restore?: ((model: Model) => Model) | undefined
   /** The Surfaces the browser may activate, which the plan must cover. */
   readonly surfaces: ReadonlyArray<PlanSurface<Model>>
   /** State another package owns, each captured and restored by that package. */
@@ -316,6 +333,8 @@ export const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unkn
     readonly baseline?: Model | undefined
     readonly boot?: ((model: Model) => Commands) | undefined
     readonly local?: ReadonlyArray<ModelPlace<NoInfer<Model>>> | undefined
+    readonly restored?: ReadonlyArray<ModelRef<NoInfer<Model>, any>> | undefined
+    readonly restore?: ((model: Model) => Model) | undefined
     readonly surfaces?: ReadonlyArray<PlanSurface<Model>> | undefined
     readonly parts?: ReadonlyArray<ResumePart<Model>> | undefined
     readonly start?: Start | undefined
@@ -348,12 +367,36 @@ export const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unkn
       `SSR.plan: the Surface "${foreign.name}" belongs to another application than plan "${config.id}"`,
     )
   }
+  const restored = (config.restored ?? []).map(place => {
+    const focus = ModelRef.focus(place)
+    return {
+      path: focus.dependency,
+      copy: (target: Model, source: Model) => focus.set(target, focus.get(source)),
+    }
+  })
+  // A path the browser restores is not sent, so a state that still sends it
+  // would carry the value twice under two owners.
+  const sent = restored.find(({ path }) =>
+    config.state.dependencies.some(
+      outer =>
+        outer.length > 0 &&
+        outer.length <= path.length &&
+        outer.every((key, index) => path[index] === key),
+    ),
+  )
+  if (sent !== undefined) {
+    throw new Error(
+      `SSR.plan: "${sent.path.join('.')}" is restored by the browser, so the state must not send it`,
+    )
+  }
   return {
     id: config.id,
     state: config.state,
     baseline: config.baseline ?? application.initial,
     ...(config.boot === undefined ? {} : { boot: config.boot }),
     local: (config.local ?? []).map(place => ModelRef.focus(place).dependency),
+    restored,
+    ...(config.restore === undefined ? {} : { restore: config.restore }),
     surfaces,
     parts,
     ...(application.Message === undefined ? {} : { Message: application.Message }),
