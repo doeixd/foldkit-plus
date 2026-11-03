@@ -19,6 +19,17 @@ version changed; `pnpm` skips versions already in the registry.
   `maxAge` (`foldkit-ssr`'s `cache` only; the browser reads its stale reads
   again), so a page renders once in `keep` instead of once a minute.
 
+### Changed
+
+- **A store that serves past `maxAge` is a `PageCacheStore`, which
+  `serveFetch` refuses** (`foldkit-surface`, `foldkit-ssr`,
+  `foldkit-remote-server`, #468). `CacheStore` now declares `keep?: never`;
+  `PageCacheStore`, what `SSR.entry`'s `cache.store` takes, may carry a
+  `keep`. `CacheStore.kv` with `keep` returns a `PageCacheStore`, so passing
+  it to `serveFetch`'s `cache.store` is a type error: a read's answer carries
+  no age, and one served past its `maxAge` would read as fresh. `memory`,
+  `workers` and `kv` without `keep` are accepted by both.
+
 ## 0.38.0
 
 Pages get cheaper to serve. Public reads and whole pages are kept at the edge
