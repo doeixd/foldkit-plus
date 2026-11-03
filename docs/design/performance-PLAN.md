@@ -231,8 +231,13 @@ The likely cause, still to confirm, is that the Cache API keeps nothing on
    regions inside a dynamic page.
 3. #468: KV as a `CacheStore`, admitting an entry on its second request and
    failing open, with entries kept for hours.
-4. #473: a render does less work, starting with the 557-option TLD select
-   moved to a page of its own.
+4. #473: a render does less work. First a spike on compiled server
+   rendering: the result row's view compiled to a string template with holes
+   for what its region declares it reads, byte-identical to the interpreted
+   render. Solid spends 5–12 ms on this page because its compiler writes the
+   HTML at build; tuning our interpreted path is unlikely to reach 10 ms. If
+   the spike pays, it is the first slice of #433 and #434, which move here
+   from Phase 4. Then the 557-option TLD select moves to a page of its own.
 5. #472: the runtime starts on intent, its chunk downloaded on idle, every
    form control's state and the scroll read into the Model at boot. Report
    total JS and first-interaction INP beside JS at load.
@@ -302,8 +307,8 @@ the server draws every row unpriced and streams it after the first screen
 
 **Phase 4: long term, with upstream.**
 - #432: islands. A spike first, to measure what static regions would save.
-- #433: compiled views, with #376 and foldkit/foldkit#1227. A spike on one
-  row and card first.
+- #433: compiled views, with #376 and foldkit/foldkit#1227. Its server half
+  starts now, as #473's spike; the client half (compiled updates) stays here.
 
 **Throughout:**
 - #424: recipe defaults, so `style.ts` shrinks.
