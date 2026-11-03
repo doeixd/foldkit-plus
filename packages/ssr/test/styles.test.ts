@@ -72,6 +72,38 @@ describe('styles in the rendered root', () => {
     expect(document.getElementById('count')?.textContent).toBe('41')
   })
 
+  it('gives styles and head the classes the render drew', async () => {
+    const symbol = Symbol.for('foldkit-plus.drawnClasses')
+    let styled: ReadonlySet<string> | undefined
+    let headed: ReadonlySet<string> | undefined
+    const drawing = {
+      ...config,
+      view: (model: Model, h: HtmlBuilder<Message>) => {
+        const drawn = (globalThis as Record<symbol, unknown>)[symbol]
+        if (drawn instanceof Set) drawn.add('style-abc')
+        return { title: 't', body: h.p([h.Id('count')], [String(model.count)]) }
+      },
+    }
+    const result = await Effect.runPromise(
+      SSR.render(drawing, plan, {
+        buildId: 'b',
+        styles: (_rendered, drawn) => {
+          styled = drawn
+          return ''
+        },
+      }),
+    )
+    SSR.page(template, result, {
+      head: (_rendered, drawn) => {
+        headed = drawn
+        return ''
+      },
+    })
+    expect(styled?.has('style-abc')).toBe(true)
+    expect(headed?.has('style-abc')).toBe(true)
+    expect(result.drawn.has('style-abc')).toBe(true)
+  })
+
   it('refuses styles for a void root, naming the tag', async () => {
     const voided = {
       ...config,

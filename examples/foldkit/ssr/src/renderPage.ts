@@ -49,8 +49,8 @@ const pageHeaders = {
  * serving, so they ride in the rendered root; the browser's Styles find
  * these classes present and add none of them again.
  */
-const styles = (rendered: { readonly html: string }): string =>
-  `<style>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>`
+const styles = (_rendered: { readonly html: string }, drawn: ReadonlySet<string>): string =>
+  `<style>${stylesheet}</style><style>${Style.usedDrawn(drawn)}</style>`
 
 export const makeRenderPage = (buildId: string): ((request: Request) => Promise<EntryResult>) =>
   SSR.entry({ Model, Flags, init, update, view, container: null }, plan, {

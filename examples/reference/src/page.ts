@@ -28,8 +28,8 @@ const pageHeaders = { 'cache-control': 'private, no-store', vary: 'cookie' }
  * script runs. The theme itself is in the template (`foundations` writes it
  * into `index.html`).
  */
-const styles = (rendered: { readonly html: string }): string =>
-  `<style>${Style.usedIn(rendered.html)}</style>`
+const styles = (_rendered: { readonly html: string }, drawn: ReadonlySet<string>): string =>
+  `<style>${Style.usedDrawn(drawn)}</style>`
 
 /**
  * The Model of the page at `request`'s address, with everything it shows

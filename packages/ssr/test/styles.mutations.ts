@@ -41,4 +41,9 @@ export default [
     ],
     tests: styles,
   },
+  {
+    name: 'the render collects no drawn classes',
+    edits: [{ file: index, find: '    global[DRAWN_CLASSES] = drawn\n', replace: '' }],
+    tests: styles,
+  },
 ]

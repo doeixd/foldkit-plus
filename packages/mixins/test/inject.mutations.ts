@@ -74,4 +74,27 @@ export default [
     ],
     tests: ['packages/mixins/test/inject.test.ts'],
   },
+  {
+    name: 'a render collects none of the classes it draws',
+    edits: [
+      {
+        file: '../src/resolver.ts',
+        find: "    // A server render collects the classes it drew, so it need not scan its HTML.\n    const drawn = (globalThis as Record<symbol, unknown>)[DRAWN_CLASSES]\n    if (drawn instanceof Set && token.startsWith('style-')) drawn.add(token)\n",
+        replace: '',
+      },
+    ],
+    tests: ['packages/mixins/test/inject.test.ts'],
+  },
+  {
+    name: 'a server writes every class for a collected render',
+    edits: [
+      {
+        file: '../src/inject.ts',
+        find: '  for (const className of classes) {\n    const entry = registry.get(className)',
+        replace:
+          '  for (const className of registry.keys()) {\n    const entry = registry.get(className)',
+      },
+    ],
+    tests: ['packages/mixins/test/inject.test.ts'],
+  },
 ]

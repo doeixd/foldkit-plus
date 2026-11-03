@@ -91,6 +91,9 @@ import {
   type RouteMatch,
 } from './shared.js'
 
+/** The set `foldkit-mixins` collects drawn classes in, under the same registered symbol. */
+const DRAWN_CLASSES = Symbol.for('foldkit-plus.drawnClasses')
+
 /** The projections of the plan's entries that are active for `model`. */
 const activeProjections = <Model, Fields extends Schema.Struct.Fields>(
   plan: ResumePlan<Model, Fields>,
@@ -701,6 +704,8 @@ export interface RenderedPage {
   readonly envelope: string
   /** The head markup of the plan's `meta`, empty without one. */
   readonly meta: string
+  /** The compiled classes the render drew, for a stylesheet without an HTML scan. */
+  readonly drawn: ReadonlySet<string>
   /**
    * Each element whose handler for an event is a function, marked `*`: the
    * page cannot answer that event before the live runtime boots.
@@ -849,6 +854,11 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     }
 
     // With no `Flags` key in the config, Foldkit writes no Flags script.
+    // The Mixins resolver records every compiled class this pass draws, so a
+    // stylesheet needs no scan of the HTML it produces.
+    const drawn = new Set<string>()
+    const global = globalThis as Record<symbol, unknown>
+    global[DRAWN_CLASSES] = drawn
     const rendered = yield* renderToString(
       withContext(startingFrom(config, { model: browser }), {
         mode: 'replay',
@@ -859,6 +869,12 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
         depth: 0,
       }) as never,
       options as never,
+    ).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          if (global[DRAWN_CLASSES] === drawn) delete global[DRAWN_CLASSES]
+        }),
+      ),
     )
     const encoded = encodeBindings(plan, servedBindings)
     const reencoded = encodeBindings(plan, browserBindings)
@@ -898,12 +914,13 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     const styled =
       options.styles === undefined
         ? Result.succeed(rendered.html)
-        : withInRoot(rendered.html, options.styles(rendered))
+        : withInRoot(rendered.html, options.styles(rendered, drawn))
     if (Result.isFailure(styled)) return yield* styled.failure
     return {
       page: {
         rendered: { ...rendered, html: withEnvelopeAttribute(styled.success, envelope) },
         meta,
+        drawn,
         envelope,
         unnamed,
       },
@@ -912,12 +929,13 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
   })
 
 /**
- * What a page adds to its head, given what it rendered: such as a stylesheet
- * of the classes the markup uses (`Style.usedIn` in `foldkit-mixins`). The
- * same shape describes `styles`, which rides in the rendered root instead,
- * for pages whose template the host owns.
+ * What a page adds to its head, given what it rendered and the compiled
+ * classes it drew: such as a stylesheet of those classes (`Style.usedDrawn`
+ * in `foldkit-mixins`, with no scan of the HTML). The same shape describes
+ * `styles`, which rides in the rendered root instead, for pages whose
+ * template the host owns.
  */
-export type Head = (rendered: RenderedApplication) => string
+export type Head = (rendered: RenderedApplication, drawn: ReadonlySet<string>) => string
 
 /**
  * The template with `extra` before its last `</head>`, as a slice for the same
@@ -963,9 +981,16 @@ const withFilledTags = (template: string, rendered: RenderedApplication): string
 
 /** The plan's `meta`, then what `head` adds, one line apart. */
 const headOf = (
-  result: { readonly rendered: RenderedApplication; readonly meta: string },
+  result: {
+    readonly rendered: RenderedApplication
+    readonly meta: string
+    readonly drawn: ReadonlySet<string>
+  },
   head: Head | undefined,
-): string => [result.meta, head?.(result.rendered) ?? ''].filter(markup => markup !== '').join('\n')
+): string =>
+  [result.meta, head?.(result.rendered, result.drawn) ?? '']
+    .filter(markup => markup !== '')
+    .join('\n')
 
 /**
  * The page to serve: the rendered application in the template, with the
@@ -975,7 +1000,11 @@ const headOf = (
  */
 const page = (
   template: string,
-  result: { readonly rendered: RenderedApplication; readonly meta: string },
+  result: {
+    readonly rendered: RenderedApplication
+    readonly meta: string
+    readonly drawn: ReadonlySet<string>
+  },
   options: { readonly head?: Head | undefined } = {},
 ): string =>
   injectIntoTemplate(

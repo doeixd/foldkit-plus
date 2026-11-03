@@ -47,6 +47,15 @@ export const register = (className: string, css: string, globalCss: string): voi
 /** A compiled class in CSS text: `.style-` and its hash. */
 const COMPILED_CLASS = /\.(style-[0-9a-z]+)/g
 
+/** A compiled class in a class attribute: `style-` and its hash. */
+const DRAWN_CLASS = /style-[0-9a-z]+/g
+
+/**
+ * The set a server render collects drawn classes in, under a registered
+ * symbol so `foldkit-ssr` can set it without importing this package.
+ */
+export const DRAWN_CLASSES = Symbol.for('foldkit-plus.drawnClasses')
+
 /** An `@layer` order statement, as opposed to a layer block. */
 const LAYER_STATEMENT = /@layer [^{};]+;/g
 
@@ -57,15 +66,13 @@ const layerOrder = (): string => standard.declare.globalCss?.join('') ?? ''
 const withoutOrder = (globalCss: string): string => globalCss.replace(LAYER_STATEMENT, '')
 
 /**
- * The CSS for every compiled class that `html` carries, and once each the
- * global CSS of the Styles those classes came from, after the standard layer
- * order: what a server puts in a page's head, so it is styled before any
- * script runs. The browser's injection then finds these present and adds
- * nothing twice.
+ * The CSS for the compiled classes `classes`, and once each the global CSS of
+ * the Styles those classes came from, after the standard layer order. A
+ * render that collected the classes it drew needs no scan of its HTML.
  */
-export const usedIn = (html: string): string => {
+export const usedDrawn = (classes: Iterable<string>): string => {
   const found = new Map<string, Registered>()
-  for (const [className] of html.matchAll(/style-[0-9a-z]+/g)) {
+  for (const className of classes) {
     const entry = registry.get(className)
     if (entry !== undefined) found.set(className, entry)
   }
@@ -76,6 +83,16 @@ export const usedIn = (html: string): string => {
     ...[...globals].map(withoutOrder),
   ].join('')
 }
+
+/**
+ * The CSS for every compiled class that `html` carries, and once each the
+ * global CSS of the Styles those classes came from, after the standard layer
+ * order: what a server puts in a page's head, so it is styled before any
+ * script runs. The browser's injection then finds these present and adds
+ * nothing twice.
+ */
+export const usedIn = (html: string): string =>
+  usedDrawn(Array.from(html.matchAll(DRAWN_CLASS), ([name]) => name))
 
 /**
  * `sheet` followed by every compiled class and global rule it does not hold:

@@ -121,7 +121,7 @@ would rebuild those elements.
   unstyled.** `foundations()` writes the theme into `index.html` alone; a page
   `SSR.entry` renders carries no head of its own. Give `SSR.entry` (and
   `SSR.render`, `SSR.handle`)
-  `` styles: rendered => `<style>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>` ``:
+  `` styles: (_rendered, drawn) => `<style>${stylesheet}</style><style>${Style.usedDrawn(drawn)}</style>` ``:
   the theme's stylesheet and the CSS of each class the page draws, in the
   rendered root; `SSR.hydrate` moves them into the head before adopting, and
   the browser's Styles find them there and add none twice. See
@@ -273,9 +273,10 @@ would rebuild those elements.
   the image variants the pages name). A path outside the output, or on a file
   the build or the client build writes, is refused.
 - `SSR.page(template, result, { head? })` and `SSR.generate` take
-  `head: rendered => string`, put before `</head>`: with `foldkit-mixins`,
-  `` rendered => `<style>${Style.usedIn(rendered.html)}</style>` `` ships a
-  generated page's CSS in its first paint. `SSR.render`, `SSR.entry` and
+  `head: (rendered, drawn) => string`, put before `</head>`: with
+  `foldkit-mixins`, `` (_rendered, drawn) => `<style>${Style.usedDrawn(drawn)}</style>` ``
+  ships a generated page's CSS in its first paint without scanning the HTML.
+  `SSR.render`, `SSR.entry` and
   `SSR.handle` take the same function as `styles`, carried as the rendered
   root's last children for a served page, which has no template head to
   write to; `SSR.hydrate` moves them into the head (hydration would remove

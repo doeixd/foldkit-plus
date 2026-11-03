@@ -105,6 +105,24 @@ it('gives a server the CSS of the classes a page’s markup uses, and no others'
   expect(css).not.toContain(unused.className)
 })
 
+it('writes the same CSS for the classes a render collected', () => {
+  expect(Style.usedDrawn([rule.className, 'x'])).toBe(
+    Style.usedIn(`<div class="x ${rule.className}"></div>`),
+  )
+})
+
+it('records a drawn compiled class when a server collects them', () => {
+  const drawn = new Set<string>()
+  const global = globalThis as Record<symbol, unknown>
+  global[Symbol.for('foldkit-plus.drawnClasses')] = drawn
+  try {
+    View(undefined, SlotView.inertBuilder())
+  } finally {
+    delete global[Symbol.for('foldkit-plus.drawnClasses')]
+  }
+  expect(drawn.has(rule.className)).toBe(true)
+})
+
 /** A Style whose classes need a global rule, one of them drawn only for some input. */
 const Marked = Style.forSlots(TestSlots)({
   root: Style.compose(

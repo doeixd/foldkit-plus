@@ -30,8 +30,8 @@ export const site: SiteModule = {
   // The reader's light or dark and theme, applied before anything draws; then
   // the foundations and the classes the page draws, so the first paint is
   // styled before any other script runs.
-  head: rendered =>
-    `${headScripts}<style>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>`,
+  head: (_rendered, drawn) =>
+    `${headScripts}<style>${stylesheet}</style><style>${Style.usedDrawn(drawn)}</style>`,
   // `/remote` as `remote.html`: the host serves it at that address, with no
   // redirect to `/remote/` on every link.
   files: 'flat',

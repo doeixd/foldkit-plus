@@ -18,6 +18,7 @@ import {
 } from './attribute.js'
 import type { StaticContribution } from './contribution.js'
 import { DiagnosticError, type Diagnostic, type DiagnosticCode } from './diagnostics.js'
+import { DRAWN_CLASSES } from './inject.js'
 import * as MetadataToken from './metadataToken.js'
 import { mountFailed } from './mountFailed.js'
 import type { SlotProtection } from './slot.js'
@@ -118,6 +119,9 @@ export const resolve = <Message>(
     if (classSeen.has(token)) return
     classSeen.add(token)
     classes.push(token)
+    // A server render collects the classes it drew, so it need not scan its HTML.
+    const drawn = (globalThis as Record<symbol, unknown>)[DRAWN_CLASSES]
+    if (drawn instanceof Set && token.startsWith('style-')) drawn.add(token)
   }
 
   const writeStyle = (

@@ -35,7 +35,8 @@ export const site = {
   // The foundations and the classes the page draws, so the first paint is
   // styled before any script runs. The browser's Styles find these classes
   // present and add none of them again.
-  head: rendered => `<style>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>`,
+  head: (_rendered, drawn) =>
+    `<style>${stylesheet}</style><style>${Style.usedDrawn(drawn)}</style>`,
   files: 'directory',
   sitemap: true,
   robots: true,

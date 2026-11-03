@@ -186,19 +186,24 @@ boot: model => assembly.init(model).commands ?? []
 ### Styles in the first paint
 
 A generated page styled with `foldkit-mixins` can ship the CSS its markup uses
-in the head, so it is styled before any script runs. `head` is given the rendered
-application; `Style.usedIn` returns the CSS of every compiled class the markup
-carries, with the global rules (keyframes, `raise`'s depth rules) of the Styles
-those classes came from. In the browser, Styles bring their rules as they draw and skip what
-this sheet already carries, so nothing is added twice.
+in the head, so it is styled before any script runs. `head` is given the
+rendered application and the compiled classes the render drew; `Style.usedDrawn`
+writes the CSS of those classes, with the global rules (keyframes, `raise`'s
+depth rules) of the Styles they came from, without scanning the HTML. In the
+browser, Styles bring their rules as they draw and skip what this sheet already
+carries, so nothing is added twice.
 
 ```ts
 import { Style } from 'foldkit-mixins'
 
 const html = SSR.page(template, result, {
-  head: rendered => `<style>${Style.usedIn(rendered.html)}</style>`,
+  head: (_rendered, drawn) => `<style>${Style.usedDrawn(drawn)}</style>`,
 })
 ```
+
+The drawn classes are also on the rendered page (`result.drawn`) for a host
+that writes its own head, and `Style.usedIn(rendered.html)` still works for a
+caller holding only the HTML.
 
 With `foldkit-mixins/vite`, the stylesheet is a hashed file, and the page
 links it from the document's head instead (`renderDocument`'s `head`):
@@ -214,8 +219,8 @@ page carries the theme's stylesheet here too, beside the classes it draws
 (`examples/foldkit/ssr/src/renderPage.ts`):
 
 ```ts
-const styles = (rendered: { readonly html: string }): string =>
-  `<style>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>`
+const styles = (_rendered: { readonly html: string }, drawn: ReadonlySet<string>): string =>
+  `<style>${stylesheet}</style><style>${Style.usedDrawn(drawn)}</style>`
 
 SSR.entry(config, plan, { buildId, styles })
 ```
@@ -645,7 +650,7 @@ export const site = {
   paths: ['/', '/about'],
   config: { Model, init, update, view, container: null, routing },
   plan,
-  head: rendered => `<style>${Style.usedIn(rendered.html)}</style>`,
+  head: (_rendered, drawn) => `<style>${Style.usedDrawn(drawn)}</style>`,
   files: 'directory',
   sitemap: true,
   robots: true,
