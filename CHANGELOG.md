@@ -54,6 +54,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **A SQLite app bundles no Drizzle Postgres core** (`foldkit-remote-drizzle`,
+  #464). **Breaking:** a Postgres app calls `postgres()` once from
+  `foldkit-remote-drizzle/pg` before binding its tables; a Postgres table
+  reached without it throws an error naming the entry. The main entry reads a
+  value's dialect from Drizzle's entity kinds and imports nothing from
+  pg-core, so examples/cloudflare's Worker is 26.2 kB smaller (5.8 kB gzip).
+  The pg/mysql-core still in that Worker comes from
+  `@yielded/auth-persistence-drizzle`, not this package.
+
 - **A store that serves past `maxAge` is a `PageCacheStore`, which
   `serveFetch` refuses** (`foldkit-surface`, `foldkit-ssr`,
   `foldkit-remote-server`, #468). `CacheStore` now declares `keep?: never`;
