@@ -7,6 +7,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- **`CacheStore.kv`, a store over Workers KV** (`foldkit-surface`,
+  re-exported by `foldkit-remote`, #468). One copy for every isolate and data
+  centre. An answer is written on its second ask, counted in the isolate's
+  memory, so one-off URLs spend none of KV's free 1,000 writes a day; it is
+  served for its `maxAge` though KV keeps it a minute at least. What KV
+  refuses or fails never fails a request: a failed read is a miss, a refused
+  write keeps nothing, each logged. `keep` serves a kept page past a shorter
+  `maxAge` (`foldkit-ssr`'s `cache` only; the browser reads its stale reads
+  again), so a page renders once in `keep` instead of once a minute.
+
 ## 0.38.0
 
 Pages get cheaper to serve. Public reads and whole pages are kept at the edge
