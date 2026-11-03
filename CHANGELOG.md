@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **A resume plan leaves out the Model the browser reads again** (`foldkit-ssr`,
+  #470). `SSR.plan` takes `restored`, the Model refs a URL or cookie mirror
+  owns, and `restore`, a browser-only function reading them again before the
+  first render; neither path crosses in the envelope. The server's coverage
+  check judges the browser's Model with the values its restore gives,
+  `SSR.inspect` lists the restored paths, and a `state` that also sends one is
+  refused. domains-plus no longer carries its search fields; the cart's cookie
+  holds names only, which the server prices, so the cart still crosses.
+
 - **A public page rendered once, at build** (`foldkit-ssr`, `foldkit-surface`,
   `foldkit-remote-server`, #469). A path in `SSR.entry`'s `prerendered`, which
   Foldkit's plugin renders into a file (`ssr.build.prerender`), is held to the
