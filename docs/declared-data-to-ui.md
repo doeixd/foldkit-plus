@@ -164,7 +164,7 @@ There is an important Remote distinction: a Remote read names requirements in
 metadata, not a Model path. A region over such a read reads it on each render
 and can reuse its drawing when the read gives the same fields. A derivation
 that names the Remote store's Model field can avoid re-reading while that store
-holds. See [regions in the Mixins README](../packages/mixins/README.md#regions)
+holds. See [regions in the Mixins README](../packages/mixins/README.md#regions-redraw-by-the-model-paths-read)
 and [derivations in Surface](../packages/surface/README.md#derivations) for the
 actual APIs and examples.
 
