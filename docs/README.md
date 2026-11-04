@@ -62,6 +62,7 @@ Link and Placement to Connection and Segment, are in the
 | Use a browser primitive or element observer | [Primitives](../packages/primitives/README.md) | `foldkit-primitives` |
 | Cross between React and Foldkit | [React bridge](../packages/react/README.md) | `foldkit-react`; codegen for source translation |
 | Let an LLM or another agent use the application through real application transitions | [Agents](./agents.md) | `foldkit-agent` + WebMCP/MCP/A2A/Agent Native adapters |
+| Follow Entity, Query and Write declarations through Remote reads and UI regions | [From declarations to the screen](./declared-data-to-ui.md) | `foldkit-entity`, `foldkit-remote`, `foldkit-surface`, `foldkit-mixins` |
 | Put server-owned entities in the Model without per-view fetch/cache logic | [Server-derived state](./remote.md) | `foldkit-remote`, `foldkit-remote-server`, optional `foldkit-remote-drizzle` |
 | Work offline and reconcile several devices/tabs against a server order | [Replicated state](./replication.md) | `foldkit-sync` + `foldkit-durable` |
 | Deploy Remote reads, Remote mutations, and Sync writes on a Cloudflare Worker | [Cloudflare example](../examples/cloudflare/README.md) | `foldkit-remote-server/fetch`, `foldkit-sync/do`, `foldkit-durable`, `foldkit-entity`, `foldkit-form`, `foldkit-crud` |
