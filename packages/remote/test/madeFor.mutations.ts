@@ -48,19 +48,19 @@ export default [
   edit(
     'no answer is heard',
     model,
-    'if (heard === undefined || generation === undefined || generation < model.refresh.floor) {',
+    'if (heard === undefined || generation === undefined || askedBeforeForget(model, generation)) {',
     'if (true) {',
   ),
   edit(
     'an answer that says not when it was asked is heard',
     model,
-    'if (heard === undefined || generation === undefined || generation < model.refresh.floor) {',
-    'if (heard === undefined || generation! < model.refresh.floor) {',
+    'if (heard === undefined || generation === undefined || askedBeforeForget(model, generation)) {',
+    'if (heard === undefined || askedBeforeForget(model, generation)) {',
   ),
   edit(
     'an answer to a request sent before forget is heard',
     model,
-    'if (heard === undefined || generation === undefined || generation < model.refresh.floor) {',
+    'if (heard === undefined || generation === undefined || askedBeforeForget(model, generation)) {',
     'if (heard === undefined || generation === undefined) {',
   ),
   edit(
@@ -72,8 +72,8 @@ export default [
   edit(
     'a list entry sends its pages with no generation',
     '../src/domain.ts',
-    '...(generation === undefined ? {} : { generation }),',
-    '',
+    '{ principal: madeAsOf(result.principal) }),\n    ...(generation === undefined ? {} : { generation }),',
+    '{ principal: madeAsOf(result.principal) }),',
   ),
   edit(
     "a write's answer says not when it was sent",
@@ -210,7 +210,7 @@ export default [
   edit(
     "a list's page drops whom it was for",
     '../src/domain.ts',
-    'principal: madeAsOf(result.principal),',
+    '...(result.principal === undefined ? {} : { principal: madeAsOf(result.principal) }),',
     '',
   ),
   edit(

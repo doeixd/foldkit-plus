@@ -1,8 +1,15 @@
-import { Schema } from 'effect'
+import { Effect, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Entity, Mutation, Remote } from '../src/index.js'
+import {
+  Entity,
+  Mutation,
+  Remote,
+  RemoteClient,
+  RemoteLiveError,
+  type RemoteMessage,
+} from '../src/index.js'
 import { live } from '../src/live.js'
 
 const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
@@ -113,6 +120,94 @@ describe('Data.forget', () => {
     })
     expect(user.read(settled)).toEqual({ _tag: 'Initial' })
     expect(settled.remote.optimistic.layers).toEqual([])
+  })
+
+  describe("an answer asked for before it is the previous principal's (#484)", () => {
+    const forgotten = Data.forget(known)
+    const floor = forgotten.remote.refresh.floor
+    const answers = (generation: number): ReadonlyArray<RemoteMessage> => [
+      {
+        _tag: 'ReadReceived',
+        requests: [request],
+        result: { entities: [{ entity: 'User', id: 'u1', values: { name: 'Eve' } }], settled: [] },
+        now: 3,
+        generation,
+      },
+      {
+        _tag: 'ReadFailed',
+        requests: [request],
+        error: { _tag: 'RemoteReadError', message: 'down' },
+        generation,
+      },
+      {
+        _tag: 'LiveReceived',
+        stream: 'User:u1:name',
+        event: {
+          _tag: 'EntityPatched',
+          cursor: 1,
+          ref: { entity: 'User', id: 'u1' },
+          values: { name: 'Eve' },
+          changed: ['name'],
+        },
+        now: 3,
+        generation,
+      },
+      {
+        _tag: 'ConnectionMerged',
+        connection: 'Feed',
+        page: { edges: [], start: { _tag: 'Terminal' }, end: { _tag: 'Terminal' } },
+        now: 3,
+        generation,
+      },
+      {
+        _tag: 'QueryFailed',
+        connection: 'Feed',
+        error: { _tag: 'RemoteQueryError', message: 'down' },
+        generation,
+      },
+    ]
+
+    it.each(answers(floor - 1))('writes nothing: $_tag', answer => {
+      expect(Data.reduce(forgotten, answer)).toBe(forgotten)
+    })
+    it.each(answers(floor))('is applied when asked since: $_tag', answer => {
+      expect(Data.reduce(forgotten, answer)).not.toBe(forgotten)
+    })
+  })
+
+  describe('stamps a live stream with the floor it was opened under', () => {
+    const Page = App.surface('ForgetStamp', { model: () => ({ watched }) })
+    const entry = Data.subscriptions({ page: Page })['page.live']
+    const forgotten = Data.forget(known)
+    const floor = forgotten.remote.refresh.floor
+    const event = {
+      _tag: 'EntityPatched' as const,
+      cursor: 1,
+      ref: { entity: 'User', id: 'u1' },
+      values: { name: 'Eve' },
+      changed: ['name'],
+    }
+    const messagesOf = (live: RemoteClient['Service']['live']) =>
+      Effect.runPromise(
+        Stream.runCollect(entry.dependenciesToStream(entry.modelToDependencies(forgotten))).pipe(
+          Effect.provideService(RemoteClient, {
+            read: () => Effect.die('unused'),
+            query: () => Effect.die('unused'),
+            mutate: () => Effect.die('unused'),
+            live,
+          }),
+        ),
+      )
+
+    it('an event', async () => {
+      expect([...(await messagesOf(() => Stream.make(event)))]).toMatchObject([
+        { _tag: 'LiveReceived', generation: floor },
+      ])
+    })
+    it('a break', async () => {
+      const broken = await messagesOf(() => Stream.fail(new RemoteLiveError({ message: 'lost' })))
+      expect([...broken]).toMatchObject([{ _tag: 'ReadFailed', generation: floor }])
+    })
   })
 
   it('is a refresh generation of its own, above which a later refresh moves', () => {

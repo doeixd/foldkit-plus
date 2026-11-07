@@ -1537,6 +1537,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
         refreshes: true,
         // A page without rows' fields still dates its list.
         now: expect.any(Number),
+        generation: 0,
       },
     ])
     // The wire request is rebuilt from the connection identity: the canonical encoded input.
@@ -1646,6 +1647,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
           _tag: 'RemoteQueryError',
           message: 'connection "Feed" is not a query\'s: only a QueryRef identity can be run',
         },
+        generation: 0,
       },
     ])
   })
@@ -1669,6 +1671,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
         _tag: 'QueryFailed',
         connection: identity,
         error: { _tag: 'RemoteQueryError', message: 'boom' },
+        generation: 0,
       },
     ])
     const settled = messages.reduce(Data.reduce, stale)

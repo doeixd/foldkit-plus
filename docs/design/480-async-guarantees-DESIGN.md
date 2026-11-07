@@ -85,7 +85,7 @@ applicable). **Decision** is reuse, extend, or not adopted.
 | ST-2c pending per key | Per-field marks and failures in Remote's store | runtime law | reuse |
 | H-11 optimistic: a guess over a source; truth corrects it; unrelated guesses survive | Remote predicts the layer from the declared write instead of taking it by hand, and checks the prediction (`Law.check`, `verifyPredictions`, `PredictionMismatch`, all mutation-tested). Visible against `Data.confirmed`, rejection removing exactly its layer, and later layers winning are tested (`domain.test.ts:380`, `optimistic.test.ts:34`, `:58`) but not mutation-tested | runtime law | reuse; add mutations (#482) |
 | H-11 "verdict-inert": a guess does not make reads pending; `affects` opts in | Open: whether a pending write should make a read look loading is decided by Remote today, not per write ([comparison idea 2](./solid-2-optimistic-COMPARISON.md#ideas-worth-taking), #377) | — | open, #377 |
-| H-11, R-4 an older question's late answer is superseded | Fiber interruption on restart only. The `ReadReceived` reducer writes whatever arrives (`packages/remote/src/model.ts:1821`); `generation` is read only to decide whom the outbox heard (`heardAs`) | runtime, unguarded | **hypothesis 1**, #482 |
+| H-11, R-4 an older question's late answer is superseded | Within one principal, by fiber interruption on restart. Across a `forget`, the reducer too: an answer from before it writes nothing (#484, below) | runtime law, mutation-tested across `forget` | reuse; within a principal, see hypothesis 1 |
 | H-2 two writes to one slot join; overlapping actions | Ordered settlement per request id (#273): an earlier answer cannot revert a later write. `answerOrder.mutations.ts` (13 mutations), `repeatedAnswer`, and the server ledger's replay (`remote-drizzle/test/ledger.test.ts`) | runtime law, mutation-tested | reuse |
 | AC-6 `until(predicate, { timeout })` | `Agent.when({ projection \| source, predicate, timeout })`. A Remote layer held until live data confirms it is not built (comparison idea 1) | runtime | reuse; idea stays with #377 |
 | a live answer landing during a held action | No test sends a live patch for a field under a pending layer, or between an answer and the layer's release. Edge and connection cases are tested (`optimisticMutation.test.ts:157`, `:200`) | untested | **hypothesis 2**, #482 |
@@ -95,27 +95,32 @@ applicable). **Decision** is reuse, extend, or not adopted.
 | ReactiveScript | Foldkit Plus today | How it holds | Decision |
 | --- | --- | --- | --- |
 | O-2 a region's release ends its flights | A Surface that stops being active drops its requirements, and its read entry's stream ends. Timeouts are tested (`deadline.test.ts`, no mutations) | runtime | reuse |
-| SV-4 state is per request; a principal change | `Data.forget` raises a floor every read and live entry restarts from (`model.ts:331`, `forget.test.ts`). The floor comparison in `heardAs` is mutation-tested (`madeFor.mutations.ts`); the floor in `refreshedAt` and `liveEntry.ts` is not, and no test queues an old principal's answer after `forget` | runtime, partly | **hypothesis 1**, #482 |
+| SV-4 state is per request; a principal change | `Data.forget` raises a floor every read and live entry restarts from, and every answer carries the generation it was asked under; one from before the floor writes nothing (#484, `forget.test.ts`, `overlappingReads.test.ts`, `forgetAnswers.mutations.ts`). The floor in `refreshedAt` and `liveEntry.ts` still has no mutation of its own | runtime law, mutation-tested | fixed (#484) |
 | SV-3b answers cross; SV-3c determinism | `foldkit-ssr`'s resume plan; `determinism.test.ts` renders under two zones and locales; the build id refuses another build's page | runtime law | reuse |
 | SV-3e input before hydration | A handler that makes the page wait for the live runtime (ssr-PLAN G1) | runtime | reuse |
 
 ## Counterexamples to look for first
 
-Neither is demonstrated yet. Each is a test to write before any API.
+Each is a test to write before any API.
 
 1. **A late read answer lands after the read was superseded.** The read
    entry restarts when its refresh generation changes and the old fiber is
    interrupted, but a `ReadReceived` already queued behind the restart is
    applied (the "restart speaks after the Messages already queued" trap in
-   `CLAUDE.md`). Two cases matter. After a refresh, an answer older than the
-   one already written could overwrite it. After `Data.forget`, the previous
-   principal's rows could land in the new session's store, which is a
-   privacy fault, not only a stale one. The lagging-restart driver in
-   `packages/remote/test/overlappingReads.test.ts` can queue answers before
-   the Subscription catches up; `Trace.run` restarts at once and cannot. If
-   either case reproduces, the fix is a generation check in the reducer
-   (refuse an answer whose `generation` is below the floor, or below the
-   read's own mark), mutation-tested.
+   `CLAUDE.md`). Two cases matter.
+   - **After `Data.forget`: reproduced and fixed (#484).** The lagging-restart
+     driver in `packages/remote/test/overlappingReads.test.ts` queued the old
+     principal's answer behind a `forget`, and the row read `Ready` in the new
+     session. `ReadReceived`, `ReadFailed`, `ConnectionMerged`, `QueryFailed`
+     and `LiveReceived` now carry the generation they were asked under, and
+     the reducer drops one from before the floor. The old start's loading
+     marks are still cleared by the restart's abandonment, so no row stays
+     `Loading`.
+   - **After a refresh, within one principal: not yet tested.** An answer
+     older than the one already written could overwrite it. Unlike the
+     `forget` case, an older answer here is still the principal's own data,
+     so this is staleness, not a leak; a fix would compare against the read's
+     own mark rather than the floor.
 2. **A live patch flickers a predicted row.** A patch for a field under a
    pending layer writes the base, and the layer should still win; a patch
    arriving between the answer and the layer's release should not show the
@@ -137,7 +142,8 @@ closed for a subset, which is #483's job.
 ## What each issue should do
 
 - **#482 (temporal laws) goes first.** It is the only issue with a candidate
-  defect. Scope: hypotheses 1 and 2 above, then the missing mutations:
+  defect. Scope: hypothesis 1's refresh case and hypothesis 2 (the `forget`
+  case is #484), then the missing mutations:
   `refreshedAt`'s per-field max and floor, `liveEntry.ts`'s floor,
   `Data.confirmed`, `optimistic.test.ts`, `optimisticMutation.test.ts`,
   `deadline.test.ts`. Build on `Trace.run` and the lagging driver; export the
@@ -169,7 +175,7 @@ closed for a subset, which is #483's job.
 
 ## Order
 
-1. #482 hypothesis 1, as a failing test or a recorded pass.
+1. #482 hypothesis 1: the `forget` case is #484; the refresh case remains.
 2. #482 hypothesis 2 and the missing mutations.
 3. #483's measurement of `derive` calls, then a decision.
 4. #481's two small items.

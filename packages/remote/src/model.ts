@@ -405,9 +405,11 @@ export type RemoteMessage =
       readonly result: Schema.Schema.Type<typeof ReadBatchResult>
       readonly now: number
       /**
-       * The refresh generation the request was planned or sent under: whom
-       * the answer was for is heard only from a request sent since the last
-       * `forget` (#405). Without it, it is not heard.
+       * The refresh generation the request was planned or sent under. An
+       * answer from before the last `forget` is the previous principal's and
+       * writes nothing (#484); whom an answer was for is heard only from a
+       * request sent since (#405). Without it, the answer is applied and its
+       * principal not heard.
        */
       readonly generation?: number | undefined
     }
@@ -415,6 +417,8 @@ export type RemoteMessage =
       readonly _tag: 'ReadFailed'
       readonly requests: readonly Requirement[]
       readonly error: RemoteError
+      /** The generation the read or stream was asked under: see `ReadReceived.generation`. */
+      readonly generation?: number | undefined
       /**
        * The live stream whose subscription broke, when this is that rather
        * than a read. Nothing was being read, so no field failed: the stream is
@@ -659,6 +663,8 @@ export type RemoteMessage =
       readonly event: LiveEvent
       readonly policy?: LivePolicy
       readonly now: number
+      /** The `forget` floor the stream was opened under: see `ReadReceived.generation`. */
+      readonly generation?: number | undefined
     }
   | { readonly _tag: 'GapCleared'; readonly stream: string }
   | {
@@ -693,11 +699,7 @@ export type RemoteMessage =
       readonly now?: number | undefined
       /** Whom the answer was for, where `QueryResult.principal` said. */
       readonly principal?: MadeAs | undefined
-      /**
-       * The refresh generation the request was planned or sent under: whom
-       * the answer was for is heard only from a request sent since the last
-       * `forget` (#405). Without it, it is not heard.
-       */
+      /** The refresh generation the query was planned under: see `ReadReceived.generation`. */
       readonly generation?: number | undefined
     }
   | { readonly _tag: 'ConnectionInvalidated'; readonly connection: string }
@@ -707,7 +709,13 @@ export type RemoteMessage =
    * reads `Failed` — with them as `previous`, when it has any — until a page
    * arrives, it is invalidated, or retention drops it.
    */
-  | { readonly _tag: 'QueryFailed'; readonly connection: string; readonly error: RemoteError }
+  | {
+      readonly _tag: 'QueryFailed'
+      readonly connection: string
+      readonly error: RemoteError
+      /** The refresh generation the query was planned under: see `ReadReceived.generation`. */
+      readonly generation?: number | undefined
+    }
   /**
    * What `Data.preload` read for a destination, as the Messages that wrote it,
    * reduced in order into the Model as it is now rather than the one the
@@ -754,6 +762,7 @@ export const remoteMessageCases = {
     requests: Schema.Array(ReadRequest),
     error: remoteErrorSchema,
     stream: Schema.optional(Schema.String),
+    generation: Schema.optional(Schema.Number),
   },
   RefreshStarted: {
     requests: Schema.Array(ReadRequest),
@@ -839,6 +848,7 @@ export const remoteMessageCases = {
     event: Schema.Unknown,
     policy: Schema.optional(Schema.Unknown),
     now: Schema.Number,
+    generation: Schema.optional(Schema.Number),
   },
   GapCleared: { stream: Schema.String },
   ConnectionMerged: {
@@ -854,7 +864,11 @@ export const remoteMessageCases = {
   },
   ConnectionInvalidated: { connection: Schema.String },
   ConnectionRefreshed: { connection: Schema.String },
-  QueryFailed: { connection: Schema.String, error: remoteErrorSchema },
+  QueryFailed: {
+    connection: Schema.String,
+    error: remoteErrorSchema,
+    generation: Schema.optional(Schema.Number),
+  },
   Preloaded: {
     messages: Schema.Array(Schema.suspend(() => remoteMessageSchema)),
   },
@@ -1375,6 +1389,14 @@ const placedIn = (queue: ReadonlyArray<Queued>, queued: Queued): ReadonlyArray<Q
 }
 
 /**
+ * Whether an answer was asked for before the last `forget`, so is the previous
+ * principal's (#484). Foldkit restarts a Subscription after the Messages
+ * already queued, so interrupting the old read does not stop its answer.
+ */
+const askedBeforeForget = (model: RemoteModel, generation: number | undefined): boolean =>
+  generation !== undefined && generation < model.refresh.floor
+
+/**
  * The outbox having heard whom an answer was for. Itself when the answer did
  * not say, said what it holds, or answers a request sent before the last
  * `forget` (its `generation` below `refresh.floor`), which was someone else's.
@@ -1385,7 +1407,7 @@ const heardAs = (
   heard: MadeAs | undefined,
   generation: number | undefined,
 ): OutboxState => {
-  if (heard === undefined || generation === undefined || generation < model.refresh.floor) {
+  if (heard === undefined || generation === undefined || askedBeforeForget(model, generation)) {
     return outbox
   }
   const same = Option.exists(outbox.principal, held =>
@@ -1819,6 +1841,7 @@ const reduceRemote = (
     case 'CompletedReportDiagnostics':
       return model
     case 'ReadReceived':
+      if (askedBeforeForget(model, message.generation)) return model
       return {
         ...model,
         outbox: heardAs(
@@ -1838,6 +1861,7 @@ const reduceRemote = (
         ]),
       }
     case 'ReadFailed':
+      if (askedBeforeForget(model, message.generation)) return model
       // A broken live stream is not a failed read. Marking its fields failed
       // would take them out of the read entry's plan, and restart it, which is
       // the opposite of what missing changes calls for.
@@ -2161,6 +2185,7 @@ const reduceRemote = (
         optimistic: layersIn(capabilities).settleFailure(model.optimistic, message.requestId),
       }
     case 'LiveReceived': {
+      if (askedBeforeForget(model, message.generation)) return model
       const state = model.live[message.stream] ?? emptyLiveState
       if (message.event._tag === 'EntityPatched' || message.event._tag === 'EntityDeleted') {
         const event = message.event
@@ -2203,6 +2228,7 @@ const reduceRemote = (
     case 'GapCleared':
       return clearGap(model, message.stream)
     case 'ConnectionMerged': {
+      if (askedBeforeForget(model, message.generation)) return model
       const current = model.connections[message.connection] ?? emptyConnection
       const loading = withoutQueryLoading(model.loading, message.connection)
       // The page answering an invalidation is the server's list as it now is, so it
@@ -2275,6 +2301,7 @@ const reduceRemote = (
     case 'ConnectionInvalidated':
       return invalidated(model, message.connection)
     case 'QueryFailed':
+      if (askedBeforeForget(model, message.generation)) return model
       // The pages stay as they were, and a refresh that failed is still owed:
       // the connection stays stale. The failure is what stops the planner
       // asking again on its own; whatever settles it next (a retry, or a page

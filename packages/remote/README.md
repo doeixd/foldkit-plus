@@ -1126,8 +1126,10 @@ case 'SignedOut': {
 It performs no I/O and returns the Model with every server-derived fact gone:
 values, tombstones, unavailable fields, connections, live cursors, failures,
 and the reads in flight. Every active Surface's read and live entries restart,
-so the screen asks again as whoever the client now is; a read or stream begun
-before is interrupted rather than landing after. A mutation in flight is
+so the screen asks again as whoever the client now is. A read or stream begun
+before is interrupted, and an answer it had already sent, still queued behind
+the `forget`, writes nothing: each answer carries the generation it was asked
+under, and one from before the `forget` is dropped. A mutation in flight is
 treated as applied, so its answer writes nothing into the new store, and the
 mutation sequence is kept, so request ids stay unique.
 

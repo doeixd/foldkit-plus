@@ -79,6 +79,17 @@ version changed; `pnpm` skips versions already in the registry.
   no age, and one served past its `maxAge` would read as fresh. `memory`,
   `workers` and `kv` without `keep` are accepted by both.
 
+### Fixed
+
+- **An answer queued before `Data.forget` no longer lands in the new session**
+  (`foldkit-remote`, #484). Interrupting the old read did not stop an answer
+  already queued behind the `forget`, so the previous principal's rows,
+  failures, pages and live patches were written into the forgotten store.
+  `ReadReceived`, `ReadFailed`, `ConnectionMerged`, `QueryFailed` and
+  `LiveReceived` now carry the generation they were asked under (an optional
+  field on each Message), and one from before the `forget` leaves the Model
+  as it was.
+
 ## 0.38.0
 
 Pages get cheaper to serve. Public reads and whole pages are kept at the edge

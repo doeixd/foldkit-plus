@@ -181,6 +181,10 @@ const drive = (start: Model, policy: RemotePolicy) => {
     show: (visible: ReadonlyArray<string>) => {
       model = { ...model, visible }
     },
+    /** Forgets the principal's facts without the Subscriptions seeing it yet. */
+    forget: () => {
+      model = Data.forget(model)
+    },
     answer,
     /** Fails the held read asking for `id`; its `ReadFailed` is queued, not reduced. */
     fail: (id: string) => settleRead(id, () => Exit.fail(new RemoteReadError({ message: 'down' }))),
@@ -277,6 +281,49 @@ describe('two overlapping reads that fail', () => {
         })
     })
   }
+})
+
+describe('an answer queued behind Data.forget', () => {
+  it("writes nothing: it is the previous principal's", () => {
+    const driver = drive(start, RemotePolicy.cacheFirst)
+    driver.reconcile()
+    driver.drain()
+    // Answered for the old principal, queued before the forget's restart
+    // interrupts the read that asked.
+    driver.answer('n0')
+    driver.forget()
+    driver.drain()
+    expect(Data.get(Quote, 'n0').read(driver.model())).not.toMatchObject({ _tag: 'Ready' })
+  })
+
+  it('leaves nothing loading when the read it started is answered too late', () => {
+    const driver = drive(start, RemotePolicy.cacheFirst)
+    // Both reads start, and the forget lands before their ReadStarted.
+    driver.reconcile()
+    driver.forget()
+    driver.answer('n0')
+    driver.answer('n9')
+    driver.drain()
+    // The old starts marked their rows, and their answers cleared nothing.
+    expect(Data.get(Quote, 'n9').read(driver.model())).toEqual({ _tag: 'Loading' })
+    // The view now asks for less than the old read did.
+    driver.show(['n5'])
+    driver.reconcile()
+    driver.serve(50)
+    expect(driver.held()).toEqual([])
+    for (const name of names)
+      expect(Data.get(Quote, name).read(driver.model()), name).not.toEqual({ _tag: 'Loading' })
+  })
+
+  it("marks nothing failed: the failure was the previous principal's read", () => {
+    const driver = drive(start, RemotePolicy.cacheFirst)
+    driver.reconcile()
+    driver.drain()
+    driver.fail('n0')
+    driver.forget()
+    driver.drain()
+    expect(Data.get(Quote, 'n0').read(driver.model())).not.toMatchObject({ _tag: 'Failed' })
+  })
 })
 
 describe('a read entry under staleWhileRevalidate', () => {
