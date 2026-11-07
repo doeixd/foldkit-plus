@@ -175,9 +175,11 @@ test('with JavaScript, the TLD page hydrates and links back to the search', asyn
 
   // The app's own link handler keeps the search and patches only the TLD.
   await page.getByRole('link', { name: '.dev', exact: true }).click()
-  await page.waitForURL(/[?&]tld=Dev(&|$)/)
+  // The URL changes client-side, so wait for the search page's own path and
+  // then for its row: a `count()` taken as the URL changes is a snapshot.
+  await page.waitForURL(url => url.pathname === '/' && url.searchParams.get('tld') === 'Dev')
   expect(new URL(page.url()).searchParams.get('q')).toBe('acme')
-  expect(await page.locator('#domain-results .domain-row').count()).toBe(1)
+  await expect.poll(() => page.locator('#domain-results .domain-row').count()).toBe(1)
   expect(warnings).toEqual([])
   await page.close()
 })
