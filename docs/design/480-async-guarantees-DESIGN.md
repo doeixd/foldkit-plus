@@ -81,9 +81,9 @@ applicable). **Decision** is reuse, extend, or not adopted.
 | H-2..H-4 an instant is held by its pending readers | Every Message commits. "Keep the old screen" is the Model keeping the old value | — | not adopted: deliberate |
 | H-5, H-6 armed and disarmed boundaries | Per read, not per region: `RemoteData.render`'s `loading` is armed, its `Refreshing` branch is disarmed (it shows content with a `Freshness` tag) | construction | reuse |
 | V-16 `deferred` (declared lag) | What `Refreshing` already is: the held value shows while the next loads | construction | reuse |
-| V-9, AC-4 `refresh` re-asks quietly | `Data.refresh` marks per field and per connection; the read entries that observe the mark restart, others keep running. Tested (`packages/remote/test/domain.test.ts:1213`, `refreshActive.test.ts` + mutations); the per-field generation in `refreshedAt` has no mutation of its own | runtime law | reuse; add the mutation (#482) |
+| V-9, AC-4 `refresh` re-asks quietly | `Data.refresh` marks per field and per connection; the read entries that observe the mark restart, others keep running. Tested (`packages/remote/test/domain.test.ts:1213`, `refreshActive.test.ts` + mutations); the per-field generation in `refreshedAt` too (`refreshedAt.mutations.ts`) | runtime law, mutation-tested | reuse |
 | ST-2c pending per key | Per-field marks and failures in Remote's store | runtime law | reuse |
-| H-11 optimistic: a guess over a source; truth corrects it; unrelated guesses survive | Remote predicts the layer from the declared write instead of taking it by hand, and checks the prediction (`Law.check`, `verifyPredictions`, `PredictionMismatch`, all mutation-tested). Visible against `Data.confirmed`, rejection removing exactly its layer, and later layers winning are tested (`domain.test.ts:380`, `optimistic.test.ts:34`, `:58`) but not mutation-tested | runtime law | reuse; add mutations (#482) |
+| H-11 optimistic: a guess over a source; truth corrects it; unrelated guesses survive | Remote predicts the layer from the declared write instead of taking it by hand, and checks the prediction (`Law.check`, `verifyPredictions`, `PredictionMismatch`, all mutation-tested). Visible against `Data.confirmed`, rejection removing exactly its layer, and later layers winning are tested (`domain.test.ts:380`, `optimistic.test.ts:34`, `:58`) and mutation-tested (`confirmed.mutations.ts`, `layers.mutations.ts`) | runtime law, mutation-tested | reuse |
 | H-11 "verdict-inert": a guess does not make reads pending; `affects` opts in | Open: whether a pending write should make a read look loading is decided by Remote today, not per write ([comparison idea 2](./solid-2-optimistic-COMPARISON.md#ideas-worth-taking), #377) | — | open, #377 |
 | H-11, R-4 an older question's late answer is superseded | Within one principal, by fiber interruption on restart. Across a `forget`, the reducer too: an answer from before it writes nothing (#484, below) | runtime law, mutation-tested across `forget` | reuse; within a principal, see hypothesis 1 |
 | H-2 two writes to one slot join; overlapping actions | Ordered settlement per request id (#273): an earlier answer cannot revert a later write. `answerOrder.mutations.ts` (13 mutations), `repeatedAnswer`, and the server ledger's replay (`remote-drizzle/test/ledger.test.ts`) | runtime law, mutation-tested | reuse |
@@ -94,8 +94,8 @@ applicable). **Decision** is reuse, extend, or not adopted.
 
 | ReactiveScript | Foldkit Plus today | How it holds | Decision |
 | --- | --- | --- | --- |
-| O-2 a region's release ends its flights | A Surface that stops being active drops its requirements, and its read entry's stream ends. Timeouts are tested (`deadline.test.ts`, no mutations) | runtime | reuse |
-| SV-4 state is per request; a principal change | `Data.forget` raises a floor every read and live entry restarts from, and every answer carries the generation it was asked under; one from before the floor writes nothing (#484, `forget.test.ts`, `overlappingReads.test.ts`, `forgetAnswers.mutations.ts`). The floor in `refreshedAt` and `liveEntry.ts` still has no mutation of its own | runtime law, mutation-tested | fixed (#484) |
+| O-2 a region's release ends its flights | A Surface that stops being active drops its requirements, and its read entry's stream ends. Timeouts are tested and mutation-tested (`deadline.test.ts`, `callTimeout.mutations.ts`) | runtime | reuse |
+| SV-4 state is per request; a principal change | `Data.forget` raises a floor every read and live entry restarts from, and every answer carries the generation it was asked under; one from before the floor writes nothing (#484, `forget.test.ts`, `overlappingReads.test.ts`, `forgetAnswers.mutations.ts`). The floors in `refreshedAt` and `liveEntry.ts` are mutation-tested too (`refreshedAt.mutations.ts`, `liveFloor.mutations.ts`) | runtime law, mutation-tested | fixed (#484) |
 | SV-3b answers cross; SV-3c determinism | `foldkit-ssr`'s resume plan; `determinism.test.ts` renders under two zones and locales; the build id refuses another build's page | runtime law | reuse |
 | SV-3e input before hydration | A handler that makes the page wait for the live runtime (ssr-PLAN G1) | runtime | reuse |
 
@@ -153,10 +153,9 @@ closed for a subset, which is #483's job.
 
 - **#482 (temporal laws) goes first.** It is the only issue with a candidate
   defect. Hypothesis 1's `forget` case was #484 and hypothesis 2 is #485;
-  the refresh case needs a wire revision first. Then the missing mutations:
-  `refreshedAt`'s per-field max and floor, `liveEntry.ts`'s floor,
-  `Data.confirmed`, `optimistic.test.ts`, `optimisticMutation.test.ts`,
-  `deadline.test.ts`. Build on `Trace.run` and the lagging driver; export the
+  the refresh case needs a wire revision first. The missing mutations are
+  written (refresh marks, the live floor, `Data.confirmed`, the layers, call
+  timeouts: 23 of 23 killed). Build on `Trace.run` and the lagging driver; export the
   driver from `foldkit-remote/testing` only if a second test file needs it.
   No Solid oracle: no row above calls for frame-level parity.
 - **#483 (Projection reads)** has one real target: `Projection.derive`'s
@@ -192,7 +191,7 @@ closed for a subset, which is #483's job.
 ## Order
 
 1. #482 hypothesis 1: the `forget` case is #484; the refresh case needs a row revision.
-2. #485's design decision, and #482's missing mutations.
+2. #485's design decision.
 3. #483: a development check that a `derive` memo hit equals a fresh run.
 4. #481's two small items.
 5. #478 and #479 when their own consumers ask.
