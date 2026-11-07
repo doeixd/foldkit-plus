@@ -16,6 +16,7 @@ import { Surface } from 'foldkit-surface'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   Mutation,
+  Query,
   Remote,
   RemoteClient,
   isRemoteMessage,
@@ -41,7 +42,13 @@ type Model = typeof Model.Type
 const Message = defineMessageUnion({ ...Remote.messages, Pressed: {} })
 type Message = typeof Message.Type
 const App = Surface.application({ Model, Message })
-const Data = Remote.make({ model: App.model.remote, entities: [Item], mutations: [SetCount] })
+const ItemsByOwner = Query.make('ItemsByOwner', { Input: { ownerId: Schema.String }, Result: Item })
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: [Item],
+  mutations: [SetCount],
+  queries: [ItemsByOwner],
+})
 const Counted = Entity.select(Item, { count: true })
 const initial: Model = { remote: Remote.initial, actor: 'ada' }
 
@@ -50,7 +57,7 @@ const silent = () => {
   const asked: string[] = []
   const layer = Layer.succeed(RemoteClient, {
     read: () => Effect.sync(() => void asked.push('read')).pipe(Effect.andThen(Effect.never)),
-    query: () => Effect.never,
+    query: () => Effect.sync(() => void asked.push('query')).pipe(Effect.andThen(Effect.never)),
     mutate: () => Effect.sync(() => void asked.push('mutate')).pipe(Effect.andThen(Effect.never)),
     live: () => Stream.empty,
   })
@@ -118,6 +125,30 @@ describe('a deadline per call', () => {
     )
     expect(emitted.at(-1)).toMatchObject({
       _tag: 'ReadFailed',
+      error: { message: 'No answer within 1s' },
+    })
+  })
+
+  it('a read entry’s timeout fails its queries, before the client’s', async () => {
+    const client = silent()
+    const items = Data.query(ItemsByOwner, { ownerId: 'u1' }, { select: Counted, first: 2 })
+    const read = Remote.observe(
+      Data,
+      App.surface('Page', { model: () => ({ items }) }),
+      undefined,
+      undefined,
+      { timeout: '1 second' },
+    )
+    const messages = Stream.runCollect(read.dependenciesToStream(read.modelToDependencies(initial)))
+    const emitted: ReadonlyArray<RemoteMessage> = await after(
+      messages,
+      Remote.coalesced(client.layer, { timeout: '1 minute' }),
+      client.asked,
+      '1 second',
+    )
+    expect(client.asked).toContain('query')
+    expect(emitted.at(-1)).toMatchObject({
+      _tag: 'QueryFailed',
       error: { message: 'No answer within 1s' },
     })
   })

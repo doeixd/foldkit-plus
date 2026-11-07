@@ -138,6 +138,24 @@ describe('a mutation owns its optimistic entity layer and connection overlays', 
     expect(visible(one)).toEqual(['tmp-2', 'c9', 'c1', 'c2'])
   })
 
+  it('two pending requests patching one row show the later request’s value', () => {
+    const rename = (model: RemoteModel, requestId: string, text: string) =>
+      updateRemote(model, {
+        _tag: 'MutationStarted',
+        requestId,
+        optimistic: [Entity.patch(Comment.ref('c1'), { id: 'c1', body: text })],
+      })
+    const two = rename(rename(withFeed(), 'req-1', 'first'), 'req-2', 'second')
+    expect(body(two, 'c1')).toEqual(Option.some('second'))
+    const one = updateRemote(two, {
+      _tag: 'MutationFailed',
+      operation: 'op',
+      requestId: 'req-2',
+      error: { _tag: 'Boom', message: 'no' },
+    })
+    expect(body(one, 'c1')).toEqual(Option.some('first'))
+  })
+
   it('a server page that includes the confirmed edge does not duplicate it', () => {
     const settled = updateRemote(start(withFeed(), 'req-1', 'tmp-1'), {
       _tag: 'MutationSucceeded',

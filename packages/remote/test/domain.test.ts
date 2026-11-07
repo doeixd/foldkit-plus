@@ -1234,6 +1234,49 @@ describe('Data.query reads a connection as a page of selected items', () => {
       )
     })
 
+    it('leaves an entry alone that still has something to read, when another field is refreshed', () => {
+      const p1 = Data.get(summary, 'p1')
+      const p2 = Data.get(summary, 'p2')
+      const entryFor = (projection: Projection<Model, unknown>) =>
+        Remote.observe(
+          Data,
+          App.surface('Unread', { model: () => ({ value: projection }) }),
+          undefined,
+        )
+      // p2 was never read, so its entry plans a read: a generation that moved
+      // for p1 alone must not reach it.
+      const loaded = read(initial, ['p1'])
+      const before = entryFor(p2).modelToDependencies(loaded)
+      expect(before.requirements).not.toEqual([])
+
+      const refreshed = Data.refresh(loaded, p1)
+
+      expect(entryFor(p2).modelToDependencies(refreshed)).toEqual(before)
+    })
+
+    it('plans an entry under the latest refresh of any field it observes', () => {
+      const p1 = Data.get(summary, 'p1')
+      const p2 = Data.get(summary, 'p2')
+      const both = Projection.struct({ first: p1, second: p2 })
+      const entryFor = (projection: Projection<Model, unknown>) =>
+        Remote.observe(
+          Data,
+          App.surface('Both', { model: () => ({ value: projection }) }),
+          undefined,
+        )
+      const loaded = read(initial, ['p1', 'p2'])
+      // p2 is refreshed first, so the entry's newest mark is the one on p1,
+      // which the requirements list ahead of p2.
+      const refreshed = Data.refresh(Data.refresh(loaded, p2), p1)
+
+      expect(entryFor(both).modelToDependencies(refreshed).refresh).toBe(
+        entryFor(p1).modelToDependencies(refreshed).refresh,
+      )
+      expect(entryFor(both).modelToDependencies(refreshed).refresh).toBeGreaterThan(
+        entryFor(p2).modelToDependencies(refreshed).refresh,
+      )
+    })
+
     it('asks again once a read has begun since the last refresh', () => {
       const project = Data.get(summary, 'p1')
       const once = Data.refresh(read(initial, ['p1']), project)
