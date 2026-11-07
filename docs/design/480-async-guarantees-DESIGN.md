@@ -2,7 +2,8 @@
 
 Status: audit (2026-11-07), the first deliverable of #480. Not an API proposal.
 It decides what #478, #479, #481, #482 and #483 should build, and what they
-should not.
+should not. Since written: #484 and #485 fixed, #482's missing mutations
+written, #481's `tags:check` item done; open items are listed in [Order](#order).
 
 Sources: ReactiveScript at
 [`fdbcad9`](https://github.com/ryansolid/reactivescript/tree/fdbcad921c6bc1cae59cbebe9905eeabc480e88f)
@@ -194,8 +195,16 @@ closed for a subset, which is #483's job.
 
 ## Order
 
-1. #482 hypothesis 1: the `forget` case is #484; the refresh case needs a row revision.
-2. #485: done.
-3. #483: a development check that a `derive` memo hit equals a fresh run.
-4. #481's two small items.
-5. #478 and #479 when their own consumers ask.
+Done: #484 (`forget`), #485 (live patches after an answer), #482's missing
+mutations, and #481's `tags:check` over the examples. Open, each waiting on a
+decision rather than on work:
+
+1. #482 hypothesis 1's refresh case: needs a row revision on the wire.
+2. #483: a development check that a `derive` memo hit equals a fresh run.
+   The packages never read development mode themselves (an application passes
+   `import.meta.env?.DEV`, as `verifyPredictions` takes it), so the check
+   needs a public switch: per call, per application, or a testing helper.
+3. #481: `Failed.previous` as an `Option`, a breaking change to a published
+   union with about thirty readers.
+4. #478 and #479 when their own consumers ask.
+5. #480's end-to-end proof through SSR and replay, which needs a browser run.
