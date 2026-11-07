@@ -88,7 +88,7 @@ applicable). **Decision** is reuse, extend, or not adopted.
 | H-11, R-4 an older question's late answer is superseded | Within one principal, by fiber interruption on restart. Across a `forget`, the reducer too: an answer from before it writes nothing (#484, below) | runtime law, mutation-tested across `forget` | reuse; within a principal, see hypothesis 1 |
 | H-2 two writes to one slot join; overlapping actions | Ordered settlement per request id (#273): an earlier answer cannot revert a later write. `answerOrder.mutations.ts` (13 mutations), `repeatedAnswer`, and the server ledger's replay (`remote-drizzle/test/ledger.test.ts`) | runtime law, mutation-tested | reuse |
 | AC-6 `until(predicate, { timeout })` | `Agent.when({ projection \| source, predicate, timeout })`. A Remote layer held until live data confirms it is not built (comparison idea 1) | runtime | reuse; idea stays with #377 |
-| a live answer landing during a held action | No test sends a live patch for a field under a pending layer, or between an answer and the layer's release. Edge and connection cases are tested (`optimisticMutation.test.ts:157`, `:200`) | untested | **hypothesis 2**, #482 |
+| a live answer landing during a held action | While the write is pending the layer wins over any live patch. Once the answer releases it, a live event committed before the write and delivered after the answer shows the old value until the write's own event (#485) | runtime, a regression | **open, #485** |
 
 ### Regions and the server
 
@@ -116,15 +116,25 @@ Each is a test to write before any API.
      the reducer drops one from before the floor. The old start's loading
      marks are still cleared by the restart's abandonment, so no row stays
      `Loading`.
-   - **After a refresh, within one principal: not yet tested.** An answer
-     older than the one already written could overwrite it. Unlike the
-     `forget` case, an older answer here is still the principal's own data,
-     so this is staleness, not a leak; a fix would compare against the read's
-     own mark rather than the floor.
-2. **A live patch flickers a predicted row.** A patch for a field under a
-   pending layer writes the base, and the layer should still win; a patch
-   arriving between the answer and the layer's release should not show the
-   old value for a frame. Test both with `Trace.run` and `Trace.regressions`.
+   - **After a refresh, within one principal: ruled out in one entry,
+     undecidable across two.** In one read entry the old answer can only be
+     queued before the restart (the restart interrupts its read), and the
+     restarted read's answer after it, so the newer one lands last. Two
+     entries reading one row can be answered out of order, but the wire
+     carries no row revision, only when each read was asked, and a read asked
+     earlier may be answered with newer data. Ordering by ask time would be a
+     guess; a sound rule needs a revision on `NormalizedEntity`. Not adopted
+     until a server can send one.
+2. **A live patch flickers a predicted row: reproduced (#485).** While the
+   write is pending the layer wins: another principal's live patch, and the
+   echo of our own write before the answer, both show the prediction. Once
+   the answer lands it reads back what the prediction moved and releases the
+   layer (#265); a live event committed before the write but delivered after
+   the answer then patches the base, and the row reads the old value until
+   the stream reaches the write's own event. `MutationResult` carries no
+   stream position, so the reducer cannot tell. #485 proposes holding the
+   layer on a live-read row until the stream reads back what it moved,
+   bounded by a timeout (Solid's `until`, comparison idea 1).
 
 ## What stays a rule
 
@@ -142,8 +152,8 @@ closed for a subset, which is #483's job.
 ## What each issue should do
 
 - **#482 (temporal laws) goes first.** It is the only issue with a candidate
-  defect. Scope: hypothesis 1's refresh case and hypothesis 2 (the `forget`
-  case is #484), then the missing mutations:
+  defect. Hypothesis 1's `forget` case was #484 and hypothesis 2 is #485;
+  the refresh case needs a wire revision first. Then the missing mutations:
   `refreshedAt`'s per-field max and floor, `liveEntry.ts`'s floor,
   `Data.confirmed`, `optimistic.test.ts`, `optimisticMutation.test.ts`,
   `deadline.test.ts`. Build on `Trace.run` and the lagging driver; export the
@@ -175,8 +185,8 @@ closed for a subset, which is #483's job.
 
 ## Order
 
-1. #482 hypothesis 1: the `forget` case is #484; the refresh case remains.
-2. #482 hypothesis 2 and the missing mutations.
+1. #482 hypothesis 1: the `forget` case is #484; the refresh case needs a row revision.
+2. #485's design decision, and #482's missing mutations.
 3. #483's measurement of `derive` calls, then a decision.
 4. #481's two small items.
 5. #478 and #479 when their own consumers ask.
