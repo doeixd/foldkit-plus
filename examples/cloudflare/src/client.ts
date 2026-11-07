@@ -4,7 +4,7 @@
  * exchanges as raw frames over an upgraded socket. Assertion-free; callers
  * decide what each answer proves.
  */
-import { Effect, Stream } from 'effect'
+import { Effect, Match, Stream } from 'effect'
 import {
   REMOTE_PROTOCOL_VERSION,
   Remote,
@@ -73,15 +73,16 @@ export const firstChange = (
   requirements: LiveSubscription['requirements'],
 ) => liveEvents(client, { requirements }).pipe(Stream.take(1), Stream.runCollect)
 
-const aboutId = (
-  event: { readonly _tag: string; readonly id?: string; readonly edge?: { readonly id: string } },
-  id: string,
-): boolean => {
-  if (event._tag === 'EntityPatched' || event._tag === 'EntityDeleted') return event.id === id
-  if (event._tag === 'ConnectionInsert' || event._tag === 'ConnectionRemove')
-    return event.edge?.id === id
-  return false
-}
+type LiveChange = Stream.Success<ReturnType<typeof liveEvents>>
+
+const aboutId = (event: LiveChange, id: string): boolean =>
+  Match.valueTags(event, {
+    EntityPatched: patched => patched.id === id,
+    EntityDeleted: deleted => deleted.id === id,
+    ConnectionInsert: inserted => inserted.edge.id === id,
+    ConnectionRemove: removed => removed.edge.id === id,
+    ConnectionInvalidate: () => false,
+  })
 
 /**
  * The next `count` live changes, optionally only those that name `id`.

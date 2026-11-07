@@ -16,6 +16,7 @@ import type { Selected } from 'foldkit-entity'
 import { SlotView, Style } from 'foldkit-mixins'
 import { demoGuide } from 'foldkit-example-site/guide'
 import { Empty, Failure, ListView, Loading } from 'foldkit-mixins-crud'
+import { RemoteData } from 'foldkit-remote'
 import {
   Editor,
   EditorSlot,
@@ -140,14 +141,26 @@ const previewing = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =
   // on screen, so a failed refresh keeps the last preview. `Overlaid` is no
   // failure: an unsaved post's preview names fields the server has not seen,
   // which reads as an empty draft until they are written.
-  if (data._tag === 'Ready' || data._tag === 'Refreshing')
-    return h.div(slots.preview.attrs(), [Preview(data.value, h)])
-  if (data._tag === 'Failed' && data.previous !== undefined)
-    return h.div(slots.preview.attrs(), [Preview(data.previous, h)])
-  if (data._tag === 'Failed' && data.error._tag !== 'Overlaid')
-    return Failure.view(slots.muted, h, 'The post could not be read.')
-  if (data._tag === 'Loading') return Loading.view(slots.muted, h, 'Loading…')
-  return h.p(slots.muted.attrs(), ['There is nothing to preview yet: write a title.'])
+  const preview = (post: Selected<typeof PostPreview>) =>
+    h.div(slots.preview.attrs(), [Preview(post, h)])
+  const nothing = () =>
+    h.p(slots.muted.attrs(), ['There is nothing to preview yet: write a title.'])
+  return RemoteData.match(data, {
+    Initial: nothing,
+    Loading: () => Loading.view(slots.muted, h, 'Loading…'),
+    Ready: preview,
+    Refreshing: preview,
+    Failed: (error, previous) =>
+      Option.match(previous, {
+        onSome: preview,
+        onNone: () =>
+          // tag-check: open — a RemoteError's tag is open, for any failure a transport reports.
+          error._tag !== 'Overlaid'
+            ? Failure.view(slots.muted, h, 'The post could not be read.')
+            : nothing(),
+      }),
+    NotFound: nothing,
+  })
 }
 
 const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {

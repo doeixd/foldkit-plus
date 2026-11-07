@@ -1,5 +1,5 @@
 /**
- * Tag branching the type checker cannot vouch for, in every package's source:
+ * Tag branching the type checker cannot vouch for, in every package's and example's `src`:
  *
  * - a `_tag` compared with `===`/`!==` where its type is not a union of string
  *   literals (`string`, `unknown`), so any misspelling compiles;
@@ -132,8 +132,16 @@ const check = (program, files) => {
   }
 }
 
-for (const name of readdirSync(join(root, 'packages')).sort()) {
-  const config = join(root, 'packages', name, 'tsconfig.json')
+const projectDirs = [
+  ...['packages', 'examples', 'examples/foldkit'].flatMap(parent =>
+    readdirSync(join(root, parent), { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => join(root, parent, entry.name)),
+  ),
+].sort()
+
+for (const dir of projectDirs) {
+  const config = join(dir, 'tsconfig.json')
   if (!existsSync(config)) continue
   const parsed = ts.getParsedCommandLineOfConfigFile(
     config,
@@ -145,7 +153,7 @@ for (const name of readdirSync(join(root, 'packages')).sort()) {
   )
   // TypeScript lists files with `/`; `join` writes `\` on Windows, where a
   // raw comparison matched nothing and the check passed having read no file.
-  const sources = join(root, 'packages', name, 'src')
+  const sources = join(dir, 'src')
   const files = parsed?.fileNames.filter(file => resolve(file).startsWith(sources)) ?? []
   if (files.length === 0) continue
   const program = ts.createProgram({

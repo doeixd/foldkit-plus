@@ -12,14 +12,17 @@ import type { Model } from './model'
 import { resultListings } from './resultListings'
 import { findFirstPendingListingInViewport } from './resultsList'
 import { routeToQuery } from './route'
-import { searchViewState } from './searchViewState'
+import { DomainRequestPresentation, searchViewState } from './searchViewState'
 
 export const findNextDomainRangeToLoad = (
   model: Model,
 ): Option.Option<DomainCandidateRange> => {
   const search = searchViewState(model)
 
-  if (search._tag !== 'Ready' || search.domainRequest._tag === 'Loading') {
+  if (
+    search._tag !== 'Ready' ||
+    DomainRequestPresentation.guards.Loading(search.domainRequest)
+  ) {
     return Option.none()
   }
 
@@ -49,7 +52,7 @@ export const findNextDomainRangeToLoad = (
     return Option.some({ offset: 0, limit: domainTlds.length })
   }
 
-  if (search.domainRequest._tag === 'Failed') {
+  if (DomainRequestPresentation.guards.Failed(search.domainRequest)) {
     return Option.none()
   }
 
