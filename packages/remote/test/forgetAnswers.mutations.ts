@@ -7,10 +7,12 @@ const tests = [
   'packages/remote/test/overlappingReads.test.ts',
   'packages/remote/test/domain.test.ts',
   'packages/remote/test/liveStream.test.ts',
+  'packages/remote/test/satisfy.test.ts',
 ]
 const model = '../src/model.ts'
 const domain = '../src/domain.ts'
 const liveReads = '../src/liveReads.ts'
+const remote = '../src/remote.ts'
 const guard = 'if (askedBeforeForget(model, message.generation)) return model\n'
 const edit = (name: string, file: string, find: string, replace: string) => ({
   name,
@@ -67,5 +69,17 @@ export default [
     liveReads,
     'stream: key,\n            generation: floor,',
     'stream: key,',
+  ),
+  edit(
+    'a preloaded read names no generation',
+    remote,
+    'now: at,\n        generation,\n      })',
+    'now: at,\n      })',
+  ),
+  edit(
+    'a preloaded page names no generation',
+    remote,
+    'query.select, now(), generation),',
+    'query.select, now()),',
   ),
 ]

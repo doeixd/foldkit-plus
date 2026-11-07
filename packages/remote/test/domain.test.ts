@@ -1652,6 +1652,20 @@ describe('Data.query reads a connection as a page of selected items', () => {
     ])
   })
 
+  it("a preloaded page that lands after Data.forget writes nothing: it was the previous principal's (#484)", async () => {
+    const active = { list: Data.active('List', () => Option.some(projects)) }
+    const preloaded = (model: Model) =>
+      Effect.runPromise(
+        Data.preload(model, active).effect.pipe(Effect.provide(paging(['p1', 'p2']).layer)),
+      )
+    const forgotten = Data.forget(initial)
+    expect(Data.reduce(forgotten, await preloaded(initial)).remote.connections).toEqual({})
+    // Started after the forget, it lands as ever.
+    expect(
+      Object.keys(Data.reduce(forgotten, await preloaded(forgotten)).remote.connections),
+    ).toEqual([identity])
+  })
+
   it('a failed query yields QueryFailed, which ends the refresh and keeps the pages', async () => {
     const List = App.surface('List', { model: () => ({ projects }) })
     const entry = Data.subscriptions({ list: List })['list.read']

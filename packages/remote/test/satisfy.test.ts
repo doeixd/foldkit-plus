@@ -154,6 +154,18 @@ describe('Data.preload', () => {
     expect(Data.reduce(initial, message).remote.entities).toEqual(satisfied.remote.entities)
   })
 
+  it("writes nothing when it lands after Data.forget: it was the previous principal's (#484)", async () => {
+    const message = await preloaded(initial, recording().layer)
+    const forgotten = Data.forget(initial)
+    expect(Data.reduce(forgotten, message).remote.entities).toEqual(forgotten.remote.entities)
+    // Started after the forget, it lands as ever.
+    const since = await preloaded(forgotten, recording().layer)
+    expect(name(Data.reduce(forgotten, since), 'u7')).toEqual({
+      _tag: 'Ready',
+      value: { name: 'name of u7' },
+    })
+  })
+
   it('crosses a Message schema, as a Port or a recording sends it', async () => {
     const message = await preloaded(initial, recording().layer)
     const crossed = Schema.decodeUnknownSync(Message)(Schema.encodeSync(Message)(message))

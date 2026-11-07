@@ -1410,6 +1410,9 @@ const bindDomain = <
       const { now = wallClock } = options
       const client = yield* RemoteClient
       const planOptions = RemotePolicy.toPlan(policyAt(options.policy, model), now())
+      // Asked under the Model it started from: one that lands after a
+      // `forget` is the previous principal's, and writes nothing (#484).
+      const generation = store.get(model).refresh.generation
       let current = model
       // The pages first, so their items join the one entity read below. A
       // page with a payload already writes its items' selected fields, so
@@ -1421,7 +1424,7 @@ const bindDomain = <
         )
         current = hear(
           current,
-          pageMessage(query.identity, page, true, query.window, query.select, now()),
+          pageMessage(query.identity, page, true, query.window, query.select, now(), generation),
         )
       }
       const requirements = planAsked(
@@ -1436,7 +1439,13 @@ const bindDomain = <
         version: REMOTE_PROTOCOL_VERSION,
         requests: requirements,
       })
-      return hear(current, { _tag: 'ReadReceived', requests: requirements, result, now: at })
+      return hear(current, {
+        _tag: 'ReadReceived',
+        requests: requirements,
+        result,
+        now: at,
+        generation,
+      })
     })
   }
   const satisfyInto = (

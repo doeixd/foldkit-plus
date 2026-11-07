@@ -87,8 +87,8 @@ version changed; `pnpm` skips versions already in the registry.
   failures, pages and live patches were written into the forgotten store.
   `ReadReceived`, `ReadFailed`, `ConnectionMerged`, `QueryFailed` and
   `LiveReceived` now carry the generation they were asked under (an optional
-  field on each Message), and one from before the `forget` leaves the Model
-  as it was.
+  field on each Message), `Data.preload`'s included, and one from before the
+  `forget` leaves the Model as it was.
 
 ## 0.38.0
 
