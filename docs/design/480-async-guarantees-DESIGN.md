@@ -1,0 +1,176 @@
+# #480 audit: which async guarantees Foldkit Plus already has
+
+Status: audit (2026-11-07), the first deliverable of #480. Not an API proposal.
+It decides what #478, #479, #481, #482 and #483 should build, and what they
+should not.
+
+Sources: ReactiveScript at
+[`fdbcad9`](https://github.com/ryansolid/reactivescript/tree/fdbcad921c6bc1cae59cbebe9905eeabc480e88f)
+(2026-11-04): `spec/00-vocabulary.md`, `02-core.md`, `04-rows.md`,
+`05-holds.md`, `06-stores.md`, `10-server.md` and the diagnostic bins in
+`99-diagnostics.md`. The spec is early design work and changes often; rule
+ids below are that revision's. On our side: the source and tests named in
+each row, read on this date, and type probes compiled in
+`examples/kitchen-sink` and then deleted.
+
+## The one difference that decides most rows
+
+ReactiveScript checks Solid 2.0's semantics, where a write opens an
+**instant** that can be **held** while a reader it reaches is pending, and
+the screen keeps the last committed frame until the instant commits. There
+are two versions of state, committed and in-flight, and probes (`latest`,
+`pending?`) read ahead into the second.
+
+Foldkit has one version:
+
+```text
+Message -> update -> Model -> view(Model)
+                  \-> Command / Subscription -> Effect -> Message
+```
+
+Every Message commits at once. A wait is not a hold: it is a value in the
+Model (`RemoteData.Loading`, `Refreshing` with the held value, a pending
+optimistic layer), which the view draws. So:
+
+- Rules about **writing in the wrong place** mostly hold by construction:
+  only `update` returns a new Model, and a view returns markup and Messages.
+- Rules about **holds, lanes and probes** have no counterpart and should not
+  get one: they exist to manage a second version of state that Foldkit does
+  not have. The author picks the equivalent policy per read, through
+  `RemoteData.render`'s branches.
+- Rules about **timing** (supersession, settlement order, release) are
+  properties of Remote's state machine, and are runtime laws in both
+  systems. That is where the real gaps are.
+
+## Gap matrix
+
+Columns: **How it holds** is one of *construction* (the program cannot be
+written), *tsc*, *checker* (a static pass over inspectable values), *runtime
+law* (tests over traces), *rule* (documented, not checked), or *—* (not
+applicable). **Decision** is reuse, extend, or not adopted.
+
+### Core: equations, writes, effects
+
+| ReactiveScript | Foldkit Plus today | How it holds | Decision |
+| --- | --- | --- | --- |
+| W-1 only a source is written; E-1 an equation always holds | Only `update` produces a Model; a Projection is a read. `ModelRef.set` / `WritableProjection.set` are infrastructure seams for checkpoints and restores (`docs/state-model.md`) | construction | reuse |
+| W-2 no write in reactive scope; IO-2 no I/O in an equation | A view returns markup and Messages, so it cannot change the Model. It can still call `fetch`: "rendering performs no I/O" is a rule, since a view is ordinary JavaScript | construction for writes; rule for I/O | reuse; I/O in a view stays a rule |
+| P-1 glitch freedom; H-1 the screen is whole | One Model per render, and the view is a function of it | construction | reuse |
+| P-3 consistency with a from-scratch evaluation | Breaks in exactly one place: `Projection.derive(on, fn)` memoizes by the paths `on` names, and `fn` may read more (`packages/surface/src/index.ts:648`). It then shows what it read last. An `on` entry with no dependencies falls back to recomputing on every read (`unnamed`, `:436`), which is safe | rule (the doc comment's promise) | **gap**, #483 |
+| P-4 minimality, E-6 equality cuts | Render on Model identity; memoized slots and `derive`. A performance property, not a correctness one | — | not adopted as a guarantee |
+| C-1 cycles | Projections are values built before use; no cycle can be written | construction | — |
+| W-4 / AC-1d a run reading its own write gets the old value | `update` is synchronous and returns its result; there is no write to read back | construction | — |
+| AC-1e stale write-back after an `await` | The same lost update exists here, by another route: a Message carrying a result worked out from an older Model, by the view of the last frame or by a Command closure that captured a field. `docs/state-model.md` "Messages carry intent" is the rule, with `Frames.hold()` tests | rule | reuse; see [What stays a rule](#what-stays-a-rule) |
+
+### Rows: pending and failure
+
+| ReactiveScript | Foldkit Plus today | How it holds | Decision |
+| --- | --- | --- | --- |
+| R-1, R-2 pending flows to readers; `ASYNC_OUTSIDE_LOADING_BOUNDARY` | A read is a `RemoteData` value; `.value` on the bare union is TS2339, so a view must narrow it | tsc | reuse |
+| R-f-5 `UNHANDLED_FAILURE` | `RemoteData.match` and `.render` reject a missing case (TS2741) and an extra key (TS2353); `notFound` is required. Foldkit's `AsyncData.match` the same. Effect's `AsyncResult.builder` offers `exhaustive()` only when every slot is handled, and its error names the unhandled ones | tsc | reuse |
+| — escapes from the above | A tag ternary (`d._tag === 'Ready' ? d.value : …`) and a cast both compile. `pnpm tags:check` refuses the ternary in `packages/*/src` only | checker, partly | extend `tags:check` to examples (small) |
+| R-8 `UNGUARDED_SNAPSHOT` (a handler reading a value that may have no committed value) | `update` reads the same typed union from the Model and must narrow it | tsc | reuse |
+| R-7 first paint (`await e -> v`) | `Initial` / `Loading` are explicit, and `render` draws each | construction | reuse |
+| R-f-1..4 typed failure rows | Effect's `E` is kept through a Command. Remote's `RemoteError` is open by design: a transport failure carries any tag | tsc for Effect; open for Remote | reuse |
+| R-9..R-12 probes (`latest`, `pending?`) and lanes | No in-flight version exists. The held value is in `Refreshing`; what is in flight is `Data.mutation` status, `Data.inspect(model).loading` and `Data.why` | — | not adopted |
+
+### Holds and actions
+
+| ReactiveScript | Foldkit Plus today | How it holds | Decision |
+| --- | --- | --- | --- |
+| H-2..H-4 an instant is held by its pending readers | Every Message commits. "Keep the old screen" is the Model keeping the old value | — | not adopted: deliberate |
+| H-5, H-6 armed and disarmed boundaries | Per read, not per region: `RemoteData.render`'s `loading` is armed, its `Refreshing` branch is disarmed (it shows content with a `Freshness` tag) | construction | reuse |
+| V-16 `deferred` (declared lag) | What `Refreshing` already is: the held value shows while the next loads | construction | reuse |
+| V-9, AC-4 `refresh` re-asks quietly | `Data.refresh` marks per field and per connection; the read entries that observe the mark restart, others keep running. Tested (`packages/remote/test/domain.test.ts:1213`, `refreshActive.test.ts` + mutations); the per-field generation in `refreshedAt` has no mutation of its own | runtime law | reuse; add the mutation (#482) |
+| ST-2c pending per key | Per-field marks and failures in Remote's store | runtime law | reuse |
+| H-11 optimistic: a guess over a source; truth corrects it; unrelated guesses survive | Remote predicts the layer from the declared write instead of taking it by hand, and checks the prediction (`Law.check`, `verifyPredictions`, `PredictionMismatch`, all mutation-tested). Visible against `Data.confirmed`, rejection removing exactly its layer, and later layers winning are tested (`domain.test.ts:380`, `optimistic.test.ts:34`, `:58`) but not mutation-tested | runtime law | reuse; add mutations (#482) |
+| H-11 "verdict-inert": a guess does not make reads pending; `affects` opts in | Open: whether a pending write should make a read look loading is decided by Remote today, not per write ([comparison idea 2](./solid-2-optimistic-COMPARISON.md#ideas-worth-taking), #377) | — | open, #377 |
+| H-11, R-4 an older question's late answer is superseded | Fiber interruption on restart only. The `ReadReceived` reducer writes whatever arrives (`packages/remote/src/model.ts:1821`); `generation` is read only to decide whom the outbox heard (`heardAs`) | runtime, unguarded | **hypothesis 1**, #482 |
+| H-2 two writes to one slot join; overlapping actions | Ordered settlement per request id (#273): an earlier answer cannot revert a later write. `answerOrder.mutations.ts` (13 mutations), `repeatedAnswer`, and the server ledger's replay (`remote-drizzle/test/ledger.test.ts`) | runtime law, mutation-tested | reuse |
+| AC-6 `until(predicate, { timeout })` | `Agent.when({ projection \| source, predicate, timeout })`. A Remote layer held until live data confirms it is not built (comparison idea 1) | runtime | reuse; idea stays with #377 |
+| a live answer landing during a held action | No test sends a live patch for a field under a pending layer, or between an answer and the layer's release. Edge and connection cases are tested (`optimisticMutation.test.ts:157`, `:200`) | untested | **hypothesis 2**, #482 |
+
+### Regions and the server
+
+| ReactiveScript | Foldkit Plus today | How it holds | Decision |
+| --- | --- | --- | --- |
+| O-2 a region's release ends its flights | A Surface that stops being active drops its requirements, and its read entry's stream ends. Timeouts are tested (`deadline.test.ts`, no mutations) | runtime | reuse |
+| SV-4 state is per request; a principal change | `Data.forget` raises a floor every read and live entry restarts from (`model.ts:331`, `forget.test.ts`). The floor comparison in `heardAs` is mutation-tested (`madeFor.mutations.ts`); the floor in `refreshedAt` and `liveEntry.ts` is not, and no test queues an old principal's answer after `forget` | runtime, partly | **hypothesis 1**, #482 |
+| SV-3b answers cross; SV-3c determinism | `foldkit-ssr`'s resume plan; `determinism.test.ts` renders under two zones and locales; the build id refuses another build's page | runtime law | reuse |
+| SV-3e input before hydration | A handler that makes the page wait for the live runtime (ssr-PLAN G1) | runtime | reuse |
+
+## Counterexamples to look for first
+
+Neither is demonstrated yet. Each is a test to write before any API.
+
+1. **A late read answer lands after the read was superseded.** The read
+   entry restarts when its refresh generation changes and the old fiber is
+   interrupted, but a `ReadReceived` already queued behind the restart is
+   applied (the "restart speaks after the Messages already queued" trap in
+   `CLAUDE.md`). Two cases matter. After a refresh, an answer older than the
+   one already written could overwrite it. After `Data.forget`, the previous
+   principal's rows could land in the new session's store, which is a
+   privacy fault, not only a stale one. The lagging-restart driver in
+   `packages/remote/test/overlappingReads.test.ts` can queue answers before
+   the Subscription catches up; `Trace.run` restarts at once and cannot. If
+   either case reproduces, the fix is a generation check in the reducer
+   (refuse an answer whose `generation` is below the floor, or below the
+   read's own mark), mutation-tested.
+2. **A live patch flickers a predicted row.** A patch for a field under a
+   pending layer writes the base, and the layer should still win; a patch
+   arriving between the answer and the layer's release should not show the
+   old value for a frame. Test both with `Trace.run` and `Trace.regressions`.
+
+## What stays a rule
+
+Three properties cannot be checked in a JavaScript program, and a typed DSL
+does not change that, because its escape is ordinary JavaScript:
+
+- a view that performs I/O;
+- a Message carrying a value worked out from an older Model (AC-1e's lost
+  update);
+- `Projection.derive`'s callback reading more than its `on` names.
+
+The first two stay documented rules with frame-held tests. The third can be
+closed for a subset, which is #483's job.
+
+## What each issue should do
+
+- **#482 (temporal laws) goes first.** It is the only issue with a candidate
+  defect. Scope: hypotheses 1 and 2 above, then the missing mutations:
+  `refreshedAt`'s per-field max and floor, `liveEntry.ts`'s floor,
+  `Data.confirmed`, `optimistic.test.ts`, `optimisticMutation.test.ts`,
+  `deadline.test.ts`. Build on `Trace.run` and the lagging driver; export the
+  driver from `foldkit-remote/testing` only if a second test file needs it.
+  No Solid oracle: no row above calls for frame-level parity.
+- **#483 (Projection reads)** has one real target: `Projection.derive`'s
+  unchecked `on`. `Derived` carries no `metadata`, but it is a view-side memo,
+  not a Surface's read (its uses are `slotView.ts:642` and domains-plus's
+  views), so no Remote requirement is lost through it. A derive over typed
+  `ModelRef`s whose body is an expression, not a callback, would make `on`
+  unnecessary for that subset. Measure how many real `derive` calls fit the
+  subset before building it.
+- **#481 (async boundaries)** needs no new API. `RemoteData.match` /
+  `.render`, `AsyncData.match` and `AsyncResult.builder` already reject what
+  the issue lists, and a pipeable `View.matchRemote` would forward to
+  `render`. Two small items remain: `tags:check` over examples, and
+  `Failed.previous`, which `match` gives as an `Option` while a raw read
+  gives `A | undefined`.
+- **#478 (pipeable Expr)** is developer experience, not an async guarantee:
+  `Expr` and `Predicate` are not `Pipeable` (`Query` is), and user-defined
+  symbolic functions already exist (`Expr.operator` with `definedAs`).
+  Nothing in this audit depends on it. Schedule it on its own merits.
+- **#479 (type contracts)**: most of its table is already true. `Write` and
+  `Expr` are disjoint types, so no write can appear in a predicate.
+  `Query.where` refuses a predicate over another Entity through
+  `Reads<Names>`, and exhaustive cases are #481's. One question is worth a
+  probe: `Reads` names Entities by name, so two Entities that share a name
+  may be confused. Probe that before designing more evidence types.
+
+## Order
+
+1. #482 hypothesis 1, as a failing test or a recorded pass.
+2. #482 hypothesis 2 and the missing mutations.
+3. #483's measurement of `derive` calls, then a decision.
+4. #481's two small items.
+5. #478 and #479 when their own consumers ask.
