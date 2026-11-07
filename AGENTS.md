@@ -217,7 +217,7 @@ Slop is also code that looks finished and is wrong. Look for these too:
     the tag is open by design (another application's Message at a boundary),
     compare against a typed set, and mark the line above with
     `// tag-check: open` and why. `pnpm tags:check` finds the rest — in
-    `packages/*/src` only; examples and tests need review eyes for the same
+    every package's and example's `src`; tests need review eyes for the same
     shapes.
   - Ternaries that select values are fine; ternaries that branch are match.
     `cond ? a : b` over plain values stays. A ternary (or `if`/`else`) whose
