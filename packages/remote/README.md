@@ -2404,6 +2404,27 @@ connection insert/remove/invalidate events reconcile the same connection model
 used by query pages and optimistic overlays. A stream failure becomes a Remote
 failure Message rather than mutating anything out of band.
 
+### A write answered before its stream catches up
+
+A stream lags a write's answer: the answer comes back over HTTP while the
+stream may still be sending changes committed before the write. A stream
+sends in commit order, so until it sends the answer's values back, a patch of
+its to those fields is older than the answer, or, from a source that
+coalesces (`pollLive`), a later change that never showed the write. Neither
+overwrites the answer:
+
+```text
+answered Grace -> stream patches name: Ada  -> Grace shown, name read again (Refreshing)
+               -> stream patches name: Grace -> that stream is caught up; its patches apply
+read asked after the answer                  -> its value shows; the wait ends
+```
+
+The wait is per stream and per row (`RemoteModel.echoes`), and covers only
+the fields the answer wrote: other fields of the same patch apply. A later
+answer to the row, a live delete and `forget` end it too. `Data.confirmed`
+keeps the answer as well, since the patch never reaches the store. A domain
+that reads nothing live waits for nothing.
+
 ### When a stream breaks
 
 A stream breaks when its transport fails or when an event arrives ahead of

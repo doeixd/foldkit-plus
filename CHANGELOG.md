@@ -90,6 +90,15 @@ version changed; `pnpm` skips versions already in the registry.
   field on each Message), `Data.preload`'s included, and one from before the
   `forget` leaves the Model as it was.
 
+- **A live patch from before a write no longer undoes its answer**
+  (`foldkit-remote`, #485). The stream lags the HTTP answer, so a change
+  committed before the write could arrive after it and show the old value
+  until the write's own event. Until a stream sends an answer's values back,
+  its patches to those fields are not written: the field is read again, and
+  the read decides, which also keeps a coalescing source's later change. A
+  read asked after the answer, a later answer, a live delete and `forget` end
+  the wait (`RemoteModel.echoes`, per stream and row).
+
 ## 0.38.0
 
 Pages get cheaper to serve. Public reads and whole pages are kept at the edge

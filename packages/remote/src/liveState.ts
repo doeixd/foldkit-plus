@@ -56,6 +56,20 @@ export const emptyLiveState: LiveState = { cursor: 0, boundary: {} }
 
 export type LiveOutcome = 'applied' | 'duplicate' | 'gap'
 
+/**
+ * What a write's answer told the client of a row, which a live stream has not
+ * sent back yet (#485). A stream delivers in commit order, so its patches to
+ * these fields before it sends these values were committed before the write,
+ * which superseded them.
+ */
+export interface AwaitedEcho {
+  readonly values: Readonly<Record<string, unknown>>
+  /** When the answer landed: a read asked after it is newer, and ends the wait. */
+  readonly since: number
+  /** The streams that sent the values back: caught up, so their patches apply. */
+  readonly heard: ReadonlyArray<string>
+}
+
 /** What a live stream subscribes to: rows, and lists as their reads send them. */
 export interface LiveAsk {
   readonly requirements: ReadonlyArray<Requirement>

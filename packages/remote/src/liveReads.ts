@@ -10,7 +10,7 @@ import { RemoteClient, remoteError } from './client.js'
 import type { LiveOptions } from './index.js'
 import type { ConnectionSpec } from './query.js'
 import { installLayers } from './layers.js'
-import { applyConnectionEvent, applyEntityEvent } from './liveEvents.js'
+import { applyConnectionEvent, applyEntityEvent, awaitEchoes } from './liveEvents.js'
 import { liveStreamKey } from './liveState.js'
 import { belongsEncoded } from './matching.js'
 import { entityKey } from './store.js'
@@ -132,6 +132,7 @@ const stream: LiveCapability['stream'] = (
 export const liveReads: LiveCapability = {
   applyEntity: applyEntityEvent,
   applyConnection: applyConnectionEvent,
+  awaitEchoes,
   policy,
   stream,
 }

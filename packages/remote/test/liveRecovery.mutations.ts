@@ -31,8 +31,8 @@ export default [
     edits: [
       {
         file: model,
-        find: "return applied.outcome === 'applied' ? healthy(next, message.stream) : next",
-        replace: 'return next',
+        find: 'return askedAgain(capabilities, healthy(next, message.stream), [',
+        replace: 'return askedAgain(capabilities, next, [',
       },
     ],
     tests,

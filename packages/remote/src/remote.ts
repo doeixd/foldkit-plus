@@ -661,8 +661,8 @@ export const refresh = <AppModel, Store extends RemoteModel>(
  * or a switch of organization: called from `update`, it performs no I/O, and
  * every active Surface's read and live entries restart, so the screen asks
  * again as whoever the client now is. A read or stream begun before is
- * interrupted rather than landing after. A mutation in flight is treated as
- * applied: its answer writes nothing here.
+ * interrupted, and an answer it had already sent writes nothing (#484). A
+ * mutation in flight is treated as applied: its answer writes nothing here.
  */
 export const forget = <AppModel, Store extends RemoteModel>(
   bound: BoundRemote<AppModel, Store>,

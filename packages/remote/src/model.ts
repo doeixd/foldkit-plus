@@ -26,7 +26,7 @@ import {
 import { emptyOptimistic, layersIn, liveIn, type Capabilities } from './capability.js'
 import { isPatch } from './shown.js'
 import type { ConnectionChange, OptimisticState, OptimisticOperation } from './optimistic.js'
-import { emptyLiveState, type LiveEvent, type LiveState } from './liveState.js'
+import { emptyLiveState, type AwaitedEcho, type LiveEvent, type LiveState } from './liveState.js'
 import {
   beginMutation,
   emptyMutationState,
@@ -215,6 +215,14 @@ export interface RemoteModel {
    * for by nothing, rather than `Refreshing`.
    */
   readonly history: NavigationHistory
+  /**
+   * The rows a write's answer wrote, by entity key, that a live stream has not
+   * sent back yet (#485). Until a stream does, its patches to those fields
+   * predate the write or, from a stream that coalesces, may follow it; one
+   * that disagrees is read again rather than written. A read asked after the
+   * answer, a later answer, a delete or `forget` ends the wait.
+   */
+  readonly echoes: Readonly<Record<EntityKey, AwaitedEcho>>
 }
 
 /** What the budget evicted, by list identity and by the row a read reads. */
@@ -365,6 +373,7 @@ export const initialRemoteModel: RemoteModel = {
   recent: noRecentRoots,
   evicted: noEvicted,
   history: noNavigationHistory,
+  echoes: {},
 }
 
 /** The entity store and the mutation ledger are runtime values, not wire shapes. */
@@ -395,6 +404,7 @@ export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
     recent: runtimeSchema,
     evicted: runtimeSchema,
     history: runtimeSchema,
+    echoes: runtimeSchema,
   }) as unknown as Schema.Codec<RemoteModel, unknown>
 
 /** The submodel's Messages; each reduces to `RemoteModel` through `updateRemote`. */
@@ -1388,6 +1398,34 @@ const placedIn = (queue: ReadonlyArray<Queued>, queued: Queued): ReadonlyArray<Q
     : [...queue, queued]
 }
 
+/** The echoes still awaited once a read asked at `now` answered `entities`: it is newer than an answer before it. */
+const answeredSince = (
+  echoes: RemoteModel['echoes'],
+  entities: ReadonlyArray<{ readonly entity: string; readonly id: string }>,
+  now: number,
+): RemoteModel['echoes'] => {
+  let next: Record<EntityKey, AwaitedEcho> | undefined
+  for (const { entity, id } of entities) {
+    const key = entityKey(entity, id)
+    const echo = (next ?? echoes)[key]
+    if (echo === undefined || echo.since > now) continue
+    next ??= { ...echoes }
+    delete next[key]
+  }
+  return next ?? echoes
+}
+
+/** `requests` marked to be read again, as `Data.refresh` marks them; none, the Model it was given. */
+const askedAgain = (
+  capabilities: Capabilities,
+  model: RemoteModel,
+  requests: ReadonlyArray<Requirement>,
+): RemoteModel => {
+  if (requests.every(request => request.fields.length === 0)) return model
+  const marked = reduceRemote(capabilities, model, { _tag: 'RefreshStarted', requests })
+  return { ...marked, refresh: withRefreshRequested(marked.refresh, requests) }
+}
+
 /**
  * Whether an answer was asked for before the last `forget`, so is the previous
  * principal's (#484). Foldkit restarts a Subscription after the Messages
@@ -1851,6 +1889,7 @@ const reduceRemote = (
           message.generation,
         ),
         entities: writeRead(model.entities, message.requests, message.result, message.now),
+        echoes: answeredSince(model.echoes, message.result.entities, message.now),
         loading: withoutLoading(model.loading, message.requests),
         // What was asked, and what came back: a relation riding on the request
         // writes its targets too, and a target's old failure must not outlive
@@ -2093,12 +2132,26 @@ const reduceRemote = (
         message.read === undefined || model.mutations.applied.has(message.requestId)
           ? undefined
           : unsettledRead(message.read, settledLater(model.mutations, message.requestId))
+      // A live stream may still send what was committed before this write;
+      // until it sends the answer's values back, it does not overwrite them.
+      const echoes = model.mutations.applied.has(message.requestId)
+        ? model.echoes
+        : Option.match(capabilities.live, {
+            onNone: () => model.echoes,
+            onSome: live =>
+              live.awaitEchoes(
+                model.echoes,
+                [...message.entities, ...(read?.result.entities ?? [])],
+                message.now,
+              ),
+          })
       return {
         ...model,
         entities:
           read === undefined
             ? settled.store
             : writeRead(settled.store, read.requests, read.result, message.now),
+        echoes,
         mutations: settled.state,
         outbox: heardAs(
           model,
@@ -2189,22 +2242,32 @@ const reduceRemote = (
       const state = model.live[message.stream] ?? emptyLiveState
       if (message.event._tag === 'EntityPatched' || message.event._tag === 'EntityDeleted') {
         const event = message.event
-        const applied = liveIn(capabilities).applyEntity(state, model.entities, event, message.now)
+        const applied = liveIn(capabilities).applyEntity(state, model.entities, event, {
+          now: message.now,
+          stream: message.stream,
+          echoes: model.echoes,
+        })
         if (applied.outcome === 'gap') return broke(model, message.stream, Option.none())
         // A value the server sent is newer than any failure to fetch it.
         const settled =
           applied.outcome !== 'applied'
             ? []
             : event._tag === 'EntityPatched'
-              ? [...patchedMarks([{ ...event.ref, values: event.values }])]
+              ? [...patchedMarks([{ ...event.ref, values: applied.written }])]
               : entityFailureMarks(model.failures, entityKey(event.ref.entity, event.ref.id))
         const next = {
           ...model,
           entities: applied.store,
           live: withLiveState(model.live, message.stream, applied.state),
           failures: withoutFieldFailures(model.failures, settled),
+          echoes: applied.echoes,
         }
-        return applied.outcome === 'applied' ? healthy(next, message.stream) : next
+        if (applied.outcome !== 'applied') return next
+        // What it contradicted is read again: a read asked now says which is
+        // the server's, and ends the wait.
+        return askedAgain(capabilities, healthy(next, message.stream), [
+          { ...event.ref, fields: [...applied.contradicted] },
+        ])
       }
       const applied = liveIn(capabilities).applyConnection(
         state,

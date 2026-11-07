@@ -20,7 +20,7 @@ import type {
   MutationStarted,
   QueryRequirement,
 } from './index.js'
-import type { applyConnectionEvent, applyEntityEvent } from './liveEvents.js'
+import type { applyConnectionEvent, applyEntityEvent, awaitEchoes } from './liveEvents.js'
 import type { LiveEvent } from './liveState.js'
 import type { MutationDescriptor } from './mutationDescriptor.js'
 import type { MutationAnswer, MutationState, NormalizedPatch } from './ledger.js'
@@ -188,6 +188,8 @@ export interface WriteCapability {
 export interface LiveCapability {
   readonly applyEntity: typeof applyEntityEvent
   readonly applyConnection: typeof applyConnectionEvent
+  /** What a write's answer leaves the streams to send back (#485). */
+  readonly awaitEchoes: typeof awaitEchoes
   /**
    * What to do with a row a live event inserts into a list: none for the
    * position the event names, `ignore` where the list's body says the row
