@@ -161,11 +161,17 @@ closed for a subset, which is #483's job.
   No Solid oracle: no row above calls for frame-level parity.
 - **#483 (Projection reads)** has one real target: `Projection.derive`'s
   unchecked `on`. `Derived` carries no `metadata`, but it is a view-side memo,
-  not a Surface's read (its uses are `slotView.ts:642` and domains-plus's
-  views), so no Remote requirement is lost through it. A derive over typed
-  `ModelRef`s whose body is an expression, not a callback, would make `on`
-  unnecessary for that subset. Measure how many real `derive` calls fit the
-  subset before building it.
+  not a Surface's read, so no Remote requirement is lost through it. Measured
+  2026-11-07: the tree has three calls. `SlotView.region`
+  (`packages/mixins/src/slotView.ts:642`) derives a Projection's own `read`
+  from that Projection, complete by construction; the two in domains-plus
+  (`searchViewState.ts:86`, `view.ts:442`) derive with functions over Remote
+  reads (`stateOf`, `answeredOf`), which no symbolic expression subset can
+  express. A checked `Projection.fromExpr` would cover none of the risky
+  calls, so it is not worth building. What would catch the defect is P-3
+  tested at run time: in development, when the memo hits, also run the
+  function and compare the two with `Equal.equals`, and report an `on` that
+  misses a read. No new API.
 - **#481 (async boundaries)** needs no new API. `RemoteData.match` /
   `.render`, `AsyncData.match` and `AsyncResult.builder` already reject what
   the issue lists, and a pipeable `View.matchRemote` would forward to
@@ -187,6 +193,6 @@ closed for a subset, which is #483's job.
 
 1. #482 hypothesis 1: the `forget` case is #484; the refresh case needs a row revision.
 2. #485's design decision, and #482's missing mutations.
-3. #483's measurement of `derive` calls, then a decision.
+3. #483: a development check that a `derive` memo hit equals a fresh run.
 4. #481's two small items.
 5. #478 and #479 when their own consumers ask.
