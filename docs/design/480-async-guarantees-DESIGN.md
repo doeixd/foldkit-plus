@@ -190,9 +190,13 @@ closed for a subset, which is #483's job.
 - **#479 (type contracts)**: most of its table is already true. `Write` and
   `Expr` are disjoint types, so no write can appear in a predicate.
   `Query.where` refuses a predicate over another Entity through
-  `Reads<Names>`, and exhaustive cases are #481's. One question is worth a
-  probe: `Reads` names Entities by name, so two Entities that share a name
-  may be confused. Probe that before designing more evidence types.
+  `Reads<Names>`, and exhaustive cases are #481's. Probed 2026-11-08:
+  `Reads` names Entities by name, so a predicate over another Entity defined
+  as `Post` type-checks in a query from `Post`. The run-time check compares
+  identities and refuses it when the query is defined; its message now says
+  the field belongs to a namesake, where it read "reads Post.secret, but the
+  query is from Post". A type that told them apart needs an identity in the
+  type (a unique symbol per definition), which no consumer has asked for.
 
 ## Order
 

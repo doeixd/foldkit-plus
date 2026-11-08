@@ -76,6 +76,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **A query refusing a namesake's field says so** (`foldkit-entity`, #479).
+  Two Entities defined with one name are two Entities, and `Query.where`
+  refused a field of the other with "reads Post.secret, but the query is from
+  Post"; it now adds that the field belongs to another Entity defined with
+  that name. The type compares names, so only this check sees it.
 - **domains-plus's no-script TLD choice is its own page**
   (`examples/foldkit/domains-plus`, #473). A page without scripts links to
   `/tlds`, which lists every extension and links back to the search with

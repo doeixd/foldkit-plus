@@ -403,6 +403,21 @@ describe('The operations the CMS worklist needs', () => {
       Query.from(Post).pipe(Query.where(Expr.eq(Expr.isNotNull(Blog.Comment.fields.body), true))),
     ).toThrow('reads Comment.body, but the query is from Post')
   })
+
+  it("refuses a field of another Entity that shares the query's Entity's name, saying so", () => {
+    // The type names Entities by name, so only this run-time check sees it (#479).
+    const Namesake = Entity.define(
+      'Post',
+      Schema.Struct({ id: Schema.String, secret: Schema.String }),
+    )
+    expect(() => Query.from(Post).pipe(Query.where(Expr.eq(Namesake.fields.secret, 'x')))).toThrow(
+      'reads Post.secret, but the query is from Post: the field belongs to another Entity defined with that name',
+    )
+    expect(() =>
+      // @ts-expect-error another name is refused by the type as well
+      Query.from(Post).pipe(Query.where(Expr.eq(Blog.Comment.fields.body, 'x'))),
+    ).toThrow(/is from Post$/)
+  })
 })
 
 describe('An interpreter can tell what it cannot run', () => {
