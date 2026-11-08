@@ -4,8 +4,6 @@
  */
 const prune = '../../../../packages/mixins/src/theme/prune.ts'
 const tests = ['examples/foldkit/domains-plus/test/look.browser.test.ts']
-// Both killed by hand on 2026-11-08 (3,829 elements drawn otherwise); `pnpm mutate` does not reach the browser's copy (#488).
-const byHand = 'pnpm mutate does not reach the module the browser runs (#488); killed by hand.'
 
 export default [
   {
@@ -14,12 +12,10 @@ export default [
       { file: prune, find: 'for (const name of readsOf(outside)) kept.add(name)', replace: '' },
     ],
     tests,
-    survives: byHand,
   },
   {
     name: 'a token only another token reads is pruned',
     edits: [{ file: prune, find: 'pending.push(read)', replace: '' }],
     tests,
-    survives: byHand,
   },
 ]

@@ -53,7 +53,8 @@ const mount = async (query: string, css = stylesheet) => {
   )
   dispose = () => {
     handle.dispose()
-    if (css !== stylesheet) sheet.remove()
+    // A sheet left in the head would define every token for the next test's pruned one.
+    sheet.remove()
   }
   await vi.waitUntil(() => document.querySelector('.domain-card .price'), answered)
   return sheet
@@ -121,8 +122,17 @@ it('draws every element the same with the sheet pruned to the tokens it reads (#
         .map(property => `${property}: ${style.getPropertyValue(property)}`)
         .join('; ')
     })
+  const settled = async () => {
+    // A font landing or a transition running between the two reads would
+    // change what is drawn, not the prune: the sheet holds the `@font-face`,
+    // so new text loads the face again, and the open dropdown's chevron turns.
+    await Promise.all(Array.from(document.fonts, face => face.load()))
+    await Promise.all(document.getAnimations().map(animation => animation.finished))
+  }
+  await settled()
   const before = drawn()
   sheet.textContent = Theme.prune(full)
+  await settled()
   const after = drawn()
   expect(after.filter((style, index) => style !== before[index])).toEqual([])
   expect(sheet.textContent.length).toBeLessThan(full.length * 0.6)

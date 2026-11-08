@@ -1726,6 +1726,17 @@ of its own named a form field "fits the Catalog". Read words with
   seen; the transition still had a frame to run, `Measure` measures every
   frame of one, and CI saw the margin early. Wait for `getAnimations()` to be
   empty before asserting what a later step alone causes.
+- **A sheet an earlier test installed defines what a later one removes.**
+  domains-plus's pruned-sheet test swapped its `<style>` for the pruned text
+  and compared computed styles; run after the file's other tests, their
+  full sheet was still in the head, so every token stayed defined and both
+  prune mutations survived, while `-t` alone killed them (#488, filed as a
+  tooling bug, was this). Remove what a test installs in its own cleanup, and
+  run a mutation's test file whole, as `pnpm mutate` does, before blaming
+  the tool. The same test then met two more: `document.fonts.ready`
+  resolved with the face still loading, and new text in a `<style>` holding
+  an `@font-face` loads the face again. Before comparing two draws, await
+  each face's `load()` and every animation's `finished`.
 - **A held mouse races the other test files.** A test that pressed the
   mouse through `cdp()` (`Input.dispatchMouseEvent`) and checked `:active`
   failed now and then in a wide run: every test file shares one real
