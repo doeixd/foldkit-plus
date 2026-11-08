@@ -462,6 +462,13 @@ RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
   writer is made. A relation declared `authorizedBy: 'parent'` lets whoever
   may delete the post take those rows unjudged, which is a choice the domain
   states: a post's author removing everyone's likes of it.
+- A delete that clears links (`Relation.one(Folder, { optional: true,
+  onDelete: 'setNull' })`) unlinks no row its deleter may not unlink. Each
+  row it would clear is held to what an update unlinking it would be: its
+  `Update` rule and the relation's `Unlink` rule, judged in the statement
+  that deletes. One refused, and nothing changes: "It would clear the link
+  of a Doc you may not change", with its `explain`, naming no row. The
+  Entity goes in `children` as a cascade's does.
 
 Reading the row and writing it are two statements, so another write can land
 between the check and the write. Name a revision, a field stored as a number

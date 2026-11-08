@@ -47,9 +47,10 @@ export type Cardinality = 'one' | 'many'
  * (`Relation.one(Post, { onDelete: 'cascade' })`): `cascade`, it is deleted
  * with it, by the server in the write that deletes, and foreseen by a client;
  * `restrict`, the delete is refused while any row points there (#467), naming
- * the relation and none of the rows.
+ * the relation and none of the rows; `setNull`, an optional link is cleared,
+ * an update of the row held to its own `Update` rules.
  */
-export type OnDelete = 'cascade' | 'restrict'
+export type OnDelete = 'cascade' | 'restrict' | 'setNull'
 
 /**
  * Who may let a cascade take a row (#348). `child`, the default: the row's own
@@ -456,6 +457,12 @@ export type OneOptions<Optional extends boolean> = {
       readonly onDelete: 'restrict'
       readonly authorizedBy?: undefined
     }
+  | {
+      /** `setNull`: this row stays and points nowhere; only a link that may point nowhere can. */
+      readonly onDelete: 'setNull'
+      readonly optional: true
+      readonly authorizedBy?: undefined
+    }
 )
 
 function one<Target extends AnyEntity>(target: Target): RelationSpec<Target, 'one', false>
@@ -473,9 +480,18 @@ function one(
 ): RelationSpec<AnyEntity, 'one', boolean> {
   const onDelete = options?.onDelete
   const authorizedBy = options?.authorizedBy
-  if (onDelete !== undefined && onDelete !== 'cascade' && onDelete !== 'restrict')
+  if (
+    onDelete !== undefined &&
+    onDelete !== 'cascade' &&
+    onDelete !== 'restrict' &&
+    onDelete !== 'setNull'
+  )
     throw new Error(
-      `[foldkit-entity] Relation.one(${target.name}): onDelete is 'cascade' or 'restrict'; ${String(onDelete)} is not one`,
+      `[foldkit-entity] Relation.one(${target.name}): onDelete is 'cascade', 'restrict' or 'setNull'; ${String(onDelete)} is not one`,
+    )
+  if (onDelete === 'setNull' && options?.optional !== true)
+    throw new Error(
+      `[foldkit-entity] Relation.one(${target.name}): onDelete: 'setNull' clears the link, so it needs optional: true`,
     )
   if (authorizedBy !== undefined && authorizedBy !== 'child' && authorizedBy !== 'parent')
     throw new Error(

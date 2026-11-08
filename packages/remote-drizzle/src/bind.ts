@@ -20,7 +20,7 @@ import { Entity, type FieldsFrom } from 'foldkit-remote'
 import type {
   AnyEntityBinding,
   CascadeEdge,
-  RestrictEdge,
+  PointerEdge,
   ComputedConfig,
   EntityBinding,
   ManyRelation,
@@ -515,24 +515,27 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
     })
 
     // Each relation of an Entity bound beside this one that refuses a delete of a row it
-    // points at (#467), read on use as cascades are.
-    const restricts = Domain.Entity.restricting(entity).map(({ relation, owner }) => {
-      const pointingKey =
-        Object.keys(entities).find(key => Domain.Entity.same(entities[key]!, owner)) ??
-        fail(
-          `${relation.owner.name}.${relation.key} restricts deleting ${name}, but ${relation.owner.name} is not being bound beside it; bind them together, so a delete can see its rows`,
-        )
-      const column =
-        tables[pointingKey]?.relations?.[relation.key]?.field ??
-        fail(
-          `${relation.owner.name}.${relation.key} restricts deleting ${name}, so it must be stored on ${relation.owner.name}'s own table ({ field })`,
-        )
-      return Object.defineProperty(
-        { entity: relation.owner.name, relation: relation.key, column },
-        'owner',
-        { get: () => bindings[pointingKey], enumerable: true },
-      ) as RestrictEdge
-    })
+    // points at, or whose link such a delete clears (#467), read on use as cascades are.
+    const pointersOf = (edges: ReadonlyArray<Domain.Entity.Cascade>, does: string) =>
+      edges.map(({ relation, owner }) => {
+        const pointingKey =
+          Object.keys(entities).find(key => Domain.Entity.same(entities[key]!, owner)) ??
+          fail(
+            `${relation.owner.name}.${relation.key} ${does} ${name}, but ${relation.owner.name} is not being bound beside it; bind them together, so a delete can see its rows`,
+          )
+        const column =
+          tables[pointingKey]?.relations?.[relation.key]?.field ??
+          fail(
+            `${relation.owner.name}.${relation.key} ${does} ${name}, so it must be stored on ${relation.owner.name}'s own table ({ field })`,
+          )
+        return Object.defineProperty(
+          { entity: relation.owner.name, relation: relation.key, column },
+          'owner',
+          { get: () => bindings[pointingKey], enumerable: true },
+        ) as PointerEdge
+      })
+    const restricts = pointersOf(Domain.Entity.restricting(entity), 'restricts deleting')
+    const clears = pointersOf(Domain.Entity.clearing(entity), 'is cleared by deleting')
 
     // An invariant may read a `one` relation, so the checks are read once relations are bound.
     holdsChecks(entity, config.table, columns, relations, operators)
@@ -608,6 +611,7 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
       reach,
       cascades,
       restricts,
+      clears,
       ...(config.visible === undefined ? {} : { visible: config.visible }),
     } as unknown as EntityBinding<string, DrizzleTable>
   }

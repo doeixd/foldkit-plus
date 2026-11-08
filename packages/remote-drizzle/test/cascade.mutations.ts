@@ -59,22 +59,27 @@ export default [
   edit(
     'a delete of a row that is not there still takes its children',
     '../src/index.ts',
-    ' and ${taken}`)',
-    '`)',
+    'in (${removedBy(step)}) and ${taken}`)',
+    'in (${removedBy(step)})`)',
   ),
   edit(
     'every row removed is named, seen or not',
     '../src/index.ts',
-    ".filter(row => Number(row['seen']) === 1)",
-    '.filter(() => true)',
+    ".filter(row => Number(row['seen']) === 1)\n          .map((row): CascadedRow",
+    '.filter(() => true)\n          .map((row): CascadedRow',
   ),
   edit(
     'no row removed is named',
     '../src/index.ts',
-    ".filter(row => Number(row['seen']) === 1)",
-    '.filter(() => false)',
+    ".filter(row => Number(row['seen']) === 1)\n          .map((row): CascadedRow",
+    '.filter(() => false)\n          .map((row): CascadedRow',
   ),
-  edit("D1 reads a batch's column named 1 first", '../src/index.ts', ").as('seen'),", '),'),
+  edit(
+    "D1 reads a batch's column named 1 first",
+    '../src/index.ts',
+    "then 1 else 0 end`).as('seen')",
+    'then 1 else 0 end`)',
+  ),
   edit(
     'a table cascading unseen by the domain is bound',
     '../src/bind.ts',
@@ -102,8 +107,8 @@ export default [
   edit(
     'the answer re-reads nothing a removed row pointed at',
     '../../remote-server/src/index.ts',
-    '[...before, ...cascaded.flatMap(pointedBy)]',
-    'before',
+    '                        ...cascaded.flatMap(pointedBy),\n',
+    '',
   ),
   edit(
     'the client shows only the row asked for gone',
@@ -140,8 +145,8 @@ export default [
   edit(
     'a rule unknown for a row lets the cascade take it',
     '../src/index.ts',
-    'and (${rule}) is not true`',
-    'and (${rule}) = false`',
+    'in (${judged}) and (${rule}) is not true`',
+    'in (${judged}) and (${rule}) = false`',
   ),
   edit(
     "authorizedBy: 'parent' is judged all the same",
@@ -170,14 +175,14 @@ export default [
   edit(
     'a refused cascade answers as a row that moved',
     '../src/index.ts',
-    'for (const { entity, step, reason, refused } of refusing) {',
-    'for (const { entity, step, reason, refused } of []) {',
+    'for (const { step, reason, refused, would } of refusing) {',
+    'for (const { step, reason, refused, would } of []) {',
   ),
   edit(
     "a refusal drops its rule's words",
     '../src/index.ts',
-    'onSome: said => `It would delete a ${entity} you may not delete: ${said}`,',
-    'onSome: () => `It would delete a ${entity} you may not delete`,',
+    'onSome: said => `It would ${would}: ${said}`,',
+    'onSome: () => `It would ${would}`,',
   ),
   edit(
     'the guard hands its writer no rule for the rows a cascade takes',
@@ -189,8 +194,8 @@ export default [
   edit(
     'a guarded writer is made without the Entity whose rules judge what it takes',
     '../../guard/src/server.ts',
-    'if (guarded === undefined)',
-    'if (false)',
+    'if (guarded === undefined)\n          throw new Error(\n            `[foldkit-guard] GuardServer.writer: a delete of ${root.name} takes',
+    'if (false)\n          throw new Error(\n            `[foldkit-guard] GuardServer.writer: a delete of ${root.name} takes',
     guardTests,
   ),
   edit(

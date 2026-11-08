@@ -167,11 +167,20 @@ export interface EntityBinding<
    * row they point at (`Relation.one(…, { onDelete: 'restrict' })`). `bind`
    * sets it; a binding made with `entity` restricts nothing.
    */
-  readonly restricts?: ReadonlyArray<RestrictEdge> | undefined
+  readonly restricts?: ReadonlyArray<PointerEdge> | undefined
+  /**
+   * The relations of Entities bound beside this one whose link a delete of the
+   * row they point at clears (`Relation.one(…, { optional: true, onDelete:
+   * 'setNull' })`). `bind` sets it; a binding made with `entity` clears nothing.
+   */
+  readonly clears?: ReadonlyArray<PointerEdge> | undefined
 }
 
-/** One relation that refuses a delete: its Entity and key, for the refusal, and where its link is. */
-export interface RestrictEdge {
+/**
+ * One relation pointing at a row that a delete of it restricts or clears: its
+ * Entity and key, for what a refusal names, and where its link is stored.
+ */
+export interface PointerEdge {
   readonly entity: string
   readonly relation: string
   readonly owner: AnyEntityBinding

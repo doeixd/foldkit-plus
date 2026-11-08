@@ -334,13 +334,17 @@ export interface CascadedRow {
 /**
  * What a writer's `delete` did. `Deleted`: the row is gone, with `cascaded`,
  * the rows declared to go with it (`Relation.one(…, { onDelete: 'cascade' })`)
- * that the principal may see. `Absent`: no row, so nothing to delete (a
+ * that the principal may see, and `cleared`, those whose link to it was
+ * cleared (`onDelete: 'setNull'`), which stay. `Absent`: no row, so nothing to delete (a
  * retry's case). `Moved`: the row is there at another revision, and stays.
  * `Referenced`: rows still point at it through `relation` (`Like.post`),
  * declared `onDelete: 'restrict'`, so it stays; which rows is not said.
  */
 export type DeleteOutcome = Data.TaggedEnum<{
-  Deleted: { readonly cascaded: ReadonlyArray<CascadedRow> }
+  Deleted: {
+    readonly cascaded: ReadonlyArray<CascadedRow>
+    readonly cleared: ReadonlyArray<EntityRef>
+  }
   Absent: {}
   Moved: {}
   Referenced: { readonly entity: string; readonly relation: string }
@@ -427,6 +431,15 @@ export interface EntityWriter<P, R = never> {
    * without it.
    */
   readonly restricts?: true
+  /**
+   * Whether `delete` clears, in the transaction that deletes the row, the link
+   * of every row pointing at it through a relation declared `onDelete:
+   * 'setNull'` (`Entity.clearing`), answers the rows the principal may see as
+   * `cleared`, and holds them to the `clearing` requirements it is given,
+   * refusing the whole delete where one fails. `RemoteServer.write` refuses a
+   * delete of an Entity something clears through a writer without it.
+   */
+  readonly clears?: true
   /**
    * Why this writer cannot land `write`, each a sentence; none when it can.
    * `RemoteServer.write` asks once, where the write is registered, for what
@@ -525,6 +538,11 @@ export interface EntityWriter<P, R = never> {
      * `cascades` is given them.
      */
     readonly cascading?: ReadonlyArray<CascadeRequirement> | undefined
+    /**
+     * What each row whose link the delete clears must hold, by Entity: its
+     * `Update` rules over the link. Only a writer with `clears` is given them.
+     */
+    readonly clearing?: ReadonlyArray<CascadeRequirement> | undefined
     readonly principal: P
   }) => Effect.Effect<
     DeleteOutcome,
@@ -2456,7 +2474,18 @@ export const RemoteServer = {
       const reach = (entity: AnyEntity): void => {
         for (const { owner } of Entity.cascading(entity)) {
           if (cascadePointers.has(owner.name)) continue
-          // A row the cascade takes would need the refusal too, judged before anything goes.
+          // A row the cascade takes would need the refusal, or the clearing, too.
+          if (Entity.clearing(owner).length > 0) {
+            throw new Error(
+              `[foldkit-remote-server] delete "${mutation.name}" removes ${write.input.entity.name}, whose cascade takes ${owner.name} rows, whose links ${Entity.clearing(
+                owner,
+              )
+                .map(({ relation, owner: from }) => `${from.name}.${relation.key}`)
+                .join(
+                  ', ',
+                )} clear (onDelete: 'setNull'); a cascade into such an Entity is not supported`,
+            )
+          }
           if (Entity.restricting(owner).length > 0) {
             throw new Error(
               `[foldkit-remote-server] delete "${mutation.name}" removes ${write.input.entity.name}, whose cascade takes ${owner.name} rows, which ${named(owner)} restricts (onDelete: 'restrict'); a cascade into a restricted Entity is not supported: restrict ${write.input.entity.name} instead, or cascade ${owner.name}'s pointers too`,
@@ -2475,6 +2504,12 @@ export const RemoteServer = {
       if (Entity.restricting(write.input.entity).length > 0 && writer.restricts !== true) {
         throw new Error(
           `[foldkit-remote-server] delete "${mutation.name}" removes ${write.input.entity.name}, which ${named(write.input.entity)} restricts (onDelete: 'restrict'), but its writer does not refuse a row they point at (restricts)`,
+        )
+      }
+      const cleared = Entity.clearing(write.input.entity)
+      if (cleared.length > 0 && writer.clears !== true) {
+        throw new Error(
+          `[foldkit-remote-server] delete "${mutation.name}" removes ${write.input.entity.name}, whose rows ${cleared.map(({ relation, owner }) => `${owner.name}.${relation.key}`).join(', ')} point at (onDelete: 'setNull'), but its writer does not clear them (clears)`,
         )
       }
     }
@@ -2771,9 +2806,14 @@ export const RemoteServer = {
                   // A delete that wrote nothing (the row gone, or hidden from its
                   // writer) names nothing more, so it answers alike either way.
                   Absent: () => Effect.succeed(gone([])),
-                  Deleted: ({ cascaded }) =>
+                  // A row whose link was cleared is read again, so its answer shows the link gone.
+                  Deleted: ({ cascaded, cleared }) =>
                     Effect.succeed(
-                      naming(gone(cascaded), [...before, ...cascaded.flatMap(pointedBy)]),
+                      naming(gone(cascaded), [
+                        ...before,
+                        ...cascaded.flatMap(pointedBy),
+                        ...cleared,
+                      ]),
                     ),
                 })
               }),

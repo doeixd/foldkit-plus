@@ -43,8 +43,8 @@ export default [
   edit(
     'an update names only where its row points after',
     '../../remote-server/src/index.ts',
-    '                    ...before,\n',
-    '',
+    'return naming(yield* answered(bound, written.value), [\n                    ...before,\n',
+    'return naming(yield* answered(bound, written.value), [\n',
   ),
   edit(
     'an update names only where its row pointed before',
@@ -55,8 +55,8 @@ export default [
   edit(
     'a delete names nothing',
     '../../remote-server/src/index.ts',
-    'naming(gone(cascaded), [...before, ...cascaded.flatMap(pointedBy)]),',
-    'naming(gone(cascaded), []),',
+    '                        ...before,\n                        ...cascaded.flatMap(pointedBy),\n',
+    '',
   ),
   edit(
     'an insert names nothing',

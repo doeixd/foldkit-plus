@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Relation.one(Folder, { optional: true, onDelete: 'setNull' })` clears
+  the link when the row it points at is deleted** (`foldkit-entity`,
+  `foldkit-remote-server`, `foldkit-remote-drizzle`, `foldkit-guard`, #467).
+  `Entity.clearing` lists such relations, and only an optional link can say
+  it. The Drizzle writer sets each link to null in the delete's transaction
+  or D1 batch, answers the rows its asker may see as `DeleteOutcome.Deleted({
+  cleared })` (now a required field), and `RemoteServer.write` reads them
+  again for the answer. `delete` takes `clearing` requirements: Guard hands
+  over each row's `Update` rule and its relation's `Unlink` rule, and the
+  writer refuses the whole delete where one fails. A writer must say `clears`,
+  and a cascade into an Entity whose links something clears is refused.
 - **`Relation.one(Topic, { onDelete: 'restrict' })` refuses deleting a row
   rows still point at** (`foldkit-entity`, `foldkit-remote`,
   `foldkit-remote-server`, `foldkit-remote-drizzle`, `foldkit-guard`, #467).

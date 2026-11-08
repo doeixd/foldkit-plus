@@ -77,8 +77,10 @@ describe('A cascade', () => {
   })
 
   it('refuses an action it does not know where it is declared', () => {
-    const unknown = 'setNull' as unknown as OnDelete
-    expect(() => Relation.one(UserFields, { onDelete: unknown })).toThrow(/onDelete is 'cascade'/)
+    expect(() =>
+      // @ts-expect-error the type refuses it too
+      Relation.one(UserFields, { onDelete: 'setDefault' }),
+    ).toThrow(/onDelete is 'cascade', 'restrict' or 'setNull'/)
   })
 })
 
@@ -105,5 +107,35 @@ describe('A restriction (#467)', () => {
       // @ts-expect-error the type refuses it too
       Relation.one(UserFields, { onDelete: 'restrict', authorizedBy: 'parent' }),
     ).toThrow(/needs onDelete: 'cascade'/)
+  })
+})
+
+describe('A cleared link (#467)', () => {
+  const Folder = Entity.define('Folder', Schema.Struct({ id: Schema.String }))
+  const Doc = Entity.define('Doc', Schema.Struct({ id: Schema.String }))
+  const Files = Entity.relate(
+    { Folder, Doc },
+    { Doc: { folder: Relation.one(Folder, { optional: true, onDelete: 'setNull' }) } },
+  )
+
+  it('is read from the Entity deleted, and is neither a cascade nor a restriction', () => {
+    expect(Files.Doc.relations.folder.onDelete).toEqual(Option.some('setNull'))
+    expect(Files.Doc.relations.folder.authorizedBy).toEqual(Option.none())
+    expect(
+      Entity.clearing(Folder).map(({ relation, owner }) => [owner.name, relation.key]),
+    ).toEqual([['Doc', 'folder']])
+    expect(Entity.cascading(Folder)).toEqual([])
+    expect(Entity.restricting(Folder)).toEqual([])
+  })
+
+  it('refuses a link that may not point nowhere', () => {
+    expect(() =>
+      // @ts-expect-error the type refuses it too
+      Relation.one(Folder, { onDelete: 'setNull' }),
+    ).toThrow(/needs optional: true/)
+    expect(() =>
+      // @ts-expect-error the type refuses it too
+      Relation.one(Folder, { optional: false, onDelete: 'setNull' }),
+    ).toThrow(/needs optional: true/)
   })
 })

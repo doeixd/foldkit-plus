@@ -563,7 +563,7 @@ export const relate = <const Es extends Entities, const Rs extends RelationMap<E
   return Object.freeze(related) as never
 }
 
-/** A `one` relation a delete acts through (it cascades, or it restricts), and the Entity that owns it. */
+/** A `one` relation a delete acts through (it cascades, restricts or clears), and the Entity that owns it. */
 export interface Cascade {
   readonly relation: OneRelation
   readonly owner: AnyEntity
@@ -572,6 +572,7 @@ export interface Cascade {
 const pointing: Readonly<Record<OnDelete, WeakMap<EntityIdentity<string>, Array<Cascade>>>> = {
   cascade: new WeakMap(),
   restrict: new WeakMap(),
+  setNull: new WeakMap(),
 }
 const pointInto = (action: OnDelete, target: EntityIdentity<string>, edge: Cascade): void => {
   const known = pointing[action].get(target) ?? []
@@ -595,6 +596,14 @@ export const cascading = (entity: AnyEntity): ReadonlyArray<Cascade> =>
  */
 export const restricting = (entity: AnyEntity): ReadonlyArray<Cascade> =>
   pointing.restrict.get(entity.identity) ?? []
+
+/**
+ * The optional `one` relations, of any Entity, declared `onDelete: 'setNull'`
+ * that point at `entity`: deleting one of its rows clears the link on each row
+ * pointing at it through one, which stays (#467).
+ */
+export const clearing = (entity: AnyEntity): ReadonlyArray<Cascade> =>
+  pointing.setNull.get(entity.identity) ?? []
 
 /**
  * Selects members of an Entity and assembles the schema of the result. A

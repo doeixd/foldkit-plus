@@ -1354,6 +1354,22 @@ table, and a foreign key on it says `restrict` or `no action`, or nothing. A
 cascade that would take rows of an Entity something restricts is refused
 where the writer is made: restrict the root, or cascade those pointers too.
 
+**A delete clears the links the domain says point nowhere after.** A row
+pointing at the deleted one through `Relation.one(Folder, { optional: true,
+onDelete: 'setNull' })` stays, with its link set to null, in the transaction
+(or D1 batch) that deletes, and only while the row named is still there and
+holds what the delete asks, so a delete that missed clears nothing. The
+writer answers the cleared rows the principal may see as
+`DeleteOutcome.Deleted({ cleared })`, and `RemoteServer.write` reads them
+again for the answer, so a page holding one sees its link gone. `delete`
+takes `clearing`, each Entity's rules for unlinking such a row as a
+`CascadeRequirement`: Guard's `GuardServer.writer` hands over the row's
+`Update` rule and the relation's `Unlink` rule, given the Entity in
+`children`, and the writer refuses the whole delete as `Forbidden` where a
+row it would clear does not hold them (unknown counts as not), naming the
+Entity and none of the rows. A cascade into an Entity whose links something
+clears is refused where the writer is made.
+
 **A cascade takes no row its deleter may not delete.** `delete` takes
 `cascading`, each Entity's `Delete` rule as a `CascadeRequirement` (Guard's
 `GuardServer.writer` hands them over), and judges it in the statement that

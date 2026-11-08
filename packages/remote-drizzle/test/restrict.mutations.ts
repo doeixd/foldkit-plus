@@ -68,8 +68,8 @@ export default [
   edit(
     'a restriction is filed as a cascade',
     entity,
-    '  restrict: new WeakMap(),\n}',
-    '  restrict: new WeakMap(),\n}\npointing.restrict.set = pointing.cascade.set.bind(pointing.cascade) as never',
+    '  restrict: new WeakMap(),\n  setNull: new WeakMap(),\n}',
+    '  restrict: new WeakMap(),\n  setNull: new WeakMap(),\n}\npointing.restrict.set = pointing.cascade.set.bind(pointing.cascade) as never',
   ),
   {
     name: "a delete's refusals leave referenced out",

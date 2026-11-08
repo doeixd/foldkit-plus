@@ -206,7 +206,13 @@ Object.keys(Blog.Post.members) // id, title, published, author, editor, comments
   cannot be deleted while it points there: a topic with notes under it.
   `Entity.restricting(Topic)` lists those relations, and `remote-drizzle`'s
   writer refuses such a delete as `Refusal.referenced`, naming the relation
-  and none of the rows. `setNull` is not declared yet (#467).
+  and none of the rows.
+- `Relation.one(Folder, { optional: true, onDelete: 'setNull' })` says the
+  row stays and points nowhere when the row it points at is deleted: a doc
+  whose folder went. Only a link that may point nowhere can say it, and the
+  types refuse it without `optional: true`. `Entity.clearing(Folder)` lists
+  those relations; clearing a link is an update of the row, so each is held
+  to its own `Update` rules, as unlinking it in an update would be.
 - Who may let a cascade take a row is said beside it. By default each row it
   takes is held to its own `Delete` rule, for whoever deletes the row it
   points at: a delete that would take a row they may not delete is refused
