@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Projection.derive(on, derive, { verify })` checks `on`** (`foldkit-surface`,
+  #483). Where the memo would hand back its last value, a verifying derive
+  works the value out again and throws when the two differ by
+  `Equal.equals`, naming the paths `on` reads: `derive` read something else,
+  and without the check would show what it read last. Pass
+  `import.meta.env?.DEV === true`; it doubles the work.
 - **`queryPlans`: does an index serve each page?** (`foldkit-remote-drizzle`,
   #437). In a test, it runs a first and a later page of each `query` source,
   for every order a body lets its reader choose, and asks the database how it

@@ -29,9 +29,21 @@ export default [
     ),
     tests: ['packages/surface/test/derive.test.ts'],
   },
+  // #483: a verifying derive works the value out again where the memo hits.
+  edit('a verifying derive trusts its memo', 'options.verify === true &&', 'false &&'),
+  edit(
+    'a verifying derive compares by identity',
+    '!Equal.equals(derive(root), before.value)',
+    'derive(root) !== before.value',
+  ),
+  edit(
+    'a verifying derive checks only on a miss',
+    'if (hit && options.verify',
+    'if (!hit && options.verify',
+  ),
   edit('a derivation from nothing is made', 'if (on.length === 0) {', 'if (false) {'),
   // #385: what reads no path of its own cannot be skipped by the paths.
-  edit('a read no path names is skipped while the paths hold', '!always && values', 'values'),
+  edit('a read no path names is skipped while the paths hold', '!always &&', 'true &&'),
   edit(
     'a read that declares no path counts as named',
     'entry.dependencies.length === 0 || readsUnnamed.has(entry)',

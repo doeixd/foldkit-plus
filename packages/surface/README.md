@@ -163,7 +163,11 @@ Open.read(model) // the same array while `model.todos` is
 ```
 
 `on` takes field references and Projections, whose `dependencies` it reads;
-`derive` must read nothing else, or it shows what it read last. A Remote read
+`derive` must read nothing else, or it shows what it read last. In
+development, `Projection.derive(on, derive, { verify: import.meta.env?.DEV ===
+true })` checks that: where the memo would hand back its last value, it works
+the value out again, and throws, naming `on`'s paths, when the two differ by
+`Equal.equals`. It doubles the work, so leave it off in production. A Remote read
 declares no path (its data is named by its metadata), and a `struct` holding
 one declares only its other entries' paths, so while `on` holds such a read
 the value is worked out on every read. Name the store's field,

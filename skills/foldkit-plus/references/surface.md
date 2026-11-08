@@ -139,7 +139,9 @@ at a path in `on` (field refs, or Projections) is a new object, and the last
 one handed back while the new one has the same fields (shallowly): for what a
 view derives on every render. It returns `{ dependencies, read }`, which a
 `SlotView.region` takes. `derive` must read only what `on` names; an empty
-`on` throws. A Remote read declares no path, alone or in a `struct`, so while
+`on` throws. `{ verify: import.meta.env?.DEV === true }`, a third argument,
+works the value out again on every memo hit and throws when it differs
+(`Equal.equals`), naming `on`'s paths. A Remote read declares no path, alone or in a `struct`, so while
 `on` holds one the value is worked out on every read; naming the store's field
 (`App.model.remote`) in its place, and making the read inside `derive`, keeps
 the value while the store holds.
