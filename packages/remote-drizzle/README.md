@@ -1050,7 +1050,12 @@ query(PostsSearch, {
   SQLite and Postgres. The default is Postgres's (last ascending, first
   descending); a body's term says otherwise with
   `Order.asc(field, { nulls: 'first' })`, and an `orderBy` term here with
-  `nulls: 'first'`.
+  `nulls: 'first'`. A column the table declares not null has no nulls to
+  place, so its term says nothing: SQLite sorts the last term of an order
+  whose terms place nulls against its own default, even where an index holds
+  the order, so a page ordered `…, id` would sort its ties. An index that
+  matches the order, its directions included (`(owner, created desc, id)` for
+  newest first with ties by id), then serves the whole page.
 
 A page's cursor is where it ended: the order's key values at its last row, the
 id among them (`k:[...]`). The next page's keyset predicate is built from those

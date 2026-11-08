@@ -174,8 +174,25 @@ describe('A compiled body is the query the binding used to spell out', () => {
     await run(defined, database)
 
     expect(calls[0]!.orderBy!.map(term => rendered(term).sql)).toEqual([
-      '"posts"."slug" desc nulls first',
-      '"posts"."id" asc nulls last',
+      '"posts"."slug" desc',
+      '"posts"."id" asc',
+    ])
+  })
+
+  it('places nulls in the order of a column that can hold them, and only there', async () => {
+    // Left unsaid, SQLite and Postgres disagree on where nulls go, and the
+    // keyset predicate assumes one. A not-null column has none to place.
+    const ByArchived = Query.define('ByArchived', {}, () =>
+      Query.from(Post).pipe(Query.orderBy(Order.asc(Post.fields.archivedAt))),
+    )
+    const defined = query(ByArchived, { entity: PostBinding })
+    const { database, calls } = fakeDatabase()
+
+    await run(defined, database)
+
+    expect(calls[0]!.orderBy!.map(term => rendered(term).sql)).toEqual([
+      '"posts"."archived_at" asc nulls last',
+      '"posts"."id" asc',
     ])
   })
 
@@ -185,9 +202,7 @@ describe('A compiled body is the query the binding used to spell out', () => {
 
     await run(defined, database)
 
-    expect(calls[0]!.orderBy!.map(term => rendered(term).sql)).toEqual([
-      '"posts"."id" asc nulls last',
-    ])
+    expect(calls[0]!.orderBy!.map(term => rendered(term).sql)).toEqual(['"posts"."id" asc'])
   })
 
   it('refuses at registration a body ordering by a field the binding has no column for', () => {
@@ -231,15 +246,15 @@ describe('A compiled body is the query the binding used to spell out', () => {
       return (calls[0]?.orderBy ?? []).map(term => rendered(term).sql)
     }
     expect(await orderedBy(Order.asc(Post.fields.slug, { collation: Collation.binary }))).toEqual([
-      '"posts"."slug" collate "C" asc nulls last',
-      '"posts"."id" asc nulls last',
+      '"posts"."slug" collate "C" asc',
+      '"posts"."id" asc',
     ])
     expect(
       await orderedBy(Order.asc(Post.fields.slug, { collation: Collation.asciiFold })),
-    ).toEqual(['lower("posts"."slug" collate "C") asc nulls last', '"posts"."id" asc nulls last'])
+    ).toEqual(['lower("posts"."slug" collate "C") asc', '"posts"."id" asc'])
     expect(
       await orderedBy(Order.desc(Post.fields.slug, { collation: Collation.locale('en-US') })),
-    ).toEqual(['"posts"."slug" collate "en-US" desc nulls first', '"posts"."id" asc nulls last'])
+    ).toEqual(['"posts"."slug" collate "en-US" desc', '"posts"."id" asc'])
   })
 
   it('refuses a locale collation on SQLite, which has none, where the query is registered', () => {
@@ -295,10 +310,10 @@ describe('A compiled body is the query the binding used to spell out', () => {
       return { result, order: (calls[0]?.orderBy ?? []).map(term => rendered(term).sql) }
     }
     expect((await ordered({ by: 'slug', direction: 'desc' })).order).toEqual([
-      '"posts"."slug" desc nulls first',
-      '"posts"."id" asc nulls last',
+      '"posts"."slug" desc',
+      '"posts"."id" asc',
     ])
-    expect((await ordered(null)).order).toEqual(['"posts"."id" asc nulls last'])
+    expect((await ordered(null)).order).toEqual(['"posts"."id" asc'])
     // A sort naming no order the body offers is the request's mistake.
     const unknown = await ordered({ by: 'id', direction: 'asc' })
     expect(unknown.result._tag).toBe('Failure')

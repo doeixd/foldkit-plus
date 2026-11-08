@@ -99,6 +99,14 @@ version changed; `pnpm` skips versions already in the registry.
   read asked after the answer, a later answer, a live delete and `forget` end
   the wait (`RemoteModel.echoes`, per stream and row).
 
+- **A SQLite page sorts nothing an index holds** (`foldkit-remote-drizzle`).
+  Every compiled order placed nulls on every term (`nulls last` ascending),
+  and SQLite sorts the last term of such an order whatever the indexes, so
+  every keyset page on SQLite and D1 sorted its tie-break. A column the table
+  declares not null now places none; a nullable one still does, so pages are
+  the same on both dialects. `orderPlan.test.ts` holds a page to its index
+  through `EXPLAIN QUERY PLAN`.
+
 ## 0.38.0
 
 Pages get cheaper to serve. Public reads and whole pages are kept at the edge
