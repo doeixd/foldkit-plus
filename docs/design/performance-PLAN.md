@@ -195,6 +195,17 @@ minutes, 10 of 10 loads were served from KV, and Worker startup fell from
 
 ## What the work so far taught
 
+- **A memo is measured where its case happens.** #431's Bundle part is
+  built: a placement, a `Link.child` and a collection item drawn without
+  view inputs are kept while the child's Model is the same object. No app the
+  render benchmark drives has the case it helps: the data grid is one
+  placement whose Model changes with nearly every Message, domains-plus
+  places no Bundle children, the CMS studio draws one section at a time, and
+  ui-showcase folds its components with `Update.foldChild` and draws them by
+  hand. Its runtime test counts draws (`packages/bundle/test/memo.test.ts`);
+  numbers wait for an app with sibling placements that stand still while
+  others change.
+
 - **Measure what a sheet holds before pruning it.** #471 proposed shipping
   only the classes a page can draw. Measured 2026-11-08 on domains-plus, its
   sheet is 159.6 KB raw, 15.2 KB brotli: 92.0 KB of it is the application's
