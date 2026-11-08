@@ -171,7 +171,7 @@ interleaved cold loads of `/?q=sunbeam`):
 | Without JavaScript | works | no prices | works | already ahead |
 | Time to first byte | 71 ms | 55 ms | 81 ms | #469, #468 |
 | JS at load, brotli | 79 KB | 215 KB | 268 KB | #472; then #420, #430 |
-| CSS, brotli | 8.9 KB | 8.0 KB | 18.1 KB | the base sheet, not #471 (below) |
+| CSS, brotli | 8.9 KB | 8.0 KB | 18.1 KB | #487: the theme tokens nothing reads, not #471 (below) |
 | HTML, brotli | 5.4 KB | 4.5 KB | 11.1 KB | #470, #473 (it carries the prices; compare HTML with data) |
 | Failed loads (1102) | 0 | 0 | 13 of 15 never-seen searches | #473; #469 and #468 for repeated pages |
 | New search | 215 ms | 246 ms | 307 ms | #474 |
@@ -204,7 +204,8 @@ minutes, 10 of 10 loads were served from KV, and Worker startup fell from
   about 1.2 KB brotli, and nearly all are drawn later by a client (the
   Listbox and Dialog popups, the filter and cart sheets, data-dependent
   states), which would then inject them at run time. The lever is the base
-  sheet, not the classes.
+  sheet: 414 of its 587 token definitions are read by nothing the sheet
+  ships, and dropping them would take it from 15.2 to 10.8 KB brotli (#487).
 
 - **Remove code; do not defer it.** #423 moved the cart and phone sheets
   behind `Resource.lazy` and saved 0.9 of 214.8 KB: the app's own code is
