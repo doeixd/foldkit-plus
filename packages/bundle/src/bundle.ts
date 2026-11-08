@@ -343,6 +343,8 @@ type EachOptions<
   readonly onMessage?: Required<
     EachConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2, Key, ParentSeed>
   >['onMessage']
+  /** `false` draws each item's view on every render; by default one is kept while its Model is. */
+  readonly memo?: false
 } & ([Args] extends [void]
   ? { readonly args?: never }
   : { readonly args: ArgsSource<ParentSeed, Args> }) &

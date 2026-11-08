@@ -171,3 +171,84 @@ describe('A Link.child', () => {
     }
   })
 })
+
+describe('A collection item', () => {
+  const Row = Schema.Struct({ id: Schema.String, count: Schema.Number })
+  type Row = typeof Row.Type
+  const RowMessage = defineMessageUnion({ Clicked: {} })
+  const rowBundle = Bundle.make({
+    name: 'Row',
+    Model: Row,
+    Message: RowMessage,
+    init: () => ({ model: { id: '', count: 0 } }),
+    update: (model: Row) => ({ model: { ...model, count: model.count + 1 } }),
+    view: Submodel.defineView<Row, typeof RowMessage.Type>((model, h) => {
+      draws.set(model.id, (draws.get(model.id) ?? 0) + 1)
+      return h.button(
+        [h.Class(`row-${model.id}`), h.OnClick(RowMessage.Clicked())],
+        [`${model.count}`],
+      )
+    }),
+  })
+  const GotRow = Link.keyedWrapper('GotRow', RowMessage)
+  const Rows = Schema.Struct({ rows: Schema.Record(Schema.String, Row) })
+  type Rows = typeof Rows.Type
+  const RowsMessage = defineMessageUnion({ Removed: { id: Schema.String }, ...GotRow.cases })
+  type RowsMessage = typeof RowsMessage.Type
+  const seeded = { a: { id: 'a', count: 0 }, b: { id: 'b', count: 0 }, c: { id: 'c', count: 0 } }
+
+  it.each([
+    ['is drawn again only when its own Model changes', {}, { a: 3, b: 1, c: 1 }, { a: 3, c: 2 }],
+    [
+      'is drawn on every render with memo: false',
+      { memo: false } as const,
+      { a: 3, b: 3, c: 3 },
+      { a: 5, c: 5 },
+    ],
+  ])('%s', async (_, config, afterClicks, afterRemove) => {
+    const Each = rowBundle.each(Link.collection<Rows>()('rows', GotRow), config)
+    const placements = Bundle.assemble<Rows, RowsMessage>()([Each])
+    draws.clear()
+    const container = document.createElement('div')
+    container.id = 'bundle-memo-rows'
+    document.body.appendChild(container)
+    timedFrames()
+    const handle = Runtime.embed(
+      Runtime.makeElement(
+        placements.complete({
+          Model: Rows,
+          container,
+          init: () => ({ model: { rows: seeded } }),
+          update: placements.update((model, message) =>
+            message._tag === 'Removed' ? Each.remove(message.id)(model) : { model },
+          ),
+          view: (model: Rows, h: HtmlBuilder<RowsMessage>) =>
+            h.main(
+              [],
+              [
+                h.button([h.Id('remove-b'), h.OnClick(RowsMessage.Removed({ id: 'b' }))], ['x']),
+                ...Each.viewAll(model, h),
+              ],
+            ),
+          subscriptions: placements.subscriptions(),
+        }),
+      ),
+    )
+    try {
+      await vi.waitFor(() => expect(text('.row-a')).toBe('0'))
+      click('.row-a')
+      await vi.waitFor(() => expect(text('.row-a')).toBe('1'))
+      click('.row-a')
+      await vi.waitFor(() => expect(text('.row-a')).toBe('2'))
+      expect(Object.fromEntries(draws)).toEqual(afterClicks)
+      click('#remove-b')
+      await vi.waitFor(() => expect(document.querySelector('.row-b')).toBeNull())
+      click('.row-c')
+      await vi.waitFor(() => expect(text('.row-c')).toBe('1'))
+      const { b: _, ...rest } = Object.fromEntries(draws)
+      expect(rest).toEqual(afterRemove)
+    } finally {
+      handle.dispose()
+    }
+  })
+})

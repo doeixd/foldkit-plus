@@ -56,4 +56,31 @@ export default [
     'if ((globalThis as Record<symbol, unknown>)[SERVER_RENDER] === true) return draw(model, h)',
     '',
   ),
+  edit(
+    'a collection item is drawn on every render',
+    '../src/collection.ts',
+    ': keptFor(parent, key, childView)(model, h)',
+    ': drawItem(key, model, h, childView)',
+  ),
+  edit(
+    'a collection keeps its items whatever memo says',
+    '../src/collection.ts',
+    '? config.memo === false',
+    '? false',
+  ),
+  edit(
+    'a collection keeps a new memo every render',
+    '../src/collection.ts',
+    'kept.set(key, made)',
+    '',
+  ),
+  {
+    name: 'a collection keeps the drawing of every item it ever held',
+    edits: [
+      { file: '../src/collection.ts', find: 'kept.size >= 2 * entries.length', replace: 'false' },
+    ],
+    tests,
+    survives:
+      'Only memory: a kept drawing of a removed item is the right drawing of the same Model, so nothing a test can read shows it.',
+  },
 ]

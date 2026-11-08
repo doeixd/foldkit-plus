@@ -206,11 +206,11 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   dispatch when hooks around the placement must run too. Otherwise the result passes through untouched, pending kept. Apply outside whatever
   installs a loaded value; keep the pending ask where the address rewrites it
   while it waits.
-- **Drawn again only when the child changes:** a placement's view, and a
-  `Link.child`, drawn without view inputs is kept while the child's Model is
+- **Drawn again only when the child changes:** a placement's view, a
+  collection's items, and a `Link.child`, drawn without view inputs is kept while the child's Model is
   the same object, so a Message for one placement leaves the others' drawings
   as they were. A view that reads outside its Model opts out with `memo:
-  false` (placement config, or `Link.child`'s fifth argument).
+  false` (placement or collection config, or `Link.child`'s fifth argument).
 - **A Link without a Bundle:** `Link.child(link, update, view, slotId)` states
   a plain child once and yields its fold and its drawing, so the two never
   restate the field, the wrapper, or the slot (an absent child draws

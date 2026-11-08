@@ -101,13 +101,15 @@ version changed; `pnpm` skips versions already in the registry.
 ### Changed
 
 - **A placed child's view is drawn again only when its Model changes**
-  (`foldkit-bundle`, #431). A placement's `view` and a `Link.child` drawn
+  (`foldkit-bundle`, #431). A placement's `view`, a collection's items, and a
+  `Link.child` drawn
   without view inputs keep their last drawing in a Foldkit lazy slot while
   the child's Model is the same object, so a Message for one placement no
   longer runs or diffs its siblings' views. A view with inputs, and every view
-  while a server renders, is drawn as before. `memo: false` in the placement
-  config (or `Link.child`'s options) draws on every render, for a view that
-  reads outside its Model.
+  while a server renders, is drawn as before. A collection forgets the kept
+  drawing of an item it no longer holds. `memo: false` in the placement or
+  collection config (or `Link.child`'s options) draws on every render, for a
+  view that reads outside its Model.
 - **A query refusing a namesake's field says so** (`foldkit-entity`, #479).
   Two Entities defined with one name are two Entities, and `Query.where`
   refused a field of the other with "reads Post.secret, but the query is from

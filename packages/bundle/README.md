@@ -325,7 +325,8 @@ its `update` changed it (a no-op returns the Model it was given). A view
 drawn with `viewInputs`, which a parent usually builds per render, is drawn
 every time, and so is every view while a server renders. A view that reads
 something outside its Model (a clock, a module's mutable state) opts out with
-`memo: false` in the placement config.
+`memo: false` in the placement config. A collection's items are kept the same
+way, each by its own Model.
 
 ## Args, OutMessages, and helpers
 
@@ -534,7 +535,10 @@ Rows.remove('b')
 - **`update`**, **`helpers.name(key, ...input)`**, and `onOut(outMessage, key)`
   work per item. `args` are given once, for every item.
 - **`view(parent, h, key)`** renders one item and **`viewAll(parent, h)`** renders
-  all of them, each in its own slot.
+  all of them, each in its own slot. An item drawn without inputs is drawn
+  again only when its own Model changes, as a placement's view is, and its
+  kept drawing is forgotten once the collection no longer holds it; `memo:
+  false` in the config draws every item on every render.
 - **`Page.placeEach(bundle, field, config)`** places without a declaration.
 - **`placements.initial`** starts a collection empty unless `rest` gives it.
 
