@@ -11,6 +11,7 @@ import * as Subscription from 'foldkit/subscription'
 import * as Update from 'foldkit/update'
 import type { AnyMessage, Link } from './link.js'
 import type { BundleSpec, Helper, ResourceEntries } from './bundle.js'
+import { keptDrawing } from './memo.js'
 
 const PlacedTypeId: unique symbol = Symbol.for('foldkit-bundle/Placed')
 
@@ -173,6 +174,13 @@ export interface PlaceConfig<
    * given any.
    */
   readonly viewInputs?: (parent: Parent, given: ViewInputs) => ViewInputs
+  /**
+   * `false` draws the child's view on every render. By default a view drawn
+   * without inputs is kept while the child's Model is the same object, since
+   * it is given nothing else: opt out for a view that reads something outside
+   * its Model (a clock, a module's mutable state).
+   */
+  readonly memo?: false
 }
 
 /** A lifted resource record: each child entry in parent terms, keyed by the placement. */
@@ -480,6 +488,17 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
   }
 
   const childView: ErasedView | undefined = bundle.view
+  // One kept drawing per slot: a lazy slot belongs to one position in the tree.
+  const kept = new Map<string, (model: unknown, h: HtmlBuilder<any>) => Html>()
+  const keptIn = (slotId: string, view: ErasedView) => {
+    const known = kept.get(slotId)
+    if (known !== undefined) return known
+    const made = keptDrawing((model, h) =>
+      h.submodel({ slotId, model, view, toParentMessage: link.toParentMessage }),
+    )
+    kept.set(slotId, made)
+    return made
+  }
   const viewIn =
     (slotId: string) =>
     (parent: unknown, h: HtmlBuilder<any>, given?: unknown): Html =>
@@ -495,13 +514,16 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
                   ? given
                   : config.viewInputs(parent, given)
               // `h.submodel` passes inputs positionally whenever the key is present.
+              // Inputs are usually made per render, so only a view without them is kept.
               return viewInputs === undefined
-                ? h.submodel({
-                    slotId,
-                    model,
-                    view: childView,
-                    toParentMessage: link.toParentMessage,
-                  })
+                ? config.memo === false
+                  ? h.submodel({
+                      slotId,
+                      model,
+                      view: childView,
+                      toParentMessage: link.toParentMessage,
+                    })
+                  : keptIn(slotId, childView)(model, h)
                 : h.submodel({
                     slotId,
                     model,

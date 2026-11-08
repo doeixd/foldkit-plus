@@ -316,6 +316,17 @@ Each placement exposes its parts in parent terms:
 Keys are prefixed with the placement, so two placements of one bundle never
 collide in `Subscription.aggregate`.
 
+**A placed view is drawn again only when its child's Model changes.** A view
+drawn without inputs is given its Model alone, so while the parent holds the
+same child object the last drawing is handed back, and Foldkit neither runs
+the view nor diffs its tree: a Message for one placement leaves every other
+placement's drawing as it was. The child's Model changes identity exactly when
+its `update` changed it (a no-op returns the Model it was given). A view
+drawn with `viewInputs`, which a parent usually builds per render, is drawn
+every time, and so is every view while a server renders. A view that reads
+something outside its Model (a clock, a module's mutable state) opts out with
+`memo: false` in the placement config.
+
 ## Args, OutMessages, and helpers
 
 `update` receives the args as its third parameter, so behaviour can depend on
@@ -674,7 +685,9 @@ const view = (model: Model, h: HtmlBuilder<Message>) => h.main([], [posts.view(m
 ```
 
 A child with view inputs, or with OutMessages of its own, stays hand-rolled:
-`Link.child` takes a plain `update` and `view` and lifts neither.
+`Link.child` takes a plain `update` and `view` and lifts neither. Its drawing
+is kept while the child's Model is the same object, as a placement's is;
+`Link.child(link, update, view, slotId, { memo: false })` draws it every time.
 
 [`test/foldChild.test.ts`](test/foldChild.test.ts) runs this example, and
 [`examples/foldkit/ui-showcase`](../../examples/foldkit/ui-showcase) folds its

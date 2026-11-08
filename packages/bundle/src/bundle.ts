@@ -246,6 +246,12 @@ export type PlacementConfig<
   readonly viewInputs?: [ViewInputs] extends [void]
     ? Invalid<'This view takes no inputs, so viewInputs would never be called'>
     : (parent: Parent, given: ViewInputs) => ViewInputs
+  /**
+   * `false` draws the child's view on every render. By default a view drawn
+   * without inputs is kept while the child's Model is the same object (#431),
+   * since it is given nothing else: opt out for one that reads outside it.
+   */
+  readonly memo?: false
 } & ([Args] extends [void]
   ? { readonly args?: never }
   : { readonly args: ArgsSource<ParentSeed, Args> }) &
