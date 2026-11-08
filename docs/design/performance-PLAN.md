@@ -206,6 +206,8 @@ minutes, 10 of 10 loads were served from KV, and Worker startup fell from
   states), which would then inject them at run time. The lever is the base
   sheet: 414 of its 587 token definitions are read by nothing the sheet
   ships, and dropping them would take it from 15.2 to 10.8 KB brotli (#487).
+  Built (`styles({ prune })`), a `vite build` measured 10.6 KB, held by
+  `examples/foldkit/domains-plus/test/sheet.test.ts`.
 
 - **Remove code; do not defer it.** #423 moved the cart and phone sheets
   behind `Resource.lazy` and saved 0.9 of 214.8 KB: the app's own code is

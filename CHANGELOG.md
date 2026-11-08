@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`styles({ sheet, prune: { keep } })` ships only the tokens the sheet reads**
+  (`foldkit-mixins`, #487). `Theme.prune(css, { keep })` removes each `--fk-*`
+  definition and `@property` registration that no rule reads, directly or
+  through a kept token; the plugin applies it in dev and in the build.
+  domains-plus's sheet: 15.2 KB to 10.6 KB brotli. A token read only inline
+  (`Theme.ref`) or by a script goes in `keep`; `Inert.missingTokens` over the
+  pruned sheet finds one a drawn view needs.
 - **`Projection.derive(on, derive, { verify })` checks `on`** (`foldkit-surface`,
   #483). Where the memo would hand back its last value, a verifying derive
   works the value out again and throws when the two differ by

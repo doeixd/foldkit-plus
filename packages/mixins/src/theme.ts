@@ -34,6 +34,7 @@ import { root, scoped } from './theme/root.js'
 import { chooseScheme, currentScheme, schemeScript } from './theme/scheme.js'
 import { chooseKnobs, knobScript } from './theme/knobsKept.js'
 import { raise, raisedSurface } from './theme/raise.js'
+import { prune } from './theme/prune.js'
 import {
   breakpointWidths,
   concentric,
@@ -107,6 +108,7 @@ export type { KnobsChoice, KnobsPlace } from './theme/knobsKept.js'
 export const Theme = {
   ...Core.Theme,
   root,
+  prune,
   scoped,
   tokens,
   standard: ThemeSet.standardOf,

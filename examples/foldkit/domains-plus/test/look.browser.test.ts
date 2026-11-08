@@ -12,6 +12,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import { fromString } from 'foldkit/url'
 import { Style } from 'foldkit-mixins'
+import { Theme } from 'foldkit-mixins/theme'
 import { Remote } from 'foldkit-remote'
 import { afterEach, expect, it, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
@@ -29,8 +30,8 @@ afterEach(() => {
 })
 
 /** The page at `/?q=<query>`, its reads answered by the Worker's own `/remote`. */
-const mount = async (query: string) => {
-  Style.install(stylesheet)
+const mount = async (query: string, css = stylesheet) => {
+  const sheet = Style.install(css)
   const container = document.createElement('div')
   container.id = 'domains-test'
   document.body.append(container)
@@ -50,8 +51,12 @@ const mount = async (query: string) => {
       ),
     }),
   )
-  dispose = () => handle.dispose()
+  dispose = () => {
+    handle.dispose()
+    if (css !== stylesheet) sheet.remove()
+  }
   await vi.waitUntil(() => document.querySelector('.domain-card .price'), answered)
+  return sheet
 }
 
 const element = <E extends Element = HTMLElement>(selector: string): E => {
@@ -99,4 +104,26 @@ it('opens the TLD dropdown as a tab stop whose click-away stands over the header
   expect(document.elementFromPoint(8, 8)?.classList.contains('filter-backdrop')).toBe(true)
   await userEvent.click(element('.filter-backdrop'), { position: { x: 8, y: 8 } })
   await vi.waitUntil(() => document.querySelector('#tld-filter-items') === null, answered)
+})
+
+it('draws every element the same with the sheet pruned to the tokens it reads (#487)', async () => {
+  // As the build ships it, `vite.config.ts`'s `prune`: every class, then the prune.
+  const full = Style.complete(stylesheet)
+  const sheet = await mount('acme', full)
+  await userEvent.click(element('#tld-filter-button'))
+  await vi.waitUntil(() => document.querySelector('#tld-filter-items'), answered)
+  // Custom properties excluded: the pruned ones are absent by design.
+  const drawn = () =>
+    Array.from(document.body.querySelectorAll('*'), node => {
+      const style = getComputedStyle(node)
+      return Array.from(style)
+        .filter(property => !property.startsWith('--'))
+        .map(property => `${property}: ${style.getPropertyValue(property)}`)
+        .join('; ')
+    })
+  const before = drawn()
+  sheet.textContent = Theme.prune(full)
+  const after = drawn()
+  expect(after.filter((style, index) => style !== before[index])).toEqual([])
+  expect(sheet.textContent.length).toBeLessThan(full.length * 0.6)
 })

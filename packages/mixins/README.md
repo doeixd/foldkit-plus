@@ -1162,6 +1162,28 @@ virtual module for TypeScript (`declare module 'virtual:foldkit-styles' { export
   its classes are injected again rather than lost.
 - **Without the plugin**, `Style.usedIn(html)` still writes what one page uses.
 
+### Only the tokens the sheet reads
+
+`Theme.standard` defines every scale and palette, whether a page draws it or
+not, and on domains-plus those definitions were most of the sheet. With
+`prune`, the plugin ships only the `--fk-*` tokens a rule reads, directly or
+through another kept token, in dev and in the build alike (`Theme.prune` on the
+completed sheet). Domains-plus's sheet went from 15.2 KB to 10.6 KB brotli.
+
+```ts
+styles({ sheet: '/src/style.ts', prune: { keep: [] } })
+```
+
+A token read outside the sheet is taken too: an inline style built with
+`Theme.ref`, or a script reading a computed value by name. Name each in `keep`,
+as `--fk-x` or as `Theme.ref` writes it (`var(--fk-x)`); an entry naming no
+token throws. Hold it with a test: `Inert.missingTokens(tree, Theme.prune(css,
+{ keep }))` lists each token a drawn view reads that the pruned sheet does not
+define. It sees only what is drawn, so a browser test comparing the page's
+computed styles under both sheets covers the states a server never draws
+(`examples/foldkit/domains-plus/test/look.browser.test.ts`). It is off unless
+asked for.
+
 ## `@foldkit/ui`
 
 `foldkit-mixins-ui` adapts `@foldkit/ui` components that expose attribute bundles or a consumer
