@@ -39,7 +39,12 @@ import { server } from '../src/server.js'
 import { failedWriteWords } from '../src/view.js'
 
 const sqlite = new DatabaseSync(':memory:')
-for (const file of ['0001_accounts.sql', '0002_notes.sql', '0003_write_ledger.sql'])
+for (const file of [
+  '0001_accounts.sql',
+  '0002_notes.sql',
+  '0003_write_ledger.sql',
+  '0004_notes_newest.sql',
+])
   sqlite.exec(readFileSync(new URL(`../migrations/${file}`, import.meta.url), 'utf8'))
 sqlite.exec(`
   insert into accounts values ('ada', 'active', 'r1', 'ada@example.invalid', 'Ada');

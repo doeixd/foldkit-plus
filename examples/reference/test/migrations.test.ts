@@ -24,17 +24,18 @@ it("creates the accounts and Yielded's tables as the auth storage declares them"
   )
 })
 
+const [createNotes = '', ...noteIndexes] = createTable(
+  notes,
+  noteChecks.constraints.map(({ constraint }) => constraint),
+)
+
 it("creates the notes with the Entity's rules as CHECKs, the revision trigger and the row log", () => {
-  expect(sqlOf('0002_notes.sql')).toBe(
-    [
-      ...createTable(
-        notes,
-        noteChecks.constraints.map(({ constraint }) => constraint),
-      ),
-      noteRevision,
-      ...noteLog,
-    ].join('\n'),
-  )
+  expect(sqlOf('0002_notes.sql')).toBe([createNotes, noteRevision, ...noteLog].join('\n'))
+})
+
+it('indexes the notes by the order the page lists them in', () => {
+  expect(noteIndexes).not.toEqual([])
+  expect(sqlOf('0004_notes_newest.sql')).toBe(noteIndexes.join('\n'))
 })
 
 it("creates the notes writer's ledger, keyed by asker, operation and row, indexed by time", () => {
