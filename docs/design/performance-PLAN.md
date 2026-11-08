@@ -171,7 +171,7 @@ interleaved cold loads of `/?q=sunbeam`):
 | Without JavaScript | works | no prices | works | already ahead |
 | Time to first byte | 71 ms | 55 ms | 81 ms | #469, #468 |
 | JS at load, brotli | 79 KB | 215 KB | 268 KB | #472; then #420, #430 |
-| CSS, brotli | 8.9 KB | 8.0 KB | 18.1 KB | #471 |
+| CSS, brotli | 8.9 KB | 8.0 KB | 18.1 KB | the base sheet, not #471 (below) |
 | HTML, brotli | 5.4 KB | 4.5 KB | 11.1 KB | #470, #473 (it carries the prices; compare HTML with data) |
 | Failed loads (1102) | 0 | 0 | 13 of 15 never-seen searches | #473; #469 and #468 for repeated pages |
 | New search | 215 ms | 246 ms | 307 ms | #474 |
@@ -194,6 +194,17 @@ minutes, 10 of 10 loads were served from KV, and Worker startup fell from
 539 to 327 ms.
 
 ## What the work so far taught
+
+- **Measure what a sheet holds before pruning it.** #471 proposed shipping
+  only the classes a page can draw. Measured 2026-11-08 on domains-plus, its
+  sheet is 159.6 KB raw, 15.2 KB brotli: 92.0 KB of it is the application's
+  own `stylesheet` text (reset, theme, defaults), and 67.7 KB the compiled
+  classes. Server renders of `/`, three searches, `/tlds`, a 404 and a page
+  with a cart draw 114 of the 148 classes; the 34 left are about 12 KB raw,
+  about 1.2 KB brotli, and nearly all are drawn later by a client (the
+  Listbox and Dialog popups, the filter and cart sheets, data-dependent
+  states), which would then inject them at run time. The lever is the base
+  sheet, not the classes.
 
 - **Remove code; do not defer it.** #423 moved the cart and phone sheets
   behind `Resource.lazy` and saved 0.9 of 214.8 KB: the app's own code is
