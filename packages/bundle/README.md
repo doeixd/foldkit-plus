@@ -668,6 +668,8 @@ Nothing here is placed: there is no `placements.update` routing, and the
 component's Subscriptions are lifted by hand. When a component is placed in
 several parents, or its Subscriptions are the part that gets forgotten, make it
 a Bundle with `Bundle.fromParts` above.
+[`examples/foldkit/ui-showcase`](../../examples/foldkit/ui-showcase) folds its
+thirty-eight components this way.
 
 ### The two halves at once: `Link.child`
 
@@ -693,9 +695,9 @@ A child with view inputs, or with OutMessages of its own, stays hand-rolled:
 is kept while the child's Model is the same object, as a placement's is;
 `Link.child(link, update, view, slotId, { memo: false })` draws it every time.
 
-[`test/foldChild.test.ts`](test/foldChild.test.ts) runs this example, and
-[`examples/foldkit/ui-showcase`](../../examples/foldkit/ui-showcase) folds its
-thirty-eight components this way.
+[`test/child.test.ts`](test/child.test.ts) runs it, and the CMS studio
+([`examples/cms/src/apps/studioApp.ts`](../../examples/cms/src/apps/studioApp.ts))
+draws its two sections this way.
 
 ### An ask that waits for its owner: `Bundle.follow`
 
