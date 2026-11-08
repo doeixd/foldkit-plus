@@ -1182,6 +1182,13 @@ Foldkit's own behaviour that we work around is listed in
   taking SQLite columns first matched Postgres ones too and returned SQLite
   check builders, which `pgTable` refused with a misleading error. List the
   Postgres overload first.
+- **SQLite sorts the last term of an order that places nulls against its
+  default.** Every keyset page wrote Postgres's placement (`asc nulls last`),
+  and SQLite 3.53 then added `USE TEMP B-TREE FOR LAST TERM OF ORDER BY`
+  whatever the index, `NOT NULL` or `WITHOUT ROWID`, so every page sorted
+  its id tie-break and every test stayed green. A not-null column places no
+  nulls now; hold a page to its index with `EXPLAIN QUERY PLAN`
+  (`remote-drizzle/test/orderPlan.test.ts`).
 - **sql.js leaves SQLite's foreign keys off; Node's `node:sqlite` turns them
   on.** Chirp's `likes.post_id ... on delete cascade` held in every Node test
   while the published demo, on sql.js, would have left a deleted chirp's likes
