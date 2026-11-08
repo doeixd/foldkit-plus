@@ -3,7 +3,7 @@
  * Every page the server's queries read is served from an index, not sorted
  * per request (#437). The database is the server's own schema and seed.
  */
-import { Effect, Option } from 'effect'
+import { Effect } from 'effect'
 import { queryPlans } from 'foldkit-remote-drizzle'
 import { expect, it } from 'vitest'
 import { openServer, principalOf, server } from '../src/server/server.js'
@@ -25,7 +25,7 @@ it('serves every page of Timeline and ByAuthor from an index', async () => {
     return {
       source,
       input: name === 'ByAuthor' ? { authorId: 'ada' } : {},
-      principal: principalOf('ada') as Option.Option<{ readonly id: string }>,
+      principal: principalOf('ada'),
     }
   })
   const plans = await Effect.runPromise(queryPlans(cases).pipe(Effect.provide(database)))
