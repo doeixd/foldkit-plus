@@ -162,6 +162,20 @@ export interface EntityBinding<
    * cascades into nothing.
    */
   readonly cascades?: ReadonlyArray<CascadeEdge> | undefined
+  /**
+   * The relations of Entities bound beside this one that refuse a delete of a
+   * row they point at (`Relation.one(…, { onDelete: 'restrict' })`). `bind`
+   * sets it; a binding made with `entity` restricts nothing.
+   */
+  readonly restricts?: ReadonlyArray<RestrictEdge> | undefined
+}
+
+/** One relation that refuses a delete: its Entity and key, for the refusal, and where its link is. */
+export interface RestrictEdge {
+  readonly entity: string
+  readonly relation: string
+  readonly owner: AnyEntityBinding
+  readonly column: AnyColumn
 }
 
 /** One relation a delete cascades through: the pointing binding, and the column its link is on. */

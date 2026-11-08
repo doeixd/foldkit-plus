@@ -81,3 +81,29 @@ describe('A cascade', () => {
     expect(() => Relation.one(UserFields, { onDelete: unknown })).toThrow(/onDelete is 'cascade'/)
   })
 })
+
+describe('A restriction (#467)', () => {
+  const Tag = Entity.define('Tag', Schema.Struct({ id: Schema.String }))
+  const Tagging = Entity.define('Tagging', Schema.Struct({ id: Schema.String }))
+  const Tags = Entity.relate(
+    { Tag, Tagging },
+    { Tagging: { tag: Relation.one(Tag, { onDelete: 'restrict' }) } },
+  )
+
+  it('is read from the Entity deleted, and is no cascade', () => {
+    expect(Tags.Tagging.relations.tag.onDelete).toEqual(Option.some('restrict'))
+    expect(Tags.Tagging.relations.tag.authorizedBy).toEqual(Option.none())
+    expect(
+      Entity.restricting(Tag).map(({ relation, owner }) => [owner.name, relation.key]),
+    ).toEqual([['Tagging', 'tag']])
+    expect(Entity.cascading(Tag)).toEqual([])
+    expect(Entity.restricting(Feed.Post)).toEqual([])
+  })
+
+  it('refuses authorizedBy, which only says who lets a cascade take a row', () => {
+    expect(() =>
+      // @ts-expect-error the type refuses it too
+      Relation.one(UserFields, { onDelete: 'restrict', authorizedBy: 'parent' }),
+    ).toThrow(/needs onDelete: 'cascade'/)
+  })
+})

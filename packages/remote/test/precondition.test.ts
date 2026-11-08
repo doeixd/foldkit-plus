@@ -32,6 +32,24 @@ it('decodes unmet for a write with a precondition, and refuses it for one withou
   expect(Refusal.isUnmet({ _tag: 'Conflict' })).toBe(false)
 })
 
+it('decodes referenced for a delete, conditioned or not, and refuses it for an update (#467)', () => {
+  const Remove = Entity.input(Post, Schema.Struct({ id: Schema.String }))
+  const plain = Mutation.write('Remove', Write.delete(Remove, { id: 'id' }))
+  const drafts = Mutation.write(
+    'RemoveDraft',
+    Write.delete(Remove, { id: 'id', when: () => Expr.eq(Post.fields.status, 'draft') }),
+  )
+  const update = Mutation.write('Plain', Write.update(Retitle, { id: 'id' }))
+  const referenced = { _tag: 'Referenced', entity: 'Comment', relation: 'post' }
+  const decode = (codec: Schema.Codec<unknown, unknown>) => Schema.decodeUnknownResult(codec)
+  expect(decode(plain.Refusal)(referenced)._tag).toBe('Success')
+  expect(decode(drafts.Refusal)(referenced)._tag).toBe('Success')
+  expect(decode(drafts.Refusal)({ _tag: 'Unmet' })._tag).toBe('Success')
+  expect(decode(update.Refusal)(referenced)._tag).toBe('Failure')
+  expect(Refusal.isReferenced(referenced)).toBe(true)
+  expect(Refusal.isReferenced({ _tag: 'Conflict' })).toBe(false)
+})
+
 it('predicts a sum over the value the store holds as it is read, and only over one it holds', () => {
   const Item = Entity.define(
     'Item',

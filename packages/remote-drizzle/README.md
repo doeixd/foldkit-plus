@@ -1340,6 +1340,20 @@ foreign key on such a column says otherwise: one that cascades where the
 relation does not declare it, and one that does not where it does (the
 writer removes its own rows, so the foreign key must agree).
 
+**A delete refuses a row the domain says must stay.** A row pointed at
+through a relation declared `Relation.one(Topic, { onDelete: 'restrict' })`
+is not deleted: the delete statement itself holds `not exists` of a row
+pointing there, so no row can arrive between a check and the delete, on D1
+too. A miss then reads whether such a row is there, and answers
+`DeleteOutcome.Referenced`, which `RemoteServer.write` sends as
+`Refusal.referenced` (its `entity` and `relation`), a 409. It names the relation and
+none of the rows, which the deleter may not see; a guard judges the
+deleter's own `Delete` rule first, so only someone allowed to delete learns
+even that. The restricting relation is bound beside it, stored on its own
+table, and a foreign key on it says `restrict` or `no action`, or nothing. A
+cascade that would take rows of an Entity something restricts is refused
+where the writer is made: restrict the root, or cascade those pointers too.
+
 **A cascade takes no row its deleter may not delete.** `delete` takes
 `cascading`, each Entity's `Delete` rule as a `CascadeRequirement` (Guard's
 `GuardServer.writer` hands them over), and judges it in the statement that

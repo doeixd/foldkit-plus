@@ -1573,7 +1573,10 @@ keeps it gone. A pending delete wins over every pending patch of its row.
 A declared `Write.delete` shows this without being asked, and with it every
 row the store holds that is declared to go with the row
 (`Relation.one(Post, { onDelete: 'cascade' })`: its replies, theirs, the likes
-of each), each moving the counts over it; the answer names them deleted.
+of each), each moving the counts over it; the answer names them deleted. A
+delete of a row something restricts (`{ onDelete: 'restrict' }`) is shown as
+pending too, since the client may not hold the rows pointing there; the
+server refuses it as `Refusal.referenced`, and the row comes back.
 
 ```ts
 Data.mutate(model, DeletePost, { id }, { optimistic: [Remote.tombstone(Post, id)] })

@@ -45,9 +45,11 @@ export type Cardinality = 'one' | 'many'
 /**
  * What happens to a row when the row its `one` relation points at is deleted
  * (`Relation.one(Post, { onDelete: 'cascade' })`): `cascade`, it is deleted
- * with it, by the server in the write that deletes, and foreseen by a client.
+ * with it, by the server in the write that deletes, and foreseen by a client;
+ * `restrict`, the delete is refused while any row points there (#467), naming
+ * the relation and none of the rows.
  */
-export type OnDelete = 'cascade'
+export type OnDelete = 'cascade' | 'restrict'
 
 /**
  * Who may let a cascade take a row (#348). `child`, the default: the row's own
@@ -95,7 +97,7 @@ export interface EntityRelation<
    * deleted; none for a `many`, and for a `one` declared with nothing.
    */
   readonly onDelete: Option.Option<OnDelete>
-  /** Who may let a cascade through it take this row: some exactly where `onDelete` is. */
+  /** Who may let a cascade through it take this row: some exactly where `onDelete` is `cascade`. */
   readonly authorizedBy: Option.Option<AuthorizedBy>
   readonly metadata: Metadata
 }
@@ -445,9 +447,14 @@ export type OneOptions<Optional extends boolean> = {
   | { readonly onDelete?: undefined; readonly authorizedBy?: undefined }
   | {
       /** `cascade`: a row pointing here is deleted with the row it points at. */
-      readonly onDelete: OnDelete
+      readonly onDelete: 'cascade'
       /** Whose `Delete` rule lets the cascade take this row: its own (`child`), or the parent's. */
       readonly authorizedBy?: AuthorizedBy
+    }
+  | {
+      /** `restrict`: the row it points at cannot be deleted while this row points there. */
+      readonly onDelete: 'restrict'
+      readonly authorizedBy?: undefined
     }
 )
 
@@ -466,24 +473,24 @@ function one(
 ): RelationSpec<AnyEntity, 'one', boolean> {
   const onDelete = options?.onDelete
   const authorizedBy = options?.authorizedBy
-  if (onDelete !== undefined && onDelete !== 'cascade')
+  if (onDelete !== undefined && onDelete !== 'cascade' && onDelete !== 'restrict')
     throw new Error(
-      `[foldkit-entity] Relation.one(${target.name}): onDelete is 'cascade'; ${String(onDelete)} is not one`,
+      `[foldkit-entity] Relation.one(${target.name}): onDelete is 'cascade' or 'restrict'; ${String(onDelete)} is not one`,
     )
   if (authorizedBy !== undefined && authorizedBy !== 'child' && authorizedBy !== 'parent')
     throw new Error(
       `[foldkit-entity] Relation.one(${target.name}): authorizedBy is 'child' or 'parent'; ${String(authorizedBy)} is not one`,
     )
-  if (authorizedBy !== undefined && onDelete === undefined)
+  if (authorizedBy !== undefined && onDelete !== 'cascade')
     throw new Error(
-      `[foldkit-entity] Relation.one(${target.name}): authorizedBy says who lets a cascade take the row, so it needs onDelete`,
+      `[foldkit-entity] Relation.one(${target.name}): authorizedBy says who lets a cascade take the row, so it needs onDelete: 'cascade'`,
     )
   return {
     target,
     cardinality: 'one',
     optional: options?.optional ?? false,
     onDelete: Option.fromUndefinedOr(onDelete),
-    authorizedBy: onDelete === undefined ? Option.none() : Option.some(authorizedBy ?? 'child'),
+    authorizedBy: onDelete === 'cascade' ? Option.some(authorizedBy ?? 'child') : Option.none(),
   }
 }
 

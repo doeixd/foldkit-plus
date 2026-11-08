@@ -58,7 +58,12 @@ export default [
     'Option.isNone(expect) &&\n          Option.isNone(when) &&\n          requires === undefined &&',
     'Option.isNone(expect) &&\n          requires === undefined &&',
   ),
-  edit('an unmet delete reads as moved', drizzle, 'Option.isNone(when) ||', 'true ||'),
+  edit(
+    'an unmet delete reads as moved',
+    drizzle,
+    'if (Option.isNone(when)) return DeleteOutcome.Moved()',
+    'if (true) return DeleteOutcome.Moved()',
+  ),
   edit(
     'a writer that checks no precondition is accepted',
     server,

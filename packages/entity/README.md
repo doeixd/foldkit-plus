@@ -201,8 +201,12 @@ Object.keys(Blog.Post.members) // id, title, published, author, editor, comments
   that takes rows with a deleted post (`{ relation, owner }`), so Remote
   removes those it holds while the delete is pending, counts and lists with
   them, and `remote-drizzle`'s writer removes them where it deletes, on a store
-  without foreign keys too. `cascade` is the one action; `setNull` and
-  `restrict` are not declared yet (#348).
+  without foreign keys too.
+- `Relation.one(Topic, { onDelete: 'restrict' })` says the row it points at
+  cannot be deleted while it points there: a topic with notes under it.
+  `Entity.restricting(Topic)` lists those relations, and `remote-drizzle`'s
+  writer refuses such a delete as `Refusal.referenced`, naming the relation
+  and none of the rows. `setNull` is not declared yet (#467).
 - Who may let a cascade take a row is said beside it. By default each row it
   takes is held to its own `Delete` rule, for whoever deletes the row it
   points at: a delete that would take a row they may not delete is refused
@@ -210,7 +214,7 @@ Object.keys(Blog.Post.members) // id, title, published, author, editor, comments
   onDelete: 'cascade', authorizedBy: 'parent' })` says whoever may delete the
   post may take these rows with it, whoever wrote them: a post's author
   removing everyone's likes of it. `authorizedBy` is said only beside
-  `onDelete`, and reads back as the relation's `authorizedBy`.
+  `onDelete: 'cascade'`, and reads back as the relation's `authorizedBy`.
 
 `Entity.relate` throws, and the types reject, a relation key that is already a
 member, an owner that is not in the first argument, and a target that is not

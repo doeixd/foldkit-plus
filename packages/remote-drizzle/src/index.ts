@@ -1445,6 +1445,18 @@ export const writer = <P = unknown>(
     return read
   }
 
+  /**
+   * For each relation that restricts deleting a row of this Entity (#467):
+   * whether a row points at `id` through it. The delete's own statement holds
+   * `not exists` of each, so a row pointed at is never removed, and no row
+   * can arrive between a check and the delete.
+   */
+  const pointedAt = (id: string) =>
+    (binding.restricts ?? []).map(edge => ({
+      edge,
+      exists: sql`exists (select 1 from ${edge.owner.table} where ${edge.column} = ${id})`,
+    }))
+
   // What a delete takes with it (`onDelete: 'cascade'`), worked out once: a cycle is refused here.
   const plan =
     (binding.cascades ?? []).length === 0 ? Option.none() : Option.some(cascadePlan(binding))
@@ -2022,6 +2034,7 @@ export const writer = <P = unknown>(
     commutes,
     invariants: true,
     cascades: true,
+    restricts: true,
     // A fraction added to an integer column splits the dialects: Postgres refuses the
     // statement, SQLite stores the fraction. A field declared Schema.Number hides the column.
     refuses: write => [
@@ -2308,7 +2321,12 @@ export const writer = <P = unknown>(
         yield* serverOnly
         const at = yield* rowOf(id, expect, when)
         const required = yield* requiredOf(requires)
-        const where = and(at.where, ...required)
+        const restricted = pointedAt(id)
+        const where = and(
+          at.where,
+          ...required,
+          ...restricted.map(({ exists }) => sql`not ${exists}`),
+        )
         const refusing = yield* cascadeRefusals(plan, id, cascading)
         const removal = yield* Option.match(plan, {
           onNone: () =>
@@ -2331,7 +2349,8 @@ export const writer = <P = unknown>(
           Option.isNone(expect) &&
           Option.isNone(when) &&
           requires === undefined &&
-          refusing.length === 0
+          refusing.length === 0 &&
+          restricted.length === 0
         )
           return DeleteOutcome.Absent()
         // The delete missed: gone is gone (a retry of this delete, or another's);
@@ -2372,12 +2391,20 @@ export const writer = <P = unknown>(
               }),
             )
         }
-        if (
-          Option.isNone(when) ||
-          (Option.isSome(expect) && !sameStored(row['revision'], expect.value.revision))
-        ) {
+        if (Option.isSome(expect) && !sameStored(row['revision'], expect.value.revision))
           return DeleteOutcome.Moved()
+        // Named by the relation alone: which rows point here is not the asker's to read.
+        for (const { edge, exists } of restricted) {
+          const found = yield* selectRows(
+            yield* DrizzleDatabase,
+            binding.table,
+            { id: idColumn(binding) },
+            { where: and(eq(idColumn(binding), id), exists) },
+          )
+          if (found.length > 0)
+            return DeleteOutcome.Referenced({ entity: edge.entity, relation: edge.relation })
         }
+        if (Option.isNone(when)) return DeleteOutcome.Moved()
         return yield* RemoteServer.unmet(
           `${binding.name} ${id} does not hold what the delete asks of it`,
         )

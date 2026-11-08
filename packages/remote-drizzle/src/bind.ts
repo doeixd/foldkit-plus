@@ -20,6 +20,7 @@ import { Entity, type FieldsFrom } from 'foldkit-remote'
 import type {
   AnyEntityBinding,
   CascadeEdge,
+  RestrictEdge,
   ComputedConfig,
   EntityBinding,
   ManyRelation,
@@ -263,7 +264,8 @@ const onDeleteOf = (table: DrizzleTable, column: AnyColumn): Option.Option<strin
       : []
   for (const key of foreignKeys) {
     const { columns } = key.reference()
-    if (columns.length === 1 && columns[0] === column)
+    // By name: a table-level `foreignKey(…)` hands back copies of the table's columns.
+    if (columns.length === 1 && columns[0]?.name === column.name)
       return Option.some(key.onDelete ?? 'no action')
   }
   return Option.none()
@@ -285,12 +287,17 @@ const agreesOnDelete = (
   Option.match(onDeleteOf(table, column), {
     onNone: () => undefined,
     onSome: action => {
-      const declared = Option.isSome(relation.onDelete)
-      if (action === 'cascade' && !declared)
+      const declared = Option.getOrUndefined(relation.onDelete)
+      if (action === 'cascade' && declared !== 'cascade')
         fail(
           `relation "${field}" on entity "${name}" is stored on "${column.name}", whose foreign key cascades on delete; declare it Relation.one(${relation.target().name}, { onDelete: 'cascade' }), so a client foresees it and every store holds it`,
         )
-      if (declared && action !== 'cascade')
+      // A table that refuses the delete itself agrees with a restriction, which then never reaches it.
+      if (declared === 'restrict' && action !== 'restrict' && action !== 'no action')
+        fail(
+          `relation "${field}" on entity "${name}" is declared onDelete: 'restrict', but the foreign key on "${column.name}" says on delete ${action}; make it on delete restrict, or drop the foreign key and let the writer refuse the delete`,
+        )
+      if (declared === 'cascade' && action !== 'cascade')
         fail(
           `relation "${field}" on entity "${name}" is declared onDelete: 'cascade', but the foreign key on "${column.name}" says on delete ${action}; make it on delete cascade, or drop the foreign key and let the writer remove the rows`,
         )
@@ -507,6 +514,26 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
       ) as CascadeEdge
     })
 
+    // Each relation of an Entity bound beside this one that refuses a delete of a row it
+    // points at (#467), read on use as cascades are.
+    const restricts = Domain.Entity.restricting(entity).map(({ relation, owner }) => {
+      const pointingKey =
+        Object.keys(entities).find(key => Domain.Entity.same(entities[key]!, owner)) ??
+        fail(
+          `${relation.owner.name}.${relation.key} restricts deleting ${name}, but ${relation.owner.name} is not being bound beside it; bind them together, so a delete can see its rows`,
+        )
+      const column =
+        tables[pointingKey]?.relations?.[relation.key]?.field ??
+        fail(
+          `${relation.owner.name}.${relation.key} restricts deleting ${name}, so it must be stored on ${relation.owner.name}'s own table ({ field })`,
+        )
+      return Object.defineProperty(
+        { entity: relation.owner.name, relation: relation.key, column },
+        'owner',
+        { get: () => bindings[pointingKey], enumerable: true },
+      ) as RestrictEdge
+    })
+
     // An invariant may read a `one` relation, so the checks are read once relations are bound.
     holdsChecks(entity, config.table, columns, relations, operators)
 
@@ -580,6 +607,7 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
       operators,
       reach,
       cascades,
+      restricts,
       ...(config.visible === undefined ? {} : { visible: config.visible }),
     } as unknown as EntityBinding<string, DrizzleTable>
   }

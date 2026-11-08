@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Relation.one(Topic, { onDelete: 'restrict' })` refuses deleting a row
+  rows still point at** (`foldkit-entity`, `foldkit-remote`,
+  `foldkit-remote-server`, `foldkit-remote-drizzle`, `foldkit-guard`, #467).
+  `Entity.restricting` lists such relations. The Drizzle writer holds the
+  restriction in the delete statement (`not exists`), on D1 too, and answers
+  `DeleteOutcome.Referenced`, sent as `Refusal.referenced` (its `entity` and
+  `relation`), a 409, naming none of the rows. Every delete's refusal codec now
+  includes it. A writer must say `restricts` for `RemoteServer.write` to take
+  a delete of a restricted Entity, and a cascade into one is refused where
+  the writer is made.
 - **`styles({ sheet, prune: { keep } })` ships only the tokens the sheet reads**
   (`foldkit-mixins`, #487). `Theme.prune(css, { keep })` removes each `--fk-*`
   definition and `@property` registration that no rule reads, directly or
@@ -108,6 +118,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`bind` sees a foreign key declared on the table** (`foldkit-remote-drizzle`).
+  A table-level `foreignKey(…).onDelete(…)` hands back copies of the table's
+  columns, so the check that a foreign key agrees with the domain's
+  `onDelete` never found one, and a table that cascaded where the domain did
+  not declare it went unrefused. Columns are compared by name now.
 - **An answer queued before `Data.forget` no longer lands in the new session**
   (`foldkit-remote`, #484). Interrupting the old read did not stop an answer
   already queued behind the `forget`, so the previous principal's rows,

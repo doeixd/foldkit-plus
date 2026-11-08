@@ -336,11 +336,14 @@ export interface CascadedRow {
  * the rows declared to go with it (`Relation.one(…, { onDelete: 'cascade' })`)
  * that the principal may see. `Absent`: no row, so nothing to delete (a
  * retry's case). `Moved`: the row is there at another revision, and stays.
+ * `Referenced`: rows still point at it through `relation` (`Like.post`),
+ * declared `onDelete: 'restrict'`, so it stays; which rows is not said.
  */
 export type DeleteOutcome = Data.TaggedEnum<{
   Deleted: { readonly cascaded: ReadonlyArray<CascadedRow> }
   Absent: {}
   Moved: {}
+  Referenced: { readonly entity: string; readonly relation: string }
 }>
 export const DeleteOutcome = Data.taggedEnum<DeleteOutcome>()
 
@@ -416,6 +419,14 @@ export interface EntityWriter<P, R = never> {
    * cascades through a writer without it.
    */
   readonly cascades?: true
+  /**
+   * Whether `delete` refuses, in the statement that deletes, a row that rows
+   * point at through a relation declared `onDelete: 'restrict'`
+   * (`Entity.restricting`), answering `Referenced`. `RemoteServer.write`
+   * refuses a delete of an Entity something restricts through a writer
+   * without it.
+   */
+  readonly restricts?: true
   /**
    * Why this writer cannot land `write`, each a sentence; none when it can.
    * `RemoteServer.write` asks once, where the write is registered, for what
@@ -2438,9 +2449,19 @@ export const RemoteServer = {
     // whose derived members the removal moves: the answer re-reads them as it does the row's.
     const cascadePointers = new Map<string, ReadonlyArray<string>>()
     if (kind.deletes) {
+      const named = (entity: AnyEntity) =>
+        Entity.restricting(entity)
+          .map(({ relation, owner }) => `${owner.name}.${relation.key}`)
+          .join(', ')
       const reach = (entity: AnyEntity): void => {
         for (const { owner } of Entity.cascading(entity)) {
           if (cascadePointers.has(owner.name)) continue
+          // A row the cascade takes would need the refusal too, judged before anything goes.
+          if (Entity.restricting(owner).length > 0) {
+            throw new Error(
+              `[foldkit-remote-server] delete "${mutation.name}" removes ${write.input.entity.name}, whose cascade takes ${owner.name} rows, which ${named(owner)} restricts (onDelete: 'restrict'); a cascade into a restricted Entity is not supported: restrict ${write.input.entity.name} instead, or cascade ${owner.name}'s pointers too`,
+            )
+          }
           cascadePointers.set(owner.name, pointersOf(owner))
           reach(owner)
         }
@@ -2449,6 +2470,11 @@ export const RemoteServer = {
       if (cascadePointers.size > 0 && writer.cascades !== true) {
         throw new Error(
           `[foldkit-remote-server] delete "${mutation.name}" removes ${write.input.entity.name}, whose rows take ${[...cascadePointers.keys()].join(', ')} with them (onDelete: 'cascade'), but its writer does not remove them (cascades)`,
+        )
+      }
+      if (Entity.restricting(write.input.entity).length > 0 && writer.restricts !== true) {
+        throw new Error(
+          `[foldkit-remote-server] delete "${mutation.name}" removes ${write.input.entity.name}, which ${named(write.input.entity)} restricts (onDelete: 'restrict'), but its writer does not refuse a row they point at (restricts)`,
         )
       }
     }
@@ -2733,6 +2759,15 @@ export const RemoteServer = {
                 return yield* DeleteOutcome.$match(outcome, {
                   // Gone already is gone: only a revision the row moved past refuses.
                   Moved: () => Effect.fail(conflict(bound)),
+                  // Named by the relation alone: the rows pointing may be hidden from who asked.
+                  Referenced: ({ entity, relation }) =>
+                    Effect.fail(
+                      RemoteServer.refuse(
+                        mutation,
+                        Refusal.referenced.make({ entity, relation }),
+                        `${bound.entity} ${bound.id} is still pointed at through ${entity}.${relation}`,
+                      ),
+                    ),
                   // A delete that wrote nothing (the row gone, or hidden from its
                   // writer) names nothing more, so it answers alike either way.
                   Absent: () => Effect.succeed(gone([])),
@@ -3123,7 +3158,10 @@ export const RemoteServer = {
           error.refusal === undefined
             ? { status: 500 as const, body: { error: error.message } }
             : {
-                status: Refusal.isTaken(error.refusal) ? (409 as const) : (422 as const),
+                status:
+                  Refusal.isTaken(error.refusal) || Refusal.isReferenced(error.refusal)
+                    ? (409 as const)
+                    : (422 as const),
                 body: { error: error.message, refusal: error.refusal },
               },
         ),

@@ -859,6 +859,8 @@ export const GuardServer = {
       ...(writer.invariants === true ? { invariants: true } : {}),
       // The rows a delete takes with it are the writer's to remove; the guard judges the row named.
       ...(writer.cascades === true ? { cascades: true } : {}),
+      // So is refusing a row still pointed at, which only someone the rules let delete it learns.
+      ...(writer.restricts === true ? { restricts: true } : {}),
       // What the store refuses, the store knows: the guard drops none of its reasons. It
       // adds one: its rules judge the row the write leaves, worked out by the policy's
       // table, so an assignment that table cannot run would be judged as its old value.

@@ -16,14 +16,14 @@ export default [
   edit(
     'an update is not held to its rule in the statement',
     drizzle,
-    '          ...required,\n',
-    '',
+    '          ...required,\n          ...(yield* holdingInvariants',
+    '          ...(yield* holdingInvariants',
   ),
   edit(
     'a delete is not held to its rule in the statement',
     drizzle,
-    '        const where = and(at.where, ...required)',
-    '        const where = at.where',
+    '          ...required,\n          ...restricted.map',
+    '          ...restricted.map',
   ),
   edit(
     'an update its rule refused is told as a miss',

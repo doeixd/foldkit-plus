@@ -78,13 +78,13 @@ export default [
   edit(
     'a table cascading unseen by the domain is bound',
     '../src/bind.ts',
-    "if (action === 'cascade' && !declared)",
+    "if (action === 'cascade' && declared !== 'cascade')",
     'if (false)',
   ),
   edit(
     'a table refusing a declared cascade is bound',
     '../src/bind.ts',
-    "if (declared && action !== 'cascade')",
+    "if (declared === 'cascade' && action !== 'cascade')",
     'if (false)',
   ),
   edit(
