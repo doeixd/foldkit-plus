@@ -1201,8 +1201,8 @@ no body keeps none of the relational evaluator.
 **Which to declare.** A list the client should keep right after a write needs
 a body: the body is what lets the client place a new or changed row in the
 pages it holds instead of fetching the list again. A `Query.make` list is
-invalidated by any change to its Entity, so it is fetched again after every
-write that touches one. A body can follow relations
+invalidated by any change the client sees, to its Entity or another, since
+what its server reads is unknown, so it is fetched again after every write. A body can follow relations
 (`Expr.path`, `Expr.exists`, a path from `Expr.viewer`), so a feed of the
 people you follow is a body too. Keep `Query.make` for a list whose meaning
 only the server can state, such as a search ranking.
@@ -1646,7 +1646,7 @@ the store the answer left:
   optimistic overlay shows; a read of it already in flight is restarted, since
   it could answer with the rows before the write;
 - a list over a `Query.make` query, which declares no body, is invalidated by
-  any change to its Entity;
+  any change, of any Entity: its server may read another Entity's rows too;
 - a list whose body reads other rows (a path, an exists, a path from the
   viewer) is judged again over the store, and fetched, by a change to any
   member those read, or a row of theirs made or deleted: a team renamed moves

@@ -142,6 +142,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A list with no body is fetched again after a change to any Entity**
+  (`foldkit-remote`, #477). A `Query.make` list was invalidated by a change to
+  its own Entity and kept on a change to another, though its server may read
+  that one too (a list of products by their category's name kept after the
+  category was renamed). What such a list reads is unknown, so any change the
+  client sees invalidates it.
 - **`bind` sees a foreign key declared on the table** (`foldkit-remote-drizzle`).
   A table-level `foreignKey(…).onDelete(…)` hands back copies of the table's
   columns, so the check that a foreign key agrees with the domain's

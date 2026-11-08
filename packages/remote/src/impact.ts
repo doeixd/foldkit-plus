@@ -195,18 +195,19 @@ export const impactOn = (
 ): Impact => {
   const { descriptor } = connection
   const body = descriptor.body
-  const over = body?.entity.name ?? (descriptor.Result as Partial<ConnectionSpec>).entity
-  const reached = body === undefined ? undefined : reachedOf(body)
-  if (over !== change.entity) return kept
+  // What a list with no body reads only its server knows: another Entity's row
+  // as well as its own (#477), so a change to any row may move it.
+  if (body === undefined) {
+    return Impact.Invalidated({
+      reason: `query "${descriptor.name}" declares no body, so what it reads is unknown`,
+    })
+  }
+  const reached = reachedOf(body)
+  if (body.entity.name !== change.entity) return kept
   return EntityChange.match(change, {
     // A deletion leaves every list through its tombstone; nothing to fetch.
     Deleted: () => kept,
     Changed: ({ fields, created }) => {
-      if (body === undefined) {
-        return Impact.Invalidated({
-          reason: `query "${descriptor.name}" declares no body, so what it reads is unknown`,
-        })
-      }
       const key = entityKey(change.entity, change.id)
       const held = connection.holds.has(key)
       // The server lists only the rows its read rules admit, and the client
@@ -239,8 +240,7 @@ export const impactOn = (
       }
       const pages = connection.connection
       const reorders = touches(dependenciesOf(...order).fields)
-      const refilters =
-        touches(roles.predicate) || fields.some(field => reached?.own.has(field) === true)
+      const refilters = touches(roles.predicate) || fields.some(field => reached.own.has(field))
       // A row the list does not hold can join it: one new to the client,
       // whatever the list filters on, and one whose order moved it in from
       // rows the list has not loaded.
