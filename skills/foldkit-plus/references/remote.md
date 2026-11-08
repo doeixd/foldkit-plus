@@ -1249,6 +1249,13 @@ columns in that order) a parent with a million children costs what one with
 database reads and sorts every child of the parent. A collection that can grow
 without limit is read with `Entity.page`.
 
+`queryPlans([{ source, input, principal }])`, in a test over a migrated and
+seeded database, runs a first and a later page of each `query` source, for
+every order its body offers, and asks the database how it plans each: `served`
+(in order from an index) or `sorted`. An index serves only in the order's
+directions, the id tie-break's included, and on Postgres only with a text key's
+column under `collate "C"`, as the compiled order says.
+
 Storage: field = same-named column or `fields: { name: column }`; `one` =
 `{ field }`, or for an optional `one` read from the target's table
 `{ foreignKey, localKey?, assumeUnique? }` (the column must be unique); `many` = `{ foreignKey, localKey? }` or `{ through, localColumn,

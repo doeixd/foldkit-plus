@@ -104,6 +104,7 @@ import {
 } from './database.js'
 import { toQueryPage } from './page.js'
 import { cascadePlan, type CascadePlan, type CascadeStep } from './cascade.js'
+import { declarations, ObservedStatements } from './observed.js'
 import { quoted } from './quoted.js'
 import { buildPage } from './pagination.js'
 import { shapeWindow } from './window.js'
@@ -119,6 +120,7 @@ export * from './operators.js'
 export * from './database.js'
 export * from './page.js'
 export * from './pagination.js'
+export { queryPlans, type PlanVerdict, type QueryPlan } from './plans.js'
 export * from './window.js'
 export * from './poll.js'
 
@@ -411,7 +413,18 @@ export const runStatement = <A>(
   statement: () => PromiseLike<A>,
   failed: string,
 ): Effect.Effect<A, RemoteServerError> =>
-  Effect.tryPromise({ try: () => Promise.resolve(statement()), catch: error => error }).pipe(
+  Effect.flatMap(ObservedStatements, observe =>
+    Effect.tryPromise({
+      try: () => {
+        // A Drizzle statement is a builder that runs when awaited, so it can
+        // be noted for `queryPlans` first.
+        const built = statement()
+        if (Option.isSome(observe)) observe.value(built)
+        return Promise.resolve(built)
+      },
+      catch: error => error,
+    }),
+  ).pipe(
     Effect.tapError(error => Diagnostics.report(statementFailed(failed, error))),
     Effect.mapError(() => new RemoteServerError({ message: failed })),
   )
@@ -896,7 +909,7 @@ export const query = <P = unknown, Input = unknown>(
       `[foldkit-remote-drizzle] query "${descriptor.name}" lists "${descriptor.Result.entity}", but is bound to ${options.entity.name}'s table`,
     )
   }
-  return {
+  const declared: QuerySource<P, DrizzleDatabase> = {
     query: descriptor.name,
     entity: options.entity.name,
     Input: descriptor.Input,
@@ -1040,6 +1053,12 @@ export const query = <P = unknown, Input = unknown>(
         })
       }),
   }
+  declarations.set(declared, {
+    name: descriptor.name,
+    body: Option.fromUndefinedOr(body),
+    binding: options.entity,
+  })
+  return declared
 }
 
 /** Two values as a store holds them, which are JSON: equal when they encode the same. */

@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`queryPlans`: does an index serve each page?** (`foldkit-remote-drizzle`,
+  #437). In a test, it runs a first and a later page of each `query` source,
+  for every order a body lets its reader choose, and asks the database how it
+  plans each (`EXPLAIN QUERY PLAN`, or `EXPLAIN` on Postgres without
+  sequential scans): `served` reads the page in order from an index, `sorted`
+  reads every matching row first. It asks rather than reading the indexes:
+  its first run found that Postgres sorts a text key's ties unless the index
+  column says `collate "C"`, as the compiled order does.
+
 - **A page's stylesheet comes from the classes the render drew**
   (`foldkit-mixins`, `foldkit-ssr`, #414). The Mixins resolver records each
   compiled class a server render draws; `SSR.render` gives that set to `styles`

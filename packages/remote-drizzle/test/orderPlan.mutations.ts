@@ -3,7 +3,7 @@
  * each broken in turn: `pnpm mutate packages/remote-drizzle/test/orderPlan.mutations.ts`.
  */
 const tests = [
-  'packages/remote-drizzle/test/orderPlan.test.ts',
+  'packages/remote-drizzle/test/plans.test.ts',
   'packages/remote-drizzle/test/compile.test.ts',
 ]
 const cursor = '../src/cursor.ts'

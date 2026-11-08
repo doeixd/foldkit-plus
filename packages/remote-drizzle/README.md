@@ -1079,6 +1079,63 @@ Client-supplied windows are bounded: the default page size is `20`, the default
 maximum is `100`, and malformed combinations such as `after + before` or
 `first + last` fail rather than being guessed.
 
+### Does an index serve each page?
+
+Every filter and order a client can ask for is declared, so whether the
+database can serve them is a question a test can ask before production does.
+`queryPlans` runs a first page and a later one of each source, for every order
+a body lets its reader choose, and asks the database how it plans each:
+`served` reads the page in order from an index and stops at its end; `sorted`
+reads every matching row and sorts them first, on every request.
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { Entity, Expr, Order } from 'foldkit-entity'
+import { Query } from 'foldkit-remote'
+import { bind, query, type DrizzleDatabase } from 'foldkit-remote-drizzle'
+import type { Layer } from 'effect'
+const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, slug: Schema.String }))
+const posts = sqliteTable('posts', { id: text('id').primaryKey(), slug: text('slug').notNull() })
+const Db = bind({ Post }, { Post: { table: posts } })
+const PostsBySlug = Query.define('PostsBySlug', { slug: Schema.String }, ({ input }) =>
+  Query.from(Post).pipe(Query.where(Expr.eq(Post.fields.slug, input.slug)), Query.orderBy(Order.asc(Post.fields.id))),
+)
+const PostsBySlugSource = query(PostsBySlug, { entity: Db.Post })
+// A database migrated as production is, with a few rows seeded.
+declare const DatabaseLive: Layer.Layer<DrizzleDatabase>
+declare const expect: (value: unknown) => { toEqual(expected: unknown): void }
+-->
+
+```ts
+import { Effect } from 'effect'
+import { queryPlans } from 'foldkit-remote-drizzle'
+
+const plans = await Effect.runPromise(
+  queryPlans([{ source: PostsBySlugSource, input: { slug: 'hello' }, principal: null }]).pipe(
+    Effect.provide(DatabaseLive),
+  ),
+)
+expect(plans.filter(plan => plan.verdict === 'sorted')).toEqual([])
+```
+
+Each plan carries the statement and the database's own lines, which say which
+index it used. It asks the database rather than reading the indexes, because
+what serves an order turns on what the dialect knows:
+
+- **The index matches the order's directions,** the id tie-break's included:
+  newest first with ties by id is `(owner, created desc, id)`, not
+  `(owner, created, id)`.
+- **On Postgres a text key's index column says `collate "C"`,** as the
+  compiled order does (it is what lets a client place rows as the server
+  orders them). An index column of the default collation cannot serve it,
+  even on a database whose default is `C`: Postgres sorts the ties
+  (`Incremental Sort`). `(owner, created desc, id collate "C")` serves it.
+
+Run it over a database migrated as production is, and seed a few rows: the
+rows decide whether there is a later page to plan, and on SQLite which index
+the planner picks. Only sources made by `query` are planned.
+
 ### An operator the application implements
 
 A primitive operator (`Expr.operator` without `definedAs`) is a question each
