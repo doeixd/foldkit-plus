@@ -9,6 +9,8 @@ const bind = '../src/bind.ts'
 const server = '../../remote-server/src/index.ts'
 const guard = '../../guard/src/server.ts'
 const entity = '../../entity/src/index.ts'
+const client = '../../remote/src/mutation.ts'
+const lawTests = [...writerTests, ...guardTests]
 const edit = (
   name: string,
   file: string,
@@ -101,5 +103,20 @@ export default [
     "if (onDelete === 'setNull' && options?.optional !== true)",
     'if (false)',
     ['packages/entity/test/cascade.test.ts'],
+  ),
+  edit('the page shows no link cleared', client, '    ...cleared,\n  ]', '  ]', lawTests),
+  edit(
+    'the page clears a link to another row',
+    client,
+    'entry.values[relation.key] !== at',
+    'false',
+    writerTests,
+  ),
+  edit(
+    "the page lets through a delete a held doc's rules refuse",
+    client,
+    '.pipe(Option.orElse(clearing))',
+    '',
+    guardTests,
   ),
 ]

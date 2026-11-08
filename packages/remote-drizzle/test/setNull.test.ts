@@ -16,12 +16,15 @@ import { pgTable, text as pgText } from 'drizzle-orm/pg-core'
 import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Layer, Option, Schema } from 'effect'
-import { Entity, Expr, Query as Body, Relation, Write } from 'foldkit-entity'
-import { Mutation } from 'foldkit-remote'
+import { Collation, Entity, Expr, Order, Query as Body, Relation, Write } from 'foldkit-entity'
+import { defineMessageUnion } from 'foldkit/message'
+import { Mutation, Query, Remote } from 'foldkit-remote'
+import { Law } from 'foldkit-remote/testing'
+import { Surface } from 'foldkit-surface'
 import { RemoteServer, RowRequirement, type CascadeRequirement } from 'foldkit-remote-server'
 import { Miniflare } from 'miniflare'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { bind, databaseLayer, writer, type DrizzleDatabase } from '../src/index.js'
+import { bind, databaseLayer, query, source, writer, type DrizzleDatabase } from '../src/index.js'
 
 postgres()
 
@@ -315,6 +318,62 @@ describe('A cleared link where the writer is made', () => {
     )
     expect(() => RemoteServer.write(DeleteShelf, writer(Db.Shelf))).toThrow(
       /cascade takes Box rows, whose links Tag\.box clear/,
+    )
+  })
+})
+
+describe('The law over a delete that clears links', () => {
+  const DeleteFolder = Mutation.write(
+    'DeleteFolder',
+    Write.delete(Entity.input(Folder, Schema.Struct({ id: Schema.String })), { id: 'id' }),
+  )
+  // The docs in f1: a cleared doc leaves it while the delete is pending.
+  const InFolder = Query.define('InFolder', {}, () =>
+    Query.from(Doc).pipe(
+      Query.where(Expr.eq(Doc.relations.folder, 'f1')),
+      Query.orderBy(Order.asc(Doc.fields.id, { collation: Collation.binary })),
+    ),
+  )
+  const Model = Schema.Struct({ remote: Remote.Model })
+  const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
+  const Data = Remote.make({
+    model: App.model.remote,
+    entities: [User, Folder, Doc],
+    queries: [InFolder],
+    mutations: [DeleteFolder],
+  })
+
+  it('agrees on every doc and the list while pending, and once answered', async () => {
+    const sqlite = new DatabaseSync(':memory:')
+    for (const statement of SCHEMA) sqlite.exec(statement)
+    const Db = bindOn(sqliteTables)
+    const server = RemoteServer.make<string, DrizzleDatabase>({
+      entities: [source(Db.User), source(Db.Folder), source(Db.Doc)],
+      queries: [query(InFolder, { entity: Db.Doc })],
+      mutations: [RemoteServer.write(DeleteFolder, writer(Db.Folder))],
+    })
+    const report = await Effect.runPromise(
+      Law.check(Data, {
+        model: { remote: Remote.initial },
+        holds: [
+          { entity: Folder, ids: ['f1', 'f2', 'f3'] },
+          { entity: Doc, ids: ['d1', 'd2', 'd3', 'd9'] },
+        ],
+        lists: [InFolder.ref({})],
+        mutation: DeleteFolder,
+        input: { id: 'f1' },
+        now: 1,
+      }).pipe(
+        Effect.provide(
+          Remote.clientLayer(RemoteServer.handlers(server, 'ada')).pipe(
+            Layer.provide(databaseLayer(drizzle({ client: sqlite }))),
+          ),
+        ),
+      ),
+    )
+    expect(report.disagreed).toEqual([])
+    expect(report.agreed).toEqual(
+      expect.arrayContaining(['Doc:d1', 'Doc:d2', 'Doc:d3', InFolder.ref({}).identity]),
     )
   })
 })

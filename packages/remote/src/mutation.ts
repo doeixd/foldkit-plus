@@ -407,6 +407,21 @@ export const predictionOfWrite = (
       },
     }),
   )
+  // Each held row whose link a delete clears (`onDelete: 'setNull'`), shown pointing nowhere.
+  const cleared = Match.value(write).pipe(
+    Match.tagsExhaustive({
+      Insert: () => [],
+      Update: () => [],
+      Delete: () => {
+        const { id } = DomainWrite.bind(write, input as never)
+        return clearedBy(write.input.entity, id, context.store).map((row): PendingPatch => ({
+          entity: row.owner.name,
+          id: row.id,
+          values: { [row.relation]: null },
+        }))
+      },
+    }),
+  )
   return [
     ...Match.value(write).pipe(
       Match.tagsExhaustive({
@@ -428,7 +443,28 @@ export const predictionOfWrite = (
       by,
     ),
     ...cascaded,
+    ...cleared,
   ]
+}
+
+/**
+ * Each row the store holds whose link a delete of `entity`'s row `id` clears
+ * (`Entity.clearing`), with the relation it clears. A row the store does not
+ * hold is the server's to clear, and its answer reads it again.
+ */
+const clearedBy = (
+  entity: AnyEntity,
+  id: string,
+  store: EntityStore,
+): ReadonlyArray<{ readonly owner: AnyEntity; readonly id: string; readonly relation: string }> => {
+  const at = entityKey(entity.name, id)
+  return DomainEntity.clearing(entity).flatMap(({ relation, owner }) =>
+    Object.entries(store).flatMap(([held, entry]) =>
+      entry.tombstone || !held.startsWith(`${owner.name}:`) || entry.values[relation.key] !== at
+        ? []
+        : [{ owner, id: refParts(held).id, relation: relation.key }],
+    ),
+  )
 }
 
 /**
@@ -609,6 +645,34 @@ export const forbiddenByWrite = (
     Insert: () => Option.none(),
     Delete: () => {
       const { id } = bound()
+      // A held row whose link it clears, refused that unlink by its own rules (#467).
+      const clearing = () =>
+        Option.firstSomeOf(
+          clearedBy(entity, id, store).map(row =>
+            Option.map(
+              forbiddenOf(
+                row.owner,
+                row.id,
+                {
+                  kind: 'Update',
+                  members: [],
+                  relations: [{ relation: row.relation, interaction: 'Unlink' }],
+                },
+                store,
+              ),
+              ({ reason }) => ({
+                reason: Option.some(
+                  Option.match(reason, {
+                    onNone: () =>
+                      `It would clear the link of a ${row.owner.name} you may not change`,
+                    onSome: said =>
+                      `It would clear the link of a ${row.owner.name} you may not change: ${said}`,
+                  }),
+                ),
+              }),
+            ),
+          ),
+        )
       return Option.orElse(forbiddenOf(entity, id, deleting, store), () =>
         Option.firstSomeOf(
           cascadedBy(entity, id, store)
@@ -624,7 +688,7 @@ export const forbiddenByWrite = (
               })),
             ),
         ),
-      )
+      ).pipe(Option.orElse(clearing))
     },
     Update: () => {
       const { id, values, increments, assignments, links } = bound()

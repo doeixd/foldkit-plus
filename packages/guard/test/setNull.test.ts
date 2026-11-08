@@ -13,10 +13,13 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { pgTable, text as pgText } from 'drizzle-orm/pg-core'
 import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Effect, Layer, Option, Schema } from 'effect'
+import { Effect, Layer, Option, Schema, Stream } from 'effect'
 import { Entity, Expr, Relation, Write } from 'foldkit-entity'
-import { Mutation } from 'foldkit-remote'
-import { bind, databaseLayer, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
+import { defineMessageUnion } from 'foldkit/message'
+import { Mutation, Remote, RemoteClient } from 'foldkit-remote'
+import { Law } from 'foldkit-remote/testing'
+import { Surface } from 'foldkit-surface'
+import { bind, databaseLayer, source, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { postgres } from 'foldkit-remote-drizzle/pg'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -84,6 +87,8 @@ const domainOf = (by: 'row' | 'link') => {
         ? { row: { Update: ownerOnly } }
         : { relations: { folder: { Unlink: ownerOnly } } },
     ),
+    // `may` tells the page what each doc's rules allow, so it can refuse a delete where it is made.
+    Guards.may,
   )
   const Policy = G.implement({})
   const bindOn = ({ folders, docs }: Tables) =>
@@ -91,7 +96,11 @@ const domainOf = (by: 'row' | 'link') => {
       { Folder, Doc },
       {
         Folder: { table: folders, visible: GuardDrizzle.visible(Policy, [Folder]).Folder },
-        Doc: { table: docs, relations: { folder: { field: docs.folderId } } },
+        Doc: {
+          table: docs,
+          relations: { folder: { field: docs.folderId } },
+          derived: { may: { supplied: true } },
+        },
       },
     )
   const DeleteFolder = Mutation.write(
@@ -219,5 +228,116 @@ describe('A guarded writer that would clear links', () => {
     expect(() =>
       GuardServer.writer(ByRow.Folder, ByRow.Policy, unclearing, { children: [ByRow.Doc] }),
     ).toThrow(/clears links of Doc rows under their own Update rules/)
+  })
+})
+
+describe('The page over a guarded delete that clears links', () => {
+  const Model = Schema.Struct({ remote: Remote.Model })
+  const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
+  const Data = Remote.make({
+    model: App.model.remote,
+    entities: [ByRow.Folder, ByRow.Doc],
+    mutations: [ByRow.DeleteFolder],
+  })
+  const clientOn = () => {
+    const sqlite = new DatabaseSync(':memory:')
+    for (const statement of SCHEMA) sqlite.exec(statement)
+    const Db = ByRow.bindOn(sqliteTables)
+    const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
+      // The filter supplies each row's `may`, which the page refuses a delete by.
+      entities: [
+        source(Db.Folder, { filter: GuardServer.filter(ByRow.Folder, ByRow.Policy) }),
+        source(Db.Doc, { filter: GuardServer.filter(ByRow.Doc, ByRow.Policy) }),
+      ],
+      mutations: [
+        RemoteServer.write(
+          ByRow.DeleteFolder,
+          GuardServer.writer(ByRow.Folder, ByRow.Policy, writer(Db.Folder), {
+            children: [ByRow.Doc],
+          }),
+        ),
+      ],
+    })
+    return Remote.clientLayer(RemoteServer.handlers(server, Option.some<User>({ id: 'ada' }))).pipe(
+      Layer.provide(databaseLayer(drizzle({ client: sqlite }))),
+    )
+  }
+  const lawOver = (id: string) =>
+    Effect.runPromise(
+      Law.check(Data, {
+        model: { remote: Remote.initial },
+        holds: [
+          { entity: ByRow.Folder, ids: ['f1', 'f2'] },
+          { entity: ByRow.Doc, ids: ['d1', 'd2', 'd3'] },
+        ],
+        mutation: ByRow.DeleteFolder,
+        input: { id },
+        now: 1,
+      }).pipe(Effect.provide(clientOn())),
+    )
+
+  it("refuses, holding Bo's doc and what it allows, as the server refuses it", async () => {
+    const report = await lawOver('f1')
+    expect(report.disagreed).toEqual([])
+    expect(report.agreed).toEqual(['DeleteFolder'])
+  })
+
+  it('clears the docs Ada may change, and agrees on each', async () => {
+    const report = await lawOver('f2')
+    expect(report.disagreed).toEqual([])
+    expect(report.agreed).toEqual(expect.arrayContaining(['Folder:f2', 'Doc:d3']))
+  })
+
+  it("refuses where it is made, in the server's words", async () => {
+    const held = Data.reduce(
+      { remote: Remote.initial },
+      {
+        _tag: 'ReadReceived',
+        requests: [
+          { entity: 'Folder', id: 'f1', fields: ['id', 'ownerId'] },
+          { entity: 'Doc', id: 'd2', fields: ['id', 'ownerId', 'folder', 'may'] },
+        ],
+        result: {
+          settled: [],
+          entities: [
+            { entity: 'Folder', id: 'f1', values: { id: 'f1', ownerId: 'ada' } },
+            {
+              entity: 'Doc',
+              id: 'd2',
+              values: {
+                id: 'd2',
+                ownerId: 'bo',
+                folder: 'Folder:f1',
+                may: {
+                  row: { Update: false },
+                  reasons: { Update: 'Only its owner may move a doc.' },
+                  members: {},
+                  relations: {},
+                },
+              },
+            },
+          ],
+        },
+        now: 1,
+      },
+    )
+    const started = Data.mutate(held, ByRow.DeleteFolder, { id: 'f1' })
+    const unsent: RemoteClient['Service'] = {
+      read: () => Effect.die('unsent'),
+      query: () => Effect.die('unsent'),
+      mutate: () => Effect.die('unsent'),
+      live: () => Stream.die('unsent'),
+    }
+    const refusal = await Effect.runPromise(
+      started.command.effect.pipe(Effect.provideService(RemoteClient, unsent)),
+    )
+    expect(Data.failedWrites(Data.reduce(started.model, refusal))).toMatchObject([
+      {
+        error: {
+          message:
+            'It would clear the link of a Doc you may not change: Only its owner may move a doc.',
+        },
+      },
+    ])
   })
 })

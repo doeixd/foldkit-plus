@@ -1576,7 +1576,11 @@ row the store holds that is declared to go with the row
 of each), each moving the counts over it; the answer names them deleted. A
 delete of a row something restricts (`{ onDelete: 'restrict' }`) is shown as
 pending too, since the client may not hold the rows pointing there; the
-server refuses it as `Refusal.referenced`, and the row comes back.
+server refuses it as `Refusal.referenced`, and the row comes back. A row the
+store holds whose link the delete clears (`{ optional: true, onDelete:
+'setNull' }`) is shown pointing nowhere, and leaves the lists filtered on
+it; a held row whose `may` refuses that unlink refuses the delete where it is
+made, in the server's words.
 
 ```ts
 Data.mutate(model, DeletePost, { id }, { optimistic: [Remote.tombstone(Post, id)] })

@@ -686,7 +686,9 @@ and exists over each; a row the client does not hold is the answer's to name. A 
 it takes whose own `may` refuses `Delete` (unless the relation says `authorizedBy: 'parent'`)
 refuses the delete where it is made, as the server would. A delete of a row a relation
 declared `onDelete: 'restrict'` points at is shown pending, and the server refuses it as
-`Refusal.referenced` (a 409), so the row comes back. The store is
+`Refusal.referenced` (a 409), so the row comes back. A held row whose link the delete clears
+(`onDelete: 'setNull'`) is shown pointing nowhere while it is pending, and one whose `may`
+refuses that unlink refuses the delete where it is made. The store is
 one viewer's, so a change of viewer is `Data.forget`. A write of an Entity with
 `Entity.sets` shows what the server will set: the viewer, and as the time
 `Data.mutate(model, M, input, { now })`, the time the reader acted (an update those set

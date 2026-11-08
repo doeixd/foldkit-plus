@@ -19,7 +19,10 @@ version changed; `pnpm` skips versions already in the registry.
   again for the answer. `delete` takes `clearing` requirements: Guard hands
   over each row's `Update` rule and its relation's `Unlink` rule, and the
   writer refuses the whole delete where one fails. A writer must say `clears`,
-  and a cascade into an Entity whose links something clears is refused.
+  and a cascade into an Entity whose links something clears is refused. A
+  pending delete shows each held row it clears pointing nowhere, moving it
+  out of the lists filtered on the link, and is refused where it is made when
+  a held row's `may` refuses that unlink.
 - **`Relation.one(Topic, { onDelete: 'restrict' })` refuses deleting a row
   rows still point at** (`foldkit-entity`, `foldkit-remote`,
   `foldkit-remote-server`, `foldkit-remote-drizzle`, `foldkit-guard`, #467).
