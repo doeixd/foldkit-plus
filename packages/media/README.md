@@ -128,7 +128,7 @@ reads it and writes its variants beside the bundle. Add the plugin, and the
 type of a `?image` import (`"types": ["foldkit-media/client"]` in the
 `tsconfig`):
 
-```ts
+```ts standalone
 // vite.config.ts
 import { images } from 'foldkit-media/vite'
 import { defineConfig } from 'vite'
@@ -136,6 +136,11 @@ import { defineConfig } from 'vite'
 export default defineConfig({ plugins: [images({ sources: ['avif'], fallback: 'webp' })] })
 ```
 
+<!-- docs-check standalone
+import type { HtmlBuilder } from 'foldkit/html'
+declare const h: HtmlBuilder<never>
+import 'foldkit-media/client'
+-->
 ```ts
 import hero from './hero.jpg?image'
 import { Layout } from 'foldkit-media'
@@ -168,6 +173,11 @@ no head tags, so `Picture.preload(picture)` returns the `<link rel="preload">`
 for your SSR `head` function to include, from the same `Picture.derive` the view
 draws with `priority: true`:
 
+<!-- docs-check standalone
+import { Option } from 'effect'
+import { Picture } from 'foldkit-media'
+declare const picture: Option.Option<Picture.Picture>
+-->
 ```ts
 const preloadTag = Option.map(picture, Picture.preload)
 ```
@@ -432,6 +442,22 @@ below). It refuses with `UploadForbidden` (`403`), or with
 `UploadUnauthenticated` (`401`) when it cannot tell who is asking, so a client
 whose session ended knows to sign in again.
 
+<!-- docs-check standalone
+import { Effect, Option, Schema } from 'effect'
+import { Guards } from 'foldkit-guard'
+const User = Schema.Struct({ id: Schema.String, role: Schema.Literals(['admin', 'editor']) })
+type User = typeof User.Type
+const G = Guards.declare(
+  'Media',
+  User,
+  guard => ({ isEditor: guard.principal() }),
+  { key: user => user.id, unguarded: 'deny' },
+)
+const Policy = G.implement({
+  isEditor: principal => Option.exists(principal, user => user.role === 'editor'),
+})
+declare const resolve: (request: Request) => Effect.Effect<Option.Option<User>>
+-->
 ```ts
 import { Layer } from 'effect'
 import { GuardMedia } from 'foldkit-guard/media'
@@ -696,7 +722,20 @@ variant the built pages name, through the server's own handler, and returns
 them as files at their own paths, for `foldkit-ssr`'s `staticSite` `emit`:
 
 ```ts
-const media = serveFetch<object>({
+import { NodeServices } from '@effect/platform-node'
+import { readFileSync } from 'node:fs'
+import { Layer } from 'effect'
+import { KeyValueStore } from 'effect/persistence'
+import {
+  materialize,
+  originalsKeyValueStore,
+  serveFetch,
+  variantsKeyValueStore,
+} from 'foldkit-media/server'
+import { transformerSharp } from 'foldkit-media/sharp'
+import type { BuiltPage } from 'foldkit-ssr/vite'
+
+const staticMedia = serveFetch<object>({
   images: {
     layer: () =>
       Layer.mergeAll(transformerSharp(), originalsKeyValueStore(), variantsKeyValueStore()).pipe(
@@ -710,10 +749,10 @@ const env = {}
 
 export const site = {
   // …
-  emit: pages =>
+  emit: (pages: ReadonlyArray<BuiltPage>) =>
     materialize({
       pages,
-      fetch: request => media(request, env),
+      fetch: request => staticMedia(request, env),
       headersFile: readFileSync('public/_headers', 'utf8'),
     }),
 }
@@ -734,7 +773,7 @@ export const site = {
 `foldkit-media/cloudflare` gives the services from a Worker's bindings, and
 `serveFetch` is the Worker:
 
-```ts
+```ts standalone
 import type { ImagesBinding, R2Bucket, RateLimit } from '@cloudflare/workers-types'
 import { Layer } from 'effect'
 import {
@@ -846,7 +885,7 @@ An icon is data too: `IconData` holds its `viewBox`, what its root paints
 (`fill`, `stroke`), and its drawing as nodes, never markup to set as HTML. An
 application imports icons by name, and the build reads them:
 
-```ts
+```ts standalone
 // vite.config.ts
 import { icons } from 'foldkit-media/vite'
 import { defineConfig } from 'vite'
@@ -856,7 +895,7 @@ export default defineConfig({
 })
 ```
 
-```ts
+```ts sketch
 import { arrowLeft } from 'virtual:foldkit-icons/lucide'
 import { logo } from 'virtual:foldkit-icons/app'
 ```
