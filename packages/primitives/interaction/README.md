@@ -170,7 +170,27 @@ parent Message from the same handler, so the field does not grow a second key
 listener. `Typed { char, match }` carries the item the query now picks, so
 `update` sets `current` and `query` together.
 
+<!-- docs-check
+const Fruit = Schema.Struct({ id: Schema.String, label: Schema.String })
+type Fruit = typeof Fruit.Type
+const describeFruits = (fruits: ReadonlyArray<Fruit>) =>
+  Behaviors.Collection.of(fruits, { id: fruit => fruit.id })
+const ListSlots = Slots.define({
+  list: Slot.make({ capability: Capability.Container }),
+  option: Slot.make({ capability: Capability.Focusable }),
+})
+const ListModel = Schema.Struct({
+  ...Bundle.declare(ListNavigation.bundle, 'nav').fields,
+  fruits: Schema.Array(Fruit),
+})
+type ListModel = typeof ListModel.Type
+const ListMessage = defineMessageUnion({ ...Bundle.declare(ListNavigation.bundle, 'nav').cases })
+type ListMessage = typeof ListMessage.Type
+-->
+
 ```ts
+import { ListNavigation } from 'foldkit-primitives/interaction'
+
 const Nav = Bundle.declare(ListNavigation.bundle, 'nav')
 const navArgs = { orientation: 'vertical', loop: false, virtual: false, timeoutMs: 500, page: 10 } as const
 const Keys = ListNavigation.behavior(Nav, navArgs)(ListSlots)<ListModel, ListMessage>({
@@ -191,7 +211,29 @@ into the next column, otherwise the key is consumed at the edge. Home and End
 are the row's first and last enabled cell, Ctrl+Home and Ctrl+End the grid's.
 RTL swaps left and right, and `virtual` works as it does for `RovingTabindex`.
 
+<!-- docs-check
+const Day = Schema.Struct({ id: Schema.String })
+type Day = typeof Day.Type
+const describeDays = (days: ReadonlyArray<Day>) =>
+  Behaviors.Collection.of(days, { id: day => day.id })
+const CalendarSlots = Slots.define({
+  grid: Slot.make({ capability: Capability.Container }),
+  day: Slot.make({ capability: Capability.Focusable }),
+})
+const CalendarModel = Schema.Struct({
+  ...Bundle.declare(GridNavigation.bundle, 'cells').fields,
+  days: Schema.Array(Day),
+})
+type CalendarModel = typeof CalendarModel.Type
+const CalendarMessage = defineMessageUnion({
+  ...Bundle.declare(GridNavigation.bundle, 'cells').cases,
+})
+type CalendarMessage = typeof CalendarMessage.Type
+-->
+
 ```ts
+import { GridNavigation } from 'foldkit-primitives/interaction'
+
 const Cells = Bundle.declare(GridNavigation.bundle, 'cells')
 const gridArgs = { columns: 7, wrap: false, virtual: false } as const
 const DayKeys = GridNavigation.behavior(Cells, gridArgs)(CalendarSlots)<CalendarModel, CalendarMessage>({
@@ -221,7 +263,30 @@ did not see moves it or removes the focused row (the `FollowTabStop` Mount in
 The level is also the custom property `--fk-tree-level`, 1 at the top, so one
 rule indents any depth: `padding-inline-start: calc(var(--fk-tree-level) * 1rem)`.
 
+<!-- docs-check
+const Folder = Schema.Struct({
+  id: Schema.String,
+  parent: Schema.NullOr(Schema.String),
+  hasChildren: Schema.Boolean,
+})
+const TreeSlots = Slots.define({
+  tree: Slot.make({ capability: Capability.Container }),
+  row: Slot.make({ capability: Capability.Focusable }),
+})
+const TreeModel = Schema.Struct({
+  ...Bundle.declare(TreeNavigation.bundle, 'layers').fields,
+  folders: Schema.Array(Folder),
+})
+type TreeModel = typeof TreeModel.Type
+const TreeMessage = defineMessageUnion({
+  ...Bundle.declare(TreeNavigation.bundle, 'layers').cases,
+})
+type TreeMessage = typeof TreeMessage.Type
+-->
+
 ```ts
+import { TreeNavigation } from 'foldkit-primitives/interaction'
+
 const Layers = Bundle.declare(TreeNavigation.bundle, 'layers')
 const TreeKeys = TreeNavigation.behavior(Layers, { openByDefault: true })(TreeSlots)<TreeModel, TreeMessage>({
   container: 'tree',
@@ -262,7 +327,26 @@ and Space are default-prevented on the element, so a native control does not
 also click and Space does not scroll. Activation is the OutMessage
 `Pressed { pointerType, shiftKey }`, and the placement must handle it:
 
+<!-- docs-check
+import { Effect } from 'effect'
+const CardSlots = Slots.define({ save: Slot.make({ capability: Capability.Interactive }) })
+const CardModel = Schema.Struct({
+  ...Bundle.declare(Press.bundle, 'saveButton').fields,
+  saving: Schema.Boolean,
+})
+type CardModel = typeof CardModel.Type
+const CardMessage = defineMessageUnion({
+  ...Bundle.declare(Press.bundle, 'saveButton').cases,
+  Saved: {},
+})
+type CardMessage = typeof CardMessage.Type
+const CardPage = Bundle.parent({ Model: CardModel, Message: CardMessage })
+const save = (_model: CardModel) => ({ name: 'save', effect: Effect.succeed(CardMessage.Saved()) })
+-->
+
 ```ts
+import { Press } from 'foldkit-primitives/interaction'
+
 const Button = Bundle.declare(Press.bundle, 'saveButton')
 const pressed = CardPage.assemble(
   CardPage.at(Button, {
@@ -415,7 +499,24 @@ inside it, so a click on the trigger never dismisses and reopens; a layer
 placed with `outsidePress: false` or `escape: false` opts out of that path.
 `Dismiss { ids }` is the OutMessage, and the placement's `onOut` closes them:
 
+<!-- docs-check
+const MenuSlots = Slots.define({
+  panel: Slot.make({ capability: Capability.Container }),
+  button: Slot.make({ capability: Capability.Interactive }),
+})
+const MenuModel = Schema.Struct({
+  ...Bundle.declare(DismissLayer.bundle, 'layers').fields,
+  menuOpen: Schema.Boolean,
+})
+type MenuModel = typeof MenuModel.Type
+const MenuMessage = defineMessageUnion({ ...Bundle.declare(DismissLayer.bundle, 'layers').cases })
+type MenuMessage = typeof MenuMessage.Type
+const MenuPage = Bundle.parent({ Model: MenuModel, Message: MenuMessage })
+-->
+
 ```ts
+import { DismissLayer } from 'foldkit-primitives/interaction'
+
 const Stack = Bundle.declare(DismissLayer.bundle, 'layers')
 const dismissable = MenuPage.assemble(
   MenuPage.at(Stack, {
@@ -454,16 +555,28 @@ id, a different shape), and presence stays CSS. The stack bundle is placed
 once per app; its `Dismiss` outmessage closes what it names. See
 [`examples/drawer`](../../../examples/drawer) for the whole shape:
 
+<!-- docs-check
+const DrawerSlots = Slots.define({
+  trigger: Slot.make({ capability: Capability.Interactive }),
+  panel: Slot.make({ capability: Capability.Container }),
+})
+const DrawerModel = Schema.Struct({ ...Stack.fields, open: Schema.Boolean })
+const DrawerMessage = defineMessageUnion({ ...Stack.cases })
+type DrawerMessage = typeof DrawerMessage.Type
+-->
+
 ```ts
-const DrawerOverlay = Overlay.behaviors(DrawerSlots)<Model, Message, 'layers'>({
+import { Overlay } from 'foldkit-primitives/interaction'
+
+const DrawerOverlay = Overlay.behaviors(DrawerSlots)<typeof DrawerModel.Type, DrawerMessage, 'layers'>({
   stack: Stack,
   layer: 'panel',
   trigger: 'trigger',
   id: () => 'drawer',
   policy: Overlay.modal,
 })
-const Drawer = SlotView.forMessages<Message>()
-  .define(DrawerSlots, (model, slots, h) => h.div(/* … */))
+const Drawer = SlotView.forMessages<DrawerMessage>()
+  .define(DrawerSlots, (model: typeof DrawerModel.Type, slots, h) => h.div([], [/* … */]))
   .pipe(...DrawerOverlay.map(Behavior.attach))
 ```
 
