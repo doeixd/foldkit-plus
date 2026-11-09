@@ -192,8 +192,9 @@ A new search, re-measured 2026-11-09 against stock Foldkit's copy in
 `examples/foldkit/domains`, both built and served by `wrangler dev --local`
 (`scripts/search-compare.mjs`, medians of 20 and 12 interleaved searches,
 debounce included): 198 ms against 260 at full speed, 315 against 643 with
-the CPU slowed four times. #474's `answeredOf` cut and #431's memo moved it
-ahead; the live Workers have not been measured again.
+the CPU slowed four times. Which change since 0.38.0 moved it ahead is not
+split out beyond #474's own `answeredOf` cut; the live Workers have not been
+measured again.
 
 Server CPU is the one number that decides the rest. Solid spends 5–12 ms on
 this page; domains-plus about 60 ms on `/` and 190 ms on a search, against

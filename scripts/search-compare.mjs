@@ -24,7 +24,7 @@ const throttle = Number(option('throttle', '1'))
 const apps = process.argv
   .slice(2)
   .filter(arg => arg.includes('='))
-  .map(arg => arg.split('=', 2))
+  .map(arg => [arg.slice(0, arg.indexOf('=')), arg.slice(arg.indexOf('=') + 1)])
 if (apps.length < 2) throw new Error('usage: search-compare.mjs a=<url> b=<url> [--reps n] [--throttle n]')
 
 const PRICED = 10
