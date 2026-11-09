@@ -147,6 +147,7 @@ Start from a normal Surface application:
 import { Match, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Url } from 'foldkit/url'
+import type * as Update from 'foldkit/update'
 import { Surface } from 'foldkit-surface'
 import { Mirror } from 'foldkit-mirror'
 
@@ -160,6 +161,7 @@ const Message = defineMessageUnion({
   UrlChanged: { url: Url },
 })
 type Message = typeof Message.Type
+type Return = Update.Return<Model, Message>
 
 const initial: Model = {
   filter: 'all',
@@ -207,7 +209,7 @@ fields; they are not declared again.
 Navigation comes back through the application's normal URL Message:
 
 ```ts
-function update(model: Model, message: Message) {
+function update(model: Model, message: Message): Return {
   return Match.value(message).pipe(
     Match.tag('UrlChanged', ({ url }) => ({ model: Filters.urlChanged(model, url) })),
     Match.orElse(() => ({ model })),
@@ -256,14 +258,42 @@ application's own three and gives back the same three, with the mirrors
 reading every URL, so the result spreads straight into the runtime config.
 The Message gains the link variant Foldkit's routing asks for:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Url } from 'foldkit/url'
+import { Surface } from 'foldkit-surface'
+import { Mirror } from 'foldkit-mirror'
+
+const Model = Schema.Struct({
+  filter: Schema.Literals(['all', 'active', 'done']),
+  page: Schema.Number,
+})
+type Model = typeof Model.Type
+const initial: Model = { filter: 'all', page: 1 }
+const App = Surface.application({
+  Model,
+  Message: defineMessageUnion({ UrlChanged: { url: Url } }),
+  initial,
+  update: (model: Model) => ({ model }),
+})
+const Filters = Mirror.url(App, {
+  name: 'filters',
+  fields: [App.model.filter, App.model.page],
+})
+-->
+
 ```ts
 import { Runtime } from 'foldkit'
+import type { HtmlBuilder } from 'foldkit/html'
 import { UrlRequest } from 'foldkit/navigation'
+import * as Subscription from 'foldkit/subscription'
 
 const Message = defineMessageUnion({
   ClickedLink: { request: UrlRequest },
   UrlChanged: { url: Url },
 })
+type Message = typeof Message.Type
 
 const routed = Mirror.routing({
   mirrors: [Filters],
@@ -275,6 +305,13 @@ const routed = Mirror.routing({
     onUrlChange: url => Message.UrlChanged({ url }),
   },
 })
+
+const view = (model: Model, h: HtmlBuilder<Message>) => ({
+  title: 'Todos',
+  body: h.p([], [model.filter]),
+})
+const subscriptions = Subscription.make<Model, Message>()(() => ({ ...Filters.subscriptions }))
+const container = document.body
 
 Runtime.makeApplication({ Model, ...routed, view, subscriptions, container })
 ```
@@ -307,6 +344,13 @@ Effect `KeyValueStore`. This extends the earlier Model with `sidebar` and
 `draft`, and its initial value with `'open'` and `''`, respectively. The snippets
 in this section replace the earlier Message and update definitions:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Url } from 'foldkit/url'
+import { Mirror } from 'foldkit-mirror'
+-->
+
 ```ts
 const Model = Schema.Struct({
   filter: Schema.Literals(['all', 'active', 'done']),
@@ -314,29 +358,44 @@ const Model = Schema.Struct({
   sidebar: Schema.Literals(['open', 'closed']),
   draft: Schema.String,
 })
+type Model = typeof Model.Type
 ```
 
-Rebuild `App` from that Model before selecting the added fields:
+A key-value mirror restores through a Message. Give it one variant of the
+application's union, the way a Submodel gets one:
 
 ```ts
-import { Projection } from 'foldkit-surface'
+const Message = defineMessageUnion({
+  GotPrefsMessage: { message: Mirror.Message },
+  UrlChanged: { url: Url },
+})
+type Message = typeof Message.Type
+```
 
+Rebuild `App` from that Model and Message before selecting the added fields
+(`Filters` is the URL mirror from before, made over the new `App`), and fold
+the key-value mirror under its variant:
+
+```ts
+import type { KeyValueStore } from 'effect/persistence'
+import type * as Update from 'foldkit/update'
+import { Projection, Surface } from 'foldkit-surface'
+
+type Return = Update.Return<Model, Message, KeyValueStore.KeyValueStore>
+
+const initial: Model = { filter: 'all', page: 1, sidebar: 'open', draft: '' }
+const App = Surface.application({ Model, Message, initial, update })
+
+const Filters = Mirror.url(App, {
+  name: 'filters',
+  fields: [App.model.filter, App.model.page],
+})
 const Prefs = Mirror.kv(App, {
   key: 'todo/prefs',
   fields: Projection.pick(
     App.model.sidebar,
     App.model.draft,
   ),
-})
-```
-
-A key-value mirror restores through a Message. Give it one variant of the
-application's union, the way a Submodel gets one, and fold the mirror under it:
-
-```ts
-const Message = defineMessageUnion({
-  GotPrefsMessage: { message: Mirror.Message },
-  UrlChanged: { url: Url },
 })
 
 const foldPrefs = Mirror.fold(Prefs, message => Message.GotPrefsMessage({ message }))
@@ -370,8 +429,31 @@ The shorter path, for an `update` that only reduces, is to spread Mirror's
 cases into the union and narrow by tag. It leaves the union with tags the
 application never matches, so the rest of `update` is a partial match:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import type { KeyValueStore } from 'effect/persistence'
+import { defineMessageUnion } from 'foldkit/message'
+import type * as Update from 'foldkit/update'
+import { Url } from 'foldkit/url'
+import { Projection, Surface } from 'foldkit-surface'
+import { Mirror } from 'foldkit-mirror'
+
+const Model = Schema.Struct({
+  filter: Schema.Literals(['all', 'active', 'done']),
+  page: Schema.Number,
+  sidebar: Schema.Literals(['open', 'closed']),
+  draft: Schema.String,
+})
+type Model = typeof Model.Type
+const initial: Model = { filter: 'all', page: 1, sidebar: 'open', draft: '' }
+type Return = Update.Return<Model, Message, KeyValueStore.KeyValueStore>
+-->
+
 ```ts
+import { Match } from 'effect'
+
 const Message = defineMessageUnion({ ...Mirror.messages, UrlChanged: { url: Url } })
+type Message = typeof Message.Type
 
 function update(model: Model, message: Message): Return {
   if (Mirror.reduces(message)) return { model: Prefs.reduce(model, message) }
@@ -387,9 +469,21 @@ const init = (url: Url): Return => ({
 })
 ```
 
+<!-- docs-check
+const App = Surface.application({ Model, Message, initial, update })
+const Filters = Mirror.url(App, { name: 'filters', fields: [App.model.filter, App.model.page] })
+const Prefs = Mirror.kv(App, {
+  key: 'todo/prefs',
+  fields: Projection.pick(App.model.sidebar, App.model.draft),
+})
+-->
+
 And write both representations from the same Model:
 
 ```ts
+import type { KeyValueStore } from 'effect/persistence'
+import * as Subscription from 'foldkit/subscription'
+
 const subscriptions = Subscription.make<
   Model,
   Message,
@@ -412,6 +506,26 @@ cookie travels with every request: the server reads it for the first render,
 a form posted without scripts can set it in the answer, and the scripted page
 writes it as the Model changes. This extends the Model with `cart`, a list of
 names:
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Surface } from 'foldkit-surface'
+import { Mirror } from 'foldkit-mirror'
+
+const Model = Schema.Struct({
+  cart: Schema.Array(Schema.String),
+  theme: Schema.Literals(['light', 'dark']),
+})
+type Model = typeof Model.Type
+const initial: Model = { cart: [], theme: 'light' }
+const App = Surface.application({
+  Model,
+  Message: defineMessageUnion({}),
+  initial,
+  update: (model: Model) => ({ model }),
+})
+-->
 
 ```ts
 const Cart = Mirror.cookie(App, {
@@ -492,6 +606,39 @@ render on defaults. When the store's keys are already in hand at boot — Flags
 the server embedded in the page, a synchronous read, a test fixture — fold
 them into the initial Model instead, with no Command and no flash:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import type { KeyValueStore } from 'effect/persistence'
+import { defineMessageUnion } from 'foldkit/message'
+import type * as Update from 'foldkit/update'
+import { Url } from 'foldkit/url'
+import { Projection, Surface } from 'foldkit-surface'
+import { Mirror } from 'foldkit-mirror'
+
+const Model = Schema.Struct({
+  filter: Schema.Literals(['all', 'active', 'done']),
+  page: Schema.Number,
+  sidebar: Schema.Literals(['open', 'closed']),
+  draft: Schema.String,
+})
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Mirror.messages, UrlChanged: { url: Url } })
+type Message = typeof Message.Type
+type Return = Update.Return<Model, Message, KeyValueStore.KeyValueStore>
+const initial: Model = { filter: 'all', page: 1, sidebar: 'open', draft: '' }
+const App = Surface.application({
+  Model,
+  Message,
+  initial,
+  update: (model: Model, _message: Message): Return => ({ model }),
+})
+const Filters = Mirror.url(App, { name: 'filters', fields: [App.model.filter, App.model.page] })
+const Prefs = Mirror.kv(App, {
+  key: 'todo/prefs',
+  fields: Projection.pick(App.model.sidebar, App.model.draft),
+})
+-->
+
 ```ts
 import type { Encoded } from 'foldkit-mirror'
 
@@ -561,7 +708,7 @@ so it can route on the URL over the slices they have already read.
 
 A mirror accepts either field refs directly:
 
-```ts
+```ts sketch
 fields: [
   App.model.filter,
   App.model.page,
@@ -570,7 +717,7 @@ fields: [
 
 or a writable Projection:
 
-```ts
+```ts sketch
 fields: Projection.pick(
   App.model.sidebar,
   App.model.draft,
@@ -665,6 +812,28 @@ write the fields the application already linked.
 
 URL keys default to `history: 'push'`. A field such as free-form search text can
 replace the current entry instead:
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Url } from 'foldkit/url'
+import { Surface } from 'foldkit-surface'
+import { Mirror } from 'foldkit-mirror'
+
+const Model = Schema.Struct({
+  filter: Schema.Literals(['all', 'active', 'done']),
+  page: Schema.Number,
+  q: Schema.String,
+})
+type Model = typeof Model.Type
+const initial: Model = { filter: 'all', page: 1, q: '' }
+const App = Surface.application({
+  Model,
+  Message: defineMessageUnion({ UrlChanged: { url: Url } }),
+  initial,
+  update: (model: Model) => ({ model }),
+})
+-->
 
 ```ts
 const Filters = Mirror.url(App, {
@@ -826,13 +995,16 @@ that claims the same key fails and names the original owner of that URL key.
 
 `Mirror.url` and `Mirror.kv` are convenience constructors over the kernel:
 
-```ts
+```ts sketch
 Mirror.make(App, store, config)
 ```
 
 A `MirrorStore` only needs:
 
 ```ts
+import type { Effect } from 'effect'
+import type { Encoded } from 'foldkit-mirror'
+
 interface MirrorStore<R = never> {
   readonly read: Effect.Effect<Encoded | undefined, never, R>
   readonly write: (
