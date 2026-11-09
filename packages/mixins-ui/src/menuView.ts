@@ -2,7 +2,7 @@
  * A Menu view with the consumer `toView` seam `@foldkit/ui/menu` lacks.
  * State, Messages, update, Commands, and Mounts stay upstream (imported
  * from `@foldkit/ui/menu`), but for `update` ending a press at its release
- * (`pressEnded`); only markup assembly is transcribed, from
+ * (`pressEnded`) and a leave only once it is drawn (`leaveDrawn`); only markup assembly is transcribed, from
  * `@foldkit/ui@0.165.0` (`packages/ui/src/menu/index.ts`, MIT (c) 2025
  * Devin Jameson) at tag `@foldkit/ui@0.165.0`, with the computed bundles
  * named (`MenuRenderInfo`) and handed to `toView`.
@@ -15,13 +15,15 @@
  * gains a seam, delete this module; on a bump, re-transcribe and re-run
  * the battery.
  */
-import { Array, Match, Option, Predicate, String, pipe } from 'effect'
+import { Array, Effect, Match, Option, Predicate, String, pipe } from 'effect'
 import * as Menu from '@foldkit/ui/menu'
 import { Message } from '@foldkit/ui/menu'
 import type { GroupHeading, ItemConfig, Model, ViewInputs } from '@foldkit/ui/menu'
+import * as Command from 'foldkit/command'
 import type { ChildAttribute, Html, HtmlBuilder } from 'foldkit/html'
 import { modifyFields } from 'foldkit/struct'
 import { childAttributes } from 'foldkit/html'
+import * as Render from 'foldkit/render'
 import { defineView, type View as SubmodelView } from 'foldkit/submodel'
 import type { ReturnWithOutMessage } from 'foldkit/update'
 import {
@@ -565,12 +567,39 @@ const pressEnded = <Out>(
     Match.orElse(() => result),
   )
 
+const isLeaveEnd = (command: Command.Command<Message>): boolean =>
+  command.name === Menu.DetectMovementOrAnimationEnd.name
+
+/**
+ * `result` with the end of its leave read only once the leave is drawn (#400).
+ * Upstream ends a leave when the panel's animations settle, read one frame
+ * after the Command starts (`Dom.waitForAnimationSettled`). The runtime puts
+ * off a frame whose Model is behind its queue, so that read could come first,
+ * find no fade on a panel not yet marked `data-closed`, and end the leave
+ * unseen. After the render's commit, the panel it reads is the one drawn.
+ */
+const leaveDrawn = <Out>(
+  result: ReturnWithOutMessage<Model, Message, Out>,
+): ReturnWithOutMessage<Model, Message, Out> => {
+  const commands = result.commands ?? []
+  return commands.some(isLeaveEnd)
+    ? {
+        ...result,
+        commands: commands.map(command =>
+          isLeaveEnd(command)
+            ? Command.mapEffect(command, effect => Render.afterCommit.pipe(Effect.andThen(effect)))
+            : command,
+        ),
+      }
+    : result
+}
+
 /** The forked `view` with upstream's `update` and helpers. */
 export const create = <Item extends string = string>(): MenuBundle<Item> => {
   const upstream = Menu.create<Item>()
   const cast = (
     result: ReturnWithOutMessage<Model, Message, Menu.OutMessage<Item>>,
-  ): BundleUpdateReturn<Item> => result
+  ): BundleUpdateReturn<Item> => leaveDrawn(result)
   return {
     view: internalView<Item>(),
     update: (model, message) => cast(pressEnded(message, upstream.update(model, message))),

@@ -156,6 +156,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A Menu's or Menubar's leave draws its fade on a loaded page**
+  (`foldkit-mixins-ui`, #400). Upstream ends a leave when the panel's
+  animations settle, read one frame after it asks, before the runtime has
+  necessarily drawn the leave: a render put off behind its queue let the read
+  find no fade, and the panel vanished without one. The Menu bundle now reads
+  only after the render's commit. Listbox, Combobox and Popover keep
+  upstream's `update` and are still exposed.
 - **A Remote Model stored before `echoes` existed decodes again**
   (`foldkit-remote`). #485 added `echoes` to the Remote Model's codec as a
   required key, so a Model encoded before it (stored, or recorded by

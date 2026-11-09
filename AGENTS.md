@@ -827,6 +827,16 @@ Foldkit's own behaviour that we work around is listed in
 - **A Mount runs outside the application's `resources`.** Only Commands and
   Subscriptions get them, so a service given there (a diagnostics reporter)
   never reaches a Mount; `MountFailed` goes to the default log (#333).
+- **Upstream's leave can end on a read made before the leave is drawn.**
+  `Dom.waitForAnimationSettled` reads `getAnimations()` one frame after it is
+  asked, with no wait for the commit (`detectElementMovement` waits). A render
+  whose Model is behind the queue puts itself off a frame, so the read found
+  no `data-closed` panel and the Menubar's fade was skipped on CI (#400); 300
+  throttled runs never showed it. A frame race reproduces by putting a
+  callback off when it runs (`real(() => real(run))` armed in the right
+  frame), not when it is asked, which only reshuffles the order. The Menu
+  bundle reads after `Render.afterCommit` (`leaveDrawn`); Listbox, Combobox and
+  Popover still race.
 - **Upstream's Menu clicks a row for you on a release after a press on the
   trigger.** It keeps the press's origin until the menu shuts, and a release
   on the rows over 200ms later and 5px away sends `ClickItem` as well as the

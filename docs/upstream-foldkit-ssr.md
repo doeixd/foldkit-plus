@@ -442,6 +442,12 @@ Runtime and view:
   `{ maybeDependencies }`, gated or not.
 - **The slow-render warning logs the whole Model**, which a browser test pays
   to format.
+- **Upstream's leave can end on a read made before the leave is drawn**:
+  `Dom.waitForAnimationSettled` reads one frame after it is asked, not after
+  the render's commit, so a frame put off behind the queue skips the fade.
+  The Menu bundle waits for the commit first; Listbox, Combobox and Popover,
+  whose `update` is upstream's, cannot. Asking for: `yield* afterCommit` before
+  the read, as `detectElementMovement` does.
 
 Routing and the build:
 

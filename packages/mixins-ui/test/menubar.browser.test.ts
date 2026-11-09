@@ -133,3 +133,62 @@ test("an animated bar's menu stays drawn while it leaves, marked for its fade", 
     handle.dispose()
   }
 })
+
+/**
+ * `requestAnimationFrame` as a loaded page runs it: the runtime's render
+ * asked for while `WaitForPaint`'s frame starts the fade finds its Model
+ * behind the queue and puts itself off a frame, as `renderFramePlain` does,
+ * so any frame asked for meanwhile runs first.
+ */
+const renderBehindTheQueue = () => {
+  const real = window.requestAnimationFrame.bind(window)
+  let inPaintWait = false
+  window.requestAnimationFrame = callback => {
+    const run = (time: number) => {
+      const panel = document.getElementById('file-items')
+      inPaintWait =
+        callback.name === '' &&
+        panel?.hasAttribute('data-leave') === true &&
+        !panel.hasAttribute('data-closed')
+      callback(time)
+      inPaintWait = false
+    }
+    return callback.name === 'renderFramePlain' && inPaintWait ? real(() => real(run)) : real(run)
+  }
+  return () => {
+    window.requestAnimationFrame = real
+  }
+}
+
+test("a bar's menu leaving draws its fade though a render frame is put off (#400)", async () => {
+  const handle = mount(true)
+  try {
+    const trigger = await vi.waitFor(() => {
+      const found = document.getElementById('file-button')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    await userEvent.hover(document.getElementById('away')!)
+    trigger.focus()
+    await userEvent.keyboard('{Enter}')
+    const panel = await vi.waitFor(() => {
+      const found = document.getElementById('file-items')
+      expect(document.activeElement).toBe(found)
+      return found!
+    })
+    const restore = renderBehindTheQueue()
+    try {
+      const states = await marksThrough(
+        panel,
+        ['closed', 'leave'],
+        () => userEvent.keyboard('{Escape}'),
+        () => vi.waitFor(() => expect(document.getElementById('file-items')).toBeNull()),
+      )
+      expect(states).toContain('closed leave')
+    } finally {
+      restore()
+    }
+  } finally {
+    handle.dispose()
+  }
+})
