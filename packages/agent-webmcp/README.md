@@ -55,6 +55,33 @@ not an arbitrary Foldkit runtime handle.
 Bind that contract to the running application, then register its currently
 available capabilities with WebMCP:
 
+<!-- docs-check standalone
+import { Agent } from 'foldkit-agent'
+import { Option, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+const Message = defineMessageUnion({
+  RequestedCreateTodo: { title: Schema.String },
+  DraftSubmitted: {},
+})
+type Message = typeof Message.Type
+interface Model {
+  readonly selectedTodoId: Option.Option<string>
+}
+interface Principal {
+  readonly user: string
+}
+const AgentBuilder = Agent.forModel<Model, Principal>()
+const AssistantAgent = AgentBuilder.make({
+  messages: AgentBuilder.expose(Message, { RequestedCreateTodo: 'Create a todo' }),
+})
+declare const mounted: {
+  readonly model: () => Model
+  readonly dispatch: (message: Message) => void
+  readonly subscribe: (listener: () => void) => () => void
+  readonly observe: (listener: (message: Message) => void) => () => void
+}
+declare const currentPrincipal: Principal
+-->
 ```ts
 import { AgentWebMcp } from 'foldkit-agent-webmcp'
 
@@ -62,7 +89,9 @@ const agentRuntime = AgentBuilder.bind({
   definition: AssistantAgent,
   host: {
     model: mounted.model,
-    dispatch: message => mounted.dispatch(message),
+    dispatch: (message: Message) => {
+      mounted.dispatch(message)
+    },
     subscribe: mounted.subscribe,
     observe: mounted.observe, // Message-based completion
     principal: () => currentPrincipal, // your authenticated application principal
@@ -165,6 +194,13 @@ browser fills the fields and submits; the person can see the form as it is
 filled. `formTool` draws a capability that way, from the same contract, so the
 form and the registered tool cannot name or describe it differently:
 
+<!-- docs-check
+import type { HtmlBuilder } from 'foldkit/html'
+declare const AppAgent: typeof AssistantAgent
+declare const h: HtmlBuilder<Message>
+declare const model: { readonly draft: string }
+declare const agent: typeof agentRuntime
+-->
 ```ts
 const CreateTodoForm = AgentWebMcp.formTool(AppAgent, 'requested_create_todo')
 
@@ -206,6 +242,9 @@ keys.
 
 `AgentWebMcp.register` returns:
 
+<!-- docs-check
+declare const registration: ReturnType<typeof AgentWebMcp.register>
+-->
 ```ts
 registration.registered()  // capability names currently registered
 await registration.refresh() // reconcile against the current Model
@@ -250,13 +289,17 @@ the application.
 object with `registerTool` to capture descriptors and invoke their `execute`
 functions directly:
 
+<!-- docs-check
+import type { ModelContext } from 'foldkit-agent-webmcp'
+declare const fakeModelContext: ModelContext
+-->
 ```ts
-const registration = AgentWebMcp.register({
+const tested = AgentWebMcp.register({
   agent: agentRuntime,
   modelContext: fakeModelContext,
 })
 
-await registration.refresh()
+await tested.refresh()
 ```
 
 That is how the package test suite and [`examples/todo`](../../examples/todo)
