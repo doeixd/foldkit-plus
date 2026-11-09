@@ -44,15 +44,10 @@ import { fileURLToPath } from 'node:url'
 /** Documents whose blocks do not all compile yet (#229). Remove one once it does. */
 const pending = new Set([
   'docs/agents.md',
-  'docs/extensible-DESIGN.md',
-  'docs/rfc.md',
   'docs/site-remote-ssr.md',
   'docs/site.md',
   'docs/sync-dx.md',
-  'packages/builder/README.md',
-  'packages/bundle/README.md',
   'packages/cms/README.md',
-  'packages/composition/README.md',
   'packages/crud/README.md',
   'packages/durable/README.md',
   'packages/entity/README.md',
@@ -60,16 +55,10 @@ const pending = new Set([
   'packages/mirror/README.md',
   'packages/mixins-crud/README.md',
   'packages/mixins-form/README.md',
-  'packages/mixins-richtext/README.md',
-  'packages/mixins-ui/README.md',
-  'packages/mixins/README.md',
-  'packages/primitives/interaction/README.md',
   'packages/remote-server/README.md',
   'packages/remote/README.md',
-  'packages/richtext/README.md',
   'packages/site/README.md',
   'packages/ssr/README.md',
-  'packages/surface/README.md',
 ])
 
 const root = fileURLToPath(new URL('..', import.meta.url))
