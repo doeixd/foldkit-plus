@@ -92,6 +92,12 @@ field through a Surface looks like this — the first half places the owner,
 the second half declares an observer over the same Model and Message:
 
 ```ts
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Bundle } from 'foldkit-bundle'
+import { MediaQuery } from 'foldkit-primitives/media'
+import { Surface } from 'foldkit-surface'
+
 const Dark = Bundle.declare(MediaQuery, 'dark')
 const Model = Schema.Struct({ ...Dark.fields, helpOpen: Schema.Boolean })
 const Message = defineMessageUnion({ ...Dark.cases, ClickedHelp: {} })
@@ -102,7 +108,7 @@ const placements = Page.assemble(Page.at(Dark, { args: { query: '(prefers-color-
 
 // Observer, not a second owner: renders and inspects the placed slice.
 const DarkScreen = App.surface('DarkScreen', {
-  model: ({ model }) => ({ matches: model.dark.matches }),
+  model: ({ model }) => ({ dark: model.dark }),
   messages: [Message.ClickedHelp],
 })
 ```

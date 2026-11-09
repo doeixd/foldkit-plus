@@ -91,7 +91,7 @@ optimistic. Neither makes you ask for what you almost always want.
 happened must not believe it before the authority does. In practice that is an
 Agent capability completing on state, which is why `Agent.when` takes either:
 
-```ts
+```ts sketch
 Agent.when({ projection: Data.confirmed(ProjectName), predicate })   // Remote
 Agent.when({ source: mounted.committed, predicate })                 // Sync
 ```
@@ -185,7 +185,7 @@ show cannot see this class of bug at all. A sketch;
 [`examples/registry/test/page.test.ts`](../examples/registry/test/page.test.ts)
 has it in full:
 
-```ts
+```ts sketch
 const frames = Frames.track()
 frames.hold()
 click(sortButton())

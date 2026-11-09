@@ -128,6 +128,26 @@ both mirror Messages; everything else is the application's own. (`App`,
 `Model`, `Message`, `initialModel`, `own`, and `view` are the todo-app
 declarations.)
 
+<!-- docs-check
+import { Schema } from 'effect'
+import type { Document } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import type * as Update from 'foldkit/update'
+import { Url } from 'foldkit/url'
+import { Surface } from 'foldkit-surface'
+const Model = Schema.Struct({
+  filter: Schema.Literals(['all', 'active', 'completed']),
+  draft: Schema.String,
+})
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Mirror.messages, UrlChanged: { url: Url } })
+type Message = typeof Message.Type
+const initialModel: Model = { filter: 'all', draft: '' }
+declare const own: (model: Model, message: Message) => Update.Return<Model, Message>
+declare const view: (model: Model) => Document
+const App = Surface.application({ Model, Message, initial: initialModel, update: own })
+-->
+
 ```ts
 import { Bundle } from 'foldkit-bundle'
 import { Mirror } from 'foldkit-mirror'
