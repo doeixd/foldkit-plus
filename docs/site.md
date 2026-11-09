@@ -25,10 +25,69 @@ placements (stateful pages), and Remote/SSR (data and rendering).
 
 ## 60 seconds: two nodes and a link
 
+<!-- docs-check standalone
+import { Effect, Option, Schema, pipe } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { UrlRequest } from 'foldkit/navigation'
+import {
+  defineRouteUnion,
+  int,
+  literal,
+  mapTo,
+  oneOf,
+  parseUrlWithFallback,
+  query,
+  root,
+  slash,
+} from 'foldkit/route'
+import { Url } from 'foldkit/url'
+import { Projection, Surface } from 'foldkit-surface'
+
+const AppRoute = defineRouteUnion({
+  Home: {},
+  People: { searchText: Schema.Option(Schema.String) },
+  Person: { personId: Schema.Number },
+  Nested: {},
+  NotFound: { path: Schema.String },
+})
+type AppRoute = typeof AppRoute.Type
+const homeRouter = pipe(root, mapTo(AppRoute.Home))
+const peopleRouter = pipe(
+  literal('people'),
+  query(Schema.Struct({ searchText: Schema.OptionFromOptional(Schema.String) })),
+  mapTo(AppRoute.People),
+)
+const personRouter = pipe(literal('people'), slash(int('personId')), mapTo(AppRoute.Person))
+const nestedRouter = pipe(literal('nested'), mapTo(AppRoute.Nested))
+const urlToAppRoute = parseUrlWithFallback(
+  oneOf(personRouter, peopleRouter, homeRouter, nestedRouter),
+  AppRoute.NotFound,
+)
+const Model = Schema.Struct({ route: AppRoute, bios: Schema.Record(Schema.String, Schema.String) })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({
+  ClickedLink: { request: UrlRequest },
+  ChangedUrl: { url: Url },
+  CompletedNavigation: {},
+})
+type Message = typeof Message.Type
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { route: AppRoute.Home(), bios: {} },
+  update: (model: Model) => ({ model }),
+})
+const PeoplePage = App.surface('PeoplePage', {
+  params: { searchText: Schema.Option(Schema.String) },
+  model: ({ model }) => Projection.struct({ route: model.route }),
+})
+-->
+
 ```ts
 import { Site } from 'foldkit-site'
 
 const Home = Site.route(homeRouter, AppRoute.Home, { title: () => 'Routing' })
+const People = Site.route(peopleRouter, AppRoute.People)
 const Person = Site.route(personRouter, AppRoute.Person, {
   title: ({ personId }) => `Person ${personId} | Routing`,
   section: 'People',
@@ -68,6 +127,65 @@ The options bag above covers the common case. To annotate in steps, or to
 share an annotation bundle across nodes, build incrementally — the options
 are sugar over this builder, one implementation:
 
+<!-- docs-check standalone
+import { Effect, Option, Schema, pipe } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { UrlRequest } from 'foldkit/navigation'
+import {
+  defineRouteUnion,
+  int,
+  literal,
+  mapTo,
+  oneOf,
+  parseUrlWithFallback,
+  query,
+  root,
+  slash,
+} from 'foldkit/route'
+import { Url } from 'foldkit/url'
+import { Projection, Surface } from 'foldkit-surface'
+
+const AppRoute = defineRouteUnion({
+  Home: {},
+  People: { searchText: Schema.Option(Schema.String) },
+  Person: { personId: Schema.Number },
+  Nested: {},
+  NotFound: { path: Schema.String },
+})
+type AppRoute = typeof AppRoute.Type
+const homeRouter = pipe(root, mapTo(AppRoute.Home))
+const peopleRouter = pipe(
+  literal('people'),
+  query(Schema.Struct({ searchText: Schema.OptionFromOptional(Schema.String) })),
+  mapTo(AppRoute.People),
+)
+const personRouter = pipe(literal('people'), slash(int('personId')), mapTo(AppRoute.Person))
+const nestedRouter = pipe(literal('nested'), mapTo(AppRoute.Nested))
+const urlToAppRoute = parseUrlWithFallback(
+  oneOf(personRouter, peopleRouter, homeRouter, nestedRouter),
+  AppRoute.NotFound,
+)
+const Model = Schema.Struct({ route: AppRoute, bios: Schema.Record(Schema.String, Schema.String) })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({
+  ClickedLink: { request: UrlRequest },
+  ChangedUrl: { url: Url },
+  CompletedNavigation: {},
+})
+type Message = typeof Message.Type
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { route: AppRoute.Home(), bios: {} },
+  update: (model: Model) => ({ model }),
+})
+const PeoplePage = App.surface('PeoplePage', {
+  params: { searchText: Schema.Option(Schema.String) },
+  model: ({ model }) => Projection.struct({ route: model.route }),
+})
+import { Site } from 'foldkit-site'
+-->
+
 ```ts
 const Person = Site.node(personRouter, AppRoute.Person)
   .title(({ personId }) => `Person ${personId} | Routing`)
@@ -81,6 +199,8 @@ knows its node's. Named bundles compose through `.pipe` (or free `pipe`)
 with no annotation:
 
 ```ts
+import { type NodeBuilder } from 'foldkit-site'
+
 const inPeopleSection = <R extends { readonly _tag: string }>(b: NodeBuilder<R>) =>
   b.section('People').shortcut(['G', 'P'])
 
@@ -113,6 +233,10 @@ const PersonNode = Site.route(personRouter, AppRoute.Person, {
   history: (prev, next) => (prev.personId === next.personId ? 'replace' : 'push'),
 })
 
+const onePersonTarget = Site.target(PersonNode, { personId: 1 })
+const anotherPersonTarget = Site.target(PersonNode, { personId: 2 })
+const samePersonTarget = Site.target(PersonNode, { personId: 1 })
+
 Site.historyOf(onePersonTarget, anotherPersonTarget) // 'push'
 Site.historyOf(onePersonTarget, samePersonTarget) // 'replace'
 ```
@@ -127,6 +251,65 @@ transition.
 
 A node names the Surface its route activates, with the route's params made
 into its own:
+
+<!-- docs-check standalone
+import { Effect, Option, Schema, pipe } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { UrlRequest } from 'foldkit/navigation'
+import {
+  defineRouteUnion,
+  int,
+  literal,
+  mapTo,
+  oneOf,
+  parseUrlWithFallback,
+  query,
+  root,
+  slash,
+} from 'foldkit/route'
+import { Url } from 'foldkit/url'
+import { Projection, Surface } from 'foldkit-surface'
+
+const AppRoute = defineRouteUnion({
+  Home: {},
+  People: { searchText: Schema.Option(Schema.String) },
+  Person: { personId: Schema.Number },
+  Nested: {},
+  NotFound: { path: Schema.String },
+})
+type AppRoute = typeof AppRoute.Type
+const homeRouter = pipe(root, mapTo(AppRoute.Home))
+const peopleRouter = pipe(
+  literal('people'),
+  query(Schema.Struct({ searchText: Schema.OptionFromOptional(Schema.String) })),
+  mapTo(AppRoute.People),
+)
+const personRouter = pipe(literal('people'), slash(int('personId')), mapTo(AppRoute.Person))
+const nestedRouter = pipe(literal('nested'), mapTo(AppRoute.Nested))
+const urlToAppRoute = parseUrlWithFallback(
+  oneOf(personRouter, peopleRouter, homeRouter, nestedRouter),
+  AppRoute.NotFound,
+)
+const Model = Schema.Struct({ route: AppRoute, bios: Schema.Record(Schema.String, Schema.String) })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({
+  ClickedLink: { request: UrlRequest },
+  ChangedUrl: { url: Url },
+  CompletedNavigation: {},
+})
+type Message = typeof Message.Type
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { route: AppRoute.Home(), bios: {} },
+  update: (model: Model) => ({ model }),
+})
+const PeoplePage = App.surface('PeoplePage', {
+  params: { searchText: Schema.Option(Schema.String) },
+  model: ({ model }) => Projection.struct({ route: model.route }),
+})
+import { Site } from 'foldkit-site'
+-->
 
 ```ts
 const People = Site.route(peopleRouter, AppRoute.People, {
@@ -151,6 +334,98 @@ SSR read.
 `Site.routing` is the application's link-click and URL-change lifecycle as
 one wiring:
 
+<!-- docs-check standalone
+import { Option, Schema, pipe } from 'effect'
+import { Submodel } from 'foldkit'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { UrlRequest } from 'foldkit/navigation'
+import {
+  defineRouteUnion,
+  int,
+  literal,
+  mapTo,
+  oneOf,
+  parseUrlWithFallback,
+  query,
+  root,
+  slash,
+} from 'foldkit/route'
+import { modifyFields } from 'foldkit/struct'
+import { Url } from 'foldkit/url'
+import { Bundle, Link } from 'foldkit-bundle'
+import { Site } from 'foldkit-site'
+import { ModelRef, Surface } from 'foldkit-surface'
+
+const AppRoute = defineRouteUnion({
+  Home: {},
+  People: { searchText: Schema.Option(Schema.String) },
+  Person: { personId: Schema.Number },
+  NotFound: { path: Schema.String },
+})
+type AppRoute = typeof AppRoute.Type
+const homeRouter = pipe(root, mapTo(AppRoute.Home))
+const peopleRouter = pipe(
+  literal('people'),
+  query(Schema.Struct({ searchText: Schema.OptionFromOptional(Schema.String) })),
+  mapTo(AppRoute.People),
+)
+const personRouter = pipe(literal('people'), slash(int('personId')), mapTo(AppRoute.Person))
+const urlToAppRoute = parseUrlWithFallback(
+  oneOf(personRouter, peopleRouter, homeRouter),
+  AppRoute.NotFound,
+)
+const Home = Site.route(homeRouter, AppRoute.Home)
+const PeopleNode = Site.route(peopleRouter, AppRoute.People)
+const Person = Site.route(personRouter, AppRoute.Person)
+const AppSite = Site.make(Home, Site.mount(PeopleNode, [Person]))
+
+const PeopleModel = Schema.Struct({ searchInput: Schema.String, found: Schema.Array(Schema.String) })
+type PeopleModel = typeof PeopleModel.Type
+const PeopleMessage = defineMessageUnion({
+  ChangedRoute: { route: AppRoute.People },
+  Picked: { name: Schema.String },
+})
+type PeopleMessage = typeof PeopleMessage.Type
+const PeopleBundle = Bundle.make('People', {
+  Model: PeopleModel,
+  Message: PeopleMessage,
+  args: Schema.Struct({ searchText: Schema.Option(Schema.String) }),
+  init: ({ searchText }) => ({
+    model: { searchInput: Option.getOrElse(searchText, () => ''), found: [] },
+  }),
+  update: (model, message) =>
+    PeopleMessage.match(message, {
+      ChangedRoute: ({ route }) => ({
+        model: { searchInput: Option.getOrElse(route.searchText, () => ''), found: [] },
+      }),
+      Picked: ({ name }) => ({ model: { ...model, found: [...model.found, name] } }),
+    }),
+  view: Submodel.defineView<PeopleModel, PeopleMessage>((model, h: HtmlBuilder<PeopleMessage>) =>
+    h.p([], [model.searchInput]),
+  ),
+})
+const Model = Schema.Struct({ route: AppRoute, peoplePage: PeopleModel })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({
+  ClickedLink: { request: UrlRequest },
+  ChangedUrl: { url: Url },
+  CompletedNavigation: {},
+  GotPeopleMessage: { message: PeopleMessage },
+})
+type Message = typeof Message.Type
+const App = Surface.application({ Model, Message })
+const updateOwn = (model: Model, _message: Message) => ({ model })
+const PeoplePage = Site.placement(PeopleNode, PeopleBundle, {
+  link: Link.field<Model>()('peoplePage', Link.wrapper(Message.GotPeopleMessage)),
+  args: parent => ({
+    searchText: parent.route._tag === 'People' ? parent.route.searchText : Option.none(),
+  }),
+  changed: route => PeopleMessage.ChangedRoute({ route }),
+})
+const pages = [PeoplePage]
+-->
+
 ```ts
 import { ModelRef } from 'foldkit-surface'
 
@@ -168,7 +443,7 @@ const Routing = Site.routing<Model, Message, AppRoute>({
   pages: [PeoplePage],
 })
 
-const assembly = Bundle.assemble([Routing, ...pages])
+const assembly = Bundle.assemble<Model, Message>()([Routing, ...pages.map(page => page.placed)])
 const update = assembly.update((model, message) =>
   Routing.reduces(message) ? { model } : updateOwn(model, message),
 )
@@ -192,13 +467,97 @@ does after them for a new route (moving focus), never for an echo.
 and what its route arrival tells it — so the fold and the drawing never
 restate the field, the wrapper, or the slot:
 
+<!-- docs-check standalone
+import { Option, Schema, pipe } from 'effect'
+import { Submodel } from 'foldkit'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { UrlRequest } from 'foldkit/navigation'
+import {
+  defineRouteUnion,
+  int,
+  literal,
+  mapTo,
+  oneOf,
+  parseUrlWithFallback,
+  query,
+  root,
+  slash,
+} from 'foldkit/route'
+import { modifyFields } from 'foldkit/struct'
+import { Url } from 'foldkit/url'
+import { Bundle, Link } from 'foldkit-bundle'
+import { Site } from 'foldkit-site'
+import { ModelRef, Surface } from 'foldkit-surface'
+
+const AppRoute = defineRouteUnion({
+  Home: {},
+  People: { searchText: Schema.Option(Schema.String) },
+  Person: { personId: Schema.Number },
+  NotFound: { path: Schema.String },
+})
+type AppRoute = typeof AppRoute.Type
+const homeRouter = pipe(root, mapTo(AppRoute.Home))
+const peopleRouter = pipe(
+  literal('people'),
+  query(Schema.Struct({ searchText: Schema.OptionFromOptional(Schema.String) })),
+  mapTo(AppRoute.People),
+)
+const personRouter = pipe(literal('people'), slash(int('personId')), mapTo(AppRoute.Person))
+const urlToAppRoute = parseUrlWithFallback(
+  oneOf(personRouter, peopleRouter, homeRouter),
+  AppRoute.NotFound,
+)
+const Home = Site.route(homeRouter, AppRoute.Home)
+const PeopleNode = Site.route(peopleRouter, AppRoute.People)
+const Person = Site.route(personRouter, AppRoute.Person)
+const AppSite = Site.make(Home, Site.mount(PeopleNode, [Person]))
+
+const PeopleModel = Schema.Struct({ searchInput: Schema.String, found: Schema.Array(Schema.String) })
+type PeopleModel = typeof PeopleModel.Type
+const PeopleMessage = defineMessageUnion({
+  ChangedRoute: { route: AppRoute.People },
+  Picked: { name: Schema.String },
+})
+type PeopleMessage = typeof PeopleMessage.Type
+const PeopleBundle = Bundle.make('People', {
+  Model: PeopleModel,
+  Message: PeopleMessage,
+  args: Schema.Struct({ searchText: Schema.Option(Schema.String) }),
+  init: ({ searchText }) => ({
+    model: { searchInput: Option.getOrElse(searchText, () => ''), found: [] },
+  }),
+  update: (model, message) =>
+    PeopleMessage.match(message, {
+      ChangedRoute: ({ route }) => ({
+        model: { searchInput: Option.getOrElse(route.searchText, () => ''), found: [] },
+      }),
+      Picked: ({ name }) => ({ model: { ...model, found: [...model.found, name] } }),
+    }),
+  view: Submodel.defineView<PeopleModel, PeopleMessage>((model, h: HtmlBuilder<PeopleMessage>) =>
+    h.p([], [model.searchInput]),
+  ),
+})
+const Model = Schema.Struct({ route: AppRoute, peoplePage: PeopleModel })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({
+  ClickedLink: { request: UrlRequest },
+  ChangedUrl: { url: Url },
+  CompletedNavigation: {},
+  GotPeopleMessage: { message: PeopleMessage },
+})
+type Message = typeof Message.Type
+const App = Surface.application({ Model, Message })
+const updateOwn = (model: Model, _message: Message) => ({ model })
+-->
+
 ```ts
 const PeoplePage = Site.placement(PeopleNode, PeopleBundle, {
   link: Link.field<Model>()('peoplePage', Link.wrapper(Message.GotPeopleMessage)),
   args: parent => ({
     searchText: parent.route._tag === 'People' ? parent.route.searchText : Option.none(),
   }),
-  changed: route => People.Message.ChangedRoute({ route }),
+  changed: route => PeopleMessage.ChangedRoute({ route }),
 })
 ```
 
@@ -240,6 +599,46 @@ fetches in step with navigation — navigating only changes the route, and the
 reads start and stop as a consequence, through `Data.subscriptions` over the
 site's Sources:
 
+<!-- docs-check standalone
+import { Effect, Schema, pipe } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { defineRouteUnion, literal, mapTo, root, slash, string } from 'foldkit/route'
+import { Entity, Expr, Order } from 'foldkit-entity'
+import { Query, Remote } from 'foldkit-remote'
+import { Site } from 'foldkit-site'
+import { SSR } from 'foldkit-ssr'
+import { Projection, Surface } from 'foldkit-surface'
+
+const Project = Entity.define(
+  'Project',
+  Schema.Struct({ id: Schema.String, name: Schema.String, ownerId: Schema.String }),
+)
+const ProjectSummary = Entity.select(Project, { id: true, name: true })
+const ProjectsByOwner = Query.define('ProjectsByOwner', { ownerId: Schema.String }, ({ input }) =>
+  Query.from(Project).pipe(
+    Query.where(Expr.eq(Project.fields.ownerId, input.ownerId)),
+    Query.orderBy(Order.asc(Project.fields.name)),
+  ),
+)
+const AppRoute = defineRouteUnion({ Home: {}, Owner: { ownerId: Schema.String } })
+const homeRouter = pipe(root, mapTo(AppRoute.Home))
+const ownerRouter = pipe(literal('owners'), slash(string('ownerId')), mapTo(AppRoute.Owner))
+const Model = Schema.Struct({ route: AppRoute, remote: Remote.Model })
+type Model = typeof Model.Type
+const App = Surface.application({
+  Model,
+  Message: defineMessageUnion({ ...Remote.messages }),
+  initial: { route: AppRoute.Home(), remote: Remote.initial },
+  update: (model: Model) => ({ model }),
+})
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: [Project],
+  queries: [ProjectsByOwner],
+})
+-->
+
 ```ts
 const OwnerPage = App.surface('OwnerPage', {
   params: { ownerId: Schema.String },
@@ -264,11 +663,22 @@ to fill them. This is the whole prefetch story — hover prefetch and
 programmatic preload share it, since the framework owns the topology half
 and the caller owns the one-line preparation:
 
+<!-- docs-check
+const OwnerNode = Site.node(ownerRouter, AppRoute.Owner).surface({
+  surface: OwnerPage,
+  params: route => ({ ownerId: route.ownerId }),
+}).node
+const AppSite = Site.make(Site.route(homeRouter, AppRoute.Home), OwnerNode)
+declare const model: Model
+-->
+
 ```ts
-const target = Site.target(OwnerNode, { ownerId: 'u1' })
-const there = { ...model, route: target.route }
-const active = Site.sourcesFor(AppSite, App.owner, App.model.route, target.route)
-const prepared = yield* Data.satisfy(there, active)
+const prepare = Effect.gen(function* () {
+  const target = Site.target(OwnerNode, { ownerId: 'u1' })
+  const there = { ...model, route: target.route }
+  const active = Site.sourcesFor(AppSite, App.owner, App.model.route, target.route)
+  return yield* Data.satisfy(there, active)
+})
 ```
 
 Only the destination's query runs, once; the page navigation will then draw
@@ -326,7 +736,7 @@ editor's load. The ask waits in the Model; a `follow` step applies it once
 the owner is ready, through the owner's own Messages, then lets it go so the
 address follows the owner again:
 
-```ts
+```ts sketch
 const follow = followPending(EditorSlot, {
   pending: model => model.linked,
   release: model => ({ ...model, linked: Option.none() }),
@@ -349,6 +759,18 @@ Model → `sourcesFor` → `satisfy` → an SSR plan over those Sources with
 Remote's resume part → covered inspection → rendered page carrying the
 destination's data:
 
+<!-- docs-check
+const config = {
+  Model,
+  init: () => ({ model: App.initial }),
+  update: (model: Model) => ({ model }),
+  view: (_model: Model, h: HtmlBuilder<never>) => h.p([], []),
+  container: null,
+}
+const active = Site.sources(AppSite, App.owner, App.model.route)
+declare const template: string
+-->
+
 ```ts
 const plan = SSR.plan(App, {
   id: 'owner',
@@ -356,8 +778,11 @@ const plan = SSR.plan(App, {
   surfaces: Object.values(active),
   parts: [Remote.resume(Data)],
 })
-const rendered = yield* SSR.render(config, plan, { buildId: 'b' })
-const page = SSR.page(template, rendered)
+
+const render = Effect.gen(function* () {
+  const rendered = yield* SSR.render(config, plan, { buildId: 'b' })
+  return SSR.page(template, rendered)
+})
 ```
 
 `SSR.inspect` proves the plan covers what the browser's Surfaces will read;
