@@ -81,6 +81,7 @@ const written = (
   values: Readonly<Record<string, unknown>>,
   now: number,
   windows?: Readonly<Record<string, string>>,
+  kept?: number,
 ): EntityEntry => {
   const present = new Set(previous.present)
   const stale = new Set(previous.stale)
@@ -117,7 +118,7 @@ const written = (
     unavailable,
     tombstone: false,
     updatedAt: now,
-    oldestAt: whole ? now : Math.min(previous.oldestAt, now),
+    oldestAt: kept ?? (whole ? now : Math.min(previous.oldestAt, now)),
     windows: nextWindows,
   }
 }
@@ -129,6 +130,8 @@ export interface EntityWrite {
   readonly windows?: Readonly<Record<string, string>> | undefined
   /** When this write dates the entity, instead of the batch's `now`. */
   readonly updatedAt?: number | undefined
+  /** The row's freshness to keep, instead of what the write would make it (an overlay's). */
+  readonly oldestAt?: number | undefined
 }
 
 /**
@@ -149,6 +152,7 @@ export const writeEntities = (
       write.values,
       write.updatedAt ?? now,
       write.windows,
+      write.oldestAt,
     )
   }
   return next

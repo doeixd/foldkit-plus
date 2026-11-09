@@ -15,16 +15,23 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 
 export default [
   edit(
+    'a pending write makes the row fresh',
+    '../src/optimistic.ts',
+    'oldestAt: under === undefined || under.tombstone ? Infinity : under.oldestAt,',
+    '',
+  ),
+  edit("an overlay's freshness is not kept", store, 'oldestAt: kept ?? (', 'oldestAt: ('),
+  edit(
     'a partial write dates the row anew',
     store,
-    'oldestAt: whole ? now : Math.min(previous.oldestAt, now)',
-    'oldestAt: now',
+    'whole ? now : Math.min(previous.oldestAt, now)',
+    'now',
   ),
   edit(
     'a whole write keeps the old date',
     store,
-    'oldestAt: whole ? now : Math.min(previous.oldestAt, now)',
-    'oldestAt: Math.min(previous.oldestAt, now)',
+    'whole ? now : Math.min(previous.oldestAt, now)',
+    'Math.min(previous.oldestAt, now)',
   ),
   edit(
     'plan ages a row by its newest write',
