@@ -55,6 +55,49 @@ pnpm add effect foldkit foldkit-bundle foldkit-form foldkit-mixins foldkit-mixin
 Given `Edit`, a `Form.make` result from the
 [Form example](../form/README.md#example), the default rendering path is:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Entity, Relation } from 'foldkit-entity'
+import { Form as FormKit, Input } from 'foldkit-form'
+
+const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Tag = Entity.define('Tag', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Post = Entity.define(
+  'Post',
+  Schema.Struct({
+    id: Schema.String,
+    title: Schema.String.check(Schema.isMinLength(1)).annotate({ title: 'Title' }),
+    body: Schema.String,
+    status: Schema.Literals(['draft', 'live']),
+    featured: Schema.Boolean,
+  }),
+)
+const Blog = Entity.relate(
+  { Author, Tag, Post },
+  { Post: { editor: Relation.one(Author, { optional: true }), tags: Relation.many(Tag) } },
+)
+const Edit = FormKit.make(
+  'Edit',
+  Entity.input(
+    Blog.Post,
+    Schema.Struct({
+      id: Schema.String,
+      title: Blog.Post.fields.title.schema,
+      body: Schema.optional(Schema.String),
+      status: Schema.Literals(['draft', 'live']),
+      featured: Schema.Boolean,
+      editorId: Schema.NullOr(Schema.String),
+      tagIds: Schema.Array(Schema.String),
+    }),
+    {
+      editorId: Relation.input(Blog.Post.relations.editor),
+      tagIds: Relation.input(Blog.Post.relations.tags),
+    },
+  ),
+  { inputs: { id: Input.hidden() } },
+)
+-->
+
 ```ts
 import { Bundle } from 'foldkit-bundle'
 import { FormView } from 'foldkit-mixins-form'
@@ -168,6 +211,49 @@ the generated view with UI field overrides through a Submodel and a strict
 `Edit` is a `Form.make` result, as in the
 [`foldkit-form` README](../form/README.md#example).
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Entity, Relation } from 'foldkit-entity'
+import { Form as FormKit, Input } from 'foldkit-form'
+
+const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Tag = Entity.define('Tag', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Post = Entity.define(
+  'Post',
+  Schema.Struct({
+    id: Schema.String,
+    title: Schema.String.check(Schema.isMinLength(1)).annotate({ title: 'Title' }),
+    body: Schema.String,
+    status: Schema.Literals(['draft', 'live']),
+    featured: Schema.Boolean,
+  }),
+)
+const Blog = Entity.relate(
+  { Author, Tag, Post },
+  { Post: { editor: Relation.one(Author, { optional: true }), tags: Relation.many(Tag) } },
+)
+const Edit = FormKit.make(
+  'Edit',
+  Entity.input(
+    Blog.Post,
+    Schema.Struct({
+      id: Schema.String,
+      title: Blog.Post.fields.title.schema,
+      body: Schema.optional(Schema.String),
+      status: Schema.Literals(['draft', 'live']),
+      featured: Schema.Boolean,
+      editorId: Schema.NullOr(Schema.String),
+      tagIds: Schema.Array(Schema.String),
+    }),
+    {
+      editorId: Relation.input(Blog.Post.relations.editor),
+      tagIds: Relation.input(Blog.Post.relations.tags),
+    },
+  ),
+  { inputs: { id: Input.hidden() } },
+)
+-->
+
 ```ts
 import { Bundle } from 'foldkit-bundle'
 import { Style } from 'foldkit-mixins'
@@ -194,7 +280,7 @@ In the following integration fragment, `EditForm` is the placement of `Drawn`,
 `model` and `h` are the parent view arguments, and `authors` is the loaded picker
 data. Where the parent draws the placement:
 
-```ts
+```ts sketch
 EditForm.view(model, h, {
   options: { editorId: authors.map(author => ({ value: author.id, label: author.name })) },
   words: { submit: 'Save' },
@@ -259,6 +345,40 @@ The table above is a set of renderers found by a control's `kind`, and the
 shipped ones are entries like any other. Add a kind of your own, or draw a
 shipped one another way, by passing renderers beside them:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+import { Form, Input } from 'foldkit-form'
+import { Style, SlotView } from 'foldkit-mixins'
+import { FieldSlots, FormView, type Renderer } from 'foldkit-mixins-form'
+
+const Cents = Input.kind<{ readonly currency: string }>('Cents', { draft: 'text' })
+const Priced = Entity.define(
+  'Priced',
+  Schema.Struct({
+    id: Schema.String,
+    cents: Schema.Number,
+    code: Schema.String,
+    total: Schema.String,
+    email: Schema.String,
+  }),
+)
+const PriceForm = Form.make(
+  'Price',
+  Entity.input(
+    Priced,
+    Schema.Struct({
+      cents: Schema.Number,
+      code: Schema.String,
+      total: Schema.String,
+      email: Schema.String,
+    }),
+  ),
+  { inputs: { cents: Cents.of({ currency: 'USD' }) } },
+)
+declare const myCombobox: Renderer<{ readonly _tag: string }>
+-->
+
 ```ts
 FormView.define(PriceForm, {
   renderers: {
@@ -286,6 +406,9 @@ no renderer throws when it is drawn, naming the kind and the key.
 control for a layout the caller owns:
 
 ```ts
+import { Style } from 'foldkit-mixins'
+import { FieldSlots } from 'foldkit-mixins-form'
+
 const Fields = FormView.fields(PriceForm, {
   overrides: {
     // Drawn through the whole-form view, in the form's own universe.
@@ -307,6 +430,12 @@ Keys with no override render through the base field view, so a new key of a
 known kind needs nothing new; unknown keys in every map are type errors.
 `Fields.view` is the whole form. `Fields.field(control, model, id, h)` draws
 one flat key for a custom layout, or with the override it is given, in any `h`:
+
+<!-- docs-check
+const control = PriceForm.controls[0]!
+const formModel = PriceForm.initial
+const h = SlotView.inertBuilder<typeof PriceForm.Message.Type>()
+-->
 
 ```ts
 Fields.field(control, formModel, control.key, h, (input, draw) =>
@@ -419,7 +548,7 @@ button reads `words.resubmit` (default `Try again`), for a page whose next
 submit sends the same write again; the editor's does, through Remote's retry.
 Where `writing` is the request id the page kept:
 
-```ts
+```ts sketch
 EditForm.view(model, h, {
   submitting: Option.exists(model.writing, id => Data.mutation(model, id)._tag === 'Pending'),
   words: { submit: 'Save', submitting: 'Saving…', resubmit: 'Save again' },
@@ -432,8 +561,56 @@ then waits for the answer, rather than being refused. That leniency is
 the choice stays visible: pass a strict one to disable through checks, or
 `() => true` to never pre-disable and validate wholly at submit.
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Entity, Relation } from 'foldkit-entity'
+import { Form as FormKit, Input } from 'foldkit-form'
+
+const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Tag = Entity.define('Tag', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Post = Entity.define(
+  'Post',
+  Schema.Struct({
+    id: Schema.String,
+    title: Schema.String.check(Schema.isMinLength(1)).annotate({ title: 'Title' }),
+    body: Schema.String,
+    status: Schema.Literals(['draft', 'live']),
+    featured: Schema.Boolean,
+  }),
+)
+const Blog = Entity.relate(
+  { Author, Tag, Post },
+  { Post: { editor: Relation.one(Author, { optional: true }), tags: Relation.many(Tag) } },
+)
+const Edit = FormKit.make(
+  'Edit',
+  Entity.input(
+    Blog.Post,
+    Schema.Struct({
+      id: Schema.String,
+      title: Blog.Post.fields.title.schema,
+      body: Schema.optional(Schema.String),
+      status: Schema.Literals(['draft', 'live']),
+      featured: Schema.Boolean,
+      editorId: Schema.NullOr(Schema.String),
+      tagIds: Schema.Array(Schema.String),
+    }),
+    {
+      editorId: Relation.input(Blog.Post.relations.editor),
+      tagIds: Relation.input(Blog.Post.relations.tags),
+    },
+  ),
+  { inputs: { id: Input.hidden() } },
+)
+import { FormView } from 'foldkit-mixins-form'
+
+const View = FormView.define(Edit)
+-->
+
 ```ts
-const Drawn = Edit.bundle.pipe(
+import { Bundle } from 'foldkit-bundle'
+
+const NeverPreDisabled = Edit.bundle.pipe(
   Bundle.withView(FormView.submodel(Edit, View, { canSubmit: () => true })),
 )
 ```
