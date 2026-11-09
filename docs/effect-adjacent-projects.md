@@ -46,7 +46,7 @@ Reference: `effect` dist-tags: latest 3.22.2, rc **4.0.0-rc.115**, beta 4.0.0-be
 - **CLI:** `deploy`, `plan` (= deploy --dry-run), `destroy`, `drift`, `nuke`, `dev` (hot reload, local Worker runtime), `logs`, `profile`, `state`, `aws` (bootstrap assets bucket), `cloudflare` (state-store worker, tokens). Also: `--adopt` for adopting existing resources, and a GitHub Action `alchemy-run/alchemy@v1` for prod and PR previews.
 - **Providers:** the README says "AWS + Cloudflare today" (S3, SQS, DynamoDB, Kinesis, Lambda, EC2, ECS, EKS, RDS, Bedrock / Workers, R2, D1, DO, Containers, Email, Secrets Store). The examples folder also covers Fly.io, Hetzner, Railway, Prisma (Postgres/Compute), Neon, PlanetScale, Docker. Monorepo packages: `alchemy`, `alchemy-test`, `better-auth`, `cloudflare-runtime`, `cloudflare-test-tools`, `frontend-frameworks` (peer `@alchemy.run/frontend-frameworks`), `node-utils`, `pr-package`, `floci`.
 
-```ts
+```ts sketch
 // README
 const Bucket = Cloudflare.R2.Bucket("bucket");
 export default Cloudflare.Worker("api", { main: import.meta.url },
@@ -96,7 +96,7 @@ export default Alchemy.Stack("MyApp",
 - **Transactions:** `db.transaction(tx => Effect<A,E,R>): Effect<A, E | SqlError, R>`.
 - **Wrapping as a service:** there is no built-in Service or Layer class. Wrap `make` in your own `Context.Service` / `Layer.effect`.
 
-```ts
+```ts sketch
 import * as PgDrizzle from "drizzle-orm/effect-postgres";
 import { PgClient } from "@effect/sql-pg";
 import { createSelectSchema } from "drizzle-orm/effect-schema";
@@ -136,7 +136,7 @@ const program = Effect.gen(function* () {
 - `reload` reruns the transforms.
 - Source modules: plugin, event, filesystem, npm, integration, registration.
 
-```ts
+```ts sketch
 import { define } from "@opencode-ai/plugin/v2/effect"
 import { Effect } from "effect"
 export const Plugin = define({

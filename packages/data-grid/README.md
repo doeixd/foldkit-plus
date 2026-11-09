@@ -264,6 +264,8 @@ Selection is the grid's and opt-in: `DataGrid.make({ id, columns, rowSelection:
 Messages change nothing.
 
 ```ts
+import { GridSelection } from 'foldkit-data-grid'
+
 const Picking = DataGrid.make({ id: 'picking', columns, rowSelection: 'multiple' })
 const start = Picking.bundle.init(undefined).model
 const picked = Picking.bundle.update(start, Picking.Message.RowSelected({ row: 'p1' }), undefined).model
@@ -306,6 +308,8 @@ the field on the wrong one. A column `draft` that returns a string still
 wins. Committing decodes the field's text through the schema.
 
 ```ts
+import { Schema, SchemaGetter } from 'effect'
+
 // Dollars as typed, with at most two decimals, and the number they mean.
 const Price = Schema.String.check(
   Schema.isPattern(/^\d+(\.\d{1,2})?$/, { message: 'A price, like 4.99' }),
@@ -370,6 +374,8 @@ pure: it writes and reads that text and lays a paste onto the grid; the view
 wires it to the browser's copy, cut and paste events.
 
 ```ts
+import { Clipboard } from 'foldkit-data-grid'
+
 Clipboard.toTsv([['SKU', 'Price'], ['A-1', '9']]) // 'SKU\tPrice\nA-1\t9'
 Clipboard.parseTsv('a\t"b\tc"\r\n') // [['a', 'b\tc']]
 ```
@@ -416,6 +422,24 @@ Clipboard.parseTsv('a\t"b\tc"\r\n') // [['a', 'b\tc']]
 the grid's terms. Remote still owns the page, its loading, its retries and
 its next page; this subpath fetches nothing and holds nothing.
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Display, Crud } from 'foldkit-crud'
+import { DataGrid } from 'foldkit-data-grid'
+import { Entity } from 'foldkit-entity'
+import { Query, type Page, type RemoteData } from 'foldkit-remote'
+const Post = Entity.define(
+  'Post',
+  Schema.Struct({ id: Schema.String, title: Schema.String, cents: Schema.Number }),
+)
+const PostRow = Entity.select(Post, { id: true, title: true, cents: true })
+const Posts = Crud.list('Posts', {
+  query: Query.make('Posts', { Input: {}, Result: Query.connection(Post) }),
+  selection: PostRow,
+})
+type Row = typeof PostRow.schema.Type
+declare const page: RemoteData<Page<Row>>
+-->
 ```ts
 import { GridCrud } from 'foldkit-data-grid/crud'
 
@@ -460,6 +484,19 @@ The grid owns where its columns stand and how wide they are: a
 how it starts and what it allows: `width`, `minWidth`, `maxWidth`,
 `resizable` and `hideable`.
 
+<!-- docs-check standalone
+import { Columns, DataGrid } from 'foldkit-data-grid'
+interface Product {
+  readonly id: string
+  readonly sku: string
+  readonly price: number
+}
+const columns = Columns.define<Product>()({
+  sku: { header: 'SKU', value: product => product.sku },
+  price: { header: 'Price', value: product => product.price },
+})
+const Grid = DataGrid.make({ id: 'products', columns })
+-->
 ```ts
 const State = Grid.columnState
 
