@@ -1,92 +1,320 @@
 # TODO
 
-How to continue after the domains-plus performance work (2026-11-09). Ordered.
-Each item says when it is done. Issue state was checked on the date above; read
-an issue's latest comment before starting it.
+The operating plan for working on this repository autonomously, from
+2026-11-09. It says how an item is chosen, researched, designed, built,
+reviewed and finished, and it holds the current queue.
 
-## 0. Before new work: land what is on the branch
+It does not replace the two trackers that already exist:
 
-`ccr-dfcc253e-4x8hum` holds 43 commits (with this one) that CI has never run: CI runs
-only on `main` and on pull requests.
+- **[`docs/design/TODO.md`](./docs/design/TODO.md)** is the backlog. It lists
+  every open item, each tied to the design note it comes from. Its header says
+  it was checked on 2026-09-27, so verify an item before trusting it.
+- **GitHub issues** hold reports, measurements and decisions.
 
-- [ ] Open a PR when the maintainer agrees, and watch CI to green
-      (`typecheck:force`, `e2e`, `demo`, `postgres-locale`).
-- [ ] On merge, close what the branch fixed: #400 (Menu and Menubar),
+This file says what to do next and how. When an item closes, update all three
+in the same change.
+
+## The loop, for every item
+
+Each step has a gate. Do not start the next step until the gate holds.
+
+### 1. Verify the item is still open
+
+- Read the issue's latest comments, the backlog entry, and the design note's
+  status line.
+- Read the code those name. Search the whole space a claim covers: issues have
+  turned out half-built, and #188 turned out built.
+- **Gate:** one sentence saying what is built and what is not, each half
+  backed by a file or a commit. If the item is done, record that (step 9) and
+  pick the next one.
+
+### 2. Research
+
+- Read the owning package's README and its skill reference
+  (`skills/foldkit-plus/references/<family>.md`), then the source of every
+  API you will touch or call. Read source, not memory: Effect 4.1, Foldkit
+  0.170 and Drizzle 1.0 rc all differ from what is remembered.
+- Probe library behaviour in a scratch test run from the package's own
+  directory before building on it (see the trap list in `AGENTS.md`).
+- For a performance claim, measure the current state first, with the
+  repository's harness where one exists.
+- Look for prior art in the repository: `docs/design/`, `docs/*.md`, and the
+  examples that already solve a neighbouring problem.
+- **Gate:** the questions the design must answer are written down, each with
+  its evidence or marked unknown.
+
+### 3. Design
+
+Write a design note (`docs/design/<issue>-<topic>-DESIGN.md`) when the change
+does any of these:
+
+- adds, removes or reshapes a published export;
+- crosses two packages' contracts;
+- touches authorization, identity, the wire or caching across principals;
+- or offers more than one reasonable shape.
+
+Otherwise a paragraph in the issue is enough.
+
+A note states:
+
+- the problem, with its evidence;
+- who owns the fact or transition, and what the change does not own;
+- the options considered and why each was rejected;
+- the chosen shape, as compiling code;
+- its failure semantics;
+- its migration, with a deprecation for one release where something public
+  goes;
+- and what it leaves out.
+
+Check it against "Considerations" below. A guide or README never links a
+design note (`guides.test.ts` refuses it).
+
+**Gate:** an independent review of the note (step 7's reviewer) finds no
+blocking issue.
+
+### 4. Build in small commits
+
+- One coherent unit per commit, with explicit paths (`git commit -- <paths>`).
+- Follow `AGENTS.md`'s git rules: no `add -A`, stash, reset, amend or force.
+- Prefer deleting code to adding it.
+- Branch on tagged unions through their `match`.
+- Represent absent values with `Option`, not `null` or `undefined`.
+- Write Model changes in `update` with `modifyFields`.
+
+### 5. Test, and prove each test can fail
+
+- Test behaviour, not a restatement of the code.
+- Write `@ts-expect-error` negative cases for every type constraint.
+- A claim about focus, layout or the pointer is a browser test. A claim about
+  server markup renders to a string and parses it back.
+- Declare a mutation spec beside the tests and run `pnpm mutate <spec>`: each
+  mutation is killed, or says why it survives. Check what killed it, because
+  a `ReferenceError` is not a kill.
+- **Gate:** the suite is green and every mutation is accounted for.
+
+### 6. Run the CI sequence locally
+
+Run, in order:
+
+1. format your own files with `pnpm exec oxfmt <paths>`, then `pnpm format:check`;
+2. `pnpm typecheck` (or `typecheck:force` when another project is red);
+3. the tests of the packages and examples touched (`--project unit`, and
+   `--project browser --fsModuleCache=false`);
+4. `pnpm mutate:check`;
+5. `pnpm tags:check`;
+6. `pnpm e2e` when an example with a server is reached.
+
+Browser tests here need `PLAYWRIGHT_BROWSERS_PATH` pointed at a Chromium of
+build 1248. The one in `/opt/pw-browsers` is 1243.
+
+### 7. Review
+
+Re-read every committed diff against `AGENTS.md`'s review list: correctness,
+edge cases, synergy, types, comments, tests, security, performance, and the
+de-slop list. Fix what it finds in a follow-up commit.
+
+Then add an independent review for:
+
+- a published API's shape;
+- security-sensitive code;
+- a change across packages' contracts;
+- a design note.
+
+That reviewer is a subagent on the most capable model. It gets the diff and the
+relevant files, not my conclusion, and it is asked for blocking findings first.
+
+Jev: run `npx jev-pref review --hunks --include <file>` (repeating
+`--include` per file) on published API changes. While `TYPESAFE_API_KEY` is
+unset it cannot run. Say so in the commit message, never treat that as
+approval, and lean harder on the independent review.
+
+**Gate:** no blocking finding is left open.
+
+### 8. Document
+
+In the same change:
+
+- the README, read once as a newcomer against `AGENTS.md`'s checklist;
+- the skill reference, with every snippet compiled in a temporary `*.test-d.ts`
+  (`examples/kitchen-sink` maps every package);
+- `CHANGELOG.md` under Unreleased, adding the heading if it is missing;
+- a trap in `AGENTS.md` for any lesson that cost real time.
+
+### 9. Record and push
+
+- Tick the backlog entry and update the design note's status.
+- Comment on the issue with what was built, the commits and what is left.
+- Push to `ccr-dfcc253e-4x8hum`.
+- Leave a fixed issue open until the branch merges, and list it in "Waiting on
+  the maintainer" below.
+- Delete scratch files, and stop any server started.
+
+## Considerations, for every design
+
+- **Ownership.** Name the one owner of each fact and transition. A cache, a
+  mirror, a setter or an adapter is not an owner, so add no second source of
+  truth.
+- **Declare once.** Derive from the Entity, Query or Schema rather than
+  restating it. Where a name must be given, take a typed reference, not a
+  string (#251).
+- **Failure.** Every fallback, refusal or swallowed defect is a typed
+  diagnostic on the channel (#237). A quiet default is a defect.
+- **Security.** Untrusted input is decoded before use, strictly
+  (`onExcessProperty: 'error'`). A client-chosen name is never an object key
+  without `Object.hasOwn`. Bound every client-shaped size where it is decoded.
+  A UI affordance is never authorization.
+- **SSR and hydration.** Server markup must be what a parser builds from it.
+  Nothing server-only reaches the browser bundle. Read the bundle report
+  after adding an import.
+- **Accessibility.** Native semantics first. Check keyboard, focus and
+  screen-reader names in a browser, and touch in the `browser-touch` project.
+- **Styling.** Values come from tokens, through `Theme.ref`. Markup a stylist
+  must reach goes in a Slot.
+- **Performance.** Do work once at definition time. Avoid a lookup inside a
+  loop. Keep a no-op returning the Model it was given. Measure before
+  claiming.
+- **Types and DX.** Inference works at the call site. Errors land at the
+  mistake. No `any` from a generic, and no cast in a test.
+- **Compatibility.** Published packages follow semver: deprecate for a
+  release, then remove. A breaking change gets a changelog entry saying what
+  to write instead.
+
+## What I decide, and what waits
+
+- **I decide** the design, scope, order and trade-offs within the
+  repository, following the rules above, and I record each decision in the
+  note or the issue.
+- **Waits on the maintainer:** opening a PR or merging; posting outside this
+  repository (Foldkit, Effect, Drizzle); publishing a release; anything
+  needing a credential this session lacks (Jev's key, Cloudflare). Record
+  these below and carry on with the next item.
+- **Stop and ask** only when an item needs one of those to proceed and
+  nothing else in the queue can move, or after three review-and-fix rounds
+  that do not converge.
+
+## Waiting on the maintainer
+
+- [ ] **The branch.** `ccr-dfcc253e-4x8hum` holds 44 commits CI has never
+      run, because CI runs on `main` and pull requests only. It needs a PR,
+      and CI watched to green.
+- [ ] **On merge, close what the branch fixed:** #400 (Menu and Menubar),
       #431, #437, #467, #477, #484, #485, #487, #489.
-- [ ] Upstream (the maintainer posts; sessions cannot reach foldkit/foldkit):
-  - The animation-settle issue: draft written, listed in
-    `docs/upstream-foldkit-ssr.md`, item 9 of its Order list.
-  - Proposal 7: a comment on foldkit#1657 with the parse5 table.
+- [ ] **Upstream posts:**
+  - the animation-settle issue (draft written; item 9 of the Order list in
+    `docs/upstream-foldkit-ssr.md`);
+  - Proposal 7, a comment on foldkit#1657.
+- [ ] **`TYPESAFE_API_KEY`**, so the Jev review can run.
 
-## 1. #188: field recipes and CRUD screens (the main track)
+## The queue
 
-The largest gain for people building apps. The issue asks for a design gate
-first, and the decisions involved (a published API's shape) are for the most
-capable model and a design note.
+In order. Every item runs the loop above. The notes give each item's research
+questions, the decisions it must make and its done-when.
 
-- [ ] **Audit.** What `foldkit-form`, `foldkit-crud`, `foldkit-mixins-form`,
-      `foldkit-mixins-crud`, `foldkit-primitives` and `foldkit-mixins-ui`
-      already cover for each control in #188's P0 table (`Input.kind`,
-      `Input.bundle`, `Display.kind`, the `/ui` renderer, DatePicker, OTP and
-      the rest). Done when each P0 row reads *have*, *adapt* or *missing*,
-      with the file that proves it.
-- [ ] **Design note** (`docs/design/188-field-recipes-DESIGN.md`). It decides:
-      - how a recipe is declared: `Input.kind` helpers, a registry, or Schema
-        annotations, with no globals and no matching by field name;
-      - where its metadata lives (Schema, Entity or form) and which wins;
-      - how a recipe's read-only `Display` shares its formatter;
-      - the first slice.
+### 1. Correct the record
 
-      Done when the note answers #188's open questions or defers each one with
-      a reason.
-- [ ] **First slice.** It should be small enough to change after use. Likely:
-      - money, date (date-only versus instant) and email recipes;
-      - one unstyled renderer and the `/ui` adapter for each;
-      - one complete `Crud` screen in an example (list, filter, detail,
-        editor, delete, conflict and retry) with no hand-written parser or
-        save state machine.
+The record misleads in places. That costs every later session time, as it cost
+the first draft of this plan.
 
-      Done when #188's end-to-end scenarios 1, 2 and 6 pass as tests, with
-      their mutations killed, the README and skill reference updated, and the
-      Jev review approved.
-- [ ] Split what remains of #188 into child issues, P1 and P2.
+- **#188.** Its design (`docs/design/schema-to-ui-PLAN.md`) is built through
+  Phase 7, released in 0.34.0. Comment the built and remaining state, then
+  make the three remaining backlog items (`file` recipe, `busy` without
+  `settled`, the typed picker `more`) child issues and close #188 with links.
+- **#237.** Everything is built but reading the compiled build id, which needs
+  Foldkit (#210). Close it with that said.
+- **`docs/design/TODO.md`.** Sweep it: for each open item, check the code and
+  tick what is built. Do it by section, delegated to Sonnet subagents on
+  disjoint sections, each given the loop's step 1 and its gate. Then update the
+  header's "checked against the code" date.
+- **Done when** every open item in the backlog has been checked against the
+  code since 2026-11-09, and #188 and #237 are closed or carry an accurate
+  status.
 
-## 2. #251: the last name strings
+### 2. #251: the last name strings
 
-Small, contained API changes. Each is one session.
+- **Research:**
+  - every API that takes a member name as a string (`GuardServer.writer`'s
+    `revision`, `applyEdits`, `Derived.make`'s `{ relation }`, and any others);
+  - how `revisionTrigger` knows the revision column today;
+  - whether `Entity` already carries field-role metadata a revision could use.
+- **Decide:**
+  - whether the revision is declared on the Entity (`Entity.revision(field)`)
+    or derived from the trigger;
+  - how a string stays a deprecated overload for one release without
+    weakening inference;
+  - the form of the name-string check: a script beside `tags:check`, with
+    what it flags and how a deliberate string is marked.
+- **Considerations:** a published API change in entity, guard, remote-server
+  and remote-drizzle, so it needs a design note and the independent review.
+  Grep internal callers after making a constructor stricter.
+- **Done when** no public API takes a member name as a string except the
+  deprecated overloads, the check runs in CI and finds nothing on the branch,
+  and #251 is closed with links.
 
-- [ ] The revision field declared once on the Entity (or read from
-      `revisionTrigger`), so `GuardServer.writer`'s and `applyEdits`'
-      `revision` string option goes. Keep it as a deprecated overload for one
-      release.
-- [ ] `Derived.make` counts take a member reference, not `{ relation: 'name' }`.
-- [ ] A contributor-guide rule and a check (in the style of `pnpm tags:check`)
-      that flags a string literal naming a declared member in an API argument.
-      Done when the check runs in CI and finds nothing on `main`.
+### 3. #259: the last exact rules
 
-## 3. Close out what is nearly done
+- **Research:** how `isInt`, `startsWith` and `endsWith` are represented in
+  Effect 4.1's Schema checks, and what SQLite and Postgres can say exactly,
+  covering NaN, the infinities, NUL and collation, as #259's follow-up did.
+- **Decide:** which rules compile and which go to `serverOnly`, each with the
+  reason written.
+- **Considerations:** the law is that the database accepts a value exactly
+  when the Schema does, on SQLite and PGlite, plus the `postgres-locale` job
+  for text.
+- **Done when** the law test covers the new rules, the mutations are killed,
+  the design note's status is updated, and #259 is closed.
 
-- [ ] #237: close it. Everything is built except reading the compiled build
-      id, which needs Foldkit (#210 tracks it).
-- [ ] #259: `isInt` and prefix rules compiled to CHECKs, under the same law
-      (the database accepts a value exactly when the Schema does) on SQLite
-      and PGlite. Then close it. Comparing live DDL stays out, for the reason
-      in its design note.
+### 4. Schema to UI: the remaining three
 
-## 4. Parked: performance
+These are the child issues made in step 1.
 
-Resume only for a regression or a new target.
+- **`busy` without `settled` as a type error.** Research why a union of the
+  two specs broke inference of `fill`, as recorded in the backlog; try a
+  discriminated spec or overloads. Done when a negative type test fails
+  without the change, and `fill` still infers.
+- **A picker's `more` typed by relation keys.** Restrict `FormView`'s `more`
+  to the keys whose control is a picker. Done when a key with no picker is a
+  type error, tested both ways.
+- **A `file` recipe.** It needs an upload route in `foldkit-media` that
+  accepts any file. That is a security-sensitive design (content type,
+  size bounds, storage keys, serving with `Content-Disposition` and no
+  sniffing), so it needs a design note and the independent review before any
+  code.
 
-- #474: re-run solid-domains' live benchmark (`scripts/search-compare.mjs`
-  shows it ahead locally: 198 against 260 ms).
-- #413: a workerd reading. It needs an adapter so `Stack.start` can run the
-  Worker that Foldkit's Vite plugin generates. The rest waits on foldkit#1657.
-- #439: deferred by `docs/design/performance-PLAN.md` (re-reading a list
-  costs about 22 µs).
-- The fade race in Listbox, Combobox and Popover: waits on the upstream fix.
+### 5. Remote and RemoteServer items found by porting
 
-## 5. Held: large designs
+From the backlog section "Found by porting Foldkit's examples".
 
-Not before 1 and 2. Each needs a design note and an owner decision first: #190
-(contract layer), #376 and #433 (a fine-grained runtime and compiled views),
-#432 (islands), #148 and #149 (other platforms).
+- **A typed principal with an inferred `Input`**
+  (`RemoteServer.for<P>().query(Q, run)`). A published API shape, so it needs
+  a design note.
+- **Per-field fetch time.** Under stale-while-revalidate, one `updatedAt` per
+  entity makes an old field look fresh. Research what `plan` and `deadlineOf`
+  read, and measure the Model's size cost before choosing a `writtenAt` per
+  field.
+
+### 6. mixins-ui: adapters still missing
+
+Nav, DragAndDrop, Animation and VirtualList hand out attributes with no
+adapter. Research each upstream module for a seam first. Where it has none,
+fork its markup the way `menuView.ts` does, with the parity battery. Then
+decide the order by which examples draw them.
+
+Also decide whether to export a helper that applies `leaveDrawn` to Listbox,
+Combobox and Popover Commands (#400's remainder), or to wait for upstream.
+
+### Then
+
+Re-rank from the swept backlog (step 1), by value to someone building an app,
+divided by cost. Write the new order here before starting it.
+
+## Parked
+
+- **Performance.** Resume for a regression or a new target.
+  - #474: re-run solid-domains' live benchmark (`scripts/search-compare.mjs`
+    has it ahead locally).
+  - #413: a workerd reading, which needs `Stack.start` to run a Worker that
+    Foldkit's Vite plugin generates. The rest waits on foldkit#1657.
+  - #439: deferred in `docs/design/performance-PLAN.md`.
+- **Large designs**, each needing a note and an owner decision before any
+  code: #190 (the contract layer), #376 and #433 (a fine-grained runtime and
+  compiled views), #432 (islands), #148 and #149 (other platforms).
