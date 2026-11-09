@@ -253,7 +253,7 @@ This is particularly important after studying Solid 2.
 
 Foldkit should not make runtime fiber state an invisible second input to normal views:
 
-```ts
+```ts sketch
 // not the default Foldkit model
 view(model, runtimeActivity)
 ```
@@ -285,7 +285,7 @@ Today those values exist separately, while `Runtime.makeApplication` is closer t
 
 Illustrative API:
 
-```ts
+```ts sketch
 export const App = Application.define({
   Model,
   Message,
@@ -297,7 +297,7 @@ export const App = Application.define({
 
 Bootstrapping could become:
 
-```ts
+```ts sketch
 const application = Runtime.makeApplication(App, {
   container: document.getElementById('root'),
 })
@@ -340,7 +340,7 @@ A pure application value becomes an anchor for:
 
 Today extensions often need loose tuples of:
 
-```ts
+```ts sketch
 Model
 Message
 init
@@ -382,7 +382,7 @@ Surface
 
 A normal function:
 
-```ts
+```ts sketch
 model => ({
   todos: model.todos,
   filter: model.filter,
@@ -403,7 +403,7 @@ Once those relationships are data, other systems can reason about them.
 
 Conceptually:
 
-```ts
+```ts sketch
 interface Projection<Root, Value> {
   readonly Model: Schema.Codec<Value, unknown>
   readonly dependencies: DependencyTree
@@ -415,6 +415,25 @@ interface Projection<Root, Value> {
 `Metadata` is opaque: a package makes a typed slot with `Metadata.key<A>(name, { merge, summarize })`, attaches entries with `key.of(...)`, and reads them with `key.get(metadata)`. The important point is that Projection may carry **opaque interpreter-owned declarations** without understanding their domain semantics.
 
 Generated field references make projection construction type-safe:
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Projection, Surface } from 'foldkit-surface'
+const Todo = Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean })
+const Model = Schema.Struct({
+  todos: Schema.Array(Todo),
+  filter: Schema.String,
+  session: Schema.Struct({ user: Schema.String }),
+})
+const Message = defineMessageUnion({
+  RequestedTodo: { title: Schema.String },
+  ToggledTodo: { id: Schema.String },
+  DeletedTodo: { id: Schema.String },
+})
+const App = Surface.application({ Model, Message })
+declare const model: typeof Model.Type
+-->
 
 ```ts
 App.model.todos
@@ -556,7 +575,7 @@ They have different semantics and should remain distinguishable if all three eve
 
 User code should declare relationships through typed values:
 
-```ts
+```ts sketch
 App.model.todos
 Data.get(Project, projectId)
 Message.RequestedRenameProject
@@ -564,7 +583,7 @@ Message.RequestedRenameProject
 
 not erased strings:
 
-```ts
+```ts sketch
 affects('todos')
 requires('Project:p1')
 ```
@@ -581,7 +600,7 @@ That is exactly the sort of primitive Foldkit should own.
 
 Illustratively:
 
-```ts
+```ts sketch
 const EditingMessages = Message.only(
   Message.ChangedTitle,
   Message.DeletedTodo,
@@ -638,7 +657,7 @@ Surface =
 
 For example:
 
-```ts
+```ts sketch
 const TodoList = App.surface('TodoList', {
   model: {
     todos: App.model.todos,
@@ -702,7 +721,7 @@ Surface lets observation cut across ownership boundaries without changing owners
 
 Today a root view often receives:
 
-```ts
+```ts sketch
 HtmlBuilder<Message>
 ```
 
@@ -710,7 +729,7 @@ and therefore can construct any application Message.
 
 A Surface-backed view could narrow both sides:
 
-```ts
+```ts sketch
 Surface.view(TodoList, (model, h) => {
   // model is only TodoList's projection
   // h only emits TodoList's allowed Messages
@@ -866,7 +885,7 @@ agentRuntime.messages.dispatch(...).pipe(
 )
 ```
 
-```ts
+```ts sketch
 replica.synchronize.pipe(
   Effect.timeout('5 seconds'),
 )
@@ -880,7 +899,7 @@ This keeps Foldkit aligned with the Effect ecosystem instead of growing an ad-ho
 
 A tempting wrapper like:
 
-```ts
+```ts sketch
 interface Observation<A> {
   get: Effect.Effect<A>
   changes: Stream.Stream<A>
@@ -891,7 +910,7 @@ mostly renames Effect's existing primitives and can introduce read/subscribe rac
 
 Likewise:
 
-```ts
+```ts sketch
 Foldkit.refresh(anyProjection)
 ```
 
@@ -920,13 +939,13 @@ The lesson is not to add another action concept. It is to make the existing stat
 
 A future runtime introspection API may be useful for devtools:
 
-```ts
+```ts sketch
 Activity.isActive(SaveUser)
 ```
 
 But ordinary application rendering should not become:
 
-```ts
+```ts sketch
 view(model, activity)
 ```
 
@@ -977,7 +996,7 @@ But if confirmation later arrives through a live Remote update or Sync reconcili
 
 State-based completion can express the semantic postcondition:
 
-```ts
+```ts sketch
 completion: Agent.when({
   projection: ProjectName,
   predicate: (name, request) =>
@@ -1032,7 +1051,7 @@ This is the useful lesson from Solid's `until()` without introducing a global Fo
 
 Suppose a page already declares:
 
-```ts
+```ts sketch
 const ProjectPage = Projection.all({
   project: Data.get(Project, projectId),
   owner: Data.get(User, ownerId),
@@ -1056,7 +1075,7 @@ A refresh path may restate the same data graph:
 
 Remote can interpret the requirements already carried by the Projection:
 
-```ts
+```ts sketch
 // in update
 return { model: Data.refresh(model, ProjectPage) }
 ```
@@ -1081,7 +1100,7 @@ Before, the package may need a parallel `FeatureFlagProjection` / `FeatureFlagSu
 
 With open interpreter metadata:
 
-```ts
+```ts sketch
 const BillingPage = Projection.all({
   account: App.model.account,
   redesignEnabled: Flags.get('billing-redesign'),
@@ -1108,7 +1127,7 @@ This is a major ecosystem benefit: extension packages can join the same applicat
 
 Before:
 
-```ts
+```ts sketch
 AsyncData.match(model.user, {
   onIdle: () => UserSkeleton(),
   onLoading: () => UserSkeleton(),
@@ -1124,7 +1143,7 @@ AsyncData.match(model.user, {
 
 A small view-oriented interpreter (planned; not built) could make the common policy easier:
 
-```ts
+```ts sketch
 Render.async(model.user, {
   empty: () => UserSkeleton(),
   failure: error => ErrorView(error),
@@ -1166,7 +1185,7 @@ If Agent completion only inspects visible Model state, it may return success bef
 
 A Sync-aware completion path waits on the **committed** view, which `Sync.mount` exposes as a `{ get, subscribe }` source outside the Model:
 
-```ts
+```ts sketch
 completion: Agent.when({
   source: mounted.committed,
   predicate: (shared, request) =>
@@ -1208,7 +1227,7 @@ Normal UI may read visible state while an external capability waits for confirme
 
 Conceptually (planned; not built):
 
-```ts
+```ts sketch
 Remote.visible(ProjectName)
 Remote.confirmed(ProjectName)
 ```
@@ -1258,7 +1277,7 @@ Effect<void>
 
 A future first-class Foldkit runtime handle could expose an Effect-native internal seam such as:
 
-```ts
+```ts sketch
 interface RuntimeHandle<Model, Message> {
   readonly model: Effect.Effect<Model>
   readonly models: Stream.Stream<Model>
@@ -1308,7 +1327,7 @@ The same declaration becomes useful to several interpreters.
 
 Consider one declaration:
 
-```ts
+```ts sketch
 const ProjectPage = App.surface('ProjectPage', {
   model: Projection.all({
     project: Data.get(Project, projectId),
@@ -1466,7 +1485,7 @@ Production Agent
 
 Conventional tool integration often duplicates application behavior:
 
-```ts
+```ts sketch
 tool('deleteTodo', async ({ id }) => {
   // validate
   // authorize
@@ -1478,7 +1497,7 @@ tool('deleteTodo', async ({ id }) => {
 
 while the application already has:
 
-```ts
+```ts sketch
 Message.DeletedTodo({ id })
 ```
 
@@ -1524,7 +1543,7 @@ completion: {
 
 But state-based completion should also be available where the semantic postcondition is better than one event:
 
-```ts
+```ts sketch
 completion: Agent.when({
   projection: TodoByClientId,
   predicate: (todo, request) =>
@@ -1644,7 +1663,7 @@ Do not teach that authoritative domain persistence is merely a Mirror.
 
 Even if infrastructure has structural write access internally, the public design should bias toward semantic re-entry:
 
-```ts
+```ts sketch
 restored: values =>
   Message.RestoredPreferences(values)
 ```
@@ -1707,7 +1726,7 @@ A semantic `Attribute.compose` primitive could be useful independently of the la
 
 A view-owned component could publish controlled extension points:
 
-```ts
+```ts sketch
 const CardParts = Parts.define({
   root: Part.attributes(),
   title: Part.attributes(),
@@ -1783,7 +1802,7 @@ The refined recommendation is:
 
 So do **not** put fields like this in generic core:
 
-```ts
+```ts sketch
 projection.remoteRequirements
 projection.connections
 ```
@@ -1794,7 +1813,7 @@ Instead, Remote contributes metadata under its own `Metadata.key` and retrieves 
 
 Once requirements survive composition, Remote can lawfully offer:
 
-```ts
+```ts sketch
 Data.refresh(model, ProjectPage)
 ```
 
@@ -1902,7 +1921,7 @@ That is a clean example of package composition without abstraction leakage.
 
 Rather than upstream Sync runtime semantics, Foldkit could eventually provide tools that validate a purported replay-safe Message subset:
 
-```ts
+```ts sketch
 Replay.verify({
   application: App,
   messages: DurableMessages,
@@ -2183,7 +2202,7 @@ Everything in this section is illustrative, not final naming.
 
 ## Application
 
-```ts
+```ts sketch
 export const App = Application.define({
   Model,
   Message,
@@ -2195,6 +2214,25 @@ export const App = Application.define({
 
 ## Projection
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Projection, Surface } from 'foldkit-surface'
+const Todo = Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean })
+const Model = Schema.Struct({
+  todos: Schema.Array(Todo),
+  filter: Schema.String,
+  session: Schema.Struct({ user: Schema.String }),
+})
+const Message = defineMessageUnion({
+  RequestedTodo: { title: Schema.String },
+  ToggledTodo: { id: Schema.String },
+  DeletedTodo: { id: Schema.String },
+})
+const App = Surface.application({ Model, Message })
+declare const model: typeof Model.Type
+-->
+
 ```ts
 const TodoOverview = Projection.struct({
   todos: App.model.todos,
@@ -2204,7 +2242,7 @@ const TodoOverview = Projection.struct({
 
 Inspectable:
 
-```ts
+```ts sketch
 Projection.dependencies(TodoOverview)
 ```
 
@@ -2212,7 +2250,7 @@ Interpreter metadata is added only through typed interpreter constructors rather
 
 ## Message subset
 
-```ts
+```ts sketch
 const TodoActions = Message.only(
   Message.RequestedTodo,
   Message.ToggledTodo,
@@ -2222,7 +2260,7 @@ const TodoActions = Message.only(
 
 ## Surface
 
-```ts
+```ts sketch
 const TodoList = Surface.define(App, 'TodoList', {
   model: TodoOverview,
   messages: TodoActions,
@@ -2231,7 +2269,7 @@ const TodoList = Surface.define(App, 'TodoList', {
 
 or application sugar:
 
-```ts
+```ts sketch
 const TodoList = App.surface('TodoList', {
   model: {
     todos: App.model.todos,
@@ -2247,7 +2285,7 @@ const TodoList = App.surface('TodoList', {
 
 ## Restricted view
 
-```ts
+```ts sketch
 export const todoListView = Surface.view(
   TodoList,
   (model, h) =>
@@ -2260,7 +2298,7 @@ export const todoListView = Surface.view(
 
 ## Agent
 
-```ts
+```ts sketch
 const Assistant = Agent.define(App, {
   context: TodoOverview,
 
@@ -2287,7 +2325,7 @@ Message-based completion remains available as an alternative.
 
 A projection may contain Remote-owned requirement metadata:
 
-```ts
+```ts sketch
 const ProjectPage = Projection.all({
   project: Data.get(Project, projectId),
   tasks: Data.query(TasksByProject, { projectId }),
@@ -2296,7 +2334,7 @@ const ProjectPage = Projection.all({
 
 Remote can interpret it from `update`, returning the Model:
 
-```ts
+```ts sketch
 Data.refresh(model, ProjectPage)
 ```
 
@@ -2304,7 +2342,7 @@ Core Projection does not know what an Entity, Selection, QueryWindow, or connect
 
 ## Mirror
 
-```ts
+```ts sketch
 const Preferences = Mirror.keyValue({
   key: 'preferences',
   model: Projection.struct({
@@ -2320,7 +2358,7 @@ const Preferences = Mirror.keyValue({
 
 Potential ergonomic sugar (planned; not built):
 
-```ts
+```ts sketch
 Render.async(model.user, {
   empty: () => UserSkeleton(),
   failure: error => ErrorView(error),
@@ -2333,7 +2371,7 @@ This interprets explicit Model state; it does not suspend render or start work.
 
 ## Attribute composition
 
-```ts
+```ts sketch
 h.button(
   Attribute.compose(
     componentAttributes,
@@ -2487,7 +2525,7 @@ Start with one transport; keep the protocol-neutral contract primary.
 
 Before upstreaming Remote, validate the metadata seam with a real interpreter:
 
-```ts
+```ts sketch
 Data.refresh(model, ProjectPage)
 ```
 
