@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`ModelRef.focus` on an `Option` field can be set** (`foldkit-surface`).
+  The ref tree's conditionals distributed an `Option` over `None | Some`, so
+  the field's focus was an intersection whose `set` took `never`. They are
+  tuple-wrapped now, as `Select` already was. A field typed as another union
+  (`Item[] | null`) now reads as one value rather than a union of focuses.
 - **A Listbox's or Combobox's panel keeps its leave fade on a loaded page**
   (`foldkit-mixins-ui`, #400). Their bundles now end a leave only after the
   render that draws it, as the Menu's did: upstream read the panel's

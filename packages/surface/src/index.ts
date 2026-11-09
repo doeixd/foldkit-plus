@@ -194,9 +194,12 @@ type RefNode<Root, S, Key extends string> =
   S extends Schema.Codec<infer A, infer Encoded, any, any>
     ? S extends Schema.Struct<infer F>
       ? Selectable<Root, A, Key, Encoded> & RefTree<Root, F>
-      : A extends ReadonlyArray<infer E>
+      : // Tuple-wrapped, as `Select` is: `A` is a type parameter, so a bare
+        // conditional distributes an `Option` over `None | Some` and intersects
+        // their focuses into one whose `set` takes `never`.
+        [A] extends [ReadonlyArray<infer E>]
         ? Selectable<Root, A, Key, Encoded> & Indexes<Root, E>
-        : A extends Readonly<Record<infer K extends string, infer V>>
+        : [A] extends [Readonly<Record<infer K extends string, infer V>>]
           ? Selectable<Root, A, Key, Encoded> & Entries<Root, K, V>
           : Selectable<Root, A, Key, Encoded>
     : never
