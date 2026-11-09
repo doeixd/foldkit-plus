@@ -72,10 +72,11 @@ describe('within the CPU budget', () => {
   }, 60_000)
 
   /**
-   * The pages are over any Workers plan's limit today: on Linux the landing
-   * page takes about 135 ms warm and a search 300 ms, most of it Foldkit
-   * rendering and checking the markup (#411). This budget only keeps them
-   * from growing until that is fixed.
+   * The pages are over any Workers plan's limit today: on Linux a search
+   * never seen before takes about 120 ms warm (2026-11-09; 300 before the
+   * first screen, the linked sheet and the trimmed resume data), a third of
+   * it parse5 inside Foldkit checking its own markup (#413). This budget only
+   * keeps them from growing until that is fixed.
    */
   test('the pages, as they are', async () => {
     const readings = await cpuBudget('domains-plus: pages', Cpu.budget, meter, {

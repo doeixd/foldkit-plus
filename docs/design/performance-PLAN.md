@@ -43,6 +43,16 @@ CPU before its first byte.
 | `Style.usedIn` scanning the rendered HTML | unmeasured | #414 |
 | Cold start: a 2.1 MB Worker bundle evaluated per isolate | 345 ms cold against 135 ms warm under Node | #416 |
 
+Re-measured 2026-11-09, with #415, #419, #434 and #436 landed: a never-seen
+search (`/?q=<word><n>`, so no kept page serves it) is a 69 KB page and about
+119 ms warm CPU under Node on Linux (median of 20). The profile splits it as
+parse5 41 ms, the rest of Foldkit 25 ms, garbage collection 11 ms, Effect 7 ms,
+and the packages and the app about 12 ms together. All of parse5's time is
+Foldkit checking its own output (`escapesDocumentStructure` 14 ms,
+`parseFragmentModes` 13, `closesCleanly` 8, `assertInjectionIsFaithful` 5,
+`renderedShapes` 5), so what is left of #413 is upstream's (#1657). Not yet
+re-measured on workerd.
+
 The parse cost is Foldkit's, and upstream is reducing it.
 foldkit/foldkit#1657 (P2) tracks it with a reproduction: about 80 ms on a
 52 KB page. Its first step, #1659, cut parses from 26 to 16 and is in
