@@ -43,22 +43,7 @@ import { fileURLToPath } from 'node:url'
 
 /** Documents whose blocks do not all compile yet (#229). Remove one once it does. */
 const pending = new Set([
-  'docs/agents.md',
-  'docs/site-remote-ssr.md',
-  'docs/site.md',
-  'docs/sync-dx.md',
-  'packages/cms/README.md',
-  'packages/crud/README.md',
-  'packages/durable/README.md',
-  'packages/entity/README.md',
-  'packages/form/README.md',
-  'packages/mirror/README.md',
-  'packages/mixins-crud/README.md',
-  'packages/mixins-form/README.md',
-  'packages/remote-server/README.md',
   'packages/remote/README.md',
-  'packages/site/README.md',
-  'packages/ssr/README.md',
 ])
 
 const root = fileURLToPath(new URL('..', import.meta.url))
