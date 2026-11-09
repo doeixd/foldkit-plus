@@ -108,7 +108,7 @@ rendered classes: project-card
 rendered status: active
 mutation RenameProject (remote-1): MutationSucceeded
 after mutation: Ready {"id":"p1","name":"Apollo II","status":"active"}
-refetch after mutation: none
+refetch after mutation: 1 requirement
 retained: Project:p1; 1 entity and 1 connection collected
 corrupt store: Failed DecodeError
 refresh: Refreshing {"id":"p1","name":"Apollo",...}; list Refreshing p1; again unchanged: true
@@ -239,14 +239,15 @@ source.
 ```text
 mutation RenameProject (remote-1): MutationSucceeded
 after mutation: Ready {"id":"p1","name":"Apollo II","status":"active"}
-refetch after mutation: none
+refetch after mutation: 1 requirement
 ```
 
 `Data.mutate` records the request in the Model and returns the Command that asks
 the `RemoteClient` to perform it. The result comes back as Remote Messages and
 settles into the same normalized cache. The answer is dated by Effect's clock
-when it lands, as a read is, so the stale-while-revalidate entry from step 3
-takes the renamed project as fresh and plans no refetch.
+when it lands, as a read is, but it carries only `name`. The row's `status` is
+still as old as the read in step 2, so the stale-while-revalidate entry from
+step 3 asks for the row again, whole: a row is as fresh as its oldest field.
 
 This write is sent once. A write that must be sent even after a reload or while
 offline is made `durable: true` and sent by `outbox(Data, …)`, which this

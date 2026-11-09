@@ -1627,6 +1627,12 @@ of its own named a form field "fits the Catalog". Read words with
   split a run twice, `apply` refused the duplicate id, and the case stayed green
   with the props check deleted. Mint distinct ids in every test that expects a
   refusal, so the refusal can only come from the check under test.
+- **A package's behaviour change is tested by its examples too.** The
+  freshness fix (`oldestAt`) ran Remote's and Guard's suites green and was
+  pushed; `examples/remote`'s demo test asserted the old behaviour ("refetch
+  after mutation: none" after an answer that carried one field), and only the
+  full run found it. After changing what a package does, run
+  `npx vitest run examples --project unit` as well as the package's own tests.
 - **Verifying by hand is not coverage.** `Agent.pick`'s snapshot bug was
   confirmed in a scratch script and shipped without a test.
 - **A seeded walk moves when a case is added.** Adding a Message case to

@@ -343,9 +343,10 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   // `Data.mutate` is what `update` calls: the request starts in the Model with
   // an id from the Model's own sequence, and the returned Command's Message
   // settles it. Here the Command runs and its Message is reduced in place.
-  // The answer is dated by Effect's clock when it lands, as a read is, so with
-  // the clock at 59,000 the stale-while-revalidate entry above (whose clock
-  // reads 60,000) takes the renamed project as fresh.
+  // The answer is dated by Effect's clock when it lands, as a read is, but it
+  // carries only `name`: `status` is still the read's, at 1,000, so the
+  // stale-while-revalidate entry above (whose clock reads 60,000) asks for the
+  // row again, whole. A row is as fresh as its oldest field.
   const rename = Data.mutate(loaded, RenameProject, { id: 'p1', name: 'Apollo II' })
   const settled = await Effect.runPromise(
     Effect.andThen(TestClock.setTime(59_000), rename.command.effect).pipe(
@@ -357,7 +358,9 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   lines.push(`mutation RenameProject (${rename.requestId}): ${settled._tag}`)
   lines.push(`after mutation: ${describeData(projection.read(renamed))}`)
   const due = refreshing.modelToDependencies(renamed).requirements.length
-  lines.push(`refetch after mutation: ${due === 0 ? 'none' : `${due} requirements`}`)
+  lines.push(
+    `refetch after mutation: ${due === 0 ? 'none' : `${due} requirement${due === 1 ? '' : 's'}`}`,
+  )
 
   // Retention: the roots are what the active Surfaces reach. A project the page
   // does not select, and a connection nobody lists, are collected; the page's
