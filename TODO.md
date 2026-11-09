@@ -291,6 +291,22 @@ Re-checked 2026-11-09: Nav and VirtualList have adapters already. Left:
 - **Animation**: its one element already takes `className` and `attributes`,
   so a Slot reaches it without an adapter. Not building one.
 
+### 7. #229: every doc compiles (2026-11-09)
+
+`pnpm docs:check`'s pending list is empty: all 121 documents compile, with
+five Sonnet agents on disjoint batches and the list cut as each reported. The
+check emits no declarations (TS2883 is not a reader's error), and a hidden
+fixture can be defined once and used by later modules (`define`, `use`);
+the four heaviest guides are being folded onto that. Left in #229: examples as
+apps in a scaffolded project. Found on the way: #494 (the ref tree stops at a
+`Bundle.declare` slice) and an `Option` field's focus whose `set` took
+`never` (fixed, 146144d).
+
+### 8. #240 is tracking only
+
+Its remaining children are #235 (host) and #236 (per-route caching), both
+designs of their own; a status comment asks whether to close it.
+
 ### Then
 
 Re-rank by value to someone building an app, divided by cost, and write the
