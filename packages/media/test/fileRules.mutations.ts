@@ -17,6 +17,8 @@ const key = (name: string, replace: string) => ({
 })
 
 export default [
+  edit('half a surrogate pair is a name', '\\p{Zp}\\p{Cs}', '\\p{Zp}'),
+  edit('an empty accept list is taken', 'if (accept.length === 0) throw', 'if (false) throw'),
   {
     // Each defence stands in for the others, so only all three removed lets a page run.
     name: 'a download opens as a page that runs',
@@ -40,8 +42,8 @@ export default [
   key('a key may hold more than hex', '/[0-9a-f]{32}/'),
   edit(
     'a malformed encoding is a name',
-    'return Option.none()\n  }\n  return name',
-    'name = header\n  }\n  return name',
+    'return Option.none()\n  }\n  return isFileName',
+    'name = header\n  }\n  return isFileName',
   ),
   edit('an unencoded name is taken', ' || !/^[\\x20-\\x7e]*$/.test(header)', ''),
   edit('an empty name is taken', 'name.length > 0 &&', ''),
@@ -51,8 +53,8 @@ export default [
   edit('a format character is taken', '\\p{Cf}', ''),
   edit('a line separator is taken', '\\p{Zl}', ''),
   edit('a paragraph separator is taken', '\\p{Zp}', ''),
-  edit('a slash is taken', '\\p{Zp}/\\\\]', '\\p{Zp}\\\\]'),
-  edit('a backslash is taken', '\\p{Zp}/\\\\]', '\\p{Zp}/]'),
+  edit('a slash is taken', '\\p{Cs}/\\\\]', '\\p{Cs}\\\\]'),
+  edit('a backslash is taken', '\\p{Cs}/\\\\]', '\\p{Cs}/]'),
   edit(
     "a type's parameters are read as the type",
     "header.split(';', 1)[0]!.trim()",

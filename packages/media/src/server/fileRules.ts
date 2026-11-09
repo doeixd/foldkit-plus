@@ -10,8 +10,15 @@ export const isFileKey: (key: string) => boolean = Schema.is(FileKey)
 const MAX_NAME_BYTES = 255
 
 // Control, format (bidi marks and overrides, zero-width characters, U+061C,
-// U+FEFF), line and paragraph separators, and either slash.
-const REFUSED_IN_NAME = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}/\\]/u
+// U+FEFF), line and paragraph separators, half a surrogate pair (which no
+// header can carry, and which a download could not encode), and either slash.
+const REFUSED_IN_NAME = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Cs}/\\]/u
+
+/** Whether a decoded name is one a download may carry. */
+export const isFileName = (name: string): boolean =>
+  name.length > 0 &&
+  new TextEncoder().encode(name).length <= MAX_NAME_BYTES &&
+  !REFUSED_IN_NAME.test(name)
 
 /**
  * The file name a client sent, percent-encoded UTF-8, if it is one a
@@ -27,11 +34,7 @@ export const fileNameOf = (header: string | undefined): Option.Option<string> =>
   } catch {
     return Option.none()
   }
-  return name.length > 0 &&
-    new TextEncoder().encode(name).length <= MAX_NAME_BYTES &&
-    !REFUSED_IN_NAME.test(name)
-    ? Option.some(name)
-    : Option.none()
+  return isFileName(name) ? Option.some(name) : Option.none()
 }
 
 const TOKEN = "[!#$%&'*+.^_`|~0-9A-Za-z-]+"
@@ -58,6 +61,8 @@ export type Accept = '*' | ReadonlyArray<string>
  */
 export const acceptor = (accept: Accept): ((type: string) => boolean) => {
   if (accept === '*') return () => true
+  // An empty list would refuse every upload: no type at all is not a choice anyone means.
+  if (accept.length === 0) throw new Error("accept lists no type: give one, or '*' for any")
   const patterns = accept.map(pattern => {
     // `*/*` would read as a pattern and take nothing: any type is `'*'`, said so.
     if (!PATTERN.test(pattern) || pattern.startsWith('*/'))

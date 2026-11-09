@@ -544,8 +544,8 @@ Images are not the only uploads: a form may take a PDF, a spreadsheet, any
 file. `POST /_media/files` keeps any file, and `GET /_media/files/:key` serves
 it back as a download. They are a route set of their own (`fileLayer`), apart
 from the image routes, and a server that mounts only the image routes serves
-no file. Files are kept in a `FileStore`, never in `Originals`, so the variant
-server never reads one as an image.
+no file. Files are kept in a `FileStore` under 32-hex keys, and the variant
+server reads only a 64-hex content hash, so no request to it names a file.
 
 **Who owns what.** The route owns the bytes and the facts it recorded about
 them: a key it minted, and the name, type and size the uploader declared. The
@@ -633,7 +633,7 @@ const attached = (held: Option.Option<FileAsset>, submitted: FileAsset, user: st
   alike. Call it after authorizing the write, so a refused write claims
   nothing. A key moves to another row only by being uploaded again.
 
-**A download cannot run here.** Every answer of `GET /_media/files/:key`,
+**A download cannot run here.** Every answer the download route writes,
 refusals included, is `application/octet-stream` with `nosniff`, a
 `Content-Security-Policy` of `sandbox; default-src 'none'`,
 `Cross-Origin-Resource-Policy: same-origin` and `Cache-Control: private,
@@ -641,6 +641,8 @@ no-store`. A file comes as an attachment named by its record, never by the
 request, both as RFC 6266's `filename*` and as an ASCII fallback. The
 declared type is never served, so an HTML file uploaded as a PDF downloads
 and runs nothing. None of the image routes' cross-origin headers are sent.
+What the router answers before the route runs (another method, a path it
+cannot decode) and a `500` carry no body, so nothing in them can run.
 
 **What an upload must be.** The body is `application/octet-stream`, and the
 file's name and type travel in `x-foldkit-file-name` (percent-encoded UTF-8)
@@ -670,7 +672,13 @@ FileRefused>`, run before anything is kept.
 **Memory.** An upload holds about twice its size while it is read, so the
 defaults hold at most `2 × 20 MB × 2 = 80 MB`, within a 128 MB Worker. Lower
 `maxBytes` or `maxConcurrent` where an `inspect` copies the bytes. The slots
-belong to the server (a Worker isolate), built once with the layer.
+belong to the server (a Worker isolate), built once with the layer. A
+download holds its file in memory too, and downloads take no slot, so a
+Worker serving many large files to many readers at once should keep them
+elsewhere (R2 behind a signed URL). One slot per uploader stops one account
+taking every slot, not several: at the minimum rate a 20 MB body takes about
+eleven minutes, so `maxConcurrent` accounts can hold every slot that long.
+Where that matters, ask `Admission` to limit uploads per owner.
 
 From a browser, `uploadFile(file, { url?, headers? })` (`foldkit-media/browser`)
 sends the file as the route expects, and is a `Stream` like `upload`:

@@ -205,3 +205,12 @@ describe('keepOrClaim', () => {
     expect(result.again).toEqual(Exit.fail(new FileUnclaimed({ key: result.asset.key })))
   })
 })
+
+describe('keep', () => {
+  it('refuses a name the route would refuse, which no download could carry', async () => {
+    const exit = await run(
+      FileStore.use(files => files.keep(bytes, { ...declared, name: 'a/b.pdf' })).pipe(Effect.exit),
+    )
+    expect(Exit.isFailure(exit)).toBe(true)
+  })
+})

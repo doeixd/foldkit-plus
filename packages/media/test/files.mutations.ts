@@ -11,6 +11,36 @@ const edit = (name: string, find: string, replace: string) => ({
 })
 
 export default [
+  edit('a trickle passes after one full window', '          inWindow = 0\n', ''),
+  edit(
+    "an owner's mark is kept after a failure",
+    'Effect.ensuring(Effect.sync(() => uploading.delete(owner)))',
+    'Effect.tap(() => Effect.sync(() => uploading.delete(owner)))',
+  ),
+  {
+    name: 'a file is kept before its name is checked',
+    edits: [
+      {
+        file: files,
+        find: "            const name = fileNameOf(request.headers['x-foldkit-file-name'])\n",
+        replace:
+          "            yield* files.keep(new Uint8Array(1), { name: 'x', type: 'x', owner })\n            const name = fileNameOf(request.headers['x-foldkit-file-name'])\n",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a file is kept before inspect',
+    edits: [
+      {
+        file: files,
+        find: '                yield* inspect(bytes, declared)\n                return yield* files.keep(bytes, { ...declared, owner })',
+        replace:
+          '                const asset = yield* files.keep(bytes, { ...declared, owner })\n                yield* inspect(bytes, declared)\n                return asset',
+      },
+    ],
+    tests,
+  },
   {
     name: 'serveFetch mounts no file route',
     edits: [

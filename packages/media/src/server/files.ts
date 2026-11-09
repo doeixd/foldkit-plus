@@ -209,15 +209,17 @@ export const fileHandlers = (options: FileOptions) => {
       // Built with the route, so the slots are the server's (a Worker isolate's), not a request's.
       const slots = yield* Semaphore.make(maxConcurrent)
       const uploading = new Set<string>()
+      // Masked, so no interruption lands between taking the owner's mark and arranging its release.
       const inSlot = <A, E>(owner: string, effect: Effect.Effect<A, E>) =>
-        Effect.suspend(() => {
-          if (uploading.has(owner)) return Effect.succeedNone
-          uploading.add(owner)
-          return Semaphore.withPermitsIfAvailable(
-            slots,
-            1,
-          )(effect).pipe(Effect.ensuring(Effect.sync(() => uploading.delete(owner))))
-        })
+        Effect.uninterruptibleMask(restore =>
+          Effect.suspend(() => {
+            if (uploading.has(owner)) return Effect.succeedNone
+            uploading.add(owner)
+            return restore(Semaphore.withPermitsIfAvailable(slots, 1)(effect)).pipe(
+              Effect.ensuring(Effect.sync(() => uploading.delete(owner))),
+            )
+          }),
+        )
       return group
         .handle('upload', ({ request }) =>
           Effect.gen(function* () {

@@ -5,7 +5,7 @@
  * of its policy before the store, answered as an attachment that cannot run
  * here, and refused alike for a file that is not there and one not yours.
  */
-import { Effect, Exit, Layer, Schema } from 'effect'
+import { Effect, Layer, Schema } from 'effect'
 import { SecureRandom } from 'effect/crypto'
 import { HttpRouter, HttpServer } from 'effect/http'
 import { KeyValueStore } from 'effect/persistence'
@@ -23,8 +23,8 @@ import {
   fileLayer,
   fileReadPolicy,
   filesKeyValueStore,
+  layer,
   originalsKeyValueStore,
-  Originals,
   type FileOptions,
   serveFetch,
   Transformer,
@@ -51,7 +51,6 @@ interface Setup {
  */
 const server = (setup: Setup = {}) => {
   const log: Array<string> = []
-  const probe: { originals?: Originals['Service'] } = {}
   const readable = new Map<string, ReadonlySet<string>>()
   const store = Layer.effect(
     KeyValueStore.KeyValueStore,
@@ -60,6 +59,10 @@ const server = (setup: Setup = {}) => {
         ...inner,
         get: key =>
           Effect.sync(() => log.push(`store ${key}`)).pipe(Effect.andThen(inner.get(key))),
+        set: (key, value) =>
+          Effect.sync(() => log.push(`store set ${key}`)).pipe(
+            Effect.andThen(inner.set(key, value)),
+          ),
       }),
     ),
   ).pipe(Layer.provide(KeyValueStore.layerMemory))
@@ -98,16 +101,14 @@ const server = (setup: Setup = {}) => {
     Layer.succeed(Diagnostics.Reporter, setup.report ?? Diagnostics.log),
     setup.admission ?? Layer.empty,
     setup.clock ?? Layer.empty,
+    variantsNone,
+    transformerNone,
   ).pipe(Layer.provideMerge(store), Layer.provide(SecureRandom.layerWebCrypto))
   const { handler } = HttpRouter.toWebHandler(
     Layer.mergeAll(
       fileLayer({ accept: ['application/pdf', 'image/*'], ...setup.options }),
-      Layer.effectDiscard(
-        Effect.gen(function* () {
-          const originals = yield* Originals
-          probe.originals = originals
-        }),
-      ),
+      // The variant server beside it, over the same store, to show it reads no file.
+      layer(),
     ).pipe(Layer.provideMerge(services), Layer.provide(HttpServer.layerServices)),
     { disableLogger: true },
   )
@@ -136,7 +137,8 @@ const server = (setup: Setup = {}) => {
         headers: asker === undefined ? {} : { authorization: `Bearer ${asker}` },
       }),
     )
-  return { upload, download, log, readable, probe }
+  const get = (path: string) => handler(new Request(`http://media.test${path}`))
+  return { upload, download, get, log, readable }
 }
 
 const assetOf = async (response: Response) =>
@@ -346,16 +348,56 @@ describe('upload', () => {
     expect(files.log.filter(line => line.startsWith('store'))).toEqual([])
   })
 
-  it('keeps no file where the variant server reads originals', async () => {
+  it('keeps no file the variant server can be asked for', async () => {
     const files = server()
     const { key } = await assetOf(await files.upload(pdf))
-    const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', pdf)), byte =>
-      byte.toString(16).padStart(2, '0'),
-    ).join('')
-    for (const name of [key, hash, `bytes/${key}`]) {
-      const exit = await Effect.runPromise(Effect.exit(files.probe.originals!.get(name)))
-      expect(Exit.isFailure(exit)).toBe(true)
+    // It reads only a 64-hex content hash, which no file is kept under.
+    for (const name of [
+      key,
+      `files%2Fbytes%2F${key}`,
+      encodeURIComponent(`../files/bytes/${key}`),
+    ]) {
+      const answer = await files.get(`/_image/${name}/w320.webp`)
+      expect([name, answer.status]).toEqual([name, 400])
     }
+    expect(files.log.filter(line => line.startsWith(`store files/`))).toEqual([])
+  })
+
+  it('cuts off a body that keeps arriving below the floor', async () => {
+    let clock: TestClock.TestClock | undefined
+    const files = server({
+      // 1,000 bytes a window.
+      options: { minBytesPerSecond: 100 },
+      clock: Layer.effectDiscard(
+        TestClock.testClockWith(testClock => Effect.sync(() => (clock = testClock))),
+      ).pipe(Layer.provideMerge(TestClock.layer())),
+    })
+    let send = (_: Uint8Array) => {}
+    let end = () => {}
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        send = chunk => controller.enqueue(chunk)
+        end = () => controller.close()
+      },
+    })
+    let settled: Response | undefined
+    const answering = files.upload(body).then(answer => (settled = answer))
+    // A first window well over the floor, then 500 bytes a window: only a count that starts
+    // again each window sees the trickle.
+    for (let turn = 0; settled === undefined && turn < 50; turn++) {
+      send(new Uint8Array(turn === 0 ? 4000 : 500))
+      await new Promise(resolve => setTimeout(resolve, 5))
+      await Effect.runPromise(clock!.adjust('10 seconds'))
+      await new Promise(resolve => setTimeout(resolve, 5))
+    }
+    if (settled === undefined) end()
+    expect((await answering).status).toBe(408)
+  })
+
+  it('frees an owner to upload again after a refused body', async () => {
+    const files = server({ options: { maxBytes: 8 } })
+    expect((await files.upload(pdf, {}, 'ada')).status).toBe(413)
+    expect((await files.upload(new Uint8Array(4), {}, 'ada')).status).toBe(201)
   })
 })
 

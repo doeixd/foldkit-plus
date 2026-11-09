@@ -11,6 +11,7 @@ const edit = (name: string, find: string, replace: string) => ({
 })
 
 export default [
+  edit('keep takes any name', 'if (!isFileName(declared.name))', 'if (false)'),
   edit(
     'a re-save claims again',
     'Option.filter(current, kept => kept.key === submitted.key)',

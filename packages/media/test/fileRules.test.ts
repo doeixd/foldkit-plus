@@ -10,6 +10,7 @@ import {
   dispositionOf,
   fileHeaders,
   fileNameOf,
+  isFileName,
   isFileKey,
   mediaTypeOf,
 } from '../src/server/fileRules.js'
@@ -113,6 +114,10 @@ describe('acceptor', () => {
     expect(accepts(declared('text/image'))).toBe(false)
   })
 
+  it('refuses an empty list where the route is made', () => {
+    expect(() => acceptor([])).toThrow('lists no type')
+  })
+
   it.each(['image', 'image/png/x', '*/*', '*/png', 'image/png; q=1'])(
     'refuses the pattern %j where the route is made',
     pattern => {
@@ -167,5 +172,14 @@ describe('dispositionOf', () => {
     expect(parts('a"b\\c%d;e.txt').fallback).toBe('a_b_c_d_e.txt')
     expect(parts('Q1 report_v-2.pdf').fallback).toBe('Q1 report_v-2.pdf')
     expect(parts('😀日.txt').fallback).toBe('__.txt')
+  })
+})
+
+describe('isFileName', () => {
+  it('refuses half a surrogate pair, which a download could not encode', () => {
+    const half = String.fromCharCode(0xd83d)
+    expect(isFileName(`a${half}.txt`)).toBe(false)
+    expect(() => dispositionOf(`a${half}.txt`)).toThrow()
+    expect(isFileName('a😀.txt')).toBe(true)
   })
 })

@@ -1,7 +1,8 @@
 import { Clock, Context, Duration, Effect, Layer, Option, Schema } from 'effect'
 import { SecureRandom } from 'effect/crypto'
 import { KeyValueStore } from 'effect/persistence'
-import { FileAsset, FileKey } from '../file.js'
+import { FileAsset } from '../file.js'
+import { isFileKey, isFileName } from './fileRules.js'
 
 /** What the upload route was told about a file, beside its bytes. */
 export interface Declared {
@@ -56,7 +57,6 @@ const RecordJson = Schema.fromJsonString(FileRecord)
 const encodeRecord = Schema.encodeSync(RecordJson)
 // The store wrote every record, so one that does not decode is a defect, never a miss.
 const decodeRecord = Schema.decodeUnknownSync(RecordJson)
-const isFileKey = Schema.is(FileKey)
 
 const hex = (bytes: Uint8Array): string =>
   Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
@@ -102,6 +102,9 @@ export const filesKeyValueStore = (
       return {
         keep: (bytes, declared) =>
           Effect.gen(function* () {
+            // The route checked it; a name the route would refuse could not be downloaded.
+            if (!isFileName(declared.name))
+              return yield* Effect.die(new Error(`"${declared.name}" is not a file name`))
             const key = hex(yield* random.randomBytes(16))
             const asset = { key, name: declared.name, type: declared.type, size: bytes.byteLength }
             // Bytes first: a record is never read for bytes not yet written.

@@ -22,7 +22,7 @@ version changed; `pnpm` skips versions already in the registry.
   file the row holds, or the key claimed once, by its uploader, within a day,
   with the server's facts. A download asks `fileReadPolicy({ resolve, read })`
   before the store, answers an unknown and an unreadable key with one `404`,
-  and is always a sandboxed `octet-stream` attachment. From a browser,
+  and every answer it writes is a sandboxed `octet-stream` attachment. From a browser,
   `uploadFile(file)` (`foldkit-media/browser`) streams `Progressed`, then
   `FileUploaded`. `UploadRefusal` gains `TooSlow`, `RateLimited` and `Busy`,
   so an exhaustive match on it needs the new cases. `MediaDiagnostic` gains
