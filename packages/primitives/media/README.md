@@ -59,6 +59,9 @@ name at or below the width (ties break alphabetically) and `null` below the
 smallest. The server starts at width 0.
 
 ```ts
+import { Bundle } from 'foldkit-bundle'
+import { Breakpoints } from 'foldkit-primitives/media'
+
 const Layout = Bundle.compose({}).pipe(
   Bundle.withChild('bp', Breakpoints, { args: { breakpoints: { sm: 640, md: 768, lg: 1024 } } }),
 )

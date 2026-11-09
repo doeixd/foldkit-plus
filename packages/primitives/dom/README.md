@@ -146,7 +146,7 @@ pixels is written on the mounted element as `--fk-mark-x`, `-y`, `-w` and
 the shorter side). `trackedBox('mark')` names them. While nothing is followed
 they are removed, so a stylist's fallbacks apply.
 
-```ts
+```ts standalone
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
@@ -306,7 +306,7 @@ box's size at that event, so a share across is `point.x / width`. That is the
 box an absolutely positioned thumb or stroke is laid out against, so a place
 read here is where such a child sits, whatever padding a stylist adds.
 
-```ts
+```ts standalone
 import { Match, Schema } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'

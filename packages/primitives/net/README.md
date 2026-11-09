@@ -113,6 +113,11 @@ page: open(opening) -> MessageChannel -> SharedWorker (or the top document) -> h
 page unloads -> its Web Lock is released -> signal aborts
 ```
 
+<!-- docs-check
+import type { ConversationHandler } from 'foldkit-primitives/net'
+declare const openHost: () => ConversationHandler<{ readonly _tag: 'Notes'; readonly device: string }>
+-->
+
 ```ts
 import { Schema } from 'effect'
 import { SharedHost } from 'foldkit-primitives/net'
@@ -125,10 +130,11 @@ export const Notes = SharedHost.define({ name: 'notes', opening: Opening })
 // returns what it does with each conversation.
 Notes.serve(openHost)
 
-// In each page.
+// In each page. `inPage` is the same start function, for a browser without
+// SharedWorker; load it with a dynamic import if the page should not bundle it.
 const host = Notes.connect({
   worker: () => new SharedWorker(new URL('./worker.ts', import.meta.url), { type: 'module' }),
-  inPage: () => import('./host.js').then(({ openHost }) => openHost()),
+  inPage: openHost,
 })
 const port = host.open(Opening.make({ device: 'a' }))
 ```
