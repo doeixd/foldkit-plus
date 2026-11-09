@@ -65,6 +65,31 @@ URL ─▶ route ─▶ Data.satisfy (the same Surfaces, fetched until nothing i
 
 ### The domain: what the server owns
 
+<!-- docs-check
+import { Effect, Layer, Match, Option, Schema, pipe } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Navigation from 'foldkit/navigation'
+import { defineRouteUnion, literal, mapTo, root, slash, string } from 'foldkit/route'
+import { modifyFields } from 'foldkit/struct'
+import { Url, fromString } from 'foldkit/url'
+import { Bundle } from 'foldkit-bundle'
+import { Entity, Expr, Order } from 'foldkit-entity'
+import { pointedLinks } from 'foldkit-primitives/dom'
+import { Query, Remote, RemoteClient, RemoteData } from 'foldkit-remote'
+import { SSR } from 'foldkit-ssr'
+import { type SiteModule } from 'foldkit-ssr/vite'
+import { Projection, Surface } from 'foldkit-surface'
+import { Site } from 'foldkit-site'
+
+const ORIGIN = 'https://example.test'
+const TEMPLATE =
+  '<!doctype html><html><head><title></title></head><body><div id="root"></div></body></html>'
+function urlAt(path: string): Url {
+  return Option.getOrThrow(fromString(`${ORIGIN}${path}`))
+}
+-->
+
 ```ts
 const Project = Entity.define(
   'Project',
@@ -90,6 +115,7 @@ const AppRoute = defineRouteUnion({
   Owner: { ownerId: Schema.String },
   NotFound: { path: Schema.String },
 })
+type AppRoute = typeof AppRoute.Type
 
 const homeRouter = pipe(root, mapTo(AppRoute.Home))
 const ownerRouter = pipe(literal('owners'), slash(string('ownerId')), mapTo(AppRoute.Owner))
@@ -102,6 +128,7 @@ what the Site adds to them.
 
 ```ts
 const Model = Schema.Struct({ route: AppRoute, remote: Remote.Model })
+type Model = typeof Model.Type
 
 const Message = defineMessageUnion({
   ...Remote.messages,
@@ -110,6 +137,7 @@ const Message = defineMessageUnion({
   CompletedNavigation: {},
   PointedAtLink: { url: Url },
 })
+type Message = typeof Message.Type
 
 const App = Surface.application({ Model, Message })
 const Data = Remote.make({
@@ -319,6 +347,26 @@ Each line names an owner:
   reached.
 
 ### Preparing and rendering one address
+
+<!-- docs-check
+const configOf = <Container extends HTMLElement | null>(options: {
+  readonly initial: (url: Url) => ReturnType<typeof initial>
+  readonly resources: Layer.Layer<RemoteClient>
+  readonly container: Container
+}) =>
+  placements.runtime({
+    Model,
+    container: options.container,
+    initial: options.initial,
+    update,
+    view,
+    routing: {
+      onUrlRequest: (request: Navigation.UrlRequest) => Message.ClickedLink({ request }),
+      onUrlChange: (url: Url) => Message.ChangedUrl({ url }),
+    },
+    resources: options.resources,
+  })
+-->
 
 ```ts
 const prepare = (path: string, client: Layer.Layer<RemoteClient>) =>
