@@ -143,7 +143,7 @@ const saveButton = (h: HtmlBuilder<Message>) =>
 
 The important line is:
 
-```ts
+```ts sketch
 toView: Button.toView(mixins, { h }, draw)
 ```
 
@@ -224,6 +224,54 @@ deliver.
 
 A button drawn as a button needs no `draw` at all. `Button.view` takes the
 label, a style, and `@foldkit/ui`'s own config:
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { FieldValidation } from 'foldkit'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { Capability, Slot, Slots, Style } from 'foldkit-mixins'
+import { Layers } from 'foldkit-mixins'
+import {
+  ButtonSlots,
+  Icons,
+  InputSlots,
+  Listbox,
+  ListboxSlots,
+  Menu,
+  MenuSlots,
+  ScrollArea,
+  SegmentedSlots,
+  Segmented,
+  Tabs,
+  TabsSlots,
+  TextareaSlots,
+  Touch,
+} from 'foldkit-mixins-ui'
+const Message = defineMessageUnion({
+  Saved: {},
+  TypedEmail: { value: Schema.String },
+  TypedTitle: { value: Schema.String },
+  TypedReply: { value: Schema.String },
+  ToggledMark: { mark: Schema.String },
+})
+type Message = typeof Message.Type
+const SaveStyle = Style.forSlots(ButtonSlots)({ button: Style.class('btn btn-primary') })
+const FieldStyle = Style.forSlots(InputSlots)({ input: Style.class('field') })
+const TextareaStyle = Style.forSlots(TextareaSlots)({ textarea: Style.class('reply') })
+const Container = Slot.make({ capability: Capability.Container })
+const EntrySlots = Slots.define({ badge: Container })
+const FieldSlots = Slots.define({ group: Container, affix: Container, text: Container })
+const TabsStyle = Style.forSlots(TabsSlots)({})
+const MenuStyle = Style.forSlots(MenuSlots)({})
+const ListboxStyle = Style.forSlots(ListboxSlots)({})
+const ScrollAreaSlots = Slots.define({ root: Container })
+const TileSlots = Slots.define({ tile: Container })
+const MyTabsSlots = Slots.define({ tablist: Container })
+declare const h: HtmlBuilder<Message>
+declare const model: { readonly marks: ReadonlyArray<string> }
+declare const iconUrl: (name: string) => string
+-->
 
 ```ts
 import { Button } from 'foldkit-mixins-ui'
