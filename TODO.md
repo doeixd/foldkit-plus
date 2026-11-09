@@ -210,24 +210,17 @@ In the same change:
 In order. Every item runs the loop above. The notes give each item's research
 questions, the decisions it must make and its done-when.
 
-### 1. Correct the record
+### 1. Correct the record: done 2026-11-09
 
-The record misleads in places. That costs every later session time, as it cost
-the first draft of this plan.
-
-- **#188.** Its design (`docs/design/schema-to-ui-PLAN.md`) is built through
-  Phase 7, released in 0.34.0. Comment the built and remaining state, then
-  make the three remaining backlog items (`file` recipe, `busy` without
-  `settled`, the typed picker `more`) child issues and close #188 with links.
-- **#237.** Everything is built but reading the compiled build id, which needs
-  Foldkit (#210). Close it with that said.
-- **`docs/design/TODO.md`.** Sweep it: for each open item, check the code and
-  tick what is built. Do it by section, delegated to Sonnet subagents on
-  disjoint sections, each given the loop's step 1 and its gate. Then update the
-  header's "checked against the code" date.
-- **Done when** every open item in the backlog has been checked against the
-  code since 2026-11-09, and #188 and #237 are closed or carry an accurate
-  status.
+- #188 closed. Its leftovers are #491 (`busy` without `settled`), #492 (the
+  picker's `more`) and #493 (a `file` recipe).
+- #237 closed. Reading the compiled build id is Proposal 4 upstream.
+- `docs/design/TODO.md`: all 81 open items checked against the code, 78 by
+  four read-only subagents and Schema to UI's three by hand, each verdict that would tick or rewrite an item
+  confirmed by hand. Ticked: position placement, styled-menu separators,
+  Carousel dots, and the typed principal (not needed). Corrected: Phase 9
+  packages, Phase 12's registry, and the mixins-ui adapter list. The rest are
+  open or partial as written.
 
 ### 2. #251: the last name strings
 
@@ -280,13 +273,11 @@ These are the child issues made in step 1.
   sniffing), so it needs a design note and the independent review before any
   code.
 
-### 5. Remote and RemoteServer items found by porting
+### 5. Remote: per-field fetch time
 
-From the backlog section "Found by porting Foldkit's examples".
+From the backlog section "Found by porting Foldkit's examples". (The typed
+principal there turned out not needed, and is ticked.)
 
-- **A typed principal with an inferred `Input`**
-  (`RemoteServer.for<P>().query(Q, run)`). A published API shape, so it needs
-  a design note.
 - **Per-field fetch time.** Under stale-while-revalidate, one `updatedAt` per
   entity makes an old field look fresh. Research what `plan` and `deadlineOf`
   read, and measure the Model's size cost before choosing a `writtenAt` per
@@ -304,8 +295,24 @@ Combobox and Popover Commands (#400's remainder), or to wait for upstream.
 
 ### Then
 
-Re-rank from the swept backlog (step 1), by value to someone building an app,
-divided by cost. Write the new order here before starting it.
+Re-rank by value to someone building an app, divided by cost, and write the
+new order here before starting it. The sweep's candidates, from
+`docs/design/TODO.md`:
+
+- **"High: demonstrate strict FormView submit policy" (partial).** The option
+  exists (`mixins-form`'s `canSubmit`), but no adopter passes it. The
+  Enter-and-click-during-a-check tests and the reducer-side guard are
+  missing.
+- **"High for production SSR: dynamic host-head integration" (open).**
+  `SSR.entry` still refuses head meta (`packages/ssr/src/index.ts`).
+- **"A size budget in CI for each example's entry chunk" (partial).** Only
+  domains-plus and server bundles have one; `scripts/bundle-report.mjs` can
+  measure the rest.
+- **"Remote: per-field fetch time" (open)**: step 5 above.
+- **"Mixins-UI: adapters still missing" (partial)**: DragAndDrop and
+  Animation adapters, and Fieldset and Disclosure recipes; step 6 above.
+- **The UI polish leftovers (partial)**: RTL browser tests in only 32 of 120
+  files, Switch thumb drag, the Calendar's RTL month buttons.
 
 ## Parked
 
