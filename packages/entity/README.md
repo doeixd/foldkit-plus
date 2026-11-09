@@ -159,7 +159,7 @@ Object.keys(Blog.Post.members) // id, title, published, author, editor, comments
   Entity's relation, so it is added after `Entity.relate`:
 
   ```ts
-  const Post = Blog.Post.pipe(
+  const CountedPost = Blog.Post.pipe(
     Entity.derived({ commentTotal: Derived.count(Blog.Comment.relations.post) }),
   )
   ```
@@ -173,7 +173,7 @@ Object.keys(Blog.Post.members) // id, title, published, author, editor, comments
   relation of the same Entity: "did I comment on this post?"
 
   ```ts
-  const Post = Blog.Post.pipe(
+  const PostWithMyComment = Blog.Post.pipe(
     Entity.derived({
       myComment: Derived.exists(Blog.Comment.relations.post, {
         viewer: Blog.Comment.relations.author,
@@ -400,11 +400,12 @@ as a value:
 > only types from here in any case.
 
 ```ts
+import { Schema } from 'effect'
 import { Expr, Order } from 'foldkit-entity'
 
 const byTitle = Expr.eq(Blog.Post.fields.title, Expr.input('title', Schema.String))
-const published = Expr.eq(Blog.Post.fields.published, true)
-const newest = [Order.desc(Blog.Post.fields.title), Order.asc(Blog.Post.fields.id)]
+const isPublished = Expr.eq(Blog.Post.fields.published, true)
+const newestTerms = [Order.desc(Blog.Post.fields.title), Order.asc(Blog.Post.fields.id)]
 ```
 
 Building one performs no work: it reads nothing, names no database, and runs no
@@ -508,15 +509,18 @@ a comparison with it holds of no row. `Expr.now` is the time, in milliseconds.
 Neither is a field or an input: each interpreter reads them from the context
 it is given.
 
-```ts
+```ts standalone
+import { Option, Schema } from 'effect'
+import { Entity, Expr, Query, evaluate } from 'foldkit-entity'
+
 const User = Entity.define('User', Schema.Struct({ id: Schema.String }))
 const Note = Entity.define('Note', Schema.Struct({ id: Schema.String, ownerId: Schema.String }))
 
-const Mine = Query.from(Note).pipe(
+const MyNotes = Query.from(Note).pipe(
   Query.where(Expr.eq(Note.fields.ownerId, Expr.viewer(User))),
 )
 const ada = { entity: 'User', id: 'ada' }
-evaluate(Mine, {}, [{ id: 'n1', ownerId: 'ada' }, { id: 'n2', ownerId: 'bo' }], {
+evaluate(MyNotes, {}, [{ id: 'n1', ownerId: 'ada' }, { id: 'n2', ownerId: 'bo' }], {
   context: { viewer: Option.some(ada), now: Option.none() },
 })
 // [{ id: 'n1', ownerId: 'ada' }]
@@ -534,10 +538,36 @@ declared with `Entity.sets`.
 
 ### Which rows: `Query`
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Collation, Derived, Entity, Expr, Order, Query, Relation } from 'foldkit-entity'
+
+const BlogAuthor = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const BlogComment = Entity.define('Comment', Schema.Struct({ id: Schema.String, body: Schema.String }))
+const BlogPost = Entity.define(
+  'Post',
+  Schema.Struct({ id: Schema.String, title: Schema.String, published: Schema.Boolean }),
+).pipe(Entity.derived({ commentCount: Derived.make(Schema.Number) }))
+const Blog = Entity.relate(
+  { Author: BlogAuthor, Post: BlogPost, Comment: BlogComment },
+  {
+    Post: {
+      author: Relation.one(BlogAuthor),
+      editor: Relation.one(BlogAuthor, { optional: true }),
+      comments: Relation.many(BlogComment),
+    },
+    Comment: { post: Relation.one(BlogPost), author: Relation.one(BlogAuthor) },
+  },
+)
+const byTitle = Expr.eq(Blog.Post.fields.title, Expr.input('title', Schema.String))
+-->
+
 A `Query` is an Entity to read, the predicates every row must hold, and the
 order to read them in — composed with `pipe`, one immutable value per step:
 
 ```ts
+import { Query } from 'foldkit-entity'
+
 const published = Query.where(Expr.eq(Blog.Post.fields.published, true))
 const newest = Query.orderBy(Order.desc(Blog.Post.fields.title))
 
@@ -566,6 +596,8 @@ declaration of what `title` means, and the client can tell which edits may move
 a row:
 
 ```ts
+import { type InputExpr } from 'foldkit-entity'
+
 const PostSort = Schema.NullOr(
   Schema.Struct({ by: Schema.Literals(['title', 'id']), direction: Schema.Literals(['asc', 'desc']) }),
 )
@@ -683,6 +715,15 @@ A predicate may read the row a `one` relation points at, and ask whether any
 row points at this one. Both start on the query's own row, so they belong in
 its `where`:
 
+<!-- docs-check
+const UserFields = Entity.define('User', Schema.Struct({ id: Schema.String, handle: Schema.String }))
+const PostFields = Entity.define('Post', Schema.Struct({ id: Schema.String, body: Schema.String }))
+const FollowFields = Entity.define(
+  'Follow',
+  Schema.Struct({ id: Schema.String, followerId: Schema.String }),
+)
+-->
+
 ```ts
 const { Post, User, Follow } = Entity.relate(
   { Post: PostFields, User: UserFields, Follow: FollowFields },
@@ -744,6 +785,9 @@ never sent it" are different answers. `Judge` reads a row as a holder has it
 (`HeldRow`) and keeps the two apart:
 
 ```ts
+import { Option } from 'effect'
+import { Held, Judge } from 'foldkit-entity'
+
 const holder = Held.rows([
   { entity: Post, rows: [{ id: 'p1', body: 'hi', author: 'u1' }, { id: 'p2', body: 'yo', author: 'u2' }] },
   // Ada is held; u2 is not, and this holder may lack users.
@@ -887,6 +931,8 @@ tagged union whose cases hold the selected fields they have, typed as the
 case holds them, and every selected relation and derived member.
 
 ```ts
+import { type Selected } from 'foldkit-entity'
+
 const Quote = Entity.select(Domain, { _tag: true, name: true, price: true })
 type Quote = Selected<typeof Quote>
 // { _tag: 'Available', name: string, price: number } | { _tag: 'Unconfirmed', name: string }
@@ -915,14 +961,14 @@ const CreatePostInput = Schema.Struct({
   notify: Schema.Boolean,
 })
 
-const CreatePost = Entity.input(Blog.Post, CreatePostInput, {
+const CreatePostById = Entity.input(Blog.Post, CreatePostInput, {
   authorId: Relation.input(Blog.Post.relations.author),
   notify: Entity.unmapped,
 })
 
-CreatePost.members.title // Blog.Post.fields.title: it names a field, so it maps itself
-CreatePost.members.authorId.relation.target() // Blog.Author: what a picker chooses from
-CreatePost.members.notify // Entity.unmapped: about the operation, not the Post
+CreatePostById.members.title // Blog.Post.fields.title: it names a field, so it maps itself
+CreatePostById.members.authorId.relation.target() // Blog.Author: what a picker chooses from
+CreatePostById.members.notify // Entity.unmapped: about the operation, not the Post
 ```
 
 - A key that names a field, with a value that fits it, maps itself. Only the
@@ -1029,7 +1075,7 @@ relation. A value is a term of the write's context, `Expr.viewer` or
 `Expr.now`, and `on` says which writes set it:
 
 ```ts
-const AuthoredPost = Blog.Post.pipe(Entity.sets({ author: Expr.viewer(Author) }, { on: 'create' }))
+const AuthoredPost = Blog.Post.pipe(Entity.sets({ author: Expr.viewer(Blog.Author) }, { on: 'create' }))
 ```
 
 `Expr.viewer(Author)` is whoever asks: a `one` relation to an Author pointed
@@ -1143,7 +1189,7 @@ the row a write leaves: with `quantity = 10, reserved = 5`, an update setting
 An **invariant** is what every stored row must hold, read over the row after a
 write (`after`):
 
-```ts
+```ts standalone
 import { Schema } from 'effect'
 import { Entity, Expr } from 'foldkit-entity'
 
@@ -1237,6 +1283,18 @@ Entity, so a refusal names both. A declaration attaches to one Entity; reading
 Entity's type (what it reads is checked against it), and match a refusal
 against it rather than spelling the id again:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Entity, Expr } from 'foldkit-entity'
+import { Refusal } from 'foldkit-remote'
+
+const InventoryFields = Entity.define(
+  'Inventory',
+  Schema.Struct({ id: Schema.String, quantity: Schema.Number, reserved: Schema.Number }),
+)
+declare const refusal: unknown
+-->
+
 ```ts
 export const reservedWithinQuantity = Entity.invariant<typeof InventoryFields>(
   'reservedWithinQuantity',
@@ -1290,7 +1348,7 @@ A predicate an application asks in many places (in a public query, a
 visitor's Read rule, an invariant) can be given a name. `Expr.operator`
 declares one by what a call of it means:
 
-```ts
+```ts standalone
 import { Schema } from 'effect'
 import { Entity, Expr, Query } from 'foldkit-entity'
 
@@ -1339,7 +1397,7 @@ interpreter's implementation does, and every implementation is held to the
 same statement of it. The kernel ships one, `Text.startsWith`; an application
 declares its own and implements it, here for the in-memory interpreter:
 
-```ts
+```ts standalone
 import { Schema } from 'effect'
 import { Collation, Entity, Expr, Operators, Query, Text, evaluate } from 'foldkit-entity'
 
