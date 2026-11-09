@@ -279,6 +279,8 @@ const isStaleUnasked = (reason: Why): boolean =>
     NotFetching: () => false,
     CacheOnly: () => false,
     NoActiveRecord: () => false,
+    // Why it went stale is still so, fetched or not.
+    Invalidated: () => false,
     HeldForHistory: () => false,
     ListFailed: () => false,
     FieldsFailed: () => false,

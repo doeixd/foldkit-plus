@@ -23,6 +23,7 @@ const words = Why.match(why(Data, model, project).because[0]!, {
   CacheOnly: ({ surfaces }) => surfaces.join(),
   NoActiveRecord: () => 'a',
   List: ({ list }) => list.query,
+  Invalidated: ({ because }) => because,
   HeldForHistory: ({ list }) => list.identity,
   Fields: ({ row, fields }) => `${row.id}${fields.join()}`,
   ListFailed: ({ error }) => error.message,

@@ -18,7 +18,7 @@ import { describe, expect, it } from 'vitest'
 import { EntityChange, Impact, impactOn, type HeldConnection } from '../src/impact.js'
 import { Mutation, Query, Remote, terminal, type NormalizedPatch } from '../src/index.js'
 import { tableOf } from '../src/table.js'
-import { explain, why } from '../src/why.js'
+import { explain, why, Why } from '../src/why.js'
 
 const CategoryFields = Entity.define(
   'Category',
@@ -287,7 +287,7 @@ describe('#477 edge 3, the client decision, from the runtime path', () => {
     })
   })
 
-  it('gives the reason as impactOn decides it, and loses it in the reducer', () => {
+  it('gives the reason as impactOn decides it, which why says', () => {
     const renamed = renameCategory('c1', 'games')
     const connection: HeldConnection = {
       // As Remote holds it: erased, by the name the domain registered it under.
@@ -308,15 +308,70 @@ describe('#477 edge 3, the client decision, from the runtime path', () => {
         reason: 'query "Opaque" declares no body, so what it reads is unknown',
       }),
     )
-    // `why` says the list is stale, and not why: the reducer keeps no reason.
+    // The reducer keeps the reason (#489): `why` says it beside the stale list.
     expect(why(Data, renamed, lists.opaque).because).toEqual([
-      {
-        _tag: 'List',
+      Why.List({
         list: { query: 'Opaque', identity: lists.opaque.ref.identity },
         held: 'Stale',
         inFlight: false,
-      },
+      }),
+      Why.Invalidated({
+        list: { query: 'Opaque', identity: lists.opaque.ref.identity },
+        because: 'query "Opaque" declares no body, so what it reads is unknown',
+      }),
     ])
+  })
+})
+
+describe('#489, why a list went stale', () => {
+  const stale = (list: { readonly ref: { readonly identity: string } }) =>
+    why(Data, renameCategory('c1', 'games'), list as typeof lists.toys).because.filter(
+      Why.guards.Invalidated,
+    )
+
+  it('names the path a related row changed, for a list judged again through it', () => {
+    expect(stale(lists.toys)).toEqual([
+      Why.Invalidated({
+        list: { query: 'InToys', identity: lists.toys.ref.identity },
+        because:
+          'a write changed what "InToys" reads through other rows, which may have moved rows the client does not hold',
+      }),
+    ])
+    // A list the write left as it was says nothing.
+    expect(stale(lists.active)).toEqual([])
+  })
+
+  it('drops the reason of a list retention collects', () => {
+    const renamed = renameCategory('c1', 'games')
+    expect(Object.keys(renamed.remote.staleBecause)).toContain(lists.toys.ref.identity)
+    // Nothing on the page any more, and nothing kept for going back.
+    const left = Data.reduce(renamed, {
+      _tag: 'RetentionChanged',
+      roots: { requirements: [], connections: [] },
+      budget: 0,
+    })
+    expect(left.remote.connections[lists.toys.ref.identity]).toBeUndefined()
+    expect(left.remote.staleBecause).toEqual({})
+  })
+
+  it('keeps the reason that made it stale, and drops it once a page answers it', () => {
+    const renamed = renameCategory('c1', 'games')
+    // Refreshed while already stale: the write is still why it went stale.
+    const again = Data.reduce(renamed, {
+      _tag: 'ConnectionInvalidated',
+      connection: lists.toys.ref.identity,
+    })
+    expect(again.remote.staleBecause[lists.toys.ref.identity]).toBe(
+      renamed.remote.staleBecause[lists.toys.ref.identity],
+    )
+    const answered = Data.reduce(again, {
+      _tag: 'ConnectionMerged',
+      connection: lists.toys.ref.identity,
+      page: { edges: [], start: terminal, end: terminal },
+      // The refetch's page, which answers the list whole.
+      refreshes: true,
+    })
+    expect(why(Data, answered, lists.toys).because.filter(Why.guards.Invalidated)).toEqual([])
   })
 })
 

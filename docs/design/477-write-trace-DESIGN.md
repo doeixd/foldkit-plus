@@ -6,8 +6,8 @@ each `it` records one edge below, run through the real APIs.
 
 **Verdict.** The existing APIs answer every edge of the path. The trace found
 one place where an edge answered "unaffected" for what was unknown, which is
-now fixed, and one place where an answer's reason is lost, which has its own
-follow-up. Neither calls for a new graph abstraction, so none is added. The
+now fixed, and one place where an answer's reason was lost, now kept (#489).
+Neither calls for a new graph abstraction, so none is added. The
 static check in edge 2 is twenty lines over two existing functions. It should
 become an API when #439, its first real consumer, is built, and not before.
 
@@ -117,12 +117,14 @@ is now invalidated by any change the client sees, to any Entity, at the cost
 of a refetch. The CMS's `…BySlug` lists are of this kind. The test's
 `writeTrace.mutations.ts` restores the old rule and is killed.
 
-**Information lost.** `impactOn` gives a reason, but the reducer that applies
-an answer (`bodies.ts`) matches `Invalidated: () => …` and drops it. The
-connection keeps only `stale: true`, so `why(...)` can say a list is stale but
-not why. This is the issue's "first information loss". Keeping the reason
-needs a field on the held connection in the Remote Model, which is resumed
-and persisted, so it gets its own issue (#489) rather than riding this spike.
+**Information lost, then kept (#489).** `impactOn` gave a reason, but the
+reducer that applies an answer (`bodies.ts`) matched `Invalidated: () => …` and
+dropped it, so the connection kept only `stale: true`. `why(...)` could say a
+list was stale but not why: the issue's "first information loss". The Remote
+Model now keeps each stale list's reason (`staleBecause`), and `why` reports
+it as an `Invalidated` term beside the list's `List` term. It is runtime state:
+not persisted, collected with its list, and defaulted for a Model encoded
+before it existed.
 
 ### 4. The Surfaces that read a list
 
@@ -167,8 +169,8 @@ and persisted, so it gets its own issue (#489) rather than riding this spike.
 ## Decisions
 
 1. **Fixed:** a list with no body is invalidated by any change, of any Entity.
-2. **Follow-up, #489:** keep an invalidation's reason on the held connection, so
-   `why` can say why a list is being fetched again.
+2. **Built, #489:** an invalidation's reason is kept, so `why` says why a list is
+   being fetched again.
 3. **Not built:** the static candidate check (edge 2). It belongs to #439.
 4. **Not built:** a graph value spanning the edges. Each edge already has an
    owner and an API, and a parallel format would duplicate them (#190 plans the
@@ -178,7 +180,7 @@ and persisted, so it gets its own issue (#489) rather than riding this spike.
 
 ## Checks
 
-- `packages/remote/test/writeTrace.test.ts` passes, and `impact.test.ts`
+- `packages/remote/test/writeTrace.test.ts` passes (with #489's reasons), and `impact.test.ts`
   states both cases: an Owner write restarts nothing without a body-less list
   held, and invalidates one that is.
 - `writeTrace.mutations.ts` is killed.

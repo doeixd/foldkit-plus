@@ -242,7 +242,8 @@ export interface BodyCapability {
     context: ExprContext,
   ) => {
     readonly placed: Readonly<Record<string, Connection>>
-    readonly invalidated: ReadonlyArray<string>
+    /** Each list to fetch again, with why: what `why` says of it while it is stale. */
+    readonly invalidated: ReadonlyMap<string, string>
   }
 }
 

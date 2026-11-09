@@ -65,7 +65,8 @@ that never explains a read keeps none of them), returns a `ReadWhy` (`state`,
 `because`, `message`, `surfaces`), pure over the Model. `because` is every
 fact about what the read reads, typed (`Why`, matched with `Why.match` or
 `Why.guards`): `List`/`Fields` `Missing`, `Evicted` or `Stale` and `inFlight` (`via` is
-the relation path to a row), `HeldForHistory` (a list Back or Forward came back to, shown
+the relation path to a row), `Invalidated` (why a stale list went stale: a write it could not
+place, its live stream, a refresh), `HeldForHistory` (a list Back or Forward came back to, shown
 as it was), `ListFailed`/`FieldsFailed` (nothing retries
 them; `Data.refresh` does), `Unavailable`, `Undecodable`, `OverlayOnly`,
 `Deleted`, `LiveReconnecting`/`LiveRefused`, `Pending`, and `Joined`/`Left`

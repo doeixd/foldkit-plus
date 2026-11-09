@@ -629,6 +629,7 @@ Match them with `Why.match`:
 | `Why` | What it says | What restarts it |
 | --- | --- | --- |
 | `List { list, held, inFlight }` | the list's own page is `Missing`, `Evicted` (the budget dropped it) or `Stale` | the read entry, while a Surface reads it |
+| `Invalidated { list, because }` | why a stale list went stale, in the client's words: what a write changed that it could not place, its live stream asking, a refresh | the same read entry; it decides no state of its own |
 | `HeldForHistory { list }` | the list was left, and Back or Forward came back to it within `historyWindow`: it shows as it was, and nothing fetches it | a navigation the reader starts |
 | `Fields { row, via, fields, held, inFlight }` | fields of one row are `Missing`, `Evicted` (the budget dropped the row) or `Stale`; `via` is the relation path (`['owner']`) | the read entry |
 | `ListFailed`, `FieldsFailed` | a request failed | **nothing on its own**: `Data.refresh`, a write of the field, a new page |

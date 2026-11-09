@@ -57,6 +57,12 @@ export const Why = defineTaggedUnion({
   /** The list's own page is missing or stale; `inFlight` while its query is out. */
   List: { list: ListRef, held: Held, inFlight: Schema.Boolean },
   /**
+   * Why the list went stale, in the client's words: what a write changed that
+   * it could not place, its live stream asking, a refresh (#489). Beside the
+   * `List` term saying it is stale; it decides nothing of its own.
+   */
+  Invalidated: { list: ListRef, because: Schema.String },
+  /**
    * The list was left, and a history navigation (Back, Forward) came back to
    * it within `Remote.make`'s `historyWindow`: it shows as it was left, and
    * nothing asks for it.
@@ -186,6 +192,7 @@ export const whyWords = (why: Why): string =>
     CacheOnly: ({ surfaces }) =>
       `${surfaces.join(', ')} ${surfaces.length === 1 ? 'reads' : 'read'} it under RemotePolicy.cacheOnly, which asks for nothing: what the store lacks or holds out of date stays so until the store changes (an answer, a live event, a write), or the policy the Model picks asks for it.`,
     List: ({ list, held, inFlight }) => heldWords[held][`${inFlight}`](`Its list "${list.query}"`),
+    Invalidated: ({ list, because }) => `Its list "${list.query}" went stale because ${because}.`,
     HeldForHistory: ({ list }) =>
       `Its list "${list.query}" shows as it was left: a history navigation came back to it within Remote.make's historyWindow, so nothing fetches it. A navigation the reader starts fetches it again.`,
     Fields: ({ row, via, fields, held, inFlight }) =>
@@ -247,6 +254,7 @@ const decides = (why: Why): ReadonlyArray<State> =>
     NoActiveRecord: () => ['Initial'],
     CacheOnly: () => ['Initial', 'Refreshing'],
     List: ({ held, inFlight }) => listDecides[held][`${inFlight}`],
+    Invalidated: () => [],
     HeldForHistory: () => ['Ready'],
     Fields: ({ held, inFlight }) => fieldsDecide[held][`${inFlight}`],
     ListFailed: () => ['Failed'],

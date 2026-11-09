@@ -82,6 +82,10 @@ describe("why names a list's own page", () => {
         held: 'Missing',
         inFlight: false,
       }),
+      Why.Invalidated({
+        list: { query: 'All', identity: list.ref.identity },
+        because: 'it was refreshed (Data.refresh)',
+      }),
     ])
   })
 
@@ -103,7 +107,7 @@ describe("why names a list's own page", () => {
     )
 
     expect(said.state).toBe('Failed')
-    expect(said.because.map(reason => reason._tag)).toEqual(['FieldsFailed', 'List'])
+    expect(said.because.map(reason => reason._tag)).toEqual(['FieldsFailed', 'List', 'Invalidated'])
     expect(said.message).toContain('Reading name of Project p1 failed.')
   })
 

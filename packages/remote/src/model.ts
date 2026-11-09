@@ -3,7 +3,7 @@
  * optimistic layers an application keeps in its Model, the Messages that
  * change it, and the pure reducer over them.
  */
-import { Match, Option, Schema } from 'effect'
+import { Effect, Match, Option, Schema } from 'effect'
 import {
   liveRefused,
   outboxUnreadable,
@@ -196,6 +196,13 @@ export interface RemoteModel {
    */
   readonly diagnostics: ReadonlyArray<RemoteDiagnostic>
   /**
+   * Why each stale list went stale, in the client's own words: what a write
+   * changed that it could not place, the server's live stream asking, a
+   * refresh (#489). Kept from the change that made it stale, and read by
+   * `why` only while it still is. Never persisted.
+   */
+  readonly staleBecause: Readonly<Record<string, string>>
+  /**
    * What retention keeps: the active Surfaces' roots, and those of the
    * Surfaces left, in the batches they left in, while the budget allows. A
    * list left is held stale, so going back reads it `Refreshing` while it
@@ -370,6 +377,7 @@ export const initialRemoteModel: RemoteModel = {
   restoredFrom: Option.none(),
   placed: {},
   diagnostics: [],
+  staleBecause: {},
   recent: noRecentRoots,
   evicted: noEvicted,
   history: noNavigationHistory,
@@ -378,6 +386,13 @@ export const initialRemoteModel: RemoteModel = {
 
 /** The entity store and the mutation ledger are runtime values, not wire shapes. */
 const runtimeSchema = Schema.Unknown
+
+/**
+ * A runtime field added after Models were already encoded (stored, resumed,
+ * recorded by devtools): one encoded before it decodes with it empty, rather
+ * than refusing the whole Model.
+ */
+const addedRecord = Schema.Unknown.pipe(Schema.withDecodingDefaultKey(Effect.succeed({})))
 
 export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
   // The runtime fields decode as `unknown`; their types come from `RemoteModel`.
@@ -401,10 +416,11 @@ export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
     restoredFrom: runtimeSchema,
     placed: runtimeSchema,
     diagnostics: runtimeSchema,
+    staleBecause: addedRecord,
     recent: runtimeSchema,
     evicted: runtimeSchema,
     history: runtimeSchema,
-    echoes: runtimeSchema,
+    echoes: addedRecord,
   }) as unknown as Schema.Codec<RemoteModel, unknown>
 
 /** The submodel's Messages; each reduces to `RemoteModel` through `updateRemote`. */
@@ -1059,12 +1075,12 @@ const keptWindows = (
 }
 
 /** The placements awaiting a page of a list retention still keeps; a dropped list's page never comes. */
-const keptPlacements = (
-  placed: RemoteModel['placed'],
+const keptByList = <Kept extends Readonly<Record<string, unknown>>>(
+  placed: Kept,
   connections: Retained['connections'],
-): RemoteModel['placed'] => {
+): Kept => {
   const kept = Object.entries(placed).filter(([key]) => Object.hasOwn(connections, key))
-  return kept.length === Object.keys(placed).length ? placed : Object.fromEntries(kept)
+  return kept.length === Object.keys(placed).length ? placed : (Object.fromEntries(kept) as Kept)
 }
 
 /**
@@ -1135,10 +1151,13 @@ export const withRefreshRequested = (
 export const invalidateConnections = (
   model: RemoteModel,
   connections: ReadonlyArray<string>,
+  /** Why each goes stale, for `why`: one sentence for all, or one per identity. */
+  because: string | ((connection: string) => string),
 ): RemoteModel => {
   if (connections.length === 0) return model
   const marked = connections.reduce(
-    (current, connection) => invalidated(current, connection),
+    (current, connection) =>
+      invalidated(current, connection, typeof because === 'string' ? because : because(connection)),
     model,
   )
   return { ...marked, refresh: withRefreshRequested(marked.refresh, [], connections) }
@@ -1714,7 +1733,11 @@ const settledElsewhere = (
     requests.length === 0
       ? released
       : reduceRemote(capabilities, released, { _tag: 'RefreshStarted', requests })
-  return invalidateConnections(asked, Object.keys(asked.connections))
+  return invalidateConnections(
+    asked,
+    Object.keys(asked.connections),
+    'a write another tab settled may have changed it',
+  )
 }
 
 /**
@@ -1964,7 +1987,9 @@ const reduceRemote = (
                 ),
               },
         grown: keptWindows(model.grown, retained.connections),
-        placed: keptPlacements(model.placed, retained.connections),
+        placed: keptByList(model.placed, retained.connections),
+        // A collected list's reason goes with it.
+        staleBecause: keptByList(model.staleBecause, retained.connections),
         refresh: prunedRefresh(model.refresh, retained),
         failures: prunedFailures(model.failures, message.roots, reached),
         loading: prunedLoading(model.loading, message.roots, reached),
@@ -2286,7 +2311,7 @@ const reduceRemote = (
       // so it goes through the same reduction rather than a parallel one.
       return applied.invalidated === undefined
         ? next
-        : invalidateConnections(next, [applied.invalidated])
+        : invalidateConnections(next, [applied.invalidated], 'its live stream asked for it again')
     }
     case 'GapCleared':
       return clearGap(model, message.stream)
@@ -2362,7 +2387,7 @@ const reduceRemote = (
       }
     }
     case 'ConnectionInvalidated':
-      return invalidated(model, message.connection)
+      return invalidated(model, message.connection, 'it was refreshed (Data.refresh)')
     case 'QueryFailed':
       if (askedBeforeForget(model, message.generation)) return model
       // The pages stay as they were, and a refresh that failed is still owed:
@@ -2457,10 +2482,24 @@ const heldForGoingBack = (
  * must still settle its failure, and its mark becomes a loading one, so a list
  * with no page to show reads `Loading` until its query answers.
  */
-const invalidated = (model: RemoteModel, connection: string): RemoteModel => {
+const invalidated = (model: RemoteModel, connection: string, because: string): RemoteModel => {
+  const connections = setConnectionStale(model.connections, connection, true)
   const next = {
     ...model,
-    connections: setConnectionStale(model.connections, connection, true),
+    connections,
+    // Why it went stale, kept from the change that made it so; the reasons of
+    // lists fresh again or gone are dropped as one is written.
+    staleBecause:
+      connections === model.connections
+        ? model.staleBecause
+        : {
+            ...Object.fromEntries(
+              Object.entries(model.staleBecause).filter(
+                ([held]) => connections[held]?.stale === true,
+              ),
+            ),
+            [connection]: because,
+          },
     // Stale for a reason of its own: going back fetches it again.
     history: withoutHolds(model.history, [connection]),
     // Stale for a reason of its own now, not only for a placement's check.

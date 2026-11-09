@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`why` says why a list went stale** (`foldkit-remote`, #489). A new `Why`
+  term, `Invalidated { list, because }`, sits beside a stale list's `List`
+  term with the client's reason: the change a write's answer made that it
+  could not place (`impactOn`'s own words), a change a path reads through
+  another row, its live stream asking, a refresh. The reason is kept from the
+  change that made the list stale and goes with the list when retention
+  collects it. An exhaustive `Why.match` needs the new case.
 - **`Relation.one(Folder, { optional: true, onDelete: 'setNull' })` clears
   the link when the row it points at is deleted** (`foldkit-entity`,
   `foldkit-remote-server`, `foldkit-remote-drizzle`, `foldkit-guard`, #467).
@@ -142,6 +149,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A Remote Model stored before `echoes` existed decodes again**
+  (`foldkit-remote`). #485 added `echoes` to the Remote Model's codec as a
+  required key, so a Model encoded before it (stored, or recorded by
+  devtools) refused to decode. It decodes now with `echoes` empty, as does one
+  without #489's `staleBecause`.
 - **A list with no body is fetched again after a change to any Entity**
   (`foldkit-remote`, #477). A `Query.make` list was invalidated by a change to
   its own Entity and kept on a change to another, though its server may read

@@ -120,8 +120,8 @@ export default [
     edits: [
       {
         file: bodies,
-        find: '        whole,\n      })\n      invalidated.push(identity)',
-        replace: '        whole,\n      })',
+        find: '        whole,\n      })\n      invalidated.set(',
+        replace: '        whole,\n      })\n      new Map<string, string>().set(',
       },
     ],
     tests,

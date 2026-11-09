@@ -99,6 +99,16 @@ describe('Remote.make binds a domain', () => {
     expect(Data.Model).not.toBe(Remote.Model)
     expect(Data.initial).toBe(Remote.initial)
   })
+
+  it('decodes a Model encoded before echoes and staleBecause existed, with them empty', () => {
+    const encoded = Schema.encodeSync(Remote.Model)(Remote.initial) as Readonly<
+      Record<string, unknown>
+    >
+    const { echoes: _echoes, staleBecause: _stale, ...before } = encoded
+    const decoded = Schema.decodeUnknownSync(Remote.Model)(before)
+    expect(decoded.echoes).toEqual({})
+    expect(decoded.staleBecause).toEqual({})
+  })
 })
 
 describe('the entity is the receiver of its selections and patches', () => {

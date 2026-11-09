@@ -580,7 +580,14 @@ export const refresh = <AppModel, Store extends RemoteModel>(
     const due =
       failed || (options.failed !== true && remote.connections[target.identity] !== undefined)
     return due
-      ? bound.store.set(model, invalidateConnections(remote, [target.identity]) as Store)
+      ? bound.store.set(
+          model,
+          invalidateConnections(
+            remote,
+            [target.identity],
+            'it was refreshed (Data.refresh)',
+          ) as Store,
+        )
       : model
   }
   const asked = askedUnion(targetProjections(bound.contract, target, model))
@@ -1238,7 +1245,7 @@ const bindDomain = <
       : withPlacements(
           remote,
           capabilities.bodies.value.news(lists, remote, news, before, context),
-          [],
+          new Map(),
         )
 
   /** The rows a read or a live patch says the server holds now. */
@@ -1275,7 +1282,11 @@ const bindDomain = <
       )
       return withPlacements(remote, placed, invalidated)
     }
-    return invalidateConnections(remote, unplaceable(remote, answer, before))
+    return invalidateConnections(
+      remote,
+      unplaceable(remote, answer, before),
+      'a write changed a row of its Entity, and no list declares a body for the client to place it by',
+    )
   }
 
   /**
@@ -1345,9 +1356,12 @@ const bindDomain = <
   const withPlacements = (
     remote: RemoteModel,
     placed: Readonly<Record<string, Connection>>,
-    invalidated: ReadonlyArray<string>,
+    invalidated: ReadonlyMap<string, string>,
   ): RemoteModel => {
-    if (Object.keys(placed).length === 0) return invalidateConnections(remote, invalidated)
+    const because = (identity: string) =>
+      invalidated.get(identity) ?? 'its placement is checked against the server (verifyPredictions)'
+    const lists = [...invalidated.keys()]
+    if (Object.keys(placed).length === 0) return invalidateConnections(remote, lists, because)
     const withPlaced = { ...remote, connections: { ...remote.connections, ...placed } }
     // A list whose order the server is meant to answer otherwise is not checked.
     const identities = Object.keys(placed).filter(
@@ -1358,13 +1372,13 @@ const bindDomain = <
           Option.some(identity.slice(0, identity.indexOf(IDENTITY_SEPARATOR))),
         ),
     )
-    if (identities.length === 0) return invalidateConnections(withPlaced, invalidated)
+    if (identities.length === 0) return invalidateConnections(withPlaced, lists, because)
     const firstPage = (connection: Connection | undefined) =>
       (connection?.segments[0]?.edges ?? []).map(edge => edge.key)
     // Each checked list is made stale so its page is fetched; one stale for
     // that alone reads as fresh, as without the check (`readsStale`).
-    const marked = invalidateConnections(withPlaced, [...invalidated, ...identities])
-    const invalidatedAnyway = new Set(invalidated)
+    const marked = invalidateConnections(withPlaced, [...lists, ...identities], because)
+    const invalidatedAnyway = new Set(lists)
     const orders = Object.fromEntries(
       identities.map(identity => {
         const order = firstPage(placed[identity])

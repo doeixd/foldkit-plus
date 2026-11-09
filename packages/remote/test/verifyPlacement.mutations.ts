@@ -12,8 +12,8 @@ export default [
     edits: [
       {
         file: '../src/remote.ts',
-        find: 'invalidateConnections(withPlaced, [...invalidated, ...identities])',
-        replace: 'invalidateConnections(withPlaced, invalidated)',
+        find: 'invalidateConnections(withPlaced, [...lists, ...identities], because)',
+        replace: 'invalidateConnections(withPlaced, lists, because)',
       },
     ],
     tests,
@@ -50,9 +50,9 @@ export default [
     edits: [
       {
         file: '../src/remote.ts',
-        find: 'capabilities.bodies.value.news(lists, remote, news, before, context),\n          [],\n        )',
+        find: 'capabilities.bodies.value.news(lists, remote, news, before, context),\n          new Map(),\n        )',
         replace:
-          '{},\n          [],\n        ) && { ...remote, connections: { ...remote.connections, ...capabilities.bodies.value.news(lists, remote, news, before, context) } }',
+          '{},\n          new Map(),\n        ) && { ...remote, connections: { ...remote.connections, ...capabilities.bodies.value.news(lists, remote, news, before, context) } }',
       },
     ],
     tests,
@@ -111,8 +111,8 @@ export default [
     edits: [
       {
         file: '../src/whyReasons.ts',
-        find: 'if (readsStale(remote, identity)) reasons.push',
-        replace: 'if (connection.stale) reasons.push',
+        find: 'if (readsStale(remote, identity))\n    reasons.push',
+        replace: 'if (connection.stale)\n    reasons.push',
       },
     ],
     tests,

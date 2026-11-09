@@ -20,6 +20,7 @@ import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote, entityKey, type QueryProjection } from '../src/index.js'
 import { liveQuery } from '../src/live.js'
+import { why, Why } from '../src/why.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -280,6 +281,13 @@ describe('An invalidating live event actually invalidates', () => {
 
     expect(model.remote.connections[projects.ref.identity]!.stale).toBe(true)
     expect(projects.read(model)._tag).toBe('Refreshing')
+    // And `why` says the server asked (#489).
+    expect(why(Data, model, projects).because).toContainEqual(
+      Why.Invalidated({
+        list: { query: projects.ref.query, identity: projects.ref.identity },
+        because: 'its live stream asked for it again',
+      }),
+    )
     expect(Remote.planQueries(Data, model, projects).map(ref => ref.identity)).toEqual([
       projects.ref.identity,
     ])
