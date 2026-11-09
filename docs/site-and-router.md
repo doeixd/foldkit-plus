@@ -24,7 +24,22 @@ Three pieces, all in Foldkit itself:
 case with `mapTo`. A router is a biparser: it parses an address into the
 route value, and called with the route's params it builds the address back.
 
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineRouteUnion } from 'foldkit/route'
+const AppRoute = defineRouteUnion({
+  Home: {},
+  People: {},
+  Person: { personId: Schema.Number },
+  NotFound: { path: Schema.String },
+})
+-->
 ```ts
+import { pipe } from 'effect'
+import * as Route from 'foldkit/route'
+import { int, literal, slash } from 'foldkit/route'
+
 export const personRouter = pipe(
   literal('people'),
   slash(int('personId')),
@@ -38,13 +53,15 @@ personRouter({ personId: 3 }) // '/people/3'
 `parseUrlWithFallback` gives the route of the first that takes the address, or
 your NotFound route:
 
+<!-- docs-check
+import type { Option } from 'effect'
+const peopleRouter = pipe(literal('people'), Route.mapTo(AppRoute.People))
+const homeRouter = pipe(Route.root, Route.mapTo(AppRoute.Home))
+-->
 ```ts
 const routeParser = Route.oneOf(
   personRouter,
   peopleRouter,
-  filesIndexRouter,
-  filesRouter,
-  nestedRouter,
   homeRouter,
 )
 
@@ -135,7 +152,7 @@ export const AppSite = Site.make(
 The two `update` branches become one wiring, placed beside the application's
 pages:
 
-```ts
+```ts sketch
 const Routing = Site.routing<Model, Message, AppRoute>({
   site: AppSite,
   route: {
