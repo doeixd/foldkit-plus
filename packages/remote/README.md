@@ -3,7 +3,7 @@
 Server data, cached inside the Foldkit Model. A screen says what it needs;
 the view gets what the cache knows.
 
-<!-- docs-check standalone
+<!-- docs-check standalone define remote-domain
 import { Effect, Layer, Schema, Option } from 'effect'
 import { FetchHttpClient } from 'effect/http'
 import { RpcClient, RpcSerialization } from 'effect/rpc'
@@ -95,13 +95,8 @@ const projects = Data.query(
   { ownerId: 'u1' },
   { select: ProjectSummary, first: 25 },
 )
-
-const ProjectPageFull = App.surface('ProjectPage', {
-  params: { projectId: Schema.String },
-  model: ({ params }) => ({ project: live(Data, ProjectSummary, params.projectId), projects }),
-  messages: [Message.ClickedRename, Message.ClickedMore],
-})
-
+-->
+<!-- docs-check define remote-update
 // 4. Fetch, subscribe, and retain from the active Surfaces
 const baseSubscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
   Data.subscriptions(
@@ -143,6 +138,13 @@ declare const ownerId: string
 declare const ProjectSkeleton: () => string
 declare const NoSuchProject: () => string
 declare const ErrorView: (error: { readonly message: string }) => string
+-->
+<!-- docs-check
+const ProjectPageFull = App.surface('ProjectPage', {
+  params: { projectId: Schema.String },
+  model: ({ params }) => ({ project: live(Data, ProjectSummary, params.projectId), projects }),
+  messages: [Message.ClickedRename, Message.ClickedMore],
+})
 declare const ProjectView: (project: { readonly name: string }) => string
 declare const project: RemoteData<{ readonly name: string }>
 -->
@@ -718,150 +720,20 @@ compile time. `RemoteData.answered(data)` is whether a read has an answer yet:
 Most views draw these six states three ways, under one policy: useful data
 stays on screen. `RemoteData.render` is that fold.
 
-<!-- docs-check standalone
-import { Effect, Layer, Schema, Option } from 'effect'
-import { FetchHttpClient } from 'effect/http'
-import { RpcClient, RpcSerialization } from 'effect/rpc'
-import { Entity as DomainEntity, Expr, Order, Write, type AnyQuery } from 'foldkit-entity'
-import { Bundle } from 'foldkit-bundle'
-import { defineMessageUnion } from 'foldkit/message'
-import * as Subscription from 'foldkit/subscription'
-import type * as Update from 'foldkit/update'
-import { Surface } from 'foldkit-surface'
-import {
-  Diagnostics,
-  Entity,
-  Freshness,
-  Mutation,
-  Query,
-  Refusal,
-  Remote,
-  RemoteData,
-  RemoteClient,
-  RemotePolicy,
-  RemoteRpc,
-  type LiveDependencies,
-  type MutationStarted,
-  type ReadDependencies,
-  type RemoteRpcClient,
-  type RemoteMessage,
-  type RetentionRoots,
-} from 'foldkit-remote'
-import { live } from 'foldkit-remote/live'
-
-const Route = Schema.Union([
-  Schema.Struct({ _tag: Schema.Literal('home') }),
-  Schema.Struct({ _tag: Schema.Literal('project'), projectId: Schema.String }),
-])
-const home = (): typeof Route.Type => ({ _tag: 'home' })
-declare const rpcClient: RemoteRpcClient
-
-// 1. Declare the domain
-const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
-const Project = Entity.make(
-  'Project',
-  Schema.Struct({
-    id: Schema.String,
-    name: Schema.String,
-    status: Schema.String,
-    owner: Entity.ref(User),
-  }),
-)
-
-const UserSummary = User.select({ id: true, name: true })
-const ProjectSummary = Project.select({ id: true, name: true, status: true, owner: UserSummary })
-
-const ProjectsByOwner = Query.make('ProjectsByOwner', {
-  Input: { ownerId: Schema.String },
-  Result: Project,
-})
-const RenameProject = Mutation.make('RenameProject', {
-  Input: { id: Schema.String, name: Schema.String },
-  Output: { id: Schema.String },
-})
-
-// 2. Embed the submodel and bind the domain
-const Model = Schema.Struct({ route: Route, remote: Remote.Model })
-type Model = typeof Model.Type
-const Message = defineMessageUnion({
-  ...Remote.messages,
-  ClickedRename: { id: Schema.String, name: Schema.String },
-  ClickedMore: {},
-})
-type Message = typeof Message.Type
-
-const App = Surface.application({
-  Model,
-  Message,
-  initial: { route: home(), remote: Remote.initial },
-  update,
-})
-
-const Data = Remote.make({
-  model: App.model.remote,
-  entities: [User, Project],
-  queries: [ProjectsByOwner],
-  mutations: [RenameProject],
-})
-
-// 3. Read in a Surface
-const projects = Data.query(
-  ProjectsByOwner,
-  { ownerId: 'u1' },
-  { select: ProjectSummary, first: 25 },
-)
-
+<!-- docs-check standalone use remote-domain remote-update -->
+<!-- docs-check define remote-page
 const ProjectPage = App.surface('ProjectPage', {
   params: { projectId: Schema.String },
   model: ({ params }) => ({ project: live(Data, ProjectSummary, params.projectId), projects }),
   messages: [Message.ClickedRename, Message.ClickedMore],
 })
 
-// 4. Fetch, subscribe, and retain from the active Surfaces
-const baseSubscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
-  Data.subscriptions(
-    {
-      page: Surface.at(ProjectPage, model =>
-        model.route._tag === 'project'
-          ? Option.some({ projectId: model.route.projectId })
-          : Option.none(),
-      ),
-    },
-    { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), grace: '5 seconds' },
-  ),
-)
-
-// 5. Mutate and page from update
-function update(model: Model, message: Message): Update.Return<Model, Message, RemoteClient> {
-  if (Remote.reduces(message)) return { model: Data.reduce(model, message) }
-  switch (message._tag) {
-    case 'ClickedRename': {
-      const { id, name } = message
-      const { model: started, command } = Data.mutate(
-        model,
-        RenameProject,
-        { id, name },
-        {
-          optimistic: [Project.patch(id, { name })],
-        },
-      )
-      return { model: started, commands: [command] }
-    }
-    case 'ClickedMore':
-      return { model: Option.getOrElse(Data.more(model, projects), () => model), commands: [] }
-  }
-}
-
-declare const model: Model
-declare const projectId: string
-declare const ownerId: string
-declare const ProjectSkeleton: () => string
-declare const NoSuchProject: () => string
-declare const ErrorView: (error: { readonly message: string }) => string
 declare const ProjectView: (props: {
   readonly project: { readonly name: string }
   readonly dimmed: boolean
 }) => string
+-->
+<!-- docs-check
 declare const project: RemoteData<{ readonly name: string }>
 -->
 
@@ -1172,16 +1044,15 @@ those Entities, and `Data.get`, `live(Data, …)`, and a query's `select` take t
 Selections. Remote compiles both into the descriptor and Selection above, so
 the store, the planner, and the server see nothing new.
 
-<!-- docs-check standalone
+<!-- docs-check standalone define bare-app
 import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
 import { Remote } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
-import { defineMessageUnion } from 'foldkit/message'
 
-const App = Surface.application({
-  Model: Schema.Struct({ remote: Remote.Model }),
-  Message: defineMessageUnion({ ...Remote.messages }),
-})
+const Model = Schema.Struct({ remote: Remote.Model })
+type Model = typeof Model.Type
+const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
 -->
 
 ```ts
@@ -1292,150 +1163,7 @@ not date the answer.
 A policy belongs to one `subscriptions` call, and covers every read in it. Reads
 under different policies take a call each:
 
-<!-- docs-check standalone
-import { Effect, Layer, Schema, Option } from 'effect'
-import { FetchHttpClient } from 'effect/http'
-import { RpcClient, RpcSerialization } from 'effect/rpc'
-import { Entity as DomainEntity, Expr, Order, Write, type AnyQuery } from 'foldkit-entity'
-import { Bundle } from 'foldkit-bundle'
-import { defineMessageUnion } from 'foldkit/message'
-import * as Subscription from 'foldkit/subscription'
-import type * as Update from 'foldkit/update'
-import { Surface } from 'foldkit-surface'
-import {
-  Diagnostics,
-  Entity,
-  Freshness,
-  Mutation,
-  Query,
-  Refusal,
-  Remote,
-  RemoteData,
-  RemoteClient,
-  RemotePolicy,
-  RemoteRpc,
-  type LiveDependencies,
-  type MutationStarted,
-  type ReadDependencies,
-  type RemoteRpcClient,
-  type RemoteMessage,
-  type RetentionRoots,
-} from 'foldkit-remote'
-import { live } from 'foldkit-remote/live'
-
-const Route = Schema.Union([
-  Schema.Struct({ _tag: Schema.Literal('home') }),
-  Schema.Struct({ _tag: Schema.Literal('project'), projectId: Schema.String }),
-])
-const home = (): typeof Route.Type => ({ _tag: 'home' })
-declare const rpcClient: RemoteRpcClient
-
-// 1. Declare the domain
-const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
-const Project = Entity.make(
-  'Project',
-  Schema.Struct({
-    id: Schema.String,
-    name: Schema.String,
-    status: Schema.String,
-    owner: Entity.ref(User),
-  }),
-)
-
-const UserSummary = User.select({ id: true, name: true })
-const ProjectSummary = Project.select({ id: true, name: true, status: true, owner: UserSummary })
-
-const ProjectsByOwner = Query.make('ProjectsByOwner', {
-  Input: { ownerId: Schema.String },
-  Result: Project,
-})
-const RenameProject = Mutation.make('RenameProject', {
-  Input: { id: Schema.String, name: Schema.String },
-  Output: { id: Schema.String },
-})
-
-// 2. Embed the submodel and bind the domain
-const Model = Schema.Struct({ route: Route, remote: Remote.Model })
-type Model = typeof Model.Type
-const Message = defineMessageUnion({
-  ...Remote.messages,
-  ClickedRename: { id: Schema.String, name: Schema.String },
-  ClickedMore: {},
-})
-type Message = typeof Message.Type
-
-const App = Surface.application({
-  Model,
-  Message,
-  initial: { route: home(), remote: Remote.initial },
-  update,
-})
-
-const Data = Remote.make({
-  model: App.model.remote,
-  entities: [User, Project],
-  queries: [ProjectsByOwner],
-  mutations: [RenameProject],
-})
-
-// 3. Read in a Surface
-const projects = Data.query(
-  ProjectsByOwner,
-  { ownerId: 'u1' },
-  { select: ProjectSummary, first: 25 },
-)
-
-const ProjectPage = App.surface('ProjectPage', {
-  params: { projectId: Schema.String },
-  model: ({ params }) => ({ project: live(Data, ProjectSummary, params.projectId), projects }),
-  messages: [Message.ClickedRename, Message.ClickedMore],
-})
-
-// 4. Fetch, subscribe, and retain from the active Surfaces
-const baseSubscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
-  Data.subscriptions(
-    {
-      page: Surface.at(ProjectPage, model =>
-        model.route._tag === 'project'
-          ? Option.some({ projectId: model.route.projectId })
-          : Option.none(),
-      ),
-    },
-    { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), grace: '5 seconds' },
-  ),
-)
-
-// 5. Mutate and page from update
-function update(model: Model, message: Message): Update.Return<Model, Message, RemoteClient> {
-  if (Remote.reduces(message)) return { model: Data.reduce(model, message) }
-  switch (message._tag) {
-    case 'ClickedRename': {
-      const { id, name } = message
-      const { model: started, command } = Data.mutate(
-        model,
-        RenameProject,
-        { id, name },
-        {
-          optimistic: [Project.patch(id, { name })],
-        },
-      )
-      return { model: started, commands: [command] }
-    }
-    case 'ClickedMore':
-      return { model: Option.getOrElse(Data.more(model, projects), () => model), commands: [] }
-  }
-}
-
-declare const model: Model
-declare const projectId: string
-declare const ownerId: string
-declare const ProjectSkeleton: () => string
-declare const NoSuchProject: () => string
-declare const ErrorView: (error: { readonly message: string }) => string
-declare const ProjectView: (props: {
-  readonly project: { readonly name: string }
-  readonly dimmed: boolean
-}) => string
+<!-- docs-check standalone use remote-domain remote-update remote-page
 const clientLayer = Remote.clientLayer(rpcClient)
 -->
 
@@ -1877,12 +1605,9 @@ compare a column to nothing while every type agreed.
 
 Then a query is still just a Projection:
 
-<!-- docs-check standalone
-import { Schema } from 'effect'
+<!-- docs-check standalone use bare-app
 import { Entity as DomainEntity, Expr, Order, Query as Relational } from 'foldkit-entity'
-import { Query, Remote } from 'foldkit-remote'
-import { Surface } from 'foldkit-surface'
-import { defineMessageUnion } from 'foldkit/message'
+import { Query } from 'foldkit-remote'
 
 const Project = DomainEntity.define(
   'Project',
@@ -1906,9 +1631,6 @@ const ProjectsByOwner = Query.define('ProjectsByOwner', { ownerId: Schema.String
     Relational.orderBy(Order.asc(Project.fields.id)),
   ),
 )
-const Model = Schema.Struct({ remote: Remote.Model })
-type Model = typeof Model.Type
-const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
 const Data = Remote.make({
   model: App.model.remote,
   entities: [Project],
@@ -2562,15 +2284,10 @@ so show it rather than retry.
 **Refusals as data.** A mutation can say what the server may refuse it with,
 as data rather than a message to parse:
 
-<!-- docs-check standalone
-import { Schema } from 'effect'
-import { Entity, Mutation, Refusal, Remote } from 'foldkit-remote'
-import { Surface } from 'foldkit-surface'
-import { defineMessageUnion } from 'foldkit/message'
+<!-- docs-check standalone use bare-app
+import { Entity, Mutation, Refusal } from 'foldkit-remote'
 
 const Ticket = Entity.make('Ticket', Schema.Struct({ id: Schema.String, price: Schema.Number }))
-const Model = Schema.Struct({ remote: Remote.Model })
-const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
 const Priced = Mutation.make('SetPrice', {
   Input: { id: Schema.String, price: Schema.Number },
   Output: {},
@@ -2704,12 +2421,9 @@ one write from here to the statement that lands it. `keys` names the input keys
 an author changed: only those are shown, and the request carries them for the
 server to write; the input is still sent and validated whole.
 
-<!-- docs-check standalone
-import { Schema } from 'effect'
+<!-- docs-check standalone use bare-app
 import { Entity as DomainEntity, Write } from 'foldkit-entity'
-import { Mutation, Remote } from 'foldkit-remote'
-import { Surface } from 'foldkit-surface'
-import { defineMessageUnion } from 'foldkit/message'
+import { Mutation } from 'foldkit-remote'
 
 const Project = DomainEntity.define(
   'Project',
@@ -2724,8 +2438,6 @@ const Registered = Mutation.write(
   'EditProject',
   Write.update(DomainEntity.input(Project, EditProjectInput), { id: 'id' }),
 )
-const Model = Schema.Struct({ remote: Remote.Model })
-const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
 const Data = Remote.make({ model: App.model.remote, entities: [Project], mutations: [Registered] })
 declare const model: typeof Model.Type
 -->
@@ -2866,19 +2578,12 @@ a gap is a row the answer did not name: name it in the answer's `entities`
 `diagnostics` and fetches each placed list once more, and no package reads a
 build mode, so the application says it where it declares the domain:
 
-<!-- docs-check standalone
-import { Schema } from 'effect'
-import { defineMessageUnion } from 'foldkit/message'
+<!-- docs-check standalone use bare-app
 import { Entity, Expr, Order } from 'foldkit-entity'
-import { Mutation, Query, Remote } from 'foldkit-remote'
-import { Surface } from 'foldkit-surface'
+import { Mutation, Query } from 'foldkit-remote'
 const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, body: Schema.String, createdAt: Schema.Number }))
 const Feed = Query.define('Feed', {}, () => Query.from(Post).pipe(Query.orderBy(Order.desc(Post.fields.createdAt))))
 const PostChirp = Mutation.make('PostChirp', { Input: { body: Schema.String }, Output: {} })
-const App = Surface.application({
-  Model: Schema.Struct({ remote: Remote.Model }),
-  Message: defineMessageUnion({ ...Remote.messages }),
-})
 void Expr
 declare global {
   interface ImportMeta {
@@ -2923,150 +2628,7 @@ request behind them, until `lift`: a preview, in every Selection and view, of
 something not yet sent. They are functions of the domain rather than its
 methods, so a page that never previews loads none of the code that shows one.
 
-<!-- docs-check standalone
-import { Effect, Layer, Schema, Option } from 'effect'
-import { FetchHttpClient } from 'effect/http'
-import { RpcClient, RpcSerialization } from 'effect/rpc'
-import { Entity as DomainEntity, Expr, Order, Write, type AnyQuery } from 'foldkit-entity'
-import { Bundle } from 'foldkit-bundle'
-import { defineMessageUnion } from 'foldkit/message'
-import * as Subscription from 'foldkit/subscription'
-import type * as Update from 'foldkit/update'
-import { Surface } from 'foldkit-surface'
-import {
-  Diagnostics,
-  Entity,
-  Freshness,
-  Mutation,
-  Query,
-  Refusal,
-  Remote,
-  RemoteData,
-  RemoteClient,
-  RemotePolicy,
-  RemoteRpc,
-  type LiveDependencies,
-  type MutationStarted,
-  type ReadDependencies,
-  type RemoteRpcClient,
-  type RemoteMessage,
-  type RetentionRoots,
-} from 'foldkit-remote'
-import { live } from 'foldkit-remote/live'
-
-const Route = Schema.Union([
-  Schema.Struct({ _tag: Schema.Literal('home') }),
-  Schema.Struct({ _tag: Schema.Literal('project'), projectId: Schema.String }),
-])
-const home = (): typeof Route.Type => ({ _tag: 'home' })
-declare const rpcClient: RemoteRpcClient
-
-// 1. Declare the domain
-const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
-const Project = Entity.make(
-  'Project',
-  Schema.Struct({
-    id: Schema.String,
-    name: Schema.String,
-    status: Schema.String,
-    owner: Entity.ref(User),
-  }),
-)
-
-const UserSummary = User.select({ id: true, name: true })
-const ProjectSummary = Project.select({ id: true, name: true, status: true, owner: UserSummary })
-
-const ProjectsByOwner = Query.make('ProjectsByOwner', {
-  Input: { ownerId: Schema.String },
-  Result: Project,
-})
-const RenameProject = Mutation.make('RenameProject', {
-  Input: { id: Schema.String, name: Schema.String },
-  Output: { id: Schema.String },
-})
-
-// 2. Embed the submodel and bind the domain
-const Model = Schema.Struct({ route: Route, remote: Remote.Model })
-type Model = typeof Model.Type
-const Message = defineMessageUnion({
-  ...Remote.messages,
-  ClickedRename: { id: Schema.String, name: Schema.String },
-  ClickedMore: {},
-})
-type Message = typeof Message.Type
-
-const App = Surface.application({
-  Model,
-  Message,
-  initial: { route: home(), remote: Remote.initial },
-  update,
-})
-
-const Data = Remote.make({
-  model: App.model.remote,
-  entities: [User, Project],
-  queries: [ProjectsByOwner],
-  mutations: [RenameProject],
-})
-
-// 3. Read in a Surface
-const projects = Data.query(
-  ProjectsByOwner,
-  { ownerId: 'u1' },
-  { select: ProjectSummary, first: 25 },
-)
-
-const ProjectPage = App.surface('ProjectPage', {
-  params: { projectId: Schema.String },
-  model: ({ params }) => ({ project: live(Data, ProjectSummary, params.projectId), projects }),
-  messages: [Message.ClickedRename, Message.ClickedMore],
-})
-
-// 4. Fetch, subscribe, and retain from the active Surfaces
-const baseSubscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
-  Data.subscriptions(
-    {
-      page: Surface.at(ProjectPage, model =>
-        model.route._tag === 'project'
-          ? Option.some({ projectId: model.route.projectId })
-          : Option.none(),
-      ),
-    },
-    { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), grace: '5 seconds' },
-  ),
-)
-
-// 5. Mutate and page from update
-function update(model: Model, message: Message): Update.Return<Model, Message, RemoteClient> {
-  if (Remote.reduces(message)) return { model: Data.reduce(model, message) }
-  switch (message._tag) {
-    case 'ClickedRename': {
-      const { id, name } = message
-      const { model: started, command } = Data.mutate(
-        model,
-        RenameProject,
-        { id, name },
-        {
-          optimistic: [Project.patch(id, { name })],
-        },
-      )
-      return { model: started, commands: [command] }
-    }
-    case 'ClickedMore':
-      return { model: Option.getOrElse(Data.more(model, projects), () => model), commands: [] }
-  }
-}
-
-declare const model: Model
-declare const projectId: string
-declare const ownerId: string
-declare const ProjectSkeleton: () => string
-declare const NoSuchProject: () => string
-declare const ErrorView: (error: { readonly message: string }) => string
-declare const ProjectView: (props: {
-  readonly project: { readonly name: string }
-  readonly dimmed: boolean
-}) => string
+<!-- docs-check standalone use remote-domain remote-update remote-page
 declare const id: string
 declare const draft: string
 -->
@@ -3352,19 +2914,12 @@ reads nothing live keeps none of the code that streams and applies changes.
 `liveQuery`, which is `Data.query` following the rows that join, change or
 leave it, with no row of its own to subscribe to:
 
-<!-- docs-check standalone
-import { Schema } from 'effect'
-import { Entity, Query, Remote } from 'foldkit-remote'
-import { Surface } from 'foldkit-surface'
-import { defineMessageUnion } from 'foldkit/message'
+<!-- docs-check standalone use bare-app
+import { Entity, Query } from 'foldkit-remote'
 
 const Note = Entity.make('Note', Schema.Struct({ id: Schema.String, text: Schema.String }))
 const NoteRow = Note.select({ id: true, text: true })
 const Notes = Query.make('Notes', { Input: {}, Result: Note })
-const App = Surface.application({
-  Model: Schema.Struct({ remote: Remote.Model }),
-  Message: defineMessageUnion({ ...Remote.messages }),
-})
 const Data = Remote.make({ model: App.model.remote, entities: [Note], queries: [Notes] })
 -->
 
@@ -3453,150 +3008,7 @@ break -> gap marked, restarts + 1 -> backoff
 `liveStatus(Data, model, active)` says how what one active entry reads live is
 doing, for a view that shows it:
 
-<!-- docs-check standalone
-import { Effect, Layer, Schema, Option } from 'effect'
-import { FetchHttpClient } from 'effect/http'
-import { RpcClient, RpcSerialization } from 'effect/rpc'
-import { Entity as DomainEntity, Expr, Order, Write, type AnyQuery } from 'foldkit-entity'
-import { Bundle } from 'foldkit-bundle'
-import { defineMessageUnion } from 'foldkit/message'
-import * as Subscription from 'foldkit/subscription'
-import type * as Update from 'foldkit/update'
-import { Surface } from 'foldkit-surface'
-import {
-  Diagnostics,
-  Entity,
-  Freshness,
-  Mutation,
-  Query,
-  Refusal,
-  Remote,
-  RemoteData,
-  RemoteClient,
-  RemotePolicy,
-  RemoteRpc,
-  type LiveDependencies,
-  type MutationStarted,
-  type ReadDependencies,
-  type RemoteRpcClient,
-  type RemoteMessage,
-  type RetentionRoots,
-} from 'foldkit-remote'
-import { live } from 'foldkit-remote/live'
-
-const Route = Schema.Union([
-  Schema.Struct({ _tag: Schema.Literal('home') }),
-  Schema.Struct({ _tag: Schema.Literal('project'), projectId: Schema.String }),
-])
-const home = (): typeof Route.Type => ({ _tag: 'home' })
-declare const rpcClient: RemoteRpcClient
-
-// 1. Declare the domain
-const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
-const Project = Entity.make(
-  'Project',
-  Schema.Struct({
-    id: Schema.String,
-    name: Schema.String,
-    status: Schema.String,
-    owner: Entity.ref(User),
-  }),
-)
-
-const UserSummary = User.select({ id: true, name: true })
-const ProjectSummary = Project.select({ id: true, name: true, status: true, owner: UserSummary })
-
-const ProjectsByOwner = Query.make('ProjectsByOwner', {
-  Input: { ownerId: Schema.String },
-  Result: Project,
-})
-const RenameProject = Mutation.make('RenameProject', {
-  Input: { id: Schema.String, name: Schema.String },
-  Output: { id: Schema.String },
-})
-
-// 2. Embed the submodel and bind the domain
-const Model = Schema.Struct({ route: Route, remote: Remote.Model })
-type Model = typeof Model.Type
-const Message = defineMessageUnion({
-  ...Remote.messages,
-  ClickedRename: { id: Schema.String, name: Schema.String },
-  ClickedMore: {},
-})
-type Message = typeof Message.Type
-
-const App = Surface.application({
-  Model,
-  Message,
-  initial: { route: home(), remote: Remote.initial },
-  update,
-})
-
-const Data = Remote.make({
-  model: App.model.remote,
-  entities: [User, Project],
-  queries: [ProjectsByOwner],
-  mutations: [RenameProject],
-})
-
-// 3. Read in a Surface
-const projects = Data.query(
-  ProjectsByOwner,
-  { ownerId: 'u1' },
-  { select: ProjectSummary, first: 25 },
-)
-
-const ProjectPage = App.surface('ProjectPage', {
-  params: { projectId: Schema.String },
-  model: ({ params }) => ({ project: live(Data, ProjectSummary, params.projectId), projects }),
-  messages: [Message.ClickedRename, Message.ClickedMore],
-})
-
-// 4. Fetch, subscribe, and retain from the active Surfaces
-const baseSubscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
-  Data.subscriptions(
-    {
-      page: Surface.at(ProjectPage, model =>
-        model.route._tag === 'project'
-          ? Option.some({ projectId: model.route.projectId })
-          : Option.none(),
-      ),
-    },
-    { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), grace: '5 seconds' },
-  ),
-)
-
-// 5. Mutate and page from update
-function update(model: Model, message: Message): Update.Return<Model, Message, RemoteClient> {
-  if (Remote.reduces(message)) return { model: Data.reduce(model, message) }
-  switch (message._tag) {
-    case 'ClickedRename': {
-      const { id, name } = message
-      const { model: started, command } = Data.mutate(
-        model,
-        RenameProject,
-        { id, name },
-        {
-          optimistic: [Project.patch(id, { name })],
-        },
-      )
-      return { model: started, commands: [command] }
-    }
-    case 'ClickedMore':
-      return { model: Option.getOrElse(Data.more(model, projects), () => model), commands: [] }
-  }
-}
-
-declare const model: Model
-declare const projectId: string
-declare const ownerId: string
-declare const ProjectSkeleton: () => string
-declare const NoSuchProject: () => string
-declare const ErrorView: (error: { readonly message: string }) => string
-declare const ProjectView: (props: {
-  readonly project: { readonly name: string }
-  readonly dimmed: boolean
-}) => string
+<!-- docs-check standalone use remote-domain remote-update remote-page
 const Watched = Data.active('Watched', () => Option.some(Data.get(UserSummary, 'u1')))
 -->
 
@@ -3893,150 +3305,7 @@ the opposite. `Remote.resume(Data)` is a resume part for
 [`foldkit-ssr`](../ssr/README.md) (in development), which sends exactly what
 the page's active Surfaces read, and resumes it in the browser:
 
-<!-- docs-check standalone
-import { Effect, Layer, Schema, Option } from 'effect'
-import { FetchHttpClient } from 'effect/http'
-import { RpcClient, RpcSerialization } from 'effect/rpc'
-import { Entity as DomainEntity, Expr, Order, Write, type AnyQuery } from 'foldkit-entity'
-import { Bundle } from 'foldkit-bundle'
-import { defineMessageUnion } from 'foldkit/message'
-import * as Subscription from 'foldkit/subscription'
-import type * as Update from 'foldkit/update'
-import { Surface } from 'foldkit-surface'
-import {
-  Diagnostics,
-  Entity,
-  Freshness,
-  Mutation,
-  Query,
-  Refusal,
-  Remote,
-  RemoteData,
-  RemoteClient,
-  RemotePolicy,
-  RemoteRpc,
-  type LiveDependencies,
-  type MutationStarted,
-  type ReadDependencies,
-  type RemoteRpcClient,
-  type RemoteMessage,
-  type RetentionRoots,
-} from 'foldkit-remote'
-import { live } from 'foldkit-remote/live'
-
-const Route = Schema.Union([
-  Schema.Struct({ _tag: Schema.Literal('home') }),
-  Schema.Struct({ _tag: Schema.Literal('project'), projectId: Schema.String }),
-])
-const home = (): typeof Route.Type => ({ _tag: 'home' })
-declare const rpcClient: RemoteRpcClient
-
-// 1. Declare the domain
-const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
-const Project = Entity.make(
-  'Project',
-  Schema.Struct({
-    id: Schema.String,
-    name: Schema.String,
-    status: Schema.String,
-    owner: Entity.ref(User),
-  }),
-)
-
-const UserSummary = User.select({ id: true, name: true })
-const ProjectSummary = Project.select({ id: true, name: true, status: true, owner: UserSummary })
-
-const ProjectsByOwner = Query.make('ProjectsByOwner', {
-  Input: { ownerId: Schema.String },
-  Result: Project,
-})
-const RenameProject = Mutation.make('RenameProject', {
-  Input: { id: Schema.String, name: Schema.String },
-  Output: { id: Schema.String },
-})
-
-// 2. Embed the submodel and bind the domain
-const Model = Schema.Struct({ route: Route, remote: Remote.Model })
-type Model = typeof Model.Type
-const Message = defineMessageUnion({
-  ...Remote.messages,
-  ClickedRename: { id: Schema.String, name: Schema.String },
-  ClickedMore: {},
-})
-type Message = typeof Message.Type
-
-const App = Surface.application({
-  Model,
-  Message,
-  initial: { route: home(), remote: Remote.initial },
-  update,
-})
-
-const Data = Remote.make({
-  model: App.model.remote,
-  entities: [User, Project],
-  queries: [ProjectsByOwner],
-  mutations: [RenameProject],
-})
-
-// 3. Read in a Surface
-const projects = Data.query(
-  ProjectsByOwner,
-  { ownerId: 'u1' },
-  { select: ProjectSummary, first: 25 },
-)
-
-const ProjectPage = App.surface('ProjectPage', {
-  params: { projectId: Schema.String },
-  model: ({ params }) => ({ project: live(Data, ProjectSummary, params.projectId), projects }),
-  messages: [Message.ClickedRename, Message.ClickedMore],
-})
-
-// 4. Fetch, subscribe, and retain from the active Surfaces
-const baseSubscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
-  Data.subscriptions(
-    {
-      page: Surface.at(ProjectPage, model =>
-        model.route._tag === 'project'
-          ? Option.some({ projectId: model.route.projectId })
-          : Option.none(),
-      ),
-    },
-    { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), grace: '5 seconds' },
-  ),
-)
-
-// 5. Mutate and page from update
-function update(model: Model, message: Message): Update.Return<Model, Message, RemoteClient> {
-  if (Remote.reduces(message)) return { model: Data.reduce(model, message) }
-  switch (message._tag) {
-    case 'ClickedRename': {
-      const { id, name } = message
-      const { model: started, command } = Data.mutate(
-        model,
-        RenameProject,
-        { id, name },
-        {
-          optimistic: [Project.patch(id, { name })],
-        },
-      )
-      return { model: started, commands: [command] }
-    }
-    case 'ClickedMore':
-      return { model: Option.getOrElse(Data.more(model, projects), () => model), commands: [] }
-  }
-}
-
-declare const model: Model
-declare const projectId: string
-declare const ownerId: string
-declare const ProjectSkeleton: () => string
-declare const NoSuchProject: () => string
-declare const ErrorView: (error: { readonly message: string }) => string
-declare const ProjectView: (props: {
-  readonly project: { readonly name: string }
-  readonly dimmed: boolean
-}) => string
+<!-- docs-check standalone use remote-domain remote-update remote-page
 const ProjectPageAt = Surface.at(ProjectPage, model =>
   model.route._tag === 'project'
     ? Option.some({ projectId: model.route.projectId })
@@ -4745,21 +4014,14 @@ A `QueryRef` has a canonical identity based on its descriptor and encoded input,
 excluding the page window. Thus `first(25)` and `after(cursor).first(25)` merge
 into the same logical connection.
 
-<!-- docs-check standalone
+<!-- docs-check standalone use bare-app
 import { Effect } from 'effect'
-import { Entity, Query, Remote, updateRemote, type RemoteModel } from 'foldkit-remote'
-import { Schema } from 'effect'
-import { Surface } from 'foldkit-surface'
-import { defineMessageUnion } from 'foldkit/message'
+import { Entity, Query, updateRemote, type RemoteModel } from 'foldkit-remote'
 
 const Project = Entity.make('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const ProjectsByOwner = Query.make('ProjectsByOwner', {
   Input: { ownerId: Schema.String },
   Result: Project,
-})
-const App = Surface.application({
-  Model: Schema.Struct({ remote: Remote.Model }),
-  Message: defineMessageUnion({ ...Remote.messages }),
 })
 const Data = Remote.make({
   model: App.model.remote,
