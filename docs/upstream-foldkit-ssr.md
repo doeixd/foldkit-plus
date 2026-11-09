@@ -369,6 +369,44 @@ foldkit#1784. `foldkit-ssr` answers as soon as its script runs, whatever the
 plan's `start`, and starts a page recorded for its path from a URL such a
 script wrote; nothing earlier is in its reach.
 
+## Proposal 7: support for foldkit#1657 (the server checks its own output)
+
+**Ask.** Raise [foldkit#1657](https://github.com/foldkit/foldkit/issues/1657)
+(P2) to P1 with our measurement, and offer the pull request for its next step:
+`injectIntoTemplate` stops validating again the HTML `renderToString` already
+validated, under the acceptance criteria the issue lists. Its suggestion 4,
+a production mode with fewer checks, is a separate question for the
+maintainer, because it trades safety for speed.
+
+**Why we need it.** Foldkit re-parses its own server output with parse5 on
+every request. We shrank what it parses (#413): the stylesheet is a linked file
+(#419), only the first screen is rendered (#415), only what interactive regions
+read is resumed (#436), and static regions are prerendered (#434). A
+never-seen domains-plus search fell from about 362 KB to 69 KB, and parse5 from
+about 175 ms to 41 ms. What is left of the 41 ms is Foldkit's checks alone:
+
+| Check (0.170.0, `server/`) | ms per search |
+| --- | --: |
+| `escapesDocumentStructure` (`server.js`) | 14 |
+| `parseFragmentModes` (`fragment.js`) | 13 |
+| `closesCleanly` (`server.js`) | 8 |
+| `assertInjectionIsFaithful` (`template.js`) | 5 |
+| `renderedShapes` (`template.js`) | 5 |
+
+Measured 2026-11-09 under Node on Linux (a V8 profile of 20 warm searches,
+with `?q=` new each time so no kept page answers). The whole request is
+about 119 ms. The rest of Foldkit is 25 ms, garbage collection 11 and Effect
+7, and our packages and the application together about 12. Against the
+Workers free plan's 10 ms, the checks are the largest single part that
+remains, and nothing on our side reaches them.
+
+**Route.** A comment on foldkit#1657 with the table above and the blocked
+deployment (107 of 117 benchmark loads failed with error 1102 on 2026-11-02),
+then the pull request if the maintainer accepts the offer.
+
+**Afterwards, here.** Bump Foldkit, re-measure `/?q=` with
+`examples/foldkit/domains-plus/test/cpu.test.ts`, and lower its budget.
+
 ## What we are not asking for
 
 These were on this repository's list and are dropped or held after this
@@ -403,6 +441,10 @@ check:
 5. Proposal 4 as an issue, any time: it needs nothing from the others.
 6. Proposal 5 as an issue, any time: it needs nothing from the others.
 7. Proposal 6 as an issue, any time: it needs nothing from the others.
+8. Proposal 7 as a comment on foldkit#1657, now: our half is done.
+9. The leave that ends before it is drawn (below) as an issue, now. A draft
+   is ready; it was not filed because this repository's sessions cannot
+   post to foldkit/foldkit.
 
 Each upstream change is followed here by removing the workaround it replaces,
 with the SSR plan and README updated in the same commit.
