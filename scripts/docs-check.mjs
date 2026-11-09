@@ -43,7 +43,6 @@ import { fileURLToPath } from 'node:url'
 
 /** Documents whose blocks do not all compile yet (#229). Remove one once it does. */
 const pending = new Set([
-  'packages/remote/README.md',
 ])
 
 const root = fileURLToPath(new URL('..', import.meta.url))
