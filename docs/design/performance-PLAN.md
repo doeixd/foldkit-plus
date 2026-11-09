@@ -195,6 +195,20 @@ minutes, 10 of 10 loads were served from KV, and Worker startup fell from
 
 ## What the work so far taught
 
+- **Measure the check before skipping it.** #439 would skip checking the
+  regions a Message cannot affect. Measured 2026-11-09 (`pnpm bench`,
+  `packages/remote/bench/read.bench.ts`):
+  - a region over Model paths checks a few identities, well under 1 µs;
+  - a Remote read with the store unchanged is a memo hit, 1.3 µs;
+  - one read again after a write to a row it does not show costs about
+    22 µs for a 25-row list and 100 µs for 100 rows.
+
+  A page with five 25-row lists spends about 0.1 ms per write re-checking,
+  about 1% of domains-plus's 9 ms view frame. That is the most #439 could
+  save, so it waits for a page with many long lists (ten 100-row lists is
+  about 1 ms). Its static half, which queries a write can reach, is already
+  derivable (#477's `candidate`, `packages/remote/test/writeTrace.test.ts`).
+
 - **A memo is measured where its case happens.** #431's Bundle part is
   built: a placement, a `Link.child` and a collection item drawn without
   view inputs are kept while the child's Model is the same object. No app the

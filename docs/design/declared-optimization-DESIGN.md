@@ -123,6 +123,10 @@ over generated Messages in tests (the property-test generators of
 or declared on a Bundle part. Checker: in development, after each Message,
 compare the Model paths that changed with the inferred set, and report a
 write outside it.
+Deferred (2026-11-09): checking a region costs well under a microsecond over
+Model paths, and about 22 µs to read a 25-row Remote list again after a write.
+That is about 1% of a frame on a page like domains-plus, the most this pass
+could save (`performance-PLAN.md`, "Measure the check before skipping it").
 
 **Fine-grained updates without runtime tracking** (#433). Solid tracks
 dependencies at runtime; Plus can take the same graph from declarations, at
