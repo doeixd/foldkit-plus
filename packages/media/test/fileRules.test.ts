@@ -59,6 +59,7 @@ describe('fileNameOf', () => {
     ['an encoded slash', '..%2Fetc'],
     ['a slash', '../etc'],
     ['a backslash', '..%5Cetc'],
+    ['a raw byte past ASCII, unencoded', 'r\u00e9sum\u00e9.pdf'],
   ])('refuses %s', (_, header) => {
     expect(fileNameOf(header)).toEqual(Option.none())
   })

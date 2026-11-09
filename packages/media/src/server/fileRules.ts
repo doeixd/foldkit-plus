@@ -18,7 +18,8 @@ const REFUSED_IN_NAME = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}/\\]/u
  * format or separator character and no slash. A malformed encoding is none.
  */
 export const fileNameOf = (header: string | undefined): Option.Option<string> => {
-  if (header === undefined) return Option.none()
+  // Sent percent-encoded, so a raw byte past ASCII is a client that did not encode.
+  if (header === undefined || !/^[\x20-\x7e]*$/.test(header)) return Option.none()
   let name: string
   try {
     name = decodeURIComponent(header)

@@ -19,6 +19,7 @@ export default [
     'return Option.none()\n  }\n  return name',
     'name = header\n  }\n  return name',
   ),
+  edit('an unencoded name is taken', ' || !/^[\\x20-\\x7e]*$/.test(header)', ''),
   edit('an empty name is taken', 'name.length > 0 &&', ''),
   edit('a name is counted in UTF-16 units', 'new TextEncoder().encode(name).length', 'name.length'),
   edit('a name of 255 bytes is refused', '<= MAX_NAME_BYTES', '< MAX_NAME_BYTES'),
