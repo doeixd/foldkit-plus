@@ -97,7 +97,28 @@ Each island is its own React root, so it has its own Suspense boundary: `lazy`,
 The following integration fragment assumes your `Editor`, `Spinner`, and
 `EditorCrashed` Message; define `ReactEditor` with `ReactComponent.define(Editor)`.
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import type * as AsyncData from 'foldkit/asyncData'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { AsyncDataFailure, ReactComponent, readAsyncData } from 'foldkit-react'
+import { createElement, type ReactNode } from 'react'
+declare const Editor: (props: { readonly document: string }) => ReactNode
+declare const Counter: (props: { readonly id: string }) => ReactNode
+declare const Spinner: () => ReactNode
+const Message = defineMessageUnion({ EditorCrashed: { reason: Schema.String } })
+type Message = typeof Message.Type
+const { EditorCrashed } = Message
+declare const model: {
+  readonly document: string
+  readonly user: AsyncData.AsyncData<{ readonly name: string }, string>
+}
+declare const h: HtmlBuilder<Message>
+-->
 ```ts
+const ReactEditor = ReactComponent.define(Editor)
+
 ReactEditor.view(
   {
     props: { document: model.document },
@@ -122,11 +143,17 @@ fallback stays until the island is removed.
 Loading belongs to Foldkit: a Command fetches, `update` stores an `AsyncData` in
 the Model. An island can suspend on that value instead of branching on its tag:
 
+<!-- docs-check
+interface User {
+  readonly name: string
+}
+-->
 ```ts
 const Profile = ({ user }: { readonly user: AsyncData.AsyncData<User, string> }) => {
   const { data, isRefreshing } = readAsyncData(user)
   return createElement('p', null, isRefreshing ? `${data.name} (refreshing)` : data.name)
 }
+const ReactProfile = ReactComponent.define(Profile)
 
 ReactProfile.view(
   {
@@ -159,6 +186,10 @@ would never retry.
 keyed lists, classes, ARIA labels. The host is `display: inline` by default, as
 every unknown element is; style it if the component needs a block.
 
+<!-- docs-check
+const ReactCounter = ReactComponent.define(Counter)
+declare const row: { readonly id: string }
+-->
 ```ts
 ReactCounter.view({ props: { id: row.id }, hostAttributes: [h.Key(row.id), h.Class('row')] }, h)
 ```
@@ -174,6 +205,36 @@ the move completes.
 
 ## Foldkit inside React
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import * as Port from 'foldkit/port'
+import type * as Runtime from 'foldkit/runtime'
+const ports = {
+  inbound: {
+    stepChanged: Port.inbound(Schema.Number),
+    filtersChanged: Port.inbound(Schema.Array(Schema.String)),
+  },
+  outbound: { countChanged: Port.outbound(Schema.Number) },
+}
+declare const makeCounter: (
+  container: HTMLElement,
+  initialCount: number,
+) => Runtime.MakeRuntimeReturn<typeof ports, void, never, 'Element'>
+declare const makeDashboard: (
+  container: HTMLElement,
+  userId: string,
+) => Runtime.MakeRuntimeReturn<typeof ports, void, never, 'Element'>
+declare const shallowEqual: <A>(a: A, b: A) => boolean
+interface CounterProps {
+  readonly initialCount: number
+  readonly step: number
+  readonly onCountChange?: (count: number) => void
+}
+interface DashboardProps {
+  readonly userId: string
+  readonly filters: ReadonlyArray<string>
+}
+-->
 ```ts
 import { FoldkitComponent } from 'foldkit-react'
 
@@ -209,7 +270,7 @@ Commands.
 ### Custom equality and restarts
 
 ```ts
-FoldkitComponent.define({
+const Dashboard = FoldkitComponent.define({
   make: (container, props: DashboardProps) => makeDashboard(container, props.userId),
   inbound: { filtersChanged: { select: props => props.filters, equals: shallowEqual } },
   // A different user is a different program, not a new Port value.
@@ -227,13 +288,18 @@ The hook under `FoldkitComponent`, for components that need the Port handles
 themselves:
 
 ```ts
-const { ref, handle } = useFoldkitElement({
-  make: container => makeCounter(container, 0),
-})
-useEffect(() => {
-  handle?.ports.stepChanged.send(step)
-}, [handle, step])
-return createElement('div', { ref })
+import { useFoldkitElement } from 'foldkit-react'
+import { createElement, useEffect } from 'react'
+
+const HookCounter = ({ step }: { readonly step: number }) => {
+  const { ref, handle } = useFoldkitElement({
+    make: container => makeCounter(container, 0),
+  })
+  useEffect(() => {
+    handle?.ports.stepChanged.send(step)
+  }, [handle, step])
+  return createElement('div', { ref })
+}
 ```
 
 `handle` is `undefined` before the first effect and after unmount. `onEmbed`
