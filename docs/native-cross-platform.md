@@ -286,7 +286,7 @@ DOM nodes.
 
 For example:
 
-~~~ts
+~~~ts sketch
 const FieldSlots = Slots.define({
   root: Slot.make({
     capability: Capability.Container,
@@ -439,7 +439,7 @@ CSS.
 
 Portable examples might look like:
 
-~~~ts
+~~~ts sketch
 Style.layout({
   direction: "vertical",
   gap: Space.Medium,
@@ -472,7 +472,7 @@ Desktop
 
 A CSS-specific escape hatch can remain Web-only:
 
-~~~ts
+~~~ts sketch
 Style.css({
   position: "sticky",
 })
