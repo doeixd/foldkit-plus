@@ -188,6 +188,13 @@ interleaved cold loads of `/?q=sunbeam`):
 | Speed Index, mobile (v0.37.0) | 0.9–2.4 s | 1.5–1.6 s | 3.2–4.1 s | #475 |
 | First 60 names priced | 213 ms | 638 ms | not reached (24 drawn) | #475 |
 
+A new search, re-measured 2026-11-09 against stock Foldkit's copy in
+`examples/foldkit/domains`, both built and served by `wrangler dev --local`
+(`scripts/search-compare.mjs`, medians of 20 and 12 interleaved searches,
+debounce included): 198 ms against 260 at full speed, 315 against 643 with
+the CPU slowed four times. #474's `answeredOf` cut and #431's memo moved it
+ahead; the live Workers have not been measured again.
+
 Server CPU is the one number that decides the rest. Solid spends 5–12 ms on
 this page; domains-plus about 60 ms on `/` and 190 ms on a search, against
 the free plan's 10 ms. About 85% is Foldkit's checks of the server markup
