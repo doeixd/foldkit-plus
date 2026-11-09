@@ -20,7 +20,7 @@ export default [
   one('every refusal is unexpected', "refusals[request.status] ?? 'Unexpected'", "'Unexpected'"),
   one(
     'any body is facts',
-    'return decodeFacts(JSON.parse(body))',
+    'return Schema.decodeUnknownOption(schema)(JSON.parse(body))',
     'return Option.some(JSON.parse(body))',
   ),
   one('success never ends', '              Queue.endUnsafe(queue)\n', ''),
@@ -31,5 +31,25 @@ export default [
     'request.upload.onprogress = event =>',
     'request.upload.onloadend = event =>',
   ),
-  one('progress says it is done at once', 'loaded: event.loaded,', 'loaded: file.size,'),
+  one('progress says it is done at once', 'loaded: event.loaded,', 'loaded: body.size,'),
+  one(
+    'a file is sent typed by itself',
+    "'content-type': 'application/octet-stream',\n      'x-foldkit",
+    "'x-foldkit",
+  ),
+  one('a name is sent unencoded', 'encodeURIComponent(file.name)', 'file.name'),
+  one(
+    'a file with no type declares none',
+    "file.type === '' ? 'application/octet-stream' : file.type",
+    'file.type',
+  ),
+  one(
+    'a file goes to the image route',
+    "options.url ?? '/_media/files'",
+    "options.url ?? '/_media/upload'",
+  ),
+  one('a file answer is read as an image', 'fileFactsOf,', 'imageFactsOf as never,'),
+  one('a slow body is unexpected', "  408: 'TooSlow',\n", ''),
+  one('a busy route is unexpected', "  503: 'Busy',\n", ''),
+  one('a rate limit is unexpected', "  429: 'RateLimited',\n", ''),
 ]

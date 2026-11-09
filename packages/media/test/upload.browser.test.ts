@@ -7,7 +7,7 @@
 import { Effect, Exit, Fiber, Match, Stream } from 'effect'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { cdp } from 'vitest/browser'
-import { upload, UploadFailed, type UploadEvent } from '../src/browser/index.js'
+import { upload, uploadFile, UploadFailed, type UploadEvent } from '../src/browser/index.js'
 
 interface Paused {
   readonly requestId: string
@@ -58,7 +58,10 @@ beforeEach(async () => {
   waiting = []
   cdp().on('Fetch.requestPaused', hold)
   await cdp().send('Fetch.enable', {
-    patterns: [{ urlPattern: '*/_media/upload*', requestStage: 'Request' }],
+    patterns: [
+      { urlPattern: '*/_media/upload*', requestStage: 'Request' },
+      { urlPattern: '*/_media/files*', requestStage: 'Request' },
+    ],
   })
   // Chromium holds the page's requests some time after `Fetch.enable` answers,
   // and one sent before then goes to the dev server unheld (Vitest probes its own
@@ -170,4 +173,50 @@ test('interrupting the stream aborts the request still in flight', async () => {
   await cdp()
     .send('Fetch.continueRequest', { requestId })
     .catch(() => {})
+})
+
+// ASCII: `answer` writes its body through `btoa`.
+const fileFacts = { key: 'b'.repeat(32), name: 'resume.pdf', type: 'application/pdf', size: 16 }
+const runFile = (file: File) => Effect.runPromiseExit(Stream.runCollect(uploadFile(file)))
+const headerOf = (request: Paused['request'], name: string) =>
+  Object.entries(request.headers).find(([key]) => key.toLowerCase() === name)?.[1]
+
+test('sends a file as octet-stream to the file route, its name and type in headers', async () => {
+  const done = runFile(new File([new Uint8Array(16)], 'rés umé.pdf', { type: 'application/pdf' }))
+  const { requestId, request } = await next(done)
+  expect([
+    new URL(request.url).pathname,
+    headerOf(request, 'content-type'),
+    headerOf(request, 'x-foldkit-file-name'),
+    headerOf(request, 'x-foldkit-file-type'),
+  ]).toEqual([
+    '/_media/files',
+    'application/octet-stream',
+    'r%C3%A9s%20um%C3%A9.pdf',
+    'application/pdf',
+  ])
+  await answer(requestId, 201, JSON.stringify(fileFacts))
+  const exit = await done
+  if (!Exit.isSuccess(exit)) throw new Error(`the upload failed: ${exit.cause}`)
+  expect(exit.value.at(-1)).toEqual({ _tag: 'FileUploaded', asset: fileFacts })
+})
+
+test('declares a file the browser gives no type as octet-stream', async () => {
+  const done = runFile(new File([new Uint8Array(4)], 'notes.weird'))
+  const { requestId, request } = await next(done)
+  expect(headerOf(request, 'x-foldkit-file-type')).toBe('application/octet-stream')
+  await answer(requestId, 201, JSON.stringify(fileFacts))
+  await done
+})
+
+test.each([
+  [408, 'TooSlow'],
+  [429, 'RateLimited'],
+  [503, 'Busy'],
+  // An image's facts are not a file's.
+  [201, 'Unexpected'],
+] as const)('a file upload answered %i fails as %s', async (status, reason) => {
+  const done = runFile(new File([new Uint8Array(4)], 'a.pdf', { type: 'application/pdf' }))
+  await answer((await next(done)).requestId, status, status === 201 ? JSON.stringify(facts) : '{}')
+  expect(await done).toEqual(Exit.fail(new UploadFailed({ reason, status })))
 })

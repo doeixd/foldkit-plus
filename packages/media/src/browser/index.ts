@@ -97,11 +97,14 @@ export const inspectorBrowser = (
 }
 
 export {
+  FileUploadEvent,
+  FileUploaded,
   Progressed,
   UploadEvent,
   UploadFailed,
   UploadRefusal,
   Uploaded,
   upload,
+  uploadFile,
   type UploadOptions,
 } from './upload.js'

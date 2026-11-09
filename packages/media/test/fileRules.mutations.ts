@@ -17,6 +17,24 @@ const key = (name: string, replace: string) => ({
 })
 
 export default [
+  {
+    // Each defence stands in for the others, so only all three removed lets a page run.
+    name: 'a download opens as a page that runs',
+    edits: [
+      {
+        file: rules,
+        find: "'content-type': 'application/octet-stream'",
+        replace: "'content-type': 'text/html'",
+      },
+      { file: rules, find: '`attachment; filename=', replace: '`inline; filename=' },
+      {
+        file: rules,
+        find: "  'content-security-policy': \"sandbox; default-src 'none'\",\n",
+        replace: '',
+      },
+    ],
+    tests: ['packages/media/test/files.browser.test.ts'],
+  },
   key('a key may be uppercase', '/^[0-9a-fA-F]{32}$/'),
   key('a key may be any length', '/^[0-9a-f]{31,33}$/'),
   key('a key may hold more than hex', '/[0-9a-f]{32}/'),
