@@ -148,6 +148,23 @@ checks their shape, not that they are true, so a registering mutation takes the 
 `StoredFacts.get(hash)` (kept beside the bytes by `Uploads`; `storedFactsKeyValueStore()`,
 `storedFactsR2(bucket)`; none for a hash nobody uploaded), never facts a client sends back.
 
+Any file, not an image: `fileLayer({ accept, maxBytes?, maxConcurrent?, minBytesPerSecond?,
+inspect? })` (or `serveFetch`'s `files`) serves `POST /_media/files` and `GET
+/_media/files/:key`, apart from the image routes, over a `FileStore` (`filesKeyValueStore({
+prefix?, claimWithin? })`, needing a `KeyValueStore` and `SecureRandom`), never `Originals`.
+`FileUploadPolicy.admit(request)` answers the uploader's stable id (an empty one is 403,
+`OwnerMissing`); `fileReadPolicy({ resolve, read })` says who asks from the request alone
+(`FileUnauthenticated`, 401) and then whether they may read a key (no is 404, as an unknown
+key). An upload is an `application/octet-stream` body with `x-foldkit-file-name`
+(percent-encoded) and `x-foldkit-file-type` (checked against `accept`, required, `'*'` for
+any); the route mints a 128-bit key and answers a `FileAsset { key, name, type, size }` (from
+`foldkit-media`). A download is always an octet-stream attachment, sandboxed, `same-origin`,
+`no-store`. A save stores `keepOrClaim(held, submitted, owner)` after authorizing the write:
+it keeps the file the row holds, or claims the key once, for its uploader, within a day
+(`FileUnclaimed` otherwise), with the server's facts. From a browser, `uploadFile(file)`
+streams `Progressed` then `FileUploaded { asset }`; `UploadFailed` adds `TooSlow`,
+`RateLimited` and `Busy`.
+
 See also: [packages/media/README.md](https://github.com/doeixd/foldkit-plus/blob/main/packages/media/README.md),
 [docs/design/media-DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/media-DESIGN.md).
 

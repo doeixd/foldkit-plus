@@ -9,6 +9,24 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Any file uploaded and served back as a download** (`foldkit-media`,
+  #493). `fileLayer({ accept, … })` (or `serveFetch`'s `files`) serves `POST
+  /_media/files` and `GET /_media/files/:key`, apart from the image routes and
+  over a `FileStore` of their own (`filesKeyValueStore`), never `Originals`.
+  An upload is asked of a `FileUploadPolicy` that names the uploader, sent as
+  `application/octet-stream` with its name and type in headers, and held to
+  `accept`, a name rule, `maxBytes`, a minimum rate, a slot (`maxConcurrent`,
+  one per uploader, `503` past either) and an optional `inspect`. It is kept
+  under a 128-bit key it mints, and answered as a `FileAsset` (from
+  `foldkit-media`). A save stores `keepOrClaim(held, submitted, owner)`: the
+  file the row holds, or the key claimed once, by its uploader, within a day,
+  with the server's facts. A download asks `fileReadPolicy({ resolve, read })`
+  before the store, answers an unknown and an unreadable key with one `404`,
+  and is always a sandboxed `octet-stream` attachment. From a browser,
+  `uploadFile(file)` (`foldkit-media/browser`) streams `Progressed`, then
+  `FileUploaded`. `UploadRefusal` gains `TooSlow`, `RateLimited` and `Busy`,
+  so an exhaustive match on it needs the new cases. `MediaDiagnostic` gains
+  `OwnerMissing`.
 - **`why` says why a list went stale** (`foldkit-remote`, #489). A new `Why`
   term, `Invalidated { list, because }`, sits beside a stale list's `List`
   term with the client's reason: the change a write's answer made that it

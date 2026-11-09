@@ -21,6 +21,9 @@ a resizing server, its Cloudflare and Node layers, uploads, and Vite plugins.
   view only reads them.
 - **Variants** belong to whoever makes them, a CDN or a resizing server, and
   are a cache: they can be made again from the original.
+- **An uploaded file** (any file, not an image to resize) belongs to the
+  `FileStore`, with the facts the route recorded; which row holds it, and who
+  may read it, is the application's ([Files](#files)).
 - **Which variant a page shows** is the browser's choice, from `srcset` and
   `sizes`. Nothing in your Model decides it.
 - **An icon's drawing** belongs to its set (Lucide, an application's SVG
@@ -534,6 +537,149 @@ a URL is set, and stores the facts beside the URL. Neither route limits how
 often it is asked: each admitted call reads up to `maxBytes` and decodes it,
 so the `UploadPolicy` is where an application limits who calls, and how often. What cannot be read (a host
 not allowed, a missing file, no image) is a `422`, saying only that.
+
+### Files
+
+Images are not the only uploads: a form may take a PDF, a spreadsheet, any
+file. `POST /_media/files` keeps any file, and `GET /_media/files/:key` serves
+it back as a download. They are a route set of their own (`fileLayer`), apart
+from the image routes, and a server that mounts only the image routes serves
+no file. Files are kept in a `FileStore`, never in `Originals`, so the variant
+server never reads one as an image.
+
+**Who owns what.** The route owns the bytes and the facts it recorded about
+them: a key it minted, and the name, type and size the uploader declared. The
+application owns which row holds a file and who may read it. A form only ever
+holds a `FileAsset` (`{ key, name, type, size }`, from `foldkit-media`), which
+is the client's word once it has passed through the client.
+
+```text
+browser: uploadFile(file)  ->  POST /_media/files  ->  key minted, bytes + record kept  ->  FileAsset
+form submits the FileAsset ->  your mutation: authorize, then keepOrClaim  ->  the server's FileAsset on the row
+GET /_media/files/:key     ->  FileReadPolicy (who asks, may they read this key)  ->  the bytes, as an attachment
+```
+
+A key is 128 random bits, so it cannot be guessed, and each upload's bytes
+are kept on their own, even when equal to another's: sharing them would make
+a second upload of the same bytes answer faster, telling the uploader that
+someone already holds them.
+
+```ts
+import { Effect, Layer, Option } from 'effect'
+import { SecureRandom } from 'effect/crypto'
+import { KeyValueStore } from 'effect/persistence'
+import type { FileAsset } from 'foldkit-media'
+import {
+  FileUploadPolicy,
+  UploadForbidden,
+  fileLayer,
+  fileReadPolicy,
+  filesKeyValueStore,
+  keepOrClaim,
+} from 'foldkit-media/server'
+
+// Your own: who a request is, and which rows hold which file.
+declare const userOf: (headers: Headers) => Option.Option<string>
+declare const rowHolding: (key: string) => Effect.Effect<Option.Option<{ readonly owner: string }>>
+
+const files = fileLayer({ accept: ['application/pdf', 'image/*'] }).pipe(
+  Layer.provide(
+    Layer.mergeAll(
+      filesKeyValueStore(),
+      Layer.succeed(FileUploadPolicy, {
+        admit: request =>
+          Option.match(userOf(new Headers(request.headers)), {
+            onNone: () => Effect.fail(new UploadForbidden({})),
+            onSome: Effect.succeed,
+          }),
+      }),
+      fileReadPolicy({
+        resolve: request => Effect.succeed(userOf(new Headers(request.headers))),
+        read: (user, key) =>
+          rowHolding(key).pipe(
+            Effect.map(row =>
+              Option.exists(row, ({ owner }) => Option.contains(user, owner)),
+            ),
+          ),
+      }),
+    ),
+  ),
+  Layer.provide(Layer.merge(KeyValueStore.layerMemory, SecureRandom.layerWebCrypto)),
+)
+
+// In the mutation that saves a row, once the write is authorized:
+const attached = (held: Option.Option<FileAsset>, submitted: FileAsset, user: string) =>
+  keepOrClaim(held, submitted, user)
+```
+
+- **`FileUploadPolicy.admit(request)`** says who is uploading, before a byte
+  is read, and answers their id. Only that id may claim the file later, so it
+  must be stable and never given to another person. An empty id is refused
+  (`403`) and reported (`OwnerMissing`): one id for every visitor would let
+  anyone claim anyone's upload.
+- **`fileReadPolicy({ resolve, read })`** asks in two steps, before the store
+  is read. `resolve` says who is asking from the request alone, never the key,
+  or fails `FileUnauthenticated` (`401`) when it cannot tell, so a client can
+  ask the reader to sign in again. `read` says whether they may read a key,
+  typically by finding the row that holds it. A no is a `404`, the same answer
+  as a key nobody uploaded, so a refusal never says whether a file exists.
+- **`keepOrClaim(held, submitted, owner)`** is what a save stores. When the
+  submitted key is the file the row already holds, it keeps that file and
+  claims nothing, so a teammate re-saving a row is fine. Otherwise it claims
+  the key: `FileStore.claim` answers the facts the route recorded, once, to
+  the uploader, within `claimWithin` (a day by default, an option of
+  `filesKeyValueStore`), and fails `FileUnclaimed` for anything else (an
+  unknown key, an expired one, someone else's, one claimed already), each
+  alike. Call it after authorizing the write, so a refused write claims
+  nothing. A key moves to another row only by being uploaded again.
+
+**A download cannot run here.** Every answer of `GET /_media/files/:key`,
+refusals included, is `application/octet-stream` with `nosniff`, a
+`Content-Security-Policy` of `sandbox; default-src 'none'`,
+`Cross-Origin-Resource-Policy: same-origin` and `Cache-Control: private,
+no-store`. A file comes as an attachment named by its record, never by the
+request, both as RFC 6266's `filename*` and as an ASCII fallback. The
+declared type is never served, so an HTML file uploaded as a PDF downloads
+and runs nothing. None of the image routes' cross-origin headers are sent.
+
+**What an upload must be.** The body is `application/octet-stream`, and the
+file's name and type travel in `x-foldkit-file-name` (percent-encoded UTF-8)
+and `x-foldkit-file-type`. A page on another site cannot send either without a
+preflight, which the route never answers, so a cookie alone cannot upload from
+elsewhere. An application that adds CORS middleware answering `OPTIONS` for
+these paths undoes that. The name must be non-empty, at most 255 bytes, with
+no control or format character (bidi overrides, zero-width characters), line
+separator or slash. The type is parsed, its parameters dropped, and compared
+with `accept` without regard to case: `text/html;x=image/png` is `text/html`.
+`accept` is required, `'*'` for any type. The client writes the type, so
+`accept` shapes the product and secures nothing; to check the content itself
+(magic numbers, a scan), give `inspect: (bytes, declared) => Effect<void,
+FileRefused>`, run before anything is kept.
+
+| Answer | Why |
+| --- | --- |
+| `201` | Kept; the body is the `FileAsset`. |
+| `400` | No name, or one that breaks a rule above; or a body that broke off. |
+| `401` / `403` | The policy could not tell who is asking, or refused them. |
+| `408` | The body came slower than `minBytesPerSecond` (32 KB/s by default) over 10 seconds. |
+| `413` | Past `maxBytes` (20 MB by default), counted as the body streams. |
+| `415` | Not `application/octet-stream`, a type outside `accept`, or refused by `inspect`. |
+| `429` | `Admission`, when one is given, refused this uploader (`Retry-After` says when to try). |
+| `503` | Every slot is taken (`maxConcurrent`, 2 by default), or this uploader already has one. It does not queue: try again soon. |
+
+**Memory.** An upload holds about twice its size while it is read, so the
+defaults hold at most `2 × 20 MB × 2 = 80 MB`, within a 128 MB Worker. Lower
+`maxBytes` or `maxConcurrent` where an `inspect` copies the bytes. The slots
+belong to the server (a Worker isolate), built once with the layer.
+
+From a browser, `uploadFile(file, { url?, headers? })` (`foldkit-media/browser`)
+sends the file as the route expects, and is a `Stream` like `upload`:
+`Progressed` as the bytes go, then `FileUploaded { asset }`. Its
+`UploadFailed` reasons add `TooSlow`, `RateLimited` and `Busy` to `upload`'s.
+In a Worker, `serveFetch`'s `files` hosts the route set. Not done here:
+resumable uploads, range requests, quotas beyond `Admission`, and removing the
+bytes of files nobody claimed (`claimWithin` stops their use; reclaiming the
+space is a sweep left to the application).
 
 ### Written out at build
 
