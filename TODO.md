@@ -222,26 +222,22 @@ questions, the decisions it must make and its done-when.
   packages, Phase 12's registry, and the mixins-ui adapter list. The rest are
   open or partial as written.
 
-### 2. #251: the last name strings
+### 2. #251: the last name strings: done 2026-11-09
 
-- **Research:**
-  - every API that takes a member name as a string (`GuardServer.writer`'s
-    `revision`, `applyEdits`, `Derived.make`'s `{ relation }`, and any others);
-  - how `revisionTrigger` knows the revision column today;
-  - whether `Entity` already carries field-role metadata a revision could use.
-- **Decide:**
-  - whether the revision is declared on the Entity (`Entity.revision(field)`)
-    or derived from the trigger;
-  - how a string stays a deprecated overload for one release without
-    weakening inference;
-  - the form of the name-string check: a script beside `tags:check`, with
-    what it flags and how a deliberate string is marked.
-- **Considerations:** a published API change in entity, guard, remote-server
-  and remote-drizzle, so it needs a design note and the independent review.
-  Grep internal callers after making a constructor stricter.
-- **Done when** no public API takes a member name as a string except the
-  deprecated overloads, the check runs in CI and finds nothing on the branch,
-  and #251 is closed with links.
+`docs/design/251-name-strings-DESIGN.md` records the decisions:
+
+- The defect is a name nothing checks. Options typed by an Entity's or
+  binding's keys stay, and no reference objects are added beside them.
+- The revision stays a writer option. Declaring it on the Entity would turn
+  pinning on for writers that do not pin today.
+- No lint, because the strings in published types are mostly outputs. The
+  rule went into `AGENTS.md`'s design list instead.
+- The two free strings left, `applyEdits`' `revision` and `entity()`'s
+  `computed` relation, are now typed.
+
+The independent review found nothing blocking, and its advisories are fixed:
+a widely typed `relations` no longer refuses every count, and `applyEdits`
+keeps `P` as its first type parameter.
 
 ### 3. #259: the last exact rules
 

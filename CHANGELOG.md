@@ -107,6 +107,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Two remote-drizzle options that name a member are typed by it**
+  (`foldkit-remote-drizzle`, #251). `applyEdits`' `revision` takes a field of
+  the binding, and `entity()`'s `computed: { x: { relation } }` takes one of
+  its `many` or `manyToMany` relations. Each was a plain `string` checked only
+  when the binding was made; a misspelt or non-collection name is now a type
+  error too. Code that passed a valid name is unchanged.
 - **`AppStyle.make` builds its page sheet when it is first read** (`foldkit-mixins`).
   The text of every token took about 8 ms to build cold (1.6 ms warm, 91 kB,
   measured in Node) at module load, in every browser, though a page whose sheet

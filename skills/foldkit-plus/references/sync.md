@@ -288,7 +288,8 @@ const server = Effect.gen(function* () {
   (`TableAheadOfJournalError`), and `absorb`, which records what the table
   holds and compacts. Refuse an edit to a row the table lacks in the journal's
   `validate`. The registry example uses both. For a Drizzle table, `apply` is
-  `applyEdits(binding, { live? })` from `foldkit-remote-drizzle`: the member's
+  `applyEdits(binding, { revision?, live? })` from `foldkit-remote-drizzle`
+  (`revision` a field of the binding, `revision` by default): the member's
   column and the sequence as revision, never moving a row back, and told to a
   live hub when it wrote the row.
 - Durable does **not** speak the sync exchange; `foldkit-sync/journal` does

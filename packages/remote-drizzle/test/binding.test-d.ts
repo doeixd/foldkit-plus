@@ -2,7 +2,15 @@ import { pgTable, text, uuid } from 'drizzle-orm/pg-core'
 import { Schema } from 'effect'
 import { Remote, Selection, type EntityRef } from 'foldkit-remote'
 import type { SQL } from 'drizzle-orm'
-import { entity, keysetWhere, many, one, type OrderTerm } from '../src/index.js'
+import {
+  applyEdits,
+  entity,
+  keysetWhere,
+  many,
+  one,
+  type OrderTerm,
+  type RelationBinding,
+} from '../src/index.js'
 
 // A non-empty ordering always yields a predicate; an arbitrary one may not.
 declare const someTerms: readonly OrderTerm[]
@@ -87,3 +95,39 @@ type ProjectOwner = Schema.Schema.Type<(typeof ProjectBinding)['fields']['owner'
 const _owner: EntityRef<'User', any> | null = null as unknown as ProjectOwner
 // @ts-expect-error a nullable ref is not assignable to a plain ref
 const _ownerStrict: EntityRef<'User', any> = null as unknown as ProjectOwner
+
+// A computed count names a collection relation of the binding (#251).
+entity('Project', projects, {
+  relations: {
+    owner: one(UserBinding, { field: projects.ownerId, nullable: true }),
+    comments: many(CommentBinding, { foreignKey: comments.projectId, localKey: projects.id }),
+  },
+  // @ts-expect-error `owner` is a one relation, so there is nothing to count
+  computed: { ownerCount: { relation: 'owner' } },
+})
+entity('Project', projects, {
+  relations: {
+    comments: many(CommentBinding, { foreignKey: comments.projectId, localKey: projects.id }),
+  },
+  // @ts-expect-error no relation is named `coments`
+  computed: { commentCount: { relation: 'coments' } },
+})
+
+// A journal's revision is a field of the binding it applies to (#251).
+const revisioned = pgTable('revisioned', {
+  id: uuid('id').primaryKey(),
+  name: text('name').notNull(),
+  version: text('version').notNull(),
+})
+const Revisioned = entity('Revisioned', revisioned)
+applyEdits(Revisioned, { revision: 'version' })
+// @ts-expect-error no field is named `revison`
+applyEdits(Revisioned, { revision: 'revison' })
+
+// Relations typed only as a record say nothing, so any name passes here and
+// `entity()` checks it when the binding is made.
+declare const wide: Record<string, RelationBinding>
+entity('Project', projects, {
+  relations: wide,
+  computed: { commentCount: { relation: 'comments' } },
+})

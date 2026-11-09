@@ -1192,7 +1192,8 @@ const RemoteClientLive = Remote.clientLayer(RemoteServer.handlers(Server, 'user-
 ```
 
 Nullable foreign keys must say `one(User, { field, nullable: true })` (a NULL
-becomes a present null). `many(...)` + `computed: { count: { relation } }` exist.
+becomes a present null). `many(...)` + `computed: { count: { relation } }` exist; `relation` is typed
+by the binding's `many` and `manyToMany` keys.
 A mutation declared as a `Write` needs no handler (`writer`, below); write any
 other with `RemoteServer.mutation`. Page size default
 20, max 100; pagination semantics follow Postgres NULL ordering.

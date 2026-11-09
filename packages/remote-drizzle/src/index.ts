@@ -2520,10 +2520,11 @@ export const writer = <P = unknown>(
  * Here the revision is the journal's sequence. A table a journal writes this
  * way should not also take writes that `expect` a counter there.
  */
-export const applyEdits = <P = unknown>(
-  binding: AnyEntityBinding,
+export const applyEdits = <P = unknown, B extends AnyEntityBinding = AnyEntityBinding>(
+  binding: B,
   options: {
-    readonly revision?: string
+    /** The field holding the row's revision, `revision` when omitted; it must have a column. */
+    readonly revision?: keyof B['fields'] & string
     /**
      * A hub to tell of each edit applied, so a Remote reader following the row
      * live hears it once the journal applies it. An edit the row had already

@@ -1251,7 +1251,9 @@ const Post = entity('Post', posts, {
 })
 ```
 
-`commentCount` becomes a Remote number field. The Source runs a grouped
+`commentCount` becomes a Remote number field. Its `relation` names a `many` or
+`manyToMany` relation of the same binding; any other name is a type error, as
+well as a refusal when the binding is made. The Source runs a grouped
 `count(*)`, including the relation's static `where` and principal policy. The
 count is the total relation count, not the current page count.
 
@@ -1614,7 +1616,9 @@ changes in one operation, which the trigger would move past its sequence.
 A table a `foldkit-sync` journal writes (`editsJournal`) takes its `apply` from
 the binding: `applyEdits(Db.Product)` writes one committed cell edit to the
 member's column, and the sequence it committed at to `revision`, in one
-statement that never moves a row back, so recovery may run it again. The
+statement that never moves a row back, so recovery may run it again. A table
+whose revision field has another name gives it as `revision`, which is typed
+by the binding's fields. The
 column is the binding's, never one named by the change. Here the revision is
 the journal's sequence, so such a table should not also take writes that
 `expect` a counter.

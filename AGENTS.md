@@ -179,6 +179,9 @@ Slop is also code that looks finished and is wrong. Look for these too:
     moved and applied on release).
   - A positional parameter list that callers must count.
   - A cast that makes a type promise nothing enforces.
+  - An option naming a member (a field, relation, query or mutation) typed
+    `string`. Type it by the Entity's or binding's keys, or take the
+    reference; a name nothing checks fails at run time or silently (#251).
   - Markup a package draws outside a Slot. A stylist reaches only Slots, so a
     bare `span` leaves a data-attribute selector into the package as the only
     handle (the CMS slug's prefix did). A structural fact a stylist needs, such
