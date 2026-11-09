@@ -1,8 +1,8 @@
 # #493: a `file` recipe, over an upload route that takes any file
 
-Status: design, revised twice on 2026-11-09 after two rounds of independent
-security review: five blocking findings in the first, two in the second, all
-taken (see "What the reviews changed"). Not built.
+Status: design, settled 2026-11-09 after three rounds of independent security
+review: five blocking findings in the first, two in the second and one in the
+third, all taken (see "What the reviews changed"). Ready to build.
 
 ## The problem
 
@@ -60,7 +60,7 @@ The store keeps, under that key, the bytes and then a record:
 
 ```ts
 FileAsset = { key: string, name: string, type: string, size: number }
-FileRecord = { asset: FileAsset, owner: string, uploadedAt: number, row: Option<string> }
+FileRecord = { asset: FileAsset, owner: string, uploadedAt: number, claimed: boolean }
 ```
 
 Bytes are not shared between uploads, even identical ones. Sharing them
@@ -69,21 +69,24 @@ an uploader that someone else holds those exact bytes. That lets anyone test
 guesses of another person's document. Every upload writes its bytes, and
 deleting one file never touches another's.
 
-### 3. A key is claimed once, by its uploader, for one row
+### 3. A key is claimed once, by its uploader
 
 A form submits a `FileAsset`, and a client can write any `key` into it. So
 the application never stores the facts its client sent. Its mutation handler
-calls `FileStore.claim(key, { owner, row })`, which answers the server's
-`FileAsset` or fails with `FileUnclaimed`:
+calls `FileStore.claim(key, owner)`, which answers the server's `FileAsset`
+or fails with `FileUnclaimed`:
 
 - **An unclaimed key** is claimed only by its `owner`, within `claimWithin`
-  (default 24 hours) of its upload. The record is then bound to `row`, an
-  opaque string naming where the application keeps it (`Post:p1#attachment`),
-  for good.
-- **A claimed key** succeeds only for the same `row`, whoever saves it. A
-  teammate re-saving a row unchanged passes. Putting the key into any other
-  row fails, its uploader included.
-- **An unknown or expired key, or someone else's,** fails alike.
+  (default 24 hours) of its upload, and only once. The record is then
+  claimed for good.
+- **A claimed key, an unknown or expired one, or someone else's,** fails
+  alike.
+
+The handler calls `claim` only for a key its stored row did not already
+hold, comparing the submitted key with the row's current value, and only
+after the write itself is authorized. So a teammate re-saving a row unchanged
+never claims, and a refused write learns nothing from `claim`. A key moves
+between rows only by being uploaded again.
 
 `owner` is what `FileUploadPolicy.admit(request)` answers: the uploader's id.
 The policy is a service apart from `UploadPolicy` because it must say who is
@@ -97,18 +100,20 @@ other's upload. The id must also be stable and never reused. That is the
 application's promise, and the README will say so. A reused id could claim
 only the previous holder's unclaimed uploads, within `claimWithin`.
 
-### 4. Who may read a file is asked first
+### 4. Who may read a file is asked first, in two steps
 
-A download asks `FileReadPolicy.read(request, key)` before the store is read,
-typically by looking up the application's row holding the key. Then:
+`FileReadPolicy` has two parts, asked in order before the store is read:
 
-- a key that does not match `^[0-9a-f]{32}$` is refused before either is
-  asked, so no other part of the store can be named;
-- a policy that cannot tell who is asking answers `401`, which depends on the
-  request and not on the key, so the recipe can ask the reader to sign in
-  again;
-- an unreadable key and an unknown key get one answer, `404`, so a refusal
-  never says whether a file exists.
+- `resolve(request)` says who is asking: a principal, a visitor, or that it
+  cannot tell (`401`). It is never given the key, so a `401` depends on the
+  request alone, and the recipe can ask the reader to sign in again.
+- `read(asker, key)` says whether they may read that file, typically by
+  looking up the application's row holding the key. No is a `404`.
+
+Before either, a key that does not match `^[0-9a-f]{32}$` is refused, so no
+other part of the store can be named. An unreadable key and an unknown key
+get one answer, `404`, so a refusal never says whether a file exists; a
+visitor asking for a private file gets that `404` too, not a `401`.
 
 A policy that looks a row up may answer faster for a key without one. With a
 minted key, that tells someone only what holding the key already did.
@@ -178,10 +183,13 @@ anything is kept.
 - **Memory.** `bodyOf` holds the chunks and then one whole copy, so an upload
   holds about twice `maxBytes`. At most `maxConcurrent` uploads (default 2)
   run at once, through a semaphore built with the layer (once per server, so
-  once per Worker isolate). One past it answers `503` at once and does not
-  queue, so slow uploads cannot hold every other upload waiting.
-- **Time.** Reading a body has a deadline, `bodyWithin` (default 60 seconds),
-  past which it answers `408`. A client trickling bytes cannot hold a slot.
+  once per Worker isolate), and at most one per `owner`. One past either
+  answers `503` at once and does not queue, so slow uploads cannot hold every
+  other upload waiting, and one uploader cannot take every slot.
+- **Time.** A body must keep a minimum rate, `minBytesPerSecond` (default
+  32 KB/s, measured over each 10 seconds), past which it answers `408`. A
+  client trickling bytes cannot hold a slot, while an honest slow connection
+  still finishes a large file, as a flat deadline would not let it.
 - **Rate.** The upload asks `Admission` when one is provided, as the variant
   server does. (The image upload route asks none today; that is a gap of its
   own, not fixed here.)
@@ -206,14 +214,15 @@ list decides.
 
 | Finding | First draft | Now |
 | --- | --- | --- |
-| B1: a client names another's file | the content hash as the key; facts from the client | a minted key, claimed once by its uploader for one row |
+| B1: a client names another's file | the content hash as the key; facts from the client | a minted key, claimed once, by its uploader |
 | B2: the download name from the URL | `?name=` | the record's name; the parameter is ignored |
 | B3: shared headers leak a private file | unspecified | headers of its own on every answer: CORP `same-origin`, no ACAO or TAO, `no-store` |
 | B4: a 404 confirms a file exists | order unspecified | the policy first; unknown and unreadable answered alike |
 | B5: the keyspace was shared | any `:key` | the key's grammar checked first; a store apart from `Originals` |
-| N1: `claim` repeatable, unbound, trusting | (second draft) claim by owner, any number of times | once, for one row; the same row after; an empty owner refused; unclaimed keys expire |
+| N1: `claim` repeatable, unbound, trusting | (second draft) claim by owner, any number of times | once, by the uploader; an empty owner refused; unclaimed keys expire |
+| R1: the row string as a capability | (third draft) a claimed key passes again for the same row | no second claim at all; the handler claims only a key its row did not hold, after authorizing the write |
 | N2: shared bytes leak by timing | (second draft) bytes deduplicated by hash | none shared: every upload writes its own |
-| N3 and A2: memory and waiting | unbounded | `maxConcurrent` answering 503 when full; `bodyWithin` |
+| N3 and A2: memory and waiting | unbounded | `maxConcurrent` and one per owner, answering 503 when full; a minimum rate |
 | A1: the rate-limit claim | "applies as to the image routes" (false) | `Admission` asked when given; the image route's gap named |
 | A3: "refuses until configured" | true only for guard | mounting `FileApi` is the opt-in; `UploadRoute` unchanged |
 | A5: names and types | control characters only; prefix-matched type | categories Cc, Cf, Zl and Zp refused; MIME grammar, any case; a strict fallback |
@@ -225,8 +234,10 @@ list decides.
 - **`multipart/form-data` uploads.** That type is CORS-safelisted.
 - **The content hash as the key**, and bytes shared by hash. One turns a leak
   into a read, the other turns an upload into a probe.
-- **A claim by owner alone.** A teammate could not re-save, so applications
-  would skip it.
+- **A claim that passes again for the row it was claimed for.** It let a
+  teammate re-save, but made the row's string a capability: a deleted row's
+  id recreated by a client claimed the old file. Comparing with the stored
+  row lets a teammate re-save without it.
 - **A default `accept` of everything.** "Any file" should be a choice written
   down.
 
@@ -246,8 +257,9 @@ list decides.
   - a safelisted request type (`text/plain`, `multipart/form-data`,
     `application/x-www-form-urlencoded`);
   - a body over `maxBytes`, stopped while streaming;
-  - a body slower than `bodyWithin`, cut off;
-  - an upload past `maxConcurrent`, answered 503 at once;
+  - a body slower than `minBytesPerSecond`, cut off;
+  - an upload past `maxConcurrent`, and a second in flight for one owner,
+    each answered 503 at once;
   - a declared type outside `accept`, including `text/html;x=image/png`, and
     one inside it in another case;
   - a name malformed in its encoding, over 255 bytes, empty, or holding a
@@ -257,13 +269,15 @@ list decides.
 - **Claims:**
   - a key claimed by another owner fails, as an unknown key does;
   - a key claimed after `claimWithin` fails;
-  - a second claim for the same row succeeds, whoever makes it;
-  - a claim of a claimed key for another row fails, its owner included;
-  - the facts `claim` answers are the server's, whatever a client sent.
+  - a second claim of a claimed key fails, its owner included;
+  - the facts `claim` answers are the server's, whatever a client sent;
+  - in the recipe's example handler, an unchanged re-save makes no claim, and
+    a refused write makes none.
 - **Downloads:**
   - the policy is asked before the store;
   - unknown and unreadable keys get the same `404`;
-  - a policy that cannot tell who asks answers `401`;
+  - a `resolve` that cannot tell who asks answers `401`, and a visitor asking
+    for a private key gets `404`;
   - a key outside the grammar, or `facts%2F…`, is refused before either is
     asked;
   - every header in section 5, on the answer and on each refusal, and none

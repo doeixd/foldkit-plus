@@ -260,8 +260,11 @@ gains the new clauses.
 - **#492, done 2026-11-09.** `more` and `AskedForMore` are typed by the form's
   relation picker keys. A form with none takes no `more`, which closed a
   fail-open on `{}`.
-- **#493, in design.** `docs/design/493-file-uploads-DESIGN.md` is under
-  independent review. Build only once no blocking finding is left open.
+- **#493, designed.** `docs/design/493-file-uploads-DESIGN.md` is settled
+  after three rounds of independent security review. The rounds raised
+  eight blocking findings, all taken, the last by its reviewer's own fix.
+  Build it to the note's "Checks the build must have", with an independent
+  review of the code.
 
 ### 5. Remote: per-field fetch time
 
