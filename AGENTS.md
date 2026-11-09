@@ -1934,6 +1934,11 @@ of its own named a form field "fits the Catalog". Read words with
   it `AriaRowcount`. Before calling something absent, search case-insensitively
   and read the builder list itself.
 
+- **A commit hash in a comment is read from `git log`, never written from
+  memory.** Two issue comments in one session named a commit that did not
+  exist (`7d0e`, `4f2…`), each corrected only on rereading. Run `git log -1
+  --format=%h` in the step before posting, and paste its output.
+
 - **Update the summary in the same change as the section.** Per-phase notes
   landed while `§0`'s findings table and `§13`'s status banner still described
   the old state — the banner said "3 onwards are not started" directly above

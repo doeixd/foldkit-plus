@@ -198,7 +198,7 @@ In the same change:
       run, because CI runs on `main` and pull requests only. It needs a PR,
       and CI watched to green.
 - [ ] **On merge, close what the branch fixed:** #400 (Menu and Menubar),
-      #431, #437, #467, #477, #484, #485, #487, #489.
+      #431, #437, #467, #477, #484, #485, #487, #489, #251.
 - [ ] **Upstream posts:**
   - the animation-settle issue (draft written; item 9 of the Order list in
     `docs/upstream-foldkit-ssr.md`);
