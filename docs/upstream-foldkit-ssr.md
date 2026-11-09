@@ -155,8 +155,9 @@ consequence, which is Foldkit's own feature. Build the pull request only once
 a maintainer agrees on a shape.
 
 **Afterwards, here.** `SSR.entry` takes `head` again and `SSR.generate`
-becomes one head writer beside the host's, instead of the only one. A plan
-with `meta` stops being refused at entry construction.
+becomes one head writer beside the host's, instead of the only one. Until
+then, `docs/design/ssr-dynamic-head-DESIGN.md` carries `meta` in the root and
+has the host move it with `SSR.headed`; that wrapper retires once this lands.
 
 ## Proposal 3: hydrate from a Model the server hands over
 

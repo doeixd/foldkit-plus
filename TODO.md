@@ -307,26 +307,34 @@ apps in a scaffolded project. Found on the way: #494 (the ref tree stops at a
 Its remaining children are #235 (host) and #236 (per-route caching), both
 designs of their own; a status comment asks whether to close it.
 
-### Then
+### Next, ranked 2026-11-09 (value to an app builder, over cost)
 
-Re-rank by value to someone building an app, divided by cost, and write the
-new order here before starting it. The sweep's candidates, from
-`docs/design/TODO.md`:
+Decided this round: #494 kept as a documented limit (types only; reopen on
+an adopter's need), #240 closed in favour of #235 and #236, DragAndDrop and
+Animation adapters parked (step 6).
 
-- **"High: demonstrate strict FormView submit policy" (partial).** The option
-  exists (`mixins-form`'s `canSubmit`), but no adopter passes it. The
-  Enter-and-click-during-a-check tests and the reducer-side guard are
-  missing.
-- **"High for production SSR: dynamic host-head integration" (open).**
-  `SSR.entry` still refuses head meta (`packages/ssr/src/index.ts`).
-- **"A size budget in CI for each example's entry chunk" (partial).** Only
-  domains-plus and server bundles have one; `scripts/bundle-report.mjs` can
-  measure the rest.
-- **"Remote: per-field fetch time" (open)**: step 5 above.
-- **"Mixins-UI: adapters still missing" (partial)**: DragAndDrop and
-  Animation adapters, and Fieldset and Disclosure recipes; step 6 above.
-- **The UI polish leftovers (partial)**: RTL browser tests in only 32 of 120
-  files, Switch thumb drag, the Calendar's RTL month buttons.
+1. **SSR: a page's head in dynamic serving.** High value: every dynamically
+   served page loses its description and link previews today. Medium cost,
+   designed: `docs/design/ssr-dynamic-head-DESIGN.md` (`meta` in the root,
+   `SSR.headed` moves it, `HeadNotMoved` if not). Build it, then an
+   independent review (it touches what a response carries).
+2. **#229: examples as apps.** Medium value, low cost: `fields` and
+   `foldkit/kanban` copied into the scaffold `published-setup.mjs` builds,
+   their imports rewritten to `foldkit-plus/…`, under its `typecheck` and
+   `lint`. Built in the script; run it locally before committing.
+3. **A size budget for each example's entry chunk** (backlog, partial). Low
+   cost with `scripts/bundle-report.mjs`; stops a regression like #490's.
+   Start with the examples a reader runs first: todo-app, kitchen-sink, chirp.
+4. **Strict FormView submit policy** (backlog, partial). `canSubmit` exists
+   and nothing adopts it; add Enter-and-click-during-a-check browser tests and
+   the reducer-side guard, then adopt it in `examples/fields`.
+5. **The UI polish leftovers.** RTL browser tests (32 of 120 files), the
+   Switch thumb drag, the Calendar's RTL month buttons. Ongoing; take one per
+   bout between larger items.
+
+Waiting on others, not ranked: the branch's PR (yours), Foldkit's upstream
+proposals (#413's parse cost, Proposal 2's head), #235 and #236 (designs of
+their own, to start only when chosen).
 
 ## Parked
 
