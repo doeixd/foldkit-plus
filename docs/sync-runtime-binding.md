@@ -33,6 +33,41 @@ only when the replica's state actually differs from the local one.
 
 ## What `Sync.mount` does
 
+<!-- docs-check standalone
+import { Effect, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { DocumentId, Sync } from 'foldkit-sync'
+
+const Model = Schema.Struct({
+  todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
+})
+type Model = typeof Model.Type
+const Message = defineMessageUnion({
+  CreatedTodo: { id: Schema.String, title: Schema.String },
+  UrlChanged: { url: Schema.Unknown },
+})
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { todos: [] },
+  update: model => ({ model }),
+})
+const TodoSync = Sync.forApplication(App).make({
+  documentId: DocumentId.make('todos'),
+  shared: Projection.pick(App.model.todos),
+  durable: MessageSet.make(App, [Message.CreatedTodo]),
+})
+declare const replica: Effect.Success<ReturnType<typeof TodoSync.openReplica>>
+declare const container: HTMLElement
+declare const view: any
+declare const subscriptions: any
+declare const resources: any
+declare const Filters: { reduce: (model: Model, url: any) => Model }
+declare const id: string
+declare const title: string
+declare const log: (message: unknown) => void
+-->
 ```ts
 const mounted = Sync.mount(App, TodoSync, {
   replica,
