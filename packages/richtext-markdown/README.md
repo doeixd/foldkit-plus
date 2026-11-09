@@ -73,7 +73,7 @@ as text; `parse` reads an item holding only `[ ]` or `[x]` back as that empty ta
 
 ## Parse Markdown
 
-```ts
+```ts standalone
 import { parse } from 'foldkit-richtext-markdown'
 
 let n = 0
@@ -104,6 +104,8 @@ returns — which spelling each construct took, first occurrence each, and never
 document — handed back to `print`:
 
 ```ts
+import { print } from 'foldkit-richtext-markdown'
+
 const parsed = parse('_hello_\n\n* item\n', { mint: () => `id-${++n}` })
 print(parsed.document, { style: parsed.style }).markdown // '_hello_\n\n* item\n'
 ```
@@ -161,6 +163,11 @@ rather than adding an item to that one.
 A source session lets a person edit the document as Markdown and switch back. It is a value,
 not a store: the application keeps it in its Model while source mode is on, and the rich
 document stands still meanwhile, so only one representation is ever being edited.
+
+<!-- docs-check
+import type * as RichText from 'foldkit-richtext'
+declare const model: { readonly document: RichText.Document }
+-->
 
 ```ts
 import { closeSource, openSource } from 'foldkit-richtext-markdown'
