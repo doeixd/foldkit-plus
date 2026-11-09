@@ -6,7 +6,36 @@ application already has: a [`foldkit-remote`](../remote/README.md) domain, the
 [`foldkit-form`](../form/README.md) form. It draws nothing and holds almost no
 state. A list is one query and what to show of each row:
 
+<!-- docs-check standalone
+import { Option, Schema } from 'effect'
+import { Entity, Relation } from 'foldkit-entity'
+import { Query, Remote } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+import { defineMessageUnion } from 'foldkit/message'
+
+const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String }))
+const Blog = Entity.relate({ Author, Post }, { Post: { author: Relation.one(Author) } })
+const AuthorsQuery = Query.make('Authors', {
+  Input: { search: Schema.String },
+  Result: Query.connection(Blog.Author),
+})
+const Model = Schema.Struct({ remote: Remote.Model, search: Schema.String })
+const App = Surface.application({
+  Model,
+  Message: defineMessageUnion({ ...Remote.messages }),
+})
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: Object.values(Blog),
+  queries: [AuthorsQuery],
+})
+declare const model: typeof Model.Type
+-->
+
 ```ts
+import { Crud } from 'foldkit-crud'
+
 const Authors = Crud.list('Authors', {
   query: AuthorsQuery,
   selection: Entity.select(Blog.Author, { id: true, name: true }),
@@ -91,6 +120,33 @@ pnpm add effect foldkit foldkit-crud foldkit-bundle foldkit-entity foldkit-form 
 A list is one query and one Selection: the query decides which rows, the
 Selection what to show of each.
 
+<!-- docs-check standalone
+import { Option, Schema } from 'effect'
+import { Entity, Relation } from 'foldkit-entity'
+import { Query, Remote } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+import { defineMessageUnion } from 'foldkit/message'
+import { Crud } from 'foldkit-crud'
+
+const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String }))
+const Blog = Entity.relate({ Author, Post }, { Post: { author: Relation.one(Author) } })
+const AuthorsQuery = Query.make('Authors', {
+  Input: { search: Schema.String },
+  Result: Query.connection(Blog.Author),
+})
+const Model = Schema.Struct({ remote: Remote.Model, search: Schema.NullOr(Schema.String) })
+const App = Surface.application({
+  Model,
+  Message: defineMessageUnion({ ...Remote.messages }),
+})
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: Object.values(Blog),
+  queries: [AuthorsQuery],
+})
+-->
+
 ```ts
 const Authors = Crud.list('Authors', {
   query: AuthorsQuery, // Query.make('Authors', { Input: { search }, Result: Query.connection(Blog.Author) })
@@ -147,7 +203,7 @@ that row as a choice once it is read. Relation pickers use both.
 Every placed piece has an `active`. `Crud.actives` gathers them from the pieces
 themselves, so a page cannot forget one:
 
-```ts
+```ts sketch
 Data.wiring(Crud.actives({ posts: Posts, authors: Authors, editor: PostEditor, pickers }))
 ```
 
@@ -162,6 +218,32 @@ share. `EditPostForm` is a `Form.make` result and `EditPostMutation` a Remote
 mutation over the same input struct, as in
 [`examples/entity`](../../examples/entity); `Blog` is that application's Entity
 domain.
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Entity, Relation } from 'foldkit-entity'
+import { Form, Input } from 'foldkit-form'
+import { Mutation } from 'foldkit-remote'
+
+const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String }))
+const Blog = Entity.relate({ Author, Post }, { Post: { author: Relation.one(Author) } })
+const EditPostInput = Schema.Struct({
+  id: Schema.String,
+  title: Schema.String,
+  authorId: Schema.String,
+})
+const EditPostMutation = Mutation.make('EditPost', {
+  Input: EditPostInput,
+  Output: { id: Schema.String },
+})
+const EditPostForm = Form.make(
+  'EditPost',
+  Entity.input(Blog.Post, EditPostInput, { authorId: Relation.input(Blog.Post.relations.author) }),
+  { inputs: { id: Input.hidden() } },
+)
+const Project = Entity.define('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
+-->
 
 ```ts
 import { Crud } from 'foldkit-crud'
@@ -284,7 +366,10 @@ const SaveProject = Mutation.make('SaveProject', {
 const SaveProjectForm = Form.make('SaveProject', SaveProjectInput, {
   inputs: { id: Input.hidden() },
 })
-const Editor = Crud.editor('ProjectEditor', { form: SaveProjectForm, mutation: SaveProject })
+const ProjectEditor = Crud.editor('ProjectEditor', {
+  form: SaveProjectForm,
+  mutation: SaveProject,
+})
 ```
 
 A declared write is one command (`Write.update` or `Write.insert`), so over
@@ -407,8 +492,11 @@ const DrawnEditor = Editor.bundle.pipe(
   Bundle.withView(Crud.editorView(FormView.submodel(EditPostForm, FormView.define(EditPostForm)))),
 )
 // Place it as before: Bundle.withChild('editor', DrawnEditor)
+```
 
-// where the page draws it:
+Where the page draws the placement of `DrawnEditor`:
+
+```ts sketch
 Placed.view(model, h, { options: pickers(model), words: { submit: 'Save' } })
 ```
 
@@ -423,13 +511,17 @@ a key mapped to a relation by the relation's lock, for the form view's
 `locked`:
 
 ```ts
-const Editor = Crud.editor('PostEditor', {
+import { May } from 'foldkit-guard'
+
+const LockedEditor = Crud.editor('PostEditor', {
   form: EditPostForm,
   mutation: EditPostMutation,
-  locks: May.locks(Post),
+  locks: May.locks(Blog.Post),
 })
-const PostEditor = Editor.at({ data: Data, model: App.model.editor })
+const LockedPostEditor = LockedEditor.at({ data: Data, model: App.model.editor })
+```
 
+```ts sketch
 Placed.view(model, h, { options: pickers(model), locked: PostEditor.locked(model) })
 ```
 
@@ -442,6 +534,74 @@ checks the save.
 
 A remover is a mutation with a yes in between. Like the editor it is a Bundle,
 because which id is being asked about is state.
+
+<!-- docs-check standalone
+import { Option, Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
+import { Crud } from 'foldkit-crud'
+import { Entity, Relation } from 'foldkit-entity'
+import { Form, Input } from 'foldkit-form'
+import { Mutation, Query, Remote, type RemoteClient } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+
+const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String }))
+const Blog = Entity.relate({ Author, Post }, { Post: { author: Relation.one(Author) } })
+const EditPostInput = Schema.Struct({
+  id: Schema.String,
+  title: Schema.String,
+  authorId: Schema.String,
+})
+const EditPostMutation = Mutation.make('EditPost', {
+  Input: EditPostInput,
+  Output: { id: Schema.String },
+})
+const DeletePostMutation = Mutation.make('DeletePost', {
+  Input: { id: Schema.String },
+  Output: { id: Schema.String },
+})
+const EditPostForm = Form.make(
+  'EditPost',
+  Entity.input(Blog.Post, EditPostInput, { authorId: Relation.input(Blog.Post.relations.author) }),
+  { inputs: { id: Input.hidden() } },
+)
+const AuthorsQuery = Query.make('Authors', {
+  Input: { search: Schema.String },
+  Result: Query.connection(Blog.Author),
+})
+
+const Editor = Crud.editor('PostEditor', { form: EditPostForm, mutation: EditPostMutation })
+const RemoverDef = Crud.remover('PostRemover', {
+  mutation: DeletePostMutation,
+  input: id => ({ id }),
+})
+const Base = Bundle.compose({ remote: Remote.Model }).pipe(
+  Bundle.withMessages(Remote.messages),
+  Bundle.withChild('editor', Editor.bundle),
+  Bundle.withChild('remover', RemoverDef.bundle),
+)
+const App = Surface.application(Base)
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: Object.values(Blog),
+  queries: [AuthorsQuery],
+  mutations: [EditPostMutation, DeletePostMutation],
+})
+const PostEditor = Editor.at({ data: Data, model: App.model.editor })
+const RemoverAt = RemoverDef.at({ data: Data, model: App.model.remover })
+const Page = Base.pipe(
+  Bundle.withServices<RemoteClient>(),
+  Bundle.configure('editor', PostEditor.placement),
+  Bundle.configure('remover', { onOut: RemoverAt.onOut }),
+)
+const Placed = Page.children.editor
+const { placements } = Page
+const Authors = Crud.list('Authors', {
+  query: AuthorsQuery,
+  selection: Entity.select(Blog.Author, { id: true, name: true }),
+  choice: { value: row => row.id, label: row => row.name },
+})
+-->
 
 ```ts
 const Remover = Crud.remover('PostRemover', {
@@ -509,6 +669,24 @@ cases itself works the same.
 One record through a Selection, for a page that shows it. Like a list it holds
 no state.
 
+<!-- docs-check standalone
+import { Option, Schema } from 'effect'
+import { Crud } from 'foldkit-crud'
+import { Entity } from 'foldkit-entity'
+import { Remote } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+import { defineMessageUnion } from 'foldkit/message'
+
+const Blog = {
+  Post: Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String })),
+}
+const PostPage = Entity.select(Blog.Post, { id: true, title: true })
+const Model = Schema.Struct({ remote: Remote.Model, shownPostId: Schema.NullOr(Schema.String) })
+const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
+const Data = Remote.make({ model: App.model.remote, entities: [Blog.Post] })
+declare const model: typeof Model.Type
+-->
+
 ```ts
 const PostDetail = Crud.detail('PostDetail', { selection: PostPage }).at({
   data: Data,
@@ -543,6 +721,26 @@ application asks again.
 
 A `Display` is `foldkit-form`'s `Input` from the reading side: how one selected
 member shows, described without a renderer.
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Display, type ListColumn } from 'foldkit-crud'
+import { Entity } from 'foldkit-entity'
+
+const Blog = {
+  Post: Entity.define(
+    'Post',
+    Schema.Struct({
+      id: Schema.String,
+      title: Schema.String,
+      cents: Schema.Number,
+      status: Schema.String,
+    }),
+  ),
+}
+declare const column: ListColumn
+declare const row: Readonly<Record<string, unknown>>
+-->
 
 ```ts
 const Post = Blog.Post.pipe(
@@ -579,7 +777,9 @@ const Badge = Display.kind<{ readonly tone: string }>('Badge', {
   text: (_, value) => String(value), // the floor: what it says when nothing draws it specially
 })
 
-const Post = Blog.Post.pipe(Entity.annotateMembers({ status: Display.of(Badge.of({ tone: 'soft' })) }))
+const Badged = Blog.Post.pipe(
+  Entity.annotateMembers({ status: Display.of(Badge.of({ tone: 'soft' })) }),
+)
 ```
 
 `Badge.is(display)` narrows `display.data`. A drawn view draws it specially
@@ -593,9 +793,84 @@ query you declared and your server authorizes. A list with a `choice` offers
 its loaded rows as choices, and `Crud.options` hands each picker of a form the
 list over its target:
 
+<!-- docs-check standalone
+import { Option, Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
+import { Crud } from 'foldkit-crud'
+import { Entity, Relation } from 'foldkit-entity'
+import { Form, Input } from 'foldkit-form'
+import { Mutation, Query, Remote, type RemoteClient } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+import type { HtmlBuilder } from 'foldkit/html'
+
+const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String }))
+const Blog = Entity.relate({ Author, Post }, { Post: { author: Relation.one(Author) } })
+const EditPostInput = Schema.Struct({
+  id: Schema.String,
+  title: Schema.String,
+  authorId: Schema.String,
+})
+const EditPostMutation = Mutation.make('EditPost', {
+  Input: EditPostInput,
+  Output: { id: Schema.String },
+})
+const DeletePostMutation = Mutation.make('DeletePost', {
+  Input: { id: Schema.String },
+  Output: { id: Schema.String },
+})
+const EditPostForm = Form.make(
+  'EditPost',
+  Entity.input(Blog.Post, EditPostInput, { authorId: Relation.input(Blog.Post.relations.author) }),
+  { inputs: { id: Input.hidden() } },
+)
+const AuthorsQuery = Query.make('Authors', {
+  Input: { search: Schema.String },
+  Result: Query.connection(Blog.Author),
+})
+
+const Editor = Crud.editor('PostEditor', { form: EditPostForm, mutation: EditPostMutation })
+const RemoverDef = Crud.remover('PostRemover', {
+  mutation: DeletePostMutation,
+  input: id => ({ id }),
+})
+const Base = Bundle.compose({ remote: Remote.Model }).pipe(
+  Bundle.withMessages(Remote.messages),
+  Bundle.withChild('editor', Editor.bundle),
+  Bundle.withChild('remover', RemoverDef.bundle),
+)
+const App = Surface.application(Base)
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: Object.values(Blog),
+  queries: [AuthorsQuery],
+  mutations: [EditPostMutation, DeletePostMutation],
+})
+const PostEditor = Editor.at({ data: Data, model: App.model.editor })
+const RemoverAt = RemoverDef.at({ data: Data, model: App.model.remover })
+const Page = Base.pipe(
+  Bundle.withServices<RemoteClient>(),
+  Bundle.configure('editor', PostEditor.placement),
+  Bundle.configure('remover', { onOut: RemoverAt.onOut }),
+)
+const Placed = Page.children.editor
+const { placements } = Page
+const Authors = Crud.list('Authors', {
+  query: AuthorsQuery,
+  selection: Entity.select(Blog.Author, { id: true, name: true }),
+  choice: { value: row => row.id, label: row => row.name },
+})
+const AuthorList = Authors.at({ data: Data, input: () => Option.some({ search: '' }) })
+const PostScreen = Crud.screen('Post', { id: Schema.String })
+declare const model: typeof Page.Model.Type
+declare const h: HtmlBuilder<typeof Page.Message.Type>
+-->
+
 ```ts
 const pickers = Crud.options(EditPostForm, [AuthorList])
+```
 
+```ts sketch
 Placed.view(model, h, { options: pickers(model) }) // with foldkit-mixins-form
 ```
 
@@ -609,6 +884,78 @@ hold only the rows loaded so far. A refresh that fails keeps the rows it had
 among the choices, as the list still shows them; the failure is in `page`.
 
 #### When a picker searches
+
+<!-- docs-check standalone
+import { Option, Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
+import { Crud } from 'foldkit-crud'
+import { Entity, Relation } from 'foldkit-entity'
+import { Form, Input } from 'foldkit-form'
+import { Mutation, Query, Remote, type RemoteClient } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+import type { HtmlBuilder } from 'foldkit/html'
+
+const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String }))
+const Blog = Entity.relate({ Author, Post }, { Post: { author: Relation.one(Author) } })
+const EditPostInput = Schema.Struct({
+  id: Schema.String,
+  title: Schema.String,
+  authorId: Schema.String,
+})
+const EditPostMutation = Mutation.make('EditPost', {
+  Input: EditPostInput,
+  Output: { id: Schema.String },
+})
+const DeletePostMutation = Mutation.make('DeletePost', {
+  Input: { id: Schema.String },
+  Output: { id: Schema.String },
+})
+const EditPostForm = Form.make(
+  'EditPost',
+  Entity.input(Blog.Post, EditPostInput, { authorId: Relation.input(Blog.Post.relations.author) }),
+  { inputs: { id: Input.hidden() } },
+)
+const AuthorsQuery = Query.make('Authors', {
+  Input: { search: Schema.String },
+  Result: Query.connection(Blog.Author),
+})
+
+const Editor = Crud.editor('PostEditor', { form: EditPostForm, mutation: EditPostMutation })
+const RemoverDef = Crud.remover('PostRemover', {
+  mutation: DeletePostMutation,
+  input: id => ({ id }),
+})
+const Base = Bundle.compose({ remote: Remote.Model }).pipe(
+  Bundle.withMessages(Remote.messages),
+  Bundle.withChild('editor', Editor.bundle),
+  Bundle.withChild('remover', RemoverDef.bundle),
+)
+const App = Surface.application(Base)
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: Object.values(Blog),
+  queries: [AuthorsQuery],
+  mutations: [EditPostMutation, DeletePostMutation],
+})
+const PostEditor = Editor.at({ data: Data, model: App.model.editor })
+const RemoverAt = RemoverDef.at({ data: Data, model: App.model.remover })
+const Page = Base.pipe(
+  Bundle.withServices<RemoteClient>(),
+  Bundle.configure('editor', PostEditor.placement),
+  Bundle.configure('remover', { onOut: RemoverAt.onOut }),
+)
+const Placed = Page.children.editor
+const { placements } = Page
+const Authors = Crud.list('Authors', {
+  query: AuthorsQuery,
+  selection: Entity.select(Blog.Author, { id: true, name: true }),
+  choice: { value: row => row.id, label: row => row.name },
+})
+const PostScreen = Crud.screen('Post', { id: Schema.String })
+declare const model: typeof Page.Model.Type
+declare const h: HtmlBuilder<typeof Page.Message.Type>
+-->
 
 ```ts
 const AuthorList = Authors.at({
@@ -638,8 +985,11 @@ draws a "Show more" button under each, which sends the form's
 page's, and `pickers.ask(model, key)` is the page with one more page of that
 list, for the read entry to fetch. `Crud.screen` answers it given the pickers:
 
-```ts
+```ts sketch
 Placed.view(model, h, { options: pickers(model), more: pickers.more(model) })
+```
+
+```ts
 PostScreen.update(
   { editor: PostEditor, editing: Placed, pickers },
   placements.update((model, message) =>
@@ -653,7 +1003,21 @@ PostScreen.update(
 How a list is sorted is your state and the query's input. `Sort` writes that
 state down once, so the Model, the header clicks and the server agree:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+import { Query } from 'foldkit-remote'
+import { defineMessageUnion } from 'foldkit/message'
+
+const Blog = {
+  Post: Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String })),
+}
+const Message = defineMessageUnion({ SortedPosts: { column: Schema.String } })
+-->
+
 ```ts
+import { Sort } from 'foldkit-crud'
+
 const PostSort = Sort.make(['title', 'created']) // the orders offered, by name
 
 const PostsQuery = Query.make('Posts', {
@@ -662,7 +1026,13 @@ const PostsQuery = Query.make('Posts', {
 })
 // Model: `postSort: PostSort.Schema`, starting at `PostSort.none`
 // update: `SortedPosts` toggles `postSort` by the column the Message carries
+```
 
+<!-- docs-check
+declare const model: { readonly postSort: typeof PostSort.Schema.Type }
+-->
+
+```ts
 PostSort.toggle(model.postSort, 'title') // asc, then desc, then the server's own order
 // A drawn table's `sort`: each header sends the column clicked, not the order it
 // leads to, so two clicks inside one frame toggle twice.
