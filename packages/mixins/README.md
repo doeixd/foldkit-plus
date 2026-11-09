@@ -379,6 +379,9 @@ throws where the theme is made. A theme is `pipe`able: `Theme.set` changes some 
 `Theme.describe` gives it a title and a description for a list of themes.
 
 ```ts
+import { Layers } from 'foldkit-mixins'
+import { Theme } from 'foldkit-mixins/theme'
+
 const cobalt = Theme.make({
   accent: { hue: 235, chroma: 0.225, lightness: 55 },
   surface: { saturation: 0, contrast: 24 },
@@ -440,6 +443,10 @@ not outgrow its height.
 Themes are installed by name, the names being a record's keys:
 
 ```ts
+import { Schema } from 'effect'
+import { AppStyle } from 'foldkit-mixins/app'
+import { Themes } from 'foldkit-mixins/theme'
+
 const themes = Themes.make({ cobalt, cobaltDense }, { initial: 'cobalt' })
 const { t, stylesheet } = AppStyle.make({ themes })
 const Model = Schema.Struct({ theme: themes.Name })
@@ -528,7 +535,7 @@ fade still plays.
 
 A theme reaches the page as pieces, and the page chooses the layers:
 
-```ts
+```ts standalone
 import { Layers, Slot, Slots, Capability, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 
@@ -617,6 +624,14 @@ variables with token fallbacks; the options only write those variables inline, s
 with ten gaps are one rule and ten inline declarations. The pieces are unlayered; put them in
 `layouts`:
 
+<!-- docs-check standalone
+import { Capability, Slot, Slots } from 'foldkit-mixins'
+const CardSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  actions: Slot.make({ capability: Capability.Container }),
+})
+-->
+
 ```ts
 import { Layers, Style } from 'foldkit-mixins'
 import { Layout } from 'foldkit-mixins/layout'
@@ -651,6 +666,11 @@ paragraph, list to paragraph, around figures) whose options are `--fk-prose-*` v
 element. Its measure and line height are a rule reading those variables, so a later layer can
 override them. Both are unlayered; the page places them:
 
+<!-- docs-check standalone
+import { Capability, Slot, Slots } from 'foldkit-mixins'
+const ArticleSlots = Slots.define({ body: Slot.make({ capability: Capability.Container }) })
+-->
+
 ```ts
 import { Layers, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
@@ -681,7 +701,7 @@ that case the contract, the style and the setup can each be written once:
 | fixing theme, `app` layer and page sheet for one application | `AppStyle.make` from `foldkit-mixins/app` |
 | writing a token-backed declaration in a word | `Utilities` from `foldkit-mixins/utilities` |
 
-```ts
+```ts standalone
 import { Event, Style, SlotView } from 'foldkit-mixins'
 import { AppStyle } from 'foldkit-mixins/app'
 import { Theme } from 'foldkit-mixins/theme'
@@ -757,6 +777,61 @@ state. Its attributes are built while resolving from the view's `input` and `h`,
 emit Messages from the view's own Message universe. Like an agent capability,
 a Behavior points one way — toward a Message — and never gets a Model setter.
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import type { MountAction } from 'foldkit/mount'
+import { expect } from 'vitest'
+import { Projection, Surface } from 'foldkit-surface'
+import { A11y, Attr, Behavior, Capability, Event, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
+const Message = defineMessageUnion({ ChangedValue: { value: Schema.String } })
+type Message = typeof Message.Type
+type FieldInput = { readonly value: string; readonly invalid: boolean }
+const Container = Slot.make({ capability: Capability.Container })
+const FieldSlots = Slots.define({
+  root: Container,
+  input: Slot.make({
+    capability: Capability.TextInput,
+    events: [Event.Input],
+    attributes: [Attr.AriaInvalid],
+  }),
+})
+const FieldStyle = Style.forSlots(FieldSlots)({
+  root: Style.compose(Style.class('field'), Style.inline({ display: 'grid' })),
+  input: Style.class('field-input'),
+})
+const Validation = Behavior.forSlots(FieldSlots)<FieldInput, Message>({
+  input: Behavior.slot({
+    requires: { capability: Capability.TextInput, attributes: [Attr.AriaInvalid] },
+    attributes: ({ input, h }) => [h.AriaInvalid(input.invalid)],
+  }),
+})
+declare const MeasureField: (value: string) => MountAction<Message, never>
+const ListSlots = Slots.define({ root: Container, list: Container, row: Container })
+const ToolbarSlots = Slots.define({ root: Container, tool: Container })
+const PanelSlots = Slots.define({ root: Container, title: Container, count: Container })
+const PageSlots = Slots.define({ header: Container })
+const DialogSlots = Slots.define({ trigger: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }), content: Container })
+const ListParts = SlotView.parts(ListSlots)<{ readonly rows: ReadonlyArray<string> }, Message>()
+const PageModel = Schema.Struct({
+  cart: Schema.Array(Schema.String),
+  page: Schema.Struct({ title: Schema.String }),
+})
+type PageModel = typeof PageModel.Type
+const App = Surface.application({ Model: PageModel, Message })
+const Counter = SlotView.forMessages<never>().define(
+  Slots.define({ root: Container, count: Container }),
+  (count: number, slots, h) => h.main(slots.root.attrs(), [h.p(slots.count.attrs(), [String(count)])]),
+)
+const stylesheet = Style.stylesheet()
+declare const slots: SlotView.SlotBuilders<typeof ListSlots, Message> &
+  SlotView.SlotBuilders<typeof PageSlots, Message>
+declare const h: HtmlBuilder<Message>
+declare const model: PageModel
+declare const items: ReadonlyArray<{ readonly id: string; readonly label: string }>
+-->
+
 ```ts
 const Focus = Behavior.forSlots(FieldSlots)<FieldInput, Message>({
   input: Behavior.slot({
@@ -793,7 +868,10 @@ array once, and a view and the Behaviors on it agree about identity, order, and 
 ```ts
 import { Behaviors } from 'foldkit-mixins'
 
-const items = Behaviors.Collection.of(input.tools, {
+type ToolbarInput = { readonly tools: ReadonlyArray<{ readonly id: string; readonly disabled: boolean }> }
+declare const toolbar: ToolbarInput
+
+const tools = Behaviors.Collection.of(toolbar.tools, {
   id: tool => tool.id,
   disabled: tool => tool.disabled,
 }) // ids, size, at, indexOf, isDisabled, enabled, slotItem
@@ -804,7 +882,7 @@ const Ids = Behaviors.Collection.behavior(ToolbarSlots)<ToolbarInput, Message>({
   posInSet: true,
 })
 
-// in the view: slots.tool.attrs([h.Key(tool.id)], items.slotItem(index))
+// in the view: slots.tool.attrs([h.Key(tool.id)], tools.slotItem(index))
 ```
 
 `of` is pure and refuses two items with one id (`mixins:duplicate-item-id`), since an id is what
@@ -1105,8 +1183,9 @@ development through the running server and in a build through one of its own. It
 compiles a module the application owns, through a server, as the page would
 compile it, so the build's foundations are the application's rather than a copy.
 
-```ts
+```ts standalone
 // vite.config.ts
+import { defineConfig } from 'vite'
 import { foundations } from 'foldkit-mixins/foundations'
 
 export default defineConfig({
@@ -1127,8 +1206,9 @@ parsed again by the server's checks of the page. `foldkit-mixins/vite` writes
 it once, as a hashed file in the browser build, and gives the server its
 address; the page links it:
 
-```ts
+```ts standalone
 // vite.config.ts
+import { defineConfig } from 'vite'
 import { styles } from 'foldkit-mixins/vite'
 
 export default defineConfig({
@@ -1136,7 +1216,7 @@ export default defineConfig({
 })
 ```
 
-```ts
+```ts sketch
 // the server entry: a link in the document's head, so the first paint waits for it
 import { href } from 'virtual:foldkit-styles'
 
