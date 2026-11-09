@@ -2,10 +2,11 @@
  * A Menu view with the consumer `toView` seam `@foldkit/ui/menu` lacks.
  * State, Messages, update, Commands, and Mounts stay upstream (imported
  * from `@foldkit/ui/menu`), but for `update` ending a press at its release
- * (`pressEnded`) and a leave only once it is drawn (`leaveDrawn`); only markup assembly is transcribed, from
- * `@foldkit/ui@0.165.0` (`packages/ui/src/menu/index.ts`, MIT (c) 2025
- * Devin Jameson) at tag `@foldkit/ui@0.165.0`, with the computed bundles
- * named (`MenuRenderInfo`) and handed to `toView`.
+ * (`pressEnded`) and ending a leave only once it is drawn (`leaveDrawn`);
+ * only markup assembly is transcribed, from `@foldkit/ui@0.165.0`
+ * (`packages/ui/src/menu/index.ts`, MIT (c) 2025 Devin Jameson) at tag
+ * `@foldkit/ui@0.165.0`, with the computed bundles named (`MenuRenderInfo`)
+ * and handed to `toView`.
  *
  * Menu's panel adapter (`Menu.toView`) is a `toView` for it, and the Menu
  * component and Menubar draw every Menu through it (see `./menu.ts`).
@@ -597,14 +598,14 @@ const leaveDrawn = <Out>(
 /** The forked `view` with upstream's `update` and helpers. */
 export const create = <Item extends string = string>(): MenuBundle<Item> => {
   const upstream = Menu.create<Item>()
-  const cast = (
+  const corrected = (
     result: ReturnWithOutMessage<Model, Message, Menu.OutMessage<Item>>,
   ): BundleUpdateReturn<Item> => leaveDrawn(result)
   return {
     view: internalView<Item>(),
-    update: (model, message) => cast(pressEnded(message, upstream.update(model, message))),
-    selectItem: (model, item, index) => cast(upstream.selectItem(model, item, index)),
-    open: model => cast(upstream.open(model)),
-    close: model => cast(upstream.close(model)),
+    update: (model, message) => corrected(pressEnded(message, upstream.update(model, message))),
+    selectItem: (model, item, index) => corrected(upstream.selectItem(model, item, index)),
+    open: model => corrected(upstream.open(model)),
+    close: model => corrected(upstream.close(model)),
   }
 }

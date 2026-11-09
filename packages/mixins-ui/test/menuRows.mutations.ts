@@ -129,8 +129,8 @@ export default [
     edits: [
       {
         file: view,
-        find: 'cast(pressEnded(message, upstream.update(model, message)))',
-        replace: 'cast(upstream.update(model, message))',
+        find: 'corrected(pressEnded(message, upstream.update(model, message)))',
+        replace: 'corrected(upstream.update(model, message))',
       },
     ],
     tests: browser,
