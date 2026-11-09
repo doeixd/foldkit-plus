@@ -75,6 +75,27 @@ On the server, the two packages are wired into one endpoint (from
 service and `AppAuthLive` its Layer, `http` the options given Yielded's
 `Http.make`, `Users` your user store, and `server` your `RemoteServer.make`:
 
+<!-- docs-check
+import { Auth, AuthContract, Password, Sessions } from '@yielded/auth'
+import { Context, Effect, Layer, Schema } from 'effect'
+import { RemoteServer } from 'foldkit-remote-server'
+const AppAuth = Auth.make(
+  AuthContract.make('docs/Auth', {
+    claims: Schema.Struct({}),
+    actions: sessions => ({ signIn: AuthContract.passwordSignIn(sessions) }),
+  }),
+  {
+    sessions: Sessions.stateful({ idleTimeout: '10 minutes', maxAge: '1 hour' }),
+    strategies: { password: Password.make() },
+    defaultStrategy: 'password',
+  },
+)
+declare const AppAuthLive: Layer.Layer<Context.Service.Identifier<typeof AppAuth>>
+const http = { origin: 'https://app.example' } as const
+declare const Users: { readonly find: (id: string) => Effect.Effect<User> }
+const server = RemoteServer.make<Option.Option<User>>({ entities: [] })
+-->
+
 ```ts
 import { Option } from 'effect'
 import { AuthServer } from 'foldkit-auth/server'
