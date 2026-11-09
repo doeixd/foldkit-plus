@@ -1,6 +1,8 @@
 import { Layer } from 'effect'
 import type { Inspector } from '../describe.js'
 import * as Variant from '../variant.js'
+import { fileLayer, type FileOptions, type FileReadPolicy, type FileUploadPolicy } from './files.js'
+import type { FileStore } from './fileStore.js'
 import { fetchOf, layer, type Options } from './handlers.js'
 import type { Originals, Transformer, Variants } from './services.js'
 import { uploadLayer, type UploadOptions, type UploadPolicy, type Uploads } from './upload.js'
@@ -18,6 +20,12 @@ export interface FetchOptions<Env> {
   readonly uploads?: UploadOptions & {
     readonly layer: (env: Env) => Layer.Layer<Uploads | Inspector | UploadPolicy, unknown>
   }
+  /** `POST /_media/files` and `GET /_media/files/:key`: any file, kept and served back as a download. */
+  readonly files?: FileOptions & {
+    readonly layer: (
+      env: Env,
+    ) => Layer.Layer<FileStore | FileUploadPolicy | FileReadPolicy, unknown>
+  }
   /** Every path outside `/_image/` and `/_media/`: the application's own routes. A 404 when omitted. */
   readonly otherwise?: (request: Request, env: Env) => Promise<Response>
 }
@@ -34,9 +42,9 @@ export interface FetchOptions<Env> {
 export const serveFetch = <Env extends object>(
   options: FetchOptions<Env>,
 ): ((request: Request, env: Env) => Promise<Response>) => {
-  const { images, uploads, otherwise } = options
-  if (images === undefined && uploads === undefined) {
-    throw new Error('serveFetch: give it `images`, `uploads`, or both')
+  const { images, uploads, files, otherwise } = options
+  if (images === undefined && uploads === undefined && files === undefined) {
+    throw new Error('serveFetch: give it `images`, `uploads`, `files`, or several')
   }
   // Merged, not provided: a `Diagnostics.Reporter` in a layer reaches what
   // runs around the routes too, the report of a defect answered 500. One
@@ -48,6 +56,9 @@ export const serveFetch = <Env extends object>(
       images === undefined
         ? Layer.empty
         : layer({ ...images, coalesce: false }).pipe(Layer.provideMerge(images.layer(env))),
+      files === undefined
+        ? Layer.empty
+        : fileLayer(files).pipe(Layer.provideMerge(files.layer(env))),
       uploads === undefined
         ? Layer.empty
         : uploadLayer(uploads).pipe(Layer.provideMerge(uploads.layer(env))),

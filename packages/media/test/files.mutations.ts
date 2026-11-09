@@ -11,6 +11,17 @@ const edit = (name: string, find: string, replace: string) => ({
 })
 
 export default [
+  {
+    name: 'serveFetch mounts no file route',
+    edits: [
+      {
+        file: '../src/server/fetch.ts',
+        find: ': fileLayer(files).pipe(Layer.provideMerge(files.layer(env))),',
+        replace: ': Layer.empty,',
+      },
+    ],
+    tests,
+  },
   edit(
     'anyone may upload',
     'const owner = yield* uploadPolicy.admit(request)',

@@ -26,8 +26,13 @@ import {
   originalsKeyValueStore,
   Originals,
   type FileOptions,
+  serveFetch,
+  Transformer,
+  variantsNone,
 } from 'foldkit-media/server'
 import { Diagnostics, type ReportDiagnostic } from 'foldkit-surface'
+
+const transformerNone = Layer.succeed(Transformer, { transform: () => Effect.die('unused') })
 
 const pdf = new TextEncoder().encode('%PDF-1.7 a small document')
 
@@ -405,6 +410,47 @@ describe('download', () => {
     expect(answer.headers.get('access-control-allow-origin')).toBe(null)
     expect(answer.headers.get('timing-allow-origin')).toBe(null)
     expect(answer.headers.get('cdn-cache-control')).toBe(null)
+  })
+})
+
+describe('serveFetch', () => {
+  const files = {
+    accept: '*' as const,
+    layer: () =>
+      Layer.mergeAll(
+        filesKeyValueStore(),
+        Layer.succeed(FileUploadPolicy, { admit: () => Effect.succeed('ada') }),
+        fileReadPolicy({ resolve: () => Effect.succeed('ada'), read: () => Effect.succeed(true) }),
+      ).pipe(Layer.provide(KeyValueStore.layerMemory), Layer.provide(SecureRandom.layerWebCrypto)),
+  }
+  const uploadOf = () =>
+    new Request('http://media.test/_media/files', {
+      method: 'POST',
+      body: pdf,
+      headers: {
+        'content-type': 'application/octet-stream',
+        'x-foldkit-file-name': 'a.pdf',
+        'x-foldkit-file-type': 'application/pdf',
+      },
+    })
+
+  it('keeps and serves a file given only the files', async () => {
+    const fetch = serveFetch<object>({ files })
+    // One environment: its services are built once, so the download reads the upload's store.
+    const env = {}
+    const { key } = await assetOf(await fetch(uploadOf(), env))
+    const downloaded = await fetch(new Request(`http://media.test/_media/files/${key}`), env)
+    expect(new Uint8Array(await downloaded.arrayBuffer())).toEqual(pdf)
+  })
+
+  it('answers no file route when not given the files', async () => {
+    const images = {
+      layer: () =>
+        Layer.mergeAll(originalsKeyValueStore(), variantsNone, transformerNone).pipe(
+          Layer.provide(KeyValueStore.layerMemory),
+        ),
+    }
+    expect((await serveFetch<object>({ images })(uploadOf(), {})).status).toBe(404)
   })
 })
 
