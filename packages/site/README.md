@@ -59,7 +59,7 @@ Peers: `effect`, `foldkit`. `foldkit-surface` is a dependency (for
 
 ## 60-second example
 
-<!-- docs-check standalone
+<!-- docs-check standalone define site-routes
 import { Effect, Option, Schema, pipe } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { UrlRequest } from 'foldkit/navigation'
@@ -155,62 +155,7 @@ exported value and use it for targets and hrefs. To annotate in steps, or to
 share an annotation bundle across nodes, build incrementally instead — the
 options are sugar over this builder:
 
-<!-- docs-check standalone
-import { Effect, Option, Schema, pipe } from 'effect'
-import { defineMessageUnion } from 'foldkit/message'
-import { UrlRequest } from 'foldkit/navigation'
-import {
-  defineRouteUnion,
-  int,
-  literal,
-  mapTo,
-  oneOf,
-  parseUrlWithFallback,
-  query,
-  root,
-  slash,
-} from 'foldkit/route'
-import { Url } from 'foldkit/url'
-import { Projection, Surface } from 'foldkit-surface'
-
-const AppRoute = defineRouteUnion({
-  Home: {},
-  People: { searchText: Schema.Option(Schema.String) },
-  Person: { personId: Schema.Number },
-  Nested: {},
-  NotFound: { path: Schema.String },
-})
-type AppRoute = typeof AppRoute.Type
-const homeRouter = pipe(root, mapTo(AppRoute.Home))
-const peopleRouter = pipe(
-  literal('people'),
-  query(Schema.Struct({ searchText: Schema.OptionFromOptional(Schema.String) })),
-  mapTo(AppRoute.People),
-)
-const personRouter = pipe(literal('people'), slash(int('personId')), mapTo(AppRoute.Person))
-const nestedRouter = pipe(literal('nested'), mapTo(AppRoute.Nested))
-const urlToAppRoute = parseUrlWithFallback(
-  oneOf(personRouter, peopleRouter, homeRouter, nestedRouter),
-  AppRoute.NotFound,
-)
-const Model = Schema.Struct({ route: AppRoute, bios: Schema.Record(Schema.String, Schema.String) })
-type Model = typeof Model.Type
-const Message = defineMessageUnion({
-  ClickedLink: { request: UrlRequest },
-  ChangedUrl: { url: Url },
-  CompletedNavigation: {},
-})
-type Message = typeof Message.Type
-const App = Surface.application({
-  Model,
-  Message,
-  initial: { route: AppRoute.Home(), bios: {} },
-  update: (model: Model) => ({ model }),
-})
-const PeoplePage = App.surface('PeoplePage', {
-  params: { searchText: Schema.Option(Schema.String) },
-  model: ({ model }) => Projection.struct({ route: model.route }),
-})
+<!-- docs-check standalone use site-routes
 import { Site } from 'foldkit-site'
 -->
 
@@ -312,62 +257,7 @@ root first, a deeper node's field replacing its ancestor's, the preview
 title falling back to the node's `title`, and `noindex` for an unindexed
 route whatever its `meta` says. It is an SSR plan's `meta` as it stands:
 
-<!-- docs-check standalone
-import { Effect, Option, Schema, pipe } from 'effect'
-import { defineMessageUnion } from 'foldkit/message'
-import { UrlRequest } from 'foldkit/navigation'
-import {
-  defineRouteUnion,
-  int,
-  literal,
-  mapTo,
-  oneOf,
-  parseUrlWithFallback,
-  query,
-  root,
-  slash,
-} from 'foldkit/route'
-import { Url } from 'foldkit/url'
-import { Projection, Surface } from 'foldkit-surface'
-
-const AppRoute = defineRouteUnion({
-  Home: {},
-  People: { searchText: Schema.Option(Schema.String) },
-  Person: { personId: Schema.Number },
-  Nested: {},
-  NotFound: { path: Schema.String },
-})
-type AppRoute = typeof AppRoute.Type
-const homeRouter = pipe(root, mapTo(AppRoute.Home))
-const peopleRouter = pipe(
-  literal('people'),
-  query(Schema.Struct({ searchText: Schema.OptionFromOptional(Schema.String) })),
-  mapTo(AppRoute.People),
-)
-const personRouter = pipe(literal('people'), slash(int('personId')), mapTo(AppRoute.Person))
-const nestedRouter = pipe(literal('nested'), mapTo(AppRoute.Nested))
-const urlToAppRoute = parseUrlWithFallback(
-  oneOf(personRouter, peopleRouter, homeRouter, nestedRouter),
-  AppRoute.NotFound,
-)
-const Model = Schema.Struct({ route: AppRoute, bios: Schema.Record(Schema.String, Schema.String) })
-type Model = typeof Model.Type
-const Message = defineMessageUnion({
-  ClickedLink: { request: UrlRequest },
-  ChangedUrl: { url: Url },
-  CompletedNavigation: {},
-})
-type Message = typeof Message.Type
-const App = Surface.application({
-  Model,
-  Message,
-  initial: { route: AppRoute.Home(), bios: {} },
-  update: (model: Model) => ({ model }),
-})
-const PeoplePage = App.surface('PeoplePage', {
-  params: { searchText: Schema.Option(Schema.String) },
-  model: ({ model }) => Projection.struct({ route: model.route }),
-})
+<!-- docs-check standalone use site-routes
 import { Site } from 'foldkit-site'
 import { SSR } from 'foldkit-ssr'
 const AppSite = Site.make(
@@ -420,62 +310,7 @@ of guessing.
 
 **Attached Surfaces.** A node may name the Surface its route activates:
 
-<!-- docs-check standalone
-import { Effect, Option, Schema, pipe } from 'effect'
-import { defineMessageUnion } from 'foldkit/message'
-import { UrlRequest } from 'foldkit/navigation'
-import {
-  defineRouteUnion,
-  int,
-  literal,
-  mapTo,
-  oneOf,
-  parseUrlWithFallback,
-  query,
-  root,
-  slash,
-} from 'foldkit/route'
-import { Url } from 'foldkit/url'
-import { Projection, Surface } from 'foldkit-surface'
-
-const AppRoute = defineRouteUnion({
-  Home: {},
-  People: { searchText: Schema.Option(Schema.String) },
-  Person: { personId: Schema.Number },
-  Nested: {},
-  NotFound: { path: Schema.String },
-})
-type AppRoute = typeof AppRoute.Type
-const homeRouter = pipe(root, mapTo(AppRoute.Home))
-const peopleRouter = pipe(
-  literal('people'),
-  query(Schema.Struct({ searchText: Schema.OptionFromOptional(Schema.String) })),
-  mapTo(AppRoute.People),
-)
-const personRouter = pipe(literal('people'), slash(int('personId')), mapTo(AppRoute.Person))
-const nestedRouter = pipe(literal('nested'), mapTo(AppRoute.Nested))
-const urlToAppRoute = parseUrlWithFallback(
-  oneOf(personRouter, peopleRouter, homeRouter, nestedRouter),
-  AppRoute.NotFound,
-)
-const Model = Schema.Struct({ route: AppRoute, bios: Schema.Record(Schema.String, Schema.String) })
-type Model = typeof Model.Type
-const Message = defineMessageUnion({
-  ClickedLink: { request: UrlRequest },
-  ChangedUrl: { url: Url },
-  CompletedNavigation: {},
-})
-type Message = typeof Message.Type
-const App = Surface.application({
-  Model,
-  Message,
-  initial: { route: AppRoute.Home(), bios: {} },
-  update: (model: Model) => ({ model }),
-})
-const PeoplePage = App.surface('PeoplePage', {
-  params: { searchText: Schema.Option(Schema.String) },
-  model: ({ model }) => Projection.struct({ route: model.route }),
-})
+<!-- docs-check standalone use site-routes
 import { Site } from 'foldkit-site'
 -->
 
@@ -561,7 +396,7 @@ needs it.
 what its route arrival tells it — so the fold and the drawing never restate
 the field, the wrapper, or the slot:
 
-<!-- docs-check standalone
+<!-- docs-check standalone define site-people
 import { Option, Schema, pipe } from 'effect'
 import { Submodel } from 'foldkit'
 import type { HtmlBuilder } from 'foldkit/html'
@@ -696,88 +531,7 @@ With service-needing pages, name the services on both calls:
 `Site.routing` is the application's link-click and URL-change lifecycle as
 one wiring, so `update` stops hand-writing those two branches:
 
-<!-- docs-check standalone
-import { Option, Schema, pipe } from 'effect'
-import { Submodel } from 'foldkit'
-import type { HtmlBuilder } from 'foldkit/html'
-import { defineMessageUnion } from 'foldkit/message'
-import { UrlRequest } from 'foldkit/navigation'
-import {
-  defineRouteUnion,
-  int,
-  literal,
-  mapTo,
-  oneOf,
-  parseUrlWithFallback,
-  query,
-  root,
-  slash,
-} from 'foldkit/route'
-import { modifyFields } from 'foldkit/struct'
-import { Url } from 'foldkit/url'
-import { Bundle, Link } from 'foldkit-bundle'
-import { Site } from 'foldkit-site'
-import { ModelRef, Surface } from 'foldkit-surface'
-
-const AppRoute = defineRouteUnion({
-  Home: {},
-  People: { searchText: Schema.Option(Schema.String) },
-  Person: { personId: Schema.Number },
-  NotFound: { path: Schema.String },
-})
-type AppRoute = typeof AppRoute.Type
-const homeRouter = pipe(root, mapTo(AppRoute.Home))
-const peopleRouter = pipe(
-  literal('people'),
-  query(Schema.Struct({ searchText: Schema.OptionFromOptional(Schema.String) })),
-  mapTo(AppRoute.People),
-)
-const personRouter = pipe(literal('people'), slash(int('personId')), mapTo(AppRoute.Person))
-const urlToAppRoute = parseUrlWithFallback(
-  oneOf(personRouter, peopleRouter, homeRouter),
-  AppRoute.NotFound,
-)
-const Home = Site.route(homeRouter, AppRoute.Home)
-const People = Site.route(peopleRouter, AppRoute.People)
-const Person = Site.route(personRouter, AppRoute.Person)
-const AppSite = Site.make(Home, Site.mount(People, [Person]))
-
-const PeopleModel = Schema.Struct({ searchInput: Schema.String, found: Schema.Array(Schema.String) })
-type PeopleModel = typeof PeopleModel.Type
-const PeopleMessage = defineMessageUnion({
-  ChangedRoute: { route: AppRoute.People },
-  Picked: { name: Schema.String },
-})
-type PeopleMessage = typeof PeopleMessage.Type
-const PeopleBundle = Bundle.make('People', {
-  Model: PeopleModel,
-  Message: PeopleMessage,
-  args: Schema.Struct({ searchText: Schema.Option(Schema.String) }),
-  init: ({ searchText }) => ({
-    model: { searchInput: Option.getOrElse(searchText, () => ''), found: [] },
-  }),
-  update: (model, message) =>
-    PeopleMessage.match(message, {
-      ChangedRoute: ({ route }) => ({
-        model: { searchInput: Option.getOrElse(route.searchText, () => ''), found: [] },
-      }),
-      Picked: ({ name }) => ({ model: { ...model, found: [...model.found, name] } }),
-    }),
-  view: Submodel.defineView<PeopleModel, PeopleMessage>((model, h: HtmlBuilder<PeopleMessage>) =>
-    h.p([], [model.searchInput]),
-  ),
-})
-const Model = Schema.Struct({ route: AppRoute, peoplePage: PeopleModel })
-type Model = typeof Model.Type
-const Message = defineMessageUnion({
-  ClickedLink: { request: UrlRequest },
-  ChangedUrl: { url: Url },
-  CompletedNavigation: {},
-  GotPeopleMessage: { message: PeopleMessage },
-})
-type Message = typeof Message.Type
-const App = Surface.application({ Model, Message })
-const updateOwn = (model: Model, _message: Message) => ({ model })
+<!-- docs-check standalone use site-people
 const PeoplePage = Site.placement(People, PeopleBundle, {
   link: Link.field<Model>()('peoplePage', Link.wrapper(Message.GotPeopleMessage)),
   args: parent => ({
