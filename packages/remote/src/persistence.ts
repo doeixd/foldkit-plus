@@ -39,7 +39,7 @@ import {
 } from './store.js'
 
 /** Bump when the serialized shape changes; a mismatch discards the cache. */
-export const REMOTE_CACHE_VERSION = 6
+export const REMOTE_CACHE_VERSION = 7
 
 /** How long a saved read lasts when nothing says otherwise: one day. */
 const ONE_DAY = 86_400_000
@@ -159,7 +159,7 @@ const snapshotOf = (
       return Option.some(held.receivedAt + age)
     })
     for (const key of reached) {
-      const fetched = model.entities[key]!.updatedAt + age
+      const fetched = model.entities[key]!.oldestAt + age
       const at = Option.match(listExpires, {
         onNone: () => fetched,
         onSome: list => Math.max(fetched, list),
@@ -199,7 +199,7 @@ const snapshotOf = (
   }
   for (const [key, entry] of Object.entries(model.entities)) {
     if (rooted.has(key) || rows.has(key)) continue
-    rows.set(key, entry.updatedAt + maxAge)
+    rows.set(key, entry.oldestAt + maxAge)
     unread.rows.add(key)
   }
   if (unread.rows.size > 0 || unread.lists.size > 0)
@@ -253,6 +253,7 @@ interface SerializedEntry {
   readonly unavailable: ReadonlyArray<string>
   readonly tombstone: boolean
   readonly updatedAt: number
+  readonly oldestAt: number
   readonly windows: Readonly<Record<string, string>>
   /** `null` for never: JSON has no `Infinity`. */
   readonly expiresAt: number | null
@@ -285,6 +286,7 @@ const serializeEntry = (entry: EntityEntry, expiresAt: number | null): Serialize
   unavailable: sorted(entry.unavailable),
   tombstone: entry.tombstone,
   updatedAt: entry.updatedAt,
+  oldestAt: entry.oldestAt,
   windows: entry.windows,
   expiresAt,
 })
@@ -344,6 +346,7 @@ const parseEntry = (value: unknown): EntityEntry => {
   if (!isStringArray(entry.unavailable)) throw new Error('entry.unavailable is not a string array')
   if (typeof entry.tombstone !== 'boolean') throw new Error('entry.tombstone is not a boolean')
   if (typeof entry.updatedAt !== 'number') throw new Error('entry.updatedAt is not a number')
+  if (typeof entry.oldestAt !== 'number') throw new Error('entry.oldestAt is not a number')
   if (!isStringRecord(entry.windows)) throw new Error('entry.windows is not a string record')
   return {
     values: entry.values as Readonly<Record<string, unknown>>,
@@ -352,6 +355,7 @@ const parseEntry = (value: unknown): EntityEntry => {
     unavailable: new Set(entry.unavailable),
     tombstone: entry.tombstone,
     updatedAt: entry.updatedAt,
+    oldestAt: entry.oldestAt,
     windows: entry.windows,
   }
 }

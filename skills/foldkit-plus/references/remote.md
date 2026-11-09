@@ -318,6 +318,7 @@ const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Projec
 // Remote only as a Message, and a Projection never reads the clock. The deadline is a dependency
 // (`expires`), so a write moves it. A list's age is its last whole page (`Connection.receivedAt`);
 // an aged list is asked for again whole and reads Refreshing with its rows meanwhile.
+// A row's age is its oldest field's (`oldestAt`): writing one field never makes the others fresh.
 // The read entry's RefreshStarted names only what it reads again though held (ReadDependencies'
 // `refreshes` and `refreshing`), never what is missing or already stale: an answer queued
 // before the mark would be made stale again, and two overlapping reads would loop (#399).

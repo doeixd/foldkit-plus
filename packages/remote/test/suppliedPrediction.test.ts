@@ -40,6 +40,7 @@ const store: EntityStore = {
     unavailable: new Set(),
     tombstone: false,
     updatedAt: 0,
+    oldestAt: 0,
     windows: {},
   },
 }

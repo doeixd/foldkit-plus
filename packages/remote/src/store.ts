@@ -29,8 +29,17 @@ export interface EntityEntry {
   readonly unavailable: ReadonlySet<string>
   /** The entity is known to be absent; a later write clears this. */
   readonly tombstone: boolean
-  /** Injected clock reading of the last write; never read from ambient state. */
+  /**
+   * Injected clock reading of the newest write; never read from ambient state.
+   * Order reads it: whether the row was read after a write.
+   */
   readonly updatedAt: number
+  /**
+   * No later than the oldest held field's write, which freshness reads. A
+   * write of every held field sets it; a write of some leaves it, so a row is
+   * read again early by at most the gap between its writes, never late.
+   */
+  readonly oldestAt: number
   /**
    * The canonical window each present field was fetched with (`""` for none).
    * A later request with a *known, different* window is planned as missing.
@@ -56,6 +65,7 @@ const emptyEntry: EntityEntry = {
   unavailable: new Set(),
   tombstone: false,
   updatedAt: 0,
+  oldestAt: 0,
   windows: {},
 }
 
@@ -89,6 +99,9 @@ const written = (
       for (const held of present)
         if (held.startsWith(`${field}${RELATION_ALIAS}`) && !(held in values)) stale.add(held)
   }
+  // Every held field written again (a whole-row read, as expiry plans, or a first
+  // write, a tombstone holding none) dates the row anew.
+  const whole = [...previous.present].every(field => Object.hasOwn(values, field))
   return {
     // Equal data keeps the object it was, so what is derived from it by
     // identity (a read's decoded row) survives a refetch that changed nothing.
@@ -104,6 +117,7 @@ const written = (
     unavailable,
     tombstone: false,
     updatedAt: now,
+    oldestAt: whole ? now : Math.min(previous.oldestAt, now),
     windows: nextWindows,
   }
 }
@@ -238,6 +252,7 @@ export const tombstone = (store: EntityStore, key: EntityKey): EntityStore =>
         unavailable: new Set(),
         tombstone: true,
         updatedAt: 0,
+        oldestAt: 0,
         windows: {},
       })
 

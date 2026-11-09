@@ -997,10 +997,11 @@ its README the details.
 - [x] **Remote: one policy per `Data.subscriptions` call.** Fixed: retention
   is the domain's, so each call's `retain` roots every call's reads.
 - [x] **Remote: the default clock and `any` dependencies.** Fixed.
-- [ ] **Remote: per-field fetch time.** The store keeps one `updatedAt` per
+- [x] **Remote: per-field fetch time.** The store keeps one `updatedAt` per
   entity and any write refreshes it, so under stale-while-revalidate an old
-  field looks fresh after another is written. Proposal: `writtenAt` per field,
-  aged by `plan`/`deadlineOf`, and `Data.fetchedAt(model, projection)`.
+  field looks fresh after another is written. Done 2026-11-09 with two dates,
+  not a `writtenAt` per field: an expired row is read whole, so the oldest
+  field's date is enough ([remote-field-freshness-DESIGN.md](./remote-field-freshness-DESIGN.md)).
   `foldkit-api-cache`
 - [x] **RemoteServer: a typed principal with an inferred `Input`.** Giving `P`
   explicitly stops TypeScript inferring the rest; a source that ignores the

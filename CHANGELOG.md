@@ -7,6 +7,19 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Fixed
+
+- **A row is as fresh as its oldest field** (`foldkit-remote`). A write of one
+  field (a mutation's answer, a live patch, a narrower read) dated the whole
+  row, so under `staleWhileRevalidate` its other fields stayed cached up to a
+  freshness period too long. Each entry now keeps `oldestAt` beside
+  `updatedAt`: `plan`, the deadline and persistence's keep-until read the
+  first, while order (a count's pending increment, #457, and `Data.meta`)
+  keeps the newest write. The persisted cache's version moves to 7, so a
+  saved cache from before is dropped and read again. `EntityEntry` gains the
+  required `oldestAt`, so an entry built by hand (a test fixture) must give
+  it.
+
 ### Added
 
 - **Any file uploaded and served back as a download** (`foldkit-media`,

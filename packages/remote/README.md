@@ -687,7 +687,9 @@ server said last time. To see change:
 
 A list's age is the page that last answered it whole: its first page, or the
 one that replaced it after it went stale. A later page from "load more" does
-not date it. See [Reading, policies, and prefetch](#reading-policies-and-prefetch).
+not date it. A row's age is its oldest field's: a mutation's answer or a
+narrower read that writes one field leaves the others as old as they were, so
+the row is read again, whole, when they are due. See [Reading, policies, and prefetch](#reading-policies-and-prefetch).
 
 ### Why did my change disappear?
 
@@ -3462,7 +3464,9 @@ Remote does **not** own:
 - Two applications with the same Model type are not distinguishable by TypeScript
   alone; `Data.subscriptions` also checks the Surface owner token at runtime.
 - `staleWhileRevalidate({ maxAge })` ages rows and lists alike; a list's age is
-  that of its last whole page; a later page or a live event does not date it.
+  that of its last whole page; a later page or a live event does not date it;
+  a row's is that of its oldest field, so a write of some fields can bring the
+  row's refetch forward, never put it off.
 - `RemoteData` is a closed union.
 - A Selection must choose at least one field; an empty Selection would require
   nothing and misleadingly read `Ready` for every id, so it is rejected.
