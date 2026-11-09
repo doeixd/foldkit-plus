@@ -79,6 +79,14 @@ version changed; `pnpm` skips versions already in the registry.
   no age, and one served past its `maxAge` would read as fresh. `memory`,
   `workers` and `kv` without `keep` are accepted by both.
 
+### Fixed
+
+- **`entity()` refuses a computed count over a `single` many relation**
+  (`foldkit-remote-drizzle`). Such a relation, the inverse side of a
+  one-to-one that `bind` makes, reads as one ref, and its doc said it cannot
+  be counted; `bind` already refused one, but `entity()` refused only a `one`
+  relation, so a hand-written binding could count it.
+
 ## 0.38.0
 
 Pages get cheaper to serve. Public reads and whole pages are kept at the edge

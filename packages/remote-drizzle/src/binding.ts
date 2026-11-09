@@ -318,7 +318,12 @@ export const entity = <
       )
     }
     const relation = relations[config.relation]
-    if (relation === undefined || relation.kind === 'one') {
+    // A `single` many reads as one ref, as `bind` makes the inverse of a one-to-one.
+    if (
+      relation === undefined ||
+      relation.kind === 'one' ||
+      (relation.kind === 'many' && relation.single === true)
+    ) {
       throw new Error(
         `[foldkit-remote-drizzle] computed field "${field}" on entity "${name}" needs a collection relation named "${config.relation}"`,
       )

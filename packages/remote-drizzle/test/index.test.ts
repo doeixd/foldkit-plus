@@ -6,6 +6,7 @@ import { Selection } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
 import {
   entity,
+  many,
   one,
   orderByTerms,
   reader,
@@ -203,6 +204,19 @@ describe('RemoteDrizzle', () => {
         computed: { ownerCount: { relation: 'owner' } },
       }),
     ).toThrow(/needs a collection relation/)
+
+    // The inverse of a one-to-one, as `bind` makes it: one ref, not a collection.
+    expect(() =>
+      entity('User', users, {
+        relations: {
+          project: {
+            ...many(ProjectBinding, { foreignKey: projects.ownerId, localKey: users.id }),
+            single: true,
+          },
+        },
+        computed: { projectCount: { relation: 'project' } },
+      }),
+    ).toThrow(/needs a collection relation named "project"/)
   })
 })
 
