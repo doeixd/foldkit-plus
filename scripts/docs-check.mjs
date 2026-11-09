@@ -14,6 +14,11 @@
  *    declare const model: Model
  *    -->               (an application's Model, its `h`), compiled in place.
  *                      `<!-- docs-check standalone` also starts a module.
+ * - <!-- docs-check define app   a hidden fixture compiled in place and named,
+ *                      so a later module can take it again without copying it:
+ *   <!-- docs-check standalone use app -->  starts a module with `app` (`use
+ *                      a b` takes several, in order). A use before its define
+ *                      is an error; an error in a used fixture names its line.
  *
  * Every block must parse. A document in `pending` below has blocks that do
  * not compile yet: its type errors are not failures, but once it compiles it
@@ -63,7 +68,7 @@ const documents = only.length === 0 ? tracked : tracked.filter(file => only.incl
 const isPending = document => only.length === 0 && pending.has(document)
 
 /** A document's TypeScript blocks and hidden fixtures, each with the line its code starts on. */
-const itemsOf = text => {
+const itemsOf = (text, document) => {
   const lines = text.split(/\r?\n/)
   const items = []
   for (let i = 0; i < lines.length; i++) {
@@ -71,13 +76,19 @@ const itemsOf = text => {
     if (fixture !== null) {
       const close = lines.findIndex((line, j) => j >= i && line.includes('-->'))
       const end = close === -1 ? lines.length - 1 : close
-      const standalone = /^\s*standalone\b/.test(fixture[1])
-      const code = [standalone ? '' : fixture[1], ...lines.slice(i + 1, end + 1)]
+      // `standalone`, then `define <name>` or `use <names>`; with none, the rest of the line is code.
+      const header = /^\s*(standalone\b)?\s*(?:(define|use)\s+([\w\s-]*?))?\s*(-->.*)?$/.exec(fixture[1])
+      const standalone = header?.[1] !== undefined
+      const marked = header !== null && (standalone || header[2] !== undefined)
+      const code = [marked ? '' : fixture[1], ...lines.slice(i + 1, end + 1)]
       code[code.length - 1] = code.at(-1).replace(/-->.*$/, '')
+      const names = marked && header[3] !== undefined ? header[3].split(/\s+/).filter(Boolean) : []
       items.push({
         line: i + 1,
         code: code.join('\n'),
         words: new Set(standalone ? ['standalone'] : []),
+        define: header?.[2] === 'define' ? names[0] : undefined,
+        uses: header?.[2] === 'use' ? names : [],
       })
       i = end
       continue
@@ -101,7 +112,28 @@ const itemsOf = text => {
       })
     i = end
   }
-  return items
+  // A use takes the fixtures it names again, at their own lines, before its own code.
+  const defined = new Map()
+  const expanded = []
+  for (const item of items) {
+    if (item.define !== undefined) {
+      if (defined.has(item.define))
+        throw new Error(`${document}:${item.line}: "${item.define}" is defined twice`)
+      defined.set(item.define, item)
+    }
+    const used = (item.uses ?? []).map(name => {
+      const fixture = defined.get(name)
+      if (fixture === undefined)
+        throw new Error(`${document}:${item.line}: "${name}" is used before it is defined`)
+      return { ...fixture, words: new Set(), define: undefined }
+    })
+    if (used.length > 0 && item.words.has('standalone')) {
+      used[0].words.add('standalone')
+      item.words.delete('standalone')
+    }
+    expanded.push(...used, item)
+  }
+  return expanded
 }
 
 // Each workspace package's specifiers, to the source its `foldkit-plus:source`
@@ -161,7 +193,7 @@ const modules = []
 const foreign = new Set()
 let blockCount = 0
 for (const document of documents) {
-  const items = itemsOf(readFileSync(join(root, document), 'utf8')).filter(
+  const items = itemsOf(readFileSync(join(root, document), 'utf8'), document).filter(
     item => !item.words.has('sketch'),
   )
   const groups = []
@@ -300,9 +332,14 @@ for (const line of `${tsc.stdout}${tsc.stderr}`.split(/\r?\n/)) {
 // generator, in a block that is a generator's body), which pending excuses.
 const ofPending = diagnostics.filter(({ document }) => isPending(document))
 const unparsed = ofPending.length > 0 && ofPending.every(({ syntax }) => syntax)
-const failures = diagnostics.filter(
-  ({ document }) => document === undefined || !isPending(document) || unparsed,
-)
+// A fixture taken again by `use` reports its error once per module; say it once.
+const failures = [
+  ...new Map(
+    diagnostics
+      .filter(({ document }) => document === undefined || !isPending(document) || unparsed)
+      .map(diagnostic => [diagnostic.lines.join('\n'), diagnostic]),
+  ).values(),
+]
 const failing = new Set(diagnostics.map(({ document }) => document))
 const settled =
   unparsed || only.length > 0
