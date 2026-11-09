@@ -39,7 +39,7 @@ is attached with `h.OnKeyDownPreventDefault(handleInputKeyDown)` at
 already there and is dropped on the floor. Every modifier row is the same
 fix: take the second argument and branch on it before the plain-key match.
 
-```ts
+```ts sketch
 const handleInputKeyDown = (key: string, modifiers: KeyboardModifiers) =>
   Match.value(key).pipe(
     Match.when('ArrowDown', () => {
