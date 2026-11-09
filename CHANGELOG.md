@@ -27,6 +27,11 @@ version changed; `pnpm` skips versions already in the registry.
   `FileUploaded`. `UploadRefusal` gains `TooSlow`, `RateLimited` and `Busy`,
   so an exhaustive match on it needs the new cases. `MediaDiagnostic` gains
   `OwnerMissing`.
+- **`file({ id, accept?, maxBytes?, … })` in `foldkit-form-recipes/file`**
+  (#493): the image control's states (send, cancel, retry, wait on submit) for
+  any file, sent with `uploadFile` and holding the route's `FileAsset`; a file
+  past `maxBytes` is refused before it is sent. The image recipe now words the
+  `TooSlow`, `Busy` and `RateLimited` refusals too.
 - **`why` says why a list went stale** (`foldkit-remote`, #489). A new `Why`
   term, `Invalidated { list, because }`, sits beside a stale list's `List`
   term with the client's reason: the change a write's answer made that it

@@ -257,6 +257,37 @@ refused, is nothing entered.
 - **In `vite dev`,** a Model holding a `File` cannot be kept across a reload, so
   a send on its way is lost by one.
 
+### Any file: `foldkit-form-recipes/file`
+
+`file({ id, url?, accept?, maxBytes?, headers?, words?, styles? })` is the same
+control for any file: a PDF, a spreadsheet. It sends with `uploadFile` to
+`foldkit-media`'s file route (`/_media/files` by default), and its value is the
+`FileAsset` (`{ key, name, type, size }`) the route answers. The states, the
+wait on submit, Cancel, Try again and focus are the image control's.
+
+```ts
+import { file } from 'foldkit-form-recipes/file'
+import { FileAsset } from 'foldkit-media'
+
+const attachment = file({ id: 'attachment', accept: ['application/pdf'] })
+const Claim = Form.make('Claim', Form.input(Schema.Struct({ attachment: FileAsset })), {
+  inputs: { attachment: attachment.control },
+})
+```
+
+- **The value is the client's word.** A submitted `FileAsset` has passed
+  through the browser, so the mutation that saves it stores
+  `keepOrClaim(held, submitted, owner)` from `foldkit-media/server`, which
+  answers the route's own facts, once, to the uploader (see that README's
+  Files section). The form never claims anything.
+- **`accept` filters the picker only.** A dropped file of another type is sent,
+  and the route's own `accept` decides.
+- **`maxBytes`** (20 MB by default) refuses a larger file here, as `TooLarge`,
+  before its bytes go anywhere, and offers no Try again for it. Keep it at or
+  under the route's.
+- **When kept,** the control shows the name and size as a link to the download
+  (`${url}/${key}`), which the route's `FileReadPolicy` answers.
+
 ## Displays
 
 Each recipe's `display` is a `foldkit-crud` Display, for a list or a detail:

@@ -203,8 +203,8 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   an image uploaded where it is chosen), `EditorView`, `ConfirmView`, `Toolbar`
   and `Crud.screen`, `foldkit-media/browser`'s `upload`, a relation picker's
   `AskedForMore`, and `examples/fields`. Released in 0.34.0.
-- [ ] **A `file` recipe.** It waits for an upload route that takes any file;
-  `foldkit-media`'s route takes images. [#493](https://github.com/doeixd/foldkit-plus/issues/493)
+- [x] **A `file` recipe.** `foldkit-form-recipes/file`, over `foldkit-media`'s
+  file route (`fileLayer`). [#493](https://github.com/doeixd/foldkit-plus/issues/493)
 - [ ] **`busy` without `settled` as a type error.** `Input.bundle` refuses it
   when the control is made; a union of the two specs broke inference of `fill`.
   [#491](https://github.com/doeixd/foldkit-plus/issues/491)

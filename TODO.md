@@ -194,11 +194,12 @@ In the same change:
 
 ## Waiting on the maintainer
 
-- [ ] **The branch.** `ccr-dfcc253e-4x8hum` holds 44 commits CI has never
+- [ ] **The branch.** `ccr-dfcc253e-4x8hum` holds 66 commits CI has never
       run, because CI runs on `main` and pull requests only. It needs a PR,
       and CI watched to green.
 - [ ] **On merge, close what the branch fixed:** #400 (Menu and Menubar),
-      #431, #437, #467, #477, #484, #485, #487, #489, #251, #259, #491, #492.
+      #431, #437, #467, #477, #484, #485, #487, #489, #251, #259, #491, #492,
+      #493.
 - [ ] **Upstream posts:**
   - the animation-settle issue (draft written; item 9 of the Order list in
     `docs/upstream-foldkit-ssr.md`);
@@ -260,11 +261,12 @@ gains the new clauses.
 - **#492, done 2026-11-09.** `more` and `AskedForMore` are typed by the form's
   relation picker keys. A form with none takes no `more`, which closed a
   fail-open on `{}`.
-- **#493, designed.** `docs/design/493-file-uploads-DESIGN.md` is settled
-  after three rounds of independent security review. The rounds raised
-  eight blocking findings, all taken, the last by its reviewer's own fix.
-  Build it to the note's "Checks the build must have", with an independent
-  review of the code.
+- **#493, done 2026-11-09.** Built to the settled note: `fileLayer`,
+  `FileStore` with `claim` and `keepOrClaim`, `serveFetch`'s `files`,
+  `uploadFile`, and `foldkit-form-recipes/file`. An independent review of
+  the code found nothing blocking; its nine advisory findings were fixed
+  (8962978) or written into the README as limits (download memory, two
+  uploaders holding every slot).
 
 ### 5. Remote: per-field fetch time
 

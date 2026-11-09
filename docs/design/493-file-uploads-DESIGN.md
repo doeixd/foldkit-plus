@@ -2,7 +2,9 @@
 
 Status: design, settled 2026-11-09 after three rounds of independent security
 review: five blocking findings in the first, two in the second and one in the
-third, all taken (see "What the reviews changed"). Ready to build.
+third, all taken (see "What the reviews changed"). Built 2026-11-09; an
+independent review of the code found nothing blocking, and its advisory
+findings were fixed or stated as limits in the README.
 
 ## The problem
 
