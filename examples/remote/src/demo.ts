@@ -26,7 +26,6 @@ import {
   RemoteClient,
   RemoteData,
   RemotePolicy,
-  Selection,
   entityKey,
   writeEntity,
   type EntityStore,

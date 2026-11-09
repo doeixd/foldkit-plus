@@ -13,9 +13,14 @@
  *    no ERESOLVE, even as a warning, and leave one `effect` and one `foldkit`,
  *    with nothing of Effect's, Foldkit's or ours that `npm ls` calls invalid.
  *    With pnpm, the pins and the install line, as in 5.
- * 4. The scaffold's own `typecheck` and `lint` scripts, over what it drew and
- *    a module importing every entry point of `foldkit-plus`, so our types meet
- *    the scaffold's compiler options and its Effect.
+ * 4. The scaffold's own `lint` and `typecheck` scripts over what it drew and a
+ *    module importing every entry point of `foldkit-plus`, so our types meet
+ *    the scaffold's compiler options and its Effect; then `typecheck` again
+ *    with examples copied in as a reader copies them, their imports rewritten
+ *    to `foldkit-plus/…` as an app on the meta package writes them. The
+ *    examples are not linted: Foldkit's recommended rules hold an app to
+ *    upstream's module layout (a view beside its Message, child update
+ *    capabilities), which a demo harness driving an app breaks on purpose.
  * 5. With no options, pnpm's pins and install lines also run in a standalone
  *    project and a workspace member, over a stand-in manifest.
  *
@@ -153,7 +158,49 @@ const created = run(scaffold.replace('<name>', 'app'), empty)
 if (created.status !== 0) fail(`${scaffold} failed:\n${created.output}`)
 const app = join(empty, 'app')
 
-/** 4. The scaffold's own checks, over what it drew and every entry point of ours it now holds. */
+/**
+ * Examples a reader copies into an app (#229). Each needs only `foldkit-plus`
+ * and Effect: one that needs an optional adapter (`foldkit-mixins-ui` and
+ * `@foldkit/ui`) would fail every pair but the default, which alone installs
+ * the adapters.
+ */
+const EXAMPLES = ['fields', 'remote', 'tree', 'todo', 'drawer', 'mixins', 'form'].map(name => ({
+  dir: `examples/${name}/src`,
+  name,
+}))
+
+/** `foldkit-<pkg>[/sub]` as an app on the meta package imports it, or a failure naming the gap. */
+const metaImport = (plusExports, specifier) => {
+  const [name, ...rest] = specifier.split('/')
+  const subpath = ['.', name.slice('foldkit-'.length), ...rest].join('/')
+  if (!Object.hasOwn(plusExports, subpath))
+    fail(`an example imports ${specifier}, which foldkit-plus does not offer as ${subpath}`)
+  return `foldkit-plus${subpath.slice(1)}`
+}
+
+const copyExamples = plusExports => {
+  for (const example of EXAMPLES) {
+    const into = join(app, 'src', 'examples', example.name)
+    for (const entry of readdirSync(join(root, example.dir), {
+      recursive: true,
+      withFileTypes: true,
+    })) {
+      if (!entry.isFile() || !entry.name.endsWith('.ts')) continue
+      const from = join(entry.parentPath, entry.name)
+      const to = join(into, from.slice(join(root, example.dir).length))
+      mkdirSync(join(to, '..'), { recursive: true })
+      writeFileSync(
+        to,
+        readFileSync(from, 'utf8').replace(
+          /(from\s+['"])(foldkit-[a-z-]+(?:\/[a-z-]+)*)(['"])/g,
+          (_, open, specifier, close) => `${open}${metaImport(plusExports, specifier)}${close}`,
+        ),
+      )
+    }
+  }
+}
+
+/** 4. The scaffold's own checks, over what it drew, every entry point of ours, and the examples. */
 const checkScaffold = () => {
   const plus = JSON.parse(
     readFileSync(join(app, 'node_modules', 'foldkit-plus', 'package.json'), 'utf8'),
@@ -170,12 +217,15 @@ const checkScaffold = () => {
       )
       .join(''),
   )
-  for (const script of ['typecheck', 'lint']) {
+  const check = (script, over) => {
     const checked = run(`${manager} run ${script}`, app)
     if (checked.status !== 0)
       fail(`${manager} run ${script} fails in the scaffold:\n${checked.output}`)
-    console.log(`published-setup: ${manager} run ${script}, over ${entries.length} entry points`)
+    console.log(`published-setup: ${manager} run ${script}, over ${over}`)
   }
+  check('lint', `${entries.length} entry points`)
+  copyExamples(plus.exports)
+  check('typecheck', `${entries.length} entry points and ${EXAMPLES.length} examples`)
 }
 
 // 3. The guide's npm steps.

@@ -37,7 +37,6 @@ type ProjectedModel = {
   readonly selection: Option.Option<string>
 }
 type CardMessage = typeof Message.ArchiveProject.Type | typeof Message.SelectProject.Type
-type AppMessage = typeof Message.Type
 
 const App = Surface.application({ Model, Message })
 
