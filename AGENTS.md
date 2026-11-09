@@ -837,9 +837,10 @@ Foldkit's own behaviour that we work around is listed in
   no `data-closed` panel and the Menubar's fade was skipped on CI (#400); 300
   throttled runs never showed it. A frame race reproduces by putting a
   callback off when it runs (`real(() => real(run))` armed in the right
-  frame), not when it is asked, which only reshuffles the order. The Menu
-  bundle reads after `Render.afterCommit` (`leaveDrawn`); Listbox, Combobox and
-  Popover still race.
+  frame), not when it is asked, which only reshuffles the order. The Menu,
+  Listbox and Combobox bundles read after `Render.afterCommit` (`leaveDrawn`,
+  `test/frames.ts` reproduces it); Popover, whose `update` an application
+  calls itself, still races.
 - **Upstream's Menu clicks a row for you on a release after a press on the
   trigger.** It keeps the press's origin until the menu shuts, and a release
   on the rows over 200ms later and 5px away sends `ClickItem` as well as the
