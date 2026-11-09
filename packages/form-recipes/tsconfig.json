@@ -13,6 +13,7 @@
       "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
       "foldkit-form": ["../form/src/index.ts"],
       "foldkit-form-recipes": ["./src/index.ts"],
+      "foldkit-form-recipes/file": ["./src/file.ts"],
       "foldkit-form-recipes/html": ["./src/html.ts"],
       "foldkit-form-recipes/image": ["./src/image.ts"],
       "foldkit-form-recipes/ui": ["./src/ui.ts"],

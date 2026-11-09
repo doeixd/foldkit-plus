@@ -26,6 +26,11 @@
   },
   "sideEffects": false,
   "exports": {
+    "./file": {
+      "foldkit-plus:source": "./src/file.ts",
+      "types": "./dist/file.d.mts",
+      "import": "./dist/file.mjs"
+    },
     "./html": {
       "foldkit-plus:source": "./src/html.ts",
       "types": "./dist/html.d.mts",
