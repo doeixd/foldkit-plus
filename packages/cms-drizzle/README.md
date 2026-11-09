@@ -236,6 +236,21 @@ published now is not promised for later. `CmsUnschedule` takes the promise back.
 
 Nothing else happens until you call `due`:
 
+<!-- docs-check
+import type { Effect } from 'effect'
+interface Principal {
+  readonly name: string
+}
+declare const cms: {
+  readonly due: (
+    at: Date,
+    options: { readonly as: (scheduledBy: string | null) => Principal },
+  ) => Effect.Effect<unknown>
+}
+declare const authors: { readonly byName: (name: string | null) => Principal }
+declare const run: <A>(effect: Effect.Effect<A>) => Promise<A>
+-->
+
 ```ts
 // A Cloudflare cron trigger, a setInterval, a queue consumer: the host's choice.
 export default {

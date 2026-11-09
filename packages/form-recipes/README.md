@@ -293,6 +293,9 @@ const Claim = Form.make('Claim', Form.input(Schema.Struct({ attachment: FileAsse
 Each recipe's `display` is a `foldkit-crud` Display, for a list or a detail:
 
 ```ts
+import { Display } from 'foldkit-crud'
+import { Entity } from 'foldkit-entity'
+
 Entity.annotateMembers({ due: Display.of(due.display) })
 ```
 

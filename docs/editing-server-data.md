@@ -73,6 +73,12 @@ up to 7.
 shows them through Remote; `foldkit-sync/journal` keeps the table. In the
 domain, shared by client and server:
 
+<!-- docs-check
+import { Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+const Product = Entity.define('Product', Schema.Struct({ id: Schema.String, cents: Schema.Number }))
+-->
+
 ```ts
 import { EditableEntity } from 'foldkit-sync/entity'
 

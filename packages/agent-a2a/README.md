@@ -49,6 +49,37 @@ result of binding that contract to your live host and verified principal.
 
 Generate the static Agent Card from the contract:
 
+<!-- docs-check
+import { Agent } from 'foldkit-agent'
+import { Option, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+const Message = defineMessageUnion({
+  RequestedCreateTodo: { title: Schema.String },
+  RequestedDeleteTodo: { id: Schema.String },
+})
+type Message = typeof Message.Type
+interface Model {
+  readonly selectedTodoId: Option.Option<string>
+}
+const AgentBuilder = Agent.forModel<Model>()
+const AssistantAgent = AgentBuilder.make({
+  messages: AgentBuilder.expose(Message, {
+    RequestedCreateTodo: 'Create a todo',
+    RequestedDeleteTodo: {
+      name: 'delete_todo',
+      description: 'Delete the selected todo',
+      available: model => Option.isSome(model.selectedTodoId),
+    },
+  }),
+})
+declare const currentModel: () => Model
+declare const sendToRuntime: (message: Message) => void
+const agentRuntime = AgentBuilder.bind({
+  definition: AssistantAgent,
+  host: { model: currentModel, dispatch: sendToRuntime },
+})
+-->
+
 ```ts
 import { AgentA2a } from 'foldkit-agent-a2a'
 
