@@ -84,15 +84,21 @@ export interface FormViewWords {
  * What the view needs that the form does not own: the choices of each relation
  * picker (a query the application makes), and the submit button's words.
  */
-export interface FormViewInputs<Key extends string = string, ControlKey extends string = never> {
+export interface FormViewInputs<
+  Key extends string = string,
+  ControlKey extends string = never,
+  PickerKey extends string = Key,
+> {
   readonly options?: { readonly [K in Key]?: ReadonlyArray<Option> } | undefined
   /**
    * The pickers whose list has more rows than `options` holds (`Crud.options`'
    * `more`): each draws a button that sends the form's `AskedForMore`, for the
    * page that owns the list to answer. Relation pickers of the form itself
-   * only, and none while locked.
+   * only, so another key is a type error, and none while locked.
    */
-  readonly more?: { readonly [K in Key]?: boolean } | undefined
+  readonly more?:
+    | ([PickerKey] extends [never] ? never : { readonly [K in PickerKey]?: boolean })
+    | undefined
   /**
    * The choices of a picker inside a nested key, by its path, the same for every
    * row: `'author.country'`.
@@ -220,7 +226,8 @@ export interface FormInput<
   Model,
   Key extends string = string,
   ControlKey extends string = never,
-> extends FormViewInputs<Key, ControlKey> {
+  PickerKey extends string = Key,
+> extends FormViewInputs<Key, ControlKey, PickerKey> {
   readonly model: Model
   readonly errors: ReadonlyArray<string>
   readonly canSubmit: boolean
@@ -314,7 +321,13 @@ export const FormSlots = Slots.define({
 })
 
 /** The parts of a `Form.make` result the view reads. */
-interface FormLike<Key extends string, Model, Message, ControlKey extends string = never> {
+interface FormLike<
+  Key extends string,
+  Model,
+  Message,
+  ControlKey extends string = never,
+  PickerKey extends string = never,
+> {
   /** Every key, nested ones too; `Key` is the keys that hold a draft. */
   readonly controls: ReadonlyArray<FormControl>
   readonly field: (model: Model, key: Key) => FieldValidation.Field<Draft>
@@ -337,7 +350,8 @@ interface FormLike<Key extends string, Model, Message, ControlKey extends string
     readonly Toggled: (payload: { readonly key: Key; readonly choice?: string }) => NoInfer<Message>
     readonly Submitted: () => NoInfer<Message>
     readonly FollowedIssue: (payload: { readonly id: string }) => NoInfer<Message>
-    readonly AskedForMore: (payload: { readonly key: Key }) => NoInfer<Message>
+    /** Only a relation picker asks, so its key is one of those: what `more` is keyed by. */
+    readonly AskedForMore: (payload: { readonly key: PickerKey }) => NoInfer<Message>
     readonly Control: (payload: {
       readonly key: never
       readonly message: unknown
@@ -826,8 +840,9 @@ export const FormView = {
     Model,
     Message extends { readonly _tag: string },
     ControlKey extends string = never,
+    PickerKey extends string = never,
   >(
-    form: FormLike<Key, Model, Message, ControlKey> & {
+    form: FormLike<Key, Model, Message, ControlKey, PickerKey> & {
       readonly bundle: { readonly name: string }
     },
     options: {
@@ -835,14 +850,14 @@ export const FormView = {
       /** Renderers by kind, for the field view this makes. With `field` given, give them to `FormView.field`. */
       readonly renderers?: Renderers<Message>
     } = {},
-  ): SlotView.SlotView<typeof FormSlots, FormInput<Model, Key, ControlKey>, Message> => {
+  ): SlotView.SlotView<typeof FormSlots, FormInput<Model, Key, ControlKey, PickerKey>, Message> => {
     const fieldView =
       options.field ??
       field(form, options.renderers === undefined ? {} : { renderers: options.renderers })
     type Make = (payload: object) => unknown
     return SlotView.forMessages<Message>().define(
       FormSlots,
-      (input: FormInput<Model, Key, ControlKey>, slots, h) => {
+      (input: FormInput<Model, Key, ControlKey, PickerKey>, slots, h) => {
         const options: Readonly<Record<string, ReadonlyArray<Option> | undefined>> = {
           ...input.nestedOptions,
           ...input.options,
@@ -923,7 +938,7 @@ export const FormView = {
                       !locked.has(key) &&
                       (Input.RelationOne.is(control.control) ||
                         Input.RelationMany.is(control.control))
-                        ? form.Message.AskedForMore({ key: key as Key })
+                        ? form.Message.AskedForMore({ key: key as PickerKey })
                         : undefined,
                     moreWord: input.words?.more,
                     send: {
@@ -1105,8 +1120,9 @@ export const FormView = {
     Model,
     FormMessage extends { readonly _tag: string },
     ControlKey extends string = never,
+    PickerKey extends string = never,
   >(
-    form: FormLike<Key, Model, FormMessage, ControlKey> & {
+    form: FormLike<Key, Model, FormMessage, ControlKey, PickerKey> & {
       readonly bundle: { readonly name: string }
     },
     options: {
@@ -1117,7 +1133,7 @@ export const FormView = {
   ): {
     readonly view: SlotView.SlotView<
       typeof FormSlots,
-      FormInput<Model, Key, ControlKey>,
+      FormInput<Model, Key, ControlKey, PickerKey>,
       FormMessage
     >
     readonly field: FieldsField<Key, Model, FormMessage>
@@ -1226,9 +1242,14 @@ export const FormView = {
     Model extends { readonly errors: ReadonlyArray<string>; readonly submitPending: boolean },
     Message extends { readonly _tag: string },
     ControlKey extends string = never,
+    PickerKey extends string = never,
   >(
-    form: FormLike<Key, Model, Message, ControlKey>,
-    view: SlotView.SlotView<typeof FormSlots, FormInput<Model, Key, ControlKey>, Message>,
+    form: FormLike<Key, Model, Message, ControlKey, PickerKey>,
+    view: SlotView.SlotView<
+      typeof FormSlots,
+      FormInput<Model, Key, ControlKey, PickerKey>,
+      Message
+    >,
     options: {
       /**
        * When the submit waits instead of staying disabled. `true` while a
@@ -1242,17 +1263,18 @@ export const FormView = {
        */
       readonly canSubmit?: (model: Model) => boolean
     } = {},
-  ): Submodel.View<Model, Message, FormViewInputs<Key, ControlKey>> =>
-    Submodel.defineView<Model, Message, FormViewInputs<Key, ControlKey>>((model, inputs, h) =>
-      view(
-        {
-          ...inputs,
-          model,
-          errors: model.errors,
-          canSubmit: (options.canSubmit ?? form.canSubmit)(model),
-          submitting: model.submitPending || inputs.submitting === true,
-        },
-        h,
-      ),
+  ): Submodel.View<Model, Message, FormViewInputs<Key, ControlKey, PickerKey>> =>
+    Submodel.defineView<Model, Message, FormViewInputs<Key, ControlKey, PickerKey>>(
+      (model, inputs, h) =>
+        view(
+          {
+            ...inputs,
+            model,
+            errors: model.errors,
+            canSubmit: (options.canSubmit ?? form.canSubmit)(model),
+            submitting: model.submitPending || inputs.submitting === true,
+          },
+          h,
+        ),
     ),
 }

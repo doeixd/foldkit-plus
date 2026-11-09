@@ -389,6 +389,18 @@ describe('Form update', () => {
   })
 })
 
+describe('asking a picker for more (#492)', () => {
+  it('names a relation picker of the form, and nothing else', () => {
+    const asks = Schema.is(Message)
+    expect(asks({ _tag: 'AskedForMore', key: 'authorId' })).toBe(true)
+    expect(asks({ _tag: 'AskedForMore', key: 'tagIds' })).toBe(true)
+    // A key with no picker, decoded from outside (devtools, a stored Message), is refused.
+    expect(asks({ _tag: 'AskedForMore', key: 'title' })).toBe(false)
+    // @ts-expect-error and made in code, it does not compile
+    Message.AskedForMore({ key: 'title' })
+  })
+})
+
 describe('Form messages', () => {
   const Rated = Schema.Struct({
     title: Schema.String.check(Schema.isMinLength(3, { message: 'Give it at least 3 letters' })),

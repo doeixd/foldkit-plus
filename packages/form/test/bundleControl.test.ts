@@ -444,6 +444,7 @@ describe('a busy control made without a settled', () => {
       Input.bundle('Tags', {
         bundle: TagEditor,
         value: model => (model.tags.length === 0 ? undefined : model.tags),
+        // @ts-expect-error `busy` with no `settled` (#491); a refused spec loses its value's type, so it is reported here
         fill: (model, tags) => ({ ...model, tags, typing: '' }),
         busy: model => model.typing !== '',
       }),

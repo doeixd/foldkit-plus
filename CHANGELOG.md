@@ -107,6 +107,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Two form mistakes are type errors** (`foldkit-form`, `foldkit-mixins-form`).
+  `Input.bundle` with `busy` and no `settled` no longer compiles (#491); it
+  threw when the module loaded, and still does for an untyped caller. The
+  error is reported at the call, on `fill`, since the refused spec loses its
+  value's type. `FormView`'s `more` takes only the form's relation picker keys,
+  and a form with none takes no `more` (#492); a key with no picker compiled
+  and drew nothing. The form's `AskedForMore` is typed by the same keys, and
+  its Message schema refuses any other.
 - **`isInt`, `isStartingWith`, `isEndingWith` and `isIncluding` compile to
   CHECKs** (`foldkit-remote-drizzle`, #259). They were listed in
   `checkConstraints(...).serverOnly`; now the database holds them too, under

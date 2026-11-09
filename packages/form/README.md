@@ -96,7 +96,8 @@ const RenameForm = Page.children.rename
   list, both to the draft as it stands when the Message lands, so a view sends
   them for a press: two presses before the next draw both count. `FollowedIssue({ id })`
   says a view's link to a field was followed, and `AskedForMore({ key })` that a
-  relation picker's reader wants more choices; the form changes nothing for
+  relation picker's reader wants more choices (its `key` is typed by the
+  form's relation keys); the form changes nothing for
   either, and the page that owns the list answers the second.
 - `Rename.controls` lists the keys in the input's order, each with its
   `control`, `label`, `description`, `required`, and the Entity `member`.
@@ -256,8 +257,9 @@ What the form does with it:
   without one the key is validated (a required key then says `Required`) and
   nothing is submitted. A control in a row holds the submit the same way. Give
   a busy control `settled` too, which says whether a stored value shown again
-  needs work: `Input.bundle` throws without it, since such a form would wait
-  for good.
+  needs work: `busy` without it is a type error (reported at the call), and
+  `Input.bundle` throws on it for an untyped caller, since such a form would
+  wait for good.
 - **Nothing entered** is `value` giving `undefined` or `null`, which a required
   key refuses as it would an empty text box.
 - **Types follow the control.** `model.fields.color.value` is the picker's

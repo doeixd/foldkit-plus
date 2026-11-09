@@ -30,6 +30,7 @@ import {
   type InputMembers,
   type MemoryOperators,
   type NestedInput,
+  type RelationInput,
   type SchemaWords,
 } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
@@ -78,6 +79,11 @@ export type DraftOf<Value> = [Exclude<Value, null | undefined>] extends [boolean
 /** The keys of an input that hold a nested input (`Relation.nested`): rows of a form, not a draft. */
 export type NestedKey<Members> = {
   [K in keyof Members]: Members[K] extends NestedInput<any, any> ? K : never
+}[keyof Members]
+
+/** The keys of an input that pick a related row (a relation, not nested): its pickers. */
+type RelationKey<Members> = {
+  [K in keyof Members]: Members[K] extends RelationInput<any> ? K : never
 }[keyof Members]
 
 /** The Model of the form a nested key's rows hold. */
@@ -875,6 +881,8 @@ const Core = {
     type RowsKey = Extract<AnyKey, NestedKey<Members>>
     type ControlKey = keyof ControlsOf<Inputs> & Key
     type DraftKey = Exclude<Key, ControlKey>
+    /** The keys a relation picker edits: what may ask for more choices. */
+    type PickerKey = Exclude<Extract<Key, RelationKey<Members>>, ControlKey>
     type Value = Schema.Struct.Type<Fields>
     type Model = FormModel<Fields, Members, ControlsOf<Inputs>>
 
@@ -984,6 +992,14 @@ const Core = {
         ? Schema.Never
         : Schema.Literals(controlKeys as unknown as readonly [ControlKey, ...ControlKey[]])
     ) as Schema.Literals<readonly [ControlKey, ...ControlKey[]]>
+    const pickerKeys = keys.filter(
+      key => members[key]!._tag === 'RelationInput' && plans[key].bundled === undefined,
+    ) as unknown as ReadonlyArray<PickerKey>
+    const PickerKeySchema = (
+      pickerKeys.length === 0
+        ? Schema.Never
+        : Schema.Literals(pickerKeys as unknown as readonly [PickerKey, ...PickerKey[]])
+    ) as Schema.Literals<readonly [PickerKey, ...PickerKey[]]>
     const Message = defineMessageUnion({
       Changed: { key: KeySchema, value: DraftSchema },
       /**
@@ -1066,7 +1082,7 @@ const Core = {
        * list is the page's, so the page answers (`Crud.screen` does, given
        * `Crud.options`); the form changes nothing.
        */
-      AskedForMore: { key: KeySchema },
+      AskedForMore: { key: PickerKeySchema },
     } satisfies Record<FormTag, Schema.Struct.Fields>)
     type Message = typeof Message.Type
     type Commands = ReadonlyArray<Command<Message, never, R>>

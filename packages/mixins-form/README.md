@@ -238,7 +238,8 @@ and naming the picker it controls with `aria-controls`. `words.search` in the
 view inputs replaces the word. The blank choice of a `select` has no words
 unless `words.none` gives it some ("none"). A picker of the form itself that
 the view inputs' `more` names (`more: { authorId: true }`, which
-`foldkit-crud`'s `Crud.options` gives as `pickers.more(model)`) gets a
+`foldkit-crud`'s `Crud.options` gives as `pickers.more(model)`; another key is
+a type error, and a form with no picker takes no `more`) gets a
 `button type="button"` under it, in the `more` slot, worded by `words.more`
 (default `Show more`) and naming the picker with `aria-controls`; a press sends
 the form's `AskedForMore({ key })`, for the page that owns the list to answer.
