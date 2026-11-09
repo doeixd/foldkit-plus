@@ -50,6 +50,43 @@ pnpm add effect foldkit foldkit-bundle foldkit-builder foldkit-composition foldk
 Given `PageBuilder`, a `Builder.make` result from the
 [Builder's example](../builder/README.md#sixty-seconds):
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Builder } from 'foldkit-builder'
+import { Block, Catalog, Content, Composition, Region } from 'foldkit-composition'
+import { Renderer } from 'foldkit-composition/foldkit'
+import { Entity } from 'foldkit-entity'
+const Section = Block.define('Section', {
+  Props: Schema.Struct({ tone: Schema.Literals(['plain', 'accent']) }),
+  regions: { body: Region.many({ accepts: [Content.Flow] }) },
+  provides: [Content.Section],
+})
+const Heading = Block.define('Heading', {
+  Props: Schema.Struct({ text: Schema.String }),
+  provides: [Content.Flow],
+})
+const Site = Catalog.make({ blocks: [Section, Heading], roots: [Content.Section] })
+const SiteRenderer = Renderer.make(Site, {
+  Section: ({ regions, h }) => h.section([], [...regions.body]),
+  Heading: ({ props, h }) => h.h2([], [props.text]),
+})
+const PageBuilder = Builder.make('PageBuilder', {
+  catalog: Site,
+  renderer: SiteRenderer,
+  starters: { Section: { tone: 'plain' }, Heading: { text: 'New heading' } },
+})
+const Page = Entity.define(
+  'Page',
+  Schema.Struct({ id: Schema.String, title: Schema.String, document: Composition.Document }),
+)
+const PageInput = Entity.input(
+  Page,
+  Schema.Struct({
+    title: Page.fields.title.schema,
+    document: Composition.Document.check(Composition.valid(Site)),
+  }),
+)
+-->
 ```ts
 import { Bundle } from 'foldkit-bundle'
 import { BuilderView } from 'foldkit-mixins-builder'
@@ -120,7 +157,7 @@ body". The Builder owns the words; this package draws the region.
 import { Style } from 'foldkit-mixins'
 import { BuilderSlots, BuilderView } from 'foldkit-mixins-builder'
 
-const PageEditing = BuilderView.define(PageBuilder).pipe(
+const Styled = BuilderView.define(PageBuilder).pipe(
   Style.attach(
     Style.forSlots(BuilderSlots)({
       root: Style.class('builder'),
@@ -161,7 +198,7 @@ attached to every Block's settings form:
 ```ts
 import { FieldSlots, FormSlots } from 'foldkit-mixins-form'
 
-const PageEditing = BuilderView.define(PageBuilder, {
+const Configured = BuilderView.define(PageBuilder, {
   settings: {
     field: Style.attach(Style.forSlots(FieldSlots)({ label: Style.class('setting-label') })),
     form: Style.attach(Style.forSlots(FormSlots)({ root: Style.class('settings') })),
@@ -239,7 +276,7 @@ reaches redraw on every change. It is still correct, just not cached.
 Where the editor is narrow, it can show one of its three panels at a time:
 
 ```ts
-const PageEditing = BuilderView.define(PageBuilder).pipe(
+const Narrow = BuilderView.define(PageBuilder).pipe(
   Style.attach(BuilderView.narrow('52rem')),
 )
 ```
@@ -285,6 +322,20 @@ application's, not the Builder's. The page's parent reads them, as it must to
 preview or publish the page, and gives them to the canvas as the Builder's view
 inputs; the Builder keeps no copy:
 
+<!-- docs-check
+import type { HtmlBuilder } from 'foldkit/html'
+import type { Message } from 'foldkit-builder'
+declare const model: object
+declare const h: HtmlBuilder<Message>
+declare const reads: { data: (model: object) => Parameters<typeof BuilderView.inputs>[0] extends infer I ? (I extends { data: infer D } ? D : never) : never }
+declare const EditorSlot: {
+  view: (
+    model: object,
+    h: HtmlBuilder<Message>,
+    inputs: { controls: { document: ReturnType<typeof BuilderView.inputs> } },
+  ) => unknown
+}
+-->
 ```ts
 EditorSlot.view(model, h, {
   controls: {
@@ -368,6 +419,10 @@ from is the application's rows, loaded by its own query as a form's picker
 options are; the page's parent gives them in the Builder's view inputs, keyed
 `'Block.prop'`:
 
+<!-- docs-check
+const Category = Entity.define('Category', Schema.Struct({ id: Schema.String, name: Schema.String }))
+declare const categories: ReadonlyArray<{ readonly id: string; readonly name: string }>
+-->
 ```ts
 const Featured = Block.define('Featured', {
   Props: Schema.Struct({ category: Schema.NullOr(Schema.String) }),
