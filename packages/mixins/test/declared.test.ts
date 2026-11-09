@@ -120,6 +120,24 @@ describe('AppStyle', () => {
     expect(app.stylesheet).toContain('color-scheme:light dark')
   })
 
+  it('builds the page sheet when it is first read, once, and not before', () => {
+    // A browser whose sheet is a file never reads it, and building it costs milliseconds.
+    let reads = 0
+    const global = new Proxy([Defaults.headings], {
+      get: (target, key, receiver) => {
+        if (key === Symbol.iterator) reads++
+        return Reflect.get(target, key, receiver)
+      },
+    })
+    const app = AppStyle.make({ theme, global })
+    expect(reads).toBe(0)
+    const sheet = app.stylesheet
+    expect(reads).toBe(1)
+    expect(app.stylesheet).toBe(sheet)
+    expect(reads).toBe(1)
+    expect(sheet).toBe(AppStyle.make({ theme, global: [Defaults.headings] }).stylesheet)
+  })
+
   it('adds global pieces to the defaults layer, after the body', () => {
     const app = AppStyle.make({ theme, global: [Defaults.headings] })
     const defaults = app.stylesheet.slice(app.stylesheet.indexOf('@layer defaults{'))

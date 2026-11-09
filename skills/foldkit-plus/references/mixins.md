@@ -205,7 +205,8 @@ Style.install(stylesheet) // browser entry only; returns the <style>
 
 A piece is a `StyleValue`, a declarations object (`Style.self`), or a list (`Style.compose`).
 `AppStyle`'s `slots`/`forSlots` compile in the `app` layer; its `stylesheet` is layer order,
-reset, tokens, palette and `Defaults.body` (`global` adds to `defaults`). Utilities take token
+reset, tokens, palette and `Defaults.body` (`global` adds to `defaults`), built when first read:
+with `foldkit-mixins/vite`, read it in a server-only module, never in the browser. Utilities take token
 names, so `U.p('4xl')` and `U.bg('surface.nope')` are type errors. `U.scrollFade(axis)` dissolves a
 scroller's content toward an edge with more to scroll (CSS only); `U.scrollDivider(axis)` on a
 positioned parent with `U.scrollTimeline(axis)` on the scroller draws a hairline at such an edge

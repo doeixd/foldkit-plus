@@ -20,6 +20,8 @@ const CEILING = 217_500
 test('the search page loads at most the budgeted brotli JavaScript', async () => {
   const report = await measure(resolve(import.meta.dirname, '..'))
   expect(report.total.chunks).toBeGreaterThan(0)
+  // The page sheet's text is the server's: the browser links the file it was written to.
+  expect(report.included).not.toContainEqual(expect.stringContaining('/src/server/sheet.ts'))
   record({
     kind: 'size',
     name: 'domains-plus client JS, brotli',

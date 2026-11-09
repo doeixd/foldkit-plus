@@ -9,7 +9,7 @@ import { Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { expect, test } from 'vitest'
 import { record } from '../../../../scripts/perf-report.mjs'
-import { stylesheet } from '../src/client/style.js'
+import { stylesheet } from '../src/server/sheet.js'
 
 // Brotli bytes. 10.6 kB measured on 2026-11-08 from a `vite build`, against
 // 15.2 kB before the prune; the ceiling is that plus about 1%.

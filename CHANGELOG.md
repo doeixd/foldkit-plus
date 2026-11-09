@@ -107,6 +107,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`AppStyle.make` builds its page sheet when it is first read** (`foldkit-mixins`).
+  The text of every token took about 8 ms to build cold (1.6 ms warm, 91 kB,
+  measured in Node) at module load, in every browser, though a page whose sheet
+  is a file (`foldkit-mixins/vite`) never reads it. It is now built on the first
+  read of `stylesheet` and kept. Destructuring `stylesheet` reads it, so such a
+  page reads it in a server-only module: domains-plus's is `src/server/sheet.ts`,
+  and its bundle test refuses that module in the browser.
 - **A placed child's view is drawn again only when its Model changes**
   (`foldkit-bundle`, #431). A placement's `view`, a collection's items, and a
   `Link.child` drawn

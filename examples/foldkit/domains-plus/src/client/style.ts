@@ -18,7 +18,12 @@ import { Theme } from 'foldkit-mixins/theme'
 
 export { geistLatinUrl }
 
-export const { t, slots, forSlots, stylesheet } = AppStyle.make({
+/**
+ * The tokens, the Slots and the page sheet. The browser reads only the first
+ * two: its sheet is the file `foldkit-mixins/vite` writes, and building the
+ * text costs milliseconds at startup, so it is read in `server/sheet.ts` alone.
+ */
+export const app = AppStyle.make({
   theme: Theme.make({
     type: { body: "'Geist Variable', Arial, Helvetica, sans-serif", heading: 'inherit' },
     accent: { chroma: 0 },
@@ -62,6 +67,7 @@ export const { t, slots, forSlots, stylesheet } = AppStyle.make({
     Style.global(`@keyframes domains-skeleton-pulse { from { opacity: 0.45 } to { opacity: 1 } }`),
   ],
 })
+export const { t, slots, forSlots } = app
 
 const d = t.domains
 

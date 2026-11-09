@@ -718,7 +718,9 @@ What each call does, and does not do:
 - `AppStyle.make` computes, once: `theme` is `Theme.compose(Theme.tokens, palette)`, `t` is
   `Theme.ref(theme)`, `L` is `Layers.standard`, and `stylesheet` is the text of the layer order,
   `Defaults.reset`, the tokens, the palette and `Defaults.body` (plus any `global` pieces, in the
-  `defaults` layer). It installs nothing and owns no state; a scheme or theme the user picks is
+  `defaults` layer). The text is built when `stylesheet` is first read, and kept: building it
+  costs milliseconds, so a browser whose sheet is a file should not read it (destructuring
+  `stylesheet` reads it). It installs nothing and owns no state; a scheme or theme the user picks is
   still a Model fact (see [Theme from a few knobs](#theme-from-a-few-knobs)).
 - `slots(pieces)` is `Style.slots(pieces, { layer: L.layer('app') })`, and `forSlots` is
   `Style.forSlots` with the same layer: the options take a `name`, never a layer. Both
@@ -1146,8 +1148,10 @@ const head = `<link rel="stylesheet" href="${href}" data-foldkit-styles-href>`
 sheet followed by `Style.complete(sheet)`'s addition: every class and global
 rule the process compiled that the sheet does not hold. The plugin bundles the
 sheet module (every module it imports is kept, since compiling a Style is a
-side effect), so import the application's styled modules from it. Declare the
-virtual module for TypeScript (`declare module 'virtual:foldkit-styles' { export const href: string }`).
+side effect), so import the application's styled modules from it. Keep the
+module out of the browser's: `examples/foldkit/domains-plus` reads the sheet
+in `src/server/sheet.ts` alone, so the page never builds the text it links.
+Declare the virtual module for TypeScript (`declare module 'virtual:foldkit-styles' { export const href: string }`).
 
 - **Build.** `assets/styles-<hash>.css` is written by the `client` build, named
   by its content; `href` carries Vite's `base`, which must be absolute. A

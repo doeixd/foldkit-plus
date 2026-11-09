@@ -17,7 +17,7 @@ import { Remote } from 'foldkit-remote'
 import { afterEach, expect, it, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { Model, init, subscriptions, update, type Message } from '../src/client/app.js'
-import { stylesheet } from '../src/client/style.js'
+import { stylesheet } from '../src/server/sheet.js'
 import { view } from '../src/client/view.js'
 import { serveRemote } from '../src/server/remote.js'
 

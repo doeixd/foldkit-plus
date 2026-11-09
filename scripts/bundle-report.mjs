@@ -416,6 +416,8 @@ export const reportFor = (client, exampleDir) => {
     total,
     rows,
     modules: modules.slice(0, 25),
+    /** Every module loaded at start, by name, however small: what a test asks is in it. */
+    included: modules.map(entry => entry.module),
     styleSystemBrotli: style,
   }
 }

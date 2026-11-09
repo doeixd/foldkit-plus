@@ -71,7 +71,11 @@ export interface AppStyle<Own extends ThemeTokens> {
   readonly forSlots: <Slots>(
     contract: Slots,
   ) => (pieces: StylePieces<Slots>, options?: AppStyleOptionsFor) => NamedStyle<Slots>
-  /** The page sheet: the layer order, reset, tokens, `Defaults.body` and `global`. */
+  /**
+   * The page sheet: the layer order, reset, tokens, `Defaults.body` and
+   * `global`. Built when first read and kept: a browser whose sheet comes from
+   * `foldkit-mixins/vite` never reads it, and building it costs milliseconds.
+   */
   readonly stylesheet: string
 }
 
@@ -96,6 +100,7 @@ export function make(
   const shipped = 'themes' in options ? options.themes.root : standardOf(options.theme)
   const theme = composeThemes(shipped, options.tokens ?? {})
   const scheme = options.colorScheme === undefined ? {} : { colorScheme: options.colorScheme }
+  let sheet: string | undefined
   return Object.freeze({
     theme,
     t: ref(theme),
@@ -106,13 +111,16 @@ export function make(
       <Slots>(contract: Slots) =>
       (pieces: StylePieces<Slots>, styleOptions?: AppStyleOptionsFor) =>
         forSlots(contract)(pieces, { ...styleOptions, layer: app }),
-    stylesheet: stylesheet(
-      standard.declare,
-      standard.in('reset', reset),
-      standard.in('theme', root(theme, scheme)),
-      ...('themes' in options ? [standard.in('theme', options.themes.scoped)] : []),
-      standard.in('defaults', compose(body, ...(options.global ?? []))),
-    ),
+    get stylesheet() {
+      sheet ??= stylesheet(
+        standard.declare,
+        standard.in('reset', reset),
+        standard.in('theme', root(theme, scheme)),
+        ...('themes' in options ? [standard.in('theme', options.themes.scoped)] : []),
+        standard.in('defaults', compose(body, ...(options.global ?? []))),
+      )
+      return sheet
+    },
   })
 }
 
