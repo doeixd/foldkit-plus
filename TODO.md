@@ -268,10 +268,30 @@ gains the new clauses.
 From the backlog section "Found by porting Foldkit's examples". (The typed
 principal there turned out not needed, and is ticked.)
 
-- **Per-field fetch time.** Under stale-while-revalidate, one `updatedAt` per
-  entity makes an old field look fresh. Research what `plan` and `deadlineOf`
-  read, and measure the Model's size cost before choosing a `writtenAt` per
-  field.
+Research so far (2026-11-09):
+
+- **The defect is narrower than the backlog says.** An expired row is read
+  again whole (`isExpired` in `packages/remote/src/plan.ts`). The fault is
+  only its expiry date: a write of one field moves the whole row's
+  `updatedAt`, so an untouched field stays "fresh" up to one freshness period
+  too long.
+- **`updatedAt` carries two meanings.**
+  - Freshness: `plan`, `deadlineOf` and persistence's `maxAge` read it.
+  - Order: `countedIn` (#457, in `model.ts`) reads it as "this row was read
+    no earlier than the write", to decide whether a count still takes a
+    pending increment. `metaOf` reports it as "the newest write shown".
+- **A cheaper fix fails.** Keeping the oldest date on a partial write ("a row
+  is as fresh as its oldest field") would break `countedIn`: a count re-read
+  after a write would look older than the write, and take the increment
+  twice.
+- **Decide in a design note:**
+  - a per-field `writtenAt`, which the backlog proposed (measure its cost in
+    the Model and in persisted entries first);
+  - or two dates per row: the oldest field's, for freshness, and the newest
+    write's, for order.
+
+  Every reader above must keep its meaning, with a test each, and #457's
+  tests must stay green.
 
 ### 6. mixins-ui: adapters still missing
 
