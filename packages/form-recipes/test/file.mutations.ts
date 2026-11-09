@@ -78,8 +78,8 @@ export default [
   ),
   one(
     'a file too large is sent',
-    'const sendable = (file: File): boolean => file.size <= maxBytes',
-    'const sendable = (file: File): boolean => true',
+    'const sendable = (maxBytes: number, file: File): boolean => file.size <= maxBytes',
+    'const sendable = (maxBytes: number, file: File): boolean => true',
     [unit],
   ),
   one(
@@ -92,7 +92,7 @@ export default [
   one('the default size is 20 MiB less a byte', '20 * 1024 * 1024', '20 * 1024 * 1024 - 1', [unit]),
   one(
     'a retry is offered for a file refused before it was sent',
-    "...(file.size <= maxBytes ? [button('retry'",
+    "...(sendable(maxBytes, file) ? [button('retry'",
     "...(true ? [button('retry'",
     [unit],
   ),

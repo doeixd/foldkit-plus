@@ -178,6 +178,10 @@ const sending = (
     () => model,
   )
 
+// A file past `maxBytes` would be refused again, so it is refused before its bytes go
+// anywhere, and no retry is offered for it.
+const sendable = (maxBytes: number, file: File): boolean => file.size <= maxBytes
+
 const update =
   (maxBytes: number) =>
   (
@@ -187,9 +191,6 @@ const update =
     readonly model: FileModel
     readonly commands?: ReadonlyArray<Command.Command<FileMessage>>
   } => {
-    // A file past `maxBytes` would be refused again, so it is refused here, before
-    // its bytes go anywhere, and a retry asks again.
-    const sendable = (file: File): boolean => file.size <= maxBytes
     return FileMessage.match(message, {
       GotDrop: ({ message }) => {
         const dropped = UiFileDrop.update(model.drop, message)
@@ -199,7 +200,7 @@ const update =
             onNone: () => next,
             onSome: UiFileDrop.OutMessage.match({
               ReceivedFiles: ({ files }) =>
-                sendable(files[0])
+                sendable(maxBytes, files[0])
                   ? send(next, files[0])
                   : modifyFields(next, {
                       upload: () =>
@@ -235,7 +236,7 @@ const update =
           model.upload,
           {
             Refused: ({ file }) =>
-              sendable(file)
+              sendable(maxBytes, file)
                 ? { model: send(model, file), commands: [focus(`#${model.drop.id}-cancel`)] }
                 : { model },
           },
@@ -357,9 +358,8 @@ const view = (options: FileOptions, words: FileWords, url: string, maxBytes: num
           ),
           button('cancel', FileMessage.Cancelled()),
         ],
-        // A file refused before it was sent would be refused again: no retry for it.
         Refused: ({ file }) => [
-          ...(file.size <= maxBytes ? [button('retry', FileMessage.Retried())] : []),
+          ...(sendable(maxBytes, file) ? [button('retry', FileMessage.Retried())] : []),
           button('remove', FileMessage.Removed()),
           drop,
         ],
