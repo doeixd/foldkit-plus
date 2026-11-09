@@ -198,7 +198,7 @@ In the same change:
       run, because CI runs on `main` and pull requests only. It needs a PR,
       and CI watched to green.
 - [ ] **On merge, close what the branch fixed:** #400 (Menu and Menubar),
-      #431, #437, #467, #477, #484, #485, #487, #489, #251, #259.
+      #431, #437, #467, #477, #484, #485, #487, #489, #251, #259, #491, #492.
 - [ ] **Upstream posts:**
   - the animation-settle issue (draft written; item 9 of the Order list in
     `docs/upstream-foldkit-ssr.md`);
@@ -255,20 +255,13 @@ gains the new clauses.
 
 ### 4. Schema to UI: the remaining three
 
-These are the child issues made in step 1.
-
-- **`busy` without `settled` as a type error.** Research why a union of the
-  two specs broke inference of `fill`, as recorded in the backlog; try a
-  discriminated spec or overloads. Done when a negative type test fails
-  without the change, and `fill` still infers.
-- **A picker's `more` typed by relation keys.** Restrict `FormView`'s `more`
-  to the keys whose control is a picker. Done when a key with no picker is a
-  type error, tested both ways.
-- **A `file` recipe.** It needs an upload route in `foldkit-media` that
-  accepts any file. That is a security-sensitive design (content type,
-  size bounds, storage keys, serving with `Content-Disposition` and no
-  sniffing), so it needs a design note and the independent review before any
-  code.
+- **#491, done 2026-11-09.** `busy` without `settled` is a type error, through
+  a constraint naming no other type, reported at the call.
+- **#492, done 2026-11-09.** `more` and `AskedForMore` are typed by the form's
+  relation picker keys. A form with none takes no `more`, which closed a
+  fail-open on `{}`.
+- **#493, in design.** `docs/design/493-file-uploads-DESIGN.md` is under
+  independent review. Build only once no blocking finding is left open.
 
 ### 5. Remote: per-field fetch time
 
