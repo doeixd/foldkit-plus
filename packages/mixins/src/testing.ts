@@ -10,6 +10,7 @@ import { Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { given, scene, tap } from 'foldkit/scene'
 import { usedIn } from './inject.js'
+import { prune } from './theme/prune.js'
 import { SLOT_MARK, drawMarked } from './slotMark.js'
 import type * as SlotView from './slotView.js'
 
@@ -255,6 +256,8 @@ export const Inert = {
   draw,
   css,
   missingTokens,
+  /** The sheet `styles({ prune })` ships: here, not on `Theme`, so a browser bundle reading `Theme` holds none of it. */
+  prune,
   bySlot,
   unslotted,
   fixedInline,

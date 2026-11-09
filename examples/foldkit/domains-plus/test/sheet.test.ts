@@ -6,7 +6,7 @@
  */
 import { brotliCompressSync } from 'node:zlib'
 import { Style } from 'foldkit-mixins'
-import { Theme } from 'foldkit-mixins/theme'
+import { Inert } from 'foldkit-mixins/testing'
 import { expect, test } from 'vitest'
 import { record } from '../../../../scripts/perf-report.mjs'
 import { stylesheet } from '../src/server/sheet.js'
@@ -16,7 +16,7 @@ import { stylesheet } from '../src/server/sheet.js'
 const CEILING = 10_700
 
 test('the pages link at most the budgeted brotli CSS', () => {
-  const shipped = Theme.prune(Style.complete(stylesheet))
+  const shipped = Inert.prune(Style.complete(stylesheet))
   const brotli = brotliCompressSync(shipped).length
   record({ kind: 'size', name: 'domains-plus CSS, brotli', value: brotli, budget: CEILING })
   expect(brotli).toBeLessThanOrEqual(CEILING)

@@ -1,5 +1,5 @@
 /**
- * `Theme.prune` and the plugin's `prune` option (#487), broken:
+ * `Inert.prune` and the plugin's `prune` option (#487), broken:
  * `pnpm mutate packages/mixins/test/prune.mutations.ts`.
  */
 const tests = ['packages/mixins/test/prune.test.ts', 'packages/mixins/test/viteStyles.test.ts']

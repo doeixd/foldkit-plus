@@ -26,7 +26,7 @@ export interface StylesOptions {
   /** A module id (as an import would write it) that exports the application's stylesheet text as `stylesheet`. */
   readonly sheet: string
   /**
-   * Ship only the `--fk-*` tokens the sheet reads (`Theme.prune`), and those
+   * Ship only the `--fk-*` tokens the sheet reads (`Inert.prune`), and those
    * `keep` names: a token a view reads inline (`Theme.ref`) or a script reads
    * by name. Run `Inert.missingTokens` over a drawn page and the pruned sheet
    * in a test, so a token pruning took from a view fails there.

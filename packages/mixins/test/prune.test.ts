@@ -1,5 +1,5 @@
 /**
- * `Theme.prune` (#487): a sheet without the tokens nothing reads.
+ * `Inert.prune` (#487): a sheet without the tokens nothing reads.
  */
 import { describe, expect, it } from 'vitest'
 import { Capability, Layers, Slot, Slots, Style } from '../src/index.js'
@@ -11,7 +11,7 @@ import { Theme } from '../src/theme.js'
 const sheetOf = (theme: Parameters<typeof Theme.root>[0]) =>
   Style.stylesheet(Layers.standard.declare, Layers.standard.in('theme', Theme.root(theme)))
 
-describe('Theme.prune', () => {
+describe('Inert.prune', () => {
   it.each([
     [
       'a token a rule reads',
@@ -60,24 +60,24 @@ describe('Theme.prune', () => {
       ':root{--fk-knob-motion:1;--fk-knob-travel:1;}',
     ],
   ])('keeps %s', (_, css, pruned) => {
-    expect(Theme.prune(css)).toBe(pruned)
+    expect(Inert.prune(css)).toBe(pruned)
   })
 
   it('keeps what `keep` names, by name or as `Theme.ref` writes it', () => {
     const css = ':root{--fk-a:1px;--fk-b:var(--fk-c);--fk-c:2px;--fk-d:3px}'
-    expect(Theme.prune(css, { keep: ['--fk-a', 'var(--fk-b)'] })).toBe(
+    expect(Inert.prune(css, { keep: ['--fk-a', 'var(--fk-b)'] })).toBe(
       ':root{--fk-a:1px;--fk-b:var(--fk-c);--fk-c:2px;}',
     )
   })
 
   it('refuses a `keep` entry that names no token', () => {
-    expect(() => Theme.prune('', { keep: ['surface.overt'] })).toThrow(/names no --fk- token/)
+    expect(() => Inert.prune('', { keep: ['surface.overt'] })).toThrow(/names no --fk- token/)
   })
 
   it('leaves every token the standard theme reads of itself defined', () => {
     const theme = Theme.standard(Theme.make({}))
     const css = `${sheetOf(theme)}.x{color:${Theme.ref(theme).text.default}}`
-    const pruned = Theme.prune(css)
+    const pruned = Inert.prune(css)
     const defined = (name: string) => pruned.includes(`${name}:`)
     const reads = Array.from(pruned.matchAll(/var\((--fk-[\w-]+)\)/g), ([, name]) => name ?? '')
     expect(reads.filter(name => !defined(name))).toEqual([])
@@ -101,7 +101,7 @@ describe('Theme.prune', () => {
     const css = sheetOf(theme)
     const tree = drawnReading(overt)
     expect(Inert.missingTokens(tree, css)).toEqual([])
-    expect(Inert.missingTokens(tree, Theme.prune(css))).toEqual([overt.slice(4, -1)])
-    expect(Inert.missingTokens(tree, Theme.prune(css, { keep: [overt] }))).toEqual([])
+    expect(Inert.missingTokens(tree, Inert.prune(css))).toEqual([overt.slice(4, -1)])
+    expect(Inert.missingTokens(tree, Inert.prune(css, { keep: [overt] }))).toEqual([])
   })
 })

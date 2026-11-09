@@ -646,8 +646,8 @@ export const stylesheet: string = Style.stylesheet(
   `<link rel="stylesheet" href="${href}" data-foldkit-styles-href>` in the document's head;
   the browser's injection treats the linked sheet's classes as present. Declare the virtual
   module's type yourself. `styles({ sheet, prune: { keep } })` ships only the `--fk-*`
-  tokens a rule reads (`Theme.prune`, in dev too); a token read only inline (`Theme.ref`) or
-  by a script goes in `keep`, and `Inert.missingTokens(tree, Theme.prune(css, { keep }))`
+  tokens a rule reads (`Inert.prune` from `foldkit-mixins/testing`, in dev too); a token read only inline (`Theme.ref`) or
+  by a script goes in `keep`, and `Inert.missingTokens(tree, Inert.prune(css, { keep }))`
   lists one a drawn view reads that pruning took.
 
 ## 8. Known traps

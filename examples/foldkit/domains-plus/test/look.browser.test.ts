@@ -12,7 +12,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import { fromString } from 'foldkit/url'
 import { Style } from 'foldkit-mixins'
-import { Theme } from 'foldkit-mixins/theme'
+import { Inert } from 'foldkit-mixins/testing'
 import { Remote } from 'foldkit-remote'
 import { afterEach, expect, it, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
@@ -131,7 +131,7 @@ it('draws every element the same with the sheet pruned to the tokens it reads (#
   }
   await settled()
   const before = drawn()
-  sheet.textContent = Theme.prune(full)
+  sheet.textContent = Inert.prune(full)
   await settled()
   const after = drawn()
   expect(after.filter((style, index) => style !== before[index])).toEqual([])

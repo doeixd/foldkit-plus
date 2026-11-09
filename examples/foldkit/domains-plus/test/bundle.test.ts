@@ -14,14 +14,22 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // without saying here what the growth bought. 210.5 kB measured on 2026-11-02;
 // 215.5 kB that evening, after #428's edge caching and the day's fixes in
 // remote, mixins, primitives and ssr (#442, #450, #458 to #460), not bisected.
-// The ceiling is that plus about 1%.
+// The ceiling is that plus about 1%. By 2026-11-09 it read 217.5 kB, every
+// step measured with the build id pinned (#490): #473's no-script TLD page
+// +524, #470 +232, #489's stale reasons +460, #487's prune +547 (taken back
+// when it left `Theme`), #431 +117, smaller fixes the rest. Now 216.9 kB.
 const CEILING = 217_500
 
 test('the search page loads at most the budgeted brotli JavaScript', async () => {
   const report = await measure(resolve(import.meta.dirname, '..'))
   expect(report.total.chunks).toBeGreaterThan(0)
+  // One source, one reading: a random build id moved it by up to 0.2 kB (#490).
+  const again = await measure(resolve(import.meta.dirname, '..'))
+  expect(again.total.brotli).toBe(report.total.brotli)
   // The page sheet's text is the server's: the browser links the file it was written to.
   expect(report.included).not.toContainEqual(expect.stringContaining('/src/server/sheet.ts'))
+  // Pruning runs at build time: reading `Theme` must not bring it (#490).
+  expect(report.included).not.toContainEqual(expect.stringContaining('theme/prune'))
   record({
     kind: 'size',
     name: 'domains-plus client JS, brotli',

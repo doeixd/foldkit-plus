@@ -77,7 +77,7 @@ export const prune = (
   const kept = new Set(READ_BY_SCRIPT)
   for (const entry of options.keep ?? []) {
     const names = entry.match(TOKEN)
-    if (names === null) throw new Error(`Theme.prune: keep entry "${entry}" names no --fk- token`)
+    if (names === null) throw new Error(`Inert.prune: keep entry "${entry}" names no --fk- token`)
     for (const name of names) kept.add(name)
   }
   const defined = definitions(css)

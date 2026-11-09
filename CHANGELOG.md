@@ -41,7 +41,7 @@ version changed; `pnpm` skips versions already in the registry.
   a delete of a restricted Entity, and a cascade into one is refused where
   the writer is made.
 - **`styles({ sheet, prune: { keep } })` ships only the tokens the sheet reads**
-  (`foldkit-mixins`, #487). `Theme.prune(css, { keep })` removes each `--fk-*`
+  (`foldkit-mixins`, #487). `Inert.prune(css, { keep })` (`foldkit-mixins/testing`) removes each `--fk-*`
   definition and `@property` registration that no rule reads, directly or
   through a kept token; the plugin applies it in dev and in the build.
   domains-plus's sheet: 15.2 KB to 10.6 KB brotli. A token read only inline
