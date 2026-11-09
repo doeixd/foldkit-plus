@@ -449,7 +449,7 @@ import { Schema } from 'effect'
 /** What sign-up asks beyond an email and a password: the application's own fields. */
 export const Registration = Schema.Struct({ displayName: Schema.NonEmptyString })
 
-const AuthApi = AuthContract.make('app/Auth', {
+export const AuthApi = AuthContract.make('app/Auth', {
   claims: Schema.Struct({}),
   actions: sessions => ({
     signIn: AuthContract.passwordSignIn(sessions),
@@ -490,7 +490,7 @@ fail with `ProofConfigurationError { reason: 'delivery' }`.
 ```ts
 import { Auth, Sessions } from '@yielded/auth'
 
-const AppAuth = Auth.make(AuthApi, {
+export const AppAuth = Auth.make(AuthApi, {
   sessions: Sessions.stateful({ idleTimeout: '1 hour', maxAge: '1 day' }),
   strategies: {
     password: Password.make({
@@ -517,7 +517,7 @@ import { Effect, Layer } from 'effect'
 
 const Persistence = AuthPersistence.make(AppAuth)
 
-const Provisioning = Layer.succeed(Persistence.Provisioning, {
+export const Provisioning = Layer.succeed(Persistence.Provisioning, {
   password: {
     values: ({ identifier, registration }) =>
       Effect.sync(() => ({
@@ -584,7 +584,7 @@ import * as Client from '@yielded/auth/Client'
 
 const AppClient = Client.make(AuthApi, { baseUrl: location.origin })
 
-const signUp = (form: {
+export const signUp = (form: {
   readonly requestId: string // one per submission, handed to `values` as `requestId`
   readonly email: string
   readonly password: Redacted.Redacted<string>
