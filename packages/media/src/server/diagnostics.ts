@@ -65,6 +65,7 @@ export type MediaDiagnostic =
   | ImageFailed
   | FactsUnanswered
   | RequestDefect
+  | OwnerMissing
 
 export const storeFailed = (
   facts: Pick<StoreFailed, 'store' | 'operation' | 'key' | 'cause'>,
@@ -111,3 +112,19 @@ export const requestDefect = (cause: Cause.Cause<unknown>): RequestDefect => ({
   message: `a media request failed on this side, and its caller was answered 500\n${Cause.pretty(cause)}`,
   cause,
 })
+
+/**
+ * A `FileUploadPolicy` answered an empty owner, so the upload was refused:
+ * with one owner for every visitor, anyone could claim anyone's upload.
+ */
+export interface OwnerMissing extends Diagnostic {
+  readonly _tag: 'OwnerMissing'
+}
+
+export const ownerMissing: OwnerMissing = {
+  _tag: 'OwnerMissing',
+  source,
+  level: 'error',
+  message:
+    'the FileUploadPolicy admitted an upload with an empty owner, so it was refused 403: answer each uploader’s stable id.',
+}
