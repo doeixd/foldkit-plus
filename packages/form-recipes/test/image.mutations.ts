@@ -2,12 +2,19 @@
  * The image recipe, broken in turn: `pnpm mutate packages/form-recipes/test/image.mutations.ts`.
  */
 const file = '../src/image.ts'
+const shared = '../src/uploadControl.ts'
 const unit = 'packages/form-recipes/test/image.test.ts'
 const browser = 'packages/form-recipes/test/image.browser.test.ts'
 
-const one = (name: string, find: string, replace: string, tests: ReadonlyArray<string>) => ({
+const one = (
+  name: string,
+  find: string,
+  replace: string,
+  tests: ReadonlyArray<string>,
+  at = file,
+) => ({
   name,
-  edits: [{ file, find, replace }],
+  edits: [{ file: at, find, replace }],
   tests,
 })
 
@@ -97,12 +104,19 @@ export default [
     ],
     tests: [browser],
   },
-  one('any id is taken', 'if (!/^[A-Za-z_][\\w-]*$/.test(options.id))', 'if (false)', [unit]),
-  one('a header the browser sets is taken', 'forbidden.test(name) ||', '', [unit]),
+  one(
+    'any id is taken',
+    'if (!/^[A-Za-z_][\\w-]*$/.test(options.id))',
+    'if (false)',
+    [unit],
+    shared,
+  ),
+  one('a header the browser sets is taken', 'forbidden.test(name) ||', '', [unit], shared),
   one(
     'a header past Latin-1 is taken',
     '/[\\r\\n\\0]|[^\\x00-\\xff]/.test(value)',
     '/[\\r\\n\\0]/.test(value)',
     [unit],
+    shared,
   ),
 ]

@@ -23,23 +23,7 @@ import { modifyFields } from 'foldkit/struct'
 import * as Submodel from 'foldkit/submodel'
 import * as Subscription from 'foldkit/subscription'
 import type { FieldRecipe } from './index.js'
-
-/** The request headers a browser sets itself, and drops from a script (Fetch, "forbidden request-header"). */
-const forbidden =
-  /^(?:accept-charset|accept-encoding|access-control-request-headers|access-control-request-method|connection|content-length|cookie2?|date|dnt|expect|host|keep-alive|origin|referer|set-cookie|te|trailer|transfer-encoding|upgrade|via|proxy-.*|sec-.*)$/i
-
-/** Whether `url` is an address, relative or not; `URL.canParse` is too new for some browsers. */
-const parses = (url: string): boolean => {
-  try {
-    new URL(url, 'http://localhost')
-    return true
-  } catch {
-    return false
-  }
-}
-
-/** A chosen file, held while it is sent. */
-const FileSchema = Schema.instanceOf(File)
+import { checkUploadOptions, DropMessage, FileSchema, percentOf } from './uploadControl.js'
 
 /**
  * Where the image stands. `Sending` and `Refused` hold the `File` itself, so a
@@ -65,16 +49,6 @@ export const ImageModel = Schema.Struct({
   attempts: Schema.Number,
 })
 export type ImageModel = typeof ImageModel.Type
-
-// Upstream's own Message schema types its files as `Schema.Schema<File>`, whose
-// decoding services are unknown, and a Bundle's Message must need none. This is
-// the same four Messages over a `File` codec; the drop's `update` takes them as they are.
-const DropMessage = Schema.Union([
-  Schema.TaggedStruct('EnteredDragZone', {}),
-  Schema.TaggedStruct('LeftDragZone', {}),
-  Schema.TaggedStruct('DroppedFiles', { files: Schema.NonEmptyArray(FileSchema) }),
-  Schema.TaggedStruct('DroppedNonFiles', {}),
-])
 
 export const ImageMessage = defineMessageUnion({
   GotDrop: { message: DropMessage },
@@ -128,6 +102,9 @@ export const imageWords: ImageWords = {
     TooLarge: '{name} is too large.',
     Unsupported: '{name} is not an image this site takes.',
     Malformed: 'The upload of {name} broke off.',
+    TooSlow: 'The upload of {name} was too slow.',
+    Busy: 'The server is busy. Try {name} again soon.',
+    RateLimited: 'Too many uploads lately. Try {name} again soon.',
     Network: 'The upload of {name} did not reach the server.',
     Unexpected: 'The upload of {name} failed.',
   },
@@ -297,9 +274,6 @@ const subscriptions = (options: UploadOptions) =>
     ),
   }))
 
-const percentOf = (loaded: number, total: number) =>
-  total === 0 ? 0 : Math.min(100, Math.round((loaded / total) * 100))
-
 const view = (options: ImageOptions, words: ImageWords) =>
   Submodel.defineView<ImageModel, ImageMessage>((model, h) => {
     const slots = SlotView.buildersFor(
@@ -389,21 +363,7 @@ export const image = (
     ...options.words,
     refused: { ...imageWords.refused, ...options.words?.refused },
   }
-  // What a browser refuses would throw at the first upload, inside the
-  // Subscription, and take the runtime with it; what it drops would go unsent
-  // without a word. Both are refused here, when the recipe is made.
-  // The id is also a focus selector (`#cover`), so it is an identifier CSS takes.
-  if (!/^[A-Za-z_][\w-]*$/.test(options.id))
-    throw new Error(`image: "${options.id}" is not an id a selector can name, such as "cover"`)
-  for (const [name, value] of Object.entries(options.headers ?? {}))
-    if (
-      !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name) ||
-      forbidden.test(name) ||
-      /[\r\n\0]|[^\x00-\xff]/.test(value)
-    )
-      throw new Error(`image: "${name}" is not a header a browser sends as given`)
-  if (options.url !== undefined && !parses(options.url))
-    throw new Error(`image: "${options.url}" is not an address`)
+  checkUploadOptions('image', options)
   const uploadOptions: UploadOptions = { url: options.url, headers: options.headers }
   const bundle = Bundle.make({
     name: 'Image',
