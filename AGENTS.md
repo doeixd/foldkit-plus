@@ -2045,7 +2045,11 @@ of its own named a form field "fits the Catalog". Read words with
 - **Bulk edits replace every occurrence, and a missing anchor fails silently.** A
   scripted insert landed in two functions and broke an unrelated one; a later one
   matched nothing and quietly did not apply, so a field was simply absent. Assert
-  the anchor, then re-read the diff -- not just the check.
+  the anchor, then re-read the diff -- not just the check. An end anchor
+  found from the top can sit before the start one: `s.index('### 4. ')` met
+  a numbered list earlier in TODO.md, and `s[:i] + new + s[j:]` doubled the
+  text between. Search from the start anchor (`s.index(end, i)`) and assert
+  `i < j`.
 - **Anchoring an insert on `export const X` lands it under X's doc comment.** Three
   scripted inserts here (`holdsItem`, `isBlank`, `drawPlaceholder`) went in between a
   declaration and its comment, leaving each comment documenting the wrong thing; the

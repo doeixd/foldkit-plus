@@ -1485,7 +1485,9 @@ refuses it when the Schema does (tested on SQLite and Postgres, NaN, infinities
 and NUL included). That covers lengths in code points (`isMaxCodePoints` and its
 kin, and `isNonEmpty`), a whole-string pattern of one ASCII bracket
 (`/^[a-z0-9_]{3,15}$/`, with unit lengths beside it), numeric bounds,
-`isFinite`, and literals. Everything else is in `serverOnly`, a sentence per
+`isFinite`, `isInt` (a safe integer), `isStartingWith`, `isEndingWith` and
+`isIncluding` (by bytes on SQLite and under the binary collation on Postgres,
+so a column's own collation cannot loosen them), and literals. Everything else is in `serverOnly`, a sentence per
 rule, and is held by the server's writes alone: a length in UTF-16 units with
 no ASCII pattern (`isMaxLength`: SQL counts code points), a custom filter, a
 rule made after a transformation, a rule inside a record, an array or a

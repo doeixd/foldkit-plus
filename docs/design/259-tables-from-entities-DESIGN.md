@@ -3,8 +3,10 @@
 Status: built (2026-10-27): `entityChecks` and `checkConstraints` in
 `foldkit-remote-drizzle`, `bind` refusing a table whose own CHECKs disagree,
 and Chirp's tables holding its domain's rules with no rule written in SQL.
-Deriving whole tables, foreign keys and `onDelete` are not built; see
-[Not done](#not-done).
+Since then, `onDelete` is a relation option that `bind` holds a foreign key
+to (#467), and `isInt`, `isStartingWith`, `isEndingWith` and `isIncluding`
+compile (2026-11-09). Deriving whole tables and foreign keys themselves are
+not built; see [Not done](#not-done).
 
 ## The problem
 
@@ -183,14 +185,28 @@ domain and `check (length(body) <= 280)` in its SQL. Now:
 ## Not done
 
 - **Deriving whole tables.** Rejected above, not deferred.
-- **Foreign keys from `Relation.one`, and `onDelete`.** Which Entity a column
-  points at is the domain's. `onDelete` is a new relation option in
-  `foldkit-entity`. A check that a declared `references()` points at the
-  target's table would be cheap. Neither is built here.
+- **Foreign keys from `Relation.one`.** Which Entity a column points at is
+  the domain's. `onDelete` is now a relation option, and `bind` refuses a
+  foreign key whose action disagrees with it (#467). A check that a declared
+  `references()` points at the target's table would be cheap, and is not
+  built.
 - **Comparing the live database.** `bind` checks the Drizzle table. A
   hand-written migration is held to `checkConstraints` by a test, as
   `examples/cloudflare`'s migrations test holds `rowChangeLog`. Reading
   `sqlite_master` or `pg_constraint` at startup would compare text that
   `drizzle-kit` and Postgres format their own ways.
-- **More exact rules.** `isInt` (`c = round(c)` agrees except at infinities),
-  `isStartingWith` and its kin, case-insensitive patterns.
+- **More exact rules.** Built 2026-11-09:
+  - `isInt` is `abs(c) <= 2^53 - 1 and c = cast(c as integer)` on SQLite, and
+    `trunc(c)` on Postgres. It is a safe integer, as Effect's
+    `Number.isSafeInteger` is, so it refuses NaN and both infinities too.
+  - `isStartingWith`, `isEndingWith` and `isIncluding` compare the text's
+    UTF-8 bytes with the needle's on SQLite (`cast(c as blob)` against an
+    `X'…'` literal, so NUL and a `nocase` column hold), and characters under
+    `collate "C"` on Postgres. `substr` of an empty blob is NULL, which a
+    CHECK passes, so it is wrapped in `coalesce`.
+  - A needle with a lone surrogate stays the server's (JavaScript finds half
+    a pair inside an emoji; bytes do not), as does a needle holding NUL on
+    Postgres, which holds no NUL.
+
+  Still the server's: case-insensitive patterns, and `isMultipleOf`, whose
+  floating-point remainder SQL does not reproduce.

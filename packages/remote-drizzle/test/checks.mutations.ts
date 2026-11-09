@@ -14,6 +14,72 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 
 export default [
   edit(
+    'an empty text starts with any prefix on SQLite',
+    checks,
+    "coalesce(substr(${blob}, 1, ${number(bytes.length)}), X'')",
+    'substr(${blob}, 1, ${number(bytes.length)})',
+  ),
+  edit(
+    'an empty text ends with any suffix on SQLite',
+    checks,
+    "coalesce(substr(${blob}, ${number(-bytes.length)}), X'')",
+    'substr(${blob}, ${number(-bytes.length)})',
+  ),
+  edit(
+    'a contained needle is matched only at the start on SQLite',
+    checks,
+    'sql`instr(${blob}, ${hex}) > 0`',
+    'sql`instr(${blob}, ${hex}) = 1`',
+  ),
+  edit(
+    'a contained needle is matched only at the start on Postgres',
+    checks,
+    'sql`strpos(${column} collate "C", ${text}) > 0`',
+    'sql`strpos(${column} collate "C", ${text}) = 1`',
+  ),
+  edit(
+    'a suffix is matched at the start on Postgres',
+    checks,
+    '? sql`right(${column}',
+    '? sql`left(${column}',
+  ),
+  edit(
+    'a needle with half a pair compiles',
+    checks,
+    'Option.filter(wellFormed),',
+    'Option.filter(() => true),',
+  ),
+  edit(
+    'a needle holding a NUL compiles on Postgres',
+    checks,
+    "dialect === 'sqlite' || !needle",
+    'true || !needle',
+  ),
+  edit(
+    'an integer takes a fraction on SQLite',
+    checks,
+    '${column} = cast(${column} as integer)',
+    '${column} = ${column}',
+  ),
+  edit(
+    'an integer takes a fraction on Postgres',
+    checks,
+    '${column} = trunc(${column})',
+    '${column} = ${column}',
+  ),
+  edit(
+    'an integer past 2^53 passes on SQLite',
+    checks,
+    '(abs(${column}) <= ${number(Number.MAX_SAFE_INTEGER)} and ${column} = cast(',
+    '(${column} = cast(',
+  ),
+  edit(
+    'an integer past 2^53 passes on Postgres',
+    checks,
+    '(abs(${column}) <= ${number(Number.MAX_SAFE_INTEGER)} and ${column} = trunc(',
+    '(${column} = trunc(',
+  ),
+  edit(
     'a length in UTF-16 units compiles with no pattern beside it',
     checks,
     'const overAscii = (_: number, ascii: boolean) => ascii',
@@ -166,5 +232,12 @@ export default [
       },
     ],
     tests: [...tests, 'packages/remote-drizzle/test/transition.test.ts'],
+  },
+  {
+    name: 'a containment rule on Postgres compares under the column collation',
+    edits: [{ file: checks, find: `}' collate "C"\``, replace: "}'`" }],
+    tests,
+    survives:
+      'PGlite creates its database with the C collation, so the column collation is already binary there; a database created with a locale (the postgres-locale job) is where the difference would show.',
   },
 ]

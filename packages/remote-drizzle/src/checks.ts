@@ -262,6 +262,68 @@ const range = (payload: Schema.Json) =>
 const always = () => true
 const overAscii = (_: number, ascii: boolean) => ascii
 
+/** Whether `text` has no lone surrogate (`String.prototype.isWellFormed`, past this lib). */
+const wellFormed = (text: string): boolean => {
+  for (let at = 0; at < text.length; at++) {
+    const unit = text.charCodeAt(at)
+    if (unit >= 0xdc00 && unit <= 0xdfff) return false
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      const low = text.charCodeAt(at + 1)
+      if (!(low >= 0xdc00 && low <= 0xdfff)) return false
+      at++
+    }
+  }
+  return true
+}
+
+/** The value a containment rule names, under the payload key it is given as. */
+const Needle = (key: string) => Schema.Struct({ [key]: Schema.String })
+
+/**
+ * A rule matching `needle` at one place in the text (`at`), held over the
+ * text's own UTF-8 bytes on SQLite and its characters under the binary
+ * collation on Postgres, so a column's collation cannot widen it. JavaScript
+ * compares UTF-16 units; the two agree for a well-formed needle, so a lone
+ * surrogate (which a text the column holds can start with only as half a
+ * pair) stays the server's. Postgres holds no NUL, so a needle with one stays
+ * the server's there; SQLite's bytes hold it.
+ */
+const containing =
+  (key: string, at: 'start' | 'end' | 'within'): Translate =>
+  (payload, column, { dialect }) =>
+    Schema.decodeUnknownOption(Needle(key))(payload).pipe(
+      Option.map(read => read[key]!),
+      Option.filter(wellFormed),
+      Option.filter(needle => dialect === 'sqlite' || !needle.includes('\u0000')),
+      Option.map((needle): ReadonlyArray<SQL> => {
+        if (needle === '') return []
+        if (dialect === 'sqlite') {
+          const bytes = new TextEncoder().encode(needle)
+          const hex = sql.raw(
+            `X'${Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')}'`,
+          )
+          const blob = sql`cast(${column} as blob)`
+          // `substr` of an empty blob is NULL, and a CHECK passes a NULL condition.
+          return [
+            at === 'start'
+              ? sql`coalesce(substr(${blob}, 1, ${number(bytes.length)}), X'') = ${hex}`
+              : at === 'end'
+                ? sql`coalesce(substr(${blob}, ${number(-bytes.length)}), X'') = ${hex}`
+                : sql`instr(${blob}, ${hex}) > 0`,
+          ]
+        }
+        const text = sql.raw(`'${needle.replaceAll("'", "''")}' collate "C"`)
+        const characters = number([...needle].length)
+        return [
+          at === 'start'
+            ? sql`left(${column}, ${characters}) = ${text}`
+            : at === 'end'
+              ? sql`right(${column}, ${characters}) = ${text}`
+              : sql`strpos(${column} collate "C", ${text}) > 0`,
+        ]
+      }),
+    )
+
 /** By `representation.id`, the field rules SQL holds exactly, and how. */
 const TEXT: Readonly<Record<string, Translate>> = {
   'effect/schema/isMinCodePoints': lengths(least('minCodePoints'), always),
@@ -273,6 +335,9 @@ const TEXT: Readonly<Record<string, Translate>> = {
   'effect/schema/isBetweenLength': lengths(range, overAscii),
   [PATTERN]: (payload, column, { dialect }) =>
     Option.map(classOf(payload), held => classSql(column, held, dialect)),
+  'effect/schema/isStartingWith': containing('startsWith', 'start'),
+  'effect/schema/isEndingWith': containing('endsWith', 'end'),
+  'effect/schema/isIncluding': containing('includes', 'within'),
 }
 
 const FINITE = 'effect/schema/isFinite'
@@ -292,6 +357,14 @@ const NUMBER: Readonly<Record<string, Translate>> = {
   ),
   'effect/schema/isLessThan': bound('exclusiveMaximum', upper, (c, v) => sql`${c} < ${number(v)}`),
   'effect/schema/isLessThanOrEqualTo': bound('maximum', upper, (c, v) => sql`${c} <= ${number(v)}`),
+  // A safe integer: whole, and within ±(2^53 - 1), which also refuses NaN and both
+  // infinities. Inside that range the cast and the truncation are exact.
+  'effect/schema/isInt': (_, column, { dialect }) =>
+    Option.some([
+      dialect === 'postgres'
+        ? sql`(abs(${column}) <= ${number(Number.MAX_SAFE_INTEGER)} and ${column} = trunc(${column}))`
+        : sql`(abs(${column}) <= ${number(Number.MAX_SAFE_INTEGER)} and ${column} = cast(${column} as integer))`,
+    ]),
   // Postgres' NaN passes `> -Infinity` and fails `< Infinity`.
   [FINITE]: (_, column, { dialect }) =>
     Option.some([

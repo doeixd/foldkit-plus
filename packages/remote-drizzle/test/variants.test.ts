@@ -103,6 +103,8 @@ describe('variants on SQLite', () => {
   it('names a CHECK per case with fields to hold', () => {
     expect(checkConstraints(Sqlite.Variant).constraints.map(each => each.name)).toEqual([
       'variant_rows__tag_check',
+      // `cents` is a safe integer (#259): a NULL in another case passes it.
+      'variant_rows_cents_check',
       'variant_rows_variant_Priced',
       'variant_rows_variant_Free',
       'variant_rows_variant_Held',

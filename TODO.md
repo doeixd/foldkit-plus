@@ -198,7 +198,7 @@ In the same change:
       run, because CI runs on `main` and pull requests only. It needs a PR,
       and CI watched to green.
 - [ ] **On merge, close what the branch fixed:** #400 (Menu and Menubar),
-      #431, #437, #467, #477, #484, #485, #487, #489, #251.
+      #431, #437, #467, #477, #484, #485, #487, #489, #251, #259.
 - [ ] **Upstream posts:**
   - the animation-settle issue (draft written; item 9 of the Order list in
     `docs/upstream-foldkit-ssr.md`);
@@ -239,18 +239,19 @@ The independent review found nothing blocking, and its advisories are fixed:
 a widely typed `relations` no longer refuses every count, and `applyEdits`
 keeps `P` as its first type parameter.
 
-### 3. #259: the last exact rules
+### 3. #259: the last exact rules: done 2026-11-09
 
-- **Research:** how `isInt`, `startsWith` and `endsWith` are represented in
-  Effect 4.1's Schema checks, and what SQLite and Postgres can say exactly,
-  covering NaN, the infinities, NUL and collation, as #259's follow-up did.
-- **Decide:** which rules compile and which go to `serverOnly`, each with the
-  reason written.
-- **Considerations:** the law is that the database accepts a value exactly
-  when the Schema does, on SQLite and PGlite, plus the `postgres-locale` job
-  for text.
-- **Done when** the law test covers the new rules, the mutations are killed,
-  the design note's status is updated, and #259 is closed.
+`isInt`, `isStartingWith`, `isEndingWith` and `isIncluding` compile to CHECKs
+(`packages/remote-drizzle/src/checks.ts`). The law test covers each on SQLite
+and PGlite, including NUL, emoji, quotes and the values on either side of
+2^53. That test found that SQLite's `substr` of an empty blob is NULL, which a
+CHECK passes. The design note's status and its "Not done" list are updated,
+including the foreign-key item, which #467 half-closed. Of the 41 mutations,
+40 are killed. The 41st, `collate "C"`, survives with its reason: PGlite's
+database is already binary.
+
+The changelog says how to upgrade: `bind` refuses a migrated table until it
+gains the new clauses.
 
 ### 4. Schema to UI: the remaining three
 

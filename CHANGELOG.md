@@ -107,6 +107,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`isInt`, `isStartingWith`, `isEndingWith` and `isIncluding` compile to
+  CHECKs** (`foldkit-remote-drizzle`, #259). They were listed in
+  `checkConstraints(...).serverOnly`; now the database holds them too, under
+  the same law, tested on SQLite and Postgres: it accepts a value exactly when
+  the Schema does. A needle with a lone surrogate, or with a NUL on Postgres,
+  stays the server's. **Upgrading:** a table that holds the Entity's CHECKs
+  and has a column with one of these rules no longer matches them, so `bind`
+  refuses it at startup, naming the column. Generate a migration
+  (`drizzle-kit generate` for tables built with `entityChecks`, or the new
+  `checkConstraints` text for hand-written SQL) before deploying. A table
+  holding none of the Entity's CHECKs is not checked.
 - **Two remote-drizzle options that name a member are typed by it**
   (`foldkit-remote-drizzle`, #251). `applyEdits`' `revision` takes a field of
   the binding, and `entity()`'s `computed: { x: { relation } }` takes one of

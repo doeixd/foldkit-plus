@@ -57,6 +57,12 @@ const Rule = Entity.define(
     least: Schema.Number.check(Schema.isGreaterThan(0)),
     scale: Schema.Finite,
     bio: Schema.NullOr(Schema.String.check(Schema.isMaxCodePoints(3))),
+    // A safe integer: whole and within 2^53 - 1, so NaN and the infinities too.
+    count: Schema.Number.check(Schema.isInt()),
+    // Matched by bytes on SQLite and under the binary collation on Postgres.
+    lead: Schema.String.check(Schema.isStartingWith("a'")),
+    tail: Schema.String.check(Schema.isEndingWith('😀')),
+    mid: Schema.String.check(Schema.isIncluding("'b")),
   }),
 )
 /** Bounds over a field that may be NaN, which SQLite cannot hold: Postgres' alone. */
@@ -76,6 +82,10 @@ const valid = {
   least: 1,
   scale: 1,
   bio: null,
+  count: 3,
+  lead: "a'",
+  tail: '😀',
+  mid: "'b",
 }
 type Field = keyof typeof valid
 const fields = Object.keys(valid) as ReadonlyArray<Field>
@@ -97,6 +107,10 @@ const sqliteRules = sqliteTable(
     least: real('least').notNull(),
     scale: real('scale').notNull(),
     bio: text('bio'),
+    count: real('count').notNull(),
+    lead: text('lead').notNull(),
+    tail: text('tail').notNull(),
+    mid: text('mid').notNull(),
   },
   t => entityChecks(Rule, t),
 )
@@ -117,6 +131,10 @@ const pgRules = pgTable(
     least: doublePrecision('least').notNull(),
     scale: doublePrecision('scale').notNull(),
     bio: pgText('bio'),
+    count: doublePrecision('count').notNull(),
+    lead: pgText('lead').notNull(),
+    tail: pgText('tail').notNull(),
+    mid: pgText('mid').notNull(),
   },
   t => entityChecks(Rule, t),
 )
@@ -131,7 +149,16 @@ const createTable = (
   dialect: SQLiteDialect | PgDialect,
   kinds: { readonly text: string; readonly number: string; readonly kind: string },
 ) => {
-  const number = new Set<string>(['level', 'amount', 'ratio', 'floor', 'cap', 'least', 'scale'])
+  const number = new Set<string>([
+    'level',
+    'amount',
+    'ratio',
+    'floor',
+    'cap',
+    'least',
+    'scale',
+    'count',
+  ])
   const columns = fields.map(field =>
     field === 'kind'
       ? `kind ${kinds.kind} not null`
@@ -201,6 +228,22 @@ const texts = [
     ['', 'ab'],
     ['😀', '😀'],
   ].map(([before, after]) => `${before}${NUL}${after}`),
+  // Around the containment rules: each needle at the start, the end, inside and
+  // alone, half of it, and beside a NUL, which SQLite's bytes hold.
+  "a'",
+  "a'b",
+  "xa'",
+  "A'",
+  'a',
+  "'b",
+  "x'bx",
+  "'B",
+  'x😀',
+  '😀x',
+  "a'b😀",
+  `a'${NUL}`,
+  `${NUL}'b`,
+  `${NUL}😀`,
   // The six characters JSON writes for a NUL, as text: not a NUL.
   `${BACKSLASH}u0000`,
   ...Array.from({ length: 250 }, () =>
@@ -231,6 +274,12 @@ const numbers = [
   100,
   100.000001,
   1e9,
+  Number.MAX_SAFE_INTEGER,
+  Number.MAX_SAFE_INTEGER + 1,
+  -Number.MAX_SAFE_INTEGER,
+  -Number.MAX_SAFE_INTEGER - 1,
+  1e20,
+  0.1,
   Infinity,
   -Infinity,
   NaN,
@@ -469,6 +518,51 @@ describe('checkConstraints', () => {
       'Loose.caseless: a string matching the RegExp ^[a-z]+$',
       'Loose.count: a value greater than 0',
       `Loose's invariant "noteStays": reads the row before the write`,
+    ])
+  })
+
+  it('leaves to the server a needle SQL would read apart from JavaScript', () => {
+    // Half of a pair: JavaScript finds it in an emoji, while SQL's bytes do not.
+    const half = String.fromCharCode(0xd83d)
+    const Needles = Entity.define(
+      'Needles',
+      Schema.Struct({
+        id: Schema.String,
+        half: Schema.String.check(Schema.isStartingWith(half)),
+        nul: Schema.String.check(Schema.isIncluding(`a${NUL}`)),
+      }),
+    )
+    const columns = {
+      id: pgText('id').primaryKey(),
+      half: pgText('half').notNull(),
+      nul: pgText('nul').notNull(),
+    }
+    const onPostgres = checkConstraints(
+      bind({ Needles }, { Needles: { table: pgTable('needles', columns) } }).Needles,
+    )
+    expect(onPostgres.constraints).toEqual([])
+    expect(onPostgres.serverOnly).toEqual([
+      `Needles.half: a string starting with ${JSON.stringify(half)}`,
+      `Needles.nul: a string including ${JSON.stringify(`a${NUL}`)}`,
+    ])
+    // SQLite's bytes hold a NUL, so only the half pair stays the server's there.
+    const onSqlite = checkConstraints(
+      bind(
+        { Needles },
+        {
+          Needles: {
+            table: sqliteTable('needles', {
+              id: text('id').primaryKey(),
+              half: text('half').notNull(),
+              nul: text('nul').notNull(),
+            }),
+          },
+        },
+      ).Needles,
+    )
+    expect(onSqlite.constraints.map(({ name }) => name)).toEqual(['needles_nul_check'])
+    expect(onSqlite.serverOnly).toEqual([
+      `Needles.half: a string starting with ${JSON.stringify(half)}`,
     ])
   })
 
