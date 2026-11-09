@@ -487,8 +487,8 @@ Runtime and view:
 - **Upstream's leave can end on a read made before the leave is drawn**:
   `Dom.waitForAnimationSettled` reads one frame after it is asked, not after
   the render's commit, so a frame put off behind the queue skips the fade.
-  The Menu bundle waits for the commit first; Listbox, Combobox and Popover,
-  whose `update` is upstream's, cannot. Asking for: `yield* afterCommit` before
+  The Menu, Listbox and Combobox bundles wait for the commit first; Popover,
+  whose `update` an application calls straight from upstream, cannot. Asking for: `yield* afterCommit` before
   the read, as `detectElementMovement` does.
 
 Routing and the build:

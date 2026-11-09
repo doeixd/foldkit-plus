@@ -1,8 +1,9 @@
 /**
  * Forked combobox views: the single and multi variants over the shared
  * transcription in `./comboboxShared.js`. Each `create` binds the upstream
- * bundle for the item type and swaps in only the view; state, Messages,
- * update, Commands, Mounts, and subscriptions stay upstream. If upstream
+ * bundle for the item type and swaps in the view, and ends a leave only
+ * once it is drawn (#400); state, Messages, update, Commands, Mounts, and
+ * subscriptions stay upstream. If upstream
  * gains a seam, delete both modules; on a bump, re-transcribe and re-run
  * the battery.
  */
@@ -16,12 +17,14 @@ import type {
 import type { Message } from '@foldkit/ui/combobox'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineView, type View as SubmodelView } from 'foldkit/submodel'
+import type { ReturnWithOutMessage } from 'foldkit/update'
 import {
   computeRender,
   type ComboboxRenderInfo,
   type ExtraInputs,
   type NormalizedInputs,
 } from './comboboxShared.js'
+import { leaveDrawn } from './leaveDrawn.js'
 import { drawCombobox } from './popupView.js'
 
 export type SharedViewInputs = NormalizedInputs<string> & {
@@ -97,11 +100,18 @@ export type SingleBundle<Item extends string = string> = Omit<
   readonly view: SubmodelView<SingleModel, Message, SingleViewInputs<Item>>
 }
 
+// Upstream's update and helpers, each ending a leave only once it is drawn (#400).
+const drawn = <Model, Out>(result: ReturnWithOutMessage<Model, Message, Out>) =>
+  leaveDrawn(UpstreamCombobox.DetectMovementOrAnimationEnd, result)
+
 /** Pairs the forked single view with upstream's `update` and helpers. */
 export const create = <Item extends string = string>(): SingleBundle<Item> => {
   const bound = UpstreamCombobox.create<Item>()
   return {
-    ...bound,
+    update: (model, message) => drawn(bound.update(model, message)),
+    selectItem: (model, item, displayText) => drawn(bound.selectItem(model, item, displayText)),
+    open: model => drawn(bound.open(model)),
+    close: (model, restingInputValue) => drawn(bound.close(model, restingInputValue)),
     view: singleViewImpl as unknown as SubmodelView<SingleModel, Message, SingleViewInputs<Item>>,
   }
 }
@@ -121,7 +131,10 @@ export const Multi = {
   create: <Item extends string = string>(): MultiBundle<Item> => {
     const bound = UpstreamCombobox.Multi.create<Item>()
     return {
-      ...bound,
+      update: (model, message) => drawn(bound.update(model, message)),
+      selectItem: (model, item) => drawn(bound.selectItem(model, item)),
+      open: model => drawn(bound.open(model)),
+      close: model => drawn(bound.close(model)),
       view: multiViewImpl as unknown as SubmodelView<MultiModel, Message, MultiViewInputs<Item>>,
     }
   },

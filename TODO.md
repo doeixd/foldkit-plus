@@ -278,13 +278,18 @@ reader to its date.
 
 ### 6. mixins-ui: adapters still missing
 
-Nav, DragAndDrop, Animation and VirtualList hand out attributes with no
-adapter. Research each upstream module for a seam first. Where it has none,
-fork its markup the way `menuView.ts` does, with the parity battery. Then
-decide the order by which examples draw them.
+Re-checked 2026-11-09: Nav and VirtualList have adapters already. Left:
 
-Also decide whether to export a helper that applies `leaveDrawn` to Listbox,
-Combobox and Popover Commands (#400's remainder), or to wait for upstream.
+- **#400's remainder: done.** Listbox and Combobox bundles end a leave after
+  the commit through the shared `leaveDrawn.ts`, with a browser test each.
+  Popover is left to upstream: mixins-ui only styles its view, and an
+  exported helper would be a second way to call upstream's `update`.
+- **DragAndDrop** (adopter-led, `docs/design/TODO.md`): kanban already passes
+  `draggable`, `droppable` and `ghostStyle` into Slots of its own. An adapter
+  is worth it only if it removes kanban's hand-written state (`cardStateOf`)
+  and ghost; decide that by porting kanban to it.
+- **Animation**: its one element already takes `className` and `attributes`,
+  so a Slot reaches it without an adapter. Not building one.
 
 ### Then
 

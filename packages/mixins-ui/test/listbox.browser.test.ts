@@ -10,6 +10,8 @@ import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
+import { renderBehindTheQueue } from './frames.js'
+import { marksThrough } from './observe.js'
 import { Listbox, ListboxSlots, ListboxView, Recipes } from '../src/index.js'
 import * as UpstreamListbox from '@foldkit/ui/listbox'
 
@@ -25,7 +27,7 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const mount = () => {
+const mount = (isAnimated = false) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -64,7 +66,7 @@ const mount = () => {
       container,
       init: () => ({
         model: {
-          ...UpstreamListbox.init({ id: 'ladder', orientation: 'Horizontal' as const }),
+          ...UpstreamListbox.init({ id: 'ladder', orientation: 'Horizontal' as const, isAnimated }),
         },
       }),
       update: (model: Model, message: Message) => {
@@ -104,6 +106,39 @@ test('right to left, ArrowLeft moves to the next item and ArrowRight moves back'
         document.querySelector('[role="listbox"]')?.getAttribute('aria-activedescendant'),
       ).toBe('ladder-item-0'),
     )
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a listbox leaving draws its fade though a render frame is put off (#400)', async () => {
+  const handle = mount(true)
+  try {
+    const button = await vi.waitFor(() => {
+      const found = document.getElementById('ladder-button')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    button.focus()
+    await userEvent.keyboard('{Enter}')
+    const panel = await vi.waitFor(() => {
+      const found = document.getElementById('ladder-items')
+      expect(found).not.toBeNull()
+      expect(found!.hasAttribute('data-closed')).toBe(false)
+      return found!
+    })
+    const restore = renderBehindTheQueue('ladder-items')
+    try {
+      const states = await marksThrough(
+        panel,
+        ['closed', 'leave'],
+        () => userEvent.keyboard('{Escape}'),
+        () => vi.waitFor(() => expect(document.getElementById('ladder-items')).toBeNull()),
+      )
+      expect(states).toContain('closed leave')
+    } finally {
+      restore()
+    }
   } finally {
     handle.dispose()
   }

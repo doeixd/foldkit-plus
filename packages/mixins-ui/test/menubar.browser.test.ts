@@ -14,6 +14,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { Menubar, MenubarSlots, MenuSlots, Recipes } from '../src/index.js'
+import { renderBehindTheQueue } from './frames.js'
 import { marksThrough } from './observe.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
@@ -134,32 +135,6 @@ test("an animated bar's menu stays drawn while it leaves, marked for its fade", 
   }
 })
 
-/**
- * `requestAnimationFrame` as a loaded page runs it: the runtime's render
- * asked for while `WaitForPaint`'s frame starts the fade finds its Model
- * behind the queue and puts itself off a frame, as `renderFramePlain` does,
- * so any frame asked for meanwhile runs first.
- */
-const renderBehindTheQueue = () => {
-  const real = window.requestAnimationFrame.bind(window)
-  let inPaintWait = false
-  window.requestAnimationFrame = callback => {
-    const run = (time: number) => {
-      const panel = document.getElementById('file-items')
-      inPaintWait =
-        callback.name === '' &&
-        panel?.hasAttribute('data-leave') === true &&
-        !panel.hasAttribute('data-closed')
-      callback(time)
-      inPaintWait = false
-    }
-    return callback.name === 'renderFramePlain' && inPaintWait ? real(() => real(run)) : real(run)
-  }
-  return () => {
-    window.requestAnimationFrame = real
-  }
-}
-
 test("a bar's menu leaving draws its fade though a render frame is put off (#400)", async () => {
   const handle = mount(true)
   try {
@@ -176,7 +151,7 @@ test("a bar's menu leaving draws its fade though a render frame is put off (#400
       expect(document.activeElement).toBe(found)
       return found!
     })
-    const restore = renderBehindTheQueue()
+    const restore = renderBehindTheQueue('file-items')
     try {
       const states = await marksThrough(
         panel,

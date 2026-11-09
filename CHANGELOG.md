@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A Listbox's or Combobox's panel keeps its leave fade on a loaded page**
+  (`foldkit-mixins-ui`, #400). Their bundles now end a leave only after the
+  render that draws it, as the Menu's did: upstream read the panel's
+  animations one frame after asking, and a render frame put off behind its
+  queue let that read find no fade. A Popover, whose `update` an application
+  calls from `@foldkit/ui` itself, still waits on upstream.
 - **A row is as fresh as its oldest field** (`foldkit-remote`). A write of one
   field (a mutation's answer, a live patch, a narrower read) dated the whole
   row, so under `staleWhileRevalidate` its other fields stayed cached up to a
