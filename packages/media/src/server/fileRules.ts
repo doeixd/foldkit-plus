@@ -1,10 +1,11 @@
-import { Option } from 'effect'
+import { Option, Schema } from 'effect'
+import { FileKey } from '../file.js'
 
 // The rules a file upload and download are held to, apart from any I/O, so
 // each can be tested and broken alone.
 
-/** A file's key: 128 random bits as lowercase hex, and nothing that could name another part of a store. */
-export const isFileKey = (key: string): boolean => /^[0-9a-f]{32}$/.test(key)
+/** Whether a key is one the server could have minted, and so names nothing else in a store. */
+export const isFileKey: (key: string) => boolean = Schema.is(FileKey)
 
 const MAX_NAME_BYTES = 255
 

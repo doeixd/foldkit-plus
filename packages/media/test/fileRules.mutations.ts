@@ -10,10 +10,16 @@ const edit = (name: string, find: string, replace: string) => ({
   tests,
 })
 
+const key = (name: string, replace: string) => ({
+  name,
+  edits: [{ file: '../src/file.ts', find: '/^[0-9a-f]{32}$/', replace }],
+  tests,
+})
+
 export default [
-  edit('a key may be uppercase', '/^[0-9a-f]{32}$/', '/^[0-9a-fA-F]{32}$/'),
-  edit('a key may be any length', '/^[0-9a-f]{32}$/', '/^[0-9a-f]{31,33}$/'),
-  edit('a key may hold more than hex', '/^[0-9a-f]{32}$/', '/[0-9a-f]{32}/'),
+  key('a key may be uppercase', '/^[0-9a-fA-F]{32}$/'),
+  key('a key may be any length', '/^[0-9a-f]{31,33}$/'),
+  key('a key may hold more than hex', '/[0-9a-f]{32}/'),
   edit(
     'a malformed encoding is a name',
     'return Option.none()\n  }\n  return name',
