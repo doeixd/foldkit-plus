@@ -11,6 +11,16 @@ const edit = (name: string, find: string, replace: string) => ({
 })
 
 export default [
+  edit(
+    'a re-save claims again',
+    'Option.filter(current, kept => kept.key === submitted.key)',
+    'Option.none<FileAsset>()',
+  ),
+  edit(
+    'a re-save keeps what the client sent',
+    'onSome: Effect.succeed,',
+    'onSome: () => Effect.succeed(submitted),',
+  ),
   edit('a key names any part of the store', 'isFileKey(key)\n          ?', 'true\n          ?'),
   edit('keys repeat', 'hex(yield* random.randomBytes(16))', "'0'.repeat(32)"),
   edit('a shorter key is minted', 'random.randomBytes(16)', 'random.randomBytes(15)'),

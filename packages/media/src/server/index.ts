@@ -58,6 +58,7 @@ export {
   FileStore,
   FileUnclaimed,
   filesKeyValueStore,
+  keepOrClaim,
   type Declared,
   type FileStoreOptions,
   type StoredFile,

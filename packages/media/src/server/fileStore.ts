@@ -151,3 +151,23 @@ export const filesKeyValueStore = (
       }
     }),
   )
+
+/**
+ * The file a row should hold after a save: the one it holds already when the
+ * submitted key is that file's, so a re-save claims nothing, and otherwise
+ * the submitted key claimed for `owner`. The facts come from the server
+ * either way, never from the client. Call it after the write is authorized,
+ * so a refused write claims nothing.
+ */
+export const keepOrClaim = (
+  current: Option.Option<FileAsset>,
+  submitted: FileAsset,
+  owner: string,
+): Effect.Effect<FileAsset, FileUnclaimed, FileStore> =>
+  Option.match(
+    Option.filter(current, kept => kept.key === submitted.key),
+    {
+      onSome: Effect.succeed,
+      onNone: () => FileStore.use(files => files.claim(submitted.key, owner)),
+    },
+  )

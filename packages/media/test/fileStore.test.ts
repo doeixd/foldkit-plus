@@ -8,7 +8,12 @@ import { SecureRandom } from 'effect/crypto'
 import { KeyValueStore } from 'effect/persistence'
 import { TestClock } from 'effect/testing'
 import { describe, expect, it } from 'vitest'
-import { FileStore, FileUnclaimed, filesKeyValueStore } from '../src/server/fileStore.js'
+import {
+  FileStore,
+  FileUnclaimed,
+  filesKeyValueStore,
+  keepOrClaim,
+} from '../src/server/fileStore.js'
 
 const bytes = new TextEncoder().encode('%PDF-1.7 hello')
 const declared = { name: 'Q1 report.pdf', type: 'application/pdf', owner: 'ada' }
@@ -164,5 +169,39 @@ describe('claim', () => {
     const late = await at('86400001 millis')
     expect(Exit.isSuccess(onTime.exits[0]!)).toBe(true)
     expect(late.exits[0]).toEqual(unclaimed(late.key))
+  })
+})
+
+describe('keepOrClaim', () => {
+  it('keeps the file a row holds, claiming nothing, whatever facts the client sent', async () => {
+    const exits = await run(
+      Effect.gen(function* () {
+        const files = yield* FileStore
+        const asset = yield* files.keep(bytes, declared)
+        const held = yield* files.claim(asset.key, 'ada')
+        // A teammate re-saves the row, the client renaming the file on the way.
+        const resaved = yield* keepOrClaim(Option.some(held), { ...held, name: 'x.html' }, 'grace')
+        return { held, resaved }
+      }),
+    )
+    expect(exits.resaved).toEqual(exits.held)
+  })
+
+  it("claims a key the row did not hold, and answers the server's facts", async () => {
+    const result = await run(
+      Effect.gen(function* () {
+        const files = yield* FileStore
+        const asset = yield* files.keep(bytes, declared)
+        const other = yield* files.keep(bytes, declared)
+        const claimed = yield* keepOrClaim(
+          Option.some(other),
+          { ...asset, name: 'x.html', size: 1 },
+          'ada',
+        )
+        return { asset, claimed, again: yield* files.claim(asset.key, 'ada').pipe(Effect.exit) }
+      }),
+    )
+    expect(result.claimed).toEqual(result.asset)
+    expect(result.again).toEqual(Exit.fail(new FileUnclaimed({ key: result.asset.key })))
   })
 })
