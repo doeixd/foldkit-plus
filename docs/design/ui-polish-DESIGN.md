@@ -576,8 +576,8 @@ green commit. Shared history is not rewritten.
   does, or observe `dir`); a test that flips `dir` after mount. **Done**: f702f16b (`FollowDirection`; browser tests flip `dir` after mount).
 - [x] Color Picker tracks run `to right` while the thumbs mirror
   (`recipes/colorPicker.ts:27-30`): mirror under `:dir(rtl)`. **Done**: 4272d931 (`colorPicker.browser.test.ts`).
-- [ ] Calendar: ArrowLeft moves to the previous day, drawn to the right;
-  the month buttons swap sides but keep `‹`/`›` (`calendar.ts:216, 248`). **Partly**: the arrows (e18fba0d, `Calendar.readingKeys`); the month buttons still draw `‹`/`›`.
+- [x] Calendar: ArrowLeft moves to the previous day, drawn to the right;
+  the month buttons swap sides but keep `‹`/`›` (`calendar.ts:216, 248`). **Done**: the arrows (e18fba0d, `Calendar.readingKeys`); the month buttons keep `‹`/`›` on purpose, since the bidi algorithm mirrors them right to left, and a flip on top would undo it (85e0f67, `calendarLook.browser.test.ts` "paging arrows", with a mutation adding the flip, killed 2026-11-10).
 - [x] Command shortcuts render "N⌘" (`command.ts:89`):
   `direction: ltr; unicode-bidi: isolate` on the shortcut slot. **Done**: e8598620.
 - [x] Tabs and a horizontal Radio Group do not mirror their arrow keys
