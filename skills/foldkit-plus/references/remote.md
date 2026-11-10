@@ -1462,6 +1462,11 @@ Met in applications on this stack: what failed, and what to do instead.
   write on workerd (`Stack.start`, [greenfield.md](greenfield.md)), and a
   race against `stack.env().DB` from Node: requests sent through the stack's
   HTTP origin did not interleave, so the race test passed with the handling removed.
+- **sql.js leaves SQLite's foreign keys off; Node's `node:sqlite` turns them
+  on.** An `on delete cascade` held in every Node test and would have left
+  rows behind in a browser database. Run `pragma foreign_keys = on` yourself
+  ([examples/chirp](https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp)'s
+  `src/server/server.ts`).
 - **One `drizzle-orm` per install.** The Drizzle adapters peer on it; a second
   copy, resolved with other optional peers, makes the application's tables
   fail to type-check against the adapter. Count the copies in the lockfile.
