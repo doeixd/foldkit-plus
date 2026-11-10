@@ -83,6 +83,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`FileDrop.Message`** (`foldkit-mixins-ui`). The drop zone's four Messages
+  over a `File` codec that needs no decoding services. Upstream's
+  `@foldkit/ui/fileDrop` types its files as `Schema<File>`, whose services are
+  `unknown`, so a Message holding its union could not be a `Bundle.parent`'s;
+  upstream's `update` takes this one as it is. The File drop gallery page
+  uses it, and `foldkit-form-recipes`' file and image controls now share it.
 - **A hidden title, a scrim token and the no-script pair** (`foldkit-mixins`,
   `foldkit-mixins-ui`, #424). `Recipes.Dialog` and `Recipes.Sheet` take
   `title: 'hidden'`, which leaves the heading to a screen reader and still
