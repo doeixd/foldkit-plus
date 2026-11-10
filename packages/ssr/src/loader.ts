@@ -61,6 +61,9 @@ const envelopeOf = (
   }
 }
 
+/** A held event and the deadline that releases it. */
+type Holding = HeldEvent & { readonly deadline: ReturnType<typeof setTimeout> }
+
 /** Whether the server marked `node`: a binding of any event, or a kept field. */
 const marked = (node: EventTarget): boolean =>
   node instanceof Element &&
@@ -91,7 +94,7 @@ export const load = (options: LoaderOptions): void => {
   let ran = false
   // Set while a release resubmits a form, so its new submission passes.
   let releasing = false
-  const held: Array<HeldEvent & { readonly deadline: ReturnType<typeof setTimeout> }> = []
+  const held: Array<Holding> = []
 
   const releaseEach = (entry: HeldEvent): void => {
     const { event } = entry
@@ -123,7 +126,7 @@ export const load = (options: LoaderOptions): void => {
     const name = `${BINDING_ATTRIBUTE}${event.type}`
     if (!path.some(node => node instanceof Element && node.hasAttribute(name))) return
     if (event.type === 'submit') event.preventDefault()
-    const entry: HeldEvent & { readonly deadline: ReturnType<typeof setTimeout> } = {
+    const entry: Holding = {
       event,
       path,
       deadline: setTimeout(() => {
