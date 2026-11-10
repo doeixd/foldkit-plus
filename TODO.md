@@ -313,15 +313,13 @@ Decided this round: #494 kept as a documented limit (types only; reopen on
 an adopter's need), #240 closed in favour of #235 and #236, DragAndDrop and
 Animation adapters parked (step 6).
 
-1. **SSR: a page's head in dynamic serving.** High value: every dynamically
-   served page loses its description and link previews today. Medium cost,
-   designed: `docs/design/ssr-dynamic-head-DESIGN.md` (`meta` in the root,
-   `SSR.headed` moves it, `HeadNotMoved` if not). Build it, then an
-   independent review (it touches what a response carries).
-2. **#229: examples as apps.** Medium value, low cost: `fields` and
-   `foldkit/kanban` copied into the scaffold `published-setup.mjs` builds,
-   their imports rewritten to `foldkit-plus/…`, under its `typecheck` and
-   `lint`. Built in the script; run it locally before committing.
+1. **SSR: a page's head in dynamic serving.** Built 2026-11-10 (4abff56):
+   `meta` in the root, `SSR.headed` moves it, `HeadNotMoved` if not. An
+   independent review is running; fix what it confirms.
+2. **#229: examples as apps.** Done (0be324e): seven examples type-check in
+   the scaffold over the published packages, on all three CI pairs (run
+   locally). Not linted: upstream's rules hold an app to its module layout,
+   and what they found in the primitives is #495.
 3. **A size budget for each example's entry chunk** (backlog, partial). Low
    cost with `scripts/bundle-report.mjs`; stops a regression like #490's.
    Start with the examples a reader runs first: todo-app, kitchen-sink, chirp.
