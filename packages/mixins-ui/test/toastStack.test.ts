@@ -6,6 +6,7 @@
  * Message that changes nothing returns the Model it was given.
  */
 import { Option } from 'effect'
+import { MoveEnded, MoveStarted, Moved } from 'foldkit-primitives/dom'
 import { describe, expect, it } from 'vitest'
 import { Toast } from '../src/index.js'
 
@@ -99,4 +100,44 @@ describe('Toast.update', () => {
     expect(acted.outMessage).toEqual(Toast.OutMessage.Acted({ id: withAction.id, value: 'undo' }))
     expect(entry(acted.model, withAction.id).animation.transitionState).toBe('LeaveStart')
   })
+})
+
+describe('a swipe toward the edge', () => {
+  /** A sideways swipe of `deltaX` pixels on the first toast of a stack, let go. */
+  const swipe = (position: Toast.Position, direction: 'ltr' | 'rtl', deltaX: number) => {
+    const { model, id } = Toast.show(Toast.init('toasts', { position, direction }), {
+      title: 'Saved',
+    })
+    const swiped = (
+      current: Toast.Model,
+      fact: Parameters<typeof Toast.Message.Swiped>[0]['fact'],
+    ) => Toast.update(current, Toast.Message.Swiped({ id, fact })).model
+    const started = swiped(model, MoveStarted.make({ pointerId: 1, pointerType: 'touch' }))
+    const moved = swiped(
+      started,
+      Moved.make({ pointerId: 1, deltaX, deltaY: 0, pointerType: 'touch' }),
+    )
+    return {
+      moved: entry(moved, id),
+      ended: entry(swiped(moved, MoveEnded.make({ pointerId: 1, completed: true })), id),
+    }
+  }
+
+  it.each([
+    ['bottom-end', 'ltr', 1],
+    ['bottom-end', 'rtl', -1],
+    ['top-start', 'ltr', -1],
+    ['top-start', 'rtl', 1],
+  ] as const)(
+    'at %s, %s, dismisses going %i and springs back going the other way',
+    (position, direction, edge) => {
+      const toward = swipe(position, direction, 60 * edge)
+      expect(toward.ended.swiped).toBe(true)
+      const away = swipe(position, direction, -60 * edge)
+      // The wrong way gives a fifth of the travel, and lets go in place.
+      expect(Option.map(away.moved.swipe, ({ x }) => x)).toEqual(Option.some(-12 * edge))
+      expect(away.ended.swiped).toBe(false)
+      expect(Option.isNone(away.ended.swipe)).toBe(true)
+    },
+  )
 })
