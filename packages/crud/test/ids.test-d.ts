@@ -1,4 +1,5 @@
 import { Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
 import { Entity } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
 import { Mutation } from 'foldkit-remote'
@@ -16,14 +17,14 @@ const Editor = Crud.editor('Editor', {
 })
 
 // An editor opens the id of its own Entity.
-expectTypeOf(Editor.bundle.helpers!.open).parameter(1).toEqualTypeOf<PostId>()
+expectTypeOf(Bundle.helpersOf(Editor.bundle).open).parameter(1).toEqualTypeOf<PostId>()
 
 const Remover = Crud.remover('Remover', {
   mutation: Mutation.make('Delete', { Input: { id: PostId }, Output: {} }),
   input: (id: PostId) => ({ id }),
 })
 // A remover is asked about the id its `input` names.
-expectTypeOf(Remover.bundle.helpers!.ask).parameter(1).toEqualTypeOf<PostId>()
+expectTypeOf(Bundle.helpersOf(Remover.bundle).ask).parameter(1).toEqualTypeOf<PostId>()
 
 Crud.remover('Untyped', {
   mutation: Mutation.make('DeleteAny', { Input: { id: Schema.String }, Output: {} }),
@@ -38,7 +39,7 @@ const ByKey = Crud.remover('ByKey', {
   mutation: Mutation.make('DeleteByKey', { Input: { id: PostId }, Output: {} }),
   id: 'id',
 })
-expectTypeOf(ByKey.bundle.helpers!.ask).parameter(1).toEqualTypeOf<PostId>()
+expectTypeOf(Bundle.helpersOf(ByKey.bundle).ask).parameter(1).toEqualTypeOf<PostId>()
 
 Crud.remover('Wrong', {
   mutation: Mutation.make('DeleteWrong', {

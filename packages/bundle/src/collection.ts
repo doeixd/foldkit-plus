@@ -4,6 +4,7 @@
  * item; each child Subscription becomes one parent entry over every item.
  */
 import { Array, Option, Record, Schema, Stream } from 'effect'
+import { helpersFor, readsArgs } from './helpers.js'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Subscription from 'foldkit/subscription'
 import * as Update from 'foldkit/update'
@@ -462,12 +463,15 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
     view,
     viewAll: (parent: unknown, h: HtmlBuilder<any>, viewInputs?: unknown) =>
       Array.map(link.entries(parent), ([key]) => view(parent, h, key, viewInputs)),
-    helpers: Record.map(
-      bundle.helpers ?? {},
-      (helper: ErasedHelper) =>
-        (key: string, ...input: ReadonlyArray<unknown>) =>
-          foldItem(key, model => helper(model, ...input)),
-    ),
+    // As a placement's: helpers that read the args take the retained ones.
+    get helpers() {
+      return Record.map(
+        helpersFor(bundle.helpers, readsArgs(bundle.helpers) ? needArgs() : undefined),
+        (helper: ErasedHelper) =>
+          (key: string, ...input: ReadonlyArray<unknown>) =>
+            foldItem(key, model => helper(model, ...input)),
+      )
+    },
   }
 }
 

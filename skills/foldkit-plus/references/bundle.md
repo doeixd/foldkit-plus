@@ -227,7 +227,10 @@ need (`init` when a wiring restores, `url` when one reads the URL).
 - **Presets:** `MediaQuery.with({ query })` binds args; place it with no `args`.
   `Page.place(bundle, 'field', config)` places without a separate `declare`.
 - **Helpers:** `helpers: { reset: (model: CounterModel, to: number) => ({ model }) }` become
-  `placed.helpers.reset(to)`, an `Update.Step` of the parent.
+  `placed.helpers.reset(to)`, an `Update.Step` of the parent. A helper that needs the args is
+  given in a function of them, `helpers: ({ limit }) => ({ fill: model => … })`, which each
+  placement calls with its own args; `Bundle.helpersOf(bundle, args)` reads either form for a
+  parent that folds the child without placing it.
 - **Types:** `Bundle.make` takes no explicit generics. The `Model` and
   `Message` Schemas declare those types and every part is checked against
   them (`init` may write `{}` or `'idle'`); the bundle's services are what

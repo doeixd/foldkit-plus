@@ -22,6 +22,8 @@ import {
   type TagOf,
 } from './placed.js'
 import type { CollectionLink } from './link.js'
+import { helpersFor } from './helpers.js'
+import type { BundleParts } from './declare.js'
 
 /**
  * The parent seed a factory observes: the parent without the placement's own
@@ -119,7 +121,12 @@ export interface BundleSpec<
   readonly subscriptions?: (args: Args) => Subscription.Subscriptions<Model, Message, S>
   readonly resources?: (args: Args) => Resources
   readonly view?: ViewFor<Model, Message, ViewInputs>
-  readonly helpers?: Helpers
+  /**
+   * Programmatic entry points, which a placement exposes as
+   * `placed.helpers.name(...input)`. Give a function of the args when a helper
+   * needs them, as `update` does: the placement calls it with the args it holds.
+   */
+  readonly helpers?: Helpers | ((args: Args) => Helpers)
 }
 
 export interface Bundle<
@@ -470,7 +477,8 @@ const build = <
           : { subscriptions: () => spec.subscriptions!(args) }),
         ...(spec.resources === undefined ? {} : { resources: () => spec.resources!(args) }),
         ...(spec.view === undefined ? {} : { view: spec.view }),
-        ...(spec.helpers === undefined ? {} : { helpers: spec.helpers }),
+        // A preset has its args, so helpers that read them become a record.
+        ...(spec.helpers === undefined ? {} : { helpers: helpersFor(spec.helpers, args) }),
       })
     },
     // A refused `viewInputs` is a type error at the call, never a value here.
@@ -537,7 +545,8 @@ export interface MakeSpec<
   ) => Subscription.Subscriptions<NoInfer<Model>, NoInfer<Message>, S>
   readonly resources?: (args: Args) => Resources
   readonly view?: Submodel.View<NoInfer<Model>, NoInfer<Message>, ViewInputs>
-  readonly helpers?: Helpers
+  /** A record, or a function of the args returning one, as `BundleSpec`'s. */
+  readonly helpers?: Helpers | ((args: Args) => Helpers)
 }
 
 // `Model` is `const` because a paramless `init` is typed before the Schema
@@ -660,7 +669,8 @@ export interface PartsConfig<
   readonly subscriptions?: (
     args: Args,
   ) => Subscription.Subscriptions<NoInfer<Model>, NoInfer<Message>, S>
-  readonly helpers?: Helpers
+  /** As a spec's `helpers`: a record, or a function of the args returning one. */
+  readonly helpers?: Helpers | ((args: Args) => Helpers)
 }
 
 type ErasedPartsConfig = PartsConfig<string, any, any, any, any, any, any, any, any>
@@ -742,6 +752,16 @@ export function fromParts(
     ...(config.helpers === undefined ? {} : { helpers: config.helpers }),
   })
 }
+
+/**
+ * A bundle's helpers as a record, whichever form it was given: for a parent
+ * that folds the child itself (`Update.foldChild`) rather than placing it. A
+ * placement's own `placed.helpers` already reads them with its args.
+ */
+export const helpersOf = <B extends AnyBundle>(
+  bundle: B,
+  ...[args]: BundleParts<B>['Args'] extends void ? [] : [args: BundleParts<B>['Args']]
+): BundleParts<B>['Helpers'] => helpersFor(bundle.helpers, args)
 
 /**
  * An `onOut` that deliberately drops the OutMessage. `onOut` stays required, so

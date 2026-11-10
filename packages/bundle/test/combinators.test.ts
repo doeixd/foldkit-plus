@@ -68,7 +68,7 @@ describe('bundle combinators', () => {
       on: true,
       flips: 1,
     })
-    expect(Counted.helpers!.reset({ on: true, flips: 3 }).model.on).toBe(false)
+    expect(Bundle.helpersOf(Counted).reset({ on: true, flips: 3 }).model.on).toBe(false)
     expect(Object.keys(Counted.subscriptions!(undefined))).toEqual(['ticks'])
     // The original is unchanged.
     expect(Toggle.name).toBe('Toggle')

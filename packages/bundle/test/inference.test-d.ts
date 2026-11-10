@@ -163,6 +163,35 @@ Bundle.make('WrongHelper', {
   },
 })
 
+// Helpers given as a function of the args: `args` is typed by the args Schema
+// with no annotation, and their services join the bundle's as a record's do.
+const ArgsHelpers = Bundle.make('ArgsHelpers', {
+  Model,
+  Message,
+  args: Schema.Struct({ prefix: Schema.String }),
+  init: () => ({ model: { status: 'idle', heights: {}, keys: [] } }),
+  update: model => ({ model }),
+  helpers: ({ prefix }) => ({
+    tick,
+    keyed: (model: Model, key: string) => ({ model: { ...model, keys: [`${prefix}${key}`] } }),
+  }),
+})
+expectTypeOf<Parts<typeof ArgsHelpers>['R']>().toEqualTypeOf<Clock>()
+
+Bundle.make('WrongArgsHelper', {
+  Model,
+  Message,
+  args: Schema.Struct({ prefix: Schema.String }),
+  init: () => ({ model: { status: 'idle', heights: {}, keys: [] } }),
+  update: model => ({ model }),
+  // The function is checked whole against the union, so the error lands on
+  // `helpers` rather than on the one helper, as it does for a record.
+  // @ts-expect-error: a helper that reads its args still returns the bundle's Model
+  helpers: ({ prefix }) => ({
+    clear: (model: Model) => ({ model: { ...model, keys: prefix } }),
+  }),
+})
+
 // `withHelpers` adds its helpers' services.
 const Extended = Inline.pipe(Bundle.withHelpers({ tick }))
 expectTypeOf<Parts<typeof Extended>['R']>().toEqualTypeOf<Clock>()

@@ -426,6 +426,29 @@ const ClicksPlaced = CounterPage.at(Clicks, {
 ClicksPlaced.helpers.reset(0) // an Update.Step of the parent
 ```
 
+A helper that needs the args, as `update` does, is given in a function of
+them. Each placement calls that function with the args it holds, so two
+placements of one bundle fill to their own limits:
+
+```ts
+const Filling = Bundle.make('Filling', {
+  Model: CounterModel,
+  Message: CounterMessage,
+  args: Schema.Struct({ limit: Schema.Number }),
+  init: () => ({ model: { count: 0 } }),
+  update: model => ({ model }),
+  helpers: ({ limit }) => ({
+    fill: (model: CounterModel) => ({ model: { ...model, count: limit } }),
+  }),
+})
+
+// A parent folding the child itself, with no placement, reads either form:
+Bundle.helpersOf(Filling, { limit: 3 }).fill({ count: 0 }) // { model: { count: 3 } }
+```
+
+A placement reads them through the args it retains, so its derived args must
+be resolved first, as for `update`. A preset (`with`) binds them.
+
 - **`args`** is required when the bundle takes them, and checked against the
   args Schema when placed (or when a preset is made with `with`); a value that
   bypassed the types throws naming the placement.

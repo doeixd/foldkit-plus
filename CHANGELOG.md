@@ -43,6 +43,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Helpers that read their placement's args** (`foldkit-bundle`). `helpers`
+  may be a function of the args, `helpers: ({ limit }) => ({ fill })`, as
+  `subscriptions` and `resources` are; each placement and collection calls it
+  with the args it holds, and a preset binds them. Before, a helper had no
+  way to the args, though the README said they were retained for helpers.
+  `Bundle.helpersOf(bundle, args)` reads a bundle's helpers in either form,
+  for a parent that folds the child itself. A bundle's own `helpers` is now
+  typed as the record or the function it was given; read it through a
+  placement or `helpersOf`.
+
 - **`Button.view`'s `attributes`** (`foldkit-mixins-ui`): what another
   component hands the `button` or `icon` slot, after the button's own, such
   as a Dialog's `initialFocus`, so an alert dialog opens on Cancel.

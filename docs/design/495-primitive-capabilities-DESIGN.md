@@ -1,6 +1,7 @@
 # Child update capabilities for the interaction primitives (#495)
 
-Status: proposed 2026-11-10, for the owner's decision before any code.
+Status: decided 2026-11-10. The owner chose the function form of `helpers`
+(decision 2) and adopting the rule for Bundle parents (decision 3).
 
 ## The problem
 
@@ -127,7 +128,8 @@ build, not assumed.
 - **Standalone functions beside the helpers** (`Selection.activate(model, id, args)`).
   These would be a second way to apply the same fact. A parent without
   Bundle placement reaches the same code through the helper record:
-  `Selection.bundle.helpers(args).activate(model, id)`.
+  `Bundle.helpersOf(Selection.bundle, args).activate(model, id)`, which reads
+  either form of helpers.
 
 ## Checks the build must have
 

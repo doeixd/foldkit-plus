@@ -1,4 +1,5 @@
 import { Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
 import { Entity, Relation } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
 import { Form, Input, fillWords } from '../src/index.js'
@@ -165,7 +166,9 @@ describe('Form.make controls', () => {
     const Edit = Form.make('Edit', Entity.input(Cms, Schema.Struct({ id: Schema.String })), {
       inputs: { id: Input.hidden() },
     })
-    const { model } = Edit.bundle.helpers!.fill(Edit.bundle.init(undefined).model, { id: 'p1' })
+    const { model } = Bundle.helpersOf(Edit.bundle).fill(Edit.bundle.init(undefined).model, {
+      id: 'p1',
+    })
 
     expect(Edit.controls[0]?.control).toMatchObject({ kind: 'Hidden', shown: false })
     expect(Edit.field(model, 'id')).toEqual({ _tag: 'NotValidated', value: 'p1' })
@@ -342,7 +345,7 @@ describe('Form update', () => {
 
   it('fills existing values as drafts, leaving the other keys as they are', () => {
     const typed = send(initial, change('body', 'Draft text')).model
-    const { model } = CreatePost.bundle.helpers!.fill(typed, {
+    const { model } = Bundle.helpersOf(CreatePost.bundle).fill(typed, {
       title: 'Existing',
       rating: 3,
       editorId: null,
