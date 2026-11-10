@@ -12,7 +12,51 @@ const edit = (name: string, file: string, find: string, replace: string, tests: 
   tests,
 })
 
+const headed = 'packages/ssr/test/headed.test.ts'
+
 export default [
+  edit(
+    'SSR.headed takes markers wherever they are',
+    index,
+    '!after.startsWith(`<!--${STYLES_MARKER}-->`) &&',
+    'false &&',
+    [headed],
+  ),
+  edit(
+    'SSR.headed takes the first open marker',
+    index,
+    'html.lastIndexOf(HEAD_OPEN, end)',
+    'html.indexOf(HEAD_OPEN)',
+    [headed],
+  ),
+  edit(
+    'SSR.headed reads a raw-text root',
+    index,
+    'tag === undefined || HEADLESS_ROOTS.has(tag) || end === -1',
+    'tag === undefined || end === -1',
+    [headed],
+  ),
+  edit(
+    "SSR.headed puts the meta before the body's </head>",
+    index,
+    'document.search(/<\\/head>/i)',
+    "document.lastIndexOf('</head>')",
+    [headed],
+  ),
+  edit(
+    'a root that drops the meta is not refused',
+    index,
+    '  if (tag !== undefined && HEADLESS_ROOTS.has(tag)) return Result.fail(refused(tag))\n',
+    '',
+    [headed],
+  ),
+  edit(
+    "a posted form's page carries no meta",
+    index,
+    '        ...(options.metaInRoot === true ? { metaInRoot: true } : {}),\n',
+    '',
+    [headed],
+  ),
   edit('the entry carries no meta', index, '      metaInRoot: true,\n', '', [entry, head]),
   edit('the root carries no meta', index, '      options.metaInRoot === true', '      false', [
     entry,
@@ -21,15 +65,15 @@ export default [
   edit(
     'SSR.headed moves nothing',
     index,
-    '    if (start === -1) return document',
-    '    return document',
+    'return `${document.slice(0, at)}${head}${document.slice(at)}`',
+    'return document',
     [entry, head],
   ),
   edit(
     'SSR.headed copies the meta and leaves it in the body',
     index,
-    '`${document.slice(0, start)}${document.slice(end + HEAD_CLOSE.length)}`',
-    'document',
+    'render({ ...application, html }, ...args)',
+    'render(application, ...args)',
     [entry],
   ),
   edit(

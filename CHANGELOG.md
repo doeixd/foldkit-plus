@@ -9,14 +9,6 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
-- **A dynamically served page keeps its `meta`** (`foldkit-ssr`). `SSR.entry`
-  refused a plan with `meta`, since the host owns the template, so a served
-  page had no description or link preview. The entry now carries the markup
-  in the rendered root, and `SSR.headed(renderDocument)` moves it before
-  `</head>` (compose it inside `SSR.keptDocuments`). Without the wrapper,
-  `SSR.hydrate` removes it from the body and reports `HeadNotMoved`.
-  `ResumeUnsafe` gains `VoidRootWithHead`, and `SsrDiagnostic` gains
-  `HeadNotMoved`.
 - **`ModelRef.focus` on an `Option` field can be set** (`foldkit-surface`).
   The ref tree's conditionals distributed an `Option` over `None | Some`, so
   the field's focus was an intersection whose `set` took `never`. They are
@@ -41,6 +33,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`SSR.headed(renderDocument)`: a dynamically served page keeps its
+  `meta`** (`foldkit-ssr`). `SSR.entry` refused a plan with `meta`, since the
+  host owns the template, so a served page had no description or link
+  preview. The entry now carries the markup at the rendered root's end, and
+  `SSR.headed` takes it from there alone (markers a view draws in its own
+  text are left inert) and puts it before the template's `</head>`; compose
+  it inside `SSR.keptDocuments`. A posted form's page carries it too. Without
+  the wrapper, `SSR.hydrate` removes it from the body and reports
+  `HeadNotMoved`. A root a parser does not keep `<meta>` in (a table's,
+  `svg`, raw text) is refused as `RootRefusesHead`.
 - **Any file uploaded and served back as a download** (`foldkit-media`,
   #493). `fileLayer({ accept, … })` (or `serveFetch`'s `files`) serves `POST
   /_media/files` and `GET /_media/files/:key`, apart from the image routes and

@@ -555,8 +555,11 @@ another's document, and `SSR.keptDocuments(SSR.headed(render))` keeps a kept
 page's document with its head. A host that leaves the wrapper out serves the
 `meta` in the body, where nothing reads it: `SSR.hydrate` then removes it,
 reports `HeadNotMoved`, and the head gets it once the page runs. An e2e test
-reading a served page's head is the check before deploying. A void root
-cannot carry it and is refused (`VoidRootWithHead`), as for `styles`.
+reading a served page's head is the check before deploying. `SSR.headed`
+takes the markup only from where the entry put it, at the root's end, so
+marker comments a view draws in its own text (a `<style>`) are not moved. A
+root a parser does not keep `<meta>` in (a void element, a table's, `svg`,
+raw text) is refused (`RootRefusesHead`).
 [foldkit#1448](https://github.com/foldkit/foldkit/issues/1448) asks Foldkit
 for a per-request head channel, which would retire `SSR.headed`.
 

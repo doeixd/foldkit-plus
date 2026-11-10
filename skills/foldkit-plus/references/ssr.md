@@ -293,7 +293,7 @@ would rebuild those elements.
   marker comments; wrap the host's document renderer in `SSR.headed(render)`
   to move it before `</head>`, or `SSR.hydrate` reports `HeadNotMoved` (the
   served head lacked it) and removes it. A void root refuses it
-  (`VoidRootWithHead`).
+  (`RootRefusesHead`: void, table, `svg`, raw-text roots).
 - `cache: { store, maxAge, check? }` (`PageCache`, #428) keeps a `GET`/`HEAD`
   page by build id and full URL when it was drawn from the URL alone: every
   read through `pageReader` public (`PageReads`), every request header that

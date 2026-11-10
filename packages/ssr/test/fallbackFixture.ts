@@ -121,5 +121,15 @@ export const plan = SSR.plan(App, {
   fallback: 'server',
 })
 
+/** The plan, saying what the page says of itself. */
+export const said = SSR.plan(App, {
+  id: 'todos',
+  state: Projection.pick(App.model.draft, App.model.todos, App.model.noted, App.model.booted),
+  surfaces: [Surface.at(Todos, undefined)],
+  boot: () => [booted],
+  fallback: 'server',
+  meta: model => ({ description: `todos ${model.todos.length}` }),
+})
+
 export const template =
   '<!doctype html><html><head><title></title></head><body><div id="root"></div></body></html>'

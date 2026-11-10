@@ -254,22 +254,80 @@ const withInRoot = (html: string, extra: string): Result.Result<string, ResumeUn
       }),
   )
 
+const HEAD_OPEN = `<!--${HEAD_MARKER}-->`
+const HEAD_CLOSE = `<!--${HEAD_END_MARKER}-->`
+
 /**
- * The rendered markup with the plan's `meta` between the head markers, for
- * `SSR.headed` to move before the host's `</head>`.
+ * Roots a parser does not keep `<meta>` inside: a table's (it is moved out),
+ * foreign content (it breaks out), and raw text, where the markers are text.
  */
-const withHeadInRoot = (html: string, markup: string): Result.Result<string, ResumeUnsafe> =>
-  markup === ''
-    ? Result.succeed(html)
-    : beforeRootEnd(
-        html,
-        `<!--${HEAD_MARKER}-->${markup}<!--${HEAD_END_MARKER}-->`,
-        tag =>
-          new ResumeUnsafe({
-            reason: 'VoidRootWithHead',
-            message: `the plan's meta needs a root element to carry it until SSR.headed moves it, but the view returned <${tag}>: serve the page with SSR.generate, or return an element root`,
-          }),
-      )
+const HEADLESS_ROOTS = new Set([
+  'table',
+  'thead',
+  'tbody',
+  'tfoot',
+  'tr',
+  'colgroup',
+  'svg',
+  'math',
+  'textarea',
+  'title',
+  'style',
+  'script',
+  'xmp',
+  'iframe',
+  'noembed',
+  'noframes',
+  'noscript',
+  'plaintext',
+])
+
+const rootTagOf = (html: string): string | undefined =>
+  /^<([A-Za-z][A-Za-z0-9-]*)/.exec(html)?.[1]?.toLowerCase()
+
+/**
+ * The rendered markup with the plan's `meta` between the head markers at the
+ * root's end, where `SSR.headed` takes it from. A root that cannot carry it
+ * to the host intact is refused, naming the tag.
+ */
+const withHeadInRoot = (html: string, markup: string): Result.Result<string, ResumeUnsafe> => {
+  if (markup === '') return Result.succeed(html)
+  const refused = (tag: string) =>
+    new ResumeUnsafe({
+      reason: 'RootRefusesHead',
+      message: `the plan's meta needs a root that keeps it until SSR.headed moves it, but the view returned <${tag}>: serve the page with SSR.generate, or return another element root`,
+    })
+  const tag = rootTagOf(html)
+  if (tag !== undefined && HEADLESS_ROOTS.has(tag)) return Result.fail(refused(tag))
+  return beforeRootEnd(html, `${HEAD_OPEN}${markup}${HEAD_CLOSE}`, refused)
+}
+
+/**
+ * The head block `withHeadInRoot` put in a rendered root, and the root
+ * without it: the last close marker, followed only by the styles or the
+ * root's end, and the last open marker before it, between which is only
+ * escaped `meta`. Markers anywhere else (text a view drew in a `<style>`) are
+ * not a block, and stay where they are.
+ */
+const pageHeadOf = (
+  html: string,
+): Option.Option<{ readonly head: string; readonly html: string }> => {
+  const tag = rootTagOf(html)
+  const end = html.lastIndexOf(HEAD_CLOSE)
+  if (tag === undefined || HEADLESS_ROOTS.has(tag) || end === -1) return Option.none()
+  const after = html.slice(end + HEAD_CLOSE.length)
+  if (
+    !after.startsWith(`<!--${STYLES_MARKER}-->`) &&
+    !new RegExp(`^</${tag}>\\s*$`, 'i').test(after)
+  )
+    return Option.none()
+  const start = html.lastIndexOf(HEAD_OPEN, end)
+  if (start === -1) return Option.none()
+  return Option.some({
+    head: html.slice(start + HEAD_OPEN.length, end),
+    html: `${html.slice(0, start)}${after}`,
+  })
+}
 
 /**
  * The Model the browser will start from when the server's Model is `model`:
@@ -565,7 +623,7 @@ export class ResumeUnsafe extends Schema.TaggedError<ResumeUnsafe>()('ResumeUnsa
     'UndeclaredSurfaces',
     'BindingInStaticRegion',
     'VoidRootWithStyles',
-    'VoidRootWithHead',
+    'RootRefusesHead',
     'UnkeepableField',
   ]),
   message: Schema.String,
@@ -1050,32 +1108,32 @@ const page = (
     result.rendered,
   )
 
-const HEAD_OPEN = `<!--${HEAD_MARKER}-->`
-const HEAD_CLOSE = `<!--${HEAD_END_MARKER}-->`
-
 /**
  * `render`, the host's document renderer, with the head markup `SSR.entry`
  * carries in the rendered root (a plan's `meta`) moved before the document's
  * `</head>`, where link previews and crawlers read it. Wrap whatever draws the
  * document: `SSR.headed(renderDocument)`, or, for a host that hands Foldkit a
  * template, `SSR.headed(application => injectIntoTemplate(template,
- * application))`. Without it the markup stays in the body, and `SSR.hydrate`
- * reports `HeadNotMoved`.
+ * application))`. The markup is taken from the rendered root alone, where the
+ * entry put it, so nothing a view draws elsewhere is moved. Without it the
+ * markup stays in the body, and `SSR.hydrate` reports `HeadNotMoved`.
  */
 const headed =
   <Args extends ReadonlyArray<unknown>>(
     render: (application: RenderedApplication, ...args: Args) => string,
   ) =>
-  (application: RenderedApplication, ...args: Args): string => {
-    const document = render(application, ...args)
-    const start = document.indexOf(HEAD_OPEN)
-    if (start === -1) return document
-    const end = document.indexOf(HEAD_CLOSE, start)
-    return withHead(
-      `${document.slice(0, start)}${document.slice(end + HEAD_CLOSE.length)}`,
-      document.slice(start + HEAD_OPEN.length, end),
-    )
-  }
+  (application: RenderedApplication, ...args: Args): string =>
+    Option.match(pageHeadOf(application.html), {
+      onNone: () => render(application, ...args),
+      onSome: ({ head, html }) => {
+        const document = render({ ...application, html }, ...args)
+        // The template's own `</head>` comes first; a later one is text in the body.
+        const at = document.search(/<\/head>/i)
+        if (at === -1)
+          throw new Error('foldkit-ssr: the document has no </head> to put the head in')
+        return `${document.slice(0, at)}${head}${document.slice(at)}`
+      },
+    })
 
 /** A page generated at build time, and the file a static host serves it from. */
 export interface GeneratedPage {
@@ -2013,6 +2071,8 @@ interface HandleOptions<Model> {
   readonly buildId: string
   readonly flags?: unknown
   readonly styles?: Head | undefined
+  /** Carry the plan's `meta` in the root for `SSR.headed`, as `SSR.entry` serves a post's page. */
+  readonly metaInRoot?: boolean | undefined
   /** The Model the post starts from, from `init`'s, as `SSR.entry`'s `prepare`. */
   readonly prepare?: Prepare<Model> | undefined
   /**
@@ -2037,6 +2097,7 @@ const handleServed = <Model, Fields extends Schema.Struct.Fields>(
         buildId: options.buildId,
         url: request.url,
         ...(options.styles === undefined ? {} : { styles: options.styles }),
+        ...(options.metaInRoot === true ? { metaInRoot: true } : {}),
       },
       'full',
     ),
