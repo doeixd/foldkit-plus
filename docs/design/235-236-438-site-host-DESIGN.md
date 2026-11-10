@@ -1,8 +1,11 @@
 # The Site tree as one source: data, code and the host (#235, #236, #438)
 
-Status: Proposed 2026-11-10: awaiting the owner's decisions. Nothing here is
-built. Every claim about current code names its file and line, read on that
-date at `1c1956b`.
+Status: decided 2026-11-10 (decisions delegated by the owner); built next are Phase 0's per-route baselines, Chirp on node Surfaces (D1) and `SSR.entry`'s `redirect` (H1), with two `Bundle.lazy` bugs filed first.
+
+Nothing here is built. Every claim about current code names its file and
+line, read on 2026-11-10 at `1c1956b`; the claims the decisions rest on were
+read again at `922b0ab`, and two were probed on the real runtime (section 6,
+"Premises checked").
 
 Three issues ask for one thing from three sides: an application states its
 routes once, and what follows from a route (what it reads, what code it
@@ -463,20 +466,150 @@ Each ships alone. "Measure" is what the phase records before and after.
 | --- | --- | --- | --- |
 | **0. Baselines** | `scripts/bundle-report.mjs` reports first-load JS per route (the entry, its static imports, and the route's chunks). Numbers for `examples/reference`, the CMS studio and site, and Chirp in `performance-PLAN.md`. | brotli per route; how much of each entry only one route imports | the report's own test |
 | **D1. Chirp on node Surfaces** | `examples/chirp` moves its three `Surface.when` entries onto its nodes and builds `actives` from `Site.sources`. Docs: the route-policy recipe in `packages/site/README.md` and `site.md`. No API. | lines deleted | Chirp's unit and e2e suites unchanged |
-| **D2. `visibleLinks`** | `foldkit-primitives/dom` | reads started per page of 50 links, with and without `atMost` | a browser test (`*.browser.test.ts`: layout decides it), with Save-Data emulated; mutations on the cap and the skip |
-| **C1. `SitePage.code`, `Site.codeFor`** | `foldkit-site` | none (pure) | unit and type tests; a non-lazy page has none |
-| **C2. Load on intent; SSR loads the route's** | `Site.routing`, `SSR.entry` and `SSR.hydrate` taking `lazy` as a function | requests on hover; time from click to drawn, with and without prefetch | `packages/site/test/intent.test.ts` extended; a runtime test that an unloaded page draws after arrival (see Risks); SSR test that another route's body is not loaded |
-| **C3. Split one application** | the CMS studio's routes as `Bundle.lazy` pages; a module assertion per chunk, as `examples/auth/test/split.test.ts` | Phase 0's number again; #438's "done when" | `split.test.ts` per route with mutations (an eager import of a body goes red); an e2e that hovers a link and counts the chunk request, as `examples/auth/e2e/auth.e2e.ts:100` counts Yielded's |
+| **D2. `visibleLinks`** (not built unless decision 3's rule is met) | `foldkit-primitives/dom` | reads started per page of 50 links, with and without `atMost` | a browser test (`*.browser.test.ts`: layout decides it), with Save-Data emulated; mutations on the cap and the skip |
+| **B. The two `Bundle.lazy` bugs** (decision 5) | `foldkit-bundle`: a body that arrives is drawn though no Model changed, and a load that fails is no crash | none | the two probes of section 6 as runtime tests in `packages/bundle/test/lazy.test.ts`, with mutations |
+| **C1. `SitePage.code`, `Site.codeFor`** (gated: decision 6) | `foldkit-site` | none (pure) | unit and type tests; a non-lazy page has none |
+| **C2. Load on intent; SSR loads the route's** (gated; after B) | `Site.routing`, `SSR.entry` and `SSR.hydrate` taking `lazy` as a function | requests on hover; time from click to drawn, with and without prefetch | `packages/site/test/intent.test.ts` extended; a runtime test that a placed lazy page draws after arrival; SSR test that another route's body is not loaded |
+| **C3. Split one application** (gated) | the CMS studio's routes as `Bundle.lazy` pages; a module assertion per chunk, as `examples/auth/test/split.test.ts` | Phase 0's number again; #438's "done when" | `split.test.ts` per route with mutations (an eager import of a body goes red); an e2e that hovers a link and counts the chunk request, as `examples/auth/e2e/auth.e2e.ts:100` counts Yielded's |
 | **H1. `SSR.entry`'s `redirect`** | `foldkit-ssr`; `examples/reference` and `examples/auth` make their entry once | `page.ts` lines; CPU per page (`scripts/workerd-cpu.mjs`) should not rise | SSR unit tests (a 303 carries the entry's headers, is never cached, never renders); both examples' e2e |
-| **H2. `Host.isolate`, `Host.template`, `Host.routes`, `Host.node`** | the new package; `examples/reference/src/worker.ts` ported | `worker.ts` lines; CPU per request before and after | unit tests on `Host.node`; `examples/reference/test/worker.test.ts` and its e2e on workerd through `Stack.start`; a failed isolate build is retried |
-| **H3. `AuthServer.host`** | `foldkit-auth/server`; reference and `examples/auth` ported | lines | the security tests of section 7, on workerd; `node:http` for navigations (Node's `fetch` cannot send one: CLAUDE.md) |
-| **H4. `Host.workers` preset; `examples/cloudflare` ported** | the one call, with a Durable Object and media as routes | lines; a deploy of reference | e2e on all three examples |
+| **H2. `Host.isolate`, `Host.template`, `Host.routes`, `Host.node`** (after H3) | the new package; `examples/reference/src/worker.ts` ported | `worker.ts` lines; CPU per request before and after | unit tests on `Host.node`; `examples/reference/test/worker.test.ts` and its e2e on workerd through `Stack.start`; a failed isolate build is retried |
+| **H3. `AuthServer.host`** (before H2) | `foldkit-auth/server`; reference and `examples/auth` ported | lines | the security tests of section 7, on workerd; `node:http` for navigations (Node's `fetch` cannot send one: CLAUDE.md) |
+| **H4. `Host.workers` preset; `examples/cloudflare` ported** (gated: decision 7) | the one call, with a Durable Object and media as routes | lines; a deploy of reference | e2e on all three examples |
 
-Order: 0, then D1, H1 and C1 in parallel (disjoint packages), then the rest
-of each track. C3 does not start unless Phase 0 shows a route-only share
-worth splitting.
+Order, as decided in section 6:
 
-## 6. Decisions for the owner
+1. Phase 0, D1, H1 and B in parallel (disjoint packages). B is two bugs
+   that stand whatever becomes of #438.
+2. H3, then H2. The resolver pairing is the security-sensitive part and
+   does not need the host package; with it gone, H2 is measured against a
+   shorter `worker.ts`.
+3. C1, C2 and C3 together, only if Phase 0 meets decision 6's rule, and C2
+   only after B.
+4. H4 only if decision 7's rule is met after H2.
+5. D2 only if decision 3's rule is met.
+
+## 6. Decisions
+
+Decided 2026-11-10; the owner delegated these. The options each number
+chose between are kept below, under "Options considered".
+
+1. **Per-node data policy: (c), the route `match` on `Data.wiring`'s
+   `policy`. `retain` on a node is rejected outright.** `PolicyOption`
+   already takes `(model) => RemotePolicy` (`remote/src/domain.ts:1157`), and
+   a `match` over the route union is checked when a route is added, where an
+   annotation with a default is not. Retention stays the store's alone. The
+   limit named in section 3 (one policy covers every Surface active on a
+   route) gets no issue until an application needs two policies on one
+   route; none does today (`examples/chirp/src/app.ts:258`, `:263` is one
+   policy for all).
+2. **`SSR.plan({ site })`: (b), closed as met by composition.**
+   `foldkit-site` depends on `foldkit-ssr` (`site/package.json:46`), so
+   building it means turning a dependency round to save
+   `Object.values(actives)`. Chirp is ported (D1) because it still writes its
+   three routes twice (`site.ts:24-30`, `app.ts:226-229`).
+3. **`'visible'` preloading: (c), not yet, and (a) is the shape if it is
+   built.** Intent already covers a pointer and a finger
+   (`pointedLinks`), and nothing measured says it arrives too late; a visible
+   stream multiplies reads made as the signed-in reader for links never
+   followed. Rule: in an e2e on a touch profile under Phase 0's throttled
+   network, measure tap to drawn on `examples/reference` with intent preload
+   on. Build D2 if the median is more than 100 ms slower than the same page
+   after a rested pointer; otherwise close this part. The budget, if built,
+   is the stream's cap; (b) stays rejected because the routing would have to
+   hear Remote's `Preloaded`.
+4. **Where a chunk is cut: (b), the author's `Bundle.lazy`; the tree
+   decides when to load.** A page's Schemas must be in the boot chunk, so no
+   plugin can cut a page module, and `Bundle.lazy` is the one place a page
+   boundary is written (`bundle/src/lazy.ts:94`). #438 is retitled to say
+   so.
+5. **A route that arrives before its code: (a), set the route at once and
+   draw `while`.** Holding the old page needs a second place for "the route
+   being gone to", which #227's note rejected. The probe below shows (a)
+   does not work today for a page whose arrival leaves its Model alone, so
+   it rests on Phase B: both flagged risks are **bugs to file now**, not
+   tests of C2, because they are wrong in `foldkit-bundle` with no Site in
+   the picture and contradict its README.
+6. **Is #438 worth building: gate C1, C2 and C3 together on Phase 0.**
+   The note recommended C1 and C2 regardless; that is not taken. No example
+   has a `Bundle.lazy` page, so "SSR stops loading every lazy body" changes
+   nothing anyone runs, and by the rule section 3 cites an API lands when it
+   deletes or speeds an application's own code. Rule: build C1 to C3 if
+   Phase 0 shows, in at least one application, 20 KB brotli or more that a
+   single route other than the landing route alone imports (the CMS studio's
+   editor and page builder are the likely case). Below that, close #438 once
+   Phase B's bugs are fixed, recording the numbers.
+7. **`Host`: (b), parts first, and the `Host.workers` preset only by
+   rule.** Three Workers route by hand and differ where it matters
+   (`reference/src/worker.ts:163-174`, `auth/src/host.ts:21-33`,
+   `cloudflare/src/worker.ts:135-149`), but they also differ in five
+   decisions one call would hide. Rule for H4: after H1 to H3 and the ports,
+   build the preset if `examples/reference` and one other example still
+   share 30 lines or more of the same server glue; otherwise close #235 on
+   the parts.
+8. **Where the host lives: (a), a new `foldkit-host` package, re-exported
+   as `foldkit-plus/host`, created at H2 and not before.** It runs in
+   production and should be installable with `foldkit-ssr` and
+   `foldkit-remote-server` alone; `foldkit-plus` depends on every package.
+   H1 and H3 land in packages that exist, so the new package is made only
+   once there is something left for it to hold.
+9. **Who pairs the resolvers: (b), `AuthServer.host` in
+   `foldkit-auth/server`.** It defines `requests: 'navigation'`
+   (`auth/src/server.ts:111`) and returns only resolvers and Yielded's
+   routes, which its existing `foldkit-remote` peer covers, so the host
+   package needs no auth peer. It hands the
+   scripted resolver and the navigation resolver out as differently typed
+   values, each fitting only its consumer. The premise for this was
+   overstated: see "Premises checked".
+10. **The page build on a Worker: (a) for the host, and (c) asked
+    upstream.** The generated `fetch(request)` takes no `env`
+    (`@foldkit/vite-plugin` 0.28.0, `dist/build.js:258-264`), and
+    domains-plus pays for it twice (`server/entry.ts:119-126`,
+    `server/cache.ts:47-59`). `SSR.requestContext` keeps page code the same
+    either way, so nothing waits on upstream.
+11. **The Sync Durable Object and media routes: (b), routes the application
+    adds.** A Durable Object class is exported from the Worker's main module
+    (`cloudflare/src/worker.ts:81`), which a library cannot do.
+12. **Unset `ORIGIN`: (a), a 500 naming the variable, everywhere.** A
+    fallback to the request's own origin trusts whichever host the Worker
+    was reached by, the failure the origin check exists to stop
+    (`worker.ts:167-168`); a local stack sets its origin through
+    `Stack.start`'s `vars`.
+
+### Premises checked
+
+Read again on 2026-11-10 at `922b0ab`. The line references of sections 1 and
+2 that the decisions rest on hold. Three findings change the text above:
+
+- **A lazy page whose arrival returns the same Model never redraws.
+  Confirmed, on the real runtime.** A scratch copy of
+  `packages/bundle/test/lazy.test.ts`'s runtime test, with a body whose
+  `update` returns the Model it was given for the first Message, loaded the
+  body (`isLoaded()` true) and still showed `while` 200 ms later. Section 4's
+  own sketch is this page (`update: model => ({ model })`, `changed: () =>
+  SMessage.Arrived()`). The same holds for a `load()` that resolves with no
+  Message at all, as a prefetch finishing while `while` is drawn would. The
+  existing test passes only because its body always builds a new Model
+  (`lazy.test.ts:27-29`).
+- **A chunk that fails to load crashes the application. Confirmed.** The
+  same test with a `load` that rejects once put Foldkit's crash view in
+  place of the page and logged `[foldkit] Application crash: Error: chunk
+  404`. `Effect.promise` (`lazy.ts:154`) makes the rejection a defect.
+  `packages/bundle/README.md:1007-1008` says "A load that fails is
+  forgotten, so the next Message or `load()` tries again": true of `load()`
+  called directly, false of the Message path, where there is no next
+  Message.
+- **The mis-pairing of resolvers fails closed, not open.** Section 7 says a
+  navigation resolver handed to `serveFetch` would let "any site write as a
+  signed-in reader with a link". It would not: `navigated`
+  (`auth/src/server.ts:71-74`) refuses any method but `GET` and `HEAD`, and
+  `serveFetch` answers only `POST` (`remote-server/src/fetch.ts:537`), so
+  every request carrying a cookie would be refused. The typed pair in
+  decision 9 is kept as a guard against a `/remote` that refuses everyone
+  signed in, and against a later loosening of either check; its tests stay
+  as section 7 lists them.
+
+### Options considered
+
 
 1. **Per-node data policy (#236).**
    (a) the issue's `data` block; (b) a typed `policy` annotation Site
@@ -548,10 +681,11 @@ worth splitting.
   navigation.** A navigation carries no CSRF header and often no `Origin`
   (CLAUDE.md), so the page's resolver skips both checks; that is safe only
   because `pageReader` refuses mutations and live opens
-  (`remote-server/src/fetch.ts:643-670`). If one config could hand the
-  navigation resolver to `serveFetch`, any site could write as a signed-in
-  reader with a link. `AuthServer.host` must return the two as differently
-  typed values that fit only their own consumer. Test: a `POST /remote`
+  (`remote-server/src/fetch.ts:643-670`). A navigation resolver handed to
+  `serveFetch` refuses every signed-in `POST` today (section 6, "Premises
+  checked"), so the mistake breaks `/remote` and opens nothing; it would
+  open it if either check were loosened. `AuthServer.host` must return the
+  two as differently typed values that fit only their own consumer. Test: a `POST /remote`
   with a cookie and no CSRF header is 401; a page `GET` with the cookie
   renders as the reader; a write through the page's reader fails.
 - **The origin is configured, never the request's.** A Worker reachable at
@@ -599,15 +733,16 @@ worth splitting.
   the root Model changes identity (CLAUDE.md). `Bundle.lazy` loads on the
   first Message and yields it again (`lazy.ts:147-158`); if the page's
   `update` returns the Model it was given for that Message, the view may
-  stay on `while` though the body is there. Not yet observed: Phase C2
-  starts with a runtime test of exactly this, and if it fails the fix is
-  `Bundle.lazy`'s, not Site's.
+  stay on `while` though the body is there. Observed on 2026-11-10
+  (section 6, "Premises checked"): a bug in `Bundle.lazy`, filed and fixed
+  as Phase B before C2.
 - **A chunk that no longer exists.** After a deploy, an open tab's route
   chunk may 404. The load Command is `Effect.promise` (`lazy.ts:154`), so a
-  rejected import is a defect. What Foldkit's runtime does with it needs a
-  probe before C2; the likely answer is that `Site.routing` loads the whole
-  document (`Site.Load`, which it already has for addresses no node holds),
-  which also picks up the new build.
+  rejected import is a defect. Probed on 2026-11-10: Foldkit replaces the
+  page with its crash view. Phase B makes a failed load a failure the
+  bundle answers, not a defect; what a routed page then does (the likely
+  answer is `Site.Load`, a whole-document load that also picks up the new
+  build) is C2's to decide, on top of that fix.
 - **A Message through `update` twice.** A Message that meets an unloaded
   Bundle passes `update` twice (`packages/bundle/README.md:1009-1017`).
   Loading on intent makes this rarer, not impossible (a keyboard reader who
@@ -646,3 +781,59 @@ worth splitting.
   each handler sets.** Two owners of `cache-control`. Dev cookie prefixes
   are Yielded's `Http.make` config, which `AuthServer.host` passes on.
 - **Holding the old page during a chunk load.** Decision 5.
+
+## 8. Issue actions
+
+For the coordinator. None of these has been done.
+
+**File now, in doeixd/foldkit-plus (`foldkit-bundle`):**
+
+- *"Bundle.lazy: a page stays on `while` after its bodies load when no
+  Model changes."* Body: the first probe of section 6. The fix must cover
+  both a first Message whose `update` returns the Model it was given and a
+  `load()` that resolves with no Message. Blocks C2.
+- *"Bundle.lazy: a failed load of the bodies crashes the application."*
+  Body: the second probe. `Effect.promise` at `packages/bundle/src/lazy.ts:154`
+  turns a rejected import into a defect; the README's "the next Message
+  tries again" is not kept on the Message path. An open tab after a deploy
+  meets this on its first click into a lazy bundle. Blocks C2.
+
+**#236: narrow.** New title: *"Site data routing: port Chirp to node
+Surfaces and document the policy-by-route recipe"*. Record in a comment:
+the per-node `data` block is declined (`retain` would be a second owner of
+retention; `revalidate` is `Data.wiring`'s `policy` picked by route);
+`SSR.plan({ site })` is met by `Object.values(actives)` over `Site.sources`;
+`'visible'` preloading and its budget wait on decision 3's measurement.
+Close when D1 lands, opening a separate issue for `visibleLinks` only if
+the rule is met.
+
+**#438: narrow.** New title: *"Load each route's `Bundle.lazy` chunk from
+the Site tree, if a route-only share justifies it"*. Record: chunks are cut
+by the author's `Bundle.lazy`, not derived by a plugin; C1 to C3 are gated
+on Phase 0 showing 20 KB brotli or more that one non-landing route alone
+imports; the two bugs above come first either way. Close with the numbers
+if the gate is not met.
+
+**#235: keep, narrowed in scope.** New title: *"Server host: `SSR.entry`
+redirect, `AuthServer.host`, then `foldkit-host` parts"*. Record: parts
+first (H1, H3, H2 in that order); the one-call `Host.workers` preset only if
+30 lines or more of glue remain shared after the ports; the host owns no
+cache, no page table, no Durable Object or media route, and no origin
+fallback.
+
+**Upstream (Foldkit), to post and to add to
+`docs/upstream-foldkit-ssr.md`:**
+
+> The server build's generated `fetch.js` exports `fetch(request)` and calls
+> `handleRequest(request, { renderPage, renderDocument })`, so on a Worker a
+> page never sees `env` or `ctx`. An application that needs a binding in
+> `renderPage` (a database to read the page from, a KV page cache) has two
+> choices today: bundle the page into a Worker entry of its own and give up
+> the generated one, or reach the binding through `import('cloudflare:workers')`
+> hidden from the bundler; and it cannot put a route such as an API endpoint
+> in front of pages except inside `renderPage`. Could the generated handler
+> be `fetch(request, env, ctx)` and pass both on, as a second argument to
+> `renderPage` (`renderPage(request, { env, ctx })`)? Existing `renderPage`
+> functions ignore an extra argument, so it should not break anyone.
+
+No other upstream ask follows from this note.
