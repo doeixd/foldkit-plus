@@ -449,6 +449,35 @@ Bundle.helpersOf(Filling, { limit: 3 }).fill({ count: 0 }) // { model: { count: 
 A placement reads them through the args it retains, so its derived args must
 be resolved first, as for `update`. A preset (`with`) binds them.
 
+### A parent's decision is its own Message and a helper
+
+A parent's view sends the parent's own Message, saying what happened in its
+terms; its `update` applies the decision through the child's helper. It does
+not build the child's Message (`wrapper.make(Child.Message.X(...))`) in the
+view: the fact is the parent's, and a helper such as a tree's `toggle` reads
+what it needs from the child's own state, which the view would have to guess
+from a drawing. `@foldkit/oxlint-plugin`'s `no-child-message-construction-in-root`
+reports the other shape.
+
+```ts
+const ResetMessage = defineMessageUnion({ ...Clicks.cases, ClickedReset: {} })
+const ResetPage = Bundle.parent({
+  Model: Schema.Struct({ ...Clicks.fields }),
+  Message: ResetMessage,
+})
+const ResetClicks = ResetPage.at(Clicks, { args: { limit: 10 }, onOut: Bundle.ignore })
+const resetting = ResetPage.assemble(ResetClicks)
+
+// The view sends ResetMessage.ClickedReset(); its only own Message lands here.
+const updateResetting = resetting.update((model, _clickedReset) => ResetClicks.helpers.reset(0)(model))
+```
+
+The child's own Messages still reach it through the wrapper, from the view the
+child draws and the Behaviors it attaches; a test or a demo that stands in for
+a person may send them too. `follow`, below, is the exception: the Messages it
+replays are the owner's answer to its own ask, built at the one boundary that
+knows both.
+
 - **`args`** is required when the bundle takes them, and checked against the
   args Schema when placed (or when a preset is made with `with`); a value that
   bypassed the types throws naming the placement.

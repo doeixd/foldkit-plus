@@ -231,6 +231,11 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   given in a function of them, `helpers: ({ limit }) => ({ fill: model => … })`, which each
   placement calls with its own args; `Bundle.helpersOf(bundle, args)` reads either form for a
   parent that folds the child without placing it.
+- **A parent's decision:** its view sends the parent's own Message (`ClickedReset`), and its
+  `update` folds the child's helper (`placed.helpers.reset(0)(model)`); a parent view does
+  not build `wrapper.make(Child.Message.X(...))`, which `@foldkit/oxlint-plugin`'s
+  `no-child-message-construction-in-root` reports. The child's own view and Behaviors still
+  send its Messages; `follow`'s replayed asks are the exception.
 - **Types:** `Bundle.make` takes no explicit generics. The `Model` and
   `Message` Schemas declare those types and every part is checked against
   them (`init` may write `{}` or `'idle'`); the bundle's services are what
