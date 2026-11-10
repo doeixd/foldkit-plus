@@ -15,7 +15,7 @@ export default [
     edits: [
       {
         file: optimistic,
-        find: '  if (at === undefined || deleted.length === 0) return optimistic',
+        find: '  if (at === undefined || (deleted.length === 0 && written.length === 0)) return optimistic',
         replace: '  if (at !== -1) return optimistic',
       },
     ],

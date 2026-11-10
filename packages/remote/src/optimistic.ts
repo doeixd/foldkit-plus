@@ -422,36 +422,72 @@ export const settleSuccess = (
           (answer.deleted ?? [])
             .map(gone => entityKey(gone.entity, gone.id))
             .filter(key => isTombstone(reconciled.store, key)),
+          answer.entities,
         ),
   }
 }
 
 /**
- * The layers without the patches of rows `requestId`'s answer deleted, in each
- * request started before it: the server ran those first, so the delete is
- * the row's last word, and their answers will not bring it back. Shown, such
- * a patch would make the deleted row a stub that reads `Initial`.
+ * The layers without what `requestId`'s answer settled, in each request
+ * started before it: the server ran those first, so the answer is the last
+ * word, and their answers will not bring it back. A row it deleted loses
+ * those patches whole, or the row would show as a stub that reads `Initial`.
+ * A field it wrote loses only that field's patch, or an earlier edit still
+ * pending would show over a later one the server confirmed already.
  */
 const superseded = (
   optimistic: OptimisticState,
   state: MutationState,
   requestId: string,
   deleted: ReadonlyArray<EntityKey>,
+  written: ReadonlyArray<NormalizedPatch>,
 ): OptimisticState => {
   const at = state.order.get(requestId)
-  if (at === undefined || deleted.length === 0) return optimistic
+  if (at === undefined || (deleted.length === 0 && written.length === 0)) return optimistic
   const gone = new Set(deleted)
+  const fieldsOf = new Map<EntityKey, Set<string>>()
+  for (const patch of written) {
+    const key = entityKey(patch.entity, patch.id)
+    fieldsOf.set(key, new Set([...(fieldsOf.get(key) ?? []), ...Object.keys(patch.values)]))
+  }
   let changed = false
   const layers = optimistic.layers.map(layer => {
     const started = state.order.get(layer.id)
     if (started === undefined || started > at) return layer
-    const patches = layer.patches.filter(patch => !gone.has(entityKey(patch.entity, patch.id)))
-    if (patches.length === layer.patches.length) return layer
+    const patches = layer.patches.flatMap(patch => {
+      const key = entityKey(patch.entity, patch.id)
+      if (gone.has(key)) return []
+      const settled = fieldsOf.get(key)
+      if (settled === undefined) return [patch]
+      const kept = {
+        ...patch,
+        values: withoutFields(patch.values, settled),
+        ...(patch.adds === undefined ? {} : { adds: withoutFields(patch.adds, settled) }),
+        ...(patch.computes === undefined
+          ? {}
+          : { computes: withoutFields(patch.computes, settled) }),
+      }
+      const empty =
+        Object.keys(kept.values).length === 0 &&
+        Object.keys(kept.adds ?? {}).length === 0 &&
+        Object.keys(kept.computes ?? {}).length === 0
+      return empty ? [] : [kept]
+    })
+    const same =
+      patches.length === layer.patches.length &&
+      patches.every((patch, index) => patch === layer.patches[index])
+    if (same) return layer
     changed = true
     return { ...layer, patches }
   })
   return changed ? { ...optimistic, layers } : optimistic
 }
+
+const withoutFields = <A>(
+  record: Readonly<Record<string, A>>,
+  fields: ReadonlySet<string>,
+): Readonly<Record<string, A>> =>
+  Object.fromEntries(Object.entries(record).filter(([field]) => !fields.has(field)))
 
 /** A failed request's layer and overlays are dropped; the base was never mutated. */
 export const settleFailure = (optimistic: OptimisticState, requestId: string): OptimisticState =>
