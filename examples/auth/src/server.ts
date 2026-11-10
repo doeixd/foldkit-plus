@@ -4,13 +4,11 @@
  * the guard set's principal; the guards decide which notes that principal
  * reads. Nothing here is a Fetch or Node server; `http.ts` is.
  */
-import { NodeHttpServer } from '@effect/platform-node'
-import { Auth, Http, Password, Sessions } from '@yielded/auth'
+import { Auth, Password, Sessions } from '@yielded/auth'
 import * as PasswordScrypt from '@yielded/auth/PasswordScrypt'
 import * as Testing from '@yielded/auth-persistence/Testing'
 import { Effect, Exit, Layer, ManagedRuntime, Option, Redacted, Scope } from 'effect'
 import { Digest, Kdf, SecureRandom } from 'effect/crypto'
-import { HttpRouter } from 'effect/http'
 import { AuthServer } from 'foldkit-auth/server'
 import { GuardServer } from 'foldkit-guard/server'
 import { Remote } from 'foldkit-remote'
@@ -143,32 +141,16 @@ export const openServer = async (origin: string) => {
   // Yielded's default cookie, `__Host-` and Secure, even over plain http:
   // Chromium counts 127.0.0.1 as secure and keeps it (the e2e test signs in so).
   const http = { origin } as const
-  // Yielded's `Auth` built once, over the store: Remote's requests share it.
+  // Yielded's `Auth` built once, over the store: its routes and every request share it.
   const runtime = ManagedRuntime.make(App.layer.pipe(Layer.provideMerge(store), Layer.orDie))
   const services = await runtime.context()
-  const shared = Layer.succeedContext(services)
-  const routes = HttpRouter.toWebHandler(
-    Http.layer(App, http).pipe(
-      Layer.provide(Layer.mergeAll(shared, NodeHttpServer.layerHttpServices)),
-      Layer.orDie,
-    ),
-    { disableLogger: true },
-  )
   // `key` names the principal as `Me` does, for the answer's header and the check of it.
   const resolving = { auth: App, http, principal: principalOf, key: Policy.key }
-  const remoteConfig = {
-    server,
-    resolvePrincipal: AuthServer.resolver(resolving),
-    headers: AuthServer.answered(resolving),
-    layer: () => shared,
-  }
-  const remote = serveFetch(remoteConfig)
+  const auth = AuthServer.host({ ...resolving, services })
+  const remote = serveFetch({ server, layer: () => Layer.empty, ...auth.scripted })
   // A page's own reads, in this process. A page request is a navigation,
   // which carries no CSRF header; the reader it resolves cannot write.
-  const read = pageReader({
-    ...remoteConfig,
-    resolvePrincipal: AuthServer.resolver({ ...resolving, requests: 'navigation' }),
-  })
+  const read = pageReader({ server, layer: () => Layer.empty, ...auth.navigation })
   // The board's journal: in memory, as the sessions are, and gone on restart.
   const scope = Effect.runSync(Scope.make())
   const journal = Effect.runSync(
@@ -186,7 +168,7 @@ export const openServer = async (origin: string) => {
     sync: PinBoard,
     journal: async () => journal,
     resolvePrincipal: AuthServer.resolver({ ...resolving, requests: 'browser' }),
-    layer: () => shared,
+    layer: () => Layer.succeedContext(services),
     // A sign-out in any tab ends the session the socket opened with: it closes
     // within this. No `key`: the cookie a socket opened with names one user for good.
     revalidate: { every: SYNC_REVALIDATE },
@@ -194,12 +176,12 @@ export const openServer = async (origin: string) => {
     opens: principal => Effect.succeed(Option.isSome(principal)),
   })
   return {
-    auth: routes.handler,
+    auth: auth.routes,
     remote,
     read,
     sync,
     close: async () => {
-      await routes.dispose()
+      await auth.dispose()
       await runtime.dispose()
       Effect.runSync(Scope.close(scope, Exit.void))
     },

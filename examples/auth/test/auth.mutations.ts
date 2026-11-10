@@ -358,8 +358,20 @@ export default [
     edits: [
       {
         file: '../src/server.ts',
-        find: "resolvePrincipal: AuthServer.resolver({ ...resolving, requests: 'navigation' }),",
-        replace: 'resolvePrincipal: AuthServer.resolver(resolving),',
+        find: 'const read = pageReader({ server, layer: () => Layer.empty, ...auth.navigation })',
+        replace: 'const read = pageReader({ server, layer: () => Layer.empty, ...auth.scripted })',
+      },
+    ],
+    tests: host,
+  },
+  {
+    name: "/remote is answered with a navigation's resolver",
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: 'const remote = serveFetch({ server, layer: () => Layer.empty, ...auth.scripted })',
+        replace:
+          'const remote = serveFetch({ server, layer: () => Layer.empty, ...auth.navigation })',
       },
     ],
     tests: host,
