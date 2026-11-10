@@ -15,6 +15,7 @@ import {
   compose,
   global,
   keyframes,
+  media,
   nest,
   self,
   supports,
@@ -25,6 +26,9 @@ import type { Palette as Colors } from './theme/oklch.js'
 import { tokens, type Tokens } from './theme/tokens.js'
 
 const t = ref(tokens)
+
+/** A browser running no scripts. */
+const NO_SCRIPT = '(scripting: none)'
 
 /** A space step, or none. */
 export type Space = (keyof Tokens['space'] & string) | '0'
@@ -205,6 +209,15 @@ export const Utilities = {
     whiteSpace: 'nowrap',
     border: '0',
   }),
+  /**
+   * Shown only where scripts run: a control a script drives, with a plain
+   * stand-in beside it that `plainOnly` shows. Last in a slot's pieces, so it
+   * wins over a width's `display`.
+   */
+  scriptedOnly: media(NO_SCRIPT, { display: 'none' }),
+  /** The stand-in for a `scriptedOnly` control: not shown, and shown as `display` where no script runs. */
+  plainOnly: (display: string): StyleValue =>
+    compose(self({ display: 'none' }), media(NO_SCRIPT, { display })),
   pointer: self({ cursor: 'pointer' }),
   selectNone: self({ userSelect: 'none' }),
   /**

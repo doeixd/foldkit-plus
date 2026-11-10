@@ -5,11 +5,12 @@
  * rows' look.
  */
 import { Style } from 'foldkit-mixins'
+import { Utilities } from 'foldkit-mixins/utilities'
 import { WindowListSlots } from '../windowList.js'
 import { component } from './design.js'
 
 export const WindowList = Style.recipeFor(WindowListSlots)({
   base: {
-    spacer: component(Style.media('(scripting: none)', { display: 'none' })),
+    spacer: component(Utilities.scriptedOnly),
   },
 })
