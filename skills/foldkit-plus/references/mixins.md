@@ -649,6 +649,13 @@ export const stylesheet: string = Style.stylesheet(
   tokens a rule reads (`Inert.prune` from `foldkit-mixins/testing`, in dev too); a token read only inline (`Theme.ref`) or
   by a script goes in `keep`, and `Inert.missingTokens(tree, Inert.prune(css, { keep }))`
   lists one a drawn view reads that pruning took.
+  `styles({ sheet, modules: ['/src/client/style.ts'] })` ships each listed style module to the
+  production browser as data (each Style's `name` and `mixin` of compiled classes, a
+  `Style.slots` declaration's `slots` and `style`, strings and token objects), so the page loads
+  no style compiler. Any other export, or a `Style.whenInput`/`Style.perItem`, fails the build
+  naming it: leave such a module off the list. With a module listed the build injects nothing
+  (the sheet holds every class; a frozen class with no rule fails the build); dev is unchanged.
+  Attach a frozen style with `SlotView.attach(style.mixin)`: importing `Style` keeps the compiler.
 
 ## 8. Known traps
 

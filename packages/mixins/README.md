@@ -1269,6 +1269,43 @@ computed styles under both sheets covers the states a server never draws
 (`examples/foldkit/domains-plus/test/look.browser.test.ts`). It is off unless
 asked for.
 
+### Style modules shipped as data
+
+The sheet already holds every class, but a page that imports its style
+module still runs the compiler to work out each class's name: the recipes,
+the theme builder and the rules, about 30 KB brotli on domains-plus. Name the
+style modules in `modules`, and the production browser build replaces each
+with what it evaluated to while the sheet was built:
+
+```ts
+styles({ sheet: '/src/server/sheet.ts', modules: ['/src/client/style.ts'] })
+```
+
+- **What a listed module ships.** Each Style keeps its `name` and its `mixin`,
+  whose Slots draw the classes and inline declarations the Style compiled to;
+  a `Style.slots` declaration keeps its `slots` contract and its `style`. Its
+  other fields (`pieces`, `css`, `rules`) throw when read. A string, or an
+  object of strings such as `t`, ships as it is.
+- **What fails the build.** An export that is anything else (a function, an
+  `AppStyle`), and a Style using `Style.whenInput` or `Style.perItem`, which
+  choose classes at run time. The error names the module and the export. Keep
+  such a module at run time by leaving it off the list.
+- **Attach with `SlotView`.** A module that imports `Style` keeps the compiler
+  in the page, so attach a frozen style with `SlotView.attach(Page.style.mixin)`
+  rather than `Style.attach(Page.style)`, and keep the `AppStyle` (its `slots`
+  and `forSlots` are functions) in a module of its own that only the listed
+  module and the sheet import.
+- **Production and development.** With a module listed, a production browser
+  build's Slots inject nothing: the linked sheet holds every class, and the
+  build fails if a class a frozen module draws has no rule in it. Development
+  is unchanged: modules run as written, and a Slot injects what it draws. The
+  server build is unchanged too.
+
+On domains-plus the page's JavaScript fell from 217.5 KB to 191.6 KB brotli,
+and no recipe or rule compiler is left in it (`test/bundle.test.ts`);
+`test/frozen.test.ts` checks that every frozen export draws what the run-time
+module does.
+
 ## `@foldkit/ui`
 
 `foldkit-mixins-ui` adapts `@foldkit/ui` components that expose attribute bundles or a consumer
