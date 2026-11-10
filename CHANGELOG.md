@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`styles()` writes the files its sheet names** (`foldkit-mixins/vite`, #420).
+  The sheet is built apart and a server build emits no assets, so a font
+  reached only through the sheet (`?url`) was named in the CSS and written
+  nowhere once the style module left the browser bundle; the browser 404ed and
+  fell back to a system font. The browser build now emits it under the same
+  hashed name.
 - **A write's own live echo is not counted twice while it is pending**
   (`foldkit-remote`, #498). A relative layer (`adds`, `computes`) resolved over
   a base the stream had already moved, so a like showed one too many until its
