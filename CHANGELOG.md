@@ -83,6 +83,19 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-host`, re-exported as `foldkit-plus/host`: the parts of a
+  server's `fetch`** (#235). `Host.isolate(key, build)` builds a value once
+  per binding, keyed weakly so a reloaded binding builds again, and forgets
+  a build that fails. `Host.template(binding)` reads the built `index.html`
+  once per assets binding with the build id `Host.buildTag` writes into it
+  from the Vite build. `Host.routes({ origin, assets, routes, otherwise })`
+  answers assets first, then answers `500` naming the origin variable while
+  it is unset, then tries the application's routes in the order written (a
+  path ending in `/` is a prefix), then its fallback. `Host.node(handler, {
+  env, origin })` serves the same handler on Node's `http` server, refusing
+  a request target off the configured origin. The host keeps no cache, page
+  table or principal. `examples/reference`'s Worker is ported onto it.
+
 - **`AuthServer.host`: Yielded's routes and a resolver per consumer, typed
   apart** (`foldkit-auth`, `foldkit-remote`, `foldkit-remote-server`, #235).
   `AuthServer.host({ auth, http, services, principal, key? })` mounts
