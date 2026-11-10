@@ -553,6 +553,8 @@ The list's share of the chunk, the cost of 556 rows and the browser probes
 are no longer phase 0: they are measured when #429's or #430's condition is
 met, by whoever builds them.
 
+**Phase 0 result (2026-11-10).** `node scripts/bundle-report.mjs examples/foldkit/domains-plus` at commit dbfbbe8, run on a clean tree before another session's edits to `packages/remote` began (17:43 UTC). The three style rows: `foldkit-mixins: style runtime` 13.3 kB brotli, `foldkit-mixins: style data` 5.8 kB, `foldkit-mixins-ui` 11.0 kB. Sum 30.1 kB brotli. The split is the report's estimate; the chunk's 217.6 kB brotli is real. The gate is 15 kB, so the sum is over it: build phase 1. #420 stays open for phase 1 and does not close as not planned. `@floating-ui/*` in the same run is 4.7 kB. The Chromium module-evaluation time at 4x is not measured here; phase 1 records it if built.
+
 **Phase 1: #420, static styles.** `styles({ sheet, modules })`: the plugin
 emits class data for the modules listed and the client build resolves those
 modules to it. The class data and the sheet come from one evaluation, and

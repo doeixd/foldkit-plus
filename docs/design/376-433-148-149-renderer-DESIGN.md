@@ -341,6 +341,8 @@ reason to go on by themselves: they count only if the vdom modules are over
 15 KB brotli and a page exists that draws no interpreted view, and
 domains-plus, which draws `@foldkit/ui`, is not such a page.
 
+**Phase 0a result (2026-11-10).** `pnpm bench:render --throttle 4`, both apps, 30 repetitions, two rounds (round 1 began 17:46 UTC, round 2 17:57 UTC). Not a clean baseline: another session committed from 1088a2d to 803f3dc and left uncommitted edits to `packages/remote` during both rounds, and the benchmark builds the working tree. Median view plus patch, round 1 and round 2, in ms: `UpdatedSearch` 37.9 and 38.5; `SelectedItem` 42.7 and 38.8; grid `CellPressed` in select-a-cell 16.1 and 13.5 (over 16 in round 1 only), in edit-a-cell 8.8 and 8.9. `ReadReceived` gave no frame in round 1 and one frame in round 2 (39.6), so the current scenarios do not measure it. `UpdatedSearch` and `SelectedItem` are over 16 ms in both rounds, so the stop rule does not apply: step 0b is needed for those two frames. It runs later and is not run here, and #433's client half stays open. Bytes: `foldkit/html/index.js` (the vnode builder) is 12.5 kB brotli of foldkit's 40.9 kB, estimate; `hydrate.js` 2.4 kB and `hydrationHandoff.js` 1.9 kB are the hydrator's visible share. snabbdom's modules fall outside the report's top 25 and their share is not recorded. The 1x rounds were not run, since the stop rule reads 4x only. Samples are in the session scratchpad, not committed.
+
 If Phase 0 passes:
 
 | Phase | What | Done when | Needs upstream |

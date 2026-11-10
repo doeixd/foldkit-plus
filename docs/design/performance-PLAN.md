@@ -115,6 +115,10 @@ The style system (mixins runtime and data, plus `foldkit-mixins-ui`) is about
 the floor below (its estimate of 100-150 KB was high); `foldkit-remote` at 24 KB
 is the largest Plus package. A budget test (`test/bundle.test.ts`) holds the total.
 
+Phase 0 of #420 (2026-11-10, dbfbbe8): the style rows sum to 30.1 KB brotli, over the 15 KB gate, so phase 1 is to be built.
+
+Phase 0a of #433's client half (2026-11-10, 4x CPU, two rounds on a shared tree): `UpdatedSearch` (38-39 ms view plus patch) and `SelectedItem` (39-43 ms) are over 16 ms in both rounds, so step 0b runs for them later and the client half stays open.
+
 **HTML**: the theme stylesheet, about 92 KB uncompressed, inlined into every
 response (#419).
 
