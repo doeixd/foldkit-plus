@@ -77,6 +77,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`writing`: one derived read of what is being saved** (`foldkit-remote`,
+  #377). `writing(Data, model, { mutation, row })`, from the root, is
+  `Writing.None`, `Sending`, `Unanswered`, `WaitingForSignIn`, `Unreadable` or
+  `Failed`: the worst state among the matching writes, derived from the ledger
+  and the outbox, so it is right after a reload and in a second tab where a
+  flag the application writes is not. `Unanswered` is a durable write sent
+  with no answer yet, the state a "waiting to send" line reads; `Sending`
+  is every write's first state. `mutation` takes the Mutation, not its name,
+  and `row` an `EntityRef`. It is built from `outboxStatus`'s reading, so the
+  two agree; a page that never calls it keeps none of it, and none of the
+  outbox if it does.
+
 - **`SSR.entry`'s `redirect`** (`foldkit-ssr`, #235). `redirect: (model,
   request) => Option<string>` answers a `GET` or `HEAD` with a `303` to the
   path, decided from the Model `prepare` made and before anything is
