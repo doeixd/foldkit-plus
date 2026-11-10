@@ -6,6 +6,22 @@ const tests = ['packages/mixins/test/viteStyles.test.ts']
 
 export default [
   {
+    name: 'the sheet build emits no files',
+    edits: [{ file: '../src/vite.ts', find: 'emitAssets: true,', replace: 'emitAssets: false,' }],
+    tests,
+  },
+  {
+    name: 'a file only the sheet names is not emitted',
+    edits: [
+      {
+        file: '../src/vite.ts',
+        find: 'if (!(asset.fileName in bundle))',
+        replace: 'if (false)',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a class the sheet lacks is not appended',
     edits: [
       {

@@ -16,15 +16,8 @@ import { unstable_startWorker } from 'wrangler'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 
-/**
- * The build writes the Geist file's name into its sheet and preload but does
- * not emit the file, so the browser logs one 404 for it. Known, so it is the
- * only error let through; any other is a failure.
- */
 const isProblem = (message: ConsoleMessage) =>
-  message.text().includes('PageContained') ||
-  (message.type() === 'error' &&
-    !(message.text().includes('404') && message.location().url.endsWith('.woff2')))
+  message.text().includes('PageContained') || message.type() === 'error'
 
 let worker: Awaited<ReturnType<typeof unstable_startWorker>>
 let browser: Browser

@@ -17,7 +17,7 @@
  * compiler that worked them out (`viteFreeze.ts`, #420).
  */
 import { createHash } from 'node:crypto'
-import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite'
+import type { Plugin, ResolvedConfig, Rollup, ViteDevServer } from 'vite'
 import { prune } from './theme/prune.js'
 import { assertRules, freeze, type FrozenModule } from './viteFreeze.js'
 
@@ -77,6 +77,8 @@ interface Evaluated {
   readonly css: string
   /** Each listed module's exports, in the order of `modules`. */
   readonly modules: ReadonlyArray<Readonly<Record<string, unknown>>>
+  /** The files the sheet names (a font's `?url`), which only the browser build can emit. */
+  readonly assets: ReadonlyArray<Rollup.OutputAsset>
 }
 
 /**
@@ -112,10 +114,14 @@ const buildSheet = async (
       write: false,
       minify: false,
       emptyOutDir: false,
+      // A server build emits no files by default, so the sheet's fonts would
+      // be named in it and written nowhere.
+      emitAssets: true,
       assetsInlineLimit: config.build.assetsInlineLimit,
     },
   })
-  const chunk = [output].flat().flatMap(result => ('output' in result ? result.output : []))[0]
+  const files = [output].flat().flatMap(result => ('output' in result ? result.output : []))
+  const chunk = files.find(file => file.type === 'chunk')
   if (chunk === undefined || chunk.type !== 'chunk')
     throw new Error(`foldkit-mixins/vite: building "${sheet}" produced no module`)
   const loaded: unknown = await import(
@@ -129,7 +135,11 @@ const buildSheet = async (
     throw new Error(
       `foldkit-mixins/vite: "${sheet}" does not export its stylesheet text as \`stylesheet\``,
     )
-  return { css, modules: namespaces }
+  return {
+    css,
+    modules: namespaces,
+    assets: files.filter((file): file is Rollup.OutputAsset => file.type === 'asset'),
+  }
 }
 
 interface Built {
@@ -138,6 +148,7 @@ interface Built {
   readonly href: string
   /** Each listed module as the browser build ships it, by its id in `modules`. */
   readonly frozen: ReadonlyMap<string, FrozenModule>
+  readonly assets: ReadonlyArray<Rollup.OutputAsset>
 }
 
 /** The plugin: see the module's comment. */
@@ -168,7 +179,7 @@ export const styles = (options: StylesOptions): Plugin => {
       // would draw nothing: refuse the build instead.
       assertRules(frozen, css)
       const fileName = `assets/styles-${createHash('sha256').update(css).digest('hex').slice(0, 8)}.css`
-      return { css, fileName, href: `${config.base}${fileName}`, frozen }
+      return { css, fileName, href: `${config.base}${fileName}`, frozen, assets: evaluated.assets }
     }))
 
   const freezing = (environment: string): boolean =>
@@ -238,11 +249,15 @@ export const styles = (options: StylesOptions): Plugin => {
       const href = dev === undefined ? (await build()).href : DEV_PATH
       return `export const href = ${JSON.stringify(href)}`
     },
-    async generateBundle() {
+    async generateBundle(_options, bundle) {
       // The browser build comes first, and is the one a host serves files from.
       if (this.environment.name !== 'client') return
-      const { css, fileName } = await build()
+      const { css, fileName, assets } = await build()
       this.emitFile({ type: 'asset', fileName, source: css })
+      // Hashed by content, so a file the browser build also references is the same file.
+      for (const asset of assets)
+        if (!(asset.fileName in bundle))
+          this.emitFile({ type: 'asset', fileName: asset.fileName, source: asset.source })
     },
   }
 }
