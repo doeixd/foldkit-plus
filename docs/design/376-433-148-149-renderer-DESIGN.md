@@ -1,0 +1,461 @@
+# Renderers: compiled views, a fine-grained runtime, native targets (#433, #376, #148, #149)
+
+**Status:** Proposed 2026-11-10: awaiting the owner's decisions (§5). Nothing
+here is built, and this note proposes building very little.
+
+One note for four issues, because they are one question asked at four sizes:
+should a Foldkit Plus view reach the screen some other way than Foldkit's
+`view` → vnode → snabbdom patch?
+
+It builds on [foldkit-renderer-independence-PLAN.md](./foldkit-renderer-independence-PLAN.md)
+(2026-10-30; "the plan" below), whose inventory of couplings (§3), proposed
+seams (§4) and results (§10: R0, R1, R3) stand. This note adds what was
+measured after it, and turns its open decision rule into a recommendation.
+
+Claims about Foldkit are checked against `foldkit@0.170.0`
+(`packages/mixins/node_modules/foldkit/dist`; paths starting `dist/` below).
+Claims about this repository are checked at commit `1c1956b`. No benchmark was
+run for this note; every number is a recorded one, with its source.
+Upstream issues (foldkit/foldkit) could not be read from this session, so
+their state is as this repository's issues last recorded it.
+
+## 1. The problem and the evidence
+
+### 1.1 What each issue asks for
+
+| Issue | Ask | Its own first step |
+| --- | --- | --- |
+| #433 | Compile view functions to cloned DOM templates and patches of the dynamic slots only, keyed by the Model paths each slot reads; contract unchanged. | A spike on domains-plus's results row and Top Results card, measured with `pnpm bench:render`; numbers on #376; go or no-go "with upstream". |
+| #376 | Reimplement the runtime on fine-grained foundations: an immutable Model, reference-diffed per path, DOM bound to paths; `ModelStore`, `Renderer`, `Scheduler` as Effect services. | A spike behind the existing contract, measured on domains-plus's 556 rows and the data grid's 100,000. |
+| #148 | One program for Web, iOS, Android and desktop: a small semantic view vocabulary (`ui.Stack`, `ui.Text`) above `h`, a `Platform.define` capability contract, platform adapters. | Phase 0, "architecture only": document what is neutral and what is Web. |
+| #149 | GPUI as the first non-DOM renderer, with the state machine compiled to native code by reffect: no JavaScript runtime, no DOM, no WebView. | GPUI-0, a document; GPUI-1 and GPUI-2, a portable Counter in TypeScript lowered to the Web renderer. |
+
+#433 and #376 are performance proposals (update cost and client bytes).
+#148 and #149 are reach proposals (other platforms). They share seams, not
+motives, and the evidence below treats them apart.
+
+### 1.2 What a frame costs today, and where
+
+Foldkit's own `slow` phases, read by `pnpm bench:render`
+(`scripts/render-baseline.mjs`), production builds, headless Chromium,
+30 repetitions; the plan's §10 has the method and its limits. `view` is the
+program's `view(model, h)`; `patch` is snabbdom's patch of the result. Median
+milliseconds, latest recorded state of each app (domains-plus at 1× is the
+mean of two rounds' medians; at 4×, the one round its source kept):
+
+| App | Frame | 1× view + patch | 4× CPU view + patch | Source |
+| --- | --- | ---: | ---: | --- |
+| data grid | a cell selected | 1.9 + 0.3 | 12.1 + 1.8 | plan §10 R3, samples `renderer-baseline/2026-10-31-r3-after-*` |
+| data grid | an edit committed | 8.9 + 1.5 | 63.3 + 8.6 | same |
+| domains-plus | a keystroke | 3.2 + 2.4 | 22.1 + 18.6 | [384-read-memo-DESIGN.md](./384-read-memo-DESIGN.md) Results, samples `2026-10-31-384-after-*` |
+| domains-plus | prices arrive (`ReadReceived`) | 6.2 + 3.1 | 45.9 + 27.0 | same |
+| domains-plus | a filter chosen (`SelectedItem`) | 5.0 + 2.0 | 31.6 + 12.1 | same |
+
+Three readings, each already written down where it was measured:
+
+- **`view` is the larger part, and most of what was in it was not drawing.**
+  Before any memoization `view` was 61 to 93% of view plus patch (plan §10
+  R1). Regions and keyed items on today's renderer (R3) removed the rows that
+  did not change; what remained on domains-plus was 30 to 60% a derivation
+  over 556 Remote reads, "which an accessor or a compiled Solid view would
+  recompute too" (plan §10 R3). #384 then made those reads about 8 times
+  cheaper (1.80 to 0.23 ms per pass).
+- **At 1× every frame fits a 16 ms frame.** At 4× the domains-plus frames do
+  not (73 ms for prices arriving). That table is from 2026-10-31. Since then
+  `answeredOf` reads only names that have a row (#474, commit `17a6c0459`),
+  and a Bundle's child is kept by default while its Model is the same object
+  (#431, closed 2026-11-10). **`pnpm bench:render` has not been run since**,
+  so how the 4× frame splits today between derivation, building vnodes for
+  unchanged output, and diffing is not known. That is the missing number (§4).
+- **The grid's costliest frame is not a rendering problem.** Committing an
+  edit makes a new rows array, and `RowModel.fromArray` indexes 100,000 keys
+  again (plan §10 R3). No renderer changes that.
+
+### 1.3 What a user waits for
+
+The benchmark the issues cite is a new search in domains-plus, the same app
+as stock Foldkit's (`examples/foldkit/domains`) and the Solid 2.0 recreation.
+
+| When, where | Solid 2.0 | stock Foldkit | Foldkit Plus | Source |
+| --- | ---: | ---: | ---: | --- |
+| 2026-11-02, live Workers, 15 loads | 215 ms | 246 ms | 307 ms (0.38.0) | [performance-PLAN.md](./performance-PLAN.md), "Where 0.38.0 stands" |
+| 2026-11-09, local `wrangler dev`, 1×, median of 20 | not run | 260 ms | 198 ms | `scripts/search-compare.mjs`; #474's second comment |
+| 2026-11-09, local, 4× CPU, median of 12 | not run | 643 ms | 315 ms | same |
+
+All figures include the app's 150 ms debounce. A second local run gave 246
+against 200 ms and 640 against 302 ms.
+
+What this implies for a new runtime:
+
+1. **The gap to stock Foldkit was never the renderer.** Both apps run the
+   same Foldkit runtime and snabbdom. Plus went from 61 ms behind to 62 ms
+   ahead at 1×, and to half of stock's time at 4×, by changing what the view
+   reads and how often, with the renderer untouched.
+2. **198 ms is under Solid's 215 ms, but the two were not measured under the
+   same conditions.** Solid's figure is from the live Workers a week earlier;
+   ours is local. The live comparison has not been rerun (#474 is open for
+   that reason). Until it is, "Plus matches Solid on a new search" is a
+   hypothesis, not a result.
+3. **Little of a search is the renderer's to save.** #474's split of one
+   search at 1× (2026-11-03, total 261 ms before the cut): about 131 ms
+   debounce and its task, 32 to 45 ms the request, 9 ms decode and `update`,
+   12 ms waiting for the next frame, 9 ms the view frame, 2 ms layout, 19 ms
+   to the painted frame. A renderer with no diff could take part of the 9 ms.
+   The 12 ms wait is the frame scheduler's (Foldkit renders on
+   `requestAnimationFrame`, `dist/runtime/renderer.js:452`), which is the
+   plan's Proposal C, not a new renderer.
+
+### 1.4 Bytes
+
+`node scripts/bundle-report.mjs examples/foldkit/domains-plus`
+(2026-11-02): one chunk of 210.5 KB brotli, of which `effect` is an estimated
+50.3 KB and `foldkit` 40.8 KB; Solid's whole app is 79 KB
+([performance-PLAN.md](./performance-PLAN.md), "Where it goes").
+
+#433 names bytes as half its reason. The record does not support a number:
+
+- A compiled or fine-grained view keeps Effect (Commands, Subscriptions and
+  Schema use it) and keeps Foldkit's runtime, Mounts, navigation and
+  hydration handoff. What it could drop is the vnode builder, snabbdom and
+  the adopting hydrator. **Their share of the 40.8 KB has not been measured.**
+- It can drop them only on a page where no view takes the interpreted path.
+  `@foldkit/ui` (11.7 KB here) is upstream views drawn through `h`, so on
+  domains-plus that is no page.
+
+### 1.5 The server half already has a spike
+
+#433's "First" was half done, for server rendering, as #473's spike
+(`examples/foldkit/domains-plus/test/compiledRow.ts`, written by hand in
+place of a compiler; `compiledRow.test.ts` holds it byte-identical to the
+interpreted row; four mutations killed). From #473's comment of 2026-11-03:
+
+| The same 24 window rows | Foldkit's checks on | checks out |
+| --- | ---: | ---: |
+| interpreted (view, serialization, bindings) | 43–52 ms | 3.6–4.7 ms |
+| compiled template | 0.15 ms | 0.08 ms |
+
+Compiled rows cost about 2% of interpreted ones, and it does not matter yet:
+compiling every row and card saves 5 to 6 ms of a never-seen search that
+then still costs 26 to 27 ms without Foldkit's checks, against a 10 ms
+limit. About 70% of the request was Foldkit re-parsing its own output
+(upstream, foldkit/foldkit#1657). Re-measured 2026-11-09, a never-seen search
+is about 119 ms of warm CPU under Node, parse5 41 ms of it and the rest of
+Foldkit 25 ms ([performance-PLAN.md](./performance-PLAN.md), "Where it
+goes"). The spike's own conclusion: compile whole regions, not rows, and
+only after the checks leave the request.
+
+The spike also found what a compiler needs that Foldkit does not export: it
+copies the key fingerprint (`hydrationKeyMarker`,
+`dist/hydrationMarkers.js:56`) and the serializer's escapes, both internal.
+
+### 1.6 Native targets
+
+Nothing is built. No package defines a `Platform` contract or a portable
+view vocabulary; reffect is a separate project that nothing in `packages/`
+or `examples/` depends on; [platform-DESIGN.md](./platform-DESIGN.md)
+(2026-09-24, "Nothing here is built") still recommends React Native through
+codegen and does not mention GPUI, though #149 asks for it to be reconciled.
+What exists is the plan's inventory (§3), which is #148's Phase 0 and most of
+#149's GPUI-0, and the R0 conformance suite
+(`packages/plus/test/conformance/`), which any second renderer would have to
+pass. ([mobile-DESIGN.md](./mobile-DESIGN.md) is about the web renderer on
+phones, not native targets; nothing in it bears on this.)
+
+## 2. Today
+
+### 2.1 Foldkit's loop (upstream's)
+
+```text
+Message -> update -> new Model? -> requestAnimationFrame -> view(Model, h) -> vnode -> patch
+```
+
+| Step | Where | Fact |
+| --- | --- | --- |
+| A Message changes the Model | `dist/runtime/runtime.js:256-277` | `update` runs; if `currentModel !== nextModel` the Model is replaced, published, and `scheduleRenderFrame()` called. The Model is closure state. |
+| One frame at most is pending | `dist/runtime/renderer.js:443-452` | `requestAnimationFrame(renderFramePlain)` directly, not through a service. |
+| The frame draws the latest Model | `dist/runtime/renderer.js:180-234` | `view(model, htmlBuilder)` from the root under a module-level frame, then `__hydrateVNode` on the first hydrating render or a snabbdom patch. `View` and `Patch` are the two `slow` phases measured in §1.2. |
+| `Html` is a vnode | `dist/html/index.d.ts:61` | `export type Html = VNode \| null`. Attributes are tagged data, lowered to snabbdom data when the element is built (`dist/html/index.js:1176`). |
+| Lazy slots | `dist/html/lazy.js:132`, `:162` | `createLazy` and `createKeyedLazy` return the cached vnode when the function, both dispatchers, the Mount owner and every argument are `===` (`:66-69`); snabbdom then skips the subtree. One position per cached vnode. They read the frame (`:53`) and throw outside one (`dist/html/runtimeSingleton.js:6`). A keyed slot never evicts. |
+| Mounts | `dist/html/index.js:957-1000` | `OnMount` writes snabbdom `insert`, `postpatch` and `destroy` hooks and a `foldkitMount` marker (`:143`). Acquire on `insert`; `postpatch` only hands a replayed Mount to the live runtime, and reads no new args. One per element. |
+| Hydration | `dist/hydrate.js:848` | Adopts served DOM against the vnode by tag, namespace, key marker (`:397`) and identity; mismatch warnings only under `import.meta.hot` (`:348`, `:359`). |
+| Server | `dist/experimental/server/server.js:767`, `:145` | Runs the view under a no-op frame, serializes the vnode, re-parses the output and compares (`assertStructureMatches`). |
+| Scene | `dist/test/scene.js:159`, `:41` | Draws the vnode and walks it; finds Mounts by the marker. |
+| DevTools replay | `dist/runtime/renderer.js:462` | Re-renders a past Model through the same path with a no-op dispatch. |
+
+All of this is Foldkit's to change. The plan's §7 lists six proposals (A to
+F). Its text says "None is filed"; #376's comment of 2026-10-31 records that
+foldkit/foldkit#1871 (run a view with its own dispatch frame) and #1872 (the
+frame scheduler as a service) were filed on 2026-10-30, with comments on
+#1606, #1227 and Discussion #1873. Their state now is not known here.
+
+### 2.2 What Foldkit Plus adds (ours)
+
+Everything below sits on Foldkit's lazy slots and public builders. None of
+it changes the loop: `view` still runs from the root every frame.
+
+| Piece | Where | What it does |
+| --- | --- | --- |
+| Keyed item | `packages/mixins/src/slotView.ts:215` (`lazyFor`), `:195` (`remember`) | `slots.x.lazy(item, draw, args)`: a `createLazy` per key, forgotten once neither this pass nor the last drew it (Foldkit's keyed slot cannot evict). |
+| No frame, no memo | `packages/mixins/src/slotView.ts:246` (`memoizedOr`), `:239` | Tries the lazy slot and draws uncached when it throws before the drawing starts; draws whole under a server render. |
+| Region | `packages/mixins/src/slotView.ts:636` | `SlotView.region(reads, draw)`: drawn again only when a Model path its Projection names changed. Built on `Projection.derive` (`packages/surface/src/index.ts:657`), which also reports a read its `on` does not name (`:685`). |
+| Kept child | `packages/bundle/src/memo.ts:22`; used at `link.ts:583`, `collection.ts:390` | A Bundle placement, `Link.child` or collection item is kept while its Model is the same object; `memo: false` opts out (#431). |
+| Cheap repeated reads | `packages/remote/src/rowRead.ts:70`, `:163`; `memo.ts:20`; `domain.ts:1969` | A row read kept by the store entries it reaches, so a read keeps its identity and a memo keyed on it hits (#384). |
+| Mount composition | `packages/mixins/src/resolver.ts:303` | Several Mixins' Mounts composed into the one `OnMount` an element holds. |
+| A compiler front end | `packages/react-codegen/src/transform.ts:31` | Views compiled from the syntax tree to React, refusing what it cannot translate (`FKREACT0001`…). |
+| Conformance | `packages/plus/test/conformance/` | The runtime, Scene and `renderToString` held to one answer; a new renderer adds a drawer. |
+
+domains-plus uses the first three with no `createLazy` written in it
+(`examples/foldkit/domains-plus/src/client/view.ts:321-327`, `:553-591`).
+
+## 3. Options, least invasive first
+
+In every option **the Model is the one state**: immutable, replaced once per
+Message by `update`. Sync's replay, SSR's handoff, DevTools' time travel and
+`Law.check` depend on that, and #376, #148 and #149 each say the same. Where
+an option keeps anything beside the Model, the table says what it is and why
+it is not state.
+
+| | A. More memoization and regions | B. Compiled templates (#433) | C. A fine-grained runtime (#376) | D. A view IR for native (#148, #149) |
+| --- | --- | --- | --- | --- |
+| What it is | More of §2.2 on today's loop | A build step turns a view into a template and per-binding patches; server half writes strings, client half clones DOM | An own runtime or upstream services: Model reference-diffed per path, DOM bound to paths | A second view vocabulary (`ui.*`), lowered to `h` on the web and to a native renderer elsewhere |
+| Beside the Model | Memo caches of drawings | Templates fixed at build; a per-region record of the last values bound | A path index of subscribers; signals internal to the renderer, never written by a program | The native renderer's own widget state (focus, scroll), never application state |
+| Scene tests | Unchanged | Run the interpreted view; the compiled one is held to it by conformance | Scene must become a renderer, or tests stop describing what ships | Need a normalized-IR differ (#149's "do not compare pixels") |
+| SSR adoption and hydration markers | Unchanged | Server output must be byte-identical, key markers and binding order included (§1.5); a compiled client region must adopt or own served DOM | A second hydrator: claim nodes in order and bind them; the build-id check shared | None off the web |
+| DevTools | Unchanged | A compiled region must redraw from any Model, not only the next one | Replay by replacing the store's value, Mounts muted; unsolved (plan §8) | A separate inspector (#149 GPUI-8) |
+| Mounts | Unchanged | A compiled region runs acquire and release itself; the tracker services are internal | Every Mount needs an equivalent; the plan counted `OnMount` in 64 source files here on 2026-10-30 | DOM Mounts do not port; #149 says avoid Mount in the first proof |
+| Needs upstream | Nothing | Server: exported key marker and escapes, or Foldkit emitting templates; checks moved to build (#1657). Client: a subtree snabbdom leaves alone, or the plan's U4 | U1 to U7, or a fork | U1 to U4 for a shared runtime; reffect for "no JavaScript" |
+| Rough cost | Days per change | Server: weeks. Client: months, and upkeep of a second code path for every view feature | Many months, then two renderers kept in step for good | A project of its own, mostly outside this repository |
+| What the record says it buys | Measured: grid cell 3.8 → 2.2 ms; domains filter frame 7.5–9.6 → 3.6 ms of view | Server: 5–6 ms of 26–27, after upstream's fix. Client: not measured | Not measured; the plan's R3 concluded R2 unnecessary for both apps | Reach, not speed |
+
+Notes the table cannot carry:
+
+**A.** What is left to do is small and known: measure #431's default on an
+app that has standing sibling placements; decide #439 (deferred: at most
+about 1% of a frame); stop `RowModel.fromArray` re-indexing on an edit. The
+checker rule of [declared-optimization-DESIGN.md](./declared-optimization-DESIGN.md)
+applies, and `Projection.derive` already has its checker.
+
+**B.** The two halves are different projects. The server half writes bytes a
+test can compare with the interpreted render, so it is checkable and
+reversible, and its spike exists. The client half has no public place to
+stand: a view cannot be run with live handlers from outside the runtime
+(`__setRuntime` is not exported; plan §3.1), a Mount's args are read once so
+a Mount cannot feed a compiled region new values, and a region patched
+behind snabbdom's back fights it ([reactivity-DESIGN.md](./reactivity-DESIGN.md)
+§28). A compiled client view therefore needs upstream before it can ship,
+whatever a spike measures. A compiler also needs every branch of a view to
+be enumerable at build; #473 found tagged-union `match` makes them so, and
+computed attribute arrays do not.
+
+**C.** The plan's design (§4) is sound and keeps the Model immutable. Its
+cost is not the first renderer but the second forever: IME composition,
+controlled properties, focus restoration, dialogs, drag zones, and timing,
+which the conformance suite does not cover. The plan set its own decision
+rule (§2: "the spike decides"), and then R3 and #384 took the gain the spike
+was to measure.
+
+**D.** #149 already separates what belongs here (the view IR, the Platform
+contract, a web lowering) from what belongs to reffect (compiling `update`
+to native code). Its headline claim, no JavaScript runtime, is entirely the
+second. The first is a second view language, which
+[platform-DESIGN.md](./platform-DESIGN.md) §4 rejected as "a separate
+project" because every existing view and `@foldkit/ui` component would need
+porting; #149 answers that it is optional. That answer holds only while no
+package's views are expected to run on it.
+
+## 4. Recommendation
+
+**No-go on a new runtime (C). No-go on compiled client views (B, client
+half) unless one measurement says otherwise. Conditional go on compiled
+server regions (B, server half), behind upstream's parse fix. Park native
+targets (D). Keep doing A.**
+
+The reasons, each from §1:
+
+- The benchmark the issues cite is won on today's renderer: 198 against 260
+  ms at 1×, 315 against 643 ms at 4×.
+- Every time a cost was profiled, the larger part was reading and deriving,
+  not drawing: R3's `searchViewState`, #473's `answeredOf` (26% of a
+  render), #474's `modelToDependencies` (33 ms of a search).
+- The plan's own test for C (the R2 spike must beat R3) was answered by R3:
+  "Does R3 make R2 unnecessary for these apps? Yes."
+- The bytes case has no number behind it, and cannot apply to a page that
+  draws an upstream component.
+- The server half has a number (2% of the interpreted cost) and a blocker
+  that is not ours.
+
+### The measurement that would change it
+
+A frame's `view` plus `patch` is three things: (a) deriving values from the
+Model and Remote, (b) building vnodes and diffing them for output that did
+not change, (c) changing the DOM that did. A compiled or fine-grained view
+removes (b) and nothing else. Nobody has measured (b) since the memoization
+landed.
+
+**Phase 0, the ablation bound** (one to two days; no new code that ships):
+
+1. Run `pnpm bench:render --app domains` and the grid on current `main`, at
+   1× and `--throttle 4`, two rounds each, samples committed to
+   `docs/design/renderer-baseline/`. This replaces the 2026-10-31 table.
+2. Run it again with each drawing replaced by a constant: every row, card,
+   region and filter returns one vnode made once (as `compiledRow.bench.ts`
+   replaces the list's view with an empty `ul` on the server). Derivations
+   still run. The frame that remains is (a) plus the runtime's fixed cost;
+   the difference from step 1 is the most any compiler or fine-grained
+   renderer could save on that frame.
+3. Read the vnode builder's, snabbdom's and the hydrator's share of
+   `foldkit`'s 40.8 KB from `scripts/bundle-report.mjs`'s per-module data.
+4. Rerun the live three-way comparison (#426, #474), so Solid's figure and
+   ours are from one day and one network.
+
+**Benchmark:** `pnpm bench:render`, the `ReadReceived` (prices arrive) and
+`SelectedItem` (filter chosen) frames of domains-plus, and the grid's
+`CellPressed`, at `--throttle 4`.
+
+**Threshold:** go on to Phase 1 only if, on at least one of those frames,
+the ablated frame is under half of the unablated one (drawing and diffing
+are more than 50% of view plus patch) **and** the unablated frame is over
+16 ms. Otherwise the cost is derivation, and the answer is more of A. For
+bytes: only if the vdom modules are over 15 KB brotli and a page exists that
+draws no interpreted view.
+
+If Phase 0 passes:
+
+| Phase | What | Done when | Needs upstream |
+| --- | --- | --- | --- |
+| 1 | #433's client spike as written: the results row and Top Results card compiled by hand to a cloned template and bindings, driven by a recorded sequence of Models outside the runtime | Its time per Model is recorded beside Phase 0's ablation bound on #376, and it passes the R0 conformance cases for those rows | No |
+| 2 | Take the numbers upstream: the managed leaf ([reactivity-DESIGN.md](./reactivity-DESIGN.md) §27) or U4, on foldkit/foldkit#1227 | A yes or no from the maintainer | Yes; posted only with the owner's go-ahead |
+| 3 | A compiler on `foldkit-react-codegen`'s front end, refusing what it cannot translate, behind the conformance suite | One region of domains-plus ships compiled, with a development-mode check against the interpreted drawing | The seam from Phase 2 |
+
+Independently of Phase 0, the server half:
+
+| Phase | What | Done when |
+| --- | --- | --- |
+| S1 | Wait for, or help land, foldkit/foldkit#1657's next step | A never-seen search's parse share is re-measured with `node scripts/workerd-cpu.mjs` |
+| S2 | Whole regions compiled to string templates under #473, checked once per arm at build | `cpu.test.ts`'s budget for a never-seen search is lowered and held |
+
+S2 is not worth starting before S1: with the checks in the request, compiled
+output is still re-parsed.
+
+## 5. Decisions for the owner
+
+1. **#376, the fine-grained runtime.**
+   (a) Park: keep it open as the tracker of the upstream seams, build no
+   runtime, reopen on Phase 0's threshold. (b) Close as not planned.
+   (c) Run the plan's R2 spike anyway.
+   *Recommended: (a).* The evidence is against (c); (b) loses the place the
+   upstream proposals are tracked.
+
+2. **#433, compiled views: split it?**
+   (a) Split: the server half moves under #473 (phases S1, S2); the client
+   half stays on #433, gated on Phase 0. (b) Keep it whole and long term.
+   (c) Close the client half now.
+   *Recommended: (a).*
+
+3. **Run Phase 0?** One to two days, and it needs workerd free for the
+   benchmark. (a) Yes, before any other renderer work. (b) No: take the
+   2026-10-31 numbers as final and close #433's client half.
+   *Recommended: (a).* It is cheap, and without it both "go" and "no-go"
+   rest on a table two changes out of date.
+
+4. **The threshold.** (a) As written: drawing and diffing over 50% of a
+   frame that is over 16 ms at 4× CPU. (b) Stricter: at 1× as well, which no
+   recorded frame meets. (c) Looser: any frame over 16 ms at 4×, which
+   domains-plus met on 2026-10-31 without showing the renderer was the cost.
+   *Recommended: (a).*
+
+5. **Rerun the live three-way comparison (#426, #474) first?** (a) Yes, and
+   publish only with go-ahead. (b) No.
+   *Recommended: (a).* "Ahead of stock, level with Solid" is the sentence
+   this note's recommendation leans on, and its Solid half is unverified.
+
+6. **#148, platform independence.** (a) Park: record that its Phase 0 is
+   done by the plan's §3 inventory, and build no `Platform.define` until
+   something consumes it. (b) Start Phase 1 (the Platform contract) now.
+   (c) Close.
+   *Recommended: (a).* A contract with no second platform to refuse anything
+   is a declared option nothing reads.
+
+7. **#149, GPUI.** (a) Park until reffect shows a Foldkit Counter's
+   `update` running as native code, compared transition by transition with
+   the JavaScript reference ([../native-cross-platform.md](../native-cross-platform.md),
+   Phase 2); that work is outside this repository. (b) Do GPUI-1 and GPUI-2
+   here now: a `ui.*` Counter lowered to `h`, in TypeScript. (c) Close.
+   *Recommended: (a).* (b) is cheap, but it proves only that a small
+   vocabulary can be lowered to HTML, which is not in doubt; the falsifiable
+   part is native execution.
+
+8. **Reconcile [platform-DESIGN.md](./platform-DESIGN.md)**, as #149 asks.
+   (a) Add a status line saying React Native through codegen is an interop
+   route, not the portability architecture, and link here. (b) Rewrite it.
+   (c) Leave it.
+   *Recommended: (a).*
+
+9. **Upstream follow-up** on foldkit/foldkit#1871 and #1872. (a) Read their
+   state, and offer the frame-scheduler change as a pull request (two call
+   sites, default unchanged). (b) Leave them. Posting needs the owner's
+   go-ahead either way.
+   *Recommended: (a).* The scheduler is worth having without any renderer:
+   it is the 12 ms frame wait in a search, and a deterministic scheduler for
+   tests.
+
+10. **Bring the plan up to date.** Its status line, its §7 ("None is
+    filed") and its §9 recommendation predate R3's conclusion, #384, #431
+    and the filed proposals. (a) Amend those three places and link this
+    note once the decisions above are made. (b) Leave it as a dated record.
+    *Recommended: (a).*
+
+## 6. Risks, review points, rejected alternatives
+
+### Risks of the recommendation
+
+- **The benchmarks are two apps.** Both draw windows of a list. An app with
+  a large tree that changes everywhere at once (a canvas editor, a dense
+  dashboard) could spend its frame in (b), and neither app would show it.
+  The page builder is the nearest here; region memoization took its events
+  from about 50 to 17 ms ([reactivity-DESIGN.md](./reactivity-DESIGN.md)
+  Phase 1, as the plan records). Phase 0 could add it as a third app.
+- **4× throttling is not a phone.** The plan found view scaling 6 to 10×
+  under a 4× throttle. A threshold at 4× is an order of magnitude.
+- **Local is not live.** The search figures the recommendation rests on are
+  local. Decision 5 exists for this.
+- **Parking has a cost if upstream moves.** Blocks is reshaping Mounts
+  (foldkit/foldkit#1655). A seam is cheapest to ask for while that is open;
+  decision 9 keeps the two small asks alive.
+- **Memoization is easy to get wrong.** R3's first round made filter frames
+  slower, because a memo that misses costs more than none. Every further
+  step of A is counted in draws, not assumed.
+
+### Review points
+
+- §1.2's table mixes two measurement dates per app; each row names its
+  samples. Check them against `docs/design/renderer-baseline/`.
+- §1.3 point 3 uses a split taken before #474's cut; the parts that are
+  Foldkit's (frame wait, paint) are unchanged by it, the view frame is not.
+- §2's line numbers are for `foldkit@0.170.0` and commit `1c1956b`.
+- The Mount count in §3 is the plan's grep of 2026-10-30, not repeated here.
+
+### Rejected alternatives
+
+- **A serializer of our own, to escape the parse checks.** Already rejected
+  in [performance-PLAN.md](./performance-PLAN.md): it would track Foldkit's
+  hydration markers and build stamp exactly, to work around a cost upstream
+  is cutting.
+- **An accessor `h`** (`h.Text(m => m.count)`; plan §4.5 option 2). Every
+  view is rewritten, and a Model read outside an accessor silently stops
+  updating.
+- **Direct DOM writes from a Mount beside snabbdom.** A Mount reads its args
+  once and snabbdom owns the subtree; the write is undone or fought on the
+  next patch.
+- **A custom element as the compiled leaf** (Foldkit sets its properties on
+  patch; the element clones a template inside). It works without upstream,
+  but it is drawn outside every Slot, so no Mixin or stylist reaches it, and
+  the server would need declarative shadow DOM or a second render path.
+- **Forking Foldkit for a `Renderer` service.** Every upstream release would
+  be merged by hand, for a gain nothing has measured.
+- **Mapping HTML tags to native widgets.** #148 and the plan both refuse it.
+- **React Native through codegen as the native route.** It remains a valid
+  interop path ([platform-DESIGN.md](./platform-DESIGN.md)), but it keeps a
+  JavaScript runtime, which is the thing #149 sets out to remove.
+- **Running the state machine under Node and driving GPUI remotely.** #149
+  refuses it: it would not show what the issue claims.
