@@ -248,9 +248,16 @@ describe('Theme.tokens', () => {
       'icon',
       'border',
       'shadow',
+      'overlay',
       'breakpoint',
       'safe',
     ])
+  })
+
+  it('dims what an overlay covers with the page’s own base, in either scheme', () => {
+    const palette = Theme.standard(Theme.make({}))
+    expect(Theme.tokens.overlay.scrim).toContain('var(--fk-surface-bedrock)')
+    expect(Object.keys(palette['surface'])).toContain('bedrock')
   })
 
   it('holds a mask for every icon the components draw, read by name', () => {

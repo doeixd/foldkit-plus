@@ -372,3 +372,52 @@ test('a sheet under one opened from it steps back, smaller and up from its edge'
     dispose()
   }
 })
+
+test('a bottom sheet pads the safe areas it touches, from the theme’s tokens, and not the edge away from them', async () => {
+  for (const edge of ['top', 'right', 'bottom', 'left'])
+    document.documentElement.style.setProperty(`--fk-safe-${edge}`, '24px')
+  const { panel, dispose } = await open({})
+  try {
+    const look = getComputedStyle(panel)
+    const gutter = parseFloat(look.paddingTop)
+    expect(gutter).toBeGreaterThan(0)
+    expect(parseFloat(look.paddingBottom)).toBeCloseTo(gutter + 24, 1)
+    expect(parseFloat(look.paddingLeft)).toBeCloseTo(gutter + 24, 1)
+    expect(parseFloat(look.paddingRight)).toBeCloseTo(gutter + 24, 1)
+  } finally {
+    dispose()
+  }
+})
+
+test('the backdrop is the overlay scrim token', async () => {
+  document.documentElement.style.setProperty('--fk-overlay-scrim', 'rgb(255, 0, 0)')
+  const { panel, dispose } = await open({})
+  try {
+    const backdrop = panel.previousElementSibling!
+    expect(getComputedStyle(backdrop).backgroundColor).toBe('rgb(255, 0, 0)')
+  } finally {
+    document.documentElement.style.removeProperty('--fk-overlay-scrim')
+    dispose()
+  }
+})
+
+test('title: hidden takes the heading out of sight and leaves it naming the sheet', async () => {
+  const shown = await open({})
+  const visible = shown.panel.querySelector('h2')!.getBoundingClientRect()
+  shown.dispose()
+  document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
+  document.body.replaceChildren()
+  const { panel, dispose } = await open({}, { title: 'hidden' })
+  try {
+    const title = panel.querySelector('h2')!
+    const box = title.getBoundingClientRect()
+    expect(visible.width).toBeGreaterThan(1)
+    expect([box.width, box.height]).toEqual([1, 1])
+    expect(getComputedStyle(title).display).not.toBe('none')
+    const dialog = panel.closest('dialog')!
+    expect(document.getElementById(dialog.getAttribute('aria-labelledby')!)).toBe(title)
+    expect(title.textContent).toBe('Filters')
+  } finally {
+    dispose()
+  }
+})

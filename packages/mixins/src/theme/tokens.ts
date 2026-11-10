@@ -261,6 +261,11 @@ export const tokens = define({
     pressed: 'var(--fk-knob-relief-pressed)',
     field: 'var(--fk-knob-relief-field)',
   },
+  // What an overlay draws over the page it covers. A dialog's backdrop reads
+  // `scrim`: the page's own base, mostly transparent, so it dims in either scheme.
+  overlay: {
+    scrim: 'color-mix(in oklch, var(--fk-surface-bedrock) 45%, transparent)',
+  },
   breakpoint: {
     sm: '(min-width: 40rem)',
     md: '(min-width: 48rem)',

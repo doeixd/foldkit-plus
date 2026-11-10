@@ -19,7 +19,7 @@
 import { Style, type Declarations, type StyleValue } from 'foldkit-mixins'
 import { DialogSlots } from '../dialog.js'
 import { component, ref, travelled, variant } from './design.js'
-import { Dialog } from './dialog.js'
+import { Dialog, titleAxis } from './dialog.js'
 
 type Side = 'top' | 'right' | 'bottom' | 'left'
 const allSides = ['top', 'right', 'bottom', 'left'] as const
@@ -89,7 +89,7 @@ const clear = (side: Side): Declarations => {
   return Object.fromEntries(
     allSides.map(edge => [
       padding[edge],
-      edge === away ? ref.space.lg : `calc(${ref.space.lg} + env(safe-area-inset-${edge}, 0px))`,
+      edge === away ? ref.space.lg : `calc(${ref.space.lg} + ${ref.safe[edge]})`,
     ]),
   )
 }
@@ -230,8 +230,9 @@ export const Sheet = Style.recipeFor(DialogSlots)({
         handle: variant(Style.self({ display: 'block' })),
       },
     },
+    title: titleAxis,
   },
-  defaults: { size: 'md', handle: 'bar' },
+  defaults: { size: 'md', handle: 'bar', title: 'shown' },
 })
 
 /**
