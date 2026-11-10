@@ -428,8 +428,6 @@ while keeping the best of what this project already has:
   application make any of it its own;
 - every part is synergistic and works with the others.
 
-- [ ] **FileDrop's page.** `File.File`'s decoding services are `unknown`, which
-  `Bundle.parent` refuses. [ui-parity-DESIGN.md](./ui-parity-DESIGN.md) step 1
 - [ ] **Systems 8, component craft.** Done: the button's 1px press, merged
   selection runs, popup and dialog entrances. Our checkbox and radio fill
   when checked, so Fluid's clearing border is already their look. Icons stand
