@@ -67,6 +67,8 @@ export type RenderContext =
       readonly unnamed: Array<UnnamedHandler>
       /** Why each `KeepTyped` field met cannot be replayed, one line each. */
       readonly unkeepable: Array<string>
+      /** Each field with a binding that names its typing and no `KeepTyped`. */
+      readonly unkept: Array<string>
     }
   | {
       readonly mode: 'replay'

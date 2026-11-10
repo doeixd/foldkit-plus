@@ -76,7 +76,7 @@ export default [
     edits: [
       {
         file: client,
-        find: "  const start = Option.isSome(arrived) ? 'now' : plan.start",
+        find: "    const start = Option.isSome(arrived) || Option.isSome(loader) ? 'now' : plan.start",
         replace: '  const start = plan.start',
       },
     ],

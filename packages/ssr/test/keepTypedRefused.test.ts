@@ -43,21 +43,16 @@ describe('KeepTyped is refused', () => {
       names: 'textarea#q, which has no OnInput or OnChange',
     },
     {
-      on: 'a checkbox',
+      on: 'a file input',
       field: (rh: ResumableBuilder<Message>) =>
-        rh.input([
-          rh.Id('q'),
-          rh.Type('checkbox'),
-          rh.OnChange(Message.ChangedQuery),
-          rh.KeepTyped(),
-        ]),
-      names: 'input#q of type checkbox, which holds no typed value',
+        rh.input([rh.Id('q'), rh.Type('file'), rh.OnChange(Message.ChangedQuery), rh.KeepTyped()]),
+      names: 'input#q of type file, which holds nothing typed or ticked',
     },
     {
       on: 'an element that is no field',
       field: (rh: ResumableBuilder<Message>) =>
         rh.div([rh.Id('q'), rh.OnInput(Message.ChangedQuery), rh.KeepTyped()], []),
-      names: 'div#q, which holds no typed value',
+      names: 'div#q, which holds nothing typed or ticked',
     },
     // #371: nothing marks a field `h` builds, so every browser would refuse the page.
     {

@@ -76,9 +76,19 @@ export const config = {
             [rh.Id('like'), rh.OnClick(Message.Liked({ id: model.id }), { propagation: 'Stop' })],
             [String(model.likes)],
           ),
-          rh.input([rh.Id('search'), rh.Value(model.search), rh.OnInput(Message.ChangedSearch)]),
+          // Kept: a plan that does not start now refuses a named field without it.
+          rh.input([
+            rh.Id('search'),
+            rh.Value(model.search),
+            rh.OnInput(Message.ChangedSearch),
+            rh.KeepTyped(),
+          ]),
           rh.p([rh.Id('echo')], [model.search]),
-          rh.input([rh.Id('title'), rh.OnChange(Message.Renamed, { id: model.id })]),
+          rh.input([
+            rh.Id('title'),
+            rh.OnChange(Message.Renamed, { id: model.id }),
+            rh.KeepTyped(),
+          ]),
           rh.div([rh.Id('keys'), rh.Tabindex(0), rh.OnKeyDown(Message.Pressed)], [model.pressed]),
           rh.input([
             rh.Id('closure'),

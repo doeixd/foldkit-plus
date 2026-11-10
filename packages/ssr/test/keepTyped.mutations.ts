@@ -30,8 +30,8 @@ export default [
     edits: [
       {
         file: client,
-        find: '  if (eager && root.querySelector(`[${KEEP_ATTRIBUTE}]`) === null) {',
-        replace: '  if (eager) {',
+        find: 'if (eager && Option.isNone(loader) && root.querySelector(`[${KEEP_ATTRIBUTE}]`) === null) {',
+        replace: 'if (eager && Option.isNone(loader)) {',
       },
     ],
     tests: eager,
@@ -39,7 +39,11 @@ export default [
   {
     name: 'an eager page with typing boots without handing the queue over',
     edits: [
-      { file: client, find: '  if (eager && answered.length === 0) {', replace: '  if (eager) {' },
+      {
+        file: client,
+        find: '    if (eager && answered.length === 0 && held.length === 0) {',
+        replace: '    if (eager && held.length === 0) {',
+      },
     ],
     tests: eager,
   },
@@ -145,7 +149,7 @@ export default [
     edits: [
       {
         file: keep,
-        find: "      (binding.event !== 'input' && binding.event !== 'change')",
+        find: "      !(\n        binding.event === 'input' ||\n        binding.event === 'change' ||\n        (binding.event === 'click' && isCheckable(element))\n      )",
         replace: '      false',
       },
     ],
@@ -178,15 +182,15 @@ export default [
     edits: [
       {
         file: resumable,
-        find: "      const ordinal = typed.get('OnInput') ?? typed.get('OnChange')",
-        replace: "      const ordinal = typed.get('OnInput')",
+        find: "      : (typed.get('OnInput') ?? typed.get('OnChange'))",
+        replace: "      : typed.get('OnInput')",
       },
     ],
     tests: [...eager, ...refused],
   },
   {
     name: 'a select is no field',
-    edits: [{ file: resumable, find: "        tag === 'select' ||\n", replace: '' }],
+    edits: [{ file: resumable, find: "      tag === 'select' ||\n", replace: '' }],
     tests: eager,
   },
   {
@@ -194,8 +198,8 @@ export default [
     edits: [
       {
         file: resumable,
-        find: "        (tag === 'input' && (type === undefined || !UNTYPED_INPUTS.has(type.toLowerCase())))",
-        replace: "        tag === 'input'",
+        find: "      (tag === 'input' && (type === undefined || !UNTYPED_INPUTS.has(type)))",
+        replace: "      tag === 'input'",
       },
     ],
     tests: refused,

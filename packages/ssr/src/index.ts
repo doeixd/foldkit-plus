@@ -166,6 +166,8 @@ const envelopeOf = <Model, Fields extends Schema.Struct.Fields>(
     ...(options.events === undefined || options.events.length === 0
       ? {}
       : { events: options.events }),
+    // For `foldkit-ssr/loader`, which cannot import the plan.
+    ...(resume.start === 'now' ? {} : { start: resume.start }),
   })
 
 /**
@@ -625,6 +627,7 @@ export class ResumeUnsafe extends Schema.TaggedError<ResumeUnsafe>()('ResumeUnsa
     'VoidRootWithStyles',
     'RootRefusesHead',
     'UnkeepableField',
+    'UnkeptField',
   ]),
   message: Schema.String,
 }) {}
@@ -862,6 +865,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     const inStatic: Array<{ region: string; element: string; event: string }> = []
     const unnamed: Array<UnnamedHandler> = []
     const unkeepable: Array<string> = []
+    const unkept: Array<string> = []
     const fallback = fallbackEncoder(plan)
     const capturing = withContext(
       { ...config, init: (...args: ReadonlyArray<unknown>) => (served = config.init(...args)) },
@@ -877,6 +881,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
         inStatic,
         unnamed,
         unkeepable,
+        unkept,
       },
     )
     const full = yield* renderToString(capturing as never, options as never)
@@ -900,6 +905,12 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
       return yield* new ResumeUnsafe({
         reason: 'UnkeepableField',
         message: `the page cannot keep what is typed into these fields before it boots:\n- ${unkeepable.join('\n- ')}`,
+      })
+    }
+    if (plan.start !== 'now' && unkept.length > 0) {
+      return yield* new ResumeUnsafe({
+        reason: 'UnkeptField',
+        message: `the plan starts ${plan.start}, and what is typed into these fields before it boots would be lost at its first render: give each KeepTyped, or start now:\n- ${unkept.join('\n- ')}`,
       })
     }
     const started = served!

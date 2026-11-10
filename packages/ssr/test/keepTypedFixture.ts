@@ -96,8 +96,14 @@ export const config = {
             ],
           ),
           rh.p([rh.Id('summary')], [`${model.note}/${model.size}`]),
-          // Not kept: hydration re-asserts what the server rendered.
-          rh.input([rh.Id('title'), rh.Value(model.title), rh.OnInput(Message.ChangedTitle)]),
+          // Not kept: hydration re-asserts what the server rendered. A closure,
+          // which names no Message: a deferred plan refuses a named field
+          // without KeepTyped.
+          rh.input([
+            rh.Id('title'),
+            rh.Value(model.title),
+            rh.OnInput(value => Message.ChangedTitle({ value })),
+          ]),
         ],
       ),
     }

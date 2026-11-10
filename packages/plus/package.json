@@ -598,6 +598,11 @@
       "types": "./dist/ssr/client.d.mts",
       "import": "./dist/ssr/client.mjs"
     },
+    "./ssr/loader": {
+      "foldkit-plus:source": "./src/ssr/loader.ts",
+      "types": "./dist/ssr/loader.d.mts",
+      "import": "./dist/ssr/loader.mjs"
+    },
     "./ssr/vite": {
       "foldkit-plus:source": "./src/ssr/vite.ts",
       "types": "./dist/ssr/vite.d.mts",

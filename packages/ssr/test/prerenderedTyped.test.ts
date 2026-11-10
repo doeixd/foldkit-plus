@@ -52,3 +52,22 @@ it('replays the address, then the typing, without waiting for an interaction', a
   ])
   await vi.waitFor(() => expect(field('echo', HTMLElement).textContent).toBe('typed'))
 })
+
+it('starts at once at another query with nothing typed, though its plan waits', async () => {
+  const [home] = await Effect.runPromise(
+    SSR.generate(config, plan('on-interaction'), {
+      buildId: 'b',
+      template,
+      origin: 'https://example.test',
+      paths: ['/'],
+    }),
+  )
+  window.history.replaceState(null, '', '/?q=url')
+  load(home.html)
+  seen.length = 0
+
+  SSR.hydrate(config, plan('on-interaction'), { buildId: 'b' })
+
+  await vi.waitFor(() => expect(field('echo', HTMLElement).textContent).toBe('q=url'))
+  expect(seen).toEqual([Message.ChangedQuery({ value: 'q=url' })])
+})

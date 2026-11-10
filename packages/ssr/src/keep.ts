@@ -7,7 +7,8 @@
  * the marked fields when its script runs, turns each changed one into its
  * binding's Message, and after the first render puts the value and the
  * selection back, so the Message that follows finds the field already
- * holding its value and writes nothing.
+ * holding its value and writes nothing. A checkbox or radio keeps its
+ * `checked` the same way, against its `defaultChecked`.
  */
 import { Result } from 'effect'
 import { typedMessage, type DecodedBinding } from './listen.js'
@@ -20,6 +21,10 @@ export interface KeptField {
   readonly element: Field
   readonly binding: DecodedBinding
 }
+
+/** A checkbox or radio: what it holds is `checked`, not its `value`. */
+const isCheckable = (element: Field): element is HTMLInputElement =>
+  element instanceof HTMLInputElement && (element.type === 'checkbox' || element.type === 'radio')
 
 const isField = (element: Element): element is Field =>
   element instanceof HTMLInputElement ||
@@ -40,18 +45,22 @@ export const keptFields = (
   for (const element of Array.from(root.querySelectorAll(`[${KEEP_ATTRIBUTE}]`))) {
     const token = element.getAttribute(KEEP_ATTRIBUTE) ?? ''
     const binding = bindings[Number(token)]
-    // A binding of either event has a hole: a closure is no binding at all.
+    if (!isField(element)) {
+      return Result.fail(`the marker ${KEEP_ATTRIBUTE} is on a ${element.localName}, not a field`)
+    }
+    // A closure is no binding at all; a checkbox or radio may replay a click.
     if (
       !/^\d+$/.test(token) ||
       binding === undefined ||
-      (binding.event !== 'input' && binding.event !== 'change')
+      !(
+        binding.event === 'input' ||
+        binding.event === 'change' ||
+        (binding.event === 'click' && isCheckable(element))
+      )
     ) {
       return Result.fail(
-        `the marker ${KEEP_ATTRIBUTE}="${token}" names no input or change binding the page carries`,
+        `the marker ${KEEP_ATTRIBUTE}="${token}" names no input or change binding (or click, on a checkbox or radio) the page carries`,
       )
-    }
-    if (!isField(element)) {
-      return Result.fail(`the marker ${KEEP_ATTRIBUTE} is on a ${element.localName}, not a field`)
     }
     kept.push({ element, binding })
   }
@@ -95,6 +104,7 @@ const indicesOf = (
 /** Whether the field holds something other than what the server rendered. */
 export const changed = (field: KeptField): boolean => {
   const { element } = field
+  if (isCheckable(element)) return element.checked !== element.defaultChecked
   // A multiple select holds a set of selections, which its `value`, the first
   // of them, cannot tell apart: compare the whole set with the served one.
   if (element instanceof HTMLSelectElement && element.multiple) {
@@ -105,14 +115,27 @@ export const changed = (field: KeptField): boolean => {
   return element.value !== servedValue(element)
 }
 
+/**
+ * Whether the browser sent the field's event for its change: a radio the
+ * person left for another sent none, so only the one now checked replays.
+ */
+const sentChange = (field: KeptField): boolean =>
+  !(isCheckable(field.element) && field.element.type === 'radio' && !field.element.checked)
+
 /** The Messages that carry each changed field's typing, in document order. */
 export const typedMessages = (fields: ReadonlyArray<KeptField>): ReadonlyArray<unknown> =>
-  fields.filter(changed).map(field => typedMessage(field.binding, field.element.value))
+  fields
+    .filter(field => changed(field) && sentChange(field))
+    .map(({ binding, element }) =>
+      binding.hole === undefined ? binding.message : typedMessage(binding, element.value),
+    )
 
 /** A changed field's value and selection, as they were just before the runtime started. */
 export interface Held {
   readonly element: Field
   readonly value: string
+  /** A checkbox's or radio's. */
+  readonly checked?: boolean | undefined
   /** A `multiple` select's selected option indices: its `value` names only the first. */
   readonly selected?: readonly number[] | undefined
   readonly selection?: readonly [number, number, 'forward' | 'backward' | 'none'] | undefined
@@ -120,7 +143,8 @@ export interface Held {
 
 /** Each changed field's state, to put back once hydration has re-asserted the served value. */
 export const hold = (fields: ReadonlyArray<KeptField>): ReadonlyArray<Held> =>
-  fields.filter(changed).map(({ element }) => {
+  fields.filter(changed).map(({ element }): Held => {
+    if (isCheckable(element)) return { element, value: element.value, checked: element.checked }
     if (element instanceof HTMLSelectElement) {
       return element.multiple
         ? {
@@ -146,8 +170,10 @@ export const hold = (fields: ReadonlyArray<KeptField>): ReadonlyArray<Held> =>
  * the same element, which the person may still be typing into.
  */
 export const restore = (held: ReadonlyArray<Held>): void => {
-  for (const { element, value, selected, selection } of held) {
-    if (element instanceof HTMLSelectElement && selected !== undefined) {
+  for (const { element, value, checked, selected, selection } of held) {
+    if (checked !== undefined && element instanceof HTMLInputElement) {
+      element.checked = checked
+    } else if (element instanceof HTMLSelectElement && selected !== undefined) {
       const chosen = new Set(selected)
       Array.from(element.options).forEach((option, index) => {
         option.selected = chosen.has(index)

@@ -96,6 +96,8 @@ export const config = {
             rh.OnInput(Message.Typed),
             rh.OnFocus(Message.Focused({ id: 'text' })),
             rh.OnBlur(Message.Blurred({ id: 'text' })),
+            // A plan that does not start now refuses a named field without it.
+            rh.KeepTyped(),
           ]),
           rh.div([rh.Id('keys'), rh.Tabindex(0), rh.OnKeyDown(Message.Pressed)], []),
           rh.form(

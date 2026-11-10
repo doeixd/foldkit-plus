@@ -19,20 +19,9 @@ import {
 import { current, type Region } from './context.js'
 import { staticRegionMissing } from './diagnostics.js'
 import { decodeBindings, readBindings, type DecodedBinding } from './listen.js'
+import { FOLDKIT_APP_ATTRIBUTE, RESUME_ATTRIBUTE } from './marks.js'
 
-/**
- * The attribute Foldkit's server stamps on an application's root, as
- * `foldkit/experimental/server` exports it. Written out here so a page can
- * find its root without that module; a test pins the two together.
- */
-export const FOLDKIT_APP_ATTRIBUTE = 'data-foldkit-app'
-
-/**
- * The attribute on the stamped root that carries a page's resume envelope.
- * Foldkit pairs its own handoff the same way: the build id rides on the root
- * beside the app stamp, and the client reads it before adopting anything.
- */
-export const RESUME_ATTRIBUTE = 'data-foldkit-plus-resume'
+export { FOLDKIT_APP_ATTRIBUTE, RESUME_ATTRIBUTE } from './marks.js'
 
 /** The envelope format this package writes and reads. */
 export const PROTOCOL = 1
