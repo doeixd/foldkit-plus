@@ -1,10 +1,11 @@
+import { Option } from 'effect'
 import { page } from 'vitest/browser'
 
 /**
  * The bounding box of the pixels of `element` that `isInk` picks, read off a
  * screenshot, in CSS pixels from the element's top-left corner. `margin` is
  * the share of each side ignored, clear of rounded corners where the page
- * shows through. Null when nothing is ink.
+ * shows through. None when nothing is ink.
  */
 export const inkBox = async (
   element: HTMLElement,
@@ -32,16 +33,16 @@ export const inkBox = async (
       top = Math.min(top, y)
       bottom = Math.max(bottom, y + 1)
     }
-  if (left === Infinity) return null
+  if (left === Infinity) return Option.none()
   const scale = image.width / element.getBoundingClientRect().width
-  return {
+  return Option.some({
     left: left / scale,
     right: right / scale,
     top: top / scale,
     bottom: bottom / scale,
     width: image.width / scale,
     height: image.height / scale,
-  }
+  })
 }
 
 /** How far the ink's middle sits from the element's, in CSS pixels. */
@@ -50,8 +51,7 @@ export const inkOffsetOf = async (
   isInk: (brightness: number) => boolean,
   margin = 0.15,
 ) => {
-  const box = await inkBox(element, isInk, margin)
-  if (box === null) throw new Error('no ink')
+  const box = Option.getOrThrowWith(await inkBox(element, isInk, margin), () => new Error('no ink'))
   return {
     x: (box.left + box.right) / 2 - box.width / 2,
     y: (box.top + box.bottom) / 2 - box.height / 2,

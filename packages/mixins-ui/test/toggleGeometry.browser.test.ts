@@ -4,16 +4,16 @@
  * 2px into a pill under the pointer and, when on, keeps its far edge where
  * it was; a check's ink is centered in its box.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import { Layers, SlotView, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
-import { page, userEvent } from 'vitest/browser'
+import { userEvent } from 'vitest/browser'
 import { CheckboxSlots, Recipes, SwitchSlots } from '../src/index.js'
-import { inkBox } from './ink.js'
+import { inkBox, inkOffsetOf } from './ink.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const checkbox = Style.forSlots(CheckboxSlots)(Recipes.Checkbox({}))
@@ -201,43 +201,12 @@ test('a checked box shows its check, an unchecked one none, and a mixed one a da
   }
 })
 
-/** The middle of the light ink inside the box's padding, in CSS pixels from its center. */
-const inkOffset = async (label: string) => {
-  const element = document.querySelector<HTMLElement>(`[aria-label="${label}"]`)!
-  const shot = await page.screenshot({ element, base64: true, save: false })
-  const image = new Image()
-  image.src = `data:image/png;base64,${shot}`
-  await image.decode()
-  const canvas = document.createElement('canvas')
-  canvas.width = image.width
-  canvas.height = image.height
-  const context = canvas.getContext('2d')!
-  context.drawImage(image, 0, 0)
-  const { data } = context.getImageData(0, 0, image.width, image.height)
-  // Clear of the rounded corners, where the page shows through.
-  const margin = Math.round(image.width * 0.15)
-  let [left, top, right, bottom] = [Infinity, Infinity, -Infinity, -Infinity]
-  for (let y = margin; y < image.height - margin; y++)
-    for (let x = margin; x < image.width - margin; x++) {
-      const at = (y * image.width + x) * 4
-      if ((data[at]! + data[at + 1]! + data[at + 2]!) / 3 < 200) continue
-      left = Math.min(left, x)
-      right = Math.max(right, x + 1)
-      top = Math.min(top, y)
-      bottom = Math.max(bottom, y + 1)
-    }
-  const scale = image.width / element.getBoundingClientRect().width
-  return {
-    x: ((left + right) / 2 - image.width / 2) / scale,
-    y: ((top + bottom) / 2 - image.height / 2) / scale,
-  }
-}
-
 test("a check's ink is centered in its box", async () => {
   const handle = mount()
   try {
     await drawn()
-    const { x, y } = await inkOffset('large')
+    const box = document.querySelector<HTMLElement>('[aria-label="large"]')!
+    const { x, y } = await inkOffsetOf(box, brightness => brightness >= 200)
     // Within 1.5px of 96: at 19.5% from the top it stood 7px low.
     expect(Math.abs(x)).toBeLessThan(1.5)
     expect(Math.abs(y)).toBeLessThan(1.5)
@@ -300,8 +269,10 @@ test.each(['ltr', 'rtl'] as const)(
       const bright = (brightness: number) => brightness > 240
       const thumbOf = async (label: string) => {
         const element = document.querySelector<HTMLElement>(`[aria-label="${label}"]`)!
-        const found = await inkBox(element, bright, 0)
-        if (found === null) throw new Error('no thumb')
+        const found = Option.getOrThrowWith(
+          await inkBox(element, bright, 0),
+          () => new Error('no thumb'),
+        )
         // Physical edges of the thumb from the track's left, then from its inline start.
         const { width } = found
         const [near, far] =
@@ -315,7 +286,7 @@ test.each(['ltr', 'rtl'] as const)(
       // Off: the 2px inset at the inline start. On: 2px in from the inline end.
       expect(off.near).toBeCloseTo(2, 0)
       expect(on.far).toBeCloseTo(off.width - 2, 0)
-      // And the box really is at the right place on the page, not only mirrored.
+      // The page read in the direction under test, so the case is not ltr twice.
       expect(getComputedStyle(document.body).direction).toBe(direction)
     } finally {
       document.body.style.background = ''
