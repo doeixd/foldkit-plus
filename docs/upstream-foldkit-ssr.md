@@ -159,6 +159,25 @@ becomes one head writer beside the host's, instead of the only one. Until
 then, `docs/design/ssr-dynamic-head-DESIGN.md` carries `meta` in the root and
 has the host move it with `SSR.headed`; that wrapper retires once this lands.
 
+**Built on our side (2026-11-10).** The workaround shows what the channel
+must cover, which is evidence for the issue:
+- The entry writes the markup at the rendered root's end, between two
+  marker comments, and `SSR.headed` moves it before the template's
+  `</head>`.
+- It reads the markup only from that position, because a view can draw the
+  same marker comments verbatim inside a `<style>`.
+- It refuses a root a parser would not keep `<meta>` in (a table's, `svg`,
+  raw text) as `RootRefusesHead`.
+- A page answering a posted form carries the markup too.
+- Without the wrapper, `SSR.hydrate` removes the markup from the body and
+  reports `HeadNotMoved`.
+- `examples/reference` serves through it, and its e2e test reads each served
+  description.
+
+All of this is parser bookkeeping that `injectIntoTemplate` already does for
+the root, which is the case for moving it upstream. foldkit#1448 should get
+a comment saying so.
+
 ## Proposal 3: hydrate from a Model the server hands over
 
 **Ask, as a question.** Would Foldkit accept a hydrating boot that starts from
@@ -437,7 +456,9 @@ check:
 1. Our side first: move deferred boot onto `Render.afterCommit`, so nothing
    we do depends on commit timing. This belongs in the SSR plan's Phase G.
 2. Proposal 1 as a pull request.
-3. Proposal 2 as an issue, then a pull request on the agreed shape.
+3. Proposal 2 as an issue, then a pull request on the agreed shape. It is
+   filed as foldkit#1448; it needs the comment above, that the head now has a
+   working wrapper here, `SSR.headed`, which the issue would retire.
 4. Proposal 3 as a question, after `foldkit-ssr` is published and in use.
 5. Proposal 4 as an issue, any time: it needs nothing from the others.
 6. Proposal 5 as an issue, any time: it needs nothing from the others.
@@ -452,9 +473,10 @@ with the SSR plan and README updated in the same commit.
 
 ## Other Foldkit behaviour we work around
 
-Beyond SSR, this repository works around the behaviour below. None is filed
-upstream yet; each is a candidate once it has the use case Foldkit asks for.
-The working detail of each is a trap in `AGENTS.md`, named here by its title.
+Beyond SSR, this repository works around the behaviour below. Four
+`@foldkit/ui` gaps are filed (listed at the end). The rest are not filed
+yet: each is a candidate once it has the use case Foldkit asks for. The
+working detail of each is a trap in `AGENTS.md`, named here by its title.
 
 Runtime and view:
 
@@ -464,6 +486,10 @@ Runtime and view:
   Asking for: chain Mounts the way handlers are chained, or refuse the second.
 - **Two `Class` (or `Style`) attributes on one element keep the later one**
   (`setModuleData`), so two Slots' attributes on one element lose a class.
+  The same happens within one Slot when a component wraps its own class in a
+  child attribute (`childAttributes`). A popup's `itemsScrollClassName` and
+  the FileDrop input's `sr-only` each dropped the recipe's class; since
+  2026-11-10 the mixins resolver merges a child attribute's class.
   Asking for: merge them, as the mixins resolver does within one Slot.
 - **Mount args are read once, at insert**: no update hook, so a Mount cannot
   follow the Model. We key the element or use a Command.
@@ -516,4 +542,24 @@ Testing:
   portal their panel, so a knob set on the wrapper never reaches it.
 - **The Menu clicks a row for you** on a release over 200ms and 5px after a
   press on the trigger, beside the browser's own click.
+- **A disabled Button is only `aria-disabled`**, which keeps it focusable, so
+  a `type: 'submit'` one still submits its form, on Enter or on a press.
+  Deliberate upstream; documented on `Button.view` (#496), and an
+  application refuses such a submit in `update`, as the waitlist does.
 - Combobox keyboard behaviour: [upstream-combobox-keyboard.md](./upstream-combobox-keyboard.md).
+
+Filed against `@foldkit/ui`, each with the workaround it would retire
+(`docs/design/ui-polish-DESIGN.md`, "Needs `@foldkit/ui`"):
+
+- [foldkit#1686](https://github.com/foldkit/foldkit/issues/1686): a
+  non-modal Dialog, `InitConfig.isModal?` passed to `showDialog` and
+  `AcquireResources`, so a Sheet can leave the page usable.
+- [foldkit#1687](https://github.com/foldkit/foldkit/issues/1687): the
+  Tooltip's arrow, an `arrowId(id)` and an `arrow` bundle in its
+  `RenderInfo`, so `PlaceArrow` and its `!important` override can go.
+- [foldkit#1688](https://github.com/foldkit/foldkit/issues/1688): collision
+  inside a top-layer ancestor, a `boundary`/`rootBoundary` in `AnchorConfig`
+  or a top layer the anchor owns (after foldkit#1683).
+- [foldkit#1689](https://github.com/foldkit/foldkit/issues/1689): a modal
+  `<dialog>` in the top layer, an opt-in beside `show()`, which upstream
+  keeps for DevTools, so a transformed ancestor no longer captures it.
