@@ -23,6 +23,14 @@ import { pipeSelf, type Pipeable } from './pipe.js'
 import { resolve, type ContributedAttribute, type SlotAttributes } from './resolver.js'
 import type { Any as AnySlot, SlotProtection } from './slot.js'
 
+/**
+ * Defined by `foldkit-mixins/vite` in a production browser build that ships
+ * its style modules as data: the linked sheet then holds every class drawn,
+ * and the build drops the injection along with the CSS it would carry (#420).
+ */
+declare const __FOLDKIT_MIXINS_FROZEN_STYLES__: boolean | undefined
+const injects = typeof __FOLDKIT_MIXINS_FROZEN_STYLES__ === 'undefined'
+
 export type SlotBuilder<Message, Slots = unknown> = {
   /**
    * The view's base attributes plus every resolved contribution. Pass `item`
@@ -107,7 +115,7 @@ const buildersOver = <Slots, Message>(
                 ...(item === undefined ? {} : { item }),
               })
               // What this Slot draws brings its CSS, whether or not a stylesheet listed it.
-              ensure(evaluated)
+              if (injects) ensure(evaluated)
               contributions.push(evaluated)
             }
           }
