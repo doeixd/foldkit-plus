@@ -242,7 +242,7 @@ export default [
     name: 'the page predicts a like and a chirp for no one',
     edits: [
       {
-        file: '../src/app.ts',
+        file: '../src/state.ts',
         find: 'viewer: model => Option.some(Remote.ref(Chirper, model.me)),',
         replace: '',
       },

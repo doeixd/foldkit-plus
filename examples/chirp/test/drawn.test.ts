@@ -7,7 +7,8 @@
 import { Option } from 'effect'
 import { May } from 'foldkit-guard'
 import { describe, expect, it } from 'vitest'
-import { Data, Message, update, type Model } from '../src/app.js'
+import { update } from '../src/app.js'
+import { Data, Message, type Model } from '../src/state.js'
 import { opened } from './opened.js'
 import { Timeline, TimelinePost } from '../src/operations.js'
 

@@ -26,20 +26,12 @@ import {
   trash2,
   user,
 } from 'virtual:foldkit-icons/lucide'
-import {
-  ComposeForm,
-  Data as Chirps,
-  EditorForm,
-  Home,
-  Message,
-  PostEditor,
-  Profile,
-  Status,
-  type Model,
-} from './app.js'
+import { ComposeForm, EditorForm, PostEditor } from './app.js'
+import { Data as Chirps, Home, Message, Profile, Status, type Model } from './state.js'
 import type { Row } from './operations.js'
 import { PEOPLE, type Person } from './server/seed.js'
-import { AppRoute, ChirpSite, profileHref, statusHref } from './site.js'
+import { AppRoute } from './route.js'
+import { ChirpSite, profileHref, statusHref } from './site.js'
 import { AvatarStyle, ChirpPage, GuideOffset, PortraitStyle } from './style.js'
 
 type H = HtmlBuilder<Message>

@@ -4,7 +4,8 @@
  */
 import { Effect } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
-import { durable, initial, type Model } from '../src/app.js'
+import { durable, initial } from '../src/app.js'
+import { type Model } from '../src/state.js'
 
 export const opened: Model = Effect.runSync(
   durable.restore(initial).pipe(Effect.provide(KeyValueStore.layerMemory)),

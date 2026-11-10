@@ -137,6 +137,15 @@ gating. The Site does not fetch the viewer: keep the read that names it (a
 `Session` Surface over `Me`) among the actives, and `Data.satisfy` reads it
 before the feed. Without `viewer`, a second `params` argument does not compile.
 
+**A data policy per route.** A node has no data policy and no `retain`: the
+window a page's reads keep is `Data.wiring`'s `policy`, a function of the
+Model, so match the route there:
+`policy: (model: Model) => AppRoute.match(model.route, { Home: () => timeline,
+Profile: () => profile })`, with the route union's `match` so a new route is a
+type error until it has one. `Data.wiring(Site.sources(site, App.owner,
+App.model.route), { policy })` joins the two; `examples/chirp` does this. One
+policy covers every Surface active on a route.
+
 **Nested rendering.** `layout: { render: (child, model, h) => ... }` wraps
 everything under the node; `view: { render: (model, h) => ... }` draws its
 own route. `Site.view(site, route, model, h)` is the leaf's view in every

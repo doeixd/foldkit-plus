@@ -1,6 +1,6 @@
 # The Site tree as one source: data, code and the host (#235, #236, #438)
 
-Status: decided 2026-11-10 (decisions delegated by the owner); built next are Phase 0's per-route baselines, Chirp on node Surfaces (D1) and `SSR.entry`'s `redirect` (H1), with two `Bundle.lazy` bugs filed first.
+Status: decided 2026-11-10 (decisions delegated by the owner). D1 (Chirp on node Surfaces, the route-policy recipe) is built; built next are Phase 0's per-route baselines and `SSR.entry`'s `redirect` (H1), with two `Bundle.lazy` bugs filed first.
 
 Nothing here is built. Every claim about current code names its file and
 line, read on 2026-11-10 at `1c1956b`; the claims the decisions rest on were
@@ -465,7 +465,7 @@ Each ships alone. "Measure" is what the phase records before and after.
 | Phase | Ships | Measure | Tests |
 | --- | --- | --- | --- |
 | **0. Baselines** | `scripts/bundle-report.mjs` reports first-load JS per route (the entry, its static imports, and the route's chunks). Numbers for `examples/reference`, the CMS studio and site, and Chirp in `performance-PLAN.md`. | brotli per route; how much of each entry only one route imports | the report's own test |
-| **D1. Chirp on node Surfaces** | `examples/chirp` moves its three `Surface.when` entries onto its nodes and builds `actives` from `Site.sources`. Docs: the route-policy recipe in `packages/site/README.md` and `site.md`. No API. | lines deleted | Chirp's unit and e2e suites unchanged |
+| **D1. Chirp on node Surfaces** (built) | `examples/chirp` moves its three `Surface.when` entries onto its nodes and builds `actives` from `Site.sources`. Docs: the route-policy recipe in `packages/site/README.md` and `site.md`. No API. | lines deleted | Chirp's unit and e2e suites unchanged |
 | **D2. `visibleLinks`** (not built unless decision 3's rule is met) | `foldkit-primitives/dom` | reads started per page of 50 links, with and without `atMost` | a browser test (`*.browser.test.ts`: layout decides it), with Save-Data emulated; mutations on the cap and the skip |
 | **B. The two `Bundle.lazy` bugs** (decision 5) | `foldkit-bundle`: a body that arrives is drawn though no Model changed, and a load that fails is no crash | none | the two probes of section 6 as runtime tests in `packages/bundle/test/lazy.test.ts`, with mutations |
 | **C1. `SitePage.code`, `Site.codeFor`** (gated: decision 6) | `foldkit-site` | none (pure) | unit and type tests; a non-lazy page has none |
@@ -475,6 +475,8 @@ Each ships alone. "Measure" is what the phase records before and after.
 | **H2. `Host.isolate`, `Host.template`, `Host.routes`, `Host.node`** (after H3) | the new package; `examples/reference/src/worker.ts` ported | `worker.ts` lines; CPU per request before and after | unit tests on `Host.node`; `examples/reference/test/worker.test.ts` and its e2e on workerd through `Stack.start`; a failed isolate build is retried |
 | **H3. `AuthServer.host`** (before H2) | `foldkit-auth/server`; reference and `examples/auth` ported | lines | the security tests of section 7, on workerd; `node:http` for navigations (Node's `fetch` cannot send one: CLAUDE.md) |
 | **H4. `Host.workers` preset; `examples/cloudflare` ported** (gated: decision 7) | the one call, with a Durable Object and media as routes | lines; a deploy of reference | e2e on all three examples |
+
+D1 as built: the Surfaces moved to `state.ts` and the addresses to `route.ts`, so `site.ts` can attach each Surface to its node without an import cycle; `actives` is `Site.sources` plus the editor; the three `Surface.when` lines are gone and the route is written once. `policy` in `app.ts` matches the route (a profile keeps a 15-second window, the rest 60 seconds), and `examples/chirp/test/site.test.ts` reads both the per-route reads and the window from the wiring's own Subscriptions. The README recipe is in `packages/site/README.md` ("A data policy per route"). The split added about forty lines of module headers, so the gain is the route written once, not fewer lines.
 
 Order, as decided in section 6:
 

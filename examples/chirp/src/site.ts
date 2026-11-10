@@ -1,39 +1,30 @@
-/** Where the application is: the route tree, its titles and its addresses. */
-import { Schema, pipe } from 'effect'
-import { defineRouteUnion, literal, mapTo, root, slash, string } from 'foldkit/route'
+/**
+ * Where the application is: the route tree, its titles and its addresses. Each
+ * node owns the Surface its page reads, so a route's reads are the node's.
+ */
 import { Site } from 'foldkit-site'
-
-export const AppRoute = defineRouteUnion({
-  Home: {},
-  Profile: { handle: Schema.String },
-  Status: { handle: Schema.String, id: Schema.String },
-  NotFound: { path: Schema.String },
-})
-export type AppRoute = typeof AppRoute.Type
-
-const homeRouter = pipe(root, mapTo(AppRoute.Home))
-const profileRouter = pipe(string('handle'), mapTo(AppRoute.Profile))
-const statusRouter = pipe(
-  string('handle'),
-  slash(literal('status')),
-  slash(string('id')),
-  mapTo(AppRoute.Status),
-)
+import { AppRoute, homeRouter, profileRouter, statusRouter } from './route.js'
+import { Home, Profile, Status } from './state.js'
 
 // #region site
-const Home = Site.route(homeRouter, AppRoute.Home, { title: () => 'Chirp' })
-const Profile = Site.route(profileRouter, AppRoute.Profile, {
-  title: ({ handle }) => `@${handle} / Chirp`,
+const HomeNode = Site.route(homeRouter, AppRoute.Home, {
+  title: () => 'Chirp',
+  surface: { surface: Home, params: () => undefined },
 })
-const Status = Site.route(statusRouter, AppRoute.Status, {
+const ProfileNode = Site.route(profileRouter, AppRoute.Profile, {
+  title: ({ handle }) => `@${handle} / Chirp`,
+  surface: { surface: Profile, params: ({ handle }) => ({ handle }) },
+})
+const StatusNode = Site.route(statusRouter, AppRoute.Status, {
   title: ({ handle }) => `@${handle} on Chirp`,
+  surface: { surface: Status, params: ({ id }) => ({ id }) },
 })
 
-export const ChirpSite = Site.make(Home, Site.mount(Profile, [Status]))
+export const ChirpSite = Site.make(HomeNode, Site.mount(ProfileNode, [StatusNode]))
 
 /** A person's page, and one post's, by the routes' own addresses. */
-export const profileHref = (handle: string) => Site.href(Profile, { handle })
-export const statusHref = (handle: string, id: string) => Site.href(Status, { handle, id })
+export const profileHref = (handle: string) => Site.href(ProfileNode, { handle })
+export const statusHref = (handle: string, id: string) => Site.href(StatusNode, { handle, id })
 // #endregion
 
 export const routeOf = Site.parse(ChirpSite, AppRoute.NotFound)

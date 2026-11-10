@@ -17,7 +17,7 @@ export default [
     edits: [
       {
         file: '../src/app.ts',
-        find: 'Data.wiring(actives, { policy: freshness })',
+        find: 'Data.wiring(actives, { policy })',
         replace: 'Data.wiring(actives)',
       },
     ],
