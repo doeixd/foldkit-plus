@@ -18,7 +18,7 @@ describe('the control on its own', () => {
     const chosen = ColorPicker.update(initial, ColorMessage.Chose({ hex: '#ff0000' }))
     expect(chosen.model.hex).toBe('#ff0000')
     expect(chosen.commands).toHaveLength(1)
-    expect(chosen.commands?.[0]?.name).toBe('palette.lookup')
+    expect(chosen.commands?.[0]?.name).toBe('LookUpPalette')
 
     // The Command's fact lands back in the Model, and the palette is kept.
     const resolved = ColorPicker.update(chosen.model, ColorMessage.Resolved({ hex: '#ff0000' }))
@@ -101,7 +101,7 @@ describe('the control as a Form key, through Input.bundle', () => {
     expect(PostForm.authoredChanged(PostForm.initial, opened)).toBe(false)
 
     const chosen = update(opened, color.send(ColorMessage.Chose({ hex: '#ff0000' })))
-    expect(chosen.commands?.map(command => command.name)).toEqual(['palette.lookup'])
+    expect(chosen.commands?.map(command => command.name)).toEqual(['LookUpPalette'])
     expect(PostForm.authoredChanged(opened, chosen.model)).toBe(true)
     expect(color.field(chosen.model)._tag).toBe('Valid')
   })

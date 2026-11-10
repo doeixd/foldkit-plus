@@ -3,7 +3,7 @@ import { AgentWebMcp } from 'foldkit-agent-webmcp'
 import type { ModelContext, RegisterToolOptions, ToolDescriptor } from 'foldkit-agent-webmcp'
 import { Effect, Option } from 'effect'
 import { AppAgent, type Principal, bindAgent } from './agent.js'
-import { Message, resetIds } from './app.js'
+import { Message } from './app.js'
 import { makeStore } from './store.js'
 
 /** Stands in for `document.modelContext` outside a browser. */
@@ -35,7 +35,6 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const log: Array<string> = []
   const say = (line: string) => log.push(line)
 
-  resetIds()
   const store = makeStore()
   let principal: Principal = { canDelete: true }
 

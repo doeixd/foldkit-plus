@@ -16,6 +16,8 @@ export const Model = Schema.Struct({
   todos: Schema.Array(Todo),
   selectedTodoId: Schema.Option(Schema.String),
   lastError: Schema.Option(Schema.String),
+  /** The number the next todo's id takes, kept in the Model so a fresh one starts again. */
+  nextId: Schema.Number,
 })
 
 export type Model = typeof Model.Type
@@ -45,9 +47,8 @@ export const initialModel: Model = {
   todos: [],
   selectedTodoId: Option.none(),
   lastError: Option.none(),
+  nextId: 1,
 }
-
-let nextId = 1
 
 /**
  * The state transition function.
@@ -60,7 +61,8 @@ export const update = (model: Model, message: Message): Model =>
   Message.match(message, {
     RequestedCreateTodo: ({ title }) =>
       modifyFields(model, {
-        todos: () => [...model.todos, { id: `todo-${nextId++}`, title, completed: false }],
+        todos: () => [...model.todos, { id: `todo-${model.nextId}`, title, completed: false }],
+        nextId: () => model.nextId + 1,
       }),
 
     RequestedRenameTodo: ({ id, title }) =>
@@ -91,8 +93,3 @@ export const update = (model: Model, message: Message): Model =>
     FailedToLoadTodos: ({ message }) =>
       modifyFields(model, { lastError: () => Option.some(message) }),
   })
-
-/** Resets the id counter, so a demo run is reproducible. */
-export const resetIds = (): void => {
-  nextId = 1
-}

@@ -8,9 +8,9 @@
  * decides goes to each child through its helpers, never its Messages.
  */
 import { Match, Schema } from 'effect'
-import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
-import { Selection, TreeNavigation } from 'foldkit-primitives/interaction'
+import { TreeNavigation } from 'foldkit-primitives/interaction'
+import { Message, Nav, Sel } from './message.js'
 
 export interface FileNode {
   readonly id: string
@@ -41,24 +41,11 @@ export const allRows = (): ReadonlyArray<TreeNavigation.Row> =>
 
 export const labelOf = (id: string): string => NODES.find(node => node.id === id)?.label ?? id
 
-export const Nav = Bundle.declare(TreeNavigation.bundle, 'nav')
-
-export const Sel = Bundle.declare(Selection.bundle, 'selection')
-
 export const navArgs = { openByDefault: false } as const
 export const selArgs = { mode: 'single', allowEmpty: false } as const
 
 export const Model = Schema.Struct({ ...Nav.fields, ...Sel.fields })
 export type Model = typeof Model.Type
-
-export const Message = defineMessageUnion({
-  ...Nav.cases,
-  ...Sel.cases,
-  CommittedCurrent: {},
-  /** A branch row's expander was pressed: the tree opens or shuts it. */
-  ToggledRow: { id: Schema.String },
-})
-export type Message = typeof Message.Type
 
 const Parent = Bundle.parent({ Model, Message })
 

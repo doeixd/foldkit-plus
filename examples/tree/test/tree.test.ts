@@ -4,7 +4,8 @@ import type { KeyboardModifiers } from 'foldkit/html'
 import { Attributes, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Selection, TreeNavigation } from 'foldkit-primitives/interaction'
-import { Message, Nav, Sel, initial, navArgs, update, type Model } from '../src/app.js'
+import { type Model, initial, navArgs, update } from '../src/app.js'
+import { Message, Nav, Sel } from '../src/message.js'
 import { Tree, TreeKeys, TreePicks, TreeSlots } from '../src/view.js'
 
 const openedSrc = (model: Model): Model =>

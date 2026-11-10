@@ -6,9 +6,10 @@
  * `Collection.behavior` stays out — its descriptor is shared, its bundles
  * would collide with the navigation's `id` and `aria-disabled`.
  */
-import { Behavior, Behaviors, Capability, Event, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { Behavior, Behaviors, Capability, Event, Slot, SlotView, Slots } from 'foldkit-mixins'
 import { Selection, TreeNavigation } from 'foldkit-primitives/interaction'
-import { Message, Nav, Sel, allRows, labelOf, navArgs, selArgs, type Model } from './app.js'
+import { type Model, allRows, labelOf, navArgs, selArgs } from './app.js'
+import { Message, Nav, Sel } from './message.js'
 
 export const TreeSlots = Slots.define({
   tree: Slot.make({ capability: Capability.Container }),

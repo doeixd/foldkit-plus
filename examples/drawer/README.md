@@ -16,6 +16,7 @@ npx vitest run examples/drawer
 
 ## Files
 
+- `src/message.ts` — the stack's declaration and the Message.
 - `src/app.ts` — `{ open }` plus the `DismissLayer` stack placement; `Dismiss`
   naming the drawer closes it, anything else leaves it open.
 - `src/view.ts` — `DrawerSlots` with `Overlay.behaviors(..., Overlay.modal)`

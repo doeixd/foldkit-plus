@@ -2,7 +2,7 @@ import { Agent } from 'foldkit-agent'
 import { Effect, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { AppAgent, bindAgent } from '../src/agent.js'
-import { Message, resetIds } from '../src/app.js'
+import { Message } from '../src/app.js'
 import { runDemo } from '../src/demo.js'
 import { makeStore } from '../src/store.js'
 
@@ -57,7 +57,6 @@ describe('the example contract', () => {
   })
 
   it('drives update through the host, whichever surface originates the Message', async () => {
-    resetIds()
     const store = makeStore()
     const agent = bindAgent({
       definition: AppAgent,
@@ -87,7 +86,6 @@ describe('the example contract', () => {
   })
 
   it('deletes the selected todo, preserves the others, and clears the selection', async () => {
-    resetIds()
     const store = makeStore()
     const agent = bindAgent({
       definition: AppAgent,

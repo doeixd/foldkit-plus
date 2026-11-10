@@ -22,9 +22,9 @@ export default [
     name: 'the page draws the blank form',
     edits: [
       {
-        file: render,
-        find: 'serve(reading.entry.name, reading.filled as Model,',
-        replace: 'serve(reading.entry.name, form.initial as Model,',
+        file: read,
+        find: 'use(filled, (model: Model',
+        replace: 'use(form.initial, (model: Model',
       },
     ],
     tests: pages,

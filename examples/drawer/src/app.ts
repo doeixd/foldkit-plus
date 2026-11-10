@@ -6,25 +6,15 @@
  * open. Presence is CSS (`data-open`): no JS transition state.
  */
 import { Match, Schema } from 'effect'
-import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
-import { DismissLayer } from 'foldkit-primitives/interaction'
-
-export const Stack = Bundle.declare(DismissLayer.bundle, 'layers')
+import type { DismissLayer } from 'foldkit-primitives/interaction'
+import { Message, Stack } from './message.js'
 
 export const Model = Schema.Struct({
   open: Schema.Boolean,
   ...Stack.fields,
 })
 export type Model = typeof Model.Type
-
-export const Message = defineMessageUnion({
-  ...Stack.cases,
-  Opened: {},
-  Closed: {},
-  Toggled: {},
-})
-export type Message = typeof Message.Type
 
 const Parent = Bundle.parent({ Model, Message })
 

@@ -5,7 +5,7 @@
  */
 import { Option } from 'effect'
 import { gallery } from './gallery.js'
-import { Outcome, read, type Reading } from './read.js'
+import { Outcome, type Reading } from './read.js'
 
 const outcome = Outcome.match({
   Kept: ({ stored }) => `stores ${stored}`,
@@ -36,4 +36,5 @@ export const describe = (reading: Reading): ReadonlyArray<string> => [
   `  in a list ${JSON.stringify(reading.display)}`,
 ]
 
-export const runDemo = (): ReadonlyArray<string> => gallery.map(read).flatMap(describe)
+export const runDemo = (): ReadonlyArray<string> =>
+  gallery.map(entry => entry.read()).flatMap(describe)

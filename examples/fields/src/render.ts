@@ -5,8 +5,6 @@
  * any runtime starts.
  */
 import { Effect } from 'effect'
-import { renderers } from 'foldkit-form-recipes/html'
-import { FormView } from 'foldkit-mixins-form'
 import { injectIntoTemplate, renderToString } from 'foldkit/experimental/server'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { describe } from './demo.js'
@@ -30,27 +28,26 @@ const serve = <Model, Message>(
 
 /** One recipe's page: its facts as the demo states them, and its control. */
 const page = (reading: Reading) => {
-  const { form } = reading
-  type Model = typeof form.initial
-  type Message = typeof form.Message.Type
-  const View = FormView.define(form, { renderers: renderers() })
   const [heading, ...facts] = describe(reading)
-  return serve(reading.entry.name, reading.filled as Model, (model, h: HtmlBuilder<Message>) =>
-    h.main(
-      [],
-      [
-        h.h1([], [reading.entry.name]),
-        h.p([], [h.a([h.Href('./index.html')], ['Every recipe'])]),
-        h.pre([], [heading ?? '', '\n', ...facts.map(line => `${line.trim()}\n`)]),
-        h.h2([], ['What can go wrong']),
-        h.ul(
+  return reading.drawn(
+    <Model, Message>(filled: Model, control: (model: Model, h: HtmlBuilder<Message>) => Html) =>
+      serve(reading.entry.name, filled, (model, h: HtmlBuilder<Message>) =>
+        h.main(
           [],
-          reading.entry.failures.map(failure => h.li([], [failure])),
+          [
+            h.h1([], [reading.entry.name]),
+            h.p([], [h.a([h.Href('./index.html')], ['Every recipe'])]),
+            h.pre([], [heading ?? '', '\n', ...facts.map(line => `${line.trim()}\n`)]),
+            h.h2([], ['What can go wrong']),
+            h.ul(
+              [],
+              reading.entry.failures.map(failure => h.li([], [failure])),
+            ),
+            h.h2([], ['The control, filled']),
+            control(model, h),
+          ],
         ),
-        h.h2([], ['The control, filled']),
-        View({ model, errors: [], canSubmit: true }, h),
-      ],
-    ),
+      ),
   )
 }
 

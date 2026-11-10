@@ -1,5 +1,6 @@
 import { Selection, TreeNavigation } from 'foldkit-primitives/interaction'
-import { Nav, Sel, allRows, initial, labelOf, navArgs, update, type Model } from './app.js'
+import { type Model, allRows, initial, labelOf, navArgs, update } from './app.js'
+import { Nav, Sel } from './message.js'
 
 const renderText = (model: Model): ReadonlyArray<string> => {
   const showing = TreeNavigation.shown(allRows(), model.nav, navArgs)

@@ -7,10 +7,9 @@
 import { Effect, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { gallery } from '../src/gallery.js'
-import { read } from '../src/read.js'
 import { pages } from '../src/render.js'
 
-const readings = gallery.map(read)
+const readings = gallery.map(entry => entry.read())
 const parsed = new Map(
   Effect.runSync(pages(readings)).map(([name, html]) => [
     name,
