@@ -40,4 +40,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'Enter picks nothing',
+    edits: [
+      {
+        file: '../src/palette/app.ts',
+        find: 'Committed: ({ id }) => SelPlaced.helpers.activate(id)(model),',
+        replace: 'Committed: () => ({ model }),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'Enter runs nothing',
+    edits: [
+      {
+        file: '../src/palette/app.ts',
+        find: "Match.tag('Committed', ({ id }) => Option.some(id)),",
+        replace: "Match.tag('Committed', () => Option.none()),",
+      },
+    ],
+    tests,
+  },
 ]

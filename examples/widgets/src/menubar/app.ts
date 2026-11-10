@@ -87,13 +87,16 @@ export type Message = typeof Message.Type
 
 const Parent = Bundle.parent({ Model, Message })
 
+// The selection's placement: update applies picks through its helpers.
+const SelPlaced = Parent.at(Sel, { args: selArgs })
+
 const shut = (model: Model): Model =>
   Option.isNone(model.openMenu) ? model : modifyFields(model, { openMenu: () => Option.none() })
 
 const assembly = Parent.assemble(
   Parent.at(Roving, { args: rovingArgs }),
   Parent.at(Nav, { args: navArgs }),
-  Parent.at(Sel, { args: selArgs }),
+  SelPlaced,
   Parent.at(Stack, {
     onOut: (_out: DismissLayer.Dismiss) => (model: Model) => ({ model: shut(model) }),
   }),
@@ -113,18 +116,12 @@ export const update = assembly.update((model, message) => {
     ChoseItem: message => {
       const open = model.openMenu
       if (Option.isNone(open)) return { model }
-      return {
-        model: modifyFields(model, {
+      return SelPlaced.helpers.activate(itemElementId(open.value, message.item))(
+        modifyFields(model, {
           openMenu: () => Option.none(),
           choice: () => Option.some(choiceOf(open.value, message.item)),
-          menuPick: () =>
-            Selection.bundle.update(
-              model.menuPick,
-              Selection.Message.Activated({ id: itemElementId(open.value, message.item) }),
-              selArgs,
-            ).model,
         }),
-      }
+      )
     },
   })
 })

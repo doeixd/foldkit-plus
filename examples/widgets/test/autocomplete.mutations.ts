@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: '../src/autocomplete/app.ts',
-        find: 'query: () => id,\n    open: () => false,',
-        replace: 'query: () => id,\n    open: () => true,',
+        find: 'query: () => id,\n      open: () => false,',
+        replace: 'query: () => id,\n      open: () => true,',
       },
     ],
     tests,
@@ -36,6 +36,17 @@ export default [
         file: '../src/autocomplete/view.ts',
         find: 'policy: Overlay.nonModal,',
         replace: 'policy: Overlay.modal,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a pick selects nothing',
+    edits: [
+      {
+        file: '../src/autocomplete/app.ts',
+        find: 'SelPlaced.helpers.activate(id)(',
+        replace: 'SelPlaced.helpers.clear()(',
       },
     ],
     tests,

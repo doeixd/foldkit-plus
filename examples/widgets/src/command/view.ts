@@ -45,7 +45,7 @@ const Keys = ListNavigation.behavior(Nav, navArgs)(CommandSlots)<Model, Message>
   items: input => describeMatching(input),
   text: (input, index) => matching(input.query)[index]?.label ?? '',
   typeahead: false,
-  commit: (_input, id) => Sel.wrapper.make(Selection.Message.Activated({ id })),
+  commit: (_input, id) => Message.Committed({ id }),
 })
 
 const Picks = Selection.behavior(Sel, selArgs)(CommandSlots)<Model, Message>({

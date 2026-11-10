@@ -51,4 +51,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a pick selects nothing',
+    edits: [
+      {
+        file: '../src/navigation-menu/app.ts',
+        find: 'SelPlaced.helpers.activate(id)(',
+        replace: 'SelPlaced.helpers.clear()(',
+      },
+    ],
+    tests,
+  },
 ]

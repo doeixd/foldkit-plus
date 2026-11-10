@@ -61,6 +61,9 @@ export type Message = typeof Message.Type
 
 const Parent = Bundle.parent({ Model, Message })
 
+// The selection's placement: update applies picks through its helpers.
+const SelPlaced = Parent.at(Sel, { args: selArgs })
+
 const close = (model: Model): Model =>
   Option.isNone(model.openFor) && Option.isNone(model.point)
     ? model
@@ -68,7 +71,7 @@ const close = (model: Model): Model =>
 
 const assembly = Parent.assemble(
   Parent.at(Nav, { args: navArgs }),
-  Parent.at(Sel, { args: selArgs }),
+  SelPlaced,
   Parent.at(Stack, {
     onOut: (_out: DismissLayer.Dismiss) => (model: Model) => ({ model: close(model) }),
   }),
@@ -100,17 +103,10 @@ export const update = assembly.update((model, message) => {
     ChoseAction: message => {
       const open = model.openFor
       if (Option.isNone(open)) return { model }
-      return {
-        model: {
-          ...close(model),
-          action: Option.some(`${message.action} ${open.value}`),
-          filePick: Selection.bundle.update(
-            model.filePick,
-            Selection.Message.Activated({ id: actionId(message.action) }),
-            selArgs,
-          ).model,
-        },
-      }
+      return SelPlaced.helpers.activate(actionId(message.action))({
+        ...close(model),
+        action: Option.some(`${message.action} ${open.value}`),
+      })
     },
   })
 })

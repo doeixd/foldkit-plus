@@ -70,9 +70,12 @@ export type Message = typeof Message.Type
 
 const Parent = Bundle.parent({ Model, Message })
 
+// The selection's placement: update applies picks through its helpers.
+const SelPlaced = Parent.at(Sel, { args: selArgs })
+
 const assembly = Parent.assemble(
   Parent.at(Nav, { args: navArgs }),
-  Parent.at(Sel, { args: selArgs }),
+  SelPlaced,
   Parent.at(Stack, {
     // Dismissing closes the popup without picking: the query stays as typed.
     onOut: (_out: DismissLayer.Dismiss) => (model: Model) => ({
@@ -83,14 +86,14 @@ const assembly = Parent.assemble(
 
 export const initial = assembly.initial({ query: '', open: false, picked: Option.none() })
 
-const pick = (model: Model, id: string): Model =>
-  modifyFields(model, {
-    query: () => id,
-    open: () => false,
-    picked: () => Option.some(id),
-    fruitPick: () =>
-      Selection.bundle.update(model.fruitPick, Selection.Message.Activated({ id }), selArgs).model,
-  })
+const pick = (model: Model, id: string) =>
+  SelPlaced.helpers.activate(id)(
+    modifyFields(model, {
+      query: () => id,
+      open: () => false,
+      picked: () => Option.some(id),
+    }),
+  )
 
 export const update = assembly.update((model, message) => {
   return Match.valueTags(message, {
@@ -98,6 +101,6 @@ export const update = assembly.update((model, message) => {
       model: modifyFields(model, { query: () => message.text, open: () => true }),
     }),
     Opened: () => (model.open ? { model } : { model: modifyFields(model, { open: () => true }) }),
-    PickedOption: message => ({ model: pick(model, message.id) }),
+    PickedOption: message => pick(model, message.id),
   })
 })

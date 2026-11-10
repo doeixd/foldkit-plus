@@ -56,21 +56,24 @@ export const Message = defineMessageUnion({
   ...Nav.cases,
   ...Sel.cases,
   Queried: { text: Schema.String },
+  /** Enter on the current row: the app picks it. */
+  Committed: { id: Schema.String },
 })
 export type Message = typeof Message.Type
 
 const Parent = Bundle.parent({ Model, Message })
 
-const assembly = Parent.assemble(
-  Parent.at(Nav, { args: navArgs }),
-  Parent.at(Sel, { args: selArgs }),
-)
+// The selection's placement: a committed row is picked through its helpers.
+const SelPlaced = Parent.at(Sel, { args: selArgs })
+
+const assembly = Parent.assemble(Parent.at(Nav, { args: navArgs }), SelPlaced)
 
 export const initial = assembly.initial({ query: '' })
 
 export const update = assembly.update((model, message) => {
   return Match.valueTags(message, {
     Queried: message => ({ model: modifyFields(model, { query: () => message.text }) }),
+    Committed: ({ id }) => SelPlaced.helpers.activate(id)(model),
   })
 })
 

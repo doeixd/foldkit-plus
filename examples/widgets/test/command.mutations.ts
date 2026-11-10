@@ -28,4 +28,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'Enter picks nothing',
+    edits: [
+      {
+        file: '../src/command/app.ts',
+        find: 'Committed: ({ id }) => SelPlaced.helpers.activate(id)(model),',
+        replace: 'Committed: () => ({ model }),',
+      },
+    ],
+    tests,
+  },
 ]

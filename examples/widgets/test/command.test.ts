@@ -47,9 +47,9 @@ describe('view structure', () => {
     const builders = SlotView.buildersFor(CommandSlots, Command.mixins, { input: moved, h })
     const f = Attributes.find(builders.input.attrs(), 'OnKeyDownPreventDefault')?.f
     if (f === undefined) throw new Error('no OnKeyDownPreventDefault')
-    expect(Option.getOrThrow(f('Enter', plain))).toEqual(
-      Sel.wrapper.make(Selection.Message.Activated({ id: 'rename' })),
-    )
+    const committed = Option.getOrThrow(f('Enter', plain))
+    expect(committed).toEqual(Message.Committed({ id: 'rename' }))
+    expect(selectedOf(update(moved, committed).model)).toEqual(Option.some('rename'))
     expect(Option.getOrThrow(f('ArrowDown', plain))).toEqual(
       Nav.wrapper.make(ListNavigation.Message.Focused({ id: 'duplicate' })),
     )

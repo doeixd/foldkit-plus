@@ -79,6 +79,9 @@ export type Message = typeof Message.Type
 
 const Parent = Bundle.parent({ Model, Message })
 
+// The selection's placement: update applies picks through its helpers.
+const SelPlaced = Parent.at(Sel, { args: selArgs })
+
 const shut = (model: Model): Model =>
   Option.isNone(model.openSection)
     ? model
@@ -86,7 +89,7 @@ const shut = (model: Model): Model =>
 
 const assembly = Parent.assemble(
   Parent.at(Nav, { args: navArgs }),
-  Parent.at(Sel, { args: selArgs }),
+  SelPlaced,
   Parent.at(Stack, {
     onOut: (_out: DismissLayer.Dismiss) => (model: Model) => ({ model: shut(model) }),
   }),
@@ -128,16 +131,13 @@ export const update = assembly.update((model, message) => {
       const open = model.openSection
       if (Option.isNone(open)) return { model }
       const id = linkElementId(open.value, message.link)
-      return {
-        model: modifyFields(model, {
+      return SelPlaced.helpers.activate(id)(
+        modifyFields(model, {
           openSection: () => Option.none(),
           openedByPointer: () => false,
           followed: () => Option.some(followedOf(open.value, message.link)),
-          sitePick: () =>
-            Selection.bundle.update(model.sitePick, Selection.Message.Activated({ id }), selArgs)
-              .model,
         }),
-      }
+      )
     },
   })
 })
