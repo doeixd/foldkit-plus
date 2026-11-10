@@ -912,9 +912,8 @@ while keeping the best of what this project already has:
   the menus), and depth per component. Phases 0–5 and the merges have
   landed; a review of that pass (Part E) found claims without proof and
   docs ahead of the code, and most of it is now fixed and ticked there.
-  Still open in Part E: a popup's
-  overlay-bar browser test, the breadcrumb "…" menu, Steps' markers, the
-  custom Select, and the rest of Checkbox Group.
+  Still open in Part E: a popup's overlay-bar browser test (the breadcrumb
+  "…" menu, Steps' markers, the custom Select and Checkbox Group were done).
   [ui-polish-DESIGN.md](./ui-polish-DESIGN.md)
 - [x] **Carousel dots** after Fluid Functionalism's
   ([carousel-dots](https://www.fluidfunctionalism.com/docs/carousel-dots)).

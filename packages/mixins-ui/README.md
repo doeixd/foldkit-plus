@@ -294,6 +294,11 @@ button keeps its focus. A `type: 'submit'` one therefore still submits its
 form, on Enter or a press: refuse the submit in `update` while it should not
 go.
 
+`attributes: { button?, icon? }` adds what another component hands a slot,
+after the button's own: a Dialog's `initialFocus`, so the dialog opens on
+that button (`attributes: { button: dialog.initialFocus }`). A class among
+them replaces the button's, as a later attribute list does.
+
 An `icon` (an `svg`) draws before the label in the `icon` slot, hidden from
 assistive technology; `Recipes.Button({ variant: 'icon' })` shows the icon
 alone, the label still the button's name. `shape: 'square'` draws any other

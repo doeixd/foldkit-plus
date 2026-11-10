@@ -543,9 +543,10 @@ green commit. Shared history is not rewritten.
   `inset: auto`; a browser test that sets `dir` on `documentElement` (the
   current one sets it on a wrapper, where the bug does not show). Decide
   whether to reset the UA popover border, padding and `Canvas` background. **Done**: 5de3153b (`inset: auto`; a browser test sets `dir` on the document; the UA border, padding and fill stay, since every recipe replaces them).
-- [ ] The richtext specs' four rotted anchors (`richtext/test/deleteAcross`,
+- [x] The richtext specs' four rotted anchors (`richtext/test/deleteAcross`,
   `table`, `richtext-dom/test/hint` ×2) predate this work; leave them to the
   richtext session, but list them so `mutate:check` red is explained.
+  **Done**: `mutate:check` finds every anchor (checked 2026-11-10), and CI runs it.
 
 ### E2. State colour and hovers
 
@@ -642,7 +643,7 @@ green commit. Shared history is not rewritten.
   `popover="manual"`, hiding the panel; remove both so only the overflow
   test kills it. **Done**: 816cff40.
 - [x] The radio "press" test checks `label.control`; press it. **Done**: `radioGroup.browser.test.ts` presses the words and the description with `userEvent.click` (found 2026-11-10).
-- [ ] Badge, kbd, buttonLook and checkbox-recipe mutation specs re-read the
+- [x] Badge, kbd, buttonLook and checkbox-recipe mutation specs re-read the
   CSS line they change: replace with behaviour or computed-style tests. **Done**: badge and kbd (24e850c9), buttonLook (90d44648), and the checkbox recipe's (`toggleGeometry.mutations.ts` over `toggleGeometry.browser.test.ts`, which measures the box and reads computed style; 13 of 13 killed, 2026-11-10).
 
 ### E5. Merges and their docs
@@ -713,12 +714,12 @@ green commit. Shared history is not rewritten.
   listbox: the custom Select (over Listbox) with Fluid's examples.
   **Done**: the chevron, the muted placeholder and `Listbox.parts` in
   fc7fb1c9…340a5273; the custom examples on the Select page in 0a4e23f4.
-- [ ] Checkbox Group: `setEnabled` drops a checked disabled option
+- [x] Checkbox Group: `setEnabled` drops a checked disabled option
   (`checkboxGroup.ts:77-80`), contrary to "counts for neither"; uneven row
   spacing; the disabled label not dimmed; select-all outside the group above
   the legend; the invalid example errors while boxes are checked; the three
   gallery checkbox examples share one state; "indeterminate" can never be
-  plainly unchecked. **Partly**: `setEnabled(options, checked, on)` keeps a locked box and the group draws its select-all (46abbe48), each example holds its own state and the invalid one errors only while nothing is checked (e3b30b24, 1662fb24); the spacing, the dimmed disabled label and a plainly unchecked indeterminate box are not confirmed.
+  plainly unchecked. **Done**, confirmed 2026-11-10: the rows' spacing and the dimmed disabled words are measured (`checkboxGroup.browser.test.ts`), and the gallery's indeterminate box goes some, all, none (`widgets.mutations.ts`, "the toppings dash comes back when unchecked"). Before that, **partly**: `setEnabled(options, checked, on)` keeps a locked box and the group draws its select-all (46abbe48), each example holds its own state and the invalid one errors only while nothing is checked (e3b30b24, 1662fb24); the spacing, the dimmed disabled label and a plainly unchecked indeterminate box are not confirmed.
 - [x] Radio cards style the application's own `label`s, not a Slot, and the
   selected card nearly vanishes in dark; the Cards snippet should show
   `Recipes.RadioGroup({ variant: 'card' })`. **Done**: b3582ce7, 6005f701, 09b04462.
@@ -784,8 +785,10 @@ green commit. Shared history is not rewritten.
   their flex row, so they stay).
 - [x] Popover: no arrow could be seen on the open panel in the screenshots. **Done**: 1b6f463a (it
   was drawn, too small to see; now larger, the panel 12px off).
-- [ ] A Dialog's `initialFocus` on a `Button.view`: the view takes no attributes, so the
-  alert example cannot spread it on Cancel.
+- [x] A Dialog's `initialFocus` on a `Button.view`: the view takes no attributes, so the
+  alert example cannot spread it on Cancel. **Done** 2026-11-10: `Button.view`'s
+  `attributes: { button?, icon? }`; the gallery's alert opens on Cancel, and
+  `dialog.browser.test.ts` opens one whose Cancel comes second.
 
 Needs `@foldkit/ui` (open):
 

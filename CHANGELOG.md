@@ -37,6 +37,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Button.view`'s `attributes`** (`foldkit-mixins-ui`): what another
+  component hands the `button` or `icon` slot, after the button's own, such
+  as a Dialog's `initialFocus`, so an alert dialog opens on Cancel.
 - **`SSR.headed(renderDocument)`: a dynamically served page keeps its
   `meta`** (`foldkit-ssr`). `SSR.entry` refused a plan with `meta`, since the
   host owns the template, so a served page had no description or link
