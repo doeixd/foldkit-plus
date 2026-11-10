@@ -773,6 +773,37 @@ spinner that never ends or an error nobody can act on.
 Reach for `match` instead when the six states really do draw differently — it
 stays the exhaustive fold, and `render` does not replace it.
 
+### Transforming a read before drawing it
+
+Keep the read whole in the Surface: the Projection `Data.get` returns carries
+what Remote fetches, and a Surface or `Projection.struct` that holds it keeps
+that. Transform the value it gives instead, with `RemoteData.map`: it changes
+the value of `Ready`, `Refreshing` and a failed read's held value, and leaves
+the state and its error as they were. `map` takes the value first, so in a
+`pipe` it is called from a lambda:
+
+<!-- docs-check import { pipe } from 'effect' -->
+
+```ts
+const title = pipe(
+  project,
+  data => RemoteData.map(data, ({ name }) => name),
+  name => RemoteData.map(name, text => text.toUpperCase()),
+)
+```
+
+`title` is a `RemoteData<string>`, so the view still folds every state with
+`render` or `match`. What TypeScript refuses here: a missing case in `match`,
+`render` or `Freshness.match` (the error names it), a case the union lacks,
+`.value` before narrowing to `Ready` or `Refreshing`, a failed read's held
+value used as if it were always there, and a read of another application's
+Model in this one's Surface. What it cannot see: a ternary over `_tag` (`pnpm
+tags:check` refuses it in a package's or example's `src`), a cast, a Model
+that structurally contains another application's, and which of two bindings
+over one Model made a read. A combinator that joins two reads into one is not
+offered: draw each with its own fold, since which of `NotFound` and `Failed`
+should win is the view's decision.
+
 ## When it does not do what you expect
 
 Each of these is a design of the package showing through, not a fault. The
