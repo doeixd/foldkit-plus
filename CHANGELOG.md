@@ -77,6 +77,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Style modules shipped as data** (`foldkit-mixins`, #420).
+  `styles({ sheet, modules })` from `foldkit-mixins/vite` evaluates each listed
+  style module with the sheet, and the production browser build ships it as
+  each Style's name and a Mixin of the classes it compiled to, so the page
+  loads no style compiler. An export that is not a Style, a `Style.slots`
+  declaration or strings, or a Style using `Style.whenInput` or
+  `Style.perItem`, fails the build naming it; so does a frozen class with no
+  rule in the sheet. With a module listed, that build's Slots inject no CSS.
+  Development is unchanged. domains-plus's page fell from 217.5 KB to 191.6
+  KB brotli.
 - **`step`, the data-last form of every operator and comparison**
   (`foldkit-entity`, #478). `pipe(Post.fields.status, Expr.eq.step('draft'))`
   builds the node `Expr.eq(Post.fields.status, 'draft')` builds. `step` is a
