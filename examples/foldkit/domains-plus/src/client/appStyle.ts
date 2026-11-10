@@ -40,10 +40,10 @@ export const app = AppStyle.make({
       lineFocus: '#666',
       added: '#50e3a4',
       skeleton: '#1c1c1c',
-      scrim: 'rgb(0 0 0 / 0.6)',
       /** How long upstream's phone sheets take to slide in or out. */
       slide: '500ms',
     },
+    overlay: { scrim: 'rgb(0 0 0 / 0.6)' },
   }),
   // Upstream is dark only: every `light-dark()` token takes its dark half.
   colorScheme: 'dark',

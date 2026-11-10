@@ -11,6 +11,7 @@
  * comparison with upstream is by eye, so its exact greys are kept.
  */
 import { Style, type Piece } from 'foldkit-mixins'
+import { Utilities } from 'foldkit-mixins/utilities'
 import { DialogSlots, ListboxSlots, Recipes, WindowListSlots } from 'foldkit-mixins-ui'
 import { forSlots, slots, t } from './appStyle.js'
 
@@ -20,18 +21,12 @@ const d = t.domains
 export const NARROW =
   '(max-width: 700px), (max-width: 1000px) and (hover: none) and (pointer: coarse)'
 
-/** Visually hidden, still read. */
-const srOnly: Piece = {
-  position: 'absolute',
-  width: '1px',
-  height: '1px',
-  padding: '0',
-  margin: '-1px',
-  overflow: 'hidden',
-  clip: 'rect(0, 0, 0, 0)',
-  whiteSpace: 'nowrap',
-  borderWidth: '0',
-}
+/**
+ * Controls only a script drives are `scriptedOnly`; the plain form control or
+ * link that stands in for each is `plainOnly`. Both are drawn on the server and
+ * in the browser alike, so the page the browser adopts is the one the server sent.
+ */
+const { scriptedOnly, plainOnly, srOnly } = Utilities
 
 const focusRing = Style.pseudo(':focus-visible', {
   outline: `2px solid ${d.text}`,
@@ -59,21 +54,6 @@ const atMost = (width: string, selector: string, declarations: Parameters<typeof
 const sectionTitle: Piece = [
   { margin: '0', fontSize: '22px', fontWeight: '550', letterSpacing: '-0.7px' },
   Style.media(NARROW, { fontSize: '20px' }),
-]
-
-/**
- * A page in a browser running no scripts: there, each control only a script
- * drives is not shown, and the plain form control or link that stands in for
- * it is. Both are drawn on the server and in the browser alike, so the page
- * the browser adopts is the page the server sent.
- */
-export const NO_SCRIPT = '(scripting: none)'
-/** Shown only where scripts run. Last in a slot's pieces, so it wins over a width's `display`. */
-const scriptedOnly = Style.media(NO_SCRIPT, { display: 'none' })
-/** Shown only where no script runs, as `display` when it is. */
-const plainOnly = (display: string): Piece => [
-  { display: 'none' },
-  Style.media(NO_SCRIPT, { display }),
 ]
 
 const cartTotal: Piece = {
@@ -1038,21 +1018,13 @@ export const Page = slots({
   ],
 })
 
-/**
- * All Results' list: in the page's flow, scrolled by the page. The recipe
- * lays the rows drawn in the page's flow where no script runs.
- */
+/** All Results' list: the page scrolls it, so its focus ring is drawn inside it. */
 export const ResultsListStyle = forSlots(WindowListSlots)(
   Recipes.WindowList.extend({
     base: {
       root: [
         Style.class('results-viewport'),
-        {
-          margin: '0',
-          listStyle: 'none',
-          padding: '0',
-          scrollMarginTop: 'calc(var(--header-height) + 1rem)',
-        },
+        { scrollMarginTop: 'calc(var(--header-height) + 1rem)' },
         Style.pseudo(':focus-visible', { outline: `2px solid ${d.text}`, outlineOffset: '-2px' }),
       ],
     },
@@ -1065,10 +1037,9 @@ export const ListboxStyle = forSlots(ListboxSlots)(Recipes.Listbox(), { name: 'L
 
 /**
  * Upstream's dropdown trigger and click-away carry its classes, which its
- * suites select. The trigger is upstream's greys, written in sRGB: the theme's
- * ink is an `oklch()`, which a contrast check reading `rgb()` cannot measure.
- * The click-away stands over the sticky header, as upstream's, so a press
- * anywhere outside the open panel closes it.
+ * suites select. The trigger's greys are sRGB: the theme's ink is an `oklch()`,
+ * which a contrast check reading `rgb()` cannot measure. The click-away stands
+ * over the sticky header, so a press anywhere outside the open panel closes it.
  */
 export const ListboxLook = forSlots(ListboxSlots)(
   {
@@ -1079,32 +1050,29 @@ export const ListboxLook = forSlots(ListboxSlots)(
   { name: 'ListboxLook' },
 )
 
-/** The phone's sheets, from the bottom. */
-export const SheetStyle = forSlots(DialogSlots)(Recipes.Sheet(), { name: 'SheetStyle' })
+/** The phone's sheets, from the bottom; upstream's name themselves to a screen reader alone. */
+export const SheetStyle = forSlots(DialogSlots)(Recipes.Sheet({ title: 'hidden' }), {
+  name: 'SheetStyle',
+})
 
 /** The cart: a sheet at the window's right edge, upstream's 420px or the whole of a phone. */
 export const CartSheetStyle = forSlots(DialogSlots)(
   Recipes.Sheet({ size: 'full', handle: 'none' }),
-  {
-    name: 'CartSheetStyle',
-  },
+  { name: 'CartSheetStyle' },
 )
 
 /** The sheets in upstream's greys: its panel, its hairline, its headings and notes. */
 export const SheetLook = forSlots(DialogSlots)(
   {
-    backdrop: [Style.class('dialog-backdrop'), { background: d.scrim }],
+    backdrop: Style.class('dialog-backdrop'),
     panel: { background: d.panel, color: d.text, borderColor: d.lineStrong },
-    title: { margin: '0', fontSize: '22px', fontWeight: '550', letterSpacing: '-0.7px' },
+    title: { fontSize: '22px', fontWeight: '550', letterSpacing: '-0.7px' },
     description: { margin: '13px 0', fontSize: '13px', lineHeight: '1.7', color: d.soft },
   },
   { name: 'SheetLook' },
 )
 
-/**
- * Upstream's cart stands open at once: no slide past the window's edge and
- * no fade, so its text is read at full contrast the moment it shows.
- */
+/** Upstream's cart stands open at once, with no slide and no fade, so its text reads at full contrast. */
 export const CartSheetLook = forSlots(DialogSlots)(
   {
     backdrop: { transitionDuration: '0s' },
@@ -1116,19 +1084,15 @@ export const CartSheetLook = forSlots(DialogSlots)(
 
 /**
  * Upstream's phone sheets slide for its own half second, not the theme's
- * motion scale, and not at all under reduced motion (the `travel` knob is 0
- * there); a drag still follows the finger with none.
+ * motion scale, and not at all under reduced motion; a drag still follows
+ * the finger with none.
  */
 const slide = (duration: string): Piece =>
   Style.pseudo(':not([data-dragging])', {
     transitionDuration: `calc(${duration} * ${t.knob.travel})`,
   })
 
-const phoneSheet = {
-  backdrop: [Style.class('filters-backdrop'), slide(d.slide)],
-  // Upstream's sheets name themselves to a screen reader alone.
-  title: srOnly,
-}
+const phoneSheet = { backdrop: [Style.class('filters-backdrop'), slide(d.slide)] }
 
 /** The phone's TLD sheet: its search above, the extensions scrolling below it. */
 export const TldSheetLook = forSlots(DialogSlots)(
@@ -1142,7 +1106,7 @@ export const TldSheetLook = forSlots(DialogSlots)(
         height: 'min(360px, 80dvh)',
         flexDirection: 'column',
         overflow: 'hidden',
-        padding: '0 0 env(safe-area-inset-bottom)',
+        padding: `0 0 ${t.safe.bottom}`,
       },
       slide(d.slide),
     ],
@@ -1156,7 +1120,7 @@ export const FiltersSheetLook = forSlots(DialogSlots)(
     ...phoneSheet,
     panel: [
       Style.class('filters-panel'),
-      { maxHeight: '90dvh', padding: '6px 6px max(6px, env(safe-area-inset-bottom))' },
+      { maxHeight: '90dvh', padding: `6px 6px max(6px, ${t.safe.bottom})` },
       slide(d.slide),
     ],
   },

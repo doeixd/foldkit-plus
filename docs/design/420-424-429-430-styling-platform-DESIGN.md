@@ -618,6 +618,32 @@ examples and packages before adding): a `motion: 'none'` axis and a sheet
 duration knob. Not shipped at all: a `control` base, which is the Button
 recipe's outline variant under a second name.
 
+**Phase 3 result (2026-11-10): not met, 124 to 108 lines.** The block is
+counted from the doc comment of `ResultsListStyle` to the end of
+`examples/foldkit/domains-plus/src/client/style.ts`, blank and comment lines
+included (`sed -n '<first line>,$p' style.ts | wc -l`): 124 lines before, 108 after. Built: `Utilities.scriptedOnly` and `plainOnly`
+(the WindowList recipe reads the first); an `overlay.scrim` token the
+Dialog's backdrop reads, which domains-plus overrides in its own tokens; a
+`title: 'hidden'` axis on Dialog and Sheet; the Sheet's padding from
+`ref.safe` instead of a literal `env()`, so a browser test can move it. In
+the application: its own `srOnly`, `scriptedOnly`, `plainOnly` and `NO_SCRIPT`
+are the shipped ones (a computed-style comparison on `a`, `div`, `h2` and `p`
+under the reset found no difference between `border: 0` and `borderWidth:
+0`), the phone sheets say `title: 'hidden'`, and the compiled CSS differs
+from before in exactly those rules and the dead ones below. Two premises did
+not hold. The WindowList root's reset (`margin`, `list-style`, `padding`) is
+written on a `div`, where all three are the initial values: it was dead, so
+it is deleted and no recipe default carries it. The sheets' padding is the
+application's (`0 0 safe` for the extensions' sheet, `6px 6px max(6px, safe)`
+for the filters'), not a default every application would write. What is left
+of the 108 is the application's own look (classes upstream's suites select
+by, its greys, its `22px` heading), the slide duration (`slide`, 14 lines)
+and the cart's zero durations (10), which the decision above puts out of
+scope, and about 25 lines of comments. With both out of scope items removed
+the block would still be near 85, so 75 needs more than recipe defaults;
+the list's focus ring, the Listbox's `z-index`es and the Sheet's two
+bespoke panels are the remaining candidates, and each is one application's.
+
 **Phase 4: `LongList`.** Waits. Built as option A, every row server-drawn,
 when `pnpm bench:render` shows the server drawing domains-plus's 556 rows in
 10 ms or less and the page's HTML is within its budget or the rows below
