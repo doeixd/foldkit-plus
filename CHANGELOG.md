@@ -294,6 +294,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **A client that evaluates an Expr no longer holds JSON Schema** (`foldkit-entity`).
+  `Law.describe` and `Operators.describe` sat in the objects `evaluate` and the
+  Expr builders import, so every such client kept `toJsonSchemaDocument` (about
+  1.5 kB brotli in Chirp). Evaluation now reads the law variants and the kernel
+  table from modules that never reach it. No API change.
+
 - **The Sheet's padding reads the theme's `safe` tokens** (`foldkit-mixins-ui`,
   #424). It wrote `env(safe-area-inset-*)` itself, so a page that sets
   `--fk-safe-*` (as the browser tests do) moved a Dialog and not a Sheet's
