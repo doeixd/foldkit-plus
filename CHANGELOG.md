@@ -42,7 +42,8 @@ version changed; `pnpm` skips versions already in the registry.
   it inside `SSR.keptDocuments`. A posted form's page carries it too. Without
   the wrapper, `SSR.hydrate` removes it from the body and reports
   `HeadNotMoved`. A root a parser does not keep `<meta>` in (a table's,
-  `svg`, raw text) is refused as `RootRefusesHead`.
+  `svg`, raw text) is refused as `RootRefusesHead`. The `HeadNotMoved` and
+  `CachedPageDiffers` diagnostic types are exported beside the others.
 - **Any file uploaded and served back as a download** (`foldkit-media`,
   #493). `fileLayer({ accept, … })` (or `serveFetch`'s `files`) serves `POST
   /_media/files` and `GET /_media/files/:key`, apart from the image routes and

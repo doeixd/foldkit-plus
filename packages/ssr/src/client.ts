@@ -567,6 +567,7 @@ export type {
   BundleUnloaded,
   CachedPageDiffers,
   HandlerUnnamed,
+  HeadNotMoved,
   PageContained,
   PageFailed,
   SsrDiagnostic,
