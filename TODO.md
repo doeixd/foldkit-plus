@@ -142,7 +142,7 @@ In the same change:
 
 ### 9. Record and push
 
-- Tick the backlog entry and update the design note's status.
+- Delete the backlog entry (git keeps it) and update the design note's status.
 - Comment on the issue with what was built, the commits and what is left.
 - Push to `ccr-dfcc253e-4x8hum`.
 - Leave a fixed issue open until the branch merges, and list it in "Waiting on
@@ -194,160 +194,54 @@ In the same change:
 
 ## Waiting on the maintainer
 
-- [x] **The branch.** Merged 2026-11-10 as #497 (6fdafdf), with CI green
-      after four CI-only faults were fixed; the issues it fixed are closed.
+- [ ] **Decisions on the six design notes of 2026-11-10** (about 62, each with
+      a recommendation). The notes are listed at the top of
+      [`docs/design/TODO.md`](./docs/design/TODO.md); nothing in them starts
+      before its decisions are made.
 - [ ] **Upstream posts:**
+  - a comment on foldkit#1657 asking for P1 and offering the PR (shortened
+    draft ready; the workerd reading is in `docs/design/performance-PLAN.md`);
   - the animation-settle issue (draft written; item 9 of the Order list in
     `docs/upstream-foldkit-ssr.md`);
-  - Proposal 7, a comment on foldkit#1657;
-  - a comment on foldkit#1448 that `SSR.headed` now carries the head here.
-- [ ] **`TYPESAFE_API_KEY`**, so the Jev review can run. It is owed on
-      #497's public API: `SSR.headed`, `RootRefusesHead`, the exported SSR
-      diagnostic types, `Button.view`'s `attributes`, the resolver's class
-      merge.
+  - a comment on foldkit#1448 that `SSR.headed` now carries the head here;
+  - the asks the new notes recommend: renderer decision 9, SSR delivery
+    decision 8, site and host decision 10, styling decision 12.
+- [ ] **Closing issues the notes recommend closing:** #440, #185, #64, #483,
+      and narrowing #435 and #439. Waits on those notes' decisions.
+- [ ] **`TYPESAFE_API_KEY`**, so the Jev review can run. It is owed on:
+  - #497's public API: `SSR.headed`, `RootRefusesHead`, the exported SSR
+    diagnostic types, `Button.view`'s `attributes`, the resolver's class
+    merge;
+  - #495's: `helpers` as a function of the args, `Bundle.helpersOf`, the
+    primitives' helpers, the Builder's `RowPressed`, `RowToggled` and
+    `Copied`, and `LiveAnnounce.say` removed;
+  - `foldkit-remote`'s `Defect` error tag (ce1d99d).
+- [ ] **The branch's PR.** Unmerged since #497: #495, the examples' lint,
+      #482's fix, the client-defect fix, the design notes. Issues done on it,
+      to close when it merges: #495, #481, #482, #230 (its stamps are a backlog
+      item for the next release).
 
 ## The queue
 
-In order. Every item runs the loop above. The notes give each item's research
-questions, the decisions it must make and its done-when.
+In order. Every item runs the loop above.
 
-### 1. Correct the record: done 2026-11-09
-
-- #188 closed. Its leftovers are #491 (`busy` without `settled`), #492 (the
-  picker's `more`) and #493 (a `file` recipe).
-- #237 closed. Reading the compiled build id is Proposal 4 upstream.
-- `docs/design/TODO.md`: all 81 open items checked against the code, 78 by
-  four read-only subagents and Schema to UI's three by hand, each verdict that would tick or rewrite an item
-  confirmed by hand. Ticked: position placement, styled-menu separators,
-  Carousel dots, and the typed principal (not needed). Corrected: Phase 9
-  packages, Phase 12's registry, and the mixins-ui adapter list. The rest are
-  open or partial as written.
-
-### 2. #251: the last name strings: done 2026-11-09
-
-`docs/design/251-name-strings-DESIGN.md` records the decisions:
-
-- The defect is a name nothing checks. Options typed by an Entity's or
-  binding's keys stay, and no reference objects are added beside them.
-- The revision stays a writer option. Declaring it on the Entity would turn
-  pinning on for writers that do not pin today.
-- No lint, because the strings in published types are mostly outputs. The
-  rule went into `AGENTS.md`'s design list instead.
-- The two free strings left, `applyEdits`' `revision` and `entity()`'s
-  `computed` relation, are now typed.
-
-The independent review found nothing blocking, and its advisories are fixed:
-a widely typed `relations` no longer refuses every count, and `applyEdits`
-keeps `P` as its first type parameter.
-
-### 3. #259: the last exact rules: done 2026-11-09
-
-`isInt`, `isStartingWith`, `isEndingWith` and `isIncluding` compile to CHECKs
-(`packages/remote-drizzle/src/checks.ts`). The law test covers each on SQLite
-and PGlite, including NUL, emoji, quotes and the values on either side of
-2^53. That test found that SQLite's `substr` of an empty blob is NULL, which a
-CHECK passes. The design note's status and its "Not done" list are updated,
-including the foreign-key item, which #467 half-closed. Of the 41 mutations,
-40 are killed. The 41st, `collate "C"`, survives with its reason: PGlite's
-database is already binary.
-
-The changelog says how to upgrade: `bind` refuses a migrated table until it
-gains the new clauses.
-
-### 4. Schema to UI: the remaining three
-
-- **#491, done 2026-11-09.** `busy` without `settled` is a type error, through
-  a constraint naming no other type, reported at the call.
-- **#492, done 2026-11-09.** `more` and `AskedForMore` are typed by the form's
-  relation picker keys. A form with none takes no `more`, which closed a
-  fail-open on `{}`.
-- **#493, done 2026-11-09.** Built to the settled note: `fileLayer`,
-  `FileStore` with `claim` and `keepOrClaim`, `serveFetch`'s `files`,
-  `uploadFile`, and `foldkit-form-recipes/file`. An independent review of
-  the code found nothing blocking; its nine advisory findings were fixed
-  (8962978) or written into the README as limits (download memory, two
-  uploaders holding every slot).
-
-### 5. Remote: per-field fetch time
-
-Done 2026-11-09. Two dates per row, not a `writtenAt` per field: `oldestAt`
-for freshness (`plan`, `deadlineOf`, persistence), `updatedAt` for order
-(`countedIn`, `Data.meta`). `docs/design/remote-field-freshness-DESIGN.md`
-says why, and `packages/remote/test/fieldFreshness.test.ts` holds each
-reader to its date.
-
-### 6. mixins-ui: adapters still missing
-
-Re-checked 2026-11-09: Nav and VirtualList have adapters already. Left:
-
-- **#400's remainder: done.** Listbox and Combobox bundles end a leave after
-  the commit through the shared `leaveDrawn.ts`, with a browser test each.
-  Popover is left to upstream: mixins-ui only styles its view, and an
-  exported helper would be a second way to call upstream's `update`.
-- **DragAndDrop** (adopter-led, `docs/design/TODO.md`): kanban already passes
-  `draggable`, `droppable` and `ghostStyle` into Slots of its own. An adapter
-  is worth it only if it removes kanban's hand-written state (`cardStateOf`)
-  and ghost; decide that by porting kanban to it.
-- **Animation**: its one element already takes `className` and `attributes`,
-  so a Slot reaches it without an adapter. Not building one.
-
-### 7. #229: every doc compiles (2026-11-09)
-
-`pnpm docs:check`'s pending list is empty: all 121 documents compile, with
-five Sonnet agents on disjoint batches and the list cut as each reported. The
-check emits no declarations (TS2883 is not a reader's error), and a hidden
-fixture can be defined once and used by later modules (`define`, `use`);
-the four heaviest guides are being folded onto that. Left in #229: examples as
-apps in a scaffolded project. Found on the way: #494 (the ref tree stops at a
-`Bundle.declare` slice) and an `Option` field's focus whose `set` took
-`never` (fixed, 146144d).
-
-### 8. #240 is tracking only
-
-Its remaining children are #235 (host) and #236 (per-route caching), both
-designs of their own; a status comment asks whether to close it.
-
-### Next, ranked 2026-11-09 (value to an app builder, over cost)
-
-Decided this round: #494 kept as a documented limit (types only; reopen on
-an adopter's need), #240 closed in favour of #235 and #236, DragAndDrop and
-Animation adapters parked (step 6).
-
-1. **SSR: a page's head in dynamic serving.** Built 2026-11-10 (4abff56):
-   `meta` in the root, `SSR.headed` moves it, `HeadNotMoved` if not. The
-   independent review's findings are fixed (f441386: the block is read only
-   at the root's end, headless roots refused, a POST page keeps it), and
-   `examples/reference` serves through it with an e2e check (dd8cba5).
-2. **#229: examples as apps.** Done (0be324e): seven examples type-check in
-   the scaffold over the published packages, on all three CI pairs (run
-   locally). Not linted: upstream's rules hold an app to its module layout,
-   and what they found in the primitives is #495.
-3. **A size budget for each example's entry chunk.** Done for todo-app
-   (158.5 kB brotli ceiling) and chirp (239.0 kB), e4e4d61; kitchen-sink is a
-   Node demo with no client. Add one when an example gains a browser entry.
-4. **Strict FormView submit policy.** Done 2026-11-10: the waitlist
-   (`examples/foldkit/form`, not `examples/fields`, which is a static
-   gallery with no check) refuses a submit during a check in `update`, with a
-   browser test of Enter and a press; `Button.view`'s `aria-disabled` alone
-   let both through.
-5. **The UI polish leftovers.** Done 2026-11-10: the RTL pass (the
-   Drawer's handle fixed, the Toast's swipe tested), the Calendar's RTL
-   month buttons (85e0f67), and the Switch thumb drag (not built: no system
-   it follows drags). Part E's remainder is in `docs/design/TODO.md`. Ongoing; take one per
-   bout between larger items.
-
-Waiting on others, not ranked: the branch's PR (yours), Foldkit's upstream
-proposals (#413's parse cost, Proposal 2's head), #235 and #236 (designs of
-their own, to start only when chosen).
+1. **#499's protocol question and #498's fix**, once the Remote data plane
+   note's decisions 5 and 6 are made. #498's `it.fails` turns green with it.
+2. **#500**, once the Expr note's decision 1 is made: a small type fix with a
+   type test.
+3. **The small findings** listed under "Bugs and findings from 2026-11-10" in
+   `docs/design/TODO.md`: the reference Worker's `WeakMap`, the
+   `writeTrace` helper's exists reads, the 90 KB against 69 KB page.
+4. **The six notes' first phases**, in the order the decisions set. Each note
+   names its first phase and what it measures.
+5. **The UI polish leftovers** in `docs/design/TODO.md`, one per bout between
+   larger items.
 
 ## Parked
 
-- **Performance.** Resume for a regression or a new target.
-  - #474: re-run solid-domains' live benchmark (`scripts/search-compare.mjs`
-    has it ahead locally).
-  - #413: a workerd reading, which needs `Stack.start` to run a Worker that
-    Foldkit's Vite plugin generates. The rest waits on foldkit#1657.
-  - #439: deferred in `docs/design/performance-PLAN.md`.
-- **Large designs**, each needing a note and an owner decision before any
-  code: #190 (the contract layer), #376 and #433 (a fine-grained runtime and
-  compiled views), #432 (islands), #148 and #149 (other platforms).
+- **#474:** a new search is ahead of stock Foldkit locally (198 against 260
+  ms at 1x). What is left is the live three-way benchmark against the
+  deployed Workers, which needs a deploy and the Cloudflare login.
+- **#413:** our half is done (page 362 to 69 KB, parse5 175 to 41 ms; workerd
+  125 to 150 ms warm). The rest waits on foldkit#1657.
+- **#190** (the contract layer): a note of its own, not started.
