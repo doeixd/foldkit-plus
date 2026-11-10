@@ -1,6 +1,6 @@
 # SSR: a page's head in dynamic serving
 
-Status: decided 2026-11-09; not built.
+Status: decided 2026-11-09; built 2026-11-10.
 
 ## The problem
 

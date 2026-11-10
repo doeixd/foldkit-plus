@@ -10,7 +10,7 @@ const styles = ['packages/ssr/test/styles.test.ts']
 export default [
   {
     name: 'the styles are left in the root for hydration to remove',
-    edits: [{ file: client, find: '  if (root !== null) keepStyles(root)\n', replace: '' }],
+    edits: [{ file: client, find: '    keepStyles(root)\n', replace: '' }],
     tests: styles,
   },
   {
@@ -18,8 +18,8 @@ export default [
     edits: [
       {
         file: index,
-        find: '${html.slice(0, at)}<!--${STYLES_MARKER}-->${extra}',
-        replace: '${html.slice(0, at)}${extra}',
+        find: '`<!--${STYLES_MARKER}-->${extra}`',
+        replace: '`${extra}`',
       },
     ],
     tests: styles,
@@ -32,7 +32,7 @@ export default [
   {
     name: 'only a page that resumes keeps its styles',
     edits: [
-      { file: client, find: '  if (root !== null) keepStyles(root)\n', replace: '' },
+      { file: client, find: '    keepStyles(root)\n', replace: '' },
       {
         file: client,
         find: '  const adoptFrom = (model: Model): void => {\n',

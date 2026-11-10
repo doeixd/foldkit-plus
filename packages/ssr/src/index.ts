@@ -83,6 +83,8 @@ import {
   startingFrom,
   staticRegion,
   STYLES_MARKER,
+  HEAD_END_MARKER,
+  HEAD_MARKER,
   tagOf,
   type Loadable,
   type PlanSurface,
@@ -221,25 +223,53 @@ const isInRootTag = (html: string, at: number): boolean => {
 }
 
 /**
- * The rendered markup with `extra` as the root's last children, after the
- * styles marker, so the first paint is styled before any script runs where no
- * template head can take it; `SSR.hydrate` moves them into the head. A void
- * root holds no children: styles for one are refused, naming the tag, rather
- * than served where no browser could keep them.
+ * The rendered markup with `insert` as the root's last children. A void root
+ * holds no children: what it would carry is refused, naming the tag, rather
+ * than served where no browser could keep it.
  */
-const withInRoot = (html: string, extra: string): Result.Result<string, ResumeUnsafe> => {
+const beforeRootEnd = (
+  html: string,
+  insert: string,
+  refused: (tag: string) => ResumeUnsafe,
+): Result.Result<string, ResumeUnsafe> => {
   const tag = /^<([A-Za-z][A-Za-z0-9-]*)/.exec(html)?.[1]
   const at = tag === undefined ? -1 : html.search(new RegExp(`</${tag}>\\s*$`))
-  if (tag === undefined || at === -1) {
-    return Result.fail(
+  if (tag === undefined || at === -1) return Result.fail(refused(tag ?? '?'))
+  return Result.succeed(`${html.slice(0, at)}${insert}${html.slice(at)}`)
+}
+
+/**
+ * The rendered markup with `extra` after the styles marker, so the first
+ * paint is styled before any script runs where no template head can take
+ * it; `SSR.hydrate` moves them into the head.
+ */
+const withInRoot = (html: string, extra: string): Result.Result<string, ResumeUnsafe> =>
+  beforeRootEnd(
+    html,
+    `<!--${STYLES_MARKER}-->${extra}`,
+    tag =>
       new ResumeUnsafe({
         reason: 'VoidRootWithStyles',
-        message: `styles need a root element that can hold them, but the view returned <${tag ?? '?'}>: put the styles in the template's head with SSR.generate, or return an element root`,
+        message: `styles need a root element that can hold them, but the view returned <${tag}>: put the styles in the template's head with SSR.generate, or return an element root`,
       }),
-    )
-  }
-  return Result.succeed(`${html.slice(0, at)}<!--${STYLES_MARKER}-->${extra}${html.slice(at)}`)
-}
+  )
+
+/**
+ * The rendered markup with the plan's `meta` between the head markers, for
+ * `SSR.headed` to move before the host's `</head>`.
+ */
+const withHeadInRoot = (html: string, markup: string): Result.Result<string, ResumeUnsafe> =>
+  markup === ''
+    ? Result.succeed(html)
+    : beforeRootEnd(
+        html,
+        `<!--${HEAD_MARKER}-->${markup}<!--${HEAD_END_MARKER}-->`,
+        tag =>
+          new ResumeUnsafe({
+            reason: 'VoidRootWithHead',
+            message: `the plan's meta needs a root element to carry it until SSR.headed moves it, but the view returned <${tag}>: serve the page with SSR.generate, or return an element root`,
+          }),
+      )
 
 /**
  * The Model the browser will start from when the server's Model is `model`:
@@ -535,6 +565,7 @@ export class ResumeUnsafe extends Schema.TaggedError<ResumeUnsafe>()('ResumeUnsa
     'UndeclaredSurfaces',
     'BindingInStaticRegion',
     'VoidRootWithStyles',
+    'VoidRootWithHead',
     'UnkeepableField',
   ]),
   message: Schema.String,
@@ -758,6 +789,8 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     readonly url?: string | undefined
     readonly flags?: unknown
     readonly styles?: Head | undefined
+    /** Carry the plan's `meta` in the root for `SSR.headed`, as `SSR.entry` serves it. */
+    readonly metaInRoot?: boolean | undefined
   },
   match: RouteMatch,
 ): Effect.Effect<Served<Model>, RenderError | ResumeUnsafe> =>
@@ -911,10 +944,15 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
         ]),
       ].sort(),
     })
+    const headed =
+      options.metaInRoot === true
+        ? withHeadInRoot(rendered.html, meta)
+        : Result.succeed(rendered.html)
+    if (Result.isFailure(headed)) return yield* headed.failure
     const styled =
       options.styles === undefined
-        ? Result.succeed(rendered.html)
-        : withInRoot(rendered.html, options.styles(rendered, drawn))
+        ? Result.succeed(headed.success)
+        : withInRoot(headed.success, options.styles(rendered, drawn))
     if (Result.isFailure(styled)) return yield* styled.failure
     return {
       page: {
@@ -1011,6 +1049,33 @@ const page = (
     withHead(withFilledTags(template, result.rendered), headOf(result, options.head)),
     result.rendered,
   )
+
+const HEAD_OPEN = `<!--${HEAD_MARKER}-->`
+const HEAD_CLOSE = `<!--${HEAD_END_MARKER}-->`
+
+/**
+ * `render`, the host's document renderer, with the head markup `SSR.entry`
+ * carries in the rendered root (a plan's `meta`) moved before the document's
+ * `</head>`, where link previews and crawlers read it. Wrap whatever draws the
+ * document: `SSR.headed(renderDocument)`, or, for a host that hands Foldkit a
+ * template, `SSR.headed(application => injectIntoTemplate(template,
+ * application))`. Without it the markup stays in the body, and `SSR.hydrate`
+ * reports `HeadNotMoved`.
+ */
+const headed =
+  <Args extends ReadonlyArray<unknown>>(
+    render: (application: RenderedApplication, ...args: Args) => string,
+  ) =>
+  (application: RenderedApplication, ...args: Args): string => {
+    const document = render(application, ...args)
+    const start = document.indexOf(HEAD_OPEN)
+    if (start === -1) return document
+    const end = document.indexOf(HEAD_CLOSE, start)
+    return withHead(
+      `${document.slice(0, start)}${document.slice(end + HEAD_CLOSE.length)}`,
+      document.slice(start + HEAD_OPEN.length, end),
+    )
+  }
 
 /** A page generated at build time, and the file a static host serves it from. */
 export interface GeneratedPage {
@@ -1219,9 +1284,9 @@ const generate = <
  * `handleRequest` still classifies static misses and answers `HEAD` without
  * a body.
  *
- * What the page says of itself (`meta`) and per-page `head` markup are
- * written into a template's head, which the host owns here: a plan with
- * `meta` is refused when the entry is made, and served with `SSR.generate`.
+ * What the page says of itself (`meta`) belongs in the head, which the host
+ * owns here: the entry carries it in the rendered root, and the host's
+ * document renderer, wrapped in `SSR.headed`, moves it before `</head>`.
  */
 const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   config: ResumableConfig<Model, Message>,
@@ -1350,11 +1415,6 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     ...given,
     policy: cachePolicy(given),
   }))
-  if (plan.meta !== undefined) {
-    throw new Error(
-      `foldkit-ssr: plan "${plan.id}" says what the page says of itself (meta), which is written into the template's head, and the template is the host's: serve it with SSR.generate, not SSR.entry`,
-    )
-  }
   const listed = options.origins === 'same-origin' ? [] : (options.origins ?? [])
   for (const origin of listed) {
     if (!URL.canParse(origin) || new URL(origin).origin !== origin)
@@ -1459,7 +1519,11 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     const flagsOf = options.flags
     const statusOf = options.status
     const { prepare } = options
-    const styled = options.styles === undefined ? {} : { styles: options.styles }
+    // The plan's `meta` rides in the root until the host's `SSR.headed` moves it.
+    const styled = {
+      ...(options.styles === undefined ? {} : { styles: options.styles }),
+      metaInRoot: true,
+    }
     // `Effect.result` would miss a defect, such as a view that throws, and a
     // `flags` that throws or rejects is not in the Effect at all: both would
     // reject `renderPage` instead of answering it.
@@ -2072,6 +2136,7 @@ export const SSR = {
   entry,
   checkCache,
   keptDocuments,
+  headed,
   handle,
   serializeJsonScript,
   sitemap,

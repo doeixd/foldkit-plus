@@ -1521,6 +1521,13 @@ of its own named a form field "fits the Catalog". Read words with
   importing no `Scope` failed every test at once, and read as a kill. Add the
   import as a second edit of the same mutation, and check which tests killed
   it and why (`--only`).
+- **A loop that advances by its own side effect hangs a mutation run.**
+  `dropUnmovedHead` walked `for (next = open.nextSibling; …; next =
+  open.nextSibling) next.remove()`; the mutation deleting `next.remove()`
+  spun forever, and a synchronous loop outlives every test timeout (22
+  minutes of CPU before it was killed). Collect what a loop visits first
+  (`Array.from(root.childNodes)`), then act on it, so no mutation can stop
+  it advancing.
 - **A mutation killed by a red test proves nothing.** A test added between
   two mutation runs was already failing, so the second run "killed" its
   mutation for free. Confirm the suite is green before each run; `pnpm

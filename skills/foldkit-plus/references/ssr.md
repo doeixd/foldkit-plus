@@ -289,9 +289,11 @@ would rebuild those elements.
   the reason reported. A page is `200` unless `status: (model, request) =>
   number` gives another from the server's Model (`404` for a NotFound route);
   one outside 200–599 is a `500`. It answers `Rendered`, with the envelope on the rendered
-  root beside Foldkit's own stamps. A plan with `meta` is refused at
-  construction: `meta` is written into a head the host owns, so serve it with
-  `SSR.generate`.
+  root beside Foldkit's own stamps. A plan's `meta` rides in the root between
+  marker comments; wrap the host's document renderer in `SSR.headed(render)`
+  to move it before `</head>`, or `SSR.hydrate` reports `HeadNotMoved` (the
+  served head lacked it) and removes it. A void root refuses it
+  (`VoidRootWithHead`).
 - `cache: { store, maxAge, check? }` (`PageCache`, #428) keeps a `GET`/`HEAD`
   page by build id and full URL when it was drawn from the URL alone: every
   read through `pageReader` public (`PageReads`), every request header that

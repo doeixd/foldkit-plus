@@ -342,8 +342,8 @@ again would keep its classes without their rules; `SSR.hydrate` moves them
 into the document's head before anything adopts the page, whether it resumes
 or is contained, and the browser's Styles find them there and add nothing
 twice. A void root holds no children, so styles for one are refused with
-`VoidRootWithStyles`, naming the tag. Anything else a head owns (`meta`)
-stays with `SSR.generate`.
+`VoidRootWithStyles`, naming the tag. A plan's `meta` rides in the root too,
+for the host to move (`SSR.headed`, under Serving pages).
 
 `SSR.generate` takes the same `head`, and answers a `head` that throws `500`,
 as it does a render that fails. `SSR.entry` takes no `head`: the host owns
@@ -531,12 +531,34 @@ The page is rendered and resumed as any other; only the response's status
 changes. A status outside `200`–`599`, a `204`, `205` or `304` that cannot
 carry the page, or a `status` that throws, is answered `500` and reported.
 
-What the page says of itself (`meta`) and per-page `head` markup are written
-into a template's head, which the host owns here: a plan with `meta` is
-refused when the entry is made, and served with `SSR.generate` below, which
-owns its template.
+What the page says of itself (`meta`) belongs in the head, which the host
+owns here, and link previews and crawlers read only the served head. The
+entry carries a plan's `meta` in the rendered root, between two marker
+comments, and `SSR.headed` wraps the host's document renderer to move it
+before `</head>`:
+
+```ts
+import { injectIntoTemplate, renderDocument as renderShell } from 'foldkit/experimental/server'
+
+// A server entry's document renderer, as the Foldkit Vite plugin takes it
+// (export it as `renderDocument`):
+const headedShell = SSR.headed(renderShell)
+
+// A host that hands Foldkit a template instead:
+const headedTemplate = SSR.headed((application: Parameters<typeof injectIntoTemplate>[1]) =>
+  injectIntoTemplate(template, application),
+)
+```
+
+Each request's page carries its own `meta`, so nothing of one request reaches
+another's document, and `SSR.keptDocuments(SSR.headed(render))` keeps a kept
+page's document with its head. A host that leaves the wrapper out serves the
+`meta` in the body, where nothing reads it: `SSR.hydrate` then removes it,
+reports `HeadNotMoved`, and the head gets it once the page runs. An e2e test
+reading a served page's head is the check before deploying. A void root
+cannot carry it and is refused (`VoidRootWithHead`), as for `styles`.
 [foldkit#1448](https://github.com/foldkit/foldkit/issues/1448) asks Foldkit
-for a per-request head channel beside the envelope.
+for a per-request head channel, which would retire `SSR.headed`.
 
 ### What the host hands the page: `SSR.requestContext`
 
@@ -660,7 +682,7 @@ of assets (the last 32 are held):
 ```ts
 import { renderDocument as renderShell, type DocumentRenderer } from 'foldkit/experimental/server'
 
-export const renderDocument: DocumentRenderer = SSR.keptDocuments(renderShell)
+export const renderDocument: DocumentRenderer = SSR.keptDocuments(SSR.headed(renderShell))
 ```
 
 The checker draws a kept page again for each request it serves.

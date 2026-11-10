@@ -11,6 +11,7 @@ import { Diagnostics, type ReportDiagnostic } from 'foldkit-surface'
 import { withContext, type RenderContext } from './context.js'
 import {
   bundleUnloaded,
+  headNotMoved,
   noBuildId,
   otherBuild,
   pageContained,
@@ -32,6 +33,8 @@ import {
   FOLDKIT_APP_ATTRIBUTE,
   RESUME_ATTRIBUTE,
   STATIC_ATTRIBUTE,
+  HEAD_END_MARKER,
+  HEAD_MARKER,
   STYLES_MARKER,
   arrival,
   bindings,
@@ -144,7 +147,10 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     }
   }
   const root = document.querySelector<HTMLElement>(`[${FOLDKIT_APP_ATTRIBUTE}]`)
-  if (root !== null) keepStyles(root)
+  if (root !== null) {
+    if (dropUnmovedHead(root)) report(headNotMoved)
+    keepStyles(root)
+  }
   // A page that is declined or stale never adopts. `render` draws afresh at
   // the root's place, replacing it; anything else contains the served page.
   // With no served page the application renders afresh regardless.
@@ -323,6 +329,22 @@ const unmark = (root: Element): void => {
     form?.querySelector(`:scope > input[type="hidden"][name="${FALLBACK_DEPTH_FIELD}"]`)?.remove()
     field.remove()
   }
+}
+
+/**
+ * Removes head markup `SSR.headed` should have moved out of the root (a plan's
+ * `meta`), saying whether there was any: the view does not draw it, and the
+ * plan's meta entry writes the head once the page runs.
+ */
+const dropUnmovedHead = (root: Element): boolean => {
+  const nodes = Array.from(root.childNodes)
+  const marks = (value: string) => (node: ChildNode) =>
+    node.nodeType === Node.COMMENT_NODE && node.nodeValue === value
+  const open = nodes.findIndex(marks(HEAD_MARKER))
+  if (open === -1) return false
+  const close = nodes.findIndex((node, at) => at > open && marks(HEAD_END_MARKER)(node))
+  for (const node of nodes.slice(open, close === -1 ? undefined : close + 1)) node.remove()
+  return true
 }
 
 /**

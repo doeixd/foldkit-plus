@@ -58,6 +58,16 @@ export interface CachedPageDiffers extends Diagnostic {
   readonly url: string
 }
 
+/**
+ * A served page whose head markup (a plan's `meta`) was still in its body:
+ * the host's document renderer is not wrapped in `SSR.headed`, so link
+ * previews and crawlers, which read the served head, never saw it.
+ * `SSR.hydrate` removed it; the head gets it once the page runs.
+ */
+export interface HeadNotMoved extends Diagnostic {
+  readonly _tag: 'HeadNotMoved'
+}
+
 /** Every diagnostic SSR reports. */
 export type SsrDiagnostic =
   | PageContained
@@ -66,6 +76,15 @@ export type SsrDiagnostic =
   | PageFailed
   | HandlerUnnamed
   | CachedPageDiffers
+  | HeadNotMoved
+
+export const headNotMoved: HeadNotMoved = {
+  _tag: 'HeadNotMoved',
+  source,
+  level: 'error',
+  message:
+    "the served page's meta was in its body, not its head, so link previews and crawlers did not see it: wrap the host's document renderer in SSR.headed (`SSR.headed(renderDocument)`).",
+}
 
 export const pageContained = (reason: PageContained['reason'], detail: string): PageContained => ({
   _tag: 'PageContained',
