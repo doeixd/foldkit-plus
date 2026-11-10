@@ -320,9 +320,9 @@ Animation adapters parked (step 6).
    the scaffold over the published packages, on all three CI pairs (run
    locally). Not linted: upstream's rules hold an app to its module layout,
    and what they found in the primitives is #495.
-3. **A size budget for each example's entry chunk** (backlog, partial). Low
-   cost with `scripts/bundle-report.mjs`; stops a regression like #490's.
-   Start with the examples a reader runs first: todo-app, kitchen-sink, chirp.
+3. **A size budget for each example's entry chunk.** Done for todo-app
+   (158.5 kB brotli ceiling) and chirp (239.0 kB), e4e4d61; kitchen-sink is a
+   Node demo with no client. Add one when an example gains a browser entry.
 4. **Strict FormView submit policy** (backlog, partial). `canSubmit` exists
    and nothing adopts it; add Enter-and-click-during-a-check browser tests and
    the reducer-side guard, then adopt it in `examples/fields`.
