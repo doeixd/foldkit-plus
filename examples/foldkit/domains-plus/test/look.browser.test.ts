@@ -12,11 +12,12 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import { fromString } from 'foldkit/url'
 import { Style } from 'foldkit-mixins'
+import { Inert } from 'foldkit-mixins/testing'
 import { Remote } from 'foldkit-remote'
 import { afterEach, expect, it, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { Model, init, subscriptions, update, type Message } from '../src/client/app.js'
-import { stylesheet } from '../src/client/style.js'
+import { stylesheet } from '../src/server/sheet.js'
 import { view } from '../src/client/view.js'
 import { serveRemote } from '../src/server/remote.js'
 
@@ -29,8 +30,8 @@ afterEach(() => {
 })
 
 /** The page at `/?q=<query>`, its reads answered by the Worker's own `/remote`. */
-const mount = async (query: string) => {
-  Style.install(stylesheet)
+const mount = async (query: string, css = stylesheet) => {
+  const sheet = Style.install(css)
   const container = document.createElement('div')
   container.id = 'domains-test'
   document.body.append(container)
@@ -50,8 +51,13 @@ const mount = async (query: string) => {
       ),
     }),
   )
-  dispose = () => handle.dispose()
+  dispose = () => {
+    handle.dispose()
+    // A sheet left in the head would define every token for the next test's pruned one.
+    sheet.remove()
+  }
   await vi.waitUntil(() => document.querySelector('.domain-card .price'), answered)
+  return sheet
 }
 
 const element = <E extends Element = HTMLElement>(selector: string): E => {
@@ -99,4 +105,52 @@ it('opens the TLD dropdown as a tab stop whose click-away stands over the header
   expect(document.elementFromPoint(8, 8)?.classList.contains('filter-backdrop')).toBe(true)
   await userEvent.click(element('.filter-backdrop'), { position: { x: 8, y: 8 } })
   await vi.waitUntil(() => document.querySelector('#tld-filter-items') === null, answered)
+})
+
+it('draws every element the same with the sheet pruned to the tokens it reads (#487)', async () => {
+  // As the build ships it, `vite.config.ts`'s `prune`: every class, then the prune.
+  const full = Style.complete(stylesheet)
+  const sheet = await mount('acme', full)
+  await userEvent.click(element('#tld-filter-button'))
+  await vi.waitUntil(() => document.querySelector('#tld-filter-items'), answered)
+  // The dropdown's 557 rows are one row drawn many times: read the first few
+  // and any chosen or active one, so the comparison fits a slow runner.
+  const rows = Array.from(document.querySelectorAll('#tld-filter-items [role="option"]'))
+  const read = new Set(
+    rows.filter(
+      (row, index) =>
+        index < 8 ||
+        row.getAttribute('aria-selected') === 'true' ||
+        row.hasAttribute('data-active'),
+    ),
+  )
+  const sampled = (node: Element) => {
+    const row = node.closest('#tld-filter-items [role="option"]')
+    return row === null || read.has(row)
+  }
+  // Custom properties excluded: the pruned ones are absent by design.
+  const drawn = () =>
+    Array.from(document.body.querySelectorAll('*'), node => node)
+      .filter(sampled)
+      .map(node => {
+        const style = getComputedStyle(node)
+        return Array.from(style)
+          .filter(property => !property.startsWith('--'))
+          .map(property => `${property}: ${style.getPropertyValue(property)}`)
+          .join('; ')
+      })
+  const settled = async () => {
+    // A font landing or a transition running between the two reads would
+    // change what is drawn, not the prune: the sheet holds the `@font-face`,
+    // so new text loads the face again, and the open dropdown's chevron turns.
+    await Promise.all(Array.from(document.fonts, face => face.load()))
+    await Promise.all(document.getAnimations().map(animation => animation.finished))
+  }
+  await settled()
+  const before = drawn()
+  sheet.textContent = Inert.prune(full)
+  await settled()
+  const after = drawn()
+  expect(after.filter((style, index) => style !== before[index])).toEqual([])
+  expect(sheet.textContent.length).toBeLessThan(full.length * 0.6)
 })

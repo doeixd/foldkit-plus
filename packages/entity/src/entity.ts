@@ -29,6 +29,7 @@ import {
   type IdSchemaOf,
   type InputMember,
   type NestedInput,
+  type OnDelete,
   type PageWindow,
   type Related,
   type RelationInput,
@@ -555,21 +556,28 @@ export const relate = <const Es extends Entities, const Rs extends RelationMap<E
   for (const [entity, added] of additions)
     for (const member of Object.values(added))
       if (member._tag === 'Relation' && Option.isSome(member.onDelete))
-        cascadeInto(member.target().identity, { relation: member as OneRelation, owner: entity })
+        pointInto(member.onDelete.value, member.target().identity, {
+          relation: member as OneRelation,
+          owner: entity,
+        })
   return Object.freeze(related) as never
 }
 
-/** A `one` relation a delete cascades through, and the Entity that owns it, whose rows go. */
+/** A `one` relation a delete acts through (it cascades, restricts or clears), and the Entity that owns it. */
 export interface Cascade {
   readonly relation: OneRelation
   readonly owner: AnyEntity
 }
 
-const cascades = new WeakMap<EntityIdentity<string>, Array<Cascade>>()
-const cascadeInto = (target: EntityIdentity<string>, cascade: Cascade): void => {
-  const known = cascades.get(target) ?? []
-  known.push(cascade)
-  cascades.set(target, known)
+const pointing: Readonly<Record<OnDelete, WeakMap<EntityIdentity<string>, Array<Cascade>>>> = {
+  cascade: new WeakMap(),
+  restrict: new WeakMap(),
+  setNull: new WeakMap(),
+}
+const pointInto = (action: OnDelete, target: EntityIdentity<string>, edge: Cascade): void => {
+  const known = pointing[action].get(target) ?? []
+  known.push(edge)
+  pointing[action].set(target, known)
 }
 
 /**
@@ -579,7 +587,23 @@ const cascadeInto = (target: EntityIdentity<string>, cascade: Cascade): void => 
  * members every descriptor of it shares.
  */
 export const cascading = (entity: AnyEntity): ReadonlyArray<Cascade> =>
-  cascades.get(entity.identity) ?? []
+  pointing.cascade.get(entity.identity) ?? []
+
+/**
+ * The `one` relations, of any Entity, declared `onDelete: 'restrict'` that
+ * point at `entity`: a delete of one of its rows is refused while a row points
+ * at it through one (#467).
+ */
+export const restricting = (entity: AnyEntity): ReadonlyArray<Cascade> =>
+  pointing.restrict.get(entity.identity) ?? []
+
+/**
+ * The optional `one` relations, of any Entity, declared `onDelete: 'setNull'`
+ * that point at `entity`: deleting one of its rows clears the link on each row
+ * pointing at it through one, which stays (#467).
+ */
+export const clearing = (entity: AnyEntity): ReadonlyArray<Cascade> =>
+  pointing.setNull.get(entity.identity) ?? []
 
 /**
  * Selects members of an Entity and assembles the schema of the result. A

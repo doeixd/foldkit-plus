@@ -207,11 +207,11 @@ const Rename = Mutation.make('Rename', {
   Output: {},
   Refusal: Schema.Union([Refusal.field('name', Schema.String), Refusal.conflict]),
 })
-const Data = Remote.make({ model: App.model.remote, entities: [Project], mutations: [Rename] })
+const WriteData = Remote.make({ model: App.model.remote, entities: [Project], mutations: [Rename] })
 
 // The view: one notice per rename that did not land.
 const notices = (model: Model): ReadonlyArray<string> =>
-  Data.failedWrites(model, Rename).map(write =>
+  WriteData.failedWrites(model, Rename).map(write =>
     Option.match(write.refusal, {
       onNone: () => `"${write.input.name}" was not saved: ${write.error.message}`,
       onSome: Match.valueTags({
@@ -223,11 +223,11 @@ const notices = (model: Model): ReadonlyArray<string> =>
 
 // update: a notice's two buttons.
 const retried = (model: Model, requestId: string): Update.Return<Model, Message, RemoteClient> =>
-  Option.match(Data.retry(model, requestId), {
+  Option.match(WriteData.retry(model, requestId), {
     onNone: () => ({ model }),
     onSome: started => ({ model: started.model, commands: [started.command] }),
   })
-const dismissed = (model: Model, requestId: string): Model => Data.dismiss(model, requestId)
+const dismissed = (model: Model, requestId: string): Model => WriteData.dismiss(model, requestId)
 ```
 
 - **`Data.failedWrites(model, Rename)`** lists the failed writes of one
@@ -327,14 +327,23 @@ someone who has not typed yet:
 For `const RenameForm = Form.make('Rename', Entity.input(Post, RenameInput))`,
 placed at `model.renameForm`:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+import { Form } from 'foldkit-form'
+const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String }))
+const RenameInput = Schema.Struct({ id: Schema.String, title: Post.fields.title.schema })
+const RenameForm = Form.make('Rename', Entity.input(Post, RenameInput))
+declare const model: { renameForm: typeof RenameForm.initial }
+-->
 ```ts
 RenameForm.attempted(model.renameForm) // a submit was asked: the fields to fix are drawn
 RenameForm.Message.Validated({ key: 'title' }) // judge one key now, edited or not
-RenameForm.Message.Refused({ key: 'title', error: 'That title is taken' }) // a server's word, on its key
+RenameForm.Message.Refused({ key: 'title', error: 'That title is taken', value: 'Hello' }) // a server's word on the value it was sent
 ```
 
-`Refused` lands whatever state the key is in, and holds until the key is
-edited. `foldkit-crud`'s editor sends it for you: a save refused with
+`Refused` lands only while the key still holds the `value` it was sent, and
+holds until the form is edited. `foldkit-crud`'s editor sends it for you: a save refused with
 `Refusal.field` shows the reason on that key, and one refused with
 `Refusal.invalid` shows its message beside each key its path names. Any other
 refusal is the editor's status (`SaveFailed`, `Conflict`) and `saveError`.
@@ -524,6 +533,20 @@ sees.
   takes `{ fail }` to answer with an error. `Trace.regressions` names every
   step where a read that showed a value stopped showing it.
 
+  <!-- docs-check standalone
+  import { Effect } from 'effect'
+  declare const expect: (value: unknown) => { toEqual(expected: unknown): void }
+  declare const loaded: any
+  declare const server: any
+  declare const update: any
+  declare const actives: any
+  declare const Data: any
+  declare const Project: any
+  declare const ProjectName: any
+  declare const Message: any
+  declare const program: Effect.Effect<void>
+  declare const page: any
+  -->
   ```ts
   import { RemoteReadError } from 'foldkit-remote'
   import { Respond, Trace } from 'foldkit-remote/testing'
@@ -552,6 +575,8 @@ sees.
   `reported`, `[]` included.
 
   ```ts
+  import { Diagnostics } from 'foldkit-remote'
+
   const { report, reported } = Diagnostics.collect()
   await Effect.runPromise(Effect.provideService(program, Diagnostics.Reporter, report))
   expect(reported).toEqual([])

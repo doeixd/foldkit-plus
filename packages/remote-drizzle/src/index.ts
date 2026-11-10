@@ -68,7 +68,7 @@ import {
   type WriteRequirement,
   type WriteWhen,
 } from 'foldkit-remote-server'
-import type { AnyEntityBinding, ManyRelation, ManyToManyRelation } from './binding.js'
+import type { AnyEntityBinding, ManyRelation, ManyToManyRelation, PointerEdge } from './binding.js'
 import { checkConstraints } from './checks.js'
 import { postgresOperations } from './dialect.js'
 import { serverOnlyRules, statementFailed } from './diagnostics.js'
@@ -104,6 +104,7 @@ import {
 } from './database.js'
 import { toQueryPage } from './page.js'
 import { cascadePlan, type CascadePlan, type CascadeStep } from './cascade.js'
+import { declarations, ObservedStatements } from './observed.js'
 import { quoted } from './quoted.js'
 import { buildPage } from './pagination.js'
 import { shapeWindow } from './window.js'
@@ -119,6 +120,7 @@ export * from './operators.js'
 export * from './database.js'
 export * from './page.js'
 export * from './pagination.js'
+export { queryPlans, type PlanVerdict, type QueryPlan } from './plans.js'
 export * from './window.js'
 export * from './poll.js'
 
@@ -411,7 +413,18 @@ export const runStatement = <A>(
   statement: () => PromiseLike<A>,
   failed: string,
 ): Effect.Effect<A, RemoteServerError> =>
-  Effect.tryPromise({ try: () => Promise.resolve(statement()), catch: error => error }).pipe(
+  Effect.flatMap(ObservedStatements, observe =>
+    Effect.tryPromise({
+      try: () => {
+        // A Drizzle statement is a builder that runs when awaited, so it can
+        // be noted for `queryPlans` first.
+        const built = statement()
+        if (Option.isSome(observe)) observe.value(built)
+        return Promise.resolve(built)
+      },
+      catch: error => error,
+    }),
+  ).pipe(
     Effect.tapError(error => Diagnostics.report(statementFailed(failed, error))),
     Effect.mapError(() => new RemoteServerError({ message: failed })),
   )
@@ -896,7 +909,7 @@ export const query = <P = unknown, Input = unknown>(
       `[foldkit-remote-drizzle] query "${descriptor.name}" lists "${descriptor.Result.entity}", but is bound to ${options.entity.name}'s table`,
     )
   }
-  return {
+  const declared: QuerySource<P, DrizzleDatabase> = {
     query: descriptor.name,
     entity: options.entity.name,
     Input: descriptor.Input,
@@ -1040,6 +1053,12 @@ export const query = <P = unknown, Input = unknown>(
         })
       }),
   }
+  declarations.set(declared, {
+    name: descriptor.name,
+    body: Option.fromUndefinedOr(body),
+    binding: options.entity,
+  })
+  return declared
 }
 
 /** Two values as a store holds them, which are JSON: equal when they encode the same. */
@@ -1198,6 +1217,15 @@ interface CascadeTx {
       ): SyncStatement & PromiseLike<ReadonlyArray<Record<string, unknown>>>
     }
   }
+  update(table: Table): {
+    set(values: Record<string, null>): {
+      where(condition: SQL): {
+        returning(
+          columns: Record<string, AnyColumn | SQL.Aliased>,
+        ): SyncStatement & PromiseLike<ReadonlyArray<Record<string, unknown>>>
+      }
+    }
+  }
   /** Postgres's only: a statement run as written (the row lock a cascade holds). */
   execute(query: SQL): PromiseLike<unknown>
 }
@@ -1220,6 +1248,8 @@ interface CascadeRefusal {
   readonly step: AnyEntityBinding
   readonly reason: Option.Option<string>
   readonly refused: SQL
+  /** What the refusal says the delete would do: `delete a Like you may not delete`. */
+  readonly would: string
 }
 
 /** Whether the database is D1's, which refuses the `BEGIN` its Drizzle `transaction` sends. */
@@ -1426,39 +1456,76 @@ export const writer = <P = unknown>(
     return read
   }
 
+  /**
+   * For each relation that restricts deleting a row of this Entity (#467):
+   * whether a row points at `id` through it. The delete's own statement holds
+   * `not exists` of each, so a row pointed at is never removed, and no row
+   * can arrive between a check and the delete.
+   */
+  const pointedAt = (id: string) =>
+    (binding.restricts ?? []).map(edge => ({
+      edge,
+      exists: sql`exists (select 1 from ${edge.owner.table} where ${edge.column} = ${id})`,
+    }))
+
   // What a delete takes with it (`onDelete: 'cascade'`), worked out once: a cycle is refused here.
   const plan =
     (binding.cascades ?? []).length === 0 ? Option.none() : Option.some(cascadePlan(binding))
 
+  const clears = binding.clears ?? []
+  /** Each cleared link's column by its key in its table, which `update().set` names. */
+  const clearedKey = (edge: PointerEdge): string =>
+    Object.entries(getTableColumns(edge.owner.table)).find(
+      ([, column]) => column === edge.column,
+    )?.[0] ?? edge.relation
+
   /**
-   * The row deleted and every row declared to go with it, in one transaction,
-   * or on D1 in one batch: first what each Entity's removal will take, as the
-   * principal may see it (`visible`), then the rest, leaves first, each only
-   * while the row named is still there and holds what the delete asks, then
-   * the row itself, so a delete that missed removes nothing. What was taken is
-   * answered only when the row went.
+   * The row deleted, every row declared to go with it, and every link to it
+   * declared cleared, in one transaction, or on D1 in one batch: first what
+   * each Entity's removal will take, as the principal may see it (`visible`),
+   * then each link cleared, then the rest, leaves first, each only while the
+   * row named is still there and holds what the delete asks, then the row
+   * itself, so a delete that missed changes nothing. What was taken and
+   * cleared is answered only when the row went.
    */
   const withCascade = (
-    held: CascadePlan,
+    plan: Option.Option<CascadePlan>,
     id: string,
     where: SQL | undefined,
     refusing: ReadonlyArray<CascadeRefusal>,
     principal: P,
   ): Effect.Effect<
-    { readonly deleted: boolean; readonly cascaded: ReadonlyArray<CascadedRow> },
+    {
+      readonly deleted: boolean
+      readonly cascaded: ReadonlyArray<CascadedRow>
+      readonly cleared: ReadonlyArray<EntityRef>
+    },
     RemoteServerError,
     DrizzleDatabase
   > =>
     Effect.gen(function* () {
       const database = (yield* DrizzleDatabase) as unknown as CascadeDatabase
-      const seen = yield* Effect.forEach(held.steps, step =>
+      const steps = Option.match(plan, { onNone: () => [], onSome: held => held.steps })
+      const seen = yield* Effect.forEach(steps, step =>
         Effect.map(visibleFor(step.binding, principal), visible => ({ step, visible })),
       )
+      const clearing = yield* Effect.forEach(clears, edge =>
+        Effect.map(visibleFor(edge.owner, principal), visible => ({ edge, visible })),
+      )
+      const seenFlag = (visible: SQL | undefined) =>
+        // Named: D1 hands a batch's rows back keyed by column name, and a column named `1`
+        // sorts before every other key, so its values would land on the wrong fields.
+        (visible === undefined ? sql`1` : sql`case when ${visible} then 1 else 0 end`).as('seen')
       const rootWhere = and(where, ...refusing.map(({ refused }) => sql`not exists (${refused})`))
       // The row named is still there and holds what the delete asks, so the
       // delete will remove it: leaves go only then, and a delete that misses
       // takes nothing with it.
       const taken = sql`exists (select 1 from ${binding.table} where ${rootWhere ?? sql`1 = 1`})`
+      const removedBy = (step: CascadeStep) =>
+        Option.match(plan, {
+          onNone: () => sql`select null where false`,
+          onSome: held => held.removed(step, id),
+        })
       const links = (step: CascadeStep) =>
         Object.entries(step.binding.relations).flatMap(([key, relation]) =>
           relation.kind === 'one' ? [[key, relation] as const] : [],
@@ -1469,23 +1536,26 @@ export const writer = <P = unknown>(
             .select({
               id: idColumn(step.binding),
               ...Object.fromEntries(links(step).map(([key, relation]) => [key, relation.field])),
-              // Named: D1 hands a batch's rows back keyed by column name, and a column named `1`
-              // sorts before every other key, so its values would land on the wrong fields.
-              seen: (visible === undefined
-                ? sql`1`
-                : sql`case when ${visible} then 1 else 0 end`
-              ).as('seen'),
+              seen: seenFlag(visible),
             })
             .from(step.binding.table)
-            .where(sql`${idColumn(step.binding)} in (${held.removed(step, id)})`),
+            .where(sql`${idColumn(step.binding)} in (${removedBy(step)})`),
+        ),
+        // Cleared before anything goes, while the row named is still there to gate them.
+        ...clearing.map(({ edge, visible }) =>
+          db
+            .update(edge.owner.table)
+            .set({ [clearedKey(edge)]: null })
+            .where(sql`${edge.column} = ${id} and ${taken}`)
+            .returning({ id: idColumn(edge.owner), seen: seenFlag(visible) }),
         ),
         // Each row the cascade takes is judged before anything is removed: one
         // refused, and no row is taken, so the row named stays too. The leaves
         // go first, while the row named is still there to reach them through.
-        ...held.steps.map(step =>
+        ...steps.map(step =>
           db
             .delete(step.binding.table)
-            .where(sql`${idColumn(step.binding)} in (${held.removed(step, id)}) and ${taken}`)
+            .where(sql`${idColumn(step.binding)} in (${removedBy(step)}) and ${taken}`)
             .returning({ id: idColumn(step.binding) }),
         ),
         db
@@ -1519,8 +1589,8 @@ export const writer = <P = unknown>(
                 }),
               failed,
             )
-      const deleted = (results[seen.length + held.steps.length] ?? []).length > 0
-      if (!deleted) return { deleted, cascaded: [] }
+      const deleted = (results[seen.length + clearing.length + steps.length] ?? []).length > 0
+      if (!deleted) return { deleted, cascaded: [], cleared: [] }
       const cascaded = seen.flatMap(({ step }, at) =>
         (results[at] ?? [])
           .filter(row => Number(row['seen']) === 1)
@@ -1538,7 +1608,12 @@ export const writer = <P = unknown>(
             ),
           })),
       )
-      return { deleted, cascaded }
+      const cleared = clearing.flatMap(({ edge }, at): ReadonlyArray<EntityRef> =>
+        (results[seen.length + at] ?? [])
+          .filter(row => Number(row['seen']) === 1)
+          .map(row => ({ entity: edge.entity, id: String(row['id']) })),
+      )
+      return { deleted, cascaded, cleared }
     })
 
   /** The first of the invariants broken, as the refusal a writer answers it with. */
@@ -1697,6 +1772,38 @@ export const writer = <P = unknown>(
           step,
           reason: requires.reason,
           refused: sql`select ${idColumn(step)} from ${step.table} where ${idColumn(step)} in (${judged}) and (${rule}) is not true`,
+          would: `delete a ${entity} you may not delete`,
+        }
+      }),
+    )
+
+  /**
+   * Each Entity's rows whose link a delete would clear that do not hold its
+   * requirement (their `Update` rules over the link), as a select of their
+   * ids; a rule unknown for a row refuses it, as a cascade's does. A
+   * requirement for an Entity the delete clears nothing of is refused.
+   */
+  const clearRefusals = (
+    id: string,
+    clearing: ReadonlyArray<CascadeRequirement>,
+  ): Effect.Effect<ReadonlyArray<CascadeRefusal>, RemoteServerError> =>
+    Effect.forEach(clearing, ({ entity, requires }) =>
+      Effect.gen(function* () {
+        const edges = clears.filter(edge => edge.entity === entity)
+        const [first] = edges
+        if (first === undefined)
+          return yield* new RemoteServerError({
+            message: `${binding.name}'s writer was asked to hold ${entity}'s rows to their Update rules, but a delete of ${binding.name} clears no link of theirs`,
+          })
+        const step = first.owner
+        const rule = and(...(yield* requiredOf(requires, step))) ?? sql`true`
+        const pointing = or(...edges.map(edge => sql`${edge.column} = ${id}`))
+        return {
+          entity,
+          step,
+          reason: requires.reason,
+          refused: sql`select ${idColumn(step)} from ${step.table} where (${pointing}) and (${rule}) is not true`,
+          would: `clear the link of a ${entity} you may not change`,
         }
       }),
     )
@@ -2003,6 +2110,8 @@ export const writer = <P = unknown>(
     commutes,
     invariants: true,
     cascades: true,
+    restricts: true,
+    clears: true,
     // A fraction added to an integer column splits the dialects: Postgres refuses the
     // statement, SQLite stores the fraction. A field declared Schema.Number hides the column.
     refuses: write => [
@@ -2284,35 +2393,45 @@ export const writer = <P = unknown>(
           onSome: Effect.succeed,
         })
       }),
-    delete: ({ id, expect, when, requires, cascading = [], principal }) =>
+    delete: ({ id, expect, when, requires, cascading = [], clearing = [], principal }) =>
       Effect.gen(function* () {
         yield* serverOnly
         const at = yield* rowOf(id, expect, when)
         const required = yield* requiredOf(requires)
-        const where = and(at.where, ...required)
-        const refusing = yield* cascadeRefusals(plan, id, cascading)
-        const removal = yield* Option.match(plan, {
-          onNone: () =>
-            Effect.gen(function* () {
-              const writes = yield* drizzleWrites
-              const rows = yield* runStatement(
-                () =>
-                  writes
-                    .delete(binding.table)
-                    .where(where)
-                    .returning({ id: idColumn(binding) }),
-                'Database write failed',
-              )
-              return { deleted: rows.length > 0, cascaded: [] }
-            }),
-          onSome: held => withCascade(held, id, where, refusing, principal),
-        })
-        if (removal.deleted) return DeleteOutcome.Deleted({ cascaded: removal.cascaded })
+        const restricted = pointedAt(id)
+        const where = and(
+          at.where,
+          ...required,
+          ...restricted.map(({ exists }) => sql`not ${exists}`),
+        )
+        const refusing = [
+          ...(yield* cascadeRefusals(plan, id, cascading)),
+          ...(yield* clearRefusals(id, clearing)),
+        ]
+        // One statement unless the delete takes rows with it or clears links to it.
+        const removal =
+          Option.isNone(plan) && clears.length === 0
+            ? yield* Effect.gen(function* () {
+                const writes = yield* drizzleWrites
+                const rows = yield* runStatement(
+                  () =>
+                    writes
+                      .delete(binding.table)
+                      .where(where)
+                      .returning({ id: idColumn(binding) }),
+                  'Database write failed',
+                )
+                return { deleted: rows.length > 0, cascaded: [], cleared: [] }
+              })
+            : yield* withCascade(plan, id, where, refusing, principal)
+        if (removal.deleted)
+          return DeleteOutcome.Deleted({ cascaded: removal.cascaded, cleared: removal.cleared })
         if (
           Option.isNone(expect) &&
           Option.isNone(when) &&
           requires === undefined &&
-          refusing.length === 0
+          refusing.length === 0 &&
+          restricted.length === 0
         )
           return DeleteOutcome.Absent()
         // The delete missed: gone is gone (a retry of this delete, or another's);
@@ -2338,7 +2457,7 @@ export const writer = <P = unknown>(
         if (row === undefined) return DeleteOutcome.Absent()
         yield* refusedBy(id, requires, required)
         // Named by its Entity alone: what the row holds is not the asker's to read.
-        for (const { entity, step, reason, refused } of refusing) {
+        for (const { step, reason, refused, would } of refusing) {
           const found = yield* selectRows(
             yield* DrizzleDatabase,
             step.table,
@@ -2348,17 +2467,25 @@ export const writer = <P = unknown>(
           if (found.length > 0)
             return yield* RemoteServer.forbid(
               Option.match(reason, {
-                onNone: () => `It would delete a ${entity} you may not delete`,
-                onSome: said => `It would delete a ${entity} you may not delete: ${said}`,
+                onNone: () => `It would ${would}`,
+                onSome: said => `It would ${would}: ${said}`,
               }),
             )
         }
-        if (
-          Option.isNone(when) ||
-          (Option.isSome(expect) && !sameStored(row['revision'], expect.value.revision))
-        ) {
+        if (Option.isSome(expect) && !sameStored(row['revision'], expect.value.revision))
           return DeleteOutcome.Moved()
+        // Named by the relation alone: which rows point here is not the asker's to read.
+        for (const { edge, exists } of restricted) {
+          const found = yield* selectRows(
+            yield* DrizzleDatabase,
+            binding.table,
+            { id: idColumn(binding) },
+            { where: and(eq(idColumn(binding), id), exists) },
+          )
+          if (found.length > 0)
+            return DeleteOutcome.Referenced({ entity: edge.entity, relation: edge.relation })
         }
+        if (Option.isNone(when)) return DeleteOutcome.Moved()
         return yield* RemoteServer.unmet(
           `${binding.name} ${id} does not hold what the delete asks of it`,
         )
@@ -2393,10 +2520,11 @@ export const writer = <P = unknown>(
  * Here the revision is the journal's sequence. A table a journal writes this
  * way should not also take writes that `expect` a counter there.
  */
-export const applyEdits = <P = unknown>(
-  binding: AnyEntityBinding,
+export const applyEdits = <P = unknown, B extends AnyEntityBinding = AnyEntityBinding>(
+  binding: B,
   options: {
-    readonly revision?: string
+    /** The field holding the row's revision, `revision` when omitted; it must have a column. */
+    readonly revision?: keyof B['fields'] & string
     /**
      * A hub to tell of each edit applied, so a Remote reader following the row
      * live hears it once the journal applies it. An edit the row had already

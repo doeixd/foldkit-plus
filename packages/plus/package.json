@@ -173,6 +173,11 @@
       "types": "./dist/form.d.mts",
       "import": "./dist/form.mjs"
     },
+    "./form-recipes/file": {
+      "foldkit-plus:source": "./src/form-recipes/file.ts",
+      "types": "./dist/form-recipes/file.d.mts",
+      "import": "./dist/form-recipes/file.mjs"
+    },
     "./form-recipes/html": {
       "foldkit-plus:source": "./src/form-recipes/html.ts",
       "types": "./dist/form-recipes/html.d.mts",

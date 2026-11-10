@@ -91,6 +91,7 @@ describe('EntityStore', () => {
         unavailable: new Set(),
         tombstone: true,
         updatedAt: 0,
+        oldestAt: 0,
         windows: {},
       },
     }
@@ -140,6 +141,8 @@ describe('EntityStore', () => {
         unavailable: new Set(),
         tombstone: false,
         updatedAt: 2,
+        // The email is still the first write's: the row is as fresh as it.
+        oldestAt: 1,
         windows: {},
       }),
     )
@@ -171,6 +174,7 @@ describe('EntityStore', () => {
         unavailable: new Set(),
         tombstone: true,
         updatedAt: 0,
+        oldestAt: 0,
         windows: {},
       }),
     )

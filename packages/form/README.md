@@ -96,7 +96,8 @@ const RenameForm = Page.children.rename
   list, both to the draft as it stands when the Message lands, so a view sends
   them for a press: two presses before the next draw both count. `FollowedIssue({ id })`
   says a view's link to a field was followed, and `AskedForMore({ key })` that a
-  relation picker's reader wants more choices; the form changes nothing for
+  relation picker's reader wants more choices (its `key` is typed by the
+  form's relation keys); the form changes nothing for
   either, and the page that owns the list answers the second.
 - `Rename.controls` lists the keys in the input's order, each with its
   `control`, `label`, `description`, `required`, and the Entity `member`.
@@ -174,6 +175,55 @@ drawn alike (`'1'` and `1`) are refused when the control is made.
 
 ### Your own kind of control
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
+import { Entity, Relation } from 'foldkit-entity'
+import { Form, Input } from 'foldkit-form'
+import { defineMessageUnion } from 'foldkit/message'
+
+const ColorModel = Schema.Struct({
+  open: Schema.Boolean,
+  hex: Schema.String,
+  recent: Schema.Array(Schema.String),
+})
+const ColorMessage = defineMessageUnion({ Opened: {}, Chose: { hex: Schema.String } })
+const ColorPicker = Bundle.make({
+  name: 'ColorPicker',
+  Model: ColorModel,
+  Message: ColorMessage,
+  init: () => ({ model: { open: false, hex: '#000000', recent: [] } }),
+  update: (model: typeof ColorModel.Type, message: typeof ColorMessage.Type) =>
+    message._tag === 'Opened'
+      ? { model: { ...model, open: true } }
+      : { model: { ...model, hex: message.hex } },
+})
+const Writer = Entity.define('Writer', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Article = Entity.define(
+  'Article',
+  Schema.Struct({
+    id: Schema.String,
+    title: Schema.String,
+    slug: Schema.String,
+    cents: Schema.Number,
+    color: Schema.String,
+  }),
+)
+const Blog = Entity.relate({ Writer, Article }, { Article: { author: Relation.one(Writer) } })
+const input = Entity.input(
+  Blog.Article,
+  Schema.Struct({
+    title: Schema.String,
+    slug: Schema.String,
+    cents: Schema.Number,
+    color: Schema.String,
+    authorId: Schema.String,
+  }),
+  { authorId: Relation.input(Blog.Article.relations.author) },
+)
+const slugify = (text: string): string => text.toLowerCase()
+-->
+
 The kinds above are made with `Input.kind`, and so is a date picker, a rich text
 editor, or a price:
 
@@ -188,8 +238,9 @@ const Cents = Input.kind<{ readonly currency: string }>('Cents', {
   unparsed: 'Enter an amount',
 })
 
-Form.make('Price', input, { inputs: { cents: Cents.of({ currency: 'USD' }) } })
+const Price = Form.make('Price', input, { inputs: { cents: Cents.of({ currency: 'USD' }) } })
 
+const { control } = Price.controlsByKey.cents
 Cents.is(control) && control.data.currency // 'USD'
 ```
 
@@ -231,7 +282,7 @@ const ColorInput = Input.bundle('ColorPicker', {
 const PostForm = Form.make('PostForm', input, { inputs: { color: ColorInput } })
 const color = PostForm.control('color')
 
-color.field(model) // { _tag, value: { open, hex, recent } }: validation state, the Model as value
+color.field(PostForm.initial) // { _tag, value: { open, hex, recent } }: validation state, the Model as value
 color.send(ColorMessage.Opened()) // the form's Message carrying one of the picker's own
 ```
 
@@ -256,8 +307,9 @@ What the form does with it:
   without one the key is validated (a required key then says `Required`) and
   nothing is submitted. A control in a row holds the submit the same way. Give
   a busy control `settled` too, which says whether a stored value shown again
-  needs work: `Input.bundle` throws without it, since such a form would wait
-  for good.
+  needs work: `busy` without it is a type error (reported at the call), and
+  `Input.bundle` throws on it for an untyped caller, since such a form would
+  wait for good.
 - **Nothing entered** is `value` giving `undefined` or `null`, which a required
   key refuses as it would an empty text box.
 - **Types follow the control.** `model.fields.color.value` is the picker's
@@ -275,14 +327,14 @@ A slug is its title until the author decides otherwise. `Input.following` keeps
 the key's own control and writes its draft from another key:
 
 ```ts
-const PostForm = Form.make('PostForm', input, {
+const SlugForm = Form.make('SlugForm', input, {
   inputs: { slug: Input.following('title', slugify) },
 })
 
-PostForm.isFollowing(model, 'slug') // false once the author has written it
-PostForm.partial(model) // what decodes as it stands, by key: for saving unfinished work
-PostForm.settled(model) // a stored Model, shown again with no check or submit in flight
-PostForm.Message.Refused({ key: 'slug', error: 'That address is taken', value: 'hello' }) // a server's word on the value sent
+SlugForm.isFollowing(SlugForm.initial, 'slug') // false once the author has written it
+SlugForm.partial(SlugForm.initial) // what decodes as it stands, by key: for saving unfinished work
+SlugForm.settled(SlugForm.initial) // a stored Model, shown again with no check or submit in flight
+SlugForm.Message.Refused({ key: 'slug', error: 'That address is taken', value: 'hello' }) // a server's word on the value sent
 ```
 
 - While the author has not written the key, each edit of the key it follows
@@ -305,7 +357,8 @@ key's picker and gives it a search:
 ```ts
 const EditPost = Form.make('EditPost', input, { inputs: { authorId: Input.search() } })
 
-EditPost.Message.Searched({ key: 'authorId', text: 'ad' })
+const searched = EditPost.Message.Searched({ key: 'authorId', text: 'ad' })
+const { model } = EditPost.bundle.update(EditPost.initial, searched, undefined)
 EditPost.search(model, 'authorId') // 'ad'
 ```
 
@@ -399,7 +452,24 @@ is [Errors and failures](../../docs/errors.md#forms).
 Whether a slug is taken is not in the schema. A check is an Effect the form is
 given; it answers with what is wrong, or nothing:
 
+<!-- docs-check standalone
+import { Effect, Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+import { Form } from 'foldkit-form'
+
+const Post = Entity.define(
+  'Post',
+  Schema.Struct({ id: Schema.String, title: Schema.String, slug: Schema.String }),
+)
+const PostInput = Schema.Struct({ id: Schema.String, slug: Schema.String })
+const RenameInput = Schema.Struct({ id: Schema.String, title: Post.fields.title.schema })
+declare const isSlugTaken: (slug: string, except: string | undefined) => Effect.Effect<boolean>
+declare const isAddressFree: (slug: string) => Effect.Effect<string | undefined>
+-->
+
 ```ts
+import { Effect } from 'effect'
+
 const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
   checks: {
     // The decoded value, and whatever else in the form decodes right now.
@@ -424,7 +494,7 @@ const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
   `never`"). The step reads the requirement off the functions it is given.
 
   ```ts
-  const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
+  const CheckedForm = Form.make('PostForm', Entity.input(Post, PostInput), {
     debounce: 0,
   }).pipe(Form.checks({ slug: isAddressFree }))
   ```
@@ -466,7 +536,7 @@ The form has three things to say for itself, and `messages` words them, or
 rewrites what Schema says by default, which is also how a form is translated:
 
 ```ts
-const Rename = Form.make('Rename', Entity.input(Post, RenameInput), {
+const Localized = Form.make('Rename', Entity.input(Post, RenameInput), {
   messages: {
     required: field => `${field.label} is missing`,
     unparsed: field => `${field.label} must be a number`,
@@ -505,7 +575,11 @@ export const words = {
   yes: 'Live', // foldkit-mixins-crud
   empty: 'No posts yet.',
 } satisfies FormMessages & FormViewWords & ViewWords
+```
 
+Each package takes the one object:
+
+```ts sketch
 Form.make('EditPost', input, { messages: words })
 placed.view(model, h, { options, words })
 PostTable({ page, words }, h)
@@ -517,6 +591,21 @@ PostTable({ page, words }, h)
 
 Every option is also a pipe step that gives a new form, made from the same input
 with that option added to:
+
+<!-- docs-check standalone
+import { Effect, Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+import { Form, Input } from 'foldkit-form'
+
+const NewAuthor = Entity.input(
+  Entity.define(
+    'Writer',
+    Schema.Struct({ id: Schema.String, name: Schema.String, bio: Schema.String }),
+  ),
+  Schema.Struct({ name: Schema.String, bio: Schema.String }),
+)
+const isNameTaken = (name: string): Effect.Effect<string | undefined> => Effect.succeed(undefined)
+-->
 
 ```ts
 const AuthorForm = Form.make('Author', NewAuthor) // as a library might hand it over
@@ -539,6 +628,21 @@ first form is left as it was.
 A key mapped with [`Relation.nested`](../entity/README.md#an-input-that-holds-the-target-itself)
 holds the relation's target, not an id. **A nested form is a form**: the key
 holds rows, each a Model of the form built from the nested input.
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Entity, Relation } from 'foldkit-entity'
+import { Form, Input } from 'foldkit-form'
+
+const Comment = Entity.define('Comment', Schema.Struct({ id: Schema.String, body: Schema.String }))
+const Blog = Entity.relate(
+  {
+    Comment,
+    Post: Entity.define('BlogPost', Schema.Struct({ id: Schema.String, title: Schema.String })),
+  },
+  { Post: { comments: Relation.many(Comment) } },
+)
+-->
 
 ```ts
 const NewComment = Entity.input(Blog.Comment, Schema.Struct({ body: Schema.String }))
@@ -630,6 +734,29 @@ Listing.shows(Listing.initial, 'price') // false until Available is chosen
 `fill` shows values as drafts, for an edit form. Keys you do not pass keep their
 draft.
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
+import { Entity } from 'foldkit-entity'
+import { Form } from 'foldkit-form'
+
+const Post = Entity.define(
+  'Post',
+  Schema.Struct({ id: Schema.String, title: Schema.String }),
+)
+const RenameInput = Schema.Struct({ id: Schema.String, title: Post.fields.title.schema })
+const Rename = Form.make('Rename', Entity.input(Post, RenameInput))
+const Page = Bundle.compose({ saved: Schema.Array(RenameInput) }).pipe(
+  Bundle.withChild('rename', Rename.bundle, {
+    onOut: submitted => model => ({
+      model: { ...model, saved: [...model.saved, submitted.value] },
+    }),
+  }),
+)
+const RenameForm = Page.children.rename
+declare const scheduleAutosave: () => void
+-->
+
 ```ts
 const load = RenameForm.helpers.fill({ id: 'p1', title: 'Hello' }) // an Update.Step of the page
 ```
@@ -654,8 +781,9 @@ A relation is loaded as a ref and read back as the id the form holds. See
 what the author wrote:
 
 ```ts
-const next = RenameForm.bundle.update(model, message, undefined)
-if (RenameForm.authoredChanged(model, next.model)) scheduleAutosave()
+const message = Rename.Message.Changed({ key: 'title', value: 'Hello' })
+const next = Rename.bundle.update(Rename.initial, message, undefined)
+if (Rename.authoredChanged(Rename.initial, next.model)) scheduleAutosave()
 ```
 
 It compares the two Models, not the Message: validation state, search text, the

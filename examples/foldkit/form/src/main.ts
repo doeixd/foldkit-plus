@@ -141,9 +141,24 @@ const firstInvalid = (model: Model): Option.Option<string> =>
       ?.key,
   )
 
+/** Whether a key's check is running, during which the submit is held disabled. */
+const isChecking = (model: Model): boolean =>
+  WaitlistForm.controls.some(control =>
+    FieldValidation.match(model.form.fields[control.key], {
+      onNotValidated: () => false,
+      onValidating: () => true,
+      onValid: () => false,
+      onInvalid: () => false,
+    }),
+  )
+
 export const update = (model: Model, message: Message) =>
   Message.match<UpdateReturn>(message, {
     GotFormMessage: ({ message }) => {
+      // The submit button is only `aria-disabled` during a check, which keeps
+      // its focus but stops neither Enter nor a press: refuse here what it says
+      // it refuses, rather than let the form hold the submit for the answer.
+      if (message._tag === 'Submitted' && isChecking(model)) return { model }
       const next = foldForm(model, message)
       // A submit the form refused moves focus to the first thing missing, so
       // the reader is told where to go rather than left to search the card.

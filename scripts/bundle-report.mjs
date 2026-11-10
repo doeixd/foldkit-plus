@@ -112,11 +112,7 @@ const ensureDist = async (dirs, rebuild) => {
   }
 }
 
-/**
- * Builds the example's client and returns what it wrote.
- * `dir` is a folder this call owns; it holds `client/` and `server/`.
- */
-export const buildClient = async (exampleDirectory, { rebuild = false, server = false } = {}) => {
+const buildPinned = async (exampleDirectory, { rebuild = false, server = false } = {}) => {
   const exampleDir = resolve(exampleDirectory)
   await ensureDist(workspaceClosure(exampleDir), rebuild)
 
@@ -188,6 +184,26 @@ export const buildClient = async (exampleDirectory, { rebuild = false, server = 
     client: join(dir, 'client'),
     server: join(dir, 'server'),
     cleanup: () => rmSync(dir, { recursive: true, force: true }),
+  }
+}
+
+/** A UUID's length, so a reading stays comparable with one taken from a random id. */
+const MEASURED_BUILD_ID = '00000000-0000-4000-8000-000000000000'
+
+/**
+ * Builds the example's client and returns what it wrote.
+ * `dir` is a folder this call owns; it holds `client/` and `server/`.
+ */
+export const buildClient = async (exampleDirectory, options) => {
+  // A build id is random unless given, and compiled into the bundle: pinned
+  // from before the config reads it, the same source measures the same bytes (#490).
+  const buildId = process.env.FOLDKIT_BUILD_ID
+  process.env.FOLDKIT_BUILD_ID = MEASURED_BUILD_ID
+  try {
+    return await buildPinned(exampleDirectory, options)
+  } finally {
+    if (buildId === undefined) delete process.env.FOLDKIT_BUILD_ID
+    else process.env.FOLDKIT_BUILD_ID = buildId
   }
 }
 
@@ -416,6 +432,8 @@ export const reportFor = (client, exampleDir) => {
     total,
     rows,
     modules: modules.slice(0, 25),
+    /** Every module loaded at start, by name, however small: what a test asks is in it. */
+    included: modules.map(entry => entry.module),
     styleSystemBrotli: style,
   }
 }

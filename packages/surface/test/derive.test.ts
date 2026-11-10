@@ -66,6 +66,51 @@ describe('Projection.derive', () => {
     expect(lengths.read(three).length).toBe(3)
   })
 
+  describe('verify', () => {
+    /** The selected todo's title, naming the todos alone: it reads the selection too. */
+    const underNamed = (verify: boolean) =>
+      Projection.derive(
+        [App.model.todos],
+        (root: Model) => root.todos.find(todo => todo.id === root.selectedTodoId)?.title ?? '',
+        { verify },
+      )
+    const twoTodos: Model = {
+      todos: [
+        { id: 'a', title: 'A' },
+        { id: 'b', title: 'B' },
+      ],
+      selectedTodoId: 'a',
+    }
+    const otherSelected = { ...twoTodos, selectedTodoId: 'b' }
+
+    it('without it, a read `on` does not name shows what it read last', () => {
+      const selected = underNamed(false)
+      expect(selected.read(twoTodos)).toBe('A')
+      expect(selected.read(otherSelected)).toBe('A')
+    })
+
+    it('throws where the memo would show what it read last, naming what `on` reads', () => {
+      const selected = underNamed(true)
+      expect(selected.read(twoTodos)).toBe('A')
+      expect(() => selected.read(otherSelected)).toThrow(/nothing it names changed \(todos\)/)
+    })
+
+    it('hands back the memoized value where it agrees, working it out again to check', () => {
+      let runs = 0
+      const titles = Projection.derive(
+        [App.model.todos],
+        (root: Model) => {
+          runs++
+          return root.todos.map(todo => todo.title)
+        },
+        { verify: true },
+      )
+      const first = titles.read(model)
+      expect(titles.read({ ...model, selectedTodoId: 'b' })).toBe(first)
+      expect(runs).toBe(2)
+    })
+  })
+
   it('refuses to derive from nothing it names', () => {
     expect(() => Projection.derive([], () => 1)).toThrow(/names nothing it reads/)
   })

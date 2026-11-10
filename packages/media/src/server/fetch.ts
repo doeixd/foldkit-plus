@@ -1,6 +1,8 @@
 import { Layer } from 'effect'
 import type { Inspector } from '../describe.js'
 import * as Variant from '../variant.js'
+import { fileLayer, type FileOptions, type FileReadPolicy, type FileUploadPolicy } from './files.js'
+import type { FileStore } from './fileStore.js'
 import { fetchOf, layer, type Options } from './handlers.js'
 import type { Originals, Transformer, Variants } from './services.js'
 import { uploadLayer, type UploadOptions, type UploadPolicy, type Uploads } from './upload.js'
@@ -18,6 +20,12 @@ export interface FetchOptions<Env> {
   readonly uploads?: UploadOptions & {
     readonly layer: (env: Env) => Layer.Layer<Uploads | Inspector | UploadPolicy, unknown>
   }
+  /** `POST /_media/files` and `GET /_media/files/:key`: any file, kept and served back as a download. */
+  readonly files?: FileOptions & {
+    readonly layer: (
+      env: Env,
+    ) => Layer.Layer<FileStore | FileUploadPolicy | FileReadPolicy, unknown>
+  }
   /** Every path outside `/_image/` and `/_media/`: the application's own routes. A 404 when omitted. */
   readonly otherwise?: (request: Request, env: Env) => Promise<Response>
 }
@@ -28,26 +36,30 @@ export interface FetchOptions<Env> {
  * preflight, which the upload route never answers), or another path under
  * them is a 404, and everything else goes to `otherwise`. The services are
  * built from each environment's bindings once and kept; a layer that fails
- * to build answers a 500. When both layers give a `Diagnostics.Reporter`, a
- * defect answered 500 on either side is reported to the uploads layer's.
+ * to build answers a 500. When several layers give a `Diagnostics.Reporter`,
+ * a defect answered 500 on any side is reported to the last one's: uploads,
+ * then files, then images.
  */
 export const serveFetch = <Env extends object>(
   options: FetchOptions<Env>,
 ): ((request: Request, env: Env) => Promise<Response>) => {
-  const { images, uploads, otherwise } = options
-  if (images === undefined && uploads === undefined) {
-    throw new Error('serveFetch: give it `images`, `uploads`, or both')
+  const { images, uploads, files, otherwise } = options
+  if (images === undefined && uploads === undefined && files === undefined) {
+    throw new Error('serveFetch: give it `images`, `uploads`, `files`, or several')
   }
   // Merged, not provided: a `Diagnostics.Reporter` in a layer reaches what
   // runs around the routes too, the report of a defect answered 500. One
   // build, so a layer both sides name is made once and shared. A service
-  // both layers give reaches each side's routes from its own layer, and what
-  // runs around them from the uploads layer, merged last.
+  // several layers give reaches each side's routes from its own layer, and
+  // what runs around them from the layer merged last.
   const media = fetchOf<Env>(env =>
     Layer.mergeAll(
       images === undefined
         ? Layer.empty
         : layer({ ...images, coalesce: false }).pipe(Layer.provideMerge(images.layer(env))),
+      files === undefined
+        ? Layer.empty
+        : fileLayer(files).pipe(Layer.provideMerge(files.layer(env))),
       uploads === undefined
         ? Layer.empty
         : uploadLayer(uploads).pipe(Layer.provideMerge(uploads.layer(env))),

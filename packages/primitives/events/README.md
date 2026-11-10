@@ -69,6 +69,15 @@ turns it into a focus ring for keyboard users.
 key, cursor, scroll, or focus state it keeps. Lift one with
 `Subscription.persistentEntry`, mapping into the parent's Message:
 
+<!-- docs-check
+import { defineMessageUnion } from 'foldkit/message'
+interface EditorModel {
+  readonly text: string
+}
+const EditorMessage = defineMessageUnion({ SaveRequested: {} })
+type EditorMessage = typeof EditorMessage.Type
+-->
+
 ```ts
 import { Stream } from 'effect'
 import * as Subscription from 'foldkit/subscription'

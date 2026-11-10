@@ -5,8 +5,42 @@
  */
 const file = '../src/virtualList.ts'
 const unit = 'packages/mixins-ui/test/virtualList.test.ts'
+const browser = 'packages/mixins-ui/test/virtualList.browser.test.ts'
 
 export default [
+  {
+    name: 'every row is drawn: an overscan of everything',
+    edits: [
+      {
+        file,
+        find: '...(overscan === undefined ? {} : { overscan }),',
+        replace: '...{ overscan: 5000 },',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the rows are taken for a pixel tall each',
+    edits: [
+      {
+        file,
+        find: '  return options.itemToRowHeightPx === undefined\n    ? {}\n    : { itemToRowHeightPx: options.itemToRowHeightPx }',
+        replace: '  return { itemToRowHeightPx: () => 1 }',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the list is handed only its first fifty items',
+    edits: [
+      {
+        file,
+        find: '        items,\n        itemToKey,',
+        replace: '        items: items.slice(0, 50),\n        itemToKey,',
+      },
+    ],
+    tests: [browser],
+  },
   {
     name: 'a row is drawn outside its slot',
     edits: [

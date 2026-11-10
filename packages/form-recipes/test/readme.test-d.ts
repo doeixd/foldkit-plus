@@ -5,13 +5,14 @@ import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { FieldRecipes } from 'foldkit-form-recipes'
 import { renderers } from 'foldkit-form-recipes/html'
+import { file } from 'foldkit-form-recipes/file'
 import { image } from 'foldkit-form-recipes/image'
 import { renderers as uiRecipes } from 'foldkit-form-recipes/ui'
 import { Style } from 'foldkit-mixins'
 import * as UiForm from 'foldkit-mixins-form/ui'
 import { InputSlots, Recipes } from 'foldkit-mixins-ui'
 import { FormView } from 'foldkit-mixins-form'
-import { HashedAsset } from 'foldkit-media'
+import { FileAsset, HashedAsset } from 'foldkit-media'
 import { CalendarDate } from 'foldkit/calendar'
 
 const due = FieldRecipes.date()
@@ -53,6 +54,13 @@ const Post = Form.make('Post', Form.input(Schema.Struct({ cover: HashedAsset }))
 })
 const PostView = FormView.define(Post)
 void PostView
+
+// Any file, claimed by the application on save.
+const attachment = file({ id: 'attachment', accept: ['application/pdf'] })
+const Claim = Form.make('Claim', Form.input(Schema.Struct({ attachment: FileAsset })), {
+  inputs: { attachment: attachment.control },
+})
+void Claim
 
 // An image key names its drop zone: two keys sharing a default would share ids.
 // @ts-expect-error `id` is required

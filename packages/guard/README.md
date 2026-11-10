@@ -320,6 +320,19 @@ query). Here `todos` and `projects` are your Drizzle tables for `Todo` and
 `Project`; a fixture with a guarded `Project` too, run over SQLite, is
 [`test/drizzle.test.ts`](test/drizzle.test.ts):
 
+<!-- docs-check
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+const todos = sqliteTable('todos', {
+  id: text('id').primaryKey(),
+  ownerId: text('owner_id').notNull(),
+  projectId: text('project_id').notNull(),
+  title: text('title').notNull(),
+})
+const projects = sqliteTable('projects', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+})
+-->
 ```ts
 import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import { bind, source } from 'foldkit-remote-drizzle'
@@ -363,6 +376,8 @@ inside a read whose requirements are the Source's. Provide the services once,
 at startup; what changes with each request belongs in the principal:
 
 ```ts
+import { Context } from 'effect'
+
 class Memberships extends Context.Service<
   Memberships,
   { readonly admins: ReadonlyArray<string> }
@@ -462,6 +477,13 @@ RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
   writer is made. A relation declared `authorizedBy: 'parent'` lets whoever
   may delete the post take those rows unjudged, which is a choice the domain
   states: a post's author removing everyone's likes of it.
+- A delete that clears links (`Relation.one(Folder, { optional: true,
+  onDelete: 'setNull' })`) unlinks no row its deleter may not unlink. Each
+  row it would clear is held to what an update unlinking it would be: its
+  `Update` rule and the relation's `Unlink` rule, judged in the statement
+  that deletes. One refused, and nothing changes: "It would clear the link
+  of a Doc you may not change", with its `explain`, naming no row. The
+  Entity goes in `children` as a cascade's does.
 
 Reading the row and writing it are two statements, so another write can land
 between the check and the write. Name a revision, a field stored as a number
@@ -686,6 +708,10 @@ Authentication decides who is asking; guards only read it. Give the handlers
 `G.Principal` instead of a principal, and each call reads it, so one handler
 set answers every request, and whatever authenticates a request provides it:
 
+<!-- docs-check
+declare const body: unknown
+declare const principal: Option.Option<typeof User.Type>
+-->
 ```ts
 const handlers = RemoteServer.handlers(backend.server, G.Principal)
 
@@ -699,8 +725,10 @@ requests by one person each decode a principal of their own, so give the hub
 set, a bigint, a date included; a visitor too), and they share one:
 
 ```ts
-const hub = yield* RemoteServer.liveHub([...backend.server.entities.values()], {
-  key: Policy.keyOf,
+const hub = Effect.gen(function* () {
+  return yield* RemoteServer.liveHub([...backend.server.entities.values()], {
+    key: Policy.keyOf,
+  })
 })
 ```
 
@@ -721,6 +749,10 @@ derived member, `may`, which `GuardServer.filter` answers from the row as its
 reader sees it. `Todo` above is piped through it after its guards, and over
 Drizzle its binding marks it `supplied`, since it is not a column.
 
+<!-- docs-check
+import type { Selected } from 'foldkit-entity'
+declare const row: Selected<typeof Row>
+-->
 ```ts
 import { May } from 'foldkit-guard'
 
@@ -873,6 +905,15 @@ journal instead of a mutation, so it answers to the same rules.
 `foldkit-guard/sync` checks it in two halves, by where each can run, and
 keeps a document's edits from reaching anyone the rows would hide them from:
 
+<!-- docs-check
+import type { CellChange } from 'foldkit-guard/sync'
+import type { Operation, Sync } from 'foldkit-sync'
+import type { JournalExchangeOptions } from 'foldkit-sync/journal'
+declare const sync: Sync<unknown, unknown>
+declare const journal: JournalExchangeOptions<unknown, unknown, typeof principal>['journal']
+declare const changesOf: (operation: Operation) => ReadonlyArray<CellChange>
+declare const db: unknown
+-->
 ```ts
 import { GuardSync } from 'foldkit-guard/sync'
 import { databaseLayer } from 'foldkit-remote-drizzle'
@@ -937,6 +978,15 @@ An agent should not be offered, or attempt, what the server would refuse.
 `foldkit-guard/agent` reads `may` from the row the Model holds, for a
 `foldkit-agent` capability's `authorize` and `available`:
 
+<!-- docs-check
+import { defineMessageUnion } from 'foldkit/message'
+import { Surface } from 'foldkit-surface'
+const Message = defineMessageUnion({ RequestedArchive: { id: Schema.String } })
+const App = Surface.application({
+  Model: Schema.Struct({ remote: Remote.Model, selected: Schema.String }),
+  Message,
+})
+-->
 ```ts
 import { Agent } from 'foldkit-agent'
 import { GuardAgent } from 'foldkit-guard/agent'
@@ -975,6 +1025,11 @@ before reading a byte: may this request upload (`Upload`), or have an image
 named by URL described (`DescribeUrl`)? `foldkit-guard/media` answers it with
 principal guards, for who your resolver says is asking:
 
+<!-- docs-check
+import type { Inspector } from 'foldkit-media'
+declare const resolve: (request: Request) => Effect.Effect<Option.Option<typeof User.Type>, unknown>
+declare const inspector: Layer.Layer<Inspector>
+-->
 ```ts
 import { Layer } from 'effect'
 import { uploadLayer, uploadsKeyValueStore } from 'foldkit-media/server'

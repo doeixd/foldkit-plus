@@ -92,9 +92,9 @@ export default [
     edits: [
       {
         file: impact,
-        find: '  if (over !== change.entity) return kept\n',
+        find: '  if (body.entity.name !== change.entity) return kept\n',
         replace:
-          "  if (body !== undefined && readsThrough(body, change)) return Impact.Invalidated({ reason: 'through' })\n  if (over !== change.entity) return kept\n",
+          "  if (readsThrough(body, change)) return Impact.Invalidated({ reason: 'through' })\n  if (body.entity.name !== change.entity) return kept\n",
       },
     ],
     tests,
@@ -120,8 +120,8 @@ export default [
     edits: [
       {
         file: bodies,
-        find: '        whole,\n      })\n      invalidated.push(identity)',
-        replace: '        whole,\n      })',
+        find: '        whole,\n      })\n      invalidated.set(',
+        replace: '        whole,\n      })\n      new Map<string, string>().set(',
       },
     ],
     tests,

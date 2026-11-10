@@ -100,6 +100,16 @@ DevTools, an agent, and a server render all see it.
 **An entry**, lifted into your Subscriptions and mapped to your Message. The
 parent keeps whatever it wants of the stream:
 
+<!-- docs-check
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+interface GameModel {
+  readonly playing: boolean
+}
+const GameMessage = defineMessageUnion({ PressedKey: { key: Schema.String } })
+type GameMessage = typeof GameMessage.Type
+-->
+
 ```ts
 import { Stream } from 'effect'
 import * as Subscription from 'foldkit/subscription'
@@ -118,6 +128,17 @@ const subscriptions = Subscription.make<GameModel, GameMessage>()(() => ({
 **A Mount**, attached to the element it observes. No ref to thread: the Mount
 receives its element.
 
+<!-- docs-check
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+interface PanelModel {
+  readonly width: number
+  readonly height: number
+}
+const PanelMessage = defineMessageUnion({ Resized: {} })
+type PanelMessage = typeof PanelMessage.Type
+-->
+
 ```ts
 import { Resize } from 'foldkit-primitives/observers'
 
@@ -127,6 +148,17 @@ const panel = (model: PanelModel, h: HtmlBuilder<PanelMessage>) =>
 
 **A Command**, returned from `update`, whose result comes back as a Message
 your union wraps:
+
+<!-- docs-check
+import type * as Update from 'foldkit/update'
+import { ClipboardMessage } from 'foldkit-primitives/dom'
+import { defineMessageUnion } from 'foldkit/message'
+interface NoteModel {
+  readonly text: string
+}
+const NoteMessage = defineMessageUnion({ Clipboard: { message: ClipboardMessage } })
+type NoteMessage = typeof NoteMessage.Type
+-->
 
 ```ts
 import { mapMessage } from 'foldkit/command'

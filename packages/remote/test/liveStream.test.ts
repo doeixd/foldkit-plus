@@ -144,7 +144,7 @@ describe('Remote live subscription', () => {
       ),
     )
     expect([...messages]).toEqual([
-      { _tag: 'LiveReceived', stream: expect.any(String), event: patched, now: 42 },
+      { _tag: 'LiveReceived', stream: expect.any(String), event: patched, now: 42, generation: 0 },
     ])
   })
 

@@ -10,7 +10,7 @@ import { RemoteClient, remoteError } from './client.js'
 import type { LiveOptions } from './index.js'
 import type { ConnectionSpec } from './query.js'
 import { installLayers } from './layers.js'
-import { applyConnectionEvent, applyEntityEvent } from './liveEvents.js'
+import { applyConnectionEvent, applyEntityEvent, awaitEchoes } from './liveEvents.js'
 import { liveStreamKey } from './liveState.js'
 import { belongsEncoded } from './matching.js'
 import { entityKey } from './store.js'
@@ -71,7 +71,7 @@ const policy: LiveCapability['policy'] = (lists, visible, event, context) => {
 }
 
 const stream: LiveCapability['stream'] = (
-  { requirements, queries, cursor, restarts, failures },
+  { requirements, queries, cursor, floor, restarts, failures },
   toMessage,
   options,
 ) => {
@@ -88,6 +88,7 @@ const stream: LiveCapability['stream'] = (
         stream: key,
         event,
         now: (options.now ?? wallClock)(),
+        generation: floor,
       }),
     ),
     Stream.catchIf(
@@ -105,6 +106,7 @@ const stream: LiveCapability['stream'] = (
             requests: requirements,
             error: remoteError(error),
             stream: key,
+            generation: floor,
           }),
         ),
     ),
@@ -130,6 +132,7 @@ const stream: LiveCapability['stream'] = (
 export const liveReads: LiveCapability = {
   applyEntity: applyEntityEvent,
   applyConnection: applyConnectionEvent,
+  awaitEchoes,
   policy,
   stream,
 }

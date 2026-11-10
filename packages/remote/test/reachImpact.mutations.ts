@@ -23,7 +23,7 @@ export default [
   ),
   edit(
     'a change to the link a path starts from is not judged',
-    'fields.some(field => reached?.own.has(field) === true)',
+    'fields.some(field => reached.own.has(field))',
     'false',
   ),
   edit(

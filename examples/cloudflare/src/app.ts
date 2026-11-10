@@ -7,7 +7,7 @@
  *
  * Sync still owns the Durable Object journal. This page does not speak it.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Match, Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
@@ -129,22 +129,23 @@ const routeRemote = (model: Model, message: Message) => {
   if (route === undefined) return Option.none()
   const reduced = route(model, message)
   if (Option.isNone(reduced)) return reduced
-  switch (message._tag) {
-    case 'MutationSucceeded':
-      return Option.some({
-        ...reduced.value,
-        model: modifyFields(reduced.value.model, { notice: () => Option.none() }),
-      })
-    case 'MutationFailed':
-      return Option.some({
-        ...reduced.value,
-        model: modifyFields(reduced.value.model, {
-          notice: () => Option.some(message.error.message),
+  return Match.value(message).pipe(
+    Match.tags({
+      MutationSucceeded: () =>
+        Option.some({
+          ...reduced.value,
+          model: modifyFields(reduced.value.model, { notice: () => Option.none() }),
         }),
-      })
-    default:
-      return reduced
-  }
+      MutationFailed: ({ error }) =>
+        Option.some({
+          ...reduced.value,
+          model: modifyFields(reduced.value.model, {
+            notice: () => Option.some(error.message),
+          }),
+        }),
+    }),
+    Match.orElse(() => reduced),
+  )
 }
 
 const Page = Base.pipe(
@@ -252,7 +253,7 @@ export const update = Rename.after(
           ),
         }
       }
-      default:
+      case 'CompletedFocusTodos':
         return { model }
     }
   }),

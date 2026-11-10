@@ -4,10 +4,12 @@
  * browser build and gives the server entry its address.
  */
 import { fileURLToPath } from 'node:url'
-import { build } from 'vite'
+import { createServer as createHttpServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
+import { build, createServer, defaultServerConditions } from 'vite'
 import type { Rollup } from 'vite'
 import { Style } from 'foldkit-mixins'
-import { styles } from 'foldkit-mixins/vite'
+import { styles, type StylesOptions } from 'foldkit-mixins/vite'
 import { describe, expect, it } from 'vitest'
 import { Look, stylesheet } from './fixtures/viteStyles/sheet.js'
 import { OUTSIDE_GLOBAL, Outside } from './fixtures/viteStyles/outside.js'
@@ -18,6 +20,7 @@ const mixins = fileURLToPath(new URL('../src/index.ts', import.meta.url))
 const built = async (
   base = '/',
   sheet = '/sheet.ts',
+  prune?: StylesOptions['prune'],
 ): Promise<ReadonlyArray<Rollup.OutputChunk | Rollup.OutputAsset>> => {
   const result = await build({
     root,
@@ -25,7 +28,7 @@ const built = async (
     configFile: false,
     logLevel: 'silent',
     resolve: { alias: { 'foldkit-mixins': mixins } },
-    plugins: [styles({ sheet })],
+    plugins: [styles({ sheet, prune })],
     build: { write: false, rollupOptions: { input: `${root}entry.ts` } },
   })
   return [result].flat().flatMap(output => ('output' in output ? output.output : []))
@@ -68,6 +71,42 @@ describe('foldkit-mixins/vite', () => {
     const [asset] = cssOf(output)
     const entry = output.find(file => file.type === 'chunk' && file.isEntry)
     expect(entry?.type === 'chunk' ? entry.code : '').toContain(`/app/${asset?.fileName}`)
+  })
+
+  it.each([
+    ['every token without prune', undefined, true],
+    ['only the tokens the sheet reads with prune', {}, false],
+    ['a token prune is told to keep', { keep: ['--fk-unread'] }, true],
+  ])('writes %s', async (_, prune, unread) => {
+    const [asset] = cssOf(await built('/', '/tokens.ts', prune))
+    const source = asset?.type === 'asset' ? String(asset.source) : ''
+    expect(source).toContain('--fk-read:1px')
+    expect(source.includes('--fk-unread')).toBe(unread)
+  })
+
+  it('serves the same pruned sheet in dev', async () => {
+    const vite = await createServer({
+      root,
+      configFile: false,
+      logLevel: 'silent',
+      resolve: { alias: { 'foldkit-mixins': mixins } },
+      // The sheet loads through `foldkit-mixins` into the other workspace
+      // packages; their source, since CI builds no `dist` to resolve to.
+      ssr: { resolve: { conditions: ['foldkit-plus:source', ...defaultServerConditions] } },
+      plugins: [styles({ sheet: '/tokens.ts', prune: {} })],
+      server: { middlewareMode: true, ws: false },
+    })
+    const http = createHttpServer(vite.middlewares)
+    try {
+      await new Promise<void>(listening => http.listen(0, '127.0.0.1', listening))
+      const { port } = http.address() as AddressInfo
+      const css = await (await fetch(`http://127.0.0.1:${port}/__foldkit-styles.css`)).text()
+      expect(css).toContain('--fk-read:1px')
+      expect(css).not.toContain('--fk-unread')
+    } finally {
+      http.close()
+      await vite.close()
+    }
   })
 
   it('writes the sheet completed with the classes its modules compiled', async () => {

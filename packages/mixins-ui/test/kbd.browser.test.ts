@@ -10,6 +10,7 @@ import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { Kbd, KbdSlots, Recipes } from '../src/index.js'
+import { inkOffsetOf } from './ink.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(KbdSlots)(Recipes.Kbd({}))
@@ -20,7 +21,7 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const mount = () => {
+const mount = (words: ReadonlyArray<string> = ['iiii', 'WWWW']) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -43,7 +44,7 @@ const mount = () => {
         h.div(
           [],
           [
-            ...['iiii', 'WWWW'].map(key => h.div([], [Kbd.view({ key, style }, h)])),
+            ...words.map(key => h.div([], [Kbd.view({ key, style }, h)])),
             h.span([h.Id('lit'), h.Style({ color: 'var(--fk-surface-base)' })], []),
           ],
         ),
@@ -75,6 +76,24 @@ test('a keycap has a heavier lower edge and a lit top inside it', async () => {
     // The first inset shadow is the lit top, in the page's base.
     const lit = getComputedStyle(document.querySelector('#lit')!).color
     expect(key.boxShadow.startsWith(`${lit} 0px 1px 0px 0px inset`), key.boxShadow).toBe(true)
+  } finally {
+    handle.dispose()
+  }
+})
+
+// The ink is dark on the keycap's light face. Measured on a screenshot of
+// each key, a capital K sat 0.0px across and 0.5px high, and a command sign
+// 0.5px left and 0.5px high: a half pixel is what a screenshot's whole pixels
+// resolve, so the bound is a pixel, under which the old untrimmed line (a
+// pixel high) falls out. The key's borders lie outside the 15% margin the
+// reading leaves out.
+test.each(['K', '\u2318'])("a key's ink is centered on its face: %s", async glyph => {
+  const handle = mount([glyph])
+  try {
+    await vi.waitFor(() => expect(keys()).toHaveLength(1))
+    const { x, y } = await inkOffsetOf(keys()[0]!, brightness => brightness < 128)
+    expect(Math.abs(x)).toBeLessThan(1)
+    expect(Math.abs(y)).toBeLessThan(1)
   } finally {
     handle.dispose()
   }

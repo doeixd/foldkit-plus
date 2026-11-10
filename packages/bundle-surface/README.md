@@ -80,15 +80,37 @@ its path.
 
 ## Reading a placement: projections and Mirrors
 
-A placement's state is part of the parent Model, so its fields are already in
+A placement's state is part of the parent Model, so its slice is already a ref in
 the application's ref tree. Observing one needs no bundle API:
-`App.model.search.query`, `ModelRef.focus(App.model.search).select(projection)`.
+`App.model.search`, `ModelRef.focus(App.model.search).select(projection)`.
+The tree reaches the slice's own fields (`App.model.search.query`) only where
+the Model declares the slice as a Struct, as a `Link.wrapper` over one does; a
+field from `Bundle.declare` carries the bundle's Model as a codec, and the tree
+stops at the slice.
 
-For an application with `search` and `filter` placements, the following
+For an application whose `search` and `filter` slices are Structs, the following
 integration fragment gives each mirror its own keys. Import `Mirror` from
 `foldkit-mirror`; the first example above defines only `search`:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Link } from 'foldkit-bundle'
+import { Surface } from 'foldkit-surface'
+const SearchModel = Schema.Struct({ query: Schema.String })
+const SearchMessage = defineMessageUnion({ Typed: { query: Schema.String } })
+const GotSearchMessage = Link.wrapper('GotSearchMessage', SearchMessage)
+const GotFilterMessage = Link.wrapper('GotFilterMessage', SearchMessage)
+const Model = Schema.Struct({ search: SearchModel, filter: SearchModel })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...GotSearchMessage.cases, ...GotFilterMessage.cases })
+const initial: Model = { search: { query: '' }, filter: { query: '' } }
+const App = Surface.application({ Model, Message, initial, update: model => ({ model }) })
+-->
+
 ```ts
+import { Mirror } from 'foldkit-mirror'
+
 const SearchUrl = Mirror.url(App, {
   name: 'search',
   fields: [App.model.search.query],

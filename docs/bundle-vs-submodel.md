@@ -237,15 +237,15 @@ const Page = Bundle.compose({}).pipe(
   Bundle.withChild('work', Timer),
   Bundle.withChild('rest', Timer),
 )
-type Model = typeof Page.Model.Type
-type Message = typeof Page.Message.Type
+type PageModel = typeof Page.Model.Type
+type PageMessage = typeof Page.Message.Type
 const { children, placements } = Page
 
 const config = placements.complete({
   init: () => placements.initial({}),
   update: placements.update(),
   subscriptions: placements.subscriptions(),
-  view: (model: Model, h: HtmlBuilder<Message>) =>
+  view: (model: PageModel, h: HtmlBuilder<PageMessage>) =>
     h.div([], [children.work.view(model, h), children.rest.view(model, h)]),
 })
 ```

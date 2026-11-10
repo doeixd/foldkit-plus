@@ -79,6 +79,7 @@ const notes = (
   outcome: 'deleted' | 'absent',
   seen: (principal: string) => boolean,
   former = project,
+  cleared: ReadonlyArray<{ readonly entity: string; readonly id: string }> = [],
 ): EntityWriter<string> => {
   const links = {
     project: `Project:${project}`,
@@ -92,7 +93,9 @@ const notes = (
     insert: () => Effect.die('no inserts'),
     delete: () =>
       Effect.succeed(
-        outcome === 'deleted' ? DeleteOutcome.Deleted({ cascaded: [] }) : DeleteOutcome.Absent(),
+        outcome === 'deleted'
+          ? DeleteOutcome.Deleted({ cascaded: [], cleared })
+          : DeleteOutcome.Absent(),
       ),
     linked: () => Effect.succeed(Option.some(links)),
     read: ({ principal }) =>
@@ -141,6 +144,16 @@ describe('a declared delete’s answer', () => {
       { entity: 'Project', id: 'p2', values: { name: 'Open p2' } },
       { entity: 'User', id: 'u-reviewer', values: { id: 'u-reviewer' } },
     ])
+  })
+
+  it('reads each row whose link to it was cleared, as the asker shows it (#467)', async () => {
+    const cleared = [{ entity: 'User', id: 'u-cleared' }]
+    const answer = await remove(notes('p1', 'deleted', everyone, 'p1', cleared), 'ada', [], ['id'])
+    expect(answer.read?.result.entities).toContainEqual({
+      entity: 'User',
+      id: 'u-cleared',
+      values: { id: 'u-cleared' },
+    })
   })
 
   it('names nothing for a delete that deleted nothing', async () => {

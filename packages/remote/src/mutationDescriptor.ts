@@ -48,6 +48,15 @@ const invalid = Schema.TaggedStruct('Invalid', {
   message: Schema.String,
   path: Schema.Array(Schema.String),
 })
+/**
+ * A delete refused because rows still point at the row through a relation
+ * declared `onDelete: 'restrict'` (#467): that relation's Entity and key, and
+ * nothing of the rows, which may be hidden from whoever asked.
+ */
+const referenced = Schema.TaggedStruct('Referenced', {
+  entity: Schema.String,
+  relation: Schema.String,
+})
 const conflictOrInvalid = Schema.Union([conflict, invalid])
 const conflictUnmetOrInvalid = Schema.Union([conflict, unmet, invalid])
 const takenOrInvalid = Schema.Union([taken, invalid])
@@ -58,7 +67,7 @@ const refusalOfWrite = (write: AnyWrite) => {
     Match.tagsExhaustive({
       Insert: (): Schema.Top => takenOrInvalid,
       Update: moved,
-      Delete: moved,
+      Delete: (): Schema.Top => Schema.Union([...moved().members, referenced]),
     }),
   )
 }
@@ -77,6 +86,8 @@ export const Refusal = {
   taken,
   /** The row the write would leave breaks an invariant of its Entity. */
   invalid,
+  /** A delete of a row that rows still point at through a relation that restricts it. */
+  referenced,
   /** Whether a refusal, of whatever mutation, is a `Refusal.field`. */
   isField: Schema.is(anyField),
   /** Whether a refusal, of whatever mutation, is `Refusal.conflict`. */
@@ -87,6 +98,8 @@ export const Refusal = {
   isTaken: Schema.is(taken),
   /** Whether a refusal, of whatever mutation, is `Refusal.invalid`. */
   isInvalid: Schema.is(invalid),
+  /** Whether a refusal, of whatever mutation, is `Refusal.referenced`. */
+  isReferenced: Schema.is(referenced),
   /**
    * Whether a refusal is `Refusal.invalid` naming this invariant, by its
    * Entity and its id: the declaration `Entity.invariant` returned, once
@@ -103,9 +116,10 @@ type KindOf<W> = W extends { readonly _tag: infer Kind extends WriteKind } ? Kin
 
 /**
  * What a declared write may be refused with: an insert as taken, an update or
- * a delete as a conflict (unmet too, when it has a `when`), and every one as
- * invalid, since the server's Entity may hold invariants the client's does
- * not show. A write whose kind its type leaves open may be refused as any.
+ * a delete as a conflict (unmet too, when it has a `when`), a delete as
+ * referenced, and every one as invalid, since the server's Entity may hold
+ * invariants, and restrictions, the client's does not show. A write whose kind
+ * its type leaves open may be refused as any.
  */
 export type RefusalOfWrite<W> =
   | ('Insert' extends KindOf<W> ? typeof taken.Type : never)
@@ -114,6 +128,7 @@ export type RefusalOfWrite<W> =
       : W extends ConditionedWrite<any, any>
         ? typeof conflict.Type | typeof unmet.Type
         : typeof conflict.Type)
+  | ('Delete' extends KindOf<W> ? typeof referenced.Type : never)
   | typeof invalid.Type
 
 export const Mutation = {
@@ -129,7 +144,9 @@ export const Mutation = {
    * patch, or its deletion. An insert may be refused as taken, when a row
    * already holds its id; an update or a delete as a conflict, when it
    * `expect`s a revision the row has moved past, and as unmet, when it has a
-   * `when`; and any as invalid, when the row it would leave breaks an invariant.
+   * `when`; a delete as referenced, while rows point at the row through a
+   * relation that restricts it; and any as invalid, when the row it would
+   * leave breaks an invariant.
    */
   write: <
     const Name extends string,

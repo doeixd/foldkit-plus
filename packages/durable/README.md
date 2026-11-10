@@ -68,6 +68,18 @@ package, and Node 22 is required for `node:sqlite`.
 `SqlClient` it runs over, with no `file`. `@effect/sql-sqlite-wasm` gives
 SQLite compiled to WebAssembly:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { type JournalStoreOptions } from 'foldkit-durable/core'
+
+const Operation = Schema.Struct({ opId: Schema.String, title: Schema.String })
+const Snapshot = Schema.Struct({ todos: Schema.Array(Schema.String) })
+type Operation = typeof Operation.Type
+type Snapshot = typeof Snapshot.Type
+type Principal = { readonly actorId: string }
+declare const options: JournalStoreOptions<Operation, Snapshot, Principal>
+-->
+
 ```ts
 import * as WasmClient from '@effect/sql-sqlite-wasm/SqliteClient'
 import { Effect, Layer } from 'effect'
@@ -103,10 +115,25 @@ If the journal backs a Sync contract, do not restate the shared schema or the
 reducer. The contract already knows the slice, the durable Messages, the
 initial value, and how they replay through `update`:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { DocumentId as SyncDocumentId, Sync } from 'foldkit-sync'
+
+const TodoSync = Sync.define({
+  documentId: SyncDocumentId.make('todos'),
+  message: Schema.Struct({ _tag: Schema.Literal('Renamed'), title: Schema.String }),
+  shared: Schema.Struct({ titles: Schema.Array(Schema.String) }),
+  empty: { titles: [] },
+  durable: () => true,
+  replay: shared => shared,
+})
+-->
+
 ```ts
 import { Effect } from 'effect'
 import { ActorId, DocumentId, Journal, OpId } from 'foldkit-durable'
-import { TodoSync } from './sync.js'
+
+// `TodoSync` is the application's Sync contract (see docs/replication.md).
 
 type Principal = { readonly actorId: string }
 
@@ -153,12 +180,14 @@ shows that handler whole; the rest of this README explains each call.
 Without Sync, a Journal needs an operation codec, a snapshot codec, an empty
 snapshot, and a pure reducer:
 
-```ts
+```ts standalone
 import { Effect, Schema } from 'effect'
 import { ActorId, Cursor, DocumentId, Journal, OpId } from 'foldkit-durable'
 
 const Operation = Schema.Struct({ opId: Schema.String, title: Schema.String })
 const Snapshot = Schema.Struct({ todos: Schema.Array(Schema.String) })
+type Operation = typeof Operation.Type
+type Snapshot = typeof Snapshot.Type
 type Principal = { readonly actorId: string }
 
 const program = Effect.gen(function* () {
@@ -206,6 +235,8 @@ operation. The guarantee lasts as long as the identity row does; see
 **A commit stamp** writes what only the commit decides into the operation:
 
 ```ts
+import { type JournalOptions } from 'foldkit-durable'
+
 type Edit = Operation & { readonly at?: number }
 const stamping: Pick<JournalOptions<Edit, Snapshot, Principal>, 'stamp'> = {
   stamp: (operation, { sequence }) => ({ ...operation, at: sequence }),
@@ -290,9 +321,17 @@ refused.
 
 ## Reading history
 
+<!-- docs-check
+declare const journal: Journal<Operation, Snapshot, Principal>
+declare const key: DocumentId
+-->
+
 ```ts
-const { snapshot, cursor } = yield* journal.load(key) // the state, and where it is
-const later = yield* journal.read(key, cursor, { limit: 500 }) // what came after
+const history = Effect.gen(function* () {
+  const { snapshot, cursor } = yield* journal.load(key) // the state, and where it is
+  const later = yield* journal.read(key, cursor, { limit: 500 }) // what came after
+  return { snapshot, later }
+})
 ```
 
 `read` returns at most `limit` operations, so a server answers a far-behind
@@ -355,6 +394,17 @@ record.
 
 **Choose the key before acting**, from the document, the operation, and the
 semantic action, and hand the same key to the provider as its idempotency key:
+
+<!-- docs-check
+import { Option } from 'effect'
+
+type Order = { readonly opId: string; readonly id: string }
+type OrderSnapshot = { readonly confirmed: ReadonlyArray<string> }
+type Orders = Journal<Order, OrderSnapshot, Principal>
+declare const provider: {
+  sendConfirmation: (input: { orderId: string; idempotencyKey?: string }) => Promise<void>
+}
+-->
 
 ```ts
 const confirmationKey = (order: Order) =>
@@ -435,6 +485,10 @@ operation whose base cursor predates the floor.
 **As a service.** `Journal.define<Operation, Snapshot, Principal>('app/TodoJournal')`
 fixes the key and the type parameters together and returns `tag` and `layer`:
 
+<!-- docs-check
+declare const options: JournalOptions<Operation, Snapshot, Principal>
+-->
+
 ```ts
 const TodoJournal = Journal.define<Operation, Snapshot, Principal>('app/TodoJournal')
 
@@ -472,15 +526,40 @@ operation, snapshot, and effect payloads are not migrated.
 D1 speaks SQLite but refuses transactions, `PRAGMA user_version`, and
 `VACUUM`, so the journal adapts when the options say `d1: true`:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import type { D1Database } from '@cloudflare/workers-types'
+import { DocumentId as SyncDocumentId, Sync } from 'foldkit-sync'
+
+const TodoSync = Sync.define({
+  documentId: SyncDocumentId.make('todos'),
+  message: Schema.Struct({ _tag: Schema.Literal('Renamed'), title: Schema.String }),
+  shared: Schema.Struct({ titles: Schema.Array(Schema.String) }),
+  empty: { titles: [] },
+  durable: () => true,
+  replay: shared => shared,
+})
+type Contract = ReturnType<typeof TodoSync.journalContract>
+type Operation = Parameters<Contract['reduce']>[1]
+type Snapshot = ReturnType<Contract['empty']>
+type Principal = { readonly actorId: string }
+declare const env: { readonly DB: D1Database }
+-->
+
 ```ts
 import * as D1Client from '@effect/sql-d1/D1Client'
 import { Layer } from 'effect'
-import { Journal } from 'foldkit-durable/core'
+import { ActorId, Journal, OpId } from 'foldkit-durable/core'
 
 // `TodoSync` is the Sync contract from Sixty seconds, with `foldkit-sync`
 // above; `env.DB` is the Worker's D1 binding.
 const Todos = Journal.define<Operation, Snapshot, Principal>('app/Todos')
-const live = Todos.layer({ ...TodoSync.journalContract(), d1: true }).pipe(
+const live = Todos.layer({
+  ...TodoSync.journalContract(),
+  opId: operation => OpId.make(operation.opId),
+  actorId: (principal: Principal) => ActorId.make(principal.actorId),
+  d1: true,
+}).pipe(
   Layer.provide(D1Client.layer({ db: env.DB })),
 )
 ```

@@ -2594,8 +2594,13 @@ const checkOwnership = (
   for (const term of nodes) {
     for (const field of fieldsIn(term, seen)) {
       if (field.owner.token !== entity.identity.token) {
+        // The type compares names, so a namesake reaches here unrefused (#479).
+        const namesake =
+          field.owner.name === entity.name
+            ? `: the field belongs to another Entity defined with that name, and two definitions are two Entities`
+            : ''
         throw new Error(
-          `[foldkit-entity] Query.${step}: ${what} reads ${field.owner.name}.${field.key}, but the query is from ${entity.name}`,
+          `[foldkit-entity] Query.${step}: ${what} reads ${field.owner.name}.${field.key}, but the query is from ${entity.name}${namesake}`,
         )
       }
     }

@@ -58,6 +58,17 @@ game's phase and score), a second flag would be a second owner of that fact.
 `ticks` is the entry for that case: `intervalMs` reads the interval from the
 Model, `None` while stopped, and `onTick` makes the parent's Message:
 
+<!-- docs-check
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+interface Game {
+  readonly playing: boolean
+  readonly points: number
+}
+const GameMessage = defineMessageUnion({ TickedClock: {} })
+type GameMessage = typeof GameMessage.Type
+-->
+
 ```ts
 import { Option } from 'effect'
 import * as Subscription from 'foldkit/subscription'
@@ -85,6 +96,11 @@ which crashes the runtime naming the mistake.
 restarts a `delayMs` timer, and only the latest value settles, as an
 OutMessage the placement must handle with `onOut`, so a settled search query
 can never be dropped by omission:
+
+<!-- docs-check
+import type { Command } from 'foldkit/command'
+declare const search: (query: string) => Command<SearchMessage>
+-->
 
 ```ts
 import type * as Update from 'foldkit/update'

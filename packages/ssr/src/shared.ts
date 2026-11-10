@@ -44,6 +44,15 @@ export const PROTOCOL = 1
  */
 export const STYLES_MARKER = 'foldkit-plus-styles'
 
+/**
+ * The comments a dynamically served page's head markup (a plan's `meta`)
+ * sits between in the stamped root, until the host's `SSR.headed` moves it
+ * before `</head>`. Left in the body, `SSR.hydrate` removes it and reports
+ * `HeadNotMoved`.
+ */
+export const HEAD_MARKER = 'foldkit-plus-head'
+export const HEAD_END_MARKER = '/foldkit-plus-head'
+
 const LINE_SEPARATOR = String.fromCharCode(0x2028)
 const PARAGRAPH_SEPARATOR = String.fromCharCode(0x2029)
 

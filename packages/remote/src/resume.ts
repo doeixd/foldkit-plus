@@ -32,6 +32,8 @@ const CapturedEntry = Schema.Struct({
   windows: Schema.Record(Schema.String, Schema.String),
   tombstone: Schema.Boolean,
   updatedAt: Schema.Number,
+  /** Absent from a capture an older server wrote: read as `updatedAt`. */
+  oldestAt: Schema.optional(Schema.Number),
 })
 
 const CapturedBoundary = Schema.Union([
@@ -82,6 +84,7 @@ type MutableEntry = {
   windows: Record<string, string>
   tombstone: boolean
   updatedAt: number
+  oldestAt: number
 }
 
 /** What some projections read, from their metadata. */
@@ -132,6 +135,7 @@ export const captureRemote = (
       windows: {},
       tombstone: stored.tombstone,
       updatedAt: stored.updatedAt,
+      oldestAt: stored.oldestAt,
     }
     entries.set(key, entry)
     for (const field of requirement.fields) {
@@ -182,6 +186,7 @@ export const captureRemote = (
           windows: entry.windows,
           tombstone: entry.tombstone,
           updatedAt: entry.updatedAt,
+          oldestAt: entry.oldestAt,
         },
       ]),
     ),
@@ -225,6 +230,7 @@ export const restoreRemote = <Store extends RemoteModel>(
           windows: entry.windows,
           tombstone: entry.tombstone,
           updatedAt: entry.updatedAt,
+          oldestAt: entry.oldestAt ?? entry.updatedAt,
         } satisfies EntityEntry,
       ]),
     ),

@@ -303,7 +303,7 @@ wants. `defineDocumentHost` from `foldkit-sync/do` defines that class: each
 accepted socket exchanges against the same journal through `serveJournal`,
 and the replica side is the socket transport it already speaks:
 
-```ts
+```ts sketch
 import { DurableObject } from 'cloudflare:workers'
 import { defineDocumentHost } from 'foldkit-sync/do'
 
@@ -315,7 +315,7 @@ export class SyncHost extends defineDocumentHost(DurableObject, {
 }) {}
 ```
 
-```ts
+```ts sketch
 // The worker: one object per document.
 export default {
   fetch: (request: Request, env: Env): Promise<Response> =>
@@ -420,7 +420,7 @@ error names why: `ReplayError` for a Message that cannot be durable,
 **Committed** is the replica's status:
 
 ```ts
-const status = yield* replica.status
+const status = Effect.runSync(replica.status)
 // { pending: number, cursor: Sequence, lastError: string | undefined, rejected: ReadonlyArray<Rejection> }
 ```
 
@@ -452,10 +452,14 @@ tool for instance, waits on `mounted.committed`: the shared slice as the server
 confirmed it, with no pending edit applied. It is a source, `{ get, subscribe }`,
 told after every exchange:
 
+<!-- docs-check
+import { Agent } from 'foldkit-agent'
+-->
 ```ts
-completion: Agent.when({
+const completion = Agent.when({
   source: mounted.committed,
-  predicate: (shared, request) => shared.todos.some(todo => todo.id === request.id),
+  predicate: (shared, request: { readonly id: string }) =>
+    shared.todos.some(todo => todo.id === request.id),
 })
 ```
 
@@ -469,6 +473,27 @@ server rejects.
 Each feature declares the fields it shares and the Messages that change them;
 `compose` merges them into one document:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { DocumentId, Sync } from 'foldkit-sync'
+const Model = Schema.Struct({
+  todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
+  members: Schema.Array(Schema.String),
+})
+const Message = defineMessageUnion({
+  CreatedTodo: { id: Schema.String, title: Schema.String },
+  RenamedTodo: { id: Schema.String, title: Schema.String },
+  Invited: { email: Schema.String },
+})
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { todos: [], members: [] },
+  update: model => ({ model }),
+})
+-->
 ```ts
 const AppSync = Sync.forApplication(App)
 
@@ -500,7 +525,7 @@ server inside the journal's commit. The client never runs it.
 ```ts
 const Authorized = Sync.forApplication(App).withPrincipal<{ readonly role: 'admin' | 'guest' }>()
 
-const Board = Authorized.make({
+const GuardedBoard = Authorized.make({
   documentId: DocumentId.make('board'),
   ...Authorized.compose(Todos, Members),
   authorize: {
@@ -528,10 +553,26 @@ A fact carries its own nondeterminism, but a client cannot know where its
 operation lands in the server's order. A stamp writes it in, on the server, as
 the journal commits:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { DocumentId, Sync } from 'foldkit-sync'
+const Model = Schema.Struct({
+  prices: Schema.Array(Schema.Struct({ id: Schema.String, cents: Schema.Number, at: Schema.Number })),
+})
+-->
 ```ts
 const Message = defineMessageUnion({
   // `at` is absent on what a client sends: the server's sequence once committed.
   PriceEdited: { id: Schema.String, cents: Schema.Number, at: Schema.optionalKey(Schema.Number) },
+})
+
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { prices: [] },
+  update: model => ({ model }),
 })
 
 const Prices = Sync.forApplication(App).make({
@@ -564,7 +605,7 @@ Typing makes one durable Message per keystroke. `coalesce(last, next)` is
 offered each submit together with the last operation in the outbox; return a
 merged Message to replace it, or `undefined` to keep them apart:
 
-```ts
+```ts sketch
 coalesce: (last, next) =>
   last._tag === 'RenamedTodo' && next._tag === 'RenamedTodo' && last.id === next.id
     ? next
@@ -659,6 +700,30 @@ whole of it.
 A `Storage` needs three members, and the loopback transport takes a handler in
 place of a socket:
 
+<!-- docs-check standalone
+import { Option, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { DocumentId, Sync } from 'foldkit-sync'
+const Model = Schema.Struct({
+  todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
+})
+const Message = defineMessageUnion({
+  CreatedTodo: { id: Schema.String, title: Schema.String },
+  RenamedTodo: { id: Schema.String, title: Schema.String },
+})
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { todos: [] },
+  update: model => ({ model }),
+})
+const TodoSync = Sync.forApplication(App).make({
+  documentId: DocumentId.make('todos'),
+  shared: Projection.pick(App.model.todos),
+  durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
+})
+-->
 ```ts
 import { Effect } from 'effect'
 import type { Storage } from 'foldkit-sync'
@@ -672,7 +737,7 @@ const memoryStorage = (): Storage => {
   }
 }
 
-const program = Effect.gen(function* () {
+const inMemory = Effect.gen(function* () {
   const replica = yield* TodoSync.openReplica(memoryStorage())
   yield* replica.submit(Message.CreatedTodo({ id: 't1', title: 'Milk' }))
   yield* replica.synchronize
@@ -748,7 +813,7 @@ A replica reports to the reporter in the Effect context it runs in:
 host takes one with the upgrade request beside it, used for everything that
 upgrade runs:
 
-```ts
+```ts sketch
 export class SyncHost extends defineDocumentHost(DurableObject, {
   sync: TodoSync,
   openJournal: (_ctx, env) => openTodosJournal(env.DB),
@@ -769,7 +834,7 @@ slice alone, and an application that is not a Foldkit runtime (a worker, a
 server-side actor, a test) uses it directly.
 
 ```ts
-const program = Effect.gen(function* () {
+const worker = Effect.gen(function* () {
   const storage = yield* Sync.indexedDb('todos/worker')
   const replica = yield* TodoSync.openReplica(storage)
 

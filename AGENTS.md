@@ -179,6 +179,9 @@ Slop is also code that looks finished and is wrong. Look for these too:
     moved and applied on release).
   - A positional parameter list that callers must count.
   - A cast that makes a type promise nothing enforces.
+  - An option naming a member (a field, relation, query or mutation) typed
+    `string`. Type it by the Entity's or binding's keys, or take the
+    reference; a name nothing checks fails at run time or silently (#251).
   - Markup a package draws outside a Slot. A stylist reaches only Slots, so a
     bare `span` leaves a data-attribute selector into the package as the only
     handle (the CMS slug's prefix did). A structural fact a stylist needs, such
@@ -217,7 +220,7 @@ Slop is also code that looks finished and is wrong. Look for these too:
     the tag is open by design (another application's Message at a boundary),
     compare against a typed set, and mark the line above with
     `// tag-check: open` and why. `pnpm tags:check` finds the rest — in
-    `packages/*/src` only; examples and tests need review eyes for the same
+    every package's and example's `src`; tests need review eyes for the same
     shapes.
   - Ternaries that select values are fine; ternaries that branch are match.
     `cond ? a : b` over plain values stays. A ternary (or `if`/`else`) whose
@@ -827,6 +830,23 @@ Foldkit's own behaviour that we work around is listed in
 - **A Mount runs outside the application's `resources`.** Only Commands and
   Subscriptions get them, so a service given there (a diagnostics reporter)
   never reaches a Mount; `MountFailed` goes to the default log (#333).
+- **Upstream's leave can end on a read made before the leave is drawn.**
+  `Dom.waitForAnimationSettled` reads `getAnimations()` one frame after it is
+  asked, with no wait for the commit (`detectElementMovement` waits). A render
+  whose Model is behind the queue puts itself off a frame, so the read found
+  no `data-closed` panel and the Menubar's fade was skipped on CI (#400); 300
+  throttled runs never showed it. A frame race reproduces by putting a
+  callback off when it runs (`real(() => real(run))` armed in the right
+  frame), not when it is asked, which only reshuffles the order. The Menu,
+  Listbox and Combobox bundles read after `Render.afterCommit` (`leaveDrawn`,
+  `test/frames.ts` reproduces it); Popover, whose `update` an application
+  calls itself, still races.
+- **A disabled `Button.view` is only `aria-disabled`, and still submits.**
+  Upstream keeps a disabled button focusable, so a `type: 'submit'` one stops
+  neither Enter's implicit submission nor a press. The waitlist's button read
+  disabled through its email check while `update` held the submit and sent it
+  on the answer; a story test even asserted that. Refuse in `update` what a
+  button says it refuses, and test Enter and a press in a browser.
 - **Upstream's Menu clicks a row for you on a release after a press on the
   trigger.** It keeps the press's origin until the menu shuts, and a release
   on the rows over 200ms later and 5px away sends `ClickItem` as well as the
@@ -1182,6 +1202,13 @@ Foldkit's own behaviour that we work around is listed in
   taking SQLite columns first matched Postgres ones too and returned SQLite
   check builders, which `pgTable` refused with a misleading error. List the
   Postgres overload first.
+- **SQLite sorts the last term of an order that places nulls against its
+  default.** Every keyset page wrote Postgres's placement (`asc nulls last`),
+  and SQLite 3.53 then added `USE TEMP B-TREE FOR LAST TERM OF ORDER BY`
+  whatever the index, `NOT NULL` or `WITHOUT ROWID`, so every page sorted
+  its id tie-break and every test stayed green. A not-null column places no
+  nulls now; hold a page to its index with `EXPLAIN QUERY PLAN`
+  (`remote-drizzle/test/orderPlan.test.ts`).
 - **sql.js leaves SQLite's foreign keys off; Node's `node:sqlite` turns them
   on.** Chirp's `likes.post_id ... on delete cascade` held in every Node test
   while the published demo, on sql.js, would have left a deleted chirp's likes
@@ -1500,6 +1527,13 @@ of its own named a form field "fits the Catalog". Read words with
   importing no `Scope` failed every test at once, and read as a kill. Add the
   import as a second edit of the same mutation, and check which tests killed
   it and why (`--only`).
+- **A loop that advances by its own side effect hangs a mutation run.**
+  `dropUnmovedHead` walked `for (next = open.nextSibling; …; next =
+  open.nextSibling) next.remove()`; the mutation deleting `next.remove()`
+  spun forever, and a synchronous loop outlives every test timeout (22
+  minutes of CPU before it was killed). Collect what a loop visits first
+  (`Array.from(root.childNodes)`), then act on it, so no mutation can stop
+  it advancing.
 - **A mutation killed by a red test proves nothing.** A test added between
   two mutation runs was already failing, so the second run "killed" its
   mutation for free. Confirm the suite is green before each run; `pnpm
@@ -1606,6 +1640,12 @@ of its own named a form field "fits the Catalog". Read words with
   split a run twice, `apply` refused the duplicate id, and the case stayed green
   with the props check deleted. Mint distinct ids in every test that expects a
   refusal, so the refusal can only come from the check under test.
+- **A package's behaviour change is tested by its examples too.** The
+  freshness fix (`oldestAt`) ran Remote's and Guard's suites green and was
+  pushed; `examples/remote`'s demo test asserted the old behaviour ("refetch
+  after mutation: none" after an answer that carried one field), and only the
+  full run found it. After changing what a package does, run
+  `npx vitest run examples --project unit` as well as the package's own tests.
 - **Verifying by hand is not coverage.** `Agent.pick`'s snapshot bug was
   confirmed in a scratch script and shipped without a test.
 - **A seeded walk moves when a case is added.** Adding a Message case to
@@ -1719,6 +1759,17 @@ of its own named a form field "fits the Catalog". Read words with
   seen; the transition still had a frame to run, `Measure` measures every
   frame of one, and CI saw the margin early. Wait for `getAnimations()` to be
   empty before asserting what a later step alone causes.
+- **A sheet an earlier test installed defines what a later one removes.**
+  domains-plus's pruned-sheet test swapped its `<style>` for the pruned text
+  and compared computed styles; run after the file's other tests, their
+  full sheet was still in the head, so every token stayed defined and both
+  prune mutations survived, while `-t` alone killed them (#488, filed as a
+  tooling bug, was this). Remove what a test installs in its own cleanup, and
+  run a mutation's test file whole, as `pnpm mutate` does, before blaming
+  the tool. The same test then met two more: `document.fonts.ready`
+  resolved with the face still loading, and new text in a `<style>` holding
+  an `@font-face` loads the face again. Before comparing two draws, await
+  each face's `load()` and every animation's `finished`.
 - **A held mouse races the other test files.** A test that pressed the
   mouse through `cdp()` (`Input.dispatchMouseEvent`) and checked `:active`
   failed now and then in a wide run: every test file shares one real
@@ -1903,6 +1954,11 @@ of its own named a form field "fits the Catalog". Read words with
   it `AriaRowcount`. Before calling something absent, search case-insensitively
   and read the builder list itself.
 
+- **A commit hash in a comment is read from `git log`, never written from
+  memory.** Two issue comments in one session named a commit that did not
+  exist (`7d0e`, `4f2…`), each corrected only on rereading. Run `git log -1
+  --format=%h` in the step before posting, and paste its output.
+
 - **Update the summary in the same change as the section.** Per-phase notes
   landed while `§0`'s findings table and `§13`'s status banner still described
   the old state — the banner said "3 onwards are not started" directly above
@@ -2009,7 +2065,11 @@ of its own named a form field "fits the Catalog". Read words with
 - **Bulk edits replace every occurrence, and a missing anchor fails silently.** A
   scripted insert landed in two functions and broke an unrelated one; a later one
   matched nothing and quietly did not apply, so a field was simply absent. Assert
-  the anchor, then re-read the diff -- not just the check.
+  the anchor, then re-read the diff -- not just the check. An end anchor
+  found from the top can sit before the start one: `s.index('### 4. ')` met
+  a numbered list earlier in TODO.md, and `s[:i] + new + s[j:]` doubled the
+  text between. Search from the start anchor (`s.index(end, i)`) and assert
+  `i < j`.
 - **Anchoring an insert on `export const X` lands it under X's doc comment.** Three
   scripted inserts here (`holdsItem`, `isBlank`, `drawPlaceholder`) went in between a
   declaration and its comment, leaving each comment documenting the wrong thing; the
@@ -2316,6 +2376,13 @@ of its own named a form field "fits the Catalog". Read words with
   `loadConfigFromFile` meets the same: it passed locally and failed on CI for
   every config importing `foldkit-ssr/vite`. Import the config through Vitest
   (`import config from '../vite.config.js'`), as the e2e tests do.
+- **A local `dist` hides a test whose own Vite server skips the source
+  condition.** `viteStyles.test.ts` made a dev server with `configFile:
+  false`, so `foldkit-mixins` (aliased to source) loaded `foldkit-surface`
+  from its `dist`: here one existed and the test passed; CI builds none, and
+  the load's 404 read as "Cannot GET". Give such a server the root config's
+  conditions (`'foldkit-plus:source'` first), and reproduce a CI-only failure
+  with the `dist` folders moved aside.
 - **Vitest's resolve conditions are its own, not Vite's.** Adding the source
   condition to Vite's defaults brought in `module`, which loaded
   `@opentelemetry/api`'s extensionless ESM build, and `browser`, which gave

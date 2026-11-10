@@ -1,7 +1,7 @@
 /**
  * `Surface.application` inference contract. Type-checked but not executed.
  */
-import { Effect, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { ModelRef, Projection, Surface } from '../src/index.js'
 
@@ -64,3 +64,17 @@ const _laterResources = RefsOnly.runnable<'Service'>({
 })
 // @ts-expect-error the initial Model is the application's
 RefsOnly.runnable({ initial: { total: 0 }, update: model => ({ model }) })
+
+// An Option field's focus takes an Option, and refuses anything else.
+const Picked = Schema.Struct({ picked: Schema.Option(Schema.String) })
+const PickedApp = Surface.application({ Model: Picked, Message })
+declare const picked: typeof Picked.Type
+const _setSome: typeof Picked.Type = ModelRef.focus(PickedApp.model.picked).set(
+  picked,
+  Option.some('x'),
+)
+// @ts-expect-error an Option<string> field does not take a number
+ModelRef.focus(PickedApp.model.picked).set(picked, Option.some(1))
+// An Option is an object, not a record of entries.
+// @ts-expect-error an Option field's focus has no `at`
+void ModelRef.focus(PickedApp.model.picked).at

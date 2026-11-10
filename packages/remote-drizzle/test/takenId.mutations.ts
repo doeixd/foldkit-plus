@@ -42,8 +42,8 @@ export default [
     edits: [
       {
         file: server,
-        find: 'status: Refusal.isTaken(error.refusal) ? (409 as const) : (422 as const),',
-        replace: 'status: 422 as const,',
+        find: 'Refusal.isTaken(error.refusal) || Refusal.isReferenced(error.refusal)',
+        replace: 'Refusal.isReferenced(error.refusal)',
       },
     ],
     tests: ['packages/remote-drizzle/test/takenId.test.ts'],

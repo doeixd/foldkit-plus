@@ -65,7 +65,8 @@ that never explains a read keeps none of them), returns a `ReadWhy` (`state`,
 `because`, `message`, `surfaces`), pure over the Model. `because` is every
 fact about what the read reads, typed (`Why`, matched with `Why.match` or
 `Why.guards`): `List`/`Fields` `Missing`, `Evicted` or `Stale` and `inFlight` (`via` is
-the relation path to a row), `HeldForHistory` (a list Back or Forward came back to, shown
+the relation path to a row), `Invalidated` (why a stale list went stale: a write it could not
+place, its live stream, a refresh), `HeldForHistory` (a list Back or Forward came back to, shown
 as it was), `ListFailed`/`FieldsFailed` (nothing retries
 them; `Data.refresh` does), `Unavailable`, `Undecodable`, `OverlayOnly`,
 `Deleted`, `LiveReconnecting`/`LiveRefused`, `Pending`, and `Joined`/`Left`
@@ -317,6 +318,7 @@ const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Projec
 // Remote only as a Message, and a Projection never reads the clock. The deadline is a dependency
 // (`expires`), so a write moves it. A list's age is its last whole page (`Connection.receivedAt`);
 // an aged list is asked for again whole and reads Refreshing with its rows meanwhile.
+// A row's age is its oldest field's (`oldestAt`): writing one field never makes the others fresh.
 // The read entry's RefreshStarted names only what it reads again though held (ReadDependencies'
 // `refreshes` and `refreshing`), never what is missing or already stale: an answer queued
 // before the mark would be made stale again, and two overlapping reads would loop (#399).
@@ -684,7 +686,11 @@ removes every held row declared to go with it (`Relation.one(Post, { onDelete: '
 transitively: a reply's replies, the likes of each), from every list, and moves the counts
 and exists over each; a row the client does not hold is the answer's to name. A held row
 it takes whose own `may` refuses `Delete` (unless the relation says `authorizedBy: 'parent'`)
-refuses the delete where it is made, as the server would. The store is
+refuses the delete where it is made, as the server would. A delete of a row a relation
+declared `onDelete: 'restrict'` points at is shown pending, and the server refuses it as
+`Refusal.referenced` (a 409), so the row comes back. A held row whose link the delete clears
+(`onDelete: 'setNull'`) is shown pointing nowhere while it is pending, and one whose `may`
+refuses that unlink refuses the delete where it is made. The store is
 one viewer's, so a change of viewer is `Data.forget`. A write of an Entity with
 `Entity.sets` shows what the server will set: the viewer, and as the time
 `Data.mutate(model, M, input, { now })`, the time the reader acted (an update those set
@@ -1187,7 +1193,8 @@ const RemoteClientLive = Remote.clientLayer(RemoteServer.handlers(Server, 'user-
 ```
 
 Nullable foreign keys must say `one(User, { field, nullable: true })` (a NULL
-becomes a present null). `many(...)` + `computed: { count: { relation } }` exist.
+becomes a present null). `many(...)` + `computed: { count: { relation } }` exist; `relation` is typed
+by the binding's `many` and `manyToMany` keys.
 A mutation declared as a `Write` needs no handler (`writer`, below); write any
 other with `RemoteServer.mutation`. Page size default
 20, max 100; pagination semantics follow Postgres NULL ordering.
@@ -1248,6 +1255,13 @@ columns in that order) a parent with a million children costs what one with
 101 does, on a read and on every `pollLive` tick; without that index the
 database reads and sorts every child of the parent. A collection that can grow
 without limit is read with `Entity.page`.
+
+`queryPlans([{ source, input, principal }])`, in a test over a migrated and
+seeded database, runs a first and a later page of each `query` source, for
+every order its body offers, and asks the database how it plans each: `served`
+(in order from an index) or `sorted`. An index serves only in the order's
+directions, the id tie-break's included, and on Postgres only with a text key's
+column under `collate "C"`, as the compiled order says.
 
 Storage: field = same-named column or `fields: { name: column }`; `one` =
 `{ field }`, or for an optional `one` read from the target's table

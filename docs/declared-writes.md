@@ -143,7 +143,50 @@ guard pins the write to the revision its rules were decided over. With `Product`
 carrying its guards (`Guards.attach`) and `Policy` their implementation, as in
 [`examples/writes/src`](../examples/writes/src/server.ts):
 
+<!-- docs-check standalone
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { Schema } from 'effect'
+import { Entity, Expr, Write } from 'foldkit-entity'
+import { Guards } from 'foldkit-guard'
+import { Mutation } from 'foldkit-remote'
+import { bind, writer } from 'foldkit-remote-drizzle'
+const User = Schema.Struct({ id: Schema.String })
+const ProductFields = Entity.define(
+  'Product',
+  Schema.Struct({
+    id: Schema.String,
+    ownerId: Schema.String,
+    name: Schema.String,
+    status: Schema.Literals(['draft', 'published', 'archived']),
+    stock: Schema.Number,
+    revision: Schema.Number,
+  }),
+)
+const Shop = Guards.declare(
+  'Shop',
+  User,
+  guard => ({
+    isOwner: guard.row(ProductFields, user => Expr.eq(ProductFields.fields.ownerId, user.id)),
+  }),
+  { key: user => user.id, unguarded: 'allow' },
+)
+const Product = ProductFields.pipe(
+  Guards.attach(Shop, { row: { Read: [Shop.isOwner], Update: [Shop.isOwner] } }),
+)
+const Policy = Shop.implement({})
+const products = sqliteTable('products', {
+  id: text('id').primaryKey(),
+  ownerId: text('owner_id').notNull(),
+  name: text('name').notNull(),
+  status: text('status').notNull(),
+  stock: integer('stock').notNull(),
+  revision: integer('revision').notNull(),
+})
+-->
 ```ts
+import { GuardDrizzle } from 'foldkit-guard/drizzle'
+import { GuardServer } from 'foldkit-guard/server'
+
 const Db = bind(
   { Product },
   { Product: { table: products, visible: GuardDrizzle.visible(Policy, [Product]).Product } },
@@ -378,6 +421,23 @@ is first sent (`crypto.randomUUID()`, or 128 random bits from
 and a retry sends it again. With `Data` the application's `Remote.make({ model,
 entities: [Product], mutations: [Sell] })`:
 
+<!-- docs-check
+import { Effect } from 'effect'
+import { Surface } from 'foldkit-surface'
+import { defineMessageUnion } from 'foldkit/message'
+import { Remote } from 'foldkit-remote'
+const Model = Schema.Struct({ remote: Remote.Model })
+type Model = typeof Model.Type
+const App = Surface.application({
+  Model,
+  Message: defineMessageUnion({ ...Remote.messages }),
+  initial: { remote: Remote.initial },
+  update: model => ({ model }),
+})
+const Data = Remote.make({ model: App.model.remote, entities: [Product], mutations: [Sell] })
+declare const model: Model
+declare const failedModel: Model
+-->
 ```ts
 const started = Data.mutate(model, Sell, { id: 'p1', quantity: -2 })
 // …the request failed: send it again as itself, same input and operation.
@@ -417,6 +477,23 @@ in one batch with it). `ledger` is the
 Drizzle table below and `User` the principal, as in
 [`examples/writes/src/server.ts`](../examples/writes/src/server.ts):
 
+<!-- docs-check
+import { Option } from 'effect'
+import { primaryKey } from 'drizzle-orm/sqlite-core'
+type User = typeof User.Type
+const ledger = sqliteTable(
+  'write_ledger',
+  {
+    scope: text('scope').notNull(),
+    operation: text('operation').notNull(),
+    target: text('target').notNull(),
+    answer: text('answer').notNull(),
+    at: integer('at').notNull(),
+    request: text('request'),
+  },
+  table => [primaryKey({ columns: [table.scope, table.operation, table.target] })],
+)
+-->
 ```ts
 const ledgered = writer<Option.Option<User>>(Db.Product, {
   ledger: {
@@ -469,7 +546,12 @@ The guard's pin sees only changes that move the revision. A handler or raw SQL
 that changes the row without moving it is invisible to it. `revisionTrigger`
 is the SQL that makes the database move it on every other update too:
 
+<!-- docs-check
+declare const sqlite: { exec: (sql: string) => void }
+-->
 ```ts
+import { revisionTrigger } from 'foldkit-remote-drizzle'
+
 sqlite.exec(revisionTrigger(Db.Product, 'revision'))
 ```
 
@@ -520,6 +602,14 @@ real database (remote-drizzle's law suite runs SQLite and Postgres),
 `principal` whom it answers as, and `model` the application's Model before the
 client holds anything:
 
+<!-- docs-check
+import { RemoteServer } from 'foldkit-remote-server'
+const server = RemoteServer.make({
+  entities: [],
+  mutations: [RemoteServer.write(Sell, writer(Db.Product))],
+})
+declare const principal: undefined
+-->
 ```ts
 import { Law } from 'foldkit-remote/testing'
 

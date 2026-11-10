@@ -99,6 +99,16 @@ describe('Remote.make binds a domain', () => {
     expect(Data.Model).not.toBe(Remote.Model)
     expect(Data.initial).toBe(Remote.initial)
   })
+
+  it('decodes a Model encoded before echoes and staleBecause existed, with them empty', () => {
+    const encoded = Schema.encodeSync(Remote.Model)(Remote.initial) as Readonly<
+      Record<string, unknown>
+    >
+    const { echoes: _echoes, staleBecause: _stale, ...before } = encoded
+    const decoded = Schema.decodeUnknownSync(Remote.Model)(before)
+    expect(decoded.echoes).toEqual({})
+    expect(decoded.staleBecause).toEqual({})
+  })
 })
 
 describe('the entity is the receiver of its selections and patches', () => {
@@ -1234,6 +1244,49 @@ describe('Data.query reads a connection as a page of selected items', () => {
       )
     })
 
+    it('leaves an entry alone that still has something to read, when another field is refreshed', () => {
+      const p1 = Data.get(summary, 'p1')
+      const p2 = Data.get(summary, 'p2')
+      const entryFor = (projection: Projection<Model, unknown>) =>
+        Remote.observe(
+          Data,
+          App.surface('Unread', { model: () => ({ value: projection }) }),
+          undefined,
+        )
+      // p2 was never read, so its entry plans a read: a generation that moved
+      // for p1 alone must not reach it.
+      const loaded = read(initial, ['p1'])
+      const before = entryFor(p2).modelToDependencies(loaded)
+      expect(before.requirements).not.toEqual([])
+
+      const refreshed = Data.refresh(loaded, p1)
+
+      expect(entryFor(p2).modelToDependencies(refreshed)).toEqual(before)
+    })
+
+    it('plans an entry under the latest refresh of any field it observes', () => {
+      const p1 = Data.get(summary, 'p1')
+      const p2 = Data.get(summary, 'p2')
+      const both = Projection.struct({ first: p1, second: p2 })
+      const entryFor = (projection: Projection<Model, unknown>) =>
+        Remote.observe(
+          Data,
+          App.surface('Both', { model: () => ({ value: projection }) }),
+          undefined,
+        )
+      const loaded = read(initial, ['p1', 'p2'])
+      // p2 is refreshed first, so the entry's newest mark is the one on p1,
+      // which the requirements list ahead of p2.
+      const refreshed = Data.refresh(Data.refresh(loaded, p2), p1)
+
+      expect(entryFor(both).modelToDependencies(refreshed).refresh).toBe(
+        entryFor(p1).modelToDependencies(refreshed).refresh,
+      )
+      expect(entryFor(both).modelToDependencies(refreshed).refresh).toBeGreaterThan(
+        entryFor(p2).modelToDependencies(refreshed).refresh,
+      )
+    })
+
     it('asks again once a read has begun since the last refresh', () => {
       const project = Data.get(summary, 'p1')
       const once = Data.refresh(read(initial, ['p1']), project)
@@ -1537,6 +1590,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
         refreshes: true,
         // A page without rows' fields still dates its list.
         now: expect.any(Number),
+        generation: 0,
       },
     ])
     // The wire request is rebuilt from the connection identity: the canonical encoded input.
@@ -1646,8 +1700,23 @@ describe('Data.query reads a connection as a page of selected items', () => {
           _tag: 'RemoteQueryError',
           message: 'connection "Feed" is not a query\'s: only a QueryRef identity can be run',
         },
+        generation: 0,
       },
     ])
+  })
+
+  it("a preloaded page that lands after Data.forget writes nothing: it was the previous principal's (#484)", async () => {
+    const active = { list: Data.active('List', () => Option.some(projects)) }
+    const preloaded = (model: Model) =>
+      Effect.runPromise(
+        Data.preload(model, active).effect.pipe(Effect.provide(paging(['p1', 'p2']).layer)),
+      )
+    const forgotten = Data.forget(initial)
+    expect(Data.reduce(forgotten, await preloaded(initial)).remote.connections).toEqual({})
+    // Started after the forget, it lands as ever.
+    expect(
+      Object.keys(Data.reduce(forgotten, await preloaded(forgotten)).remote.connections),
+    ).toEqual([identity])
   })
 
   it('a failed query yields QueryFailed, which ends the refresh and keeps the pages', async () => {
@@ -1669,6 +1738,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
         _tag: 'QueryFailed',
         connection: identity,
         error: { _tag: 'RemoteQueryError', message: 'boom' },
+        generation: 0,
       },
     ])
     const settled = messages.reduce(Data.reduce, stale)

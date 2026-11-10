@@ -1,5 +1,13 @@
 import { view as buttonView, type ButtonAttributes } from '@foldkit/ui/button'
-import { Attr, Capability, Event, Slot, Slots, type NamedStyle } from 'foldkit-mixins'
+import {
+  Attr,
+  Capability,
+  Event,
+  Slot,
+  Slots,
+  type NamedStyle,
+  type SlotAttributes,
+} from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
 
@@ -69,6 +77,12 @@ export interface ButtonView<Message> {
    * recipe's pressed look. Omit it for a button that is not a toggle.
    */
   readonly pressed?: boolean | undefined
+  /**
+   * Attributes another component hands this button, after its own: a Dialog's
+   * `initialFocus`, so the dialog opens on it. A class among them replaces the
+   * button's, as a later attribute list does.
+   */
+  readonly attributes?: { readonly [K in keyof typeof ButtonSlots]?: SlotAttributes<Message> }
 }
 
 export const view = <Message>(options: ButtonView<Message>, h: HtmlBuilder<Message>): Html =>
@@ -82,12 +96,20 @@ export const view = <Message>(options: ButtonView<Message>, h: HtmlBuilder<Messa
         { input: options.input, h },
         ({ button, icon }) =>
           h.button(
-            options.pressed === undefined
-              ? button
-              : [...button, h.AriaPressed(String(options.pressed))],
+            [
+              ...button,
+              ...(options.pressed === undefined ? [] : [h.AriaPressed(String(options.pressed))]),
+              ...(options.attributes?.button ?? []),
+            ],
             options.icon === undefined
               ? [options.label]
-              : [h.span([...icon, h.AriaHidden(true)], [options.icon]), options.label],
+              : [
+                  h.span(
+                    [...icon, h.AriaHidden(true), ...(options.attributes?.icon ?? [])],
+                    [options.icon],
+                  ),
+                  options.label,
+                ],
           ),
       ),
     },

@@ -155,8 +155,28 @@ consequence, which is Foldkit's own feature. Build the pull request only once
 a maintainer agrees on a shape.
 
 **Afterwards, here.** `SSR.entry` takes `head` again and `SSR.generate`
-becomes one head writer beside the host's, instead of the only one. A plan
-with `meta` stops being refused at entry construction.
+becomes one head writer beside the host's, instead of the only one. Until
+then, `docs/design/ssr-dynamic-head-DESIGN.md` carries `meta` in the root and
+has the host move it with `SSR.headed`; that wrapper retires once this lands.
+
+**Built on our side (2026-11-10).** The workaround shows what the channel
+must cover, which is evidence for the issue:
+- The entry writes the markup at the rendered root's end, between two
+  marker comments, and `SSR.headed` moves it before the template's
+  `</head>`.
+- It reads the markup only from that position, because a view can draw the
+  same marker comments verbatim inside a `<style>`.
+- It refuses a root a parser would not keep `<meta>` in (a table's, `svg`,
+  raw text) as `RootRefusesHead`.
+- A page answering a posted form carries the markup too.
+- Without the wrapper, `SSR.hydrate` removes the markup from the body and
+  reports `HeadNotMoved`.
+- `examples/reference` serves through it, and its e2e test reads each served
+  description.
+
+All of this is parser bookkeeping that `injectIntoTemplate` already does for
+the root, which is the case for moving it upstream. foldkit#1448 should get
+a comment saying so.
 
 ## Proposal 3: hydrate from a Model the server hands over
 
@@ -369,6 +389,44 @@ foldkit#1784. `foldkit-ssr` answers as soon as its script runs, whatever the
 plan's `start`, and starts a page recorded for its path from a URL such a
 script wrote; nothing earlier is in its reach.
 
+## Proposal 7: support for foldkit#1657 (the server checks its own output)
+
+**Ask.** Raise [foldkit#1657](https://github.com/foldkit/foldkit/issues/1657)
+(P2) to P1 with our measurement, and offer the pull request for its next step:
+`injectIntoTemplate` stops validating again the HTML `renderToString` already
+validated, under the acceptance criteria the issue lists. Its suggestion 4,
+a production mode with fewer checks, is a separate question for the
+maintainer, because it trades safety for speed.
+
+**Why we need it.** Foldkit re-parses its own server output with parse5 on
+every request. We shrank what it parses (#413): the stylesheet is a linked file
+(#419), only the first screen is rendered (#415), only what interactive regions
+read is resumed (#436), and static regions are prerendered (#434). A
+never-seen domains-plus search fell from about 362 KB to 69 KB, and parse5 from
+about 175 ms to 41 ms. What is left of the 41 ms is Foldkit's checks alone:
+
+| Check (0.170.0, `server/`) | ms per search |
+| --- | --: |
+| `escapesDocumentStructure` (`server.js`) | 14 |
+| `parseFragmentModes` (`fragment.js`) | 13 |
+| `closesCleanly` (`server.js`) | 8 |
+| `assertInjectionIsFaithful` (`template.js`) | 5 |
+| `renderedShapes` (`template.js`) | 5 |
+
+Measured 2026-11-09 under Node on Linux (a V8 profile of 20 warm searches,
+with `?q=` new each time so no kept page answers). The whole request is
+about 119 ms. The rest of Foldkit is 25 ms, garbage collection 11 and Effect
+7, and our packages and the application together about 12. Against the
+Workers free plan's 10 ms, the checks are the largest single part that
+remains, and nothing on our side reaches them.
+
+**Route.** A comment on foldkit#1657 with the table above and the blocked
+deployment (107 of 117 benchmark loads failed with error 1102 on 2026-11-02),
+then the pull request if the maintainer accepts the offer.
+
+**Afterwards, here.** Bump Foldkit, re-measure `/?q=` with
+`examples/foldkit/domains-plus/test/cpu.test.ts`, and lower its budget.
+
 ## What we are not asking for
 
 These were on this repository's list and are dropped or held after this
@@ -398,20 +456,27 @@ check:
 1. Our side first: move deferred boot onto `Render.afterCommit`, so nothing
    we do depends on commit timing. This belongs in the SSR plan's Phase G.
 2. Proposal 1 as a pull request.
-3. Proposal 2 as an issue, then a pull request on the agreed shape.
+3. Proposal 2 as an issue, then a pull request on the agreed shape. It is
+   filed as foldkit#1448; it needs the comment above, that the head now has a
+   working wrapper here, `SSR.headed`, which the issue would retire.
 4. Proposal 3 as a question, after `foldkit-ssr` is published and in use.
 5. Proposal 4 as an issue, any time: it needs nothing from the others.
 6. Proposal 5 as an issue, any time: it needs nothing from the others.
 7. Proposal 6 as an issue, any time: it needs nothing from the others.
+8. Proposal 7 as a comment on foldkit#1657, now: our half is done.
+9. The leave that ends before it is drawn (below) as an issue, now. A draft
+   is ready; it was not filed because this repository's sessions cannot
+   post to foldkit/foldkit.
 
 Each upstream change is followed here by removing the workaround it replaces,
 with the SSR plan and README updated in the same commit.
 
 ## Other Foldkit behaviour we work around
 
-Beyond SSR, this repository works around the behaviour below. None is filed
-upstream yet; each is a candidate once it has the use case Foldkit asks for.
-The working detail of each is a trap in `AGENTS.md`, named here by its title.
+Beyond SSR, this repository works around the behaviour below. Four
+`@foldkit/ui` gaps are filed (listed at the end). The rest are not filed
+yet: each is a candidate once it has the use case Foldkit asks for. The
+working detail of each is a trap in `AGENTS.md`, named here by its title.
 
 Runtime and view:
 
@@ -421,6 +486,10 @@ Runtime and view:
   Asking for: chain Mounts the way handlers are chained, or refuse the second.
 - **Two `Class` (or `Style`) attributes on one element keep the later one**
   (`setModuleData`), so two Slots' attributes on one element lose a class.
+  The same happens within one Slot when a component wraps its own class in a
+  child attribute (`childAttributes`). A popup's `itemsScrollClassName` and
+  the FileDrop input's `sr-only` each dropped the recipe's class; since
+  2026-11-10 the mixins resolver merges a child attribute's class.
   Asking for: merge them, as the mixins resolver does within one Slot.
 - **Mount args are read once, at insert**: no update hook, so a Mount cannot
   follow the Model. We key the element or use a Command.
@@ -442,6 +511,12 @@ Runtime and view:
   `{ maybeDependencies }`, gated or not.
 - **The slow-render warning logs the whole Model**, which a browser test pays
   to format.
+- **Upstream's leave can end on a read made before the leave is drawn**:
+  `Dom.waitForAnimationSettled` reads one frame after it is asked, not after
+  the render's commit, so a frame put off behind the queue skips the fade.
+  The Menu, Listbox and Combobox bundles wait for the commit first; Popover,
+  whose `update` an application calls straight from upstream, cannot. Asking for: `yield* afterCommit` before
+  the read, as `detectElementMovement` does.
 
 Routing and the build:
 
@@ -467,4 +542,24 @@ Testing:
   portal their panel, so a knob set on the wrapper never reaches it.
 - **The Menu clicks a row for you** on a release over 200ms and 5px after a
   press on the trigger, beside the browser's own click.
+- **A disabled Button is only `aria-disabled`**, which keeps it focusable, so
+  a `type: 'submit'` one still submits its form, on Enter or on a press.
+  Deliberate upstream; documented on `Button.view` (#496), and an
+  application refuses such a submit in `update`, as the waitlist does.
 - Combobox keyboard behaviour: [upstream-combobox-keyboard.md](./upstream-combobox-keyboard.md).
+
+Filed against `@foldkit/ui`, each with the workaround it would retire
+(`docs/design/ui-polish-DESIGN.md`, "Needs `@foldkit/ui`"):
+
+- [foldkit#1686](https://github.com/foldkit/foldkit/issues/1686): a
+  non-modal Dialog, `InitConfig.isModal?` passed to `showDialog` and
+  `AcquireResources`, so a Sheet can leave the page usable.
+- [foldkit#1687](https://github.com/foldkit/foldkit/issues/1687): the
+  Tooltip's arrow, an `arrowId(id)` and an `arrow` bundle in its
+  `RenderInfo`, so `PlaceArrow` and its `!important` override can go.
+- [foldkit#1688](https://github.com/foldkit/foldkit/issues/1688): collision
+  inside a top-layer ancestor, a `boundary`/`rootBoundary` in `AnchorConfig`
+  or a top layer the anchor owns (after foldkit#1683).
+- [foldkit#1689](https://github.com/foldkit/foldkit/issues/1689): a modal
+  `<dialog>` in the top layer, an opt-in beside `show()`, which upstream
+  keeps for DevTools, so a transformed ancestor no longer captures it.

@@ -64,6 +64,7 @@
       "foldkit-plus/entity/conformance": ["../../../packages/plus/src/entity/conformance.ts"],
       "foldkit-plus/form": ["../../../packages/plus/src/form.ts"],
       "foldkit-plus/form-recipes": ["../../../packages/plus/src/form-recipes.ts"],
+      "foldkit-plus/form-recipes/file": ["../../../packages/plus/src/form-recipes/file.ts"],
       "foldkit-plus/form-recipes/html": ["../../../packages/plus/src/form-recipes/html.ts"],
       "foldkit-plus/form-recipes/image": ["../../../packages/plus/src/form-recipes/image.ts"],
       "foldkit-plus/form-recipes/ui": ["../../../packages/plus/src/form-recipes/ui.ts"],

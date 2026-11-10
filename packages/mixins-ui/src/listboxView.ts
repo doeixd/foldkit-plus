@@ -1,8 +1,9 @@
 /**
  * Forked listbox views: the single and multi variants over the shared
  * transcription in `./listboxShared.js`. Each `create` binds the upstream
- * bundle for the item/value pair and swaps in only the view; state,
- * Messages, update, Commands, Mounts, and subscriptions stay upstream.
+ * bundle for the item/value pair and swaps in the view, and ends a leave
+ * only once it is drawn (#400); state, Messages, update, Commands, Mounts,
+ * and subscriptions stay upstream.
  */
 import { Option } from 'effect'
 import * as UpstreamListbox from '@foldkit/ui/listbox'
@@ -14,6 +15,7 @@ import type {
 import type { Message } from '@foldkit/ui/listbox'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineView, type View as SubmodelView } from 'foldkit/submodel'
+import type { ReturnWithOutMessage } from 'foldkit/update'
 import {
   computeRender,
   type DirectionInput,
@@ -25,6 +27,7 @@ import {
   type SharedBehavior,
   type SharedViewInputs,
 } from './listboxShared.js'
+import { leaveDrawn } from './leaveDrawn.js'
 import { drawListbox } from './popupView.js'
 
 export type { ListboxGroupRender, ListboxHeadingRender, ListboxItemRender, ListboxRenderInfo }
@@ -93,6 +96,10 @@ export type SingleBundle<
   readonly view: SubmodelView<SingleModel, Message, SingleViewInputs<Item, Value>>
 }
 
+// Upstream's update and helpers, each ending a leave only once it is drawn (#400).
+const drawn = <Model, Out>(result: ReturnWithOutMessage<Model, Message, Out>) =>
+  leaveDrawn(UpstreamListbox.DetectMovementOrAnimationEnd, result)
+
 /** Pairs the forked single view with upstream's `update` and helpers. */
 export const create = <
   Item = string,
@@ -100,7 +107,10 @@ export const create = <
 >(): SingleBundle<Item, Value> => {
   const bound = UpstreamListbox.create<Item, Value>()
   return {
-    ...bound,
+    update: (model, message) => drawn(bound.update(model, message)),
+    selectItem: (model, item) => drawn(bound.selectItem(model, item)),
+    open: model => drawn(bound.open(model)),
+    close: model => drawn(bound.close(model)),
     view: singleViewImpl as unknown as SubmodelView<
       SingleModel,
       Message,
@@ -130,7 +140,10 @@ export const Multi = {
   >(): MultiBundle<Item, Value> => {
     const bound = UpstreamListbox.Multi.create<Item, Value>()
     return {
-      ...bound,
+      update: (model, message) => drawn(bound.update(model, message)),
+      selectItem: (model, item) => drawn(bound.selectItem(model, item)),
+      open: model => drawn(bound.open(model)),
+      close: model => drawn(bound.close(model)),
       view: multiViewImpl as unknown as SubmodelView<
         MultiModel,
         Message,

@@ -6,6 +6,7 @@ import { Array, Function, Option, Pipeable, Record, Schema } from 'effect'
 import { taggedStruct, type CallableTaggedStruct } from 'foldkit/schema'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineView } from 'foldkit/submodel'
+import { keptDrawing } from './memo.js'
 import * as Update from 'foldkit/update'
 import type { Invalid, PlacedView } from './placed.js'
 
@@ -553,13 +554,16 @@ const collectionById =
  * restate the field, the wrapper, or the slot: one placement drives both.
  * The drawing is generic over the parent's builder, like a placement's: the
  * builder's Message must include the Link's wrapper variant. A child with
- * view inputs, or with OutMessages of its own, stays hand-rolled.
+ * view inputs, or with OutMessages of its own, stays hand-rolled. The
+ * drawing is kept while the child's Model is the same object, as a
+ * placement's is; `{ memo: false }` draws it on every render.
  */
 const child = <Parent, ParentMessage, Child, ChildMessage, Services>(
   link: Link<Parent, ParentMessage, Child, ChildMessage, string>,
   update: (model: Child, message: ChildMessage) => Update.Return<Child, ChildMessage, Services>,
   view: (model: Child, h: HtmlBuilder<ChildMessage>) => Html,
   slotId: string,
+  options: { readonly memo?: false } = {},
 ): {
   readonly update: (
     parent: Parent,
@@ -569,18 +573,20 @@ const child = <Parent, ParentMessage, Child, ChildMessage, Services>(
 } => {
   const fold = Update.foldChild({ ...link, update })
   const drawn = defineView<Child, ChildMessage>((model, h) => view(model, h))
+  const drawChild = (model: Child, h: HtmlBuilder<any>): Html =>
+    h.submodel({
+      slotId,
+      model,
+      view: drawn,
+      toParentMessage: link.toParentMessage,
+    })
+  const kept = options.memo === false ? drawChild : keptDrawing(drawChild)
   // Erased like a placement's view, through unknown as placements do: the
   // public type checks the builder.
   const draw = (parent: unknown, h: HtmlBuilder<any>): Html =>
     Option.match(link.read(parent as Parent), {
       onNone: () => null,
-      onSome: model =>
-        h.submodel({
-          slotId,
-          model,
-          view: drawn,
-          toParentMessage: link.toParentMessage,
-        }),
+      onSome: model => kept(model, h),
     })
   return {
     update: (parent, message) => fold(parent, message),

@@ -83,7 +83,7 @@ export const deadlineOf = (
         (entry.present.has(field) && !entry.stale.has(field)) || entry.unavailable.has(field),
     )
     if (fresh) {
-      const expires = entry.updatedAt + freshness.freshness
+      const expires = entry.oldestAt + freshness.freshness
       // An entity dated `Infinity` never ages (see `visibleStore`): no deadline.
       // At `expires` itself `plan` does not yet fetch it, so it is still awaited.
       if (expires >= freshness.now && Number.isFinite(expires)) {
@@ -103,14 +103,14 @@ export const deadlineOf = (
   return at === undefined ? undefined : { at, due: Requirement.merge(due) }
 }
 
-/** Whether a held entity is older than `freshness` allows, so it is read again whole. */
+/** Whether a held entity's oldest field is older than `freshness` allows, so it is read again whole. */
 const isExpired = (store: EntityStore, key: string, freshness: PlanFreshness | undefined) => {
   const entry = store[key]
   return (
     freshness !== undefined &&
     entry !== undefined &&
     !entry.tombstone &&
-    freshness.now - entry.updatedAt > freshness.freshness
+    freshness.now - entry.oldestAt > freshness.freshness
   )
 }
 

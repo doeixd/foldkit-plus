@@ -84,6 +84,31 @@ test('bends its handle into a chevron going down, and flat when open', async () 
   }
 })
 
+/** Where a half of the bar turns, in pixels from the handle's left edge. */
+const pivotOf = (handle: Element, half: '::before' | '::after') => {
+  const style = getComputedStyle(handle, half)
+  return Number.parseFloat(style.left) + Number.parseFloat(style.transformOrigin)
+}
+
+test.each(['ltr', 'rtl'] as const)(
+  '%s: both halves of the bar turn on the middle, where they meet',
+  async dir => {
+    const runtime = mount(false)
+    try {
+      const element = await panel()
+      element.setAttribute('dir', dir)
+      const handle = element.querySelector<HTMLElement>('button')!
+      await settled(element)
+      const middle = handle.getBoundingClientRect().width / 2
+      // Each half reaches a pixel past the middle, so the two overlap there.
+      expect(Math.abs(pivotOf(handle, '::before') - middle)).toBeLessThanOrEqual(1)
+      expect(Math.abs(pivotOf(handle, '::after') - middle)).toBeLessThanOrEqual(1)
+    } finally {
+      runtime.dispose()
+    }
+  },
+)
+
 test('follows a drag, lets go down past a quarter of it, and the click after toggles nothing', async () => {
   const runtime = mount(true)
   try {

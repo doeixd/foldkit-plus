@@ -143,7 +143,7 @@ const saveButton = (h: HtmlBuilder<Message>) =>
 
 The important line is:
 
-```ts
+```ts sketch
 toView: Button.toView(mixins, { h }, draw)
 ```
 
@@ -225,6 +225,54 @@ deliver.
 A button drawn as a button needs no `draw` at all. `Button.view` takes the
 label, a style, and `@foldkit/ui`'s own config:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { FieldValidation } from 'foldkit'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { Capability, Slot, Slots, Style } from 'foldkit-mixins'
+import { Layers } from 'foldkit-mixins'
+import {
+  ButtonSlots,
+  Icons,
+  InputSlots,
+  Listbox,
+  ListboxSlots,
+  Menu,
+  MenuSlots,
+  ScrollArea,
+  SegmentedSlots,
+  Segmented,
+  Tabs,
+  TabsSlots,
+  TextareaSlots,
+  Touch,
+} from 'foldkit-mixins-ui'
+const Message = defineMessageUnion({
+  Saved: {},
+  TypedEmail: { value: Schema.String },
+  TypedTitle: { value: Schema.String },
+  TypedReply: { value: Schema.String },
+  ToggledMark: { mark: Schema.String },
+})
+type Message = typeof Message.Type
+const SaveStyle = Style.forSlots(ButtonSlots)({ button: Style.class('btn btn-primary') })
+const FieldStyle = Style.forSlots(InputSlots)({ input: Style.class('field') })
+const TextareaStyle = Style.forSlots(TextareaSlots)({ textarea: Style.class('reply') })
+const Container = Slot.make({ capability: Capability.Container })
+const EntrySlots = Slots.define({ badge: Container })
+const FieldSlots = Slots.define({ group: Container, affix: Container, text: Container })
+const TabsStyle = Style.forSlots(TabsSlots)({})
+const MenuStyle = Style.forSlots(MenuSlots)({})
+const ListboxStyle = Style.forSlots(ListboxSlots)({})
+const ScrollAreaSlots = Slots.define({ root: Container })
+const TileSlots = Slots.define({ tile: Container })
+const MyTabsSlots = Slots.define({ tablist: Container })
+declare const h: HtmlBuilder<Message>
+declare const model: { readonly marks: ReadonlyArray<string> }
+declare const iconUrl: (name: string) => string
+-->
+
 ```ts
 import { Button } from 'foldkit-mixins-ui'
 
@@ -240,6 +288,16 @@ const saveButton = (disabled: boolean, h: HtmlBuilder<Message>) =>
     h,
   )
 ```
+
+`disabled` writes `aria-disabled`, not `disabled`, as upstream does, so the
+button keeps its focus. A `type: 'submit'` one therefore still submits its
+form, on Enter or a press: refuse the submit in `update` while it should not
+go.
+
+`attributes: { button?, icon? }` adds what another component hands a slot,
+after the button's own: a Dialog's `initialFocus`, so the dialog opens on
+that button (`attributes: { button: dialog.initialFocus }`). A class among
+them replaces the button's, as a later attribute list does.
 
 An `icon` (an `svg`) draws before the label in the `icon` slot, hidden from
 assistive technology; `Recipes.Button({ variant: 'icon' })` shows the icon
@@ -811,8 +869,9 @@ as before a page hydrates, so does the browser's bar.
 Every one is the same shape, a mixin list passed beside the style:
 `ScrollArea.overlayBars`, `Command.overlayBars` and `VirtualList.overlayBars`
 in the view's `mixins`, and `Menu.overlayBars`, `Listbox.overlayBars` and
-`Combobox.overlayBars` in `toView`'s for a popup whose list scrolls (given
-`itemsScrollAttributes`). Like `fluid`, it is off by default: a Scene test
+`Combobox.overlayBars` in `toView`'s for a popup whose list scrolls: upstream
+draws that `scroll` region only when given `itemsScrollClassName` or
+`itemsScrollAttributes`, and its class joins the recipe's. Like `fluid`, it is off by default: a Scene test
 resolves every Mount with a Message, and this one sends none, so a default
 would burden the tests of every page that drew one.
 

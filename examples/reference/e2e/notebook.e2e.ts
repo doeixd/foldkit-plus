@@ -321,3 +321,42 @@ test('a note whose answer was lost is shown once after a reload, and written onc
   expect(errors().filter(unheld)).toEqual([])
   await context.close()
 })
+
+/** The served document's head and body, as a crawler reads them: no script runs. */
+const servedHalves = (html: string) => {
+  const at = html.search(/<\/head>/i)
+  return { head: html.slice(0, at), body: html.slice(at) }
+}
+
+const descriptionIn = (markup: string) =>
+  [...markup.matchAll(/<meta[^>]*name="description"[^>]*content="([^"]*)"/g)].map(
+    ([, content]) => content,
+  )
+
+test('each served page names itself in the head, and the running page keeps one', async () => {
+  const babbage = await browser.newPage()
+  const errors = Behaviors.consoleErrors(babbage)
+  const signIn = await babbage.goto(`${stack.origin}/sign-in`)
+  const signInHalves = servedHalves((await signIn?.text()) ?? '')
+  expect(descriptionIn(signInHalves.head)).toEqual(['Sign in to your notebook.'])
+  expect(signInHalves.body).not.toContain('name="description"')
+
+  await signUp(babbage, 'Babbage')
+  const notebook = await babbage.goto(`${stack.origin}/`)
+  const notebookHalves = servedHalves((await notebook?.text()) ?? '')
+  expect(descriptionIn(notebookHalves.head)).toEqual([
+    'Your notes, kept in step across your devices.',
+  ])
+  expect(notebookHalves.body).not.toContain('name="description"')
+
+  await babbage.getByText('Babbage, you have written 0 notes.').waitFor()
+  expect(
+    await babbage
+      .locator('meta[name="description"]')
+      .evaluateAll(metas =>
+        metas.map(meta => [meta.parentElement?.tagName, meta.getAttribute('content')]),
+      ),
+  ).toEqual([['HEAD', 'Your notes, kept in step across your devices.']])
+  expect(errors()).toEqual([])
+  await babbage.close()
+})

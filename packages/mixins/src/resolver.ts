@@ -45,6 +45,13 @@ const normalizeName = (name: string): string => name.replace(/[^a-z0-9]/gi, '').
 const eventNameOfTag = (tag: string): string =>
   normalizeName(tag.startsWith('On') ? tag.slice(2) : tag)
 
+/** A Foldkit `Class` attribute, read inside a child attribute another package built. */
+const isClass = (value: unknown): value is { readonly _tag: 'Class'; readonly value: string } =>
+  isTagged(value) &&
+  // tag-check: open — a Foldkit attribute's tag, from a package whose union we do not have.
+  value._tag === 'Class' &&
+  typeof (value as { value?: unknown }).value === 'string'
+
 const splitClasses = (value: string): ReadonlyArray<string> =>
   value.split(/\s+/).filter(token => token.length > 0)
 
@@ -175,6 +182,12 @@ export const resolve = <Message>(
   const addBase = (attribute: Attribute<Message> | ChildAttribute): void => {
     if (isChildAttribute(attribute)) {
       const inner = (attribute as { readonly attribute?: unknown }).attribute
+      // A class sends no Message, so a child's joins the slot's own: kept
+      // apart, Foldkit would draw one of the two `Class` lists and drop the other.
+      if (isClass(inner)) {
+        for (const token of splitClasses(inner.value)) addClass(token)
+        return
+      }
       if (isTagged(inner)) reserve(inner._tag, inner)
       preserved.push(attribute)
       return

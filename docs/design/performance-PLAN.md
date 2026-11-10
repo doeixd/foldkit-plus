@@ -43,6 +43,16 @@ CPU before its first byte.
 | `Style.usedIn` scanning the rendered HTML | unmeasured | #414 |
 | Cold start: a 2.1 MB Worker bundle evaluated per isolate | 345 ms cold against 135 ms warm under Node | #416 |
 
+Re-measured 2026-11-09, with #415, #419, #434 and #436 landed: a never-seen
+search (`/?q=<word><n>`, so no kept page serves it) is a 69 KB page and about
+119 ms warm CPU under Node on Linux (median of 20). The profile splits it as
+parse5 41 ms, the rest of Foldkit 25 ms, garbage collection 11 ms, Effect 7 ms,
+and the packages and the app about 12 ms together. All of parse5's time is
+Foldkit checking its own output (`escapesDocumentStructure` 14 ms,
+`parseFragmentModes` 13, `closesCleanly` 8, `assertInjectionIsFaithful` 5,
+`renderedShapes` 5), so what is left of #413 is upstream's (#1657). Not yet
+re-measured on workerd.
+
 The parse cost is Foldkit's, and upstream is reducing it.
 foldkit/foldkit#1657 (P2) tracks it with a reproduction: about 80 ms on a
 52 KB page. Its first step, #1659, cut parses from 26 to 16 and is in
@@ -171,12 +181,20 @@ interleaved cold loads of `/?q=sunbeam`):
 | Without JavaScript | works | no prices | works | already ahead |
 | Time to first byte | 71 ms | 55 ms | 81 ms | #469, #468 |
 | JS at load, brotli | 79 KB | 215 KB | 268 KB | #472; then #420, #430 |
-| CSS, brotli | 8.9 KB | 8.0 KB | 18.1 KB | #471 |
+| CSS, brotli | 8.9 KB | 8.0 KB | 18.1 KB | #487: the theme tokens nothing reads, not #471 (below) |
 | HTML, brotli | 5.4 KB | 4.5 KB | 11.1 KB | #470, #473 (it carries the prices; compare HTML with data) |
 | Failed loads (1102) | 0 | 0 | 13 of 15 never-seen searches | #473; #469 and #468 for repeated pages |
 | New search | 215 ms | 246 ms | 307 ms | #474 |
 | Speed Index, mobile (v0.37.0) | 0.9–2.4 s | 1.5–1.6 s | 3.2–4.1 s | #475 |
 | First 60 names priced | 213 ms | 638 ms | not reached (24 drawn) | #475 |
+
+A new search, re-measured 2026-11-09 against stock Foldkit's copy in
+`examples/foldkit/domains`, both built and served by `wrangler dev --local`
+(`scripts/search-compare.mjs`, medians of 20 and 12 interleaved searches,
+debounce included): 198 ms against 260 at full speed, 315 against 643 with
+the CPU slowed four times. Which change since 0.38.0 moved it ahead is not
+split out beyond #474's own `answeredOf` cut; the live Workers have not been
+measured again.
 
 Server CPU is the one number that decides the rest. Solid spends 5–12 ms on
 this page; domains-plus about 60 ms on `/` and 190 ms on a search, against
@@ -194,6 +212,45 @@ minutes, 10 of 10 loads were served from KV, and Worker startup fell from
 539 to 327 ms.
 
 ## What the work so far taught
+
+- **Measure the check before skipping it.** #439 would skip checking the
+  regions a Message cannot affect. Measured 2026-11-09 (`pnpm bench`,
+  `packages/remote/bench/read.bench.ts`):
+  - a region over Model paths checks a few identities, well under 1 µs;
+  - a Remote read with the store unchanged is a memo hit, 1.3 µs;
+  - one read again after a write to a row it does not show costs about
+    22 µs for a 25-row list and 100 µs for 100 rows.
+
+  A page with five 25-row lists spends about 0.1 ms per write re-checking,
+  about 1% of domains-plus's 9 ms view frame. That is the most #439 could
+  save, so it waits for a page with many long lists (ten 100-row lists is
+  about 1 ms). Its static half, which queries a write can reach, is already
+  derivable (#477's `candidate`, `packages/remote/test/writeTrace.test.ts`).
+
+- **A memo is measured where its case happens.** #431's Bundle part is
+  built: a placement, a `Link.child` and a collection item drawn without
+  view inputs are kept while the child's Model is the same object. No app the
+  render benchmark drives has the case it helps: the data grid is one
+  placement whose Model changes with nearly every Message, domains-plus
+  places no Bundle children, the CMS studio draws one section at a time, and
+  ui-showcase folds its components with `Update.foldChild` and draws them by
+  hand. Its runtime test counts draws (`packages/bundle/test/memo.test.ts`);
+  numbers wait for an app with sibling placements that stand still while
+  others change.
+
+- **Measure what a sheet holds before pruning it.** #471 proposed shipping
+  only the classes a page can draw. Measured 2026-11-08 on domains-plus, its
+  sheet is 159.6 KB raw, 15.2 KB brotli: 92.0 KB of it is the application's
+  own `stylesheet` text (reset, theme, defaults), and 67.7 KB the compiled
+  classes. Server renders of `/`, three searches, `/tlds`, a 404 and a page
+  with a cart draw 114 of the 148 classes; the 34 left are about 12 KB raw,
+  about 1.2 KB brotli, and nearly all are drawn later by a client (the
+  Listbox and Dialog popups, the filter and cart sheets, data-dependent
+  states), which would then inject them at run time. The lever is the base
+  sheet: 414 of its 587 token definitions are read by nothing the sheet
+  ships, and dropping them would take it from 15.2 to 10.8 KB brotli (#487).
+  Built (`styles({ prune })`), a `vite build` measured 10.6 KB, held by
+  `examples/foldkit/domains-plus/test/sheet.test.ts`.
 
 - **Remove code; do not defer it.** #423 moved the cart and phone sheets
   behind `Resource.lazy` and saved 0.9 of 214.8 KB: the app's own code is

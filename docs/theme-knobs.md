@@ -104,7 +104,7 @@ not `type.headings.weight`.
 
 ### A theme is named by the record that installs it
 
-```ts
+```ts sketch
 const themes = Themes.make({ iris, cobalt, cobaltDense }, { initial: 'iris' })
 ```
 
@@ -124,6 +124,8 @@ step below is a commit that passes every check on its own.
 ## The API
 
 ```ts
+import { Schema } from 'effect'
+import { AppStyle } from 'foldkit-mixins/app'
 import { Knob, Knobs, Theme, Themes } from 'foldkit-mixins/theme'
 
 // A theme: only the knobs it changes; the rest keep their defaults.
@@ -169,17 +171,31 @@ const Model = Schema.Struct({ theme: themes.Name })
 ### An application's own knobs
 
 ```ts
-const AppKnobs = Knobs.standard.pipe(
-  Knobs.add({ brand: { glow: Knob.percent({ default: 20, description: 'How much the hero glows' }) } }),
-)
-const k = Knobs.ref(AppKnobs) // k.brand.glow is 'var(--fk-knob-brand-glow)'
-const glow = Theme.define({ glow: { soft: `color-mix(in oklab, ${t.accent.default} ${k.brand.glow}, transparent)` } })
+const AppKnobs = {
+  ...Knobs.standard,
+  brand: {
+    glow: Knob.percent({
+      variable: 'brand-glow',
+      title: 'Glow',
+      default: 20,
+      min: 0,
+      max: 100,
+      step: 1,
+      description: 'How much the hero glows',
+    }),
+  },
+}
+const glow = Theme.define({
+  glow: { soft: `color-mix(in oklab, ${t.accent.default} var(--fk-knob-brand-glow), transparent)` },
+})
 
 const launch = Theme.make(AppKnobs, { brand: { glow: 40 } })
 ```
 
-An added knob's variable is named by its path (`--fk-knob-brand-glow`). The
-standard knobs name theirs explicitly, so their CSS stays what it is.
+A knob names its own variable: `variable: 'brand-glow'` writes
+`--fk-knob-brand-glow`, as the standard knobs name theirs, so their CSS stays what
+it is. `Knobs.add` and `Knobs.ref`, which would add a group to the standard set and
+name its variables by path, are not built yet (see Steps).
 
 ### Scoping to a subtree
 

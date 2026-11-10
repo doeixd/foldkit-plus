@@ -14,6 +14,7 @@
  */
 import { createHash } from 'node:crypto'
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite'
+import { prune } from './theme/prune.js'
 
 const VIRTUAL = 'virtual:foldkit-styles'
 const SHEET = 'virtual:foldkit-styles-sheet'
@@ -24,6 +25,13 @@ const DEV_PATH = '/__foldkit-styles.css'
 export interface StylesOptions {
   /** A module id (as an import would write it) that exports the application's stylesheet text as `stylesheet`. */
   readonly sheet: string
+  /**
+   * Ship only the `--fk-*` tokens the sheet reads (`Inert.prune`), and those
+   * `keep` names: a token a view reads inline (`Theme.ref`) or a script reads
+   * by name. Run `Inert.missingTokens` over a drawn page and the pruned sheet
+   * in a test, so a token pruning took from a view fails there.
+   */
+  readonly prune?: { readonly keep?: ReadonlyArray<string> } | undefined
 }
 
 /** The module the plugin builds: the sheet, completed with every class its modules compiled. */
@@ -99,12 +107,17 @@ export const styles = (options: StylesOptions): Plugin => {
   let dev: ViteDevServer | undefined
   let devCss: Promise<string> | undefined
   let built: Promise<Built> | undefined
+  // Dev serves the same pruned sheet a build ships, so a missing token shows there first.
+  const shipped = (css: string): string =>
+    options.prune === undefined ? css : prune(css, options.prune)
 
   const build = (): Promise<Built> =>
-    (built ??= buildSheet(config, options.sheet).then(css => {
-      const fileName = `assets/styles-${createHash('sha256').update(css).digest('hex').slice(0, 8)}.css`
-      return { css, fileName, href: `${config.base}${fileName}` }
-    }))
+    (built ??= buildSheet(config, options.sheet)
+      .then(shipped)
+      .then(css => {
+        const fileName = `assets/styles-${createHash('sha256').update(css).digest('hex').slice(0, 8)}.css`
+        return { css, fileName, href: `${config.base}${fileName}` }
+      }))
 
   return {
     name: 'foldkit-mixins:styles',
@@ -124,7 +137,7 @@ export const styles = (options: StylesOptions): Plugin => {
         devCss = undefined
       })
       server.middlewares.use(DEV_PATH, (_request, response, next) => {
-        devCss ??= server.ssrLoadModule(SHEET).then(loaded => String(loaded.css))
+        devCss ??= server.ssrLoadModule(SHEET).then(loaded => shipped(String(loaded.css)))
         devCss.then(
           css => {
             response.setHeader('content-type', 'text/css; charset=utf-8')

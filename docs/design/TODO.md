@@ -1,7 +1,8 @@
 # Design to-do
 
 Everything the design documents in this directory still list as open, checked
-against the code on 2026-09-27. Each item names the document and section it
+against the code on 2026-09-27, and every open item checked again on
+2026-11-09. Each item names the document and section it
 comes from, so the reasoning is one click away. [README.md](./README.md) says
 where each design stands as a whole.
 
@@ -139,8 +140,13 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   Comparisons (`lt`, `lte`, `gt`, `gte`) built 2026-10-13; Guard keeps its own
   `Condition`, which holds `Inherit` too (see the design's phase 5).
   [data-query-DESIGN.md](./data-query-DESIGN.md) §32
-- [ ] **Local execution Phase 4:** position placement (only the decidable half
+- [x] **Local execution Phase 4:** position placement (only the decidable half
   is built). [local-execution-DESIGN.md](./local-execution-DESIGN.md) §13
+  Built, found 2026-11-09: a row is placed by the list's declared order
+  (`packages/remote/src/placement.ts`), text included where every text key
+  declares a collation, and `Unknown` with the reason otherwise
+  (`placement.test.ts`, "a list ordered by text with no declared collation";
+  `writeTrace.test.ts` places a list ordered under `Collation.binary`).
 - [x] **Remote-drizzle against a live Postgres.** Revision Phase 14's acceptance
   has not run; tests cover SQLite and the Pg compiler only. That decides open
   question 7. Done 2026-10-13 on PGlite (Postgres itself, as WebAssembly): the
@@ -197,12 +203,14 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   an image uploaded where it is chosen), `EditorView`, `ConfirmView`, `Toolbar`
   and `Crud.screen`, `foldkit-media/browser`'s `upload`, a relation picker's
   `AskedForMore`, and `examples/fields`. Released in 0.34.0.
-- [ ] **A `file` recipe.** It waits for an upload route that takes any file;
-  `foldkit-media`'s route takes images.
+- [x] **A `file` recipe.** `foldkit-form-recipes/file`, over `foldkit-media`'s
+  file route (`fileLayer`). [#493](https://github.com/doeixd/foldkit-plus/issues/493)
 - [ ] **`busy` without `settled` as a type error.** `Input.bundle` refuses it
   when the control is made; a union of the two specs broke inference of `fill`.
+  [#491](https://github.com/doeixd/foldkit-plus/issues/491)
 - [ ] **A picker's "Show more" typed by relation keys.** `FormView`'s `more` is
   keyed by every form key, so a key with no picker type-checks and draws nothing.
+  [#492](https://github.com/doeixd/foldkit-plus/issues/492)
 
 ## Guards
 
@@ -759,9 +767,10 @@ both.
 - [x] **Phase 8:** the stateless vocabulary in `foldkit-mixins-ui`, including
   AspectRatio and Icon. `VisuallyHidden` is `U.srOnly`. Universal `Field`
   stays unbuilt.
-- [ ] **Phase 9 as packages, and Phase 10 blocks:** palette, sidebar, and
-  resizable stay examples. Settings, search, date-range, file browser, tree
-  editor, and property panel are open. Blocks are not started. DataGrid is
+- [ ] **Phase 9 as packages, and Phase 10 blocks:** palette, sidebar,
+  resizable and date-range are now in `foldkit-mixins-ui` (`command.ts`,
+  `sidebar.ts`, `resizable.ts`; checked 2026-11-09). Settings, search, file
+  browser, tree editor, and property panel are open. Blocks are not started. DataGrid is
   its own section above.
 
 ## Mixins and styling
@@ -769,8 +778,9 @@ both.
 - [ ] **Phase 10:** finish `foldkit-mixins-surface`.
   [mixins-DESIGN.md](./mixins-DESIGN.md)
 - [ ] **Phase 12:** the Style compiler's remaining constructs: `@font-face`
-  sugar, animation orchestration, and a rule registry with extraction. Waits
-  until a real view needs them. [mixins-DESIGN.md](./mixins-DESIGN.md)
+  sugar and animation orchestration. The rule registry is built (`inject.ts`'s
+  `register` and `usedIn`), and extraction is the `foldkit-mixins/vite` sheet
+  (checked 2026-11-09). Waits until a real view needs them. [mixins-DESIGN.md](./mixins-DESIGN.md)
 - [ ] **Phase 13:** DevTools and agent metadata beyond
   `SurfaceView.describe`/`toMarkdown`. [mixins-DESIGN.md](./mixins-DESIGN.md)
 - [ ] **Portable Style and Behavior:** the target type, accessibility intents,
@@ -809,9 +819,11 @@ while keeping the best of what this project already has:
   at shadcn's level. [ui-parity-DESIGN.md](./ui-parity-DESIGN.md)
 - [ ] **FileDrop's page.** `File.File`'s decoding services are `unknown`, which
   `Bundle.parent` refuses. [ui-parity-DESIGN.md](./ui-parity-DESIGN.md) step 1
-- [ ] **Separators in a styled menu.** Upstream draws them only through
+- [x] **Separators in a styled menu.** Upstream draws them only through
   `ChildAttribute`s an application's builder cannot draw.
-  [ui-parity-DESIGN.md](./ui-parity-DESIGN.md) step 1
+  [ui-parity-DESIGN.md](./ui-parity-DESIGN.md) step 1. Built, found
+  2026-11-09: the popup view draws them itself (`popupView.ts`), and
+  `menuRows.browser.test.ts` asserts two `role="separator"`s outside the groups.
 - [x] **Systems 1, motion.** Tiers of 80, 160 and 240ms with exits a tier
   quicker, and a `travel` knob that reduced motion zeroes while fades stay.
   Popups and dialogs enter and leave through upstream's `data-closed` and
@@ -900,15 +912,14 @@ while keeping the best of what this project already has:
   the menus), and depth per component. Phases 0–5 and the merges have
   landed; a review of that pass (Part E) found claims without proof and
   docs ahead of the code, and most of it is now fixed and ticked there.
-  Still open in Part E: the Calendar's month buttons right to left, an RTL
-  browser test per component, the measuring tests 50a7ef0f skipped, A3's and
-  the radio press tests, the checkbox recipe's mutation spec, a popup's
-  overlay-bar browser test, the breadcrumb "…" menu, Steps' markers, the
-  custom Select, and the rest of Checkbox Group.
+  Part E is done (2026-11-10); what is left needs `@foldkit/ui`, filed
+  upstream as foldkit/foldkit#1686 to #1689.
   [ui-polish-DESIGN.md](./ui-polish-DESIGN.md)
-- [ ] **Carousel dots** after Fluid Functionalism's
+- [x] **Carousel dots** after Fluid Functionalism's
   ([carousel-dots](https://www.fluidfunctionalism.com/docs/carousel-dots)).
-  [ui-polish-DESIGN.md](./ui-polish-DESIGN.md) Part C, Carousel
+  [ui-polish-DESIGN.md](./ui-polish-DESIGN.md) Part C, Carousel. Built, found
+  2026-11-09: the Carousel's `dot` slot, a dot per slide, the current one
+  filling with autoplay (`carousel.ts`).
 - [x] **Parity 7, chat.** `ChatMessage` (with `ChatMessage.group`),
   `MessageScroller`, `ThinkingIndicator`, `ThinkingSteps` and
   `Questionnaire`, exported, in the catalog and on the site. Skipped, each
@@ -983,15 +994,19 @@ its README the details.
 - [x] **Remote: one policy per `Data.subscriptions` call.** Fixed: retention
   is the domain's, so each call's `retain` roots every call's reads.
 - [x] **Remote: the default clock and `any` dependencies.** Fixed.
-- [ ] **Remote: per-field fetch time.** The store keeps one `updatedAt` per
+- [x] **Remote: per-field fetch time.** The store keeps one `updatedAt` per
   entity and any write refreshes it, so under stale-while-revalidate an old
-  field looks fresh after another is written. Proposal: `writtenAt` per field,
-  aged by `plan`/`deadlineOf`, and `Data.fetchedAt(model, projection)`.
+  field looks fresh after another is written. Done 2026-11-09 with two dates,
+  not a `writtenAt` per field: an expired row is read whole, so the oldest
+  field's date is enough ([remote-field-freshness-DESIGN.md](./remote-field-freshness-DESIGN.md)).
   `foldkit-api-cache`
-- [ ] **RemoteServer: a typed principal with an inferred `Input`.** Giving `P`
+- [x] **RemoteServer: a typed principal with an inferred `Input`.** Giving `P`
   explicitly stops TypeScript inferring the rest; a source that ignores the
   principal can now omit the generics. Proposal: curried
-  `RemoteServer.for<P>().query(Q, run)`.
+  `RemoteServer.for<P>().query(Q, run)`. Not needed, found 2026-11-09: `query`
+  takes no type arguments, a principal is typed on its `where` parameter, and
+  `packages/remote-drizzle/test/query.test-d.ts` pins both and the refusal
+  ([cms-example-FINDINGS.md](./cms-example-FINDINGS.md)).
 - [x] **Bundle: a child whose first state comes from the URL.** Derived
   placement args read the parent seed at `assembly.initial`; `foldkit-routing`
   adopts this for People. Later route changes arrive as Messages.
@@ -1054,11 +1069,12 @@ its README the details.
   showcase Dialog; keep `.extend` additive. Preserve known output keys where
   useful to avoid `?? Style.empty`, without requiring every Slot in partial
   styles. Removing a style does not remove markup. Design review §8.
-- [ ] **Mixins-UI: adapters still missing.** Nav, DragAndDrop, Animation, and
-  VirtualList still hand out attributes with no adapter. Menu, Listbox,
-  Combobox, DatePicker, Toast, FileDrop, and Calendar have adapters.
-  Recipes exist for Select, Popover, Tooltip, Slider, and RadioGroup.
-  Fieldset, Disclosure, HoverIntent, and Calendar still have no recipe.
+- [ ] **Mixins-UI: adapters still missing.** DragAndDrop and Animation still
+  hand out attributes with no adapter. Menu, Listbox, Combobox, DatePicker,
+  Toast, FileDrop, Calendar, Nav and VirtualList have adapters (checked
+  2026-11-09). Recipes exist for Select, Popover, Tooltip, Slider, RadioGroup,
+  Calendar, Nav and VirtualList, and `hoverCard` wraps HoverIntent. Fieldset
+  and Disclosure still have no recipe.
   Internal items with class-only hooks need upstream render/attribute hooks,
   not a second accessibility/state owner. `Textarea.resolve` and its result
   types are fixed; review any remaining direct `SlotBuilder.attrs()` textarea
@@ -1101,11 +1117,14 @@ then the lifecycle and host-integration design work.
   steps. Built: direct typed Textarea resolution, draw-only cases use Inert's
   frame, interaction cases retain Scene; Form/Auth rationale corrected and
   obsolete UI Showcase gap claims removed. Showcase typecheck and 74 tests pass.
-- [ ] **High: demonstrate strict FormView submit policy (§2).** Use the existing
-  predicate in a real adopter and correct the README limitation. Verify Enter
-  and click during checks and page-level submission; enforce operation guards
-  in the reducer independently of a button's `aria-disabled` presentation.
-  Coordinate with showcase wave 1's explicit-submit-gate adopter decision.
+- [x] **High: demonstrate strict FormView submit policy (§2).** Built
+  2026-11-10: the waitlist (`examples/foldkit/form`) was strict in its button
+  and lenient in its reducer, since `Button.view`'s `disabled` is only
+  `aria-disabled` and Enter or a press during the email check was held and
+  sent on the answer. Its `update` now refuses a submit while a check runs,
+  proven by a browser test (Enter and a press during a check) and its
+  mutations; the mixins-form README says why. Operation guards were already
+  in reducers (`Crud`'s `onOut` while busy, the waitlist while submitting).
 - [x] **Medium: public complete-value accessor for aggregate forms (§3).**
   Built: `form.value(model)` in `foldkit-form` returns the decoded input as
   `Option` (all or nothing), documented beside `isValid`/`canSubmit`. Job

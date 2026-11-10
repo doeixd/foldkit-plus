@@ -22,6 +22,8 @@ export interface BundleReport {
     readonly minified: number
     readonly brotli: number
   }>
+  /** Every module loaded at start, by name, however small. */
+  readonly included: ReadonlyArray<string>
   readonly styleSystemBrotli: number
 }
 

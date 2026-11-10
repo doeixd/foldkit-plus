@@ -117,13 +117,16 @@ export const Drawer = Style.recipeFor(DrawerSlots)({
         transitionDuration: travelled(ref.motion.moderate),
         transitionTimingFunction: ref.motion.settle,
       }),
+      // Physical sides, as the turn's origin and the chevron are: the bar
+      // looks the same either way, and logical sides swapped the halves right
+      // to left, turning each on its outer end.
       Style.pseudo('::before', {
-        insetInlineEnd: 'calc(50% - 0.0625rem)',
+        right: 'calc(50% - 0.0625rem)',
         transformOrigin: 'right center',
         rotate: `calc(var(--_fk-drawer-bend, 0) * -${BEND}deg)`,
       }),
       Style.pseudo('::after', {
-        insetInlineStart: 'calc(50% - 0.0625rem)',
+        left: 'calc(50% - 0.0625rem)',
         transformOrigin: 'left center',
         rotate: `calc(var(--_fk-drawer-bend, 0) * ${BEND}deg)`,
       }),

@@ -527,6 +527,15 @@ export const unreadAt = (url: Url): Model => modifyFields(initial, { route: () =
 
 export const subscriptions = placements.subscriptions()
 
+/** What a page says of itself to a link preview. */
+const descriptionOf = (route: AppRoute): string =>
+  AppRoute.match(route, {
+    SignIn: () => 'Sign in to your notebook.',
+    Notebook: () => 'Your notes, kept in step across your devices.',
+    NotePage: () => 'A note in your notebook.',
+    NotFound: () => 'No page here.',
+  })
+
 /**
  * What the Worker draws and how it is handed to the browser: the route
  * crosses as it is, and Remote sends what `actives` read, so the browser
@@ -539,5 +548,7 @@ export const plan = SSR.plan(
     state: Projection.pick(App.model.route),
     surfaces: Object.values(actives),
     parts: [Remote.resume(Data)],
+    // In the served head, for a link preview (the Worker moves it there with `SSR.headed`).
+    meta: model => ({ description: descriptionOf(model.route) }),
   },
 )

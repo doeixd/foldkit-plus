@@ -58,7 +58,7 @@ export default [
     edits: [
       {
         file,
-        find: '        placed: keptPlacements(model.placed, retained.connections),\n',
+        find: '        placed: keptByList(model.placed, retained.connections),\n',
         replace: '',
       },
     ],

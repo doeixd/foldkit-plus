@@ -122,6 +122,33 @@ plan.
 Fetching is a Foldkit Subscription derived from the active Surfaces, and
 activation is a fact of the Model:
 
+<!-- docs-check
+import { Option, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Surface } from 'foldkit-surface'
+import { Entity, Remote } from 'foldkit-remote'
+import { live } from 'foldkit-remote/live'
+const Project = Entity.make('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const ProjectSummary = Project.select({ id: true, name: true })
+const Route = Schema.Union([
+  Schema.Struct({ _tag: Schema.Literal('home') }),
+  Schema.Struct({ _tag: Schema.Literal('project'), projectId: Schema.String }),
+])
+const Model = Schema.Struct({ route: Route, remote: Remote.Model })
+const Message = defineMessageUnion({ ...Remote.messages })
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { route: { _tag: 'home' }, remote: Remote.initial },
+  update: model => ({ model }),
+})
+const Data = Remote.make({ model: App.model.remote, entities: [Project] })
+const ProjectPage = App.surface('ProjectPage', {
+  params: { projectId: Schema.String },
+  model: ({ params }) => ({ project: live(Data, ProjectSummary, params.projectId) }),
+})
+-->
+
 ```ts
 Data.subscriptions({
   page: Surface.at(ProjectPage, model =>

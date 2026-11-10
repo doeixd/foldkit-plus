@@ -2921,8 +2921,16 @@ const ask = <Message>(question: Question<Message>, h: HtmlBuilder<Message>): Htm
                       h.div(
                         [h.Style({ display: 'flex', gap: '0.5rem', justifyContent: 'end' })],
                         [
+                          // An alert opens on the answer that loses nothing.
                           Button.view(
-                            { label: 'Cancel', onClick: messages.onClose, style: QuietStyle },
+                            {
+                              label: 'Cancel',
+                              onClick: messages.onClose,
+                              style: QuietStyle,
+                              ...(role === 'alertdialog'
+                                ? { attributes: { button: dialog.initialFocus } }
+                                : {}),
+                            },
                             h,
                           ),
                           Button.view(

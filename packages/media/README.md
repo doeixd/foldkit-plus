@@ -21,6 +21,9 @@ a resizing server, its Cloudflare and Node layers, uploads, and Vite plugins.
   view only reads them.
 - **Variants** belong to whoever makes them, a CDN or a resizing server, and
   are a cache: they can be made again from the original.
+- **An uploaded file** (any file, not an image to resize) belongs to the
+  `FileStore`, with the facts the route recorded; which row holds it, and who
+  may read it, is the application's ([Files](#files)).
 - **Which variant a page shows** is the browser's choice, from `srcset` and
   `sizes`. Nothing in your Model decides it.
 - **An icon's drawing** belongs to its set (Lucide, an application's SVG
@@ -125,7 +128,7 @@ reads it and writes its variants beside the bundle. Add the plugin, and the
 type of a `?image` import (`"types": ["foldkit-media/client"]` in the
 `tsconfig`):
 
-```ts
+```ts standalone
 // vite.config.ts
 import { images } from 'foldkit-media/vite'
 import { defineConfig } from 'vite'
@@ -133,6 +136,11 @@ import { defineConfig } from 'vite'
 export default defineConfig({ plugins: [images({ sources: ['avif'], fallback: 'webp' })] })
 ```
 
+<!-- docs-check standalone
+import type { HtmlBuilder } from 'foldkit/html'
+declare const h: HtmlBuilder<never>
+import 'foldkit-media/client'
+-->
 ```ts
 import hero from './hero.jpg?image'
 import { Layout } from 'foldkit-media'
@@ -165,6 +173,11 @@ no head tags, so `Picture.preload(picture)` returns the `<link rel="preload">`
 for your SSR `head` function to include, from the same `Picture.derive` the view
 draws with `priority: true`:
 
+<!-- docs-check standalone
+import { Option } from 'effect'
+import { Picture } from 'foldkit-media'
+declare const picture: Option.Option<Picture.Picture>
+-->
 ```ts
 const preloadTag = Option.map(picture, Picture.preload)
 ```
@@ -429,6 +442,22 @@ below). It refuses with `UploadForbidden` (`403`), or with
 `UploadUnauthenticated` (`401`) when it cannot tell who is asking, so a client
 whose session ended knows to sign in again.
 
+<!-- docs-check standalone
+import { Effect, Option, Schema } from 'effect'
+import { Guards } from 'foldkit-guard'
+const User = Schema.Struct({ id: Schema.String, role: Schema.Literals(['admin', 'editor']) })
+type User = typeof User.Type
+const G = Guards.declare(
+  'Media',
+  User,
+  guard => ({ isEditor: guard.principal() }),
+  { key: user => user.id, unguarded: 'deny' },
+)
+const Policy = G.implement({
+  isEditor: principal => Option.exists(principal, user => user.role === 'editor'),
+})
+declare const resolve: (request: Request) => Effect.Effect<Option.Option<User>>
+-->
 ```ts
 import { Layer } from 'effect'
 import { GuardMedia } from 'foldkit-guard/media'
@@ -535,6 +564,157 @@ often it is asked: each admitted call reads up to `maxBytes` and decodes it,
 so the `UploadPolicy` is where an application limits who calls, and how often. What cannot be read (a host
 not allowed, a missing file, no image) is a `422`, saying only that.
 
+### Files
+
+Images are not the only uploads: a form may take a PDF, a spreadsheet, any
+file. `POST /_media/files` keeps any file, and `GET /_media/files/:key` serves
+it back as a download. They are a route set of their own (`fileLayer`), apart
+from the image routes, and a server that mounts only the image routes serves
+no file. Files are kept in a `FileStore` under 32-hex keys, and the variant
+server reads only a 64-hex content hash, so no request to it names a file.
+
+**Who owns what.** The route owns the bytes and the facts it recorded about
+them: a key it minted, and the name, type and size the uploader declared. The
+application owns which row holds a file and who may read it. A form only ever
+holds a `FileAsset` (`{ key, name, type, size }`, from `foldkit-media`), which
+is the client's word once it has passed through the client.
+
+```text
+browser: uploadFile(file)  ->  POST /_media/files  ->  key minted, bytes + record kept  ->  FileAsset
+form submits the FileAsset ->  your mutation: authorize, then keepOrClaim  ->  the server's FileAsset on the row
+GET /_media/files/:key     ->  FileReadPolicy (who asks, may they read this key)  ->  the bytes, as an attachment
+```
+
+A key is 128 random bits, so it cannot be guessed, and each upload's bytes
+are kept on their own, even when equal to another's: sharing them would make
+a second upload of the same bytes answer faster, telling the uploader that
+someone already holds them.
+
+```ts
+import { Effect, Layer, Option } from 'effect'
+import { SecureRandom } from 'effect/crypto'
+import { KeyValueStore } from 'effect/persistence'
+import type { FileAsset } from 'foldkit-media'
+import {
+  FileUploadPolicy,
+  UploadForbidden,
+  fileLayer,
+  fileReadPolicy,
+  filesKeyValueStore,
+  keepOrClaim,
+} from 'foldkit-media/server'
+
+// Your own: who a request is, and which rows hold which file.
+declare const userOf: (headers: Headers) => Option.Option<string>
+declare const rowHolding: (key: string) => Effect.Effect<Option.Option<{ readonly owner: string }>>
+
+const files = fileLayer({ accept: ['application/pdf', 'image/*'] }).pipe(
+  Layer.provide(
+    Layer.mergeAll(
+      filesKeyValueStore(),
+      Layer.succeed(FileUploadPolicy, {
+        admit: request =>
+          Option.match(userOf(new Headers(request.headers)), {
+            onNone: () => Effect.fail(new UploadForbidden({})),
+            onSome: Effect.succeed,
+          }),
+      }),
+      fileReadPolicy({
+        resolve: request => Effect.succeed(userOf(new Headers(request.headers))),
+        read: (user, key) =>
+          rowHolding(key).pipe(
+            Effect.map(row =>
+              Option.exists(row, ({ owner }) => Option.contains(user, owner)),
+            ),
+          ),
+      }),
+    ),
+  ),
+  Layer.provide(Layer.merge(KeyValueStore.layerMemory, SecureRandom.layerWebCrypto)),
+)
+
+// In the mutation that saves a row, once the write is authorized:
+const attached = (held: Option.Option<FileAsset>, submitted: FileAsset, user: string) =>
+  keepOrClaim(held, submitted, user)
+```
+
+- **`FileUploadPolicy.admit(request)`** says who is uploading, before a byte
+  is read, and answers their id. Only that id may claim the file later, so it
+  must be stable and never given to another person. An empty id is refused
+  (`403`) and reported (`OwnerMissing`): one id for every visitor would let
+  anyone claim anyone's upload.
+- **`fileReadPolicy({ resolve, read })`** asks in two steps, before the store
+  is read. `resolve` says who is asking from the request alone, never the key,
+  or fails `FileUnauthenticated` (`401`) when it cannot tell, so a client can
+  ask the reader to sign in again. `read` says whether they may read a key,
+  typically by finding the row that holds it. A no is a `404`, the same answer
+  as a key nobody uploaded, so a refusal never says whether a file exists.
+- **`keepOrClaim(held, submitted, owner)`** is what a save stores. When the
+  submitted key is the file the row already holds, it keeps that file and
+  claims nothing, so a teammate re-saving a row is fine. Otherwise it claims
+  the key: `FileStore.claim` answers the facts the route recorded, once, to
+  the uploader, within `claimWithin` (a day by default, an option of
+  `filesKeyValueStore`), and fails `FileUnclaimed` for anything else (an
+  unknown key, an expired one, someone else's, one claimed already), each
+  alike. Call it after authorizing the write, so a refused write claims
+  nothing. A key moves to another row only by being uploaded again.
+
+**A download cannot run here.** Every answer the download route writes,
+refusals included, is `application/octet-stream` with `nosniff`, a
+`Content-Security-Policy` of `sandbox; default-src 'none'`,
+`Cross-Origin-Resource-Policy: same-origin` and `Cache-Control: private,
+no-store`. A file comes as an attachment named by its record, never by the
+request, both as RFC 6266's `filename*` and as an ASCII fallback. The
+declared type is never served, so an HTML file uploaded as a PDF downloads
+and runs nothing. None of the image routes' cross-origin headers are sent.
+What the router answers before the route runs (another method, a path it
+cannot decode) and a `500` carry no body, so nothing in them can run.
+
+**What an upload must be.** The body is `application/octet-stream`, and the
+file's name and type travel in `x-foldkit-file-name` (percent-encoded UTF-8)
+and `x-foldkit-file-type`. A page on another site cannot send either without a
+preflight, which the route never answers, so a cookie alone cannot upload from
+elsewhere. An application that adds CORS middleware answering `OPTIONS` for
+these paths undoes that. The name must be non-empty, at most 255 bytes, with
+no control or format character (bidi overrides, zero-width characters), line
+separator or slash. The type is parsed, its parameters dropped, and compared
+with `accept` without regard to case: `text/html;x=image/png` is `text/html`.
+`accept` is required, `'*'` for any type. The client writes the type, so
+`accept` shapes the product and secures nothing; to check the content itself
+(magic numbers, a scan), give `inspect: (bytes, declared) => Effect<void,
+FileRefused>`, run before anything is kept.
+
+| Answer | Why |
+| --- | --- |
+| `201` | Kept; the body is the `FileAsset`. |
+| `400` | No name, or one that breaks a rule above; or a body that broke off. |
+| `401` / `403` | The policy could not tell who is asking, or refused them. |
+| `408` | The body came slower than `minBytesPerSecond` (32 KB/s by default) over 10 seconds. |
+| `413` | Past `maxBytes` (20 MB by default), counted as the body streams. |
+| `415` | Not `application/octet-stream`, a type outside `accept`, or refused by `inspect`. |
+| `429` | `Admission`, when one is given, refused this uploader (`Retry-After` says when to try). |
+| `503` | Every slot is taken (`maxConcurrent`, 2 by default), or this uploader already has one. It does not queue: try again soon. |
+
+**Memory.** An upload holds about twice its size while it is read, so the
+defaults hold at most `2 × 20 MB × 2 = 80 MB`, within a 128 MB Worker. Lower
+`maxBytes` or `maxConcurrent` where an `inspect` copies the bytes. The slots
+belong to the server (a Worker isolate), built once with the layer. A
+download holds its file in memory too, and downloads take no slot, so a
+Worker serving many large files to many readers at once should keep them
+elsewhere (R2 behind a signed URL). One slot per uploader stops one account
+taking every slot, not several: at the minimum rate a 20 MB body takes about
+eleven minutes, so `maxConcurrent` accounts can hold every slot that long.
+Where that matters, ask `Admission` to limit uploads per owner.
+
+From a browser, `uploadFile(file, { url?, headers? })` (`foldkit-media/browser`)
+sends the file as the route expects, and is a `Stream` like `upload`:
+`Progressed` as the bytes go, then `FileUploaded { asset }`. Its
+`UploadFailed` reasons add `TooSlow`, `RateLimited` and `Busy` to `upload`'s.
+In a Worker, `serveFetch`'s `files` hosts the route set. Not done here:
+resumable uploads, range requests, quotas beyond `Admission`, and removing the
+bytes of files nobody claimed (`claimWithin` stops their use; reclaiming the
+space is a sweep left to the application).
+
 ### Written out at build
 
 A static site needs no server for its hosted images: `materialize` makes every
@@ -542,7 +722,20 @@ variant the built pages name, through the server's own handler, and returns
 them as files at their own paths, for `foldkit-ssr`'s `staticSite` `emit`:
 
 ```ts
-const media = serveFetch<object>({
+import { NodeServices } from '@effect/platform-node'
+import { readFileSync } from 'node:fs'
+import { Layer } from 'effect'
+import { KeyValueStore } from 'effect/persistence'
+import {
+  materialize,
+  originalsKeyValueStore,
+  serveFetch,
+  variantsKeyValueStore,
+} from 'foldkit-media/server'
+import { transformerSharp } from 'foldkit-media/sharp'
+import type { BuiltPage } from 'foldkit-ssr/vite'
+
+const staticMedia = serveFetch<object>({
   images: {
     layer: () =>
       Layer.mergeAll(transformerSharp(), originalsKeyValueStore(), variantsKeyValueStore()).pipe(
@@ -556,10 +749,10 @@ const env = {}
 
 export const site = {
   // …
-  emit: pages =>
+  emit: (pages: ReadonlyArray<BuiltPage>) =>
     materialize({
       pages,
-      fetch: request => media(request, env),
+      fetch: request => staticMedia(request, env),
       headersFile: readFileSync('public/_headers', 'utf8'),
     }),
 }
@@ -580,7 +773,7 @@ export const site = {
 `foldkit-media/cloudflare` gives the services from a Worker's bindings, and
 `serveFetch` is the Worker:
 
-```ts
+```ts standalone
 import type { ImagesBinding, R2Bucket, RateLimit } from '@cloudflare/workers-types'
 import { Layer } from 'effect'
 import {
@@ -692,7 +885,7 @@ An icon is data too: `IconData` holds its `viewBox`, what its root paints
 (`fill`, `stroke`), and its drawing as nodes, never markup to set as HTML. An
 application imports icons by name, and the build reads them:
 
-```ts
+```ts standalone
 // vite.config.ts
 import { icons } from 'foldkit-media/vite'
 import { defineConfig } from 'vite'
@@ -702,7 +895,7 @@ export default defineConfig({
 })
 ```
 
-```ts
+```ts sketch
 import { arrowLeft } from 'virtual:foldkit-icons/lucide'
 import { logo } from 'virtual:foldkit-icons/app'
 ```

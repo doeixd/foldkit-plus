@@ -53,6 +53,21 @@ then applies operations in array order. A later invalid operation rejects the
 whole transaction. No partially edited state is returned, and inputs are not
 mutated. `result.error` is a stable diagnostic code, without raw validation internals.
 
+<!-- docs-check
+import { Schema } from 'effect'
+declare const state: RichText.EditorState
+declare const command: RichText.Command
+declare const transaction: RichText.Transaction
+declare const removeTheMarker: RichText.Command
+declare const retypeTheBlock: RichText.Command
+declare const previousState: RichText.EditorState
+declare const currentState: RichText.EditorState
+declare const selection: RichText.Selection
+declare const payload: string
+declare const mint: () => string
+const at = (offset: number) => Text.at(offset, 'after')
+-->
+
 ## Named node references
 
 `Node.make('text-1')` declares a reusable identity. Its `.id` is a validated
@@ -81,7 +96,7 @@ Prefer `Edit.*` over hand-written literals; the builder fills `type` and the
 return type is narrowed to that variant:
 
 ```ts
-const result = RichText.apply(state, [
+const edited = RichText.apply(state, [
   RichText.Edit.insertText(Text.at(5, 'after'), '!'),
   RichText.Edit.addMark(Text, 'Bold'),
 ])
@@ -141,7 +156,7 @@ interface InputRule {
   match: (
     textBefore: string,
     within: ReadonlyArray<string>,
-  ) => { remove: number; commands: Action; storedMarks?: ReadonlyArray<string> } | undefined
+  ) => { remove: number; commands: RichText.Action; storedMarks?: ReadonlyArray<string> } | undefined
 }
 ```
 
@@ -413,7 +428,7 @@ application's schemas; a Kit's node definition validates them at that boundary,
 and it also declares what content the kind holds:
 
 ```ts
-const ArticleKit = RichText.kit({
+const NodeKit = RichText.kit({
   nodes: [
     RichText.block('Paragraph'),
     RichText.node('Callout', { Props: Schema.Struct({ tone: Schema.Literals(['info', 'warning']) }) }),
@@ -423,7 +438,7 @@ const ArticleKit = RichText.kit({
   marks: [RichText.Bold],
 })
 
-RichText.validate(document, ArticleKit)
+RichText.validate(document, NodeKit)
 // → [] | UnsupportedNode (kind not declared) | InvalidProps (schema refused them)
 //   | MismatchedDefinition (declaration and document disagree)
 ```
@@ -462,7 +477,7 @@ Normalization runs as a registry of transforms. Each is a pure function of the
 document plus what the transaction touched, and returns the new document with
 the position steps and identity bookkeeping that go with it:
 
-```ts
+```ts sketch
 const DropEmptyRuns: RichText.Transform = {
   name: 'dropEmptyRuns',
   apply: (document, { dirtyNodes }) => ({ document: next, steps, removedNodes, dirtyNodes, textChanged }),
@@ -568,10 +583,10 @@ Migrations move semantic data forward when a deployment changes its vocabulary �
 replaced:
 
 ```ts
-const Callout = Schema.Struct({ tone: Schema.Literals(['info', 'warning', 'critical']) })
+const CalloutProps = Schema.Struct({ tone: Schema.Literals(['info', 'warning', 'critical']) })
 
 RichText.migrate(document, [
-  RichText.promoteUnknown('EmbedToCallout', 'Embed', 'Callout', Callout),
+  RichText.promoteUnknown('EmbedToCallout', 'Embed', 'Callout', CalloutProps),
   RichText.migration('DangerToCritical', 'Callout', block =>
     block.type === 'Node' && block.props.tone === 'danger'
       ? { ...block, props: { ...block.props, tone: 'critical' } }
@@ -745,9 +760,11 @@ its own identities:
 
 ```ts
 const slice = RichText.sliceOf(document, selection)   // → Slice | undefined
-RichText.serializeSlice(slice)                         // → string for the clipboard
+if (slice !== undefined) {
+  RichText.serializeSlice(slice)                       // → string for the clipboard
+  RichText.withFreshIds(slice, mint)                   // identities that cannot collide
+}
 RichText.deserializeSlice(payload)                     // → Slice | undefined
-RichText.withFreshIds(slice, mint)                     // identities that cannot collide
 RichText.sliceFromText('plain\npaste', mint)           // the text fallback
 ```
 
@@ -781,7 +798,7 @@ published content.
 let history = RichText.emptyHistory
 history = RichText.commit(history, previousState, { group: RichText.groupFor(command) })
 const back = RichText.undo(history, currentState) // → { history, state } | undefined
-const forward = RichText.redo(back.history, back.state)
+const forward = back && RichText.redo(back.history, back.state)
 ```
 
 Grouping is explicit and clock-free: `groupFor` returns `'typing'` for text
@@ -804,17 +821,22 @@ A `Kit` declares the vocabulary one editor accepts — node kinds and marks — 
 plain data, with no renderers or executable code:
 
 ```ts
-const ArticleKit = RichText.kit({
+const BlogKit = RichText.kit({
   nodes: [RichText.block('Paragraph'), RichText.block('Heading'), RichText.atom('Image')],
   marks: [RichText.Bold, RichText.Italic],
 })
 
-RichText.validate(document, ArticleKit)
+RichText.validate(document, BlogKit)
 // → [] when the document fits; otherwise a diagnostic the caller decides on
 ```
 
 `foldkit-richtext` also ships a standard vocabulary — the kinds and marks a document
 uses to mean what Markdown and HTML also mean:
+
+<!-- docs-check
+const Callout = RichText.node('Callout')
+const Highlight = RichText.mark('Highlight', { expand: 'none' })
+-->
 
 ```ts
 RichText.kit({
@@ -879,6 +901,10 @@ code does (`CodeBlock` declares both; without it, Tab still leaves the editor), 
 names the kinds it may stand
 in, so a `ListItem` stands only in a `List` and never at the top level:
 
+<!-- docs-check
+const Language = Schema.Struct({ language: Schema.String })
+-->
+
 ```ts
 RichText.node('List', { children: RichText.blocksOf('ListItem', 'TaskItem') })
 RichText.node('CodeBlock', { Props: Language, children: RichText.textContent, marks: 'none' })
@@ -897,6 +923,10 @@ an atom's props the same way it checks a node's. `run` refuses the edits that wo
 an unexpected child, a forbidden mark, or a misplaced kind (a move, a wrap, or a paste), when it
 is given the vocabulary — `nodes: RichText.nodeRegistry(kit.nodes)`, the node
 counterpart of the `marks` option:
+
+<!-- docs-check
+const kit = BlogKit
+-->
 
 ```ts
 RichText.run(state, { type: 'ToggleMark', mark: 'Bold' }, ids, {
@@ -945,13 +975,13 @@ const seed = RichText.decodeDocument({
 let shared = Replicated.fromDocument(seed, 'doc:seed')
 const shown = Replicated.project(shared)
 const caret = { node: shown.children[0]!.children[0]!.id, offset: 5, affinity: 'after' as const }
-const result = RichText.run(
+const typed = RichText.run(
   { document: shown, selection: { type: 'Range', anchor: caret, focus: caret } },
   { type: 'InsertText', text: '!' },
   { mint: () => crypto.randomUUID() },
 )
-if (result.ok) {
-  const { ops, selection } = Replicated.translate(shared, result, 'edit:1')
+if (typed.ok) {
+  const { ops, selection } = Replicated.translate(shared, typed, 'edit:1')
   shared = Replicated.applyOps(shared, ops)
   const next = { document: Replicated.project(shared), selection: Replicated.resolve(shared, selection) }
 }

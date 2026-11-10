@@ -67,6 +67,7 @@ const Message = defineMessageUnion({
   ReceivedTodos: { todos: Schema.Array(Todo) },
   FailedToLoadTodos: { message: Schema.String },
 })
+type Message = typeof Message.Type
 ```
 
 Bind the constructors to your application, then declare the contract:
@@ -105,6 +106,14 @@ Bind it to the running application. `Agent.host` takes the config you give
 Foldkit and returns it with a host beside it; start the config as you already
 do (`run`, `hydrate`, `embed`, or `SSR.hydrate`):
 
+<!-- docs-check
+import type { Document, HtmlBuilder } from 'foldkit/html'
+import type * as Update from 'foldkit/update'
+declare const init: () => Update.Return<Model, Message>
+declare const update: (model: Model, message: Message) => Update.Return<Model, Message>
+declare const view: (model: Model, h: HtmlBuilder<Message>) => Document
+declare const container: HTMLElement
+-->
 ```ts
 import * as Runtime from 'foldkit/runtime'
 
@@ -261,7 +270,7 @@ The one thing `expose` cannot infer inline is `completion`. `success` and
 Message of the union; `Agent.variant` narrows it to the Messages the contract
 actually names:
 
-```ts
+```ts sketch
 RequestedDeleteTodo: Agent.variant({
   description: 'Delete a todo',
   input: Schema.Struct({ id: Schema.String }),
@@ -282,7 +291,7 @@ Block's button causes it too, is exposed with `Agent.action` under the tag of
 the Message it makes; exposing it under another tag is a type error, and a
 dispatch through it refused:
 
-```ts
+```ts sketch
 Agent.expose(Message, {
   AddedToCart: Agent.action(AddToCart, {
     // Give the principal its type: an Action's extras are not tied to an application.
@@ -304,6 +313,9 @@ contract.
 
 The contract is data, so it is testable without an LLM:
 
+<!-- docs-check
+declare const expect: (value: unknown) => { toEqual: (expected: unknown) => void }
+-->
 ```ts
 expect(Agent.messages(AppAgent).map(message => message.name)).toEqual([
   'create_todo',
@@ -317,6 +329,8 @@ expect(Agent.messages(AppAgent).map(message => message.name)).toEqual([
 The contract is data, so its documentation is generated rather than written:
 
 ```ts
+import { writeFileSync } from 'node:fs'
+
 writeFileSync('agent.json', JSON.stringify(Agent.toManifest(AppAgent), null, 2))
 writeFileSync('AGENT.md', Agent.toMarkdown(AppAgent))
 ```
@@ -348,9 +362,12 @@ agentRuntime.messages.dispatch(Message.RequestedDeleteTodo, { id: 'todo-1' })
 agentRuntime.messages.dispatch('delete_todo', { id: 'todo-1' })
 
 // Errors, at compile time:
-agentRuntime.messages.dispatch(Message.RequestedDeleteTodo, { todoId: 'x' }) // wrong payload
-agentRuntime.messages.dispatch(Message.ReceivedTodos, { todos: [] })        // not exposed
-agentRuntime.messages.dispatch('delete_todoo', { id: 'todo-1' })            // no such capability
+// @ts-expect-error: wrong payload
+agentRuntime.messages.dispatch(Message.RequestedDeleteTodo, { todoId: 'x' })
+// @ts-expect-error: not exposed
+agentRuntime.messages.dispatch(Message.ReceivedTodos, { todos: [] })
+// @ts-expect-error: no such capability
+agentRuntime.messages.dispatch('delete_todoo', { id: 'todo-1' })
 ```
 
 The reference form is worth preferring: it survives a rename of the capability,
@@ -359,6 +376,9 @@ and it needs no name at all for a variant that never declared one.
 `invocation` is optional. In-app callers can omit it -- the id is generated and
 the transport defaults to `in-app` -- while an adapter passes its own:
 
+<!-- docs-check
+declare const signal: AbortSignal
+-->
 ```ts
 agentRuntime.messages.dispatch(Message.RequestedDeleteTodo, { id: 'todo-1' }, {
   id: crypto.randomUUID(),
@@ -370,6 +390,11 @@ agentRuntime.messages.dispatch(Message.RequestedDeleteTodo, { id: 'todo-1' }, {
 An adapter reads a tool name and an unvalidated payload off the wire, so
 neither can be checked at compile time. That path is `dispatchUnknown`:
 
+<!-- docs-check
+declare const nameFromTheWire: string
+declare const payloadFromTheWire: unknown
+declare const invocation: Parameters<typeof agentRuntime.messages.dispatchUnknown>[2]
+-->
 ```ts
 agentRuntime.messages.dispatchUnknown(nameFromTheWire, payloadFromTheWire, invocation)
 ```
@@ -382,13 +407,25 @@ string and reaches `update` as a number.
 
 Every decision the contract makes can be recorded, refusals included:
 
+<!-- docs-check
+type User = { readonly id: string }
+declare const currentUser: () => User
+-->
 ```ts
 const audit = Agent.auditLog({
   capacity: 500,
   principal: (caller: User) => caller.id, // an id, not the whole identity
 })
 
-const agentRuntime = TodoAgent.bind({ definition: AppAgent, host, audit })
+// An agent whose principal is the application's `User`.
+const UserAgent = Agent.forApplication(App).withPrincipal<User>()
+const audited = UserAgent.bind({
+  definition: UserAgent.make({
+    messages: UserAgent.expose(Message, { RequestedCreateTodo: 'Create a new todo' }),
+  }),
+  host: { ...host, principal: currentUser },
+  audit,
+})
 
 audit.entries()
 // [{ at, invocation, transport, capability, tag, principal,
@@ -533,6 +570,9 @@ an object with fields it never declared.
 Failures are tagged and `Schema`-backed, so `Effect.catchTag` narrows them and
 an adapter can encode one to JSON and send it across a protocol boundary:
 
+<!-- docs-check
+const dispatch = agentRuntime.messages.dispatch(Message.RequestedCreateTodo, { title: 'x' })
+-->
 ```ts
 dispatch.pipe(
   Effect.catchTag('AgentCapabilityUnavailableError', error =>

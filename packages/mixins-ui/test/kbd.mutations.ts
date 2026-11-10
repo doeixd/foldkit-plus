@@ -8,6 +8,39 @@ const browser = ['packages/mixins-ui/test/kbd.browser.test.ts']
 
 export default [
   {
+    name: 'a key keeps the untrimmed line, so its letter stands high',
+    edits: [
+      {
+        file: '../src/recipes/kbd.ts',
+        find: "        display: 'inline-block',\n        ...trimmed,\n",
+        replace: "        display: 'inline-block',\n",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a key pads more below than above',
+    edits: [
+      {
+        file: '../src/recipes/kbd.ts',
+        find: "padding: '0.3rem 0.375rem',",
+        replace: "padding: '0.1rem 0.375rem 0.5rem',",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a key pads more at the start than the end',
+    edits: [
+      {
+        file: '../src/recipes/kbd.ts',
+        find: "padding: '0.3rem 0.375rem',",
+        replace: "padding: '0.3rem 0.2rem 0.3rem 0.6rem',",
+      },
+    ],
+    tests: browser,
+  },
+  {
     name: 'keys set proportionally spaced',
     edits: [
       {

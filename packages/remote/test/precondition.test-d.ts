@@ -32,8 +32,12 @@ expectTypeOf(Plain.Refusal.Type).toEqualTypeOf<
 expectTypeOf(Drafts.Refusal.Type).toEqualTypeOf<
   typeof Refusal.conflict.Type | typeof Refusal.unmet.Type | typeof Refusal.invalid.Type
 >()
+// A delete may be refused as referenced too, while rows point at the row through a restriction.
 expectTypeOf(Removing.Refusal.Type).toEqualTypeOf<
-  typeof Refusal.conflict.Type | typeof Refusal.unmet.Type | typeof Refusal.invalid.Type
+  | typeof Refusal.conflict.Type
+  | typeof Refusal.unmet.Type
+  | typeof Refusal.referenced.Type
+  | typeof Refusal.invalid.Type
 >()
 // The input type is the write's, conditioned or not.
 expectTypeOf(Drafts.Input.Type).toEqualTypeOf<{ readonly id: string; readonly title: string }>()
@@ -71,7 +75,10 @@ expectTypeOf<typeof Refusal.taken.Type>().toEqualTypeOf<{
 }>()
 // A write whose kind its type leaves open may be refused as any kind is.
 expectTypeOf<RefusalOfWrite<AnyWrite>>().toEqualTypeOf<
-  typeof Refusal.taken.Type | typeof Refusal.conflict.Type | typeof Refusal.invalid.Type
+  | typeof Refusal.taken.Type
+  | typeof Refusal.conflict.Type
+  | typeof Refusal.referenced.Type
+  | typeof Refusal.invalid.Type
 >()
 const createArms: Record<(typeof Create.Refusal.Type)['_tag'], true> = {
   Taken: true,

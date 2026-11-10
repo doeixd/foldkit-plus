@@ -417,7 +417,7 @@ decides adopt, adapt or skip.
   (`orientation: 'Horizontal'`), and `variant: 'card'`, which frames each
   direct label and fills the one whose radio is checked. The gallery shows
   all three. The press and the dot were fixed in Part B.
-- **Switch.** RTL (A6); a thumb drag (systems 8, open).
+- **Switch.** RTL (A6). A thumb drag is not built (decided 2026-11-10): Radix, Base UI, Zag and shadcn toggle on a press or Space and none drags, and a drag would need pointer capture and a swallowed click after it, for a gesture no adopter has asked for.
 - **Input OTP.** Fix (B); separators and groups (3-3), masked, numeric or
   alphanumeric, sizes.
 - **Password Input.** Check its slots against shadcn's and Zag's: a strength
@@ -543,9 +543,10 @@ green commit. Shared history is not rewritten.
   `inset: auto`; a browser test that sets `dir` on `documentElement` (the
   current one sets it on a wrapper, where the bug does not show). Decide
   whether to reset the UA popover border, padding and `Canvas` background. **Done**: 5de3153b (`inset: auto`; a browser test sets `dir` on the document; the UA border, padding and fill stay, since every recipe replaces them).
-- [ ] The richtext specs' four rotted anchors (`richtext/test/deleteAcross`,
+- [x] The richtext specs' four rotted anchors (`richtext/test/deleteAcross`,
   `table`, `richtext-dom/test/hint` ×2) predate this work; leave them to the
   richtext session, but list them so `mutate:check` red is explained.
+  **Done**: `mutate:check` finds every anchor (checked 2026-11-10), and CI runs it.
 
 ### E2. State colour and hovers
 
@@ -576,8 +577,8 @@ green commit. Shared history is not rewritten.
   does, or observe `dir`); a test that flips `dir` after mount. **Done**: f702f16b (`FollowDirection`; browser tests flip `dir` after mount).
 - [x] Color Picker tracks run `to right` while the thumbs mirror
   (`recipes/colorPicker.ts:27-30`): mirror under `:dir(rtl)`. **Done**: 4272d931 (`colorPicker.browser.test.ts`).
-- [ ] Calendar: ArrowLeft moves to the previous day, drawn to the right;
-  the month buttons swap sides but keep `‹`/`›` (`calendar.ts:216, 248`). **Partly**: the arrows (e18fba0d, `Calendar.readingKeys`); the month buttons still draw `‹`/`›`.
+- [x] Calendar: ArrowLeft moves to the previous day, drawn to the right;
+  the month buttons swap sides but keep `‹`/`›` (`calendar.ts:216, 248`). **Done**: the arrows (e18fba0d, `Calendar.readingKeys`); the month buttons keep `‹`/`›` on purpose, since the bidi algorithm mirrors them right to left, and a flip on top would undo it (85e0f67, `calendarLook.browser.test.ts` "paging arrows", with a mutation adding the flip, killed 2026-11-10).
 - [x] Command shortcuts render "N⌘" (`command.ts:89`):
   `direction: ltr; unicode-bidi: isolate` on the shortcut slot. **Done**: e8598620.
 - [x] Tabs and a horizontal Radio Group do not mirror their arrow keys
@@ -589,8 +590,14 @@ green commit. Shared history is not rewritten.
 - [x] One way to detect RTL: `:dir(rtl)` everywhere, not
   `:where([dir="rtl"]) &` (accordion, sidebar, treeView, menu), which
   matches an LTR island in an RTL page. **Done**: no `[dir="rtl"]` selector is left in `packages/mixins-ui/src`.
-- [ ] A browser RTL test per component that has a direction-dependent
-  part, setting `dir` on `documentElement`.
+- [x] A browser RTL test per component that has a direction-dependent
+  part, setting `dir` on `documentElement`. **Done** 2026-11-10: a pass over
+  the components whose tests name no `rtl` found the Drawer's handle halves
+  turning on their outer ends right to left (fixed, cda86b5), and the
+  Toast's right-to-left swipe untested (47b3b29; its direction is an option,
+  so a unit table). ScrollBars is tested in `foldkit-primitives`; Alert's
+  and AppShell's only direction is a logical inset; the Chart is physical
+  on purpose, as its drawing is.
 
 ### E4. Tests that cannot fail, and claims marked without proof
 
@@ -599,27 +606,47 @@ green commit. Shared history is not rewritten.
 - [x] InputCopy's corner test is a regex over CSS that passes a wrong
   radius: measure computed radii; use `nested()` (A2) instead of a
   hard-coded `radius.md`. **Done**: 8c250261.
-- [ ] Steps' narrow layout test reads CSS text and passes with
-  `containerType` removed: measure at a narrow width.
+- [x] Steps' narrow layout test reads CSS text and passes with
+  `containerType` removed: measure at a narrow width. **Done**: `steps.browser.test.ts`
+  measures a row at 18rem, and the mutation removing `containerType` is killed by
+  "a phone-wide row shows the current label alone" (checked 2026-11-10).
 - [x] da1acf5b replaced the browser test "a held button keeps its size
   under reduced motion" with a regex; restore it with
   `CSS.forcePseudoState` (AGENTS.md). **Done**: 66bf877f.
 - [x] The checkbox browser test asserts a rotation every mark has; test
   that a checked box shows its check and an unchecked one does not. **Done**: ca42af48.
 - [x] Command search's `.toLowerCase()` is untested. **Done**: 581f6468.
-- [ ] 50a7ef0f flipped about 30 rows to "Checked" with no browser test:
+- [x] 50a7ef0f flipped about 30 rows to "Checked" with no browser test:
   Switch RTL, Kbd, Checkbox and Segmented ink centring (use the audit's
   `ink.mjs` method), Alert and Pagination at 390px, VirtualList. Each gets
-  its measuring test before it is marked again.
-- [ ] A3's test covers TreeView only and skips "never taller than its
+  its measuring test before it is marked again. **Done** 2026-11-10 (Checkbox
+  and Pagination already had theirs); each reads a screenshot or a box in a
+  real page, and a mutation of each is killed:
+  `toggleGeometry.browser.test.ts` reads the switch thumb's ink off and on, left
+  to right and right to left, against the track's inline start and end;
+  `kbd.browser.test.ts` the ink of `K` and `⌘` against the keycap's face
+  (under a pixel both ways; measured 0.5px high);
+  `segmentedKinds.browser.test.ts` the ink of a pressed and an unpressed label
+  in a tray and a full-width tray (0.5px high at most; the helper is
+  `test/ink.ts`); `alert.browser.test.ts` an inline and a banner alert at
+  390px, both directions, for sideways overflow of the alert, the page and
+  every child, and the dismiss button at the inline end;
+  `virtualList.browser.test.ts` a thousand rows in a box drawing under sixty
+  of them, and the last row drawn once the box is scrolled to its end.
+- [x] A3's test covers TreeView only and skips "never taller than its
   final height" and "the first label's x never moves": add both, and
-  Sidebar.
+  Sidebar. **Done** 2026-11-10: TreeView and Sidebar sample every frame of
+  an opening (Sidebar slowed eightfold), holding the first row's offset and
+  its x; a mutation of each is killed in both. "Never taller" is not
+  tested, because it cannot fail here: a `0fr` to `1fr` row stops at its
+  content, and with the stretched heading row restored the group peaked at
+  exactly its final 81.375px while its first row moved 20px.
 - [x] `test/menu.mutations.ts:55` removes `topLayer` but keeps
   `popover="manual"`, hiding the panel; remove both so only the overflow
   test kills it. **Done**: 816cff40.
-- [ ] The radio "press" test checks `label.control`; press it.
-- [ ] Badge, kbd, buttonLook and checkbox-recipe mutation specs re-read the
-  CSS line they change: replace with behaviour or computed-style tests. **Partly**: badge and kbd (24e850c9), buttonLook (90d44648); the checkbox recipe's spec is left.
+- [x] The radio "press" test checks `label.control`; press it. **Done**: `radioGroup.browser.test.ts` presses the words and the description with `userEvent.click` (found 2026-11-10).
+- [x] Badge, kbd, buttonLook and checkbox-recipe mutation specs re-read the
+  CSS line they change: replace with behaviour or computed-style tests. **Done**: badge and kbd (24e850c9), buttonLook (90d44648), and the checkbox recipe's (`toggleGeometry.mutations.ts` over `toggleGeometry.browser.test.ts`, which measures the box and reads computed style; 13 of 13 killed, 2026-11-10).
 
 ### E5. Merges and their docs
 
@@ -650,10 +677,10 @@ green commit. Shared history is not rewritten.
 
 ### E6. Systems' loose ends
 
-- [ ] Overlay bars have two API shapes (a boolean `overlayBars` on
+- [x] Overlay bars have two API shapes (a boolean `overlayBars` on
   ScrollArea, Command and VirtualList; an `X.overlayBars` mixin list on the
   popups): pick one; browser tests for VirtualList and a popup; a gallery
-  example; decide whether they default on. **Partly**: one shape, off by default (245fdb20), browser tests for Command and VirtualList (e8598620), a gallery example (1662fb24); a popup's bar has no browser test yet.
+  example; decide whether they default on. **Done**: one shape, off by default (245fdb20), browser tests for Command and VirtualList (e8598620), a gallery example (1662fb24), and a popup's, a Listbox's open panel in `lists.browser.test.ts` (2026-11-10), which found the panel's scroll region losing the recipe's class to upstream's, so its browser bar stayed: the resolver now merges a child attribute's class.
 - [x] ScrollBars re-observes the scroller and every child on any child
   change (`scroll-bars.ts:254-258`), once a frame while a VirtualList
   scrolls: observe one content box. **Done**: 50fc5b3d (`scroll-bars.browser.test.ts` counts observations).
@@ -689,12 +716,12 @@ green commit. Shared history is not rewritten.
   listbox: the custom Select (over Listbox) with Fluid's examples.
   **Done**: the chevron, the muted placeholder and `Listbox.parts` in
   fc7fb1c9…340a5273; the custom examples on the Select page in 0a4e23f4.
-- [ ] Checkbox Group: `setEnabled` drops a checked disabled option
+- [x] Checkbox Group: `setEnabled` drops a checked disabled option
   (`checkboxGroup.ts:77-80`), contrary to "counts for neither"; uneven row
   spacing; the disabled label not dimmed; select-all outside the group above
   the legend; the invalid example errors while boxes are checked; the three
   gallery checkbox examples share one state; "indeterminate" can never be
-  plainly unchecked. **Partly**: `setEnabled(options, checked, on)` keeps a locked box and the group draws its select-all (46abbe48), each example holds its own state and the invalid one errors only while nothing is checked (e3b30b24, 1662fb24); the spacing, the dimmed disabled label and a plainly unchecked indeterminate box are not confirmed.
+  plainly unchecked. **Done**, confirmed 2026-11-10: the rows' spacing and the dimmed disabled words are measured (`checkboxGroup.browser.test.ts`), and the gallery's indeterminate box goes some, all, none (`widgets.mutations.ts`, "the toppings dash comes back when unchecked"). Before that, **partly**: `setEnabled(options, checked, on)` keeps a locked box and the group draws its select-all (46abbe48), each example holds its own state and the invalid one errors only while nothing is checked (e3b30b24, 1662fb24); the spacing, the dimmed disabled label and a plainly unchecked indeterminate box are not confirmed.
 - [x] Radio cards style the application's own `label`s, not a Slot, and the
   selected card nearly vanishes in dark; the Cards snippet should show
   `Recipes.RadioGroup({ variant: 'card' })`. **Done**: b3582ce7, 6005f701, 09b04462.
@@ -760,8 +787,10 @@ green commit. Shared history is not rewritten.
   their flex row, so they stay).
 - [x] Popover: no arrow could be seen on the open panel in the screenshots. **Done**: 1b6f463a (it
   was drawn, too small to see; now larger, the panel 12px off).
-- [ ] A Dialog's `initialFocus` on a `Button.view`: the view takes no attributes, so the
-  alert example cannot spread it on Cancel.
+- [x] A Dialog's `initialFocus` on a `Button.view`: the view takes no attributes, so the
+  alert example cannot spread it on Cancel. **Done** 2026-11-10: `Button.view`'s
+  `attributes: { button?, icon? }`; the gallery's alert opens on Cancel, and
+  `dialog.browser.test.ts` opens one whose Cancel comes second.
 
 Needs `@foldkit/ui` (open):
 

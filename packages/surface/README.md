@@ -137,11 +137,15 @@ facts other packages attach and interpret, such as the server data a
 `foldkit-remote` selection needs. Reading never performs I/O.
 
 ```ts
-Projection.struct({ todos: model.todos, selectedTodoId: model.selectedTodoId })
-Projection.of(Model)({ todos: true, selectedTodoId: true })  // from the Schema
-Projection.array(projection)     // Projection<ReadonlyArray<Root>, ReadonlyArray<Value>>
-Projection.option(projection)    // Projection<Option<Root>, Option<Value>>
-Projection.fromReader(codec, read)  // escape hatch for a non-ModelRef value
+const Summary = Projection.struct({
+  todos: App.model.todos,
+  selectedTodoId: App.model.selectedTodoId,
+})
+const Titles = Projection.of(Todo)({ title: true }) // from the Schema
+Projection.array(Titles) // Projection<ReadonlyArray<Root>, ReadonlyArray<Value>>
+Projection.option(Titles) // Projection<Option<Root>, Option<Value>>
+// Escape hatch for a value that is no ModelRef:
+Projection.fromReader(Schema.Number, (model: typeof Model.Type) => model.todos.length)
 ```
 
 `Projection.struct` accepts `ModelRef`s and nested `Projection`s, so a Surface can
@@ -163,7 +167,11 @@ Open.read(model) // the same array while `model.todos` is
 ```
 
 `on` takes field references and Projections, whose `dependencies` it reads;
-`derive` must read nothing else, or it shows what it read last. A Remote read
+`derive` must read nothing else, or it shows what it read last. In
+development, `Projection.derive(on, derive, { verify: import.meta.env?.DEV ===
+true })` checks that: where the memo would hand back its last value, it works
+the value out again, and throws, naming `on`'s paths, when the two differ by
+`Equal.equals`. It doubles the work, so leave it off in production. A Remote read
 declares no path (its data is named by its metadata), and a `struct` holding
 one declares only its other entries' paths, so while `on` holds such a read
 the value is worked out on every read. Name the store's field,
@@ -181,13 +189,17 @@ the value out again. What it returns is `{ dependencies, read }`, which
 application needs one import. A package declares its own slot once and reads back only its own entries:
 
 ```ts
+import { Metadata } from 'foldkit-surface'
+
 const Flags = Metadata.key<string>('flags', {
-  merge: flags => [...new Set(flags)],
-  summarize: flag => flag,
+  merge: (flags: ReadonlyArray<string>) => [...new Set(flags)],
+  summarize: (flag: string) => flag,
 })
 
-const beta = Projection.fromReader(Schema.Boolean, readBeta, { metadata: Flags.of('beta') })
-Flags.get(Projection.struct({ beta, todos: model.todos }).metadata) // ['beta']
+const beta = Projection.fromReader(Schema.Boolean, (_model: typeof Model.Type) => false, {
+  metadata: Flags.of('beta'),
+})
+Flags.get(Projection.struct({ beta, todos: App.model.todos }).metadata) // ['beta']
 ```
 
 Entries are combined per key with that key's `merge` as projections compose, and
@@ -216,6 +228,29 @@ they are made. `App.runnable({ initial, update })` adds it afterwards and
 returns a `RunnableApplication` with the same references and the same owner.
 A second `Surface.application` for the update would be another application,
 whose references `Projection.pick` refuses to mix with the first's:
+
+<!-- docs-check standalone
+import { Option, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { ModelRef, Projection, Surface } from 'foldkit-surface'
+
+const Todo = Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean })
+const Model = Schema.Struct({
+  todos: Schema.Array(Todo),
+  todosById: Schema.Record(Schema.String, Todo),
+  selectedTodoId: Schema.Option(Schema.String),
+})
+const Message = defineMessageUnion({
+  CreatedTodo: { id: Schema.String, title: Schema.String },
+  ToggledTodo: { id: Schema.String },
+  SelectedTodo: { id: Schema.String },
+})
+const initial: typeof Model.Type = { todos: [], todosById: {}, selectedTodoId: Option.none() }
+const update = (model: typeof Model.Type, _message: typeof Message.Type) => ({ model })
+declare const model: typeof Model.Type
+declare const root: typeof Model.Type
+declare const restoredTodos: typeof Model.Type['todos']
+-->
 
 ```ts
 const Made = Surface.application({ Model, Message })
@@ -252,19 +287,19 @@ so `update` stays the only place a Message has effects:
 ```ts
 import { Action } from 'foldkit-surface'
 
-const AddToCart = Action.define({
-  name: 'addToCart',
-  description: 'Add a product to the cart',
-  input: Schema.Struct({ productId: ProductId }),
-  toMessage: input => Message.AddedToCart(input),
+const SelectTodo = Action.define({
+  name: 'selectTodo',
+  description: 'Select a todo',
+  input: Schema.Struct({ id: Schema.String }),
+  toMessage: input => Message.SelectedTodo(input),
 })
 
-Action.run(AddToCart, { productId: 'p1' }) // Result: the Message, or why the input was refused
+Action.run(SelectTodo, { id: 't1' }) // Result: the Message, or why the input was refused
 ```
 
 `Action.run` decodes the data as the Action's input before `toMessage` sees it,
 so data from a Document or a tool call never executes. The Action is declared
-once: `Agent.action(AddToCart)` exposes it to an agent, and a page's Catalog
+once: `Agent.action(SelectTodo)` exposes it to an agent, and a page's Catalog
 lists it for Blocks to reference by name.
 
 ## Surfaces
@@ -289,7 +324,7 @@ const ById = App.surface('ById', {
 
 Surface.read(TodoDetail, root)                     // project purely
 Surface.read(ById, root, { id: 't1' })
-Surface.view(TodoDetail, render)                   // bind a renderer
+const render = Surface.view(TodoDetail, (todos, h) => h.div([], [`${todos.todos.length} todos`]))
 Surface.rootView(TodoDetail, undefined, render)    // bound to the app root
 ```
 
@@ -332,7 +367,7 @@ described in place (`Surface.contract(surface, params)` for a parameterized one)
 ```ts
 import { Module } from 'foldkit-surface'
 
-const Project = Module.make(App, [BoardSurface, ProjectSync, ProjectRemote, ProjectAgent])
+const Project = Module.make(App, [TodoDetail]) // and any Sync, Remote or Agent contracts
 
 Module.validate(Project) // [] or findings
 Module.manifest(Project) // fields, Messages, who owns each Model path, contracts
@@ -432,18 +467,20 @@ Surface           = observation + capability contract
 Submodel          = state-machine ownership boundary
 ```
 
-They compose; none replaces the others. This schematic example assumes an
-application with a `filter` field and an already-decoded `restoredFilter`:
+They compose; none replaces the others. Each line below changes
+or reads the same field, `todos` (`restoredTodos` is an already-decoded value):
 
 ```ts
+import { modifyFields } from 'foldkit/struct'
+
 // application transition
-modifyFields(model, { filter: () => 'active' })
+modifyFields(model, { todos: () => [] })
 
 // structural addressing
-ModelRef.focus(App.model.filter).get(model)
+ModelRef.focus(App.model.todos).get(model)
 
 // infrastructure installation
-ModelRef.focus(App.model.filter).set(model, restoredFilter)
+ModelRef.focus(App.model.todos).set(model, restoredTodos)
 ```
 
 ### Surface builds on Optics rather than replacing them
@@ -522,6 +559,17 @@ the route, a theme owned by `Settings`, and the signed-in user owned by
 `Session` does not need to become a third state machine just to assemble those
 values:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Surface } from 'foldkit-surface'
+
+const Route = Schema.Literals(['Home', 'Account'])
+const Settings = { Model: Schema.Struct({ theme: Schema.String }) }
+const Session = { Model: Schema.Struct({ user: Schema.NullOr(Schema.String) }) }
+const Message = defineMessageUnion({ ChangedTheme: { theme: Schema.String } })
+-->
+
 ```ts
 const Model = Schema.Struct({
   route: Route,
@@ -529,7 +577,7 @@ const Model = Schema.Struct({
   session: Session.Model,
 })
 
-const App = Surface.application({ Model, Message, initial, update })
+const App = Surface.application({ Model, Message })
 
 const AccountPage = App.surface('AccountPage', {
   model: ({ model }) => ({

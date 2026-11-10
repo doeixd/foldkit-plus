@@ -18,7 +18,7 @@ export default [
     edits: [
       {
         file,
-        find: 'const fetched = model.entities[key]!.updatedAt + age',
+        find: 'const fetched = model.entities[key]!.oldestAt + age',
         replace: 'const fetched = age',
       },
     ],
@@ -244,11 +244,11 @@ export default [
     edits: [
       {
         file,
-        find: 'export const REMOTE_CACHE_VERSION = 6',
-        replace: 'export const REMOTE_CACHE_VERSION = 5',
+        find: 'export const REMOTE_CACHE_VERSION = 7',
+        replace: 'export const REMOTE_CACHE_VERSION = 6',
       },
     ],
-    // A version 5 snapshot carries no `expiresAt`, which the parser refuses
+    // A version 6 snapshot carries no `oldestAt`, which the parser refuses
     // too: the bump and the shape each refuse it, so neither alone is missed.
     survives: 'the new shape refuses an old snapshot on its own',
     tests,

@@ -64,6 +64,33 @@ your domain module; [the example domain](../../examples/cms/src/content/domain.t
 those definitions together. Start with [Form](../form/README.md) if you have not
 yet defined the operation's input.
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+import { Form } from 'foldkit-form'
+import { Mutation } from 'foldkit-remote'
+
+const PostId = Schema.String.pipe(Schema.brand('PostId'))
+const Blog = {
+  Post: Entity.define(
+    'Post',
+    Schema.Struct({
+      id: PostId,
+      title: Schema.String,
+      slug: Schema.String,
+      publishedAt: Schema.NullOr(Schema.String),
+    }),
+  ),
+}
+const PostInput = Schema.Struct({ title: Schema.String, slug: Schema.String })
+const PostForm = Form.make('PostForm', Entity.input(Blog.Post, PostInput))
+const CreatePostMutation = Mutation.make('CreatePost', { Input: PostInput, Output: { id: PostId } })
+const UpdatePostMutation = Mutation.make('UpdatePost', {
+  Input: { ...PostInput.fields, id: PostId },
+  Output: {},
+})
+-->
+
 ```ts
 import { Cms } from 'foldkit-cms'
 
@@ -102,6 +129,11 @@ audience policy, a `bySlug` query, a sitemap this package knows nothing of.
 State is derived from facts and a clock. Nothing stores a status, so it cannot
 disagree with what is true.
 
+<!-- docs-check
+declare const scheduledFor: string
+declare const now: Date
+-->
+
 ```ts
 Cms.state({ archivedAt: null, row: 'visible', draft: { scheduledFor, scheduleError: null } }, now)
 // { _tag: 'Changed', schedule: { at, overdue: false, error: null } }
@@ -132,12 +164,21 @@ and the draft that keeps what the author has entered. It is a Bundle, placed
 like any other; the view is the form's own.
 
 ```ts
+import { Bundle } from 'foldkit-bundle'
+import { Remote, type RemoteClient } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+
 const Editor = Cms.editor('PostEditor', { content: Posts })
 const Base = Bundle.compose({ remote: Remote.Model }).pipe(
   Bundle.withMessages(Remote.messages),
   Bundle.withChild('editor', Editor.bundle), // its Model and its Messages, in yours
 )
-// App = Surface.application(Base), and Data = Remote.make({ model: App.model.remote, ... })
+const App = Surface.application(Base)
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: [Post, ...Object.values(Cms.Entities)],
+  mutations: [...Cms.operations],
+})
 
 const PostEditor = Editor.at({ data: Data, model: App.model.editor })
 const Page = Base.pipe(
@@ -145,10 +186,21 @@ const Page = Base.pipe(
   Bundle.configure('editor', { onOut: PostEditor.onOut }), // made from Data, so given now
 )
 const Placed = Page.children.editor
-const update = PostEditor.after(Page.placements.update(yourUpdate))
+const update = PostEditor.after(
+  Page.placements.update((model, message) =>
+    Remote.reduces(message) ? { model: Data.reduce(model, message) } : { model },
+  ),
+)
 
-Data.subscriptions({ ...yourSurfaces, ...PostEditor.actives })
+Data.subscriptions({ ...PostEditor.actives }) // beside your own Surfaces' actives
+```
 
+<!-- docs-check
+declare const model: typeof Base.Model.Type
+declare const entryId: string
+-->
+
+```ts
 Placed.helpers.open(entryId) // resume the draft, else show what is published
 Placed.helpers.create(Cms.newEntryId()) // something new; its first save makes the entry
 Editor.Message.PublishAsked() // also: ScheduleAsked({ at }), UnscheduleAsked, DiscardAsked,
@@ -230,9 +282,31 @@ An entry's address and its publish time are
 adds two displays, made with `Display.kind` exactly as you make your own. There is
 no CMS view package: a kind and its renderer are all a view needs.
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+
+const Post = Entity.define(
+  'Post',
+  Schema.Struct({
+    id: Schema.String,
+    title: Schema.String,
+    slug: Schema.String,
+    goesLiveAt: Schema.String,
+  }),
+)
+const PostInput = Schema.Struct({
+  title: Schema.String,
+  slug: Schema.String,
+  goesLiveAt: Schema.String,
+})
+-->
+
 ```ts
+import { Form } from 'foldkit-form'
 import { FieldRecipes } from 'foldkit-form-recipes'
 import { renderers } from 'foldkit-form-recipes/html'
+import { FormView } from 'foldkit-mixins-form'
 
 const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
   inputs: {
@@ -244,6 +318,11 @@ const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
 })
 
 FormView.define(PostForm, { renderers: renderers() })
+```
+
+Beside a list's own renderers (`EntryTable` is a `Crud.list` over `Cms.Entries`):
+
+```ts sketch
 EntryTable({ page, renderers: Cms.displayRenderers() }, h)
 ```
 
@@ -266,6 +345,47 @@ is, so one tone rule styles both),
 for the timeline, `Cms.moreCard` for the rest of what can happen to it. They
 draw on your own slot builders, so you keep your slots and styles; who
 published and the archive button's icon are yours to name:
+
+<!-- docs-check standalone
+import { Option, Schema } from 'effect'
+import { Capability, Slot, Slots, type SlotView } from 'foldkit-mixins'
+import { Cms, type RevisionRow, type State } from 'foldkit-cms'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import type { RemoteData } from 'foldkit-remote'
+
+const Message = defineMessageUnion({ RestoreAsked: { revision: Schema.Number } })
+type Message = typeof Message.Type
+type Model = { readonly entryId: string }
+
+const EntrySlots = Slots.define({
+  card: Slot.make({ capability: Capability.Container }),
+  cardTitle: Slot.make({ capability: Capability.Container }),
+  badge: Slot.make({ capability: Capability.Container }),
+  muted: Slot.make({ capability: Capability.Container }),
+  timeline: Slot.make({ capability: Capability.Container }),
+  revision: Slot.make({ capability: Capability.Container }),
+  revisionMark: Slot.make({ capability: Capability.Container }),
+  revisionBody: Slot.make({ capability: Capability.Container }),
+  revisionTitle: Slot.make({ capability: Capability.Container }),
+  revisionLive: Slot.make({ capability: Capability.Container }),
+  revisionMeta: Slot.make({ capability: Capability.Container }),
+  revisionRestore: Slot.make({ capability: Capability.Interactive }),
+  toolbar: Slot.make({ capability: Capability.Container }),
+  button: Slot.make({ capability: Capability.Interactive }),
+  danger: Slot.make({ capability: Capability.Interactive }),
+})
+declare const slots: SlotView.SlotBuilders<typeof EntrySlots, Message>
+declare const h: HtmlBuilder<Message>
+declare const model: Model
+declare const state: Option.Option<State>
+declare const history: (model: Model) => Option.Option<{
+  readonly read: (
+    model: Model,
+  ) => RemoteData<{ readonly revisions: ReadonlyArray<RevisionRow> }>
+}>
+declare const directoryName: (name: string) => string
+-->
 
 ```ts
 Cms.historyCard(slots, h, Cms.revisionsOf(model, history), {

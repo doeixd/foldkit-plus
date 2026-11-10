@@ -4,7 +4,7 @@
  * that is `server.ts`. The trace in `demo.ts`, the drawn page in `view.ts`, and
  * the browser entry in `client.ts` all run this one application.
  */
-import { Effect, Schema, Option } from 'effect'
+import { Effect, Match, Schema, Option } from 'effect'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import { Crud } from 'foldkit-crud'
@@ -198,24 +198,24 @@ export const placements = Page.placements
 export const update = PostScreen.update(
   { editor: PostEditor, editing: EditForm, removing: RemoveForm, pickers },
   placements.update((model: Model, message: Message) => {
-    switch (message._tag) {
-      case 'RequestedMorePosts': {
-        return { model: Option.getOrElse(Posts.more(model), () => model), commands: [] }
-      }
-      // A failed read is not asked for again on its own; this is the asking.
-      // The button leaves the page once the refresh starts, so focus goes to
-      // the list it was retrying rather than falling back to the page.
-      case 'RetriedPosts':
-        return { model: Posts.refresh(model), commands: [FocusPosts()] }
-      case 'SortedPosts':
-        return {
+    return Match.value(message).pipe(
+      Match.tags({
+        RequestedMorePosts: () => ({
+          model: Option.getOrElse(Posts.more(model), () => model),
+          commands: [],
+        }),
+        // A failed read is not asked for again on its own; this is the asking.
+        // The button leaves the page once the refresh starts, so focus goes to
+        // the list it was retrying rather than falling back to the page.
+        RetriedPosts: () => ({ model: Posts.refresh(model), commands: [FocusPosts()] }),
+        SortedPosts: ({ column }) => ({
           model: modifyFields(model, {
-            postSort: sort => PostSort.toggle(sort, message.column),
+            postSort: sort => PostSort.toggle(sort, column),
           }),
-        }
-      default:
-        return { model }
-    }
+        }),
+      }),
+      Match.orElse(() => ({ model })),
+    )
   }),
 )
 

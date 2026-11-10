@@ -7,6 +7,28 @@ const file = '../src/recipes/toggle.ts'
 
 export default [
   {
+    name: 'the thumb moves by a physical translate right to left too',
+    edits: [
+      {
+        file,
+        find: '`&${checked}:dir(rtl)::before`',
+        replace: '`&${checked}:dir(none)::before`',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the thumb starts at the left edge in any direction',
+    edits: [
+      {
+        file,
+        find: "insetInlineStart: '2px',",
+        replace: "left: '2px',",
+      },
+    ],
+    tests,
+  },
+  {
     name: 'an unsized toggle is a fixed 1rem',
     edits: [
       {

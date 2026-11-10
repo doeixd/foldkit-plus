@@ -5,12 +5,13 @@
  * resume or invalidate. Reached only through the live capability (#378), which
  * a live read installs.
  */
+import { Equal } from 'effect'
 import { type Connection, hasNext, hasPrevious } from './connection.js'
 import { addOverlay } from './capability.js'
 import type { OptimisticState } from './optimistic.js'
 import type { LiveInsertion, LivePolicy } from './query.js'
-import { entityKey, tombstone, writeEntity, type EntityStore } from './store.js'
-import type { LiveCursor, LiveEvent, LiveOutcome, LiveState } from './liveState.js'
+import { entityKey, tombstone, writeEntity, type EntityKey, type EntityStore } from './store.js'
+import type { AwaitedEcho, LiveCursor, LiveEvent, LiveOutcome, LiveState } from './liveState.js'
 
 /**
  * Ordering per stream: at most the next cursor; ahead is a gap. A stream opens
@@ -36,26 +37,119 @@ const recordBoundary = (
   return { ...state, boundary: { ...state.boundary, [connection]: next } }
 }
 
+/** Long past any stream's lag behind an answer: it only bounds what the Model keeps. */
+const echoKept = 60_000
+
+/**
+ * The echoes awaited once a write's answer wrote `entities` at `now`: each row's
+ * values, over what an earlier answer left of it, heard by no stream yet.
+ * Waits older than `echoKept` are dropped.
+ */
+export const awaitEchoes = (
+  echoes: Readonly<Record<EntityKey, AwaitedEcho>>,
+  entities: ReadonlyArray<{
+    readonly entity: string
+    readonly id: string
+    readonly values: Readonly<Record<string, unknown>>
+  }>,
+  now: number,
+): Readonly<Record<EntityKey, AwaitedEcho>> => {
+  const kept = Object.entries(echoes).filter(([, echo]) => echo.since > now - echoKept)
+  if (entities.length === 0 && kept.length === Object.keys(echoes).length) return echoes
+  const next: Record<EntityKey, AwaitedEcho> = Object.fromEntries(kept)
+  for (const { entity, id, values } of entities) {
+    const key = entityKey(entity, id)
+    next[key] = { values: { ...next[key]?.values, ...values }, since: now, heard: [] }
+  }
+  return next
+}
+
+/**
+ * A live patch on `stream`, read against the answer it may predate. A stream
+ * that has not sent the answer's values back may still be sending what was
+ * committed before the write: a field it patches to something else is left
+ * out, to be read again (`contradicted`), since it is older than the answer,
+ * or, from a stream that coalesces, newer than it, and only a read can say.
+ * A patch that agrees on every awaited field it names is the echo: the stream
+ * is caught up.
+ */
+const heardBack = (
+  echo: AwaitedEcho,
+  stream: string,
+  values: Readonly<Record<string, unknown>>,
+): {
+  readonly values: Readonly<Record<string, unknown>>
+  readonly contradicted: ReadonlyArray<string>
+  readonly echo: AwaitedEcho
+} => {
+  if (echo.heard.includes(stream)) return { values, contradicted: [], echo }
+  const named = Object.keys(values).filter(field => Object.hasOwn(echo.values, field))
+  const contradicted = named.filter(field => !Equal.equals(values[field], echo.values[field]))
+  if (contradicted.length === 0)
+    return {
+      values,
+      contradicted,
+      echo: named.length === 0 ? echo : { ...echo, heard: [...echo.heard, stream] },
+    }
+  const out = new Set(contradicted)
+  return {
+    values: Object.fromEntries(Object.entries(values).filter(([field]) => !out.has(field))),
+    contradicted,
+    echo,
+  }
+}
+
 export interface EntityApplied {
   readonly state: LiveState
   readonly store: EntityStore
   readonly outcome: LiveOutcome
+  /** What the patch wrote: its values without those it `contradicted`. */
+  readonly written: Readonly<Record<string, unknown>>
+  readonly echoes: Readonly<Record<EntityKey, AwaitedEcho>>
+  /** Fields the patch set to other than an answer its stream has not sent back: to read again. */
+  readonly contradicted: ReadonlyArray<string>
 }
 
 export const applyEntityEvent = (
   state: LiveState,
   store: EntityStore,
   event: Extract<LiveEvent, { _tag: 'EntityPatched' | 'EntityDeleted' }>,
-  now = 0,
+  context: {
+    readonly now?: number | undefined
+    /** The stream the event came on, which an answer it has sent back is heard from. */
+    readonly stream?: string | undefined
+    readonly echoes?: Readonly<Record<EntityKey, AwaitedEcho>> | undefined
+  } = {},
 ): EntityApplied => {
+  const echoes = context.echoes ?? {}
   const outcome = classifyLive(state, event.cursor)
-  if (outcome !== 'applied') return { state, store, outcome }
+  if (outcome !== 'applied') return { state, store, outcome, written: {}, echoes, contradicted: [] }
   const key = entityKey(event.ref.entity, event.ref.id)
-  const next =
-    event._tag === 'EntityPatched'
-      ? writeEntity(store, key, event.values, now)
-      : tombstone(store, key)
-  return { state: advance(state, event.cursor), store: next, outcome }
+  const awaited = echoes[key]
+  const next = advance(state, event.cursor)
+  if (event._tag === 'EntityDeleted') {
+    const { [key]: _deleted, ...rest } = echoes
+    return {
+      state: next,
+      store: tombstone(store, key),
+      outcome,
+      written: {},
+      echoes: awaited === undefined ? echoes : rest,
+      contradicted: [],
+    }
+  }
+  const heard =
+    awaited === undefined ? undefined : heardBack(awaited, context.stream ?? '', event.values)
+  const written = heard?.values ?? event.values
+  return {
+    state: next,
+    store: writeEntity(store, key, written, context.now ?? 0),
+    outcome,
+    written,
+    echoes:
+      heard === undefined || heard.echo === awaited ? echoes : { ...echoes, [key]: heard.echo },
+    contradicted: heard?.contradicted ?? [],
+  }
 }
 
 export interface ConnectionApplied {

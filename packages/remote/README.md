@@ -3,6 +3,152 @@
 Server data, cached inside the Foldkit Model. A screen says what it needs;
 the view gets what the cache knows.
 
+<!-- docs-check standalone define remote-domain
+import { Effect, Layer, Schema, Option } from 'effect'
+import { FetchHttpClient } from 'effect/http'
+import { RpcClient, RpcSerialization } from 'effect/rpc'
+import { Entity as DomainEntity, Expr, Order, Write, type AnyQuery } from 'foldkit-entity'
+import { Bundle } from 'foldkit-bundle'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Subscription from 'foldkit/subscription'
+import type * as Update from 'foldkit/update'
+import { Surface } from 'foldkit-surface'
+import {
+  Diagnostics,
+  Entity,
+  Freshness,
+  Mutation,
+  Query,
+  Refusal,
+  Remote,
+  RemoteData,
+  RemoteClient,
+  RemotePolicy,
+  RemoteRpc,
+  type LiveDependencies,
+  type MutationStarted,
+  type ReadDependencies,
+  type RemoteRpcClient,
+  type RemoteMessage,
+  type RetentionRoots,
+} from 'foldkit-remote'
+import { live } from 'foldkit-remote/live'
+
+const Route = Schema.Union([
+  Schema.Struct({ _tag: Schema.Literal('home') }),
+  Schema.Struct({ _tag: Schema.Literal('project'), projectId: Schema.String }),
+])
+const home = (): typeof Route.Type => ({ _tag: 'home' })
+declare const rpcClient: RemoteRpcClient
+
+// 1. Declare the domain
+const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Project = Entity.make(
+  'Project',
+  Schema.Struct({
+    id: Schema.String,
+    name: Schema.String,
+    status: Schema.String,
+    owner: Entity.ref(User),
+  }),
+)
+
+const UserSummary = User.select({ id: true, name: true })
+const ProjectSummary = Project.select({ id: true, name: true, status: true, owner: UserSummary })
+
+const ProjectsByOwner = Query.make('ProjectsByOwner', {
+  Input: { ownerId: Schema.String },
+  Result: Project,
+})
+const RenameProject = Mutation.make('RenameProject', {
+  Input: { id: Schema.String, name: Schema.String },
+  Output: { id: Schema.String },
+})
+
+// 2. Embed the submodel and bind the domain
+const Model = Schema.Struct({ route: Route, remote: Remote.Model })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({
+  ...Remote.messages,
+  ClickedRename: { id: Schema.String, name: Schema.String },
+  ClickedMore: {},
+})
+type Message = typeof Message.Type
+
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { route: home(), remote: Remote.initial },
+  update,
+})
+
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: [User, Project],
+  queries: [ProjectsByOwner],
+  mutations: [RenameProject],
+})
+
+// 3. Read in a Surface
+const projects = Data.query(
+  ProjectsByOwner,
+  { ownerId: 'u1' },
+  { select: ProjectSummary, first: 25 },
+)
+-->
+<!-- docs-check define remote-update
+// 4. Fetch, subscribe, and retain from the active Surfaces
+const baseSubscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
+  Data.subscriptions(
+    {
+      page: Surface.at(ProjectPage, model =>
+        model.route._tag === 'project'
+          ? Option.some({ projectId: model.route.projectId })
+          : Option.none(),
+      ),
+    },
+    { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), grace: '5 seconds' },
+  ),
+)
+
+// 5. Mutate and page from update
+function update(model: Model, message: Message): Update.Return<Model, Message, RemoteClient> {
+  if (Remote.reduces(message)) return { model: Data.reduce(model, message) }
+  switch (message._tag) {
+    case 'ClickedRename': {
+      const { id, name } = message
+      const { model: started, command } = Data.mutate(
+        model,
+        RenameProject,
+        { id, name },
+        {
+          optimistic: [Project.patch(id, { name })],
+        },
+      )
+      return { model: started, commands: [command] }
+    }
+    case 'ClickedMore':
+      return { model: Option.getOrElse(Data.more(model, projects), () => model), commands: [] }
+  }
+}
+
+declare const model: Model
+declare const projectId: string
+declare const ownerId: string
+declare const ProjectSkeleton: () => string
+declare const NoSuchProject: () => string
+declare const ErrorView: (error: { readonly message: string }) => string
+-->
+<!-- docs-check
+const ProjectPageFull = App.surface('ProjectPage', {
+  params: { projectId: Schema.String },
+  model: ({ params }) => ({ project: live(Data, ProjectSummary, params.projectId), projects }),
+  messages: [Message.ClickedRename, Message.ClickedMore],
+})
+declare const ProjectView: (project: { readonly name: string }) => string
+declare const project: RemoteData<{ readonly name: string }>
+-->
+
 ```ts
 const ProjectPage = App.surface('ProjectPage', {
   params: { projectId: Schema.String },
@@ -184,7 +330,7 @@ does, and what it deliberately does not.
 
 ### 1. Declare an entity and what this screen needs of it
 
-```ts
+```ts standalone
 import { Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
 
@@ -321,7 +467,9 @@ while there is nothing to read.
 
 ```ts
 const detail = Data.active('ProjectDetail', model =>
-  Option.map(model.openProjectId, id => Data.get(Entity.select(Project, { name: true }), id)),
+  model.route._tag === 'project'
+    ? Option.some(Data.get(Entity.select(Project, { name: true }), model.route.projectId))
+    : Option.none(),
 )
 foldData.subscriptions({ detail })
 ```
@@ -354,7 +502,7 @@ import { FetchHttpClient } from 'effect/http'
 import { RpcClient, RpcSerialization } from 'effect/rpc'
 import { RemoteRpc } from 'foldkit-remote'
 
-const clientLayer = Layer.unwrap(
+const overRpc = Layer.unwrap(
   Effect.map(RpcClient.make(RemoteRpc), rpcClient => Remote.clientLayer(rpcClient)),
 ).pipe(
   Layer.provide(Remote.rpcProtocolHttp('/rpc')),
@@ -432,6 +580,35 @@ The shorter path, for an `update` that only reduces, spreads Remote's cases
 into the union and narrows by tag; the rest of `update` is then a partial
 match over tags the application never handles:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+import { defineMessageUnion } from 'foldkit/message'
+import type * as Update from 'foldkit/update'
+import { Remote, type RemoteClient } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+
+const Project = Entity.define('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const ProjectSummary = Entity.select(Project, { id: true, name: true })
+const Route = Schema.Union([
+  Schema.Struct({ _tag: Schema.Literal('home') }),
+  Schema.Struct({ _tag: Schema.Literal('project'), projectId: Schema.String }),
+])
+const Model = Schema.Struct({ route: Route, remote: Remote.Model })
+type Model = typeof Model.Type
+const RemoteOnly = defineMessageUnion({ ...Remote.messages })
+type Message = typeof RemoteOnly.Type
+const App = Surface.application({
+  Model,
+  Message: RemoteOnly,
+})
+const Data = Remote.make({ model: App.model.remote, entities: [Project] })
+const ProjectPage = App.surface('ProjectPage', {
+  params: { projectId: Schema.String },
+  model: ({ params }) => ({ project: Data.get(ProjectSummary, params.projectId) }),
+})
+-->
+
 ```ts
 const Message = defineMessageUnion({ ...Remote.messages })
 
@@ -453,6 +630,7 @@ The integration steps above — fold or reduce, derive the Subscriptions,
 provide the client — are one value when the application uses `foldkit-bundle`:
 
 ```ts
+import { Option } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 
 const Page = Bundle.parent({ Model, Message })
@@ -465,7 +643,7 @@ const wiring = Page.assemble(
     ),
   }),
 )
-const update = wiring.update(model => ({ model }))
+const wiredUpdate = wiring.update(model => ({ model }))
 ```
 
 `Data.wiring` routes Remote's Messages into `Data.reduce`, brings the active
@@ -542,6 +720,23 @@ compile time. `RemoteData.answered(data)` is whether a read has an answer yet:
 Most views draw these six states three ways, under one policy: useful data
 stays on screen. `RemoteData.render` is that fold.
 
+<!-- docs-check standalone use remote-domain remote-update -->
+<!-- docs-check define remote-page
+const ProjectPage = App.surface('ProjectPage', {
+  params: { projectId: Schema.String },
+  model: ({ params }) => ({ project: live(Data, ProjectSummary, params.projectId), projects }),
+  messages: [Message.ClickedRename, Message.ClickedMore],
+})
+
+declare const ProjectView: (props: {
+  readonly project: { readonly name: string }
+  readonly dimmed: boolean
+}) => string
+-->
+<!-- docs-check
+declare const project: RemoteData<{ readonly name: string }>
+-->
+
 ```ts
 RemoteData.render(project, {
   loading: () => ProjectSkeleton(),
@@ -590,6 +785,11 @@ spinner here hides a wiring mistake. Ask the Model with `why`, from the
 `foldkit-remote/why` entry (a development tool, kept apart so a page that
 never explains a read keeps none of it):
 
+<!-- docs-check
+const projection = Data.get(ProjectSummary, projectId)
+declare const surfaces: NonNullable<Parameters<typeof why>[3]>['surfaces']
+-->
+
 ```ts
 import { why } from 'foldkit-remote/why'
 
@@ -629,6 +829,7 @@ Match them with `Why.match`:
 | `Why` | What it says | What restarts it |
 | --- | --- | --- |
 | `List { list, held, inFlight }` | the list's own page is `Missing`, `Evicted` (the budget dropped it) or `Stale` | the read entry, while a Surface reads it |
+| `Invalidated { list, because }` | why a stale list went stale, in the client's words: what a write changed that it could not place, its live stream asking, a refresh | the same read entry; it decides no state of its own |
 | `HeldForHistory { list }` | the list was left, and Back or Forward came back to it within `historyWindow`: it shows as it was, and nothing fetches it | a navigation the reader starts |
 | `Fields { row, via, fields, held, inFlight }` | fields of one row are `Missing`, `Evicted` (the budget dropped the row) or `Stale`; `via` is the relation path (`['owner']`) | the read entry |
 | `ListFailed`, `FieldsFailed` | a request failed | **nothing on its own**: `Data.refresh`, a write of the field, a new page |
@@ -643,7 +844,13 @@ Match them with `Why.match`:
 the row as the client placed it, so a row that joined says which term put it
 there, and one the client could not judge says what it lacked:
 
+<!-- docs-check
+declare const identity: string
+-->
+
 ```ts
+import { ShownBy, Why } from 'foldkit-remote/why'
+
 // a project archived optimistically, in a list of active ones
 Why.Left({
   list: { query: 'ByStatus', identity },
@@ -686,7 +893,9 @@ server said last time. To see change:
 
 A list's age is the page that last answered it whole: its first page, or the
 one that replaced it after it went stale. A later page from "load more" does
-not date it. See [Reading, policies, and prefetch](#reading-policies-and-prefetch).
+not date it. A row's age is its oldest field's: a mutation's answer or a
+narrower read that writes one field leaves the others as old as they were, so
+the row is read again, whole, when they are due. See [Reading, policies, and prefetch](#reading-policies-and-prefetch).
 
 ### Why did my change disappear?
 
@@ -745,7 +954,7 @@ invalidated or changed while held, it refetches as above. The application
 says which kind each navigation is with the `Navigated` Message, reduced
 before the route changes; `Site.routing` does it given `navigated`:
 
-```ts
+```ts sketch
 const Routing = Site.routing<Model, Message, Route, RemoteClient>({
   // site, route, parse, tags and completed as before
   navigated: (model, kind) => Data.reduce(model, { _tag: 'Navigated', kind }),
@@ -786,7 +995,10 @@ it. Consumers select different views of the same normalized fact.
 
 Relations are references, not nested copies:
 
-```ts
+```ts standalone
+import { Schema } from 'effect'
+import { Entity } from 'foldkit-remote'
+
 const User = Entity.make(
   'User',
   Schema.Struct({
@@ -831,6 +1043,17 @@ fields, relations as navigation edges, derived members. `Remote.make` registers
 those Entities, and `Data.get`, `live(Data, …)`, and a query's `select` take their
 Selections. Remote compiles both into the descriptor and Selection above, so
 the store, the planner, and the server see nothing new.
+
+<!-- docs-check standalone define bare-app
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Remote } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+
+const Model = Schema.Struct({ remote: Remote.Model })
+type Model = typeof Model.Type
+const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
+-->
 
 ```ts
 import { Schema } from 'effect'
@@ -940,6 +1163,10 @@ not date the answer.
 A policy belongs to one `subscriptions` call, and covers every read in it. Reads
 under different policies take a call each:
 
+<!-- docs-check standalone use remote-domain remote-update remote-page
+const clientLayer = Remote.clientLayer(rpcClient)
+-->
+
 ```ts
 const projectPage = Surface.at(ProjectPage, model =>
   model.route._tag === 'project' ? Option.some({ projectId: model.route.projectId }) : Option.none(),
@@ -1017,6 +1244,10 @@ A render that fetches nothing (SSR, a prerender) needs everything a page's
 active Surfaces read, and one read can decide what another asks for: a page's
 Blocks are known once its document is. `Data.satisfy` prefetches every active
 Surface, cache-first, pass after pass until a pass plans nothing:
+
+<!-- docs-check
+const actives = { project: projectPage }
+-->
 
 ```ts
 const ready = await Effect.runPromise(
@@ -1126,8 +1357,10 @@ case 'SignedOut': {
 It performs no I/O and returns the Model with every server-derived fact gone:
 values, tombstones, unavailable fields, connections, live cursors, failures,
 and the reads in flight. Every active Surface's read and live entries restart,
-so the screen asks again as whoever the client now is; a read or stream begun
-before is interrupted rather than landing after. A mutation in flight is
+so the screen asks again as whoever the client now is. A read or stream begun
+before is interrupted, and an answer it had already sent, still queued behind
+the `forget`, writes nothing: each answer carries the generation it was asked
+under, and one from before the `forget` is dropped. A mutation in flight is
 treated as applied, so its answer writes nothing into the new store, and the
 mutation sequence is kept, so request ids stay unique.
 
@@ -1140,6 +1373,152 @@ Entities answer "which fields of this known thing?" A Query answers "which
 entities belong in this server-owned list?"
 
 Declare the query and register it with the domain:
+
+<!-- docs-check standalone
+import { Effect, Layer, Schema, Option } from 'effect'
+import { FetchHttpClient } from 'effect/http'
+import { RpcClient, RpcSerialization } from 'effect/rpc'
+import { Entity as DomainEntity, Expr, Order, Write, type AnyQuery } from 'foldkit-entity'
+import { Bundle } from 'foldkit-bundle'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Subscription from 'foldkit/subscription'
+import type * as Update from 'foldkit/update'
+import { Surface } from 'foldkit-surface'
+import {
+  Diagnostics,
+  Entity,
+  Freshness,
+  Mutation,
+  Query,
+  Refusal,
+  Remote,
+  RemoteData,
+  RemoteClient,
+  RemotePolicy,
+  RemoteRpc,
+  type LiveDependencies,
+  type MutationStarted,
+  type ReadDependencies,
+  type RemoteRpcClient,
+  type RemoteMessage,
+  type RetentionRoots,
+} from 'foldkit-remote'
+import { live } from 'foldkit-remote/live'
+
+const Route = Schema.Union([
+  Schema.Struct({ _tag: Schema.Literal('home') }),
+  Schema.Struct({ _tag: Schema.Literal('project'), projectId: Schema.String }),
+])
+const home = (): typeof Route.Type => ({ _tag: 'home' })
+declare const rpcClient: RemoteRpcClient
+
+// 1. Declare the domain
+const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Project = Entity.make(
+  'Project',
+  Schema.Struct({
+    id: Schema.String,
+    name: Schema.String,
+    status: Schema.String,
+    owner: Entity.ref(User),
+  }),
+)
+
+const UserSummary = User.select({ id: true, name: true })
+const ProjectSummary = Project.select({ id: true, name: true, status: true, owner: UserSummary })
+
+const PBO0 = Query.make('PBO0', {
+  Input: { ownerId: Schema.String },
+  Result: Project,
+})
+const RenameProject = Mutation.make('RenameProject', {
+  Input: { id: Schema.String, name: Schema.String },
+  Output: { id: Schema.String },
+})
+
+// 2. Embed the submodel and bind the domain
+const Model = Schema.Struct({ route: Route, remote: Remote.Model })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({
+  ...Remote.messages,
+  ClickedRename: { id: Schema.String, name: Schema.String },
+  ClickedMore: {},
+})
+type Message = typeof Message.Type
+
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { route: home(), remote: Remote.initial },
+  update,
+})
+
+const Data0 = Remote.make({
+  model: App.model.remote,
+  entities: [User, Project],
+  queries: [PBO0],
+  mutations: [RenameProject],
+})
+
+// 3. Read in a Surface
+const projects = Data0.query(
+  PBO0,
+  { ownerId: 'u1' },
+  { select: ProjectSummary, first: 25 },
+)
+
+const ProjectPage = App.surface('ProjectPage', {
+  params: { projectId: Schema.String },
+  model: ({ params }) => ({ project: live(Data0, ProjectSummary, params.projectId), projects }),
+  messages: [Message.ClickedRename, Message.ClickedMore],
+})
+
+// 4. Fetch, subscribe, and retain from the active Surfaces
+const baseSubscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
+  Data0.subscriptions(
+    {
+      page: Surface.at(ProjectPage, model =>
+        model.route._tag === 'project'
+          ? Option.some({ projectId: model.route.projectId })
+          : Option.none(),
+      ),
+    },
+    { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), grace: '5 seconds' },
+  ),
+)
+
+// 5. Mutate and page from update
+function update(model: Model, message: Message): Update.Return<Model, Message, RemoteClient> {
+  if (Remote.reduces(message)) return { model: Data0.reduce(model, message) }
+  switch (message._tag) {
+    case 'ClickedRename': {
+      const { id, name } = message
+      const { model: started, command } = Data0.mutate(
+        model,
+        RenameProject,
+        { id, name },
+        {
+          optimistic: [Project.patch(id, { name })],
+        },
+      )
+      return { model: started, commands: [command] }
+    }
+    case 'ClickedMore':
+      return { model: Option.getOrElse(Data0.more(model, projects), () => model), commands: [] }
+  }
+}
+
+declare const model: Model
+declare const projectId: string
+declare const ownerId: string
+declare const ProjectSkeleton: () => string
+declare const NoSuchProject: () => string
+declare const ErrorView: (error: { readonly message: string }) => string
+declare const ProjectView: (props: {
+  readonly project: { readonly name: string }
+  readonly dimmed: boolean
+}) => string
+-->
 
 ```ts
 import { Query } from 'foldkit-remote'
@@ -1159,7 +1538,8 @@ const Data = Remote.make({
 `Query.make` names a query and says what it returns. Where it *means*
 something the client should be able to state, declare it with a body instead:
 
-```ts
+```ts standalone
+import { Schema } from 'effect'
 import { Entity, Expr, Order } from 'foldkit-entity'
 import { Query } from 'foldkit-remote'
 
@@ -1199,8 +1579,8 @@ no body keeps none of the relational evaluator.
 **Which to declare.** A list the client should keep right after a write needs
 a body: the body is what lets the client place a new or changed row in the
 pages it holds instead of fetching the list again. A `Query.make` list is
-invalidated by any change to its Entity, so it is fetched again after every
-write that touches one. A body can follow relations
+invalidated by any change the client sees, to its Entity or another, since
+what its server reads is unknown, so it is fetched again after every write. A body can follow relations
 (`Expr.path`, `Expr.exists`, a path from `Expr.viewer`), so a feed of the
 people you follow is a body too. Keep `Query.make` for a list whose meaning
 only the server can state, such as a search ranking.
@@ -1224,6 +1604,41 @@ query is declared rather than handing the body an empty object, which would
 compare a column to nothing while every type agreed.
 
 Then a query is still just a Projection:
+
+<!-- docs-check standalone use bare-app
+import { Entity as DomainEntity, Expr, Order, Query as Relational } from 'foldkit-entity'
+import { Query } from 'foldkit-remote'
+
+const Project = DomainEntity.define(
+  'Project',
+  Schema.Struct({
+    id: Schema.String,
+    name: Schema.String,
+    status: Schema.String,
+    ownerId: Schema.String,
+  }),
+)
+const ProjectSummary = DomainEntity.select(Project, { id: true, name: true })
+const ActiveProjects = Query.define('ActiveProjects', {}, () =>
+  Relational.from(Project).pipe(
+    Relational.where(Expr.eq(Project.fields.status, 'active')),
+    Relational.orderBy(Order.asc(Project.fields.id)),
+  ),
+)
+const ProjectsByOwner = Query.define('ProjectsByOwner', { ownerId: Schema.String }, ({ input }) =>
+  Relational.from(Project).pipe(
+    Relational.where(Expr.eq(Project.fields.ownerId, input.ownerId)),
+    Relational.orderBy(Order.asc(Project.fields.id)),
+  ),
+)
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: [Project],
+  queries: [ActiveProjects, ProjectsByOwner],
+})
+declare const model: Model
+declare const ownerId: string
+-->
 
 ```ts
 const projects = Data.query(
@@ -1324,6 +1739,8 @@ can say whether a row belongs to a query. `matching`, exported by
 `foldkit-remote`, says:
 
 ```ts
+import { matching } from 'foldkit-remote'
+
 const judged = matching(Data.storeOf(model), ProjectsByOwner, { ownerId: 'u1' })
 
 judged.matched  // keys satisfying the body, in the order it asks for
@@ -1376,7 +1793,7 @@ A connection's identity is its query plus its **input**, which is exactly right
 for caching and exactly wrong for a search box. Bound naively, every keystroke
 is a different connection, a different request, and a different thing to retain:
 
-```ts
+```ts sketch
 // Don't: `postSearch` changes per keystroke, so the query's input does too.
 h.OnInput(text => Message.Searched({ text }))
 ```
@@ -1388,17 +1805,21 @@ the query reads** — which is ordinary application state, and
 [`foldkit-primitives`](../primitives) already has the piece:
 
 ```ts
+import { Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
 import { debounce } from 'foldkit-primitives/time'
+import { modifyFields } from 'foldkit/struct'
 
 const SearchInput = debounce({ name: 'PostSearch', value: Schema.String })
 
 // `latest` is what the box shows, so typing stays immediate.
 // The settled OutMessage is what moves the field the query reads.
-// A step of the page's Bundle.compose(...).pipe(...):
-Bundle.withChild('search', SearchInput, {
-  args: { delayMs: 250 },
-  onOut: out => model => ({ model: modifyFields(model, { postSearch: () => out.value }) }),
-})
+const SearchPage = Bundle.compose({ postSearch: Schema.String }).pipe(
+  Bundle.withChild('search', SearchInput, {
+    args: { delayMs: 250 },
+    onOut: out => model => ({ model: modifyFields(model, { postSearch: () => out.value }) }),
+  }),
+)
 ```
 
 Two fields, deliberately: the one the box draws changes on every keystroke, and
@@ -1571,7 +1992,52 @@ keeps it gone. A pending delete wins over every pending patch of its row.
 A declared `Write.delete` shows this without being asked, and with it every
 row the store holds that is declared to go with the row
 (`Relation.one(Post, { onDelete: 'cascade' })`: its replies, theirs, the likes
-of each), each moving the counts over it; the answer names them deleted.
+of each), each moving the counts over it; the answer names them deleted. A
+delete of a row something restricts (`{ onDelete: 'restrict' }`) is shown as
+pending too, since the client may not hold the rows pointing there; the
+server refuses it as `Refusal.referenced`, and the row comes back. A row the
+store holds whose link the delete clears (`{ optional: true, onDelete:
+'setNull' }`) is shown pointing nowhere, and leaves the lists filtered on
+it; a held row whose `may` refuses that unlink refuses the delete where it is
+made, in the server's words.
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
+import { Surface } from 'foldkit-surface'
+import { defineMessageUnion } from 'foldkit/message'
+import { Entity, Mutation, Query, Remote } from 'foldkit-remote'
+
+const Post = Entity.make('Post', Schema.Struct({ id: Schema.String, body: Schema.String }))
+const Comment = Entity.make('Comment', Schema.Struct({ id: Schema.String, body: Schema.String }))
+const DeletePost = Mutation.make('DeletePost', {
+  Input: { id: Schema.String },
+  Output: { id: Schema.String },
+})
+const AddComment = Mutation.make('AddComment', {
+  Input: { body: Schema.String },
+  Output: { id: Schema.String },
+})
+const CommentsForPost = Query.make('CommentsForPost', {
+  Input: { postId: Schema.String },
+  Result: Comment,
+})
+const Model = Schema.Struct({ remote: Remote.Model, userId: Schema.String })
+const Message = defineMessageUnion({ ...Remote.messages })
+const App = Surface.application({ Model, Message })
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: [Post, Comment],
+  queries: [CommentsForPost],
+  mutations: [DeletePost, AddComment],
+})
+const Page = Bundle.parent({ Model, Message })
+declare const model: typeof Model.Type
+declare const id: string
+declare const postId: string
+declare const input: { readonly body: string }
+const actives = {}
+-->
 
 ```ts
 Data.mutate(model, DeletePost, { id }, { optimistic: [Remote.tombstone(Post, id)] })
@@ -1637,7 +2103,7 @@ the store the answer left:
   optimistic overlay shows; a read of it already in flight is restarted, since
   it could answer with the rows before the write;
 - a list over a `Query.make` query, which declares no body, is invalidated by
-  any change to its Entity;
+  any change, of any Entity: its server may read another Entity's rows too;
 - a list whose body reads other rows (a path, an exists, a path from the
   viewer) is judged again over the store, and fetched, by a change to any
   member those read, or a row of theirs made or deleted: a team renamed moves
@@ -1818,6 +2284,20 @@ so show it rather than retry.
 **Refusals as data.** A mutation can say what the server may refuse it with,
 as data rather than a message to parse:
 
+<!-- docs-check standalone use bare-app
+import { Entity, Mutation, Refusal } from 'foldkit-remote'
+
+const Ticket = Entity.make('Ticket', Schema.Struct({ id: Schema.String, price: Schema.Number }))
+const Priced = Mutation.make('SetPrice', {
+  Input: { id: Schema.String, price: Schema.Number },
+  Output: {},
+  Refusal: Schema.Union([Refusal.field('price', Schema.String), Refusal.conflict]),
+})
+const Data = Remote.make({ model: App.model.remote, entities: [Ticket], mutations: [Priced] })
+declare const model: typeof Model.Type
+declare const requestId: string
+-->
+
 ```ts
 const SetPrice = Mutation.make('SetPrice', {
   Input: { id: Schema.String, price: Schema.Number },
@@ -1941,7 +2421,31 @@ one write from here to the statement that lands it. `keys` names the input keys
 an author changed: only those are shown, and the request carries them for the
 server to write; the input is still sent and validated whole.
 
+<!-- docs-check standalone use bare-app
+import { Entity as DomainEntity, Write } from 'foldkit-entity'
+import { Mutation } from 'foldkit-remote'
+
+const Project = DomainEntity.define(
+  'Project',
+  Schema.Struct({ id: Schema.String, name: Schema.String, status: Schema.String }),
+)
+const EditProjectInput = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  status: Schema.String,
+})
+const Registered = Mutation.write(
+  'EditProject',
+  Write.update(DomainEntity.input(Project, EditProjectInput), { id: 'id' }),
+)
+const Data = Remote.make({ model: App.model.remote, entities: [Project], mutations: [Registered] })
+declare const model: typeof Model.Type
+-->
+
 ```ts
+import { Entity, Write } from 'foldkit-entity'
+import { Mutation } from 'foldkit-remote'
+
 const EditProject = Mutation.write(
   'EditProject',
   Write.update(Entity.input(Project, EditProjectInput), { id: 'id' }),
@@ -2074,20 +2578,18 @@ a gap is a row the answer did not name: name it in the answer's `entities`
 `diagnostics` and fetches each placed list once more, and no package reads a
 build mode, so the application says it where it declares the domain:
 
-<!-- docs-check
-import { Schema } from 'effect'
-import { defineMessageUnion } from 'foldkit/message'
+<!-- docs-check standalone use bare-app
 import { Entity, Expr, Order } from 'foldkit-entity'
-import { Mutation, Query, Remote } from 'foldkit-remote'
-import { Surface } from 'foldkit-surface'
+import { Mutation, Query } from 'foldkit-remote'
 const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, body: Schema.String, createdAt: Schema.Number }))
 const Feed = Query.define('Feed', {}, () => Query.from(Post).pipe(Query.orderBy(Order.desc(Post.fields.createdAt))))
 const PostChirp = Mutation.make('PostChirp', { Input: { body: Schema.String }, Output: {} })
-const App = Surface.application({
-  Model: Schema.Struct({ remote: Remote.Model }),
-  Message: defineMessageUnion({ ...Remote.messages }),
-})
 void Expr
+declare global {
+  interface ImportMeta {
+    readonly env?: { readonly DEV?: boolean }
+  }
+}
 -->
 
 ```ts
@@ -2125,6 +2627,11 @@ A mutation's `optimistic` operations show over the store while it is in flight.
 request behind them, until `lift`: a preview, in every Selection and view, of
 something not yet sent. They are functions of the domain rather than its
 methods, so a page that never previews loads none of the code that shows one.
+
+<!-- docs-check standalone use remote-domain remote-update remote-page
+declare const id: string
+declare const draft: string
+-->
 
 ```ts
 import { lift, overlay } from 'foldkit-remote/overlay'
@@ -2173,6 +2680,8 @@ reports on the world rather than drawing it, which in practice is an Agent
 capability that must not claim success before the server reflects it:
 
 ```ts
+import { Agent } from 'foldkit-agent'
+
 Agent.when({
   projection: Data.confirmed(Data.get(ProjectSummary, projectId)),
   // The projection reads a RemoteData: only a value the server holds can match.
@@ -2199,6 +2708,36 @@ A like pressed on a train, a post written in a tunnel: the write must reach the
 server, but nothing needs to converge, since the server decides it once. Make
 it durable, and assemble the outbox beside `Data.wiring`:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
+import { Entity as DomainEntity, Expr } from 'foldkit-entity'
+import { Mutation, Remote } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+import { defineMessageUnion } from 'foldkit/message'
+import { Write } from 'foldkit-entity'
+
+const Post = DomainEntity.define(
+  'Post',
+  Schema.Struct({ id: Schema.String, body: Schema.String, createdAt: Schema.Number }),
+).pipe(DomainEntity.sets({ createdAt: Expr.now }, { on: 'create' }))
+const NewPost = Schema.Struct({ id: Schema.String, body: Schema.String })
+const PostChirp = Mutation.write(
+  'PostChirp',
+  Write.insert(DomainEntity.input(Post, NewPost), { id: 'id' }),
+)
+const Model = Schema.Struct({ remote: Remote.Model, userId: Schema.String })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Remote.messages })
+const App = Surface.application({ Model, Message })
+const Data = Remote.make({ model: App.model.remote, entities: [Post], mutations: [PostChirp] })
+const Page = Bundle.parent({ Model, Message })
+const actives = {}
+declare const model: Model
+declare const post: typeof NewPost.Type
+declare const now: number
+-->
+
 ```ts
 import { outbox, outboxStatus } from 'foldkit-remote/outbox'
 
@@ -2209,14 +2748,16 @@ const durable = outbox(Data, {
 const placements = Page.assemble(Data.wiring(actives), durable)
 
 // update: queued, not sent; its layer shows at once
-const sent = Data.mutate(model, PostChirp, post, { now, durable: true })
-return { model: sent.model, commands: [sent.command] }
+const queue = (model: Model) => {
+  const sent = Data.mutate(model, PostChirp, post, { now, durable: true })
+  return { model: sent.model, commands: [sent.command] }
+}
 
 // the view
 const { waiting, waitingForSignIn } = outboxStatus(Data, model) // "3 changes waiting"
 
 // update, once the application knows who is signed in again
-return { model: Data.signedIn(model) }
+const signedIn = (model: Model) => ({ model: Data.signedIn(model) })
 ```
 
 `waiting` counts a write on its way too, so a line drawn whenever it is above
@@ -2235,6 +2776,14 @@ browser stored. It resumes from `durable.session` instead, which mints the
 session and reads nothing, so a durable write can be made at once; the
 outbox's own Subscription reads the queue after the first frame, and its
 `OutboxRead` keeps any write made before it:
+
+<!-- docs-check
+import { SSR, type ResumableConfig, type ResumePlan } from 'foldkit-ssr'
+
+declare const config: ResumableConfig<Model, typeof Message.Type>
+declare const plan: ResumePlan<Model, typeof Model.fields>
+declare const buildId: string
+-->
 
 ```ts
 SSR.hydrate(config, plan, { buildId, prepare: durable.session })
@@ -2365,6 +2914,15 @@ reads nothing live keeps none of the code that streams and applies changes.
 `liveQuery`, which is `Data.query` following the rows that join, change or
 leave it, with no row of its own to subscribe to:
 
+<!-- docs-check standalone use bare-app
+import { Entity, Query } from 'foldkit-remote'
+
+const Note = Entity.make('Note', Schema.Struct({ id: Schema.String, text: Schema.String }))
+const NoteRow = Note.select({ id: true, text: true })
+const Notes = Query.make('Notes', { Input: {}, Result: Note })
+const Data = Remote.make({ model: App.model.remote, entities: [Note], queries: [Notes] })
+-->
+
 ```ts
 import { live, liveQuery } from 'foldkit-remote/live'
 
@@ -2402,6 +2960,27 @@ connection insert/remove/invalidate events reconcile the same connection model
 used by query pages and optimistic overlays. A stream failure becomes a Remote
 failure Message rather than mutating anything out of band.
 
+### A write answered before its stream catches up
+
+A stream lags a write's answer: the answer comes back over HTTP while the
+stream may still be sending changes committed before the write. A stream
+sends in commit order, so until it sends the answer's values back, a patch of
+its to those fields is older than the answer, or, from a source that
+coalesces (`pollLive`), a later change that never showed the write. Neither
+overwrites the answer:
+
+```text
+answered Grace -> stream patches name: Ada  -> Grace shown, name read again (Refreshing)
+               -> stream patches name: Grace -> that stream is caught up; its patches apply
+read asked after the answer                  -> its value shows; the wait ends
+```
+
+The wait is per stream and per row (`RemoteModel.echoes`), and covers only
+the fields the answer wrote: other fields of the same patch apply. A later
+answer to the row, a live delete and `forget` end it too. `Data.confirmed`
+keeps the answer as well, since the patch never reaches the store. A domain
+that reads nothing live waits for nothing.
+
 ### When a stream breaks
 
 A stream breaks when its transport fails or when an event arrives ahead of
@@ -2429,7 +3008,14 @@ break -> gap marked, restarts + 1 -> backoff
 `liveStatus(Data, model, active)` says how what one active entry reads live is
 doing, for a view that shows it:
 
+<!-- docs-check standalone use remote-domain remote-update remote-page
+const Watched = Data.active('Watched', () => Option.some(Data.get(UserSummary, 'u1')))
+-->
+
 ```ts
+import { Match } from 'effect'
+import { liveStatus } from 'foldkit-remote/live'
+
 Match.value(liveStatus(Data, model, Watched)).pipe(
   Match.tagsExhaustive({
     Idle: () => 'not live',
@@ -2509,6 +3095,27 @@ when it expires (see [How long a saved read lasts](#how-long-a-saved-read-lasts)
 Session machinery (live cursors, optimistic layers, mutation bookkeeping, gaps,
 retention roots) is never in one.
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
+import { Entity as DomainEntity } from 'foldkit-entity'
+import { Remote } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+import { defineMessageUnion } from 'foldkit/message'
+
+const Post = DomainEntity.define('Post', Schema.Struct({ id: Schema.String, body: Schema.String }))
+const Model = Schema.Struct({ remote: Remote.Model, userId: Schema.String })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Remote.messages })
+const App = Surface.application({ Model, Message })
+const Data = Remote.make({ model: App.model.remote, entities: [Post] })
+const Page = Bundle.parent({ Model, Message })
+const actives = {}
+declare const loaded: Model
+declare const userId: string
+declare const model: Model
+-->
+
 ```ts
 import { Option } from 'effect'
 import { RemotePersistence } from 'foldkit-remote/persistence'
@@ -2578,7 +3185,7 @@ that restore as an Effect: resolve it as the runtime's `flags`, which the
 runtime runs with its `resources` before `init`, and start `init` from the
 Model it gives (`examples/cloudflare/src/browser.ts` does):
 
-```ts
+```ts sketch
 Runtime.makeElement(
   placements.runtime({
     Model,
@@ -2698,7 +3305,19 @@ the opposite. `Remote.resume(Data)` is a resume part for
 [`foldkit-ssr`](../ssr/README.md) (in development), which sends exactly what
 the page's active Surfaces read, and resumes it in the browser:
 
+<!-- docs-check standalone use remote-domain remote-update remote-page
+const ProjectPageAt = Surface.at(ProjectPage, model =>
+  model.route._tag === 'project'
+    ? Option.some({ projectId: model.route.projectId })
+    : Option.none(),
+)
+declare const worker: SharedWorker
+-->
+
 ```ts
+import { SSR } from 'foldkit-ssr'
+import { Projection } from 'foldkit-surface'
+
 const Page = SSR.plan(App, {
   id: 'project',
   state: Projection.pick(App.model.route),
@@ -2964,6 +3583,8 @@ const resources = Layer.mergeAll(
 In a test, assert on the Model, `[]` included:
 
 ```ts
+import { expect } from 'vitest'
+
 expect(Data.inspect(model).diagnostics).toEqual([])
 ```
 
@@ -2978,6 +3599,8 @@ and a Selection that is a slice asked of the server. `explain` puts them in
 one serializable value, beside what the read answers from this Model right now:
 
 ```ts
+import { explain } from 'foldkit-remote/why'
+
 explain(Data, model, projects)
 // {
 //   domain: 'remote',
@@ -3006,6 +3629,10 @@ active record `subscriptions` takes and `explain` reports all of them, plus why
 each is active where that is a readable fact (`Surface.when`) rather than a
 callback (`Surface.at`):
 
+<!-- docs-check
+declare const actives: NonNullable<Parameters<typeof explain>[3]>['surfaces']
+-->
+
 ```ts
 explain(Data, model, projects, { surfaces: actives })
 // surfaces:   ['ProjectPage']
@@ -3029,7 +3656,50 @@ one of your Messages, or a `Respond` that lets one held request go on, answered
 by the `RemoteClient` you pass. Every Model in between is recorded, so a
 regression that lasts one Message cannot fall between samples.
 
+<!-- docs-check standalone
+import { Option, Schema } from 'effect'
+import { Expr } from 'foldkit-entity'
+import { Entity as DomainEntity } from 'foldkit-entity'
+import { Mutation, Query, Remote, type RemoteClient } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+import { defineMessageUnion } from 'foldkit/message'
+import type * as Update from 'foldkit/update'
+
+const Project = DomainEntity.define(
+  'Project',
+  Schema.Struct({ id: Schema.String, name: Schema.String, ownerId: Schema.String }),
+)
+const ProjectSummary = DomainEntity.select(Project, { id: true, name: true })
+const ProjectsByOwner = Query.define('ProjectsByOwner', { ownerId: Schema.String }, ({ input }) =>
+  Query.from(Project).pipe(Query.where(Expr.eq(Project.fields.ownerId, input.ownerId))),
+)
+const Create = Mutation.make('Create', {
+  Input: { id: Schema.String, name: Schema.String },
+  Output: { id: Schema.String },
+})
+const Model = Schema.Struct({ remote: Remote.Model })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({
+  ...Remote.messages,
+  Created: { id: Schema.String, name: Schema.String },
+})
+type Message = typeof Message.Type
+const App = Surface.application({ Model, Message })
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: [Project],
+  queries: [ProjectsByOwner],
+  mutations: [Create],
+})
+const list = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: ProjectSummary, first: 25 })
+const active = { list: Data.active('list', () => Option.some(list)) }
+declare const update: (model: Model, message: Message) => Update.Return<Model, Message, RemoteClient>
+declare const loaded: Model
+declare const server: RemoteClient['Service']
+-->
+
 ```ts
+import { expect } from 'vitest'
 import { Respond, Trace } from 'foldkit-remote/testing'
 
 const trace = await Trace.run(Data, {
@@ -3095,7 +3765,52 @@ and again once its answer has landed and the prediction is released.
 `Law.check` runs one operation through both, as an application does, and
 compares:
 
+<!-- docs-check standalone
+import { Effect, Layer, Option, Schema } from 'effect'
+import { RemoteServer } from 'foldkit-remote-server'
+import { Entity as DomainEntity, Order, Write } from 'foldkit-entity'
+import { Mutation, Query, Remote } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+import { defineMessageUnion } from 'foldkit/message'
+
+const Card = DomainEntity.define(
+  'Card',
+  Schema.Struct({
+    id: Schema.String,
+    title: Schema.String,
+    rank: Schema.Int,
+    votes: Schema.Int,
+    createdAt: Schema.Number,
+  }),
+)
+const ByRank = Query.define('ByRank', {}, () =>
+  Query.from(Card).pipe(Query.orderBy(Order.asc(Card.fields.rank), Order.asc(Card.fields.id))),
+)
+const AddCard = Mutation.write(
+  'AddCard',
+  Write.insert(
+    DomainEntity.input(
+      Card,
+      Schema.Struct({ id: Schema.String, title: Schema.String, rank: Schema.Int, votes: Schema.Int }),
+    ),
+    { id: 'id' },
+  ),
+)
+const Model = Schema.Struct({ remote: Remote.Model, me: Schema.String })
+const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: [Card],
+  queries: [ByRank],
+  mutations: [AddCard],
+  viewer: model => Option.some(Remote.ref(Card, model.me)),
+})
+const server = RemoteServer.make<string>({ entities: [] })
+const db = Layer.empty
+-->
+
 ```ts
+import { expect } from 'vitest'
 import { Law } from 'foldkit-remote/testing'
 
 const report = await Effect.runPromise(
@@ -3299,13 +4014,33 @@ A `QueryRef` has a canonical identity based on its descriptor and encoded input,
 excluding the page window. Thus `first(25)` and `after(cursor).first(25)` merge
 into the same logical connection.
 
+<!-- docs-check standalone use bare-app
+import { Effect } from 'effect'
+import { Entity, Query, updateRemote, type RemoteModel } from 'foldkit-remote'
+
+const Project = Entity.make('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const ProjectsByOwner = Query.make('ProjectsByOwner', {
+  Input: { ownerId: Schema.String },
+  Result: Project,
+})
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: [Project],
+  queries: [ProjectsByOwner],
+})
+declare const ownerId: string
+declare const remote: RemoteModel
+-->
+
 ```ts
 // Inside Effect.gen, with RemoteClient provided.
-const ref = Query.first(25)(ProjectsByOwner.ref({ ownerId }))
-const page = yield* Remote.query(ref)
+const program = Effect.gen(function* () {
+  const ref = Query.first(25)(ProjectsByOwner.ref({ ownerId }))
+  const page = yield* Remote.query(ref)
 
-updateRemote(remote, Remote.queryMessage(ref, page))
-Data.visibleItems(remote, ref)
+  updateRemote(remote, Remote.queryMessage(ref, page))
+  return Data.visibleItems(remote, ref)
+})
 ```
 
 `items`, `hasNext`, `hasPrevious`, and `isGapped` describe the known region.
@@ -3322,7 +4057,7 @@ have a changed row placed in its loaded pages by the client, by the same order
 the server compiles. Such a connection also reads every field its body filters
 and orders by, so the rows it holds can be compared with one that changed.
 
-```ts
+```ts sketch
 // Schematic: `ProjectsByRank` is a Query.define ordered by a number, and
 // `connection` one of `remote.connections`; `Operators` is foldkit-entity's.
 // test/placement.test.ts runs it.
@@ -3431,7 +4166,9 @@ Remote does **not** own:
 - Two applications with the same Model type are not distinguishable by TypeScript
   alone; `Data.subscriptions` also checks the Surface owner token at runtime.
 - `staleWhileRevalidate({ maxAge })` ages rows and lists alike; a list's age is
-  that of its last whole page; a later page or a live event does not date it.
+  that of its last whole page; a later page or a live event does not date it;
+  a row's is that of its oldest field, so a write of some fields can bring the
+  row's refetch forward, never put it off.
 - `RemoteData` is a closed union.
 - A Selection must choose at least one field; an empty Selection would require
   nothing and misleadingly read `Ready` for every id, so it is rejected.

@@ -51,7 +51,7 @@ live AgentRuntime
 
 A useful naming rule is **builder first, contract second**:
 
-```ts
+```ts sketch
 const AgentBuilder = Agent.forApplication(App).withPrincipal<Principal>()
 
 const AssistantAgent = AgentBuilder.make({
@@ -101,6 +101,34 @@ Everything after that is interpretation and transport.
 
 Assume an ordinary Foldkit application has already been captured with
 `Surface.application`:
+
+<!-- docs-check
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import type * as Update from 'foldkit/update'
+import { Agent } from 'foldkit-agent'
+import { Surface } from 'foldkit-surface'
+import type { Mounted } from 'foldkit-sync'
+
+const Todo = Schema.Struct({ id: Schema.String, title: Schema.String, completed: Schema.Boolean })
+const Model = Schema.Struct({
+  listTitle: Schema.String,
+  todos: Schema.Array(Todo),
+  filter: Schema.Literals(['all', 'active', 'done']),
+})
+type Model = typeof Model.Type
+const Message = defineMessageUnion({
+  RequestedTodo: { title: Schema.String },
+  SubmittedTodo: { id: Schema.String, title: Schema.String, createdAt: Schema.Number },
+  ToggledTodo: { id: Schema.String },
+  ClearedCompleted: {},
+})
+type Message = typeof Message.Type
+const initial: Model = { listTitle: 'Todos', todos: [], filter: 'all' }
+const update = (model: Model, _message: Message): Update.Return<Model, Message> => ({ model })
+declare const mounted: Mounted<Model, Message, { readonly todos: ReadonlyArray<typeof Todo.Type> }>
+declare const principal: Principal
+-->
 
 ```ts
 const App = Surface.application({ Model, Message, initial, update })
@@ -198,18 +226,17 @@ contract opts into it.
 Finally, bind the static contract to the live application:
 
 ```ts
-const agentRuntime = AgentBuilder.bind({
-  definition: AssistantAgent,
-  host: {
-    model: mounted.model,
-    dispatch: message => {
-      mounted.dispatch(message)
-    },
-    subscribe: mounted.subscribe,
-    observe: mounted.observe,
-    principal: () => principal,
+const host = {
+  model: mounted.model,
+  dispatch: (message: Message) => {
+    mounted.dispatch(message)
   },
-})
+  subscribe: mounted.subscribe,
+  observe: mounted.observe,
+  principal: () => principal,
+}
+
+const agentRuntime = AgentBuilder.bind({ definition: AssistantAgent, host })
 ```
 
 The contract is static application architecture. The host supplies runtime
@@ -234,7 +261,7 @@ the Model.
 The contract's `context` is a `foldkit-surface` Surface or Projection. This is
 usually the best place to reuse an existing feature boundary:
 
-```ts
+```ts sketch
 context: Overview
 ```
 
@@ -248,7 +275,7 @@ required to reason about the task and leave everything else out.
 
 For additional named reads, use resources:
 
-```ts
+```ts sketch
 resources: [
   Agent.resource('counts', {
     description: 'How many todos are active and completed',
@@ -301,7 +328,7 @@ out of the state machine and into the protocol boundary.
 
 Mapped input makes that explicit:
 
-```ts
+```ts sketch
 RequestedTodo: Agent.variant({
   name: 'add_todo',
   description: 'Add a todo with the given title',
@@ -374,7 +401,7 @@ RequestedDeleteTodo: {
 the Model reads through a `source` instead, such as `foldkit-sync`'s
 `mounted.committed` (the server-confirmed shared slice):
 
-```ts
+```ts sketch
 completion: Agent.when({
   source: mounted.committed,
   predicate: (shared, request) =>
@@ -503,6 +530,10 @@ Once a contract is bound to a live runtime, adapters are intentionally thin:
 For example:
 
 ```ts
+import { AgentA2a } from 'foldkit-agent-a2a'
+import { AgentMcp } from 'foldkit-agent-mcp'
+import { AgentWebMcp } from 'foldkit-agent-webmcp'
+
 AgentWebMcp.register({ agent: agentRuntime })
 AgentMcp.stdio({ agent: agentRuntime })
 AgentA2a.handler({ agent: agentRuntime })
@@ -510,7 +541,15 @@ AgentA2a.handler({ agent: agentRuntime })
 
 Agent Native differs slightly because the host may resolve a runtime per caller:
 
+<!-- docs-check
+import type { ActionRunContext } from 'foldkit-agent-native'
+const resolveRuntime = (_context: ActionRunContext) => agentRuntime
+-->
+
 ```ts
+import { AgentNative } from 'foldkit-agent-native'
+import { registerPackageActions } from '@agent-native/core/server'
+
 registerPackageActions(
   AgentNative.actions({
     definition: AssistantAgent,
@@ -550,12 +589,12 @@ unavailable still fails with `AgentCapabilityUnavailableError`.
 Every decision can be recorded, including refusals:
 
 ```ts
-const audit = Agent.auditLog({
+const audit = Agent.auditLog<Principal>({
   capacity: 500,
   principal: principal => principal.actorId,
 })
 
-const agentRuntime = AgentBuilder.bind({
+const auditedRuntime = AgentBuilder.bind({
   definition: AssistantAgent,
   host,
   audit,

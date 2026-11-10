@@ -33,4 +33,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'no page is kept, so each is rendered again',
+    edits: [
+      {
+        file: '../src/server/entry.ts',
+        find: '    ...kept,\n    buildId:',
+        replace: '    diagnostics: kept.diagnostics,\n    buildId:',
+      },
+    ],
+    tests,
+  },
 ]

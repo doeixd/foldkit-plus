@@ -49,6 +49,29 @@ flowchart LR
 
 Declared from the application:
 
+<!-- docs-check
+import { Schema } from 'effect'
+import type * as Update from 'foldkit/update'
+import { defineMessageUnion } from 'foldkit/message'
+import { Url } from 'foldkit/url'
+import { Surface } from 'foldkit-surface'
+import { Mirror } from 'foldkit-mirror'
+const Model = Schema.Struct({
+  filter: Schema.Literals(['all', 'active', 'done']),
+  page: Schema.Number,
+  q: Schema.String,
+  sidebar: Schema.Literals(['open', 'closed']),
+  draft: Schema.String,
+})
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Mirror.messages, UrlChanged: { url: Url } })
+type Message = typeof Message.Type
+const initial: Model = { filter: 'all', page: 1, q: '', sidebar: 'open', draft: '' }
+const update = (model: Model, _message: Message): Update.Return<Model, Message> => ({ model })
+const App = Surface.application({ Model, Message, initial, update })
+declare const userId: string
+-->
+
 ```ts
 const Filters = Mirror.url(App, {
   fields: [App.model.filter, App.model.page, App.model.q],

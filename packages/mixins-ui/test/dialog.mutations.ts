@@ -91,4 +91,11 @@ export default [
     ],
     tests: [panel],
   },
+  {
+    name: 'a Button.view drops the attributes it is handed',
+    edits: [
+      { file: '../src/button.ts', find: '...(options.attributes?.button ?? []),', replace: '' },
+    ],
+    tests: [browser],
+  },
 ]

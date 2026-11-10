@@ -1,6 +1,6 @@
 # foldkit-ssr
 
-Checked against `foldkit-ssr` 0.11.0.
+Checked against `foldkit-ssr` 0.11.0, `foldkit` 0.170.0.
 
 Server rendering that hands the browser **the Model the server reached**, not
 the inputs to rebuild it: `init` runs once, on the server, and the browser
@@ -204,7 +204,8 @@ would rebuild those elements.
   (`Diagnostics`, re-exported), by default Effect's log (an error on
   `console.error`): `PageContained`
   (`reason`: `NoBuildId`, `OtherBuild` or the refusal's), `StaticRegionMissing`,
-  `BundleUnloaded`, `PageFailed` (a `500`), `HandlerUnnamed`.
+  `BundleUnloaded`, `PageFailed` (a `500`), `HandlerUnnamed`, `CachedPageDiffers`,
+  `HeadNotMoved`.
   `SSR.hydrate(config, plan, { buildId, diagnostics })` takes a reporter, since
   a refusal comes before any runtime's `resources`; `SSR.entry`'s
   `diagnostics(diagnostic, request)` covers everything the request runs. Test
@@ -289,9 +290,11 @@ would rebuild those elements.
   the reason reported. A page is `200` unless `status: (model, request) =>
   number` gives another from the server's Model (`404` for a NotFound route);
   one outside 200–599 is a `500`. It answers `Rendered`, with the envelope on the rendered
-  root beside Foldkit's own stamps. A plan with `meta` is refused at
-  construction: `meta` is written into a head the host owns, so serve it with
-  `SSR.generate`.
+  root beside Foldkit's own stamps. A plan's `meta` rides in the root between
+  marker comments; wrap the host's document renderer in `SSR.headed(render)`
+  to move it before `</head>`, or `SSR.hydrate` reports `HeadNotMoved` (the
+  served head lacked it) and removes it. A void root refuses it
+  (`RootRefusesHead`: void, table, `svg`, raw-text roots).
 - `cache: { store, maxAge, check? }` (`PageCache`, #428) keeps a `GET`/`HEAD`
   page by build id and full URL when it was drawn from the URL alone: every
   read through `pageReader` public (`PageReads`), every request header that
@@ -320,7 +323,7 @@ would rebuild those elements.
 - `fallback: 'server'` on the plan: a form with a named `rh.OnSubmit(Message)`
   and no `Method` is written `method="post"` to its own URL with a hidden
   `foldkit-plus-message` input (the Message encoded). `SSR.handle(request,
-  config, plan, { buildId, flags?, prepare? })`, which `SSR.entry` calls for `POST`,
+  config, plan, { buildId, flags?, prepare?, styles?, resources? })`, which `SSR.entry` calls for `POST`,
   decodes it, lets posted fields named as the Message's own override them,
   requires a tag an active Surface lists, rebuilds the Model (`init`, then the
   plan's `boot`), runs `update` and each Command under `config.resources`

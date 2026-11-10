@@ -12,7 +12,10 @@
  * (`NULLS FIRST`/`NULLS LAST`): left unsaid, SQLite puts them first ascending
  * and Postgres last, so the keyset predicate, which has to know, would match
  * one of them only. The default is Postgres's (ASC: nulls last, DESC: nulls
- * first). A null cursor value pages by `IS NULL`, never `col > NULL`.
+ * first). A null cursor value pages by `IS NULL`, never `col > NULL`. A column
+ * declared not null has no nulls to place, and its term says nothing: SQLite
+ * sorts the last term of an order whose terms place nulls against its own
+ * default, index or not, so a page ordered by `…, id` sorted its ties.
  */
 import {
   Column,
@@ -216,7 +219,10 @@ export const orderByTerms = (
       onNone: () => sql`${term.key}`,
       onSome: ({ key }) => key,
     })
-    return sql`${key} ${ascending ? sql`asc` : sql`desc`} ${last ? sql`nulls last` : sql`nulls first`}`
+    const direction = ascending ? sql`asc` : sql`desc`
+    return is(term.key, Column) && term.key.notNull
+      ? sql`${key} ${direction}`
+      : sql`${key} ${direction} ${last ? sql`nulls last` : sql`nulls first`}`
   })
 
 /**

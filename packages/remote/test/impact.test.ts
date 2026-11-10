@@ -127,7 +127,8 @@ const holding = (model: Model, identity: string, held: ReadonlyArray<string>): M
     },
   })
 
-const loaded = (): Model => {
+/** The rows and lists held; without `opaque`, no list whose meaning only its server knows. */
+const loaded = (options: { readonly opaque?: false } = {}): Model => {
   const stored = Data.reduce(
     { remote: Remote.initial },
     {
@@ -142,7 +143,10 @@ const loaded = (): Model => {
   )
   const withActive = holding(stored, active.ref.identity, ['p1', 'p2'])
   const withNamed = holding(withActive, named.ref.identity, ['p1'])
-  const withOpaque = holding(withNamed, opaque.ref.identity, ['p1', 'p2', 'p3'])
+  const withOpaque =
+    options.opaque === false
+      ? withNamed
+      : holding(withNamed, opaque.ref.identity, ['p1', 'p2', 'p3'])
   const withServerOrdered = holding(withOpaque, serverOrdered.ref.identity, ['p1', 'p2'])
   const withByPrice = holding(withServerOrdered, byPrice.ref.identity, ['p1', 'p2', 'p3'])
   const withApollos = holding(withByPrice, activeApollos.ref.identity, ['p1'])
@@ -426,9 +430,13 @@ describe('A list the write may have changed', () => {
     expect(stale(repriced, active.ref.identity)).toBe(true)
   })
 
-  it('is invalidated, for any change of its Entity, when its query declares no body', () => {
+  it('is invalidated, for any change of any Entity, when its query declares no body', () => {
     const renamed = answered(loaded(), [patch('p1', { name: 'Apollo II' })])
     expect(stale(renamed, opaque.ref.identity)).toBe(true)
+    // Its server may read another Entity's rows too, which only it knows (#477).
+    const known = stored(loaded(), [{ entity: 'Owner', id: 'o1', values: { name: 'Ada' } }])
+    const owner = answered(known, [{ entity: 'Owner', id: 'o1', values: { name: 'Grace' } }])
+    expect(stale(owner, opaque.ref.identity)).toBe(true)
   })
 
   it('restarts a read of it already in flight, which could answer with the rows before the write', () => {
@@ -437,9 +445,21 @@ describe('A list the write may have changed', () => {
     expect(archived.remote.refresh.generation).toBe(before.remote.refresh.generation + 1)
     // A write no list depends on restarts nothing: an owner the client holds,
     // and no list shows, renamed in a list loaded whole.
-    const known = stored(before, [{ entity: 'Owner', id: 'o1', values: { name: 'Ada' } }])
-    const owner = answered(known, [{ entity: 'Owner', id: 'o1', values: { name: 'Grace' } }])
-    expect(owner.remote.refresh.generation).toBe(known.remote.refresh.generation)
+    const rename = (model: Model) => {
+      const known = stored(model, [{ entity: 'Owner', id: 'o1', values: { name: 'Ada' } }])
+      return {
+        known,
+        owner: answered(known, [{ entity: 'Owner', id: 'o1', values: { name: 'Grace' } }]),
+      }
+    }
+    const bodied = rename(loaded({ opaque: false }))
+    expect(bodied.owner.remote.refresh.generation).toBe(bodied.known.remote.refresh.generation)
+    // A list with no body may read the owner on its server, so it is fetched again (#477).
+    const withOpaque = rename(before)
+    expect(stale(withOpaque.owner, opaque.ref.identity)).toBe(true)
+    expect(withOpaque.owner.remote.refresh.generation).toBe(
+      withOpaque.known.remote.refresh.generation + 1,
+    )
   })
 })
 

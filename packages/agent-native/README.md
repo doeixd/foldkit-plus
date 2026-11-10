@@ -52,6 +52,30 @@ Agent Native needs a static action registry, but the live Model and principal
 belong to the caller. Register the contract once and resolve the bound runtime
 per invocation:
 
+<!-- docs-check
+import { Agent } from 'foldkit-agent'
+import { Option, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+const Message = defineMessageUnion({ RequestedCreateTodo: { title: Schema.String } })
+type Message = typeof Message.Type
+interface Model {
+  readonly selectedTodoId: Option.Option<string>
+}
+import type { ActionRunContext as HostContext } from 'foldkit-agent-native'
+interface Caller {
+  readonly email: string
+}
+const AgentBuilder = Agent.forModel<Model>()
+const AssistantAgent = AgentBuilder.make({
+  messages: AgentBuilder.expose(Message, { RequestedCreateTodo: 'Create a todo' }),
+})
+declare const hostFor: (context: HostContext) => {
+  readonly model: () => Model
+  readonly dispatch: (message: Message) => void
+}
+declare const principalFor: (context: HostContext) => Caller
+-->
+
 ```ts
 import { AgentNative } from 'foldkit-agent-native'
 import { registerPackageActions } from '@agent-native/core/server'

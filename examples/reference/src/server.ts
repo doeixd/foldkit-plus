@@ -4,6 +4,7 @@
  * polls D1 from inside each subscriber's own request. Nothing here imports
  * the Workers runtime, so the tests read it from Node.
  */
+import { desc } from 'drizzle-orm'
 import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Option } from 'effect'
 import { GuardDrizzle } from 'foldkit-plus/guard/drizzle'
@@ -26,16 +27,21 @@ import { accounts } from './auth.js'
 import { G, Me, Member, Note, type Principal } from './guard.js'
 import { AddNote, DeleteNote, EditNote, Notes } from './operations.js'
 
-export const notes = sqliteTable('notes', {
-  id: text('id').primaryKey(),
-  authorId: text('author_id')
-    .notNull()
-    .references(() => accounts.id),
-  title: text('title').notNull(),
-  body: text('body').notNull(),
-  createdAt: integer('created_at').notNull(),
-  revision: integer('revision').notNull().default(0),
-})
+export const notes = sqliteTable(
+  'notes',
+  {
+    id: text('id').primaryKey(),
+    authorId: text('author_id')
+      .notNull()
+      .references(() => accounts.id),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    createdAt: integer('created_at').notNull(),
+    revision: integer('revision').notNull().default(0),
+  },
+  // The order of `Notes`: newest first, ties by id.
+  table => [index('notes_newest').on(desc(table.createdAt), table.id)],
+)
 
 /**
  * Each write the notes' writer landed, by whose operation it was, so a write

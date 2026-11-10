@@ -231,15 +231,22 @@ const listReasons = (reader: WhyReader, asked: ConnectionRequirement): ReadonlyA
   const failure = remote.failures.connections[identity]
   const inFlight = isQueryLoading(remote, identity)
   const reasons: Why[] = failure === undefined ? [] : [Why.ListFailed({ list, error: failure })]
+  // Why it went stale: read only where it still is, below. A list collected
+  // takes its reason with it (`RetentionChanged`).
+  const invalidated = Option.match(Option.fromUndefinedOr(remote.staleBecause[identity]), {
+    onNone: () => [],
+    onSome: words => [Why.Invalidated({ list, because: words })],
+  })
   // A stale list with no pages has nothing to show: it is missing, as the read reads it.
   if (connection === undefined || (connection.stale && connection.segments.length === 0)) {
     const held =
       connection === undefined && remote.evicted.connections.includes(identity)
         ? 'Evicted'
         : 'Missing'
-    return [...reasons, Why.List({ list, held, inFlight })]
+    return [...reasons, Why.List({ list, held, inFlight }), ...invalidated]
   }
-  if (readsStale(remote, identity)) reasons.push(Why.List({ list, held: 'Stale', inFlight }))
+  if (readsStale(remote, identity))
+    reasons.push(Why.List({ list, held: 'Stale', inFlight }), ...invalidated)
   else if (heldForHistory(remote.history, remote.connections, identity))
     reasons.push(Why.HeldForHistory({ list }))
   const { shown, placed, pages } = reader.edgesOf(asked)

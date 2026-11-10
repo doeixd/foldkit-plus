@@ -33,7 +33,45 @@ view owns its elements; the two share the rules, such as `markActive`.
 
 In the snippets, `model`, `h`, `Message`, and `edited` are the application's, as in
 `foldkit-richtext-dom`'s editor; a name such as `DraftedLink` is one of its own Message
-constructors.
+constructors, and `EditorMessage` is the editor's own Message.
+
+<!-- docs-check
+import { Schema } from 'effect'
+import type { HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import * as RichText from 'foldkit-richtext'
+import { Message as EditorMessage, type EditorEvent } from 'foldkit-richtext-dom/editor'
+import type { EditorState } from 'foldkit-richtext-dom/editor-bundle'
+import type { SourceSession } from 'foldkit-richtext-markdown'
+const Message = defineMessageUnion({
+  GotEditor: { message: EditorMessage },
+  DraftedLink: { href: Schema.String },
+  CopiedCode: { node: RichText.NodeId },
+  ChoseCommand: { event: EditorMessage },
+  ChangedPalette: { query: Schema.String, index: Schema.Number },
+  ClosedPalette: {},
+  DraftedSource: { draft: Schema.String },
+  MovedInSource: { caret: Schema.Number },
+  LeftSource: {},
+})
+type Message = typeof Message.Type
+const { DraftedLink, DraftedSource, MovedInSource, LeftSource } = Message
+const edited = (message: EditorEvent): Message => Message.GotEditor({ message })
+declare const model: {
+  readonly document: RichText.Document
+  readonly editor: EditorState
+  readonly linkDraft: string
+  readonly palette: { readonly query: string; readonly index: number } | null
+  readonly source: SourceSession | null
+}
+declare const h: HtmlBuilder<Message>
+declare const document: RichText.Document
+declare const selection: RichText.Selection | null
+declare const storedMarks: ReadonlyArray<string> | null
+declare const modifiers: KeyboardModifiers
+declare const code: RichText.Block
+const ArticleKit = RichText.kit({ nodes: [RichText.block('Paragraph')], marks: [RichText.Bold] })
+-->
 
 ## Install
 
@@ -57,7 +95,7 @@ const Toolbar = markToolbar<Message>().pipe(
 Toolbar(
   {
     state: { document, selection, storedMarks },
-    toggled: mark => edited(Message.ToggledMark({ mark })),
+    toggled: mark => edited(EditorMessage.ToggledMark({ mark })),
   },
   h,
 )
@@ -460,16 +498,18 @@ editor:
 ```ts
 import { sourceEditor } from 'foldkit-mixins-richtext'
 
-sourceEditor<Message>()(
-  {
-    session: model.source,
-    document: model.document,
-    drafted: draft => DraftedSource({ draft }),
-    moved: caret => MovedInSource({ caret }),
-    done: LeftSource(),
-  },
-  h,
-)
+model.source === null
+  ? h.empty
+  : sourceEditor<Message>()(
+      {
+        session: model.source,
+        document: model.document,
+        drafted: draft => DraftedSource({ draft }),
+        moved: caret => MovedInSource({ caret }),
+        done: LeftSource(),
+      },
+      h,
+    )
 ```
 
 - **The text area** holds the draft and sends `drafted` as it changes. When drawn it takes focus

@@ -10,7 +10,7 @@
  * Nothing here runs: the deliverable is the type surface, pinned by
  * `test/inference.test-d.ts`.
  */
-import { Optic, Option, Predicate, Result, Schema } from 'effect'
+import { Equal, Optic, Option, Predicate, Result, Schema } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { MessageUnion } from 'foldkit/message'
 import type { Entry as ManagedResourceEntry } from 'foldkit/managedResource'
@@ -194,9 +194,12 @@ type RefNode<Root, S, Key extends string> =
   S extends Schema.Codec<infer A, infer Encoded, any, any>
     ? S extends Schema.Struct<infer F>
       ? Selectable<Root, A, Key, Encoded> & RefTree<Root, F>
-      : A extends ReadonlyArray<infer E>
+      : // Tuple-wrapped, as `Select` is: `A` is a type parameter, so a bare
+        // conditional distributes an `Option` over `None | Some` and intersects
+        // their focuses into one whose `set` takes `never`.
+        [A] extends [ReadonlyArray<infer E>]
         ? Selectable<Root, A, Key, Encoded> & Indexes<Root, E>
-        : A extends Readonly<Record<infer K extends string, infer V>>
+        : [A] extends [Readonly<Record<infer K extends string, infer V>>]
           ? Selectable<Root, A, Key, Encoded> & Entries<Root, K, V>
           : Selectable<Root, A, Key, Encoded>
     : never
@@ -637,6 +640,12 @@ export const Projection = {
    * keyed on it holds. It keeps one result: the one for the last Model it was
    * given.
    *
+   * `verify` checks that promise: where the memo would give its last value,
+   * `derive` runs again, and a result unequal to it throws, naming the paths
+   * `on` reads, since `derive` read something they do not name. Pass
+   * `import.meta.env?.DEV === true`, as `Remote.make`'s `verifyPredictions` takes it;
+   * it doubles the work, so leave it off in production.
+   *
    * @example
    * ```ts
    * const shown = Projection.derive([App.model.todos, App.model.filter], (model: Model) =>
@@ -648,6 +657,7 @@ export const Projection = {
   derive: <Root, Value>(
     on: ReadonlyArray<ModelRef<Root, any> | { readonly dependencies: DependencyTree }>,
     derive: (root: Root) => Value,
+    options: { readonly verify?: boolean | undefined } = {},
   ): Derived<Root, Value> => {
     if (on.length === 0) {
       throw new Error(
@@ -666,10 +676,19 @@ export const Projection = {
       read: root => {
         const values = dependencies.map(path => valueAt(root, path))
         const before = last
+        const hit =
+          before !== undefined &&
+          !always &&
+          values.every((value, index) => Object.is(value, before.values[index]))
+        if (hit && options.verify === true && !Equal.equals(derive(root), before.value)) {
+          throw new Error(
+            `Projection.derive: nothing it names changed (${dependencies.map(path => path.join('.')).join(', ')}), yet working the value out again gives another. It reads something its \`on\` does not name: add it there.`,
+          )
+        }
         const value =
           before === undefined
             ? derive(root)
-            : !always && values.every((value, index) => Object.is(value, before.values[index]))
+            : hit
               ? before.value
               : keepAlike(before.value, derive(root))
         last = { values, value }

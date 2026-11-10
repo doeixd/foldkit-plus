@@ -692,6 +692,9 @@ refuse the rest.
 > needs collation, which is the backend's. So `Remote.belongs` answers the half
 > that is always answerable, and the position a live event carries still stands.
 > Ordered placement waits on declared collation, as §9.3 said it would.
+> (Since built, checked 2026-11-09: `packages/remote/src/placement.ts` places a
+> row by the list's declared order where every text key declares a collation,
+> and answers `Unknown` with the reason otherwise.)
 >
 > **Two dead paths turned up doing it**, both around the API this phase was
 > supposed to be improving.

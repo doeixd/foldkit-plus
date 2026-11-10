@@ -247,10 +247,13 @@ export type BundleControlSpec<
    * submit made meanwhile waits, as it waits for a check, and goes when the work
    * lands or ends. Default: never. Give `settled` beside it: a stored form shown
    * again has no work in flight, and one left busy would hold every submit back,
-   * so `Input.bundle` refuses `busy` without it.
+   * so `busy` without it is a type error, and refused when the control is made.
    */
   readonly busy?: (model: Model) => boolean
-} & ([Args] extends [void] ? { readonly args?: undefined } : { readonly args: Args })
+} & ([Args] extends [void] ? { readonly args?: undefined } : { readonly args: Args }) &
+  // Naming no other type, this leaves the value's inference to `value` and `fill`
+  // for every spec it admits; a spec it refuses is reported at the call.
+  ({ readonly busy?: undefined } | { readonly settled: (model: Model) => Model })
 
 /** A relation picker: what it chooses from, and whether it searches. */
 export interface RelationData {

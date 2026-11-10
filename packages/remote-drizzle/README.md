@@ -1050,7 +1050,12 @@ query(PostsSearch, {
   SQLite and Postgres. The default is Postgres's (last ascending, first
   descending); a body's term says otherwise with
   `Order.asc(field, { nulls: 'first' })`, and an `orderBy` term here with
-  `nulls: 'first'`.
+  `nulls: 'first'`. A column the table declares not null has no nulls to
+  place, so its term says nothing: SQLite sorts the last term of an order
+  whose terms place nulls against its own default, even where an index holds
+  the order, so a page ordered `…, id` would sort its ties. An index that
+  matches the order, its directions included (`(owner, created desc, id)` for
+  newest first with ties by id), then serves the whole page.
 
 A page's cursor is where it ended: the order's key values at its last row, the
 id among them (`k:[...]`). The next page's keyset predicate is built from those
@@ -1073,6 +1078,63 @@ some reader may not read.
 Client-supplied windows are bounded: the default page size is `20`, the default
 maximum is `100`, and malformed combinations such as `after + before` or
 `first + last` fail rather than being guessed.
+
+### Does an index serve each page?
+
+Every filter and order a client can ask for is declared, so whether the
+database can serve them is a question a test can ask before production does.
+`queryPlans` runs a first page and a later one of each source, for every order
+a body lets its reader choose, and asks the database how it plans each:
+`served` reads the page in order from an index and stops at its end; `sorted`
+reads every matching row and sorts them first, on every request.
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { Entity, Expr, Order } from 'foldkit-entity'
+import { Query } from 'foldkit-remote'
+import { bind, query, type DrizzleDatabase } from 'foldkit-remote-drizzle'
+import type { Layer } from 'effect'
+const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, slug: Schema.String }))
+const posts = sqliteTable('posts', { id: text('id').primaryKey(), slug: text('slug').notNull() })
+const Db = bind({ Post }, { Post: { table: posts } })
+const PostsBySlug = Query.define('PostsBySlug', { slug: Schema.String }, ({ input }) =>
+  Query.from(Post).pipe(Query.where(Expr.eq(Post.fields.slug, input.slug)), Query.orderBy(Order.asc(Post.fields.id))),
+)
+const PostsBySlugSource = query(PostsBySlug, { entity: Db.Post })
+// A database migrated as production is, with a few rows seeded.
+declare const DatabaseLive: Layer.Layer<DrizzleDatabase>
+declare const expect: (value: unknown) => { toEqual(expected: unknown): void }
+-->
+
+```ts
+import { Effect } from 'effect'
+import { queryPlans } from 'foldkit-remote-drizzle'
+
+const plans = await Effect.runPromise(
+  queryPlans([{ source: PostsBySlugSource, input: { slug: 'hello' }, principal: null }]).pipe(
+    Effect.provide(DatabaseLive),
+  ),
+)
+expect(plans.filter(plan => plan.verdict === 'sorted')).toEqual([])
+```
+
+Each plan carries the statement and the database's own lines, which say which
+index it used. It asks the database rather than reading the indexes, because
+what serves an order turns on what the dialect knows:
+
+- **The index matches the order's directions,** the id tie-break's included:
+  newest first with ties by id is `(owner, created desc, id)`, not
+  `(owner, created, id)`.
+- **On Postgres a text key's index column says `collate "C"`,** as the
+  compiled order does (it is what lets a client place rows as the server
+  orders them). An index column of the default collation cannot serve it,
+  even on a database whose default is `C`: Postgres sorts the ties
+  (`Incremental Sort`). `(owner, created desc, id collate "C")` serves it.
+
+Run it over a database migrated as production is, and seed a few rows: the
+rows decide whether there is a later page to plan, and on SQLite which index
+the planner picks. Only sources made by `query` are planned.
 
 ### An operator the application implements
 
@@ -1189,7 +1251,9 @@ const Post = entity('Post', posts, {
 })
 ```
 
-`commentCount` becomes a Remote number field. The Source runs a grouped
+`commentCount` becomes a Remote number field. Its `relation` names a `many` or
+`manyToMany` relation of the same binding; any other name is a type error, as
+well as a refusal when the binding is made. The Source runs a grouped
 `count(*)`, including the relation's static `where` and principal policy. The
 count is the total relation count, not the current page count.
 
@@ -1277,6 +1341,36 @@ Entity is refused where the writer is made. `bind` refuses a table whose
 foreign key on such a column says otherwise: one that cascades where the
 relation does not declare it, and one that does not where it does (the
 writer removes its own rows, so the foreign key must agree).
+
+**A delete refuses a row the domain says must stay.** A row pointed at
+through a relation declared `Relation.one(Topic, { onDelete: 'restrict' })`
+is not deleted: the delete statement itself holds `not exists` of a row
+pointing there, so no row can arrive between a check and the delete, on D1
+too. A miss then reads whether such a row is there, and answers
+`DeleteOutcome.Referenced`, which `RemoteServer.write` sends as
+`Refusal.referenced` (its `entity` and `relation`), a 409. It names the relation and
+none of the rows, which the deleter may not see; a guard judges the
+deleter's own `Delete` rule first, so only someone allowed to delete learns
+even that. The restricting relation is bound beside it, stored on its own
+table, and a foreign key on it says `restrict` or `no action`, or nothing. A
+cascade that would take rows of an Entity something restricts is refused
+where the writer is made: restrict the root, or cascade those pointers too.
+
+**A delete clears the links the domain says point nowhere after.** A row
+pointing at the deleted one through `Relation.one(Folder, { optional: true,
+onDelete: 'setNull' })` stays, with its link set to null, in the transaction
+(or D1 batch) that deletes, and only while the row named is still there and
+holds what the delete asks, so a delete that missed clears nothing. The
+writer answers the cleared rows the principal may see as
+`DeleteOutcome.Deleted({ cleared })`, and `RemoteServer.write` reads them
+again for the answer, so a page holding one sees its link gone. `delete`
+takes `clearing`, each Entity's rules for unlinking such a row as a
+`CascadeRequirement`: Guard's `GuardServer.writer` hands over the row's
+`Update` rule and the relation's `Unlink` rule, given the Entity in
+`children`, and the writer refuses the whole delete as `Forbidden` where a
+row it would clear does not hold them (unknown counts as not), naming the
+Entity and none of the rows. A cascade into an Entity whose links something
+clears is refused where the writer is made.
 
 **A cascade takes no row its deleter may not delete.** `delete` takes
 `cascading`, each Entity's `Delete` rule as a `CascadeRequirement` (Guard's
@@ -1391,7 +1485,9 @@ refuses it when the Schema does (tested on SQLite and Postgres, NaN, infinities
 and NUL included). That covers lengths in code points (`isMaxCodePoints` and its
 kin, and `isNonEmpty`), a whole-string pattern of one ASCII bracket
 (`/^[a-z0-9_]{3,15}$/`, with unit lengths beside it), numeric bounds,
-`isFinite`, and literals. Everything else is in `serverOnly`, a sentence per
+`isFinite`, `isInt` (a safe integer), `isStartingWith`, `isEndingWith` and
+`isIncluding` (by bytes on SQLite and under the binary collation on Postgres,
+so a column's own collation cannot loosen them), and literals. Everything else is in `serverOnly`, a sentence per
 rule, and is held by the server's writes alone: a length in UTF-16 units with
 no ASCII pattern (`isMaxLength`: SQL counts code points), a custom filter, a
 rule made after a transformation, a rule inside a record, an array or a
@@ -1522,7 +1618,9 @@ changes in one operation, which the trigger would move past its sequence.
 A table a `foldkit-sync` journal writes (`editsJournal`) takes its `apply` from
 the binding: `applyEdits(Db.Product)` writes one committed cell edit to the
 member's column, and the sequence it committed at to `revision`, in one
-statement that never moves a row back, so recovery may run it again. The
+statement that never moves a row back, so recovery may run it again. A table
+whose revision field has another name gives it as `revision`, which is typed
+by the binding's fields. The
 column is the binding's, never one named by the change. Here the revision is
 the journal's sequence, so such a table should not also take writes that
 `expect` a counter.

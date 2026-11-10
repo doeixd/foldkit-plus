@@ -14,7 +14,9 @@ export default defineConfig(({ command }) => {
     server: { host: '127.0.0.1', port: 5191 },
     plugins: [
       // The theme and every class the app compiles, as one hashed file the pages link.
-      styles({ sheet: '/src/client/style.ts' }),
+      // Only the tokens the sheet reads (#487): no view here reads one inline;
+      // `look.browser.test.ts` checks the page draws the same.
+      styles({ sheet: '/src/server/sheet.ts', prune: {} }),
       foldkit({
         ssr: {
           serverEntry: '/src/server/entry.ts',

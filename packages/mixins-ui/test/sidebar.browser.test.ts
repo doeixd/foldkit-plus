@@ -102,6 +102,8 @@ interface Fixture {
   readonly resizable?: Sidebar.InitConfig['width']
   /** The width of the box around it, centred on the page so a tooltip has room on either side. */
   readonly width?: string
+  /** Keep the recipe's transitions, for a test of how something moves. */
+  readonly moving?: boolean
 }
 
 const mount = (fixture: Fixture = {}) => {
@@ -117,8 +119,9 @@ const mount = (fixture: Fixture = {}) => {
     style.css +
     tooltip.css +
     sheet.css +
-    // Nothing that would measure again, so only the change under test moves anything.
-    '* { transition: none !important; }' +
+    // Still, so only the change under test moves anything; or moving, slowed
+    // eightfold so a test's samples catch it mid-flight.
+    (fixture.moving === true ? ':root{--fk-knob-motion:8}' : '* { transition: none !important; }') +
     '.mark { display: block; width: 24px; height: 24px }'
   document.head.append(css)
   const box = document.createElement('div')
@@ -212,6 +215,36 @@ test('a branch opens its links beneath it, and shuts them again', async () => {
     })
     await userEvent.click(button('Projects'))
     await vi.waitFor(() => expect(rect(nested()).height).toBe(0))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('while a branch opens, its first link stays put beneath it', async () => {
+  const handle = mount({ moving: true })
+  try {
+    await vi.waitFor(() => expect(button('Projects')).toBeTruthy())
+    const nested = () => document.getElementById(button('Projects').getAttribute('aria-controls')!)!
+    const offsets: Array<number> = []
+    const lefts: Array<number> = []
+    const heights: Array<number> = []
+    await userEvent.click(button('Projects'))
+    const settled = await vi.waitFor(
+      async () => {
+        await new Promise(resolve => requestAnimationFrame(resolve))
+        offsets.push(rect(link('Website')).top - rect(button('Projects')).top)
+        lefts.push(rect(link('Website')).left)
+        heights.push(rect(nested()).height)
+        expect(document.getAnimations()).toHaveLength(0)
+        expect(heights.length).toBeGreaterThan(3)
+        return heights.at(-1)!
+      },
+      { timeout: 5000, interval: 0 },
+    )
+    // Mid-flight, so the samples cover the opening and not only its end.
+    expect(heights.some(height => height > 0 && height < settled)).toBe(true)
+    expect(Math.max(...offsets) - Math.min(...offsets)).toBeLessThan(0.5)
+    expect(Math.max(...lefts) - Math.min(...lefts)).toBeLessThan(0.5)
   } finally {
     handle.dispose()
   }

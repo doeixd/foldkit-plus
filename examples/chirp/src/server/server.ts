@@ -132,6 +132,8 @@ const SCHEMA = `
     primary key (scope, operation, target)
   );
   create index write_ledger_at on write_ledger (at);
+  -- Timeline and ByAuthor: newest first, ties by id.
+  create index posts_newest on posts (created_at desc, id);
 `
 // #endregion
 

@@ -205,7 +205,8 @@ Style.install(stylesheet) // browser entry only; returns the <style>
 
 A piece is a `StyleValue`, a declarations object (`Style.self`), or a list (`Style.compose`).
 `AppStyle`'s `slots`/`forSlots` compile in the `app` layer; its `stylesheet` is layer order,
-reset, tokens, palette and `Defaults.body` (`global` adds to `defaults`). Utilities take token
+reset, tokens, palette and `Defaults.body` (`global` adds to `defaults`), built when first read:
+with `foldkit-mixins/vite`, read it in a server-only module, never in the browser. Utilities take token
 names, so `U.p('4xl')` and `U.bg('surface.nope')` are type errors. `U.scrollFade(axis)` dissolves a
 scroller's content toward an edge with more to scroll (CSS only); `U.scrollDivider(axis)` on a
 positioned parent with `U.scrollTimeline(axis)` on the scroller draws a hairline at such an edge
@@ -400,7 +401,7 @@ value-to-tone map (`Badge({ attribute: 'data-state', tones: { Published: 'succes
 because one style serves badges in every state and every tone is present at once.
 `Recipes.InputGroup` (`group`, `affix`, `control`) draws a prefixed or suffixed field as one
 box; a `Segmented` pressed option is the accent's flat tint (`Segmented.fluid`, with its `indicator` and `highlight`
-slots drawn first in the group, slides it as a pill; `Segmented.view` and `Segmented.toggled(pressed, value, { multiple, optional })` draw and step it, `multiple` being a toggle group; `Button.view({ icon })` draws an icon (an `svg`, `aria-hidden`) in its `icon` slot before the label, which the `icon` variant hides so the icon stands alone, the label still its name (`shape: 'square'` does so for any variant, an outlined icon button); a toggle button is `Button.view({ pressed })`, which rests on its tone's fill, keeps its text on it hovered and held, and deepens held); a held button scales to 98% (by `travel`), a solid or primary one also deepening to its `active` fill and clearing its 1px border, so it stands 1px in. That fill is clipped to the padding box: override it with `backgroundColor` in every state, since a `background` shorthand resets the clip. An unfilled button's
+slots drawn first in the group, slides it as a pill; `Segmented.view` and `Segmented.toggled(pressed, value, { multiple, optional })` draw and step it, `multiple` being a toggle group; `Button.view({ icon })` draws an icon (an `svg`, `aria-hidden`) in its `icon` slot before the label, which the `icon` variant hides so the icon stands alone, the label still its name (`shape: 'square'` does so for any variant, an outlined icon button); `Button.view({ attributes: { button: dialog.initialFocus } })` adds another component's attributes after its own; `Button.view({ disabled })` writes only `aria-disabled`, so a `type: 'submit'` one still submits on Enter or a press, and `update` refuses what it should not send; a toggle button is `Button.view({ pressed })`, which rests on its tone's fill, keeps its text on it hovered and held, and deepens held); a held button scales to 98% (by `travel`), a solid or primary one also deepening to its `active` fill and clearing its 1px border, so it stands 1px in. That fill is clipped to the padding box: override it with `backgroundColor` in every state, since a `background` shorthand resets the clip. An unfilled button's
 hover (outline, ghost, icon) is a faint film of the state ink, so it reads on a colored band. The
 body defaults color scrollbars with `outline.overt`. `Touch`
 (`target`, `targets`) and `Icons` (`glyph(size)`, `byAttribute(attribute, icons)`) are style
@@ -644,7 +645,10 @@ export const stylesheet: string = Style.stylesheet(
   'virtual:foldkit-styles'` is its address (dev serves the same `href`). Put
   `<link rel="stylesheet" href="${href}" data-foldkit-styles-href>` in the document's head;
   the browser's injection treats the linked sheet's classes as present. Declare the virtual
-  module's type yourself.
+  module's type yourself. `styles({ sheet, prune: { keep } })` ships only the `--fk-*`
+  tokens a rule reads (`Inert.prune` from `foldkit-mixins/testing`, in dev too); a token read only inline (`Theme.ref`) or
+  by a script goes in `keep`, and `Inert.missingTokens(tree, Inert.prune(css, { keep }))`
+  lists one a drawn view reads that pruning took.
 
 ## 8. Known traps
 

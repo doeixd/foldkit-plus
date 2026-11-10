@@ -296,6 +296,17 @@ A Query Source answers the ordered connection itself. The client's `select`
 travels with the request, and the handlers return the selected fields of the
 page's items with the edges, so one response carries both:
 
+<!-- docs-check
+import { type QueryWindow } from 'foldkit-remote'
+import { type QueryPage, type RemoteServerError } from 'foldkit-remote-server'
+
+declare const projectsPage: (args: {
+  readonly ownerId: string
+  readonly window: QueryWindow
+  readonly principal: unknown
+}) => Effect.Effect<QueryPage, RemoteServerError>
+-->
+
 ```ts
 import { Query } from 'foldkit-remote'
 
@@ -310,7 +321,7 @@ const ProjectsByOwnerSource = RemoteServer.query(
   ({ input, window, principal }) => projectsPage({ ownerId: input.ownerId, window, principal }),
 )
 
-const Server = RemoteServer.make({
+const QueryServer = RemoteServer.make({
   entities: [ProjectSource],
   queries: [ProjectsByOwnerSource],
 })
@@ -350,6 +361,13 @@ semantics](#reference-semantics-evaluate-and-the-conformance-suite)).
 A Mutation Source changes server-owned state. It returns the protocol output
 plus any normalized entity/connection changes that should settle the client's
 cache immediately:
+
+<!-- docs-check
+declare const renameProject: (
+  input: { readonly id: string; readonly name: string },
+  principal: unknown,
+) => Effect.Effect<{ readonly id: string }, RemoteServerError>
+-->
 
 ```ts
 import { Effect } from 'effect'
@@ -396,6 +414,12 @@ refuse.
 
 A Source may additionally return connection changes:
 
+<!-- docs-check
+import { type ConnectionIdentity } from 'foldkit-remote'
+declare const connection: ConnectionIdentity
+declare const id: string
+-->
+
 ```ts
 RemoteServer.prepend(connection, Project.ref(id))
 RemoteServer.append(connection, Project.ref(id))
@@ -440,6 +464,14 @@ A mutation declared as a `Write` (`Mutation.write`) needs no handler.
 `RemoteServer.write(mutation, writer)` binds the input to the write, only the
 keys the client named when it named some, and hands the row's id and new values
 to an `EntityWriter`, which writes them and answers the row as written:
+
+<!-- docs-check
+import { type EntityWriter } from 'foldkit-remote-server'
+
+declare const EditProject: Parameters<typeof RemoteServer.write>[0]
+declare const writer: (binding: unknown) => EntityWriter<unknown>
+declare const Db: { readonly Project: unknown }
+-->
 
 ```ts
 // `EditProject` is a Mutation.write; `writer` and the binding `Db` are foldkit-remote-drizzle's.
@@ -557,7 +589,7 @@ left out of it, keeping what the patch gave.
 A Source whose write the server cannot see (a row of a join table, a count it
 keeps itself) names the row with no values, and the read answers all of it:
 
-```ts
+```ts sketch
 // Sketch, inside a mutation Source over a `Post` Entity: a like in a join table
 // changes its post, so name the post and read nothing yourself.
 return { output: { liked: true }, entities: [Remote.patch(Post, input.postId, {})] }
@@ -613,6 +645,14 @@ There are three ways to produce one:
 - in a long-lived process, a `liveHub` that re-reads what each write changed.
 
 ### Write a live Source directly
+
+<!-- docs-check
+import { type LiveSource } from 'foldkit-remote-server'
+
+declare const projectEvents: (
+  context: Parameters<LiveSource<unknown>['subscribe']>[0],
+) => ReturnType<LiveSource<unknown>['subscribe']>
+-->
 
 ```ts
 // `projectEvents` is your own stream of `LiveChange`s.
@@ -683,17 +723,20 @@ fields it carries, each deletion as a deletion. A mutation Source names nothing
 twice.
 
 ```ts
-// Inside an Effect.gen: building a hub is an Effect.
-const entitySources = [ProjectSource]
-const hub = yield* RemoteServer.liveHub(entitySources)
+// Building a hub is an Effect.
+const program = Effect.gen(function* () {
+  const entitySources = [ProjectSource]
+  const hub = yield* RemoteServer.liveHub(entitySources)
 
-const handlers = RemoteServer.handlers(Server, principal, {
-  live: hub,
+  const handlers = RemoteServer.handlers(Server, principal, {
+    live: hub,
+  })
+
+  // Only for a write that is not a mutation: a database trigger consumer, a job.
+  yield* hub.changed(Project.ref('p1'), ['name'])
+  yield* hub.deleted(Project.ref('p1'))
+  return handlers
 })
-
-// Only for a write that is not a mutation: a database trigger consumer, a job.
-yield* hub.changed(Project.ref('p1'), ['name'])
-yield* hub.deleted(Project.ref('p1'))
 ```
 
 A mutation's publish runs after its Source returned, so after a write that
@@ -727,8 +770,10 @@ the reader itself included when a Source answers a viewer-relative member (a
 fits Sources that answer only by role:
 
 ```ts
-const hub = yield* RemoteServer.liveHub(entitySources, {
-  key: user => (user.isAdmin ? 'admin' : 'member'),
+const keyed = Effect.gen(function* () {
+  return yield* RemoteServer.liveHub([ProjectSource], {
+    key: (user: Principal) => (user.isAdmin ? 'admin' : 'member'),
+  })
 })
 ```
 
@@ -798,12 +843,19 @@ The principal is a value, or a Context key that each call reads, so one
 handler set (one RPC layer) answers every request and authentication provides
 the key per request:
 
+<!-- docs-check
+declare const body: unknown
+declare const user: Principal
+-->
+
 ```ts
+import { Context } from 'effect'
+
 class CurrentUser extends Context.Service<CurrentUser, Principal>()('app/CurrentUser') {}
-const handlers = RemoteServer.handlers(Server, CurrentUser)
+const answering = RemoteServer.handlers(Server, CurrentUser)
 
 // per request, once authentication has resolved `user`
-RemoteServer.answer(handlers, body).pipe(Effect.provideService(CurrentUser, user))
+RemoteServer.answer(answering, body).pipe(Effect.provideService(CurrentUser, user))
 ```
 
 Every handler then needs `CurrentUser`, which the types carry: a key holding
@@ -827,7 +879,7 @@ application-specific rather than field-selection policy.
 A complete server definition is just the collection of Sources:
 
 ```ts
-const Server = RemoteServer.make({
+const FullServer = RemoteServer.make({
   entities: [ProjectSource],
   queries: [ProjectsByOwnerSource],
   mutations: [RenameProjectSource],
@@ -845,7 +897,7 @@ const Data = Remote.define({
   mutations: [RenameProject],
 })
 
-RemoteServer.validate(Data, Server)
+RemoteServer.validate(Data, FullServer)
 ```
 
 That catches an Entity, Query, or Mutation Source whose name is not declared by
@@ -878,8 +930,14 @@ it refuses a write that names one, which it cannot check.
 Then compile it into handlers, once per principal, or once for every request
 with a Context key as the principal (see Authentication vs authorization):
 
+<!-- docs-check
+import { type LiveHub } from 'foldkit-remote-server'
+
+declare const hub: LiveHub<Principal>
+-->
+
 ```ts
-const handlers = RemoteServer.handlers(Server, principal, {
+const bounded = RemoteServer.handlers(FullServer, principal, {
   maxIdsPerEntity: 1000,
   maxDepth: 8,
   live: hub,
@@ -995,7 +1053,7 @@ it over a real transport to try a client against HTTP, or to test another
 server against it:
 
 ```ts
-const served = RemoteRpc.toLayer(RemoteServer.handlers(backend.server, undefined))
+const backendLayer = RemoteRpc.toLayer(RemoteServer.handlers(backend.server, undefined))
 ```
 
 - Rows are in their **wire shape**: a relation is its ref key (`'User:u1'`),
@@ -1087,6 +1145,10 @@ queries, mutations and live streams cross it with their typed errors, and an
 interrupted call interrupts its handler. It returns once the client closes its
 end; interrupt it to stop sooner:
 
+<!-- docs-check
+declare const port: MessagePort
+-->
+
 ```ts
 import { servePort } from 'foldkit-remote-server/port'
 
@@ -1159,9 +1221,9 @@ import { RpcSerialization, RpcServer } from 'effect/rpc'
 import { RemoteRpc } from 'foldkit-remote'
 import { RemoteServer, bodyLimit } from 'foldkit-remote-server'
 
-// `server` is your RemoteServer.make; answered as an anonymous principal here.
+// `Server` is your RemoteServer.make; answered as a visitor here.
 const RpcRoutes = RpcServer.layer(RemoteRpc).pipe(
-  Layer.provide(RemoteRpc.toLayer(RemoteServer.handlers(server, 'anonymous'))),
+  Layer.provide(RemoteRpc.toLayer(RemoteServer.handlers(Server, { isAdmin: false }))),
   Layer.provide(RpcServer.layerProtocolHttp({ path: '/rpc' })),
   Layer.provide(RpcSerialization.layerJson),
   Layer.provide(HttpRouter.middleware(bodyLimit(64 * 1024)).layer),
@@ -1184,6 +1246,31 @@ Effect: `layer` is built from the environment, then `resolvePrincipal` says
 who is asking, then the request is answered as them. The resolver may need
 what `layer` provides (a session store, an auth service):
 
+<!-- docs-check standalone
+import { Context, Effect, Layer } from 'effect'
+import { RemoteServer } from 'foldkit-remote-server'
+import { type RemoteClient, type RemoteUnauthenticated } from 'foldkit-remote'
+
+type Principal = { readonly isAdmin: boolean }
+interface Env {
+  readonly DB: unknown
+}
+class Database extends Context.Service<Database, unknown>()('readme/Database') {}
+const server = RemoteServer.make<Principal, Database>({ entities: [] })
+const drizzle = (db: unknown) => db
+const databaseLayer = (db: unknown) => Layer.succeed(Database, db)
+const resolvePrincipal = (request: Request) =>
+  Effect.succeed<Principal>({ isAdmin: request.headers.has('x-admin') })
+const resolvePage = () => Effect.succeed<Principal>({ isAdmin: false })
+const PageContext = {
+  attach: (
+    request: Request,
+    _: { readonly reader: Layer.Layer<RemoteClient, RemoteUnauthenticated> },
+  ) => request,
+}
+const pages = { fetch: (request: Request) => Promise.resolve(new Response(request.url)) }
+-->
+
 ```ts
 import { serveFetch } from 'foldkit-remote-server/fetch'
 
@@ -1192,8 +1279,8 @@ export default {
   fetch: serveFetch({
     server,
     resolvePrincipal: request =>
-      Effect.succeed({ actorId: request.headers.get('x-actor') ?? 'anon' }),
-    layer: env => databaseLayer(drizzle(env.DB)),
+      Effect.succeed({ isAdmin: request.headers.get('x-role') === 'admin' }),
+    layer: (env: Env) => databaseLayer(drizzle(env.DB)),
   }),
 }
 ```
@@ -1261,6 +1348,31 @@ A Worker that renders pages reads what each page shows before rendering it
 from the same config `serveFetch` takes: the request's `RemoteClient` as a
 Layer, answered by the server's own handlers with no HTTP in between. The
 server, its `layer` and its limits are the ones `/remote` answers with.
+
+<!-- docs-check standalone
+import { Context, Effect, Layer } from 'effect'
+import { RemoteServer } from 'foldkit-remote-server'
+import { type RemoteClient, type RemoteUnauthenticated } from 'foldkit-remote'
+
+type Principal = { readonly isAdmin: boolean }
+interface Env {
+  readonly DB: unknown
+}
+class Database extends Context.Service<Database, unknown>()('readme/Database') {}
+const server = RemoteServer.make<Principal, Database>({ entities: [] })
+const drizzle = (db: unknown) => db
+const databaseLayer = (db: unknown) => Layer.succeed(Database, db)
+const resolvePrincipal = (request: Request) =>
+  Effect.succeed<Principal>({ isAdmin: request.headers.has('x-admin') })
+const resolvePage = () => Effect.succeed<Principal>({ isAdmin: false })
+const PageContext = {
+  attach: (
+    request: Request,
+    _: { readonly reader: Layer.Layer<RemoteClient, RemoteUnauthenticated> },
+  ) => request,
+}
+const pages = { fetch: (request: Request) => Promise.resolve(new Response(request.url)) }
+-->
 
 ```ts
 import { pageReader, serveFetch } from 'foldkit-remote-server/fetch'
@@ -1447,7 +1559,34 @@ report)` in the layer the handlers run in. `serveFetch` takes one with the
 request beside it, used for everything that request runs, a broken layer
 included:
 
+<!-- docs-check standalone
+import { Context, Effect, Layer } from 'effect'
+import { RemoteServer } from 'foldkit-remote-server'
+import { type RemoteClient, type RemoteUnauthenticated } from 'foldkit-remote'
+
+type Principal = { readonly isAdmin: boolean }
+interface Env {
+  readonly DB: unknown
+}
+class Database extends Context.Service<Database, unknown>()('readme/Database') {}
+const server = RemoteServer.make<Principal, Database>({ entities: [] })
+const drizzle = (db: unknown) => db
+const databaseLayer = (env: Env) => Layer.succeed(Database, env.DB)
+const resolvePrincipal = (request: Request) =>
+  Effect.succeed<Principal>({ isAdmin: request.headers.has('x-admin') })
+const resolvePage = () => Effect.succeed<Principal>({ isAdmin: false })
+const PageContext = {
+  attach: (
+    request: Request,
+    _: { readonly reader: Layer.Layer<RemoteClient, RemoteUnauthenticated> },
+  ) => request,
+}
+const pages = { fetch: (request: Request) => Promise.resolve(new Response(request.url)) }
+-->
+
 ```ts
+import { serveFetch } from 'foldkit-remote-server/fetch'
+
 serveFetch({
   server,
   resolvePrincipal,
@@ -1468,6 +1607,7 @@ A descriptor declared with
 value (`body`), and `evaluate` runs a body directly:
 
 ```ts standalone
+import { Schema } from 'effect'
 import { Entity, Expr, Order, Query, evaluate } from 'foldkit-entity'
 
 const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, slug: Schema.String }))
@@ -1519,7 +1659,16 @@ what it is a reference *to*: the conformance suite, exported so an interpreter
 written elsewhere can be held to the same semantics. Here `run` is your
 interpreter:
 
+<!-- docs-check
+declare const run: (
+  body: (typeof cases)[number]['body'],
+  input: (typeof cases)[number]['input'],
+  held: typeof rows,
+) => ReadonlyArray<{ readonly id: string }>
+-->
+
 ```ts
+import { expect } from 'vitest'
 import { cases, rows } from 'foldkit-entity/conformance'
 
 for (const { what, body, input, expected } of cases) {

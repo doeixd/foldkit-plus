@@ -14,6 +14,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { Menubar, MenubarSlots, MenuSlots, Recipes } from '../src/index.js'
+import { renderBehindTheQueue } from './frames.js'
 import { marksThrough } from './observe.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
@@ -129,6 +130,39 @@ test("an animated bar's menu stays drawn while it leaves, marked for its fade", 
       () => vi.waitFor(() => expect(document.getElementById('file-items')).toBeNull()),
     )
     expect(states).toContain('closed leave')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test("a bar's menu leaving draws its fade though a render frame is put off (#400)", async () => {
+  const handle = mount(true)
+  try {
+    const trigger = await vi.waitFor(() => {
+      const found = document.getElementById('file-button')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    await userEvent.hover(document.getElementById('away')!)
+    trigger.focus()
+    await userEvent.keyboard('{Enter}')
+    const panel = await vi.waitFor(() => {
+      const found = document.getElementById('file-items')
+      expect(document.activeElement).toBe(found)
+      return found!
+    })
+    const restore = renderBehindTheQueue('file-items')
+    try {
+      const states = await marksThrough(
+        panel,
+        ['closed', 'leave'],
+        () => userEvent.keyboard('{Escape}'),
+        () => vi.waitFor(() => expect(document.getElementById('file-items')).toBeNull()),
+      )
+      expect(states).toContain('closed leave')
+    } finally {
+      restore()
+    }
   } finally {
     handle.dispose()
   }

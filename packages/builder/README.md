@@ -39,7 +39,37 @@ Form: Control Message carries it; a change of Document is an edit; the rest is n
 
 ## Sixty seconds
 
+<!-- docs-check
+import { Schema } from 'effect'
+import { Block, Catalog, Content, Region, Composition } from 'foldkit-composition'
+import { Renderer } from 'foldkit-composition/foldkit'
+import { Entity } from 'foldkit-entity'
+const Heading = Block.define('Heading', {
+  Props: Schema.Struct({ text: Schema.String }),
+  provides: [Content.Flow],
+})
+const Section = Block.define('Section', {
+  Props: Schema.Struct({}),
+  regions: { body: Region.many({ accepts: [Content.Flow] }) },
+  provides: [Content.Section],
+})
+const Site = Catalog.make({ blocks: [Heading, Section], roots: [Content.Section] })
+const SiteRenderer = Renderer.make(Site, {
+  Heading: ({ field, h }) => h.h2([], [field('text')]),
+  Section: ({ regions, h }) => h.section([], [...regions.body]),
+})
+const Page = Entity.define(
+  'Page',
+  Schema.Struct({ id: Schema.String, document: Composition.Document }),
+)
+const PageInput = Entity.input(
+  Page,
+  Schema.Struct({ document: Composition.Document.check(Composition.valid(Site)) }),
+)
+-->
+
 ```ts
+import { Form } from 'foldkit-form'
 import { Builder } from 'foldkit-builder'
 
 const PageBuilder = Builder.make('PageBuilder', {
@@ -299,6 +329,24 @@ selection is read back out into the URL.
 In, from the parent's own `update`, for a form key named `document` placed as
 `page`:
 
+<!-- docs-check
+import { Effect, Option, Schema, Stream } from 'effect'
+import { Bundle } from 'foldkit-bundle'
+import { NodeId } from 'foldkit-composition'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Navigation from 'foldkit/navigation'
+import * as Subscription from 'foldkit/subscription'
+import { Url } from 'foldkit/url'
+import { Message as BuilderMessage } from 'foldkit-builder'
+const Slot = Bundle.declare(PageForm.bundle, 'page')
+const Model = Schema.Struct({ ...Slot.fields })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Slot.cases, UrlChanged: { url: Url } })
+type Message = typeof Message.Type
+const Parent = Bundle.parent({ Model, Message })
+const placements = Parent.assemble(Parent.at(Slot, { onOut: () => model => ({ model }) }))
+-->
+
 ```ts
 const blockIn = (url: Url): Option.Option<NodeId> =>
   Option.map(
@@ -366,7 +414,12 @@ keeps what the author previews the page as in `preview`, by context key,
 starting from the `preview` it was made with:
 
 ```ts
-Builder.make('PageBuilder', { catalog: Site, renderer, starters, preview: { audience: 'guest' } })
+Builder.make('PageBuilder', {
+  catalog: Site,
+  renderer: SiteRenderer,
+  starters: { Section: {}, Heading: { text: 'New heading' } },
+  preview: { audience: 'guest' },
+})
 ```
 
 The page is drawn in edit mode with `preview` as its context, so a node hidden

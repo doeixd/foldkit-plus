@@ -197,4 +197,16 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'a swipe ignores the direction',
+    edits: [
+      { file, find: "const end = model.direction === 'rtl' ? -1 : 1", replace: 'const end = 1' },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a swipe the wrong way is not resisted',
+    edits: [{ file, find: '? travel : travel * RESISTANCE', replace: '? travel : travel' }],
+    tests: unit,
+  },
 ]

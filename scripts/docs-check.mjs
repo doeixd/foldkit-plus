@@ -14,6 +14,11 @@
  *    declare const model: Model
  *    -->               (an application's Model, its `h`), compiled in place.
  *                      `<!-- docs-check standalone` also starts a module.
+ * - <!-- docs-check define app   a hidden fixture compiled in place and named,
+ *                      so a later module can take it again without copying it:
+ *   <!-- docs-check standalone use app -->  starts a module with `app` (`use
+ *                      a b` takes several, in order). A use before its define
+ *                      is an error; an error in a used fixture names its line.
  *
  * Every block must parse. A document in `pending` below has blocks that do
  * not compile yet: its type errors are not failures, but once it compiles it
@@ -43,75 +48,6 @@ import { fileURLToPath } from 'node:url'
 
 /** Documents whose blocks do not all compile yet (#229). Remove one once it does. */
 const pending = new Set([
-  'docs/agents.md',
-  'docs/auth-and-guard.md',
-  'docs/bundle-vs-submodel.md',
-  'docs/declared-writes.md',
-  'docs/editing-server-data.md',
-  'docs/effect-adjacent-projects.md',
-  'docs/errors.md',
-  'docs/extensible-DESIGN.md',
-  'docs/foldkit-0.158-to-0.163.md',
-  'docs/mirror.md',
-  'docs/mixins.md',
-  'docs/native-cross-platform.md',
-  'docs/remote.md',
-  'docs/rfc.md',
-  'docs/site-and-router.md',
-  'docs/site-remote-ssr.md',
-  'docs/site.md',
-  'docs/state-model.md',
-  'docs/surface-vs-bundles.md',
-  'docs/sync-dx.md',
-  'docs/sync-runtime-binding.md',
-  'docs/theme-knobs.md',
-  'docs/upstream-combobox-keyboard.md',
-  'docs/wiring.md',
-  'packages/agent-a2a/README.md',
-  'packages/agent-mcp/README.md',
-  'packages/agent-native/README.md',
-  'packages/agent-webmcp/README.md',
-  'packages/agent/README.md',
-  'packages/auth/README.md',
-  'packages/builder/README.md',
-  'packages/bundle-surface/README.md',
-  'packages/bundle/README.md',
-  'packages/cms-drizzle/README.md',
-  'packages/cms/README.md',
-  'packages/composition/README.md',
-  'packages/crud/README.md',
-  'packages/data-grid/README.md',
-  'packages/durable/README.md',
-  'packages/entity/README.md',
-  'packages/form-recipes/README.md',
-  'packages/form/README.md',
-  'packages/guard/README.md',
-  'packages/media/README.md',
-  'packages/mirror/README.md',
-  'packages/mixins-builder/README.md',
-  'packages/mixins-crud/README.md',
-  'packages/mixins-form/README.md',
-  'packages/mixins-richtext/README.md',
-  'packages/mixins-ui/README.md',
-  'packages/mixins/README.md',
-  'packages/primitives/README.md',
-  'packages/primitives/dom/README.md',
-  'packages/primitives/events/README.md',
-  'packages/primitives/interaction/README.md',
-  'packages/primitives/media/README.md',
-  'packages/primitives/net/README.md',
-  'packages/primitives/time/README.md',
-  'packages/react-codegen/README.md',
-  'packages/react/README.md',
-  'packages/remote-server/README.md',
-  'packages/remote/README.md',
-  'packages/richtext-dom/README.md',
-  'packages/richtext-markdown/README.md',
-  'packages/richtext/README.md',
-  'packages/site/README.md',
-  'packages/ssr/README.md',
-  'packages/surface/README.md',
-  'packages/sync/README.md',
 ])
 
 const root = fileURLToPath(new URL('..', import.meta.url))
@@ -132,7 +68,7 @@ const documents = only.length === 0 ? tracked : tracked.filter(file => only.incl
 const isPending = document => only.length === 0 && pending.has(document)
 
 /** A document's TypeScript blocks and hidden fixtures, each with the line its code starts on. */
-const itemsOf = text => {
+const itemsOf = (text, document) => {
   const lines = text.split(/\r?\n/)
   const items = []
   for (let i = 0; i < lines.length; i++) {
@@ -140,13 +76,19 @@ const itemsOf = text => {
     if (fixture !== null) {
       const close = lines.findIndex((line, j) => j >= i && line.includes('-->'))
       const end = close === -1 ? lines.length - 1 : close
-      const standalone = /^\s*standalone\b/.test(fixture[1])
-      const code = [standalone ? '' : fixture[1], ...lines.slice(i + 1, end + 1)]
+      // `standalone`, then `define <name>` or `use <names>`; with none, the rest of the line is code.
+      const header = /^\s*(standalone\b)?\s*(?:(define|use)\s+([\w\s-]*?))?\s*(-->.*)?$/.exec(fixture[1])
+      const standalone = header?.[1] !== undefined
+      const marked = header !== null && (standalone || header[2] !== undefined)
+      const code = [marked ? '' : fixture[1], ...lines.slice(i + 1, end + 1)]
       code[code.length - 1] = code.at(-1).replace(/-->.*$/, '')
+      const names = marked && header[3] !== undefined ? header[3].split(/\s+/).filter(Boolean) : []
       items.push({
         line: i + 1,
         code: code.join('\n'),
         words: new Set(standalone ? ['standalone'] : []),
+        define: header?.[2] === 'define' ? names[0] : undefined,
+        uses: header?.[2] === 'use' ? names : [],
       })
       i = end
       continue
@@ -170,7 +112,28 @@ const itemsOf = text => {
       })
     i = end
   }
-  return items
+  // A use takes the fixtures it names again, at their own lines, before its own code.
+  const defined = new Map()
+  const expanded = []
+  for (const item of items) {
+    if (item.define !== undefined) {
+      if (defined.has(item.define))
+        throw new Error(`${document}:${item.line}: "${item.define}" is defined twice`)
+      defined.set(item.define, item)
+    }
+    const used = (item.uses ?? []).map(name => {
+      const fixture = defined.get(name)
+      if (fixture === undefined)
+        throw new Error(`${document}:${item.line}: "${name}" is used before it is defined`)
+      return { ...fixture, words: new Set(), define: undefined }
+    })
+    if (used.length > 0 && item.words.has('standalone')) {
+      used[0].words.add('standalone')
+      item.words.delete('standalone')
+    }
+    expanded.push(...used, item)
+  }
+  return expanded
 }
 
 // Each workspace package's specifiers, to the source its `foldkit-plus:source`
@@ -230,7 +193,7 @@ const modules = []
 const foreign = new Set()
 let blockCount = 0
 for (const document of documents) {
-  const items = itemsOf(readFileSync(join(root, document), 'utf8')).filter(
+  const items = itemsOf(readFileSync(join(root, document), 'utf8'), document).filter(
     item => !item.words.has('sketch'),
   )
   const groups = []
@@ -308,6 +271,10 @@ for (const [name, members] of projects)
       extends: posix(relative(check, join(root, 'tsconfig.base.json'))),
       compilerOptions: {
         noEmit: true,
+        // A reader's application emits no declarations, so naming a type its
+        // export does not reach (TS2883) is no fault of a snippet.
+        declaration: false,
+        declarationMap: false,
         jsx: 'preserve',
         lib: ['ES2022', 'DOM', 'DOM.Iterable'],
         paths: Object.fromEntries(
@@ -365,9 +332,14 @@ for (const line of `${tsc.stdout}${tsc.stderr}`.split(/\r?\n/)) {
 // generator, in a block that is a generator's body), which pending excuses.
 const ofPending = diagnostics.filter(({ document }) => isPending(document))
 const unparsed = ofPending.length > 0 && ofPending.every(({ syntax }) => syntax)
-const failures = diagnostics.filter(
-  ({ document }) => document === undefined || !isPending(document) || unparsed,
-)
+// A fixture taken again by `use` reports its error once per module; say it once.
+const failures = [
+  ...new Map(
+    diagnostics
+      .filter(({ document }) => document === undefined || !isPending(document) || unparsed)
+      .map(diagnostic => [diagnostic.lines.join('\n'), diagnostic]),
+  ).values(),
+]
 const failing = new Set(diagnostics.map(({ document }) => document))
 const settled =
   unparsed || only.length > 0

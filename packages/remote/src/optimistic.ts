@@ -223,6 +223,8 @@ export const visibleStore = (
           key,
           values: patch.values,
           updatedAt: under === undefined || under.tombstone ? Infinity : under.updatedAt,
+          // A pending write is no read: the row stays as fresh as the server last made it.
+          oldestAt: under === undefined || under.tombstone ? Infinity : under.oldestAt,
         }
       }),
     ),

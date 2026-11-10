@@ -5,7 +5,7 @@
  * the rendered root, and never splices markup into a template of its own.
  */
 import { Effect, Option } from 'effect'
-import { handleRequest } from 'foldkit/experimental/server'
+import { handleRequest, injectIntoTemplate } from 'foldkit/experimental/server'
 import { Projection } from 'foldkit-surface'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RESUME_ATTRIBUTE, SSR, type Diagnostic } from 'foldkit-ssr'
@@ -72,15 +72,64 @@ describe('SSR.entry through handleRequest', () => {
     expect(body).toMatch(/<style>p\{color:red\}<\/style><\/[^<>]+>/)
   })
 
-  it('refuses a plan with `meta`, which is written into a template the host owns', () => {
+  describe('a plan with `meta`', () => {
     const said = SSR.plan(App, {
       id: 'counter',
       state: Projection.pick(App.model.count),
-      meta: () => ({ description: 'a counter' }),
+      meta: model => ({ description: `count ${model.count}`, title: 'A "quoted" <title> & more' }),
     })
-    expect(() => SSR.entry(config, said, { buildId: 'b' })).toThrow(
-      'serve it with SSR.generate, not SSR.entry',
+    // Each request's count from its address, so two requests say two things.
+    const entry = SSR.entry(config, said, {
+      buildId: 'b',
+      prepare: (model, request) =>
+        Effect.succeed({ ...model, count: Number(new URL(request.url).searchParams.get('n')) }),
+    })
+    const headed = SSR.headed((application: Parameters<typeof injectIntoTemplate>[1]) =>
+      injectIntoTemplate(template, application),
     )
+    const page = async (n: number, renderDocument?: typeof headed) =>
+      (
+        await handleRequest(
+          new Request(`https://example.test/?n=${n}`, { headers: html }),
+          renderDocument === undefined
+            ? { renderPage: entry.renderPage, template }
+            : { renderPage: entry.renderPage, renderDocument },
+        )
+      ).text()
+    const parts = (document: string) => {
+      const at = document.indexOf('</head>')
+      return { head: document.slice(0, at), body: document.slice(at) }
+    }
+
+    it("serves each request's meta in the head through SSR.headed, and none in the body", async () => {
+      const [one, two] = [parts(await page(1, headed)), parts(await page(2, headed))]
+      expect(one.head).toContain('content="count 1"')
+      expect(two.head).toContain('content="count 2"')
+      expect(two.head).not.toContain('count 1')
+      expect(one.body).not.toContain('foldkit-plus-head')
+      expect(one.body).not.toContain('<meta')
+    })
+
+    it('escapes what the meta says', async () => {
+      const { head } = parts(await page(1, headed))
+      expect(head).toContain('A &quot;quoted&quot; &lt;title&gt; &amp; more')
+      expect(head).not.toContain('"quoted"')
+    })
+
+    it('leaves the meta in the body, between its markers, for a host without SSR.headed', async () => {
+      const { head, body } = parts(await page(3))
+      expect(head).not.toContain('count 3')
+      expect(body).toMatch(
+        /<!--foldkit-plus-head--><meta [^>]*content="count 3"[^>]*>[\s\S]*<!--\/foldkit-plus-head-->/,
+      )
+    })
+
+    it('keeps the moved head in a kept document', async () => {
+      const kept = SSR.keptDocuments(headed)
+      const result = await entry.renderPage(new Request('https://example.test/?n=4'))
+      if (result._tag !== 'Rendered') throw new Error(`answered ${result._tag}`)
+      expect(parts(kept(result.application, undefined)).head).toContain('content="count 4"')
+    })
   })
 
   it('answers HEAD with the same status and no body', async () => {

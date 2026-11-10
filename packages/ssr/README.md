@@ -12,7 +12,7 @@ change between minor versions.
 pnpm add foldkit-ssr foldkit-surface foldkit effect
 ```
 
-```ts
+```ts sketch
 // In outline; `App`, `config` and `template` are the application's own, and
 // [A first page](#a-first-page) splits this into its modules.
 
@@ -104,6 +104,88 @@ Message as Foldkit types them.
 The code is in three modules, because the server and the browser import
 different things:
 
+<!-- docs-check standalone define ssr-app
+import { Effect, Layer, Option, Schema } from 'effect'
+import { Command } from 'foldkit'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { defineRouteUnion } from 'foldkit/route'
+import { Remote } from 'foldkit-remote'
+import { Projection, Surface } from 'foldkit-surface'
+
+const AppRoute = defineRouteUnion({ Home: {}, Post: { id: Schema.String }, NotFound: {} })
+const Model = Schema.Struct({
+  route: AppRoute,
+  post: Schema.Struct({
+    id: Schema.String,
+    title: Schema.String,
+    body: Schema.String,
+    excerpt: Schema.String,
+    publishedAt: Schema.String,
+    liked: Schema.Boolean,
+  }),
+  draft: Schema.String,
+  menuOpen: Schema.Boolean,
+  remote: Remote.Model,
+})
+type Model = typeof Model.Type
+const Modifiers = Schema.Struct({
+  shiftKey: Schema.Boolean,
+  ctrlKey: Schema.Boolean,
+  altKey: Schema.Boolean,
+  metaKey: Schema.Boolean,
+})
+const Message = defineMessageUnion({
+  ...Remote.messages,
+  Liked: { id: Schema.String },
+  ChangedDraft: { value: Schema.String },
+  Renamed: { id: Schema.String, title: Schema.String },
+  Pressed: { key: Schema.String, modifiers: Modifiers },
+})
+type Message = typeof Message.Type
+const initial: Model = {
+  route: AppRoute.Post({ id: 'p1' }),
+  post: { id: 'p1', title: 'Hello', body: '', excerpt: '', publishedAt: '2026-01-01', liked: false },
+  draft: '',
+  menuOpen: false,
+  remote: Remote.initial,
+}
+const App = Surface.application({ Model, Message, initial, update: (model: Model) => ({ model }) })
+const Data = Remote.make({ model: App.model.remote, entities: [] })
+const PostActions = App.surface('PostActions', {
+  params: { id: Schema.String },
+  model: ({ model }) => ({ liked: model.post.liked }),
+  messages: [Message.Liked],
+})
+const Menu = App.surface('Menu', { model: ({ model }) => ({ open: model.menuOpen }) })
+const Like = App.surface('Like', {
+  model: ({ model }) => ({ id: model.post.id }),
+  messages: [Message.Liked],
+})
+const PostActionsAt = Surface.when(PostActions, App.model.route, AppRoute.Post, route => ({
+  id: route.id,
+}))
+const PostPageAt = Surface.at(Menu, undefined)
+const LoadPreferences = Command.define('LoadPreferences', {
+  messages: [Message.ChangedDraft],
+  execute: Effect.succeed(Message.ChangedDraft({ value: '' })),
+})
+const config = {
+  Model,
+  init: () => ({ model: initial }),
+  update: (model: Model, _message: Message) => ({ model }),
+  view: (model: Model, h: HtmlBuilder<Message>) => ({
+    title: model.post.title,
+    body: h.p([], [model.draft]),
+  }),
+  container: null,
+}
+declare const template: string
+declare const buildId: string
+declare const url: string
+declare const request: Request
+-->
+
 ```ts
 // post.ts, read by both: the plan. Which part of the Model the browser owns;
 // the rest starts from the baseline, by default the application's initial Model.
@@ -116,6 +198,14 @@ export const Post = SSR.plan(App, {
 })
 ```
 
+<!-- docs-check standalone use ssr-app
+import { SSR as Plans } from 'foldkit-ssr/client'
+const Post = Plans.plan(App, {
+  id: 'post',
+  state: Projection.pick(App.model.route, App.model.draft),
+})
+-->
+
 ```ts
 // server.ts, per request.
 import { Effect } from 'effect'
@@ -124,6 +214,14 @@ import { SSR } from 'foldkit-ssr'
 const result = await Effect.runPromise(SSR.render(config, Post, { buildId, url: request.url }))
 const html = SSR.page(template, result)
 ```
+
+<!-- docs-check standalone use ssr-app
+import { SSR as Plans } from 'foldkit-ssr/client'
+const Post = Plans.plan(App, {
+  id: 'post',
+  state: Projection.pick(App.model.route, App.model.draft),
+})
+-->
 
 ```ts
 // client.ts, the page's script, instead of Runtime.hydrate.
@@ -168,6 +266,10 @@ The browser does not run `init`, so the Commands it returns would run nowhere.
 `SSR.render` refuses a plan that would drop them, naming them. Say what the
 browser runs on load in `boot`:
 
+<!-- docs-check standalone use ssr-app
+import { SSR } from 'foldkit-ssr'
+-->
+
 ```ts
 const Post = SSR.plan(App, {
   id: 'post',
@@ -179,7 +281,7 @@ const Post = SSR.plan(App, {
 An application assembled with `foldkit-bundle` runs its assembly's startup
 Commands, which is where a `Mirror.kv` restores what the user saved:
 
-```ts
+```ts sketch
 boot: model => assembly.init(model).commands ?? []
 ```
 
@@ -192,6 +294,10 @@ writes the CSS of those classes, with the global rules (keyframes, `raise`'s
 depth rules) of the Styles they came from, without scanning the HTML. In the
 browser, Styles bring their rules as they draw and skip what this sheet already
 carries, so nothing is added twice.
+
+<!-- docs-check
+const result = await Effect.runPromise(SSR.render(config, Post, { buildId, url }))
+-->
 
 ```ts
 import { Style } from 'foldkit-mixins'
@@ -218,11 +324,15 @@ into `index.html` only, never into a page the server renders, so a served
 page carries the theme's stylesheet here too, beside the classes it draws
 (`examples/foldkit/ssr/src/renderPage.ts`):
 
+<!-- docs-check
+declare const stylesheet: string
+-->
+
 ```ts
 const styles = (_rendered: { readonly html: string }, drawn: ReadonlySet<string>): string =>
   `<style>${stylesheet}</style><style>${Style.usedDrawn(drawn)}</style>`
 
-SSR.entry(config, plan, { buildId, styles })
+SSR.entry(config, Post, { buildId, styles })
 ```
 
 Without it, every served page flashes unstyled until the script runs. Keep
@@ -232,8 +342,8 @@ again would keep its classes without their rules; `SSR.hydrate` moves them
 into the document's head before anything adopts the page, whether it resumes
 or is contained, and the browser's Styles find them there and add nothing
 twice. A void root holds no children, so styles for one are refused with
-`VoidRootWithStyles`, naming the tag. Anything else a head owns (`meta`)
-stays with `SSR.generate`.
+`VoidRootWithStyles`, naming the tag. A plan's `meta` rides in the root too,
+for the host to move (`SSR.headed`, under Serving pages).
 
 `SSR.generate` takes the same `head`, and answers a `head` that throws `500`,
 as it does a render that fails. `SSR.entry` takes no `head`: the host owns
@@ -257,6 +367,10 @@ refused, naming the tag.
 A search result and a link preview read more than Foldkit's `Document`: a
 description, an image, Open Graph, a post's dates and structured data. The
 plan's `meta` gives them from the Model:
+
+<!-- docs-check standalone use ssr-app
+import { SSR } from 'foldkit-ssr'
+-->
 
 ```ts
 const Post = SSR.plan(App, {
@@ -304,7 +418,7 @@ export default {
 }
 ```
 
-```ts
+```ts standalone
 // vite.config.ts, for the dev server and the build id both entries compile in.
 import { foldkit } from '@foldkit/vite-plugin'
 import { defineConfig } from 'vite'
@@ -314,7 +428,7 @@ export default defineConfig({
 })
 ```
 
-```ts
+```ts sketch
 // entry.server.ts and the browser's entry.ts alike.
 buildId: import.meta.env.FOLDKIT_BUILD_ID,
 ```
@@ -368,6 +482,14 @@ the Model. `model` is an `Option`: `some` of the Model the server reached for
 a rendered page (a posted form's, after `update`), `none` for an answer that
 rendered nothing (`OPTIONS`, a `405`, a refused post, a `500`).
 
+<!-- docs-check standalone use ssr-app
+import { SSR } from 'foldkit-ssr'
+const Post = SSR.plan(App, {
+  id: 'post',
+  state: Projection.pick(App.model.route, App.model.draft),
+})
+-->
+
 ```ts
 SSR.entry(config, Post, {
   buildId,
@@ -409,12 +531,37 @@ The page is rendered and resumed as any other; only the response's status
 changes. A status outside `200`–`599`, a `204`, `205` or `304` that cannot
 carry the page, or a `status` that throws, is answered `500` and reported.
 
-What the page says of itself (`meta`) and per-page `head` markup are written
-into a template's head, which the host owns here: a plan with `meta` is
-refused when the entry is made, and served with `SSR.generate` below, which
-owns its template.
+What the page says of itself (`meta`) belongs in the head, which the host
+owns here, and link previews and crawlers read only the served head. The
+entry carries a plan's `meta` in the rendered root, between two marker
+comments, and `SSR.headed` wraps the host's document renderer to move it
+before `</head>`:
+
+```ts
+import { injectIntoTemplate, renderDocument as renderShell } from 'foldkit/experimental/server'
+
+// A server entry's document renderer, as the Foldkit Vite plugin takes it
+// (export it as `renderDocument`):
+const headedShell = SSR.headed(renderShell)
+
+// A host that hands Foldkit a template instead:
+const headedTemplate = SSR.headed((application: Parameters<typeof injectIntoTemplate>[1]) =>
+  injectIntoTemplate(template, application),
+)
+```
+
+Each request's page carries its own `meta`, so nothing of one request reaches
+another's document, and `SSR.keptDocuments(SSR.headed(render))` keeps a kept
+page's document with its head. A host that leaves the wrapper out serves the
+`meta` in the body, where nothing reads it: `SSR.hydrate` then removes it,
+reports `HeadNotMoved`, and the head gets it once the page runs. An e2e test
+reading a served page's head is the check before deploying. `SSR.headed`
+takes the markup only from where the entry put it, at the root's end, so
+marker comments a view draws in its own text (a `<style>`) are not moved. A
+root a parser does not keep `<meta>` in (a void element, a table's, `svg`,
+raw text) is refused (`RootRefusesHead`).
 [foldkit#1448](https://github.com/foldkit/foldkit/issues/1448) asks Foldkit
-for a per-request head channel beside the envelope.
+for a per-request head channel, which would retire `SSR.headed`.
 
 ### What the host hands the page: `SSR.requestContext`
 
@@ -424,6 +571,10 @@ before it renders (`Data.satisfy`) needs what only the host holds: the
 bindings, or a reader built from them. `SSR.requestContext` carries it on the
 request. The host attaches a value, and `renderPage`, given the same request
 by `handleRequest`, reads it back:
+
+<!-- docs-check
+const actives = { page: PostActionsAt }
+-->
 
 ```ts
 import { Effect, Option, type Layer } from 'effect'
@@ -534,7 +685,7 @@ of assets (the last 32 are held):
 ```ts
 import { renderDocument as renderShell, type DocumentRenderer } from 'foldkit/experimental/server'
 
-export const renderDocument: DocumentRenderer = SSR.keptDocuments(renderShell)
+export const renderDocument: DocumentRenderer = SSR.keptDocuments(SSR.headed(renderShell))
 ```
 
 The checker draws a kept page again for each request it serves.
@@ -623,7 +774,7 @@ The application describes its site in a module (`src/site.ts`) and the plugin
 evaluates it through a server, so `vite.config.ts` names a file, never
 application code:
 
-```ts
+```ts standalone
 // vite.config.ts
 import { foldkit } from '@foldkit/vite-plugin'
 import { staticSite } from 'foldkit-ssr/vite'
@@ -642,14 +793,23 @@ from the generated pages. `files` is the host's layout — `'directory'`
 (`/about` as `about/index.html`, the default) or `'flat'` (`about.html`, for a
 host with clean addresses and no directory indexes):
 
+<!-- docs-check standalone use ssr-app
+import { Resume, SSR } from 'foldkit-ssr'
+const Post = SSR.plan(App, {
+  id: 'post',
+  state: Projection.pick(App.model.route, App.model.draft),
+})
+-->
+
 ```ts
 // src/site.ts
+import { Style } from 'foldkit-mixins'
 import type { SiteModule } from 'foldkit-ssr/vite'
 export const site = {
   origin: 'https://example.com',
   paths: ['/', '/about'],
-  config: { Model, init, update, view, container: null, routing },
-  plan,
+  config,
+  plan: Post,
   head: (_rendered, drawn) => `<style>${Style.usedDrawn(drawn)}</style>`,
   files: 'directory',
   sitemap: true,
@@ -690,7 +850,15 @@ export const { renderPage } = SSR.entry(config, Post, { buildId, prerendered: pr
 
 ```ts
 // vite.config.ts
-foldkit({ ssr: { serverEntry: '/src/entry.server.ts', build: { prerender: true } } })
+import { foldkit } from '@foldkit/vite-plugin'
+
+foldkit({
+  ssr: {
+    serverEntry: '/src/entry.server.ts',
+    clientEntry: '/src/entry.ts',
+    build: { prerender: true },
+  },
+})
 ```
 
 A file is given to every visitor, so a prerendered page is held to the rule
@@ -741,6 +909,10 @@ first view never shows: a like button's state, a menu's contents. Name the
 Surfaces the browser may activate, and the fields that may start from the
 baseline on purpose:
 
+<!-- docs-check standalone use ssr-app
+import { Resume, SSR } from 'foldkit-ssr'
+-->
+
 ```ts
 const Post = SSR.plan(App, {
   id: 'post',
@@ -767,6 +939,33 @@ comes from, `state`, `restored`, `local` or `missing`.
 A field a URL or cookie mirror owns is one the browser can read for itself, so
 the envelope need not carry it. Name it in `restored` and give `restore` a
 function applying the browser's values before the first render:
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Mirror } from 'foldkit-mirror'
+import { Projection, Surface } from 'foldkit-surface'
+import { SSR } from 'foldkit-ssr'
+
+const Model = Schema.Struct({
+  route: Schema.String,
+  results: Schema.Array(Schema.String),
+  query: Schema.String,
+  tld: Schema.String,
+})
+type Model = typeof Model.Type
+const initial: Model = { route: '/', results: [], query: '', tld: '' }
+const App = Surface.application({
+  Model,
+  Message: defineMessageUnion({ Searched: {} }),
+  initial,
+  update: (model: Model) => ({ model }),
+})
+const SearchInUrl = Mirror.url(App, { name: 'search', fields: [App.model.query, App.model.tld] })
+const SearchFilters = App.surface('SearchFilters', {
+  model: ({ model }) => ({ query: model.query, tld: model.tld }),
+})
+-->
 
 ```ts
 const SearchPlan = SSR.plan(App, {
@@ -798,6 +997,10 @@ server read, most of which the page never shows. A **part** is a package's own
 contribution to the envelope: it captures what the plan's active Surfaces read,
 and restores it in the browser.
 
+<!-- docs-check standalone use ssr-app
+import { Resume, SSR } from 'foldkit-ssr'
+-->
+
 ```ts
 const Post = SSR.plan(App, {
   id: 'post',
@@ -820,6 +1023,12 @@ there (`UnrestorablePart`), not in a user's browser.
 An article body, a product description, highlighted code: a part of the page no
 Message changes need not render in the browser at all, and what it reads need
 not be sent. Mark it with `SSR.static`:
+
+<!-- docs-check
+import type { Html } from 'foldkit/html'
+
+declare const PostActionsView: (model: Model, h: HtmlBuilder<Message>) => Html
+-->
 
 ```ts
 const view = (model: Model, h: HtmlBuilder<Message>) => ({
@@ -873,6 +1082,34 @@ Remote's durable outbox is the case it was made for. A page that makes
 durable writes ([`foldkit-remote`'s outbox](../remote/README.md#a-write-that-outlives-the-page-outbox))
 resumes from the outbox's `session`:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { Remote } from 'foldkit-remote'
+import { Projection, Surface } from 'foldkit-surface'
+import { SSR } from 'foldkit-ssr'
+
+const Model = Schema.Struct({ userId: Schema.String, remote: Remote.Model })
+type Model = typeof Model.Type
+const App = Surface.application({
+  Model,
+  Message: defineMessageUnion({ ...Remote.messages }),
+  initial: { userId: 'ada', remote: Remote.initial },
+  update: (model: Model) => ({ model }),
+})
+const Data = Remote.make({ model: App.model.remote, entities: [] })
+const plan = SSR.plan(App, { id: 'outbox', state: Projection.pick(App.model.userId) })
+const config = {
+  Model,
+  init: () => ({ model: App.initial }),
+  update: (model: Model) => ({ model }),
+  view: (_model: Model, h: HtmlBuilder<never>) => h.p([], []),
+  container: null,
+}
+declare const buildId: string
+-->
+
 ```ts
 import { outbox } from 'foldkit-remote/outbox'
 
@@ -923,6 +1160,10 @@ browser  event ──▶ the markers name its Messages ──▶ queued ──�
 It rests on the fact that a Foldkit handler is already a Message value.
 `Resume.builder(h)` is `h` that writes those values into the server's markup:
 
+<!-- docs-check standalone use ssr-app
+import { Resume, SSR } from 'foldkit-ssr'
+-->
+
 ```ts
 const view = (model: Model, h: HtmlBuilder<Message>) => {
   const rh = Resume.builder(h)
@@ -969,6 +1210,10 @@ const LikeView = Surface.rootView(
 
 Then say when the runtime starts:
 
+<!-- docs-check standalone use ssr-app
+import { Resume, SSR } from 'foldkit-ssr'
+-->
+
 ```ts
 const Post = SSR.plan(App, {
   id: 'post',
@@ -996,6 +1241,10 @@ boots it, so the Model ends where an eager boot would have taken it.
   does. `SSR.render` refuses a deferred plan while one would be active,
   naming each, until the plan declares it:
 
+  <!-- docs-check standalone use ssr-app
+  import { Resume, SSR } from 'foldkit-ssr'
+  -->
+
   ```ts
   const Post = SSR.plan(App, {
     id: 'post',
@@ -1018,7 +1267,7 @@ of the boot chunk. Name each in the config's `lazy` list. A sketch, after
 `test/lazyFixture.ts`: `Upload` is the lazy bundle, `PlacedUpload` its
 placement, and `placements` their `Bundle.assemble`:
 
-```ts
+```ts sketch
 const config = {
   Model,
   init: () => placements.init({ title: 'Uploads', upload }),
@@ -1045,6 +1294,12 @@ A served page is editable as soon as it is parsed, but its script comes
 later, and hydration re-asserts each field's value to the Model's: what was
 typed in between would vanish. A field marked `rh.KeepTyped()` keeps it,
 whatever the plan's `start`:
+
+<!-- docs-check
+declare const h: HtmlBuilder<Message>
+declare const model: Model
+const rh = Resume.builder(h)
+-->
 
 ```ts
 rh.input([rh.Value(model.draft), rh.OnInput(Message.ChangedDraft), rh.KeepTyped()])
@@ -1113,6 +1368,40 @@ server can run it. This example is a to-do list, not the post page: its Model
 holds `draft` and `todos`, its Message `Added({ title })` and `Typed({ value
 })`, and the `TodoList` Surface lists both. The plan opts in:
 
+<!-- docs-check standalone
+import { Option, Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { Projection, Surface } from 'foldkit-surface'
+import { Resume, SSR } from 'foldkit-ssr'
+
+const Model = Schema.Struct({
+  draft: Schema.String,
+  todos: Schema.Array(Schema.Struct({ title: Schema.String })),
+})
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ Added: { title: Schema.String }, Typed: { value: Schema.String } })
+type Message = typeof Message.Type
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { draft: '', todos: [] },
+  update: (model: Model) => ({ model }),
+})
+const TodoList = App.surface('TodoList', {
+  model: ({ model }) => ({ draft: model.draft, todos: model.todos }),
+  messages: [Message.Added, Message.Typed],
+})
+const config = {
+  Model,
+  init: () => ({ model: App.initial }),
+  update: (model: Model, _message: Message) => ({ model }),
+  view: (model: Model, h: HtmlBuilder<Message>) => ({ title: 'Todos', body: h.p([], [model.draft]) }),
+  container: null,
+}
+declare const buildId: string
+-->
+
 ```ts
 const Todos = SSR.plan(App, {
   id: 'todos',
@@ -1121,6 +1410,12 @@ const Todos = SSR.plan(App, {
   fallback: 'server',
 })
 ```
+
+<!-- docs-check
+declare const h: HtmlBuilder<Message>
+declare const model: Model
+const rh = Resume.builder(h)
+-->
 
 ```ts
 rh.form(
@@ -1363,8 +1658,20 @@ page's id. It never waits longer than `UNTIL_LIMIT_MS` (3 s). The CMS site
 waits for the route's read and its Blocks' reads, which its `Site.answered`
 checks with `RemoteData.answered` and `QueryBlock.active(...).answered`:
 
+<!-- docs-check standalone use ssr-app
+import { Resume, SSR } from 'foldkit-ssr'
+const Post = SSR.plan(App, {
+  id: 'post',
+  state: Projection.pick(App.model.route, App.model.draft),
+})
+import type { Diagnostic } from 'foldkit-ssr'
+declare const when: (document: Document) => boolean
+declare const Site: { readonly answered: (model: Model) => boolean }
+declare const send: (diagnostic: Diagnostic) => Effect.Effect<void>
+-->
+
 ```ts
-SSR.hydrate(config, plan, { buildId, when, otherwise: 'render', until: Site.answered })
+SSR.hydrate(config, Post, { buildId, when, otherwise: 'render', until: Site.answered })
 ```
 
 The served page stays as it was served while it waits: its links are plain
@@ -1392,9 +1699,9 @@ posted form's Commands included. `SSR.generate` reports to the reporter in
 its Effect's context.
 
 ```ts
-SSR.hydrate(config, plan, { buildId, diagnostics: diagnostic => send(diagnostic) })
+SSR.hydrate(config, Post, { buildId, diagnostics: diagnostic => send(diagnostic) })
 
-SSR.entry(config, plan, {
+SSR.entry(config, Post, {
   buildId,
   diagnostics: (diagnostic, request) =>
     Effect.logError(`${request.method} ${request.url}: ${diagnostic.message}`),
@@ -1472,6 +1779,13 @@ Messages (`messages: [Message.Liked]`). `PostActionsAt` and `PostPageAt` are Sur
 for a plan, as `Surface.when(PostActions, App.model.route, AppRoute.Post, route
 => ({ id: route.id }))` places one in
 [the coverage example](#checking-what-the-browser-will-read).
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { defineRouteUnion } from 'foldkit/route'
+import { Remote } from 'foldkit-remote'
+-->
 
 ```ts
 const AppRoute = defineRouteUnion({ Home: {}, Post: { id: Schema.String }, NotFound: {} })

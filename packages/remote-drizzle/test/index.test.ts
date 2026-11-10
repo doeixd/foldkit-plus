@@ -187,12 +187,14 @@ describe('RemoteDrizzle', () => {
     expect(() =>
       entity('Project', projects, {
         relations: { owner: one(UserBinding, { field: projects.ownerId }) },
+        // @ts-expect-error a computed count names a collection relation, and `owner` is one
         computed: { name: { relation: 'owner' } },
       }),
     ).toThrow(/collides with a field or relation/)
 
     expect(() =>
       entity('Project', projects, {
+        // @ts-expect-error no relation is named `missing`
         computed: { ownerCount: { relation: 'missing' } },
       }),
     ).toThrow(/needs a collection relation/)
@@ -200,6 +202,7 @@ describe('RemoteDrizzle', () => {
     expect(() =>
       entity('Project', projects, {
         relations: { owner: one(UserBinding, { field: projects.ownerId }) },
+        // @ts-expect-error a computed count names a collection relation, and `owner` is one
         computed: { ownerCount: { relation: 'owner' } },
       }),
     ).toThrow(/needs a collection relation/)

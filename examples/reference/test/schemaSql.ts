@@ -3,7 +3,7 @@
  * columns, primary and foreign keys, the CHECKs given, then its indexes. Read by
  * `migrations.test.ts`, which holds each migration to the code.
  */
-import { is } from 'drizzle-orm'
+import { is, SQL, StringChunk } from 'drizzle-orm'
 import {
   getTableConfig,
   type IndexColumn,
@@ -13,10 +13,20 @@ import {
 
 const quoted = (name: string) => `"${name}"`
 
-/** An index's column; nothing here indexes an expression. */
+/** An index's column, or `desc(column)`; nothing here indexes another expression. */
 const indexed = (column: IndexColumn) => {
-  if (!is(column, SQLiteColumn)) throw new Error('An index on an expression')
-  return quoted(column.name)
+  if (is(column, SQLiteColumn)) return quoted(column.name)
+  if (is(column, SQL)) {
+    const [inner, after, ...rest] = column.queryChunks
+    if (
+      rest.length === 0 &&
+      is(inner, SQLiteColumn) &&
+      after instanceof StringChunk &&
+      [after.value].flat().join('') === ' desc'
+    )
+      return `${quoted(inner.name)} desc`
+  }
+  throw new Error('An index on an expression')
 }
 
 export const createTable = (

@@ -5,7 +5,7 @@
  * `Query.define`'s descriptor carries it, so a page whose lists have no body
  * keeps none of the relational evaluator it runs.
  */
-import { Option } from 'effect'
+import { Option, Result } from 'effect'
 import { Query as Relational } from 'foldkit-entity'
 import type { BodyCapability, Install } from './capability.js'
 import { edgesOf, visibleOf } from './capability.js'
@@ -76,7 +76,7 @@ const answer: BodyCapability['answer'] = (
   context,
 ) => {
   const placed: Record<string, Connection> = {}
-  const invalidated: Array<string> = []
+  const invalidated = new Map<string, string>()
   const changes = changesOf(answered, before)
   if (changes.length === 0) return { placed, invalidated }
   // A row the answer itself put in or took out of a list is where the server
@@ -111,22 +111,22 @@ const answer: BodyCapability['answer'] = (
     const body = query.value.descriptor.body
     const through = (change: EntityChange) => body !== undefined && readsThrough(body, change)
     let pages = original
-    let invalid = false
+    let invalid: Option.Option<string> = Option.none()
     for (const change of judged) {
       const held: HeldConnection = { ...query.value, connection: pages, holds }
       const after = Impact.$match(impactOn(held, visible, change, operators, context), {
-        Kept: () => Option.some(pages),
-        Placed: ({ connection }) => Option.some(connection),
-        Invalidated: () => Option.none<Connection>(),
+        Kept: () => Result.succeed(pages),
+        Placed: ({ connection }) => Result.succeed(connection),
+        Invalidated: ({ reason }) => Result.fail(reason),
       })
-      if (Option.isNone(after)) {
-        invalid = true
+      if (Result.isFailure(after)) {
+        invalid = Option.some(after.failure)
         break
       }
-      pages = after.value
+      pages = after.success
     }
-    if (invalid) {
-      invalidated.push(identity)
+    if (Option.isSome(invalid)) {
+      invalidated.set(identity, invalid.value)
       continue
     }
     if (judged.some(through)) {
@@ -140,7 +140,10 @@ const answer: BodyCapability['answer'] = (
         context,
         whole,
       })
-      invalidated.push(identity)
+      invalidated.set(
+        identity,
+        `a write changed what "${query.value.descriptor.name}" reads through other rows, which may have moved rows the client does not hold`,
+      )
     }
     if (pages !== original) placed[identity] = pages
   }

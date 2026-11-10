@@ -9,6 +9,7 @@ import * as Subscription from 'foldkit/subscription'
 import * as Update from 'foldkit/update'
 import type { BundleSpec, Helper, ResourceEntries } from './bundle.js'
 import type { AnyMessage, CollectionLink } from './link.js'
+import { keptDrawing } from './memo.js'
 import {
   checkArgs,
   isArgsFactory,
@@ -57,6 +58,12 @@ export interface EachConfig<
   /** Prefix for the collection's Subscription keys. Defaults to `Name@path[]`. */
   readonly key?: string
   readonly when?: (parent: Parent, key: Key) => boolean
+  /**
+   * `false` draws each item's view on every render. By default an item drawn
+   * without inputs is kept while its Model is the same object (#431), as a
+   * placement's view is; opt out for a view that reads outside its Model.
+   */
+  readonly memo?: false
 }
 
 export type CollectionView<Parent, ParentMessage, ViewInputs, Key extends string = string> =
@@ -355,6 +362,36 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
     : buildSubscriptions(rawArgs)
 
   const childView = bundle.view
+  const drawItem = (
+    key: string,
+    model: unknown,
+    h: HtmlBuilder<any>,
+    view: NonNullable<typeof childView>,
+  ) =>
+    h.submodel({
+      slotId: `${prefix}/${key}`,
+      model,
+      view,
+      toParentMessage: (message: unknown) => link.toParentMessage(key, message),
+    })
+  // One kept drawing per item, forgotten once the collection no longer holds
+  // it: swept when there are more than twice as many as items, so a list
+  // whose items come and go keeps no drawing of each one it ever held.
+  const kept = new Map<string, (model: unknown, h: HtmlBuilder<any>) => Html>()
+  const keptFor = (parent: unknown, key: string, view: NonNullable<typeof childView>) => {
+    const known = kept.get(key)
+    if (known !== undefined) return known
+    const entries = link.entries(parent)
+    if (kept.size >= 2 * entries.length) {
+      const held = new Set(entries.map(([at]) => at))
+      for (const at of kept.keys()) if (!held.has(at)) kept.delete(at)
+    }
+    const made = keptDrawing((model: unknown, builder: HtmlBuilder<any>) =>
+      drawItem(key, model, builder, view),
+    )
+    kept.set(key, made)
+    return made
+  }
   const view = (parent: unknown, h: HtmlBuilder<any>, key: string, viewInputs?: unknown): Html =>
     childView === undefined
       ? null
@@ -362,12 +399,9 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
           onNone: () => null,
           onSome: model =>
             viewInputs === undefined
-              ? h.submodel({
-                  slotId: `${prefix}/${key}`,
-                  model,
-                  view: childView,
-                  toParentMessage: (message: unknown) => link.toParentMessage(key, message),
-                })
+              ? config.memo === false
+                ? drawItem(key, model, h, childView)
+                : keptFor(parent, key, childView)(model, h)
               : h.submodel({
                   slotId: `${prefix}/${key}`,
                   model,

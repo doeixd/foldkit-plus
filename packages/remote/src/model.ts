@@ -3,7 +3,7 @@
  * optimistic layers an application keeps in its Model, the Messages that
  * change it, and the pure reducer over them.
  */
-import { Match, Option, Schema } from 'effect'
+import { Effect, Match, Option, Schema } from 'effect'
 import {
   liveRefused,
   outboxUnreadable,
@@ -26,7 +26,7 @@ import {
 import { emptyOptimistic, layersIn, liveIn, type Capabilities } from './capability.js'
 import { isPatch } from './shown.js'
 import type { ConnectionChange, OptimisticState, OptimisticOperation } from './optimistic.js'
-import { emptyLiveState, type LiveEvent, type LiveState } from './liveState.js'
+import { emptyLiveState, type AwaitedEcho, type LiveEvent, type LiveState } from './liveState.js'
 import {
   beginMutation,
   emptyMutationState,
@@ -196,6 +196,13 @@ export interface RemoteModel {
    */
   readonly diagnostics: ReadonlyArray<RemoteDiagnostic>
   /**
+   * Why each stale list went stale, in the client's own words: what a write
+   * changed that it could not place, the server's live stream asking, a
+   * refresh (#489). Kept from the change that made it stale, and read by
+   * `why` only while it still is. Never persisted.
+   */
+  readonly staleBecause: Readonly<Record<string, string>>
+  /**
    * What retention keeps: the active Surfaces' roots, and those of the
    * Surfaces left, in the batches they left in, while the budget allows. A
    * list left is held stale, so going back reads it `Refreshing` while it
@@ -215,6 +222,14 @@ export interface RemoteModel {
    * for by nothing, rather than `Refreshing`.
    */
   readonly history: NavigationHistory
+  /**
+   * The rows a write's answer wrote, by entity key, that a live stream has not
+   * sent back yet (#485). Until a stream does, its patches to those fields
+   * predate the write or, from a stream that coalesces, may follow it; one
+   * that disagrees is read again rather than written. A read asked after the
+   * answer, a later answer, a delete or `forget` ends the wait.
+   */
+  readonly echoes: Readonly<Record<EntityKey, AwaitedEcho>>
 }
 
 /** What the budget evicted, by list identity and by the row a read reads. */
@@ -362,13 +377,22 @@ export const initialRemoteModel: RemoteModel = {
   restoredFrom: Option.none(),
   placed: {},
   diagnostics: [],
+  staleBecause: {},
   recent: noRecentRoots,
   evicted: noEvicted,
   history: noNavigationHistory,
+  echoes: {},
 }
 
 /** The entity store and the mutation ledger are runtime values, not wire shapes. */
 const runtimeSchema = Schema.Unknown
+
+/**
+ * A runtime field added after Models were already encoded (stored, resumed,
+ * recorded by devtools): one encoded before it decodes with it empty, rather
+ * than refusing the whole Model.
+ */
+const addedRecord = Schema.Unknown.pipe(Schema.withDecodingDefaultKey(Effect.succeed({})))
 
 export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
   // The runtime fields decode as `unknown`; their types come from `RemoteModel`.
@@ -392,9 +416,11 @@ export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
     restoredFrom: runtimeSchema,
     placed: runtimeSchema,
     diagnostics: runtimeSchema,
+    staleBecause: addedRecord,
     recent: runtimeSchema,
     evicted: runtimeSchema,
     history: runtimeSchema,
+    echoes: addedRecord,
   }) as unknown as Schema.Codec<RemoteModel, unknown>
 
 /** The submodel's Messages; each reduces to `RemoteModel` through `updateRemote`. */
@@ -405,9 +431,11 @@ export type RemoteMessage =
       readonly result: Schema.Schema.Type<typeof ReadBatchResult>
       readonly now: number
       /**
-       * The refresh generation the request was planned or sent under: whom
-       * the answer was for is heard only from a request sent since the last
-       * `forget` (#405). Without it, it is not heard.
+       * The refresh generation the request was planned or sent under. An
+       * answer from before the last `forget` is the previous principal's and
+       * writes nothing (#484); whom an answer was for is heard only from a
+       * request sent since (#405). Without it, the answer is applied and its
+       * principal not heard.
        */
       readonly generation?: number | undefined
     }
@@ -415,6 +443,8 @@ export type RemoteMessage =
       readonly _tag: 'ReadFailed'
       readonly requests: readonly Requirement[]
       readonly error: RemoteError
+      /** The generation the read or stream was asked under: see `ReadReceived.generation`. */
+      readonly generation?: number | undefined
       /**
        * The live stream whose subscription broke, when this is that rather
        * than a read. Nothing was being read, so no field failed: the stream is
@@ -659,6 +689,8 @@ export type RemoteMessage =
       readonly event: LiveEvent
       readonly policy?: LivePolicy
       readonly now: number
+      /** The `forget` floor the stream was opened under: see `ReadReceived.generation`. */
+      readonly generation?: number | undefined
     }
   | { readonly _tag: 'GapCleared'; readonly stream: string }
   | {
@@ -693,11 +725,7 @@ export type RemoteMessage =
       readonly now?: number | undefined
       /** Whom the answer was for, where `QueryResult.principal` said. */
       readonly principal?: MadeAs | undefined
-      /**
-       * The refresh generation the request was planned or sent under: whom
-       * the answer was for is heard only from a request sent since the last
-       * `forget` (#405). Without it, it is not heard.
-       */
+      /** The refresh generation the query was planned under: see `ReadReceived.generation`. */
       readonly generation?: number | undefined
     }
   | { readonly _tag: 'ConnectionInvalidated'; readonly connection: string }
@@ -707,7 +735,13 @@ export type RemoteMessage =
    * reads `Failed` — with them as `previous`, when it has any — until a page
    * arrives, it is invalidated, or retention drops it.
    */
-  | { readonly _tag: 'QueryFailed'; readonly connection: string; readonly error: RemoteError }
+  | {
+      readonly _tag: 'QueryFailed'
+      readonly connection: string
+      readonly error: RemoteError
+      /** The refresh generation the query was planned under: see `ReadReceived.generation`. */
+      readonly generation?: number | undefined
+    }
   /**
    * What `Data.preload` read for a destination, as the Messages that wrote it,
    * reduced in order into the Model as it is now rather than the one the
@@ -754,6 +788,7 @@ export const remoteMessageCases = {
     requests: Schema.Array(ReadRequest),
     error: remoteErrorSchema,
     stream: Schema.optional(Schema.String),
+    generation: Schema.optional(Schema.Number),
   },
   RefreshStarted: {
     requests: Schema.Array(ReadRequest),
@@ -839,6 +874,7 @@ export const remoteMessageCases = {
     event: Schema.Unknown,
     policy: Schema.optional(Schema.Unknown),
     now: Schema.Number,
+    generation: Schema.optional(Schema.Number),
   },
   GapCleared: { stream: Schema.String },
   ConnectionMerged: {
@@ -854,7 +890,11 @@ export const remoteMessageCases = {
   },
   ConnectionInvalidated: { connection: Schema.String },
   ConnectionRefreshed: { connection: Schema.String },
-  QueryFailed: { connection: Schema.String, error: remoteErrorSchema },
+  QueryFailed: {
+    connection: Schema.String,
+    error: remoteErrorSchema,
+    generation: Schema.optional(Schema.Number),
+  },
   Preloaded: {
     messages: Schema.Array(Schema.suspend(() => remoteMessageSchema)),
   },
@@ -1035,12 +1075,12 @@ const keptWindows = (
 }
 
 /** The placements awaiting a page of a list retention still keeps; a dropped list's page never comes. */
-const keptPlacements = (
-  placed: RemoteModel['placed'],
+const keptByList = <Kept extends Readonly<Record<string, unknown>>>(
+  placed: Kept,
   connections: Retained['connections'],
-): RemoteModel['placed'] => {
+): Kept => {
   const kept = Object.entries(placed).filter(([key]) => Object.hasOwn(connections, key))
-  return kept.length === Object.keys(placed).length ? placed : Object.fromEntries(kept)
+  return kept.length === Object.keys(placed).length ? placed : (Object.fromEntries(kept) as Kept)
 }
 
 /**
@@ -1111,10 +1151,13 @@ export const withRefreshRequested = (
 export const invalidateConnections = (
   model: RemoteModel,
   connections: ReadonlyArray<string>,
+  /** Why each goes stale, for `why`: one sentence for all, or one per identity. */
+  because: string | ((connection: string) => string),
 ): RemoteModel => {
   if (connections.length === 0) return model
   const marked = connections.reduce(
-    (current, connection) => invalidated(current, connection),
+    (current, connection) =>
+      invalidated(current, connection, typeof because === 'string' ? because : because(connection)),
     model,
   )
   return { ...marked, refresh: withRefreshRequested(marked.refresh, [], connections) }
@@ -1374,6 +1417,42 @@ const placedIn = (queue: ReadonlyArray<Queued>, queued: Queued): ReadonlyArray<Q
     : [...queue, queued]
 }
 
+/** The echoes still awaited once a read asked at `now` answered `entities`: it is newer than an answer before it. */
+const answeredSince = (
+  echoes: RemoteModel['echoes'],
+  entities: ReadonlyArray<{ readonly entity: string; readonly id: string }>,
+  now: number,
+): RemoteModel['echoes'] => {
+  let next: Record<EntityKey, AwaitedEcho> | undefined
+  for (const { entity, id } of entities) {
+    const key = entityKey(entity, id)
+    const echo = (next ?? echoes)[key]
+    if (echo === undefined || echo.since > now) continue
+    next ??= { ...echoes }
+    delete next[key]
+  }
+  return next ?? echoes
+}
+
+/** `requests` marked to be read again, as `Data.refresh` marks them; none, the Model it was given. */
+const askedAgain = (
+  capabilities: Capabilities,
+  model: RemoteModel,
+  requests: ReadonlyArray<Requirement>,
+): RemoteModel => {
+  if (requests.every(request => request.fields.length === 0)) return model
+  const marked = reduceRemote(capabilities, model, { _tag: 'RefreshStarted', requests })
+  return { ...marked, refresh: withRefreshRequested(marked.refresh, requests) }
+}
+
+/**
+ * Whether an answer was asked for before the last `forget`, so is the previous
+ * principal's (#484). Foldkit restarts a Subscription after the Messages
+ * already queued, so interrupting the old read does not stop its answer.
+ */
+const askedBeforeForget = (model: RemoteModel, generation: number | undefined): boolean =>
+  generation !== undefined && generation < model.refresh.floor
+
 /**
  * The outbox having heard whom an answer was for. Itself when the answer did
  * not say, said what it holds, or answers a request sent before the last
@@ -1385,7 +1464,7 @@ const heardAs = (
   heard: MadeAs | undefined,
   generation: number | undefined,
 ): OutboxState => {
-  if (heard === undefined || generation === undefined || generation < model.refresh.floor) {
+  if (heard === undefined || generation === undefined || askedBeforeForget(model, generation)) {
     return outbox
   }
   const same = Option.exists(outbox.principal, held =>
@@ -1654,7 +1733,11 @@ const settledElsewhere = (
     requests.length === 0
       ? released
       : reduceRemote(capabilities, released, { _tag: 'RefreshStarted', requests })
-  return invalidateConnections(asked, Object.keys(asked.connections))
+  return invalidateConnections(
+    asked,
+    Object.keys(asked.connections),
+    'a write another tab settled may have changed it',
+  )
 }
 
 /**
@@ -1819,6 +1902,7 @@ const reduceRemote = (
     case 'CompletedReportDiagnostics':
       return model
     case 'ReadReceived':
+      if (askedBeforeForget(model, message.generation)) return model
       return {
         ...model,
         outbox: heardAs(
@@ -1828,6 +1912,7 @@ const reduceRemote = (
           message.generation,
         ),
         entities: writeRead(model.entities, message.requests, message.result, message.now),
+        echoes: answeredSince(model.echoes, message.result.entities, message.now),
         loading: withoutLoading(model.loading, message.requests),
         // What was asked, and what came back: a relation riding on the request
         // writes its targets too, and a target's old failure must not outlive
@@ -1838,6 +1923,7 @@ const reduceRemote = (
         ]),
       }
     case 'ReadFailed':
+      if (askedBeforeForget(model, message.generation)) return model
       // A broken live stream is not a failed read. Marking its fields failed
       // would take them out of the read entry's plan, and restart it, which is
       // the opposite of what missing changes calls for.
@@ -1901,7 +1987,9 @@ const reduceRemote = (
                 ),
               },
         grown: keptWindows(model.grown, retained.connections),
-        placed: keptPlacements(model.placed, retained.connections),
+        placed: keptByList(model.placed, retained.connections),
+        // A collected list's reason goes with it.
+        staleBecause: keptByList(model.staleBecause, retained.connections),
         refresh: prunedRefresh(model.refresh, retained),
         failures: prunedFailures(model.failures, message.roots, reached),
         loading: prunedLoading(model.loading, message.roots, reached),
@@ -2069,12 +2157,26 @@ const reduceRemote = (
         message.read === undefined || model.mutations.applied.has(message.requestId)
           ? undefined
           : unsettledRead(message.read, settledLater(model.mutations, message.requestId))
+      // A live stream may still send what was committed before this write;
+      // until it sends the answer's values back, it does not overwrite them.
+      const echoes = model.mutations.applied.has(message.requestId)
+        ? model.echoes
+        : Option.match(capabilities.live, {
+            onNone: () => model.echoes,
+            onSome: live =>
+              live.awaitEchoes(
+                model.echoes,
+                [...message.entities, ...(read?.result.entities ?? [])],
+                message.now,
+              ),
+          })
       return {
         ...model,
         entities:
           read === undefined
             ? settled.store
             : writeRead(settled.store, read.requests, read.result, message.now),
+        echoes,
         mutations: settled.state,
         outbox: heardAs(
           model,
@@ -2161,25 +2263,36 @@ const reduceRemote = (
         optimistic: layersIn(capabilities).settleFailure(model.optimistic, message.requestId),
       }
     case 'LiveReceived': {
+      if (askedBeforeForget(model, message.generation)) return model
       const state = model.live[message.stream] ?? emptyLiveState
       if (message.event._tag === 'EntityPatched' || message.event._tag === 'EntityDeleted') {
         const event = message.event
-        const applied = liveIn(capabilities).applyEntity(state, model.entities, event, message.now)
+        const applied = liveIn(capabilities).applyEntity(state, model.entities, event, {
+          now: message.now,
+          stream: message.stream,
+          echoes: model.echoes,
+        })
         if (applied.outcome === 'gap') return broke(model, message.stream, Option.none())
         // A value the server sent is newer than any failure to fetch it.
         const settled =
           applied.outcome !== 'applied'
             ? []
             : event._tag === 'EntityPatched'
-              ? [...patchedMarks([{ ...event.ref, values: event.values }])]
+              ? [...patchedMarks([{ ...event.ref, values: applied.written }])]
               : entityFailureMarks(model.failures, entityKey(event.ref.entity, event.ref.id))
         const next = {
           ...model,
           entities: applied.store,
           live: withLiveState(model.live, message.stream, applied.state),
           failures: withoutFieldFailures(model.failures, settled),
+          echoes: applied.echoes,
         }
-        return applied.outcome === 'applied' ? healthy(next, message.stream) : next
+        if (applied.outcome !== 'applied') return next
+        // What it contradicted is read again: a read asked now says which is
+        // the server's, and ends the wait.
+        return askedAgain(capabilities, healthy(next, message.stream), [
+          { ...event.ref, fields: [...applied.contradicted] },
+        ])
       }
       const applied = liveIn(capabilities).applyConnection(
         state,
@@ -2198,11 +2311,12 @@ const reduceRemote = (
       // so it goes through the same reduction rather than a parallel one.
       return applied.invalidated === undefined
         ? next
-        : invalidateConnections(next, [applied.invalidated])
+        : invalidateConnections(next, [applied.invalidated], 'its live stream asked for it again')
     }
     case 'GapCleared':
       return clearGap(model, message.stream)
     case 'ConnectionMerged': {
+      if (askedBeforeForget(model, message.generation)) return model
       const current = model.connections[message.connection] ?? emptyConnection
       const loading = withoutQueryLoading(model.loading, message.connection)
       // The page answering an invalidation is the server's list as it now is, so it
@@ -2273,8 +2387,9 @@ const reduceRemote = (
       }
     }
     case 'ConnectionInvalidated':
-      return invalidated(model, message.connection)
+      return invalidated(model, message.connection, 'it was refreshed (Data.refresh)')
     case 'QueryFailed':
+      if (askedBeforeForget(model, message.generation)) return model
       // The pages stay as they were, and a refresh that failed is still owed:
       // the connection stays stale. The failure is what stops the planner
       // asking again on its own; whatever settles it next (a retry, or a page
@@ -2367,10 +2482,24 @@ const heldForGoingBack = (
  * must still settle its failure, and its mark becomes a loading one, so a list
  * with no page to show reads `Loading` until its query answers.
  */
-const invalidated = (model: RemoteModel, connection: string): RemoteModel => {
+const invalidated = (model: RemoteModel, connection: string, because: string): RemoteModel => {
+  const connections = setConnectionStale(model.connections, connection, true)
   const next = {
     ...model,
-    connections: setConnectionStale(model.connections, connection, true),
+    connections,
+    // Why it went stale, kept from the change that made it so; the reasons of
+    // lists fresh again or gone are dropped as one is written.
+    staleBecause:
+      connections === model.connections
+        ? model.staleBecause
+        : {
+            ...Object.fromEntries(
+              Object.entries(model.staleBecause).filter(
+                ([held]) => connections[held]?.stale === true,
+              ),
+            ),
+            [connection]: because,
+          },
     // Stale for a reason of its own: going back fetches it again.
     history: withoutHolds(model.history, [connection]),
     // Stale for a reason of its own now, not only for a placement's check.

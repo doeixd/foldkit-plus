@@ -20,6 +20,7 @@ export type {
   FactsUnanswered,
   ImageFailed,
   MediaDiagnostic,
+  OwnerMissing,
   RequestDefect,
   StoreFailed,
 } from './diagnostics.js'
@@ -41,3 +42,25 @@ export {
   storedFactsKeyValueStore,
   type UploadOptions,
 } from './upload.js'
+export {
+  FileApi,
+  FileReadPolicy,
+  FileRefused,
+  FileUnauthenticated,
+  FileUploadPolicy,
+  fileHandlers,
+  fileLayer,
+  fileReadPolicy,
+  type FileOptions,
+  type FileReader,
+} from './files.js'
+export {
+  FileStore,
+  FileUnclaimed,
+  filesKeyValueStore,
+  keepOrClaim,
+  type Declared,
+  type FileStoreOptions,
+  type StoredFile,
+} from './fileStore.js'
+export type { Accept } from './fileRules.js'

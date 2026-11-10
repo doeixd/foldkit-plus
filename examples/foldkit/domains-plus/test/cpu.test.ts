@@ -72,10 +72,11 @@ describe('within the CPU budget', () => {
   }, 60_000)
 
   /**
-   * The pages are over any Workers plan's limit today: on Linux the landing
-   * page takes about 135 ms warm and a search 300 ms, most of it Foldkit
-   * rendering and checking the markup (#411). This budget only keeps them
-   * from growing until that is fixed.
+   * The pages are over any Workers plan's limit today: on Linux a search
+   * never seen before takes about 120 ms warm (2026-11-09; 300 before the
+   * first screen, the linked sheet and the trimmed resume data), a third of
+   * it parse5 inside Foldkit checking its own markup (#413). This budget only
+   * keeps them from growing until that is fixed.
    */
   test('the pages, as they are', async () => {
     const readings = await cpuBudget('domains-plus: pages', Cpu.budget, meter, {
@@ -96,11 +97,15 @@ describe('within the CPU budget', () => {
   /**
    * A page drawn from its URL alone is kept at the edge (#428), and served
    * again without a read or a render: under a millisecond warm here, where
-   * the render it saves takes 40 to 140 ms.
+   * the render it saves takes 40 to 140 ms. The budget is that render's,
+   * not the kept page's: `warm` is the slowest of five runs of this thread's
+   * CPU, so one collection on a shared runner read 6.26 ms against a 0.74 ms
+   * cold run, and 5 ms failed CI for it. A page rendered again is still
+   * several times over 15.
    */
   test('a kept page', async () => {
     const readings = await cpuBudget('domains-plus: kept pages', Cpu.budget, meter, {
-      warm: 5,
+      warm: 15,
       routes: { 'the landing page': '/', 'a search': '/?q=sunbeam' },
     })
     expect(readings.map(reading => reading.status)).toEqual([200, 200])

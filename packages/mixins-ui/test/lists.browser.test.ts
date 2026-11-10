@@ -1,6 +1,6 @@
 /// <reference types="@vitest/browser-playwright" />
 /**
- * Command and VirtualList on a real page. With their `overlayBars` beside the
+ * Command, a Listbox's open panel and VirtualList on a real page. With their `overlayBars` beside the
  * style, the browser's bar gives way to a thumb as long as the view is of the
  * list and moving with its scroll (a coarse pointer's is in
  * `lists.touch.browser.test.ts`). A VirtualList in a box sized by its content keeps one width as rows of
@@ -13,7 +13,7 @@ import { FILES, clearPage, mountCommand, mountList, partsOf, scrollers } from '.
 
 afterEach(clearPage)
 
-describe.each(Object.entries(scrollers))('%s overlayBars', (_, { mount, scroller }) => {
+describe.each(Object.entries(scrollers))('%s overlayBars', (_, { mount, scroller, edge }) => {
   test('give the browser bar way to a thumb as long as the view is of the list', async () => {
     const handle = mount({ bars: true })
     try {
@@ -26,14 +26,18 @@ describe.each(Object.entries(scrollers))('%s overlayBars', (_, { mount, scroller
       await vi.waitFor(() =>
         expect(parts.scroller.scrollHeight).toBeGreaterThan(parts.scroller.clientHeight),
       )
-      const length =
-        (parts.bar.clientHeight * parts.scroller.clientHeight) / parts.scroller.scrollHeight
-      await vi.waitFor(() =>
-        expect(parts.thumb.getBoundingClientRect().height).toBeCloseTo(Math.max(20, length), 1),
-      )
-      // Over the scroller's edge.
+      // Read once the bar is drawn: it waits for the scroller to be measured.
+      await vi.waitFor(() => {
+        expect(parts.bar.clientHeight).toBeGreaterThan(0)
+        const length =
+          (parts.bar.clientHeight * parts.scroller.clientHeight) / parts.scroller.scrollHeight
+        expect(parts.thumb.getBoundingClientRect().height).toBeCloseTo(Math.max(20, length), 1)
+      })
+      // Over the edge of the scroller, or of a popup's panel around it, inside its border.
+      const over = edge === 'panel' ? parts.scroller.parentElement! : parts.scroller
       expect(parts.bar.getBoundingClientRect().right).toBeCloseTo(
-        parts.scroller.getBoundingClientRect().right,
+        over.getBoundingClientRect().right -
+          Number.parseFloat(getComputedStyle(over).borderRightWidth),
         1,
       )
     } finally {
@@ -48,7 +52,8 @@ describe.each(Object.entries(scrollers))('%s overlayBars', (_, { mount, scroller
         expect(document.querySelector(`${scroller}[data-scroll-overlaid]`)).not.toBeNull(),
       )
       const parts = partsOf(scroller)
-      await userEvent.hover(document.getElementById('away')!)
+      // Forced: an open popup's backdrop lies over the spot, and takes the pointer there.
+      await userEvent.hover(document.getElementById('away')!, { force: true })
       await vi.waitFor(() => expect(getComputedStyle(parts.bar).opacity).toBe('0'), {
         timeout: 3000,
       })

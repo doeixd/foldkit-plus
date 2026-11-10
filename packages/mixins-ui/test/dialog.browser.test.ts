@@ -13,7 +13,7 @@ import { Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
-import { Dialog, DialogSlots, Recipes } from '../src/index.js'
+import { Button, Dialog, DialogSlots, Recipes } from '../src/index.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const L = Layers.standard
@@ -115,7 +115,16 @@ const mountAlert = () => {
                       h.div(dialog.backdrop),
                       h.div(dialog.panel, [
                         h.h2(dialog.title, ['Remove Ada?']),
-                        h.button([h.OnClick({ _tag: 'Answered' })], ['Cancel']),
+                        // The answer that loses nothing takes the focus, though it comes second.
+                        Button.view({ label: 'Remove', onClick: { _tag: 'Answered' } }, h),
+                        Button.view(
+                          {
+                            label: 'Cancel',
+                            onClick: { _tag: 'Answered' },
+                            attributes: { button: dialog.initialFocus },
+                          },
+                          h,
+                        ),
                       ]),
                     ]
                   : [],
@@ -169,6 +178,17 @@ test('an alert dialog stays open through Escape and the backdrop; its answer clo
     expect(dialogElement().open).toBe(true)
     press('Cancel')
     await vi.waitFor(() => expect(dialogElement().open).toBe(false))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test("a dialog opens on the button given its initialFocus, a Button.view's attributes", async () => {
+  const handle = mountAlert()
+  try {
+    await vi.waitFor(() => expect(document.querySelector('dialog')).not.toBeNull())
+    press('Remove member')
+    await vi.waitFor(() => expect(document.activeElement?.textContent).toBe('Cancel'))
   } finally {
     handle.dispose()
   }

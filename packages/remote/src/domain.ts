@@ -1631,6 +1631,7 @@ export const pageMessage = (
         _tag: 'RemoteProtocolError',
         message: `the server returned ${over.got} edges for a window of ${over.asked}`,
       },
+      ...(generation === undefined ? {} : { generation }),
     }
   }
   const hasPayload =
@@ -1656,13 +1657,8 @@ export const pageMessage = (
       ? { entities: [...(result.entities ?? [])], settled: [...(result.settled ?? [])] }
       : {}),
     ...(dated === undefined ? {} : { now: dated }),
-    // Whom it was for, with when it was asked, which says whether to hear it.
-    ...(result.principal === undefined
-      ? {}
-      : {
-          principal: madeAsOf(result.principal),
-          ...(generation === undefined ? {} : { generation }),
-        }),
+    ...(result.principal === undefined ? {} : { principal: madeAsOf(result.principal) }),
+    ...(generation === undefined ? {} : { generation }),
   }
 }
 
@@ -1708,7 +1704,12 @@ const readMessage = (
       client.read({ version: REMOTE_PROTOCOL_VERSION, requests: requirements }),
     )
     return Result.isFailure(result)
-      ? { _tag: 'ReadFailed', requests: requirements, error: remoteError(result.failure) }
+      ? {
+          _tag: 'ReadFailed',
+          requests: requirements,
+          error: remoteError(result.failure),
+          generation,
+        }
       : {
           _tag: 'ReadReceived',
           requests: requirements,
@@ -1734,7 +1735,12 @@ const queryMessage = (
       queryRequestOf(query).pipe(Effect.flatMap(request => client.query(request))),
     )
     return Result.isFailure(result)
-      ? { _tag: 'QueryFailed', connection: query.identity, error: remoteError(result.failure) }
+      ? {
+          _tag: 'QueryFailed',
+          connection: query.identity,
+          error: remoteError(result.failure),
+          generation,
+        }
       : pageMessage(
           query.identity,
           result.success,

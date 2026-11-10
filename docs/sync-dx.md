@@ -2,8 +2,10 @@
 
 Status: proposal for [#59](https://github.com/doeixd/foldkit-plus/issues/59).
 The low-level `defineSync` protocol stays as-is; this describes the Foldkit-facing
-layer above it. The initial `pick` primitive exists in `foldkit-sync`; the
-high-level constructors and adapters below remain proposals.
+layer above it. `Sync.forApplication` (`make`, `fragment`, `compose`, per-variant `authorize`)
+and `Sync.mount` have shipped, and their snippets below compile against them;
+`Sync.browser`, `Sync.server`, a `presence` classification and the agent
+reuse are still proposals, shown as sketches.
 
 ## Shared foundation with agent projections
 
@@ -73,6 +75,52 @@ Non-Foldkit consumers keep using `defineSync` directly.
 
 A declaration that compiles to `defineSync`:
 
+<!-- docs-check
+import { Option, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
+import type * as Update from 'foldkit/update'
+import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { DocumentId, Sync } from 'foldkit-sync'
+
+const Model = Schema.Struct({
+  todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
+  members: Schema.Array(Schema.String),
+  selectedTodoId: Schema.Option(Schema.String),
+})
+type Model = typeof Model.Type
+const Message = defineMessageUnion({
+  CreatedTodo: { id: Schema.String, title: Schema.String },
+  RenamedTodo: { id: Schema.String, title: Schema.String },
+  DeletedTodo: { id: Schema.String },
+  SelectedTodo: { id: Schema.String },
+  Invited: { name: Schema.String },
+})
+type Message = typeof Message.Type
+const initialModel: Model = { todos: [], members: [], selectedTodoId: Option.none() }
+type Return = Update.Return<Model, Message>
+const update = (model: Model, message: Message): Return =>
+  Message.match<Return>(message, {
+    CreatedTodo: ({ id, title }) => ({
+      model: modifyFields(model, { todos: () => [...model.todos, { id, title }] }),
+    }),
+    RenamedTodo: ({ id, title }) => ({
+      model: modifyFields(model, {
+        todos: () => model.todos.map(todo => (todo.id === id ? { ...todo, title } : todo)),
+      }),
+    }),
+    DeletedTodo: ({ id }) => ({
+      model: modifyFields(model, { todos: () => model.todos.filter(todo => todo.id !== id) }),
+    }),
+    SelectedTodo: ({ id }) => ({
+      model: modifyFields(model, { selectedTodoId: () => Option.some(id) }),
+    }),
+    Invited: ({ name }) => ({
+      model: modifyFields(model, { members: () => [...model.members, name] }),
+    }),
+  })
+-->
+
 ```ts
 const App = Surface.application({
   Model,
@@ -82,18 +130,17 @@ const App = Surface.application({
 })
 
 const TodosSync = Sync.forApplication(App).make({
-  documentId: documentId('todos'),
+  documentId: DocumentId.make('todos'),
   shared: Projection.pick(App.model.todos),
-
-  durable: [Message.CreatedTodo, Message.RenamedTodo, Message.DeletedTodo],
-  presence: [Message.SelectedTodo],
+  durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo, Message.DeletedTodo]),
 })
 ```
 
-Everything omitted is `local`. The result is a contract value, not a running
+Everything omitted is `local`. A `presence` classification, beside `durable`,
+is still a proposal. The result is a contract value, not a running
 replica:
 
-```ts
+```ts sketch
 // Browser
 Sync.browser(TodosSync, { storage, transport })
 // Server
@@ -109,15 +156,18 @@ easier to infer and read for a first release, so it is the recommendation.
 
 ## Reference-based state projection
 
-`Projection.pick(App.model.todos)` infers a projection from generated field
+`Projection.pick(App.model.todos)` infers a `WritableProjection` from generated field
 references on the application's Model. `App.model` is derived once, so authors
 write neither path strings nor a parallel field registry:
 
 ```ts
-interface Projection<Model, Shared, SharedEncoded> {
-  readonly schema: Schema.Codec<Shared, SharedEncoded>
-  readonly get: (model: Model) => Shared
-  readonly set: (model: Model, shared: Shared) => Model
+import type { DependencyTree } from 'foldkit-surface'
+
+interface WritableProjection<Model, Fields extends Schema.Struct.Fields> {
+  readonly schema: Schema.Struct<Fields>
+  readonly dependencies: DependencyTree
+  readonly get: (model: Model) => Schema.Struct.Type<Fields>
+  readonly set: (model: Model, shared: Schema.Struct.Type<Fields>) => Model
 }
 ```
 
@@ -126,8 +176,8 @@ interface Projection<Model, Shared, SharedEncoded> {
 - `get`/`set` are derived from the references, so `Projection.pick(App.model.todos)`
   produces `{ todos: Model['todos'] }` with no annotation.
 - A missing field is a compile error at `App.model.missingField`.
-- For a computed projection, `Surface.state({ schema, get, set })` is the escape
-  hatch; `get`/`set`/`schema`/`Model` mutually constrain.
+- For a computed projection, write the `WritableProjection` by hand;
+  `get`/`set`/`schema`/`Model` mutually constrain.
 
 The initial shared value is `get(initial)`, so no separate `empty` is written.
 
@@ -182,34 +232,51 @@ low-level `defineSync` escape hatch rather than a fabricated replay guarantee.
 
 - `durable: [Message.X, ...]` and `presence: [Message.Y, ...]` take variant
   references. A reference outside the Message union is a compile error.
-- Per-variant policy attaches to the reference and infers the payload:
+- Per-variant policy is keyed by the durable variant's tag and infers the payload:
 
   ```ts
-  Sync.durable(Message.RenamedTodo, {
-    authorize: ({ principal, message, model }) => principal.canRename(message.id),
+  const Authorized = Sync.forApplication(App).withPrincipal<{
+    readonly canRename: (id: string) => boolean
+  }>()
+
+  const GuardedSync = Authorized.make({
+    documentId: DocumentId.make('todos'),
+    shared: Projection.pick(App.model.todos),
+    durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
+    authorize: {
+      RenamedTodo: ({ principal, message }) => principal.canRename(message.id),
+    },
   })
   ```
 
 - Fragments compose:
 
   ```ts
-  const Todos = Sync.fragment(App).pipe(
-    Sync.shared(Projection.pick(App.model.todos)),
-    Sync.durable(Message.CreatedTodo, Message.RenamedTodo),
-  )
-  const Presence = Sync.fragment(App).pipe(Sync.presence(Message.SelectedTodo))
-  const Collaboration = Sync.compose(Todos, Presence)
+  const AppSync = Sync.forApplication(App)
+
+  const Todos = AppSync.fragment({
+    shared: Projection.pick(App.model.todos),
+    durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
+  })
+  const Members = AppSync.fragment({
+    shared: Projection.pick(App.model.members),
+    durable: MessageSet.make(App, [Message.Invited]),
+  })
+  const Collaboration = AppSync.make({
+    documentId: DocumentId.make('collaboration'),
+    ...AppSync.compose(Todos, Members),
+  })
   ```
 
-  Composition rejects a Message classified both durable and presence, two
-  incompatible definitions of one Message, and inconsistent principal
-  requirements. Disjoint shared fields merge automatically.
+  Composition rejects a field declared twice with a different codec, a Message
+  declared durable twice, and a fragment from another application. Disjoint
+  shared fields merge automatically.
 
 ## Adapters
 
 The contract is a value; adapters are `Layer`s:
 
-```ts
+```ts sketch
 const Browser = Sync.browser(TodosSync, { storage: StorageLive, transport: TransportLive })
 const Server = Sync.server(TodosSync, { journal: JournalLive, principal: PrincipalLive })
 ```
@@ -229,7 +296,7 @@ application and projection references so domain behaviour is specified once.
 A durable agent capability can reuse synchronized Message references while
 declaring its agent exposure explicitly:
 
-```ts
+```ts sketch
 Agent.expose(Message.RenamedTodo).pipe(Agent.remote(Sync.durable(Message.RenamedTodo)))
 ```
 

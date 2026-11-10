@@ -13,7 +13,8 @@ import {
   RadioGroup as UiRadioGroup,
   Tabs as UiTabs,
 } from '@foldkit/ui'
-import { Option } from 'effect'
+import { Effect, Option } from 'effect'
+import { Calendar } from 'foldkit'
 import {
   Calendar as DateSelection,
   Chart,
@@ -219,25 +220,22 @@ describe('the checkbox group previews', () => {
 
 describe('the range picker preview', () => {
   it('takes a start, then an end, from the days picked', () => {
-    const pick = (day: number) =>
+    // The picker takes no day before today, so the days are counted from it.
+    const today = Effect.runSync(Calendar.today.local)
+    const [sooner, later] = [Calendar.addDays(today, 2), Calendar.addDays(today, 6)]
+    const pick = (date: typeof today) =>
       Message.GotWidget({
         message: Widgets.Message.GotStayPicker({
           message: UiDatePicker.Message.GotCalendarMessage({
-            message: UiCalendar.Message.ClickedDay({ date: { year: 2026, month: 11, day } }),
+            message: UiCalendar.Message.ClickedDay({ date }),
           }),
         }),
       })
-    const started = update(initial, pick(12)).model
-    const ended = update(started, pick(9)).model
+    const started = update(initial, pick(later)).model
+    const ended = update(started, pick(sooner)).model
     expect([started.widgets.stayDates, ended.widgets.stayDates]).toEqual([
-      DateSelection.Selection.Range({
-        start: Option.some({ year: 2026, month: 11, day: 12 }),
-        end: Option.none(),
-      }),
-      DateSelection.Selection.Range({
-        start: Option.some({ year: 2026, month: 11, day: 9 }),
-        end: Option.some({ year: 2026, month: 11, day: 12 }),
-      }),
+      DateSelection.Selection.Range({ start: Option.some(later), end: Option.none() }),
+      DateSelection.Selection.Range({ start: Option.some(sooner), end: Option.some(later) }),
     ])
   })
 })

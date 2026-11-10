@@ -384,4 +384,28 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'an opening branch stretches its heading row',
+    edits: [
+      { file: '../src/recipes/design.ts', find: "      alignContent: 'start',\n", replace: '' },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'an opening branch slides its links in from the side',
+    edits: [
+      {
+        file: '../src/recipes/design.ts',
+        find: "      alignContent: 'start',\n      transitionProperty: 'grid-template-rows',",
+        replace:
+          "      alignContent: 'start',\n      paddingInlineStart: '1rem',\n      transitionProperty: 'grid-template-rows, padding-inline-start',",
+      },
+      {
+        file: '../src/recipes/design.ts',
+        find: "      gridTemplateRows: 'auto 1fr',",
+        replace: "      gridTemplateRows: 'auto 1fr',\n      paddingInlineStart: '0',",
+      },
+    ],
+    tests: browser,
+  },
 ]

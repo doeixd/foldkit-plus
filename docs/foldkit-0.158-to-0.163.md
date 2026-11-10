@@ -36,14 +36,19 @@ or narrow.
   `foldkit/no-spread-in-modify-fields`.
 - `@foldkit/ui` and `@foldkit/devtools` at 0.163.0 require this rename.
 
-```ts
+```ts sketch
 // before
 import { evo } from 'foldkit/struct'
 model: evo(model, { count: count => count + 1 })
+```
 
+<!-- docs-check standalone
+declare const model: { readonly count: number }
+-->
+```ts
 // after
 import { modifyFields } from 'foldkit/struct'
-model: modifyFields(model, { count: count => count + 1 })
+const next = { model: modifyFields(model, { count: count => count + 1 }) }
 ```
 
 ### Effect peer bumped to `4.0.0-rc.116`, `@effect/platform-browser` now a peer (0.160.0, 0.163.0)
@@ -89,22 +94,32 @@ pnpm add -D vitest@^5.0.0 @effect/vitest@4.0.0-rc.116
 - `Subscription.animationFrame` keeps `toMessage` because it is a full entry.
   `Subscription.lift` keeps `toParentMessage`.
 
-```ts
+```ts sketch
 // before
 Subscription.fromEvent<KeyboardEvent, Message>({
   target: window,
   type: 'keydown',
   toMessage: event => Message.PressedKey({ key: event.key }),
 })
+```
 
+That is the 0.163 API: Foldkit 0.170, the version this repository builds
+against, no longer exports `Subscription.fromEvent`, so this block is not
+compiled.
+
+```ts sketch
 // after
 Subscription.fromEvent({
   target: window,
   type: 'keydown',
   mapEvent: event => Message.PressedKey({ key: event.key }),
 })
+```
 
-// custom target
+A custom target is typed by its events (`SlowWarningReport` is the detail type
+Foldkit's own `foldkit:slow-warning` event carries; Foldkit does not export it):
+
+```ts sketch
 const slowWarningTarget: Subscription.TypedEventTarget<{
   'foldkit:slow-warning': CustomEvent<SlowWarningReport>
 }> = new EventTarget()
@@ -124,7 +139,7 @@ const slowWarningTarget: Subscription.TypedEventTarget<{
   value that must be typed before its entries exist. It still erases keys.
   Reach for it when dynamic string indexing is part of the contract.
 
-```ts
+```ts sketch
 // before
 Subscription.aggregate<Model, Message>()(homeSubscriptions, roomSubscriptions)
 
@@ -277,7 +292,7 @@ initialization stays valid.
   one. When nothing is emitted, handlers are skipped and `outMessage` is
   omitted.
 
-```ts
+```ts sketch
 return Update.foldChildInit(Search.init(), {
   toParentModel: search => Model.make({ search }),
   toParentMessage: message => Message.GotSearchMessage({ message }),

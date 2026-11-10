@@ -47,6 +47,56 @@ This is a view integration fragment. Define `PostList` and bind `Posts` with
 union must include its loading and `OpenedPost` paths. Import `Html` and
 `HtmlBuilder` from `foldkit/html` for the view signature.
 
+<!-- docs-check standalone
+import { Option, Schema } from 'effect'
+import { Crud, Display } from 'foldkit-crud'
+import { Entity } from 'foldkit-entity'
+import { Capability, Slot, Slots, type SlotView } from 'foldkit-mixins'
+import { Query, Remote, type Page, type RemoteData } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+
+const PostSort = Schema.Literals(['oldest', 'title'])
+const Post = Entity.define(
+  'Post',
+  Schema.Struct({ id: Schema.String, title: Schema.String, published: Schema.Boolean }),
+).pipe(Entity.annotateMembers({ id: Display.of(Display.hidden()) }))
+const PostRow = Entity.select(Post, { id: true, title: true, published: true })
+
+const PostsQuery = Query.make('Posts', { Input: {}, Result: Query.connection(Post) })
+const Model = Schema.Struct({
+  remote: Remote.Model,
+  postSort: PostSort,
+  shown: Schema.NullOr(Schema.String),
+})
+type Model = typeof Model.Type
+const Message = defineMessageUnion({
+  ...Remote.messages,
+  OpenedPost: { id: Schema.String },
+  OpenedPage: { id: Schema.String },
+  RetriedPages: {},
+  RequestedMorePosts: {},
+  SortedPosts: { sort: PostSort },
+})
+type Message = typeof Message.Type
+const App = Surface.application({ Model, Message })
+const Data = Remote.make({ model: App.model.remote, entities: [Post], queries: [PostsQuery] })
+
+const PostList = Crud.list('Posts', { query: PostsQuery, selection: PostRow })
+const Posts = PostList.at({ data: Data, input: () => Option.some({}) })
+const PostDetail = Crud.detail('PostDetail', { selection: PostRow })
+const Shown = PostDetail.at({ data: Data, id: (model: Model) => Option.fromNullOr(model.shown) })
+
+type PageRow = { readonly id: string; readonly label: string }
+declare const SitePages: { read: (model: Model) => RemoteData<Page<PageRow>> }
+
+const StatusSlots = Slots.define({ status: Slot.make({ capability: Capability.Container }) })
+declare const slots: SlotView.SlotBuilders<typeof StatusSlots, Message>
+declare const model: Model
+declare const h: HtmlBuilder<Message>
+-->
+
 ```ts
 import { ListView } from 'foldkit-mixins-crud'
 
@@ -236,8 +286,13 @@ import { ConfirmView, EditorView, Toolbar } from 'foldkit-mixins-crud'
 const PostEditorView = EditorView.forMessages<Message>().define()
 const DeletePost = ConfirmView.forMessages<Message>().define()
 const PostTools = Toolbar.forMessages<Message>().define()
+PostTools({ search: h.input([h.Type('search'), h.AriaLabel('Search titles')]) }, h)
+```
 
-// The names are examples/entity's: its editor, remover, form and Messages.
+Drawing the editor and the delete takes the application's own placements. The
+names here are `examples/entity`'s: its editor, remover, form and Messages.
+
+```ts sketch
 PostEditorView(
   {
     id: 'post-editor',
@@ -259,7 +314,6 @@ DeletePost(
   },
   h,
 )
-PostTools({ search: h.input([h.Type('search'), h.AriaLabel('Search titles')]) }, h)
 ```
 
 Each editor state draws its own line, and the form stays while there is
@@ -300,7 +354,7 @@ import { Style } from 'foldkit-mixins'
 import { ConfirmSlots, EditorSlots, ListSlots, ListView } from 'foldkit-mixins-crud'
 import { Confirm, Editor, List } from 'foldkit-mixins-crud/recipes'
 
-const PostTable = ListView.forMessages<Message>()
+const StyledTable = ListView.forMessages<Message>()
   .define(PostList)
   .pipe(Style.attach(Style.forSlots(ListSlots)(List({}))))
 ```

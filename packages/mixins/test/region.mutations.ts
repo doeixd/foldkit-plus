@@ -10,8 +10,8 @@ export default [
     edits: [
       {
         file: '../../surface/src/index.ts',
-        find: ': !always && values.every((value, index) => Object.is(value, before.values[index]))',
-        replace: ': !always && Object.is(values[0], before.values[0])',
+        find: 'values.every((value, index) => Object.is(value, before.values[index]))',
+        replace: 'Object.is(values[0], before.values[0])',
       },
     ],
     tests,
@@ -21,8 +21,8 @@ export default [
     edits: [
       {
         file: '../../surface/src/index.ts',
-        find: ': !always && values.every((value, index) => Object.is(value, before.values[index]))',
-        replace: ': true',
+        find: 'before !== undefined &&',
+        replace: 'before !== undefined || true || ',
       },
     ],
     tests,

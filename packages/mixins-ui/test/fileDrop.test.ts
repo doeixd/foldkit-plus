@@ -52,8 +52,16 @@ const drawDefault = (resolved: ResolvedFileDrop<Message>, h: HtmlBuilder<Message
 
 const model = FileDrop.init({ id: 'test-drop' })
 
+/** The class a child attribute carries, if it carries one. */
+const classOfChild = (child: unknown): string | undefined => {
+  const inner = (
+    child as { readonly attribute?: { readonly _tag?: string; readonly value?: unknown } }
+  ).attribute
+  return inner?._tag === 'Class' && typeof inner.value === 'string' ? inner.value : undefined
+}
+
 describe('FileDrop adapter', () => {
-  it('preserves the base bundles by identity', () => {
+  it('preserves the base bundles by identity, a class joining the slot’s own', () => {
     let captured: Captured | undefined
     runDrop(
       model,
@@ -65,7 +73,11 @@ describe('FileDrop adapter', () => {
     )
     const { render, resolved } = captured!
     for (const child of render.root) expect(holds(resolved.root, child)).toBe(true)
-    for (const child of render.input) expect(holds(resolved.input, child)).toBe(true)
+    // The input's `sr-only` arrives as a child attribute; it joins the slot's
+    // class, since two class lists on one element would draw only one.
+    for (const child of render.input)
+      if (classOfChild(child) === undefined) expect(holds(resolved.input, child)).toBe(true)
+    expect(classValue(resolved.input)).toBe('sr-only')
   })
 
   it('styles the zone and its input', () => {
@@ -84,7 +96,8 @@ describe('FileDrop adapter', () => {
     )
     const { resolved } = captured!
     expect(classValue(resolved.root)).toBe('drop-zone')
-    expect(classValue(resolved.input)).toBe('drop-input')
+    // The component's own class stays beside the style's.
+    expect(classValue(resolved.input)).toBe('sr-only drop-input')
   })
 
   it('marks drag-over and disabled state from the model and inputs', () => {

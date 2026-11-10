@@ -49,8 +49,8 @@ export default [
     edits: [
       {
         file: remote,
-        find: 'return invalidateConnections(remote, unplaceable(remote, answer, before))',
-        replace: 'return remote',
+        find: '      unplaceable(remote, answer, before),\n',
+        replace: '      [],\n',
       },
     ],
     tests,

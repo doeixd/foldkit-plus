@@ -117,6 +117,8 @@ check runs `validate` and fails with every finding at its path. Store the first
 in the Entity, and ask the second of the operation that publishes:
 
 ```ts
+import { Entity } from 'foldkit-entity'
+
 const Page = Entity.define('Page', Schema.Struct({
   id: Schema.String,
   title: Schema.String,
@@ -166,15 +168,42 @@ page is drawn for, such as an audience, a locale or a feature flag. The Catalog
 declares the context as a Schema, and the application supplies its values when
 it draws:
 
+<!-- docs-check standalone
+import { Schema, Option } from 'effect'
+import { Block, Catalog, Composition, Content, NodeId, Region, Url } from 'foldkit-composition'
+import { Renderer } from 'foldkit-composition/foldkit'
+import { inertHtml } from 'foldkit/html'
+const Heading = Block.define('Heading', {
+  Props: Schema.Struct({ text: Schema.String, level: Schema.Literals([1, 2, 3]) }),
+  provides: [Content.Flow],
+})
+const Section = Block.define('Section', {
+  Props: Schema.Struct({ tone: Schema.Literals(['plain', 'accent']) }),
+  regions: { body: Region.many({ accepts: [Content.Flow] }) },
+  provides: [Content.Section],
+})
+const page = Schema.decodeUnknownSync(Composition.Document)({
+  format: 1,
+  roots: ['intro'],
+  nodes: {
+    intro: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['title'] } },
+    title: { block: 'Heading', props: { text: 'Hello', level: 1 }, regions: {} },
+  },
+})
+const h = inertHtml
+declare const id: NodeId
+declare const SiteRenderer: Renderer<typeof Heading | typeof Section, never>
+-->
+
 ```ts
 const Site = Catalog.make({
-  blocks,
+  blocks: [Heading, Section],
   roots: [Content.Section],
   context: Schema.Struct({ audience: Schema.Literals(['guest', 'member']) }),
 })
 
 Composition.Op.setWhen(id, [Composition.when.eq('audience', 'member')])
-Renderer.render(SiteRenderer, page, h, { context: { audience: 'guest' } }) // left out
+Renderer.render(SiteRenderer, page, h, { context: { audience: 'guest' } })
 ```
 
 - **A `when` is a list, and every condition must hold:** `when.eq(key, value)`,
@@ -205,13 +234,54 @@ Message. A Block names its events, a Catalog lists the actions its pages may
 reference, each a `foldkit-surface` Action, and a node stores only which action
 an event runs, with its input as literals:
 
+<!-- docs-check standalone
+import { Schema, Option } from 'effect'
+import { Block, Catalog, Composition, Content, NodeId, Region, Url } from 'foldkit-composition'
+import { Renderer } from 'foldkit-composition/foldkit'
+import { inertHtml } from 'foldkit/html'
+const Heading = Block.define('Heading', {
+  Props: Schema.Struct({ text: Schema.String, level: Schema.Literals([1, 2, 3]) }),
+  provides: [Content.Flow],
+})
+const Section = Block.define('Section', {
+  Props: Schema.Struct({ tone: Schema.Literals(['plain', 'accent']) }),
+  regions: { body: Region.many({ accepts: [Content.Flow] }) },
+  provides: [Content.Section],
+})
+const page = Schema.decodeUnknownSync(Composition.Document)({
+  format: 1,
+  roots: ['intro'],
+  nodes: {
+    intro: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['title'] } },
+    title: { block: 'Heading', props: { text: 'Hello', level: 1 }, regions: {} },
+  },
+})
+const h = inertHtml
+declare const id: NodeId
+import { defineMessageUnion } from 'foldkit/message'
+import { Action } from 'foldkit-surface'
+const Message = defineMessageUnion({ AddedToCart: { productId: Schema.String } })
+const AddToCart = Action.define({
+  name: 'addToCart',
+  description: 'Add a product to the cart',
+  input: Schema.Struct({ productId: Schema.String }),
+  toMessage: input => Message.AddedToCart(input),
+})
+type Message = typeof Message.Type
+-->
+
 ```ts
-const Button = Block.define('Button', { Props, provides: [Content.Flow], events: ['press'] })
-const Site = Catalog.make({ blocks, roots: [Content.Section], actions: [AddToCart] })
+const Button = Block.define('Button', {
+  Props: Schema.Struct({ label: Schema.String }),
+  provides: [Content.Flow],
+  events: ['press'],
+})
+const Site = Catalog.make({ blocks: [Section, Button], roots: [Content.Section], actions: [AddToCart] })
 
 Composition.Op.setAction(id, 'press', { action: 'addToCart', input: { productId: 'p1' } })
 
 const SiteRenderer = Renderer.forMessages<Message>().make(Site, {
+  Section: ({ regions, h }) => h.section([], [...regions.body]),
   Button: ({ props, on, h }) => {
     const pressed = on('press') // the Message addToCart makes, or none
     return h.button(Option.match(pressed, { onNone: () => [], onSome: sent => [h.OnClick(sent)] }), [
@@ -236,6 +306,62 @@ An agent edits a page through the same path a person does: it sends the
 Builder's own `Applied` Message, so its edit is checked, undoable, autosaved and
 revisioned like any other. `Composition.operationSchema(Site)` is the tool's
 input, generated from the Catalog:
+
+<!-- docs-check standalone
+import { Schema, Option } from 'effect'
+import { Block, Catalog, Composition, Content, NodeId, Region, Url } from 'foldkit-composition'
+import { Renderer } from 'foldkit-composition/foldkit'
+import { inertHtml } from 'foldkit/html'
+const Heading = Block.define('Heading', {
+  Props: Schema.Struct({ text: Schema.String, level: Schema.Literals([1, 2, 3]) }),
+  provides: [Content.Flow],
+})
+const Section = Block.define('Section', {
+  Props: Schema.Struct({ tone: Schema.Literals(['plain', 'accent']) }),
+  regions: { body: Region.many({ accepts: [Content.Flow] }) },
+  provides: [Content.Section],
+})
+const page = Schema.decodeUnknownSync(Composition.Document)({
+  format: 1,
+  roots: ['intro'],
+  nodes: {
+    intro: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['title'] } },
+    title: { block: 'Heading', props: { text: 'Hello', level: 1 }, regions: {} },
+  },
+})
+const h = inertHtml
+declare const id: NodeId
+import { Agent } from 'foldkit-agent'
+import { Bundle } from 'foldkit-bundle'
+import { Message as BuilderMessage, Builder } from 'foldkit-builder'
+import { Entity } from 'foldkit-entity'
+import { Form } from 'foldkit-form'
+import { defineMessageUnion } from 'foldkit/message'
+const Site = Catalog.make({ blocks: [Heading, Section], roots: [Content.Section] })
+const SiteRenderer = Renderer.make(Site, {
+  Heading: ({ field, h }) => h.h2([], [field('text')]),
+  Section: ({ regions, h }) => h.section([], [...regions.body]),
+})
+const Page = Entity.define('Page', Schema.Struct({ id: Schema.String, document: Composition.Document }))
+const PageForm = Form.make(
+  'PageForm',
+  Entity.input(
+    Page,
+    Schema.Struct({ document: Composition.Document.check(Composition.valid(Site)) }),
+  ),
+  {
+    inputs: {
+      document: Builder.make('PageBuilder', {
+        catalog: Site,
+        renderer: SiteRenderer,
+        starters: { Section: { tone: 'plain' } },
+      }).input,
+    },
+  },
+)
+const Editor = Bundle.declare(PageForm.bundle, 'editor')
+const Message = defineMessageUnion({ ...Editor.cases })
+-->
 
 ```ts
 Agent.expose(Message, {
@@ -294,8 +420,35 @@ A Document changes by Operations, the way a Model changes by Messages:
 Document + Operation → Document, or a refusal with no partial result
 ```
 
+<!-- docs-check standalone
+import { Schema, Option } from 'effect'
+import { Block, Catalog, Composition, Content, NodeId, Region, Url } from 'foldkit-composition'
+import { Renderer } from 'foldkit-composition/foldkit'
+import { inertHtml } from 'foldkit/html'
+const Heading = Block.define('Heading', {
+  Props: Schema.Struct({ text: Schema.String, level: Schema.Literals([1, 2, 3]) }),
+  provides: [Content.Flow],
+})
+const Section = Block.define('Section', {
+  Props: Schema.Struct({ tone: Schema.Literals(['plain', 'accent']) }),
+  regions: { body: Region.many({ accepts: [Content.Flow] }) },
+  provides: [Content.Section],
+})
+const page = Schema.decodeUnknownSync(Composition.Document)({
+  format: 1,
+  roots: ['intro'],
+  nodes: {
+    intro: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['title'] } },
+    title: { block: 'Heading', props: { text: 'Hello', level: 1 }, regions: {} },
+  },
+})
+const h = inertHtml
+declare const id: NodeId
+const Site = Catalog.make({ blocks: [Heading, Section], roots: [Content.Section] })
+-->
+
 ```ts
-const { Op, root, region } = Composition
+const { Op, region } = Composition
 
 const result = Composition.apply(
   Site,
@@ -353,6 +506,32 @@ const result = Composition.apply(
 A pattern is an arrangement of Blocks an author inserts as one: a section that
 opens with a heading, a hero with its button. The Catalog holds it as a tree,
 in the form a Document stores, under ids of its own:
+
+<!-- docs-check standalone
+import { Schema, Option } from 'effect'
+import { Block, Catalog, Composition, Content, NodeId, Region, Url } from 'foldkit-composition'
+import { Renderer } from 'foldkit-composition/foldkit'
+import { inertHtml } from 'foldkit/html'
+const Heading = Block.define('Heading', {
+  Props: Schema.Struct({ text: Schema.String, level: Schema.Literals([1, 2, 3]) }),
+  provides: [Content.Flow],
+})
+const Section = Block.define('Section', {
+  Props: Schema.Struct({ tone: Schema.Literals(['plain', 'accent']) }),
+  regions: { body: Region.many({ accepts: [Content.Flow] }) },
+  provides: [Content.Section],
+})
+const page = Schema.decodeUnknownSync(Composition.Document)({
+  format: 1,
+  roots: ['intro'],
+  nodes: {
+    intro: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['title'] } },
+    title: { block: 'Heading', props: { text: 'Hello', level: 1 }, regions: {} },
+  },
+})
+const h = inertHtml
+declare const id: NodeId
+-->
 
 ```ts
 const Site = Catalog.make({
@@ -414,6 +593,33 @@ node the edit did not change.
 
 A Renderer is one ordinary Foldkit view per Block, from the Block's decoded
 props and its Regions' drawn children to `Html`:
+
+<!-- docs-check standalone
+import { Schema, Option } from 'effect'
+import { Block, Catalog, Composition, Content, NodeId, Region, Url } from 'foldkit-composition'
+import { Renderer } from 'foldkit-composition/foldkit'
+import { inertHtml } from 'foldkit/html'
+const Heading = Block.define('Heading', {
+  Props: Schema.Struct({ text: Schema.String, level: Schema.Literals([1, 2, 3]) }),
+  provides: [Content.Flow],
+})
+const Section = Block.define('Section', {
+  Props: Schema.Struct({ tone: Schema.Literals(['plain', 'accent']) }),
+  regions: { body: Region.many({ accepts: [Content.Flow] }) },
+  provides: [Content.Section],
+})
+const page = Schema.decodeUnknownSync(Composition.Document)({
+  format: 1,
+  roots: ['intro'],
+  nodes: {
+    intro: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['title'] } },
+    title: { block: 'Heading', props: { text: 'Hello', level: 1 }, regions: {} },
+  },
+})
+const h = inertHtml
+declare const id: NodeId
+const Site = Catalog.make({ blocks: [Heading, Section], roots: [Content.Section] })
+-->
 
 ```ts
 import { Renderer } from 'foldkit-composition/foldkit'
@@ -510,6 +716,11 @@ and drawn as a placeholder.
 
 ### Rich text as a Block: `foldkit-composition/richtext`
 
+<!-- docs-check
+import * as RichText from 'foldkit-richtext'
+const ArticleKit = RichText.kit({ nodes: [RichText.block('Paragraph')], marks: [] })
+-->
+
 ```ts
 import { RichTextBlock } from 'foldkit-composition/richtext'
 
@@ -530,6 +741,36 @@ A node's look is **choices within a design system**, not CSS. A look is a
 choices, and token axes, whose choices are a theme's token names. The Document
 stores only the names:
 
+<!-- docs-check standalone
+import { Schema, Option } from 'effect'
+import { Block, Catalog, Composition, Content, NodeId, Region, Url } from 'foldkit-composition'
+import { Renderer } from 'foldkit-composition/foldkit'
+import { inertHtml } from 'foldkit/html'
+const Heading = Block.define('Heading', {
+  Props: Schema.Struct({ text: Schema.String, level: Schema.Literals([1, 2, 3]) }),
+  provides: [Content.Flow],
+})
+const Section = Block.define('Section', {
+  Props: Schema.Struct({ tone: Schema.Literals(['plain', 'accent']) }),
+  regions: { body: Region.many({ accepts: [Content.Flow] }) },
+  provides: [Content.Section],
+})
+const page = Schema.decodeUnknownSync(Composition.Document)({
+  format: 1,
+  roots: ['intro'],
+  nodes: {
+    intro: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['title'] } },
+    title: { block: 'Heading', props: { text: 'Hello', level: 1 }, regions: {} },
+  },
+})
+const h = inertHtml
+declare const id: NodeId
+import { Capability, Slot, Slots } from 'foldkit-mixins'
+import { Theme } from 'foldkit-mixins/theme'
+const HeroSlots = Slots.define({ root: Slot.make({ capability: Capability.Container }) })
+const t = Theme.ref(Theme.tokens)
+-->
+
 ```ts
 import { Style } from 'foldkit-mixins'
 import { Appearance } from 'foldkit-composition/appearance'
@@ -540,12 +781,15 @@ const HeroLook = Appearance.make(HeroSlots, {
     variants: { tone: { plain: {}, accent: { root: Style.class('accent') } } },
     defaults: { tone: 'plain' },
   }),
-  tokens: { gap: Appearance.token(t.space, { slot: 'root', property: 'gap' }) }, // t = Theme.ref(theme)
+  tokens: { gap: Appearance.token(t.space, { slot: 'root', property: 'gap' }) }, // t = Theme.ref(Theme.tokens)
 })
 
-const Hero = Block.define('Hero', { Props, provides: [Content.Section] }).pipe(
-  Appearance.attach(HeroLook),
-)
+const Hero = Block.define('Hero', {
+  Props: Schema.Struct({ title: Schema.String }),
+  provides: [Content.Section],
+}).pipe(Appearance.attach(HeroLook))
+
+const Site = Catalog.make({ blocks: [Hero], roots: [Content.Section] })
 
 const SiteRenderer = Renderer.make(Site, {
   Hero: ({ props, appearance, h }) => {
@@ -591,6 +835,15 @@ const SiteRenderer = Renderer.make(Site, {
 - **A layout Block is a Mixins layout.** Its look's base is the layout, and
   the layout's parameters are its axes:
 
+  <!-- docs-check
+  import { Layout } from 'foldkit-mixins/layout'
+  const ColumnsSlots = Slots.define({
+    root: Slot.make({ capability: Capability.Container }),
+    left: Slot.make({ capability: Capability.Container }),
+    right: Slot.make({ capability: Capability.Container }),
+  })
+  -->
+
   ```ts
   const grow = (left: string, right: string) => ({
     left: Style.inline({ flexGrow: left }),
@@ -622,15 +875,69 @@ the page's parent places once per node, keyed by its id. Each instance is an
 ordinary child Model in the application's Model; nothing keeps per-node state
 anywhere else:
 
+<!-- docs-check standalone
+import { Schema, Option } from 'effect'
+import { Block, Catalog, Composition, Content, NodeId, Region, Url } from 'foldkit-composition'
+import { Renderer } from 'foldkit-composition/foldkit'
+import { inertHtml } from 'foldkit/html'
+const Heading = Block.define('Heading', {
+  Props: Schema.Struct({ text: Schema.String, level: Schema.Literals([1, 2, 3]) }),
+  provides: [Content.Flow],
+})
+const Section = Block.define('Section', {
+  Props: Schema.Struct({ tone: Schema.Literals(['plain', 'accent']) }),
+  regions: { body: Region.many({ accepts: [Content.Flow] }) },
+  provides: [Content.Section],
+})
+const page = Schema.decodeUnknownSync(Composition.Document)({
+  format: 1,
+  roots: ['intro'],
+  nodes: {
+    intro: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['title'] } },
+    title: { block: 'Heading', props: { text: 'Hello', level: 1 }, regions: {} },
+  },
+})
+const h = inertHtml
+declare const id: NodeId
+import { Bundle } from 'foldkit-bundle'
+import { Stateful } from 'foldkit-composition/foldkit'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Submodel from 'foldkit/submodel'
+import type { Document } from 'foldkit-composition'
+import type { HtmlBuilder } from 'foldkit/html'
+const CarouselModel = Schema.Struct({ interval: Schema.Number, at: Schema.Number })
+const CarouselMessage = defineMessageUnion({ Advanced: {} })
+const CarouselBundle = Bundle.make('Carousel', {
+  Model: CarouselModel,
+  Message: CarouselMessage,
+  init: () => ({ model: { interval: 5, at: 0 } }),
+  update: model => ({ model: { ...model, at: model.at + 1 } }),
+  view: Submodel.defineView<typeof CarouselModel.Type, typeof CarouselMessage.Type>((model, h) =>
+    h.p([], [String(model.at)]),
+  ),
+})
+declare const before: Document | undefined
+declare const after: Document
+-->
+
 ```ts
 const Carousel = Block.define('Carousel', {
   Props: Schema.Struct({ interval: Schema.Number }),
   provides: [Content.Flow],
   stateful: true,
 })
+const Site = Catalog.make({ blocks: [Section, Carousel], roots: [Content.Section] })
 
-const Carousels = Bundle.declareEach(CarouselBundle, 'carousels') // in the parent's Model
+const Carousels = Bundle.declareEach(CarouselBundle, 'carousels')
+const PageModel = Schema.Struct({ ...Carousels.fields }) // each node's item lives in the parent's Model
+const PageMessage = defineMessageUnion({ ...Carousels.cases })
+const Page = Bundle.parent({ Model: PageModel, Message: PageMessage })
 const Placed = Page.each(Carousels)
+
+const SiteRenderer = Renderer.forMessages<typeof PageMessage.Type>().make(Site, {
+  Section: ({ regions, h }) => h.section([], [...regions.body]),
+  Carousel: ({ data }) => Stateful.html(data),
+})
 
 // When the page shown changes, keep the collection in step with it:
 Stateful.sync(Placed, Site, Carousel, { before, after }, (model, props) => ({
@@ -639,10 +946,10 @@ Stateful.sync(Placed, Site, Carousel, { before, after }, (model, props) => ({
 }))
 
 // Drawing, each node is drawn by its own item:
-Renderer.render(SiteRenderer, page, h, {
-  data: Stateful.views(Placed, Site, Carousel, page, model, h),
-})
-// and in the Renderer: Carousel: ({ data }) => Stateful.html(data)
+const draw = (model: typeof PageModel.Type, h: HtmlBuilder<typeof PageMessage.Type>) =>
+  Renderer.render(SiteRenderer, after, h, {
+    data: Stateful.views(Placed, Site, Carousel, after, model, h),
+  })
 ```
 
 - **`Composition.statefulNodes(catalog, document, block?)`** lists the stateful
@@ -661,7 +968,35 @@ its props become the query's input. An author chooses a count or a category;
 an author never writes a query, and the Document never holds one. From the CMS
 example's `site.ts`:
 
+<!-- docs-check standalone
+import { Schema, Option } from 'effect'
+import { Block, Catalog, Composition, Content, NodeId, Region, Url } from 'foldkit-composition'
+import { Renderer } from 'foldkit-composition/foldkit'
+import { inertHtml } from 'foldkit/html'
+const Heading = Block.define('Heading', {
+  Props: Schema.Struct({ text: Schema.String, level: Schema.Literals([1, 2, 3]) }),
+  provides: [Content.Flow],
+})
+const Section = Block.define('Section', {
+  Props: Schema.Struct({ tone: Schema.Literals(['plain', 'accent']) }),
+  regions: { body: Region.many({ accepts: [Content.Flow] }) },
+  provides: [Content.Section],
+})
+const page = Schema.decodeUnknownSync(Composition.Document)({
+  format: 1,
+  roots: ['intro'],
+  nodes: {
+    intro: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['title'] } },
+    title: { block: 'Heading', props: { text: 'Hello', level: 1 }, regions: {} },
+  },
+})
+const h = inertHtml
+declare const id: NodeId
+-->
+
 ```ts
+import { Entity } from 'foldkit-entity'
+import { Cms } from 'foldkit-cms'
 import { QueryBlock } from 'foldkit-composition/remote'
 
 const LatestPages = QueryBlock.define('LatestPages', {
@@ -673,10 +1008,14 @@ const LatestPages = QueryBlock.define('LatestPages', {
   first: props => props.count,
 })
 
+const Site = Catalog.make({ blocks: [LatestPages], roots: [Content.Flow] })
+
 const SiteRenderer = Renderer.make(Site, {
   LatestPages: ({ data, h }) => {
     const rows = LatestPages.rows(data) // RemoteData<Page<{ label: string }>>
-    return rows._tag === 'Ready' ? h.ul([], rows.value.items.map(row => h.li([], [row.label]))) : h.p([], ['Loading'])
+    return rows._tag === 'Ready'
+      ? h.ul([], rows.value.items.map(row => h.li([], [row.label])))
+      : h.p([], ['Loading'])
   },
 })
 ```
@@ -708,6 +1047,50 @@ A Surface Block places a `foldkit-surface` Surface, such as a cart summary,
 where an author puts it, with params its props give. The Surface still owns
 what it reads and which Messages it may send:
 
+<!-- docs-check standalone
+import { Schema, Option } from 'effect'
+import { Block, Catalog, Composition, Content, NodeId, Region, Url } from 'foldkit-composition'
+import { Renderer } from 'foldkit-composition/foldkit'
+import { inertHtml } from 'foldkit/html'
+const Heading = Block.define('Heading', {
+  Props: Schema.Struct({ text: Schema.String, level: Schema.Literals([1, 2, 3]) }),
+  provides: [Content.Flow],
+})
+const Section = Block.define('Section', {
+  Props: Schema.Struct({ tone: Schema.Literals(['plain', 'accent']) }),
+  regions: { body: Region.many({ accepts: [Content.Flow] }) },
+  provides: [Content.Section],
+})
+const page = Schema.decodeUnknownSync(Composition.Document)({
+  format: 1,
+  roots: ['intro'],
+  nodes: {
+    intro: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['title'] } },
+    title: { block: 'Heading', props: { text: 'Hello', level: 1 }, regions: {} },
+  },
+})
+const h = inertHtml
+declare const id: NodeId
+import { defineMessageUnion } from 'foldkit/message'
+import { Projection, Surface } from 'foldkit-surface'
+import { Remote } from 'foldkit-remote'
+const Model = Schema.Struct({
+  cartCount: Schema.Number,
+  page: Schema.Struct({ document: Composition.Document }),
+  remote: Remote.Model,
+})
+const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
+const CartSummary = App.surface('CartSummary', {
+  params: { caption: Schema.String },
+  model: ({ model }) => ({ count: model.cartCount }),
+})
+const Data = Remote.make({ model: App.model.remote, entities: [] })
+const Page = App.surface('Page', {
+  model: ({ model }) => Projection.struct({ page: model.page }),
+})
+const CmsPage = Surface.at(Page, undefined)
+-->
+
 ```ts
 import { SurfaceBlock } from 'foldkit-composition/surface'
 
@@ -736,6 +1119,10 @@ by its node id, for `Data.wiring`, `Data.subscriptions`, `Data.satisfy`, or an
 SSR plan's `surfaces` — wherever per-node requirements, retention, and
 coverage matter rather than one combined read:
 
+<!-- docs-check
+const Site = Catalog.make({ blocks: [Section, Cart], roots: [Content.Section] })
+-->
+
 ```ts
 const Blocks = SurfaceBlock.families(Site, {
   from: CmsPage,
@@ -752,7 +1139,7 @@ to no instance. Rendering still reads through `reads` and `data`.
 Most of a composed page is content no Message changes, which is what
 `foldkit-ssr`'s static regions are for:
 
-```ts
+```ts sketch
 view: (model, h) => ({
   title: 'Home',
   body: h.main([], [SSR.static('page', ih => Renderer.render(SiteRenderer, model.page, ih))]),
@@ -769,6 +1156,38 @@ A Block that a deployment no longer has does not make its pages unreadable. Its
 nodes load, round-trip, render as a placeholder once a renderer exists, and can
 be reordered where they are or removed. `validate` reports them, so the strict
 check refuses to publish until they are dealt with. Migrations deal with them:
+
+<!-- docs-check standalone
+import { Schema, Option } from 'effect'
+import { Block, Catalog, Composition, Content, NodeId, Region, Url } from 'foldkit-composition'
+import { Renderer } from 'foldkit-composition/foldkit'
+import { inertHtml } from 'foldkit/html'
+const Heading = Block.define('Heading', {
+  Props: Schema.Struct({ text: Schema.String, level: Schema.Literals([1, 2, 3]) }),
+  provides: [Content.Flow],
+})
+const Section = Block.define('Section', {
+  Props: Schema.Struct({ tone: Schema.Literals(['plain', 'accent']) }),
+  regions: { body: Region.many({ accepts: [Content.Flow] }) },
+  provides: [Content.Section],
+})
+const page = Schema.decodeUnknownSync(Composition.Document)({
+  format: 1,
+  roots: ['intro'],
+  nodes: {
+    intro: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['title'] } },
+    title: { block: 'Heading', props: { text: 'Hello', level: 1 }, regions: {} },
+  },
+})
+const h = inertHtml
+declare const id: NodeId
+import * as RichText from 'foldkit-richtext'
+const Embed = Block.define('Embed', {
+  Props: Schema.Struct({ url: Schema.String, height: Schema.Number }),
+  provides: [Content.Flow, Content.Media],
+})
+const stored = page
+-->
 
 ```ts
 const { document, applied, unused } = Composition.migrate(stored, [

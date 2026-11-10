@@ -72,6 +72,21 @@ export interface ManyToManyRelation<Target extends AnyEntityBinding> {
 
 export type RelationBinding = OneRelation<any, any> | ManyRelation<any> | ManyToManyRelation<any>
 
+/**
+ * The keys of `Relations` that hold a collection: what a computed count may
+ * name. Relations typed only as a record of any key say nothing, so any name
+ * passes and `entity()` checks it when the binding is made.
+ */
+type CollectionKeys<Relations extends Record<string, RelationBinding>> =
+  string extends keyof Relations
+    ? string
+    : {
+        [K in keyof Relations]: Relations[K] extends ManyRelation<any> | ManyToManyRelation<any>
+          ? K
+          : never
+      }[keyof Relations] &
+        string
+
 /** The Entity field a relation contributes: a ref, or an array of refs. */
 type RelationField<Relation> =
   Relation extends OneRelation<infer Target, infer Nullable>
@@ -94,9 +109,9 @@ type ComputedFields<Computed extends Record<string, ComputedConfig>> = {
 }
 
 /** An aggregate over a collection relation, attached to each owning row. */
-export interface ComputedConfig {
+export interface ComputedConfig<Relation extends string = string> {
   /** The collection relation whose target rows are counted. */
-  readonly relation: string
+  readonly relation: Relation
   /**
    * The rows counted, in place of a relation of the owner: what `bind` reads
    * a `Derived.count` as, the pointing table by its foreign key. `relation`
@@ -162,6 +177,29 @@ export interface EntityBinding<
    * cascades into nothing.
    */
   readonly cascades?: ReadonlyArray<CascadeEdge> | undefined
+  /**
+   * The relations of Entities bound beside this one that refuse a delete of a
+   * row they point at (`Relation.one(…, { onDelete: 'restrict' })`). `bind`
+   * sets it; a binding made with `entity` restricts nothing.
+   */
+  readonly restricts?: ReadonlyArray<PointerEdge> | undefined
+  /**
+   * The relations of Entities bound beside this one whose link a delete of the
+   * row they point at clears (`Relation.one(…, { optional: true, onDelete:
+   * 'setNull' })`). `bind` sets it; a binding made with `entity` clears nothing.
+   */
+  readonly clears?: ReadonlyArray<PointerEdge> | undefined
+}
+
+/**
+ * One relation pointing at a row that a delete of it restricts or clears: its
+ * Entity and key, for what a refusal names, and where its link is stored.
+ */
+export interface PointerEdge {
+  readonly entity: string
+  readonly relation: string
+  readonly owner: AnyEntityBinding
+  readonly column: AnyColumn
 }
 
 /** One relation a delete cascades through: the pointing binding, and the column its link is on. */
@@ -257,7 +295,7 @@ export const entity = <
   const Name extends string,
   Table extends DrizzleTable,
   const Relations extends Record<string, RelationBinding> = {},
-  const Computed extends Record<string, ComputedConfig> = {},
+  const Computed extends Record<string, ComputedConfig<CollectionKeys<Relations>>> = {},
   F extends Schema.Struct.Fields = SelectFields<Table>,
 >(
   name: Name,

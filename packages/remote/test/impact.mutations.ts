@@ -12,7 +12,7 @@ export default [
     edits: [
       {
         file: '../src/bodies.ts',
-        find: 'if (invalid) {',
+        find: 'if (Option.isSome(invalid)) {',
         replace: 'if (false) {',
       },
     ],
@@ -174,7 +174,7 @@ export default [
     edits: [
       {
         file: '../src/model.ts',
-        find: ': invalidateConnections(next, [applied.invalidated])',
+        find: ": invalidateConnections(next, [applied.invalidated], 'its live stream asked for it again')",
         replace:
           ": updateRemote(next, { _tag: 'ConnectionInvalidated', connection: applied.invalidated })",
       },

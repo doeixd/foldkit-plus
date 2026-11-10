@@ -139,7 +139,7 @@ const RenameForm = Page.at(Slot, {
   same table replaces a shipped renderer.
 - **A control with a Model of its own** (a color picker with a popover, a page
   builder, a rich-text editor): `Input.bundle('ColorPicker', { bundle, value, fill, settled?, busy? })`
-  (`busy`: work the value waits on, such as an upload; a submit waits for it, as for a check, in a row too; `busy` needs `settled`)
+  (`busy`: work the value waits on, such as an upload; a submit waits for it, as for a check, in a row too; `busy` without `settled` is a type error)
   over an ordinary Bundle. The key's draft is the Bundle's Model
   (`model.fields.color.value`, typed); `form.control('color').send(message)`
   wraps one of its Messages as the form's `Control`; its Commands,
@@ -229,7 +229,7 @@ not submit. `FormView.define(Rename)` alone is a complete unstyled form. `words.
 blank choice of a picker; a chosen value the choices lack is shown as `? value`. `FieldSlots`: `root`,
 `label`, `description`, `error`, `checking`, and one per control kind (`text`, `multiline`,
 `number`, `toggle`, `select` with its `option`s, `choices`, `choiceLabel`, `choice`), plus `control`, `search`, `more` (the
-"Show more" button under a picker the view's `more` input names), and
+"Show more" button under a picker the view's `more` input names, typed by the form's relation keys), and
 `group`/`affix` for a renderer's control with text beside it. `FormSlots`: `root`, `errors`,
 `failure`, `summary` (with `summaryTitle`, `issues`, `issue`, `issueLink`), `submit`, and for nested
 rows `group`, `legend`, `row`, `add`, `remove`. After a submit (`form.attempted`), while any
@@ -345,6 +345,11 @@ const MeetingView = FormView.define(Meeting, { renderers: renderers() }) // date
   sends, so a submit waits for it. The page's session cookie answers the
   route's `UploadPolicy`: never a deployment secret in `headers`. As a Bundle
   control it takes no `check` and cannot sit in a nested row.
+- `foldkit-form-recipes/file`'s `file({ id, url?, accept?, maxBytes?, headers?, words?,
+  styles? })` is the same control for any file, holding the `FileAsset` the file route
+  (`/_media/files`) answers; `accept` filters the picker only, `maxBytes` (20 MB) refuses
+  a larger file before sending. The saving mutation stores `keepOrClaim(held, submitted,
+  owner)` (`foldkit-media/server`), never the submitted facts.
 - Every recipe through a real form, as a trace and a page each:
   https://github.com/doeixd/foldkit-plus/blob/main/examples/fields/README.md
 

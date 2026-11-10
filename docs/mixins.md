@@ -138,7 +138,16 @@ clothing.
 
 The component author publishes slots:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+const Message = defineMessageUnion({ ChangedValue: { value: Schema.String } })
+type Message = typeof Message.Type
+type FieldInput = { readonly value: string; readonly invalid: boolean }
+-->
 ```ts
+import { Attr, Behavior, Capability, Event, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
+
 const FieldSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
   input: Slot.make({
@@ -284,7 +293,15 @@ works around a missing upstream seam, and the third is a choice.
 
 `A11y.pattern` describes structural accessibility expectations in the same vocabulary as Slots:
 
+<!-- docs-check
+const DialogSlots = Slots.define({
+  trigger: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+  content: Slot.make({ capability: Capability.Container }),
+})
+-->
 ```ts
+import { A11y } from 'foldkit-mixins'
+
 const DialogPattern = A11y.pattern({
   trigger: { capability: Capability.Interactive, events: [Event.Click] },
   content: { capability: Capability.Container },

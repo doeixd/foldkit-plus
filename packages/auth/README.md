@@ -113,6 +113,27 @@ project's package manager.
 
 ## Sixty seconds
 
+<!-- docs-check standalone
+import { Auth, AuthContract, Password, Sessions } from '@yielded/auth'
+import { Context, Layer, Option, Schema } from 'effect'
+import { RemoteServer } from 'foldkit-remote-server'
+const AppAuth = Auth.make(
+  AuthContract.make('readme/Auth', {
+    claims: Schema.Struct({}),
+    actions: sessions => ({ signIn: AuthContract.passwordSignIn(sessions) }),
+  }),
+  {
+    sessions: Sessions.stateful({ idleTimeout: '10 minutes', maxAge: '1 hour' }),
+    strategies: { password: Password.make() },
+    defaultStrategy: 'password',
+  },
+)
+declare const AppAuthLive: Layer.Layer<Context.Service.Identifier<typeof AppAuth>>
+const server = RemoteServer.make<Option.Option<{ readonly id: string }>>({ entities: [] })
+declare const Policy: { readonly key: (user: { readonly id: string }) => string }
+const principal = (session: { readonly subjectId: string }) =>
+  Effect.succeed({ id: session.subjectId })
+-->
 ```ts
 import { Effect } from 'effect'
 import { AuthServer } from 'foldkit-auth/server'
@@ -223,7 +244,7 @@ takes the `Auth` service from its `layer`, kept while the socket is open, so
 `revalidate` can ask the session store again and close a socket whose
 session ended (4401):
 
-```ts
+```ts sketch
 import { DurableObject } from 'cloudflare:workers'
 import { defineDocumentHost } from 'foldkit-sync/do'
 
@@ -248,7 +269,12 @@ A form `foldkit-ssr` handles without scripts is a browser request too.
 body is read; its `resources` give the post's Commands who posted, from a
 resolver built once with `requests: 'browser'`:
 
+<!-- docs-check
+declare const config: Parameters<typeof SSR.entry>[0]
+declare const plan: Parameters<typeof SSR.entry>[1]
+-->
 ```ts
+import { Context, Layer, Option } from 'effect'
 import { SSR } from 'foldkit-ssr'
 
 class Principal extends Context.Service<Principal, Option.Option<{ readonly id: string }>>()(
@@ -289,10 +315,10 @@ other than `navigate`, a script's `fetch`):
 ```ts
 import { pageReader } from 'foldkit-remote-server/fetch'
 
-const resolving = { auth: AppAuth, http, principal }
+const pageResolving = { auth: AppAuth, http, principal }
 const reader = pageReader({
   server,
-  resolvePrincipal: AuthServer.resolver({ ...resolving, requests: 'navigation' }),
+  resolvePrincipal: AuthServer.resolver({ ...pageResolving, requests: 'navigation' }),
   layer: () => AppAuthLive,
 })
 ```
@@ -387,7 +413,12 @@ Beyond those, a few settings a server on one machine never needs:
   password is refused as `PasswordRejected`. Give the clock some room:
 
   ```ts
-  Layer.provideMerge(Operations.AuthenticationClock.layer({ futureToleranceMillis: 1000 }))
+  import { Operations } from '@yielded/auth'
+  import { Layer } from 'effect'
+
+  const withClock = Layer.provideMerge(
+    Operations.AuthenticationClock.layer({ futureToleranceMillis: 1000 }),
+  )
   ```
 - **Expect the sign-in limit to be per isolate.** Yielded counts password
   attempts, successful ones included, per email and per account: by default
@@ -410,7 +441,7 @@ sign-in but none for registration, so `register` is declared with the schemas
 of the strategy's own `register` operation. An action calls the strategy method
 of its own name, so the name is `register`:
 
-```ts
+```ts standalone
 import { AuthContract, Password } from '@yielded/auth'
 import { Email } from '@yielded/auth/Schema'
 import { Schema } from 'effect'

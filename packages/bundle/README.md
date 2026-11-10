@@ -96,6 +96,19 @@ declarations do not mount anything. For a runnable assembly, see
 takes them, and then, through `pipe`, its own Messages and the bundles it
 places.
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Bundle } from 'foldkit-bundle'
+const Greeted = Schema.TaggedStruct('Greeted', { name: Schema.String })
+const HelloForm = Bundle.make('HelloForm', {
+  Model: Schema.Struct({ name: Schema.String }),
+  Message: defineMessageUnion({ Submitted: {} }),
+  init: () => ({ model: { name: '' } }),
+  update: model => ({ model, outMessage: Greeted.make({ name: model.name }) }),
+})
+-->
+
 ```ts
 const App = Bundle.compose({ greeting: Schema.String }).pipe(
   Bundle.withMessages({ ClickedReset: {} }),
@@ -133,6 +146,14 @@ A wiring is usually made from the parent's own Model, through a Surface
 application and a Remote domain built from `App.Model`, so it joins in a
 second `pipe` once those exist:
 
+<!-- docs-check
+import type { Wiring } from 'foldkit-bundle'
+declare const Data: {
+  wiring(surfaces: { board: unknown }): Wiring<typeof App.Model.Type, typeof App.Message.Type>
+}
+declare const BoardSurface: unknown
+-->
+
 ```ts
 const Wired = App.pipe(Bundle.withWiring(Data.wiring({ board: BoardSurface })))
 ```
@@ -161,6 +182,20 @@ field that is not a child or one given its config already.
 `compose` is sugar over the primitives below, and produces the same values.
 The counter above, by hand:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Bundle } from 'foldkit-bundle'
+const CountModel = Schema.Struct({ count: Schema.Number })
+const CountMessage = defineMessageUnion({ Incremented: {} })
+const Count = Bundle.make('Count', {
+  Model: CountModel,
+  Message: CountMessage,
+  init: () => ({ model: { count: 0 } }),
+  update: model => ({ model: { count: model.count + 1 } }),
+})
+-->
+
 ```ts
 const Clicks = Bundle.declare(Count, 'clicks')
 const Model = Schema.Struct({ greeting: Schema.String, ...Clicks.fields })
@@ -180,6 +215,11 @@ The rest of this README uses them, because each step there is one idea.
 Submodel would have, collected into one value. `args` is a Schema, so `init`,
 `update`, and `subscriptions` are typed without annotations. `matchMediaChanges`
 stands for your own `Stream<boolean>` over `matchMedia`:
+
+<!-- docs-check standalone
+import { Stream } from 'effect'
+declare const matchMediaChanges: (query: string) => Stream.Stream<boolean>
+-->
 
 ```ts
 import { Schema, Stream } from 'effect'
@@ -231,6 +271,13 @@ const placements = Page.assemble(
 parent's own pieces. `initial` gives exactly the fields no placement owns,
 `update` is the parent's own update for `ClickedHelp` routed through the
 assembly, and everything else (`Model`, `view`, ...) passes through:
+
+<!-- docs-check
+import type { Html, HtmlBuilder } from 'foldkit/html'
+const ownUpdate = (model: Model, message: Message) =>
+  message._tag === 'ClickedHelp' ? { model: { ...model, helpOpen: true } } : { model }
+declare const view: (model: Model, h: HtmlBuilder<Message>) => Html
+-->
 
 ```ts
 const config = placements.runtime({
@@ -316,12 +363,31 @@ Each placement exposes its parts in parent terms:
 Keys are prefixed with the placement, so two placements of one bundle never
 collide in `Subscription.aggregate`.
 
+**A placed view is drawn again only when its child's Model changes.** A view
+drawn without inputs is given its Model alone, so while the parent holds the
+same child object the last drawing is handed back, and Foldkit neither runs
+the view nor diffs its tree: a Message for one placement leaves every other
+placement's drawing as it was. The child's Model changes identity exactly when
+its `update` changed it (a no-op returns the Model it was given). A view
+drawn with `viewInputs`, which a parent usually builds per render, is drawn
+every time, and so is every view while a server renders. A view that reads
+something outside its Model (a clock, a module's mutable state) opts out with
+`memo: false` in the placement config. A collection's items are kept the same
+way, each by its own Model.
+
 ## Args, OutMessages, and helpers
 
 `update` receives the args as its third parameter, so behaviour can depend on
 configuration without storing it in the Model. This counter emits an OutMessage
 when it reaches its limit. `CounterModel`, `CounterMessage`, and the
 `LimitReached` Schema are ordinary Schemas:
+
+<!-- docs-check
+const CounterModel = Schema.Struct({ count: Schema.Number })
+type CounterModel = typeof CounterModel.Type
+const CounterMessage = defineMessageUnion({ Clicked: {} })
+const LimitReached = Schema.TaggedStruct('LimitReached', { count: Schema.Number })
+-->
 
 ```ts
 const Counter = Bundle.make('Counter', {
@@ -384,7 +450,7 @@ whose initial state depends on what only the parent knows at startup — the
 route, the authenticated user, the workspace — derives it instead of taking a
 fixed value:
 
-```ts
+```ts sketch
 const people = Page.at(PeopleDeclared, {
   args: parent => ({
     searchText: searchFromRoute(parent.route),
@@ -443,6 +509,8 @@ match over it needs no arm for `GotDarkMessage`. Match it with Effect's
 own `Message.match` asks for every variant of the whole union.
 
 ```ts
+import { Match } from 'effect'
+
 type OwnMessage = Bundle.OwnMessage<Message, typeof Observed.placements>
 
 const updateOwn = (model: Model, message: OwnMessage) =>
@@ -462,6 +530,31 @@ A child's view reads its own Model and the inputs the parent's view passes.
 A fact only the parent holds, such as whether a write the child started has
 been answered, reaches it through `viewInputs` in the placement config, which
 rewrites those inputs at every draw:
+
+<!-- docs-check
+import * as Submodel from 'foldkit/submodel'
+const Notice = Bundle.declare(
+  Bundle.make('Notice', {
+    Model: Schema.Struct({ text: Schema.String }),
+    Message: defineMessageUnion({ Dismissed: {} }),
+    init: () => ({ model: { text: '' } }),
+    update: model => ({ model }),
+  }).pipe(
+    Bundle.withView(
+      Submodel.defineView<
+        { readonly text: string },
+        { readonly _tag: 'Dismissed' },
+        { readonly offline?: boolean | undefined }
+      >((model, inputs, h) => h.p([], [inputs.offline === true ? 'Offline' : model.text])),
+    ),
+  ),
+  'notice',
+)
+const Shelf = Bundle.parent({
+  Model: Schema.Struct({ ...Notice.fields, online: Schema.Boolean }),
+  Message: defineMessageUnion({ ...Notice.cases }),
+})
+-->
 
 ```ts
 const Shown = Shelf.at(Notice, {
@@ -502,6 +595,17 @@ Parent Model.rows = { a: Row.Model, b: Row.Model }
 GotRowsMessage({ key: 'b', message }) -> Row.update on rows.b -> rows.b written back
 ```
 
+<!-- docs-check
+const RowModel = Schema.Struct({ id: Schema.String, count: Schema.Number })
+const RowMessage = defineMessageUnion({ Clicked: {} })
+const Row = Bundle.make('Row', {
+  Model: RowModel,
+  Message: RowMessage,
+  init: () => ({ model: { id: '', count: 0 } }),
+  update: model => ({ model: { ...model, count: model.count + 1 } }),
+})
+-->
+
 ```ts
 // Row is a bundle whose Model is { id: string, count: number }.
 const RowsDeclared = Bundle.declareEach(Row, 'rows') // a record field and GotRowsMessage
@@ -523,7 +627,10 @@ Rows.remove('b')
 - **`update`**, **`helpers.name(key, ...input)`**, and `onOut(outMessage, key)`
   work per item. `args` are given once, for every item.
 - **`view(parent, h, key)`** renders one item and **`viewAll(parent, h)`** renders
-  all of them, each in its own slot.
+  all of them, each in its own slot. An item drawn without inputs is drawn
+  again only when its own Model changes, as a placement's view is, and its
+  kept drawing is forgotten once the collection no longer holds it; `memo:
+  false` in the config draws every item on every render.
 - **`Page.placeEach(bundle, field, config)`** places without a declaration.
 - **`placements.initial`** starts a collection empty unless `rest` gives it.
 
@@ -535,6 +642,24 @@ matters: a record puts integer-like keys such as `"2"` first. Ids in an array
 must be unique, and an item is stored under its own id: give `add` a `prepare`
 that sets the id to the key, as below, and keep it through `update`. Writing an
 item whose id is not its key throws, since it could never be read back.
+
+<!-- docs-check
+import { Link } from 'foldkit-bundle'
+const OrderedRowId = Schema.String.pipe(Schema.brand('RowId'))
+const OrderedRowModel = Schema.Struct({ id: OrderedRowId, count: Schema.Number })
+const OrderedRow = Bundle.make('OrderedRow', {
+  Model: OrderedRowModel,
+  Message: RowMessage,
+  init: () => ({ model: { id: OrderedRowId.make(''), count: 0 } }),
+  update: model => ({ model: { ...model, count: model.count + 1 } }),
+})
+const OrderedPage = Bundle.parent({
+  Model: Schema.Struct({ rows: Schema.Array(OrderedRowModel) }),
+  Message: defineMessageUnion({
+    ...Link.keyedWrapper('GotOrderedRowMessage', RowMessage, OrderedRowId).cases,
+  }),
+})
+-->
 
 ```ts
 const RowId = Schema.String.pipe(Schema.brand('RowId'))
@@ -576,8 +701,15 @@ const SectionTabs = Bundle.fromParts('SectionTabs', {
   parts: Tabs.create<Section>(),
 })
 
-// TabsPage is a parent scope whose Model has the declaration's `tabs` field and a `section`.
-const TabsPlaced = TabsPage.at(Bundle.declare(SectionTabs, 'tabs'), {
+const TabsDeclared = Bundle.declare(SectionTabs, 'tabs')
+const TabsPage = Bundle.parent({
+  Model: Schema.Struct({
+    ...TabsDeclared.fields,
+    section: Schema.Literals(['general', 'billing']),
+  }),
+  Message: defineMessageUnion({ ...TabsDeclared.cases }),
+})
+const TabsPlaced = TabsPage.at(TabsDeclared, {
   args: { id: 'sections' },
   onOut: selected => model => ({ model: { ...model, section: selected.value } }),
 })
@@ -596,8 +728,12 @@ each is one field, one `Got*Message` variant, and one line in `update`. Foldkit'
 `write` and `toParentMessage`. A Link is exactly those three, so spread one in
 and give the component's `update`:
 
-```ts
+```ts standalone
 import * as Tabs from '@foldkit/ui/tabs'
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Update from 'foldkit/update'
+import { Link } from 'foldkit-bundle'
 
 const Section = Schema.Literals(['general', 'billing'])
 type Section = typeof Section.Type
@@ -653,6 +789,8 @@ Nothing here is placed: there is no `placements.update` routing, and the
 component's Subscriptions are lifted by hand. When a component is placed in
 several parents, or its Subscriptions are the part that gets forgotten, make it
 a Bundle with `Bundle.fromParts` above.
+[`examples/foldkit/ui-showcase`](../../examples/foldkit/ui-showcase) folds its
+thirty-eight components this way.
 
 ### The two halves at once: `Link.child`
 
@@ -661,11 +799,34 @@ and the slot. `Link.child(link, update, view, slotId)` states them once and
 yields the fold for `update` and the drawing for `view`, so one placement drives
 both; an absent child (`Link.optional`) draws nothing.
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Update from 'foldkit/update'
+import { Link } from 'foldkit-bundle'
+const PostsModel = Schema.Struct({ count: Schema.Number })
+type PostsModel = typeof PostsModel.Type
+const PostsMessage = defineMessageUnion({ Opened: {} })
+type PostsMessage = typeof PostsMessage.Type
+const Posts = {
+  update: (model: PostsModel, _message: PostsMessage) => ({ model: { count: model.count + 1 } }),
+}
+const PostsShell = (model: PostsModel, h: HtmlBuilder<PostsMessage>): Html =>
+  h.p([], [String(model.count)])
+const Model = Schema.Struct({ posts: PostsModel })
+type Model = typeof Model.Type
+const GotPosts = Link.wrapper('GotPostsMessage', PostsMessage)
+const Message = defineMessageUnion({ ...GotPosts.cases, Saved: {} })
+type Message = typeof Message.Type
+const postsLink = Link.field<Model>()('posts', GotPosts)
+-->
+
 ```ts
 const posts = Link.child(postsLink, Posts.update, (page, draw) => PostsShell(page, draw), 'posts')
 
 const update = (model: Model, message: Message) =>
-  Message.match<Update.Return<Model, Message>>(message, {
+  Message.match<Update.Return<Model, Message, unknown>>(message, {
     GotPostsMessage: ({ message }) => posts.update(model, message),
     Saved: () => ({ model }),
   })
@@ -674,28 +835,60 @@ const view = (model: Model, h: HtmlBuilder<Message>) => h.main([], [posts.view(m
 ```
 
 A child with view inputs, or with OutMessages of its own, stays hand-rolled:
-`Link.child` takes a plain `update` and `view` and lifts neither.
+`Link.child` takes a plain `update` and `view` and lifts neither. Its drawing
+is kept while the child's Model is the same object, as a placement's is;
+`Link.child(link, update, view, slotId, { memo: false })` draws it every time.
 
-[`test/foldChild.test.ts`](test/foldChild.test.ts) runs this example, and
-[`examples/foldkit/ui-showcase`](../../examples/foldkit/ui-showcase) folds its
-thirty-eight components this way.
+[`test/child.test.ts`](test/child.test.ts) runs it, and the CMS studio
+([`examples/cms/src/apps/studioApp.ts`](../../examples/cms/src/apps/studioApp.ts))
+draws its two sections this way.
 
-### An ask that waits for its owner: `Bundle.follow`
+### An ask that waits for its owner: `follow`
 
 An address can ask something of a child that has no Model yet — a block to
 select once the page loads, a preview to show once the entry arrives.
-`Bundle.follow` wraps an update result and, while a pending ask waits and its
+`follow`, exported beside `Bundle` and `Link`, wraps an update result and, while a pending ask waits and its
 owner is ready, sends the ask through the owner's own Messages and lets it go:
 
+<!-- docs-check standalone
+import { Option, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Bundle, Link } from 'foldkit-bundle'
+const EditorModel = Schema.Struct({
+  status: Schema.Literals(['Loading', 'Ready']),
+  selected: Schema.String,
+})
+const EditorMessage = defineMessageUnion({ Selected: { id: Schema.String } })
+const EditorBundle = Bundle.make('Editor', {
+  Model: EditorModel,
+  Message: EditorMessage,
+  init: () => ({ model: { status: 'Loading' as const, selected: '' } }),
+  update: (model, message) => ({ model: { ...model, selected: message.id } }),
+})
+const PageModel = Schema.Struct({
+  editor: EditorModel,
+  linked: Schema.Option(Schema.Struct({ block: Schema.String })),
+})
+type PageModel = typeof PageModel.Type
+const PageMessage = defineMessageUnion({ GotEditor: { message: EditorMessage } })
+type PageMessage = typeof PageMessage.Type
+const EditorPage = {
+  placed: EditorBundle.at(Link.field<PageModel>()('editor', Link.wrapper(PageMessage.GotEditor))),
+}
+const baseUpdate = (model: PageModel, _message: PageMessage) => ({ model })
+-->
+
 ```ts
-const follow = Bundle.follow(EditorPage.placed, {
+import { follow } from 'foldkit-bundle'
+
+const followLinked = follow(EditorPage.placed, {
   pending: model => model.linked,
   release: model => ({ ...model, linked: Option.none() }),
   ready: editor => editor.status !== 'Loading',
   toMessages: ask => [EditorMessage.Selected({ id: ask.block })],
 })
 
-const update = (model, message) => follow(baseUpdate(model, message))
+const update = (model: PageModel, message: PageMessage) => followLinked(baseUpdate(model, message))
 ```
 
 Nothing happens without a pending ask, without the child, or before it is
@@ -717,7 +910,7 @@ A bundle's declaration is what the parent Schema and the boot need: `Model`,
 Foldkit wires at boot. Its `update` and `view` can live in a chunk that loads
 on the first Message inside the bundle:
 
-```ts
+```ts sketch
 const Upload = Bundle.lazy(
   {
     name: 'Upload',
@@ -734,6 +927,17 @@ const Upload = Bundle.lazy(
 ```
 
 The chunk exports a `Bundle.Body`, the `update` and the `view`:
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Submodel from 'foldkit/submodel'
+import { Bundle } from 'foldkit-bundle'
+const UploadModel = Schema.Struct({ name: Schema.String, percent: Schema.Number })
+type UploadModel = typeof UploadModel.Type
+const UploadMessage = defineMessageUnion({ Progressed: { percent: Schema.Number } })
+type UploadMessage = typeof UploadMessage.Type
+-->
 
 ```ts
 export const body: Bundle.Body<UploadModel, UploadMessage, void, never, never, void> = {
@@ -773,6 +977,14 @@ when only a sign-in uses it. `Resource.lazy` keeps its code in a chunk of its
 own, loaded the first time a Command asks for it. The entry names the service
 by its type:
 
+<!-- docs-check standalone
+import { Context, Effect, Layer, Schema } from 'effect'
+import * as Command from 'foldkit/command'
+import { defineMessageUnion } from 'foldkit/message'
+import { Resource } from 'foldkit-bundle'
+const Message = defineMessageUnion({ Paid: { receipt: Schema.String }, FailedToPay: {} })
+-->
+
 ```ts
 // The entry chunk: the service's identity and shape, no implementation.
 class Payments extends Context.Service<
@@ -794,7 +1006,7 @@ const Pay = Command.define('Pay', {
 The chunk exports the Layer that builds it, and the entry's `resources`
 names the chunk:
 
-```ts
+```ts sketch
 // payments.ts
 export const layer = Layer.succeed(Payments, { charge: cents => Effect.succeed(`paid ${cents}`) })
 
@@ -829,7 +1041,47 @@ The [auth example](../../examples/auth) loads Yielded's client this way, and
 Bundles are pipeable. Each combinator returns a new bundle and leaves the
 original unchanged, and its callbacks are typed from the bundle:
 
-```ts sketch
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import type * as Update from 'foldkit/update'
+import { defineMessageUnion } from 'foldkit/message'
+import { Bundle, Link } from 'foldkit-bundle'
+const MediaQueryModel = Schema.Struct({ matches: Schema.Boolean })
+const MediaQueryMessage = defineMessageUnion({ Changed: { matches: Schema.Boolean } })
+const MediaQuery = Bundle.make('MediaQuery', {
+  Model: MediaQueryModel,
+  Message: MediaQueryMessage,
+  args: Schema.Struct({ query: Schema.String }),
+  init: () => ({ model: { matches: false } }),
+  update: (_model, message) => ({ model: { matches: message.matches } }),
+})
+const Dark = Bundle.declare(MediaQuery, 'dark')
+const Narrow = Bundle.declare(MediaQuery, 'narrow')
+const Model = Schema.Struct({ ...Dark.fields, ...Narrow.fields, helpOpen: Schema.Boolean })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Dark.cases, ...Narrow.cases, ClickedHelp: {} })
+type Message = typeof Message.Type
+const Page = Bundle.parent({ Model, Message })
+const CounterModel = Schema.Struct({ count: Schema.Number })
+type CounterModel = typeof CounterModel.Type
+const Counter = Bundle.make('Counter', {
+  Model: CounterModel,
+  Message: defineMessageUnion({ Clicked: {} }),
+  init: () => ({ model: { count: 0 } }),
+  update: model => ({ model: { count: model.count + 1 } }),
+})
+const GotSidebarMessage = Link.wrapper('GotSidebarMessage', MediaQueryMessage)
+const SidebarPage = Bundle.parent({
+  Model: Schema.Struct({ sidebar: MediaQueryModel, open: Schema.Boolean }),
+  Message: defineMessageUnion({ ...GotSidebarMessage.cases }),
+})
+interface Clock {
+  readonly now: () => number
+}
+declare const clockUpdate: (model: Model, message: Message) => Update.Return<Model, Message, Clock>
+-->
+
+```ts
 const LoggedCounter = Counter.pipe(
   Bundle.rename('LoggedCounter'),
   Bundle.mapUpdate(update => (model, message, args) => {

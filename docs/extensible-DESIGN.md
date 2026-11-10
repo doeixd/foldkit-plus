@@ -2,7 +2,7 @@ Yes — but I’d make one important distinction: the thing you extend should pr
 
 Something like this is very plausible:
 
-```ts
+```ts sketch
 const Hello = Bundle.declare(HelloForm, "hello")
 
 const Message = defineMessageUnion({
@@ -13,6 +13,19 @@ const Message = defineMessageUnion({
 ```
 
 which would be equivalent to today’s:
+
+<!-- docs-check
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Bundle } from 'foldkit-bundle'
+const HelloForm = Bundle.make('HelloForm', {
+  Model: Schema.Struct({ name: Schema.String }),
+  Message: defineMessageUnion({ Submitted: {} }),
+  init: () => ({ model: { name: '' } }),
+  update: model => ({ model }),
+})
+const Hello = Bundle.declare(HelloForm, 'hello')
+-->
 
 ```ts
 const Message = defineMessageUnion({
@@ -30,7 +43,7 @@ const Secondary = Bundle.declare(HelloForm, "secondary")
 
 Those need distinct parent cases:
 
-```ts
+```ts sketch
 GotPrimaryMessage: {
   message: HelloForm.Message
 }
@@ -44,7 +57,7 @@ That's already why Bundle uses wrapped messages rather than flattening a child's
 
 So this:
 
-```ts
+```ts sketch
 MessageUnion.extend(HelloForm)
 ```
 
@@ -52,7 +65,7 @@ is underspecified.
 
 But this:
 
-```ts
+```ts sketch
 MessageUnion.extend(Hello)
 ```
 
@@ -62,7 +75,7 @@ where `Hello` is a declaration, has everything necessary.
 
 You could get:
 
-```ts
+```ts sketch
 const Dark = Bundle.declare(MediaQuery, "dark")
 const Narrow = Bundle.declare(MediaQuery, "narrow")
 
@@ -76,6 +89,21 @@ const Message = defineMessageUnion({
 
 instead of:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Bundle } from 'foldkit-bundle'
+const MediaQuery = Bundle.make('MediaQuery', {
+  Model: Schema.Struct({ matches: Schema.Boolean }),
+  Message: defineMessageUnion({ Changed: { matches: Schema.Boolean } }),
+  args: Schema.Struct({ query: Schema.String }),
+  init: () => ({ model: { matches: false } }),
+  update: (_model, message) => ({ model: { matches: message.matches } }),
+})
+const Dark = Bundle.declare(MediaQuery, 'dark')
+const Narrow = Bundle.declare(MediaQuery, 'narrow')
+-->
+
 ```ts
 const Message = defineMessageUnion({
   ...Dark.cases,
@@ -86,7 +114,7 @@ const Message = defineMessageUnion({
 
 And it would feel much more consistent with Effect/Foldkit-Plus:
 
-```ts
+```ts sketch
 const Message = defineMessageUnion({
   ClickedHelp: {},
 }).pipe(
@@ -98,7 +126,7 @@ const Message = defineMessageUnion({
 
 You could potentially support multiple at once too:
 
-```ts
+```ts sketch
 const Message = defineMessageUnion({
   ClickedHelp: {},
 }).pipe(
@@ -110,7 +138,7 @@ const Message = defineMessageUnion({
 
 One operates on cases **before** `defineMessageUnion`:
 
-```ts
+```ts sketch
 const Message = MessageUnion.make({
   ClickedHelp: {},
 }).pipe(
@@ -121,7 +149,7 @@ const Message = MessageUnion.make({
 
 The other actually extends an already-created message union:
 
-```ts
+```ts sketch
 const Message = defineMessageUnion({
   ClickedHelp: {},
 }).pipe(
@@ -134,7 +162,7 @@ I prefer the second if Foldkit's returned MessageUnion can reasonably be made pi
 
 The conceptual type is basically:
 
-```ts
+```ts sketch
 const extend =
   <D extends Bundle.Declaration<any, any, any>>(declaration: D) =>
   <M extends MessageUnion.Any>(
@@ -162,7 +190,7 @@ The resulting object must be a genuine Foldkit `MessageUnion`, not just a `Schem
 
 This is where it becomes really attractive:
 
-```ts
+```ts sketch
 const Model = Schema.Struct({
   helpOpen: Schema.Boolean,
 }).pipe(
@@ -180,6 +208,21 @@ const Message = defineMessageUnion({
 
 versus today's:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Bundle } from 'foldkit-bundle'
+const MediaQuery = Bundle.make('MediaQuery', {
+  Model: Schema.Struct({ matches: Schema.Boolean }),
+  Message: defineMessageUnion({ Changed: { matches: Schema.Boolean } }),
+  args: Schema.Struct({ query: Schema.String }),
+  init: () => ({ model: { matches: false } }),
+  update: (_model, message) => ({ model: { matches: message.matches } }),
+})
+const Dark = Bundle.declare(MediaQuery, 'dark')
+const Narrow = Bundle.declare(MediaQuery, 'narrow')
+-->
+
 ```ts
 const Model = Schema.Struct({
   ...Dark.fields,
@@ -196,7 +239,7 @@ const Message = defineMessageUnion({
 
 That gives you a really nice progression:
 
-```ts
+```ts sketch
 const Dark = Bundle.declare(MediaQuery, "dark")
 
 const Model = BaseModel.pipe(
@@ -226,7 +269,7 @@ ensures they can never drift apart.
 
 I think there's room for both:
 
-```ts
+```ts sketch
 // Low-level composition
 const Dark = Bundle.declare(MediaQuery, "dark")
 
@@ -245,6 +288,21 @@ const Message = defineMessageUnion({
 
 and:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Bundle } from 'foldkit-bundle'
+const MediaQuery = Bundle.make('MediaQuery', {
+  Model: Schema.Struct({ matches: Schema.Boolean }),
+  Message: defineMessageUnion({ Changed: { matches: Schema.Boolean } }),
+  args: Schema.Struct({ query: Schema.String }),
+  init: () => ({ model: { matches: false } }),
+  update: (_model, message) => ({ model: { matches: message.matches } }),
+})
+const Dark = Bundle.declare(MediaQuery, 'dark')
+const Narrow = Bundle.declare(MediaQuery, 'narrow')
+-->
+
 ```ts
 // High-level composition
 const App = Bundle.compose({
@@ -253,7 +311,9 @@ const App = Bundle.compose({
   Bundle.withMessages({
     ClickedHelp: {},
   }),
-  Bundle.withChild("dark", MediaQuery),
+  Bundle.withChild("dark", MediaQuery, {
+    args: { query: "(prefers-color-scheme: dark)" },
+  }),
 )
 ```
 
@@ -261,7 +321,7 @@ The former is excellent when the user's Model/Message already exist or they're i
 
 I'd probably namespace the low-level operations under **Bundle**, though:
 
-```ts
+```ts sketch
 Message.pipe(
   Bundle.messages(Dark)
 )
@@ -269,7 +329,7 @@ Message.pipe(
 
 rather than:
 
-```ts
+```ts sketch
 Message.pipe(
   MessageUnion.extend(Dark)
 )
@@ -279,7 +339,7 @@ because the operation is specifically interpreting a **Bundle declaration**.
 
 Maybe:
 
-```ts
+```ts sketch
 const Message = defineMessageUnion({
   ClickedHelp: {},
 }).pipe(
@@ -289,7 +349,7 @@ const Message = defineMessageUnion({
 
 and:
 
-```ts
+```ts sketch
 const Model = Schema.Struct({
   helpOpen: Schema.Boolean,
 }).pipe(

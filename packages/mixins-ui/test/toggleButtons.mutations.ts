@@ -34,8 +34,8 @@ export default [
     edits: [
       {
         file: '../src/button.ts',
-        find: ': [...button, h.AriaPressed(String(options.pressed))],',
-        replace: ': button,',
+        find: ': [h.AriaPressed(String(options.pressed))]),',
+        replace: ': []),',
       },
     ],
     tests: ['packages/mixins-ui/test/buttonView.test.ts', ...browser],

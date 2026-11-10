@@ -50,6 +50,32 @@ result of binding that contract to your live host and verified principal.
 
 The smallest MCP server is stdio:
 
+<!-- docs-check standalone
+import { Agent } from 'foldkit-agent'
+import { Option, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import type { Notification } from 'foldkit-agent-mcp'
+const Message = defineMessageUnion({ RequestedCreateTodo: { title: Schema.String } })
+type Message = typeof Message.Type
+interface Model {
+  readonly selectedTodoId: Option.Option<string>
+}
+interface Principal {
+  readonly user: string
+}
+const TodoAgent = Agent.forModel<Model, Principal>()
+const AppAgent = TodoAgent.make({
+  messages: TodoAgent.expose(Message, { RequestedCreateTodo: 'Create a todo' }),
+})
+declare const currentModel: () => Model
+declare const sendToRuntime: (message: Message) => void
+declare const callerPrincipal: () => Principal
+const agentRuntime = TodoAgent.bind({
+  definition: AppAgent,
+  host: { model: currentModel, dispatch: sendToRuntime, principal: callerPrincipal },
+})
+declare const send: (notification: Notification) => void
+-->
 ```ts
 import { AgentMcp } from 'foldkit-agent-mcp'
 
@@ -133,6 +159,16 @@ advertised tool name does not bypass the current Model boundary.
 Use `httpApp` when the MCP server should run behind an Effect HTTP server or be
 converted to a web-standard `Request -> Response` handler:
 
+<!-- docs-check
+import { Effect } from 'effect'
+import type { Unauthenticated } from 'foldkit-agent-mcp'
+declare const bindAgentFor: (principal: Principal) => typeof agentRuntime
+declare const verify: (header: string | undefined) => Effect.Effect<Principal, Unauthenticated>
+declare const request: Request
+declare const method: string
+declare const headers: Readonly<Record<string, string | undefined>>
+declare const body: string
+-->
 ```ts
 import * as HttpEffect from 'effect/http/HttpEffect'
 import { AgentMcp } from 'foldkit-agent-mcp'
@@ -163,13 +199,13 @@ transport-neutral request shape. Use it when integrating with a server stack
 that is not Effect HTTP:
 
 ```ts
-const server = AgentMcp.httpHandler({
+const mcp = AgentMcp.httpHandler({
   authenticate: request => verify(request.headers['authorization']),
   createAgent: ({ principal }) => bindAgentFor(principal),
   allowedOrigins: ['https://app.example'],
 })
 
-const response = await server.handle({ method, headers, body })
+const answer = await mcp.handle({ method, headers, body })
 ```
 
 ## HTTP identity and sessions

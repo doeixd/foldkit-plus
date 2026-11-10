@@ -185,11 +185,17 @@ the `transactions` the edit applied, which is what `RichText.Replicated.translat
 `foldkit-richtext-dom/input` puts the editor in a `foldkit-form` form: a key whose value is a
 `RichText.Document`. It is the one entry that imports `foldkit-form`, an optional peer.
 
+<!-- docs-check
+import { Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+import * as RichText from 'foldkit-richtext'
+const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, body: RichText.Document }))
+const PostInput = Entity.input(Post, Schema.Struct({ body: Post.fields.body.schema }))
+-->
 ```ts
 import { Form } from 'foldkit-form'
 import { richTextInput } from 'foldkit-richtext-dom/input'
 
-// PostInput is an `Entity.input(...)` whose `body` field is a `RichText.Document`.
 const PostForm = Form.make('PostForm', PostInput, {
   inputs: { body: richTextInput('post-body', { placeholder: 'Write the post…' }) },
 })
@@ -232,6 +238,18 @@ buttons.
 
 The same buttons, in an element `selectionAnchor` places over the selection:
 
+<!-- docs-check standalone
+import type { HtmlBuilder } from 'foldkit/html'
+import type * as RichText from 'foldkit-richtext'
+import { Message } from 'foldkit-richtext-dom/editor'
+import type { ToolbarState } from 'foldkit-richtext-dom/toolbar'
+declare const model: {
+  readonly editor: Omit<ToolbarState, 'document'>
+  readonly document: RichText.Document
+}
+declare const h: HtmlBuilder<Message>
+declare const edited: (message: Message) => Message
+-->
 ```ts
 import * as RichText from 'foldkit-richtext'
 import { marksToolbar, selectionAnchor } from 'foldkit-richtext-dom/toolbar'
@@ -339,7 +357,16 @@ them.
 it dispatches nothing and owns no DOM, so it serves a visitor's page, a preview, or an email as
 it is.
 
+<!-- docs-check standalone
+import * as RichText from 'foldkit-richtext'
+declare const document: RichText.Document
+declare const slice: { readonly blocks: ReadonlyArray<RichText.Block> }
+declare const renderer: RichText.Rendering
+declare const decorations: RichText.DecorationSet
+-->
 ```ts
+import { renderBlocks, renderDocument } from 'foldkit-richtext-dom/view'
+
 const html = renderDocument(document) // a div of block elements
 renderBlocks(slice.blocks) // one element per block
 renderDocument(document, renderer) // a declared Link as a real <a href>
@@ -376,6 +403,8 @@ mounts, and the editor adopts it rather than drawing the document again. The ser
 when the placement says the render is the server's:
 
 ```ts
+import * as RichText from 'foldkit-richtext'
+import { editorAt } from 'foldkit-richtext-dom/editor-bundle'
 import { SSR } from 'foldkit-ssr'
 
 editorAt('body', { rendering: RichText.standardRendering, serverRendered: SSR.serving })
@@ -437,7 +466,7 @@ Message.
 Everything above is built from these. Reach for them to embed the editable subtree without
 the Bundle, or to write another host.
 
-```ts
+```ts sketch
 import { mount } from 'foldkit-richtext-dom'
 import { attach } from 'foldkit-richtext-dom/events'
 import * as RichText from 'foldkit-richtext'
@@ -513,6 +542,16 @@ A Foldkit view owns the host element; the interpreter owns what goes inside it. 
 renders into the host and records the attachment there, so a patch Command that has only the
 element can find it:
 
+<!-- docs-check standalone
+import type * as RichText from 'foldkit-richtext'
+declare const host: HTMLElement
+declare const content: RichText.Document
+declare const onIntent: (command: RichText.Command) => void
+declare const onSelection: (selection: RichText.Selection | null) => void
+declare const renderer: RichText.Rendering
+declare const state: RichText.EditorState
+declare const changeSet: RichText.ChangeSet
+-->
 ```ts
 import { attachmentIn, mountInto, releaseMount } from 'foldkit-richtext-dom/host'
 

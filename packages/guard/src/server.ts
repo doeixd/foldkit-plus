@@ -431,6 +431,21 @@ export const GuardServer = {
         `[foldkit-guard] GuardServer.writer: a delete of ${entity.name} takes ${judging.map(child => child.name).join(', ')} rows under their own Delete rule, which only a writer judging rules in its statement and removing what cascades can hold it to (foldkit-remote-drizzle's writer); this writer does not`,
       )
     }
+    const clearJudging = clearJudges(entity, options.children ?? [])
+    if (clearJudging.length > 0 && (writer.requires !== true || writer.clears !== true)) {
+      throw new Error(
+        `[foldkit-guard] GuardServer.writer: a delete of ${entity.name} clears links of ${clearJudging.map(({ child }) => child.name).join(', ')} rows under their own Update rules, which only a writer judging rules in its statement and clearing links can hold it to (foldkit-remote-drizzle's writer); this writer does not`,
+      )
+    }
+    const used = new Set([
+      ...judging.map(child => child.identity.token),
+      ...clearJudging.map(({ child }) => child.identity.token),
+    ])
+    const unused = (options.children ?? []).filter(child => !used.has(child.identity.token))
+    if (unused.length > 0)
+      throw new Error(
+        `[foldkit-guard] GuardServer.writer: a delete of ${entity.name} takes no ${unused.map(child => child.name).join(', ')} rows under their own Delete rule, and clears no link of theirs, so children has nothing to judge them by`,
+      )
     /**
      * The row rule over `values` as far as one row decides it: refused where it
      * fails, and otherwise what the writer's statement must still judge.
@@ -859,6 +874,10 @@ export const GuardServer = {
       ...(writer.invariants === true ? { invariants: true } : {}),
       // The rows a delete takes with it are the writer's to remove; the guard judges the row named.
       ...(writer.cascades === true ? { cascades: true } : {}),
+      // So is refusing a row still pointed at, which only someone the rules let delete it learns.
+      ...(writer.restricts === true ? { restricts: true } : {}),
+      // So is clearing a link to it; the guard hands over each such row's Update rules.
+      ...(writer.clears === true ? { clears: true } : {}),
       // What the store refuses, the store knows: the guard drops none of its reasons. It
       // adds one: its rules judge the row the write leaves, worked out by the policy's
       // table, so an assignment that table cannot run would be judged as its old value.
@@ -967,6 +986,27 @@ export const GuardServer = {
                   }),
                 ),
               )
+              // Each row whose link the delete clears, judged as an update unlinking it is:
+              // the row's Update rule and the relation's Unlink rule, both of them.
+              const clearing = yield* Effect.forEach(clearJudging, ({ child, relations }) =>
+                Effect.gen(function* () {
+                  const row = yield* policy.writable(child, context.principal, 'Update')
+                  const unlinks = yield* Effect.forEach(relations, relation =>
+                    policy.linkable(child, context.principal, relation, 'Unlink'),
+                  )
+                  const rules = [row, ...unlinks.flatMap(Option.toArray)]
+                  const each = rules.map(rule =>
+                    required(rule.condition, rule.deny, context.principal),
+                  )
+                  return {
+                    entity: child.name,
+                    requires: {
+                      holds: RowRequirement.All({ of: each.map(({ holds }) => holds) }),
+                      reason: Option.firstSomeOf(each.map(({ reason }) => reason)),
+                    },
+                  } satisfies CascadeRequirement
+                }),
+              )
               return yield* writer.delete({
                 ...context,
                 expect: pin(context.expect, current.value),
@@ -975,6 +1015,7 @@ export const GuardServer = {
                   onSome: held => ({ requires: held }),
                 }),
                 ...(judging.length === 0 ? {} : { cascading }),
+                ...(clearJudging.length === 0 ? {} : { clearing }),
               })
             }),
           ),
@@ -1467,11 +1508,33 @@ const cascadeJudges = (
         queue.push(owner)
       }
     }
-  const unused = children.filter(child => !judged.has(child.identity.token))
-  if (unused.length > 0)
-    throw new Error(
-      `[foldkit-guard] GuardServer.writer: a delete of ${root.name} takes no ${unused.map(child => child.name).join(', ')} rows under their own Delete rule, so children has nothing to judge them by`,
-    )
+  return [...judged.values()]
+}
+
+/**
+ * The guarded descriptor of each Entity whose link a delete of `root`'s row
+ * clears (`onDelete: 'setNull'`, #467), with the relations it clears: each
+ * such row is held to its own `Update` rules over the link. Refused where one
+ * is not among `children`.
+ */
+const clearJudges = (
+  root: AnyEntity,
+  children: ReadonlyArray<AnyEntity>,
+): ReadonlyArray<{ readonly child: AnyEntity; readonly relations: ReadonlyArray<string> }> => {
+  const given = new Map(children.map(child => [child.identity.token, child]))
+  given.set(root.identity.token, root)
+  const judged = new Map<symbol, { child: AnyEntity; relations: Array<string> }>()
+  for (const { relation, owner } of Entity.clearing(root)) {
+    const token = owner.identity.token
+    const guarded = given.get(token)
+    if (guarded === undefined)
+      throw new Error(
+        `[foldkit-guard] GuardServer.writer: a delete of ${root.name} clears ${owner.name}.${relation.key} under ${owner.name}'s own Update rules; give ${owner.name}'s guarded Entity as children: [${owner.name}]`,
+      )
+    const known = judged.get(token) ?? { child: guarded, relations: [] }
+    known.relations.push(relation.key)
+    judged.set(token, known)
+  }
   return [...judged.values()]
 }
 
