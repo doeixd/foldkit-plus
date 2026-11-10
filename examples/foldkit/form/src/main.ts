@@ -143,7 +143,14 @@ const firstInvalid = (model: Model): Option.Option<string> =>
 
 /** Whether a key's check is running, during which the submit is held disabled. */
 const isChecking = (model: Model): boolean =>
-  WaitlistForm.controls.some(control => model.form.fields[control.key]._tag === 'Validating')
+  WaitlistForm.controls.some(control =>
+    FieldValidation.match(model.form.fields[control.key], {
+      onNotValidated: () => false,
+      onValidating: () => true,
+      onValid: () => false,
+      onInvalid: () => false,
+    }),
+  )
 
 export const update = (model: Model, message: Message) =>
   Message.match<UpdateReturn>(message, {

@@ -18,7 +18,7 @@ export default [
   {
     name: 'no key is ever checking',
     edits: [
-      { file: main, find: "._tag === 'Validating')", replace: "._tag === 'Validating' && false)" },
+      { file: main, find: 'onValidating: () => true,', replace: 'onValidating: () => false,' },
     ],
     tests: [strict, story],
   },
