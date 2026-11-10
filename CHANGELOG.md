@@ -276,6 +276,14 @@ version changed; `pnpm` skips versions already in the registry.
   no age, and one served past its `maxAge` would read as fresh. `memory`,
   `workers` and `kv` without `keep` are accepted by both.
 
+### Removed
+
+- **`LiveAnnounce.say`** (`foldkit-primitives`, #495). It built the
+  placement's `Announced` for a parent, cast to the parent's Message; a parent
+  now folds the placement's `helpers.announce(text, politeness?)` in `update`.
+  The Builder, its one user, announces that way, and a copy that reaches the
+  clipboard answers with the Builder's own `Copied({ said })`.
+
 ### Fixed
 
 - **A Menu's or Menubar's leave draws its fade on a loaded page**

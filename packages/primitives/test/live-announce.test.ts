@@ -2,7 +2,7 @@
  * LiveAnnounce: a burst reads once (the last), the read lands in the right
  * region and clears later, superseded timers change nothing, the same text
  * twice toggles a no-break space so it is read again, both timers run on
- * TestClock, `say` builds the parent Message, and `view` renders two regions.
+ * TestClock, and `view` renders two regions.
  */
 import { Effect, Fiber, Option, Schema } from 'effect'
 import { TestClock } from 'effect/testing'
@@ -88,15 +88,6 @@ describe('LiveAnnounce placement', () => {
       }).pipe(Effect.provide(TestClock.layer())),
     )
     expect(fact).toEqual(Live.wrapper.make(M.Read({ generation: 1 })))
-  })
-
-  it('say builds the placement Message', () => {
-    expect(LiveAnnounce.say(Live)<Message>('Done', 'assertive')).toEqual(
-      Live.wrapper.make(M.Announced({ message: 'Done', politeness: 'assertive' })),
-    )
-    expect(LiveAnnounce.say(Live)<Message>('Done')).toEqual(
-      Live.wrapper.make(M.Announced({ message: 'Done', politeness: 'polite' })),
-    )
   })
 })
 

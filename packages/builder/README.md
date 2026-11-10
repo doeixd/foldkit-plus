@@ -104,7 +104,7 @@ const PageForm = Form.make('PageForm', PageInput, {
 | `InsertAsked({ block, at })` | a new node with the Block's starting props, once an id is minted |
 | `DuplicateAsked({ id, at })` | a copy of a node and what it holds, once ids are minted |
 | `PatternAsked({ pattern, at })` | one of the Catalog's patterns, once ids are minted for its nodes |
-| `CopyAsked({ id })`, `CutAsked({ id })`, `PasteAsked()`, `ClipboardRead({ text })` | the clipboard: see below |
+| `CopyAsked({ id })`, `CutAsked({ id })`, `Copied({ said })`, `PasteAsked()`, `ClipboardRead({ text })` | the clipboard: see below |
 | `EditingAsked({ field })`, `FieldTyped({ field, text })`, `EditingCommitted({ field, text })`, `EditingCancelled({ field })` | text edited in place: see below |
 | `Minted({ ids, request })` | the ids a request waited for, answered by a Command |
 | `Selected({ id })`, `Deselected()`, `Hovered({ id })`, `Unhovered()` | what the inspector and the node actions work on |

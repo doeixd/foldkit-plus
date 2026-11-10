@@ -11,7 +11,7 @@ import { Effect, Schema } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
-import { Bundle, type Declared } from 'foldkit-bundle'
+import { Bundle } from 'foldkit-bundle'
 
 export const Politeness = Schema.Literals(['polite', 'assertive'])
 export type Politeness = typeof Politeness.Type
@@ -104,14 +104,6 @@ export const bundle = Bundle.make('LiveAnnounce', {
       update(model, Message.Announced({ message: text, politeness }), args),
   }),
 })
-
-/** The parent Message that announces `text`, to return from `update` or `onOut`. */
-export const say =
-  <Field extends string>(declared: Declared<typeof bundle, Field>) =>
-  <ParentMessage>(text: string, politeness: Politeness = 'polite'): ParentMessage =>
-    declared.wrapper.make(
-      Message.Announced({ message: text, politeness }),
-    ) as unknown as ParentMessage
 
 export const REGION_ATTRIBUTE = 'data-foldkit-plus-live'
 

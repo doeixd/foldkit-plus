@@ -139,7 +139,10 @@ describe('the Builder, headless', () => {
     expect(typed.page.present.nodes[heading]?.props).toEqual({ text: 'Hey' })
     const undone = send(typed, Message.Undid())
     expect(undone.page.present).toBe(withHeading.page.present)
-    expect(send(undone, Message.Redid()).page.present).toBe(typed.page.present)
+    expect(undone.announcer.pending?.message).toBe('Undone')
+    const redone = send(undone, Message.Redid())
+    expect(redone.page.present).toBe(typed.page.present)
+    expect(redone.announcer.pending?.message).toBe('Redone')
   })
 
   it('reorders, duplicates and deletes the selected node', () => {
@@ -993,8 +996,12 @@ describe('copy, cut and paste', () => {
         ),
       }),
     )
-    // The refusal is said, and nothing is minted.
-    expect((result.commands ?? []).map(command => command.name)).toEqual(['PageBuilder.announce'])
+    // The refusal is said, assertively, and nothing is minted: the one Command is the announcer's.
+    expect(result.model.announcer.pending).toEqual({
+      message: 'There is no place on this page for a Heading',
+      politeness: 'assertive',
+    })
+    expect((result.commands ?? []).map(command => command.name)).toEqual(['LiveAnnounce.read'])
     expect(some(result.model.refused, 'a refusal')).toEqual({
       code: 'builder:no-place',
       message: 'There is no place on this page for a Heading',

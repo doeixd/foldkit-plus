@@ -221,6 +221,8 @@ export const Message = defineMessageUnion({
   CutAsked: { id: NodeId },
   /** A paste: the system clipboard is read, and what it holds goes in by the selection. */
   PasteAsked: {},
+  /** A copy or cut reached the system clipboard: `said` tells assistive technology. */
+  Copied: { said: Schema.String },
   /** What the system clipboard held for a paste; none when it could not be read. */
   ClipboardRead: { text: Schema.OptionFromNullOr(Schema.String) },
   /**
@@ -286,7 +288,8 @@ export type Message = typeof Message.Type
 const Parent = Bundle.parent({ Model, Message })
 /** The layers' tree and the announcer, placed in the Builder's own Model. */
 const LayersPlaced = Parent.at(Layers, { args: layersArgs })
-const placements = Parent.assemble(LayersPlaced, Parent.at(Announcer, { args: announcerArgs }))
+const AnnouncerPlaced = Parent.at(Announcer, { args: announcerArgs })
+const placements = Parent.assemble(LayersPlaced, AnnouncerPlaced)
 
 /** The row a Message makes current in the layers: one the keys moved to, or one pressed. */
 const focusedBy = (message: Message): Option.Option<string> =>
@@ -792,13 +795,12 @@ export const Builder = {
       editing: Option.none(),
     }).model
 
-    /** Says `text` to assistive technology, once the Builder's transition is done. */
-    const announce = (text: string, politeness: LiveAnnounce.Politeness = 'polite'): Commands => [
-      {
-        name: `${name}.announce`,
-        effect: Effect.succeed(LiveAnnounce.say(Announcer)<Message>(text, politeness)),
-      },
-    ]
+    /** `model`, with `text` said to assistive technology through the announcer. */
+    const announced = (
+      model: Model,
+      text: string,
+      politeness: LiveAnnounce.Politeness = 'polite',
+    ) => AnnouncerPlaced.helpers.announce(text, politeness)(model)
 
     const refuse = (
       model: Model,
@@ -809,10 +811,7 @@ export const Builder = {
             readonly code: 'builder:nothing-to-paste' | 'builder:no-place'
             readonly message: string
           },
-    ): { readonly model: Model; readonly commands: Commands } => ({
-      model: { ...model, refused: Option.some(refusal) },
-      commands: announce(refusal.message, 'assertive'),
-    })
+    ) => announced({ ...model, refused: Option.some(refusal) }, refusal.message, 'assertive')
 
     const applyOp = (
       model: Model,
@@ -830,18 +829,16 @@ export const Builder = {
         })
       const { document, removed } = result.success
       const kept = Option.filter(model.selected, id => !removed.includes(id))
-      return {
-        model: {
-          ...model,
-          page: History.push(model.page, document, { capacity, group }),
-          selected: Option.orElse(created(catalog, op), () => kept),
-          refused: Option.none(),
-        },
-        ...Option.match(describeEdit(catalog, words, documentOf(model), document, op), {
-          onNone: () => ({}),
-          onSome: said => ({ commands: announce(said) }),
-        }),
+      const applied = {
+        ...model,
+        page: History.push(model.page, document, { capacity, group }),
+        selected: Option.orElse(created(catalog, op), () => kept),
+        refused: Option.none(),
       }
+      return Option.match(describeEdit(catalog, words, documentOf(model), document, op), {
+        onNone: () => ({ model: applied }),
+        onSome: said => announced(applied, said),
+      })
     }
 
     /** A Block's starting props, encoded as the Document stores them; none for a Block with none. */
@@ -923,10 +920,7 @@ export const Builder = {
     const copy = (tree: Tree, said: string): Commands => [
       {
         name: `${name}.copy`,
-        effect: Effect.as(
-          copyText(clipText(tree)).effect,
-          LiveAnnounce.say(Announcer)<Message>(said, 'polite'),
-        ),
+        effect: Effect.as(copyText(clipText(tree)).effect, Message.Copied({ said })),
       },
     ]
 
@@ -1283,6 +1277,8 @@ export const Builder = {
               },
             ],
           }
+        case 'Copied':
+          return announced(model, message.said)
         case 'ClipboardRead': {
           // Text read wins, so a copy made in another tab pastes here; the
           // Builder's own copy is for a browser that would not let it be read.
@@ -1464,8 +1460,8 @@ export const Builder = {
         case 'Redid': {
           const page = (message._tag === 'Undid' ? History.undo : History.redo)(model.page)
           if (page === model.page) return { model }
-          return {
-            model: {
+          return announced(
+            {
               ...model,
               page,
               selected: keptIn(page.present, model.selected),
@@ -1473,8 +1469,8 @@ export const Builder = {
               // The page changed under the field being edited: it is drawn from the page again.
               editing: Option.none(),
             },
-            commands: announce(message._tag === 'Undid' ? words.undone : words.redone),
-          }
+            message._tag === 'Undid' ? words.undone : words.redone,
+          )
         }
         case 'DragStarted':
           // A node gone, or a Block with nothing to start from, starts no drag.
@@ -1543,7 +1539,7 @@ export const Builder = {
               ),
           })
           return Option.match(landed, {
-            onNone: () => ({ model: ended, commands: announce(unmoved(source)) }),
+            onNone: () => announced(ended, unmoved(source)),
             onSome: ({ at }) =>
               source._tag === 'Existing'
                 ? applyOp(ended, Composition.Op.move(source.id, at))
@@ -1554,10 +1550,7 @@ export const Builder = {
         case 'DragCancelled':
           return Option.isNone(model.drag)
             ? { model }
-            : {
-                model: { ...model, drag: Option.none() },
-                commands: announce(unmoved(model.drag.value.source)),
-              }
+            : announced({ ...model, drag: Option.none() }, unmoved(model.drag.value.source))
         case 'PreviewChosen':
           return {
             model: { ...model, preview: { ...model.preview, [message.key]: message.value } },

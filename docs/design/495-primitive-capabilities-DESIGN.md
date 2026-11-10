@@ -172,11 +172,11 @@ upstream's module layout and general style, not child Messages, and fixing
 them is a pass over the examples of its own. The scaffold job still runs
 only `typecheck` over the copies.
 
-## Left for a follow-up
+## `LiveAnnounce.say`, removed after
 
-`LiveAnnounce.say(declared)` builds the wrapped `Announced` for a parent, with
-a cast to the parent's Message. `foldkit-builder` uses it inside two of its own
-Commands, to announce after an asynchronous step such as a clipboard copy.
-Replacing it means those Commands return a builder Message whose `update` calls
-`announce`. That is a change to the builder, not to the primitives, so it was
-left out of this one.
+`LiveAnnounce.say(declared)` built the wrapped `Announced` for a parent, with
+a cast to the parent's Message. `foldkit-builder` used it in its announcing
+Command and in the clipboard copy's. Both now go through the announcer's
+`announce` helper: an announcement made in `update` folds it at once, and the
+copy's Command answers with the Builder's own `Copied({ said })`, whose arm
+folds it. With no user left, `say` was removed.

@@ -654,8 +654,8 @@ reflect, `SelectionSet` in [`state`](../state/README.md) is lighter.
 
 **`LiveAnnounce`** speaks to assistive technology: one Bundle, placed once,
 holds the text of a polite and an assertive live region.
-`say(Declared)(text, politeness?)` builds the Message to return from `update`
-or an `onOut`; an announcement waits `debounceMs` so a burst reads once, then
+A parent says something through the placement's `announce(text, politeness?)`
+helper, folded in `update` or an `onOut`; an announcement waits `debounceMs` so a burst reads once, then
 clears after `clearAfterMs`, both on Effect's clock with a generation so a
 superseded timer changes nothing; the same text twice gets a trailing no-break
 space toggled, which is what makes a screen reader read it again.
