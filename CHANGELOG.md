@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A lazy page is drawn when its bodies arrive over `while`** (`foldkit-bundle`,
+  #501). A first Message whose `update` returned the Model it was given left
+  the `while` view showing after the bodies loaded, since Foldkit redraws only
+  for a new Model. The first update of a Model `while` drew now returns an
+  equal copy if the bodies returned the given one; a bare `load()` is drawn at
+  the bundle's next Message.
+- **A lazy bundle's failed load is no crash** (`foldkit-bundle`, #502). The
+  load Command was an `Effect.promise`, so a rejected import became a defect
+  and Foldkit showed its crash view. The failure is logged, `while` stays, and
+  the next Message or `load()` tries again, as the README said.
+
 - **A client call that dies settles its read, list or write as failed**
   (`foldkit-remote`). A read, query or mutation whose client threw or died
   sent no Message, so the read stayed `Loading` for good and the write
