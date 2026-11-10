@@ -188,6 +188,26 @@ export const remoteError = (error: {
 })
 
 /**
+ * A client call whose defect (a throw, a `die`) fails with `Defect` instead,
+ * logged with its cause. A defect sends no Message, so the read or write it
+ * belonged to would wait for good. Interruption passes through: an abandoned
+ * read still reports as abandoned.
+ */
+export const defectAsFailure = <A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+): Effect.Effect<A, E | { readonly _tag: 'Defect'; readonly message: string }, R> =>
+  Effect.catchDefect(effect, defect =>
+    Effect.logError('foldkit-remote: a client call died', defect).pipe(
+      Effect.andThen(
+        Effect.fail({
+          _tag: 'Defect' as const,
+          message: defect instanceof Error ? defect.message : String(defect),
+        }),
+      ),
+    ),
+  )
+
+/**
  * A new operation's identity: random, so unique across clients and reloads.
  * `randomUUID` exists only in a secure context, so a page served over plain
  * HTTP draws 128 random bits from `getRandomValues`, which exists in all.

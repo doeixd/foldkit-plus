@@ -80,7 +80,14 @@ const page = (actor = 'ada', principal?: string | null): Model =>
     },
   )
 
-type Answer = 'applied' | 'unreachable' | 'refused' | 'unanswered' | 'signedOut' | 'forbidden'
+type Answer =
+  | 'applied'
+  | 'unreachable'
+  | 'refused'
+  | 'unanswered'
+  | 'signedOut'
+  | 'forbidden'
+  | 'died'
 
 /**
  * A server answering each send as scripted (applied once the script runs
@@ -123,6 +130,7 @@ const server = (script: ReadonlyArray<Answer> = [], cookie?: { current: string |
       }
       const answer = answers.shift() ?? 'applied'
       if (answer === 'unanswered') return Effect.never
+      if (answer === 'died') return Effect.die(new Error('mutate broke'))
       if (answer === 'unreachable')
         return Effect.fail(new RemoteUnreachable({ message: 'offline' }))
       if (answer === 'refused') {
@@ -402,6 +410,14 @@ describe('a durable write', () => {
     expect(outboxStatus(Data, dismissed).items).toEqual([])
     expect(Data.failedWrites(dismissed)).toEqual([])
     expect(storedOperations(refusedAgain.kv)).toEqual([])
+  })
+
+  it('whose send dies, settles failed rather than waiting for good', async () => {
+    const tab = { kv: memory(), ...server(['died']) }
+    const first = setCount(await restored(tab), 'i1', 2)
+    const settled = await settle(tab, first.model)
+    expect(Data.failedWrites(settled).map(write => write.requestId)).toEqual([first.requestId])
+    expect(outboxStatus(Data, settled)).toMatchObject({ waiting: 0, failed: 1 })
   })
 
   it('refused where the sender could not write it, is written by the page, so a reload does not send it', async () => {

@@ -297,13 +297,19 @@ describe('Trace.run', () => {
     )
   })
 
-  it('fails loudly when a Subscription dies', async () => {
+  it('fails loudly when a Command dies', async () => {
+    // Not a client call: one that dies is a failure now (clientDefect.test.ts).
+    // Named as Remote's, since a trace runs only Remote's Commands.
+    const Broken = { name: 'Remote.broken', effect: Effect.die('the page fell over') }
     const run = Trace.run(Data, {
-      start: opened,
-      update,
+      start: closed,
+      update: (model: Model, message: Message): Update.Return<Model, Message, RemoteClient> =>
+        isRemoteMessage(message)
+          ? update(model, message)
+          : { ...update(model, message), commands: [Broken] },
       active,
-      client: { ...server({}), query: () => Effect.die('the server fell over') },
-      steps: [Respond.query(list.ref)],
+      client: server({}),
+      steps: [Message.Opened()],
     })
 
     await expect(run).rejects.toThrow('Trace: a Subscription or Command died at step 1')

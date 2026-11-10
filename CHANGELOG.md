@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A client call that dies settles its read, list or write as failed**
+  (`foldkit-remote`). A read, query or mutation whose client threw or died
+  sent no Message, so the read stayed `Loading` for good and the write
+  pending, durable ones included. Each now fails with `{ _tag: 'Defect',
+  message }`, logged with its cause; interruption still abandons a read.
+
 - **An earlier pending edit no longer shows over a later confirmed one**
   (`foldkit-remote`, #482). With two writes to one field pending, an answer
   to the later one arriving first left the earlier write's layer on top, so

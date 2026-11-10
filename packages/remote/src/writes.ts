@@ -16,7 +16,13 @@ import {
   type WriteContext,
   type WriteMethods,
 } from './capability.js'
-import { mintOperation, mutateRemote, remoteError, type RemoteClient } from './client.js'
+import {
+  defectAsFailure,
+  mintOperation,
+  mutateRemote,
+  remoteError,
+  type RemoteClient,
+} from './client.js'
 import { installLayers } from './layers.js'
 import { mutationStatus } from './ledger.js'
 import { reduceIn, type RemoteMessage, type RemoteModel } from './model.js'
@@ -311,14 +317,16 @@ const writes: WriteCapability = {
                       error: refused.value,
                       operation,
                     })
-                  : mutateRemote(mutation, input, requestId, {
-                      keys: options.keys,
-                      operation,
-                      shown: shownAt(startedModel, optimistic ?? [], mutation.write),
-                      lists,
-                      now: options.now,
-                      timeout: options.timeout,
-                    }).pipe(
+                  : defectAsFailure(
+                      mutateRemote(mutation, input, requestId, {
+                        keys: options.keys,
+                        operation,
+                        shown: shownAt(startedModel, optimistic ?? [], mutation.write),
+                        lists,
+                        now: options.now,
+                        timeout: options.timeout,
+                      }),
+                    ).pipe(
                       Effect.matchEffect({
                         onFailure: error =>
                           Effect.succeed<RemoteMessage>({

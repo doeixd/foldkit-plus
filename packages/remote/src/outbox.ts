@@ -8,7 +8,13 @@ import { KeyValueStore } from 'effect/persistence'
 import * as Subscription from 'foldkit/subscription'
 import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
 import type { Wiring } from 'foldkit-surface'
-import { mintOperation, mutateRemote, remoteError, type RemoteClient } from './client.js'
+import {
+  defectAsFailure,
+  mintOperation,
+  mutateRemote,
+  remoteError,
+  type RemoteClient,
+} from './client.js'
 import { remoteMessageSchema, type RemoteMessage, type RemoteModel } from './model.js'
 import type { MutationDescriptor } from './mutationDescriptor.js'
 import {
@@ -327,14 +333,16 @@ export const outbox = <AppModel>(
           const input = Schema.decodeUnknownSync(mutation.Input)(write.input)
           for (let attempt = 1; ; attempt++) {
             const result = yield* Effect.result(
-              mutateRemote(mutation, input, operation, {
-                keys: write.keys,
-                operation,
-                shown: write.shown,
-                lists: write.lists,
-                now: write.now,
-                principal: expectedOf(write.madeAs),
-              }),
+              defectAsFailure(
+                mutateRemote(mutation, input, operation, {
+                  keys: write.keys,
+                  operation,
+                  shown: write.shown,
+                  lists: write.lists,
+                  now: write.now,
+                  principal: expectedOf(write.madeAs),
+                }),
+              ),
             )
             if (Result.isSuccess(result)) {
               const outcome = result.success

@@ -28,7 +28,7 @@ import {
   type SurfaceSource,
   type Wiring,
 } from 'foldkit-surface'
-import { RemoteClient, remoteError } from './client.js'
+import { RemoteClient, defectAsFailure, remoteError } from './client.js'
 import { madeAsOf } from './queue.js'
 import type { Connection, Edge } from './connection.js'
 import { Entity, type EntityDescriptor, type FieldsFrom } from './entity.js'
@@ -1701,7 +1701,7 @@ const readMessage = (
     const client = yield* RemoteClient
     const at = now()
     const result = yield* Effect.result(
-      client.read({ version: REMOTE_PROTOCOL_VERSION, requests: requirements }),
+      defectAsFailure(client.read({ version: REMOTE_PROTOCOL_VERSION, requests: requirements })),
     )
     return Result.isFailure(result)
       ? {
@@ -1732,7 +1732,7 @@ const queryMessage = (
   Effect.gen(function* () {
     const client = yield* RemoteClient
     const result = yield* Effect.result(
-      queryRequestOf(query).pipe(Effect.flatMap(request => client.query(request))),
+      defectAsFailure(queryRequestOf(query).pipe(Effect.flatMap(request => client.query(request)))),
     )
     return Result.isFailure(result)
       ? {
