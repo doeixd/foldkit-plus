@@ -1,4 +1,5 @@
-/** The pages the Command and VirtualList browser tests draw, shared by the fine and coarse pointer files. */
+/** The pages the Command, Listbox and VirtualList browser tests draw, shared by the fine and coarse pointer files. */
+import * as UpstreamListbox from '@foldkit/ui/listbox'
 import * as UiVirtualList from '@foldkit/ui/virtualList'
 import { Option, Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
@@ -7,11 +8,21 @@ import { Layers, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { userEvent } from 'vitest/browser'
-import { Command, CommandSlots, Recipes, VirtualList, VirtualListSlots } from '../src/index.js'
+import {
+  Command,
+  CommandSlots,
+  Listbox,
+  ListboxSlots,
+  ListboxView,
+  Recipes,
+  VirtualList,
+  VirtualListSlots,
+} from '../src/index.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const commandStyle = Style.forSlots(CommandSlots)(Recipes.Command({}))
 const listStyle = Style.forSlots(VirtualListSlots)(Recipes.VirtualList({}))
+const listboxStyle = Style.forSlots(ListboxSlots)(Recipes.Listbox({}))
 
 /** Clears what a test drew, and puts the shared pointer back away from the lists. */
 export const clearPage = async () => {
@@ -32,7 +43,8 @@ const page = (id: string) => {
       Layers.standard.in('theme', Theme.root(theme)),
     ) +
     commandStyle.css +
-    listStyle.css
+    listStyle.css +
+    listboxStyle.css
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = id
@@ -90,6 +102,49 @@ export const mountCommand = (options: { readonly bars: boolean }) =>
     }),
   )
 
+const Cities = ListboxView.create<string>()
+const CITIES = Array.from({ length: 40 }, (_, index) => `City ${index}`)
+
+/** A listbox open from the start, its panel longer than the room the recipe gives it. */
+export const mountListbox = (options: { readonly bars: boolean }) =>
+  Runtime.embed(
+    Runtime.makeElement({
+      Model: UpstreamListbox.Model,
+      container: page('listbox'),
+      init: () => {
+        const opened = Cities.open(UpstreamListbox.init({ id: 'cities' }))
+        return { model: opened.model, commands: opened.commands ?? [] }
+      },
+      update: (model: UpstreamListbox.Model, message: UpstreamListbox.Message) => {
+        const next = Cities.update(model, message)
+        return { model: next.model, commands: next.commands ?? [] }
+      },
+      view: (model: UpstreamListbox.Model, h: HtmlBuilder<UpstreamListbox.Message>) =>
+        h.div(
+          [],
+          [
+            away(h),
+            Cities.view(
+              model,
+              {
+                anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
+                items: CITIES,
+                maybeSelectedValue: Option.none(),
+                itemToConfig: (city: string) => ({ content: h.span([], [city]) }),
+                buttonContent: h.span([], ['City']),
+                itemsScrollClassName: 'cities-scroll',
+                toView: Listbox.toView(
+                  [listboxStyle.mixin, ...(options.bars ? Listbox.overlayBars : [])],
+                  { h },
+                ),
+              },
+              h,
+            ),
+          ],
+        ),
+    }),
+  )
+
 /** Rows of many widths, so a box sized by the rows drawn would change width as they scroll. */
 export const FILES = Array.from(
   { length: 1000 },
@@ -136,8 +191,10 @@ export const mountList = (options: { readonly bars: boolean; readonly holder?: '
 
 /** Each component with its overlay bars, and where its scroller is. */
 export const scrollers = {
-  Command: { mount: mountCommand, scroller: '[role="listbox"]' },
-  VirtualList: { mount: mountList, scroller: 'ul' },
+  Command: { mount: mountCommand, scroller: '[role="listbox"]', edge: 'scroller' },
+  VirtualList: { mount: mountList, scroller: 'ul', edge: 'scroller' },
+  // A popup's bar lies over its panel's edge, outside the padding around the rows.
+  Listbox: { mount: mountListbox, scroller: '.cities-scroll', edge: 'panel' },
 } as const
 
 export const partsOf = (selector: string) => {

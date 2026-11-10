@@ -1,8 +1,7 @@
 /**
  * A file drop zone: a dashed card that tints while a drag hovers. The file
- * input keeps its component-owned class, beside which a mixin class does not
- * survive to the element — so the visually-hidden treatment hangs off the
- * root as a descendant rule instead of an input piece. No axes.
+ * input's visually-hidden treatment hangs off the root as a descendant rule,
+ * so it holds whatever classes the input carries. No axes.
  */
 import { Style } from 'foldkit-mixins'
 import { FileDropSlots } from '../fileDrop.js'

@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A class an upstream component passes as a child attribute keeps the
+  recipe's** (`foldkit-mixins`). The resolver merged a slot's plain `Class`
+  but passed a child attribute through, so a popup's `itemsScrollClassName`
+  and the FileDrop input's `sr-only` drew one class of the two, and a
+  Listbox's overlay bar left the browser's bar showing beside it.
+
 - **The Drawer's handle bends about its middle right to left**
   (`foldkit-mixins-ui`). Its bar's two halves sat on logical sides but turned
   on physical origins, so right to left each turned on its outer end and the

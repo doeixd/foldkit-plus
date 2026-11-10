@@ -1,5 +1,5 @@
 /**
- * Command's and VirtualList's scrolling on a real page, broken in turn:
+ * Command's, a Listbox panel's and VirtualList's scrolling on a real page, broken in turn:
  * `pnpm mutate packages/mixins-ui/test/lists.mutations.ts` checks that a test
  * fails for every one.
  */
@@ -89,6 +89,29 @@ export default [
         file: '../src/recipes/command.ts',
         find: "Style.nest('& > *', { direction: 'ltr', unicodeBidi: 'isolate' }),",
         replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "a child's class is kept apart from the slot's, and one of the two is drawn",
+    edits: [
+      {
+        file: '../../mixins/src/resolver.ts',
+        find: '      if (isClass(inner)) {',
+        replace: '      if (false && isClass(inner)) {',
+      },
+    ],
+    tests: [...tests, 'packages/mixins-ui/test/fileDrop.test.ts'],
+  },
+  {
+    name: "a Listbox's bars run nowhere",
+    edits: [
+      {
+        file: '../src/listbox.ts',
+        find: "        mount: () => ScrollBars({}),\n      }),\n    },\n    { name: 'ListboxScrollBars' },",
+        replace:
+          "        mount: () => ScrollBars({}),\n      }),\n    },\n    { name: 'ListboxScrollBars' },\n  ).mixin && Behavior.forSlots(ListboxSlots)<unknown, never>(\n    {},\n    { name: 'ListboxScrollBars' },",
       },
     ],
     tests,

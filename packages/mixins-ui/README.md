@@ -869,8 +869,9 @@ as before a page hydrates, so does the browser's bar.
 Every one is the same shape, a mixin list passed beside the style:
 `ScrollArea.overlayBars`, `Command.overlayBars` and `VirtualList.overlayBars`
 in the view's `mixins`, and `Menu.overlayBars`, `Listbox.overlayBars` and
-`Combobox.overlayBars` in `toView`'s for a popup whose list scrolls (given
-`itemsScrollAttributes`). Like `fluid`, it is off by default: a Scene test
+`Combobox.overlayBars` in `toView`'s for a popup whose list scrolls: upstream
+draws that `scroll` region only when given `itemsScrollClassName` or
+`itemsScrollAttributes`, and its class joins the recipe's. Like `fluid`, it is off by default: a Scene test
 resolves every Mount with a Message, and this one sends none, so a default
 would burden the tests of every page that drew one.
 

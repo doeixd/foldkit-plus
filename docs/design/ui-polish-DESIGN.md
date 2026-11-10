@@ -606,8 +606,10 @@ green commit. Shared history is not rewritten.
 - [x] InputCopy's corner test is a regex over CSS that passes a wrong
   radius: measure computed radii; use `nested()` (A2) instead of a
   hard-coded `radius.md`. **Done**: 8c250261.
-- [ ] Steps' narrow layout test reads CSS text and passes with
-  `containerType` removed: measure at a narrow width.
+- [x] Steps' narrow layout test reads CSS text and passes with
+  `containerType` removed: measure at a narrow width. **Done**: `steps.browser.test.ts`
+  measures a row at 18rem, and the mutation removing `containerType` is killed by
+  "a phone-wide row shows the current label alone" (checked 2026-11-10).
 - [x] da1acf5b replaced the browser test "a held button keeps its size
   under reduced motion" with a regex; restore it with
   `CSS.forcePseudoState` (AGENTS.md). **Done**: 66bf877f.
@@ -675,10 +677,10 @@ green commit. Shared history is not rewritten.
 
 ### E6. Systems' loose ends
 
-- [ ] Overlay bars have two API shapes (a boolean `overlayBars` on
+- [x] Overlay bars have two API shapes (a boolean `overlayBars` on
   ScrollArea, Command and VirtualList; an `X.overlayBars` mixin list on the
   popups): pick one; browser tests for VirtualList and a popup; a gallery
-  example; decide whether they default on. **Partly**: one shape, off by default (245fdb20), browser tests for Command and VirtualList (e8598620), a gallery example (1662fb24); a popup's bar has no browser test yet.
+  example; decide whether they default on. **Done**: one shape, off by default (245fdb20), browser tests for Command and VirtualList (e8598620), a gallery example (1662fb24), and a popup's, a Listbox's open panel in `lists.browser.test.ts` (2026-11-10), which found the panel's scroll region losing the recipe's class to upstream's, so its browser bar stayed: the resolver now merges a child attribute's class.
 - [x] ScrollBars re-observes the scroller and every child on any child
   change (`scroll-bars.ts:254-258`), once a frame while a VirtualList
   scrolls: observe one content box. **Done**: 50fc5b3d (`scroll-bars.browser.test.ts` counts observations).
