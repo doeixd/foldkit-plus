@@ -912,7 +912,7 @@ while keeping the best of what this project already has:
   the menus), and depth per component. Phases 0–5 and the merges have
   landed; a review of that pass (Part E) found claims without proof and
   docs ahead of the code, and most of it is now fixed and ticked there.
-  Still open in Part E: an RTL browser test per component, the measuring tests 50a7ef0f skipped, A3's and
+  Still open in Part E: the measuring tests 50a7ef0f skipped, A3's and
   the radio press tests, the checkbox recipe's mutation spec, a popup's
   overlay-bar browser test, the breadcrumb "…" menu, Steps' markers, the
   custom Select, and the rest of Checkbox Group.

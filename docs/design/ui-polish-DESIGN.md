@@ -589,8 +589,14 @@ green commit. Shared history is not rewritten.
 - [x] One way to detect RTL: `:dir(rtl)` everywhere, not
   `:where([dir="rtl"]) &` (accordion, sidebar, treeView, menu), which
   matches an LTR island in an RTL page. **Done**: no `[dir="rtl"]` selector is left in `packages/mixins-ui/src`.
-- [ ] A browser RTL test per component that has a direction-dependent
-  part, setting `dir` on `documentElement`.
+- [x] A browser RTL test per component that has a direction-dependent
+  part, setting `dir` on `documentElement`. **Done** 2026-11-10: a pass over
+  the components whose tests name no `rtl` found the Drawer's handle halves
+  turning on their outer ends right to left (fixed, cda86b5), and the
+  Toast's right-to-left swipe untested (47b3b29; its direction is an option,
+  so a unit table). ScrollBars is tested in `foldkit-primitives`; Alert's
+  and AppShell's only direction is a logical inset; the Chart is physical
+  on purpose, as its drawing is.
 
 ### E4. Tests that cannot fail, and claims marked without proof
 
