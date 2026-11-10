@@ -1,11 +1,13 @@
 # How a served page is delivered: the runtime on intent, streaming, islands, reads first (#472, #427, #432, #435)
 
-Status: Proposed 2026-11-10: awaiting the owner's decisions.
+Status: decided 2026-11-10 (decisions delegated by the owner); the phase 0 probes are next, then
+the loader (#472) as domains-plus's default on its own numbers.
 
 Four issues ask how a page `foldkit-ssr` renders reaches the browser: when its
 bytes leave the server (#427, #435), and how much script the browser needs for
 them (#472, #432). They share one request path and one handover, so this note
-treats them as one design. Nothing here is built. Its place in the wider plan
+treats them as one design. Nothing here is built. The choices are in section 6
+and the issue actions in section 9. Its place in the wider plan
 is [performance-PLAN.md](./performance-PLAN.md) (order item 5, Phases 3 and
 4) and [declared-optimization-DESIGN.md](./declared-optimization-DESIGN.md).
 
@@ -347,67 +349,180 @@ page sends a Message. The spike's byte question is therefore answered by
 
 Build the loader first: it is the one change here that moves a headline
 number (script at load, below stock Foldkit's) and needs nothing from
-upstream. Take streaming only as far as headers first until a page has a
-slow read below its first screen. Fix `Data.satisfy`'s serial reads, record
-the islands answer from numbers already in hand, and leave Surface-level
-hydration with upstream.
+upstream. Take streaming only as far as headers first, and only if it
+clears decision 6's bar. Fix `Data.satisfy`'s serial reads if a count shows
+them, record the islands answer from numbers already in hand, and leave
+Surface-level hydration with upstream.
+
+Phases 1 and 2 touch different packages and do not depend on each other;
+phase 2 is the priority, and phase 1 does not hold it up. The table is as
+decided in section 6.
 
 Each phase ships alone and reports its own numbers.
 
 | Phase | Change | Measure | With |
 | --- | --- | --- | --- |
-| 0 | Probes: the chunk's URL without evaluation under Vite 8; `Link` preload before the body on workerd and Chromium; what a WindowList Mount reads at a late boot | pass or fail, recorded here | scratch probes, run from the package |
-| 1 | `Data.satisfy` reads a pass's Surfaces together (#435 A); a diagnostic when a render finds a read nobody made | reads per page; warm CPU of `/?q=` | `scripts/workerd-cpu.mjs`, `test/cpu.test.ts` |
-| 2 | The loader (#472): start policy stamped by the server, fetch on idle, run on intent, hold and hand over, release at the deadline; `KeepTyped` required on a deferred page's fields; domains-plus's mirrors deferrable | script at start and in total; Total Blocking Time; first-press to answer at CPU throttle 4; a new search | `scripts/bundle-report.mjs` with a second figure for the loader, `test/bundle.test.ts`; a new timing beside `scripts/search-compare.mjs`; PageSpeed for TBT and Speed Index |
-| 3 | Headers first (#427 A), opt-in on `SSR.entry`, with the status and headers checker | time to first byte; first contentful paint with the sheet uncached | solid-domains' `scripts/benchmark.mjs`; Speed Index |
-| 4 | `SSR.static` on domains-plus's display regions (#432 A): the spike | hydration time with and without; bytes by #421's table | `scripts/render-baseline.mjs` with a boot scenario |
-| 5 | Head first (#427 B), if phase 3's gain and an upstream answer on assets justify it | as phase 3 | as phase 3 |
-| Later | #427 C and #432 C, with upstream; #432 B if an app's own code is a real share | | |
+| 0 | Probes: the chunk's URL without evaluation under Vite 8; `Link` preload before the body on workerd and Chromium, streamed and on the buffered response; what a WindowList Mount reads at a late boot; client calls in a pass of a domains-plus search | pass or fail and the count, recorded here | scratch probes, run from the package |
+| 1 | If phase 0 counts more than one client call in a pass: `Data.satisfy` reads a pass's Surfaces together (#435 A), its doc comment changed with it; a diagnostic when a render finds a read nobody made | client calls per page; warm CPU of `/?q=` reported, not expected to move | `scripts/workerd-cpu.mjs`, `test/cpu.test.ts` |
+| 2 | The loader (#472): the plan's `start` stamped by the server, fetch on idle, run on intent (and on idle under `'idle'`), hold and hand over, release at 3 s; `KeepTyped` required on a deferred page's typed fields, and taking `checkbox` and `radio`; domains-plus's mirrors deferrable, its plan `start: 'idle'`, the loader its entry if decision 5's numbers hold | script at start and in total; Total Blocking Time; first-press to answer at CPU throttle 4; a new search | `scripts/bundle-report.mjs` with a second figure for the loader, `test/bundle.test.ts`; a new timing beside `scripts/search-compare.mjs`; PageSpeed for TBT and Speed Index |
+| 3 | If phase 0's probe passes: the `Link` header alone where that clears decision 6's bar, else headers first (#427 A), opt-in on `SSR.entry`, with the status and headers checker. Kept only if first contentful paint falls by a median of 50 ms | time to first byte; first contentful paint with the sheet uncached | solid-domains' `scripts/benchmark.mjs`; Speed Index |
+| 4 | `SSR.static` on domains-plus's display regions (#432 A): the spike, kept if boot is 10 ms faster at CPU throttle 4 | hydration time with and without; bytes by #421's table | `scripts/render-baseline.mjs` with a boot scenario |
+| Not planned | Head first (#427 B): reconsidered after phase 3 ships and upstream answers on assets. #427 C: when a page has a measured slow read below its first screen. #432 B: when an app's own code is a real share. #432 C: with #433 | | |
 
-Phase 2 waits on #473 or foldkit#1657 only for its default: until a
-never-seen search fits the limit, the loader's deadline release sends a
-reader to a render that may fail.
+Phase 2 does not wait on #473 or foldkit#1657 (decision 5). A deadline
+release still sends a reader to a render that may fail with 1102, as a
+press before the script does today; the loader makes that rarer, and #473
+is what removes it.
 
-## 6. Decisions for the owner
+## 6. Decisions
 
-1. **When is the chunk evaluated?** (a) on intent only; (b) on intent or when
-   idle after it is fetched. **Recommend (b)**, the issue's own fallback: the
-   first press should not pay for the parse, and a page left open must still
-   start its Subscriptions. Report script at load, total script and INP
-   together either way.
-2. **What does a held press do if the chunk is late?** (a) wait without
-   limit; (b) release a form to the browser after a deadline; (c) never hold,
-   and let the form submit at once. **Recommend (b), at 3 s**, the limit
-   `UNTIL_LIMIT_MS` already uses (`client.ts:369`). (c) makes the uncached
-   render the normal path, which the owner's comment rules out.
-3. **A control with no form or link behind it on a deferred page:** refuse
-   at render, or report? **Recommend report** (`HandlerUnnamed`, as now), and
-   refuse only a text field without `KeepTyped`. Refusing every popup
-   trigger blocks domains-plus on work that changes nothing for a reader
-   whose script arrives.
-4. **Is intent scoped to marked elements?** **Recommend yes**, with decision
-   1's idle half covering the reader who only reads.
+Decided 2026-11-10; the owner delegated them. Each item gives the options
+that were on the table, the choice, and the evidence. Six premises of the
+draft were re-read against the code at `922b0ab` and corrected; they are
+marked **Corrected**.
+
+1. **When is the chunk evaluated?** Options: (a) on intent only; (b) on
+   intent, or when idle after it is fetched.
+   **Decided: the loader adds no policy of its own; it follows the plan's
+   `start`, and domains-plus sets `'idle'`.** **Corrected:** this is not a new
+   choice. `Start` already names both (`shared.ts:271`): `'idle'` boots when
+   idle or on the first interaction, `'on-interaction'` on the first only
+   (`client.ts:528-531`), so (a) and (b) are the two values an application
+   already picks between, and a loader option would be a second way to say
+   it. Under the loader both fetch the chunk when idle after load; `'idle'`
+   also runs it when idle after the fetch. The budget reports script at
+   start, total script, Total Blocking Time and first-press time together.
+   domains-plus moves to `'on-interaction'` only if, at CPU throttle 4,
+   `'idle'` does not lower Total Blocking Time below today's and a first
+   press under `'on-interaction'` is answered within 200 ms.
+
+2. **What does a held press do if the chunk is late?** Options: (a) wait
+   without limit; (b) release a form to the browser after a deadline; (c)
+   never hold.
+   **Decided: (b), 3 s counted from the press; a chunk that fails to load
+   releases at once.** 3 s is the limit a served page already waits
+   (`UNTIL_LIMIT_MS`, `client.ts:369`). The loader cannot import that
+   constant from `client.ts`, which imports `effect` (`client.ts:7`), so it
+   moves to a module with no imports that both read. A held event that is
+   not a form's submission is dropped at the deadline, since the browser has
+   nothing to do with it.
+
+3. **A control with no form or link behind it on a deferred page.** Options:
+   refuse at render; report.
+   **Decided: neither. Refuse only a typed field with a resumable binding
+   and no `KeepTyped`, on any plan whose `start` is not `'now'`.**
+   **Corrected:** `HandlerUnnamed` is not such a report. It names a handler
+   the page cannot name, a closure (`diagnostics.ts:43`, `listen.ts:282-285`);
+   nothing today reports a control without a fallback, so "report, as now"
+   meant a new diagnostic, fired for every popup trigger on every render
+   (domains-plus has three listboxes and a dialog, `client/app.ts:7-8`,
+   `:84-86`). A control without a form does nothing when the script never
+   arrives on every Foldkit page; `fallback: 'server'` is the existing way to
+   give one a form. The field refusal is a new `ResumeUnsafe` reason beside
+   `UnkeepableField`, over the types `KeepTyped` accepts
+   (`resumable.ts:147-156` lists the ones it does not). It is a breaking
+   change for a deferred page in `foldkit-ssr`, and goes in the changelog as
+   one. A page that starts `'now'` has the same gap for a shorter time and is
+   left alone.
+
+4. **Is intent scoped to marked elements?** Options: any event in the
+   document; events on marked elements and kept fields.
+   **Decided: marked elements and kept fields, for pointer over, pointer
+   down, focus and key.** **Corrected:** this is narrower in element and
+   wider in event than today's deferred boot, which starts on any event of a
+   bound type anywhere in the root, answered or not (`client.ts:469-474`).
+   The loader finds a marked element by reading attribute names up the
+   event's path, since the markers are a prefix (`listen.ts:251-259`) and no
+   selector matches a prefix of a name; no new attribute is stamped. The
+   reader who only reads is covered by `'idle'`. No scroll mark and no
+   `IntersectionObserver` are built: under `'idle'` the runtime is normally up
+   before a scroll, and under `'on-interaction'` one passive `scroll`
+   listener counts as intent.
+
+   *Drift before boot* (the same table in section 4): **decided: the kept
+   field mechanism takes `checkbox` and `radio`** (`checked` against
+   `defaultChecked`), because the owner's comment on #472 names ticked boxes
+   and `select` is kept already (`keep.ts:25-27`). Scroll is left to the
+   components that read it, after phase 0's probe of a WindowList Mount.
+
 5. **Does the loader become domains-plus's default, or wait for #473?**
-   **Recommend build now, default after** a never-seen search fits the CPU
-   limit.
-6. **How far does streaming go now?** (a) headers first; (b) head first;
-   (c) first screen first. **Recommend (a)**, then (b) only on phase 3's
-   numbers. (c) spends CPU twice on the page whose problem is CPU.
+   **Decided: build it and make it domains-plus's default in the same phase,
+   on the phase's own numbers, without waiting for #473.** **Corrected:** the
+   draft said the loader leans on the GET form more than today. It leans on
+   it less. Today no listener exists until the 217 KB chunk has run, so a
+   submit pressed before then goes to the browser and to an uncached render
+   at once; under the loader the same press is held for up to 3 s. The
+   default lands when the e2e shows a held press answered once, script at
+   start is under 10 KB brotli, and total script, Total Blocking Time and
+   first-press time at CPU throttle 4 are no worse than today's. If one is
+   worse, the loader ships in `foldkit-ssr` and domains-plus keeps its
+   entry until the number is explained.
+
+6. **How far does streaming go now?** Options: (a) headers first; (b) head
+   first; (c) first screen first.
+   **Decided: (a) only, and only if it clears a bar; (b) and (c) are not
+   built.** domains-plus links one stylesheet whose address the server holds
+   (`server/entry.ts:14`, `:43-44`), so a preload has something to name. The
+   bar, on a never-seen search with the sheet uncached: Chromium requests
+   the sheet before the body's first byte from workerd, and first contentful
+   paint falls by a median of 50 ms or more. The render it overlaps is about
+   120 ms, which is the most it can gain, and a page served from the page
+   cache gains nothing. Phase 0 also probes the change with no stream at
+   all: the same `Link` header on the buffered response, through the
+   existing `headers` option, for a host that turns it into an early hint.
+   If that alone clears the bar, it is the whole of phase 3. If neither
+   does, #427 closes with the probe's numbers. (b) is reconsidered only
+   after (a) ships and upstream answers on assets; (c) waits for a page with
+   a measured slow read below its first screen, which no page here has.
+
 7. **May a streamed page's `status` and `headers` see only the Model before
-   `prepare`?** The alternative is that a page whose status depends on a read
-   (a missing article's `404`) does not stream. **Recommend: such a page
-   does not stream**; the option is per entry and the checker reports a
-   status or header that changed after `prepare`.
-8. **Which upstream asks go out?** (a) assets to `renderPage`; (b) a
-   streamed `Rendered`; (c) adopting a subtree without reading it. **Recommend
-   (a) and (c) as comments beside proposal 2**, and hold (b) until phase 3
-   shows a gain; proposal 7 stays first.
-9. **#435 as written, or as found?** The issue's premise does not match the
-   code. **Recommend narrowing it** to the serial reads in `Data.satisfy` and
-   the unmade-read diagnostic, and closing the Site-tree half as not needed.
-10. **#432:** accept the bound from #421's table as the byte half of the
-    spike, and run only the hydration-time half (phase 4)? **Recommend yes**,
-    and leave option C with the renderer work (#433).
+   `prepare`?** Options: yes, with a checker; a page whose status depends on
+   a read does not stream.
+   **Decided: such a page does not stream.** Streaming is opt-in for an
+   entry. A streamed entry calls `status` and `headers` with the Model
+   before `prepare`, calls them again after, and reports a difference as a
+   diagnostic in production too, since the cost is two function calls
+   (`index.ts:1622-1623`). A streamed first render says `private, no-store`
+   and is still kept in the page cache for the next visitor, who is served
+   buffered.
+
+8. **Which upstream asks go out?** Options: (a) assets to `renderPage`; (b)
+   a streamed `Rendered`; (c) adopting a subtree without reading it.
+   **Decided: none now. foldkit#1657 stays the one active ask.** Each of the
+   three serves a step that is not yet shown to pay, and an ask without a
+   number behind it is weaker than one with. (a) is posted if step A clears
+   decision 6's bar, as what head first would need. (c) is posted if phase 4
+   shows a static region costs more to adopt than to draw. (b) is not
+   posted. The texts are in section 9; the maintainer posts them.
+
+9. **#435 as written, or as found?**
+   **Decided: narrow it** to the serial reads in `Data.satisfy` and the
+   unmade-read diagnostic, and drop the Site-tree half. Confirmed: `prepare`
+   runs before either render (`index.ts:2041-2052`), and inside a pass each
+   Surface's read is awaited before the next is planned
+   (`remote.ts:1484-1501`). **Corrected:** reading a pass together changes a
+   documented behaviour. `satisfy`'s doc comment says a Surface revealed by
+   one earlier in `active` is read in the same pass (`domain.ts:555-563`);
+   read together, it waits for the next. The default of 8 passes
+   (`remote.ts:1472`) still covers a chain shorter than 8, the comment
+   changes with the code, and the change is a changelog entry for
+   `foldkit-remote`. The phase's measure is client calls a page, not CPU:
+   domains-plus prices in process, so its CPU will not move. It is built if
+   a count shows a search page making more than one client call in a pass;
+   if every pass already makes one, #435 closes with the count. The
+   diagnostic is placed where Remote's plan can be read (the `Remote.resume`
+   part), not in `foldkit-ssr`.
+
+10. **#432: accept the bound from #421's table as the byte half of the
+    spike?**
+    **Decided: yes; run only the hydration-time half, and close #432 when
+    its numbers are recorded.** No option removes Effect, Foldkit or Remote
+    while one region sends a Message, and the app's own code is 16.6 of
+    217 KB. domains-plus adopts `SSR.static` on its header, hero and footer
+    if booting at CPU throttle 4 is 10 ms or more faster with it; otherwise
+    the numbers are recorded and the regions stay as they are. Option B is
+    not built (#423 moved 0.9 KB the same way), and option C stays with the
+    renderer work (#433).
 
 ## 7. Risks, review points, tests
 
@@ -418,12 +533,12 @@ reader to a render that may fail.
 | A press handled twice, or not at all | the loader's hold against the form's own submission | one state per held event (held, handed over, released); e2e below |
 | The page drifts from the Model before boot | a field typed in, a box ticked | `KeepTyped` required; `checkbox` and `radio` kept or the page refused |
 | The loader grows a second copy of `listen` | answering events in two places | the loader decides only hold or pass; `listen` alone makes Messages |
-| The first press pays for the parse | INP on a phone | decision 1 (b); INP reported in the budget |
+| The first press pays for the parse | INP on a phone | `start: 'idle'` (decision 1); INP reported in the budget |
 | A reader who never interacts never revalidates | Subscriptions start at boot | the idle start |
 | A streamed page fails after `200` | CPU limit, a failed `prepare` | the stream errors, never closes cleanly; streaming stays opt-in while a search exceeds the limit |
 | A streamed page skips Foldkit's document checks (B, C) | markup a parser would rebuild | the development checker renders the buffered document and compares bytes; step A skips nothing |
 | A header decided too early is wrong | a cookie or status from a read | the checker; decision 7 |
-| The first page of an isolate is buffered (assets remembered) | a cold start's first byte | stated, and removed by upstream ask (a) |
+| The first page of an isolate is buffered (assets remembered) | a cold start's first byte, under head first only, which is not planned | stated, and removed by upstream ask (a) |
 | A measure is gamed | script at load falls while total and INP rise | all three in one table, in the `perf` job |
 
 ### What a reviewer must check
@@ -437,7 +552,10 @@ reader to a render that may fail.
   fallback is gone once the runtime answers it.
 - Streaming changes no byte of a buffered page; the page cache keeps what it
   kept before.
-- The `satisfy` change keeps a family's parent read before its instances.
+- The `satisfy` change keeps a family's parent read before its instances,
+  and its doc comment no longer promises a same-pass read (decision 9).
+- The loader shares the 3 s limit with `client.ts` through a module that
+  imports nothing.
 - No new option duplicates `start`, `deferrable` or `SSR.static`.
 
 ### Tests each phase needs
@@ -451,6 +569,8 @@ reader to a render that may fail.
 | 2 | focus stays on the pressed control across the handover | browser test |
 | 2 | served elements are still adopted after a late boot | e2e, the `adoption` check |
 | 2 | a deferred page's text field without `KeepTyped` is refused, naming it | unit |
+| 2 | a box ticked with the chunk held is ticked in the Model after boot, once | e2e |
+| 2 | pointer over an unmarked element does not run the chunk; over a marked one does | browser test, with `start: 'on-interaction'` |
 | 2 | no layout shift at a late boot | `layoutShift.e2e.ts`, with the boot held |
 | 3 | the response's headers arrive before the render finishes; the concatenated body equals the buffered document; a mutation that buffers is caught | unit on the stream's chunks, with a held `prepare` |
 | 3 | a status that changes after `prepare` is reported | unit |
@@ -474,3 +594,49 @@ events longer than any threshold the loader reads.
 | Refreshing a streamed or kept page in `waitUntil` | bound by the same CPU limit |
 | A push from another request into an open page stream | one request cannot wake another's stream on Workers |
 | Counting "script at load" alone as #472's result | the owner's comment: total script and first-interaction INP beside it, or the change games one number |
+
+## 9. Issue actions
+
+For the coordinator. None of these is done by this note.
+
+| Issue | Action | New title, or note |
+| --- | --- | --- |
+| #472 | keep | scope is decisions 1 to 5: the loader follows `start`; holds a press 3 s; refuses an unkept typed field on a deferred plan; keeps `checkbox` and `radio`; becomes domains-plus's default on its own numbers |
+| #427 | narrow | "SSR.entry sends its headers first, with a stylesheet preload (opt-in)". Close with the probe's numbers if phase 0 or phase 3 misses decision 6's bar. Head first and first screen first are out of scope until a page has a measured slow read |
+| #435 | narrow | "Data.satisfy reads a pass's Surfaces in one round trip, and reports a read a render finds unmade". Say in the issue that reads already start before any view runs, and that the Site-tree declaration is dropped. Close with the count if every pass already makes one client call |
+| #432 | narrow | "Spike: SSR.static on domains-plus's display regions, hydration time". The byte half is answered by #421: at most the app's 16.6 KB. Close when phase 4's numbers are recorded; Surface-level hydration stays with #433 |
+| #473, #413 | keep | no longer a condition of the loader's default (decision 5) |
+
+Upstream asks. Nothing is posted now; foldkit#1657 stays the one active
+ask. The maintainer posts each of these when its condition is met, with the
+measured number in place of the bracket.
+
+- **Assets to `renderPage`**, if step A clears decision 6's bar:
+
+  > `renderPage` receives the request alone, and the built entry script and
+  > preloads reach only `renderDocument` (the generated fetch module closes
+  > over `assets` there). An entry that returns `Responded` with a body it
+  > writes itself therefore cannot name the script to load. We send the
+  > status and headers of a page before rendering it, which moved first
+  > contentful paint by [n] ms on our benchmark, and would send the head the
+  > same way if the entry knew the assets. Would you take
+  > `renderPage(request, { assets })`, or the same value on the fetch
+  > module's options? We work around it today by remembering the assets from
+  > the first `renderDocument` call, which leaves the first page of each
+  > isolate buffered.
+
+- **Adopting a subtree without reading it**, if phase 4 shows a static
+  region costs more to adopt than to draw:
+
+  > Hydration adopts an element whose children are trusted `InnerHTML`
+  > without walking them, which is what lets a server-rendered region stay
+  > as served. To get there the client has to read the region's `innerHTML`
+  > to hand it back, and hydration then parses that string into a probe and
+  > reads the element again to compare. For a region the application
+  > declares unchanged since the server drew it, that is two serializations
+  > and a parse to confirm what was just read from the same element: [n] ms
+  > of a [m] ms boot on our page. Would you take a way to say "adopt this
+  > element's children as they are", with no string passed and no
+  > comparison?
+
+- **A streamed `Rendered`** is not asked for.
