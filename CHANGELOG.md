@@ -83,6 +83,25 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-ssr/loader`: the runtime's chunk on intent** (`foldkit-ssr`,
+  #472). An entry script that imports nothing of `effect`, Foldkit or the
+  application (about 2 KB brotli): `load({ runtime: () => import('./entry.js')
+  })`. It follows the plan's `start`, which the server now writes into the
+  envelope: `'now'` runs the chunk at once, `'idle'` fetches it when idle after
+  load and runs it when idle again, `'on-interaction'` runs it on a pointer
+  over or down, focus or key on a marked element, or a scroll. Until
+  `SSR.hydrate` takes over it holds each event a marker names (a submission
+  prevented), and `SSR.hydrate` answers each from the markers once. A held
+  event not taken 3 s after it happened is released (a submission through
+  `requestSubmit`, anything else dropped), and at once when the chunk fails to
+  load or the page does not resume. `runtimeChunk({ entry })` from
+  `foldkit-ssr/vite` writes the chunk's address into the loader, which fetches
+  it with `<link rel="modulepreload">` without running it. `KeepTyped` also
+  takes a checkbox or radio: its `checked` is compared with the served one and
+  replayed as its named `OnChange`, `OnInput` or `OnClick` Message.
+  domains-plus builds with it under `DOMAINS_PLUS_LOADER=1`; it is not yet its
+  default.
+
 - **`FileDrop.Message`** (`foldkit-mixins-ui`). The drop zone's four Messages
   over a `File` codec that needs no decoding services. Upstream's
   `@foldkit/ui/fileDrop` types its files as `Schema<File>`, whose services are
@@ -299,6 +318,15 @@ version changed; `pnpm` skips versions already in the registry.
   again), so a page renders once in `keep` instead of once a minute.
 
 ### Changed
+
+- **Breaking: a deferred plan refuses a named field without `KeepTyped`**
+  (`foldkit-ssr`, #472). On a plan whose `start` is not `'now'`, a field whose
+  binding names its typing (a hole-form `OnInput` or `OnChange`; on a checkbox
+  or radio any named `OnChange`, `OnInput` or `OnClick`) and has no
+  `rh.KeepTyped()` is refused with `ResumeUnsafe` reason `UnkeptField`, naming
+  each: its typing before boot was lost at the first render. Add
+  `rh.KeepTyped()`, or start `'now'`. `UNTIL_LIMIT_MS` is unchanged, now read
+  from a module with no imports.
 
 - **A client that evaluates an Expr no longer holds JSON Schema** (`foldkit-entity`).
   `Law.describe` and `Operators.describe` sat in the objects `evaluate` and the
