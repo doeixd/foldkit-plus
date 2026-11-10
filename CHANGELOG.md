@@ -77,6 +77,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **A hidden title, a scrim token and the no-script pair** (`foldkit-mixins`,
+  `foldkit-mixins-ui`, #424). `Recipes.Dialog` and `Recipes.Sheet` take
+  `title: 'hidden'`, which leaves the heading to a screen reader and still
+  names the dialog. `Theme.tokens.overlay.scrim` is what a modal's backdrop
+  draws over the page; an application overrides it in its own tokens instead
+  of restyling `backdrop`. `Utilities.scriptedOnly` and `Utilities.plainOnly`
+  hide a control only a script drives, and show its stand-in, in a browser
+  running no scripts.
+
 - **`writing`: one derived read of what is being saved** (`foldkit-remote`,
   #377). `writing(Data, model, { mutation, row })`, from the root, is
   `Writing.None`, `Sending`, `Unanswered`, `WaitingForSignIn`, `Unreadable` or
@@ -278,6 +287,11 @@ version changed; `pnpm` skips versions already in the registry.
   again), so a page renders once in `keep` instead of once a minute.
 
 ### Changed
+
+- **The Sheet's padding reads the theme's `safe` tokens** (`foldkit-mixins-ui`,
+  #424). It wrote `env(safe-area-inset-*)` itself, so a page that sets
+  `--fk-safe-*` (as the browser tests do) moved a Dialog and not a Sheet's
+  padding. The value on a phone is the same.
 
 - **Two form mistakes are type errors** (`foldkit-form`, `foldkit-mixins-form`).
   `Input.bundle` with `busy` and no `settled` no longer compiles (#491); it
