@@ -1,7 +1,10 @@
 # Expr: pipeable authoring, type contracts, interpreters and inferred reads (#478, #479, #483, #185, #64)
 
-Status: Proposed 2026-11-10: awaiting the owner's decisions. A design note;
-nothing here is built. It slices
+Status: decided 2026-11-10 (decisions delegated by the owner); built next is #500 narrowed to `ReadsOf`'s doc comment and its pinning type tests, then a `step` member on operators and on the seven comparison builders.
+
+A design note; nothing here is built. The decisions are in "Decisions"
+below, and where one departs from a recommendation, sections 2 to 7 keep the
+original text beside a dated correction. It slices
 [480-async-guarantees-DESIGN.md](./480-async-guarantees-DESIGN.md), whose
 findings it starts from and does not repeat. Source was read at `91ed361`;
 every type claim marked *probed* was compiled in `packages/entity` with
@@ -9,6 +12,102 @@ every type claim marked *probed* was compiled in `packages/entity` with
 that was then deleted. #481's type cases
 (`packages/remote/test/asyncBoundaries.test-d.ts`, `0cdaee6`) and #482's
 temporal laws are another note's; they are referenced here, not redone.
+
+## Decisions
+
+Decided 2026-11-10 at `922b0ab`. The numbers are those of section 6, which
+keeps each decision's options. Claims the decisions rest on were compiled
+again in a scratch `*.test-d.ts` in `packages/entity` (`npx tsc -b
+packages/entity`, TypeScript 7.0.2), deleted afterwards.
+
+**A premise found wrong.** Section 2.2 says of the `ReadsOf` hole that
+"nothing is refused wrongly today", and section 7 names one risk of fixing
+it (a signature that treats `string` as a refusal). Both miss what the fix
+costs. `string` absorbs every name it is unioned with, and both consumers
+test `string extends Names` first and accept (`OverEntity`,
+`packages/entity/src/expr.ts:376`; `RuleOver`,
+`packages/guard/src/index.ts:311`, which the note did not list). Today an
+unmarked node contributes `never`, which a union drops, so
+`Expr.and(Expr.eq(Author.fields.name, 'a'), plain)` with `plain: Predicate`
+reads `'Author'` and is refused where it is passed to a `Post` query
+(*probed*). With the last branch answering `string`, that predicate reads
+`string` and compiles, and so does every other predicate in the same
+`Query.where` call, since their reads are unioned (`:2732`). The fix as
+written would move a refusal that lands at the mistake today to run time.
+
+1. **`ReadsOf`: (b), narrowed: correct the doc comment, keep `never`, and pin
+   the behaviour with type tests.** Option (a) trades a refusal that works
+   for a distinction no code reads: nothing in `packages/*/src` asks whether
+   a node is proved to read no Entity, and the run-time ownership check
+   (`checkOwnership`, `:2587`) stays the proof either way. The comment at
+   `:351` is the claim the code does not keep, so it is what changes: an
+   unmarked node adds no name, and `never` means "no name known to the
+   type", not "proved to read none". If a consumer of proved-empty appears,
+   unknown gets a marker of its own that a union keeps beside the known
+   names; it does not become `string`. This is #500.
+2. **Data-last for operators: (a), a member with one signature, named
+   `step`.** Re-probed: a step derived from `Operator<In, Out>` keeps reads
+   exact through `pipe` and `flow` and refuses a wrong value at the value,
+   while an operator passed point-free reads `string` in `pipe` and fails
+   in `flow` with "Expected 2 arguments, but got 1", as probe 8 says. On
+   the name: Effect has no word to borrow, because `dual` gives the
+   data-last form the function's own name and that route is closed here.
+   An operator is a function, so `apply`, `call`, `bind`, `name` and
+   `length` are taken, and `pipe` would collide with `Pipeable`'s method,
+   which means the opposite. `with` reads as Effect's `xWith` (a variant
+   taking a function) and reads badly with no argument (`lower.with()`);
+   `piped` names one caller and is wrong inside `flow` and `definedAs`.
+   `step` is the noun the note already uses for the returned function ("a
+   step is the call without its subject"), is unused in
+   `packages/entity/src`, and reads as what it is at each site:
+   `pipe(Product.fields.upc, Text.startsWith.step(input.search))`,
+   `flow(trim.step(), lower.step())`.
+
+   **The comparison builders take the same member, in place of `dual` by
+   arity** (option B of section 3.1, which phase 2 carried without a
+   numbered decision): `pipe(Post.fields.status, Expr.eq.step('draft'))`.
+   Two mechanisms for one idea would be sibling APIs that disagree. `dual`
+   would also make `Expr.eq(Post.fields.title)` a function where it is an
+   arity error today, and could take no `{ collation }` data-last, since
+   `Expr.lt(value, { collation })` and `Expr.lt(left, right)` are both two
+   arguments; a member has neither problem. *Probed*: `typeof Expr.eq & {
+   readonly step }` keeps the data-first call's arity error and its
+   wrong-value error, reads `'Post'` through `pipe` and `'Author'` through
+   `flow`, refuses `Expr.eq.step(42)` against a text field at the step, and
+   the cross-Entity predicate is refused at `Query.where`.
+3. **`.pipe` on nodes: (a), no.** `pipe` from `effect` takes a field and a
+   node alike, and `Post.fields.title` is an `EntityField`, so a method on
+   nodes would leave half the chains starting with a wrapper. It would
+   also give every frozen literal a prototype for a spelling.
+4. **`Num` and more `Text` operators: (a), no.** No numeric scalar operator
+   has a caller in `packages/*/src`, each is a primitive needing a memory
+   and two SQL implementations with agreed null and collation behaviour,
+   and `Num.gte` is `Expr.gte`. Subtraction waits for the inventory
+   example to ask for it, as its own change.
+5. **#185's four departures: (a), accept all and close.** Every caller of a
+   table is synchronous, so a Layer would add a lookup for a value built
+   once. Operator ids in types would put a second phantom on every node
+   and a parameter on `Query<E>`, to move a check that already fails
+   before a request is served and that covers widened bodies, which types
+   cannot.
+6. **#64: (a), close, and `covers` stays a list of names.** The coverage
+   check compares `Metadata.summarize`'s output, which holds a name and no
+   key (`packages/metadata/src/index.ts:33`,
+   `packages/ssr/src/index.ts:524`), so option (b) would change
+   `MetadataSummary` as well as `ResumePart`, for a report. Matching by
+   name also keeps working across two copies of a package, where key
+   objects by design do not see each other. One fact for the record: the
+   only two keys in the tree without a package prefix are Remote's own,
+   `'remote'` and `'remote.connection'` (`requirement.ts:141`, `:147`),
+   the two `covers` matches; a namesake would be counted as resumed. No
+   change is planned for that.
+7. **#483: (a), close on `verify`.** A Model-reading `Expr` would be a tenth
+   scalar variant that every interpreter but a new one answers "refused".
+   A `Derived` as a `struct` entry waits for a caller; none exists.
+8. **Namesakes in `Reads`: (a), no.** Run time decides by identity
+   (`checkOwnership`), nothing consumes a type-level distinction, and a
+   unique symbol per `Entity.define` would reach every `Reads` in every
+   signature.
 
 ## 1. The problem
 
@@ -102,6 +201,12 @@ Two holes, both *probed*:
    that trusts `never` (an elimination, a memo key, #479's "typed `never`
    means proved-empty") would be unsound. Inside `definedAs`, parameters are
    unmarked, so the body's reads are `never` there too.
+
+   *Corrected 2026-11-10.* `never` is also what keeps a refusal: a union
+   drops it, so a marked predicate combined with an unmarked one keeps its
+   names and is still refused in another Entity's query. Answering `string`
+   would lose that (see "Decisions", 1). The comment changes; the type does
+   not.
 2. **`Reads` names Entities by name** (#480, "What each issue should do",
    #479): a namesake passes tsc and is refused at run time. Unchanged here.
 
@@ -186,15 +291,16 @@ data-last with all but the first, told apart by arity or a predicate.
 | F. `Fn.define(schema, flow(…))` | A second symbolic function | **Rejected**: `Expr.operator` with `definedAs` is that, with an id, a version, hygiene and `Query.show` already. `definedAs: title => pipe(title, trim.step(), lower.step())` is the issue's `normalize` |
 | G. `Num`, more `Text` | `Num.subtract`, `Text.trim`, `lowercase`, `replaceAll` | **Not now**: data-query §6.0's rule stands (an operator states its semantics, names a caller, is built in the reference interpreter first). None of these has a caller, and each is a primitive needing a memory and two SQL implementations with agreed null, collation and Unicode behaviour |
 
-The recommended surface is B plus D, used with `pipe` and `flow` from
-`effect`:
+The recommended surface was B plus D. Decided: D alone, with the builders
+of B taking the same `step` member in place of `dual` (Decisions, 2), used
+with `pipe` and `flow` from `effect`:
 
 ```ts
-// sketch: `.step` and one-argument `Expr.eq` do not exist yet
+// sketch: `.step` does not exist yet
 import { flow, pipe } from 'effect'
 
 const byPrefix = pipe(Product.fields.upc, Text.startsWith.step(input.search))
-const isDraft = pipe(Post.fields.status, Expr.eq('draft'))
+const isDraft = pipe(Post.fields.status, Expr.eq.step('draft'))
 
 const slug = Expr.operator('blog.slug', {
   input: [Schema.String],
@@ -204,7 +310,7 @@ const slug = Expr.operator('blog.slug', {
 ```
 
 Each step builds exactly the node the data-first call builds: `op.step(...rest)`
-is `self => op(self, ...rest)`, and one-argument `Expr.eq(v)` is
+is `self => op(self, ...rest)`, and `Expr.eq.step(v)` is
 `left => Expr.eq(left, v)`. No new node, no new walker case, nothing for an
 interpreter to learn. `Predicate` stays its own type (constraint 5 of #478):
 a boolean operator's step returns a `TestPredicate`, and `Expr.not`,
@@ -219,7 +325,7 @@ negative case that goes red when the constraint is widened. By that test:
 | Contract (from #479's table) | Today | Decision |
 | --- | --- | --- |
 | Correct values in pure composition | tsc (§2.2) | Keep. Extend to the data-last forms, with their negatives |
-| Explicit reads, unknown distinct from none | tsc, with the hole in §2.2 | **Fix**: an unmarked node reads `string`. The one change to types this note recommends on its own merits |
+| Explicit reads, unknown distinct from none | tsc, with the hole in §2.2 | Recommended: an unmarked node reads `string`. **Decided otherwise**: the type stays, and the comment says what `never` means (Decisions, 1) |
 | Reads tell namesakes apart | run time (identity) | Keep at run time (#480): no consumer, and a unique symbol per `Entity.define` would reach every `Reads` in every signature |
 | No write or I/O inside an expression | construction: `Write` and `Expr` are disjoint; an operator's implementation is a synchronous function of stored values (`operators.ts:22`), supplied to an interpreter, never held by a node | Keep. No effect row: there is no effectful term to carry one |
 | Symbolic Fn keeps captures explicit | run time, at each call (`readKeys`) | Keep. tsc cannot see what a closure captured |
@@ -358,41 +464,50 @@ Data-first stays, and stays the form the README teaches first.
 
 ## 5. Recommendation and plan
 
-Recommendation: fix the one contract that is wrong (`ReadsOf`), add the
-smallest data-last form that keeps it exact (`step`, and one-argument
-`eq`-family builders), and close #185, #64 and #483 on what is already
-built. No new node, namespace, effect row, Layer or symbolic-function type.
+As decided: correct the one claim that is wrong (`ReadsOf`'s comment), add
+the smallest data-last form that keeps reads exact (a `step` member on
+operators and on the seven comparison builders), and close #185, #64 and
+#483 on what is already built. No new node, namespace, effect row, Layer or
+symbolic-function type, and no change to what any existing call accepts.
 
 Each phase ships alone.
 
-**Phase 1: `ReadsOf` says unknown for an unmarked node.** (#479)
+**Phase 1: `ReadsOf`'s comment says what the type does.** (#500, #479)
 
-- Change: the last branch of `ReadsOf` (`expr.ts:364`) answers `string`
-  where a type has no `'~reads'`; fix the doc comment or the code so they
-  agree. No public name changes; `ReadsOf` is exported, so run the Jev
-  review.
-- Type tests (`expr.test-d.ts`): `ReadsOf<Predicate>`, `<Expr<string>>`,
-  `<FieldExpr<string>>` equal `string`; `ReadsOf<LiteralExpr<1>>`,
-  `<InputExpr<string>>` and a plain value equal `never`; a marked node keeps
-  its names; a widened predicate still compiles into another Entity's query
-  (probe 2), with the run-time refusal asserted beside it in `expr.test.ts`.
-- Mutation: restore `never` in the last branch; the three `string` cases go
-  red.
-- Risk to check first: any signature that reads `[Names] extends [Name]`
-  with `Names = string` and refuses. `OverEntity` tests `string extends
-  Names` first and accepts; grep for other consumers before the change.
+- Change: the doc comments of `Reads` and `ReadsOf` (`expr.ts:342`, `:351`).
+  An unmarked node adds no name; `never` is "no name known to the type",
+  and the run-time check is what proves ownership. The conditional is not
+  touched. A doc comment of an exported type changes what it promises, so
+  run the Jev review.
+- Type tests (`expr.test-d.ts`): `ReadsOf<Predicate>`, `<Expr<string>>` and
+  `<FieldExpr<string>>` equal `never`; a marked node keeps its names; a
+  marked predicate over `Author` combined by `Expr.and` with a plain
+  `Predicate` reads `'Author'` and is refused in a `Post` query
+  (`@ts-expect-error`, alone) and in a Guard row rule over `Post`; a
+  predicate widened to `Predicate` alone compiles into another Entity's
+  query (probe 2), with the run-time refusal asserted beside it in
+  `expr.test.ts`.
+- Mutation: make the last branch answer `string`; the mixed refusal's
+  directive goes unused and the three `never` cases go red. This is the
+  test that the recommendation would have failed.
 
 **Phase 2: steps.** (#478)
 
 - `Operator` gains `step`, one signature, derived as in probe 10; at run
   time `(...rest) => self => op(self, ...rest)`, so every check an operator
-  call runs still runs. It takes no `CallOptions`.
-- `Expr.eq`, `lt`, `lte`, `gt`, `gte`, `contains` and `in` accept one
-  argument and return a step (`dual` by arity). The one-argument
-  comparisons take no `{ collation }`.
-- Type tests, negatives each alone: probes 4, 5, 6, 7 and 10 as written
-  above; `flow` of two steps applied to a field; a step into `Query.where`,
-  a Guard row rule and an invariant.
+  call runs still runs. It takes no `CallOptions`: a call that needs a
+  collation is written data-first.
+- `Expr.eq`, `lt`, `lte`, `gt`, `gte`, `contains` and `in` gain the same
+  member: `Expr.eq.step(right)` is `left => Expr.eq(left, right)`. Their
+  data-first signatures do not change, so `Expr.eq(Post.fields.title)` is
+  still "Expected 2 arguments". A comparison's step takes the optional
+  `{ collation }` its builder takes, since a member has no arity to
+  confuse: `Expr.lt.step(value, { collation })`.
+- Type tests, negatives each alone: probes 4, 5, 6 and 10 as written above,
+  with probe 6's check reached through `Expr.eq.step`; the data-first
+  arity and wrong-value errors unchanged beside a builder that has a
+  `step`; `flow` of two steps applied to a field; a step into
+  `Query.where`, a Guard row rule and an invariant.
 - Runtime law, one table-driven test: for each builder and for
   `Text.startsWith`, the piped node `Equal`s the data-first node
   structurally (`toEqual`), has the same `dependenciesOf`, the same
@@ -400,7 +515,7 @@ Each phase ships alone.
   existing conformance cases. An operator defined with `flow` of steps in
   `definedAs` expands to the body written nested.
 - Mutations: a step that drops `self`; one that swaps `self` and `rest[0]`;
-  one-argument `eq` returning `Expr.eq(v, left)`; `step` bypassing the
+  `Expr.eq.step` returning `Expr.eq(v, left)`; `step` bypassing the
   operator (building the node itself, so skipping argument checks).
 - Docs in the same change: README (data-first first, steps after), the
   skill's entity reference, CHANGELOG. A README snippet is compiled.
@@ -408,13 +523,10 @@ Each phase ships alone.
   after the new tests are counted separately (probe 12 puts 200 chains at
   3.4%, so the allowance is for the declarations, not the tests).
 
-**Phase 3: close out.** No code unless a decision below asks for it.
+**Phase 3: close out.** No code. The texts are in "Issue actions".
 
-- #185: record the four departures as accepted.
-- #64: close, pointing at `Metadata.key`; optionally `covers` by key object
-  (decision 6).
-- #483: close on #480's `verify`.
-- #478 and #479: close on phases 1 and 2.
+- #185, #64 and #483 close now.
+- #500 closes on phase 1, and #479 with it; #478 closes on phase 2.
 
 Not planned: `.pipe` on nodes (decision 3), numeric or further text
 operators (decision 4).
@@ -463,16 +575,20 @@ operators (decision 4).
 
 **Risks.**
 
-- Phase 1 turns "proved none" into "unknown" for types that were already
-  unknown. If some signature treats `string` as a refusal, valid programs
-  stop compiling; the grep in phase 1 is the guard, and the full
-  `typecheck:force` the proof.
+- *Superseded 2026-11-10.* As recommended, phase 1 would have turned
+  "proved none" into "unknown" for types that were already unknown. The
+  risk named here was a signature treating `string` as a refusal; the one
+  that decided it is the opposite, `string` switching a refusal off
+  (Decisions, 1). As decided, phase 1 changes no type, and its remaining
+  risk is that `never` goes on standing for both "none" and "unknown":
+  anything built later that needs proved-empty must not read it from
+  `ReadsOf`.
 - A step's error is harder to read than a data-first one (probe 6). If
   users reach for steps first, the kernel's best messages are seen less.
   The README order (data-first first) is the mitigation.
-- `dual` by arity on `eq` makes a one-argument call valid where it was a
-  type error ("Expected 2 arguments"). A forgotten second argument now
-  returns a function, and the error moves to where it is used.
+- *Avoided by decision 2.* `dual` by arity on `eq` would make a
+  one-argument call valid where it was a type error ("Expected 2
+  arguments"). With a `step` member the data-first call keeps its arity.
 - Two ways to write one node. They build the same value, which the phase 2
   law holds; it is still two spellings to teach. This is the cost of #478
   at all, and the reason the surface is this small.
@@ -480,7 +596,8 @@ operators (decision 4).
 **Review points.**
 
 - Probe 8 is the load-bearing one: re-run it before accepting option (a) of
-  decision 2 over (b), on the TypeScript version current at the time.
+  decision 2 over (b), on the TypeScript version current at the time. Done
+  2026-11-10 on 7.0.2, with the same result.
 - Check phase 2's `step` against `Expr.operator`'s `definedAs` branch: a
   defined operator takes no collation, and a step takes none either, so the
   two agree; a primitive operator with `collation: 'required'` and no
@@ -488,6 +605,9 @@ operators (decision 4).
 - `Expr.in` and `contains` have a right side that is not typed from the
   left the way `eq`'s is; write their data-last signatures from their own
   constraints, not by copying probe 6.
+- Only `Expr.eq`'s step was probed for decision 2. Probe `lt` with its
+  options, `contains` and `in` before building them, each with its
+  negatives.
 
 **Rejected alternatives.**
 
@@ -507,3 +627,50 @@ operators (decision 4).
 - **A tagged requirement union in Surface** (#64's original shape): a
   second, closed way to say what a `Metadata.key` says.
 - **Merging `Operator`'s signatures to make it `dual`-friendly** (probe 9).
+
+## Issue actions
+
+For the coordinator. Nothing here has been done.
+
+- **#185: close.** Comment: "Closing as built. Open operations shipped in
+  phases 0 to 7: an application declares an operator with `Expr.operator`,
+  implements it per interpreter in a table, and a server lacking one does
+  not start. The four departures from this issue are accepted (decided
+  2026-11-10 in `docs/design/478-479-483-185-64-expr-contracts-DESIGN.md`):
+  tables are plain values, not Effect services, because every caller is
+  synchronous; completeness is checked at startup, not in types, because
+  operator ids in types would put a phantom on every node and a parameter
+  on `Query<E>` while missing widened bodies; there are no partial or
+  effectful operators, for want of a caller; and an increment on a real
+  column keeps its `expect`, because floating-point addition does not
+  associate."
+- **#64: close.** Comment: "Closing: the tagging this asked for exists in
+  another shape. A Projection's requirements are keyed per interpreter by
+  `Metadata.key`, found by the key object, merged by each key's own
+  `merge`, and invisible to Surface; the pure plan is each interpreter's
+  function over its own key (Remote's `requirementsOf` and
+  `connectionsOf`). A tagged union in Surface would be a second, closed
+  way to say the same thing and would make Surface name its interpreters.
+  No second requirement interpreter exists yet; when one does, it declares
+  a key. `ResumePart.covers` stays a list of key names (decided 2026-11-10
+  in `docs/design/478-479-483-185-64-expr-contracts-DESIGN.md`)."
+- **#483: close.** Comment: "Closing on #480's `verify`. A checked
+  `Projection.fromExpr` would have covered none of the risky
+  `Projection.derive` calls measured there, and `Expr` does not fit: it
+  reads a row, a Projection reads a Model, so a Model reference would be a
+  tenth scalar variant that every interpreter but a new one must refuse,
+  which is a second language sharing a type. `derive` with `verify` in
+  development is the answer. A `Derived` as an entry of `Projection.struct`
+  is left for a caller to ask for; none does today."
+- **#500: keep, narrowed.** Retitle to the comment: "`ReadsOf`'s doc
+  comment says an unmarked node reads `string`; it reads `never`". Scope:
+  phase 1 above, the comment and the pinning tests. The type does not
+  change, for the reason in Decisions, 1; say so on the issue, since its
+  text may ask for `string`.
+- **#479: keep, narrowed to phase 1.** Every other contract in its table
+  is decided to stay where it is held today (section 3.2). Close it with
+  #500.
+- **#478: keep, narrowed to phase 2.** A `step` member on operators and on
+  `Expr.eq`, `lt`, `lte`, `gt`, `gte`, `contains` and `in`. Out of scope by
+  decision: `Fn`, `.pipe` on nodes, `dual` by arity, `Num` and further
+  `Text` operators.
