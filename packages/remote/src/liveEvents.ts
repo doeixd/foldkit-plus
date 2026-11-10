@@ -129,11 +129,16 @@ const keptBefore = (
 
 /**
  * What an answer does to the values kept from before a stream's patches: the
- * fields it writes leave `kept`. `pending` is the requests still in flight
- * after the answer; with none, nothing is kept.
+ * fields it writes leave `kept`, and those that a stream patched while the
+ * request was pending, to something other than the answer's value, are
+ * `again` to be read: the client cannot tell whether the stream is behind the
+ * write or past it, and only a read can say (#499). `pending` is the requests
+ * still in flight after the answer; with none, nothing is kept.
  */
 export const settleKept = (
   kept: Kept,
+  store: EntityStore,
+  requestId: string,
   entities: ReadonlyArray<{
     readonly entity: string
     readonly id: string
@@ -141,9 +146,11 @@ export const settleKept = (
   }>,
   pending: ReadonlySet<string>,
   now: number,
-): Kept => {
-  if (pending.size === 0) return noKept
-  const next = new Map(unexpired(kept, now))
+): { readonly kept: Kept; readonly again: ReadonlyArray<AgainRow> } => {
+  const held = unexpired(kept, now)
+  const again = againOf(held, store, requestId, entities)
+  if (pending.size === 0) return { kept: noKept, again }
+  const next = new Map(held)
   for (const { entity, id, values } of entities) {
     const key = entityKey(entity, id)
     const row = next.get(key)
@@ -152,7 +159,39 @@ export const settleKept = (
     if (rest.size === 0) next.delete(key)
     else next.set(key, rest)
   }
-  return next
+  return { kept: next, again }
+}
+
+export interface AgainRow {
+  readonly entity: string
+  readonly id: string
+  readonly fields: ReadonlyArray<string>
+}
+
+const againOf = (
+  kept: Kept,
+  store: EntityStore,
+  requestId: string,
+  entities: ReadonlyArray<{
+    readonly entity: string
+    readonly id: string
+    readonly values: Readonly<Record<string, unknown>>
+  }>,
+): ReadonlyArray<AgainRow> => {
+  const again = new Map<EntityKey, { entity: string; id: string; fields: Set<string> }>()
+  for (const { entity, id, values } of entities) {
+    const key = entityKey(entity, id)
+    const row = kept.get(key)
+    if (row === undefined) continue
+    for (const [field, held] of row) {
+      if (!held.by.has(requestId) || !Object.hasOwn(values, field)) continue
+      if (Equal.equals(own(store[key]?.values, field), values[field])) continue
+      const asked = again.get(key) ?? { entity, id, fields: new Set<string>() }
+      asked.fields.add(field)
+      again.set(key, asked)
+    }
+  }
+  return [...again.values()].map(({ entity, id, fields }) => ({ entity, id, fields: [...fields] }))
 }
 
 /**

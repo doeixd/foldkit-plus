@@ -2184,20 +2184,24 @@ const reduceRemote = (
                 message.now,
               ),
           })
-      // What a stream wrote while this was pending ends here.
-      const kept = model.mutations.applied.has(message.requestId)
-        ? model.kept
+      // What a stream wrote while this was pending ends here; one that disagrees with
+      // the answer is read again, as only a read says which is the newer (#499).
+      const answered = [...message.entities, ...(read?.result.entities ?? [])]
+      const { kept, again } = model.mutations.applied.has(message.requestId)
+        ? { kept: model.kept, again: [] }
         : Option.match(capabilities.live, {
-            onNone: () => model.kept,
+            onNone: () => ({ kept: model.kept, again: [] }),
             onSome: live =>
               live.settleKept(
                 model.kept,
-                [...message.entities, ...(read?.result.entities ?? [])],
+                model.entities,
+                message.requestId,
+                answered,
                 settled.state.pending,
                 message.now,
               ),
           })
-      return {
+      const next: RemoteModel = {
         ...model,
         entities:
           read === undefined
@@ -2223,6 +2227,7 @@ const reduceRemote = (
           ),
         ]),
       }
+      return askedAgain(capabilities, next, again)
     }
     case 'MutationQueued':
     case 'OutboxMoved':

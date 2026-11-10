@@ -255,14 +255,43 @@ describe('a write answered while the stream still delivers what came before it',
     expect(frameOf(reread)).toEqual({ tag: 'Ready', visible: 'Eve', confirmed: 'Eve' })
   })
 
-  // The answer's values predate Eve, but arrive after Eve's event: nothing in
+  // The answer's values predate Eve, but arrive after Eve's event, and nothing in
   // an answer says where it falls in the stream (`MutationResult` carries no
-  // position, #485), so it overwrites the newer value and nothing asks again.
-  // A demonstrated failure, kept so the matrix's claim is a test: when it
-  // starts passing, the matrix row and this case change together.
-  it.fails('does not let a late answer overwrite a newer live patch', () => {
-    const recorded = replay(written, answeredAt(3))
-    expect(recorded.at(-1)!.confirmed).toBe('Eve')
+  // position, #485). The base, as the stream left it (Eve), differs from the
+  // answer's Grace, and the stream wrote while this write was pending: the
+  // answer's value is written, as ever, and the field is read again, since only
+  // a read says which is newer (#499).
+  it('reads the field again when a late answer disagrees with a newer live patch', () => {
+    const model = answeredAt(3).reduce(Data.reduce, written)
+    expect(user.read(model)).toEqual({ _tag: 'Refreshing', value: { name: 'Grace' } })
+    expect(Data.plan(model, user)).toEqual([asked('u1')])
+    const reread = Data.reduce(model, {
+      _tag: 'ReadReceived',
+      requests: [asked('u1')],
+      result: { entities: [{ entity: 'User', id: 'u1', values: { name: 'Eve' } }], settled: [] },
+      now: 20,
+    })
+    expect(frameOf(reread)).toEqual({ tag: 'Ready', visible: 'Eve', confirmed: 'Eve' })
+  })
+
+  it.each([
+    // No patch while the write was pending: the ordinary answer reads nothing again.
+    ['a quiet stream', [] as ReadonlyArray<RemoteMessage>, false],
+    // The stream's last word is the answer's own value: nothing to settle.
+    ['a stream that sent the write itself', [patched('Ada', 1), patched('Grace', 2)], false],
+    // A coalescing stream passed the write without ever sending its value.
+    ['a stream that coalesced past the write', [patched('Eve', 1)], true],
+    ['a stream still behind the write', [patched('Ada', 1)], true],
+  ])('plans a read after the answer for %s: %s', (_name, before, planned) => {
+    const model = [...before, answer].reduce(Data.reduce, written)
+    expect(Data.plan(model, user)).toEqual(planned ? [asked('u1')] : [])
+  })
+
+  it('does not read again for a patch older than its own request', () => {
+    const late = rename(Data.reduce(rename(known, 'a', 'Grace'), patched('Eve', 1)), 'b', 'Hopper')
+    // `b` started after Eve was heard, so Eve is no race for it, as `a`'s answer is.
+    const model = Data.reduce(late, succeeded('b', 'Hopper'))
+    expect(Data.plan(model, user)).toEqual([])
   })
 })
 

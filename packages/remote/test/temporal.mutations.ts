@@ -108,8 +108,8 @@ export default [
   edit(
     'the last write answered leaves what is kept',
     '../src/liveEvents.ts',
-    'if (pending.size === 0) return noKept',
-    'if (pending.size === 0) return kept',
+    'if (pending.size === 0) return { kept: noKept, again }',
+    'if (pending.size === 0) return { kept, again }',
   ),
   edit(
     'a live delete leaves the row kept',
@@ -122,6 +122,24 @@ export default [
     '../src/model.ts',
     'kept: mutations.pending.size === 0 ? noKept : model.kept,',
     'kept: model.kept,',
+  ),
+  edit(
+    'an answer is never read again against a newer patch',
+    '../src/model.ts',
+    'return askedAgain(capabilities, next, again)',
+    'return next',
+  ),
+  edit(
+    'an answer that agrees with the stream is read again',
+    '../src/liveEvents.ts',
+    '      if (Equal.equals(own(store[key]?.values, field), values[field])) continue\n',
+    '',
+  ),
+  edit(
+    'an answer is read again for a patch older than its request',
+    '../src/liveEvents.ts',
+    'if (!held.by.has(requestId) || !Object.hasOwn(values, field)) continue',
+    'if (!Object.hasOwn(values, field)) continue',
   ),
   {
     name: 'the visible store is kept by the layers alone, not the kept values',
