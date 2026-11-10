@@ -4,7 +4,7 @@
  */
 const tests = ['packages/remote-drizzle/test/operatorConformance.test.ts']
 const compile = '../src/compile.ts'
-const kernel = '../../entity/src/operators.ts'
+const kernel = '../../entity/src/memoryTable.ts'
 
 export default [
   {

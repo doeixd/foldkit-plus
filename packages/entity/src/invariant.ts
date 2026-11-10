@@ -20,7 +20,8 @@
 import { Metadata } from 'foldkit-metadata'
 import { Option, Schema, type SchemaAST } from 'effect'
 import { OperatorMissingError, truthOver, type Row } from './evaluate.js'
-import { Operators, type MemoryOperators } from './operators.js'
+import { kernelOperators } from './memoryTable.js'
+import type { MemoryOperators } from './operators.js'
 import { put } from './record.js'
 import {
   Expr,
@@ -310,7 +311,7 @@ export const invariantsOf = (entity: AnyEntity): ReadonlyArray<Invariant> => {
 export const judgeAgainst = (
   invariants: ReadonlyArray<Invariant>,
   change: Change,
-  operators: MemoryOperators = Operators.kernel,
+  operators: MemoryOperators = kernelOperators,
 ): Judgement => {
   const missing = new Set<string>()
   const unrun = new Set<string>()
@@ -355,7 +356,7 @@ export const judgeAgainst = (
 export const judge = (
   entity: AnyEntity,
   change: Change,
-  operators: MemoryOperators = Operators.kernel,
+  operators: MemoryOperators = kernelOperators,
 ): Judgement => judgeAgainst(invariantsOf(entity), change, operators)
 
 /**
@@ -369,7 +370,7 @@ export const judge = (
 export const judgeInput = (
   input: EntityInput<AnyEntity, any, any>,
   value: Readonly<Record<string, unknown>>,
-  operators: MemoryOperators = Operators.kernel,
+  operators: MemoryOperators = kernelOperators,
 ): Judgement => {
   const invariants = invariantsOf(input.entity)
   if (invariants.length === 0) return { _tag: 'Valid' }
@@ -416,7 +417,7 @@ export const check = <E extends AnyEntity>(
   // The judge runs every operation an invariant reads; an operator alone can be missing.
   const missing = Expr.unsupported(predicates, {
     operations: dependenciesOf(...predicates).operations,
-    operators: options.operators ?? Operators.kernel,
+    operators: options.operators ?? kernelOperators,
   })
   if (missing.length > 0) {
     throw new Error(

@@ -42,7 +42,8 @@ import type {
 } from './expr.js'
 import { Held, type HeldRow, type HeldRows, type Pinned } from './held.js'
 import type { AnyEntity } from './index.js'
-import { Operators, type MemoryImplementation, type MemoryOperators } from './operators.js'
+import { kernelOperators } from './memoryTable.js'
+import type { MemoryImplementation, MemoryOperators } from './operators.js'
 import { contextValue, type ExprContext, type NowExpr, type ViewerExpr } from './context.js'
 import { own } from './record.js'
 
@@ -527,7 +528,7 @@ export const valueOfOperand = (
     row: noRow,
     input: options.input ?? {},
     next: noRow,
-    operators: options.operators ?? Operators.kernel,
+    operators: options.operators ?? kernelOperators,
     judging: false,
     find: noRows,
     context: options.context,
@@ -729,7 +730,7 @@ const readsBeyond = new WeakMap<Predicate, { readonly field: boolean; readonly c
 export const decided = (
   node: Predicate,
   input: Row,
-  operators: MemoryOperators = Operators.kernel,
+  operators: MemoryOperators = kernelOperators,
   context?: ExprContext,
 ): Option.Option<PredicateTruth> => {
   let reads = readsBeyond.get(node)
@@ -766,7 +767,7 @@ export const truthOver = (
   row: Row,
   input: Row = {},
   next: Row = {},
-  operators: MemoryOperators = Operators.kernel,
+  operators: MemoryOperators = kernelOperators,
 ): PredicateTruth =>
   settled(
     holds(node, {
@@ -833,7 +834,7 @@ export const Judge = {
       row: viewOf(row),
       input: options.input ?? {},
       next: options.next === undefined ? noRow : viewOf(options.next),
-      operators: options.operators ?? Operators.kernel,
+      operators: options.operators ?? kernelOperators,
       judging: true,
       context: options.context,
       find: finder(options.rows),
@@ -864,7 +865,7 @@ export const Judge = {
       row: viewOf(row),
       input,
       next: noRow,
-      operators: options.operators ?? Operators.kernel,
+      operators: options.operators ?? kernelOperators,
       judging: true,
       context: options.context,
       find: finder(options.rows),
@@ -1082,7 +1083,7 @@ export const compareRows = (
 ): number => {
   const scope = {
     input: options.input ?? {},
-    operators: options.operators ?? Operators.kernel,
+    operators: options.operators ?? kernelOperators,
     context: options.context,
   }
   const keys = [keysOf(left, terms, scope), keysOf(right, terms, scope)] as const
@@ -1117,7 +1118,7 @@ export const supported: ReadonlyArray<Operation> = [
  */
 export const assertSupported = (
   body: AnyQuery,
-  operators: MemoryOperators = Operators.kernel,
+  operators: MemoryOperators = kernelOperators,
 ): void => {
   const missing = Query.unsupported(body, supported, operators)
   if (missing.length > 0) {
@@ -1145,7 +1146,7 @@ export const evaluate = (
     readonly context?: ExprContext | undefined
   } = {},
 ): ReadonlyArray<Row> => {
-  const operators = options.operators ?? Operators.kernel
+  const operators = options.operators ?? kernelOperators
   const { context } = options
   assertSupported(body, operators)
   return ordered(
@@ -1183,7 +1184,7 @@ export const evaluateEach = (
     readonly context?: ExprContext | undefined
   } = {},
 ): Evaluated => {
-  const operators = options.operators ?? Operators.kernel
+  const operators = options.operators ?? kernelOperators
   const { context } = options
   assertSupported(body, operators)
   const terms = Query.orderFor(body, input)

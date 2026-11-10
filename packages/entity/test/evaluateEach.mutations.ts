@@ -8,11 +8,11 @@ export default [
     edits: [
       {
         file: '../src/evaluate.ts',
-        find: `const operators = options.operators ?? Operators.kernel
+        find: `const operators = options.operators ?? kernelOperators
   const { context } = options
   assertSupported(body, operators)
   const terms`,
-        replace: `const operators = Operators.kernel
+        replace: `const operators = kernelOperators
   const { context } = options
   assertSupported(body, operators)
   const terms`,

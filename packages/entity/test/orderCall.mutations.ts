@@ -137,8 +137,8 @@ export default [
     edits: [
       {
         file: evaluate,
-        find: 'operators: options.operators ?? Operators.kernel,\n    context: options.context,\n  }\n',
-        replace: 'operators: Operators.kernel,\n    context: options.context,\n  }\n',
+        find: 'operators: options.operators ?? kernelOperators,\n    context: options.context,\n  }\n',
+        replace: 'operators: kernelOperators,\n    context: options.context,\n  }\n',
       },
     ],
     tests,

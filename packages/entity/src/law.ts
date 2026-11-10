@@ -4,9 +4,11 @@
  * body by one. `Conformance.laws` tests an implementation against them, and
  * what it finds is evidence recorded in that implementation's table.
  */
-import { Data, Option, Schema } from 'effect'
+import type { Data } from 'effect'
+import { Option, Schema } from 'effect'
 import type { Operator } from './expr.js'
 import { jsonSchemaOf } from './jsonSchema.js'
+import { Laws, lawKind } from './lawCore.js'
 
 /** An operator a law names as a witness: the inverse, or the operator distributed over. */
 type AnyOperator = Operator<ReadonlyArray<Schema.Top>, Schema.Top>
@@ -55,7 +57,6 @@ export type Law = Data.TaggedEnum<{
   PreservesCollation: { readonly domain: Option.Option<Schema.Top> }
 }>
 
-const Laws = Data.taggedEnum<Law>()
 const unnarrowed = { domain: Option.none<Schema.Top>() }
 
 /**
@@ -133,7 +134,7 @@ export const Law = {
       Monotonic: ({ direction, position }) => ({ direction, position }),
     })
     return {
-      kind: law._tag.charAt(0).toLowerCase() + law._tag.slice(1),
+      kind: lawKind(law),
       witnesses,
       domain: Option.match(law.domain, {
         onNone: () => null,

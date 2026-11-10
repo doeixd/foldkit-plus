@@ -6,6 +6,7 @@
 const expr = '../src/expr.ts'
 const evaluate = '../src/evaluate.ts'
 const operators = '../src/operators.ts'
+const memoryTable = '../src/memoryTable.ts'
 const invariant = '../src/invariant.ts'
 const tests = [
   'packages/entity/test/primitive.test.ts',
@@ -65,11 +66,11 @@ export default [
   edit(
     'evaluate ignores the table it is given',
     evaluate,
-    `const operators = options.operators ?? Operators.kernel
+    `const operators = options.operators ?? kernelOperators
   const { context } = options
   assertSupported(body, operators)
   return ordered(`,
-    `const operators = Operators.kernel
+    `const operators = kernelOperators
   const { context } = options
   assertSupported(body, operators)
   return ordered(`,
@@ -78,25 +79,25 @@ export default [
     'deciding over the input ignores the table',
     evaluate,
     '            operators,\n            judging: false,\n            find: noRows,\n            context,\n',
-    '            operators: Operators.kernel,\n            judging: false,\n            find: noRows,\n            context,\n',
+    '            operators: kernelOperators,\n            judging: false,\n            find: noRows,\n            context,\n',
   ),
   edit(
     'a row is judged with the kernel whatever the table',
     evaluate,
     '      next: flat(next),\n      operators,\n',
-    '      next: flat(next),\n      operators: Operators.kernel,\n',
+    '      next: flat(next),\n      operators: kernelOperators,\n',
   ),
 
   // ---- tables
   edit(
     'one operator may be implemented twice',
-    operators,
+    memoryTable,
     'if (byOperator.has(operator)) {',
     'if (false) {',
   ),
   edit(
     'two operators may share a name',
-    operators,
+    memoryTable,
     'if (named !== undefined && named !== operator) {',
     'if (false) {',
   ),
@@ -109,13 +110,13 @@ export default [
   ),
   edit(
     'an implementation may break its null rule',
-    operators,
+    memoryTable,
     'if (operator.nulls !== nulls) {',
     'if (false) {',
   ),
   edit(
     'startsWith never folds',
-    operators,
+    memoryTable,
     "const folded = Option.exists(collation, each => each._tag === 'AsciiFold')",
     'const folded = false',
   ),

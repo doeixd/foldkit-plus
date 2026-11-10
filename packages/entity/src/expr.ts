@@ -15,7 +15,8 @@ import { Array as Arr, Match, Option, Pipeable, Schema, SchemaAST } from 'effect
 import { absurd } from 'effect/Function'
 import { Collation } from './collation.js'
 import { SchemaShape } from './shape.js'
-import { Law, type Side } from './law.js'
+import type { Law, Side } from './law.js'
+import { Laws, lawKind } from './lawCore.js'
 import { now, viewer, type NowExpr, type ViewerExpr, type ViewerPathExpr } from './context.js'
 import { own, put } from './record.js'
 import { variantsOf } from './variants.js'
@@ -970,7 +971,7 @@ const lawProblem = (
   output: Schema.Top,
   collation: OperatorDescriptor['collation'],
 ): Option.Option<string> => {
-  const name = Law.describe(law).kind
+  const name = lawKind(law)
   const binary = (): Option.Option<string> =>
     input.length === 2
       ? Option.none()
@@ -988,7 +989,7 @@ const lawProblem = (
         () => (side === 'left' ? Option.none() : decodes(value, input[1]!, 'right witness')),
       ),
     )
-  return Law.$match(law, {
+  return Laws.$match(law, {
     Associative: binary,
     Commutative: binary,
     Idempotent: binary,
