@@ -319,6 +319,21 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`Data.satisfy` reads a pass's Surfaces in one round trip** (`foldkit-remote`,
+  #435). A pass used to await each Surface's read before planning the next, so
+  a domains-plus search made two client calls; it now plans every Surface over
+  the Model the pass began with and sends one read, cut to the client's limits
+  as any read is. This changes a documented behaviour: a Surface revealed by
+  one earlier in `active` was read in the same pass, and is now read in the
+  next, so a `passes` of 1 that sufficed for such a chain no longer does. The
+  default of 8 passes covers a chain shorter than 8, and a family still takes
+  two passes (its parent, then its instances, which are one read).
+- **A server render reports a read no read made** (`foldkit-remote`, #435).
+  `Remote.resume`'s capture finds, in what the plan's Surfaces read, a field or
+  list the store lacks and reports a `ReadUnmade` diagnostic naming it through
+  `Diagnostics`: the browser would ask for it and show it `Loading` after the
+  first frame. A row the server answered gone, or a field it settled without a
+  value, is made.
 - **Breaking: a deferred plan refuses a named field without `KeepTyped`**
   (`foldkit-ssr`, #472). On a plan whose `start` is not `'now'`, a field whose
   binding names its typing (a hole-form `OnInput` or `OnChange`; on a checkbox
