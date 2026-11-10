@@ -257,7 +257,9 @@ A transport failure becomes the call's Remote error, not a defect.
   resolvePrincipal })(request, env)` is the request's `Layer<RemoteClient,
   RemoteUnauthenticated>` over `serveFetch`'s server and limits, with no HTTP.
   Provide it to the pre-read (`Data.satisfy`); it only reads. A page GET
-  carries no CSRF header: with `foldkit-auth`, use `requests: 'navigation'`.
+  carries no CSRF header: with `foldkit-auth`, give it `AuthServer.host`'s
+  `navigation`, typed by `NavigationRequest` so `serveFetch` (which takes a
+  `ScriptedRequest` resolver) refuses it at compile time.
 - Keeping public reads (#428): `serveFetch({ ..., cache: { store, visitor,
   check? } })`. Freshness is declared, publicness proved: an Entity says
   `Entity.annotate(EdgeCache.of({ maxAge: '60 seconds' }))`, a Query

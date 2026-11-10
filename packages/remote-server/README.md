@@ -1395,8 +1395,11 @@ export default {
 
 The resolver is the page's own: a page `GET` is a navigation, which carries
 no header a script adds, so a resolver that asks for one (Yielded's CSRF
-header) refuses it. With `foldkit-auth`, give
-`AuthServer.resolver({ …, requests: 'navigation' })`. When the reader is
+header) refuses it. With `foldkit-auth`, give `AuthServer.host`'s
+`navigation`. `pageReader` hands its resolver a `NavigationRequest` and
+`serveFetch` a `ScriptedRequest` (types from `foldkit-remote`, nothing at run
+time): a resolver typed for one does not fit the other, while one taking any
+`Request`, as here, fits both. When the reader is
 provided, the principal is resolved and `layer` built, and `layer` closes
 when that Effect ends, so provide it to the pre-read itself
 (`Data.satisfy(…).pipe(Effect.provide(reader))`). A refusal fails it with

@@ -13,7 +13,9 @@ do through their `resources`. `AuthServer.resolver` is
 that Effect for an application on Yielded: it reads the session cookie
 Yielded set, verifies it with the application's own `Auth` service, and
 gives back the application's principal, a visitor, or a refusal the client
-decodes.
+decodes. `AuthServer.host` makes the pair a server that also renders pages
+needs, one for Remote and one for a page's reads, typed so that neither fits
+the other's consumer, beside Yielded's own routes.
 
 
 ## What it owns, and what it does not
@@ -21,14 +23,14 @@ decodes.
 | Fact | Owner |
 | --- | --- |
 | Credentials, sign-in, sessions, the cookie, renewing a session | Yielded Auth (`Auth.make`, `Http.make`) |
-| Which session a request carries, and whether the request may use it | `AuthServer.resolver` |
+| Which session a request carries, and whether the request may use it | `AuthServer.resolver`; per consumer, `AuthServer.host` |
 | Who the session is in the application's terms (a guard set's `User`) | the application's `principal` function, per request |
 | Who may do what | `foldkit-guard`, given the principal |
 
-It does not sign anyone in, set, renew or clear a cookie, or serve Yielded's
-routes: the application mounts `Http.layer(AppAuth, http)` itself. It does
-not authorize either: the principal it returns is what `foldkit-guard`
-decides on.
+It does not sign anyone in, or set, renew or clear a cookie: Yielded's
+routes do, mounted by the application (`Http.layer(AppAuth, http)`) or by
+`AuthServer.host` over the application's built `Auth`. It does not authorize
+either: the principal it returns is what `foldkit-guard` decides on.
 
 ## Mental model
 
@@ -324,10 +326,64 @@ const reader = pageReader({
 ```
 
 It is for that reader alone. `pageReader` answers reads and refuses every
-write and live stream, so the checks this drops guard nothing there; given
-to `serveFetch`, it would let a page elsewhere post as the reader, so never
-give it there. [`examples/auth`](../../examples/auth)'s `src/host.ts` serves
-both from one fetch handler.
+write and live stream, so the checks this drops guard nothing there. Given
+to `serveFetch`, which answers only posts, it would refuse every signed-in
+reader, and a later loosening of either check could open `/remote` to a page
+elsewhere. `AuthServer.host`, next, hands out the two so that the mistake
+does not compile.
+
+## One host: `AuthServer.host`
+
+A server that answers Yielded's routes, `/remote` and its own pages reads
+one cookie three ways, from one set of options. `AuthServer.host` makes all
+three from the application's built `Auth`:
+
+<!-- docs-check
+declare const services: Context.Context<Context.Service.Identifier<typeof AppAuth>>
+-->
+```ts
+const host = AuthServer.host({
+  auth: AppAuth,
+  http,
+  services, // AppAuth's layer, built once: ManagedRuntime.make(AppAuthLive).context()
+  principal,
+  key: Policy.key,
+})
+
+export const site = {
+  auth: host.routes, // Yielded's routes, under /auth/
+  remote: serveFetch({ server, layer: () => Layer.empty, ...host.scripted }),
+  read: pageReader({ server, layer: () => Layer.empty, ...host.navigation }),
+}
+```
+
+- `host.scripted` is `serveFetch`'s: its resolver reads the cookie only from
+  a request with a trusted `Origin` and the CSRF header, the default
+  `'scripted'` above. With `key`, its `headers` say whom each answer was for
+  (`AuthServer.answered`).
+- `host.navigation` is `pageReader`'s: the `'navigation'` resolver of the
+  previous section, which reads the cookie of a `GET` or `HEAD` navigation
+  from anywhere and refuses any other method, an upgrade and a script's
+  `fetch`. The reader it makes cannot write.
+- They are typed apart. `serveFetch` hands its resolver a `ScriptedRequest`
+  and `pageReader` a `NavigationRequest` (types `foldkit-remote` exports;
+  nothing at run time), so `serveFetch({ …, ...host.navigation })`,
+  `pageReader({ …, ...host.scripted })`, or either given to a socket's
+  `defineDocumentHost`, is a type error. A resolver of your own that takes
+  any `Request` still fits both.
+- Both provide the `Auth` service from `services` themselves, so each
+  `layer` needs only what the server's Sources and `principal` need. The
+  routes are mounted over that same `Auth` (`Http.make(auth, http)`), so the
+  cookie they set is the one the resolvers read. `services` is built once
+  (per isolate, on Workers: below) and holds no principal: each request's is
+  read when it arrives.
+- It mounts no OAuth callbacks: `http` takes no `oauth`, and an object that
+  carries one throws. A socket still takes `AuthServer.resolver({ requests:
+  'browser' })`. `dispose()` closes the routes; `services` stays the caller's.
+
+[`examples/reference`](../../examples/reference)'s `src/worker.ts` serves all
+three from one Worker; [`examples/auth`](../../examples/auth)'s `src/server.ts`
+does on Node, beside the board's socket.
 
 ## Refusals
 

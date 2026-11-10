@@ -1,18 +1,21 @@
 # foldkit-auth
 
-Checked against `foldkit-auth` 0.3.0.
+Checked against `foldkit-auth` 0.4.0, `foldkit-remote-server` and `foldkit-remote` in the same tree.
 
 A [Yielded Auth](https://github.com/yielded-dev/auth) session read from a
 request and handed to Remote's `serveFetch` (`AuthServer.resolver`), a page's
 own reads (`pageReader`) and Sync's document hosts (`documentHost`,
-`defineDocumentHost`) as their principal. The design and its reasons are
+`defineDocumentHost`) as their principal. `AuthServer.host` pairs Yielded's
+routes with a resolver for `serveFetch` and one for `pageReader`, typed so
+that neither fits the other's consumer. The design and its reasons are
 [auth-DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/auth-DESIGN.md).
 
 ## What it owns
 
 Which session a request carries, and whether the request is trusted to use
 it. Yielded owns sign-in, sign-up, sessions and the cookie (the application
-mounts `Http.layer(AppAuth, http)` itself); the application's `principal`
+mounts `Http.layer(AppAuth, http)` itself, or `AuthServer.host` mounts its
+routes over the built `Auth`); the application's `principal`
 function owns who a session is in its terms; `foldkit-guard` owns who may do
 what ([guard.md](guard.md)).
 
@@ -103,7 +106,42 @@ is the page's own `fetch`, which can send the CSRF header.
   navigation with no `Origin` or CSRF header. It reads the cookie of a `GET`
   or `HEAD` navigation only (never an `Upgrade`, nor a request whose
   `Sec-Fetch-Mode` is not `navigate`). That reader cannot write, which is why
-  no check is needed there; never give this resolver to `serveFetch`.
+  no check is needed there. Given to `serveFetch` (posts only) it refuses
+  every signed-in reader; take it from `AuthServer.host`, below, where that
+  mistake is a type error.
+
+## One host: routes, `/remote` and a page's reads
+
+<!-- docs-check
+declare const services: Context.Context<Context.Service.Identifier<typeof AppAuth>>
+declare const principal: (session: { readonly subjectId: string }) => Effect.Effect<{ readonly id: string }>
+-->
+
+```ts
+import { pageReader } from 'foldkit-remote-server/fetch'
+
+const host = AuthServer.host({
+  auth: AppAuth,
+  http, // no `oauth`: it mounts no OAuth callbacks, and throws on one
+  services, // AppAuth's layer built once (per isolate): ManagedRuntime's context()
+  principal, // read per request
+  key: user => user.id, // optional: the subject check and the answer's header
+})
+export const site = {
+  auth: host.routes, // Yielded's routes, /auth/…, over that same Auth
+  remote: serveFetch({ server, layer: () => Layer.empty, ...host.scripted }),
+  read: pageReader({ server, layer: () => Layer.empty, ...host.navigation }),
+}
+```
+
+- `scripted` (Origin + CSRF header) fits `serveFetch` only, `navigation`
+  (a `GET`/`HEAD` navigation) fits `pageReader` only: they take
+  `foldkit-remote`'s `ScriptedRequest` and `NavigationRequest`, which those
+  consumers hand their resolvers. Either given to the other, or to a socket's
+  host, is a type error; a resolver taking any `Request` fits both.
+- Both provide `Auth` from `services`, so each `layer` needs only what the
+  Sources and `principal` need. A socket still takes
+  `AuthServer.resolver({ requests: 'browser' })` with a layer giving `Auth`.
 
 ## Another tab switched account
 
@@ -182,11 +220,12 @@ has the compiled wiring; what it takes:
 Met in applications on this stack: what failed, and what to do instead.
 
 - **A page navigation carries no CSRF header, and often no `Origin`**, so a
-  resolver in the default `'scripted'` mode answers every signed-in page render
-  as a visitor. Read the page's session with `requests: 'navigation'` behind
-  `pageReader`, which cannot write; never forge the headers in a pre-read.
+  resolver in the default `'scripted'` mode refuses every signed-in page
+  render. Read the page's session with `AuthServer.host`'s `navigation`
+  behind `pageReader`, which cannot write; never forge the headers in a
+  pre-read.
 - **A browser `WebSocket` sends no header of yours**, so a resolver asking for
-  the CSRF header answers every Sync upgrade as a visitor. Resolve sockets with
+  the CSRF header refuses every signed-in Sync upgrade. Resolve sockets with
   `requests: 'browser'`, which checks `Origin` alone.
 - **Node's `fetch` sends `Sec-Fetch-Mode: cors` whatever it is given**, so a
   test that fakes a navigation with it is refused by a navigation resolver.

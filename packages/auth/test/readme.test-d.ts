@@ -31,6 +31,7 @@ const AppAuth = Auth.make(
   },
 )
 declare const AppAuthLive: Layer.Layer<Context.Service.Identifier<typeof AppAuth>>
+declare const services: Context.Context<Context.Service.Identifier<typeof AppAuth>>
 const server = RemoteServer.make<Option.Option<{ readonly id: string }>>({ entities: [] })
 
 // ## Sixty seconds
@@ -133,6 +134,17 @@ export const entry = SSR.entry(config, plan, {
     layer: () => AppAuthLive,
   })
   void reader
+}
+
+// ## One host: `AuthServer.host`
+{
+  const host = AuthServer.host({ auth: AppAuth, http, services, principal, key: Policy.key })
+  const site = {
+    auth: host.routes,
+    remote: serveFetch({ server, layer: () => Layer.empty, ...host.scripted }),
+    read: pageReader({ server, layer: () => Layer.empty, ...host.navigation }),
+  }
+  void site
 }
 
 // ## Signing up
