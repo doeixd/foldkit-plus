@@ -83,6 +83,20 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`AuthServer.host`: Yielded's routes and a resolver per consumer, typed
+  apart** (`foldkit-auth`, `foldkit-remote`, `foldkit-remote-server`, #235).
+  `AuthServer.host({ auth, http, services, principal, key? })` mounts
+  Yielded's routes over the application's built `Auth` and returns `scripted`,
+  for `serveFetch` (a trusted `Origin` and the CSRF header), and `navigation`,
+  for `pageReader` (a `GET` or `HEAD` navigation; any other method, an upgrade
+  and a script's `fetch` are refused). Each provides `Auth` itself and asks
+  the principal per request; `http` takes no `oauth`. `serveFetch` now hands
+  its resolver a `ScriptedRequest` and `pageReader` a `NavigationRequest`
+  (types `foldkit-remote` exports), so a navigation resolver given to
+  `serveFetch`, or a scripted one to `pageReader` or a socket's host, is a
+  type error; a resolver taking any `Request` fits both as before.
+  `examples/reference` and `examples/auth` serve through it.
+
 - **`foldkit-ssr/loader`: the runtime's chunk on intent** (`foldkit-ssr`,
   #472). An entry script that imports nothing of `effect`, Foldkit or the
   application (about 2 KB brotli): `load({ runtime: () => import('./entry.js')
