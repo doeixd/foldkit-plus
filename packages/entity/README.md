@@ -445,6 +445,40 @@ query whose predicates and order terms expand past `maxQueryNodes` (1,000)
 nodes, counting a shared node on each path that reaches it, is refused where
 it is built.
 
+### Data-last: `step` with Effect's `pipe` and `flow`
+
+Every comparison (`eq`, `lt`, `lte`, `gt`, `gte`, `contains`, `in`) and every
+operator has a `step` member: the call without its subject. It builds exactly the
+node the data-first call builds, so it is a spelling, not a second meaning.
+
+```ts standalone
+import { Schema, flow, pipe } from 'effect'
+import { Collation, Entity, Expr, Text } from 'foldkit-entity'
+
+const Post = Entity.define(
+  'Post',
+  Schema.Struct({ id: Schema.String, status: Schema.Literals(['draft', 'live']), upc: Schema.String }),
+).pipe(Entity.annotateMembers({ upc: Collation.of(Collation.binary) }))
+
+const isDraft = pipe(Post.fields.status, Expr.eq.step('draft'))
+// the same node as Expr.eq(Post.fields.status, 'draft')
+const startsWithA = pipe(Post.fields.upc, Text.startsWith.step('A'))
+const draftOrLive = flow(Expr.in.step(['draft', 'live']))
+const anyStatus = draftOrLive(Post.fields.status)
+```
+
+- `step` has one signature, so reads stay exact through `pipe` and `flow`
+  (`isDraft` reads `'Post'`, and `Query.where` still refuses a predicate over
+  another Entity). An overloaded callable would lose them, which is why it is a
+  member and not the function's own data-last form.
+- A wrong value is refused at the step: `pipe(Post.fields.status, Expr.eq.step(42))`
+  is an error where it is written. `Expr.eq(Post.fields.status)` is still an arity error.
+- A comparison's `step` takes the options its builder takes
+  (`Expr.lt.step('m', { collation })`); an operator's takes none, so a call that
+  needs a collation is written data-first. A step takes the arguments past the
+  first, then the first: `trim.step()` takes nothing, `Text.startsWith.step(prefix)` one.
+- Data-first stays the form to learn first; a step earns its place in a chain.
+
 ### Asking a question that depends on an input, without branching on it
 
 Since an input is a placeholder, a query cannot choose between two shapes based
@@ -1639,6 +1673,7 @@ server on different deploys see which side is behind.
 | `Expr.operator(id, { input, output, definedAs?, version?, description?, nulls?, collation?, laws? })` | An operator: defined by what a call means (`definedAs`, whose expansion every interpreter runs) or primitive (each interpreter's table implements it). Calling it builds a `Test` predicate (a boolean output) or a `Call` scalar. |
 | `Expr.unsupported(nodes, { operations, operators })` | What these expressions need that an interpreter lacks: operations, then primitive operators by name. |
 | `Text.startsWith(text, prefix, { collation? })` | Whether text begins with a prefix, under its collation; the kernel's primitive operator. |
+| `Expr.eq.step(value)` / `lt` / `lte` / `gt` / `gte.step(value, { collation? })` / `contains.step(search)` / `in.step(list)`; `operator.step(...rest)` | The call without its subject, for `pipe` and `flow`: `pipe(Post.fields.status, Expr.eq.step('draft'))` builds the node `Expr.eq(Post.fields.status, 'draft')` builds. One signature, so reads stay exact. |
 | `Operators.memory(...)` / `implement` / `implementHandlingNulls` / `merge` / `override` / `checked` / `kernel` | Tables of in-memory implementations of primitive operators, passed to `evaluate` and every judge. |
 | `Law.associative` / `commutative` / `idempotent` / `identity` / `absorbing` / `inverse` / `distributes` / `monotonic` / `preservesCollation` / `within` / `describe` | Laws an operator declares (`Expr.operator(id, { laws })`), checked where declared, described as JSON. |
 | `Operators.withEvidence(table, evidence)` / `describeTable(table)` / `Evidence.Proven` | What is known of a table's implementations' laws, and the table as JSON. |

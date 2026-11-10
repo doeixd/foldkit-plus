@@ -1,6 +1,6 @@
 # Expr: pipeable authoring, type contracts, interpreters and inferred reads (#478, #479, #483, #185, #64)
 
-Status: decided 2026-11-10 (decisions delegated by the owner); built next is #500 narrowed to `ReadsOf`'s doc comment and its pinning type tests, then a `step` member on operators and on the seven comparison builders.
+Status: decided 2026-11-10 (decisions delegated by the owner). Phase 1 (#500) is built. Phase 2 is built: a `step` member on every `Operator` and on `eq`, `lt`, `lte`, `gt`, `gte`, `contains` and `in`, probed and measured below; phase 3 is the issue actions.
 
 A design note; nothing here is built. The decisions are in "Decisions"
 below, and where one departs from a recommendation, sections 2 to 7 keep the
@@ -522,6 +522,34 @@ Each phase ships alone.
 - Budget: the entity project's instantiations stay within 2% of 694,493
   after the new tests are counted separately (probe 12 puts 200 chains at
   3.4%, so the allowance is for the declarations, not the tests).
+
+**Phase 2, as built (2026-11-10).** `Operator.step` is `OperatorStep<In, Out>`
+(`Rest` is the input tuple past its head, `Self` its head, reads
+`ReadsOf<Self> | ReadsOf<Rest[number]>`); at run time `(...rest) => self =>
+call(self, ...rest)`, so every call check runs. The comparisons hold the right
+side at the step and check it where the subject arrives, probe 6's idiom:
+`<const R>(right: R, options?) => <L extends OrderedOperand>(left: L & Fits<R,
+CompareRight<L>, ...>)`; `eq` the same over `EqRight<L>`; `in` over
+`ReadonlyArray<ValueOf<L>> | Expr<ReadonlyArray<ValueOf<L>>>`; `contains` needs
+no check, since its search is not typed from the text (`ContainsSearch`).
+Probes, each with its negatives alone, in `step.test-d.ts`: `eq` (literal,
+input, a literal of a union, a predicate against a boolean field; refuses `42`
+against text, `'yes'` against a boolean, `'deleted'` against the union, an input
+of numbers against text), `lt` and its three siblings with `{ collation }`
+(refuses text against a number, a number against text, a boolean, a predicate,
+a string as `collation`), `contains` (refuses a number subject, a number search,
+a field as search), `in` (refuses `['open', 'deleted']`, numbers against text, a
+single value, an input of numbers), operators (reads exact through `pipe` and
+`flow`, a unary `step()`, a field of another Entity read by both, a cross-Entity
+step refused at `Query.where`, extra arguments and options refused). All kept
+reads exact; none needed to stop.
+Type cost, `npx tsc -b packages/entity --force --extendedDiagnostics`
+instantiations: 695,985 before (sources and tests at HEAD; the note's 694,493
+predates phase 1's tests), 703,277 with the declarations and no new test
+(+7,292, 1.05%, inside the 2% allowance of 694,493 = 13,890), 714,790 with
+`step.test-d.ts` counted too (the tests' share is +11,513).
+The type tests are mutated by hand, listed in `step.mutations.ts`; its runtime
+mutations run under `pnpm mutate`.
 
 **Phase 3: close out.** No code. The texts are in "Issue actions".
 

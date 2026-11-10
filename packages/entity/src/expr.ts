@@ -746,10 +746,25 @@ const collationFor = (
   )
 }
 
+/** What a comparison's other side may be, typed from the side it is applied to. */
+type CompareRight<L> = ValueOf<L> | Expr<ValueOf<L>>
+
+/** Intersected onto the subject of a step, so a value that does not fit it is refused at the step. */
+type Fits<Right, Allowed, Name extends string> = [Right] extends [Allowed]
+  ? unknown
+  : Invalid<`foldkit-entity: ${Name} was given a value that does not fit the operand it is applied to`>
+
+/** `Expr.lt` and its siblings' `step`: the comparison's right side and options, then its left. */
+export type CompareStep = <const R>(
+  right: R,
+  options?: { readonly collation?: Collation | undefined },
+) => <L extends OrderedOperand>(
+  left: L & Fits<R, CompareRight<L>, 'a comparison step'>,
+) => ComparePredicate & Reads<ReadsOf<L> | ReadsOf<R>>
+
 /** `Expr.lt` and its three siblings: the operator fixed, the sides typed alike. */
-const comparison =
-  (operator: CompareOperator) =>
-  <L extends OrderedOperand, R extends ValueOf<L> | Expr<ValueOf<L>>>(
+const comparison = (operator: CompareOperator) => {
+  const compare = <L extends OrderedOperand, R extends CompareRight<L>>(
     left: L,
     right: R,
     options: { readonly collation?: Collation | undefined } = {},
@@ -769,6 +784,9 @@ const comparison =
       ),
     })
   }
+  const step: CompareStep = (right, options) => left => compare(left, right as never, options)
+  return Object.assign(compare, { step })
+}
 
 /** A connective's operands, each checked to be a predicate, with one of the same kind flattened in. */
 const connected = (
@@ -867,8 +885,35 @@ export interface Operator<In extends ReadonlyArray<Schema.Top>, Out extends Sche
   <const A extends { readonly [K in keyof In]: ArgumentOf<In[K]> }>(
     ...args: [...A, CallOptions]
   ): CallOf<Out> & Reads<ReadsOf<A[number]>>
+  /**
+   * The call without its first argument, for `pipe` and `flow`:
+   * `pipe(Product.fields.upc, startsWith.step('A'))` builds the node
+   * `startsWith(Product.fields.upc, 'A')` builds. One signature, so reads stay
+   * exact through `pipe`, which an overload would lose. It takes no
+   * `CallOptions`; a call that needs a collation is written data-first.
+   */
+  readonly step: OperatorStep<In, Out>
   readonly descriptor: OperatorDescriptor
 }
+
+type OperatorArguments<In extends ReadonlyArray<Schema.Top>> = {
+  readonly [K in keyof In]: ArgumentOf<In[K]>
+}
+
+/** An operator's step: its arguments past the first, then the first. */
+export type OperatorStep<In extends ReadonlyArray<Schema.Top>, Out extends Schema.Top> = <
+  const Rest extends (OperatorArguments<In> extends readonly [unknown, ...infer R]
+    ? Readonly<R>
+    : never),
+>(
+  ...rest: Rest
+) => <
+  const Self extends (OperatorArguments<In> extends readonly [infer First, ...Array<unknown>]
+    ? First
+    : never),
+>(
+  self: Self,
+) => CallOf<Out> & Reads<ReadsOf<Self> | ReadsOf<Rest[number]>>
 
 /** What a call may say past its arguments. */
 export interface CallOptions {
@@ -1241,7 +1286,11 @@ const makeOperator = (
           collation: carried,
         })
   }
-  return Object.freeze(Object.assign(call, { descriptor })) as unknown as Operator<
+  const step =
+    (...rest: ReadonlyArray<unknown>) =>
+    (self: unknown) =>
+      call(self, ...rest)
+  return Object.freeze(Object.assign(call, { step, descriptor })) as unknown as Operator<
     ReadonlyArray<Schema.Top>,
     Schema.Top
   >
@@ -1567,6 +1616,89 @@ interface NextOf {
 const nextOf = ((member: EntityField<string, string, Schema.Constraint> | OneRelation) =>
   node({ _tag: 'Next', field: toOperand(member) as FieldExpr<unknown> })) as NextOf
 
+/** What `Expr.eq` accepts on the right, typed from its left. */
+type EqRight<L> =
+  // A path reads null where it reaches no row, which compares as SQL's unknown.
+  | ValueOf<L>
+  | Expr<ValueOf<L>>
+  | PathExpr<ValueOf<L> | null>
+  | ViewerPathExpr<ValueOf<L> | null>
+  | (boolean extends ValueOf<L> ? Predicate : never)
+
+const eqCall = <
+  L extends Operand<any> | PlainValue,
+  R extends (L extends PlainValue
+    ? Invalid<'foldkit-entity: Expr.eq takes the field on the left and the value on the right'>
+    : EqRight<L>),
+>(
+  left: L,
+  // The right side is typed from the left, so a plain value on the left has
+  // nothing to type it by: say so, rather than that 3 is no `Operand`.
+  right: R,
+): EqPredicate & Reads<ReadsOf<L> | ReadsOf<R>> =>
+  node({ _tag: 'Eq', left: toOperand(left), right: toOperand(right as never) })
+
+/** `Expr.eq.step`: the right side, then the left. */
+export type EqStep = <const R>(
+  right: R,
+) => <L extends Operand<any>>(
+  left: L & Fits<R, EqRight<L>, 'Expr.eq.step'>,
+) => EqPredicate & Reads<ReadsOf<L> | ReadsOf<R>>
+
+const eq = Object.assign(eqCall, {
+  step: ((right: unknown) => (left: unknown) => eqCall(left as never, right as never)) as EqStep,
+})
+
+/** What `Expr.contains` searches for: a value or an input, never a row's own. */
+type ContainsSearch = string | LiteralExpr<string> | InputExpr<string> | InputExpr<string | null>
+
+const containsCall = <L extends TextOperand>(
+  value: L,
+  search: ContainsSearch,
+): ContainsPredicate & Reads<ReadsOf<L>> => {
+  const operand = toOperand(search as never)
+  // A search a row decides would have to be escaped as a pattern in SQL, which
+  // no compiler here does: it is a value or an input.
+  if (operand._tag !== 'Literal' && operand._tag !== 'Input') {
+    throw new Error(
+      `[foldkit-entity] Expr.contains: the search is ${showExpr(operand)}; search for a value or an input`,
+    )
+  }
+  return node({ _tag: 'Contains', value: toExpr(value, 'contains'), search: operand })
+}
+
+/** `Expr.contains.step`: the search, then the text. */
+export type ContainsStep = <const S extends ContainsSearch>(
+  search: S,
+) => <L extends TextOperand>(value: L) => ContainsPredicate & Reads<ReadsOf<L>>
+
+const contains = Object.assign(containsCall, {
+  step: ((search: ContainsSearch) => (value: TextOperand) =>
+    containsCall(value, search)) as ContainsStep,
+})
+
+const inCall = <L extends Operand<any>>(
+  value: L,
+  among: ReadonlyArray<ValueOf<L>> | Expr<ReadonlyArray<ValueOf<L>>>,
+): InPredicate & Reads<ReadsOf<L>> =>
+  node({
+    _tag: 'In',
+    value: toExpr(value, 'in'),
+    among: Array.isArray(among) ? literal(Object.freeze([...among])) : toExpr(among, 'in'),
+  })
+
+/** `Expr.in.step`: the list or its input, then the value. */
+export type InStep = <const R extends ReadonlyArray<unknown> | Expr<ReadonlyArray<unknown>>>(
+  among: R,
+) => <L extends Operand<any>>(
+  value: L & Fits<R, ReadonlyArray<ValueOf<L>> | Expr<ReadonlyArray<ValueOf<L>>>, 'Expr.in.step'>,
+) => InPredicate & Reads<ReadsOf<L>>
+
+const inAmong = Object.assign(inCall, {
+  step: ((among: ReadonlyArray<unknown> | Expr<ReadonlyArray<unknown>>) => (value: Operand<any>) =>
+    inCall(value, among as never)) as InStep,
+})
+
 export const Expr = {
   /**
    * An operator, defined by what a call of it means: `definedAs` builds that
@@ -1782,23 +1914,7 @@ export const Expr = {
    * Expr.eq(Post.fields.status, 'active')
    * ```
    */
-  eq: <
-    L extends Operand<any> | PlainValue,
-    R extends (L extends PlainValue
-      ? Invalid<'foldkit-entity: Expr.eq takes the field on the left and the value on the right'>
-      : // A path reads null where it reaches no row, which compares as SQL's unknown.
-        | ValueOf<L>
-        | Expr<ValueOf<L>>
-        | PathExpr<ValueOf<L> | null>
-        | ViewerPathExpr<ValueOf<L> | null>
-        | (boolean extends ValueOf<L> ? Predicate : never)),
-  >(
-    left: L,
-    // The right side is typed from the left, so a plain value on the left has
-    // nothing to type it by: say so, rather than that 3 is no `Operand`.
-    right: R,
-  ): EqPredicate & Reads<ReadsOf<L> | ReadsOf<R>> =>
-    node({ _tag: 'Eq', left: toOperand(left), right: toOperand(right as never) }),
+  eq,
 
   /**
    * Whether a field holds no value. Its opposite is `isNotNull`; both are the
@@ -1828,20 +1944,7 @@ export const Expr = {
    * nullable column that should match everything on an empty search says so:
    * `Expr.or(Expr.isNull(field), Expr.contains(field, input.search))`.
    */
-  contains: <L extends TextOperand>(
-    value: L,
-    search: string | LiteralExpr<string> | InputExpr<string> | InputExpr<string | null>,
-  ): ContainsPredicate & Reads<ReadsOf<L>> => {
-    const operand = toOperand(search as never)
-    // A search a row decides would have to be escaped as a pattern in SQL, which
-    // no compiler here does: it is a value or an input.
-    if (operand._tag !== 'Literal' && operand._tag !== 'Input') {
-      throw new Error(
-        `[foldkit-entity] Expr.contains: the search is ${showExpr(operand)}; search for a value or an input`,
-      )
-    }
-    return node({ _tag: 'Contains', value: toExpr(value, 'contains'), search: operand })
-  },
+  contains,
 
   /**
    * Whether a value is one of `among`: a list written out, or an input whose
@@ -1856,15 +1959,7 @@ export const Expr = {
    * holding a null, and an empty list matches no row. A list written out is
    * copied, so changing the array afterwards does not change the query.
    */
-  in: <L extends Operand<any>>(
-    value: L,
-    among: ReadonlyArray<ValueOf<L>> | Expr<ReadonlyArray<ValueOf<L>>>,
-  ): InPredicate & Reads<ReadsOf<L>> =>
-    node({
-      _tag: 'In',
-      value: toExpr(value, 'in'),
-      among: Array.isArray(among) ? literal(Object.freeze([...among])) : toExpr(among, 'in'),
-    }),
+  in: inAmong,
 
   /**
    * `left` orders before `right`. Numbers compare as numbers; text compares
