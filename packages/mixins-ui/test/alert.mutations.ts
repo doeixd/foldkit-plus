@@ -4,8 +4,56 @@
  * fails for every one.
  */
 const tests = ['packages/mixins-ui/test/alert.test.ts']
+const browser = ['packages/mixins-ui/test/alert.browser.test.ts']
+const recipe = '../src/recipes/alert.ts'
 
 export default [
+  {
+    name: 'a banner is 120% of its container',
+    edits: [{ file: recipe, find: "inlineSize: '100%',", replace: "inlineSize: '120%'," }],
+    tests: browser,
+  },
+  {
+    name: 'an inline description does not wrap',
+    edits: [
+      {
+        file: recipe,
+        find: "        marginBlockStart: ref.space['3xs'],\n        ...role('body'),",
+        replace:
+          "        marginBlockStart: ref.space['3xs'],\n        whiteSpace: 'nowrap',\n        ...role('body'),",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'an inline dismiss button takes the first column',
+    edits: [
+      {
+        file: recipe,
+        find: "gridColumn: '3',\n        gridRow: '1',",
+        replace: "gridColumn: '1',\n        gridRow: '1',",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a banner dismiss button is held to the physical right',
+    edits: [
+      { file: recipe, find: 'insetInlineEnd: ref.space.xs,', replace: 'right: ref.space.xs,' },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a banner dismiss button is held at the inline start',
+    edits: [
+      {
+        file: recipe,
+        find: 'insetInlineEnd: ref.space.xs,',
+        replace: 'insetInlineStart: ref.space.xs,',
+      },
+    ],
+    tests: browser,
+  },
   {
     name: 'every inline alert interrupts',
     edits: [

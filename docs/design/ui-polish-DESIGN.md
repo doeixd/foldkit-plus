@@ -613,10 +613,23 @@ green commit. Shared history is not rewritten.
 - [x] The checkbox browser test asserts a rotation every mark has; test
   that a checked box shows its check and an unchecked one does not. **Done**: ca42af48.
 - [x] Command search's `.toLowerCase()` is untested. **Done**: 581f6468.
-- [ ] 50a7ef0f flipped about 30 rows to "Checked" with no browser test:
+- [x] 50a7ef0f flipped about 30 rows to "Checked" with no browser test:
   Switch RTL, Kbd, Checkbox and Segmented ink centring (use the audit's
   `ink.mjs` method), Alert and Pagination at 390px, VirtualList. Each gets
-  its measuring test before it is marked again.
+  its measuring test before it is marked again. **Done** 2026-11-10 (Checkbox
+  and Pagination already had theirs); each reads a screenshot or a box in a
+  real page, and a mutation of each is killed:
+  `toggleGeometry.browser.test.ts` reads the switch thumb's ink off and on, left
+  to right and right to left, against the track's inline start and end;
+  `kbd.browser.test.ts` the ink of `K` and `⌘` against the keycap's face
+  (under a pixel both ways; measured 0.5px high);
+  `segmentedKinds.browser.test.ts` the ink of a pressed and an unpressed label
+  in a tray and a full-width tray (0.5px high at most; the helper is
+  `test/ink.ts`); `alert.browser.test.ts` an inline and a banner alert at
+  390px, both directions, for sideways overflow of the alert, the page and
+  every child, and the dismiss button at the inline end;
+  `virtualList.browser.test.ts` a thousand rows in a box drawing under sixty
+  of them, and the last row drawn once the box is scrolled to its end.
 - [x] A3's test covers TreeView only and skips "never taller than its
   final height" and "the first label's x never moves": add both, and
   Sidebar. **Done** 2026-11-10: TreeView and Sidebar sample every frame of

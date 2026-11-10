@@ -8,6 +8,41 @@ const recipe = '../src/recipes/segmented.ts'
 
 export default [
   {
+    name: 'the words are not trimmed in a block of their own, as the steady copy follows them',
+    edits: [
+      {
+        file: recipe,
+        find: "label: component(Style.self({ display: 'block', ...trimmed })),",
+        replace: "label: component(Style.self({ display: 'block' })),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an option pads its top only',
+    edits: [
+      {
+        file: recipe,
+        find: '        minBlockSize: optionHeight,\n        background',
+        replace:
+          "        minBlockSize: optionHeight,\n        paddingBlockStart: '0.5rem',\n        background",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an option pads its start only',
+    edits: [
+      {
+        file: recipe,
+        find: '        minBlockSize: optionHeight,\n        background',
+        replace:
+          "        minBlockSize: optionHeight,\n        paddingInlineStart: '1.5rem',\n        background",
+      },
+    ],
+    tests,
+  },
+  {
     name: 'the steady copy leaves out the icon',
     edits: [
       {

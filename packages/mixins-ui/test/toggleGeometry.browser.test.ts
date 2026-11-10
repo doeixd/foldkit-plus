@@ -13,6 +13,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { CheckboxSlots, Recipes, SwitchSlots } from '../src/index.js'
+import { inkBox } from './ink.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const checkbox = Style.forSlots(CheckboxSlots)(Recipes.Checkbox({}))
@@ -284,3 +285,42 @@ test('hovered, the thumb stretches 2px, and when on it keeps its far edge', asyn
     handle.dispose()
   }
 })
+
+// The thumb is light on a dark page, so it is the only bright thing in the
+// track's screenshot once the page behind the track's corners is dark too.
+test.each(['ltr', 'rtl'] as const)(
+  'the switch thumb starts at the inline start and ends at the inline end, %s',
+  async direction => {
+    const handle = mount()
+    try {
+      await drawn()
+      document.body.style.background = '#000'
+      // The container is replaced by the runtime's drawing; the body holds it.
+      document.body.dir = direction
+      const bright = (brightness: number) => brightness > 240
+      const thumbOf = async (label: string) => {
+        const element = document.querySelector<HTMLElement>(`[aria-label="${label}"]`)!
+        const found = await inkBox(element, bright, 0)
+        if (found === null) throw new Error('no thumb')
+        // Physical edges of the thumb from the track's left, then from its inline start.
+        const { width } = found
+        const [near, far] =
+          direction === 'ltr'
+            ? [found.left, found.right]
+            : [width - found.right, width - found.left]
+        return { near, far, width }
+      }
+      const off = await thumbOf('off')
+      const on = await thumbOf('on')
+      // Off: the 2px inset at the inline start. On: 2px in from the inline end.
+      expect(off.near).toBeCloseTo(2, 0)
+      expect(on.far).toBeCloseTo(off.width - 2, 0)
+      // And the box really is at the right place on the page, not only mirrored.
+      expect(getComputedStyle(document.body).direction).toBe(direction)
+    } finally {
+      document.body.style.background = ''
+      document.body.removeAttribute('dir')
+      handle.dispose()
+    }
+  },
+)

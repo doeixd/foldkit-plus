@@ -15,6 +15,8 @@ import { afterEach, expect, test, vi } from 'vitest'
 import * as Segmented from '../src/segmented.js'
 import { SegmentedSlots } from '../src/segmented.js'
 import { Segmented as SegmentedRecipe } from '../src/recipes/segmented.js'
+import { inkOffsetOf } from './ink.js'
+import { userEvent } from 'vitest/browser'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const Model = Schema.Struct({ pressed: Schema.String })
@@ -32,6 +34,8 @@ interface Fixture {
   readonly icons?: 'with' | 'only'
   readonly fluid?: boolean
   readonly pressed?: string
+  /** The options' words; capitals alone where the ink is measured, since an ascender stands above them. */
+  readonly labels?: ReadonlyArray<string>
   /** The width of the box around it. */
   readonly width?: string
 }
@@ -65,7 +69,7 @@ const mount = (fixture: Fixture) => {
         Segmented.view(
           {
             label: 'View',
-            options: labels.map(label => ({
+            options: (fixture.labels ?? labels).map(label => ({
               value: label,
               label,
               ...(fixture.icons === undefined
@@ -177,4 +181,34 @@ test.each([
     }
   }
   expect(await heightAt(small)).toBeLessThan(await heightAt(large))
+})
+
+// Read off a screenshot of each option: the ink of its words (a pressed
+// option's accent ink or an unpressed one's muted grey, both darker than the
+// tint behind) against the option's box. Capitals, which have no ascender or
+// descender to bias the ink's box. Measured: 0.0px across (0.5px in a
+// full-width tray) and 0.5px high, a screenshot's half pixel, so the bound is a pixel;
+// the untrimmed words sat 2.5px high.
+test.each([
+  ['a tray', {}],
+  ['a full-width tray', { recipe: { width: 'fill' } }],
+] as const)("an option's words are centered in it, in %s", async (_, fixture) => {
+  const { handle } = mount({
+    ...fixture,
+    labels: ['HEM', 'LIT', 'TIE'],
+    pressed: 'LIT',
+    width: '40rem',
+  })
+  try {
+    await vi.waitFor(() => expect(option('TIE')).toBeTruthy())
+    // Somewhere no option is, so no hover tints one.
+    await userEvent.hover(document.body, { position: { x: 700, y: 700 } })
+    for (const name of ['LIT', 'HEM']) {
+      const { x, y } = await inkOffsetOf(option(name), brightness => brightness < 170, 0.2)
+      expect(Math.abs(x), `${name} across`).toBeLessThan(1)
+      expect(Math.abs(y), `${name} down`).toBeLessThan(1)
+    }
+  } finally {
+    handle.dispose()
+  }
 })
