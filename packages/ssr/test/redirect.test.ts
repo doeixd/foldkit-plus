@@ -159,6 +159,22 @@ describe('redirect', () => {
     ])
   })
 
+  it('answers a redirect that throws 500, reporting it, and draws nothing', async () => {
+    const { entry, ran, reported } = counted({
+      to: () => {
+        throw new Error('no access rule')
+      },
+    })
+    expect(responseOf(await entry.renderPage(get(500))).status).toBe(500)
+    expect(ran).not.toContain('view')
+    expect(reported).toEqual([
+      expect.objectContaining({
+        _tag: 'PageFailed',
+        message: expect.stringContaining('no access rule'),
+      }),
+    ])
+  })
+
   it('takes this origin’s own address written whole only as a path', async () => {
     // Same origin, but not a path: the rule is a path, so the address is refused too.
     const { entry } = counted({ to: () => Option.some('https://example.test/sign-in') })

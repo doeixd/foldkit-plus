@@ -1462,8 +1462,8 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
      * Keeps rendered `GET` and `HEAD` pages in `store` by build and URL
      * (#428). A page is kept only when every read the render made through
      * `foldkit-remote-server`'s `pageReader` was public, every request
-     * header `flags`, `prepare`, `redirect`, `headers` or `status` read was absent (the
-     * request's `cookie` included), `headers` set no `cookie` or
+     * header `flags`, `prepare`, `redirect`, `headers` or `status` read was
+     * absent (the request's `cookie` included), `headers` set no `cookie` or
      * `cache-control` of its own, and the status is `200`: drawn from the
      * URL alone. It is kept for `maxAge` or its reads' shortest, and serves
      * each later request that also lacks the headers it read; it says
