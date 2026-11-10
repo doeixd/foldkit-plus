@@ -1,6 +1,6 @@
 # Styles at build, defaults, long lists and popups on the platform (#420, #424, #429, #430)
 
-Status: Proposed 2026-11-10: awaiting the owner's decisions.
+Status: decided 2026-11-10 (decisions delegated by the owner); built next is #420's measurement, then static style modules if the style system is over 15 KB brotli, and #424's recipe defaults; #429 and #430 wait on named conditions.
 
 Four issues from [performance-PLAN.md](./performance-PLAN.md) that all change
 what `foldkit-mixins` and `foldkit-mixins-ui` hand a browser: less script
@@ -13,6 +13,11 @@ and one constraint: `@foldkit/ui` owns each component's Model, Messages,
 Nothing here is built. Every statement about today's code names its file and
 line, read on 2026-11-10 at `1c1956b`. Three of the four issues describe the
 code as it stood on 2026-11-02; section 1 says where that has moved.
+
+The decisions are in [Decisions](#decisions), after the options they choose
+between, with the premises that were re-checked and found wrong. The plan in
+section 6 is the plan as decided, and [Issue actions](#issue-actions) ends
+the note.
 
 ## 1. The problems, and what was measured
 
@@ -29,8 +34,9 @@ split is an estimate, the total is real):
 | `foldkit-mixins` style data (tokens, defaults, utilities, layout, prose) | 5.8 KB |
 | the rest of `foldkit-mixins` (Slots, Mixins, the resolver) | 3.3 KB |
 
-The first three are about 29 KB, 14% of the chunk. The budget test now holds
-216.9 KB (`examples/foldkit/domains-plus/test/bundle.test.ts:14-20`) against
+The first three are about 29 KB, 14% of the chunk. The chunk now measures
+216.9 KB under a ceiling of 217.5 KB
+(`examples/foldkit/domains-plus/test/bundle.test.ts:14-22`) against
 the plan's target of under stock Foldkit's 215 KB. Nothing else left on the
 plan removes this much from the first chunk.
 
@@ -518,58 +524,123 @@ proves:
 - the page scrolls under an open panel and the panel follows, without a
   frame of lag to assert on.
 
-## 6. Recommendation and phases
+## 6. The plan, as decided
 
-Do #420 first: it is the largest measured client saving left and its build
-half exists. Do #424 as A and C now and decide B separately. Build `LongList`
-as option B and move to A when rows are cheap to draw. For #430, move
-arrowless panels to CSS placement for robustness, claim no byte saving, and
-put the byte saving and `showModal()` to upstream.
+Section 7 holds the questions as they were asked and
+[Decisions](#decisions) the answers. In short: measure, then build #420 if
+the number allows it; do #424 as recipe defaults and shared pieces; leave
+`WindowList` in place until every row can be server-drawn; leave popup
+placement on floating-ui until upstream can drop it or a measurement says
+it costs a frame.
 
 Each phase ships alone and records a number.
 
-**Phase 0: measure (no API).**
-- The style system's share of today's chunk (`bundle-report.mjs`), and its
-  module-evaluation time in Chromium at 4x throttling.
-- The list's code in the chunk (WindowList, `virtual.ts`, `Measure`).
-- Drawing 556 rows: server CPU interpreted and compiled, the HTML's brotli
-  size, the client's first draw and a Message's cost with keyed lazy rows
-  (`pnpm bench:render`).
-- A probe page per row of section 3's table in the browsers CI runs.
+**Phase 0: measure #420 (no API).** Run `node scripts/bundle-report.mjs
+examples/foldkit/domains-plus` at the commit phase 1 would start from, and
+add three rows: `foldkit-mixins` style runtime, `foldkit-mixins` style data,
+and `foldkit-mixins-ui`. Record the sum in performance-PLAN.md beside the
+`@floating-ui/*` row from the same run, which the upstream request quotes.
 
-Stop conditions: under 15 KB for styles moves #420 to low priority, as the
-issue says; a list share under 2 KB makes #429 a robustness change only.
+- Over 15 KB brotli: build phase 1.
+- 15 KB or under: close #420 as not planned, with the number.
 
-**Phase 1: #420, static styles.** The plugin emits the class data for the
-modules named in its options; the client build resolves those modules to
-it. Refuses `whenInput`, `perItem` and anything not serializable, naming the
-export. Tests: the conformance test over every example; the refusal's
-message; `bundle.test.ts`'s ceiling lowered to what is measured; a browser
-test that a page drawn from class data computes the same styles as one
-compiled at run time (`look.browser.test.ts`'s method).
+The split is an estimate (each module's share of the minified bytes, scaled),
+so it decides only whether to start. Phase 1's own gate reads the real total.
+Module-evaluation time in Chromium at 4x throttling is recorded if phase 1 is
+built, as a before and after; it gates nothing.
 
-**Phase 2: #420, conditional pieces**, if an application needs them: the
-source transform that keeps a predicate. Skipped if nothing asks.
+The list's share of the chunk, the cost of 556 rows and the browser probes
+are no longer phase 0: they are measured when #429's or #430's condition is
+met, by whoever builds them.
 
-**Phase 3: #424 A and C.** One recipe change per commit, each with a recipe
-test and a browser test where the claim is layout; `style.ts`'s shipped
-block shrinks by what was moved; screenshots at three widths unchanged.
+**Phase 1: #420, static styles.** `styles({ sheet, modules })`: the plugin
+emits class data for the modules listed and the client build resolves those
+modules to it. The class data and the sheet come from one evaluation, and
+the build fails if a frozen class has no rule in the CSS it emits. A listed
+module that holds a `whenInput`, a `perItem`, or an export that is not a
+`NamedStyle`, a token reference object or a plain string fails the build,
+naming the export. A module that needs any of those is left off the list and
+stays on the runtime path.
 
-**Phase 4: `LongList`, option B.** The component, its recipe, `Seen`, keyed
-lazy rows. domains-plus's All Results moves for `from === 0`. Browser tests:
-no shift as the list grows (#418's test); find-in-page reaches a drawn row
-far below the fold; scroll at 4x throttling holds its frame budget on 556
-rows; a jump to the end and back in WebKit. The bundle report records the
-measuring code leaving the page.
+Two things to settle before the transform is written, both read from the
+code on 2026-11-10:
 
-**Phase 5: #430, CSS placement for Listbox**, then Combobox, then Menu and
-its family, each behind section 5's doubled tests. The README says what
-falls back and why.
+- domains-plus's views read more of a style module than its classes:
+  `CartSheetStyle.mixin` (`cart.ts:117`, `filters.ts:106`, `:149`, `:241`)
+  and `Style.attach(Page.style)` (`view.ts:681`). The frozen value keeps
+  `.mixin` and `.style`, and `Style.attach` must be importable without
+  `styleRules`; if it is not, it moves beside `SlotView` first.
+- `view.ts:383` calls `Behavior.forSlots`, not `Style.forSlots`: no view
+  module of domains-plus compiles a Style, so `style.ts` is the one module
+  to list.
 
-**Phase 6, with upstream:** `anchorSetup` on demand, `showModal()` opt-in,
-a top layer the anchor owns. Posted only with the maintainer's go-ahead.
+Tests: the conformance test over every example (the build's class lists and
+CSS equal the runtime's); the refusal's message; a browser test that a page
+drawn from class data computes the same styles as one compiled at run time
+(`look.browser.test.ts`'s method); the page test that every drawn class has
+a rule (#271's) on the built output.
 
-**Later:** `LongList` option A, after #473 or #427. #424 B, if decided.
+Exit gate, as #423's was: `bundle.test.ts`'s measured total falls by at
+least 12 KB brotli, and `report.included` holds no `styleRules` and no
+`foldkit-mixins-ui` recipe module. The ceiling is then lowered to the new
+reading plus 1%. A smaller fall means the compiler is still reachable from
+something; find it or revert the phase, and say which in #420.
+
+**Phase 2: #420, conditional pieces.** Not planned. It is reopened by an
+application or shipped recipe that needs `whenInput` in a listed module.
+
+**Phase 3: #424, recipe defaults and shared pieces.** One recipe change per
+commit, each with a recipe test, and a browser test where the claim is
+layout or a state's fill. In scope:
+
+- Sheet: the title and description roles, safe-area padding from
+  `ref.safe`, a scrim token every overlay reads, and a `title: 'hidden'`
+  axis on Dialog and Sheet.
+- WindowList: the root's reset in the recipe's base.
+- `Utilities.scriptedOnly` and `Utilities.plainOnly`, which
+  `recipes/windowList.ts` then reads too.
+- domains-plus's own `srOnly` (`style.ts:79-89`) replaced by
+  `Utilities.srOnly`, after a computed-style comparison: the utility writes
+  `border: '0'` where the application writes `borderWidth: '0'`.
+
+Done when `style.ts`'s shipped-component block (lines 1096-1219, 124 lines)
+is 75 lines or fewer and domains-plus's look tests and upstream's parity
+suites pass unchanged.
+
+Not in scope until a second consumer writes the same override (grep the
+examples and packages before adding): a `motion: 'none'` axis and a sheet
+duration knob. Not shipped at all: a `control` base, which is the Button
+recipe's outline variant under a second name.
+
+**Phase 4: `LongList`.** Waits. Built as option A, every row server-drawn,
+when `pnpm bench:render` shows the server drawing domains-plus's 556 rows in
+10 ms or less and the page's HTML is within its budget or the rows below
+the first screen are streamed (#473 or #433, and #427). Then: the
+component, its recipe, `Seen`, keyed lazy rows, and All Results moves whole,
+`?from=` included. Browser tests: no shift (#418's test); find-in-page
+reaches a row far below the fold; scroll at 4x throttling holds its frame
+budget on 556 rows; a Message that changes no row draws no row, counted
+after a second change. The recipe's `content-visibility` rule stands inside
+`@supports (overflow-anchor: auto)`.
+
+**Phase 5: #430, CSS placement.** Waits. Built for Listbox first when either
+condition holds:
+
+- upstream ships a way to leave floating-ui out of the chunk (the request
+  below), so the CSS path removes about 4.7 KB; or
+- a trace of domains-plus at 4x CPU throttling shows a Listbox taking more
+  than 16 ms from its open Message to its first positioned frame, or
+  `autoUpdate`'s handlers taking more than 1 ms of a scroll frame while a
+  panel is open.
+
+Section 5 is its design and its tests. It adds one requirement the section
+did not state: upstream's anchor also focuses the panel after its first
+position (`focusAfterPosition`), so a CSS-placed panel must show the same
+focus on open and on Escape, proved with `userEvent` on both paths, before
+any other parity test counts.
+
+**Phase 6, with upstream.** One request, in Issue actions, posted by the
+coordinator after phase 0 has the floating-ui figure.
 
 ## 7. Decisions for the owner
 
@@ -633,6 +704,174 @@ a top layer the anchor owns. Posted only with the maintainer's go-ahead.
     an event or attribute a CSS path can also set) and to add our numbers to
     foldkit/foldkit#1689. Recommended: yes, after phase 0's figures.
 
+## Decisions
+
+Decided 2026-11-10; the owner delegated them. Each answers the question of
+the same number in section 7.
+
+### Premises re-checked
+
+Read at `922b0ab` on 2026-11-10. Where a premise was wrong, the decision
+rests on the corrected one.
+
+- **CI runs Chromium only.** `vitest.config.ts:29` lists one browser
+  instance, `chromium`, and no test or workflow names WebKit or Firefox.
+  Section 3 says phase 0 "confirms each against the browsers CI runs", phase
+  4 asked for "a jump to the end and back in WebKit", and section 5 runs each
+  popup test "as the browser is": all three would have exercised Chromium
+  alone. No Safari or Firefox claim in this note can be tested here today.
+- **Keeping `WindowList` for `?from=` keeps its code.** Phase 4 said the
+  bundle report "records the measuring code leaving the page", and question
+  8's recommendation kept `WindowList` for pages opened at a row. An
+  application that imports both components ships both, so option B with 8(a)
+  adds a component and removes none.
+- **A CSS-placed panel loses more than `data-placement`.** Upstream's anchor
+  Mount also carries the focus on open: the panel is `visibility: hidden`
+  until the first position and `focusAfterPosition` focuses it then
+  (`@foldkit/ui/dist/listbox/shared.js:429-440`, the Mount at `:446-456`).
+  A Mount of the same name that skips `anchorSetup` has to do that itself.
+- **floating-ui is imported by this repository too.** `anchor.ts:33`,
+  `cascadeSelect.ts:1` and `tour.ts:1` import `anchorSetup`. An upstream
+  change that lets Listbox drop it does not empty the chunk of it until
+  those three move as well.
+- **The budget.** The test's ceiling is 217.5 KB and the measured chunk
+  216.9 KB (`bundle.test.ts:14-22`); section 1 read the second as the first.
+  Corrected in place.
+- **Confirmed:** `style.ts` is 1,219 lines with one `.extend` (`:1101`) and
+  `Page = slots({` at `:160`; domains-plus imports three shipped components;
+  no file under `packages/mixins-ui/src` or domains-plus's `src` uses
+  `whenInput` or `perItem`; `Utilities.srOnly` is at `utilities.ts:197`;
+  upstream's dialog opens with `show()` (`foldkit/dist/dom/dom.js:276`).
+  The upstream line numbers are those of `@foldkit/ui`
+  `0.169.0-canary.90746b32d2ca`.
+- **Not measured in this session:** the bundle report was not rerun, since
+  it needs every package built in a tree other sessions were writing. The
+  thresholds below are rules for whoever runs it.
+
+### #420
+
+1. **(b), with the rule written down: build phase 1 if the style system is
+   over 15 KB brotli, else close.** The measure is the sum of three rows of
+   `node scripts/bundle-report.mjs examples/foldkit/domains-plus`. The
+   2026-11-02 figure, 29.3 KB, passes by a wide margin, but it is an
+   estimated split of a chunk that has since grown by 6 KB, and #423 was
+   built on an expectation and reverted at 0.9 KB. Phase 1 also carries an
+   exit gate on the real total (12 KB or more off `bundle.test.ts`'s
+   reading), because the estimate cannot say whether the compiler is
+   reachable from somewhere else. Closing at 15 KB or under, not parking at
+   low priority, is deliberate: an open issue with no condition is never
+   picked up.
+
+2. **(a), a `modules` list beside `sheet` in `styles({ … })`.** The plugin
+   already names its one input by module id (`vite.ts:25-27`), so the list
+   is the same shape and is checked at build. A file pattern would rename
+   `style.ts` in every example and still guess; an import attribute puts the
+   mark at every importer, where one forgotten attribute leaves the compiler
+   in the chunk with nothing said. Packages need no marker: their recipes
+   are called in the application's style module.
+
+3. **(a), narrower: refused, and no opt-out option.** A listed module that
+   holds a `whenInput` or `perItem` fails the build with the export named.
+   The way to keep such a module at run time is to leave it off the list,
+   which decision 2 already provides, so a second option would be a second
+   way to say the same thing. Nothing shipped and no example uses either
+   piece in a style module.
+
+4. **(a) in production and (b) in development, plus a build assertion.**
+   Keeping `ensure`'s injection in production keeps the registry and the
+   CSS text reachable, which is the code the phase removes. The risk it
+   covered, a class with no rule, moves to the build: class data and sheet
+   come from one evaluation, and the plugin fails when a frozen class has no
+   rule in the emitted CSS. That is checked on every build, where the
+   conformance test is checked only when the tests run.
+
+### #424
+
+5. **(b), with the goal restated as a number: the shipped-component block
+   from 124 lines to 75 or fewer, look tests and parity suites unchanged.**
+   The issue's 700 lines can only come from redrawing the page with shipped
+   components (option B), and domains-plus is an exact port by its own
+   header (`style.ts:1-11`): 72 of its lines carry a class upstream's
+   Playwright suites select by. So B is not planned for domains-plus; an
+   application that shows the components is a different example, and Chirp
+   already is one. Within A and C, a default moves into a recipe when every
+   application would write it (safe-area padding, the scrim, the list
+   root's reset, the no-script pair, which `recipes/windowList.ts` already
+   writes by hand). `title: 'hidden'` ships because the wrong way to hide a
+   dialog's title removes its accessible name. `motion: 'none'` and a sheet
+   duration knob wait for a second consumer: an axis one application passes
+   is an option nobody else passes. The `control` base is not shipped.
+
+### #429
+
+6. **(a), a sibling `LongList`, when it is built.** Its Model has no
+   heights, estimate or viewport; a mode would leave most of
+   `WindowList.Model` unread in one mode. This stands whatever 7 decides.
+
+7. **(c) now, and option A when its condition is met; option B is not
+   built.** B's gains over today are small: find-in-page reaches the rows
+   drawn so far and not the rows in the window, and the measuring code stops
+   running. Its costs are a new component, 556 keyed rows checked on every
+   Message, about 8,000 nodes, and an untested Safari path. With `?from=`
+   kept on `WindowList` it removes no code, and the two reasons that made
+   the issue urgent are gone (the shift is 0.001 and was never the list's;
+   the server draws 24 names). Option A is what the issue asks for and it
+   does replace `WindowList` on the page. Its condition: `pnpm bench:render`
+   shows the server drawing 556 rows in 10 ms or less, and the HTML is
+   within its budget or the rows below the first screen are streamed. Today
+   the interpreted row costs about 95 ms and the page is at 11.1 KB against
+   8 KB with 24 names.
+
+8. **(a) today, by default; under option A, `LongList` draws from row 0 and
+   `?from=` is a row to scroll to.** Until `LongList` exists nothing
+   changes. When the server draws every row, a page opened at a row needs no
+   take-over correction: the rows above are in the document, so the page
+   links to the row's id and `WindowList` leaves the application. That is
+   the only arrangement in which the measuring code leaves the chunk.
+
+   One rule for when it is built, since CI has no Safari: the recipe's
+   `content-visibility` rule stands inside `@supports (overflow-anchor:
+   auto)`. A browser without scroll anchoring then lays out an ordinary
+   long list, correct and slower, and cannot move the page when a row above
+   the viewport takes its real size. If Safari has gained scroll anchoring
+   by then, the same rule turns the feature on there with nothing changed.
+
+### #430
+
+9. **(b): not built now. Built for Listbox when upstream can drop
+   floating-ui, or when a trace shows placement costing a frame.** The
+   trial saves no bytes (floating-ui stays for the fallback and for
+   `anchor.ts`, `cascadeSelect.ts` and `tour.ts`), nothing has measured the
+   `autoUpdate` loop as a cost on any page, and it makes two placement paths
+   for every panel. Only one of the two would run in CI's one browser as
+   the default, and the path Safari 26 and Firefox 147 take would be tested
+   nowhere. It would also take over the focus on open from upstream's
+   anchor, and accessibility parity is not something to try on a trial. The
+   thresholds are in phase 5: over 16 ms from open to the first positioned
+   frame, or over 1 ms of a scroll frame in `autoUpdate`, at 4x throttling
+   on domains-plus.
+
+10. **(a): stay on `popover="manual"` with upstream's Messages.**
+    `popover="auto"` hides the panel at once, so upstream's leave has
+    nothing to show outside Chromium, a submenu needs nested or linked
+    popovers, and the browser's toggle meets upstream's press-origin logic
+    (the Menu trap). It would retire one transparent element. Revisit when
+    `overlay` or an equivalent is in three engines.
+
+11. **(a): restated.** The top layer needs Chromium 114, Safari 17 and
+    Firefox 125 and is already shipped; placement needs Chromium 125,
+    Safari 26 and Firefox 147 and is the part left. "Safari 18" in the
+    issue names a browser with the first and not the second, so the
+    fallback is what would run there. The issue takes a new title below.
+
+12. **One request, not two, and no comment on foldkit/foldkit#1689.** The
+    request that changes a number is a way to place a panel without
+    `anchorSetup` in the chunk; it is posted after phase 0 has today's
+    floating-ui figure. The side a flip chose matters only on a CSS path, so
+    it is one sentence of that request and not an issue of its own. #1689
+    already asks for `showModal()` as an opt-in and this note has no number
+    to add to it: a comment with none is noise on someone else's tracker.
+
 ## 8. Risks, review points, rejected alternatives
 
 **Risks.**
@@ -645,7 +884,8 @@ a top layer the anchor owns. Posted only with the maintainer's go-ahead.
 - *Two paths per popup.* Every CSS-placed panel has a fallback that most
   developers never see. The doubled browser tests are the only thing that
   keeps it working; if they are too slow to keep, the feature should not
-  ship.
+  ship. CI runs Chromium alone, so "doubled" means the CSS path and the
+  forced fallback in one engine; decision 9 waits partly for that reason.
 - *Accessibility.* `content-visibility: auto` keeps skipped rows in the
   accessibility tree and the tab order, which is wanted, and makes a
   screen reader's list as long as the list; `aria-setsize` and
@@ -702,3 +942,68 @@ a top layer the anchor owns. Posted only with the maintainer's go-ahead.
 - *An interest or invoker attribute (`interestfor`, `commandfor`) for hover
   cards and triggers.* Not in three engines, and the open state is the
   Model's.
+
+## Issue actions
+
+For the coordinator. Nothing here has been done.
+
+**#420, keep open**, title unchanged. Comment: decided to measure first;
+build if the three style rows of the bundle report sum to over 15 KB brotli
+on domains-plus, close as not planned at 15 KB or under; modules are named
+by a `modules` list in `styles({ … })`; `whenInput` and `perItem` are
+refused in a listed module; production has no runtime fallback and the
+build fails on a class with no rule; phase 1 must take 12 KB or more off the
+measured chunk or be reverted.
+
+**#424, narrow.** New title: "mixins-ui: Sheet and WindowList defaults an
+application should not restate (domains-plus's shipped-component block from
+124 lines to 75)". Comment: `style.ts` is 1,219 lines, of which 935 are the
+application's own Slots and 124 restyle shipped components, so recipe
+defaults cannot reach 700; redrawing the page with shipped components is not
+planned, since domains-plus is an exact port.
+
+**#429, keep open and narrow.** New title: "mixins-ui: LongList, every row
+server-drawn through content-visibility (waits on a compiled row or
+streaming)". Comment: the layout-shift reason is gone (#418, 0.001) and the
+server draws 24 names (#415); the client-grown variant is not built because
+it removes no code while `?from=` keeps `WindowList`; built when the server
+draws 556 rows in 10 ms or less and the HTML is within budget or streamed
+(#473 or #433, #427); then a sibling component, `?from=` a row to scroll
+to, and `content-visibility` only where the browser has scroll anchoring.
+
+**#430, keep open and narrow.** New title: "mixins-ui: CSS anchor placement
+for arrowless panels (Chromium 125, Safari 26, Firefox 147), floating-ui as
+the fallback". Comment: the top layer is already the browser's
+(`popover="manual"`, Safari 17) and a Sheet is already a `<dialog>`;
+`showModal()` is upstream's (foldkit/foldkit#1689); `popover="auto"` is
+declined; placement waits for upstream to make floating-ui droppable or for
+a trace over the thresholds in this note; Safari 18 has no anchor
+positioning, so the issue's "Safari 18" is restated.
+
+**No issue is closed today.** #420 closes on phase 0's number if it is 15 KB
+or under.
+
+**Upstream request to post on foldkit/foldkit**, after phase 0, with the
+bracketed figure filled in from the same bundle report. Title: "ui: place
+an anchored panel without Floating UI in the chunk". Text:
+
+> Each component module defines its anchor Mount at module level with
+> `anchorSetup` in its closure (for example `AnchorListbox` in
+> `listbox/shared.js`), so an application that draws one Listbox ships
+> `@floating-ui/dom` whether or not the browser needs it: [N] KB brotli of a
+> [M] KB first chunk in our measurement. Chromium 125, Safari 26 and Firefox
+> 147 can place such a panel with CSS anchor positioning. Would you take
+> either of these: a `strategy` in `AnchorConfig` that the anchor Mount
+> honours, where `'css'` writes an anchor name on the button and the panel,
+> keeps the first-position focus (`focusAfterPosition`) and the
+> `CompletedAnchor…` Message, and does not import Floating UI; or
+> `anchorSetup` loaded on demand, so a build that never calls it drops it?
+> Either keeps the Mount's name and Messages, so `Scene.Mount.resolve` is
+> unchanged. One thing a CSS path cannot do outside Chromium is say which
+> side a flip chose; if the Mount could still set `data-placement` there (a
+> single read after layout would do), recipes that turn an arrow or a leave
+> by it keep working. We can send the Listbox change as a pull request if
+> the shape is acceptable.
+
+**No comment on foldkit/foldkit#1689**, and no request for the flip side
+alone.
