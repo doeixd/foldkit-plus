@@ -1,6 +1,6 @@
 # Styles at build, defaults, long lists and popups on the platform (#420, #424, #429, #430)
 
-Status: decided 2026-11-10 (decisions delegated by the owner); built next is #420's measurement, then static style modules if the style system is over 15 KB brotli, and #424's recipe defaults; #429 and #430 wait on named conditions.
+Status: decided 2026-11-10 (decisions delegated by the owner). #420's phase 0 measured 30.1 KB and phase 1 (static style modules) is built and passed its gate, 26.0 KB off domains-plus; #424's recipe defaults are next; #429 and #430 wait on named conditions.
 
 Four issues from [performance-PLAN.md](./performance-PLAN.md) that all change
 what `foldkit-mixins` and `foldkit-mixins-ui` hand a browser: less script
@@ -587,6 +587,8 @@ least 12 KB brotli, and `report.included` holds no `styleRules` and no
 `foldkit-mixins-ui` recipe module. The ceiling is then lowered to the new
 reading plus 1%. A smaller fall means the compiler is still reachable from
 something; find it or revert the phase, and say which in #420.
+
+**Phase 1 result (2026-11-10).** Built: `styles({ sheet, modules })` in `foldkit-mixins/vite` (`viteFreeze.ts`), with domains-plus's `style.ts` listed. `node scripts/bundle-report.mjs examples/foldkit/domains-plus`, run before and after in one tree: 217,518 bytes brotli to 191,556, a fall of 25,962 against the 12 KB gate, so the phase stays. `report.included` holds no `foldkit-mixins/styleRules` and no `foldkit-mixins-ui/recipes/` module (`bundle.test.ts` asserts both); the three style rows sum to 6.4 KB, all components that draw. The ceiling is now 193.5 KB. Two changes the premises asked for: the `AppStyle` moved to `appStyle.ts`, since a frozen module holds no function, and `view.ts` attaches with `SlotView.attach(Page.style.mixin)`, since `Style` is one object and importing it keeps the compiler. `Style.attach` itself did not move. `inject.js` stays in the chunk for its `DRAWN_CLASSES` symbol alone; `ensure` is defined away. Not done: the conformance test over every example (only domains-plus lists a module; `frozen.test.ts` checks its exports against the run-time ones), the browser test comparing a page drawn from class data with one compiled at run time (the built e2e needs Wrangler, not run here; `look.browser.test.ts` passes against source), and the Chromium module-evaluation time at 4x.
 
 **Phase 2: #420, conditional pieces.** Not planned. It is reopened by an
 application or shipped recipe that needs `whenInput` in a listed module.
