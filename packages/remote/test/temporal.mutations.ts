@@ -172,6 +172,12 @@ export default [
     'abandoned: [],',
   ),
   edit(
+    'a left read takes the mark back from another entry still waiting on the row',
+    '../src/model.ts',
+    'const kept = new Set(message.marks.filter(mark => others.some(([, set]) => set.has(mark))))',
+    'const kept = new Set<string>()',
+  ),
+  edit(
     'a live entry with nothing to watch opens a stream',
     '../src/liveEntry.ts',
     'dependencies.requirements.length === 0 && dependencies.queries.length === 0\n      ? Stream.empty',

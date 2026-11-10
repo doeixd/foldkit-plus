@@ -429,6 +429,66 @@ describe('a read whose Surface is left mid-flight', () => {
   })
 })
 
+describe('a Surface left mid-flight beside another that reads the same row', () => {
+  const active = {
+    page: Data.active('page', (model: Model) => (model.shown ? Option.some(user) : Option.none())),
+    other: Data.active('other', () => Option.some(user)),
+    elsewhere: Data.active('elsewhere', () => Option.some(userOf('u2'))),
+  }
+  const update = (model: Model, message: Message): Update.Return<Model, Message, RemoteClient> =>
+    isRemoteMessage(message)
+      ? { model: Data.reduce(model, message) }
+      : Own.match(message, {
+          Closed: () => ({ model: { ...model, shown: false } }),
+          Opened: () => ({ model: { ...model, shown: true } }),
+          Refreshed: () => ({ model }),
+        })
+  const client: RemoteClient['Service'] = {
+    read: batch =>
+      Effect.succeed({
+        settled: [],
+        entities: batch.requests.map(request => ({
+          entity: request.entity,
+          id: request.id,
+          values: { name: 'Ada' },
+        })),
+      }),
+    query: () => Effect.die('unused'),
+    mutate: () => Effect.die('unused'),
+    live: () => Stream.empty,
+  }
+
+  // The frame after `Closed` reads `Loading` for the left Surface's row until
+  // its ReadAbandoned lands. Only a reader no active entry asks for can see a
+  // mark that nothing is waiting on there: a reader that does ask is itself
+  // waiting on the row, so `Loading` is true of it, and ReadAbandoned keeps
+  // the mark while it owns it.
+  it('keeps the other reader of the row, and a different row, Loading and answerable throughout', async () => {
+    const trace = await Trace.run(Data, {
+      start,
+      update,
+      active,
+      client,
+      steps: [Message.Closed(), Respond.read(User, 'u1'), Respond.read(User, 'u2')],
+    })
+    const after = trace.entries.findIndex(({ message }) => message._tag === 'Closed')
+    const frames = trace.entries
+      .slice(after)
+      .map(({ message, model }) => [
+        message._tag,
+        user.read(model)._tag,
+        userOf('u2').read(model)._tag,
+      ])
+    expect(frames).toEqual([
+      ['Closed', 'Loading', 'Loading'],
+      ['ReadAbandoned', 'Loading', 'Loading'],
+      ['ReadReceived', 'Ready', 'Loading'],
+      ['ReadReceived', 'Ready', 'Ready'],
+    ])
+    expect(trace.pending).toEqual([])
+  })
+})
+
 describe('a live read whose Surface is left', () => {
   const entries = Data.subscriptions({
     page: Data.active('page', (model: Model) =>
