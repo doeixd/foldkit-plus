@@ -138,19 +138,16 @@ export const writing = <
     }),
   }))
 
+  const { row } = filter ?? {}
   const layered =
-    filter?.row === undefined
+    row === undefined
       ? undefined
       : new Set(
           remote.optimistic.layers
             .filter(
               layer =>
-                layer.patches.some(
-                  patch => patch.entity === filter.row?.entity && patch.id === filter.row.id,
-                ) ||
-                layer.deletes.some(
-                  drop => drop.entity === filter.row?.entity && drop.id === filter.row.id,
-                ),
+                layer.patches.some(patch => patch.entity === row.entity && patch.id === row.id) ||
+                layer.deletes.some(drop => drop.entity === row.entity && drop.id === row.id),
             )
             .map(layer => layer.id),
         )

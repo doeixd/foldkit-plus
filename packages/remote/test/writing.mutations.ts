@@ -59,13 +59,13 @@ export default [
   ),
   edit(
     'a row is matched by its Entity alone, in a patch',
-    'patch.entity === filter.row?.entity && patch.id === filter.row.id',
-    'patch.entity === filter.row?.entity',
+    'patch.entity === row.entity && patch.id === row.id',
+    'patch.entity === row.entity',
   ),
   edit(
     'a row is matched by its Entity alone, in a delete',
-    'drop.entity === filter.row?.entity && drop.id === filter.row.id',
-    'drop.entity === filter.row?.entity',
+    'drop.entity === row.entity && drop.id === row.id',
+    'drop.entity === row.entity',
   ),
   edit(
     'a row ignores the layers that delete it',
