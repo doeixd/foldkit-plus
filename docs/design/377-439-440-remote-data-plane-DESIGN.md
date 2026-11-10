@@ -526,9 +526,12 @@ request ids throughout: a durable write's operation id is its request id
 (`StoredWrite.operation`, `queuedWrite`), so the two spaces are one. A refused
 write shows no layer, so `row` reads it nowhere, and a `mutation` the domain
 does not register throws, as `Data.failedWrites` does.
-Chirp's `waiting` (`examples/chirp/src/view.ts`) is not moved onto it yet:
-another change was editing the example, so that and its browser test are a
-follow-up.
+Chirp's `waiting` (`examples/chirp/src/view.ts`) stays on `outboxStatus`,
+decided 2026-11-10: it asks whether any write is unanswered and counts every
+waiting write of every mutation, deletes included, while `writing` reports
+the single worst state, so a refused chirp beside an unanswered one would
+hide the line. `outboxStatus` already answers that per-state question; a
+second way to ask it in `writing` is not added.
 
 Phase 1 comes first because it holds the only defects. 1a and 1b share one
 record and one reduction, so they are one change with two commits, each

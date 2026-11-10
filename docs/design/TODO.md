@@ -34,7 +34,8 @@ phase ships alone and records its number; the gates below are the notes' own.
   [235-236-438-site-host-DESIGN.md](./235-236-438-site-host-DESIGN.md)
 - [ ] **Remote data plane** (#377, #439, #440). Phase 1 built: #498 and #499
   (3c7aacb, d8e4402, e932171). Phase 2 built: `writing`
-  (e35fbc3..323d1a1); Chirp's `waiting` moves onto it next. Phases 3 and
+  (e35fbc3..323d1a1). Chirp's `waiting` stays on `outboxStatus` (it asks a
+  per-state question; see the note). Phases 3 and
   4 (#439's static function, per-Entity versions) wait until #437 or
   `explain` asks, or `read.bench.ts`'s figure passes 1 ms per write.
   [377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md)
