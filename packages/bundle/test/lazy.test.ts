@@ -103,7 +103,8 @@ type Message = typeof Message.Type
 const text = (selector: string) => document.querySelector(selector)?.textContent
 const click = (selector: string) => (document.querySelector(selector) as HTMLElement).click()
 
-it('shows `while`, loads on the first click, and counts that click', async () => {
+/** The page on the real runtime; the clicker is placed in `main`. */
+const mount = (Clicker: ReturnType<typeof makeClicker>) => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
     setTimeout(() => callback(performance.now()), 0),
   )
@@ -111,11 +112,8 @@ it('shows `while`, loads on the first click, and counts that click', async () =>
   const container = document.createElement('div')
   container.id = 'lazy-runtime'
   document.body.appendChild(container)
-  const { load, release } = deferred()
-  const Clicker = makeClicker(load)
   const Placed = Clicker.at(Link.field<Model>()('clicker', GotClickerMessage))
   const placements = Bundle.assemble<Model, Message>()([Placed])
-
   const program = Runtime.makeElement(
     placements.complete({
       Model,
@@ -126,7 +124,13 @@ it('shows `while`, loads on the first click, and counts that click', async () =>
       subscriptions: placements.subscriptions(),
     }),
   )
-  const handle = Runtime.embed(program)
+  return Runtime.embed(program)
+}
+
+it('shows `while`, loads on the first click, and counts that click', async () => {
+  const { load, release } = deferred()
+  const Clicker = makeClicker(load)
+  const handle = mount(Clicker)
   try {
     await vi.waitFor(() => expect(text('.count')).toBe('…'))
     click('.count')
@@ -141,4 +145,90 @@ it('shows `while`, loads on the first click, and counts that click', async () =>
   } finally {
     handle.dispose()
   }
+})
+
+/** Bodies whose update returns the Model it was given, as a page's `Arrived` Message does. */
+const quiet = {
+  update: (model: ClickerModel) => ({ model }),
+  view: Submodel.defineView<ClickerModel, ClickerMessage>((_model, h) =>
+    h.button([h.Class('count'), h.OnClick(ClickerMessage.Clicked())], ['loaded']),
+  ),
+} as unknown as typeof body
+
+describe('arrival (#501)', () => {
+  it('draws the bodies when the first Message leaves the Model as it was', async () => {
+    const Clicker = makeClicker(async () => quiet)
+    const handle = mount(Clicker)
+    try {
+      await vi.waitFor(() => expect(text('.count')).toBe('…'))
+      click('.count')
+      await vi.waitFor(() => expect(text('.count')).toBe('loaded'))
+    } finally {
+      handle.dispose()
+    }
+  })
+
+  it('draws bodies a bare load() brought, at the next Message', async () => {
+    const { load, release } = deferred()
+    const Clicker = makeClicker(() => load().then(() => quiet))
+    const handle = mount(Clicker)
+    try {
+      await vi.waitFor(() => expect(text('.count')).toBe('…'))
+      const loading = Clicker.load()
+      release()
+      await loading
+      click('.count')
+      await vi.waitFor(() => expect(text('.count')).toBe('loaded'))
+    } finally {
+      handle.dispose()
+    }
+  })
+
+  it('returns the Model it was given once the arrival is drawn', async () => {
+    const Clicker = makeClicker(async () => quiet)
+    await Clicker.load()
+    const model = { count: 1 }
+    expect(Clicker.update(model, ClickerMessage.Clicked(), undefined).model).toBe(model)
+  })
+})
+
+describe('a load that fails (#502)', () => {
+  it('is no crash: `while` stays, and the next Message tries again', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const attempts: Array<number> = []
+    const Clicker = makeClicker(async () => {
+      attempts.push(attempts.length)
+      if (attempts.length === 1) throw new Error('chunk 404')
+      return body
+    })
+    const handle = mount(Clicker)
+    try {
+      await vi.waitFor(() => expect(text('.count')).toBe('…'))
+      click('.count')
+      await vi.waitFor(() => expect(attempts).toEqual([0]))
+      await new Promise(resolve => setTimeout(resolve, 50))
+      expect(text('.count')).toBe('…')
+      expect(Clicker.isLoaded()).toBe(false)
+      click('.count')
+      await vi.waitFor(() => expect(text('.count')).toBe('1'))
+      expect(attempts).toEqual([0, 1])
+    } finally {
+      handle.dispose()
+      log.mockRestore()
+    }
+  })
+
+  it('rejects load() and lets the next load() try again', async () => {
+    let first = true
+    const Clicker = makeClicker(async () => {
+      if (first) {
+        first = false
+        throw new Error('chunk 404')
+      }
+      return body
+    })
+    await expect(Clicker.load()).rejects.toThrow('chunk 404')
+    await Clicker.load()
+    expect(Clicker.isLoaded()).toBe(true)
+  })
 })

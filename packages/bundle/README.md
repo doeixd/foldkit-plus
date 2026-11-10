@@ -1005,8 +1005,14 @@ and returns one Command, which loads them and yields the same Message again,
 so nothing is lost and the Model ends where an eager bundle's would; the view
 renders `while`, or nothing. `Upload.load()` loads them ahead of time, once,
 and `Upload.isLoaded()` says whether they have. A load that fails is
-forgotten, so the next Message or `load()` tries again. Placed, extended or
-preset with `with`, the bundle stays lazy.
+forgotten, so the next Message or `load()` tries again: on the Message path
+the failure is logged, no crash view appears, and the page keeps showing
+`while` until a later Message starts the load again. A body that arrives while
+`while` is drawn is drawn at that Message: if the bodies' `update` returns the
+Model it was given, the bundle hands back an equal copy once, since Foldkit
+redraws only for a new Model. A `load()` that finishes with no Message at all
+(a prefetch) draws at the bundle's next Message. Placed, extended or preset
+with `with`, the bundle stays lazy.
 
 A Message that arrives before the bodies load passes through `update` twice:
 once as the no-op that starts the load, and again when the load re-yields it.

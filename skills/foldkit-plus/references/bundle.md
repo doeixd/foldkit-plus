@@ -264,7 +264,10 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   OutMessage, R, ViewInputs>`) on the first Message, which is not lost: until
   then `update` returns a `Load<Name>` Command that yields it again, and the
   view renders `while` (give it the handlers that should trigger the load).
-  `bundle.load()` preloads once; `bundle.isLoaded()`. `subscriptions`,
+  A failed load is logged, not a crash: `while` stays and the next Message
+  or `load()` retries. A body arriving over `while` is drawn at that Message,
+  even if its `update` returns the given Model (the bundle hands back an equal
+  copy once). `bundle.load()` preloads once; `bundle.isLoaded()`. `subscriptions`,
   `resources`, `helpers` stay in the declaration. A page's `lazy: [Upload]` in
   `foldkit-ssr`'s config loads them before render and boot.
 - **Services on demand:** `Resource.lazy(Tag, () => import('./x.js').then(m =>
