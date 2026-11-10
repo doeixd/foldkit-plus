@@ -21,7 +21,7 @@ Yielded, Drizzle), as an application outside this repository would.
 | What a note and a member are; a title's and a body's limits | the domain, declared once | `domain.ts`; the table's CHECKs are compiled from it |
 | Who may write a note: its author | the guard; the server decides, the page is told (`may`) | `guard.ts`, `server.ts` |
 | The notes and the accounts | D1 | `server.ts`, `auth.ts`, `migrations/` |
-| Who a request is | Yielded's session cookie, read by `AuthServer.resolver` | `auth.ts`, `worker.ts` |
+| Who a request is | Yielded's session cookie, read by `AuthServer.host`'s resolvers | `auth.ts`, `worker.ts` |
 | What the page shows of the notes | Remote's cache, a field of the Model | `main.ts` |
 | A note added that the server has not answered | Remote's outbox, in this browser's `localStorage`, shared by its tabs | `main.ts` (`durable`), `client.ts` |
 | Which page, its title, who may see it | the site tree; the route is in the Model | `main.ts` |

@@ -11,7 +11,7 @@ that the other tabs follow without a reload.
 | Fact | Owner | Here |
 | --- | --- | --- |
 | Accounts, passwords, sessions, the cookie | Yielded Auth | `server.ts`: `Auth.make`, its routes under `/auth` |
-| Which principal a request is answered as | `foldkit-auth/server` | `AuthServer.resolver` in `serveFetch`, per request |
+| Which principal a request is answered as | `foldkit-auth/server` | `AuthServer.host`'s resolvers in `serveFetch` and `pageReader`, per request |
 | Who that principal is (`User`: `id`, `role`) | the application | `principalOf`, looked up from the session's subject |
 | Who may read a note, who may open the admin area | `foldkit-guard` | `G`, `Note`'s Read rule, `Me`'s `OpenAdmin` |
 | Who the page believes it is | the server, through Remote | the `Me` row, read like any other |
@@ -86,16 +86,17 @@ Read the files in this order.
 2. [`src/server.ts`](src/server.ts). `Policy` gives `isAdmin` its body. The
    notes are served from memory through `GuardServer.memory`, `Me` through
    `GuardServer.me`, and `GuardServer.validate` refuses to start a server whose
-   Sources skip a Read rule. `openServer(origin)` builds Yielded's routes and
-   Remote's `serveFetch` over one store, so the sign-in route and the resolver
-   see the same sessions.
+   Sources skip a Read rule. `openServer(origin)` builds Yielded's `Auth` once
+   and hands it to `AuthServer.host`, which mounts Yielded's routes over it
+   and returns the resolvers for `serveFetch` and `pageReader`, so the sign-in
+   route and the resolvers see the same sessions.
 3. [`src/host.ts`](src/host.ts) and [`src/http.ts`](src/http.ts). The host
    is the site behind one fetch handler, as one Worker serves it: `/auth/…`
    to Yielded, `/remote` to `serveFetch`, and every other request a page,
    handed its reader through `PageContext`: `pageReader`, made from the same
-   config as `/remote`, which reads in this process as the request's cookie
-   says (`requests: 'navigation'`, since a page carries no CSRF header) and
-   never writes. `http.ts` serves the host on Node, with an upgrade to
+   server as `/remote`, which reads in this process as the request's cookie
+   says (the host's `navigation` resolver, since a page carries no CSRF
+   header) and never writes. `http.ts` serves the host on Node, with an upgrade to
    `/sync` going to the board's `documentHost`. In development Vite draws the
    pages and proxies the rest there ([`vite.config.ts`](vite.config.ts)), so
    the page, its cookie and its requests share one origin.
@@ -130,8 +131,9 @@ Read the files in this order.
 
 What some calls do, and do not:
 
-- `AuthServer.resolver` reads the cookie only from a request that shows it
-  came from the page: a trusted `Origin` and `x-effect-auth-csrf: 1`. It
+- `AuthServer.host`'s `scripted` resolver, `/remote`'s, reads the cookie only
+  from a request that shows it came from the page: a trusted `Origin` and
+  `x-effect-auth-csrf: 1`. It
   verifies the session and never renews it, and writes nothing. `principalOf`
   builds the principal from the session's subject on every request, not from
   claims taken at sign-in (the contract's claims are empty on purpose).
@@ -152,8 +154,8 @@ What some calls do, and do not:
   still holds it in the Model until the sign-in succeeds, so DevTools' Model
   history shows it.
 - `http = { origin }` is the page's origin: Yielded trusts a sign-in from it
-  alone, and the resolver takes its cookie name, trusted origins and CSRF
-  header from the same object.
+  alone, and the routes and the resolvers take its cookie name, trusted
+  origins and CSRF header from the same object.
 
 ## The board's socket
 

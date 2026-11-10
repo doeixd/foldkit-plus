@@ -188,6 +188,8 @@ not](../packages/guard/README.md#what-may-tells-a-reader-and-what-it-does-not).
   reads (`pageReader` with `requests: 'navigation'`, since a navigation
   carries no CSRF header either, behind a reader that cannot write) each
   resolve the principal the same way, and guard decides each the same way.
+  `AuthServer.host` hands out the `serveFetch` and `pageReader` pair typed
+  so that neither fits the other.
 - **Validate at startup.** Call `GuardServer.validate(Policy, …)` where the
   server is built, so a Source that forgot its rules fails loudly.
 
