@@ -841,6 +841,12 @@ Foldkit's own behaviour that we work around is listed in
   Listbox and Combobox bundles read after `Render.afterCommit` (`leaveDrawn`,
   `test/frames.ts` reproduces it); Popover, whose `update` an application
   calls itself, still races.
+- **A disabled `Button.view` is only `aria-disabled`, and still submits.**
+  Upstream keeps a disabled button focusable, so a `type: 'submit'` one stops
+  neither Enter's implicit submission nor a press. The waitlist's button read
+  disabled through its email check while `update` held the submit and sent it
+  on the answer; a story test even asserted that. Refuse in `update` what a
+  button says it refuses, and test Enter and a press in a browser.
 - **Upstream's Menu clicks a row for you on a release after a press on the
   trigger.** It keeps the press's origin until the menu shuts, and a release
   on the rows over 200ms later and 5px away sends `ClickItem` as well as the

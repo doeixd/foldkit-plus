@@ -314,8 +314,10 @@ an adopter's need), #240 closed in favour of #235 and #236, DragAndDrop and
 Animation adapters parked (step 6).
 
 1. **SSR: a page's head in dynamic serving.** Built 2026-11-10 (4abff56):
-   `meta` in the root, `SSR.headed` moves it, `HeadNotMoved` if not. An
-   independent review is running; fix what it confirms.
+   `meta` in the root, `SSR.headed` moves it, `HeadNotMoved` if not. The
+   independent review's findings are fixed (f441386: the block is read only
+   at the root's end, headless roots refused, a POST page keeps it), and
+   `examples/reference` serves through it with an e2e check (dd8cba5).
 2. **#229: examples as apps.** Done (0be324e): seven examples type-check in
    the scaffold over the published packages, on all three CI pairs (run
    locally). Not linted: upstream's rules hold an app to its module layout,
@@ -323,9 +325,11 @@ Animation adapters parked (step 6).
 3. **A size budget for each example's entry chunk.** Done for todo-app
    (158.5 kB brotli ceiling) and chirp (239.0 kB), e4e4d61; kitchen-sink is a
    Node demo with no client. Add one when an example gains a browser entry.
-4. **Strict FormView submit policy** (backlog, partial). `canSubmit` exists
-   and nothing adopts it; add Enter-and-click-during-a-check browser tests and
-   the reducer-side guard, then adopt it in `examples/fields`.
+4. **Strict FormView submit policy.** Done 2026-11-10: the waitlist
+   (`examples/foldkit/form`, not `examples/fields`, which is a static
+   gallery with no check) refuses a submit during a check in `update`, with a
+   browser test of Enter and a press; `Button.view`'s `aria-disabled` alone
+   let both through.
 5. **The UI polish leftovers.** RTL browser tests (32 of 120 files), the
    Switch thumb drag, the Calendar's RTL month buttons. Ongoing; take one per
    bout between larger items.

@@ -559,7 +559,13 @@ The submit button is enabled while a check runs and nothing is invalid: a submit
 then waits for the answer, rather than being refused. That leniency is
 `form.canSubmit`, and `FormView.submodel` takes the predicate explicitly so
 the choice stays visible: pass a strict one to disable through checks, or
-`() => true` to never pre-disable and validate wholly at submit.
+`() => true` to never pre-disable and validate wholly at submit. The
+generated button is natively disabled, which stops a press and Enter. A
+custom submit drawn with `Button.view` is only `aria-disabled`, which keeps
+its focus and stops neither, so a strict page also refuses a `Submitted` in
+`update` while a check runs: the
+[waitlist](../../examples/foldkit/form/src/main.ts) does, and its browser
+test presses Enter and the button during a check.
 
 <!-- docs-check standalone
 import { Schema } from 'effect'

@@ -1120,11 +1120,14 @@ then the lifecycle and host-integration design work.
   steps. Built: direct typed Textarea resolution, draw-only cases use Inert's
   frame, interaction cases retain Scene; Form/Auth rationale corrected and
   obsolete UI Showcase gap claims removed. Showcase typecheck and 74 tests pass.
-- [ ] **High: demonstrate strict FormView submit policy (§2).** Use the existing
-  predicate in a real adopter and correct the README limitation. Verify Enter
-  and click during checks and page-level submission; enforce operation guards
-  in the reducer independently of a button's `aria-disabled` presentation.
-  Coordinate with showcase wave 1's explicit-submit-gate adopter decision.
+- [x] **High: demonstrate strict FormView submit policy (§2).** Built
+  2026-11-10: the waitlist (`examples/foldkit/form`) was strict in its button
+  and lenient in its reducer, since `Button.view`'s `disabled` is only
+  `aria-disabled` and Enter or a press during the email check was held and
+  sent on the answer. Its `update` now refuses a submit while a check runs,
+  proven by a browser test (Enter and a press during a check) and its
+  mutations; the mixins-form README says why. Operation guards were already
+  in reducers (`Crud`'s `onOut` while busy, the waitlist while submitting).
 - [x] **Medium: public complete-value accessor for aggregate forms (§3).**
   Built: `form.value(model)` in `foldkit-form` returns the decoded input as
   `Option` (all or nothing), documented beside `isValid`/`canSubmit`. Job

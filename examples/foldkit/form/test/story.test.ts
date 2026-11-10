@@ -200,21 +200,25 @@ describe('update', () => {
       expect(second.commands).toEqual([])
     })
 
-    test('a submit while the email is being checked goes out once the check passes', () => {
+    test('a submit while the email is being checked is refused, and the answer sends nothing', () => {
       const asking = update(
         withFields({ name: FieldValidation.Valid({ value: 'Alice' }) }),
         typed('email', 'alice@example.com'),
       )
-      const waiting = update(asking.model, submitted)
-      expect(waiting.model.submission._tag).toBe('NotSubmitted')
-      expect(waiting.commands).toEqual([])
+      const refused = update(asking.model, submitted)
+      expect(refused.model).toBe(asking.model)
+      expect(refused.commands ?? []).toEqual([])
 
       const passed = update(
-        waiting.model,
+        refused.model,
         Message.GotFormMessage({ message: checked('alice@example.com', Option.none()) }),
       )
-      expect(passed.model.submission._tag).toBe('Submitting')
-      expect(passed.commands?.map(command => command.name)).toEqual(['SubmitForm'])
+      expect(passed.model.submission._tag).toBe('NotSubmitted')
+      expect(passed.commands ?? []).toEqual([])
+      // Once the check has answered, the same submit goes out.
+      expect(update(passed.model, submitted).commands?.map(command => command.name)).toEqual([
+        'SubmitForm',
+      ])
     })
   })
 })
