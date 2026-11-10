@@ -15,14 +15,14 @@ were removed on 2026-11-10.
 Each note's Decisions section was settled on 2026-11-10 by delegation. Each
 phase ships alone and records its number; the gates below are the notes' own.
 
-- [ ] **SSR delivery** (#472, #427, #432, #435). Phase 0: five probes, run
-  from the package (the chunk's URL under Vite 8, `Link` preload before the
-  body, what a WindowList Mount reads at a late boot, client calls in a
-  domains-plus search pass). Phase 2, the loader, is the priority and does
-  not wait on #473 or foldkit#1657; phase 1 (`Data.satisfy` reading a pass
-  together) only if phase 0 counts more than one client call. Streaming only
-  as headers first, kept only if first contentful paint falls by a median of
-  50 ms. Two upstream drafts are conditional on those numbers.
+- [ ] **SSR delivery** (#472, #427, #432, #435). Phase 0 probes done but
+  the `Link` header (needs a Worker). Phase 2 built: `foldkit-ssr/loader`
+  (f4ecb3a..1e4e8dc), opt-in for domains-plus (`DOMAINS_PLUS_LOADER=1`):
+  script at start 207 to 2.3 kB brotli, total +2 kB. Its default waits on
+  TBT and first-press time at 4x and the held-press e2e (need Wrangler).
+  Phase 1 built: a pass reads in one round trip, 2 calls to 1 (#435:
+  baf192a..ceea6d3). Streaming only as headers first, if the `Link` probe
+  and the 50 ms bar pass; #432's hydration spike is still to run.
   [472-427-432-435-ssr-delivery-DESIGN.md](./472-427-432-435-ssr-delivery-DESIGN.md)
 - [ ] **Site and host** (#236, #235, #438). Built: B (#501, #502: b10c409),
   D1 (Chirp on node Surfaces, the policy-by-route recipe: e91a378) and H1
