@@ -111,7 +111,7 @@ const liveCovered = (stream: string, entries: ReadonlyMap<string, MutableEntry>)
  * for a field no read made (one the server settled without a value, or a
  * row it answered gone, is made), and the identity of a list never read.
  */
-export const unmadeReads = (
+const unmadeReads = (
   remote: RemoteModel,
   projections: ReadonlyArray<{ readonly metadata: Metadata }>,
 ): ReadonlyArray<string> => {
