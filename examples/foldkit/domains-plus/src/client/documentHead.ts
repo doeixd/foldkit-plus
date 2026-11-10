@@ -1,6 +1,7 @@
 /** The head every page carries: its description, the link previews, the icons and the font. */
+// The font file's address, as `appStyle.ts`'s `@font-face` names it: same file, same hash.
+import geistLatinUrl from '@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url'
 import { SITE_DESCRIPTION, SITE_NAME, SOCIAL_IMAGE_ALT, SOCIAL_IMAGE_URL } from './site.js'
-import { geistLatinUrl } from './style.js'
 
 export const documentHead = `<meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#09090b">

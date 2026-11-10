@@ -15,8 +15,9 @@ export default defineConfig(({ command }) => {
     plugins: [
       // The theme and every class the app compiles, as one hashed file the pages link.
       // Only the tokens the sheet reads (#487): no view here reads one inline;
-      // `look.browser.test.ts` checks the page draws the same.
-      styles({ sheet: '/src/server/sheet.ts', prune: {} }),
+      // `look.browser.test.ts` checks the page draws the same. `style.ts`
+      // ships as the classes it compiles to, not the compiler (#420).
+      styles({ sheet: '/src/server/sheet.ts', prune: {}, modules: ['/src/client/style.ts'] }),
       foldkit({
         ssr: {
           serverEntry: '/src/server/entry.ts',

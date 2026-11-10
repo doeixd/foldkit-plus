@@ -18,7 +18,9 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // step measured with the build id pinned (#490): #473's no-script TLD page
 // +524, #470 +232, #489's stale reasons +460, #487's prune +547 (taken back
 // when it left `Theme`), #431 +117, smaller fixes the rest. Now 216.9 kB.
-const CEILING = 217_500
+// #420 froze `style.ts` into its classes: 217,518 bytes to 191,556 on
+// 2026-11-10, measured one after the other in one tree.
+const CEILING = 193_500
 
 test('the search page loads at most the budgeted brotli JavaScript', async () => {
   const report = await measure(resolve(import.meta.dirname, '..'))
@@ -30,6 +32,9 @@ test('the search page loads at most the budgeted brotli JavaScript', async () =>
   expect(report.included).not.toContainEqual(expect.stringContaining('/src/server/sheet.ts'))
   // Pruning runs at build time: reading `Theme` must not bring it (#490).
   expect(report.included).not.toContainEqual(expect.stringContaining('theme/prune'))
+  // `style.ts` ships as data (#420): nothing compiles a Style or calls a recipe here.
+  expect(report.included).not.toContainEqual(expect.stringContaining('foldkit-mixins/styleRules'))
+  expect(report.included).not.toContainEqual(expect.stringContaining('foldkit-mixins-ui/recipes/'))
   record({
     kind: 'size',
     name: 'domains-plus client JS, brotli',

@@ -10,64 +10,9 @@
  * literals: the shipped palette has no `#0a0a0a` beside a `#1a1a1a`, and the
  * comparison with upstream is by eye, so its exact greys are kept.
  */
-import geistLatinUrl from '@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url'
 import { Style, type Piece } from 'foldkit-mixins'
-import { AppStyle } from 'foldkit-mixins/app'
 import { DialogSlots, ListboxSlots, Recipes, WindowListSlots } from 'foldkit-mixins-ui'
-import { Theme } from 'foldkit-mixins/theme'
-
-export { geistLatinUrl }
-
-/**
- * The tokens, the Slots and the page sheet. The browser reads only the first
- * two: its sheet is the file `foldkit-mixins/vite` writes, and building the
- * text costs milliseconds at startup, so it is read in `server/sheet.ts` alone.
- */
-export const app = AppStyle.make({
-  theme: Theme.make({
-    type: { body: "'Geist Variable', Arial, Helvetica, sans-serif", heading: 'inherit' },
-    accent: { chroma: 0 },
-    // Upstream's dropdowns are the page's own dark, not an inverted panel.
-    menu: { panel: 'default' },
-  }),
-  tokens: Theme.define({
-    domains: {
-      page: '#000',
-      panel: '#0a0a0a',
-      raised: '#1a1a1a',
-      text: '#ededed',
-      muted: '#999',
-      soft: '#888',
-      faint: '#777',
-      line: '#262626',
-      lineSoft: '#222',
-      lineHeader: '#1f1f1f',
-      lineControl: '#2b2b2b',
-      lineStrong: '#333',
-      lineFirm: '#292929',
-      lineHover: '#555',
-      lineFocus: '#666',
-      added: '#50e3a4',
-      skeleton: '#1c1c1c',
-      scrim: 'rgb(0 0 0 / 0.6)',
-      /** How long upstream's phone sheets take to slide in or out. */
-      slide: '500ms',
-    },
-  }),
-  // Upstream is dark only: every `light-dark()` token takes its dark half.
-  colorScheme: 'dark',
-  global: [
-    Style.global(`@font-face {
-  font-family: 'Geist Variable';
-  font-style: normal;
-  font-display: swap;
-  font-weight: 100 900;
-  src: url(${geistLatinUrl}) format('woff2-variations');
-}`),
-    Style.global(`@keyframes domains-skeleton-pulse { from { opacity: 0.45 } to { opacity: 1 } }`),
-  ],
-})
-export const { t, slots, forSlots } = app
+import { forSlots, slots, t } from './appStyle.js'
 
 const d = t.domains
 
