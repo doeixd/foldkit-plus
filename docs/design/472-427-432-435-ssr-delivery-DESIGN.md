@@ -1,7 +1,10 @@
 # How a served page is delivered: the runtime on intent, streaming, islands, reads first (#472, #427, #432, #435)
 
-Status: decided 2026-11-10 (decisions delegated by the owner); the phase 0 probes are next, then
-the loader (#472) as domains-plus's default on its own numbers.
+Status: decided 2026-11-10 (decisions delegated by the owner). Phase 0 is run but for the `Link`
+probe (section 5, "Phase 0 results"). Phase 2's loader is built in `foldkit-ssr` and wired into
+domains-plus as an opt-in build (`DOMAINS_PLUS_LOADER=1`), not its default: decision 5's
+first-press, Total Blocking Time and e2e numbers are not yet measured. Phase 1 is owed (a search
+pass makes two client calls).
 
 Four issues ask how a page `foldkit-ssr` renders reaches the browser: when its
 bytes leave the server (#427, #435), and how much script the browser needs for
@@ -368,6 +371,42 @@ Each phase ships alone and reports its own numbers.
 | 3 | If phase 0's probe passes: the `Link` header alone where that clears decision 6's bar, else headers first (#427 A), opt-in on `SSR.entry`, with the status and headers checker. Kept only if first contentful paint falls by a median of 50 ms | time to first byte; first contentful paint with the sheet uncached | solid-domains' `scripts/benchmark.mjs`; Speed Index |
 | 4 | `SSR.static` on domains-plus's display regions (#432 A): the spike, kept if boot is 10 ms faster at CPU throttle 4 | hydration time with and without; bytes by #421's table | `scripts/render-baseline.mjs` with a boot scenario |
 | Not planned | Head first (#427 B): reconsidered after phase 3 ships and upstream answers on assets. #427 C: when a page has a measured slow read below its first screen. #432 B: when an app's own code is a real share. #432 C: with #433 | | |
+
+### Phase 0 results
+
+Run 2026-11-10 from the packages, against Vite 8.3.5 and the tree at this note's phase 2 commits.
+
+| Probe | Result |
+| --- | --- |
+| The chunk's URL without evaluating it | **Pass.** A plugin that calls `this.emitFile({ type: 'chunk', id })` for the module the loader imports dynamically, and writes `import.meta.ROLLUP_FILE_URL_<ref>` into the loader, names the very chunk the `import()` loads (Rolldown gives one module one chunk), and nothing runs it. The address names that one file; a module the chunk shares with another dynamic import is its own file, which `modulepreload` does not fetch. Two warts: the client manifest lists a placeholder asset for the reference (`assets/app-!~{003}~.js`), and the emitted chunk reads as an entry (`isEntry`). Built as `runtimeChunk` (`foldkit-ssr/vite`); `test/loaderBuild.test.ts` holds it. |
+| `Link` preload before the body (workerd, Chromium) | **Not run.** It needs a running Worker, and Wrangler was held by another session. Phase 3 waits on it. |
+| What a WindowList Mount reads at a late boot | **Read from the code, not probed in a browser.** `WindowList.Track` waits a tick after insert, gives a list opened at a row (`?from=`) its rows above and scrolls by what that moved its first row, then `WindowViewport` reports at once from `getBoundingClientRect()` and `innerHeight`, and on every scroll after. A late boot therefore places the window where the reader has scrolled to, from the reading it takes at boot: no scroll needs keeping by the loader, as decision 4 assumed. |
+| Client calls in a pass of a domains-plus search | **Two.** `Data.satisfy` on `init`'s Model for `/?q=acme`, `/?q=vercel`, a never-seen label and `/?q=acme&tld=com` makes two `FoldkitRemoteRead` calls, both in the first pass (`passes: 1` still satisfies), from `TopResults` and `VisibleResults`; `/` makes none. Decision 9's rule (more than one) holds, so phase 1 is to be built; #435 stays open. |
+
+### Phase 2 status
+
+Built: `foldkit-ssr/loader` (`load({ runtime })`), `start` written into the envelope, the hold and
+handover through an import-free module both sides share (`handoff.ts`), the 3 s limit moved to an
+import-free `marks.ts`, the release at the deadline and at a failed chunk or a refused page,
+`KeepTyped` on checkboxes and radios, the `UnkeptField` refusal, and `runtimeChunk`. domains-plus
+builds with the loader under `DOMAINS_PLUS_LOADER=1`, which also sets `start: 'idle'` and names its
+two mirrors deferrable (with them named, the deferred plan renders: no other refusal).
+
+| domains-plus `vite build`, brotli | Today's entry | Under the loader |
+| --- | --- | --- |
+| Script at start | 207,071 B, one chunk | 2,317 B (loader 1,973 + the shared import-free chunk 344) |
+| Total script | 207,071 B | 209,104 B (+2,033 B: the loader, and `marks.ts` as a chunk of its own) |
+
+Script at start clears decision 5's 10 KB bar; total script is 1% worse.
+
+Owed before it is domains-plus's default (decision 5): the e2e with the chunk held (a press
+answered once, typing kept, a box ticked, adoption, no layout shift), and Total Blocking Time and
+first-press time at CPU throttle 4 against today's entry, and an account of the 2 KB more total
+script (decision 5 asks for no worse). Not run here: Wrangler and the e2e were held by another
+session, and no browser measurement of the built Worker was possible without it. The package's
+browser tests cover a held press answered once, intent on marked elements only, the 3 s release, a
+failed chunk and a refused page releasing at once, and focus kept across the handover
+(`packages/ssr/test/loader.browser.test.ts`).
 
 Phase 2 does not wait on #473 or foldkit#1657 (decision 5). A deadline
 release still sends a reader to a render that may fail with 1102, as a

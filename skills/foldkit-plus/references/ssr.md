@@ -259,12 +259,33 @@ would rebuild those elements.
   ahead of anything else, and puts back the value and caret its first render
   reset. No inline script, so no CSP nonce. Only an `input` that takes text, a
   `textarea` or a `select` that `rh` builds (`rh.input`, not `h.input`: only
-  `rh`'s elements are marked) with a hole-form binding: anything else is
-  `UnkeepableField` on the server. An IME composition in progress at boot
+  `rh`'s elements are marked) with a hole-form binding, or a checkbox or radio
+  (its `checked` against the served one, replayed as its named `OnChange`,
+  else `OnInput`, else `OnClick`; a radio moved off replays nothing): anything
+  else is `UnkeepableField` on the server. On a plan whose `start` is not
+  `'now'`, a field with such a binding and no `KeepTyped` is refused
+  (`UnkeptField`, breaking in 0.12). An IME composition in progress at boot
   ends. Nothing answers the typing before the bundle runs (no `?q=`, no
   derived text): that takes an inline script, which `foldkit-ssr` does not
   write; once it runs, a page started `'idle'`/`'on-interaction'` with kept
   typing starts at once and draws it.
+- `foldkit-ssr/loader` is an entry script that imports nothing of `effect`,
+  Foldkit or the app (about 2 KB brotli): `load({ runtime: () =>
+  import('./entry.js') })`, where `entry.ts` calls `SSR.hydrate`. It follows
+  the plan's `start`, which the server writes into the envelope: `'now'`
+  runs the chunk at once; `'idle'` fetches it idle after load and runs it
+  idle again; `'on-interaction'` fetches it the same way and runs it on a
+  pointer over or down, focus or key on a marked element (a binding or a kept
+  field), or a scroll. Until `SSR.hydrate` takes over it holds each event a
+  marker names (a submission prevented; not one on a kept field), and
+  `SSR.hydrate`, starting at once, answers each from the markers, once. A held
+  event not taken 3 s after it happened (`UNTIL_LIMIT_MS`) is released: a
+  submission goes to the browser (`requestSubmit`), anything else is dropped;
+  a chunk that fails to load, or a page that does not resume, releases at
+  once. `runtimeChunk({ entry: '/src/client/entry.ts' })` from
+  `foldkit-ssr/vite` writes the chunk's address into the loader so a build
+  fetches it with `<link rel="modulepreload">` without running it; there is
+  no other way to name it.
 - `SSR.generate` returns pages as a tuple of `paths`: `const [home, about]`.
   `SSR.sitemap(pages, { origin })` (each `{ path, modified? }`) and
   `SSR.robots({ origin, sitemap?, disallow? })` write the two files a static

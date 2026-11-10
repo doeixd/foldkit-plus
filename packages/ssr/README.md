@@ -1314,6 +1314,12 @@ boots it, so the Model ends where an eager boot would have taken it.
   `managedResources` in the config given to `SSR.render`, as you would to
   Foldkit. `boot` Commands run at boot, so a deferred page's `Mirror.kv`
   restore waits for the first interaction.
+- **Its fields kept.** On a deferred plan, a field whose binding names its
+  typing (a hole-form `OnInput` or `OnChange`; on a checkbox or radio, any
+  named `OnChange`, `OnInput` or `OnClick`) must carry `rh.KeepTyped()`, or
+  `SSR.render` refuses the page (`UnkeptField`), naming each: what is typed
+  into it before boot would be lost at the first render. A page that starts
+  `'now'` has the same gap for a shorter time and is not refused.
 
 ### Bundles whose code loads on demand
 
@@ -1382,13 +1388,18 @@ bundle is replayed once the bundle's code has loaded.
 
 Only a field the page can replay may be marked: an `input` that takes text, a
 `textarea` or a `select`, built by `rh` (`rh.input`, not `h.input`), with
-`OnInput` or `OnChange` given a Message member. The resumable builder marks
+`OnInput` or `OnChange` given a Message member; or a checkbox or radio, whose
+`checked` is compared with what the server rendered and replays its `OnChange`
+(else `OnInput`, else `OnClick`) Message, in either form. A radio the person
+moved off replays nothing, since the browser sent it no change; the one now
+checked replays its own. The resumable builder marks
 the bindings of the elements it builds; on an element `h` builds, the hole
 forms are plain closures to the page and nothing names the Message to replay.
 Anything else is refused on the server (`UnkeepableField`), naming the
 element. What is not kept: an unmarked field (re-asserted to the served value,
 as before); a key press or click before the script (the browser's own, so a
-form submitted then posts, which `fallback: 'server'` answers); a page that is
+form submitted then posts, which `fallback: 'server'` answers; under
+[the loader](#the-runtime-on-intent-foldkit-ssrloader) a marked one is held); a page that is
 contained, declined or stale; and an IME composition in progress at boot,
 which the first render's reset ends, though its text is kept. A value the
 browser restored into the field on a reload or a history visit is kept like
@@ -1414,6 +1425,63 @@ at another query, starts from that URL; a page rendered per request is
 refused at any query but its own. Markup such a script changes is the
 served page no longer, and Foldkit reconciles it at hydration to the Model's
 first render.
+
+### The runtime on intent: `foldkit-ssr/loader`
+
+`start` defers the runtime's boot, not its code: the entry script still
+imports the application, so the whole chunk is fetched and evaluated at load.
+`foldkit-ssr/loader` is an entry script that imports nothing of `effect`,
+Foldkit or the application (about 2 KB brotli), and runs the chunk when the
+plan's `start` says:
+
+```ts sketch
+// src/client/loader.ts, the page's entry script
+import { load } from 'foldkit-ssr/loader'
+
+load({ runtime: () => import('./entry.js') }) // entry.ts calls SSR.hydrate
+```
+
+```text
+load ──▶ read start from the envelope
+  'now'            ──▶ run the chunk
+  'idle'           ──▶ idle after load: fetch the chunk ──▶ idle again: run it
+  'on-interaction' ──▶ idle after load: fetch the chunk ──▶ first intent: run it
+until SSR.hydrate takes over: a marked event ──▶ held (a submission prevented)
+SSR.hydrate ──▶ starts now ──▶ answers each held event from the markers, once
+```
+
+- **`start` stays the plan's.** The server writes it into the envelope, and
+  the loader adds no policy of its own; the chunk it runs starts at once,
+  since the loader already waited as the plan said.
+- **Intent** is a pointer over or down, focus, or a key on an element the
+  server marked (a binding of any event, or a kept field), or under
+  `'on-interaction'` a scroll. A pointer crossing unmarked text runs nothing;
+  a reader who only reads is covered by `'idle'`.
+- **Held, then answered once.** An event of a type the markers name, on a
+  marked element, is held until `SSR.hydrate` claims the loader; a form's
+  submission is prevented while held. `SSR.hydrate` answers each from the
+  markers, as it answers events on a deferred page, so it reaches `update`
+  once. An event on a kept field is not held: the field keeps it in its own
+  state, which `SSR.hydrate` reads.
+- **Released, never both.** A held event the runtime has not taken 3 s after
+  it happened (`UNTIL_LIMIT_MS`) is released: a submission goes to the
+  browser (`requestSubmit`, with its submitter), so a GET form or a
+  `fallback: 'server'` form still works; anything else is dropped. A chunk
+  that fails to load releases everything at once and holds nothing after,
+  and a page that does not resume (another build, declined, contained)
+  releases what was held as `SSR.hydrate` refuses it.
+- **Fetched without running.** With `runtimeChunk` from `foldkit-ssr/vite`
+  naming the same module, a client build writes the chunk's address into the
+  loader, which fetches it when idle with `<link rel="modulepreload">`:
+
+  ```ts sketch
+  plugins: [foldkit({ ssr: { clientEntry: '/src/client/loader.ts', … } }),
+            runtimeChunk({ entry: '/src/client/entry.ts' })]
+  ```
+
+  Without it, or under the development server, the chunk is fetched as it
+  runs. A modulepreload fetches that one file; a chunk the runtime shares
+  with another dynamic import is fetched when the runtime runs.
 
 ## Forms that work without scripts
 
@@ -1684,7 +1752,8 @@ of:
 | `UnencodableBinding`       | The plan has no Message Schema, or a binding's Message does not encode through it | Make the plan from the application; build the Message with its constructor |
 | `EagerStartRequired`       | A deferred plan would start a Subscription or Managed Resource late           | Declare it in `deferrable`, or start `'now'`                         |
 | `VoidRootWithStyles`       | `styles` were given for a view whose root is void and holds nothing           | Put the styles in the template's head with `SSR.generate`, or return an element root |
-| `UnkeepableField`          | `KeepTyped` on an element that holds no typed value, one `h` built rather than `rh`, or with no `OnInput`/`OnChange` given a Message member | Mark only a text `input`, `textarea` or `select` that `rh` builds, and give its binding the Message's member |
+| `UnkeepableField`          | `KeepTyped` on an element that holds nothing typed or ticked, one `h` built rather than `rh`, or with no binding that names its Message | Mark only a text `input`, `textarea`, `select`, checkbox or radio that `rh` builds, and give its binding the Message's member |
+| `UnkeptField`              | A deferred plan has a field whose binding names its typing and no `KeepTyped` | Add `rh.KeepTyped()`, or start `'now'`                               |
 | `UngeneratablePath`        | `SSR.generate` was given a path no file can be served at                      | Leave out the query and fragment; keep paths to distinct files      |
 
 In the browser, `SSR.hydrate` checks in Foldkit's order: the build id first,
