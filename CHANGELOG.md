@@ -9,6 +9,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **The Drawer's handle bends about its middle right to left**
+  (`foldkit-mixins-ui`). Its bar's two halves sat on logical sides but turned
+  on physical origins, so right to left each turned on its outer end and the
+  chevron came apart. They sit on physical sides now, as the drawing is.
 - **`ModelRef.focus` on an `Option` field can be set** (`foldkit-surface`).
   The ref tree's conditionals distributed an `Option` over `None | Some`, so
   the field's focus was an intersection whose `set` took `never`. They are

@@ -417,7 +417,7 @@ decides adopt, adapt or skip.
   (`orientation: 'Horizontal'`), and `variant: 'card'`, which frames each
   direct label and fills the one whose radio is checked. The gallery shows
   all three. The press and the dot were fixed in Part B.
-- **Switch.** RTL (A6); a thumb drag (systems 8, open).
+- **Switch.** RTL (A6). A thumb drag is not built (decided 2026-11-10): Radix, Base UI, Zag and shadcn toggle on a press or Space and none drags, and a drag would need pointer capture and a swallowed click after it, for a gesture no adopter has asked for.
 - **Input OTP.** Fix (B); separators and groups (3-3), masked, numeric or
   alphanumeric, sizes.
 - **Password Input.** Check its slots against shadcn's and Zag's: a strength

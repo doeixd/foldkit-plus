@@ -150,4 +150,20 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: "the bar's halves sit on logical sides, turning on their outer ends right to left",
+    edits: [
+      {
+        file: recipe,
+        find: "right: 'calc(50% - 0.0625rem)',",
+        replace: "insetInlineEnd: 'calc(50% - 0.0625rem)',",
+      },
+      {
+        file: recipe,
+        find: "left: 'calc(50% - 0.0625rem)',",
+        replace: "insetInlineStart: 'calc(50% - 0.0625rem)',",
+      },
+    ],
+    tests: browser,
+  },
 ]

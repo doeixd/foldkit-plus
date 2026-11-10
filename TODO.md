@@ -331,8 +331,9 @@ Animation adapters parked (step 6).
    browser test of Enter and a press; `Button.view`'s `aria-disabled` alone
    let both through.
 5. **The UI polish leftovers.** RTL browser tests (32 of 120 files), the
-   Switch thumb drag (the Calendar's RTL month buttons were done, 85e0f67;
-   #229 is closed, every reference stamped). Ongoing; take one per
+   Calendar's RTL month buttons (done, 85e0f67) and the Switch thumb drag
+   (not built: no system it follows drags). An RTL pass over the components
+   with no RTL test found the Drawer's handle turning on its outer ends. Ongoing; take one per
    bout between larger items.
 
 Waiting on others, not ranked: the branch's PR (yours), Foldkit's upstream
