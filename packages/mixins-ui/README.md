@@ -289,6 +289,11 @@ const saveButton = (disabled: boolean, h: HtmlBuilder<Message>) =>
   )
 ```
 
+`disabled` writes `aria-disabled`, not `disabled`, as upstream does, so the
+button keeps its focus. A `type: 'submit'` one therefore still submits its
+form, on Enter or a press: refuse the submit in `update` while it should not
+go.
+
 An `icon` (an `svg`) draws before the label in the `icon` slot, hidden from
 assistive technology; `Recipes.Button({ variant: 'icon' })` shows the icon
 alone, the label still the button's name. `shape: 'square'` draws any other
