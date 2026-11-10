@@ -812,6 +812,23 @@ so a second send is answered from its record. Past `clockSkew`, the server
 writes its own time. `Trace.run(Data, { …, outbox })` runs the outbox as one
 tab, so a traced durable write is sent.
 
+**What is being saved: `writing`.** `writing(Data, model, filter?)`, from
+`foldkit-remote`'s root (a function, not a method of `Data`, so a page that
+never calls it keeps none of it), is one derived read of the ledger and the
+outbox, right after a reload and in a second tab: `Writing.None`, `Sending`,
+`Unanswered`, `WaitingForSignIn`, `Unreadable` or `Failed`, matched with
+`Writing.match`. The worst state of the matching writes wins (`Failed`, then `Unreadable`,
+`WaitingForSignIn`, `Unanswered`, `Sending`), and `requestIds` lists the writes in it (request
+ids: a durable write's operation id is its request id). `Sending` is every
+write's first state, so a "waiting to send" line reads `Unanswered` (a durable
+write sent with no answer; its `error` is the last send's), never `Sending`.
+The filter is `{ mutation }`, the Mutation itself (a string is a type error;
+one the domain does not register throws), and `{ row }`, an `EntityRef`
+(`Remote.ref(Item, id)`): the writes whose pending layer patches or deletes
+that row, so a refused write is in no row. Built from `outboxStatus`'s own
+reading, which stays the list of durable writes. Do not keep a "saving" flag
+in the Model: it is wrong after a reload and in a second tab.
+
 **Diagnostics.** `remote.diagnostics` (`Data.inspect(model).diagnostics`) holds,
 typed and oldest first (the newest 256), what Remote met and kept going past:
 `PredictionMismatch`, `WriteUnheard`, `LiveRefused`, `OutboxUnreadable` and

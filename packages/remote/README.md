@@ -2793,8 +2793,8 @@ const signedIn = (model: Model) => ({ model: Data.signedIn(model) })
 
 `waiting` counts a write on its way too, so a line drawn whenever it is above
 zero shows for a frame or two on every write, pushing the page below it down
-and back. Draw it once a send went unanswered: an item whose `state` is
-`Waiting` with `attempt` above zero.
+and back. Draw it once a send went unanswered: that is `writing`'s `Unanswered`
+([below](#what-is-being-saved-writing)).
 
 `durable.restore(model)` is `cache.restore`'s twin: resolve it as the
 runtime's `flags` and start `init` from it. It reads back what a reload left and
@@ -2924,6 +2924,56 @@ server page  → durable.session (prepare) → the served page adopted → outbo
   it sends none of it and reads the new one's. A store holding another
   scope's waiting writes is not written over, so a `key` shared by
   principals reports `OutboxUnsaved` rather than losing them.
+
+### What is being saved: `writing`
+
+A view that dims a row or says "waiting to send" asks one question: is
+something I wrote still unanswered, and how badly? The ledger and the outbox
+already hold the answer, so `writing` derives it, and nothing in the
+application's Model copies it (a flag the application writes would be wrong
+after a reload, which restores a write no click made, and in a second tab):
+
+```ts
+import { Writing, writing } from 'foldkit-remote'
+
+const savingLine = (model: Model): string =>
+  Writing.match(writing(Data, model, { mutation: PostChirp }), {
+    None: () => '',
+    // Every write passes through here: a line for it would flash on each one.
+    Sending: () => '',
+    Unanswered: ({ requestIds }) => `${requestIds.length} waiting to send`,
+    WaitingForSignIn: () => 'Sign in to send your changes',
+    Unreadable: () => 'Some changes cannot be sent from this version',
+    Failed: () => 'Some changes were refused',
+  })
+```
+
+`writing(Data, model)` reads every write of the domain; the filter narrows it
+to `{ mutation }`, the Mutation as `Data.mutate` was given it (not its name;
+one the domain does not register throws), and `{ row }`, an `EntityRef`
+(`Remote.ref(Post, id)`), the writes whose pending layer patches or deletes
+that row. A refused write shows no layer, so it is `Failed` for the domain
+and for a `mutation`, and in no row. It is a pure read: it sends and writes
+nothing, and a page that never calls it keeps none of it.
+
+The worst state among the matching writes is the answer, in this order, and
+`requestIds` lists the writes in that state alone:
+
+| State | A write that is | Do |
+| --- | --- | --- |
+| `Failed` | refused by the server | `Data.retry` or `Data.dismiss` it |
+| `Unreadable` | stored by a version this one cannot read | `Data.dismiss` it |
+| `WaitingForSignIn` | held until `Data.signedIn` hears a sign-in | ask for one |
+| `Unanswered` | durable, sent, and no answer yet, so the server may have it; `error` is why the last send failed | a "waiting to send" line |
+| `Sending` | on its way for the first time, or a plain write awaiting its answer | nothing |
+
+`Sending` is every write's first state, which is why a "waiting to send" line
+reads `Unanswered`. It is built from the same reading as
+`outboxStatus`, which stays the list of durable writes, with each one's error;
+`writing` is the one state a view matches on. Its ids are request ids, the
+ones `Data.mutate` returned and `Data.mutation` and `Data.dismiss` take: a
+durable write's operation id is its request id. Plain writes come in the order
+they started, then durable ones in the order the outbox sends them.
 
 ### Remote mutation vs Sync operation
 

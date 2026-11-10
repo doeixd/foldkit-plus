@@ -1,8 +1,8 @@
 # #377, #439, #440: Remote's data plane
 
-Status: decided 2026-11-10 (decisions delegated by the owner); built next is
-one change to Remote's live reduction that fixes #498 and #499 together, with
-no wire change.
+Status: decided 2026-11-10 (decisions delegated by the owner). Phase 1
+(#498 and #499, with no wire change) is built, and so is phase 2 (`writing`,
+below). Phases 3 and 4 are not scheduled.
 
 The decisions are in section 6, and what the coordinator does with the
 issues is in section 8. Sections 1 to 5 are the note as proposed, corrected
@@ -513,6 +513,22 @@ absence of the extra count.
 | 2 | #377 ideas 2 and 3: `writing` | Chirp's `waiting` becomes a match on it, with its browser test unchanged | A table over the ledger and outbox states, one row per variant, `Unreadable` included; mutations for the precedence order and for `attempt > 0`; a restored outbox and a second tab (`outboxTabs.browser.test.ts`) read the same state; a type test that `row` refuses a string and `mutation` a name; `scripts/test/readOnlyPage.test.ts` unchanged |
 | 3 | #439 R1, when #437 or `explain` asks | Replaces `writeTrace.test.ts`'s local `candidate` | The #477 fixture, plus an exists whose `where` reads the written member (the helper's omission), a namesake Entity, a handler mutation; mutations dropping each reach variant |
 | 4 | #439 R2, when a page with many long lists exists | `read.bench.ts`: a list read after a write to another Entity falls from about 22 µs to a memo hit | In development, compare the kept value with a fresh read and report a difference (the pass's checker); a nested Selection reading a second Entity; a body reaching a third |
+
+**Phase 2 as built.** `writing(Data, model, { mutation, row })` is exported
+from `foldkit-remote`'s root (`packages/remote/src/writing.ts`), and the root
+export held `scripts/test/readOnlyPage.test.ts` unchanged: to make that so,
+`statusOf`, `heldFrom`, `sendable` and `signedKey` moved out of `outbox.ts`
+and `outboxStore.ts` into `outboxStatus.ts` and `queue.ts`, and a page that
+calls `writing` keeps those two modules and `writing.js`, no outbox code.
+The union has the outbox's fifth state, `Unreadable`, as a variant of its own
+ranked below `Failed`, since only `Data.dismiss` clears it. `requestIds` are
+request ids throughout: a durable write's operation id is its request id
+(`StoredWrite.operation`, `queuedWrite`), so the two spaces are one. A refused
+write shows no layer, so `row` reads it nowhere, and a `mutation` the domain
+does not register throws, as `Data.failedWrites` does.
+Chirp's `waiting` (`examples/chirp/src/view.ts`) is not moved onto it yet:
+another change was editing the example, so that and its browser test are a
+follow-up.
 
 Phase 1 comes first because it holds the only defects. 1a and 1b share one
 record and one reduction, so they are one change with two commits, each
