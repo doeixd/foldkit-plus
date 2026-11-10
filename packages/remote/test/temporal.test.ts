@@ -17,9 +17,12 @@ import {
   Remote,
   RemoteClient,
   RemotePolicy,
+  forgetRemote,
   isRemoteMessage,
   type RemoteMessage,
 } from '../src/index.js'
+import { noKept } from '../src/kept.js'
+import { layers } from '../src/layers.js'
 import { live } from '../src/live.js'
 import { Respond, Trace } from '../src/testing.js'
 
@@ -453,30 +456,145 @@ describe('a live patch of a field a pending write moves by an amount', () => {
     const shown = likes.read(model)
     return 'value' in shown ? shown.value.likes : shown._tag
   }
-  const echo: RemoteMessage = {
-    _tag: 'LiveReceived',
-    stream: 's',
-    event: {
-      _tag: 'EntityPatched',
-      cursor: 1,
-      ref: { entity: 'Post', id: 'p1' },
-      values: { likes: 11 },
-      changed: ['likes'],
-    },
-    now: 11,
-  }
-
   it('shows the layer over the base the moment it starts', () => {
     expect(count(liked)).toBe(11)
   })
 
-  // The write's own echo arrives before its answer: the base moves to 11 and
-  // the layer adds one again, so 12 shows until the answer. Recorded in
-  // `377-439-440-remote-data-plane-DESIGN.md` section 2.3, where staging a
-  // live patch under a pending relative layer is the owner's decision.
-  // Absolute patches do not do this (the interleavings above). Passes the day
-  // that is fixed; the matrix row changes with it.
-  it.fails('does not count a write’s own live echo twice while it is pending', () => {
-    expect(count(Posts.reduce(liked, echo))).toBe(11)
+  // The write's own echo arrives before its answer: the base moves to 11, and the
+  // layer resolves over the 10 the base held before the stream wrote, not over
+  // the 11, which would show 12 until the answer (#498). `Data.confirmed` is
+  // the stream's value in every frame.
+  const likesPatched = (value: number, cursor: number, now = 10 + cursor): RemoteMessage => ({
+    _tag: 'LiveReceived',
+    stream: 's',
+    event: {
+      _tag: 'EntityPatched',
+      cursor,
+      ref: { entity: 'Post', id: 'p1' },
+      values: { likes: value },
+      changed: ['likes'],
+    },
+    now,
+  })
+  const failedLike = (requestId: string): RemoteMessage => ({
+    _tag: 'MutationFailed',
+    requestId,
+    error: { _tag: 'RemoteUnreachable', message: 'down' },
+    operation: requestId,
+  })
+  const noLikes = (requestId: string): RemoteMessage => ({
+    _tag: 'MutationSucceeded',
+    requestId,
+    entities: [],
+    now: 5,
+  })
+  const likesAnswered = (value: number, requestId = 'a'): RemoteMessage => ({
+    _tag: 'MutationSucceeded',
+    requestId,
+    entities: [{ entity: 'Post', id: 'p1', values: { likes: value } }],
+    now: 5,
+  })
+  const confirmedCount = (model: Model) => {
+    const shown = Posts.confirmed(likes).read(model)
+    return 'value' in shown ? shown.value.likes : shown._tag
+  }
+  const frames = (from: Model, messages: ReadonlyArray<RemoteMessage>) => {
+    const out = [`${count(from)}/${confirmedCount(from)}`]
+    let model = from
+    for (const message of messages) {
+      model = Posts.reduce(model, message)
+      out.push(`${count(model)}/${confirmedCount(model)}`)
+    }
+    return out
+  }
+
+  it.each([
+    // Its own echo: never above the server's count in any frame.
+    ['its own echo', [likesPatched(11, 1), likesAnswered(11)], ['11/10', '11/11', '11/11']],
+    // Someone else's like, then the echo: the other like shows when the answer lands.
+    [
+      'another like, then its own echo',
+      [likesPatched(11, 1), likesPatched(12, 2), likesAnswered(12)],
+      ['11/10', '11/11', '11/12', '12/12'],
+    ],
+    // The answer comes first: nothing was patched, so nothing is kept.
+    ['no patch', [likesAnswered(11)], ['11/10', '11/11']],
+  ])('shows %s', (_name, messages, expected) => {
+    expect(frames(liked, messages)).toEqual(expected)
+  })
+
+  it('shows the base at once when the write fails', () => {
+    const echoed = Posts.reduce(liked, likesPatched(11, 1))
+    expect(count(Posts.reduce(echoed, failedLike('a')))).toBe(11)
+  })
+
+  it('resolves two pending likes over the same kept value, and rebases when the first answers', () => {
+    const both = Posts.mutate(
+      liked,
+      Like,
+      { id: 'p1' },
+      {
+        requestId: 'b',
+        optimistic: [{ entity: 'Post', id: 'p1', values: {}, adds: { likes: 1 } }],
+      },
+    ).model
+    const echoed = Posts.reduce(both, likesPatched(11, 1))
+    expect(count(both)).toBe(12)
+    expect(count(echoed)).toBe(12)
+    // The first fails: the second still shows its one over the 10 the stream moved on from.
+    expect(count(Posts.reduce(echoed, failedLike('a')))).toBe(11)
+    // The first is answered: its answer writes the field, and the second resolves over it.
+    expect(count(Posts.reduce(echoed, likesAnswered(11)))).toBe(12)
+  })
+
+  describe('what is kept of the base', () => {
+    const keptOf = (model: Model) => model.remote.kept.get('Post:p1')?.has('likes') ?? false
+    const deleted: RemoteMessage = {
+      _tag: 'LiveReceived',
+      stream: 's',
+      event: { _tag: 'EntityDeleted', cursor: 2, ref: { entity: 'Post', id: 'p1' } },
+      now: 12,
+    }
+    const echoed = Posts.reduce(liked, likesPatched(11, 1))
+    const second = Posts.mutate(
+      echoed,
+      Like,
+      { id: 'p1' },
+      {
+        requestId: 'b',
+        optimistic: [{ entity: 'Post', id: 'p1', values: {}, adds: { likes: 1 } }],
+      },
+    ).model
+
+    it.each([
+      ['is recorded by a patch while a write is pending', echoed, true],
+      ['is not recorded when nothing is pending', Posts.reduce(read, likesPatched(11, 1)), false],
+      ['goes when an answer writes the field', Posts.reduce(second, likesAnswered(11)), false],
+      ['stays when an answer leaves the field alone', Posts.reduce(second, noLikes('a')), true],
+      [
+        'goes when the last pending write is answered without it',
+        Posts.reduce(echoed, noLikes('a')),
+        false,
+      ],
+      ['goes when the last pending write fails', Posts.reduce(echoed, failedLike('a')), false],
+      ['stays when another write is still pending', Posts.reduce(second, failedLike('a')), true],
+      ['goes when the stream deletes the row', Posts.reduce(echoed, deleted), false],
+      ['goes on forget', { ...echoed, remote: forgetRemote(echoed.remote) } satisfies Model, false],
+    ])('%s', (_name, model, kept) => {
+      expect(keptOf(model)).toBe(kept)
+    })
+
+    it('shows another store when only the kept values differ', () => {
+      const { entities, optimistic, kept } = echoed.remote
+      const shown = (over: typeof kept) =>
+        layers.visible(entities, optimistic, over, Option.none())['Post:p1']?.values['likes']
+      expect([shown(kept), shown(noKept), shown(kept)]).toEqual([11, 12, 11])
+    })
+
+    it('resolves over the base once the kept value is older than the bound', () => {
+      const late = Posts.reduce(echoed, likesPatched(12, 2, 11 + 60_000))
+      // Kept again at the later patch, from the base then held (11): 11 + 1.
+      expect(count(late)).toBe(12)
+    })
   })
 })

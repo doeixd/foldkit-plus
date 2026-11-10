@@ -37,9 +37,9 @@ export default [
     edits: [
       {
         file: optimistic,
-        find: '      resolvedPatches(base, optimistic, operators).map(patch => {',
+        find: '      resolvedPatches(base, optimistic, kept, operators).map(patch => {',
         replace:
-          '      resolvedPatches(base, optimistic, operators).filter(patch => !isTombstone(base, entityKey(patch.entity, patch.id))).map(patch => {',
+          '      resolvedPatches(base, optimistic, kept, operators).filter(patch => !isTombstone(base, entityKey(patch.entity, patch.id))).map(patch => {',
       },
     ],
     tests,

@@ -3,6 +3,7 @@
  * write is pending: assigned to a plain object, `__proto__` sets the
  * prototype; read from one, `constructor` and `toString` find its functions.
  */
+import { noKept } from '../src/kept.js'
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Derived, Entity, Expr, Operators, Relation, Write, type DerivedSpec } from 'foldkit-entity'
@@ -112,7 +113,7 @@ const fixture = (name: Name, member: 'count' | 'exists') => {
   const shown = (model: Model, id: string) =>
     Option.getOrUndefined(
       readField(
-        visibleStore(model.remote.entities, model.remote.optimistic),
+        visibleStore(model.remote.entities, model.remote.optimistic, noKept),
         entityKey('Post', id),
         name,
       ),

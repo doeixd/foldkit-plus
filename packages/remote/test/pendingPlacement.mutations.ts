@@ -13,7 +13,7 @@ export default [
     edits: [
       {
         file: layers,
-        find: 'const pages = pendingPlaced(lists, entities, optimistic, connections, identity, connection)',
+        find: 'const pages = pendingPlaced(lists, entities, optimistic, kept, connections, identity, connection)',
         replace: 'const pages = connection',
       },
     ],

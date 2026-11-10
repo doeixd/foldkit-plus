@@ -29,13 +29,13 @@ export default [
   edit(
     'an earlier layer is not added to',
     '../src/optimistic.ts',
-    'Object.entries({ ...base[key]?.values, ...earlier })',
-    'Object.entries({ ...base[key]?.values })',
+    'Object.entries({ ...overKept(base[key]?.values ?? {}, kept.get(key)), ...earlier })',
+    'Object.entries({ ...overKept(base[key]?.values ?? {}, kept.get(key)) })',
   ),
   edit(
     'a list places the amount, not the sum',
     '../src/layers.ts',
-    'entities: resolvedPatches(entities, optimistic, operators),',
+    'entities: resolvedPatches(entities, optimistic, kept, operators),',
     'entities: layers.flatMap(layer => layer.patches),',
   ),
   {

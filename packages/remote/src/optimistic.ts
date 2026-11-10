@@ -22,6 +22,7 @@ import {
   type PendingDelete,
   type PendingPatch,
 } from './ledger.js'
+import { overKept, type Kept } from './kept.js'
 import { put } from './record.js'
 import { isPatch } from './shown.js'
 import {
@@ -210,13 +211,14 @@ export const removeOverlay = (optimistic: OptimisticState, id: string): Optimist
 export const visibleStore = (
   base: EntityStore,
   optimistic: OptimisticState,
+  kept: Kept,
   operators: MemoryOperators = Operators.kernel,
 ): EntityStore =>
   [...pendingDeletes(optimistic)].reduce(
     tombstone,
     writeEntities(
       base,
-      resolvedPatches(base, optimistic, operators).map(patch => {
+      resolvedPatches(base, optimistic, kept, operators).map(patch => {
         const key = entityKey(patch.entity, patch.id)
         const under = base[key]
         return {
@@ -300,8 +302,8 @@ export const goneIn = (
 
 /**
  * Every pending patch in order, each amount added and each computed field
- * worked out over the row under it (the store's, with earlier layers over
- * it) by `Write.apply`, with the client's table (the kernel's when not
+ * worked out over the row under it (the store's, a field `kept` says a live
+ * patch wrote as it was before, and earlier layers over it) by `Write.apply`, with the client's table (the kernel's when not
  * given). A prediction, so only over
  * what the client holds: a field it has not read, an amount over anything
  * but a number, or a computation by an operator its table lacks keeps what
@@ -310,6 +312,7 @@ export const goneIn = (
 export const resolvedPatches = (
   base: EntityStore,
   optimistic: OptimisticState,
+  kept: Kept,
   operators: MemoryOperators = Operators.kernel,
 ): ReadonlyArray<NormalizedPatch> => {
   const shown = new Map<EntityKey, Record<string, unknown>>()
@@ -325,8 +328,10 @@ export const resolvedPatches = (
       )
       const values: Record<string, unknown> = { ...patch.values }
       // A tombstone holds no values; what the store holds, with what earlier layers show over it.
+      // A field a live patch wrote while this was pending is worked out over what it held
+      // before, since the patch may be this write's own echo (#498).
       const row = Object.fromEntries(
-        Object.entries({ ...base[key]?.values, ...earlier }).filter(
+        Object.entries({ ...overKept(base[key]?.values ?? {}, kept.get(key)), ...earlier }).filter(
           ([field]) => !unknown.has(field),
         ),
       )

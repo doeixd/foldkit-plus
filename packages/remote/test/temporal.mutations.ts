@@ -74,6 +74,71 @@ export default [
     'if (requests.every(request => request.fields.length === 0)) return model',
     'return model',
   ),
+  // A live patch over a pending write (#498, #499)
+  edit(
+    'a relative layer resolves over the base its own echo moved',
+    '../src/optimistic.ts',
+    'overKept(base[key]?.values ?? {}, kept.get(key))',
+    'base[key]?.values ?? {}',
+  ),
+  edit(
+    'a later patch replaces the value kept from before the first',
+    '../src/liveEvents.ts',
+    '    if (held === undefined)\n',
+    '    if (true)\n',
+  ),
+  edit(
+    'a patch is kept with no write pending',
+    '../src/liveEvents.ts',
+    'if (pending.size === 0 || fields.length === 0) return kept',
+    'if (fields.length === 0) return kept',
+  ),
+  edit(
+    'a kept value outlives the bound',
+    '../src/liveEvents.ts',
+    '.filter(([, field]) => field.since > now - echoKept)',
+    '.filter(() => true)',
+  ),
+  edit(
+    'an answer leaves the fields it wrote kept',
+    '../src/liveEvents.ts',
+    '.filter(([field]) => !Object.hasOwn(values, field))',
+    '.filter(() => true)',
+  ),
+  edit(
+    'the last write answered leaves what is kept',
+    '../src/liveEvents.ts',
+    'if (pending.size === 0) return noKept',
+    'if (pending.size === 0) return kept',
+  ),
+  edit(
+    'a live delete leaves the row kept',
+    '../src/liveEvents.ts',
+    'kept: withoutRow(kept, key),',
+    'kept,',
+  ),
+  edit(
+    'a failure of the last write leaves what is kept',
+    '../src/model.ts',
+    'kept: mutations.pending.size === 0 ? noKept : model.kept,',
+    'kept: model.kept,',
+  ),
+  {
+    name: 'the visible store is kept by the layers alone, not the kept values',
+    edits: [
+      {
+        file: '../src/layers.ts',
+        find: '  let byStore = byKept.get(kept)',
+        replace: '  let byStore = byKept.get(optimistic)',
+      },
+      {
+        file: '../src/layers.ts',
+        find: '    byKept.set(kept, byStore)',
+        replace: '    byKept.set(optimistic, byStore)',
+      },
+    ],
+    tests,
+  },
   // Selective refresh
   edit(
     'a refresh restarts every read, not those that cover it',

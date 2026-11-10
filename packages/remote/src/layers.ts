@@ -8,6 +8,7 @@ import { Option } from 'effect'
 import type { ExprContext, MemoryOperators } from 'foldkit-entity'
 import type { Install, LayerCapability, Lists } from './capability.js'
 import { items, type Connection, type Edge } from './connection.js'
+import type { Kept } from './kept.js'
 import { changesOf, readsThrough, rejudged } from './impact.js'
 import { memoRead } from './memo.js'
 import {
@@ -35,15 +36,17 @@ import { wholeListsOf } from './whole.js'
 // change, so reads and plans across renders of one Model share it. Keyed on
 // the layers rather than the whole optimistic state, which also changes with
 // every overlay (a live insert, a page pruning one) that no layer is part of.
-// By the client's table, then the layers, then the store: a prediction depends on all three.
+// By the client's table, then the layers, then the kept values, then the store: a
+// prediction depends on all four.
 const visibleStores = new WeakMap<
   MemoryOperators,
-  WeakMap<object, WeakMap<EntityStore, EntityStore>>
+  WeakMap<object, WeakMap<Kept, WeakMap<EntityStore, EntityStore>>>
 >()
 
 const visibleStoreOf = (
   entities: EntityStore,
   optimistic: OptimisticState,
+  kept: Kept,
   operators: MemoryOperators,
 ): EntityStore => {
   let byLayers = visibleStores.get(operators)
@@ -51,14 +54,19 @@ const visibleStoreOf = (
     byLayers = new WeakMap()
     visibleStores.set(operators, byLayers)
   }
-  let byStore = byLayers.get(optimistic.layers)
+  let byKept = byLayers.get(optimistic.layers)
+  if (byKept === undefined) {
+    byKept = new WeakMap()
+    byLayers.set(optimistic.layers, byKept)
+  }
+  let byStore = byKept.get(kept)
   if (byStore === undefined) {
     byStore = new WeakMap()
-    byLayers.set(optimistic.layers, byStore)
+    byKept.set(kept, byStore)
   }
   let visible = byStore.get(entities)
   if (visible === undefined) {
-    visible = visibleStore(entities, optimistic, operators)
+    visible = visibleStore(entities, optimistic, kept, operators)
     byStore.set(entities, visible)
   }
   return visible
@@ -102,6 +110,7 @@ const pendingPlaced = (
   lists: Lists,
   entities: EntityStore,
   optimistic: OptimisticState,
+  kept: Kept,
   connections: Readonly<Record<string, Connection>>,
   identity: string,
   pages: Connection,
@@ -110,44 +119,50 @@ const pendingPlaced = (
   if (layers.length === 0) return pages
   const operators = tableOf(lists.operators)
   // Two domains may read one Model with different tables, so the table is a scope too.
-  return memoRead([pages, layers, entities, connections, operators], `placed:${identity}`, () => {
-    const changes = changesOf(
-      {
-        entities: resolvedPatches(entities, optimistic, operators),
-        deleted: layers.flatMap(layer => layer.deletes),
-      },
-      entities,
-    )
-    const store = visibleStoreOf(entities, optimistic, operators)
-    const context = layersContext(layers)
-    const placed = placedHeld(lists, identity, pages, changes, store, context)
-    // A layer writing what the body reads through other rows may move any row of the list.
-    return Option.match(lists.queryOf(identity), {
-      onNone: () => placed,
-      onSome: query => {
-        const body = query.descriptor.body
-        if (body === undefined || !changes.some(change => readsThrough(body, change))) return placed
-        const holds = new Set(items(placed).map(edge => edge.key))
-        return rejudged({ ...query, connection: placed, holds }, store, {
-          operators,
-          context,
-          whole: wholeListsOf(connections, lists.queryOf, context),
-        })
-      },
-    })
-  })
+  return memoRead(
+    [pages, layers, kept, entities, connections, operators],
+    `placed:${identity}`,
+    () => {
+      const changes = changesOf(
+        {
+          entities: resolvedPatches(entities, optimistic, kept, operators),
+          deleted: layers.flatMap(layer => layer.deletes),
+        },
+        entities,
+      )
+      const store = visibleStoreOf(entities, optimistic, kept, operators)
+      const context = layersContext(layers)
+      const placed = placedHeld(lists, identity, pages, changes, store, context)
+      // A layer writing what the body reads through other rows may move any row of the list.
+      return Option.match(lists.queryOf(identity), {
+        onNone: () => placed,
+        onSome: query => {
+          const body = query.descriptor.body
+          if (body === undefined || !changes.some(change => readsThrough(body, change)))
+            return placed
+          const holds = new Set(items(placed).map(edge => edge.key))
+          return rejudged({ ...query, connection: placed, holds }, store, {
+            operators,
+            context,
+            whole: wholeListsOf(connections, lists.queryOf, context),
+          })
+        },
+      })
+    },
+  )
 }
 
 const insertsPlaced = (
   lists: Lists,
   entities: EntityStore,
   optimistic: OptimisticState,
+  kept: Kept,
   identity: string,
   pages: Connection,
 ): { readonly pages: Connection; readonly overlays: ReadonlyArray<ConnectionOverlay> } => {
   const { overlays } = optimistic
   const operators = tableOf(lists.operators)
-  const store = visibleStoreOf(entities, optimistic, operators)
+  const store = visibleStoreOf(entities, optimistic, kept, operators)
   return memoRead([pages, overlays, store], `inserted:${identity}`, () => {
     const query = lists.queryOf(identity)
     const body = Option.isSome(query) ? query.value.descriptor.body : undefined
@@ -197,23 +212,24 @@ const shown = (
   lists: Lists,
   entities: EntityStore,
   optimistic: OptimisticState,
+  kept: Kept,
   connections: Readonly<Record<string, Connection>>,
   identity: string,
   connection: Connection,
 ): ReadonlyArray<Edge> => {
-  const pages = pendingPlaced(lists, entities, optimistic, connections, identity, connection)
+  const pages = pendingPlaced(lists, entities, optimistic, kept, connections, identity, connection)
   const inserts = optimistic.overlays.some(
     overlay => overlay.connection === identity && overlay.position !== 'remove',
   )
   const placed = inserts
-    ? insertsPlaced(lists, entities, optimistic, identity, pages)
+    ? insertsPlaced(lists, entities, optimistic, kept, identity, pages)
     : { pages, overlays: optimistic.overlays }
   return visibleItems(placed.pages, identity, placed.overlays, goneIn(entities, optimistic))
 }
 
 export const layers: LayerCapability = {
-  visible: (entities, optimistic, operators) =>
-    visibleStoreOf(entities, optimistic, tableOf(operators)),
+  visible: (entities, optimistic, kept, operators) =>
+    visibleStoreOf(entities, optimistic, kept, tableOf(operators)),
   planned: plannedStoreOf,
   requestOnly: heldOnlyByRequests,
   gone: goneIn,

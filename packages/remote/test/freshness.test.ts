@@ -1,3 +1,4 @@
+import { noKept } from '../src/kept.js'
 import { Effect, Fiber, Layer, Option, Schema, Stream } from 'effect'
 import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
@@ -288,14 +289,14 @@ describe('a value a pending request patches', () => {
   }
 
   it('is as fresh as the value under it', () => {
-    const visible = visibleStore(knownAt(1_000).remote.entities, layered)
+    const visible = visibleStore(knownAt(1_000).remote.entities, layered, noKept)
     expect(plan(visible, [request], { freshness })).toEqual([])
     expect(deadlineOf(visible, [request], freshness)).toEqual({ at: 2_000, due: [request] })
   })
 
   it('is not the server’s to age when only the request holds it', () => {
     const created = { ...request, id: 'm1.tmp' }
-    const visible = visibleStore(knownAt(1_000).remote.entities, layered)
+    const visible = visibleStore(knownAt(1_000).remote.entities, layered, noKept)
     expect(plan(visible, [created], { freshness })).toEqual([])
     expect(deadlineOf(visible, [created], freshness)).toBeUndefined()
   })

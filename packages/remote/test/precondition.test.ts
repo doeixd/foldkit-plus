@@ -1,4 +1,5 @@
 /** A declared write's refusal codec: it decodes unmet only for a write with a `when`. */
+import { noKept } from '../src/kept.js'
 import { Schema } from 'effect'
 import { Entity, Expr, Operators, Write } from 'foldkit-entity'
 import {
@@ -80,7 +81,7 @@ it('predicts a sum over the value the store holds as it is read, and only over o
       optimisticOfWrite(Restock, { id: 'i1', name: 'Bolt', revision: 1, by }, undefined),
     )
   const stock = (base: EntityStore, optimistic: OptimisticState) =>
-    visibleStore(base, optimistic)['Item:i1']?.values['stock']
+    visibleStore(base, optimistic, noKept)['Item:i1']?.values['stock']
   const held = writeEntities({}, [{ key: 'Item:i1', values: { stock: 10 } }])
   const one = restock('r1', 5)
   expect(stock(held, one)).toBe(15)
@@ -93,7 +94,7 @@ it('predicts a sum over the value the store holds as it is read, and only over o
   expect(stock(held, settleFailure(two, 'r1'))).toBe(7)
   // A stock the client has not read is not guessed; the name it sets still shows.
   const unread = writeEntities({}, [{ key: 'Item:i1', values: { name: 'Old' } }])
-  expect(visibleStore(unread, one)['Item:i1']?.values).toEqual({ name: 'Bolt' })
+  expect(visibleStore(unread, one, noKept)['Item:i1']?.values).toEqual({ name: 'Bolt' })
 })
 
 it('predicts a computed field over the row as it is read, by the client table, and none without it', () => {
@@ -118,7 +119,7 @@ it('predicts a computed field over the row as it is read, by the client table, a
     optimisticOfWrite(Relabel, { id: 't1', prefix: 'o' }, undefined),
   )
   const label = (base: EntityStore, operators = table) =>
-    visibleStore(base, pending, operators)['Tag:t1']?.values['label']
+    visibleStore(base, pending, noKept, operators)['Tag:t1']?.values['label']
   const held = writeEntities({}, [{ key: 'Tag:t1', values: { name: 'ned', label: 'plain' } }])
   expect(label(held)).toBe('oned')
   // A change to what it reads reaches the store meanwhile: the prediction follows it.
