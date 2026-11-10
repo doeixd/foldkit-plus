@@ -323,7 +323,7 @@ export const saveButton = (h: HtmlBuilder<Message>) =>
 ```
 
 Adapters (an alert dialog is the Dialog with `role: 'alertdialog'` in `Dialog.toView`'s context, no close button, and `Dialog.isDismissal` Messages dropped in `update`): Button, Input, Textarea, Select, Checkbox, Switch, Fieldset, Disclosure, Dialog,
-Popover, Tooltip, Tabs, RadioGroup, Calendar, FileDrop, Toast, Listbox, Combobox, DatePicker (namespace + flat `XSlots`). `MenuView` transcribes `@foldkit/ui/menu`'s markup assembly
+Popover, Tooltip, Tabs, RadioGroup, Calendar, FileDrop (`FileDrop.Message`: upstream's Messages over a `File` codec with no decoding services, which a `Bundle.parent` accepts and upstream's `Schema<File>` does not), Toast, Listbox, Combobox, DatePicker (namespace + flat `XSlots`). `MenuView` transcribes `@foldkit/ui/menu`'s markup assembly
 from the pinned `@foldkit/ui` source (attributed in the module) with a `toView` added, and a parity battery
 draws both views over the same models. `Menu` itself (`Menu.init/update/view`, by a button, at a point, or down a submenu) is this package's own component over `@foldkit/ui` Menus, as the Slider is (`Slider.view`, one number or a range). Pass mixins as
 `style.mixin` / `behavior.mixin`. A custom select is a Listbox drawn with `Listbox.parts(mixins, { h })`

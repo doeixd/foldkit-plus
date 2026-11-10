@@ -40,6 +40,7 @@ import {
   Sheet,
   Command as CommandMenu,
   Toast,
+  FileDrop,
   MessageScroller,
   Questionnaire,
   AngleSlider,
@@ -53,6 +54,7 @@ import {
   FloatingPanel,
   Tour,
 } from 'foldkit-mixins-ui'
+import * as UiFileDrop from '@foldkit/ui/fileDrop'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import * as UiVirtualList from '@foldkit/ui/virtualList'
 import { ClipboardMessage } from 'foldkit-primitives/dom'
@@ -236,12 +238,19 @@ const shownMenu = (menu: Menu.Model): Menu.Model => ({
   menu: { ...menu.menu, isOpen: true, animation: { ...menu.menu.animation, isShowing: true } },
 })
 
+/** A file the drop zone took. */
+export const Attachment = Schema.Struct({ name: Schema.String, size: Schema.Number })
+export type Attachment = typeof Attachment.Type
+
 export const Model = Schema.Struct({
   tabs: UiTabs.Model,
   section: Section,
   billingGroup: UiRadioGroup.Model,
   billingRow: UiRadioGroup.Model,
   billingCards: UiRadioGroup.Model,
+  /** The drop zone's, and what it has taken: names and sizes, never the files. */
+  drop: UiFileDrop.Model,
+  attachments: Schema.Array(Attachment),
   billing: Billing,
   /** The slider's volume. */
   volume: Schema.Number,
@@ -455,6 +464,7 @@ export const Message = defineMessageUnion({
   GotBillingGroup: { message: UiRadioGroup.Message },
   GotBillingRow: { message: UiRadioGroup.Message },
   GotBillingCards: { message: UiRadioGroup.Message },
+  GotDrop: { message: FileDrop.Message },
   TurnedVolume: { value: Schema.Number },
   GotDialog: { message: UiDialog.Message },
   OpenedDialog: {},
@@ -654,6 +664,8 @@ export const initial: Model = {
   billingGroup: UiRadioGroup.init({ id: 'preview-billing' }),
   billingRow: UiRadioGroup.init({ id: 'preview-billing-row' }),
   billingCards: UiRadioGroup.init({ id: 'preview-billing-cards' }),
+  drop: UiFileDrop.init({ id: 'preview-drop' }),
+  attachments: [],
   billing: 'yearly',
   volume: 60,
   dialog: UiDialog.init({ id: 'preview-dialog', isAnimated: true }),
@@ -951,6 +963,24 @@ const foldBillingGroup = Update.foldChild({
   ...own('billingGroup', Message.GotBillingGroup),
   update: BillingGroup.update,
   foldOutMessage: billingOut,
+})
+
+const foldDrop = Update.foldChild({
+  ...own('drop', Message.GotDrop),
+  update: UiFileDrop.update,
+  foldOutMessage: UiFileDrop.OutMessage.match<Step>({
+    ReceivedFiles:
+      ({ files }) =>
+      model => ({
+        model: modifyFields(model, {
+          attachments: current => [
+            ...current,
+            ...files.map(({ name, size }): Attachment => ({ name, size })),
+          ],
+        }),
+      }),
+    RejectedNonFiles: () => same,
+  }),
 })
 
 const foldBillingRow = Update.foldChild({
@@ -1708,6 +1738,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotTabs: ({ message }) => foldTabs(model, message),
     GotBillingGroup: ({ message }) => foldBillingGroup(model, message),
     GotBillingRow: ({ message }) => foldBillingRow(model, message),
+    GotDrop: ({ message }) => foldDrop(model, message),
     GotBillingCards: ({ message }) => foldBillingCards(model, message),
     TurnedVolume: ({ value }) =>
       value === model.volume ? { model } : { model: modifyFields(model, { volume: () => value }) },

@@ -23,7 +23,7 @@ import { modifyFields } from 'foldkit/struct'
 import * as Submodel from 'foldkit/submodel'
 import * as Subscription from 'foldkit/subscription'
 import type { FieldRecipe } from './index.js'
-import { checkUploadOptions, DropMessage, FileSchema, percentOf } from './uploadControl.js'
+import { checkUploadOptions, FileSchema, percentOf } from './uploadControl.js'
 
 /**
  * Where the image stands. `Sending` and `Refused` hold the `File` itself, so a
@@ -51,7 +51,7 @@ export const ImageModel = Schema.Struct({
 export type ImageModel = typeof ImageModel.Type
 
 export const ImageMessage = defineMessageUnion({
-  GotDrop: { message: DropMessage },
+  GotDrop: { message: FileDrop.Message },
   Progressed: { attempt: Schema.Number, loaded: Schema.Number, total: Schema.Number },
   Uploaded: { attempt: Schema.Number, asset: HashedAsset },
   Failed: { attempt: Schema.Number, reason: UploadRefusal, status: Schema.Number },

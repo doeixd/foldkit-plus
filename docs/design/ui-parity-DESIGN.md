@@ -37,11 +37,11 @@ tests that can fail, and a page in the gallery (`examples/site`).
 
 Of the shadcn names, 37 exist, 19 exist only in part, and 8 are missing.
 Most of the partial ones are islands in `examples/widgets`: built from the
-Behaviors, but not in a package and not in the gallery. The gallery shows 33
+Behaviors, but not in a package and not in the gallery. The gallery shows 34
 components (step 1 below). Of the twelve components with recipes that
-appeared only in `examples/design-system`, FileDrop alone has no page;
-AspectRatio, CodeBlock, Icon, InputGroup, Label, ScrollArea, Segmented and
-Typography have recipes and no page either.
+appeared only in `examples/design-system`, AspectRatio, CodeBlock, Icon,
+InputGroup, Label, ScrollArea, Segmented and Typography have recipes and no
+page.
 
 Done in this pass:
 
@@ -60,9 +60,9 @@ Each step is a set of commits that leaves the gallery showing what it added.
 Each component in it starts with a brief of its options, researched from the
 sources (see "How each component is built").
 
-1. **Show what exists.** *Done but for FileDrop.* Gallery pages for Tabs,
+1. **Show what exists.** *Done.* Gallery pages for Tabs,
    Radio group, Slider, Dialog, Popover, Tooltip, Menu, Listbox, Combobox,
-   Calendar, Date picker and Toast, their state in one gallery module
+   Calendar, Date picker, Toast and File drop, their state in one gallery module
    (`examples/site/src/gallery/widgets.ts`). The pages found, and the package
    now fixes:
    - no Calendar recipe, so three examples styled the grid by hand;
@@ -73,13 +73,14 @@ sources (see "How each component is built").
      calendar repeated (their `toView` now draws without a `draw`);
    - `DatePicker.toView` asking for a builder no application holds;
    - `Item` requiring `content` beside a title and description.
-
-   Still open:
    - **FileDrop.** foldkit types `File.File` as `Schema<File>`, whose decoding
      services are `unknown`, so a Message carrying a file cannot be a Bundle
-     parent's Message, and the site's Model is one. Either foldkit declares
-     the schema with `never` services, or `Bundle.parent` accepts any services
-     (it only holds the Schemas, but its internals pass them on as `never`).
+     parent's Message, and the site's Model is one. `FileDrop.Message`
+     (`foldkit-mixins-ui`) is the same four Messages over a `File` codec with
+     no services, which upstream's `update` takes as it is; Form's drop zone
+     uses it too.
+
+   Still open:
    - **Separators in a styled menu.** Upstream draws the rule between groups
      only when given a class or attributes for it, and the attributes are
      `ChildAttribute`s that the application's builder cannot draw, so a menu

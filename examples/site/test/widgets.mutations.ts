@@ -158,6 +158,16 @@ export default [
       'stayDates: () => DateSelection.picked(model.stayDates, date),',
       "stayDates: () => DateSelection.picked(DateSelection.empty('Range'), date),",
     ],
+    [
+      'a drop replaces the files already taken',
+      'attachments: current => [\n            ...current,',
+      'attachments: current => [\n            ...[],',
+    ],
+    [
+      'a drop keeps no size',
+      'files.map(({ name, size }): Attachment => ({ name, size }))',
+      'files.map(({ name }): Attachment => ({ name, size: 0 }))',
+    ],
   ].map(([name, find, replace]) => ({
     name: name!,
     edits: [{ file: widgets, find: find!, replace: replace! }],

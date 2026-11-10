@@ -1,6 +1,8 @@
+import { Schema } from 'effect'
 import type { FileDropAttributes } from '@foldkit/ui/fileDrop'
 import { Attr, Capability, Event, Slot, Slots } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
 import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
 
 /**
@@ -38,3 +40,18 @@ export const toView =
   ) =>
   (render: FileDropAttributes): Html =>
     draw(resolve(render, mixins, context))
+
+/**
+ * The drop zone's Messages, the same four as `@foldkit/ui/fileDrop`'s over a
+ * codec of `File` that needs no services. Upstream types its files as
+ * `Schema.Schema<File>`, whose decoding services are `unknown`, so a Message
+ * holding its union cannot be a `Bundle.parent`'s. Its `update` takes these as
+ * they are.
+ */
+export const Message = defineMessageUnion({
+  EnteredDragZone: {},
+  LeftDragZone: {},
+  DroppedFiles: { files: Schema.NonEmptyArray(Schema.instanceOf(File)) },
+  DroppedNonFiles: {},
+})
+export type Message = typeof Message.Type
