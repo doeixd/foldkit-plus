@@ -66,6 +66,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`step`, the data-last form of every operator and comparison**
+  (`foldkit-entity`, #478). `pipe(Post.fields.status, Expr.eq.step('draft'))`
+  builds the node `Expr.eq(Post.fields.status, 'draft')` builds. `step` is a
+  member of `Expr.eq`, `lt`, `lte`, `gt`, `gte`, `contains`, `in` and of every
+  `Expr.operator` (`Text.startsWith.step(prefix)`, `trim.step()`), with one
+  signature so reads stay exact through `pipe` and `flow`, and a value that
+  does not fit its subject is refused at the step. A comparison's step takes
+  `{ collation }`; an operator's takes none. The data-first calls and their
+  errors are unchanged.
+
 - **Child update capabilities for the interaction primitives**
   (`foldkit-primitives`, #495). A parent applies its own decisions through
   helpers on the placement, never by building the child's Messages:
