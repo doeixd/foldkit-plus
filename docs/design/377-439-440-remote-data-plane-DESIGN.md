@@ -1,7 +1,12 @@
 # #377, #439, #440: Remote's data plane
 
-Status: Proposed 2026-11-10: awaiting the owner's decisions. No code in this
-change.
+Status: decided 2026-11-10 (decisions delegated by the owner); built next is
+one change to Remote's live reduction that fixes #498 and #499 together, with
+no wire change.
+
+The decisions are in section 6, and what the coordinator does with the
+issues is in section 8. Sections 1 to 5 are the note as proposed, corrected
+where a decision changed them; each correction says so.
 
 Three issues ask Remote to do less work or show less wrong: decode less
 (#440), re-check less after a write (#439), and flicker less while a write is
@@ -22,16 +27,17 @@ Related work, referenced and not repeated: #482's law matrix
 async boundaries. The audit they come from is
 [480-async-guarantees-DESIGN.md](./480-async-guarantees-DESIGN.md).
 
-## Summary of what is recommended
+## Summary of what is decided
 
-| Issue | Recommendation | Why |
+| Issue | Decision | Why |
 | --- | --- | --- |
 | #440 selection codecs | Record the measurement and close. | Decoding is already per Selection. What generation could still remove is under 1 kB of 217 kB. |
-| #439 invalidation map | Keep deferred. Build only the static half, `Write` against `Query` body, as a checked function when a consumer needs it. Do not infer write sets from `update`. | The most it saves is about 1% of a frame; an inferred map is a second source of truth about `update`. |
+| #439 invalidation map | Keep deferred, retitled. The static half (`Write` against `Query` body) and per-Entity versions each wait for a consumer. Write sets are not inferred from `update`. | The most it saves is about 1% of a frame; an inferred map is a second source of truth about `update`. |
 | #377 idea 1, hold until live confirms | Reject. | #485's echo wait and the answer's own read already close the gap, without a timeout. |
 | #377 idea 2, pending per write | Adapt: a derived read of what is pending, no option on the write. | A pending write already never makes a read look loading (#482's matrix). |
-| #377 idea 3, a saving flag | Adapt: `Data.writing`, derived from the ledger and the outbox. | A flag the application writes is a second owner of what the ledger holds. |
-| #377 idea 4, held live patches | Adopt, for relative layers only. A defect was reproduced. | A live echo of the client's own increment is counted twice until the answer. |
+| #377 idea 3, a saving flag | Adapt: `writing`, derived from the ledger and the outbox. | A flag the application writes is a second owner of what the ledger holds. |
+| #377 idea 4, live data mid-write (#498) | Adopt, by holding what a relative layer resolves over (H4), not by staging the patch. | A live echo of the client's own increment is counted twice until the answer. The base keeps the server's value, so `Data.confirmed` needs no rule. |
+| #499, an answer older than a live patch | The same change as #498: an answer that disagrees with what a stream wrote while it was pending reads the field again. No field in `MutationResult`. | A stream's cursor is a counter per subscription, so no position exists that an answer could carry and the client could compare. |
 
 ## 1. The problem
 
@@ -319,9 +325,10 @@ the server said.
 ### 3.4 Composition
 
 The three do not depend on each other. #439's R1 and #377's `Data.writing`
-both read declarations already in the tree. #377 idea 4 changes the live
-reduction only where a relative layer is pending, so it does not meet R2's
-counters except by writing the store later, which moves them then.
+both read declarations already in the tree. #377 idea 4, as decided (H4),
+adds one input to the visible read where a relative layer is pending, and
+one read after an answer a stream disagreed with. It writes the store when
+the patch arrives, as today, so R2's counters move then.
 
 ## 4. #377, idea by idea
 
@@ -342,10 +349,11 @@ Two cases remain, and neither needs a hold:
 
 - **An answer that omits a shown field.** Reported as a `Gap` by
   `verifyPredictions`. The fix is the server answering what `shown` asks.
-- **An answer older than a live patch already delivered.** #482's matrix has
-  this open (its `it.fails` row): the answer overwrites the newer value and
-  nothing reads again. It needs a position in `MutationResult`, a protocol
-  change that #482 owns. This note adds nothing to it.
+- **An answer older than a live patch already delivered** (#499). #482's
+  matrix has this open (its `it.fails` row): the answer overwrites the newer
+  value and nothing reads again. As proposed, this note said it needs a
+  position in `MutationResult` and left it to #482. That premise is wrong,
+  and decision 5 settles it with idea 4 (section 6, "#499").
 
 Seam used: none. Second owner: a hold would have been one.
 
@@ -407,7 +415,22 @@ Three ways to do it:
 | H2. Freeze a relative patch to an absolute value when the layer begins | The prediction, fixed | The answer's | Breaks rebasing: two pending likes, the first fails, the second still shows both |
 | H3. Write the patch to the base and subtract the layer's own delta if the patch "looks like" the echo | Right when the guess is right | The answer's | A guess. Row 2 of the traces shows the echo cannot be told from another write |
 
-H1 is the recommendation. It reuses the two mechanisms #485 built: the
+**Decided: H4, a fourth way, which is H1 turned round** (decision 5).
+
+| Option | Visible during the write | After the answer | Cost |
+| --- | --- | --- | --- |
+| H4. Write the patch to the base as today. Keep, in Remote's Model, the value each patched field had before the first live patch that landed while a write was pending. A relative patch resolves over that kept value | The prediction over the base as it was when the first patch landed | The answer's value. If the base, as the stream left it, differs from the answer's value, read the field again | One record in `RemoteModel`, and one more input to the visible read. `Data.confirmed` is unchanged and current |
+
+H1 keeps the server's newer value out of the store and must put it back at
+every way a write can end: written on a failure, written when the answer
+omits the field, dropped on `forget`. H4 keeps the store what the server
+last said, so a failure, an answer `Gap`, persistence, the SSR resume plan
+and a mutation's `shown` need no new rule, and decision 6 has nothing left
+to decide. The same record is what #499 needs (section 6). The rest of this
+section is H1 as proposed, kept for the reasoning that carries over: the
+visible cost and the bounds are H4's too.
+
+H1 was the recommendation. It reuses the two mechanisms #485 built: the
 store-side wait (so the layer and `Data.confirmed` need no new rule) and the
 read-again that settles a disagreement without a timeout. It stays in
 Remote's Model, so it survives a replay and is collected with its row.
@@ -425,8 +448,15 @@ A staged patch must respect the same bounds as `echoes`: dropped on
 the outbox for hours must not stage for hours: staging applies only while
 the request is in flight, not while it is queued and delayed.
 
+That last rule is corrected by decision 5. A durable write between attempts
+has been sent and not answered (`attempt > 0`), so the server may have
+applied it, and its echo can arrive while the outbox calls it waiting. The
+bound is by age alone: a kept value older than `echoKept` is dropped, and
+the layer then resolves over the base as it does today.
+
 Seam used: `applyEntityEvent`'s context, `RemoteModel.echoes`' neighbour,
-`askedAgain`. Second owner: none.
+`resolvedPatches`' input (`optimistic.ts:310`), `askedAgain`. Second owner:
+none.
 
 ## 5. API sketch and phases
 
@@ -445,15 +475,25 @@ type Writing = TaggedUnion<{
   Failed: { requestIds: ReadonlyArray<string> }
 }>
 
-Data.writing(model)                    // every write of the domain
-Data.writing(model, { mutation })      // one Mutation's writes
-Data.writing(model, { row: ref })      // writes whose layer patches or deletes this row
+writing(Data, model)                   // every write of the domain
+writing(Data, model, { mutation })     // one Mutation's writes
+writing(Data, model, { row: ref })     // writes whose layer patches or deletes this row
 ```
 
 The worst state among the matching writes wins, in the order `Failed`,
 `WaitingForSignIn`, `Unanswered`, `Sending`. `row` takes an `EntityRef`, not
 a name string. The union is built with `defineTaggedUnion` and matched with
 its `match`.
+
+Decisions 8 and 9 changed three things in this sketch. It is a function of
+the domain and the Model, as `outboxStatus(Chirps, model)` is, not a method
+on `Data`. `mutation` takes the Mutation, not its name. And two facts the
+sketch got wrong are for the implementer to settle against the code before
+the union is fixed: the outbox has a fifth state, `Unreadable`
+(`packages/remote/src/outbox.ts:771`), which the union must carry or fold
+into `Failed` with a reason; and an outbox item's `requestId` is the write's
+operation id (`outbox.ts:808`), while the ledger keys by the client's request
+id, so `requestIds` must say which of the two it holds.
 
 ```ts
 // pseudocode: #439 R1, only when a consumer exists
@@ -463,30 +503,50 @@ Remote.reaches(write, query): 'reads' | 'unaffected' | 'unknown'
 Idea 4 has no API: it is a change to the live reduction, visible only as the
 absence of the extra count.
 
-**Phases.** Each ships alone.
+**Phases.** Each ships alone. Phase 1 is as decided, not as proposed.
 
 | Phase | What | Measured or shown by | Tests |
 | --- | --- | --- | --- |
 | 0 | #440: add section 1's table to `performance-PLAN.md`; close #440 | The table | None: no code |
-| 1 | #377 idea 4 (H1) | The four traces of section 2.3 as a table test: visible never exceeds the server's count in any frame | `temporal.test.ts` gains the relative rows (with #482's owner); a mutation spec restoring the unstaged write must be killed by rows 1 and 2; one case through the live entry with a lagging driver (`overlappingReads.test.ts`'s), the echo queued ahead of the answer; staged value written on failure; staged value dropped on `forget` and on a live delete; a second pending like whose first fails |
-| 2 | #377 ideas 2 and 3: `Data.writing` | Chirp's `waiting` becomes a match on it, with its browser test unchanged | A table over the ledger and outbox states, one row per variant; mutations for the precedence order and for `attempt > 0`; a restored outbox and a second tab (`outboxTabs.browser.test.ts`) read the same state; a type test that `row` refuses a string |
+| 1a | #498 (H4): a relative layer resolves over the value kept from before the first live patch | The four traces of section 2.3 as a table test: visible never exceeds the server's count in any frame, and `Data.confirmed` is the stream's value in every frame | The `it.fails` at `temporal.test.ts` "does not count a write's own live echo twice" becomes `it`; a mutation spec that resolves over the base again must be killed by rows 1 and 2; one case through the live entry with a lagging driver (`overlappingReads.test.ts`'s), the echo queued ahead of the answer; a failure shows the base at once; the record dropped on `forget`, on a live delete, and after `echoKept`; a second pending like whose first fails, and one whose first succeeds; a `computes` whose operand a live patch moves; the visible read's memo misses when the record changes and hits when it does not (two transitions) |
+| 1b | #499: an answer that disagrees with what a stream wrote while it was pending writes its value and reads the field again | The matrix's trace: answered after the third event, the read is `Refreshing` with a read planned, and the read's answer is what stays | The `it.fails` "does not let a late answer overwrite a newer live patch" is rewritten to assert the read planned and the value after `ReadReceived`, as its neighbour "reads the field again when a patch after the answer is not the answer" does; the three passing positions keep their frames, and "never Ada once the answer is in" stays; a stream that coalesces past the write (the newer value, never the write's own) is read again; an answer equal to what the stream left plans no read; a write with no prediction; mutations dropping the comparison and the record |
+| 2 | #377 ideas 2 and 3: `writing` | Chirp's `waiting` becomes a match on it, with its browser test unchanged | A table over the ledger and outbox states, one row per variant, `Unreadable` included; mutations for the precedence order and for `attempt > 0`; a restored outbox and a second tab (`outboxTabs.browser.test.ts`) read the same state; a type test that `row` refuses a string and `mutation` a name; `scripts/test/readOnlyPage.test.ts` unchanged |
 | 3 | #439 R1, when #437 or `explain` asks | Replaces `writeTrace.test.ts`'s local `candidate` | The #477 fixture, plus an exists whose `where` reads the written member (the helper's omission), a namesake Entity, a handler mutation; mutations dropping each reach variant |
 | 4 | #439 R2, when a page with many long lists exists | `read.bench.ts`: a list read after a write to another Entity falls from about 22 µs to a memo hit | In development, compare the kept value with a fresh read and report a difference (the pass's checker); a nested Selection reading a second Entity; a body reaching a third |
 
-Phase 1 comes first because it is the only defect. Phases 3 and 4 are not
-scheduled.
+Phase 1 comes first because it holds the only defects. 1a and 1b share one
+record and one reduction, so they are one change with two commits, each
+turning its own `it.fails` green; #482's matrix rows change in the same
+commits. Phases 3 and 4 are not scheduled.
 
-## 6. Decisions for the owner
+## 6. Decisions
+
+Decided 2026-11-10, delegated by the owner. Each item keeps the options as
+proposed, then the choice and its reason. Line numbers in this section are
+at `c31754c`.
 
 1. **#440: close on the measurement, or build the generator?**
    Options: (a) record section 1's table and close; (b) build per-Selection
    decoders for at most 0.76 kB.
    Recommendation: (a).
 
+   **Decided: (a).** The issue's premise does not hold: a read already
+   decodes through a Struct of the picked fields alone
+   (`packages/remote/src/selection.ts:245`, decoded at `rowRead.ts:74`). The
+   Schema interpreter stays whatever Remote does, since Foldkit's runtime
+   and Remote's own Model import it, so a generator could remove 0.3% of
+   domains-plus's client and would add a second decoder per Selection that
+   must be kept equal to the first.
+
 2. **#440: is a smaller wire for lists wanted at all?**
    Options: (a) no, nothing measured asks for it; (b) file a separate issue
    to measure uncompressed list payloads first.
    Recommendation: (a).
+
+   **Decided: (a).** No measurement names uncompressed JSON size as a cost,
+   and an issue filed to go looking for one is work with no reader. The rule
+   for reopening: a profile of a real page in which parsing or transfer of a
+   list answer is a named share of a slow interaction.
 
 3. **#439: infer write sets from `update`?**
    Options: (a) no: keep identity comparison, and drop the inferred map from
@@ -494,16 +554,119 @@ scheduled.
    Recommendation: (a). The saving is under 1% of a frame and the map is a
    second statement of what `update` does.
 
+   **Decided: (a).** The check it would skip costs under 1 µs per region
+   over Model paths and cannot be wrong; the map can be, and a miss is a
+   region left stale in production. It would also have to be regenerated on
+   every `update` change, which nothing enforces.
+
 4. **#439: what remains of it?**
    Options: (a) close; (b) keep it open for R1 (the static function) and R2
    (per-Entity versions), each waiting for its consumer; (c) build R2 now.
    Recommendation: (b), retitled to say so.
+
+   **Decided: (b), with a trigger written into the issue for each half.**
+   R2 is the only option that removes measured work without a claim to
+   check, but the work is 0.1 ms per write on the largest page there is, so
+   building it now would be tuning with no page that needs it. R1 is built
+   in the change that first needs it (#437's index check or `explain`), and
+   replaces `writeTrace.test.ts`'s helper then, including the exists'
+   `where` that helper omits. R2 is built when `read.bench.ts`'s figure
+   times a real page's lists passes 1 ms per write. Until one of those
+   happens the issue holds no work.
 
 5. **#377 idea 4: stage live patches under a pending relative layer?**
    Options: (a) H1, stage and read again on disagreement; (b) H2, freeze
    relative patches; (c) leave it, since the extra count lasts one request.
    Recommendation: (a). A like count that reads one too many is the kind of
    wrong a reader notices.
+
+   **Decided: fix it, by H4, a narrower variant of (a).** The defect is
+   real and pinned (#498, the `it.fails` "does not count a write's own live
+   echo twice while it is pending" in `packages/remote/test/temporal.test.ts`).
+   H1 holds the patch out of the store, which makes the store lag the server
+   and needs a write-back at every ending of a write. H4 lets the patch
+   write the base as it does today and holds the other side: Remote's Model
+   keeps the value a field had before the first live patch that landed
+   while a write was pending, and a relative patch resolves over that kept
+   value (`resolvedPatches`, `packages/remote/src/optimistic.ts:310`).
+
+   The rules of the record, which #499 shares:
+
+   - **What is recorded.** For a row a live patch writes while any request
+     of the domain is pending: each patched field, the value the base held
+     before the first such patch, and when it was heard. A later patch to
+     the same field leaves the kept value alone.
+   - **Who reads it.** A relative patch (`adds`, `computes`) reads the kept
+     value of every field it reads, its operands as well as its target. An
+     absolute patch reads nothing of it. `Data.confirmed` reads nothing of
+     it.
+   - **When an entry goes.** When an answer writes the field; when no
+     request is pending; on `forget`; on a live delete of the row; and when
+     it is older than `echoKept` (`liveEvents.ts:41`). After the last, the
+     layer resolves over the base as it does today: a write unanswered for
+     a minute may show the extra count, which is today's behaviour and
+     bounded.
+   - **A failure** drops the layer, and the base, which already holds the
+     stream's value, shows through. Nothing is written back.
+   - **Two pending writes to one field.** They resolve over the same kept
+     value. When the first is answered, its answer writes the field, the
+     entry goes, and the second resolves over the answer.
+
+   The visible cost is the one section 4 states for H1: another person's
+   like that arrives while mine is pending shows when my answer lands. The
+   count is never too high. `Data.confirmed` may read above the visible
+   count for the length of one request, which is correct: it is what the
+   server said.
+
+   **#499 is the same design, and needs no protocol change.** The note as
+   proposed, #482's matrix row and the test's comment all say the fix is a
+   stream position in `MutationResult`. No such position exists to carry. A
+   live cursor is a counter each subscription keeps for itself: `pollLive`
+   starts it at the subscriber's `after` and adds one per event it sends
+   (`packages/remote-drizzle/src/poll.ts:135-136`), and the hub adds one per
+   subscriber (`packages/remote-server/src/index.ts:1169`). A mutation's
+   handler knows no subscriber's counter, a polling stream coalesces what
+   happened between two ticks, and on Workers a write and a stream share
+   nothing but the database. A number an answer could carry and a client
+   could compare would need a commit sequence that every Source stamps on
+   its writes and on its live events. `pollLive`'s row log is optional and
+   the hub has none.
+
+   The client already has what it needs. The record above says which fields
+   a stream wrote since a request started. At the answer, for each field
+   the answer writes (its `entities` and its `read`):
+
+   - no live patch to it since the request started: as today;
+   - the base, as the stream left it, equals the answer's value: as today;
+   - the base differs: the client cannot say which is newer. The stream may
+     be behind the write (#485's case) or past it (#499's), and one that
+     coalesces can be past it without ever having sent the write's own
+     value. The answer's value is written and awaited as an echo, as today,
+     and the field is read again (`askedAgain`, as `contradicted` does at
+     `model.ts:2293`). "Only a read can say" is already the rule in
+     `heardBack`'s comment (`liveEvents.ts:67-75`).
+
+   The answer's value is written, not the stream's, because keeping the
+   stream's would put back the stale value #485 removed whenever the stream
+   is merely behind. Visible is the layer's value before the answer and the
+   answer's after it, which are equal in the usual case, so nothing
+   flickers; the read is `Refreshing` until the server says which.
+   `Data.confirmed` moves from the stream's value to the answer's and then
+   to the read's. A request that started before a patch was heard is the
+   only one compared with it, so an answer never reads again for a patch
+   older than its own request.
+
+   The cost is one read of one row's fields per write that a stream raced
+   and disagreed with. No measurement of how often that is exists. The rule
+   for adding a protocol field later: only if that read shows as a cost on
+   a real page, and then as an optional number on `MutationResult` and on
+   each live event, both taken from one sequence the Source owns, with the
+   rule above kept for a server or a Source that sends none. Optional
+   fields need no version: `MutationRequest` carries none
+   (`packages/remote/src/wire.ts:262`), `Mutate`'s errors hold no
+   `RemoteProtocolError` (`wire.ts:404-413`), and `now` was added the same
+   way (`wire.ts:275-280`). A required change to a mutation's shape would
+   first have to give the mutation request a version, which it lacks today.
 
 6. **#377 idea 4: what does `Data.confirmed` read of a staged field?**
    Options: (a) the base, which waits with the write; (b) the staged value,
@@ -512,10 +675,23 @@ scheduled.
    should see the server's count as soon as the client has it. It costs one
    more input to the confirmed read.
 
+   **Decided: the outcome of (b), with nothing to build.** Under H4 the
+   base holds what the stream sent, and `Data.confirmed` is the read with
+   the layers left off (`packages/remote/src/domain.ts:935-956`), so it
+   reads the server's count the moment the client has it. The extra input
+   moves to the visible read, which is the one that is predicting.
+
 7. **#377 idea 1: reject the hold?**
    Options: (a) reject, as #485 and the answer's read cover it; (b) build a
    hold with a timeout.
    Recommendation: (a).
+
+   **Decided: (a).** The answer releases the layer and writes the truth in
+   one reduction (`model.ts:2143-2198`), so there is no gap for a hold to
+   cover. A hold needs a timeout that a coalescing stream always runs to,
+   and it would be a second definition of "settled" beside the ledger's.
+   The case it left open, an answer older than a delivered patch, is #499
+   and is settled in decision 5 without one.
 
 8. **#377 ideas 2 and 3: one derived read, or an option on the write?**
    Options: (a) `Data.writing` as sketched; (b) `affects` on
@@ -523,17 +699,46 @@ scheduled.
    document Chirp's filter as the recipe.
    Recommendation: (a).
 
+   **Decided: (a), as a function, with the sketch's two errors fixed.**
+   Every fact it reports is already in Remote's Model, so it adds no owner,
+   and it is right after a reload and in a second tab, where a flag the
+   application writes is not. Chirp's hand-written `attempt > 0` filter
+   (`examples/chirp/src/view.ts:208-210`) is the evidence that one
+   application has already had to derive it. Its `mutation` filter takes
+   the Mutation, not a name (#251's rule), and the union accounts for the
+   outbox's `Unreadable` state and says which id it lists (section 5).
+   `outboxStatus` stays: it is the list of durable writes, and `writing` is
+   the one state a view matches on. `writing` is built from `statusOf`, not
+   beside it, so the two cannot disagree.
+
 9. **`Data.writing`'s place:** the root `Data` value, or
    `foldkit-remote/outbox` beside `outboxStatus`?
    Recommendation: `Data`. It reads non-durable writes too, and a read-only
    page that never calls it pays nothing either way only if it is a
    capability (#378); confirm with `scripts/test/readOnlyPage.test.ts`.
 
+   **Decided: neither as written. A function exported from
+   `foldkit-remote`'s root, `writing(Data, model, filter?)`, not a method
+   on the bound `Data`.** It reads non-durable writes, so a page with no
+   outbox must be able to import it without the outbox entry; a method on
+   an object every page holds cannot be dropped by a bundler, and a
+   function can. The measurement is missing, so the rule is the gate:
+   `scripts/test/readOnlyPage.test.ts` must hold unchanged. If the root
+   export fails it, because reading the queue's states brings outbox code
+   along, the function moves to `foldkit-remote/outbox` beside
+   `outboxStatus` and the non-durable `Sending` state is read there too.
+
 10. **Should the #480 audit's row be corrected now?** It says the layer wins
     over any live patch while a write is pending. Section 2.3 shows it does
     not for a relative layer.
     Recommendation: yes, in the change that lands phase 1, with #482's
     matrix row split into absolute and relative.
+
+    **Decided: yes, in phase 1's commits, not before.** Until the fix
+    lands, the matrix's two "failure, open" rows are the accurate record,
+    and the audit row is wrong only by what they already say. Correcting
+    the audit when the code changes keeps the summary and the section in
+    one change. The wording is in section 8.
 
 ## 7. Risks, review points, rejected alternatives
 
@@ -549,10 +754,11 @@ scheduled.
   Selection asks. Nothing proposed touches `fields`.
 - `Data.writing({ row })` reads the client's own layers. It names no field
   the server withheld.
-- Staging keeps a server-sent value in the Model for longer. It must be
-  dropped by `forget`, as `echoes` are, or one principal's staged value
-  could be written under the next. The answer generation that guards
-  `LiveReceived` (`model.ts:2266`) guards the staged write too.
+- The kept value (H4) is a server-sent value held in the Model for longer.
+  It must be dropped by `forget`, as `echoes` are, or a relative layer
+  could resolve over one principal's value for the next. The answer
+  generation that guards `LiveReceived` (`model.ts:2266`) guards the record
+  too.
 - Caching across principals: R2's counters are per store, and a store is per
   principal after `forget`. A read kept by counters must also key on the
   store's floor, or a list kept from before a `forget` could be served
@@ -563,21 +769,34 @@ scheduled.
 
 **Review points.**
 
-- Phase 1 changes `LiveReceived`, which #485 and #482 both pin with
-  mutation specs. Run `pnpm mutate:check`, then `echo.mutations.ts` and
-  `temporal.mutations.ts` whole.
-- A staged patch for a field the answer does not carry (an answer `Gap`)
-  must be written at settlement, not dropped, or the field is stale with
-  nothing to refresh it.
-- Two streams can stage the same field. Keep the value of the later event
-  per stream, as `echoes` records `heard` per stream.
+- Phase 1 changes `LiveReceived` and `MutationSucceeded`, which #485 and
+  #482 both pin with mutation specs. Run `pnpm mutate:check`, then
+  `echo.mutations.ts` and `temporal.mutations.ts` whole.
+- The visible read is kept by the identity of the store entries it visited
+  (`rowRead.ts`). The kept values are a new input to it: a read kept from
+  before an entry was recorded or dropped must not be served after. Test
+  it with two transitions, not one.
+- The record is one value per field, whichever stream wrote first. A
+  second stream's patch to the same field leaves it alone.
+- An answer `Gap` needs no rule under H4: the base already holds what the
+  stream sent for a field the answer omits.
+- A `computes` reads operands. The kept value is read for each field a
+  relative patch reads, not only the one it writes: an echo that moved an
+  operand is counted twice as an echo of the target is.
+- The read-again of #499 must not fire for the ordinary answer, whose
+  value always differs from the base it replaces. It fires only for a field
+  the record names since that request started. A mutation dropping that
+  condition must be killed by a test that counts planned reads after a
+  plain write with a quiet stream.
 - `Data.writing`'s `Sending` must not be drawn as "waiting": the Chirp trap
   is exactly a view treating in-flight as stuck. The doc comment should say
   which variant a "waiting to send" line reads.
 - R1 must compare members by owner identity and include an exists' `where`.
-- Any wire change bumps `REMOTE_PROTOCOL_VERSION` and needs the client's
-  request and response types diffed against the payload schemas (the
-  "wire carries every field" trap).
+- Nothing decided here changes the wire. A later change to `ReadRequest`
+  or `LiveRequirement` bumps `REMOTE_PROTOCOL_VERSION` and needs the
+  client's request and response types diffed against the payload schemas
+  (the "wire carries every field" trap). The version does not cover a
+  mutation: `MutationRequest` names none (`wire.ts:262`).
 
 **Rejected alternatives.**
 
@@ -595,6 +814,12 @@ scheduled.
   that a coalescing stream always hits.
 - **Telling an echo from another write by its value** (H3): row 2 of the
   traces shows it cannot be done.
+- **Staging the live patch out of the store** (H1): the store would lag the
+  server, and every ending of a write would need a write-back. H4 holds the
+  layer's side and leaves the store alone.
+- **A stream position in `MutationResult`** (#499 as filed): a live cursor
+  is a counter per subscription, so there is nothing to compare it with
+  (decision 5).
 - **A graph value spanning writes, queries, Surfaces and regions**: #477
   decided each edge already has an owner and an API. R1 is one function, not
   a graph.
@@ -602,3 +827,38 @@ scheduled.
   `Write` already states what it writes (`Write.writes`), and a handler
   mutation's writes are known only from its answer. Running `update` adds
   nothing to either.
+
+## 8. Issue actions
+
+For the coordinator. Nothing here was done in this change.
+
+| Issue | Action | Title or note |
+| --- | --- | --- |
+| #440 | Close, with section 1's table added to `performance-PLAN.md` (phase 0) | Closing note: a read already decodes per Selection (`selection.ts:245`); Schema is 7.0% and 8.9% of the two clients and stays whatever Remote does; a generator could remove 0.76 kB and 0.18 kB |
+| #439 | Keep, narrowed | "Remote: say statically which lists a declared write reaches, and keep a list read while no Entity it reads was written". Body: the inferred write-set map is dropped (decision 3); R1 is built by the change that first needs it (#437 or `explain`); R2 when `read.bench.ts`'s figure times a real page's lists passes 1 ms per write |
+| #377 | Keep, narrowed | "Remote: `writing`, one derived read of what is being saved". Body: idea 1 rejected; idea 4 is #498; ideas 2 and 3 are phase 2 |
+| #498 | Keep; fixed by phase 1a | Add to the body: fixed by keeping what a relative layer resolves over (H4), not by staging the patch |
+| #499 | Keep, retitled; fixed by phase 1b | "Remote: an answer that disagrees with a live patch delivered while it was pending is not read again". Body: no field is added to `MutationResult`; the reason is decision 5 |
+
+Corrections owed in other notes, each in the commit that makes it true:
+
+- **`480-async-guarantees-DESIGN.md`, the Holds row "a live answer landing
+  during a held action"** (line 93) and its counterexample text (line 131).
+  With phase 1: while a write is pending, an absolute layer shows its value
+  over any live patch, and a relative layer resolves over the value from
+  before the first one; an answer that disagrees with what a stream wrote
+  meanwhile is read again. `docs/design/TODO.md:58` already lists this
+  under #498.
+- **`482-temporal-laws-MATRIX.md`**, rows 79 and 83 and the count of open
+  failures (line 124), with phases 1a and 1b. Row 83's note "Needs a
+  position in the answer (protocol), not a local fix" is wrong today and
+  can be corrected before the fix: it needs a record of what a stream wrote
+  while the write was pending, and a read. The paragraph at line 134 says
+  the same.
+- **`packages/remote/test/temporal.test.ts:255-259`**, the comment above
+  the #499 case, says the same; it changes with phase 1b.
+- **`performance-PLAN.md`** gains section 1's table (phase 0), and its
+  lines 382 and 385 and `declared-optimization-DESIGN.md:118`, `:149`
+  record #439 as narrowed and #440 as closed.
+- **`docs/design/README.md` and `docs/design/TODO.md`**: this note's status
+  is decided, with ten decisions made.
