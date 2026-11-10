@@ -28,17 +28,9 @@ const pastGuards = (name: string, find: string, replace: string, survives?: stri
 })
 
 export default [
-  {
-    name: "a chirp's likes are each judged by their liker's rule when it is taken down",
-    edits: [
-      {
-        file: '../src/domain.ts',
-        find: "{ onDelete: 'cascade', authorizedBy: 'parent' }",
-        replace: "{ onDelete: 'cascade' }",
-      },
-    ],
-    tests: server,
-  },
+  // `authorizedBy: 'parent'` on Like.post is not mutated: without it `GuardServer.writer` refuses
+  // to build (a delete of Post would take Likes under their own rule), so the module fails to
+  // load and no test can fail for the claim. The guard package's tests own that refusal.
   pastGuards(
     'a chirp is deleted past its guards',
     'RemoteServer.write(DeletePost, guarded)',
