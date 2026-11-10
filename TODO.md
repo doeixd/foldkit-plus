@@ -209,12 +209,10 @@ In the same change:
   - the animation-settle issue (draft written; item 9 of the Order list in
     `docs/upstream-foldkit-ssr.md`);
   - a comment on foldkit#1448 that `SSR.headed` now carries the head here.
-- [ ] **GitHub actions the notes list** (not done: they need the maintainer's
-      go-ahead): close #185, #64, #483, #440; retitle and comment #472, #427,
-      #435, #432, #236, #438, #235, #439, #377, #498, #499, #424, #429, #430,
-      #420, #500, #479, #478; park comments on #376, #433, #148, #149; a
-      comment on #474; file the two Bundle.lazy bugs. The texts are in each
-      note's Issue actions section.
+- [x] **GitHub actions the notes list:** done 2026-11-10 on the maintainer's
+      go-ahead. #185, #64, #483 and #440 closed; the narrowed issues retitled
+      and commented; park comments on #376, #433, #148, #149 and a comment on
+      #474; the two Bundle.lazy bugs filed as #501 and #502.
 - [ ] **`TYPESAFE_API_KEY`**, so the Jev review can run. It is owed on:
   - #497's public API: `SSR.headed`, `RootRefusesHead`, the exported SSR
     diagnostic types, `Button.view`'s `attributes`, the resolver's class
@@ -235,7 +233,7 @@ In order. Every item runs the loop above.
 1. **#498 and #499, one change (Remote note phase 1a/1b).** #498's `it.fails`
    turns green with 1a, #499's with 1b.
 2. **#500 (Expr note phase 1: doc comment and type tests).**
-3. **The two Bundle.lazy bugs (site/host note phase B).**
+3. **#501 and #502, the two Bundle.lazy bugs (site/host note phase B).**
 4. **The small findings** listed under "Bugs and findings from 2026-11-10" in
    `docs/design/TODO.md`: the reference Worker's `WeakMap`, the
    `writeTrace` helper's exists reads, the 90 KB against 69 KB page.

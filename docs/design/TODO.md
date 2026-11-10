@@ -73,10 +73,10 @@ phase ships alone and records its number; the gates below are the notes' own.
   note phase 1b).
 - [ ] **#500:** `ReadsOf` gives `never` for an unmarked node. The type keeps
   `never`; doc comment and type tests only (Expr note phase 1).
-- [ ] **To file:** Bundle.lazy: a page stays on `while` after its bodies load
+- [ ] **#501:** Bundle.lazy: a page stays on `while` after its bodies load
   when no Model changes. Blocks the site and host note's phase C2.
   [235-236-438-site-host-DESIGN.md](./235-236-438-site-host-DESIGN.md)
-- [ ] **To file:** Bundle.lazy: a failed load of the bodies crashes the
+- [ ] **#502:** Bundle.lazy: a failed load of the bodies crashes the
   application (`Effect.promise`, `packages/bundle/src/lazy.ts:154`;
   contradicts `packages/bundle/README.md:1007-1008`). Blocks the site and
   host note's phase C2.
