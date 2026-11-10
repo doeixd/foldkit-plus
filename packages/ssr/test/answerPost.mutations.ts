@@ -22,8 +22,8 @@ export default [
     edits: [
       {
         file: index,
-        find: 'headersOf(request, Option.some(model))',
-        replace: 'headersOf(request, Option.none())',
+        find: 'const extra = yield* Effect.sync(() => headersOf(request, Option.some(model)))',
+        replace: 'const extra = yield* Effect.sync(() => headersOf(request, Option.none()))',
       },
     ],
     tests,

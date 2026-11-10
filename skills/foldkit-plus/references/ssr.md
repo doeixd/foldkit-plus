@@ -282,7 +282,7 @@ would rebuild those elements.
   root's last children for a served page, which has no template head to
   write to; `SSR.hydrate` moves them into the head (hydration would remove
   them), and styles for a void root are refused with `VoidRootWithStyles`.
-- `SSR.entry(config, plan, { buildId, flags?, prepare?, headers?, resources?, origins?, styles?, status?, answerPost?, prerendered?, diagnostics?, cache? })` returns the
+- `SSR.entry(config, plan, { buildId, flags?, prepare?, redirect?, headers?, resources?, origins?, styles?, status?, answerPost?, prerendered?, diagnostics?, cache? })` returns the
   `{ renderPage }` a Foldkit server entry exports for `handleRequest` (or the
   `foldkit` Vite plugin's dev server). `GET` and `HEAD` render, `POST` is
   handled for a plan with `fallback: 'server'`; other methods get `405`; a
@@ -295,10 +295,19 @@ would rebuild those elements.
   to move it before `</head>`, or `SSR.hydrate` reports `HeadNotMoved` (the
   served head lacked it) and removes it. A void root refuses it
   (`RootRefusesHead`: void, table, `svg`, raw-text roots).
+- `redirect: (model, request) => Option<string>` (#235) answers a `GET`/`HEAD`
+  `303` to the path from the Model `prepare` made, before any render (the view
+  never runs), so one entry decides access and draws the page from one read:
+  `Access.match(accessOf(model), { Denied: ({ url }) => Option.some(url), … })`.
+  It carries the entry's `headers` (given that Model) with `cache-control:
+  private, no-store` over theirs, and `cache` never keeps it. The path must
+  start with one `/` and stay on the request's origin (an absolute URL,
+  `//host`, `/\host`, a relative path are a reported `500`). A post is
+  `answerPost`'s.
 - `cache: { store, maxAge, check? }` (`PageCache`, #428) keeps a `GET`/`HEAD`
   page by build id and full URL when it was drawn from the URL alone: every
   read through `pageReader` public (`PageReads`), every request header that
-  `flags`/`prepare`/`headers`/`status` read absent (they get a request that
+  `flags`/`prepare`/`redirect`/`headers`/`status` read absent (they get a request that
   records reads; reading all headers, `clone`, or an `SSR.requestContext`
   keeps nothing; handing it to `fetch`/`new Request` fails), no `set-cookie`
   or own `cache-control`, status 200. Kept for the shortest of `maxAge` and

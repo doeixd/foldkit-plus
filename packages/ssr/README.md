@@ -468,7 +468,8 @@ the Message is checked against the active Surfaces and `update` runs, so the
 post starts from the Model the page it came from was drawn with, and one
 entry, made once, serves every request. A `prepare` that fails is answered
 `500` and reported; one that would rather draw the page unread recovers
-inside its Effect. `POST` is handled only for a plan with a
+inside its Effect. A page the prepared Model says to send elsewhere is a
+`303` ([`redirect`](#sending-a-page-elsewhere-redirect)). `POST` is handled only for a plan with a
 [server fallback](#forms-that-work-without-scripts). `OPTIONS` is answered
 `204` and any other method `405`, each with the methods the entry answers in
 `allow`. A render that fails or throws, `flags` that reject, and a plan the
@@ -616,6 +617,60 @@ serves. [`examples/auth`](../../examples/auth)'s `src/host.ts` is the whole
 site behind one handler; its development server, another process, attaches
 an HTTP reader instead.
 
+### Sending a page elsewhere: `redirect`
+
+A page the reader may not see (a notebook asked for by a visitor) is answered
+with a `303` to where they belong, decided from the Model `prepare` read as
+them. `redirect: (model, request) => Option<string>` says so, in the entry
+made once:
+
+```text
+GET url -> init -> prepare (read as the reader) -> redirect(model)
+        -> some(path): 303, location: path, cache-control: private, no-store
+        -> none:       render the page from that same Model
+```
+
+<!-- docs-check
+import { Access } from 'foldkit-site'
+declare const accessOf: (model: Model) => Access
+-->
+
+```ts
+export const guarded = SSR.entry(config, Post, {
+  buildId,
+  prepare: (model, request) =>
+    Option.match(PageContext.of(request), {
+      onNone: () => Effect.fail(new Error('No reader for this page.')),
+      onSome: ({ reader }) => Data.satisfy(model, actives).pipe(Effect.provide(reader)),
+    }),
+  redirect: model =>
+    Access.match(accessOf(model), {
+      Denied: ({ url }) => Option.some(url),
+      Allowed: () => Option.none(),
+      Pending: () => Option.none(),
+    }),
+})
+```
+
+`redirect` runs for `GET` and `HEAD`, after `prepare` and before anything is
+rendered, so the decision and the page come from one read; a page sent
+elsewhere never runs its view. A posted form is answered by
+[`answerPost`](#answering-a-post-with-a-redirect), not by `redirect`.
+
+- **It is never kept, for anyone.** A redirect is one reader's answer, so it
+  says `cache-control: private, no-store` over whatever `headers` set, and
+  `cache` never stores it, however public the reads behind it were. The next
+  request is decided again.
+- **It carries the entry's `headers`,** given the Model the redirect was
+  decided on (a cookie written from it, `vary`); only `cache-control` is the
+  entry's own.
+- **It goes nowhere but a path on this origin.** The path must start with a
+  single `/` and, resolved against the request's address, keep its origin:
+  an absolute URL (even this origin's), `//elsewhere.test`,
+  `/\elsewhere.test` (which a browser reads as `//`), a relative path or a
+  scheme is answered `500` and reported, as a `redirect` that throws is. The
+  `location` written is the path as resolved.
+
 ### Keeping pages: `cache`
 
 A page drawn from its URL alone is the same page for everyone who asks for
@@ -642,7 +697,7 @@ export const cached = SSR.entry(config, Post, {
 
 Whether a page may be kept is decided from what its render read, not from
 a declaration. The render is handed a request that records each header
-`flags`, `prepare`, `headers` or `status` reads; a page is kept only when
+`flags`, `prepare`, `redirect`, `headers` or `status` reads; a page is kept only when
 every one of them was absent from the request, so it was drawn from the URL
 alone. A header read by name (the cart cookie, say) that was absent goes in
 `vary`, and the kept page serves only requests that lack it too: a request

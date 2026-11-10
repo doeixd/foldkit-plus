@@ -17,8 +17,8 @@ export default [
   edit(
     'an unkept page says nothing',
     entry,
-    "headers.set('cache-control', 'private, no-store')",
-    '',
+    "const headers = new Headers(result.headers)\n    headers.set('cache-control', 'private, no-store')",
+    'const headers = new Headers(result.headers)',
   ),
   edit(
     "the application's cache-control is overwritten",
