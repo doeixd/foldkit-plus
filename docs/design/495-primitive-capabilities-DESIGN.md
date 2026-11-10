@@ -49,11 +49,12 @@ The facts a parent does decide are few:
 | `Selection` | `activate(id)`, `replace(ids)`, `clear()` | `Activated`, `Replaced`, `Cleared` |
 | `TreeNavigation` | `focus(id)`, `open(id)`, `close(id)`, `toggle(id)` | `Focused`, `Opened`, `Closed` |
 | `RovingTabindex`, `ListNavigation`, `GridNavigation` | `focus(id)` | `Focused` |
-| `LiveAnnounce` | `announce(text)`, `clear()` | `Announced`, `Cleared` |
+| `LiveAnnounce` | `announce(text, politeness?)` | `Announced` |
 | `Typeahead` | `clear()` | `Cleared` |
 
 `DismissLayer`, `Press` and `LongPress` get none: every Message they have is an
-input event. `toggle` is the one capability that is not a single Message.
+input event. Nor does `LiveAnnounce.Cleared`, which its own timer sends with a
+generation. `toggle` is the one capability that is not a single Message.
 Today the parent reads `isOpen` and picks `Opened` or `Closed`, a decision
 that belongs to the child.
 
@@ -143,3 +144,12 @@ build, not assumed.
   crud, cms and form tests).
 - The scaffold job lints the copied examples with demos ignored, and fails
   on a reintroduced `wrapper.make(TreeNavigation.Message.Opened(...))`.
+
+## Left for a follow-up
+
+`LiveAnnounce.say(declared)` builds the wrapped `Announced` for a parent, with
+a cast to the parent's Message. `foldkit-builder` uses it inside two of its own
+Commands, to announce after an asynchronous step such as a clipboard copy.
+Replacing it means those Commands return a builder Message whose `update` calls
+`announce`. That is a change to the builder, not to the primitives, so it was
+left out of this one.

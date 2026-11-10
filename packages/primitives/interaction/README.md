@@ -138,6 +138,29 @@ stays a runtime contract while the Model and Messages stay typed. The Bundle
 still owns the state and `update`; the helper only removes the repeated
 wrapper/mount wiring, and a Behavior still owns none.
 
+## What a parent decides: helpers
+
+A Behavior reports what a person did, and the Bundle applies it. A parent
+never builds those Messages: when the parent itself decides something, it calls
+the Bundle's helper, which runs the same `update` with the placement's args.
+
+| Bundle | Helpers on the placement |
+| --- | --- |
+| `Selection` | `activate(id)` (as a click), `replace(ids)`, `clear()` |
+| `TreeNavigation` | `focus(id)`, `open(id)`, `close(id)`, `toggle(id)` (open or shut by the tree's own state) |
+| `RovingTabindex`, `ListNavigation`, `GridNavigation` | `focus(id)` |
+| `Typeahead` | `clear()` |
+| `LiveAnnounce` | `announce(text, politeness?)` |
+
+Each is an `Update.Step` of the parent: `Picks.helpers.activate(id)(model)` in
+`update`, after the placement `Picks = Parent.at(Bundle.declare(Selection.bundle,
+'picks'), { args })`. A control the parent draws for a child, such as a tree
+row's expander, sends a Message of the parent's own (`ToggledRow({ id })`), and
+`update` calls `Nav.helpers.toggle(id)`. That keeps every fact the child applies
+inside the child, which `@foldkit/oxlint-plugin`'s
+`no-child-message-construction-in-root` checks. `Press`, `LongPress` and
+`DismissLayer` have no helpers: everything they apply is an input event.
+
 ## Finding and moving
 
 **`Typeahead`** is type-to-find for a host that has no roving tab stop, or

@@ -47,33 +47,37 @@ export const Args = Schema.Struct({
 })
 export type Args = typeof Args.Type
 
+const update = (model: Model, message: Message, args: Args): Update.Return<Model, Message> =>
+  Message.match<Update.Return<Model, Message>>(message, {
+    // Moving focus by key dispatches `Focused`, and the item's `OnFocus` reports it again.
+    Focused: ({ id }) => (model.current === id ? { model } : { model: { ...model, current: id } }),
+    Typed: ({ char, match }) => {
+      const generation = model.generation + 1
+      return {
+        model: { current: match ?? model.current, query: model.query + char, generation },
+        commands: [
+          {
+            name: 'ListNavigation.expire',
+            args: { generation },
+            effect: Effect.as(Effect.sleep(args.timeoutMs), Message.Expired({ generation })),
+          },
+        ],
+      }
+    },
+    Expired: ({ generation }) => (generation === model.generation ? clearQuery(model) : { model }),
+    Cleared: () => clearQuery(model),
+  })
+
 export const bundle = Bundle.make('ListNavigation', {
   Model,
   Message,
   args: Args,
   init: () => ({ model: { current: null, query: '', generation: 0 } }),
-  update: (model, message, args) =>
-    Message.match<Update.Return<Model, Message>>(message, {
-      // Moving focus by key dispatches `Focused`, and the item's `OnFocus` reports it again.
-      Focused: ({ id }) =>
-        model.current === id ? { model } : { model: { ...model, current: id } },
-      Typed: ({ char, match }) => {
-        const generation = model.generation + 1
-        return {
-          model: { current: match ?? model.current, query: model.query + char, generation },
-          commands: [
-            {
-              name: 'ListNavigation.expire',
-              args: { generation },
-              effect: Effect.as(Effect.sleep(args.timeoutMs), Message.Expired({ generation })),
-            },
-          ],
-        }
-      },
-      Expired: ({ generation }) =>
-        generation === model.generation ? clearQuery(model) : { model },
-      Cleared: () => clearQuery(model),
-    }),
+  update,
+  /** What a parent decides: `placed.helpers.focus(id)` makes an item current. */
+  helpers: args => ({
+    focus: (model: Model, id: string) => update(model, Message.Focused({ id }), args),
+  }),
 })
 
 export interface BehaviorOptions<Input, Slots, ParentMessage> {

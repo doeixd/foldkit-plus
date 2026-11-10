@@ -43,6 +43,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Child update capabilities for the interaction primitives**
+  (`foldkit-primitives`, #495). A parent applies its own decisions through
+  helpers on the placement, never by building the child's Messages:
+  `Selection.activate`, `replace` and `clear`; `TreeNavigation.focus`, `open`,
+  `close` and `toggle`, which reads open or shut from the tree's state;
+  `focus` on `RovingTabindex`, `ListNavigation` and `GridNavigation`;
+  `Typeahead.clear`; and `LiveAnnounce.announce`. Each runs the Bundle's own
+  `update` with the placement's args, so `@foldkit/oxlint-plugin`'s
+  `no-child-message-construction-in-root` is satisfied.
+
 - **Helpers that read their placement's args** (`foldkit-bundle`). `helpers`
   may be a function of the args, `helpers: ({ limit }) => ({ fill })`, as
   `subscriptions` and `resources` are; each placement and collection calls it
