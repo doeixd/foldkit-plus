@@ -617,15 +617,20 @@ green commit. Shared history is not rewritten.
   Switch RTL, Kbd, Checkbox and Segmented ink centring (use the audit's
   `ink.mjs` method), Alert and Pagination at 390px, VirtualList. Each gets
   its measuring test before it is marked again.
-- [ ] A3's test covers TreeView only and skips "never taller than its
+- [x] A3's test covers TreeView only and skips "never taller than its
   final height" and "the first label's x never moves": add both, and
-  Sidebar.
+  Sidebar. **Done** 2026-11-10: TreeView and Sidebar sample every frame of
+  an opening (Sidebar slowed eightfold), holding the first row's offset and
+  its x; a mutation of each is killed in both. "Never taller" is not
+  tested, because it cannot fail here: a `0fr` to `1fr` row stops at its
+  content, and with the stretched heading row restored the group peaked at
+  exactly its final 81.375px while its first row moved 20px.
 - [x] `test/menu.mutations.ts:55` removes `topLayer` but keeps
   `popover="manual"`, hiding the panel; remove both so only the overflow
   test kills it. **Done**: 816cff40.
-- [ ] The radio "press" test checks `label.control`; press it.
+- [x] The radio "press" test checks `label.control`; press it. **Done**: `radioGroup.browser.test.ts` presses the words and the description with `userEvent.click` (found 2026-11-10).
 - [ ] Badge, kbd, buttonLook and checkbox-recipe mutation specs re-read the
-  CSS line they change: replace with behaviour or computed-style tests. **Partly**: badge and kbd (24e850c9), buttonLook (90d44648); the checkbox recipe's spec is left.
+  CSS line they change: replace with behaviour or computed-style tests. **Done**: badge and kbd (24e850c9), buttonLook (90d44648), and the checkbox recipe's (`toggleGeometry.mutations.ts` over `toggleGeometry.browser.test.ts`, which measures the box and reads computed style; 13 of 13 killed, 2026-11-10).
 
 ### E5. Merges and their docs
 

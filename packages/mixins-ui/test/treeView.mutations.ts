@@ -85,6 +85,23 @@ export default [
     tests: [browser],
   },
   {
+    name: 'an opening group slides its rows in from the side',
+    edits: [
+      {
+        file: '../src/recipes/design.ts',
+        find: "      gridTemplateRows: 'auto 0fr',\n      alignContent: 'start',\n      transitionProperty: 'grid-template-rows',",
+        replace:
+          "      gridTemplateRows: 'auto 0fr',\n      alignContent: 'start',\n      paddingInlineStart: '1rem',\n      transitionProperty: 'grid-template-rows, padding-inline-start',",
+      },
+      {
+        file: '../src/recipes/design.ts',
+        find: "      gridTemplateRows: 'auto 1fr',",
+        replace: "      gridTemplateRows: 'auto 1fr',\n      paddingInlineStart: '0',",
+      },
+    ],
+    tests: [browser],
+  },
+  {
     name: 'a row holding rows is never mixed',
     edits: [
       {

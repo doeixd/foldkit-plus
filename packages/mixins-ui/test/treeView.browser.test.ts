@@ -196,6 +196,7 @@ test('while a group opens, its first row stays put under its parent row', async 
     const group = item('src').querySelector('[role="group"]')!
     const offsets: Array<number> = []
     const heights: Array<number> = []
+    const lefts: Array<number> = []
     await userEvent.click(row('src'))
     const settled = await vi.waitFor(
       async () => {
@@ -205,6 +206,7 @@ test('while a group opens, its first row stays put under its parent row', async 
           row('components').getBoundingClientRect().top - row('src').getBoundingClientRect().top,
         )
         heights.push(group.getBoundingClientRect().height)
+        lefts.push(row('components').getBoundingClientRect().left)
         expect(item('src').getAnimations({ subtree: false })).toHaveLength(0)
         expect(heights.length).toBeGreaterThan(3)
         return heights.at(-1)!
@@ -214,6 +216,9 @@ test('while a group opens, its first row stays put under its parent row', async 
     // Mid-flight, so the samples cover the opening and not only its end.
     expect(heights.some(height => height > 0 && height < settled)).toBe(true)
     expect(Math.max(...offsets) - Math.min(...offsets)).toBeLessThan(0.5)
+    // Nor sideways. (It cannot overshoot its height: a `0fr` to `1fr` row
+    // stops at its content, so the stretched row showed as the offset above.)
+    expect(Math.max(...lefts) - Math.min(...lefts)).toBeLessThan(0.5)
   } finally {
     handle.dispose()
   }
