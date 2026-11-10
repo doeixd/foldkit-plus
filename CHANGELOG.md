@@ -77,6 +77,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`SSR.entry`'s `redirect`** (`foldkit-ssr`, #235). `redirect: (model,
+  request) => Option<string>` answers a `GET` or `HEAD` with a `303` to the
+  path, decided from the Model `prepare` made and before anything is
+  rendered, so a page that sends a reader elsewhere is one entry made once.
+  The answer carries the entry's `headers`, says `cache-control: private,
+  no-store` over theirs, and is never kept by `cache`. A path that does not
+  start with a single `/` or leaves the request's origin is a reported `500`.
+  `examples/reference` and `examples/auth` make their entry once with it.
+
 - **Style modules shipped as data** (`foldkit-mixins`, #420).
   `styles({ sheet, modules })` from `foldkit-mixins/vite` evaluates each listed
   style module with the sheet, and the production browser build ships it as
