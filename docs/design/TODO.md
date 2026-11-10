@@ -15,14 +15,15 @@ were removed on 2026-11-10.
 Each note's Decisions section was settled on 2026-11-10 by delegation. Each
 phase ships alone and records its number; the gates below are the notes' own.
 
-- [ ] **SSR delivery** (#472, #427, #432, #435). Phase 0 probes done but
-  the `Link` header (needs a Worker). Phase 2 built: `foldkit-ssr/loader`
-  (f4ecb3a..1e4e8dc), opt-in for domains-plus (`DOMAINS_PLUS_LOADER=1`):
-  script at start 207 to 2.3 kB brotli, total +2 kB. Its default waits on
-  TBT and first-press time at 4x and the held-press e2e (need Wrangler).
-  Phase 1 built: a pass reads in one round trip, 2 calls to 1 (#435:
-  baf192a..ceea6d3). Streaming only as headers first, if the `Link` probe
-  and the 50 ms bar pass; #432's hydration spike is still to run.
+- [ ] **SSR delivery** (#472, #432, #435). Phase 2 built: `foldkit-ssr/loader`
+  (f4ecb3a..1e4e8dc) with its held-chunk e2e (002e848); opt-in for
+  domains-plus (`DOMAINS_PLUS_LOADER=1`). Not the default (decision 5): at 4x,
+  script at start 207 to 2.3 kB and blocking no worse, but total script
+  +2.4 kB and a press at `load` 1,224 ms against 403 ms, since the chunk is
+  fetched at idle. Next: try fetching the chunk at `load` (evaluated at idle
+  or intent) and measure again. Phase 1 built: one round trip per pass
+  (#435). #427 closed: the `Link` header saved 6 ms of FCP (bar 50). #432's
+  hydration spike is still to run.
   [472-427-432-435-ssr-delivery-DESIGN.md](./472-427-432-435-ssr-delivery-DESIGN.md)
 - [ ] **Site and host** (#236, #235, #438). Built: B (#501, #502: b10c409),
   D1 (Chirp on node Surfaces, the policy-by-route recipe: e91a378) and H1
@@ -66,9 +67,12 @@ phase ships alone and records its number; the gates below are the notes' own.
   H1): in "a session the server no longer holds is refused…", after Sign
   out the page still read "Signed in as grace" through the 5 s poll. Not
   compared with the commit before H1. Watch for a recurrence.
-- [ ] **domains-plus served 90 KB on workerd against 69 KB under Node** for
-  the same kind of page; find why before comparing the two CPU figures.
-  [performance-PLAN.md](./performance-PLAN.md)
+- [ ] **Foldkit's view-identity markers add 20 KB to a served page**
+  (domains-plus on workerd: 487 `data-foldkit-identity` attributes, 38
+  distinct; the whole 90 KB against 69 KB gap). Neither the Vite plugin nor
+  `foldkit-ssr` can turn them off. An upstream ask (one marker per view
+  root) is described in `performance-PLAN.md`; parse5 CPU under Node is
+  measured on the smaller page, so it understates workerd.
 - [ ] **The skill's version stamps** are behind (`foldkit-plus` 0.19.0
   against 0.20.0, `foldkit-remote` 0.23.0 against 0.24.0); re-check each
   reference against the code at the next release and only then bump it.
