@@ -228,24 +228,25 @@ In the same change:
 
 ## The queue
 
-In order. Every item runs the loop above.
+In order. Every item runs the loop above. Done today and off the queue: #500
+(803f3dc), #501 and #502 (b10c409), the reference Worker's `WeakMap`
+(1088a2d), the `writeTrace` helper (7cc664a), #478's `step` (bdf0537), and
+the styling and renderer phase 0 measurements (b05106a, 533dffe).
 
-1. **#498 and #499, one change (Remote note phase 1a/1b).** #498's `it.fails`
-   turns green with 1a, #499's with 1b.
-2. **#500 (Expr note phase 1: doc comment and type tests).**
-3. **#501 and #502, the two Bundle.lazy bugs (site/host note phase B).**
-4. **The small findings** listed under "Bugs and findings from 2026-11-10" in
-   `docs/design/TODO.md`: the reference Worker's `WeakMap`, the
-   `writeTrace` helper's exists reads, the 90 KB against 69 KB page.
-5. **The notes' first phases**, each with its gate:
-   - Remote phase 0 (no code): the table into `performance-PLAN.md`.
-   - Renderer phase 0a: `pnpm bench:render` re-run; stops there if no frame
-     is over 16 ms at 4x in both rounds.
-   - Styling phase 0: the three style rows; phase 1 only over 15 KB brotli.
-   - SSR delivery phase 0: the probes; then phase 2, the loader.
-   - Site and host: Phase 0 baselines, D1 and H1 (B is item 3); then H3, H2.
-   - Expr phase 2 (`step`), after phase 1.
-6. **The UI polish leftovers** in `docs/design/TODO.md`, one per bout between
+1. **#498 and #499, one change (Remote note phase 1a/1b).** In progress.
+2. **#420 phase 1, build-time style modules,** with the 12 KB exit gate. In
+   progress.
+3. **Renderer phase 0b** (ablate drawing for `UpdatedSearch` and
+   `SelectedItem`, clean tree). In progress.
+4. **Site and host:** D1 (Chirp on node Surfaces) and H1 (`SSR.entry`'s
+   `redirect`) in progress; then Phase 0 baselines, H3, H2.
+5. **SSR delivery:** phase 0 probes, then phase 2, the loader (after #420
+   frees domains-plus).
+6. **Remote phase 2** (`writing`), after #498/#499; **#424's defaults**,
+   after #420.
+7. **The rest of the small findings** in `docs/design/TODO.md` (the 90 KB
+   against 69 KB page; Chirp's bundle extras).
+8. **The UI polish leftovers** in `docs/design/TODO.md`, one per bout between
    larger items.
 
 ## Parked
