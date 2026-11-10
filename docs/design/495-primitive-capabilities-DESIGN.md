@@ -1,7 +1,6 @@
 # Child update capabilities for the interaction primitives (#495)
 
-Status: built 2026-11-10, except the scaffold's lint of the examples, which
-the measurement below keeps off. The owner chose the function form of
+Status: built 2026-11-10. The owner chose the function form of
 `helpers` (decision 2) and adopting the rule for Bundle parents (decision 3).
 
 ## The problem
@@ -144,8 +143,8 @@ build, not assumed.
 - The record form still type-checks and behaves as before (the existing
   crud, cms and form tests).
 - The scaffold job lints the copied examples with demos ignored, and fails
-  on a reintroduced `wrapper.make(TreeNavigation.Message.Opened(...))`. Not
-  built: see the measurement below.
+  on a reintroduced `wrapper.make(TreeNavigation.Message.Opened(...))` in
+  the tree's view (checked by hand in a scaffold).
 
 ## Measured: the examples under the scaffold's lint
 
@@ -164,13 +163,24 @@ ignored. 20 errors remain, and only 3 are this rule's:
 | `foldkit/no-module-level-mutable-state` | 1 | `todo` |
 | `foldkit/no-hand-rolled-command-struct` | 1 | `form` |
 
-The three left of this rule are each view sending its own application's
-Message, `App.Message.ToggledRow(...)`. The rule takes a Message module for
+The three left of this rule were each view sending its own application's
+Message, `App.Message.ToggledRow(...)`: the rule takes a Message module for
 the root only by its file name (`index`, `main`, `message` or `schema`), and
-these examples keep `Message` in `app.ts`. So the remaining failures are
-upstream's module layout and general style, not child Messages, and fixing
-them is a pass over the examples of its own. The scaffold job still runs
-only `typecheck` over the copies.
+those examples kept `Message` in `app.ts`. The rest were upstream's style.
+A pass over the examples then cleared all 20:
+
+- `tree` and `drawer` keep their Message, and the declarations it spreads,
+  in `message.ts`, upstream's layout.
+- `fields` types each recipe by its own value (`entry(...)`), erasing only
+  the finished reading; a page draws through a generic `drawn`, and the key
+  a slug follows is typed into by decoding its `Changed` through the form's
+  Message Schema.
+- `form`'s picker matches its Message and defines its Command; `todo` keeps
+  its id counter in the Model.
+
+Effect's lint pass, which the scaffold's `lint` script also runs, found one
+more (`decodeUnknownSync` on an input already typed, in `fields`). The
+scaffold job now lints the copies, their `demo.ts` files skipped.
 
 ## `LiveAnnounce.say`, removed after
 
