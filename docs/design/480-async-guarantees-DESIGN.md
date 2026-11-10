@@ -90,7 +90,7 @@ applicable). **Decision** is reuse, extend, or not adopted.
 | H-11, R-4 an older question's late answer is superseded | Within one principal, by fiber interruption on restart. Across a `forget`, the reducer too: an answer from before it writes nothing (#484, below) | runtime law, mutation-tested across `forget` | reuse; within a principal, see hypothesis 1 |
 | H-2 two writes to one slot join; overlapping actions | Ordered settlement per request id (#273): an earlier answer cannot revert a later write. `answerOrder.mutations.ts` (13 mutations), `repeatedAnswer`, and the server ledger's replay (`remote-drizzle/test/ledger.test.ts`) | runtime law, mutation-tested | reuse |
 | AC-6 `until(predicate, { timeout })` | `Agent.when({ projection \| source, predicate, timeout })`. A Remote layer held until live data confirms it is not built (comparison idea 1) | runtime | reuse; idea stays with #377 |
-| a live answer landing during a held action | While the write is pending the layer wins over any live patch. After the answer, a stream's patches to the fields it wrote are not written until that stream sends the answer back; one that disagrees is read again (#485, `echo.test.ts`, `echo.mutations.ts`) | runtime law, mutation-tested | fixed (#485) |
+| a live answer landing during a held action | While the write is pending, an absolute layer shows over any live patch, and a relative one (`adds`) resolves over the value the field held before the stream first wrote it, so its own echo is not counted twice (#498, `temporal.test.ts`); the base follows the stream and `Data.confirmed` reads it. An answer that disagrees with what a stream wrote meanwhile is written and the field read again (#499). After the answer, a stream's patches to the fields it wrote are not written until that stream sends the answer back; one that disagrees is read again (#485, `echo.test.ts`, `echo.mutations.ts`) | runtime law, mutation-tested | fixed (#485, #498, #499) |
 
 ### Regions and the server
 
@@ -128,8 +128,10 @@ Each is a test to write before any API.
      guess; a sound rule needs a revision on `NormalizedEntity`. Not adopted
      until a server can send one.
 2. **A live patch flickers a predicted row: reproduced (#485).** While the
-   write is pending the layer wins: another principal's live patch, and the
-   echo of our own write before the answer, both show the prediction. Once
+   write is pending an absolute layer wins: another principal's live patch
+   shows the prediction. (A relative layer used to count the echo of our own
+   write on top of itself; #498 resolves it over what the field held before
+   the stream wrote it.) Once
    the answer lands it reads back what the prediction moved and releases the
    layer (#265); a live event committed before the write but delivered after
    the answer then patches the base, and the row reads the old value until

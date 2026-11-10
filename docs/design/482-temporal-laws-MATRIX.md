@@ -76,11 +76,11 @@ every request until a step answers it.
 | Law | Evidence | Status | Notes |
 | --- | --- | --- | --- |
 | A live patch of an absolute value during a pending write shows the layer, not the patch; the base moves under it | `temporal.test.ts` "a write answered while the stream still delivers what came before it" (answer at positions 1 and 2) | added | Visible is the write in every frame; confirmed follows the stream |
-| A live patch of a field a pending write moves by an amount (`adds`) does not double-count: the write's own echo arrives before its answer | `temporal.test.ts` "a live patch of a field a pending write moves by an amount" (`it.fails`) | failure, open | Trace: likes 10, pending `adds { likes: 1 }` (visible 11), echo `likes: 11` arrives: base 11, layer adds one again, visible **12** until the answer restores 11. The client cannot tell its echo from another's like. Found by the [data-plane note](./377-439-440-remote-data-plane-DESIGN.md) section 2.3; staging a live patch under a pending relative layer is the owner's decision there, not made here |
+| A live patch of a field a pending write moves by an amount (`adds`) does not double-count: the write's own echo arrives before its answer | `temporal.test.ts` "a live patch of a field a pending write moves by an amount" (visible and confirmed in every frame; the record's drops) | failure, fixed | Trace: likes 10, pending `adds { likes: 1 }` (visible 11), echo `likes: 11` arrives. The base moves to 11 and the layer used to add one again (visible **12** until the answer). Fixed by #498: Remote's Model keeps the value a field held before the first live patch that landed while a write was pending, and a relative layer resolves over it, so visible stays 11. Another person's like shows when the answer lands, and `Data.confirmed` reads the stream's value throughout. See [377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md) decision 5 |
 | An answer after the stream's stale patch (the patch committed before the write) never shows or confirms the old value | `echo.test.ts` (#485: eleven cases); `temporal.test.ts` position 0 | covered | `echo.mutations.ts` (ten); `temporal.mutations.ts` repeats its two central mutations |
 | A patch after the answer that is not the answer is read again, reading `Refreshing` meanwhile, and converges on the re-read | `echo.test.ts` "asks for the field again…"; `temporal.test.ts` "reads the field again when a patch after the answer…" | covered | |
 | #377's hypothesised flicker (a pending write makes a read look loading) | `temporal.test.ts`: every frame of every interleaving above reads `Ready`; `Refreshing` only after an answer contradicted by the stream | covered, hypothesis not reproduced | No frame in the matrix reads `Loading` or `Initial` while a write is pending. Whether it *should* (Solid's `affects`) is #377's design question, not a law |
-| An answer whose values predate a newer live patch, delivered after it, does not overwrite it | `temporal.test.ts` "does not let a late answer overwrite a newer live patch" (`it.fails`) | failure, open | Trace: write Grace pending; stream delivers `Ada`(1), `Grace`(2), `Eve`(3); the answer (Grace) arrives last. Confirmed reads `Eve`, then **Grace**, and nothing asks again. `MutationResult` carries no stream position, so the reducer cannot tell the answer is older. The answer's own `read`, taken after Eve committed, would carry Eve; a server that omits it, or reads before Eve, leaves the stale value until the next event contradicts it. Needs no protocol field: a cursor counts per subscription, so it needs a record of what a stream wrote while the write was pending, and a read again. Fixed with #498 in phase 1 of [377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md) (#499) |
+| An answer whose values predate a newer live patch, delivered after it, does not overwrite it for good | `temporal.test.ts` "reads the field again when a late answer disagrees with a newer live patch", and the table of plans after the answer | failure, fixed | Trace: write Grace pending; stream delivers `Ada`(1), `Grace`(2), `Eve`(3); the answer (Grace) arrives last. The answer's value is written, so confirmed reads **Grace** for a moment, and the field is read again (`Refreshing`); the read's answer (`Eve`) is what stays. `MutationResult` carries no stream position and needs none: a cursor counts per subscription, so the same record as #498 names the fields a stream wrote while the request was pending, and an answer that differs from the base the stream left reads again. Fixed by #499 |
 | Outbox retry: a send nothing answered is sent again under the same operation id, those after it wait their turn | `outbox.test.ts` "is sent again after a send nothing answered…"; `deadline.test.ts` "a durable write that runs out" | covered | `outbox.mutations.ts` |
 | Stream gap: a break restarts the stream once, resumes from its cursor, and a write made while it was down is shown | `liveRecovery.test.ts` "a live stream that breaks"; `liveLedger.test.ts`; `liveStream.test.ts` "reports a broken stream as a gap…" | covered | `liveRecovery.mutations.ts`, `liveLedger.mutations.ts` |
 | Stale field refresh: a row is read again when its oldest field is due, not its newest | `fieldFreshness.test.ts` "plan and deadlineOf" | covered | `fieldFreshness.mutations.ts` |
@@ -120,8 +120,8 @@ Rows: 8 laws, 42 rows. By status:
 | --- | --- |
 | covered (existing test) | 27 |
 | added (new test, mutation-checked) | 7 |
-| failure, fixed | 1 |
-| failure, open | 2 |
+| failure, fixed | 3 |
+| failure, open | 0 |
 | difference | 4 |
 | missing test | 1 |
 
@@ -132,7 +132,7 @@ Rows: 8 laws, 42 rows. By status:
 - Eight cases of two writes and three of the stream are exhaustive over the
   orders *those* events can take, not over a protocol. The answer carries no
   stream position and needs none (a cursor counts per subscription); #499 is
-  fixed with #498 in phase 1 of the Remote data plane note
+  fixed with #498 by the record in phase 1 of the Remote data plane note
   ([377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md)).
 - The frame after a Message is the frame before the Subscriptions catch up. A
   Subscription's restart lands behind Messages already queued

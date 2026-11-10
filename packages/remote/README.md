@@ -3012,6 +3012,38 @@ answer to the row, a live delete and `forget` end it too. `Data.confirmed`
 keeps the answer as well, since the patch never reaches the store. A domain
 that reads nothing live waits for nothing.
 
+### A live patch while a write is pending
+
+While a write is pending, a stream's patch writes the base as always, so
+`Data.confirmed` follows the server. What the read shows depends on the
+layer. An absolute patch (`values`) shows over it. A relative one (`adds`,
+`computes`) is worked out over the value the field held before the first
+patch that landed during the write, not over the patch: the patch may be the
+write's own echo, which the client cannot tell from another person's, and
+adding the amount to it would show one too many until the answer.
+
+```text
+likes 10, a pending like (adds 1)      -> shows 11, confirmed 10
+stream patches likes: 11 (its echo)    -> shows 11, confirmed 11
+the answer lands                       -> shows 11, confirmed 11
+```
+
+Another person's like that arrives meanwhile shows when the answer lands; the
+count is never too high. Remote's Model keeps the earlier value
+(`RemoteModel.kept`) for each field a patch wrote, until an answer writes the
+field, no write is pending, a live delete removes the row, `forget` runs, or a
+minute has passed since the patch. A write that fails drops its layer and the
+base, which already holds the stream's value, shows through.
+
+The same record settles an answer that disagrees with a stream. The client
+cannot tell whether a stream that patched the field during the write is behind
+the write or past it (a cursor counts per subscription, and a stream that
+coalesces may never send the write), so when the base as the stream left it
+differs from the answer's value, the answer is written, as above, and the field
+is read again (`Refreshing` meanwhile); the read's answer is what stays. An
+answer that agrees with the stream, or for a write started after the patch,
+reads nothing again. No protocol field is involved.
+
 ### When a stream breaks
 
 A stream breaks when its transport fails or when an event arrives ahead of
