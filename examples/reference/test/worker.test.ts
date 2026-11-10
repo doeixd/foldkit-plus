@@ -74,11 +74,12 @@ const member = async (name: string): Promise<string> => {
 
 /**
  * A page as a browser navigates to it: a `GET` with the cookie, no CSRF
- * header, and the `Sec-Fetch-Mode` a navigation has. Sent with `node:http`,
- * since Node's `fetch` sends `Sec-Fetch-Mode: cors` whatever it is given,
- * which the page's resolver refuses as no navigation.
+ * header, and the `Sec-Fetch-Mode` a navigation has, unless `headers` say
+ * otherwise. Sent with `node:http`, since Node's `fetch` sends
+ * `Sec-Fetch-Mode: cors` whatever it is given, which the page's resolver
+ * refuses as no navigation.
  */
-const page = (path: string, cookie?: string) =>
+const page = (path: string, cookie?: string, headers: Record<string, string> = {}) =>
   new Promise<Response>((resolve, reject) => {
     const asked = request(
       `${stack.origin}${path}`,
@@ -87,6 +88,7 @@ const page = (path: string, cookie?: string) =>
           accept: 'text/html',
           'sec-fetch-mode': 'navigate',
           ...(cookie === undefined ? {} : { cookie }),
+          ...headers,
         },
       },
       answer => {
@@ -179,6 +181,54 @@ describe('pages', () => {
     const response = await page('/sign-in', cookie)
     expect(response.status).toBe(303)
     expect(response.headers.get('location')).toBe('/')
+  }, 60_000)
+})
+
+describe("a member's cookie, on /remote and on a page", () => {
+  /**
+   * The status of a `/remote` call with `headers` beside the cookie, and a
+   * read as its body if `body`. A refusal is answered before the body is
+   * read, and on local workerd a body left unread then loses the next
+   * request on that connection, so the refused calls here send none.
+   */
+  const callWith = async (cookie: string, headers: Record<string, string>, body: boolean) => {
+    const read = { operation: 'read', payload: { version: REMOTE_PROTOCOL_VERSION, requests: [] } }
+    const response = await fetch(`${stack.origin}/remote`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, ...headers },
+      ...(body ? { body: JSON.stringify(read) } : {}),
+    })
+    await response.text()
+    return response.status
+  }
+
+  it('is read on /remote only from the page’s own script', async () => {
+    const cookie = await member('Edith')
+    expect(await callWith(cookie, scripted(), true)).toBe(200)
+    expect(await callWith(cookie, { origin: stack.origin }, false)).toBe(401)
+    const elsewhere = { ...scripted(), origin: 'http://elsewhere.example' }
+    expect(await callWith(cookie, elsewhere, false)).toBe(401)
+  }, 60_000)
+
+  it('is read on a page followed from another site, which sends no Origin or header', async () => {
+    const cookie = await member('Hedy')
+    const response = await page('/', cookie, { 'sec-fetch-site': 'cross-site' })
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('Hedy, you have written 0 notes.')
+  }, 60_000)
+
+  it('is not read on a page a script fetches, which is no navigation', async () => {
+    const cookie = await member('Ida')
+    const response = await page('/', cookie, { 'sec-fetch-mode': 'cors', ...scripted() })
+    expect(response.status).toBe(200)
+    expect(await response.text()).not.toContain('Ida, you have written')
+  }, 60_000)
+
+  it('keeps every answer it reads it for out of any shared cache', async () => {
+    const cookie = await member('Joan')
+    expect((await page('/', cookie)).headers.get('cache-control')).toBe('private, no-store')
+    expect((await page('/sign-in', cookie)).headers.get('cache-control')).toBe('private, no-store')
+    expect((await page('/notes/n1')).headers.get('cache-control')).toBe('private, no-store')
   }, 60_000)
 })
 

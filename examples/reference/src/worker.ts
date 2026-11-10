@@ -16,11 +16,9 @@
  */
 import type { D1Database } from '@cloudflare/workers-types'
 import * as D1Client from '@effect/sql-d1/D1Client'
-import { Http } from '@yielded/auth'
 import * as WorkerdServices from '@yielded/auth-platform-workerd'
 import { drizzle } from 'drizzle-orm/d1'
 import { Duration, Effect, Layer, ManagedRuntime, Option, type Context } from 'effect'
-import { HttpRouter, HttpServer } from 'effect/http'
 import { handleRequest, injectIntoTemplate } from 'foldkit/experimental/server'
 import { AuthServer } from 'foldkit-plus/auth/server'
 import { databaseLayer } from 'foldkit-plus/remote-drizzle'
@@ -96,33 +94,25 @@ type AuthServices =
 
 /** Everything that answers for the origin: Yielded's routes, Remote, and a page's reader. */
 const hostFor = (services: Context.Context<AuthServices>, db: D1Database, origin: string) => {
-  const shared = Layer.succeedContext(services)
-  const http = { origin } as const
-  const routes = HttpRouter.toWebHandler(
-    Http.make(App, http)
-      .routes()
-      // A Worker has no file system; nothing here serves a file.
-      .pipe(Layer.provide([shared, HttpServer.layerServices]), Layer.orDie),
-    { disableLogger: true },
-  )
-  // `key` names the principal as `Me` does, for the answer's header and the check of it.
-  const resolving = { auth: App, http, principal: principalOf(db), key: Policy.key }
+  const auth = AuthServer.host({
+    auth: App,
+    http: { origin },
+    services,
+    principal: principalOf(db),
+    // Names the principal as `Me` does, for the answer's header and the check of it.
+    key: Policy.key,
+  })
   const remote = {
     server,
-    resolvePrincipal: AuthServer.resolver(resolving),
-    headers: AuthServer.answered(resolving),
-    layer: (env: WorkerEnv) => Layer.merge(shared, databaseLayer(drizzle(env.DB))),
+    layer: (env: WorkerEnv) => databaseLayer(drizzle(env.DB)),
     // A live stream asks again who it serves: a sign-out in another tab ends it.
     revalidate: { every: Duration.seconds(5), key: Policy.keyOf },
   }
   return {
-    auth: routes.handler,
-    remote: serveFetch(remote),
+    auth: auth.routes,
+    remote: serveFetch({ ...remote, ...auth.scripted }),
     // A page request is a navigation, which carries no CSRF header; its reader cannot write.
-    read: pageReader({
-      ...remote,
-      resolvePrincipal: AuthServer.resolver({ ...resolving, requests: 'navigation' }),
-    }),
+    read: pageReader({ ...remote, ...auth.navigation }),
   }
 }
 

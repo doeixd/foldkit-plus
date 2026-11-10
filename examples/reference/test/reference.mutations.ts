@@ -111,8 +111,41 @@ export default [
     edits: [
       {
         file: '../src/worker.ts',
-        find: "resolvePrincipal: AuthServer.resolver({ ...resolving, requests: 'navigation' }),",
-        replace: 'resolvePrincipal: AuthServer.resolver(resolving),',
+        find: 'read: pageReader({ ...remote, ...auth.navigation }),',
+        replace: 'read: pageReader({ ...remote, ...auth.scripted }),',
+      },
+    ],
+    tests: worker,
+  },
+  {
+    name: "/remote is answered with a navigation's resolver, so a member's write is refused",
+    edits: [
+      {
+        file: '../src/worker.ts',
+        find: 'remote: serveFetch({ ...remote, ...auth.scripted }),',
+        replace: 'remote: serveFetch({ ...remote, ...auth.navigation }),',
+      },
+    ],
+    tests: worker,
+  },
+  {
+    name: '/remote reads a cookie without the CSRF header, on workerd',
+    edits: [
+      {
+        file: '../../../packages/auth/src/server.ts',
+        find: "requests: 'scripted' }))",
+        replace: "requests: 'browser' }))",
+      },
+    ],
+    tests: worker,
+  },
+  {
+    name: 'a page is answered as cacheable, on workerd',
+    edits: [
+      {
+        file: '../src/page.ts',
+        find: "const pageHeaders = { 'cache-control': 'private, no-store', vary: 'cookie' }",
+        replace: "const pageHeaders = { vary: 'cookie' }",
       },
     ],
     tests: worker,
