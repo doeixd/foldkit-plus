@@ -24,57 +24,47 @@ phase ships alone and records its number; the gates below are the notes' own.
   as headers first, kept only if first contentful paint falls by a median of
   50 ms. Two upstream drafts are conditional on those numbers.
   [472-427-432-435-ssr-delivery-DESIGN.md](./472-427-432-435-ssr-delivery-DESIGN.md)
-- [ ] **Site and host** (#236, #235, #438). First: Phase 0 per-route
-  baselines, D1 (Chirp on node Surfaces), H1 (`SSR.entry`'s `redirect`) and
-  B, in parallel. B is done (#501, #502: b10c409). Then H3, then H2. C1 to
-  C3 only if Phase 0 finds 20 KB brotli or more that one non-landing route
-  alone imports, and C2 only after B. H4 only if 30 lines or more of glue
-  stay shared after H2; `visibleLinks` (D2) only if decision 3's rule is met.
-  The host owns no cache, no page table, no Durable Object or media route.
+- [ ] **Site and host** (#236, #235, #438). Built: B (#501, #502: b10c409),
+  D1 (Chirp on node Surfaces, the policy-by-route recipe: e91a378) and H1
+  (`SSR.entry`'s `redirect`: 4b7ed9a..6f6f73c). Next: H3 (`AuthServer.host`),
+  then H2; Phase 0 per-route baselines. C1 to C3 only if Phase 0 finds 20 KB
+  brotli or more that one non-landing route alone imports. H4 only if 30
+  lines or more of glue stay shared after H2; `visibleLinks` (D2) only if
+  decision 3's rule is met. Close #236 when the branch merges.
   [235-236-438-site-host-DESIGN.md](./235-236-438-site-host-DESIGN.md)
-- [ ] **Remote data plane** (#377, #439, #440). Phase 0: add the note's
-  section 1 table to `performance-PLAN.md` and close #440. Phase 1: #498 and
-  #499 as one change in two commits (1a, 1b), with no wire change; #482's
-  matrix rows change in the same commits, and `480-async-guarantees-DESIGN.md`
-  and the `temporal.test.ts` comments with them. Phase 2 (`Data.writing`)
-  next; phases 3 and 4 (#439's static function, per-Entity versions) are not
-  scheduled until #437 or `explain` asks, or `read.bench.ts`'s figure passes
-  1 ms per write.
+- [ ] **Remote data plane** (#377, #439, #440). Phase 1 built: #498 and #499
+  (3c7aacb, d8e4402, e932171). Phase 2 built: `writing`
+  (e35fbc3..323d1a1); Chirp's `waiting` moves onto it next. Phases 3 and
+  4 (#439's static function, per-Entity versions) wait until #437 or
+  `explain` asks, or `read.bench.ts`'s figure passes 1 ms per write.
   [377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md)
-- [ ] **Styling platform** (#420, #424, #429, #430). Phase 0 measured
-  30.1 kB brotli of the style system (b05106a), over the 15 KB gate, so
-  phase 1 is being built (build-time style modules; it must take 12 KB or more
-  off the measured chunk or be reverted); 15 KB or under closes #420. Phase 3
-  (#424's recipe defaults: `style.ts`'s shipped-component block from 124 lines
-  to 75) is independent. #429 and #430 wait on their named conditions; the
-  upstream request is posted after phase 0.
+- [ ] **Styling platform** (#420, #424, #429, #430). #420 phase 1 built:
+  domains-plus's start-up script 217.5 to 191.6 kB brotli (39a003c..775f0bc),
+  with a production-build parity e2e (c7d3471). #424 phase 3 built
+  (359d739..6ad14c8): the block went from 124 to 108 lines, and 75 is out of
+  reach within the decided scope; the target is the owner's (#424 comment).
+  #429 and #430 wait on their named conditions; the upstream request
+  (floating-ui) can now be posted with the measured figure.
   [420-424-429-430-styling-platform-DESIGN.md](./420-424-429-430-styling-platform-DESIGN.md)
 - [ ] **Expr contracts** (#478, #479, #483, #185, #64). Phase 1 (#500) and
   phase 2 (`step`, +1.05% instantiations) are built (803f3dc, bdf0537); only
   their Jev review is left. Close #500, #479 and #478 when the branch merges.
   [478-479-483-185-64-expr-contracts-DESIGN.md](./478-479-483-185-64-expr-contracts-DESIGN.md)
-- [ ] **Renderer** (#376, #433, #148, #149). No new runtime. Phase 0a found
-  `UpdatedSearch` and `SelectedItem` over 16 ms at 4x in both rounds
-  (b05106a, samples 533dffe), so phase 0b (ablate drawing, on a clean tree)
-  runs for those two; a client spike only if drawing is over half of them. Server half: S1 after foldkit#1657's next step, S2 only
-  after S1. #148 and #149 are parked.
+- [ ] **Renderer** (#376, #148, #149). Phase 0 done: drawing and diffing are
+  under half of each slow frame (32366ed), so #433's client half is closed as
+  not planned. The server half (S1, S2) lives under #473, after
+  foldkit#1657's next step. #376, #148 and #149 stay parked.
   [376-433-148-149-renderer-DESIGN.md](./376-433-148-149-renderer-DESIGN.md)
-
 ## Bugs and findings from 2026-11-10
 
-- [ ] **#498:** a live echo of a pending increment is counted twice
-  (`it.fails` in `packages/remote/test/temporal.test.ts`). Fix with the data
-  plane note's decisions 5 and 6.
-- [ ] **#499:** a mutation answer arriving after a newer live patch overwrites
-  it (`it.fails` there too). No protocol field: one design with #498 (Remote
-  note phase 1b).
-- [ ] **The #480 audit row** "while the write is pending the layer wins over
-  any live patch" is wrong for relative writes; correct it in #498's change.
-  [480-async-guarantees-DESIGN.md](./480-async-guarantees-DESIGN.md)
-- [ ] **Chirp's client carries `effect/internal/schema/toJsonSchemaDocument.js`**
-  (3.4 kB) and 20.0 kB of `foldkit-entity`, against domains-plus's 1.6 kB: a
-  candidate for #421's cut list.
-  [377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md)
+- [ ] **JSON Schema in every client that evaluates Expr** (3.4 kB brotli in
+  Chirp): `Law` and `Operators` keep `describe` on the objects `expr.ts` and
+  `evaluate.ts` use, so `toJsonSchemaDocument` stays reachable. Being split in
+  `packages/entity`. (Chirp's 20 kB of `foldkit-entity` is real use.)
+- [ ] **The production build's font is not emitted** (domains-plus: the sheet
+  and preload name a `.woff2` that `dist/` lacks, so the page falls back to
+  Arial; found by c7d3471's e2e, which allows that one 404 for now). Being
+  fixed.
 - [ ] **domains-plus served 90 KB on workerd against 69 KB under Node** for
   the same kind of page; find why before comparing the two CPU figures.
   [performance-PLAN.md](./performance-PLAN.md)
