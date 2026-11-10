@@ -1,7 +1,8 @@
 # Renderers: compiled views, a fine-grained runtime, native targets (#433, #376, #148, #149)
 
-**Status:** Proposed 2026-11-10: awaiting the owner's decisions (§5). Nothing
-here is built, and this note proposes building very little.
+**Status:** decided 2026-11-10 (decisions delegated by the owner); next is
+Phase 0a, a re-run of `pnpm bench:render` on current `main` (§4), and the
+issue actions in §7. Nothing here is built.
 
 One note for four issues, because they are one question asked at four sizes:
 should a Foldkit Plus view reach the screen some other way than Foldkit's
@@ -41,7 +42,7 @@ Foldkit's own `slow` phases, read by `pnpm bench:render`
 30 repetitions; the plan's §10 has the method and its limits. `view` is the
 program's `view(model, h)`; `patch` is snabbdom's patch of the result. Median
 milliseconds, latest recorded state of each app (domains-plus at 1× is the
-mean of two rounds' medians; at 4×, the one round its source kept):
+mean of two rounds' medians; at 4×, round 2, the one its source tabulates):
 
 | App | Frame | 1× view + patch | 4× CPU view + patch | Source |
 | --- | --- | ---: | ---: | --- |
@@ -292,32 +293,53 @@ not change, (c) changing the DOM that did. A compiled or fine-grained view
 removes (b) and nothing else. Nobody has measured (b) since the memoization
 landed.
 
-**Phase 0, the ablation bound** (one to two days; no new code that ships):
+**Phase 0, the ablation bound** (decided 2026-11-10, decisions 3 and 4: in
+two steps, the second run only if the first leaves something to bound; no new
+code that ships).
+
+Step 0a, about half a day:
 
 1. Run `pnpm bench:render --app domains` and the grid on current `main`, at
    1× and `--throttle 4`, two rounds each, samples committed to
    `docs/design/renderer-baseline/`. This replaces the 2026-10-31 table.
-2. Run it again with each drawing replaced by a constant: every row, card,
-   region and filter returns one vnode made once (as `compiledRow.bench.ts`
-   replaces the list's view with an empty `ul` on the server). Derivations
-   still run. The frame that remains is (a) plus the runtime's fixed cost;
-   the difference from step 1 is the most any compiler or fine-grained
-   renderer could save on that frame.
-3. Read the vnode builder's, snabbdom's and the hydrator's share of
+2. Read the vnode builder's, snabbdom's and the hydrator's share of
    `foldkit`'s 40.8 KB from `scripts/bundle-report.mjs`'s per-module data.
-4. Rerun the live three-way comparison (#426, #474), so Solid's figure and
-   ours are from one day and one network.
+   The figure is an estimate: the script cannot measure brotli per module
+   and apportions a chunk's by each module's share of its bytes.
 
-**Benchmark:** `pnpm bench:render`, the `ReadReceived` (prices arrive) and
-`SelectedItem` (filter chosen) frames of domains-plus, and the grid's
-`CellPressed`, at `--throttle 4`.
+**Stop after 0a** if no benchmark frame's view plus patch is over 16 ms at
+4× in both rounds. The threshold below then cannot be met, the ablation has
+nothing to bound, and #433's client half closes.
 
-**Threshold:** go on to Phase 1 only if, on at least one of those frames,
-the ablated frame is under half of the unablated one (drawing and diffing
-are more than 50% of view plus patch) **and** the unablated frame is over
-16 ms. Otherwise the cost is derivation, and the answer is more of A. For
-bytes: only if the vdom modules are over 15 KB brotli and a page exists that
-draws no interpreted view.
+Step 0b, about a day, only for the frames 0a leaves over 16 ms:
+
+3. Run those frames again with each drawing replaced by a constant: every
+   row, card, region and filter returns one vnode made once (as
+   `compiledRow.bench.ts` replaces the list's view with an empty `ul` on the
+   server). Derivations still run. The frame that remains is (a) plus the
+   runtime's fixed cost; the difference from step 1 is (b) plus (c), which
+   is more than any compiler or fine-grained renderer could save on that
+   frame, since neither removes (c).
+
+The live three-way comparison is not part of Phase 0 and does not gate it
+(decision 5): it is #474's work.
+
+**Benchmark:** `pnpm bench:render`, four frames at `--throttle 4`:
+domains-plus's `UpdatedSearch` (a keystroke), `ReadReceived` (prices arrive)
+and `SelectedItem` (filter chosen), and the grid's `CellPressed`. The
+keystroke is included because patch is the largest share of it of any
+recorded frame (18.6 of 40.7 ms at 4×, 46%), so it is the frame most likely
+to show a renderer cost.
+
+**Threshold:** go on to Phase 1 only if, on at least one of those frames and
+in both rounds, the ablated frame is under half of the unablated one
+(drawing and diffing are more than 50% of view plus patch) **and** the
+unablated frame is over 16 ms. Otherwise the cost is derivation, and the
+answer is more of A. Passing is necessary and not sufficient: it bounds what
+Phase 1 could find, and Phase 1's spike is what measures it. Bytes are not a
+reason to go on by themselves: they count only if the vdom modules are over
+15 KB brotli and a page exists that draws no interpreted view, and
+domains-plus, which draws `@foldkit/ui`, is not such a page.
 
 If Phase 0 passes:
 
@@ -337,73 +359,168 @@ Independently of Phase 0, the server half:
 S2 is not worth starting before S1: with the checks in the request, compiled
 output is still re-parsed.
 
-## 5. Decisions for the owner
+## 5. Decisions
+
+Decided 2026-11-10; the owner delegated these. Each item keeps the options
+it was offered, then the choice and its reason. The premises each rests on
+were checked again against the code and the recorded samples; what that
+found is under "Premises checked" below.
 
 1. **#376, the fine-grained runtime.**
    (a) Park: keep it open as the tracker of the upstream seams, build no
    runtime, reopen on Phase 0's threshold. (b) Close as not planned.
    (c) Run the plan's R2 spike anyway.
-   *Recommended: (a).* The evidence is against (c); (b) loses the place the
-   upstream proposals are tracked.
+
+   **Decided: (a), park.** The plan's own rule was that the R2 spike must
+   beat regions on today's renderer, and its §10 answers it: "Does R3 make
+   R2 unnecessary for these apps? Yes", because what remained of a
+   domains-plus frame was a derivation a fine-grained renderer would
+   recompute too. The issue stays open only as the tracker of
+   foldkit/foldkit#1871 and #1872; if both are closed upstream and Phase 0
+   does not pass, close it as not planned.
 
 2. **#433, compiled views: split it?**
    (a) Split: the server half moves under #473 (phases S1, S2); the client
    half stays on #433, gated on Phase 0. (b) Keep it whole and long term.
    (c) Close the client half now.
-   *Recommended: (a).*
+
+   **Decided: (a), split.** The server half has a number (compiled rows at
+   about 2% of the interpreted cost, §1.5), a spike with four killed
+   mutations, and one blocker that is upstream's. The client half has no
+   measurement and no public place to stand in Foldkit (§3, note B), so it
+   shares nothing with the server half but a name. It is not closed now only
+   because Phase 0a is half a day and decides it on current numbers.
 
 3. **Run Phase 0?** One to two days, and it needs workerd free for the
    benchmark. (a) Yes, before any other renderer work. (b) No: take the
    2026-10-31 numbers as final and close #433's client half.
-   *Recommended: (a).* It is cheap, and without it both "go" and "no-go"
-   rest on a table two changes out of date.
+
+   **Decided: (a), narrowed to two steps.** Step 0a (the re-run and the
+   bytes read) always runs: the table is two changes out of date (#474's
+   `answeredOf`, #431's kept child), and both go and no-go would rest on it.
+   Step 0b (the ablation, which needs the example's drawings edited) runs
+   only for frames 0a leaves over 16 ms at 4×, because for any other frame
+   the threshold cannot be met whatever the ablation reads. The live
+   comparison leaves Phase 0 (decision 5).
 
 4. **The threshold.** (a) As written: drawing and diffing over 50% of a
    frame that is over 16 ms at 4× CPU. (b) Stricter: at 1× as well, which no
    recorded frame meets. (c) Looser: any frame over 16 ms at 4×, which
    domains-plus met on 2026-10-31 without showing the renderer was the cost.
-   *Recommended: (a).*
+
+   **Decided: (a), with three amendments.** The keystroke frame
+   (`UpdatedSearch`) joins the benchmark: the proposal left it out, and it
+   has the largest patch share on record (2.4 of 5.6 ms at 1×, 18.6 of
+   40.7 ms at 4×). Both rounds must meet the threshold, since one recorded
+   4× round read a keystroke at 29 ms against 20 under machine load
+   ([384-read-memo-DESIGN.md](./384-read-memo-DESIGN.md), Results). And
+   passing only permits Phase 1: the ablation removes the DOM changes a
+   frame needs as well as the diffing it does not, so it is an upper bound.
+   (b) would decide the question by a rule no frame can meet, and (c) by one
+   a derivation-bound frame already met. The bytes rule stays as written
+   (15 KB brotli and a page with no interpreted view) and cannot pass on
+   either measured app today.
 
 5. **Rerun the live three-way comparison (#426, #474) first?** (a) Yes, and
    publish only with go-ahead. (b) No.
-   *Recommended: (a).* "Ahead of stock, level with Solid" is the sentence
-   this note's recommendation leans on, and its Solid half is unverified.
+
+   **Decided: (a) yes, but not first and not as a gate.** Decisions 1 to 4
+   rest on Plus against stock Foldkit on the same renderer and the same
+   machine (198 against 260 ms, 315 against 643 ms), and on the frame
+   tables; none of them needs Solid's figure. The rerun is #474's work and
+   decides only what the documents may say: until it is done, they say Plus
+   is ahead of stock locally and has not been compared with Solid under the
+   same conditions. A live gap to Solid reopens the renderer question only
+   if a split like #474's puts more than half of the gap in the view frame,
+   which was 9 ms of a 261 ms search when last split.
 
 6. **#148, platform independence.** (a) Park: record that its Phase 0 is
    done by the plan's §3 inventory, and build no `Platform.define` until
    something consumes it. (b) Start Phase 1 (the Platform contract) now.
    (c) Close.
-   *Recommended: (a).* A contract with no second platform to refuse anything
-   is a declared option nothing reads.
+
+   **Decided: (a), park.** No package defines a `Platform` contract and
+   nothing in `packages/` or `examples/` would read one, so (b) would ship a
+   declared option nothing reads. (c) would drop the one part of the ask
+   that is done and worth keeping findable, the inventory. It reopens when a
+   second platform has a consumer: reffect's proof (decision 7), or an
+   application that needs one.
 
 7. **#149, GPUI.** (a) Park until reffect shows a Foldkit Counter's
    `update` running as native code, compared transition by transition with
    the JavaScript reference ([../native-cross-platform.md](../native-cross-platform.md),
    Phase 2); that work is outside this repository. (b) Do GPUI-1 and GPUI-2
    here now: a `ui.*` Counter lowered to `h`, in TypeScript. (c) Close.
-   *Recommended: (a).* (b) is cheap, but it proves only that a small
-   vocabulary can be lowered to HTML, which is not in doubt; the falsifiable
-   part is native execution.
+
+   **Decided: (a), park.** The issue's claim is no JavaScript runtime, and
+   that is tested only by native execution, which is reffect's to show. (b)
+   would add a second view vocabulary to maintain and prove what is not in
+   doubt, that a small vocabulary lowers to HTML. Not closed, because the
+   reopening condition is concrete and someone can meet it.
 
 8. **Reconcile [platform-DESIGN.md](./platform-DESIGN.md)**, as #149 asks.
    (a) Add a status line saying React Native through codegen is an interop
    route, not the portability architecture, and link here. (b) Rewrite it.
    (c) Leave it.
-   *Recommended: (a).*
+
+   **Decided: (a).** Its §4 recommends mapping tags to native primitives
+   (`div` to `View`), which #148 and the plan both refuse for a portable
+   view, so (c) leaves two design notes that contradict each other. A
+   rewrite is not earned while native targets are parked. The text is in
+   §7.
 
 9. **Upstream follow-up** on foldkit/foldkit#1871 and #1872. (a) Read their
    state, and offer the frame-scheduler change as a pull request (two call
    sites, default unchanged). (b) Leave them. Posting needs the owner's
    go-ahead either way.
-   *Recommended: (a).* The scheduler is worth having without any renderer:
-   it is the 12 ms frame wait in a search, and a deterministic scheduler for
-   tests.
+
+   **Decided: (a) for #1872 only; nothing new on #1871.** The scheduler has
+   a consumer that exists: `Frames.track` in `foldkit-mixins/testing`
+   replaces `globalThis.requestAnimationFrame`
+   (`packages/mixins/src/testing.ts:305-377`) because Foldkit calls it
+   directly at two sites (`dist/runtime/renderer.js:394`, `:452`). #1871's
+   only consumer here is a compiled or fine-grained client view, which
+   decisions 1 and 2 park, and Foldkit's `AGENTS.md` refuses asks made for
+   hypothetical consumers. The ask does not claim the 12 ms frame wait as a
+   saving (see "Premises checked"). Conditions and text are in §7.
 
 10. **Bring the plan up to date.** Its status line, its §7 ("None is
     filed") and its §9 recommendation predate R3's conclusion, #384, #431
     and the filed proposals. (a) Amend those three places and link this
     note once the decisions above are made. (b) Leave it as a dated record.
-    *Recommended: (a).*
+
+    **Decided: (a).** Its §9 still says to run "R2, the spike that decides
+    the rest" while its own §10 says R2 is unnecessary for these apps, and
+    its §7 says nothing is filed when two proposals were. A plan that reads
+    as current and is not is the stale summary `CLAUDE.md` warns of. Only
+    those three places change; the text is in §7.
+
+### Premises checked
+
+Checked 2026-11-10 at commit `922b0ab`.
+
+- **Held.** The 2026-10-31 frame figures match
+  [384-read-memo-DESIGN.md](./384-read-memo-DESIGN.md)'s tables and the
+  sample files exist; the plan's R3 conclusion is quoted exactly; commit
+  `17a6c04` is #474's `answeredOf` change; `bench:render` takes `--app` and
+  `--throttle`; the search and bundle figures match
+  [performance-PLAN.md](./performance-PLAN.md); the #473 spike's four files
+  exist; Foldkit asks for a frame at two call sites.
+- **Wrong: the benchmark left out the frame most likely to pass it.** §4
+  named three frames and omitted the keystroke, whose patch is 46% of the
+  frame at 4×. Decision 4 adds it.
+- **Overstated: "it is the 12 ms frame wait in a search"** (decision 9 as
+  proposed, §1.3 point 3). The wait is the scheduler's, but nothing has
+  measured a search under any other scheduler, and drawing outside a frame
+  can cost layout work. The upstream ask rests on tests alone.
+- **Imprecise, and corrected in §1.2: "the one round its source kept".** Both 4× rounds'
+  samples are committed (`2026-10-31-384-after-cpu4x-1.json`, `-2.json`);
+  the #384 note's table leaves out round 1 because the machine was loaded.
+- **Not verified.** The state of foldkit/foldkit#1871, #1872, #1657, #1227
+  and #1655: this session has no access to that repository. That #1871 is
+  the plan's Proposal D and #1872 its Proposal C is taken from their
+  one-line descriptions in §2.1, not from the issues. The state of #473,
+  #474 and #426 here was not read either.
 
 ## 6. Risks, review points, rejected alternatives
 
@@ -421,7 +538,7 @@ output is still re-parsed.
   local. Decision 5 exists for this.
 - **Parking has a cost if upstream moves.** Blocks is reshaping Mounts
   (foldkit/foldkit#1655). A seam is cheapest to ask for while that is open;
-  decision 9 keeps the two small asks alive.
+  decision 9 keeps the one small ask with a consumer alive.
 - **Memoization is easy to get wrong.** R3's first round made filter frames
   slower, because a memo that misses costs more than none. Every further
   step of A is counted in draws, not assumed.
@@ -459,3 +576,169 @@ output is still re-parsed.
   JavaScript runtime, which is the thing #149 sets out to remove.
 - **Running the state machine under Node and driving GPUI remotely.** #149
   refuses it: it would not show what the issue claims.
+
+## 7. Issue actions
+
+For the coordinator. None of these is done; this note changed no other file
+and posted nothing.
+
+### Issues in this repository
+
+**#376: park, keep open.** Comment:
+
+> Parked 2026-11-10, decided in
+> `docs/design/376-433-148-149-renderer-DESIGN.md` (decision 1). No runtime
+> will be built here. The plan's test was that the R2 spike must beat
+> regions on today's renderer, and R3 answered it: what remained of a
+> domains-plus frame was a derivation over Remote reads, which a
+> fine-grained renderer would recompute too. Since then a new search went
+> from 61 ms behind stock Foldkit to 62 ms ahead at 1× (198 against 260 ms,
+> local, 2026-11-09) with the renderer untouched. This issue stays open as
+> the tracker of the upstream seams (foldkit/foldkit#1871, #1872). Work on
+> it reopens only if Phase 0 of that note passes: on a re-run of
+> `pnpm bench:render`, a frame over 16 ms at 4× CPU of which drawing and
+> diffing are more than half, in both rounds. If Phase 0 does not pass and
+> both upstream issues are closed, this closes as not planned.
+
+**#433: split.** The server half (phases S1 and S2) moves to #473; if #473
+is closed, open an issue titled "Compiled server regions, after upstream's
+parse fix" with the second paragraph below. #433 stays open for the client
+half until Phase 0a. Comment on #433:
+
+> Split 2026-11-10, decided in
+> `docs/design/376-433-148-149-renderer-DESIGN.md` (decisions 2 to 4).
+>
+> Server half, now under #473: the hand-compiled row costs about 2% of the
+> interpreted one, and it does not matter while Foldkit re-parses its
+> output in the request (foldkit/foldkit#1657). S1: re-measure the parse
+> share of a never-seen search with `node scripts/workerd-cpu.mjs` after
+> upstream's next step. S2, only after S1: whole regions compiled to string
+> templates, checked once per arm at build, done when `cpu.test.ts`'s
+> budget for a never-seen search is lowered and held.
+>
+> Client half, here: parked on one measurement. Phase 0a re-runs
+> `pnpm bench:render` on current `main` (domains-plus's `UpdatedSearch`,
+> `ReadReceived` and `SelectedItem`, the grid's `CellPressed`; 1× and 4×,
+> two rounds). If no frame is over 16 ms at 4× in both rounds, this closes
+> as not planned. Otherwise Phase 0b ablates the drawing of those frames,
+> and the spike this issue describes is run only if drawing and diffing
+> are more than half of one of them. Bytes are not a reason by themselves:
+> the vdom share of Foldkit's 40.8 KB is unmeasured, and no page here draws
+> no interpreted view.
+
+When Phase 0a is recorded: close #433 as not planned if it stops there,
+with the samples' file names in the closing comment.
+
+**#148: park, keep open.** Comment:
+
+> Parked 2026-11-10, decided in
+> `docs/design/376-433-148-149-renderer-DESIGN.md` (decision 6). Phase 0
+> (what is neutral and what is Web) is done by §3 of
+> `docs/design/foldkit-renderer-independence-PLAN.md`. No `Platform.define`
+> and no `ui.*` vocabulary will be built until a second platform has a
+> consumer: nothing in `packages/` or `examples/` would read the contract,
+> and a contract no platform can refuse anything through checks nothing.
+> Reopens on #149's condition, or on an application that needs a second
+> platform.
+
+**#149: park, keep open.** Comment:
+
+> Parked 2026-11-10, decided in
+> `docs/design/376-433-148-149-renderer-DESIGN.md` (decision 7). The claim
+> here is no JavaScript runtime, and the step that tests it is outside this
+> repository: reffect running a Foldkit Counter's `update` as native code,
+> compared transition by transition with the JavaScript reference
+> (`docs/native-cross-platform.md`, Phase 2). GPUI-0 is covered by the
+> renderer-independence plan's §3. GPUI-1 and GPUI-2 (a `ui.*` Counter
+> lowered to `h`) are not started: they would show that a small vocabulary
+> lowers to HTML, which is not in doubt. Reopens when that reffect proof
+> exists.
+
+**#474: no state change.** Comment:
+
+> From `docs/design/376-433-148-149-renderer-DESIGN.md` (decision 5): the
+> live three-way rerun stays this issue's work and gates no renderer
+> decision. Until it is run, documents say Plus is ahead of stock Foldkit
+> locally (198 against 260 ms at 1×, 315 against 643 ms at 4×, 2026-11-09)
+> and has not been compared with Solid under the same conditions. Publish
+> the result only with the owner's go-ahead. A gap to Solid reopens the
+> renderer question only if a split of one search puts more than half of
+> the gap in the view frame.
+
+**#426: no action from this note.** If it is open, link #474's comment
+above from it.
+
+### Other documents
+
+**[platform-DESIGN.md](./platform-DESIGN.md).** Add this paragraph after
+its opening status paragraph (the one ending "without weakening the web
+path."), and change nothing else:
+
+> **Update 2026-11-10.** §4's Option A (codegen hosts: React Native through
+> `foldkit-react-codegen`) is an interop route for an application that
+> already has a React Native host. It is not this repository's portability
+> architecture: it keeps a JavaScript runtime, and its tag mapping (`div`
+> to `View`) is what #148 and
+> [foldkit-renderer-independence-PLAN.md](./foldkit-renderer-independence-PLAN.md)
+> refuse for a portable view. Native targets, GPUI (#149) included, are
+> parked: see
+> [376-433-148-149-renderer-DESIGN.md](./376-433-148-149-renderer-DESIGN.md),
+> decisions 6 to 8. The sections before §4, on which parts of Style and
+> Behavior mean something off the web, stand.
+
+**[foldkit-renderer-independence-PLAN.md](./foldkit-renderer-independence-PLAN.md).**
+Three places.
+
+Its status line: replace the first sentences, up to and including "nothing
+else is.", with the text below, and keep what follows ("Tracks #376;
+related to …") as it is.
+
+> **Status:** plan, 2026-10-30; its recommendation (§9) was superseded on
+> 2026-11-10 by
+> [376-433-148-149-renderer-DESIGN.md](./376-433-148-149-renderer-DESIGN.md).
+> R0 is built, R1 measured, and R3 built and measured (§10). R2 and every
+> later phase are parked: R3 made R2 unnecessary for both measured apps.
+> The inventory (§3) and the seams (§4) stand as the reference for any
+> later renderer work.
+
+Its §7: replace the sentence "None is filed." with the text below. Before
+committing it, check against #376's comment of 2026-10-31 that the two
+issue numbers are these two proposals.
+
+> Proposal C was filed on 2026-10-30 as foldkit/foldkit#1872 and Proposal D
+> as foldkit/foldkit#1871, with comments on #1606, #1227 and Discussion
+> #1873. A, B, E and F are not filed, and are not to be while no renderer
+> here consumes them.
+
+Its §9: add this paragraph at the end of the section.
+
+> **Update 2026-11-10.** R0, R1 and R3 are done, and R3 answered R2's
+> question for these apps (§10), so R2 is not run. The decision rule is
+> now Phase 0 of
+> [376-433-148-149-renderer-DESIGN.md](./376-433-148-149-renderer-DESIGN.md):
+> renderer work restarts only if a re-run of `pnpm bench:render` shows a
+> frame over 16 ms at 4× CPU of which drawing and diffing are more than
+> half. Proposal C is still worth asking for by itself, for tests.
+> Proposal E is not pursued while nothing here needs Mounts by meaning.
+
+### Upstream
+
+Not posted. Nothing new goes to foldkit/foldkit#1871.
+
+**foldkit/foldkit#1872, the frame scheduler.** Read the issue first. Post
+only if it is open and the maintainer has not declined it; if a maintainer
+has asked a question there, answer that instead. If it was closed as not
+planned, post nothing and record that on #376. Text:
+
+> A consumer for this that exists today: `foldkit-mixins/testing` ships
+> `Frames.track`, which replaces `globalThis.requestAnimationFrame` so a
+> test can wait for the frames an app asked for, or hold them to reproduce
+> a race between a keystroke and a draw. It has to patch the global
+> because the runtime calls `requestAnimationFrame` directly at two sites
+> in `runtime/renderer.js` (0.170.0), and a global patch also catches
+> every other caller on the page. If the runtime read its frame request
+> from a service whose default is `requestAnimationFrame`, a test could
+> provide a deterministic one and the default would behave as it does now.
+> I can send that as a pull request: the two call sites, the service with
+> its default, and a test that provides a manual scheduler. Would you take
+> it?
