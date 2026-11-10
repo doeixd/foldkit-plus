@@ -52,8 +52,8 @@ export interface WorkerEnv {
 }
 
 /** Remembers what `make` built for a key; a build that failed is forgotten, so the next asks again. */
-const memo = <K, A>(make: (key: K) => Promise<A>) => {
-  const built = new Map<K, Promise<A>>()
+const memo = <K extends object, A>(make: (key: K) => Promise<A>) => {
+  const built = new WeakMap<K, Promise<A>>()
   return (key: K): Promise<A> => {
     const held = built.get(key)
     if (held !== undefined) return held
