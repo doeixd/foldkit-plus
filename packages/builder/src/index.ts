@@ -14,7 +14,7 @@
  * selection or an open panel is not an edit. Placed alone, with
  * `Bundle.withChild`, its parent owns the Model instead.
  */
-import { Effect, Option, Result, Schema } from 'effect'
+import { Effect, Match, Option, Result, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import {
   Block,
@@ -200,6 +200,10 @@ export const Message = defineMessageUnion({
   Selected: { id: NodeId },
   /** Nothing is selected. */
   Deselected: {},
+  /** A layers row pressed: it becomes current, as the keys make one, and so selected. */
+  RowPressed: { id: NodeId },
+  /** A layers row's expander pressed: the row opens if shut and shuts if open. */
+  RowToggled: { id: NodeId },
   Hovered: { id: NodeId },
   /** The pointer left every node. */
   Unhovered: {},
@@ -281,10 +285,22 @@ export type Message = typeof Message.Type
 
 const Parent = Bundle.parent({ Model, Message })
 /** The layers' tree and the announcer, placed in the Builder's own Model. */
-const placements = Parent.assemble(
-  Parent.at(Layers, { args: layersArgs }),
-  Parent.at(Announcer, { args: announcerArgs }),
-)
+const LayersPlaced = Parent.at(Layers, { args: layersArgs })
+const placements = Parent.assemble(LayersPlaced, Parent.at(Announcer, { args: announcerArgs }))
+
+/** The row a Message makes current in the layers: one the keys moved to, or one pressed. */
+const focusedBy = (message: Message): Option.Option<string> =>
+  Match.value(message).pipe(
+    Match.tag('RowPressed', ({ id }) => Option.some<string>(id)),
+    Match.orElse(() =>
+      Option.flatMap(Layers.wrapper.fromParentMessage(message), child =>
+        Match.value(child).pipe(
+          Match.tag('Focused', ({ id }) => Option.some(id)),
+          Match.orElse(() => Option.none()),
+        ),
+      ),
+    ),
+  )
 
 /** Props as a Document stores them, read from what a Block's Schema encoded. */
 const storedProps = Schema.decodeUnknownResult(Composition.Node.fields.props)
@@ -1192,6 +1208,10 @@ export const Builder = {
             : { model: { ...model, selected: Option.some(message.id), panel: 'properties' } }
         case 'Deselected':
           return { model: { ...model, selected: Option.none() } }
+        case 'RowPressed':
+          return LayersPlaced.helpers.focus(message.id)(model)
+        case 'RowToggled':
+          return LayersPlaced.helpers.toggle(message.id)(model)
         case 'Hovered':
           return { model: { ...model, hovered: Option.some(message.id) } }
         case 'Unhovered':
@@ -1603,9 +1623,10 @@ export const Builder = {
           message._tag === 'Inspected' ? moved.model : reconciled(model, moved.model),
         ),
       }
-      // Moving focus in the layers moves the selection with it.
-      if (message._tag === Layers.wrapper.tag && message.message._tag === 'Focused') {
-        const id = NodeId.make(message.message.id)
+      // Moving focus in the layers, by key or by a pressed row, moves the selection with it.
+      const focused = focusedBy(message)
+      if (Option.isSome(focused)) {
+        const id = NodeId.make(focused.value)
         return Composition.nodeAt(documentOf(next.model), id) === undefined
           ? next
           : { ...next, model: { ...next.model, selected: Option.some(id) } }

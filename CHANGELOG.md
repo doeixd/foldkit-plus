@@ -53,6 +53,12 @@ version changed; `pnpm` skips versions already in the registry.
   `update` with the placement's args, so `@foldkit/oxlint-plugin`'s
   `no-child-message-construction-in-root` is satisfied.
 
+- **The Builder's layer rows speak its own Messages** (`foldkit-builder`,
+  `foldkit-mixins-builder`, #495). A pressed row sends `RowPressed({ id })`
+  and its expander `RowToggled({ id })`, which `update` applies through the
+  layers' `focus` and `toggle`; before, the view sent the tree's `Focused`,
+  `Opened` and `Closed` itself. The keys still move the tree as before.
+
 - **Helpers that read their placement's args** (`foldkit-bundle`). `helpers`
   may be a function of the args, `helpers: ({ limit }) => ({ fill })`, as
   `subscriptions` and `resources` are; each placement and collection calls it

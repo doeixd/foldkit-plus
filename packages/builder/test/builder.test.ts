@@ -444,6 +444,17 @@ describe('the keyboard, the layers and the announcer', () => {
     expect(stray.selected).toEqual(model.selected)
   })
 
+  it('makes a pressed row current and selected, keeping the panel, and ignores a stray one', () => {
+    const { model, first } = twoSections()
+    const layers = { ...model, panel: 'layers' as const }
+    const pressed = send(layers, Message.RowPressed({ id: first }))
+    expect(pressed.selected).toEqual(Option.some(first))
+    expect(pressed.layers.current).toBe(first)
+    expect(pressed.panel).toBe('layers')
+    const stray = send(layers, Message.RowPressed({ id: NodeId.make('gone') }))
+    expect(stray.selected).toEqual(model.selected)
+  })
+
   it.each(['constructor', '__proto__', 'toString'])(
     'reads the page’s own nodes only: %s is no node to select, focus or keep',
     name => {
@@ -791,6 +802,12 @@ describe('dragging a node', () => {
     const dropped = send(gone, Message.DragDropped())
     expect(dropped.page.present).toBe(gone.page.present)
     expect(dropped.announcer.pending?.message).toBe('Not moved')
+  })
+
+  it('shuts an open row when its expander is pressed, and opens it again', () => {
+    const shut = send(page, Message.RowToggled({ id: id('s1') }))
+    expect(shut.layers.toggled).toEqual([id('s1')])
+    expect(send(shut, Message.RowToggled({ id: id('s1') })).layers.toggled).toEqual([])
   })
 
   it('opens the rows above a node selected from elsewhere, so the tree shows it', () => {

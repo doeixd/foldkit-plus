@@ -260,7 +260,8 @@ const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuil
   rekeys it and inserts it whole or refuses), `EditingAsked({ field })` / `FieldTyped` /
   `EditingCommitted` / `EditingCancelled` (text edited in place on the canvas, a field
   drawn with `field(key)`; one undo step per session, Escape takes it back), `Minted` (from its own Command),
-  `Selected({ id })` / `Deselected()`, `Hovered({ id })` / `Unhovered()`, `Undid`,
+  `Selected({ id })` / `Deselected()`, `Hovered({ id })` / `Unhovered()`, `RowPressed({ id })` /
+  `RowToggled({ id })` (a layers row and its expander, applied through the tree's helpers), `Undid`,
   `Redid`, `PanelChosen`, `ViewportChosen`, `PreviewChosen` / `PreviewCleared`, and
   `DragStarted({ source })` (`{ _tag: 'Existing', id }`, or `{ _tag: 'New', block }` from the
   palette), `DraggedOver({ id, zone })`, `DraggedOverRegion({ id, region })` (over a node's

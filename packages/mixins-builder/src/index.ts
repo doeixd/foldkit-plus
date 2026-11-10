@@ -1276,7 +1276,6 @@ export const BuilderView = {
         id,
         branch,
         node,
-        open,
         selected,
         drop,
         dragged,
@@ -1285,6 +1284,7 @@ export const BuilderView = {
         readonly id: string
         readonly branch: boolean
         readonly node: Document['nodes'][NodeId] | undefined
+        // Unread here: the row's Behavior draws it, and as an argument it redraws a toggled row.
         readonly open: boolean
         readonly selected: boolean
         readonly drop: DropZone | undefined
@@ -1302,7 +1302,7 @@ export const BuilderView = {
             h.AriaSelected(selected),
             // Made current, as the keys make a row: it selects the node and keeps the
             // layers showing, where `Selected` would switch a narrow editor to Settings.
-            h.OnClick(Layers.wrapper.make(TreeNavigation.Message.Focused({ id }))),
+            h.OnClick(Message.RowPressed({ id: NodeId.make(id) })),
             // Pointing at a row marks its node on the page, as pointing at the page does.
             h.OnMouseEnter(Message.Hovered({ id: NodeId.make(id) })),
             h.OnMouseLeave(Message.Unhovered()),
@@ -1316,13 +1316,7 @@ export const BuilderView = {
                   slots.rowToggle.attrs([
                     // The row says whether it is open; this is the pointer's way to change it.
                     h.AriaHidden(true),
-                    h.OnClick(
-                      Layers.wrapper.make(
-                        open
-                          ? TreeNavigation.Message.Closed({ id })
-                          : TreeNavigation.Message.Opened({ id }),
-                      ),
-                    ),
+                    h.OnClick(Message.RowToggled({ id: NodeId.make(id) })),
                   ]),
                   [],
                 ),
