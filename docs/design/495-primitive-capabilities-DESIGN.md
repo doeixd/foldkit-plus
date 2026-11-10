@@ -1,7 +1,8 @@
 # Child update capabilities for the interaction primitives (#495)
 
-Status: decided 2026-11-10. The owner chose the function form of `helpers`
-(decision 2) and adopting the rule for Bundle parents (decision 3).
+Status: built 2026-11-10, except the scaffold's lint of the examples, which
+the measurement below keeps off. The owner chose the function form of
+`helpers` (decision 2) and adopting the rule for Bundle parents (decision 3).
 
 ## The problem
 
@@ -143,7 +144,33 @@ build, not assumed.
 - The record form still type-checks and behaves as before (the existing
   crud, cms and form tests).
 - The scaffold job lints the copied examples with demos ignored, and fails
-  on a reintroduced `wrapper.make(TreeNavigation.Message.Opened(...))`.
+  on a reintroduced `wrapper.make(TreeNavigation.Message.Opened(...))`. Not
+  built: see the measurement below.
+
+## Measured: the examples under the scaffold's lint
+
+With the helpers in place, the seven examples the scaffold job copies were
+linted with a scaffold's own `.oxlintrc.json` (`@foldkit/oxlint-plugin`
+0.15.4's recommended rules and the scaffold's TypeScript rules), `demo.ts`
+ignored. 20 errors remain, and only 3 are this rule's:
+
+| Rule | Errors | Where |
+| --- | --- | --- |
+| `typescript/consistent-type-assertions` | 6 | `fields` |
+| `sort-imports` | 5 | `tree`, `drawer`, `fields` |
+| `typescript/no-explicit-any` | 3 | `fields` |
+| `foldkit/no-child-message-construction-in-root` | 3 | `tree`, `drawer` |
+| `foldkit/no-switch-on-message-tag` | 1 | `form` |
+| `foldkit/no-module-level-mutable-state` | 1 | `todo` |
+| `foldkit/no-hand-rolled-command-struct` | 1 | `form` |
+
+The three left of this rule are each view sending its own application's
+Message, `App.Message.ToggledRow(...)`. The rule takes a Message module for
+the root only by its file name (`index`, `main`, `message` or `schema`), and
+these examples keep `Message` in `app.ts`. So the remaining failures are
+upstream's module layout and general style, not child Messages, and fixing
+them is a pass over the examples of its own. The scaffold job still runs
+only `typecheck` over the copies.
 
 ## Left for a follow-up
 

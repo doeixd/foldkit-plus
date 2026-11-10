@@ -19,8 +19,9 @@
  *    with examples copied in as a reader copies them, their imports rewritten
  *    to `foldkit-plus/…` as an app on the meta package writes them. The
  *    examples are not linted: Foldkit's recommended rules hold an app to
- *    upstream's module layout (a view beside its Message, child update
- *    capabilities), which a demo harness driving an app breaks on purpose.
+ *    upstream's module layout (a root Message in a module named `message`)
+ *    and style rules the examples do not follow; #495's design note counts
+ *    what fails.
  * 5. With no options, pnpm's pins and install lines also run in a standalone
  *    project and a workspace member, over a stand-in manifest.
  *
