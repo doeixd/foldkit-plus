@@ -1,10 +1,11 @@
 # How a served page is delivered: the runtime on intent, streaming, islands, reads first (#472, #427, #432, #435)
 
-Status: decided 2026-11-10 (decisions delegated by the owner). Phase 0 is run but for the `Link`
-probe (section 5, "Phase 0 results"). Phase 2's loader is built in `foldkit-ssr` and wired into
-domains-plus as an opt-in build (`DOMAINS_PLUS_LOADER=1`), not its default: decision 5's
-first-press, Total Blocking Time and e2e numbers are not yet measured. Phase 1 is owed (a search
-pass makes two client calls).
+Status: decided 2026-11-10 (decisions delegated by the owner). Phase 0 is run (section 5,
+"Phase 0 results"); the `Link` probe failed decision 6's bar, so phase 3 is not built and #427
+closes with its numbers. Phase 2's loader is built in `foldkit-ssr` and wired into domains-plus as
+an opt-in build (`DOMAINS_PLUS_LOADER=1`), measured (section 5, "Phase 2 result") and not its
+default: a press at `load` takes three times as long as today's. Phase 1 is owed (a search pass
+makes two client calls).
 
 Four issues ask how a page `foldkit-ssr` renders reaches the browser: when its
 bytes leave the server (#427, #435), and how much script the browser needs for
@@ -379,7 +380,7 @@ Run 2026-11-10 from the packages, against Vite 8.3.5 and the tree at this note's
 | Probe | Result |
 | --- | --- |
 | The chunk's URL without evaluating it | **Pass.** A plugin that calls `this.emitFile({ type: 'chunk', id })` for the module the loader imports dynamically, and writes `import.meta.ROLLUP_FILE_URL_<ref>` into the loader, names the very chunk the `import()` loads (Rolldown gives one module one chunk), and nothing runs it. The address names that one file; a module the chunk shares with another dynamic import is its own file, which `modulepreload` does not fetch. Two warts: the client manifest lists a placeholder asset for the reference (`assets/app-!~{003}~.js`), and the emitted chunk reads as an entry (`isEntry`). Built as `runtimeChunk` (`foldkit-ssr/vite`); `test/loaderBuild.test.ts` holds it. |
-| `Link` preload before the body (workerd, Chromium) | **Not run.** It needs a running Worker, and Wrangler was held by another session. Phase 3 waits on it. |
+| `Link` preload before the body (workerd, Chromium) | **Fail.** On the buffered response a `Link: </assets/styles-….css>; rel=preload; as=style` header moves the stylesheet's request from 1 ms after the document's first body byte to the same instant, and first contentful paint falls by 6 ms (decision 6's bar is 50). Numbers in "Phase 3 result". |
 | What a WindowList Mount reads at a late boot | **Read from the code, not probed in a browser.** `WindowList.Track` waits a tick after insert, gives a list opened at a row (`?from=`) its rows above and scrolls by what that moved its first row, then `WindowViewport` reports at once from `getBoundingClientRect()` and `innerHeight`, and on every scroll after. A late boot therefore places the window where the reader has scrolled to, from the reading it takes at boot: no scroll needs keeping by the loader, as decision 4 assumed. |
 | Client calls in a pass of a domains-plus search | **Two.** `Data.satisfy` on `init`'s Model for `/?q=acme`, `/?q=vercel`, a never-seen label and `/?q=acme&tld=com` makes two `FoldkitRemoteRead` calls, both in the first pass (`passes: 1` still satisfies), from `TopResults` and `VisibleResults`; `/` makes none. Decision 9's rule (more than one) holds, so phase 1 is to be built; #435 stays open. |
 
@@ -399,14 +400,89 @@ two mirrors deferrable (with them named, the deferred plan renders: no other ref
 
 Script at start clears decision 5's 10 KB bar; total script is 1% worse.
 
-Owed before it is domains-plus's default (decision 5): the e2e with the chunk held (a press
-answered once, typing kept, a box ticked, adoption, no layout shift), and Total Blocking Time and
-first-press time at CPU throttle 4 against today's entry, and an account of the 2 KB more total
-script (decision 5 asks for no worse). Not run here: Wrangler and the e2e were held by another
-session, and no browser measurement of the built Worker was possible without it. The package's
-browser tests cover a held press answered once, intent on marked elements only, the 3 s release, a
-failed chunk and a refused page releasing at once, and focus kept across the handover
-(`packages/ssr/test/loader.browser.test.ts`).
+### Phase 2 result
+
+Run 2026-11-10 on the built Worker (`wrangler dev --local`'s workerd 1.20261019, Chromium
+headless shell build 1243, Linux), `/?q=acme`, CPU throttled 4 times (`Emulation.setCPUThrottlingRate`), a fresh
+browser context per run, today's build and the loader build served side by side and alternated,
+median of 12. The Worker's page was kept before the first run, so a render is not in any figure.
+
+**The e2e passes** (`examples/foldkit/domains-plus/e2e/loader.e2e.ts`, six tests against the loader
+build with the runtime chunk held, failed or let through): a cart press held is answered after the
+chunk with no POST and exactly one `submit` event; a chunk that never answers has the form posted
+once at the 3 s deadline (2.8 to 10 s after the press); a chunk that fails posts it once at once,
+which is the loader's `catch(releaseAll)`, not the deadline; typing is kept, with its caret, in the
+served input; every served element but the no-JS fallback's payload fields is still in the
+document after a late boot (the adoption check: production Foldkit warns of nothing);
+no layout shift above 0.1 with the boot held 3 s at a 390 px viewport. Two tests go red with the
+hold's `preventDefault` deleted (the press and the deadline). The page has no checkbox or radio, so "a box ticked" is covered by
+the package's browser tests alone, not by an e2e.
+
+| Median of 12 (min to max) | Today's entry | Under the loader |
+| --- | --- | --- |
+| Script at start, brotli | 207,320 B, one file | 2,316 B, two files (loader 1,972 + `marks` 344) |
+| Total script, brotli | 207,320 B | 209,691 B (+2,371 B) |
+| First press, pressed at `load`, to the cart showing the domain | **403 ms** (355 to 501) | **1,224 ms** (1,056 to 1,351) |
+| First press, 5 s after `load` | 187 ms (169 to 238) | 195 ms (176 to 220) |
+| Runtime taken over (resume marker gone), from navigation start | 1,230 ms | 1,158 ms |
+| Total main-thread blocking, every long task from navigation start | 807 ms (727 to 884) | 784 ms (696 to 951) |
+| First contentful paint | 160 ms | 146 ms |
+
+No press in either build posted the form. Total Blocking Time as Lighthouse defines it (long tasks
+after first contentful paint) reads 52 ms against 802 ms, and is the wrong figure here: today's one
+~800 ms evaluation of the chunk started before the first paint was reported in the run whose long
+tasks were dumped (395 ms against a paint at 416), the loader's after it (416 ms against 308), so
+the definition drops it from one build and counts it in the other. The row above
+counts every long task from the start; the two builds block the main thread for the same time, in
+one long task each (the loader's a little later).
+
+**Verdict: the loader does not become the default.** Script at start (2.3 KB against 10) and the
+e2e pass, and blocking is no worse. Total script is 2.4 KB worse, and first press is not "no worse":
+a press made as soon as the page has loaded waits three times as long. The reason is the design's,
+not a defect: today's page has already downloaded and begun evaluating its chunk when the press
+lands, while the loader starts the chunk at idle after `load`, or on the press itself, so a press
+at `load` pays the whole fetch and evaluation, which at throttle 4 is the ~800 ms above. A reader
+who presses after the idle start (5 s here) sees no difference. What the loader buys is the script
+at start, not the first press or the blocking time.
+
+The 2.4 KB (this build's brotli; the bundle report's estimate for the three chunks is 192.1 to
+194.2 kB, +2.1 kB): `foldkit-ssr` 7.1 to 8.1 kB (the loader, `handoff`, `marks`, `runtimeUrl`),
+unmapped glue 2.3 to 3.2 kB (the dynamic import and chunk boundaries), the app's own `src` +0.1 kB
+(`loader.ts` and the define), every other package unchanged; the runtime chunk is 55 bytes larger
+than today's single file and three files compress apart. Nothing in it is removable without
+removing the loader's job.
+
+The default stays today's entry. To flip it the loader needs a press at `load` to cost no more than
+today's, which means starting the chunk's fetch at `load` rather than at idle (a request in flight
+when the press lands, evaluation still on the press), or #473's cheaper render making the GET form
+a fallback that costs nothing. Neither is built.
+
+### Phase 3 result
+
+The `Link` probe, run 2026-11-10 on domains-plus's built Worker (`wrangler dev --local`, workerd
+1.20261019) and Chromium, with and without `Link: </assets/styles-b13f6677.css>; rel=preload;
+as=style` appended to the buffered HTML response by a wrapper Worker (the app is unchanged), the
+sheet uncached in a fresh context each run, `/?q=acme` kept so no render is in the time; median of
+14, runs alternated. "Sheet request" is the CDP `requestWillBeSent` of the `.css` against the
+document's first `dataReceived`.
+
+| Median of 14 | Local, no throttle | 150 ms and 1.6 Mbit/s |
+| --- | --- | --- |
+| Sheet request against first body byte, no header | +1.1 ms | +0.6 ms |
+| Sheet request against first body byte, with the header | -0.4 ms | -4.8 ms |
+| First contentful paint, no header | 70 ms | 618 ms |
+| First contentful paint, with the header | 64 ms | 612 ms |
+
+**Verdict: the bar is not cleared, and #427 closes with these numbers.** The header does make
+Chromium ask for the sheet before the first body byte (by 0.4 to 5 ms), but a buffered response
+sends its headers together with its body, and the sheet's `<link>` is the head's first element, so
+Chromium finds it from the first packet anyway: first contentful paint falls by 6 ms in both
+conditions, against the 50 ms the bar needs. The 120 ms render the header was meant to overlap is
+before the response, where a buffered Worker answers nothing, and only a response whose headers
+leave before the render (an early hint, a streamed response) could use it. Neither is built, and
+decision 6 builds headers first only on this probe passing. The header is not added to the app.
+The probe did not run a streamed response: decision 6 gates it on the buffered header and the
+header alone moves nothing.
 
 Phase 2 does not wait on #473 or foldkit#1657 (decision 5). A deadline
 release still sends a reader to a render that may fail with 1102, as a
