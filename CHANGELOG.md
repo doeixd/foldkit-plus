@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A write's own live echo is not counted twice while it is pending**
+  (`foldkit-remote`, #498). A relative layer (`adds`, `computes`) resolved over
+  a base the stream had already moved, so a like showed one too many until its
+  answer. Remote's Model now keeps what a field held before the first live
+  patch that landed during a write, and the layer resolves over that.
+  `Data.confirmed` still reads the stream's value.
+- **An answer that disagrees with a newer live patch is read again**
+  (`foldkit-remote`, #499). An answer delivered after a stream patch to the
+  same field overwrote it with nothing asking again. The answer is still
+  written, and the field is read again, since only a read says whether the
+  stream is behind the write or past it. No wire field is added.
 - **A lazy page is drawn when its bodies arrive over `while`** (`foldkit-bundle`,
   #501). A first Message whose `update` returned the Model it was given left
   the `while` view showing after the bodies loaded, since Foldkit redraws only
