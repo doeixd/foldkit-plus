@@ -58,10 +58,6 @@ phase ships alone and records its number; the gates below are the notes' own.
   [376-433-148-149-renderer-DESIGN.md](./376-433-148-149-renderer-DESIGN.md)
 ## Bugs and findings from 2026-11-10
 
-- [ ] **JSON Schema in every client that evaluates Expr** (3.4 kB brotli in
-  Chirp): `Law` and `Operators` keep `describe` on the objects `expr.ts` and
-  `evaluate.ts` use, so `toJsonSchemaDocument` stays reachable. Being split in
-  `packages/entity`. (Chirp's 20 kB of `foldkit-entity` is real use.)
 - [ ] **`examples/auth`'s e2e flaked once in six runs** (2026-11-10, after
   H1): in "a session the server no longer holds is refused…", after Sign
   out the page still read "Signed in as grace" through the 5 s poll. Not
@@ -69,10 +65,6 @@ phase ships alone and records its number; the gates below are the notes' own.
 - [ ] **domains-plus served 90 KB on workerd against 69 KB under Node** for
   the same kind of page; find why before comparing the two CPU figures.
   [performance-PLAN.md](./performance-PLAN.md)
-- [ ] **A Surface left mid-read still reads `Loading` for one frame** until
-  its Subscription's `ReadAbandoned` lands (recorded in the lifecycle test of
-  `temporal.test.ts`). Decide whether that frame matters.
-  [482-temporal-laws-MATRIX.md](./482-temporal-laws-MATRIX.md)
 - [ ] **The skill's version stamps** are behind (`foldkit-plus` 0.19.0
   against 0.20.0, `foldkit-remote` 0.23.0 against 0.24.0); re-check each
   reference against the code at the next release and only then bump it.
