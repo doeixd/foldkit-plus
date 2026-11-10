@@ -194,17 +194,17 @@ In the same change:
 
 ## Waiting on the maintainer
 
-- [ ] **The branch.** `ccr-dfcc253e-4x8hum` holds 66 commits CI has never
-      run, because CI runs on `main` and pull requests only. It needs a PR,
-      and CI watched to green.
-- [ ] **On merge, close what the branch fixed:** #400 (Menu and Menubar),
-      #431, #437, #467, #477, #484, #485, #487, #489, #251, #259, #491, #492,
-      #493.
+- [x] **The branch.** Merged 2026-11-10 as #497 (6fdafdf), with CI green
+      after four CI-only faults were fixed; the issues it fixed are closed.
 - [ ] **Upstream posts:**
   - the animation-settle issue (draft written; item 9 of the Order list in
     `docs/upstream-foldkit-ssr.md`);
-  - Proposal 7, a comment on foldkit#1657.
-- [ ] **`TYPESAFE_API_KEY`**, so the Jev review can run.
+  - Proposal 7, a comment on foldkit#1657;
+  - a comment on foldkit#1448 that `SSR.headed` now carries the head here.
+- [ ] **`TYPESAFE_API_KEY`**, so the Jev review can run. It is owed on
+      #497's public API: `SSR.headed`, `RootRefusesHead`, the exported SSR
+      diagnostic types, `Button.view`'s `attributes`, the resolver's class
+      merge.
 
 ## The queue
 
