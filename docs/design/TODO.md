@@ -62,10 +62,10 @@ phase ships alone and records its number; the gates below are the notes' own.
   Chirp): `Law` and `Operators` keep `describe` on the objects `expr.ts` and
   `evaluate.ts` use, so `toJsonSchemaDocument` stays reachable. Being split in
   `packages/entity`. (Chirp's 20 kB of `foldkit-entity` is real use.)
-- [ ] **The production build's font is not emitted** (domains-plus: the sheet
-  and preload name a `.woff2` that `dist/` lacks, so the page falls back to
-  Arial; found by c7d3471's e2e, which allows that one 404 for now). Being
-  fixed.
+- [ ] **`examples/auth`'s e2e flaked once in six runs** (2026-11-10, after
+  H1): in "a session the server no longer holds is refused…", after Sign
+  out the page still read "Signed in as grace" through the 5 s poll. Not
+  compared with the commit before H1. Watch for a recurrence.
 - [ ] **domains-plus served 90 KB on workerd against 69 KB under Node** for
   the same kind of page; find why before comparing the two CPU figures.
   [performance-PLAN.md](./performance-PLAN.md)
