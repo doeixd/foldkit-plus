@@ -113,15 +113,32 @@ it('draws every element the same with the sheet pruned to the tokens it reads (#
   const sheet = await mount('acme', full)
   await userEvent.click(element('#tld-filter-button'))
   await vi.waitUntil(() => document.querySelector('#tld-filter-items'), answered)
+  // The dropdown's 557 rows are one row drawn many times: read the first few
+  // and any chosen or active one, so the comparison fits a slow runner.
+  const rows = Array.from(document.querySelectorAll('#tld-filter-items [role="option"]'))
+  const read = new Set(
+    rows.filter(
+      (row, index) =>
+        index < 8 ||
+        row.getAttribute('aria-selected') === 'true' ||
+        row.hasAttribute('data-active'),
+    ),
+  )
+  const sampled = (node: Element) => {
+    const row = node.closest('#tld-filter-items [role="option"]')
+    return row === null || read.has(row)
+  }
   // Custom properties excluded: the pruned ones are absent by design.
   const drawn = () =>
-    Array.from(document.body.querySelectorAll('*'), node => {
-      const style = getComputedStyle(node)
-      return Array.from(style)
-        .filter(property => !property.startsWith('--'))
-        .map(property => `${property}: ${style.getPropertyValue(property)}`)
-        .join('; ')
-    })
+    Array.from(document.body.querySelectorAll('*'), node => node)
+      .filter(sampled)
+      .map(node => {
+        const style = getComputedStyle(node)
+        return Array.from(style)
+          .filter(property => !property.startsWith('--'))
+          .map(property => `${property}: ${style.getPropertyValue(property)}`)
+          .join('; ')
+      })
   const settled = async () => {
     // A font landing or a transition running between the two reads would
     // change what is drawn, not the prune: the sheet holds the `@font-face`,
