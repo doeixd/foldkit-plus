@@ -323,7 +323,8 @@ error model and one Schema reach from `alchemy.run.ts` to the browser.
   provide the database (`foldkit-remote-drizzle`'s Effect SQL) and `Auth`,
   built from the Worker's `env` (its bindings and secrets), with typed
   failures and `Schema` at every boundary. The Worker entry is one composed
-  `fetch` (`src/worker.ts`), not a set of ad-hoc handlers.
+  `fetch` (`src/worker.ts`, ordered by `foldkit-host`'s `Host.routes`), not a
+  set of ad-hoc handlers.
 - **Yielded Auth handles sign-in.** `AuthContract`, `Auth.make` and
   `Http.layer` give the account routes and the session cookie.
   `foldkit-auth`'s `AuthServer.resolver` turns that session into the

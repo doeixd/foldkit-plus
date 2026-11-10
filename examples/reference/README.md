@@ -154,10 +154,14 @@ browser: SSR.hydrate -> prepare: durable.session -> adopts the Worker's page as 
 The ledger makes a resend safe: a note the server wrote but whose answer was
 lost is answered from its record. Edits and deletes are plain writes.
 
-**The Worker** (`worker.ts`, `page.ts`, `build.ts`). The template is the
-build's `index.html`, read through the assets binding once per isolate. The
-build writes its id into it (`vite.config.ts`), and the Worker renders under
-that id, so a page is always adopted by its own build's script. Each page's
+**The Worker** (`worker.ts`, `page.ts`). Its order is `foldkit-host`'s
+`Host.routes`: the build's assets, then the `ORIGIN` check, then `/auth/` and
+`/remote`, then pages. Yielded's services and the routes over them are built
+once per D1 binding (`Host.isolate`). The template is the build's
+`index.html`, read through the assets binding once per isolate
+(`Host.template`). The build writes its id into it (`Host.buildTag` in
+`vite.config.ts`), and the Worker renders under that id, so a page is always
+adopted by its own build's script. Each page's
 description (the plan's `meta`) comes in its rendered root, and
 `SSR.headed` moves it into the template's head, where a link preview reads
 it. `Stack`

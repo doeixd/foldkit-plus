@@ -243,7 +243,7 @@ export const subsites: ReadonlyArray<Subsite> = [
       tagline: 'Server rendering that hands the browser the Model instead of running init again.',
       owner: 'the application, in a resume plan',
       shelf: 'Delivery',
-      packages: ['ssr'],
+      packages: ['ssr', 'host'],
     },
     [doc('without-javascript', 'Pages that work without JavaScript', 'progressive-enhancement')],
   ),
