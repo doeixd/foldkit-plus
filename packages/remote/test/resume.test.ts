@@ -6,7 +6,7 @@
 import { Effect, Layer, Result, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Surface } from 'foldkit-surface'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Entity, Query, Remote, RemoteClient, tombstone } from '../src/index.js'
 import { captureRemote, restoreRemote } from '../src/resume.js'
 import { live } from '../src/live.js'
@@ -243,5 +243,71 @@ describe('Remote.resume', () => {
 
   it('takes an id, for a second domain in one application', () => {
     expect(Remote.resume(Data, { id: 'catalog' }).id).toBe('catalog')
+  })
+
+  describe('a read the render finds unmade', () => {
+    const reported = (model: Model, projections: Parameters<typeof part.capture>[1]): string[] => {
+      const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+      try {
+        part.capture(model, projections)
+        return log.mock.calls.map(call => call.join(' '))
+      } finally {
+        log.mockRestore()
+      }
+    }
+
+    it('is reported for a field and a list no read made, naming them', () => {
+      const lines = reported(initial, [detail, list])
+      expect(lines).toHaveLength(1)
+      expect(lines[0]).toContain('[foldkit-remote]')
+      expect(lines[0]).toContain('Project:p1,')
+      expect(lines[0]).toContain(identity)
+    })
+
+    it('is reported for a field a held row lacks, and for a row a relation reaches', () => {
+      const nameOnly = Data.reduce(initial, {
+        _tag: 'ReadReceived',
+        requests: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
+        result: {
+          settled: [],
+          entities: [{ entity: 'Project', id: 'p1', values: { name: 'Atlas' } }],
+        },
+        now: 5,
+      })
+      expect(reported(nameOnly, [detail]).join('\n')).toContain('Project:p1.owner')
+      const ownerless = Data.reduce(initial, {
+        _tag: 'ReadReceived',
+        requests: [{ entity: 'Project', id: 'p1', fields: ['name', 'owner'] }],
+        result: {
+          settled: [],
+          entities: [{ entity: 'Project', id: 'p1', values: { name: 'Atlas', owner: 'User:u1' } }],
+        },
+        now: 5,
+      })
+      expect(reported(ownerless, [detail]).join('\n')).toContain('User:u1')
+    })
+
+    it('is not reported when every read was made', () => {
+      expect(reported(served, [detail, list])).toEqual([])
+    })
+
+    it('is not reported for a field the server settled without a value', () => {
+      const settled = Data.reduce(initial, {
+        _tag: 'ReadReceived',
+        requests: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
+        result: {
+          settled: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
+          entities: [],
+        },
+        now: 5,
+      })
+      const named = Data.get(Project.select({ name: true }), 'p1')
+      expect(reported(settled, [named])).toEqual([])
+    })
+
+    it('is not reported for a row the server answered gone', () => {
+      const gone = { ...served.remote, entities: tombstone(served.remote.entities, 'Project:p1') }
+      expect(reported({ ...served, remote: gone }, [detail])).toEqual([])
+    })
   })
 })

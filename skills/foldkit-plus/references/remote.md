@@ -475,7 +475,8 @@ keeps no cursors.
 A render that fetches nothing needs everything the page's active Surfaces
 read, and one read can decide what another asks for (a page's Blocks once its
 document is read). `Data.satisfy` takes the record `Data.wiring` takes and
-prefetches, cache-first, pass after pass until nothing is missing; past its
+prefetches, cache-first, pass after pass until nothing is missing, one read a
+pass for every Surface (what one reveals waits for the next pass); past its
 bound (8 passes, `{ passes }`) it fails with `RemoteUnsatisfied`, naming the
 Surfaces still reading. A `Surface.each` family is one record entry: its
 parent's requirements join its instances', and a still-reading instance is
@@ -832,7 +833,7 @@ in the Model: it is wrong after a reload and in a second tab.
 **Diagnostics.** `remote.diagnostics` (`Data.inspect(model).diagnostics`) holds,
 typed and oldest first (the newest 256), what Remote met and kept going past:
 `PredictionMismatch`, `WriteUnheard`, `LiveRefused`, `OutboxUnreadable` and
-`OutboxUnsaved`, each with `source`, `level` and `message`. The reducer only records; the wiring's route and `Remote.fold`
+`OutboxUnsaved`, each with `source`, `level` and `message` (`ReadUnmade` is only reported: `Remote.resume`'s capture finds a field or list the page's Surfaces read that no `Data.satisfy` read made). The reducer only records; the wiring's route and `Remote.fold`
 report each new one through the `Diagnostics.Reporter` in the Effect context
 (`foldkit-surface`'s, re-exported by `foldkit-remote`), by default Effect's log
 (an `error` diagnostic with `console.error`, a `warning` with `console.log`),

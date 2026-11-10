@@ -15,6 +15,7 @@ export {
   type OutboxUnreadable,
   type OutboxUnsaved,
   type PredictionMismatch,
+  type ReadUnmade,
   type RemoteDiagnostic,
   type VerifyPredictions,
   type WriteUnheard,

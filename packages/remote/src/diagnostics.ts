@@ -136,6 +136,29 @@ export const insertUnpredicted = (
   }
 }
 
+/**
+ * A server render sent a page whose active Surfaces read something no read
+ * made: the `Data.satisfy` that prepared the Model ran with other Surfaces
+ * than the ones the plan sends, or stopped early. The browser asks for each
+ * again, so the page shows it `Loading` after the first frame. Each entry is
+ * `Entity:id.field` or the identity of a list.
+ */
+export interface ReadUnmade extends Diagnostic {
+  readonly _tag: 'ReadUnmade'
+  readonly unmade: ReadonlyArray<string>
+}
+
+/** How many unmade reads a message names before it counts the rest. */
+const NAMED_UNMADE = 5
+
+export const readUnmade = (unmade: ReadonlyArray<string>): ReadUnmade => ({
+  _tag: 'ReadUnmade',
+  source,
+  level: 'warning',
+  message: `A server render sent a page whose Surfaces read ${unmade.slice(0, NAMED_UNMADE).join(', ')}${unmade.length > NAMED_UNMADE ? ` and ${unmade.length - NAMED_UNMADE} more` : ''}, which no read made, so the browser asks for ${unmade.length === 1 ? 'it' : 'them'} and the page shows Loading after its first frame. Pass the Data.satisfy that prepares the Model the same active Surfaces the plan renders.`,
+  unmade,
+})
+
 /** Every diagnostic Remote's client records. */
 export type RemoteDiagnostic =
   | LiveRefused

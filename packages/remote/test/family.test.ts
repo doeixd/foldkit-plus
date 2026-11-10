@@ -188,7 +188,7 @@ describe('A family joins its parent with its instances', () => {
     const loaded = await Effect.runPromise(
       Data.satisfy(at('/pages/p1'), { cards: Cards }).pipe(Effect.provide(client.layer)),
     )
-    expect(client.reads).toEqual([['Page:p1'], ['Page:p1'], ['Project:a'], ['Project:b']])
+    expect(client.reads).toEqual([['Page:p1'], ['Page:p1'], ['Project:a', 'Project:b']])
     // Satisfied: nothing left to fetch, but retention still roots every read.
     expect(requested(loaded, entries['cards.read'])).toEqual([])
     expect(

@@ -1274,7 +1274,10 @@ Projection itself.
 A render that fetches nothing (SSR, a prerender) needs everything a page's
 active Surfaces read, and one read can decide what another asks for: a page's
 Blocks are known once its document is. `Data.satisfy` prefetches every active
-Surface, cache-first, pass after pass until a pass plans nothing:
+Surface, cache-first, pass after pass until a pass plans nothing. A pass sends
+what every Surface plans as one read, so a page of several Surfaces makes one
+client call a pass; a Surface that another's read reveals is read in the next
+pass, wherever it comes in `actives`:
 
 <!-- docs-check
 const actives = { project: projectPage }

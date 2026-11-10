@@ -74,6 +74,57 @@ describe('Data.satisfy', () => {
     expect(client.reads).toHaveLength(2)
   })
 
+  it('reads every Surface of a pass in one client call', async () => {
+    const two = {
+      project: Data.active('Project', () => Option.some(project)),
+      user: Data.active('User', () => Option.some(Data.get(User.select({ name: true }), 'u1'))),
+      other: Data.active('Other', () => Option.some(Data.get(User.select({ name: true }), 'u2'))),
+    }
+    const client = recording()
+    const satisfied = await Effect.runPromise(
+      Data.satisfy(initial, two, { passes: 1 }).pipe(Effect.provide(client.layer)),
+    )
+    expect(client.reads).toHaveLength(1)
+    expect(client.reads[0]?.slice().sort()).toEqual(['Project:p1', 'User:u1', 'User:u2'])
+    expect(Data.get(User.select({ name: true }), 'u2').read(satisfied)).toMatchObject({
+      _tag: 'Ready',
+    })
+  })
+
+  it('reads what a Surface reveals in the next pass, though it comes later in `active`', async () => {
+    const projectFirst = { project: actives.project, lead: actives.lead }
+    const client = recording()
+    // One pass reads the project only: the lead it reveals waits, whatever the order.
+    const short = await Effect.runPromise(
+      Effect.flip(Data.satisfy(initial, projectFirst, { passes: 1 })).pipe(
+        Effect.provide(client.layer),
+      ),
+    )
+    expect(short).toEqual(new RemoteUnsatisfied({ surfaces: ['Lead'], passes: 1 }))
+    expect(client.reads).toEqual([['Project:p1']])
+    // The default budget covers it.
+    const both = recording()
+    const satisfied = await Effect.runPromise(
+      Data.satisfy(initial, projectFirst).pipe(Effect.provide(both.layer)),
+    )
+    expect(both.reads).toEqual([['Project:p1'], ['User:u7']])
+    expect(Data.get(User.select({ name: true }), 'u7').read(satisfied)).toMatchObject({
+      _tag: 'Ready',
+    })
+  })
+
+  it("cuts the pass's one read to the client's maxIdsPerEntity", async () => {
+    const name = Project.select({ name: true })
+    const three = Object.fromEntries(
+      ['a', 'b', 'c'].map(id => [id, Data.active(id, () => Option.some(Data.get(name, id)))]),
+    )
+    const client = recording()
+    const bounded = Remote.coalesced(client.layer, { maxIdsPerEntity: 2 })
+    await Effect.runPromise(Data.satisfy(initial, three).pipe(Effect.provide(bounded)))
+    // Three ids of one Entity are two reads of at most two ids, not three reads of one.
+    expect(client.reads.map(ids => ids.length).sort()).toEqual([1, 2])
+  })
+
   it('fails naming the Surfaces still reading when the passes run out', async () => {
     // One pass reads the project, and the lead it reveals is left unread.
     const short = await Effect.runPromise(

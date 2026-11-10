@@ -1412,7 +1412,7 @@ const bindDomain = <
    */
   const prefetchInto = (
     model: AppModel,
-    projection: Projection<AppModel, unknown>,
+    projections: ReadonlyArray<Projection<AppModel, unknown>>,
     options: ObserveOptions<AppModel>,
     heard: Array<RemoteMessage>,
   ) => {
@@ -1431,7 +1431,7 @@ const bindDomain = <
       // The pages first, so their items join the one entity read below. A
       // page with a payload already writes its items' selected fields, so
       // the read below is only for what the server left out.
-      for (const query of planAsked(bound, store.get(current), askedOf(projection), planOptions)
+      for (const query of planAsked(bound, store.get(current), askedUnion(projections), planOptions)
         .queries) {
         const page = yield* queryRequestOf(query).pipe(
           Effect.flatMap(request => client.query(request)),
@@ -1444,7 +1444,7 @@ const bindDomain = <
       const requirements = planAsked(
         bound,
         store.get(current),
-        askedOf(projection),
+        askedUnion(projections),
         planOptions,
       ).requirements
       if (requirements.length === 0) return current
@@ -1491,13 +1491,15 @@ const bindDomain = <
           )
         )
           return current
-        for (const entry of entries) {
-          // Asked again over the Model the Surface before it left. A family
-          // resolves its parent first: a pass fetches the parent, and the
-          // instances the parent reveals are read in a later pass.
-          for (const { projection } of resolvedOf(entry, current))
-            current = yield* prefetchInto(current, projection, { now }, heard)
-        }
+        // Every Surface's reads for the pass go out as one read, planned over
+        // the Model the pass began with: what a Surface reveals is read in the
+        // next pass, a family's instances after its parent included.
+        current = yield* prefetchInto(
+          current,
+          entries.flatMap(entry => resolvedOf(entry, current).map(({ projection }) => projection)),
+          { now },
+          heard,
+        )
       }
       const reading = entries.flatMap(entry =>
         resolvedOf(entry, current).filter(({ projection }) => plans(current, [projection])),
@@ -1817,7 +1819,7 @@ const bindDomain = <
     meta: (model, projection) => meta(bound, model, projection),
     storeOf: model => storeOf(bound, model),
     confirmed: projection => confirmed(bound, projection),
-    prefetch: (model, projection, options = {}) => prefetchInto(model, projection, options, []),
+    prefetch: (model, projection, options = {}) => prefetchInto(model, [projection], options, []),
     satisfy: (model, active, options = {}) => satisfyInto(model, active, options, []),
     preload: (model, active, options = {}) => {
       // A Surface of another application is a mistake in `update`, refused there.

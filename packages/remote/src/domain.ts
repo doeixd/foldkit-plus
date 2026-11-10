@@ -552,10 +552,10 @@ export interface RemoteDomain<
   >
   /**
    * The Model with everything the active Surfaces read, for a render that
-   * fetches nothing (SSR, a prerender). Each pass prefetches every Surface
-   * that plans a read, over the Model the one before it left, so a Surface
-   * active only once another's read has arrived is read in the next pass (or
-   * the same one, when it comes later in `active`). It stops at the first
+   * fetches nothing (SSR, a prerender). Each pass reads what every Surface
+   * plans in one read, over the Model the pass began with, so a Surface
+   * active only once another's read has arrived is read in the next pass,
+   * wherever it comes in `active`. It stops at the first
    * pass that plans nothing, and fails with `RemoteUnsatisfied` when
    * `options.passes` run out first. Reads are cache-first: a field already
    * held is not asked again. A server that could not tell who is asking
