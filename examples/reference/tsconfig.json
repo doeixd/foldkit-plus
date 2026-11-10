@@ -76,6 +76,7 @@
       "foldkit-plus/guard/media": ["../../packages/plus/src/guard/media.ts"],
       "foldkit-plus/guard/server": ["../../packages/plus/src/guard/server.ts"],
       "foldkit-plus/guard/sync": ["../../packages/plus/src/guard/sync.ts"],
+      "foldkit-plus/host": ["../../packages/plus/src/host.ts"],
       "foldkit-plus/media": ["../../packages/plus/src/media.ts"],
       "foldkit-plus/media/browser": ["../../packages/plus/src/media/browser.ts"],
       "foldkit-plus/media/cloudflare": ["../../packages/plus/src/media/cloudflare.ts"],

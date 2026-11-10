@@ -3091,6 +3091,18 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  packages/host:
+    devDependencies:
+      foldkit:
+        specifier: 0.170.0
+        version: 0.170.0(@effect/platform-browser@4.1.1(effect@4.1.1))(effect@4.1.1)
+      tsdown:
+        specifier: ^0.23.1
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
   packages/media:
     dependencies:
       foldkit-surface:
@@ -3510,6 +3522,9 @@ importers:
       foldkit-guard:
         specifier: workspace:*
         version: link:../guard
+      foldkit-host:
+        specifier: workspace:*
+        version: link:../host
       foldkit-media:
         specifier: workspace:*
         version: link:../media

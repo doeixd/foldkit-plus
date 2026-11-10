@@ -33,6 +33,7 @@
     { "path": "./packages/remote-drizzle" },
     { "path": "./packages/mirror" },
     { "path": "./packages/site" },
+    { "path": "./packages/host" },
     { "path": "./packages/bundle" },
     { "path": "./packages/bundle-surface" },
     { "path": "./packages/primitives" },
