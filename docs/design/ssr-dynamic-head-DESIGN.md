@@ -3,9 +3,8 @@
 Status: decided 2026-11-09; built 2026-11-10, then hardened after an
 independent review: `SSR.headed` reads the block from the rendered root's
 end alone, since a view can draw marker comments verbatim inside a
-`<style>` and a document-wide search moved them. One check below is still
-open: no e2e test in `examples/reference` reads a served description, and
-no example uses `SSR.headed` yet.
+`<style>` and a document-wide search moved them. `examples/reference`'s
+Worker serves through it, and its e2e test reads each served description.
 
 ## The problem
 

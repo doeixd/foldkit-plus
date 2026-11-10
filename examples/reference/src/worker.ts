@@ -21,11 +21,12 @@ import * as WorkerdServices from '@yielded/auth-platform-workerd'
 import { drizzle } from 'drizzle-orm/d1'
 import { Duration, Effect, Layer, ManagedRuntime, Option, type Context } from 'effect'
 import { HttpRouter, HttpServer } from 'effect/http'
-import { handleRequest } from 'foldkit/experimental/server'
+import { handleRequest, injectIntoTemplate } from 'foldkit/experimental/server'
 import { AuthServer } from 'foldkit-plus/auth/server'
 import { databaseLayer } from 'foldkit-plus/remote-drizzle'
 import { RemoteServer } from 'foldkit-plus/remote-server'
 import { pageReader, serveFetch } from 'foldkit-plus/remote-server/fetch'
+import { SSR } from 'foldkit-plus/ssr'
 import { App, AppServices } from './auth.js'
 import { buildIdOf } from './build.js'
 import type { Principal } from './guard.js'
@@ -154,7 +155,8 @@ const answerPage = async (request: Request, env: WorkerEnv, host: Host): Promise
   const { html, renderPage } = await templateOf(env.ASSETS)
   return handleRequest(PageContext.attach(request, { reader: host.read(request, env) }), {
     renderPage,
-    template: html,
+    // The page's `meta` rides in its root; `SSR.headed` moves it into the head.
+    renderDocument: SSR.headed(application => injectIntoTemplate(html, application)),
   })
 }
 
