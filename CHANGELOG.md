@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **An earlier pending edit no longer shows over a later confirmed one**
+  (`foldkit-remote`, #482). With two writes to one field pending, an answer
+  to the later one arriving first left the earlier write's layer on top, so
+  the field read the older edit until its answer came. A later answer now
+  takes the fields it wrote out of earlier layers, as it already took a row
+  it deleted.
 - **A class an upstream component passes as a child attribute keeps the
   recipe's** (`foldkit-mixins`). The resolver merged a slot's plain `Class`
   but passed a child attribute through, so a popup's `itemsScrollClassName`
