@@ -6,7 +6,7 @@
 import { fileURLToPath } from 'node:url'
 import { createServer as createHttpServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { build, createServer } from 'vite'
+import { build, createServer, defaultServerConditions } from 'vite'
 import type { Rollup } from 'vite'
 import { Style } from 'foldkit-mixins'
 import { styles, type StylesOptions } from 'foldkit-mixins/vite'
@@ -90,6 +90,9 @@ describe('foldkit-mixins/vite', () => {
       configFile: false,
       logLevel: 'silent',
       resolve: { alias: { 'foldkit-mixins': mixins } },
+      // The sheet loads through `foldkit-mixins` into the other workspace
+      // packages; their source, since CI builds no `dist` to resolve to.
+      ssr: { resolve: { conditions: ['foldkit-plus:source', ...defaultServerConditions] } },
       plugins: [styles({ sheet: '/tokens.ts', prune: {} })],
       server: { middlewareMode: true, ws: false },
     })

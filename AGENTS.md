@@ -2376,6 +2376,13 @@ of its own named a form field "fits the Catalog". Read words with
   `loadConfigFromFile` meets the same: it passed locally and failed on CI for
   every config importing `foldkit-ssr/vite`. Import the config through Vitest
   (`import config from '../vite.config.js'`), as the e2e tests do.
+- **A local `dist` hides a test whose own Vite server skips the source
+  condition.** `viteStyles.test.ts` made a dev server with `configFile:
+  false`, so `foldkit-mixins` (aliased to source) loaded `foldkit-surface`
+  from its `dist`: here one existed and the test passed; CI builds none, and
+  the load's 404 read as "Cannot GET". Give such a server the root config's
+  conditions (`'foldkit-plus:source'` first), and reproduce a CI-only failure
+  with the `dist` folders moved aside.
 - **Vitest's resolve conditions are its own, not Vite's.** Adding the source
   condition to Vite's defaults brought in `module`, which loaded
   `@opentelemetry/api`'s extensionless ESM build, and `browser`, which gave
