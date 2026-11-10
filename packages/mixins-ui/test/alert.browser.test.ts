@@ -96,8 +96,7 @@ test.each([
         expect(each.right, `${child.tagName} right`).toBeLessThanOrEqual(box.right + 0.5)
         expect(each.left, `${child.tagName} left`).toBeGreaterThanOrEqual(box.left - 0.5)
       }
-      // The dismiss button is at the inline end: past the middle, toward that edge,
-      // and beyond the action's far edge in the reading direction.
+      // The dismiss button is at the inline end: past the middle, near that edge.
       const mark = rectOf(dismiss)
       const middle = (box.left + box.right) / 2
       if (direction === 'ltr') {
