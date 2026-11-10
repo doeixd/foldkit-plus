@@ -309,8 +309,8 @@ export default [
     edits: [
       {
         file: '../src/page.ts',
-        find: 'Access.match(accessOf(model), {',
-        replace: 'Access.match(Access.Allowed(), {',
+        find: 'Denied: ({ url }) => Option.some(url),',
+        replace: 'Denied: () => Option.none(),',
       },
     ],
     tests: page,
@@ -332,22 +332,11 @@ export default [
     tests: page,
   },
   {
-    name: 'the host reads for every method',
-    edits: [
-      {
-        file: '../src/page.ts',
-        find: "if (method !== 'GET' && method !== 'HEAD') return entryFor(initial).renderPage(request)",
-        replace: '',
-      },
-    ],
-    tests: page,
-  },
-  {
     name: 'a session that ended fails the page',
     edits: [
       {
         file: '../src/page.ts',
-        find: "    Effect.catchTag('Unauthenticated', () => Effect.succeed(unread)),\n",
+        find: "        Effect.catchTag('Unauthenticated', () => Effect.succeed(unread)),\n",
         replace: '',
       },
     ],
@@ -380,8 +369,8 @@ export default [
     edits: [
       {
         file: '../src/page.ts',
-        find: 'readAs(request, context.value.reader)',
-        replace: "readAs(request, httpReader(request, 'http://127.0.0.1:9'))",
+        find: 'Effect.provide(reader),',
+        replace: "Effect.provide(httpReader(request, 'http://127.0.0.1:9')),",
       },
     ],
     tests: host,

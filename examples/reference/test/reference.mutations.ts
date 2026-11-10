@@ -100,8 +100,8 @@ export default [
     edits: [
       {
         file: '../src/page.ts',
-        find: 'new Response(null, { status: 303, headers: { location: url, ...pageHeaders } }),',
-        replace: 'new Response(null, { status: 200, headers: pageHeaders }),',
+        find: 'Denied: ({ url }) => Option.some(url),',
+        replace: 'Denied: () => Option.none(),',
       },
     ],
     tests: worker,
