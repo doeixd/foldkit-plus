@@ -342,8 +342,9 @@ type OwnOperand<T> = EntityField<string, string, Schema.Constraint> | Expr<T> | 
 /**
  * Type-only: the Entities a predicate's fields belong to, by name, so
  * `Query.where` can refuse one over another Entity where it is written. Never
- * set at run time; a predicate built without it (typed plain `Predicate`)
- * reads as unknown and is checked at run time only.
+ * set at run time. A node built without it (typed plain `Predicate`) names
+ * nothing, so it adds no name to a combination and the run-time ownership
+ * check is what proves it.
  */
 export interface Reads<Names extends string> {
   readonly '~reads'?: Names
@@ -351,8 +352,11 @@ export interface Reads<Names extends string> {
 
 /**
  * The Entity names an operand reads: a field's own, a marked node's, none for
- * a value or an input. A node with no marker (a `Predicate` typed plainly)
- * reads as `string`, unknown.
+ * a value or an input. A node with no marker (`Predicate`, `Expr<string>`)
+ * answers `never`, not `string`: an unknown read contributes nothing, so
+ * `and(onAuthor, plain)` still reads `'Author'` and is refused over another
+ * Entity, where `string` would absorb every name it is unioned with and lose
+ * that refusal. Ownership of what the type cannot see is checked at run time.
  */
 export type ReadsOf<X> =
   X extends EntityField<infer Name, string, Schema.Constraint>

@@ -25,7 +25,9 @@ import {
   type OrPredicate,
   type InputExpr,
   type Predicate,
+  type FieldExpr,
   type Reads,
+  type ReadsOf,
 } from '../src/index.js'
 import { Blog } from './blogFixture.js'
 
@@ -227,11 +229,27 @@ Query.from(Post).pipe(
   // @ts-expect-error however deep it sits
   Query.where(Expr.or(Expr.eq(Post.fields.title, 'x'), Expr.not(Expr.eq(Doc.fields.rank, 1)))),
 )
-// A predicate typed plainly reads as unknown, and is left to the run-time check.
+// A predicate typed plainly names no Entity, and is left to the run-time check.
 declare const somePredicate: Predicate
 Query.from(Post).pipe(Query.where(somePredicate))
 // One that reads no field at all is any query's.
 Query.from(Post).pipe(Query.where(Expr.isNull(Expr.input('given', Schema.NullOr(Schema.String)))))
+
+// An unmarked node's reads are `never`, not `string`: `string` would absorb every
+// name it is unioned with and lose the refusal below.
+expectTypeOf<ReadsOf<Predicate>>().toEqualTypeOf<never>()
+expectTypeOf<ReadsOf<ExprOf<string>>>().toEqualTypeOf<never>()
+expectTypeOf<ReadsOf<FieldExpr<string>>>().toEqualTypeOf<never>()
+// Combined with a marked node, the marked node's name survives.
+const mixed = Expr.and(Expr.eq(Blog.Author.fields.name, 'a'), somePredicate)
+expectTypeOf<ReadsOf<typeof mixed>>().toEqualTypeOf<'Author'>()
+Query.from(Post).pipe(
+  // @ts-expect-error the Author half of the conjunction is refused beside a plain predicate
+  Query.where(mixed),
+)
+// Hand mutation (2026-11-10): changing ReadsOf's last `: never` to `: string`
+// leaves the refusal's directive unused (TS2578) and fails the three `never`
+// cases above.
 
 // An ordering term too: a field of another Entity is refused where it is piped.
 Query.from(Post).pipe(Query.orderBy(Order.asc(Post.fields.title)))
