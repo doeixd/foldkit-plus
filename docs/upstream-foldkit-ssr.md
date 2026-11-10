@@ -427,6 +427,36 @@ then the pull request if the maintainer accepts the offer.
 **Afterwards, here.** Bump Foldkit, re-measure `/?q=` with
 `examples/foldkit/domains-plus/test/cpu.test.ts`, and lower its budget.
 
+## Proposal 8: pass the Worker's `env` and `ctx` to `renderPage`
+
+**Not posted.** From the Site tree and host note
+([235-236-438-site-host-DESIGN.md](./design/235-236-438-site-host-DESIGN.md),
+its Issue actions).
+
+**Ask.** The server build's generated `fetch.js` exports `fetch(request)` and
+calls `handleRequest(request, { renderPage, renderDocument })`, so on a Worker
+a page never sees `env` or `ctx` (`@foldkit/vite-plugin` 0.28.0,
+`dist/build.js:258-264`). Could the generated handler be
+`fetch(request, env, ctx)` and pass both on, as a second argument to
+`renderPage` (`renderPage(request, { env, ctx })`)? Existing `renderPage`
+functions ignore an extra argument, so it should not break anyone.
+
+**Why we need it.** An application that needs a binding in `renderPage` (a
+database to read the page from, a KV page cache) has two choices today:
+bundle the page into a Worker entry of its own and give up the generated one,
+or reach the binding through `import('cloudflare:workers')` hidden from the
+bundler. It also cannot put a route such as an API endpoint in front of pages
+except inside `renderPage`. `SSR.requestContext` already makes the page code
+the consumer once the argument exists.
+
+**Route.** An issue, in the form of the question above.
+
+**Afterwards, here.** Nothing waits on it: `SSR.requestContext` keeps page
+code the same either way, and the host bundles the page into its own Worker
+meanwhile. With the ask accepted, domains-plus's two workarounds
+(`examples/foldkit/domains-plus/src/server/entry.ts:119-126` and
+`src/server/cache.ts:47-59`) can go.
+
 ## What we are not asking for
 
 These were on this repository's list and are dropped or held after this
@@ -467,6 +497,8 @@ check:
 9. The leave that ends before it is drawn (below) as an issue, now. A draft
    is ready; it was not filed because this repository's sessions cannot
    post to foldkit/foldkit.
+10. Proposal 8 as an issue, any time: it needs nothing from the others. Not
+    posted.
 
 Each upstream change is followed here by removing the workaround it replaces,
 with the SSR plan and README updated in the same commit.

@@ -379,10 +379,10 @@ parallel.
 - #427: streaming SSR, with #435 starting every read at route match.
 
 Then, from the declared-optimization note:
-- #439: the invalidation map, after #431.
+- #439: the invalidation map, after #431. Narrowed 2026-11-10 to a static write-against-query function (when #437 or `explain` first needs it) and per-Entity versions (when `read.bench.ts`'s figure passes 1 ms per write on a real page), each with its trigger: [377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md).
 - #437: index checks.
 - #438: route splitting.
-- #440: selection codecs, if #421 shows Schema is a real share.
+- #440: selection codecs, if #421 shows Schema is a real share. Decided closed 2026-11-10 on the measurement (Schema is 7.0% and 8.9% of the two clients; at most 0.76 kB could go): [377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md).
 
 Each lands with its checker in the same change.
 

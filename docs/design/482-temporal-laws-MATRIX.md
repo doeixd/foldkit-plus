@@ -80,7 +80,7 @@ every request until a step answers it.
 | An answer after the stream's stale patch (the patch committed before the write) never shows or confirms the old value | `echo.test.ts` (#485: eleven cases); `temporal.test.ts` position 0 | covered | `echo.mutations.ts` (ten); `temporal.mutations.ts` repeats its two central mutations |
 | A patch after the answer that is not the answer is read again, reading `Refreshing` meanwhile, and converges on the re-read | `echo.test.ts` "asks for the field again…"; `temporal.test.ts` "reads the field again when a patch after the answer…" | covered | |
 | #377's hypothesised flicker (a pending write makes a read look loading) | `temporal.test.ts`: every frame of every interleaving above reads `Ready`; `Refreshing` only after an answer contradicted by the stream | covered, hypothesis not reproduced | No frame in the matrix reads `Loading` or `Initial` while a write is pending. Whether it *should* (Solid's `affects`) is #377's design question, not a law |
-| An answer whose values predate a newer live patch, delivered after it, does not overwrite it | `temporal.test.ts` "does not let a late answer overwrite a newer live patch" (`it.fails`) | failure, open | Trace: write Grace pending; stream delivers `Ada`(1), `Grace`(2), `Eve`(3); the answer (Grace) arrives last. Confirmed reads `Eve`, then **Grace**, and nothing asks again. `MutationResult` carries no stream position, so the reducer cannot tell the answer is older. The answer's own `read`, taken after Eve committed, would carry Eve; a server that omits it, or reads before Eve, leaves the stale value until the next event contradicts it. Needs a position in the answer (protocol), not a local fix |
+| An answer whose values predate a newer live patch, delivered after it, does not overwrite it | `temporal.test.ts` "does not let a late answer overwrite a newer live patch" (`it.fails`) | failure, open | Trace: write Grace pending; stream delivers `Ada`(1), `Grace`(2), `Eve`(3); the answer (Grace) arrives last. Confirmed reads `Eve`, then **Grace**, and nothing asks again. `MutationResult` carries no stream position, so the reducer cannot tell the answer is older. The answer's own `read`, taken after Eve committed, would carry Eve; a server that omits it, or reads before Eve, leaves the stale value until the next event contradicts it. Needs no protocol field: a cursor counts per subscription, so it needs a record of what a stream wrote while the write was pending, and a read again. Fixed with #498 in phase 1 of [377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md) (#499) |
 | Outbox retry: a send nothing answered is sent again under the same operation id, those after it wait their turn | `outbox.test.ts` "is sent again after a send nothing answered…"; `deadline.test.ts` "a durable write that runs out" | covered | `outbox.mutations.ts` |
 | Stream gap: a break restarts the stream once, resumes from its cursor, and a write made while it was down is shown | `liveRecovery.test.ts` "a live stream that breaks"; `liveLedger.test.ts`; `liveStream.test.ts` "reports a broken stream as a gap…" | covered | `liveRecovery.mutations.ts`, `liveLedger.mutations.ts` |
 | Stale field refresh: a row is read again when its oldest field is due, not its newest | `fieldFreshness.test.ts` "plan and deadlineOf" | covered | `fieldFreshness.mutations.ts` |
@@ -130,8 +130,10 @@ Rows: 8 laws, 42 rows. By status:
 - They do not run a browser, a real server or a real clock: they replay
   Messages. A claim about focus, paint or the pointer stays a browser test.
 - Eight cases of two writes and three of the stream are exhaustive over the
-  orders *those* events can take, not over a protocol. An answer's position in
-  the stream is not an input the protocol has, which is the open failure.
+  orders *those* events can take, not over a protocol. The answer carries no
+  stream position and needs none (a cursor counts per subscription); #499 is
+  fixed with #498 in phase 1 of the Remote data plane note
+  ([377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md)).
 - The frame after a Message is the frame before the Subscriptions catch up. A
   Subscription's restart lands behind Messages already queued
   (`overlappingReads.test.ts`'s lagging driver); `Trace.run` restarts at once,

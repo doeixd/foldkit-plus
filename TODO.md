@@ -194,20 +194,27 @@ In the same change:
 
 ## Waiting on the maintainer
 
-- [ ] **Decisions on the six design notes of 2026-11-10** (about 62, each with
-      a recommendation). The notes are listed at the top of
-      [`docs/design/TODO.md`](./docs/design/TODO.md); nothing in them starts
-      before its decisions are made.
+- [x] Decisions on the six design notes: made 2026-11-10 by delegation (each
+      note's Decisions section).
 - [ ] **Upstream posts:**
   - a comment on foldkit#1657 asking for P1 and offering the PR (shortened
     draft ready; the workerd reading is in `docs/design/performance-PLAN.md`);
+  - a comment on foldkit#1872 per the renderer note, after reading the
+    issue's state;
+  - the `fetch(request, env, ctx)` ask (proposal 8 of
+    `docs/upstream-foldkit-ssr.md`);
+  - the styling request, after its phase 0 measurement;
+  - the SSR delivery note's two conditional drafts (assets to `renderPage`,
+    adopting a subtree without reading it), each when its condition is met;
   - the animation-settle issue (draft written; item 9 of the Order list in
     `docs/upstream-foldkit-ssr.md`);
-  - a comment on foldkit#1448 that `SSR.headed` now carries the head here;
-  - the asks the new notes recommend: renderer decision 9, SSR delivery
-    decision 8, site and host decision 10, styling decision 12.
-- [ ] **Closing issues the notes recommend closing:** #440, #185, #64, #483,
-      and narrowing #435 and #439. Waits on those notes' decisions.
+  - a comment on foldkit#1448 that `SSR.headed` now carries the head here.
+- [ ] **GitHub actions the notes list** (not done: they need the maintainer's
+      go-ahead): close #185, #64, #483, #440; retitle and comment #472, #427,
+      #435, #432, #236, #438, #235, #439, #377, #498, #499, #424, #429, #430,
+      #420, #500, #479, #478; park comments on #376, #433, #148, #149; a
+      comment on #474; file the two Bundle.lazy bugs. The texts are in each
+      note's Issue actions section.
 - [ ] **`TYPESAFE_API_KEY`**, so the Jev review can run. It is owed on:
   - #497's public API: `SSR.headed`, `RootRefusesHead`, the exported SSR
     diagnostic types, `Button.view`'s `attributes`, the resolver's class
@@ -225,16 +232,22 @@ In the same change:
 
 In order. Every item runs the loop above.
 
-1. **#499's protocol question and #498's fix**, once the Remote data plane
-   note's decisions 5 and 6 are made. #498's `it.fails` turns green with it.
-2. **#500**, once the Expr note's decision 1 is made: a small type fix with a
-   type test.
-3. **The small findings** listed under "Bugs and findings from 2026-11-10" in
+1. **#498 and #499, one change (Remote note phase 1a/1b).** #498's `it.fails`
+   turns green with 1a, #499's with 1b.
+2. **#500 (Expr note phase 1: doc comment and type tests).**
+3. **The two Bundle.lazy bugs (site/host note phase B).**
+4. **The small findings** listed under "Bugs and findings from 2026-11-10" in
    `docs/design/TODO.md`: the reference Worker's `WeakMap`, the
    `writeTrace` helper's exists reads, the 90 KB against 69 KB page.
-4. **The six notes' first phases**, in the order the decisions set. Each note
-   names its first phase and what it measures.
-5. **The UI polish leftovers** in `docs/design/TODO.md`, one per bout between
+5. **The notes' first phases**, each with its gate:
+   - Remote phase 0 (no code): the table into `performance-PLAN.md`.
+   - Renderer phase 0a: `pnpm bench:render` re-run; stops there if no frame
+     is over 16 ms at 4x in both rounds.
+   - Styling phase 0: the three style rows; phase 1 only over 15 KB brotli.
+   - SSR delivery phase 0: the probes; then phase 2, the loader.
+   - Site and host: Phase 0 baselines, D1 and H1 (B is item 3); then H3, H2.
+   - Expr phase 2 (`step`), after phase 1.
+6. **The UI polish leftovers** in `docs/design/TODO.md`, one per bout between
    larger items.
 
 ## Parked

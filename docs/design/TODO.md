@@ -10,41 +10,57 @@ Delete an item in the same change that closes it (git keeps the history),
 and update the design document's own status in that change too. Done items
 were removed on 2026-11-10.
 
-## Proposed designs awaiting the owner's decisions (2026-11-10)
+## Decided designs: next phases (2026-11-10)
 
-Each note ends with numbered decisions and a recommendation for each. Nothing
-in them is built; start an item only once its decisions are made.
+Each note's Decisions section was settled on 2026-11-10 by delegation. Each
+phase ships alone and records its number; the gates below are the notes' own.
 
-- [ ] **SSR delivery** (#472, #427, #432, #435): a loader that fetches the
-  runtime on idle and runs it on intent; headers-first streaming only; #435
-  narrowed to `Data.satisfy`'s serial reads; #432 needs only a hydration-time
-  spike. 10 decisions.
+- [ ] **SSR delivery** (#472, #427, #432, #435). Phase 0: five probes, run
+  from the package (the chunk's URL under Vite 8, `Link` preload before the
+  body, what a WindowList Mount reads at a late boot, client calls in a
+  domains-plus search pass). Phase 2, the loader, is the priority and does
+  not wait on #473 or foldkit#1657; phase 1 (`Data.satisfy` reading a pass
+  together) only if phase 0 counts more than one client call. Streaming only
+  as headers first, kept only if first contentful paint falls by a median of
+  50 ms. Two upstream drafts are conditional on those numbers.
   [472-427-432-435-ssr-delivery-DESIGN.md](./472-427-432-435-ssr-delivery-DESIGN.md)
-- [ ] **Site and host** (#236, #235, #438): per-route data policy through
-  `Data.wiring`'s `policy`, `SSR.plan({ site })` closed as met, a
-  `visibleLinks` stream, `Bundle.lazy` pages loaded by the tree, the host as
-  small parts in a new `foldkit-host`, then a preset. 12 decisions. First tests
-  owed in phase C2: a lazy page whose arrival returns the same Model may never
-  redraw; a chunk that 404s after a deploy is a defect.
+- [ ] **Site and host** (#236, #235, #438). First: Phase 0 per-route
+  baselines, D1 (Chirp on node Surfaces), H1 (`SSR.entry`'s `redirect`) and
+  B (the two `Bundle.lazy` bugs, below), in parallel. Then H3, then H2. C1 to
+  C3 only if Phase 0 finds 20 KB brotli or more that one non-landing route
+  alone imports, and C2 only after B. H4 only if 30 lines or more of glue
+  stay shared after H2; `visibleLinks` (D2) only if decision 3's rule is met.
+  The host owns no cache, no page table, no Durable Object or media route.
   [235-236-438-site-host-DESIGN.md](./235-236-438-site-host-DESIGN.md)
-- [ ] **Remote data plane** (#440, #439, #377): close #440 on the measurement
-  (at most 0.76 kB to save); keep #439 deferred, retitled to a static
-  write-against-query function and per-Entity versions; for #377 reject the
-  hold, add one derived `Data.writing`, and stage live patches under a pending
-  relative layer (the fix for #498). 10 decisions.
+- [ ] **Remote data plane** (#377, #439, #440). Phase 0: add the note's
+  section 1 table to `performance-PLAN.md` and close #440. Phase 1: #498 and
+  #499 as one change in two commits (1a, 1b), with no wire change; #482's
+  matrix rows change in the same commits, and `480-async-guarantees-DESIGN.md`
+  and the `temporal.test.ts` comments with them. Phase 2 (`Data.writing`)
+  next; phases 3 and 4 (#439's static function, per-Entity versions) are not
+  scheduled until #437 or `explain` asks, or `read.bench.ts`'s figure passes
+  1 ms per write.
   [377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md)
-- [ ] **Styling platform** (#420, #424, #429, #430): measure, then build
-  build-time style modules (about 27 KB brotli); recipe defaults only for
-  #424; a sibling `LongList` drawing the first screen on the server for #429;
-  CSS anchor placement on the Listbox as a trial for #430. 12 decisions.
+- [ ] **Styling platform** (#420, #424, #429, #430). Phase 0: measure the
+  three style rows of `scripts/bundle-report.mjs` on domains-plus. Over 15 KB
+  brotli builds phase 1 (build-time style modules; it must take 12 KB or more
+  off the measured chunk or be reverted); 15 KB or under closes #420. Phase 3
+  (#424's recipe defaults: `style.ts`'s shipped-component block from 124 lines
+  to 75) is independent. #429 and #430 wait on their named conditions; the
+  upstream request is posted after phase 0.
   [420-424-429-430-styling-platform-DESIGN.md](./420-424-429-430-styling-platform-DESIGN.md)
-- [ ] **Expr contracts** (#478, #479, #483, #185, #64): fix `ReadsOf` (#500);
-  a `step` member per operator for data-last use with Effect's `pipe`; close
-  #185, #64 and #483 on what is built. 8 decisions.
+- [ ] **Expr contracts** (#478, #479, #483, #185, #64). Phase 1 (#500): the
+  doc comments of `Reads` and `ReadsOf` and the pinning type tests, with a
+  mutation that must go red; the type keeps `never`; run the Jev review. Phase
+  2: a `step` member on operators and on the seven comparison builders,
+  within 2% of the entity project's instantiations. No `.pipe` on nodes.
   [478-479-483-185-64-expr-contracts-DESIGN.md](./478-479-483-185-64-expr-contracts-DESIGN.md)
-- [ ] **Renderer** (#376, #433, #148, #149): no new runtime; compiled server
-  regions only after foldkit#1657; park #148 and #149; Phase 0 (draw nothing,
-  rerun `pnpm bench:render`) decides any client spike. 10 decisions.
+- [ ] **Renderer** (#376, #433, #148, #149). No new runtime. Phase 0a: re-run
+  `pnpm bench:render` on current `main` (1x and 4x, two rounds, samples in
+  `docs/design/renderer-baseline/`); if no frame is over 16 ms at 4x in both
+  rounds, #433's client half closes. Phase 0b (ablate drawing) only for the
+  frames left over. Server half: S1 after foldkit#1657's next step, S2 only
+  after S1. #148 and #149 are parked.
   [376-433-148-149-renderer-DESIGN.md](./376-433-148-149-renderer-DESIGN.md)
 
 ## Bugs and findings from 2026-11-10
@@ -53,8 +69,18 @@ in them is built; start an item only once its decisions are made.
   (`it.fails` in `packages/remote/test/temporal.test.ts`). Fix with the data
   plane note's decisions 5 and 6.
 - [ ] **#499:** a mutation answer arriving after a newer live patch overwrites
-  it (`it.fails` there too). Needs the answer to carry its stream position.
-- [ ] **#500:** `ReadsOf` gives `never` for an unmarked node.
+  it (`it.fails` there too). No protocol field: one design with #498 (Remote
+  note phase 1b).
+- [ ] **#500:** `ReadsOf` gives `never` for an unmarked node. The type keeps
+  `never`; doc comment and type tests only (Expr note phase 1).
+- [ ] **To file:** Bundle.lazy: a page stays on `while` after its bodies load
+  when no Model changes. Blocks the site and host note's phase C2.
+  [235-236-438-site-host-DESIGN.md](./235-236-438-site-host-DESIGN.md)
+- [ ] **To file:** Bundle.lazy: a failed load of the bodies crashes the
+  application (`Effect.promise`, `packages/bundle/src/lazy.ts:154`;
+  contradicts `packages/bundle/README.md:1007-1008`). Blocks the site and
+  host note's phase C2.
+  [235-236-438-site-host-DESIGN.md](./235-236-438-site-host-DESIGN.md)
 - [ ] **The #480 audit row** "while the write is pending the layer wins over
   any live patch" is wrong for relative writes; correct it in #498's change.
   [480-async-guarantees-DESIGN.md](./480-async-guarantees-DESIGN.md)

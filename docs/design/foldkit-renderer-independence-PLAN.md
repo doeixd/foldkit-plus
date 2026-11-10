@@ -1,6 +1,12 @@
 # Foldkit programs independent of the renderer
 
-**Status:** plan, 2026-10-30. R0 is built, R1 measured, and R3 built and measured (§10); nothing else is. Tracks #376; related to
+**Status:** plan, 2026-10-30; its recommendation (§9) was superseded on
+2026-11-10 by
+[376-433-148-149-renderer-DESIGN.md](./376-433-148-149-renderer-DESIGN.md).
+R0 is built, R1 measured, and R3 built and measured (§10). R2 and every
+later phase are parked: R3 made R2 unnecessary for both measured apps.
+The inventory (§3) and the seams (§4) stand as the reference for any
+later renderer work. Tracks #376; related to
 #148, #149 and #190. Every claim about Foldkit is checked against the
 published `foldkit@0.170.0` (`node_modules/.pnpm/foldkit@0.170.0_*/node_modules/foldkit/dist`),
 and every claim about Blocks against the canary `0.169.0-canary.90746b32d2ca`
@@ -760,7 +766,11 @@ Written to Foldkit in the form of [upstream-foldkit-ssr.md](../upstream-foldkit-
 one ask per seam, the smallest change that unblocks it, the code here that
 needs it, and the route (issue or pull request). Foldkit's `AGENTS.md`
 refuses speculative complexity justified by hypothetical consumers, so each
-ask names a consumer that exists. None is filed.
+ask names a consumer that exists. Proposal C was filed on 2026-10-30 as
+foldkit/foldkit#1872 and Proposal D as foldkit/foldkit#1871, with comments on
+#1606, #1227 and Discussion #1873 (numbers from #376's comment of
+2026-10-31, not re-checked). A, B, E and F are not filed, and are not to be
+while no renderer here consumes them.
 
 ### Proposal A: an opaque `Html` (U1)
 
@@ -898,6 +908,15 @@ spike that decides the rest. In parallel, file **Proposal C** (frame
 scheduler) and comment **Proposal E** on #1655 while Blocks is still
 reshaping Mounts: both are small, useful without the rest, and get cheaper to
 ask for the earlier they are asked.
+
+**Update 2026-11-10.** R0, R1 and R3 are done, and R3 answered R2's
+question for these apps (§10), so R2 is not run. The decision rule is
+now Phase 0 of
+[376-433-148-149-renderer-DESIGN.md](./376-433-148-149-renderer-DESIGN.md):
+renderer work restarts only if a re-run of `pnpm bench:render` shows a
+frame over 16 ms at 4× CPU of which drawing and diffing are more than
+half. Proposal C is still worth asking for by itself, for tests.
+Proposal E is not pursued while nothing here needs Mounts by meaning.
 
 ## 10. Results
 

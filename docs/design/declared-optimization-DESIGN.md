@@ -115,7 +115,7 @@ as `split.test.ts` does.
 (#384, #385); this pass makes it the default. Checker: in development,
 redraw a skipped region and compare.
 
-**An invalidation map from Message writes** (#439). Declared reads per
+**An invalidation map from Message writes** (#439). Narrowed 2026-11-10: the inferred write sets are dropped for a static write-against-query function and per-Entity versions, each built when its trigger is met ([377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md)). Declared reads per
 region plus each Message's writes give the regions a Message can affect;
 the rest are not even checked. Write sets are inferred by running `update`
 over generated Messages in tests (the property-test generators of
@@ -146,7 +146,7 @@ read-only page by declaration. The same rule extends to every capability a
 page does not declare (live, outbox, persistence, cascades, guards),
 checked by `readOnlyPage.test.ts`-style cases.
 
-**Selection-specific codecs** (#440). A page decodes the fields its
+**Selection-specific codecs** (#440). Decided closed 2026-11-10 on the measurement (decoding is already per Selection; at most 0.76 kB could go): [377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md). A page decodes the fields its
 Selections read, so the wire decoders it ships can be generated for those
 alone, not each Entity's whole Schema. Checker: a round-trip test of each
 generated codec against the full Schema.
