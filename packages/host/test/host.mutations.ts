@@ -119,7 +119,7 @@ export default [
     edits: [
       {
         file: '../src/routes.ts',
-        find: "if (origin === undefined || origin === '') return unset(config.origin)",
+        find: 'if (!isSet(env[config.origin])) return unset(config.origin)',
         replace: '',
       },
     ],
@@ -130,8 +130,8 @@ export default [
     edits: [
       {
         file: '../src/routes.ts',
-        find: "if (origin === undefined || origin === '') return unset(config.origin)",
-        replace: 'if (origin === undefined) return unset(config.origin)',
+        find: "typeof value === 'string' && value !== ''",
+        replace: "typeof value === 'string'",
       },
     ],
     tests: routes,
@@ -213,7 +213,7 @@ export default [
     edits: [
       {
         file: '../src/node.ts',
-        find: "const url = resolveRequestUrl(request.url ?? '/', origin as string)",
+        find: "const url = resolveRequestUrl(request.url ?? '/', origin)",
         replace:
           "const url = new URL(request.url ?? '/', 'http://' + request.headers['host']).href",
       },
@@ -225,7 +225,7 @@ export default [
     edits: [
       {
         file: '../src/node.ts',
-        find: "      if (origin === undefined || origin === '') return unset(config.origin)\n",
+        find: '      if (!isSet(origin)) return unset(config.origin)\n',
         replace: '',
       },
     ],

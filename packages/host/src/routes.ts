@@ -66,14 +66,16 @@ export const routes = <Env, K extends Variable<Env>>(
   return async (request, env) => {
     const { pathname } = new URL(request.url)
     if (assets !== undefined && assets.matches(pathname)) return assets.binding(env).fetch(request)
-    const origin = env[config.origin]
-    if (origin === undefined || origin === '') return unset(config.origin)
+    if (!isSet(env[config.origin])) return unset(config.origin)
     // Checked just above: the one place the origin is known to be set.
     const configured = env as Configured<Env, K>
     for (const route of table) if (route.matches(pathname)) return route.handle(request, configured)
     return config.otherwise(request, configured)
   }
 }
+
+/** Whether an origin variable holds one: unset and empty are both unset. */
+export const isSet = (value: unknown): value is string => typeof value === 'string' && value !== ''
 
 /** The answer when the origin variable `name` is unset: fixed text naming it, and nothing else. */
 export const unset = (name: string): Response =>

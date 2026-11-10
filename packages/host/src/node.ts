@@ -7,7 +7,7 @@
  * handler sees the request.
  */
 import { resolveRequestUrl } from 'foldkit/experimental/server'
-import { unset, type Handler, type Variable } from './routes.js'
+import { isSet, unset, type Handler, type Variable } from './routes.js'
 
 /** What the adapter reads of Node's `IncomingMessage`. */
 export interface NodeRequest extends AsyncIterable<Uint8Array | string> {
@@ -73,9 +73,8 @@ export const node =
     response.on('close', () => closed.abort())
     const answered = async (): Promise<Response> => {
       const origin = config.env[config.origin]
-      if (origin === undefined || origin === '') return unset(config.origin)
-      // `Variable` admits only string-valued names, and the check above took out the unset.
-      const url = resolveRequestUrl(request.url ?? '/', origin as string)
+      if (!isSet(origin)) return unset(config.origin)
+      const url = resolveRequestUrl(request.url ?? '/', origin)
       if (url === undefined)
         return new Response('The request names another origin.', { status: 400 })
       const headers = new Headers()
