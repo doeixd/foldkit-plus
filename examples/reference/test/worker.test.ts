@@ -258,7 +258,7 @@ describe('the origin', () => {
     try {
       const response = await fetch(`${unset.origin}/`)
       expect(response.status).toBe(500)
-      expect(await response.text()).toBe('Set ORIGIN to where this Worker is served.')
+      expect(await response.text()).toBe('Set ORIGIN to where this application is served.')
     } finally {
       await unset.stop()
     }

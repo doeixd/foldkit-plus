@@ -154,9 +154,9 @@ export default [
     name: 'the Worker renders under a build id of its own',
     edits: [
       {
-        file: '../src/build.ts',
-        find: 'Option.fromUndefinedOr(pattern.exec(template)?.[1])',
-        replace: "Option.some('not-this-build')",
+        file: '../../../packages/host/src/template.ts',
+        find: 'const buildId = buildIdPattern.exec(html)?.[1]',
+        replace: "const buildId = 'not-this-build'",
       },
     ],
     tests: worker,
@@ -239,12 +239,12 @@ export default [
     tests: worker,
   },
   {
-    name: 'each request is checked against the host it arrived at',
+    name: 'Yielded checks each request against an origin other than ORIGIN',
     edits: [
       {
         file: '../src/worker.ts',
-        find: 'const host = await hostOf(env, env.ORIGIN)',
-        replace: 'const host = await hostOf(env, url.origin)',
+        find: 'http: { origin: env.ORIGIN },',
+        replace: "http: { origin: 'http://elsewhere.example' },",
       },
     ],
     tests: worker,
@@ -253,8 +253,8 @@ export default [
     name: 'a Worker with no ORIGIN answers as if it had one',
     edits: [
       {
-        file: '../src/worker.ts',
-        find: "    if (env.ORIGIN === undefined)\n      return new Response('Set ORIGIN to where this Worker is served.', { status: 500 })\n",
+        file: '../../../packages/host/src/routes.ts',
+        find: '    if (!isSet(env[config.origin])) return unset(config.origin)\n',
         replace: '',
       },
     ],

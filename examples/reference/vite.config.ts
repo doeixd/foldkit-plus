@@ -1,18 +1,18 @@
 import { foldkit } from '@foldkit/vite-plugin'
 import { foundations } from 'foldkit-plus/mixins/foundations'
 import { defineConfig, type Plugin, type UserConfig } from 'vite'
-import { BUILD_META } from './src/build.js'
+// By path, not `foldkit-plus/host`: Node loads a config's workspace imports past the
+// source condition, and CI builds no `dist`. Vite bundles a relative import into the config.
+import { buildTag } from '../../packages/host/src/template.js'
 
 /**
  * Writes the build's id into `index.html`, where the Worker reads it from
- * the template it renders into. The client's copy is compiled in by the
+ * the template it renders into (`Host.template`). The client's copy is compiled in by the
  * `foldkit` plugin, so a deploy cannot pair a Worker with another build's page.
  */
 const buildMeta = (buildId: string): Plugin => ({
   name: 'reference-build-id',
-  transformIndexHtml: () => [
-    { tag: 'meta', attrs: { name: BUILD_META, content: buildId }, injectTo: 'head' },
-  ],
+  transformIndexHtml: () => [buildTag(buildId)],
 })
 
 /** The page's build: `dist/client`, which `wrangler.toml` serves as the Worker's assets. */
