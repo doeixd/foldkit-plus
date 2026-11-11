@@ -223,8 +223,8 @@ In the same change:
   - `foldkit-remote`'s `Defect` error tag (ce1d99d).
 - [ ] **The branch's PR.** Unmerged since #497 (merged 2026-11-10): about a
       hundred commits, never through CI, since CI runs on pull requests. The
-      whole CI sequence passed locally on 9b343198 (2026-11-11; only
-      postgres-locale skipped, no server here). Issues done on it, to close
+      whole CI sequence passed locally on 520755cf (2026-11-11, perf and
+      scaffold jobs included; only postgres-locale skipped, no server here). Issues done on it, to close
       when it merges: #495, #481, #482, #230 (its stamps wait for the next
       release), #236, #500, #479, #478, #498, #499, #501, #502, #435, #432
       (phase 4 recorded), #438 (Phase 0 below the bar), #235 (closed on the
