@@ -137,6 +137,8 @@ describe('historyCard', () => {
         state: Option.some(state),
         restore: revision => Message.RestoreAsked({ revision }),
         authorName: name => (name === 'edda' ? 'Edda' : name),
+        locale: 'en',
+        timeZone: 'UTC',
         ...extra,
       }),
     )
@@ -171,6 +173,8 @@ describe('historyCard', () => {
         state: Option.some({ _tag: 'Published', schedule: null }),
         restore: revision => Message.RestoreAsked({ revision }),
         authorName: name => name,
+        locale: 'en',
+        timeZone: 'UTC',
         ...extra,
       })
     })

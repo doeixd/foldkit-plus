@@ -390,6 +390,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`Cms.historyCard` takes `locale` and `timeZone`, both required**
+  (`foldkit-cms`). It wrote each revision's date and time in the runtime's
+  default locale and zone, so a server and a browser (or two servers) wrote
+  different text for one revision, which a hydrating page then meets.
+  Pass the ones the page is written in (`locale: 'en', timeZone: 'UTC'` until
+  the Model holds a locale). The CMS and Chirp examples name theirs too.
 - **A completion's outcome is typed by its contract** (`foldkit-agent`).
   `dispatch` by Message constructor returned `completion.message` as any
   Message, so `examples/todo` narrowed its fact with `Schema.is`. Now a

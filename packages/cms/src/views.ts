@@ -79,11 +79,16 @@ export const revisionsOf = <M, Value extends { readonly revisions: ReadonlyArray
   })
 
 /** A moment as the History says it: "Sep 27, 2026" and "9:12 PM", apart. */
-const momentOf = (iso: string) => {
+const momentOf = (iso: string, locale: string, timeZone: string) => {
   const at = new Date(iso)
   return {
-    day: at.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
-    time: at.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
+    day: at.toLocaleDateString(locale, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      timeZone,
+    }),
+    time: at.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit', timeZone }),
   }
 }
 
@@ -112,6 +117,9 @@ export interface HistoryCardSlots<M> {
  * retried on its own: given `onRetry`, a button sends it, drawn on the
  * restore slot so no new builder is required of every studio. Who published
  * is the application's to name (`authorName`), as only it knows its chairs.
+ * Its dates are written in the `locale` and `timeZone` given: both are
+ * required, since the runtime's own would differ between a server and a
+ * browser.
  */
 export const historyCard = <M>(
   slots: HistoryCardSlots<M>,
@@ -121,6 +129,10 @@ export const historyCard = <M>(
     readonly state: Option.Option<State>
     readonly restore: (revision: number) => M
     readonly authorName: (name: string) => string
+    /** The BCP 47 locale each revision's date and time are written in, such as `en`. */
+    readonly locale: string
+    /** The IANA time zone each revision's date and time are written in, such as `UTC`. */
+    readonly timeZone: string
     /**
      * Asks again after a failed read. Given, a failed history shows a button
      * that sends it; a failed read is not retried on its own.
@@ -152,7 +164,7 @@ export const historyCard = <M>(
               slots.timeline.attrs([h.AriaLabel('Published revisions, newest first')]),
               revisions.map((revision, index) => {
                 const newest = index === 0
-                const { day, time } = momentOf(revision.publishedAt)
+                const { day, time } = momentOf(revision.publishedAt, entry.locale, entry.timeZone)
                 const isLive = newest && live
                 return h.li(slots.revision.attrs(isLive ? [h.DataAttribute('live', '')] : []), [
                   h.span(slots.revisionMark.attrs([h.AriaHidden(true)]), []),

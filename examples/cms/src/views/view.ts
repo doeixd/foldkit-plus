@@ -34,6 +34,7 @@ import { PostForm, type PostPreview } from '../content/domain.js'
 import { icon } from './icons.js'
 import {
   chair,
+  conventions,
   editorBar,
   failed,
   guideInput,
@@ -319,9 +320,15 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
             {
               onNone: () => [],
               onSome: ({ at: when, overdue, error }) => {
-                const time = new Date(when).toLocaleString(undefined, {
-                  dateStyle: 'medium',
-                  timeStyle: 'short',
+                // The box above takes the reader's own clock, so the zone is named.
+                const time = new Date(when).toLocaleString(conventions.locale, {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  timeZoneName: 'short',
+                  timeZone: conventions.timeZone,
                 })
                 return [
                   h.p(
@@ -373,6 +380,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
           state,
           restore: revision => ask(Editor.Message.RestoreAsked({ revision })),
           authorName: publisherOf,
+          ...conventions,
           // A history that failed to read is asked for again the same way a
           // failed entry is: `ReloadAsked` refreshes every active read.
           onRetry: ask(Editor.Message.ReloadAsked()),

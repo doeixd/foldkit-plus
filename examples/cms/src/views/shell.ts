@@ -159,6 +159,13 @@ export const publisherOf = (name: string): string =>
     onSome: known => people[known].name,
   })
 
+/**
+ * The locale and zone the studio writes dates in: fixed, not the runtime's, so
+ * a server and a browser write the same text. Until the Model holds a locale
+ * (i18n step 1), every reader sees English and UTC.
+ */
+export const conventions = { locale: 'en', timeZone: 'UTC' } as const
+
 export const shell = <M>(
   slots: SlotView.SlotBuilders<typeof AdminSlots, M>,
   h: HtmlBuilder<M>,

@@ -31,6 +31,8 @@ const History = SlotView.define(AdminSlots, (state: State, slots, h: HtmlBuilder
       state: Option.some(state),
       restore: revision => Message.RestoreAsked({ revision }),
       authorName: name => (name === 'edda' ? 'Edda' : name),
+      locale: 'en',
+      timeZone: 'UTC',
     },
   ),
 )

@@ -26,6 +26,7 @@ import {
 import { icon } from './icons.js'
 import {
   chair,
+  conventions,
   editorBar,
   failed,
   guideInput,
@@ -149,6 +150,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
                 state,
                 restore: revision => ask(Editor.Message.RestoreAsked({ revision })),
                 authorName: publisherOf,
+                ...conventions,
                 // A history that failed to read is asked for again the same way
                 // a failed entry is: `ReloadAsked` refreshes every active read.
                 onRetry: ask(Editor.Message.ReloadAsked()),

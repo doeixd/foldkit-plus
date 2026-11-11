@@ -48,9 +48,17 @@ const ADMIN: Person = 'ada'
 
 const icon = (data: IconData, h: H): Html => Icon.draw(data, h)
 
-/** When a post was written, as a short date in the reader's own calendar. */
+/**
+ * When a post was written, as a short date. In UTC, not the runtime's zone, so
+ * a server and a browser write the same day; the reader's own zone would come
+ * in as a Flag (i18n step 1).
+ */
 const when = (createdAt: number): string =>
-  new Date(createdAt).toLocaleDateString('en', { month: 'short', day: 'numeric' })
+  new Date(createdAt).toLocaleDateString('en', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  })
 
 /** A post as a row: who wrote it and when, what it says, and what you may do with it. */
 const chirp = (post: Row, slots: Slots, h: H): ReadonlyArray<Html> => [

@@ -193,7 +193,8 @@ Bundle.declare(Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submod
   (in `Cms.stateAttribute`, as the list's badge; style it with
   `Recipes.Badge({ attribute: Cms.stateAttribute, tones })`),
   `Cms.revisionsOf(model, history)`, `Cms.historyCard(slots, h, history, { state,
-  restore, authorName })`, `Cms.moreCard(slots, h, { state, may, asks,
+  restore, authorName, locale, timeZone })` (both required: the runtime's
+  own differ between a server and a browser), `Cms.moreCard(slots, h, { state, may, asks,
   archiveIcon })`. `revisionsOf` returns a `RevisionHistory` (`Ready` with
   rows, `Loading`, or `Failed`), so the card never mistakes a failed or
   pending read for nothing published. Who published and the archive icon
