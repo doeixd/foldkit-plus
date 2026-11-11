@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`Expr.whenGiven` over `Expr.in` keeps every row when its list is null**
+  (`foldkit-entity`, `foldkit-remote-drizzle`). `evaluate` and the Drizzle
+  compiler refused a null list as "not a list" even inside `whenGiven`, since
+  every operand of an `or` is asked, so the guarded filter failed instead of
+  matching everything. A null list is now unknown, as `x in null` is in SQL and
+  as a comparison with null already was; the shared conformance suite pins it on
+  `evaluate`, SQLite and Postgres. `gte`, `lte`, `contains` and `eq` already
+  agreed. The registry example passes no statuses, instead of every status, when
+  its column is unfiltered.
+
 - **The grid's date editor no longer loses focus** (`foldkit-mixins-data-grid`).
   Opening a date cell drew an input whose `setSelectionRange` throws (a date
   input has no selection), which failed the focus Mount: nothing took focus and
