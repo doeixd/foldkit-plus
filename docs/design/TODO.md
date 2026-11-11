@@ -471,15 +471,19 @@ while keeping the best of what this project already has:
   redaction or store drop) and D1's same-transaction write are invasive
   (9df7027d, 608757a1).
   [effect-reuse-sync-durable-DESIGN.md](./effect-reuse-sync-durable-DESIGN.md) §14.1
-- [ ] Sync-over-Effect-storage prototype. §14.2, same document
+- [x] Sync-over-Effect-storage prototype: keep Sync's IndexedDB storage.
+  A `KeyValueStore` replica lets two writers win one revision; the typed
+  IndexedDB transaction meets every criterion but adds a peer, a row
+  migration and ~7 kB for no gain (6f28f435..730e311a). §14.2, same document
 - [ ] Sync-over-Effect-RPC prototype. §14.3, same document
 - [ ] Submit the four upstream Effect PRs. None has been submitted. §7, §13, same document
   - [ ] EventLog server Storage entry lookup (Durable no longer needs it:
     `entriesAfter`'s batch hint looks an entry up, 9df7027d)
   - [ ] a public EntryId string codec (Durable no longer needs it: a digest
     of the opId gives a retry the same `EntryId`)
-  - [ ] atomic IndexedDB `KeyValueStore.modify`
-  - [ ] manual settlement for PersistedQueue
+  - [ ] atomic IndexedDB `KeyValueStore.modify` (Sync does not need it,
+    and it would not cover a first write: 730e311a)
+  - [ ] manual settlement for PersistedQueue (not needed: no browser store)
 
 ## Tooling
 
