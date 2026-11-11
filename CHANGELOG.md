@@ -89,6 +89,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`SSR.unbound(attributes)`: a Slot's attributes in a static region**
+  (`foldkit-ssr`, #432). `SSR.static`'s `ih` is `HtmlBuilder<never>`, and a
+  Slot's attributes are typed with the page's Message, so styling a region
+  through a Slot needed a cast. `SSR.unbound` types a bundle as binding no
+  Message and throws when it is drawn on a handler or a Submodel's attribute
+  in it; a handler written in the region still does not compile.
 - **`Switch.draggable(onToggle)`: drag the thumb** (`foldkit-mixins-ui`). A
   mixin beside the style: press the switch, move past 4px, and the thumb
   follows the pointer; let go with its middle past the middle of the track and

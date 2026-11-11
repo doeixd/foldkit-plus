@@ -231,7 +231,7 @@ SSR.hydrate(config, Post, { buildId })
 ```
 
 `foldkit-ssr/client` is the browser's part: `SSR.plan`, `SSR.resume`,
-`SSR.hydrate`, `SSR.static`, `SSR.serving`, `Resume`, and the attribute names,
+`SSR.hydrate`, `SSR.static`, `SSR.unbound`, `SSR.serving`, `Resume`, and the attribute names,
 Foldkit's root stamp (`FOLDKIT_APP_ATTRIBUTE`) among them. It imports nothing
 of `foldkit/experimental/server`, whose renderer and HTML parser `foldkit-ssr`
 brings along: about 200 kB minified (60 kB gzipped) off a page's script in the
@@ -1109,6 +1109,28 @@ content a Message should change belongs in a Surface. A region the browser
 needs that is not in the page, say after a Message shows one, is reported
 ([`StaticRegionMissing`](#diagnostics), once per page) and rendered in the
 browser.
+
+`ih` is `HtmlBuilder<never>`, so an attribute that binds one of the page's
+Messages does not compile in it. A Slot's attributes are typed with the page's
+Message whatever its Mixins add, so a Style looks like a handler to the
+compiler. Pass them through `SSR.unbound`, which types them as binding nothing
+and throws, when the region is drawn, on a handler or a Submodel's attribute
+among them:
+
+<!-- docs-check
+import type { SlotBuilder } from 'foldkit-mixins'
+
+declare const slots: { readonly title: SlotBuilder<Message> }
+declare const model: Model
+-->
+
+```ts
+SSR.static('post-title', ih => [ih.h1(SSR.unbound(slots.title.attrs()), [model.post.title])])
+```
+
+Attributes `SSR.unbound` returns fit any builder, so one drawing can serve a
+region and the live page alike: type it over its builder's Message
+(`<M>(h: HtmlBuilder<M>) => …`).
 
 ### What only the browser has: `prepare`
 

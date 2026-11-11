@@ -185,7 +185,10 @@ would rebuild those elements.
   the inert builder (no handlers), adopted as trusted `InnerHTML` in the
   browser, never rendered there, so what it reads need not be in `state`. It
   changes only with a new document; anything a Message changes belongs in a
-  Surface. Duplicate ids fail with `DuplicateStaticRegion`.
+  Surface. Duplicate ids fail with `DuplicateStaticRegion`. `ih` is
+  `HtmlBuilder<never>`, so a Slot's attributes (typed with the page's Message)
+  go in through `SSR.unbound(slots.title.attrs())`, which throws on a handler
+  or a Submodel's attribute among them; what it returns fits any builder.
 - `SSR.serving()`: true while the server renders a page, false in the browser and outside a
   render; `foldkit-richtext-dom`'s `editorAt(hostId, { serverRendered: SSR.serving })` sends
   the document's markup in the editor's host, which the browser's editor adopts.

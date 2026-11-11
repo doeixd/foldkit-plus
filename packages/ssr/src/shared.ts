@@ -5,7 +5,13 @@
  */
 import { Effect, Option, Result, Schema, Stream, type Layer } from 'effect'
 import type { Runtime } from 'foldkit'
-import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
+import {
+  inertHtml,
+  type Attribute,
+  type ChildAttribute,
+  type Html,
+  type HtmlBuilder,
+} from 'foldkit/html'
 import type { Ports } from 'foldkit/port'
 import { fromString } from 'foldkit/url'
 import {
@@ -612,6 +618,28 @@ export const staticRegion = (id: string, render: (ih: HtmlBuilder<never>) => Reg
     now.region = outer
   }
 }
+
+/**
+ * A bundle of attributes, such as a Slot's, typed as binding no Message, for a
+ * static region's `ih` or any builder. A Slot's attributes are typed with the
+ * page's Message whatever its Mixins add, so the type cannot tell a Style from
+ * a handler; this checks when it is called instead, and throws on any handler
+ * (an `On…` attribute) or a Submodel's attribute, neither of which a static
+ * region could run.
+ */
+export const unbound = <Message>(
+  attributes: ReadonlyArray<Attribute<Message> | ChildAttribute>,
+): ReadonlyArray<Attribute<never>> =>
+  attributes.map(attribute => {
+    if (!('_tag' in attribute)) {
+      throw new Error("SSR.unbound was given a Submodel's attribute, which dispatches a Message")
+    }
+    if (attribute._tag.startsWith('On')) {
+      throw new Error(`SSR.unbound was given ${attribute._tag}, which binds a Message`)
+    }
+    // Every variant without the `On` prefix holds no Message, so it is one of `Attribute<never>`'s.
+    return attribute as Attribute<never>
+  })
 
 /**
  * Whether the view call in progress is the server rendering a page, rather than the browser: true

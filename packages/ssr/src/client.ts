@@ -48,6 +48,7 @@ import {
   serving,
   startingFrom,
   staticRegion,
+  unbound,
   type Loadable,
   type ResumableConfig,
   type ResumePlan,
@@ -561,7 +562,7 @@ const deferBoot = (
 export const Resume = { builder, view, bindings, listen }
 
 /** The browser's part of `SSR`: the same functions, without the server's. */
-export const SSR = { plan, resume, hydrate, static: staticRegion, serving }
+export const SSR = { plan, resume, hydrate, static: staticRegion, unbound, serving }
 
 export {
   META_ATTRIBUTE,
