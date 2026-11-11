@@ -13,9 +13,9 @@ import {
 } from './shared.js'
 
 /**
- * `foldkit-mixins-ui` has no DatePicker adapter: `@foldkit/ui` draws the
- * picker's trigger, panel and backdrop itself and takes only attributes for
- * them, so they are the page's own Slots.
+ * The port keeps upstream's view on purpose (see the README): `@foldkit/ui`
+ * draws the picker's trigger, panel and backdrop itself and takes only
+ * attributes for them, so they are the page's own Slots.
  */
 export const DatePickerPageSlots = Slots.define({
   ...demoSlots,

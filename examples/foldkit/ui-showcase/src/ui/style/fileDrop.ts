@@ -4,9 +4,9 @@ import { forSlots, t } from '../../style.js'
 import { container, demoSlots, demoStyles } from './shared.js'
 
 /**
- * `foldkit-mixins-ui` has no FileDrop adapter, though `@foldkit/ui` hands its
- * `root` and `input` bundles to a `toView`, so they take the page's own Slots.
- * The component marks the zone `data-drag-over` while files hover it.
+ * The port keeps upstream's view on purpose (see the README): `@foldkit/ui`
+ * hands its `root` and `input` bundles to a `toView`, so they take the page's
+ * own Slots. The component marks the zone `data-drag-over` while files hover it.
  */
 export const FileDropPageSlots = Slots.define({
   ...demoSlots,

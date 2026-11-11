@@ -7,7 +7,10 @@ import type { Message as UiMessage } from '../message.js'
 import type { UiModel } from '../model.js'
 import { ProgressPageSlots, ProgressPageStyle } from '../style/progress.js'
 
-/** No `foldkit-mixins-ui` adapter covers Progress, so its bundles take the page's Slots. */
+/**
+ * The port keeps upstream's Progress view on purpose (see the README), so its
+ * bundles take the page's Slots.
+ */
 const ProgressPage = SlotView.forMessages<UiMessage>()
   .define(ProgressPageSlots, (_model: UiModel, slots, h) =>
     h.div(slots.page.attrs(), [

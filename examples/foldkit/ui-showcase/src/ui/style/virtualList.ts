@@ -4,8 +4,8 @@ import { forSlots, t } from '../../style.js'
 import { container, demoSlots, demoStyles, primaryLook } from './shared.js'
 
 /**
- * `foldkit-mixins-ui` has no VirtualList adapter; `@foldkit/ui` takes
- * attributes for its scroll container, which is the page's own Slot, and
+ * The port keeps upstream's view on purpose (see the README): `@foldkit/ui`
+ * takes attributes for its scroll container, which is the page's own Slot, and
  * draws the rows it mounts from the page's own markup.
  */
 export const VirtualListPageSlots = Slots.define({
