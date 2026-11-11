@@ -13,6 +13,7 @@ const Id = Attr.make('id')
 const MouseDown = Event.make('mousedown')
 const AriaHasPopup = Attr.make('aria-haspopup')
 const AriaChecked = Attr.make('aria-checked')
+const GridCheckbox = Attr.make('data-grid-checkbox')
 
 // What the virtual window is worked out from: a Style that changed one of
 // these would draw rows where the window math does not think they are.
@@ -117,7 +118,7 @@ export const GridSlots = Slots.define({
    */
   checkbox: Slot.make({
     capability: Capability.Base,
-    protected: { attributes: [Attr.Role, Id, AriaChecked, Attr.AriaLabel] },
+    protected: { attributes: [Attr.Role, Id, AriaChecked, Attr.AriaLabel, GridCheckbox] },
   }),
   /**
    * Why the column refused a draft, shown below the field while the edit
