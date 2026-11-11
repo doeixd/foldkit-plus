@@ -168,7 +168,7 @@ export const ChirpPage = slots(
     ],
     headerLogo: [
       { display: 'none', color: t.accent.default, fontSize: '1.75rem' },
-      Style.media(NARROW, { display: 'inline-flex', marginLeft: 'auto' }),
+      Style.media(NARROW, { display: 'inline-flex', marginInlineStart: 'auto' }),
     ],
     title: [{ margin: '0', fontSize: '1.25rem', fontWeight: '700', color: t.text.overt }],
     back: focusable(
@@ -259,7 +259,7 @@ export const ChirpPage = slots(
         alignItems: 'center',
         gap: t.space['2xl'],
         marginTop: t.space['2xs'],
-        marginLeft: `calc(-1 * ${t.space.xs})`,
+        marginInlineStart: `calc(-1 * ${t.space.xs})`,
       },
     ],
     // The like: filled and pink while liked.

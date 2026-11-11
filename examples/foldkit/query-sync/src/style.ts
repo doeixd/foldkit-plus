@@ -131,8 +131,8 @@ export const ExplorerPage = slots(
     tableFrame: [bordered(t.outline.subtle), U.bg('surface.base'), { overflowX: 'auto' }],
     table: { width: '100%', borderCollapse: 'collapse' },
     head: [U.bg('surface.subtle'), { borderBottom: `${t.border.thin} solid ${t.outline.subtle}` }],
-    headerCell: { padding: '0', textAlign: 'left' },
-    numericHeaderCell: { padding: '0', textAlign: 'right' },
+    headerCell: { padding: '0', textAlign: 'start' },
+    numericHeaderCell: { padding: '0', textAlign: 'end' },
     sortIndicator: { display: 'inline-block', width: '1rem', textAlign: 'center' },
     row: [
       { borderBottom: `${t.border.thin} solid ${t.outline.subtle}` },
@@ -140,7 +140,7 @@ export const ExplorerPage = slots(
     ],
     nameCell: [cell, U.font('medium'), U.color('text.overt')],
     cell,
-    numericCell: [cell, { textAlign: 'right', fontVariantNumeric: 'tabular-nums' }],
+    numericCell: [cell, { textAlign: 'end', fontVariantNumeric: 'tabular-nums' }],
     badge: [
       U.text('xs'),
       U.font('medium'),

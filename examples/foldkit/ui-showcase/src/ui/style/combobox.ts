@@ -46,7 +46,7 @@ export const comboboxStyles = {
     Style.self({
       position: 'absolute',
       insetBlock: '0',
-      right: '0',
+      insetInlineEnd: '0',
       display: 'flex',
       alignItems: 'center',
       paddingInline: t.space.md,

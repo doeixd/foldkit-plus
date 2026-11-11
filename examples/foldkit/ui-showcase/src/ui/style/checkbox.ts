@@ -22,7 +22,7 @@ export const CheckboxPageStyle = forSlots(CheckboxPageSlots)(
       display: 'flex',
       flexDirection: 'column',
       gap: t.space.sm,
-      marginLeft: '1.75rem',
+      marginInlineStart: '1.75rem',
     }),
   },
   { name: 'CheckboxPageStyle' },

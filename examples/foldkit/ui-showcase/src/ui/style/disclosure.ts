@@ -94,7 +94,7 @@ const toggle: StyleValue = Style.compose(
     border: '0',
     background: 'transparent',
     font: 'inherit',
-    textAlign: 'left',
+    textAlign: 'start',
     color: t.text.overt,
     cursor: 'pointer',
     userSelect: 'none',
@@ -110,7 +110,7 @@ export const BasicDisclosureStyle = forSlots(DisclosureSlots)(
     button: Style.compose(
       toggle,
       Style.self({ border, borderRadius: t.radius.lg }),
-      Style.pseudo('[data-open]', { borderBottomLeftRadius: '0', borderBottomRightRadius: '0' }),
+      Style.pseudo('[data-open]', { borderEndStartRadius: '0', borderEndEndRadius: '0' }),
     ),
     panel: Style.self({
       padding: `${t.space.sm} ${t.space.md}`,

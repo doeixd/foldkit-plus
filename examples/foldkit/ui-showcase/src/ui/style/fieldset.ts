@@ -39,7 +39,7 @@ export const DemoFieldsetStyle = forSlots(FieldsetSlots)(
       borderRadius: t.radius.lg,
     }),
     legend: Style.self({
-      float: 'left',
+      float: 'inline-start',
       width: '100%',
       padding: '0',
       fontSize: t.size.md,

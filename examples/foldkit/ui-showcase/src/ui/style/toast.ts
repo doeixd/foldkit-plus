@@ -87,7 +87,7 @@ export const ToastPageStyle = forSlots(ToastPageSlots)(
       Style.self({
         position: 'absolute',
         top: t.space.xs,
-        right: t.space.xs,
+        insetInlineEnd: t.space.xs,
         display: 'flex',
         padding: '0.25rem',
         border: '0',

@@ -24,7 +24,7 @@ export const SelectPageStyle = forSlots(SelectPageSlots)(
     chevron: Style.self({
       position: 'absolute',
       top: '50%',
-      right: t.space.sm,
+      insetInlineEnd: t.space.sm,
       display: 'flex',
       translate: '0 -50%',
       color: t.text.muted,

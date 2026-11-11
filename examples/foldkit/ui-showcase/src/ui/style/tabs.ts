@@ -82,11 +82,12 @@ export const VerticalTabsStyle = forSlots(TabsSlots)(
       tablist: Style.self({ flexDirection: 'column' }),
       tab: Style.compose(
         Style.self({
-          marginRight: '-1px',
-          textAlign: 'left',
+          marginInlineEnd: '-1px',
+          textAlign: 'start',
+          // physical: a shorthand radius names physical corners; a logical longhand would sort before it and lose
           borderRadius: `${t.radius.lg} 0 0 ${t.radius.lg}`,
         }),
-        Style.pseudo('[aria-selected="true"]', { borderRightColor: 'transparent' }),
+        Style.pseudo('[aria-selected="true"]', { borderInlineEndColor: 'transparent' }),
       ),
       panel: Style.self({
         flex: '1',

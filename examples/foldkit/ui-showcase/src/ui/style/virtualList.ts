@@ -122,7 +122,7 @@ export const VirtualListPageStyle = forSlots(VirtualListPageSlots)(
     actor: Style.self({ fontWeight: t.weight.semibold, color: t.text.overt }),
     target: Style.self({ fontFamily: t.font.mono, color: t.text.overt }),
     timeAgo: Style.self({
-      textAlign: 'right',
+      textAlign: 'end',
       fontSize: t.size.xs,
       fontVariantNumeric: 'tabular-nums',
       color: t.text.muted,
