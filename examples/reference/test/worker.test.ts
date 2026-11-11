@@ -185,18 +185,13 @@ describe('pages', () => {
 })
 
 describe("a member's cookie, on /remote and on a page", () => {
-  /**
-   * The status of a `/remote` call with `headers` beside the cookie, and a
-   * read as its body if `body`. A refusal is answered before the body is
-   * read, and on local workerd a body left unread then loses the next
-   * request on that connection, so the refused calls here send none.
-   */
-  const callWith = async (cookie: string, headers: Record<string, string>, body: boolean) => {
+  /** The status of a `/remote` call, with a read as its body, with `headers` beside the cookie. */
+  const callWith = async (cookie: string, headers: Record<string, string>) => {
     const read = { operation: 'read', payload: { version: REMOTE_PROTOCOL_VERSION, requests: [] } }
     const response = await fetch(`${stack.origin}/remote`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie, ...headers },
-      ...(body ? { body: JSON.stringify(read) } : {}),
+      body: JSON.stringify(read),
     })
     await response.text()
     return response.status
@@ -204,10 +199,10 @@ describe("a member's cookie, on /remote and on a page", () => {
 
   it('is read on /remote only from the page’s own script', async () => {
     const cookie = await member('Edith')
-    expect(await callWith(cookie, scripted(), true)).toBe(200)
-    expect(await callWith(cookie, { origin: stack.origin }, false)).toBe(401)
+    expect(await callWith(cookie, scripted())).toBe(200)
+    expect(await callWith(cookie, { origin: stack.origin })).toBe(401)
     const elsewhere = { ...scripted(), origin: 'http://elsewhere.example' }
-    expect(await callWith(cookie, elsewhere, false)).toBe(401)
+    expect(await callWith(cookie, elsewhere)).toBe(401)
   }, 60_000)
 
   it('is read on a page followed from another site, which sends no Origin or header', async () => {
