@@ -1,6 +1,6 @@
 # foldkit-sync + foldkit-durable
 
-Checked against `foldkit-sync` 0.14.0 and `foldkit-durable` 0.11.0.
+Checked against `foldkit-sync` 0.15.0 and `foldkit-durable` 0.12.0.
 
 Local-first replication of part of a Foldkit Model. `foldkit-sync` is the client
 replica, and `foldkit-durable` is the optional SQLite server journal that owns
@@ -93,7 +93,7 @@ const program = Effect.gen(function* () {
 
   yield* replica.submit(Message.CreatedTodo({ id: 't1', title: 'Milk' })) // durable only: a local Message does not compile
   const optimistic = yield* replica.shared                    // already includes the pending op
-  const status = yield* replica.status                        // { pending, cursor, lastError, rejected }
+  const status = yield* replica.status                        // { pending, cursor, lastError, rejected, refused, epoch }
 
   // one exchange with the server
   yield* replica.synchronize.pipe(
@@ -235,13 +235,15 @@ A variant with no rule is allowed, and a non-durable key is a type error. Rules
 compile into `journalContract()` and run only on the server. A rule returns
 `true`, `false`, or `{ allowed: false, reason }`. A refused edit comes back as
 an exchange rejection, and the replica drops it; `status.rejected` is
-`[{ opId, refusal: Option<SyncRefusal>, operation }]`: why, in Remote's
-vocabulary, and the refused operation itself, to read what it changed.
+`[{ opId, refusal: Option<SyncRefusal>, operation, message }]`: why, in Remote's
+vocabulary, the refused operation as sent, and its Message encoded at the
+current version, to read what it changed.
 `Forbidden { reason }` is `authorize` or `admit` refusing, with the rule's
 words (Remote's `Denied.Forbidden`); `Invalid { message, ... }` is the
 operation failing, with a fixed sentence from `journalExchange`, never an
-error's message (Remote's `Refusal.invalid`); `Unreadable { version }` is for
-upcasting and not sent yet. None means the server named no refusal, or one
+error's message (Remote's `Refusal.invalid`); `Unreadable { version }` is an
+older Message version no step of the history reads (below), which the replica
+also keeps in `status.refused`. None means the server named no refusal, or one
 this build cannot read (reported as `UnknownRefusal`). `reason`, the words
 alone, is deprecated.
 
@@ -259,6 +261,46 @@ const said = (rejection: Rejection): string =>
     }),
   })
 ```
+
+## Changing a durable Message
+
+A stored operation outlives its build, so a shipped durable Message's Schema
+is a stored format. Declare its history; every reader sees old operations
+upcast:
+
+```ts
+import { Match, Schema } from 'effect'
+
+// Version 1 called `title` `text`; copy only changed variants, and durable ones only.
+const CreatedTodoV1 = Schema.TaggedStruct('CreatedTodo', { id: Schema.String, text: Schema.String })
+const TodoHistory = Sync.migrations(Schema.Union([CreatedTodoV1])).next(
+  Schema.Union([Message.CreatedTodo]),
+  ({ id, text }) => ({ _tag: 'CreatedTodo' as const, id, title: text }),
+)
+```
+
+`Sync.define({ migrations, … })` takes it in place of `message`;
+`Sync.forApplication(App).make({ …, migrations })` takes one whose last Schema
+is `App.Message` itself (checked by identity; with no `migrations`, version 1,
+written as before). Each step's input is typed by the version before.
+
+- An operation keeps its `messageVersion` (absent for 1) in the outbox and on
+  the wire (`WrittenOperation`: `replica.pending`, a rejection's
+  `operation`); `admit`, `validate`, `authorize`, `reduce`, `stamp` and replay
+  see the current Message. The journal stores the current version and still
+  recognizes a pre-deploy retransmission (Durable's codec `compared`).
+- Older, no step reads it: a pending one moves to `status.refused` (kept, with
+  its payload, until `replica.dismiss(opId)`; the rest sends); the server
+  rejects one as `Unreadable`; committed history fails every exchange of the
+  document with `UnreadableHistoryError` on the server.
+- Newer (a rollback, an old client): `UnsupportedMessageVersionError` refuses
+  to open the replica, fails the exchange that receives one (in `lastError`,
+  retried; reload the page), and a server fails an exchange carrying one
+  before appending, so the client waits. Nothing is removed.
+- Deploy the Sync release everywhere first, then the app's version server
+  first. A server appending its own operation (`editsJournal`'s `absorbed`)
+  writes it with `journalContract().operation.encode`. The shared slice's own
+  Schema has no history: changing it is yours.
 
 ## Server: foldkit-durable Journal
 
@@ -391,9 +433,10 @@ stamps with `Sync.lww.openClock` before dispatch, never in `update`.
   database. `reduce`/`validate`/`authorize` hold the write lock, so keep them pure,
   fast, and service-free. Ops must be JSON.
 - Sync and Durable ids are branded separately, so re-brand with
-  `OpId.make(operation.opId)`. App schema migration is yours to handle.
+  `OpId.make(operation.opId)`. A durable Message's versions are its history
+  (above); the shared slice's Schema migration is yours.
 - With no Foldkit app, use `Sync.define({ documentId, message, shared, empty,
-  durable, replay })`.
+  durable, replay })`, or `migrations` in place of `message`.
 
 ## Known traps
 
