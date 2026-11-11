@@ -1,6 +1,7 @@
 # Sync rejections as typed refusals (#190, Phase 0 item 5)
 
-Status: designed 2026-11-11; not built. Phase 0 item 5 of
+Status: designed 2026-11-11, revised after one review round the same day;
+built on the branch (see contract-layer-PLAN §6.0 item 5). Phase 0 item 5 of
 [contract-layer-PLAN.md](./contract-layer-PLAN.md), building decision 12 of
 [remote-improvement-plan.md](./remote-improvement-plan.md) ("a Sync rejection
 reads as a `Refusal`") with the case
@@ -33,7 +34,8 @@ shows a reason without knowing which path refused it.
 Every Sync server in the repository answers through `journalExchange`
 (`packages/sync/src/journal.ts:111-226`; the todo-app, sync, pages, registry
 and kitchen-sink examples and `serveJournal`, which `foldkit-sync/do` uses).
-Its `reject(opId, reason)` (`journal.ts:146-149`) is called from six places:
+Its `reject(opId, reason)` (`journal.ts:146-149`) is called from five sites,
+which cover six sources:
 
 | # | Source | Today's `reason` | Case |
 | --- | --- | --- | --- |
@@ -41,11 +43,18 @@ Its `reject(opId, reason)` (`journal.ts:146-149`) is called from six places:
 | 2 | `admit` answered `false` (`journal.ts:160-168`) | "This connection may not make changes" | `Forbidden`, no reason |
 | 3 | `admit` answered `{ allowed: false, reason }`, as `foldkit-guard/sync` does with a rule's `Explain` (`packages/guard/src/sync.ts:41`) | the rule's words | `Forbidden`, its reason |
 | 4 | `OperationRejectedError`: the journal's `authorize` refused (`packages/durable/src/journal.ts:1097-1112`), or the operation's replica is bound to another actor (`:1066-1073`) | the rule's words, or "Refused by the server" | `Forbidden`, its reason when it gave one |
-| 5 | `InvalidOperationError`: `validate` threw or failed, `authorize` or `stamp` threw, the reducer could not apply it (`durable/src/journal.ts:1088-1096`) | "Not a valid operation" | `Invalid` |
+| 5 | every `InvalidOperationError`: `validate` threw or failed, `authorize` threw (`durable/src/journal.ts:1088-1096`), `stamp` threw or changed the identity (`:1124`), the operation codec's decode or canonical encode failed (`:957`, `:981`), `opId`, `actorId` or `replicaId` threw (`:985`, `:989`, `:1060`), a stored row would not parse (`:1028`, `:1033`), or the reducer could not apply it | "Not a valid operation" | `Invalid` |
 | 6 | `IdentityConflictError`: the id was used for other content (`journal.ts:187-188`) | "Its id was already used for another" | `Invalid` |
 
 A rejection with no reason reaches the replica from a server that sends
 none (any custom server, or `rejected` without `reasons`).
+
+Two of these read as the person's fault when they are not, as they do today:
+source 5 includes server faults (`actorId` throwing, a stored row that will
+not parse), and source 4's replica binding is met by a shared browser whose
+user switched accounts, which reads as `Forbidden`. Telling those apart
+needs the journal to type its own errors, which it does not; this note
+keeps today's sentences for them and does not add a case.
 
 **Which source has no case in Remote's vocabulary.**
 
@@ -55,7 +64,7 @@ none (any custom server, or `rejected` without `reasons`).
   `operationFrom` throws one error for all of them, and no operation carries
   a Message version, so there is no version to report. It reads as `Invalid`
   with its fixed sentence until Phase 5 item 6 adds the version and splits
-  the Message decode out; `Unreadable { version }` is declared now (§4) so
+  the Message decode out; `Unreadable { version }` is declared now (§5) so
   that split adds no case to a union applications already match.
 - Source 6 fits no case well. `Refusal.taken` (`{ entity, id }`) means "the
   id an insert names is taken", and its `entity` names an Entity, which an
@@ -92,15 +101,16 @@ today only by the `./remote` subpath and as a type by `./journal` and
 `./do`. The replica in the core entry must decode refusals at run time, so
 the core would import `foldkit-remote`'s index: an optional peer made
 required for every Sync application, and Remote's module-level schemas in
-every Sync bundle. And `Denied.Forbidden` is not a codec at all (Remote builds
-it from a `RemoteError`, `remoteData.ts:229-233`), so there is nothing to
-import for three of the six sources.
+every Sync bundle. And `Denied` is a Schema whose `reason` is
+`Schema.Option(Schema.String)`, which encodes to an `Option`, not JSON, so it
+cannot cross the wire as it is: there is no wire codec to import for three of
+the six sources.
 
 **B. Move the case schemas into a package both depend on.** Both depend on
 `foldkit-surface` only. Rejected: Surface observes and owns no write
 vocabulary, `Refusal.invalid` is tied to `foldkit-entity`'s invariants
 (`isInvalidBy`), and it would move published exports across three packages
-for two schemas, where one Remote does not even have as a codec.
+for two schemas, one of which Remote has only in a form that is not JSON.
 
 **C. A new Sync vocabulary** (`NotAllowed`, `Broken`, ...). Rejected: two
 words for one meaning is what decision 12 exists to remove.
@@ -114,6 +124,14 @@ The copy is two field lists; a test in `packages/sync` (which has
 accepts Sync's `Invalid`, that Remote's `invalid` decodes Sync's encoded
 `Invalid`, and that the decoded types are mutually assignable, so a drift
 fails a test rather than a page.
+
+**E. A mapping in `foldkit-sync/remote`**, the subpath that already imports
+`foldkit-remote`, from a Sync rejection to Remote's types. Not instead of D:
+the replica in the core entry decodes the reply, so Sync needs its own wire
+codec whatever the subpath adds, and the field lists exist either way. Not
+beside it either: with the decoded types already equal, a mapping would be
+the identity, and the one page that bridges Sync's status (the registry)
+reads the refusal directly.
 
 ## 5. The chosen shape
 
@@ -140,7 +158,7 @@ export const SyncRefusal = defineTaggedUnion({
     message: Words,
     path: Schema.Array(Words).check(Schema.isMaxLength(16)),
   },
-  /** Written at a Message version the server cannot read (upcasting, Phase 5). */
+  /** Written at a Message version no step of the document's history reads (upcasting, Phase 5). */
   Unreadable: { version: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)) },
 })
 export type SyncRefusal = typeof SyncRefusal.Type
@@ -170,8 +188,10 @@ export interface Exchange<Shared> {
   // ...as today
   /** @deprecated Send `refusals`. Removed in the next release. */
   readonly reasons?: ReadonlyArray<{ readonly opId: OpId; readonly reason: string }> | undefined
-  /** Why some of `rejected` were refused: each an encoded `SyncRefusal`. */
-  readonly refusals?: ReadonlyArray<{ readonly opId: OpId; readonly refusal: unknown }> | undefined
+  /** Why some of `rejected` were refused: each an encoded `SyncRefusal`, one per operation. */
+  readonly refusals?:
+    | ReadonlyArray<{ readonly opId: OpId; readonly refusal: typeof SyncRefusal.Encoded }>
+    | undefined
 }
 ```
 
@@ -184,13 +204,23 @@ const shown = (rejection: Rejection): string =>
     onSome: SyncRefusal.match({
       Forbidden: ({ reason }) => Option.getOrElse(reason, () => 'You may not change this'),
       Invalid: ({ message }) => message,
-      Unreadable: () => 'Made by another version of the app; reload to send it again',
+      Unreadable: () => 'Made by another version of the app, so not saved',
     }),
   })
 ```
 
+The type says `Encoded` for a custom server's sake; the replica still decodes
+each one as untrusted (§6). `Invalid`'s `entity`, `rule` and `path` are
+always empty from `journalExchange`, which knows no Entity: they are there
+because Remote's `invalid` has them, so a server that does know one (Phase 5's
+row rules) can say so in the same shape.
+
 `journalExchange` builds each case with the union's constructors and sends
-both fields, `reasons` with today's sentences:
+both fields, `reasons` with today's sentences. A rule's reason has no bound
+of its own (`AuthorizeDecision`, `foldkit-guard/sync`'s `Explain`), so it is
+cut to 500 UTF-16 units, with an ellipsis and never inside a surrogate pair,
+before either field is built. Today an unfit reason fails every exchange that
+carries it at the replica; cut, it reaches the person.
 
 | Source | `refusal` |
 | --- | --- |
@@ -211,6 +241,9 @@ The reply is untrusted, so the replica checks it before acting:
 
 - **A refusal for an operation the reply did not reject** fails the exchange
   with `ForeignRejectionError`, as a reason does today (`sync.ts:809-814`).
+- **Two refusals for one operation** fail it with `ForeignRejectionError`
+  too. With every entry naming a rejected id, there are then no more entries
+  to decode than operations rejected, which were all sent.
 - **The `refusals` entries** are decoded strictly (`{ opId, refusal }`, no
   other key). Each `refusal` is then decoded on its own against `SyncRefusal`
   with `onExcessProperty: 'error'`, every string at most 500 characters and
@@ -218,8 +251,9 @@ The reply is untrusted, so the replica checks it before acting:
   a Phase 5 application refusal, or garbage) does not fail the exchange: the
   server has already rejected the operation, and failing would resend it
   forever. The rejection stands, its `refusal` is none, and the replica
-  reports `UnknownRefusal` (`documentId`, `replicaId`, `opId`, the value)
-  through `Diagnostics.report`.
+  reports `UnknownRefusal` (`documentId`, `replicaId`, `opId`, and why it did
+  not decode, cut to 500 characters, never the value, which is the server's
+  and of any size) through `Diagnostics.report`.
 - **A rejection with no refusal** reads `refusal: none`, as it reads
   `reason: none` today.
 
@@ -243,15 +277,30 @@ accepts" and every stored replica refuse to open, far worse than what follows.
   before until the server refuses one of its own operations. From then, every
   exchange of that tab fails (the refused operation is still in its outbox and
   is refused again), and the tab shows `lastError` and adopts no commit until
-  it reloads. Nothing is lost: the operations the server took are committed
-  and are acknowledged again on the retry, and after the reload the new build
-  sends the refused one and reads its refusal. This is a tab left open across
-  a deploy that also met a refusal; the note accepts it rather than delay
-  typed refusals a release by shipping the reader before the writer.
+  it runs the new build. Each commit notice on its socket wakes it to
+  exchange again, so the server runs the append and the refusal again each
+  time, on its backoff. A tab reloads into the new build; an installed or
+  service-worker-cached client may keep the old one past a reload. Nothing
+  is lost: the operations the server took are committed and are
+  acknowledged again on the retry, and the new build sends the refused one
+  and reads its refusal.
+
+  Shipping the reader a release before the writer would avoid this, and is
+  rejected: it delays decision 12 a release, and the release that writes
+  would then meet the same stale clients of the release before it. Sync is
+  0.x, where a minor release may break, and the changelog says so under
+  Changed. What this release does instead is make the replica tolerant of
+  every later refusal case (§6), so Phase 5's application refusals do not
+  break it the same way.
 - **Deprecation, one release.** `Rejection.reason` and `Exchange.reasons`
   stay, marked `@deprecated`; `journalExchange` keeps sending `reasons` with
   today's sentences, so code reading `reason` reads what it did. The release
-  after removes both, and `refusals` alone carries why. The changelog says to
+  after removes `Rejection.reason` and stops `journalExchange` writing
+  `reasons`, but the replica's reply schema keeps accepting `reasons` and
+  ignores it: today's server sends it on every reply, empty or not, so a
+  replica that refused the key would fail every exchange against a server a
+  release behind (a rollback, or a client deployed before its server). A
+  key once sent on the reply is accepted for good. The changelog says to
   read `refusal` through `SyncRefusal.match` instead of `reason`, and that a
   custom server sends `refusals` (each `Schema.encodeSync(SyncRefusal)` of a
   case) instead of `reasons`.
@@ -271,9 +320,9 @@ accepts" and every stored replica refuse to open, far worse than what follows.
 - **A persisted `refused` list.** Server rejections stay in memory, the
   latest 32, as today; the upcasting note's persisted list lands with Phase 5
   item 6.
-- **The registry's hand-bridged `EditsRefused`** stays hand-bridged (the
-  reason is recorded in remote-improvement-plan §8, "Not built"); it now
-  reads the refusal.
-- **Truncating a long reason on the server.** A reason over 500 characters
-  still fails the old `reasons` check, as today; the new `refusals` entry
-  alone would read as `UnknownRefusal`.
+- **The registry's hand-bridged `EditsRefused`** stays hand-bridged:
+  remote-improvement-plan §8's "Not built, and why" paragraph (a Sync
+  rejection names an operation, a Remote refusal a request, and no page
+  here refuses the same cell both ways) still holds. Decision 12 is met by
+  the shape: the registry reads a `SyncRefusal` whose cases a Remote page
+  handles with the same function. It now reads the refusal.
