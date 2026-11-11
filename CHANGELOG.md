@@ -412,6 +412,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **A slot recipe's selection types its base slots as present**
+  (`foldkit-mixins`). `Style.recipeFor(Slots)(def)` returns
+  `selection => RecipePieces<Slots, Known>` (exported), where `Known` is the
+  slots `def.base` sets, and `.extend` adds its patch's; a variant's or a
+  compound's slot stays optional, since `null` can unset its axis. Reusing a
+  shipped recipe's look on another element no longer needs `?? Style.empty`
+  (`Recipes.Button(selection).button`). A base given as a `StylePieces`
+  value names no slot as present.
+
 - **The data grid says it is loading only once the wait is noticeable**
   (`foldkit-mixins-data-grid`). `GridStyle`'s `status` slot takes
   `Utilities.busyReveal`, so a page answered within 0.6s never flashes

@@ -618,8 +618,11 @@ export const stylesheet: string = Style.stylesheet(
   rows?, gap? })` (typed areas, as rules: `.style` on the container, `.area(name)` on a child;
   ragged rows raise `mixins:ragged-grid-areas`), and `Selector.*` builders.
 - Multi-slot recipes (every field optional): `Style.recipeFor(Slots)({ base, variants, defaults, compound })` returns
-  `selection => StylePieces` (`null` unsets a defaulted axis) with `.extend(patch)` merging per
-  slot (`mixins:unknown-slot` for a slot the contract lacks). `Style.perItem(item => piece)` and
+  `selection => RecipePieces`: every `base` slot is present (no `?? Style.empty` to reuse one), a
+  variant's may be absent (`null` unsets a defaulted axis, the way to make a piece optional).
+  `.extend(patch)` composes per slot and removes nothing (`mixins:unknown-slot` for a slot the
+  contract lacks); to leave a piece out of one use, destructure the selection. Leaving out a style
+  does not leave out the element. `Style.perItem(item => piece)` and
   `Style.stagger({ stepMs })` need the item passed to `attrs`. `Style.forCapability(Slots)(cap,
   piece)` styles every slot whose capability satisfies `cap`.
 - Theme and layers: `Theme.lightDark(light, dark)` (CSS `light-dark()`, no Model field),

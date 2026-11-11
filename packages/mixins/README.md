@@ -299,7 +299,7 @@ one.
 | `Style.when(condition, piece)` | a boolean known at authoring time |
 | `Style.whenInput(predicate, piece)` | a condition read from the view input at render time |
 | `Style.recipe({ base, variants, defaults, compound })` | one slot: returns `selection => StyleValue`; every field is optional, so a recipe may be only its base |
-| `Style.recipeFor(Slots)({ base, variants, defaults, compound })` | every slot: returns `selection => StylePieces`; `null` unsets a defaulted axis; `.extend(patch)` merges per slot and refuses a slot the contract lacks |
+| `Style.recipeFor(Slots)({ base, variants, defaults, compound })` | every slot: returns `selection => RecipePieces`, in which every `base` slot is present and a variant's slot may be absent; `null` unsets a defaulted axis, which is how a recipe makes a piece optional; `.extend(patch)` composes per slot, removes nothing, and refuses a slot the contract lacks |
 | `Style.perItem(item => piece)` / `Style.stagger({ stepMs })` | a piece from the item the slot is rendered for (`attrs(base, item)`); stagger writes `--fk-index` inline and the `calc` delay as a rule |
 | `Style.forCapability(Slots)(capability, piece)` | one piece for every public slot whose capability satisfies it |
 | `Style.slots(pieces, options?)` / `Style.slot(slotOptions, piece)` | an application's own Slots declared by their style: `{ slots, style }` (see [An application's own look](#an-applications-own-look)) |
@@ -315,6 +315,20 @@ one.
 | `Theme.tokens` / `Theme.breakpointWidths(theme)` | from `foldkit-mixins/theme`: the shipped spacing, type, reading, radius, motion, width, border, shadow and breakpoint scales, `icon` (the masks the components draw their own icons with, Heroicons' outline set at 2px by default; an application's pack is `foldkit-mixins-ui`'s `Icons.tokens(pack)`, passed as its own tokens), and `safe` (what a notch or the home indicator takes from each screen edge, `env(safe-area-inset-*)`, 0 unless the viewport meta says `viewport-fit=cover`), and `overlay.scrim` (what a modal's backdrop draws over the page: the page's own base at 45%, so it dims in either scheme; a theme that wants a darker veil overrides that token in the tokens it composes); the breakpoints as pixel widths for `foldkit-primitives/media` |
 | `Layers.define(names)` / `Layers.standard` | cascade layers as a value: `names`, `declare` (the `@layer …;` statement as a global piece), `in(name, piece)` (a piece's unlayered rules and global CSS inside that layer; what is already layered keeps its layer; a piece wholly in another layer is `style:relayered`) and `layer(name)` (the placement `Style.forSlots(S)(pieces, { layer })` takes, so a slot style is compiled in that layer). A name outside the order is a type error. `standard` is `reset, tokens, theme, defaults, components, layouts, variants, utilities, app`; also under `foldkit-mixins/layers` |
 | `Style.stylesheet(...)` | one `<style>` block from `NamedStyle`s and bare `StyleValue`s: the layer order hoisted first (two different orders is `style:conflicting-layer-order`), then global chunks, then scoped classes, deduplicated. Once an order is declared, a rule outside it is `style:unlayered-rule`, since it would beat every layer; keyframes, font faces and `@property` pass |
+
+A selection is a plain object of pieces. A base slot needs no fallback when one recipe's look goes on
+another element (`Recipes.Button({ tone: 'neutral' }).button`), and leaving a piece out of one use
+is destructuring:
+
+```ts
+import { DialogSlots, Recipes } from 'foldkit-mixins-ui'
+
+const { closeButton: _corner, ...dialogPieces } = Recipes.Dialog({ size: 'sm' })
+const PlainDialogStyle = Style.forSlots(DialogSlots)(dialogPieces)
+```
+
+Leaving out a style does not leave out the element: the view still draws the close button wherever
+it puts `dialog.closeButton`, now without the recipe's look.
 
 Rule-based Style compiles to one deterministic class (an FNV-1a hash of canonical rule text) plus
 CSS as data:

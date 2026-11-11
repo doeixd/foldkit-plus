@@ -488,8 +488,27 @@ export interface SlotRecipePatch<Slots, Variants extends SlotRecipeVariants<Slot
   readonly compound?: SlotRecipeDef<Slots, Variants>['compound']
 }
 
-export interface SlotRecipe<Slots, Variants extends SlotRecipeVariants<Slots>> {
-  (selection?: SlotRecipeSelection<Variants>): StyleValues<Slots>
+/**
+ * What a selection gives: `StyleValues`, with each slot `Known` names
+ * present. A recipe's base pieces are in every selection; a variant's or a
+ * compound's are not, since `null` or another value can leave them out.
+ */
+export type RecipePieces<Slots, Known extends PropertyKey = never> = StyleValues<Slots> & {
+  readonly [K in Known]: StyleValue
+}
+
+/** The keys of `T` that always hold a value: a base typed `StylePieces` names none. */
+type PresentKeys<T> = Exclude<
+  { [K in keyof T]: undefined extends T[K] ? never : K }[keyof T],
+  undefined
+>
+
+export interface SlotRecipe<
+  Slots,
+  Variants extends SlotRecipeVariants<Slots>,
+  Known extends PropertyKey = never,
+> {
+  (selection?: SlotRecipeSelection<Variants>): RecipePieces<Slots, Known>
   /** The definition, with `variants` present (`{}` when none was given). */
   readonly def: SlotRecipeDef<Slots, Variants> & { readonly variants: Variants }
   /**
@@ -497,7 +516,9 @@ export interface SlotRecipe<Slots, Variants extends SlotRecipeVariants<Slots>> {
    * variant's pieces compose over the base recipe's, compounds append,
    * defaults override. A slot the contract lacks is refused at once.
    */
-  readonly extend: (patch: SlotRecipePatch<Slots, Variants>) => SlotRecipe<Slots, Variants>
+  readonly extend: <Base extends StylePieces<Slots> = {}>(
+    patch: SlotRecipePatch<Slots, Variants> & { readonly base?: Base },
+  ) => SlotRecipe<Slots, Variants, Known | PresentKeys<Base>>
 }
 
 const mergePieces = <Slots>(
@@ -541,9 +562,9 @@ const assertKnownSlots = <Slots>(
  */
 export const recipeFor =
   <Slots>(slots: Slots) =>
-  <Variants extends SlotRecipeVariants<Slots> = {}>(
-    def: SlotRecipeDef<Slots, Variants>,
-  ): SlotRecipe<Slots, Variants> => {
+  <Variants extends SlotRecipeVariants<Slots> = {}, Base extends StylePieces<Slots> = {}>(
+    def: SlotRecipeDef<Slots, Variants> & { readonly base?: Base },
+  ): SlotRecipe<Slots, Variants, PresentKeys<Base>> => {
     // Absent variants are none; `{}` is what the default type argument names.
     const full = { ...def, variants: def.variants ?? ({} as Variants) }
     const axes: SlotRecipeVariants<Slots> = full.variants
@@ -575,7 +596,7 @@ export const recipeFor =
       }
       return pieces
     }
-    const extend = (patch: SlotRecipePatch<Slots, Variants>): SlotRecipe<Slots, Variants> => {
+    const extend = (patch: SlotRecipePatch<Slots, Variants>) => {
       const variants: Record<string, Record<string, StylePieces<Slots>>> = Object.create(null)
       for (const [axis, values] of Object.entries(axes)) {
         variants[axis] = { ...(values as Record<string, StylePieces<Slots>>) }
@@ -598,7 +619,13 @@ export const recipeFor =
         compound: [...(def.compound ?? []), ...(patch.compound ?? [])],
       })
     }
-    return Object.assign(select, { def: full, extend })
+    // `select` merges the base first and removes nothing, so every base key
+    // is present; `extend`'s merged base holds both bases' keys.
+    return Object.assign(select, { def: full, extend }) as unknown as SlotRecipe<
+      Slots,
+      Variants,
+      PresentKeys<Base>
+    >
   }
 
 /**

@@ -87,6 +87,7 @@ export type {
   DeclaredPieces,
   DeclaredSlots,
   NamedStyle,
+  RecipePieces,
   SlotPiece,
   SlotRecipe,
   SlotRecipeSelection,
