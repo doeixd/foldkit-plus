@@ -202,10 +202,17 @@ export interface FormReading {
 
 const decimal = /^[+-]?(\d+(\.\d*)?|\.\d+)$/
 const day = /^\d{4}-\d{2}-\d{2}$/
-const bound = (text: string, pattern: RegExp): Option.Option<Option.Option<string>> => {
+// A number as typed, and finite: 309 digits read as Infinity, which no Range stores.
+const isNumber = (text: string): boolean => decimal.test(text) && Number.isFinite(Number(text))
+const isDay = (text: string): boolean => day.test(text)
+/** A bound as typed: none when empty, refused (the outer none) when it is not one. */
+const bound = (
+  text: string,
+  accepts: (trimmed: string) => boolean,
+): Option.Option<Option.Option<string>> => {
   const trimmed = text.trim()
   if (trimmed === '') return Option.some(Option.none())
-  return pattern.test(trimmed) ? Option.some(Option.some(trimmed)) : Option.none()
+  return accepts(trimmed) ? Option.some(Option.some(trimmed)) : Option.none()
 }
 
 /** A kind's form read as its filter. */
@@ -214,12 +221,12 @@ export const readForm = (kind: CellEditor, form: FilterForm): FormReading => {
   const range = <F extends 'min' | 'from', T extends 'max' | 'to'>(
     lowField: F,
     highField: T,
-    pattern: RegExp,
+    accepts: (trimmed: string) => boolean,
     make: (low: Option.Option<string>, high: Option.Option<string>) => ColumnFilter,
     above: (low: string, high: string) => boolean,
   ): FormReading => {
-    const low = bound(form[lowField], pattern)
-    const high = bound(form[highField], pattern)
+    const low = bound(form[lowField], accepts)
+    const high = bound(form[highField], accepts)
     const invalid = [
       ...(Option.isNone(low) ? [lowField] : []),
       ...(Option.isNone(high) ? [highField] : []),
@@ -241,7 +248,7 @@ export const readForm = (kind: CellEditor, form: FilterForm): FormReading => {
       range(
         'min',
         'max',
-        decimal,
+        isNumber,
         (min, max) =>
           ColumnFilter.Range({ min: Option.map(min, Number), max: Option.map(max, Number) }),
         (low, high) => Number(low) > Number(high),
@@ -258,7 +265,7 @@ export const readForm = (kind: CellEditor, form: FilterForm): FormReading => {
       range(
         'from',
         'to',
-        day,
+        isDay,
         (from, to) => ColumnFilter.Between({ from, to }),
         (low, high) => low > high,
       ),

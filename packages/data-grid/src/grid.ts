@@ -79,12 +79,22 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
   const filterFields = Object.fromEntries(
     filterIds.map(id => [id, Schema.OptionFromNullOr(filterSchemas.get(id)!)]),
   )
+  // A struct drops a key it does not name, whatever the decode is given, so
+  // the keys are checked first: a URL or a saved view naming another column is refused.
+  const filterKeys = new Set<string>(filterIds)
+  const OnlyFilterKeys = Schema.Record(Schema.String, Schema.Unknown).check(
+    Schema.makeFilter(stored => Object.keys(stored).every(key => filterKeys.has(key)), {
+      expected: 'only the filtering columns',
+    }),
+  )
   /**
    * Every filtering column's filter as stored: each its own variant, never
-   * empty. Decode a URL's or a saved view's with `onExcessProperty: 'error'`.
+   * empty, and no other key.
    */
   // Each field is that column's own schema, so the struct holds `Filters<Specs>`.
-  const Filters = Schema.Struct(filterFields) as unknown as Schema.Codec<Filters<Specs>, unknown>
+  const Filters = OnlyFilterKeys.pipe(
+    Schema.decodeTo(Schema.Struct(filterFields)),
+  ) as unknown as Schema.Codec<Filters<Specs>, unknown>
   // One case per filtering column, so a change's filter is that column's variant.
   const changes = filterIds.map(id =>
     Schema.Struct({
@@ -95,12 +105,12 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
   const FilterChangeSchema = (changes.length === 0
     ? Schema.Never
     : Schema.Union(changes)) as unknown as Schema.Codec<FilterChange<Specs>, unknown>
-  /** What a stale frame drew: the application's filter, and what the form had reported. */
+  /**
+   * What a stale frame drew: the application's filter, and the form's
+   * generation when that frame was drawn.
+   */
   const Stale = Schema.OptionFromNullOr(
-    Schema.Struct({
-      drawn: Schema.OptionFromNullOr(ColumnFilter),
-      reported: Schema.OptionFromNullOr(ColumnFilter),
-    }),
+    Schema.Struct({ drawn: Schema.OptionFromNullOr(ColumnFilter), generation: Schema.Number }),
   )
   const CellText = Schema.Struct({ row: Schema.String, column: Column, text: Schema.String })
   const PastedCell = Schema.Struct({ ...CellText.fields, from: Schema.String })
@@ -154,6 +164,12 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         column: Column,
         form: FilterForm,
         reported: Schema.OptionFromNullOr(ColumnFilter),
+        /**
+         * Counts the form's reports and reseeds: a stale frame's change reseeds
+         * only while it is the one the frame was drawn at, so a second change
+         * from that frame adds to the first.
+         */
+        generation: Schema.Number,
       }),
     ),
   })
@@ -362,7 +378,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     /** A checkbox's filter was set: any value, checked, or not. */
     FilterChecked: { state: Schema.Literals(['any', 'true', 'false']), stale: Stale },
     /** The open form was emptied: none is reported if a filter held. */
-    FilterCleared: {},
+    FilterCleared: { stale: Stale },
     FilterClosed: {},
   })
   type Message = typeof Message.Type
@@ -373,7 +389,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
    * `RedoRequested` carry nothing, since what to undo is the application's
    * history, read when the request arrives.
    */
-  const Out = defineTaggedUnion({
+  const outCases = {
     Edited: { row: Schema.String, column: Column, text: Schema.String },
     /** The cells their columns accepted, and those they refused, with why. */
     Pasted: {
@@ -393,6 +409,9 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
      * application holds.
      */
     RowsRequested: { from: Schema.String, to: Schema.String },
+  }
+  const Out = defineTaggedUnion({
+    ...outCases,
     /**
      * A column's filter changed, or is none: the application's to store
      * (`setFilter`) and apply (`keeps`, or a query's input).
@@ -400,6 +419,10 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     Filtered: { change: FilterChangeSchema },
   })
   type Out = typeof Out.Type
+  const Unfiltered = defineTaggedUnion(outCases)
+  /** What the grid reports: `Filtered` only when a column filters, so no other grid matches it. */
+  type PublicOut = [FilterId] extends [never] ? typeof Unfiltered : typeof Out
+  type PublicOutType = [FilterId] extends [never] ? typeof Unfiltered.Type : Out
   type Return = Update.ReturnWithOutMessage<Model, Message, Out, never>
 
   const focusTo = (model: Model, address: typeof focus.Address.Type): Model => {
@@ -776,38 +799,54 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         filtering: Option.none(),
       },
     }),
-    update: (model: Model, message: Message): Return =>
-      Option.isNone(model.filtering)
-        ? updated(model, message)
-        : Match.value(message).pipe(
-            // The form has the keyboard and the clipboard: these are not its.
-            Match.tag('Pasted', 'FillRequested', 'UndoRequested', 'RedoRequested', () => ({
-              model,
-            })),
-            // What opens an edit, the menu or a fill, or moves focus, ends the form.
-            Match.tag(
-              'Focused',
-              'Moved',
-              'CellPressed',
-              'EditStarted',
-              'EditTyped',
-              'EditToggled',
-              'MenuOpened',
-              'FillStarted',
-              () => updated(modifyFields(model, { filtering: () => Option.none() }), message),
-            ),
-            Match.orElse(() => updated(model, message)),
-          ),
+    // A grid that filters nothing never reports `Filtered`, so its Out is typed without it.
+    update: (model: Model, message: Message) =>
+      guarded(model, message) as unknown as Update.ReturnWithOutMessage<
+        Model,
+        Message,
+        PublicOutType,
+        never
+      >,
   })
+
+  /** A form whose column a write hid (a restored layout): it is closed, as hiding closes it. */
+  const drawnForm = (model: Model): Model =>
+    Option.exists(model.filtering, open => model.columns.hidden.includes(open.column))
+      ? modifyFields(model, { filtering: () => Option.none() })
+      : model
+  const guarded = (given: Model, message: Message): Return => {
+    const model = drawnForm(given)
+    return Option.isNone(model.filtering)
+      ? updated(model, message)
+      : Match.value(message).pipe(
+          // The form has the keyboard and the clipboard: these are not its.
+          Match.tag('Pasted', 'FillRequested', 'UndoRequested', 'RedoRequested', () => ({
+            model,
+          })),
+          // What opens an edit, the menu or a fill, or moves focus, ends the form.
+          Match.tag(
+            'Focused',
+            'Moved',
+            'CellPressed',
+            'EditStarted',
+            'EditTyped',
+            'EditToggled',
+            'MenuOpened',
+            'FillStarted',
+            () => updated(modifyFields(model, { filtering: () => Option.none() }), message),
+          ),
+          Match.orElse(() => updated(model, message)),
+        )
+  }
 
   type Filtering = Option.Option.Value<Model['filtering']>
   const filterOf = (filtering: Filtering, stale: typeof Stale.Type): Filtering =>
     Option.match(stale, {
       onNone: () => filtering,
-      // Seeded again only when nothing was reported since the stale frame was drawn.
-      onSome: ({ drawn, reported }) =>
-        Equal.equals(reported, filtering.reported)
-          ? { ...filtering, form: formOf(drawn), reported: drawn }
+      // Seeded again only at the generation the stale frame was drawn at.
+      onSome: ({ drawn, generation }) =>
+        generation === filtering.generation
+          ? { ...filtering, form: formOf(drawn), reported: drawn, generation: generation + 1 }
           : filtering,
     })
   /**
@@ -829,7 +868,9 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         if (base === open && Equal.equals(form, open.form)) return { model }
         const reading = readForm(kind, form)
         const reports = reading.invalid.length === 0 && !Equal.equals(reading.filter, base.reported)
-        const next = { ...base, form, reported: reports ? reading.filter : base.reported }
+        const next = reports
+          ? { ...base, form, reported: reading.filter, generation: base.generation + 1 }
+          : { ...base, form }
         return {
           model: modifyFields(model, { filtering: () => Option.some(next) }),
           ...(reports
@@ -961,8 +1002,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
           onSome: ({ column }) =>
             Option.match(Option.fromUndefinedOr(menuItems(model.columns, column)[index]), {
               onNone: () => ({ model: closeMenu(model) }),
-              onSome: item =>
-                bundle.update(closeMenu(model), messageOf(model.columns, column, item), undefined),
+              onSome: item => updated(closeMenu(model), messageOf(model.columns, column, item)),
             }),
         }),
       MenuClosed: (): Return => ({ model: closeMenu(model) }),
@@ -1248,7 +1288,8 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
               focus.bundle.update(current, focus.Message.HeaderFocused({ column }), undefined)
                 .model,
             menu: () => Option.none(),
-            filtering: () => Option.some({ column, form: formOf(drawn), reported: drawn }),
+            filtering: () =>
+              Option.some({ column, form: formOf(drawn), reported: drawn, generation: 0 }),
           }),
         }))
       },
@@ -1285,7 +1326,8 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
             ? Option.some({ ...form, checked: state })
             : Option.none(),
         ),
-      FilterCleared: (): Return => filterEdited(model, Option.none(), () => Option.some(emptyForm)),
+      FilterCleared: ({ stale }): Return =>
+        filterEdited(model, stale, () => Option.some(emptyForm)),
       FilterClosed: (): Return => ({
         model: Option.isNone(model.filtering)
           ? model
@@ -1473,7 +1515,8 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     fill,
     extendRows,
     draftOf,
-    Out,
+    // The union a placement reports: the full one only when a column filters.
+    Out: (filterIds.length === 0 ? Unfiltered : Out) as unknown as PublicOut,
     Model,
     Message,
     bundle,

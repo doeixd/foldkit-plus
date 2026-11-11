@@ -168,6 +168,7 @@ expectTypeOf<typeof Grid.Model.Type>().toEqualTypeOf<{
     readonly column: 'sku' | 'price'
     readonly form: FilterForm
     readonly reported: Option.Option<ColumnFilter>
+    readonly generation: number
   }>
 }>()
 

@@ -76,6 +76,19 @@ const typed = (field: 'text' | 'min' | 'max' | 'from' | 'to', text: string) =>
 const range = (min: Option.Option<number>, max: Option.Option<number>) =>
   ColumnFilter.Range({ min, max })
 
+enum TextEnum {
+  A = 'a',
+  B = 'b',
+}
+enum NumberEnum {
+  One = 1,
+  Two = 2,
+}
+enum MixedEnum {
+  A = 'a',
+  One = 1,
+}
+
 describe('the kind a column filters as', () => {
   // The type says the kind and the run time reads it: each row compiles only
   // when `KindOfValue` agrees with the literal, and passes only when
@@ -89,6 +102,9 @@ describe('the kind a column filters as', () => {
     ['a template literal', () => agree(Schema.TemplateLiteral([Schema.Number, 'px']), 'Text')],
     ['text literals', () => agree(Status, 'Choice')],
     ['one text literal', () => agree(Schema.Literal('Only'), 'Choice')],
+    ['a text enum', () => agree(Schema.Enum(TextEnum), 'Choice')],
+    ['a number enum', () => agree(Schema.Enum(NumberEnum), 'Number')],
+    ['a mixed enum', () => agree(Schema.Enum(MixedEnum), 'Text')],
     [
       'a text literal or a number',
       () => agree(Schema.Union([Schema.Literal('a'), Schema.Number]), 'Text'),
@@ -138,6 +154,7 @@ describe('the filter form', () => {
         column: 'hours',
         form: { text: '', min: '2', max: '', options: [], checked: 'any', from: '', to: '' },
         reported: Option.some(range(Option.some(2), Option.none())),
+        generation: 0,
       }),
     )
   })
@@ -260,15 +277,15 @@ describe('the filter form', () => {
   test('changes nothing when no form is open', () => {
     expect(step(start, typed('text', 'b')).model).toBe(start)
     expect(step(start, Grid.Message.FilterClosed()).model).toBe(start)
-    expect(step(start, Grid.Message.FilterCleared()).model).toBe(start)
+    expect(step(start, Grid.Message.FilterCleared({ stale: Option.none() })).model).toBe(start)
   })
 
   test('clears to no filter, reporting only when one held', () => {
     const { reported } = run(start, [
       open('title'),
-      Grid.Message.FilterCleared(),
+      Grid.Message.FilterCleared({ stale: Option.none() }),
       typed('text', 'a'),
-      Grid.Message.FilterCleared(),
+      Grid.Message.FilterCleared({ stale: Option.none() }),
     ])
     expect(reported).toEqual([
       { column: 'title', filter: Option.some(ColumnFilter.Contains({ text: 'a' })) },
@@ -279,9 +296,10 @@ describe('the filter form', () => {
   test('reseeds from a stale frame, once, before its change', () => {
     // The application wrote "x" while the form, which had reported "b", was open.
     const opened = run(start, [open('title'), typed('text', 'b')]).model
+    // Drawn after one report: the generation the form had then.
     const stale = Option.some({
       drawn: Option.some(ColumnFilter.Contains({ text: 'x' })),
-      reported: Option.some(ColumnFilter.Contains({ text: 'b' })),
+      generation: 1,
     })
     // Two keys from that one frame: the first reseeds, the second adds to it.
     const { model, reported } = run(opened, [
@@ -302,7 +320,7 @@ describe('the filter form', () => {
     ]).model
     const stale = Option.some({
       drawn: Option.some(ColumnFilter.OneOf({ options: ['Done'] })),
-      reported: Option.some(ColumnFilter.OneOf({ options: ['Open'] })),
+      generation: 1,
     })
     // Two presses from that one frame: the first reseeds, the second adds to it.
     const { reported } = run(opened, [
@@ -316,6 +334,84 @@ describe('the filter form', () => {
         filter: Option.some(ColumnFilter.OneOf({ options: ['Open', 'Doing', 'Done'] })),
       },
     ])
+  })
+
+  test('a stale frame whose first change reports the old value again does not reseed twice', () => {
+    // [Open] reported; the application wrote [Open, Done] from outside.
+    const opened = run(start, [
+      open('status'),
+      Grid.Message.FilterOptionToggled({ option: 'Open', stale: Option.none() }),
+    ]).model
+    const stale = Option.some({
+      drawn: Option.some(ColumnFilter.OneOf({ options: ['Open', 'Done'] })),
+      generation: 1,
+    })
+    // Untick Done (back to [Open], what was reported before), then tick Doing.
+    const { reported } = run(opened, [
+      Grid.Message.FilterOptionToggled({ option: 'Done', stale }),
+      Grid.Message.FilterOptionToggled({ option: 'Doing', stale }),
+    ])
+    expect(reported).toEqual([
+      { column: 'status', filter: Option.some(ColumnFilter.OneOf({ options: ['Open'] })) },
+      { column: 'status', filter: Option.some(ColumnFilter.OneOf({ options: ['Open', 'Doing'] })) },
+    ])
+  })
+
+  test('clears a filter written from outside, from the frame that shows it', () => {
+    const opened = step(start, open('title')).model
+    const { reported } = run(opened, [
+      Grid.Message.FilterCleared({
+        stale: Option.some({
+          drawn: Option.some(ColumnFilter.Contains({ text: 'x' })),
+          generation: 0,
+        }),
+      }),
+    ])
+    expect(reported).toEqual([{ column: 'title', filter: Option.none() }])
+  })
+
+  test('a hexadecimal or exponent bound is no number as typed, though JavaScript reads one', () => {
+    const { reported } = run(start, [open('hours'), typed('min', '0x10'), typed('max', '1e3')])
+    expect(reported).toEqual([])
+  })
+
+  test('a stale frame whose first change reports nothing still reseeds once', () => {
+    const opened = run(start, [open('hours'), typed('min', '1')]).model
+    const stale = Option.some({
+      drawn: Option.some(range(Option.some(5), fresh)),
+      generation: 1,
+    })
+    // A bound that is no number reports nothing; the next key adds to it, not to a reseed.
+    const { model, reported } = run(opened, [
+      Grid.Message.FilterTyped({ field: 'min', text: '5x', stale }),
+      Grid.Message.FilterTyped({ field: 'max', text: '9', stale }),
+    ])
+    expect(reported).toEqual([])
+    expect(Option.map(model.filtering, each => [each.form.min, each.form.max])).toEqual(
+      Option.some(['5x', '9']),
+    )
+  })
+
+  test('a bound past every finite number is no number: kept as typed, unreported', () => {
+    const long = '9'.repeat(400)
+    const { model, reported } = run(start, [open('hours'), typed('min', long)])
+    expect(reported).toEqual([])
+    expect(Option.map(model.filtering, each => each.form.min)).toEqual(Option.some(long))
+  })
+
+  test('closes a form whose column a write hid, on the next Message', () => {
+    const opened = step(start, open('title')).model
+    const hidden = { ...opened, columns: { ...opened.columns, hidden: ['title' as const] } }
+    expect(step(hidden, Grid.Message.MountStarted()).model.filtering).toEqual(Option.none())
+    // The paste a form would refuse lands again.
+    expect(
+      step(
+        hidden,
+        Grid.Message.Pasted({
+          cells: [{ row: 't', column: 'status', text: 'Done', from: 'Open' }],
+        }),
+      ).outMessage,
+    ).toBeDefined()
   })
 
   test.each([
@@ -375,6 +471,22 @@ describe('the stored filters', () => {
       hours: { _tag: 'Range', min: 1, max: null },
     }
     expect(Schema.encodeSync(Grid.Filters)(decode(stored))).toEqual(stored)
+  })
+
+  test('refuses a key no filtering column has, whatever the decode is given', () => {
+    expect(() => decode({ ...none, code: null })).toThrow()
+    expect(() => decode({ ...none, constructor: null })).toThrow()
+  })
+
+  test('of a grid that filters nothing, holds nothing', () => {
+    const Plain = DataGrid.make({
+      id: 'plain',
+      columns: Columns.define<Task>()({ title: { header: 'Title', value: task => task.title } }),
+    })
+    expect(Schema.decodeUnknownSync(Plain.Filters)({})).toEqual({})
+    expect(() => Schema.decodeUnknownSync(Plain.Filters)({ foo: 1 })).toThrow()
+    expect(() => Schema.decodeUnknownSync(Plain.Filters)('text')).toThrow()
+    expect(() => Schema.decodeUnknownSync(Plain.Filters)([])).toThrow()
   })
 
   test.each([
@@ -460,6 +572,9 @@ describe('keeps', () => {
         title: Option.some(ColumnFilter.Contains({ text: 'fix' })),
       }),
     ).toEqual(['a'])
+  })
+  test('is keeps the value it names', () => {
+    expect(kept({ done: Option.some(ColumnFilter.Is({ checked: true })) })).toEqual(['b'])
   })
   test('a date by its local day, an invalid date by none', () => {
     const on = (day: string) =>

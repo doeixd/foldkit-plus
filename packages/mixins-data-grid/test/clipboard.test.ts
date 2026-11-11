@@ -62,7 +62,6 @@ const application = Bundle.assemble<Model, Message>()([
         RedoRequested: () => ({ model }),
         Filled: () => ({ model }),
         RowsRequested: () => ({ model }),
-        Filtered: () => ({ model }),
       }),
   }),
 ])

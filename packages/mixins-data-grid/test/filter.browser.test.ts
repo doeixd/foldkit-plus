@@ -170,3 +170,59 @@ test('Chrome names the header by its words, says it is filtered, and names the f
     mounted.dispose()
   }
 })
+
+test('copy, cut and paste in a filter field are the field’s, not the grid’s', async () => {
+  const mounted = mountTasks()
+  try {
+    await vi.waitFor(() => expect(shownRows()).toHaveLength(3))
+    // The grid's tab stop is a cell, whose text its clipboard handlers would copy.
+    await userEvent.click(buttonOf('title'))
+    await vi.waitFor(() => expect(document.activeElement).toBe(field()))
+    const send = (type: 'copy' | 'cut' | 'paste', text = '') => {
+      const data = new DataTransfer()
+      if (text !== '') data.setData('text/plain', text)
+      const event = new ClipboardEvent(type, {
+        clipboardData: data,
+        bubbles: true,
+        cancelable: true,
+      })
+      field()!.dispatchEvent(event)
+      return { prevented: event.defaultPrevented, copied: data.getData('text/plain') }
+    }
+    // The browser copies the field's selection: the grid neither writes the cell's text nor stops it.
+    expect(send('copy')).toEqual({ prevented: false, copied: '' })
+    expect(send('cut')).toEqual({ prevented: false, copied: '' })
+    expect(send('paste', 'bolt').prevented).toBe(false)
+    await new Promise(resolve => requestAnimationFrame(resolve))
+    expect(mounted.latest().log).toEqual([])
+  } finally {
+    mounted.dispose()
+  }
+})
+
+test('a filtered read-only header says both', async () => {
+  const mounted = mountTasks()
+  try {
+    await vi.waitFor(() => expect(shownRows()).toHaveLength(3))
+    // Through the header's key: its button may lie past the pointer's reach in this frame.
+    await toTitleHeader()
+    for (const column of ['status', 'hours'] as const) {
+      await userEvent.keyboard('{ArrowRight}')
+      await vi.waitFor(() =>
+        expect(grid().getAttribute('aria-activedescendant')).toBe(headerOf(column).id),
+      )
+    }
+    await userEvent.keyboard('{Alt>}{ArrowDown}{/Alt}')
+    await vi.waitFor(() => expect(document.activeElement).toBe(field()))
+    await userEvent.keyboard('2')
+    await vi.waitFor(() => expect(shownRows()).toEqual(['t1', 't2']))
+    await vi.waitFor(async () => {
+      const hours = (await axNodes()).find(
+        node => node.role?.value === 'columnheader' && node.name?.value === 'Hours',
+      )
+      expect(said(hours)).toEqual({ name: 'Hours', description: 'Read-only, Filtered' })
+    })
+  } finally {
+    mounted.dispose()
+  }
+})

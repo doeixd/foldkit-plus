@@ -3,11 +3,9 @@
  * packages/mixins-data-grid/test/filter.mutations.ts` checks that a test fails
  * for every one.
  *
- * Two guards are doubled on purpose and survive alone: the clipboard box off
- * while a form is open (the update refuses the paste as well, so a cut there
- * changes nothing either way), and the header row's listener ignoring a press
- * in the form (a press without a move starts no drag, and a test of a drag
- * begun in a form field is a pointer race the browser tests do not run).
+ * One guard has no mutation: the header row's listener ignoring a press in
+ * the form (a press without a move starts no drag, and a test of a drag begun
+ * in a form field is a pointer race the browser tests do not run).
  */
 const view = '../src/view.ts'
 const form = '../src/filterForm.ts'
@@ -25,8 +23,8 @@ export default [
   one(
     'Escape on the grid moves off the header before it closes the form',
     view,
-    "          if (key === 'Escape' && Option.isSome(state.filtering)) {",
-    "          if (key === 'Escape' && Option.isSome(state.filtering) && false) {",
+    "          if (key === 'Escape' && Option.isSome(filtering)) {",
+    "          if (key === 'Escape' && Option.isSome(filtering) && false) {",
     unit,
   ),
   one(
@@ -46,7 +44,7 @@ export default [
   one(
     'a filtered header says nothing',
     view,
-    "                    h.AriaDescription(filterWords.filtered ?? 'Filtered'),\n",
+    "                        filterWords.filtered ?? 'Filtered',\n",
     '',
     unit,
   ),
@@ -86,4 +84,25 @@ export default [
     browser,
   ),
   one('Clear is drawn with no filter', form, '      ...(args.filtered', '      ...(true', unit),
+  one(
+    'the grid keeps its clipboard while a form is open',
+    view,
+    '          () => Option.isNone(editing) && Option.isNone(filtering),',
+    '          () => Option.isNone(editing),',
+    browser,
+  ),
+  one(
+    'a filtered read-only header says only that it is filtered',
+    view,
+    "                        ...(readOnly(id) ? ['Read-only'] : []),\n",
+    '',
+    browser,
+  ),
+  one(
+    'Clear in a stale frame ignores what it shows',
+    view,
+    'cleared: input.wrap(grid.Message.FilterCleared({ stale })),',
+    'cleared: input.wrap(grid.Message.FilterCleared({ stale: Option.none() })),',
+    unit,
+  ),
 ]

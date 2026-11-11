@@ -91,13 +91,24 @@ const isDate = (ast: SchemaAST.AST): boolean => {
 const isBooleanLike = (ast: SchemaAST.AST): boolean =>
   SchemaAST.isBoolean(ast) ||
   (SchemaAST.isLiteral(ast) && typeof ast.literal === 'boolean') ||
-  (SchemaAST.isUnion(ast) && ast.types.every(isBooleanLike))
+  (SchemaAST.isUnion(ast) && ast.types.length > 0 && ast.types.every(isBooleanLike))
+// A TypeScript enum: its members' values, numbers or text or both.
+const enumValues = (ast: SchemaAST.AST): ReadonlyArray<string | number> =>
+  SchemaAST.isEnum(ast) ? ast.enums.map(([, value]) => value) : []
 const isNumberLike = (ast: SchemaAST.AST): boolean =>
   SchemaAST.isNumber(ast) ||
   (SchemaAST.isLiteral(ast) && typeof ast.literal === 'number') ||
+  (SchemaAST.isEnum(ast) &&
+    ast.enums.length > 0 &&
+    enumValues(ast).every(value => typeof value === 'number')) ||
   (SchemaAST.isUnion(ast) && ast.types.length > 0 && ast.types.every(isNumberLike))
 /** The text literals an AST is one of, when it is nothing else. */
 const textLiterals = (ast: SchemaAST.AST): Option.Option<ReadonlyArray<string>> => {
+  if (SchemaAST.isEnum(ast)) {
+    const values = enumValues(ast)
+    const texts = values.flatMap(value => (typeof value === 'string' ? [value] : []))
+    return texts.length > 0 && texts.length === values.length ? Option.some(texts) : Option.none()
+  }
   if (SchemaAST.isLiteral(ast)) {
     return typeof ast.literal === 'string' ? Option.some([ast.literal]) : Option.none()
   }

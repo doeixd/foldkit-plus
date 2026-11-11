@@ -112,6 +112,7 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
       readonly column: Id
       readonly form: FilterForm
       readonly reported: Option.Option<ColumnFilter>
+      readonly generation: number
     }>
   }
   /** The application's rows, in its order; the view draws them through `state.columns`. */
@@ -450,6 +451,12 @@ const view = <Message>() => ({
         const filters = (
           input as { readonly filters?: { readonly [K in Id]?: Option.Option<ColumnFilter> } }
         ).filters
+        // The open filter form, unless a write hid its column: then it is drawn
+        // nowhere, and the update closes it on the next Message.
+        const filtering = Option.filter(
+          state.filtering,
+          open => !state.columns.hidden.includes(open.column),
+        )
         // A column's filter kind, when it filters and the application gives `filters`.
         const filterOf = (column: Id): Option.Option<CellEditor> =>
           Option.filter(grid.filterFor(column), () => filters !== undefined)
@@ -989,7 +996,7 @@ const view = <Message>() => ({
           Option.orElse(range, () =>
             Option.flatMap(stop, address => projection.box(address, address)),
           ),
-          () => Option.isNone(editing) && Option.isNone(state.filtering),
+          () => Option.isNone(editing) && Option.isNone(filtering),
         )
         const cornerOf = (box: CellBox<Id>) =>
           Option.map(projection.rows.keyAt(box.rows.start), row => ({
@@ -1116,7 +1123,7 @@ const view = <Message>() => ({
         // pointer's own release after that finds no drag.
         const onKey = (key: string, modifiers: KeyboardModifiers): Option.Option<Message> => {
           // First: a filter opened by a key the grid still has, before its field took focus.
-          if (key === 'Escape' && Option.isSome(state.filtering)) {
+          if (key === 'Escape' && Option.isSome(filtering)) {
             return Option.some(input.wrap(grid.Message.FilterClosed()))
           }
           if (key === 'Escape' && Option.isSome(state.dragging)) {
@@ -1426,7 +1433,7 @@ const view = <Message>() => ({
             onNone: () => [],
             onSome: kind => {
               const drawn = drawnFilter(id)
-              const open = Option.filter(state.filtering, filtering => filtering.column === id)
+              const open = Option.filter(filtering, each => each.column === id)
               const button = h.button(
                 slots.filterButton.attrs([
                   h.Type('button'),
@@ -1448,12 +1455,13 @@ const view = <Message>() => ({
               )
               return Option.match(open, {
                 onNone: () => [button],
-                onSome: ({ form, reported }) => {
-                  // The application's filter changed since the form last reported:
-                  // a field's change from this frame starts over from it.
+                onSome: ({ form, reported, generation }) => {
+                  // The application writes each report in the update that makes it,
+                  // so its filter differs from the last reported only after a write
+                  // from outside the form: a change from this frame starts from it.
                   const stale = Equal.equals(drawn, reported)
                     ? Option.none()
-                    : Option.some({ drawn, reported })
+                    : Option.some({ drawn, generation })
                   return [
                     button,
                     filterForm<Message>({
@@ -1473,7 +1481,7 @@ const view = <Message>() => ({
                         input.wrap(grid.Message.FilterOptionToggled({ option, stale })),
                       checked: checked =>
                         input.wrap(grid.Message.FilterChecked({ state: checked, stale })),
-                      cleared: input.wrap(grid.Message.FilterCleared()),
+                      cleared: input.wrap(grid.Message.FilterCleared({ stale })),
                       closed: input.wrap(grid.Message.FilterClosed()),
                     }),
                   ]
@@ -1484,22 +1492,29 @@ const view = <Message>() => ({
 
         const headerCell = (id: Id): Html => {
           const dragged = Option.filter(state.dragging, dragging => dragging.column === id)
-          const filtering = Option.isSome(filterOf(id))
+          const filterable = Option.isSome(filterOf(id))
+          const filtered = filterable && Option.isSome(drawnFilter(id))
           return h.div(
             slots.headerCell.attrs([
               h.Role('columnheader'),
               // Named by its own words: the buttons and an open form inside are not its name.
               h.AriaLabel(grid.columns.byId[id].header),
-              ...(filtering ? [h.AriaKeyshortcuts('Alt+ArrowDown')] : []),
-              ...(filtering && Option.isSome(drawnFilter(id))
+              ...(filterable ? [h.AriaKeyshortcuts('Alt+ArrowDown')] : []),
+              // A description replaces the one the title gives, so it says both.
+              ...(filtered
                 ? [
                     h.DataAttribute('filtered', 'true'),
-                    h.AriaDescription(filterWords.filtered ?? 'Filtered'),
+                    h.AriaDescription(
+                      [
+                        ...(readOnly(id) ? ['Read-only'] : []),
+                        filterWords.filtered ?? 'Filtered',
+                      ].join(', '),
+                    ),
                   ]
                 : []),
               // Focus leaving the header, not the form, closes the form: a press
               // on its own button stays inside, and toggles it.
-              ...(Option.exists(state.filtering, open => open.column === id)
+              ...(Option.exists(filtering, open => open.column === id)
                 ? [h.OnFocusLeave(input.wrap(grid.Message.FilterClosed()))]
                 : []),
               h.Id(GridFocus.headerId(grid.id, id)),

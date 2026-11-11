@@ -72,21 +72,11 @@ export default [
     'const reports = !Equal.equals',
   ),
   grid(
-    'every key of a stale frame starts over',
-    '        Equal.equals(reported, filtering.reported)',
-    '        true',
-  ),
-  grid(
-    'a stale frame starts over from nothing',
-    '          ? { ...filtering, form: formOf(drawn), reported: drawn }',
-    '          ? filtering',
-  ),
-  grid(
     'a paste lands while the form is open',
     "Match.tag('Pasted', 'FillRequested', 'UndoRequested', 'RedoRequested', () => ({",
     "Match.tag('FillRequested', 'UndoRequested', 'RedoRequested', () => ({",
   ),
-  grid('a typed edit leaves the form open', "              'EditTyped',\n", ''),
+  grid('a typed edit leaves the form open', "            'EditTyped',\n", ''),
   grid(
     'a hidden column opens',
     'if (kind === undefined || model.columns.hidden.includes(column) || !accepted) {',
@@ -108,8 +98,71 @@ export default [
     '              filtering,',
   ),
   grid(
+    'every change of a stale frame reseeds',
+    '        generation === filtering.generation',
+    '        true',
+  ),
+  grid(
+    'a stale frame does not reseed',
+    '          ? { ...filtering, form: formOf(drawn), reported: drawn, generation: generation + 1 }',
+    '          ? filtering',
+  ),
+  grid(
+    'a reseed leaves the generation',
+    'reported: drawn, generation: generation + 1 }',
+    'reported: drawn, generation }',
+  ),
+  grid(
     'clearing keeps the form',
-    '      FilterCleared: (): Return => filterEdited(model, Option.none(), () => Option.some(emptyForm)),',
-    '      FilterCleared: (): Return => ({ model }),',
+    '        filterEdited(model, stale, () => Option.some(emptyForm)),',
+    '        ({ model }),',
+  ),
+  grid(
+    'clearing a stale frame ignores what it showed',
+    'FilterCleared: ({ stale }): Return =>\n        filterEdited(model, stale,',
+    'FilterCleared: (): Return =>\n        filterEdited(model, Option.none(),',
+  ),
+  grid(
+    'a checkbox state lands on any kind',
+    '          CellEditor.guards.Checkbox(kind)\n',
+    '          true\n',
+  ),
+  grid(
+    'a form whose column a write hid stays open',
+    '    Option.exists(model.filtering, open => model.columns.hidden.includes(open.column))',
+    '    false',
+  ),
+  grid(
+    'a stored key no column has is dropped',
+    'Object.keys(stored).every(key => filterKeys.has(key))',
+    'true',
+  ),
+  filter(
+    'a bound past every finite number is one',
+    'decimal.test(text) && Number.isFinite(Number(text))',
+    'decimal.test(text)',
+  ),
+  filter('an upper bound is left out', '(value as number) <= high', '(value as number) < high'),
+  filter('contains keeps every row', 'fold(value as string).includes(wanted)', 'true'),
+  filter(
+    'one of keeps every row',
+    'return (value: unknown) => among.has(value)',
+    'return () => true',
+  ),
+  filter('is keeps every row', '        value === checked,', '        true,'),
+  columns(
+    'a text enum is text',
+    '  if (SchemaAST.isEnum(ast)) {\n    const values',
+    '  if (false) {\n    const values',
+  ),
+  columns(
+    'a number enum is text',
+    '  (SchemaAST.isEnum(ast) &&\n    ast.enums.length > 0 &&',
+    '  (false &&\n    ast.enums.length > 0 &&',
+  ),
+  columns(
+    'a mixed enum is a choice',
+    'return texts.length > 0 && texts.length === values.length ? Option.some(texts) : Option.none()',
+    'return texts.length > 0 ? Option.some(texts) : Option.none()',
   ),
 ]

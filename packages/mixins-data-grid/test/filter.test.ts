@@ -3,8 +3,9 @@
  * The filter form on the real runtime: a filtering column's header draws a
  * button that opens its form, the form's fields report the column's filter,
  * the application filters its rows by it, and the header says it is filtered.
- * The grid's clipboard and keys leave the form's fields alone, and a filter
- * the application wrote while the form was open is where the next key starts.
+ * The grid's keys leave the form's fields alone, and a filter the
+ * application wrote while the form was open is where the next key starts.
+ * The clipboard is the browser test's: a real clipboard event carries data.
  */
 import { afterEach, expect, test, vi } from 'vitest'
 import { buttonOf, form, grid, headerOf, mountTasks, shownRows } from './filterGrid.js'
@@ -157,24 +158,6 @@ test('Escape in the form closes it, and Alt+ArrowDown on a header opens it again
   }
 })
 
-test('the form keeps the clipboard: a cut in its field clears no cell', async () => {
-  const mounted = mount()
-  try {
-    await vi.waitFor(() => expect(shownRows()).toHaveLength(3))
-    // A cell focused, whose cut would clear it.
-    keyOn(grid(), 'ArrowDown')
-    await vi.waitFor(() => expect(mounted.latest().grid.focus.current._tag).toBe('Some'))
-    click(buttonOf('title'))
-    await vi.waitFor(() => expect(form()).not.toBeNull())
-    field('title:filter:text').dispatchEvent(new Event('cut', { bubbles: true }))
-    keyOn(grid(), 'z', { ctrlKey: true })
-    await new Promise(resolve => setTimeout(resolve, 20))
-    expect(mounted.latest().log).toEqual([])
-  } finally {
-    mounted.dispose()
-  }
-})
-
 test('a filter written from outside while the form is open is where the next key starts', async () => {
   const mounted = mount()
   try {
@@ -193,6 +176,23 @@ test('a filter written from outside while the form is open is where the next key
       expect(mounted.latest().log.at(-1)).toBe('title={"_tag":"Contains","text":"paint!"}'),
     )
     expect(field('title:filter:text').value).toBe('paint!')
+  } finally {
+    mounted.dispose()
+  }
+})
+
+test('Clear empties a filter written from outside while the form is open', async () => {
+  const mounted = mount()
+  try {
+    await vi.waitFor(() => expect(shownRows()).toHaveLength(3))
+    click(buttonOf('title'))
+    await vi.waitFor(() => expect(form()).not.toBeNull())
+    // Nothing typed here: the only filter is the one the application writes.
+    click(document.getElementById('write')!)
+    await vi.waitFor(() => expect(shownRows()).toEqual(['t1']))
+    click(form()!.querySelector('button')!)
+    await vi.waitFor(() => expect(shownRows()).toEqual(['t0', 't1', 't2']))
+    expect(mounted.latest().log).toEqual(['title=-'])
   } finally {
     mounted.dispose()
   }
