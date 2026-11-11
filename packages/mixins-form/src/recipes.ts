@@ -14,9 +14,8 @@ const ref = Theme.ref(Theme.standard())
 const component = (...pieces: ReadonlyArray<StyleValue>): StyleValue =>
   Layers.standard.in('components', Style.compose(...pieces))
 
-const input = Recipes.Input({}).input ?? Style.empty
-const button = (options: Parameters<typeof Recipes.Button>[0]) =>
-  Recipes.Button(options).button ?? Style.empty
+const input = Recipes.Input({}).input
+const button = (options: Parameters<typeof Recipes.Button>[0]) => Recipes.Button(options).button
 /** A small button that keeps its own width in a field or form that stretches its parts. */
 const small = component(
   button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
@@ -51,8 +50,8 @@ export const Field = Style.recipeFor(FieldSlots)({
     error: said(ref.error.ink),
     text: input,
     number: input,
-    multiline: Recipes.Textarea({}).textarea ?? Style.empty,
-    select: Recipes.Select({}).select ?? Style.empty,
+    multiline: Recipes.Textarea({}).textarea,
+    select: Recipes.Select({}).select,
     toggle: box,
     choices: component(Style.self({ display: 'grid', gap: ref.space['3xs'] })),
     choiceLabel: component(

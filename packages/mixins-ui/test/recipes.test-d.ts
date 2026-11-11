@@ -143,8 +143,8 @@ void TileStyle
 // The README's Segmented section, kept compiling.
 const SegmentedStyle = Style.forSlots(SegmentedSlots)(
   {
-    group: Recipes.Segmented({ tray: 'plain', size: 'sm' }).group ?? Style.empty,
-    option: Recipes.Segmented({ tray: 'plain', size: 'sm' }).option ?? Style.empty,
+    group: Recipes.Segmented({ tray: 'plain', size: 'sm' }).group,
+    option: Recipes.Segmented({ tray: 'plain', size: 'sm' }).option,
   },
   { layer: L.layer('app') },
 )

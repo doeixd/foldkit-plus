@@ -841,7 +841,7 @@ publishes them:
 const AddressStyle = Style.forSlots(FieldSlots)({
   group: Recipes.InputGroup.group,
   affix: Recipes.InputGroup.affix,
-  text: Style.compose(Recipes.Input({}).input ?? Style.empty, Recipes.InputGroup.control),
+  text: Style.compose(Recipes.Input({}).input, Recipes.InputGroup.control),
 })
 ```
 
@@ -958,8 +958,8 @@ itself:
 ```ts
 const SegmentedStyle = Style.forSlots(SegmentedSlots)(
   {
-    group: Recipes.Segmented({ tray: 'plain', size: 'sm' }).group ?? Style.empty,
-    option: Recipes.Segmented({ tray: 'plain', size: 'sm' }).option ?? Style.empty,
+    group: Recipes.Segmented({ tray: 'plain', size: 'sm' }).group,
+    option: Recipes.Segmented({ tray: 'plain', size: 'sm' }).option,
   },
   { layer: L.layer('app') },
 )

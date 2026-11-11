@@ -31,7 +31,7 @@ export const NameStyle = demoStyle.forSlots(InputSlots)(Recipes.Input({ size: 's
 
 /** A small button beside words: the status line's dismiss, a row's delete. */
 const small = (tone: 'neutral' | 'danger') =>
-  Recipes.Button({ tone, variant: 'ghost', size: 'sm' }).button ?? Style.empty
+  Recipes.Button({ tone, variant: 'ghost', size: 'sm' }).button
 
 export const Page = demoStyle.slots(
   {

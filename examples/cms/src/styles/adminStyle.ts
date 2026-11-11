@@ -353,12 +353,12 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         paddingBlockEnd: t.space.sm,
       }),
     ),
-    tabs: Recipes.Segmented({ tray: 'plain', size: 'sm' }).group ?? Style.empty,
+    tabs: Recipes.Segmented({ tray: 'plain', size: 'sm' }).group,
     // A tab and a toolbar button are whole controls a finger aims at, so they
     // take the floor both ways round; `Touch.targets` gives the controls in a
     // region height only, which leaves a short one as narrow as its words.
     tab: Style.compose(
-      Recipes.Segmented({ tray: 'plain', size: 'sm' }).option ?? Style.empty,
+      Recipes.Segmented({ tray: 'plain', size: 'sm' }).option,
       Touch.target,
       Style.self({ minBlockSize: controlHeight }),
     ),
