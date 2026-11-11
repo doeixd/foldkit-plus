@@ -19,10 +19,12 @@ Model holds each component's Submodel and the value it edits (a checkbox's
                                    foldkit-mixins-ui: the bundles as Slots   foldkit-mixins: Recipes + page Styles
 ```
 
-A component with no adapter takes the page's own Slots instead, through
-`childAttributes(slots.x.attrs())`. Where `@foldkit/ui` takes only a class name
-(a menu item, a listbox option, a toast entry), the element is styled from its
-container's Slot by the role and data attributes the component writes.
+A component drawn through `@foldkit/ui`'s own view takes the page's own Slots
+instead, through `childAttributes(slots.x.attrs())`. Where `@foldkit/ui` takes
+only a class name (a menu item, a listbox option, a toast entry), the element
+is styled from its container's Slot by the role and data attributes the
+component writes; drawn through the `foldkit-mixins-ui` adapter, it is a Slot
+of its own (the `item` Slot).
 
 ## Run it
 
@@ -78,9 +80,10 @@ pnpm --filter foldkit-example-foldkit-ui-showcase dev
 
 ## Foldkit Plus gaps met
 
-- No `foldkit-mixins-ui` adapter for Menu, Listbox, Combobox, Date Picker or
-  Toast (no `toView` seam), nor for File Drop, Nav, Drag and Drop, Animation,
-  Virtual List, Meter and Progress, which do hand out attribute bundles.
+- No `foldkit-mixins-ui` adapter for Drag and Drop or Animation. Menu,
+  Listbox, Combobox, Date Picker, Toast, File Drop, Nav, Virtual List, Meter
+  and Progress have one now; this port still draws them through upstream's
+  views with the page's Slots.
   The Slider is no longer adapted either: `foldkit-mixins-ui` draws its own,
   for one number or a range, over native range inputs, so upstream's
   Submodel takes the page's Slots here.
