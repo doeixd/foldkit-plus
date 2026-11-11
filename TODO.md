@@ -236,7 +236,11 @@ In the same change:
     (only on a grid that filters), and the editor classifier change
     (bddd2372..59bf7a06; independent review passed in two rounds). Every
     grid carries about 4 kB brotli of filter code; splitting it out is an
-    API change to decide before 1.0.
+    API change to decide before 1.0;
+  - the form's submit drawn `aria-disabled`, never natively disabled, with
+    the form option `submitWaits: false` to refuse a submit mid-check, and
+    `saved` deprecated (9513fd20..689d7a28; independent review passed in two
+    rounds).
 - [ ] **The branch's PR.** Unmerged since #497 (merged 2026-11-10): about a
       hundred commits, never through CI, since CI runs on pull requests. The
       whole CI sequence passed locally on 4a3ff6a2 (2026-11-11, perf and
