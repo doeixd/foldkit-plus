@@ -469,6 +469,81 @@ the outbox holds and the wire carries. The **committed operation** is the same
 plus the server's sequence and the actor it trusts. Sync adds the envelopes;
 the Message stays the vocabulary.
 
+## Changing a durable Message
+
+An operation outlives the build that wrote it. It sits in a device's outbox
+while the device is offline across a deploy, and in the journal for as long as
+the document's history is kept. So once a durable Message has shipped, its
+Schema is a stored format: rename `RenamedTodo`'s `title` and every stored
+`RenamedTodo` stops reading.
+
+Declare the history instead. Say the first build called the field `text`:
+
+```ts
+import { Match } from 'effect'
+
+// Version 1, kept while any stored operation may hold it.
+const RenamedTodoV1 = Schema.TaggedStruct('RenamedTodo', {
+  id: Schema.String,
+  text: Schema.String,
+})
+const MessageV1 = Schema.Union([Message.CreatedTodo, RenamedTodoV1])
+
+// Version 2 is the application's Message as it is now.
+const TodoHistory = Sync.migrations(MessageV1).next(App.Message, previous =>
+  Match.valueTags(previous, {
+    CreatedTodo: created => created,
+    RenamedTodo: ({ id, text }) => ({ _tag: 'RenamedTodo' as const, id, title: text }),
+  }),
+)
+
+const VersionedTodos = Sync.forApplication(App).make({
+  documentId: DocumentId.make('todos'),
+  shared: Projection.pick(App.model.todos),
+  durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
+  migrations: TodoHistory,
+})
+```
+
+The old Schema lists only the durable variants, and reuses the ones that did
+not change. A step takes the version before it, encoded, and returns its own,
+encoded; the types check each against its neighbour. Steps are never edited
+once shipped: the next change is another `next`.
+
+What changes, and what does not:
+
+- **Each operation keeps the version it was written at**, as
+  `messageVersion` on its envelope (absent for version 1, so a document that
+  never declares a history sends what it sent before). The outbox, the wire
+  and `status.rejected[i].operation` hold it as written.
+- **Everything that reads its meaning reads the current version.** `update`
+  in replay, `admit`, `authorize`, `validate`, `stamp` and `reduce` all get
+  the Message upcast. A client claiming version 1 is judged exactly as the
+  current Message would be.
+- **The journal stores the current version** and compares a retransmission
+  by the operation as it was written, so an edit committed by the old build,
+  whose acknowledgement was lost in the deploy, is acknowledged rather than
+  refused.
+
+What will not read:
+
+| Where | Written by a newer build | Older, and no step reads it |
+| --- | --- | --- |
+| A device's outbox | the replica refuses to open, `UnsupportedMessageVersionError`; nothing is removed | moved to `status.refused` with its payload, never sent, until dismissed; the rest sends |
+| An operation a server receives | the exchange fails before anything is appended: the client waits | rejected as `Unreadable { version }`; the replica keeps it in `refused` |
+| The journal's committed history | the document is not served: `UnreadableHistoryError` | the same: committed history is every replica's base |
+| A committed operation a replica receives | its exchanges fail with `UnsupportedMessageVersionError` until it reloads | `InvalidReplicaHistoryError`: client and server disagree on a step |
+
+So deploy in this order: the Sync release that reads `messageVersion`
+everywhere first; then the application's new version, server first. A client
+still on the old version syncs until an operation of the new version commits,
+then fails its exchanges until it reloads, keeping its outbox. A rollback
+meets versions it lacks and refuses them, typed, deleting nothing; rolling
+forward reads them again.
+
+The history covers durable Messages, not the shared slice: a change to the
+slice's own Schema still breaks a stored snapshot or checkpoint.
+
 ## When things go wrong
 
 Each of these is designed for. The ones that change how you build come first.
@@ -486,6 +561,7 @@ Each of these is designed for. The ones that change how you build come first.
 | Local storage was evicted | the replica catches up from the server, but unsent edits are lost: the outbox is user data |
 | Two tabs share one storage name | compare-and-swap fails the stale writer rather than merging histories |
 | Stored state is from another version | opening fails naming both versions; the bytes are kept for a deliberate migration |
+| An operation from another build | read through the Message's history; see [changing a durable Message](#changing-a-durable-message) |
 | The server answers nonsense | a malformed answer, a gap in the order, an ack for an operation never sent, or a checkpoint behind the cursor fails the exchange; local work is untouched |
 | An external effect succeeded before a crash recorded it | the provider call may repeat; use provider idempotency with Durable's effect ledger |
 
@@ -509,7 +585,9 @@ The packages leave deliberate gaps, each a deployment decision:
 - **Effect identities.** A stable key per document, operation, and semantic
   action, chosen before the action runs and handed to the provider.
 - **Migrations.** Sync and Durable version and refuse their own storage and
-  wire formats. Your Message and snapshot payloads are yours to evolve.
+  wire formats, and Sync applies the history you declare for a durable
+  Message. Writing that history, and evolving the shared slice's own Schema,
+  are yours.
 - **Browser storage policy.** IndexedDB can be evicted; what to tell the user
   and when to ask for persistent storage.
 

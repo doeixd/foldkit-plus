@@ -211,7 +211,10 @@ const program = Effect.gen(function* () {
 
 The operation schema decides what `append` accepts: its *encoded* side, so a
 transforming schema is checked at the call site rather than degrading the
-boundary to `unknown`. A payload that does not decode is an `InvalidOperationError`.
+boundary to `unknown`. A payload sent that does not decode is an
+`InvalidOperationError`, the sender's fault; a stored one that no longer
+decodes is a `JournalError` carrying the codec's error as its `cause`, the
+server's.
 
 ## What `append` guarantees
 
@@ -231,6 +234,13 @@ same opId, different payload or actor    IdentityConflictError
 Payloads are canonicalized before hashing, so reordered JSON keys are the same
 operation. The guarantee lasts as long as the identity row does; see
 [retention](#retention).
+
+What is hashed is `encode(decode(input))`, unless the codec (the function-pair
+form) gives `compared(input)`: the form a payload is compared by. A codec that
+reads several versions of its payload gives the payload normalized at the
+version it was written at, so an operation committed before the codec changed,
+and sent again after it, is still the same operation. What is stored stays the
+decoded operation, encoded. Sync's `journalContract()` supplies it.
 
 **A commit stamp** writes what only the commit decides into the operation:
 
@@ -502,8 +512,8 @@ Two definitions are two services; each tag is satisfied only by its own layer.
 `Journal.layer(options)` is the default-key form.
 
 **Codecs.** `operation` and `snapshot` take an Effect `Schema.Codec`, or a pair
-of throwing `encode`/`decode` functions; `Codec.fromSchema` spells out the
-conversion. Encoded operations must be JSON. A schema that needs services to
+of throwing `encode`/`decode` functions, with an optional `compared`;
+`Codec.fromSchema` spells out the conversion. Encoded operations must be JSON. A schema that needs services to
 decode is refused, because the codec runs inside the transaction.
 
 **Ids** are branded Schema values: `DocumentId.make`, `OpId.make`,

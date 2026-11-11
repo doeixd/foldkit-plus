@@ -421,15 +421,18 @@ error names why: `ReplayError` for a Message that cannot be durable,
 
 ```ts
 const status = Effect.runSync(replica.status)
-// { pending: number, cursor: Sequence, lastError: string | undefined, rejected: ReadonlyArray<Rejection> }
+// { pending, cursor, lastError: string | undefined, rejected: ReadonlyArray<Rejection>, refused, epoch }
 ```
 
 `pending` above zero means edits the server has not confirmed; `lastError` is
 the last failed exchange, cleared by the next success; `rejected` lists recent
-edits the server refused, most recent first, each `{ opId, refusal, operation }`,
-where `refusal` is an `Option` of why (a `SyncRefusal`, below) and
-`operation` is the refused operation itself, which the replica has dropped
-from the outbox, so a page reads what it changed from here. `replica.statusChanges` is a Stream of the same,
+edits the server refused, most recent first, each `{ opId, refusal, operation, message }`,
+where `refusal` is an `Option` of why (a `SyncRefusal`, below),
+`operation` is the refused operation as it was sent, which the replica has dropped
+from the outbox, and `message` its Message encoded at the current version
+(see [changing a durable Message](#change-a-durable-message)), so a page reads
+what it changed from here. `refused` lists the operations this build cannot
+read at all, kept until `replica.dismiss(opId)`. `replica.statusChanges` is a Stream of the same,
 emitted now and after every submit and exchange (subscribed before its first
 read, so a subscriber slow to take one misses no change); `replica.changes`
 pairs it with the optimistic `shared` value so one subscription sees both.
@@ -453,9 +456,10 @@ handles both with one function:
   document; "Its id was already used for another" for a reused id.
   `journalExchange` names no Entity, so `entity`, `rule` and `path` are empty;
   the shape is Remote's `Refusal.invalid`.
-- `Unreadable { version }`: written at a Message version the server's history
-  does not read. Nothing sends it yet; it is there for upcasting, so a match
-  written now is already whole.
+- `Unreadable { version }`: written at an older Message version that no step
+  of the server's history reads. The replica keeps such an operation in
+  `status.refused` as well, with its payload (see
+  [changing a durable Message](#change-a-durable-message)).
 
 ```ts
 import { Option } from 'effect'
@@ -652,6 +656,119 @@ operation is only merged into while no exchange has carried it, so there is no
 timer to tune: keystrokes typed while a request is out become one operation, and
 a lone keystroke goes out as fast as before.
 
+### Change a durable Message
+
+An operation is stored, in the outbox and in the server's journal, as it was
+written, and read later, possibly by a newer build. Renaming a field of a
+durable Message, splitting a variant, or changing what a number means would
+leave what was stored unreadable. So the document declares its Message's
+history, and every reader sees an old operation upcast to the current
+version:
+
+<!-- docs-check standalone
+import { Match, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
+import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { DocumentId, Sync } from 'foldkit-sync'
+const Model = Schema.Struct({
+  notes: Schema.Array(Schema.Struct({ id: Schema.String, name: Schema.String })),
+})
+const Message = defineMessageUnion({
+  RenamedNote: { id: Schema.String, name: Schema.String },
+  ClearedNotes: {},
+})
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { notes: [] },
+  update: (model, message) =>
+    Message.match(message, {
+      RenamedNote: ({ id, name }) => ({
+        model: modifyFields(model, { notes: notes => [...notes, { id, name }] }),
+      }),
+      ClearedNotes: () => ({ model: modifyFields(model, { notes: () => [] }) }),
+    }),
+})
+-->
+```ts
+// Version 1, as the first build shipped it: a note had a `title`. Kept as
+// long as a stored operation may hold it; only the changed variant is copied.
+const RenamedNoteV1 = Schema.TaggedStruct('RenamedNote', {
+  id: Schema.String,
+  title: Schema.String,
+})
+const MessageV1 = Schema.Union([RenamedNoteV1, Message.ClearedNotes])
+
+// Version 2 is the application's own Message, where `title` became `name`.
+const NoteHistory = Sync.migrations(MessageV1).next(App.Message, previous =>
+  Match.valueTags(previous, {
+    RenamedNote: ({ id, title }) => ({ _tag: 'RenamedNote' as const, id, name: title }),
+    ClearedNotes: cleared => cleared,
+  }),
+)
+
+const Notes = Sync.forApplication(App).make({
+  documentId: DocumentId.make('notes'),
+  shared: Projection.pick(App.model.notes),
+  durable: MessageSet.make(App, [Message.RenamedNote, Message.ClearedNotes]),
+  migrations: NoteHistory,
+})
+```
+
+Version 1 is the first Schema; each `next` adds a version with its Schema and
+a function from the version before, encoded, to its own, encoded. Each step's
+input is typed by the step before, so a step that returns the old shape does
+not compile. Steps are written once and never changed: a later change adds a
+step. The history must end at `App.Message` itself (`make` throws otherwise),
+and with no `migrations` the Message is version 1, written exactly as before.
+
+What each side does with it:
+
+- **The replica** keeps each operation as it was written, with its
+  `messageVersion` (absent for version 1), in its outbox and on the wire, and
+  replays it upcast. So an outbox written by the old build opens and sends
+  under the new one.
+- **The server** (`journalExchange`) hands every hook, `admit`, `validate`,
+  `authorize`, `reduce` and `stamp`, the Message upcast to the current version,
+  so a client claiming version 1 is judged exactly as the current Message
+  would be. It stores what commits at the current version, and recognizes a
+  retransmission by the operation as it was written, so an edit committed
+  before a deploy, whose acknowledgement was lost, still reads as committed.
+
+When something will not read:
+
+- **An older version no step reads** (its version's Schema refuses it, or a
+  step throws): a pending operation moves to `status.refused`, kept as
+  written with its payload, never sent, until `replica.dismiss(opId)`; the
+  rest of the outbox opens and sends. No Schema of this build reads it, so a
+  page shows it raw (`operation.message`, `operation.messageVersion`) or not at
+  all. The server rejects one it receives as `Unreadable { version }`, and the
+  replica keeps it in `refused` too. A committed one stops the document:
+  every exchange fails with `UnreadableHistoryError` on the server, and only
+  a build with a step that reads it recovers it. Other documents are not
+  affected.
+- **A newer version** (a rollback, or an old client): the replica refuses to
+  open on one in its outbox (`UnsupportedMessageVersionError`, nothing
+  removed), and an exchange that receives one fails with it, recorded in
+  `status.lastError` and retried on the backoff; the page reloads the new build
+  when it sees that error (`ExchangeFailed` on `Diagnostics`). A server
+  receiving one fails the exchange before appending anything, so the client
+  waits with its edits rather than losing them.
+
+Deploy order: the release of Sync that reads `messageVersion` goes to every
+server and client first (an older server refuses an operation that carries
+it). Then deploy an application's new version server first. A client on the
+old version keeps syncing until the first operation of the new version
+commits, then fails its exchanges until it reloads; its outbox is kept and
+sent after the reload.
+
+A server that builds an operation itself and appends it (`editsJournal`'s
+`absorbed`) writes it at the current version:
+`Notes.journalContract().operation.encode(operation)`. Changing the shared
+slice's own Schema is not covered: a stored snapshot or checkpoint of the old
+shape still needs a migration of your own.
+
 ### The URL, mirrors, and agents
 
 `mount` takes the application's own `subscriptions` and the `resources` Layer
@@ -824,8 +941,14 @@ application come first.
   exchange until its storage is cleared.
 - **Stored state is from another version.** Opening fails with
   `UnsupportedReplicaVersionError` naming both versions; the bytes are left for
-  a deliberate migration or reset. Sync versions its own envelope only; your
-  Message and snapshot migrations stay yours.
+  a deliberate migration or reset. That versions Sync's own envelope; a
+  durable Message's versions are the document's history
+  ([change a durable Message](#change-a-durable-message)), and snapshot
+  migrations stay yours.
+- **An operation from another build of the application.** An older version no
+  step reads lands in `status.refused`, kept until dismissed; a newer one
+  refuses to open the replica, or fails the exchange, with
+  `UnsupportedMessageVersionError`, and nothing is removed.
 - **The server answers nonsense.** Malformed exchanges, gaps in the committed
   order, acknowledgements or rejections for operations the replica never sent:
   each fails the exchange rather than touch local work.
@@ -895,7 +1018,9 @@ state, so an edit submitted while the request was in flight survives.
 
 The rest of the surface: `committed` (the base alone), `pending`, `cursor`,
 `status`, `statusChanges`, `changes` (status and `shared` from one snapshot),
-`snapshot` (the same plus `nextLocalSequence`), `start`, and `close`.
+`snapshot` (the same plus `nextLocalSequence`), `start`, `dismiss` (forgets a
+`status.refused` operation), and `close`. `pending` and a rejection's
+`operation` are `WrittenOperation`s: as written, with `messageVersion`.
 
 ### The exchange
 
@@ -904,7 +1029,7 @@ carries it.
 
 ```text
 request    cursor
-           pending operations
+           pending operations, as written (messageVersion past 1)
            epoch, once the replica has heard one
 
 answer     operations     committed after the cursor, contiguous
@@ -983,7 +1108,8 @@ const Shared = Schema.Struct({ title: Title.schema })
 
 `Sync.define({ documentId, message, shared, empty, durable, replay })` is the
 protocol primitive `forApplication` compiles to, for a client with no
-application to derive from. Its `replay` is unguarded; the author owns its
+application to derive from. It takes `migrations` (a `Sync.migrations`
+history) in place of `message`, and reads the Message from it. Its `replay` is unguarded; the author owns its
 agreement with whatever applies the Message elsewhere.
 
 ### Joining an assembly
@@ -998,9 +1124,13 @@ Owns the replication contract (shared slice, durable set, replay, codecs,
 `journalContract`), the replica (outbox, base, cursor, optimistic view, status),
 reconciliation, the transport seam, and the optional presence and LWW helpers.
 
+Sync applies a durable Message's history wherever it reads an operation; the
+application owns the history itself (which Schemas it shipped and how each
+becomes the next).
+
 Does not own the rest of the Model, server-derived caches (`foldkit-remote`),
 the authoritative order and storage (`foldkit-durable` or your server),
-peer-to-peer merging, or migration of your own Messages and snapshots.
+peer-to-peer merging, or migration of the shared slice's own Schema.
 
 ## Limits
 
