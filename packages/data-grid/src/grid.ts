@@ -194,14 +194,19 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
      */
     MountStarted: {},
     /**
-     * The checkbox in the cell whose DOM id is `cell` was pressed, or Space or
-     * Enter was pressed on it, while it was drawn `checked`: the column's
-     * text for the other value is committed at once and reported as
-     * `Out.Edited`, with no draft. The id comes from the page, so a cell that
-     * is not a checkbox of this grid, or a press while an edit is open,
-     * changes nothing.
+     * The checkbox in the cell whose DOM id is `cell`, drawn `checked`, was
+     * pressed (`by: 'press'`), or Space or Enter was pressed on its focused
+     * cell (`by: 'key'`): the column's text for the other value is committed
+     * at once and reported as `Out.Edited`, with no draft. The id comes from
+     * the page, so a cell that is not a checkbox of this grid, or a toggle
+     * while an edit is open, changes nothing; nor does a key sent from a
+     * frame drawn before focus left the cell, which would toggle the wrong one.
      */
-    EditToggled: { cell: Schema.String, checked: Schema.Boolean },
+    EditToggled: {
+      cell: Schema.String,
+      checked: Schema.Boolean,
+      by: Schema.Literals(['key', 'press']),
+    },
     /**
      * An edit began on an editable cell, with the text it starts from. A
      * checkbox's cell opens none: it is toggled (`EditToggled`).
@@ -896,10 +901,16 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
           }),
         // An open edit keeps the keyboard, and a refused draft the pointer too:
         // the browser commits it as focus leaves its field, before a press lands.
-        EditToggled: ({ cell, checked }): Return =>
+        EditToggled: ({ cell, checked, by }): Return =>
           Option.match(
             Option.flatMap(
-              Option.filter(addressOf(cell), () => Option.isNone(model.editing)),
+              Option.filter(
+                addressOf(cell),
+                address =>
+                  Option.isNone(model.editing) &&
+                  (by === 'press' ||
+                    Option.exists(model.focus.current, current => sameCell(current, address))),
+              ),
               address =>
                 Option.flatMap(Option.fromUndefinedOr(toggles.get(address.column)), toggle =>
                   Option.map(toggle(!checked), text => ({ address, text })),

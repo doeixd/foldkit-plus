@@ -12,6 +12,7 @@ const AriaValueMax = Attr.make('aria-valuemax')
 const Id = Attr.make('id')
 const MouseDown = Event.make('mousedown')
 const AriaHasPopup = Attr.make('aria-haspopup')
+const AriaChecked = Attr.make('aria-checked')
 
 // What the virtual window is worked out from: a Style that changed one of
 // these would draw rows where the window math does not think they are.
@@ -106,6 +107,16 @@ export const GridSlots = Slots.define({
     capability: Capability.TextInput,
     events: [Event.Input, Event.KeyDown, Event.Blur],
     protected: { events: [Event.Input, Event.KeyDown, Event.Blur] },
+  }),
+  /**
+   * A checkbox column's control, in place of the cell's text: a
+   * `role="checkbox"` whose `aria-checked` is the column's value. A press on
+   * it, or Space or Enter on its cell, toggles it; focus stays on the grid,
+   * which points at the cell.
+   */
+  checkbox: Slot.make({
+    capability: Capability.Base,
+    protected: { attributes: [Attr.Role, AriaChecked] },
   }),
   /**
    * Why the column refused a draft, shown below the field while the edit

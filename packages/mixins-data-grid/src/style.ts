@@ -141,6 +141,37 @@ export const GridStyle = Style.forSlots(GridSlots)(
         backgroundImage: `radial-gradient(circle at calc(100% - 6px) 6px, ${ref.outline.focus} 3px, transparent 3.5px)`,
       }),
     ),
+    // A box the size of the cell's text, filled in the accent when checked,
+    // its tick two borders turned. The press is the box's, so it says so.
+    checkbox: Style.compose(
+      Style.self({
+        background: ref.surface.base,
+        border: `${ref.border.thick} solid ${ref.outline.default}`,
+        borderRadius: ref.radius.sm,
+        boxSizing: 'border-box',
+        cursor: 'pointer',
+        flex: 'none',
+        height: '1em',
+        position: 'relative',
+        width: '1em',
+      }),
+      Style.nest('&[aria-checked="true"]', {
+        background: ref.accent.default,
+        borderColor: ref.accent.default,
+      }),
+      Style.nest('&[aria-checked="true"]::after', {
+        // physical: a drawn tick, which reads the same in either direction of text
+        borderBottom: `${ref.border.glyph} solid ${ref.accent['on-fill']}`,
+        borderRight: `${ref.border.glyph} solid ${ref.accent['on-fill']}`,
+        content: '""',
+        height: '55%',
+        left: '32%',
+        top: '10%',
+        position: 'absolute',
+        transform: 'rotate(45deg)',
+        width: '30%',
+      }),
+    ),
     editor: Style.compose(field, refused),
     // The combobox reads as the field it replaces: its draft on the line,
     // and room for the list it opens.

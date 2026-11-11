@@ -265,6 +265,9 @@ const view = <Message>() => ({
     const editable = (column: Id) => grid.columns.byId[column].edit !== undefined
     // In a grid where some columns edit, the others say they do not.
     const readOnly = (column: Id) => editsAny && !editable(column)
+    const checkboxes = new Set<Id>(
+      grid.columns.ids.filter(id => Option.exists(grid.editorFor(id), CellEditor.guards.Checkbox)),
+    )
 
     /**
      * One body row, from its arguments alone: a row is drawn again only when
@@ -309,10 +312,10 @@ const view = <Message>() => ({
               onNone: () => [],
               onSome: side => [h.DataAttribute('pinned-edge', side)],
             }),
-            // Editable: double-clicking edits, as Enter does.
-            ...(editable(id)
+            // Editable: double-clicking edits, as Enter does; a checkbox opens no edit.
+            ...(editable(id) ? [h.DataAttribute('editable', 'true')] : []),
+            ...(editable(id) && !checkboxes.has(id)
               ? [
-                  h.DataAttribute('editable', 'true'),
                   h.OnDoubleClick(
                     args.wrap(
                       grid.Message.EditStarted({
@@ -337,7 +340,16 @@ const view = <Message>() => ({
           ]),
           Option.match(edited, {
             onNone: () => [
-              args.cell?.(id, row, h) ?? textOf(grid.columns.byId[id].value(row)),
+              checkboxes.has(id)
+                ? h.span(
+                    slots.checkbox.attrs([
+                      h.Role('checkbox'),
+                      h.AriaChecked(grid.columns.byId[id].value(row) === true),
+                      h.AriaLabel(grid.columns.byId[id].header),
+                    ]),
+                    [],
+                  )
+                : (args.cell?.(id, row, h) ?? textOf(grid.columns.byId[id].value(row))),
               // Its drag is the body's listener's, which outlives the handle's cell.
               ...(handled
                 ? [
@@ -651,6 +663,31 @@ const view = <Message>() => ({
               )
             : Option.none()
 
+        // The value a cell is drawn from, when its row is loaded.
+        const valueAt = (address: CellAddress<Id>): Option.Option<unknown> =>
+          Option.map(
+            Option.flatMap(projection.rowIndex(address.row), index => projection.rows.rowAt(index)),
+            row => grid.columns.byId[address.column].value(row),
+          )
+        // Space or Enter on a checkbox toggles it, ahead of Space's row selection.
+        const checkboxKey = (
+          key: string,
+          modifiers: KeyboardModifiers,
+        ): Option.Option<typeof grid.Message.Type> =>
+          (key === ' ' || key === 'Enter') && plainKey(modifiers)
+            ? Option.flatMap(
+                Option.filter(stop, address => checkboxes.has(address.column)),
+                address =>
+                  Option.map(valueAt(address), value =>
+                    grid.Message.EditToggled({
+                      cell: GridFocus.cellId(grid.id, address),
+                      checked: value === true,
+                      by: 'key',
+                    }),
+                  ),
+              )
+            : Option.none()
+
         // An edit is only where its cell is drawn; one scrolled away waits.
         const editing = Option.filter(state.editing, edit => isDrawn(edit.address))
         const draftOf = (address: CellAddress<Id>): string => grid.draftOf(projection, address)
@@ -917,17 +954,7 @@ const view = <Message>() => ({
         const clipboard = (box: CellBox<Id>) => {
           const text = remembered(projection, JSON.stringify(box), () =>
             Clipboard.copy(projection, box, address =>
-              textOf(
-                Option.match(
-                  Option.flatMap(projection.rowIndex(address.row), index =>
-                    projection.rows.rowAt(index),
-                  ),
-                  {
-                    onNone: () => '',
-                    onSome: row => grid.columns.byId[address.column].value(row),
-                  },
-                ),
-              ),
+              textOf(Option.getOrElse(valueAt(address), () => '')),
             ),
           )
           const corner = cornerOf(box)
@@ -1056,6 +1083,7 @@ const view = <Message>() => ({
           historyKey,
           fillKey,
           clearKey,
+          checkboxKey,
           selectionKey,
           editKey,
           upToHeader,
@@ -1083,6 +1111,8 @@ const view = <Message>() => ({
               CellsListening: () => grid.Message.MountStarted(),
               CellClicked: ({ cell, shiftKey, toggleKey }) =>
                 grid.Message.CellPressed({ cell, shiftKey, toggleKey }),
+              CheckboxClicked: ({ cell, checked }) =>
+                grid.Message.EditToggled({ cell, checked, by: 'press' }),
               FillDragStarted: () => grid.Message.FillStarted(),
               FillDraggedOver: ({ cell }) => grid.Message.FillDragged({ cell }),
               FillDragEnded: ({ completed }) => grid.Message.FillEnded({ completed }),
