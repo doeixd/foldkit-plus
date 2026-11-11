@@ -97,9 +97,9 @@ read.**
 
 ## 4. The chosen shape
 
-An operation is stored and sent at the version it was written at. Every
-reader of its meaning, Sync's and the application's, sees it upcast to the
-current version.
+An operation is sent, and kept in the outbox, at the version it was written
+at. Every reader of its meaning, Sync's and the application's, sees it
+upcast to the current version.
 
 The application declares its history as a chain. Version 1 is the first
 Schema; each `next` adds a version, with the Schema of that version and a
@@ -108,10 +108,11 @@ the version numbers, so none can be skipped or repeated. Steps are written
 once and never changed: a later change adds a step after them.
 
 The code below compiled in a `*.test-d.ts` under `examples/kitchen-sink`
-(`pnpm exec tsc -b examples/kitchen-sink`; a misplaced `@ts-expect-error` in
-it failed the build, so the file is checked) and its `upcast` was run on the
-cases in §5. The `migrations` sketch is that file's own implementation, not
-package code.
+(`pnpm exec tsc -b examples/kitchen-sink`, clean; a deliberate type error
+in it failed the build, so the file is checked). An earlier version's
+`upcast` was run on the cases in §5. The `migrations` sketch is that file's
+own implementation, not package code; `define` stands for `Sync.define`
+with its other options elided.
 
 ```ts
 import { Match, Schema } from 'effect'
@@ -119,15 +120,15 @@ import { Match, Schema } from 'effect'
 // ---- Proposed in foldkit-sync (not built) ----
 
 /** The Message history a document's operations may be stored in. Version 1 is the first schema. */
-export interface Migrations<Encoded> {
+export interface Migrations<Type, Encoded> {
   readonly version: number
   /** The next version: its schema, and how an operation of the previous version becomes one of it. */
   readonly next: <T, E>(
     schema: Schema.Codec<T, E, never, never>,
     up: (previous: Encoded) => NoInfer<E>,
-  ) => Migrations<E>
-  /** The current schema, which `Sync.make` checks is its own `message`. */
-  readonly current: Schema.Codec<unknown, Encoded, never, never>
+  ) => Migrations<T, E>
+  /** The current schema: the document's Message. */
+  readonly current: Schema.Codec<Type, Encoded, never, never>
   /** Encoded at `version`, to encoded at the current version; throws when it is not one. */
   readonly upcast: (version: number, encoded: unknown) => Encoded
 }
@@ -137,9 +138,9 @@ interface Step {
   readonly up: (previous: unknown) => unknown
 }
 
-const chain = <Encoded>(steps: ReadonlyArray<Step>): Migrations<Encoded> => ({
+const chain = <Type, Encoded>(steps: ReadonlyArray<Step>): Migrations<Type, Encoded> => ({
   version: steps.length,
-  current: steps[steps.length - 1]!.schema as Schema.Codec<unknown, Encoded, never, never>,
+  current: steps[steps.length - 1]!.schema as Schema.Codec<Type, Encoded, never, never>,
   next: (schema, up) =>
     chain([...steps, { schema: schema as Step['schema'], up: up as Step['up'] }]),
   upcast: (version, encoded) => {
@@ -155,13 +156,19 @@ const chain = <Encoded>(steps: ReadonlyArray<Step>): Migrations<Encoded> => ({
   },
 })
 
-export const migrations = <T, E>(first: Schema.Codec<T, E, never, never>): Migrations<E> =>
+export const migrations = <T, E>(first: Schema.Codec<T, E, never, never>): Migrations<T, E> =>
   chain([{ schema: first as Step['schema'], up: value => value }])
 
 /** Proposed operation envelope field: absent reads as version 1. */
 export const messageVersion = Schema.optionalKey(
   Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)),
 )
+
+/** `Sync.define` reading its Message from the history (the rest of its options elided). */
+declare const define: <Message, Encoded>(options: {
+  readonly migrations: Migrations<Message, Encoded>
+  readonly replay: (shared: number, message: Message) => number
+}) => { readonly submit: (message: Message) => void }
 
 // ---- An application's use ----
 
@@ -182,11 +189,18 @@ export const NoteHistory = migrations(NoteMessageV1).next(NoteMessage, previous 
   }),
 )
 
-// `Sync.define({ …, migrations: NoteHistory })` would take:
-declare const takes: (
-  migrations: Migrations<typeof NoteMessage.Encoded>,
-) => void
-takes(NoteHistory)
+const notes = define({
+  migrations: NoteHistory,
+  replay: (count, message) =>
+    Match.valueTags(message, { Renamed: () => count + 1, Cleared: () => 0 }),
+})
+notes.submit(Renamed.make({ name: 'Groceries' }))
+
+// The Message comes from the history, so a wrong one is refused.
+// @ts-expect-error a string is not a NoteMessage
+notes.submit('anything at all')
+// @ts-expect-error version 1's `Renamed` is not the current Message
+notes.submit(RenamedV1.make({ title: 'Groceries' }))
 
 // A step that returns the previous shape is refused where it is written.
 migrations(NoteMessageV1).next(NoteMessage, previous =>
@@ -197,8 +211,12 @@ migrations(NoteMessageV1).next(NoteMessage, previous =>
   }),
 )
 
-// A history that stops short of the current schema is refused by `Sync.define`.
-// @ts-expect-error version 1's encoded side is not the current one
+// `forApplication(App).make` takes the history beside `App.Message`, typed by it.
+declare const takes: (
+  migrations: Migrations<typeof NoteMessage.Type, typeof NoteMessage.Encoded>,
+) => void
+takes(NoteHistory)
+// @ts-expect-error a history that stops short of the current schema
 takes(migrations(NoteMessageV1))
 ```
 
@@ -206,63 +224,90 @@ An old version's Schema reuses the variants that did not change (`Cleared`
 above), so keeping one costs the changed variants only. It lists only
 durable variants: nothing else is stored.
 
-`Sync.define` takes the history in place of `message`, and reads the current
-Message from it (`migrations.current`), so the two cannot disagree; without
-it, `message` stays as today and the history is that Schema alone, at
-version 1. `Sync.forApplication(App).make` cannot derive its Message, which
-is `App.Message`, so there the option's type requires the current encoded
-side and the definition checks `migrations.current === App.Message` by
-identity, since a structurally equal Schema of an older version would pass
-the type.
+`Sync.define` takes the history in place of `message` and reads the Message
+from it, Type and Encoded both, so the two cannot disagree and the Message
+is still inferred where `submit` and `replay` use it (the
+`@ts-expect-error` cases above go unused if it is not). Without the option,
+`message` stays as today and the history is that Schema alone, at version 1.
+`Sync.forApplication(App).make` cannot derive its Message, which is
+`App.Message`, so there the option is typed by `App.Message`'s two sides and
+the definition checks `migrations.current === App.Message` by identity,
+since a structurally equal Schema of an older version would pass the type.
 
-**Two sides of one operation.** Sync's operation codec becomes a
-transforming codec. Its encoded side is the operation **as written**: the
-envelope with `messageVersion` and the Message at that version, normalized by
-decoding and encoding it with that version's Schema. Its decoded side, the
-`Operation` every caller receives, holds the Message **upcast to the current
-version**, and keeps the as-written form beside it for encoding (a field such
-as `written`, an `Option`; *Sketch*). So:
+**The operation codec's two sides.** Sync's operation codec (the one
+`journalContract` hands `foldkit-durable`, and `codec.operationFrom`)
+becomes a transforming codec:
 
-- **Storage and the payload hash see the as-written form.** The journal
-  hashes `canonicalJson(operationCodec.encode(operation))`
-  (`durable/src/journal.ts:950-958`, `:992`), which is now the as-written
-  envelope: a retransmission of an operation committed under the old build
-  hashes as the old build hashed it, and reads as already committed rather
-  than as an id reused for another (`IdentityConflictError`). An explicit
-  `messageVersion: 1` is dropped when encoding, so it and an absent field
-  hash alike; today's `shape` would keep it (`sync.ts:428`).
+- Its **encoded side** is the operation as written: the envelope with
+  `messageVersion` and the Message at that version. This is what a replica
+  sends, and what its outbox holds: the replica state's `pending` is already
+  the encoded envelope (`sync.ts:360`), and Sync reads each one's meaning
+  where it needs it (`optimistic`, `sync.ts:480-483`), so pending operations
+  stay as written, through every save, until they commit.
+- Its **decoded side**, the `Operation` every caller receives, holds the
+  Message upcast to the current version, and nothing else of the as-written
+  form. Encoding it writes the current version, with `messageVersion`
+  omitted when that is 1. An operation built by spreading one and replacing
+  `message` (`shape`, `sync.ts:428`; `stamp`, `:468-475`; `coalesce`'s
+  merge, `:654`; an application's own stamp) therefore encodes what it
+  holds; there is no second copy to win.
+
+What each party sees:
+
 - **Every application-facing hook sees the current Message.** That is
   `journalExchange`'s `admit` (`sync/src/journal.ts:84-86`, `:161`),
   including `GuardSync.admit`'s `changesOf` (`guard/src/sync.ts:194-207`);
   the journal's `validate` and `authorize` (`durable/src/journal.ts:1088`,
-  `:1093`); `reduce` and `stamp`; `Rejection.operation`
-  (`sync.ts:167-171`); and `codec.operationFrom` (`sync.ts:281-285`).
-  Without this, an application reader that decodes `operation.message` with
-  the current Message would misread an old one: the registry's `changesOf`
-  returns `[]` on a decode failure (`examples/registry/src/journal.ts:72-80`)
-  and `[]` is admitted (`:109-112`), so a client claiming version 1 would
-  pass the guard and `authorize`, and `reduce` would then apply the upcast
-  edit. Upcasting in the codec closes that, whatever version a client
-  claims.
+  `:1093`); `reduce` and `stamp`; and `codec.operationFrom`
+  (`sync.ts:281-285`). Without this, an application reader that decodes
+  `operation.message` with the current Message would misread an old one:
+  the registry's `changesOf` returns `[]` on a decode failure
+  (`examples/registry/src/journal.ts:72-80`) and `[]` is admitted
+  (`:109-112`), so a client claiming version 1 would pass the guard and
+  `authorize`, and `reduce` would then apply the upcast edit.
+- **`Rejection`** is built on the client from the operation it sent
+  (`sync.ts:167-171`, `:878-882`), so its `operation` stays as written; it
+  gains the upcast `message` beside it, which is what an application reads.
 - **Tag checks run on the current Message**, including the durable check in
   `decodeDurable` (`sync.ts:421-425`) and Phase 5's server-only check, so a
   step that maps an old variant into a server-only one is refused like a
   server-only Message sent today (invariant 8).
-- **`stamp` writes the current version.** It replaces the Message
-  (`sync.ts:468-475`), so it also drops `written`: the stamped row is encoded
-  at the current version, with `messageVersion` set to it (omitted when it is
-  1). Otherwise a row labelled 1 would carry a version-2 payload, which the
-  strict version-1 decode refuses, and the document would not open. The hash
-  is taken before stamping (`:992`, `:1114-1126`), as today.
-- **A new operation** is written at the current version, with
-  `messageVersion` omitted while that is 1 (§6).
+- **`journal.append` is given the entry as received**, the encoded side
+  (`durable/src/journal.ts:277-281`). `journalExchange` passes it the
+  decoded operation today (`sync/src/journal.ts:170`), which works only
+  because Sync's codec is the identity now; it changes to pass the raw entry
+  it decoded for `admit`.
+- **Storage holds the current version.** The journal stores
+  `encode(operation)`, stamped or not (`durable/src/journal.ts:1126`), so
+  every row appended after the deploy is at the current version, and a row
+  committed before it is upcast whenever it is read.
 - **`coalesce` sees one version.** It merges only an operation in `unsent`,
   submitted since this replica opened (`sync.ts:567`, `:628-634`), so
-  written by this build at the current version; the merged operation is
-  re-encoded at it (`:654`).
+  written by this build at the current version.
 
-The hash argument holds on one condition: the application's kept Schema of
-an old version must normalize as the old build's Schema did. §8.
+**The payload hash needs the as-written form, and nothing else does.**
+`prepare` hashes `canonicalJson(operationCodec.encode(operation))`
+(`durable/src/journal.ts:950-958`, `:992`), and a retransmission of a
+committed id is compared by that hash (`:1022-1025`). Hashing the decoded
+side would hash the upcast form, so an operation committed under the old
+build, whose acknowledgement was lost across the deploy, would be resent as
+written, hash differently, and come back an `IdentityConflictError`: an
+edit that committed reported as refused. So `foldkit-durable`'s operation
+codec gains one optional member, the form a payload is compared by
+(*Sketch*: `compared?: (input: Encoded) => Encoded`, defaulting to
+`encode(decode(input))`, today's form). Sync supplies the entry normalized
+**at its own version** (decoded and encoded with that version's Schema, no
+upcast): what the old build hashed, since its `shape` normalized the same
+way. `prepare` hashes `compared(input)`; the legacy comparison for a row
+with no hash (`:1025-1029`) compares `compared` of both. An explicit
+`messageVersion: 1` is dropped by `compared` too, so it and an absent field
+hash alike (today's `shape` would keep it, `sync.ts:428`).
+
+The as-written form therefore lives in exactly two places, both outside the
+decoded `Operation`: the replica's outbox (as stored) and the payload hash
+(as compared). The hash argument holds on one condition: the application's
+kept Schema of an old version must normalize as the old build's Schema did.
+§8.
 
 ## 5. Failure semantics
 
@@ -288,7 +333,21 @@ already-committed path decodes the stored row after the hashes match
 `InvalidOperationError` (`:1033`), which `journalExchange` rejects by id
 (`sync/src/journal.ts:185-186`). An unreadable stored row is not the
 sender's fault, so it becomes a `JournalError` there, as in `materialize`
-(`:819`) and `read` (`:945`).
+(`:819`) and `read` (`:945`). `foldkit-durable`'s README, which says a
+payload that does not decode is an `InvalidOperationError`
+(`packages/durable/README.md:212-214`), then needs "a payload sent"; a
+stored one is a `JournalError`.
+
+`journalExchange` tells this `JournalError` from one wrapping a `SqlError`
+by its cause (an `UnreadableMessage` instance), not by its message.
+
+**What the replica sees.** No typed error crosses the transport: a failing
+exchange fails with a plain `Error` (`sync/src/journal.ts:130`, `:140`), and
+the replica records a failed exchange in `status.lastError` and retries it
+on its backoff (`sync.ts:892-905`). So `UnreadableHistoryError` stays on the
+server, for its logs and diagnostics; the replica sees its exchanges failing
+with the error's message, and keeps its outbox. Carrying the typed error to
+the replica is item 5's wire, not this note's.
 
 `committedOf` (`sync/src/journal.ts:121-125`) runs inside `Option.match` and
 `Effect.succeed` in the generator (`:199-202`), so a throw there is a defect
@@ -305,10 +364,12 @@ to retry it under a corrected step, or discard it. Two consequences:
   empty store). Moving an entry to `refused` is a new write, made through
   `store` with the loaded revision, so a second tab that opened the same
   store meanwhile fails it as a revision conflict.
-- The entry may have committed before its acknowledgement was lost. It is
-  then not a refusal at all, so a `refused` entry says "this build cannot
-  read it", never "the server refused it", and one whose id later arrives
-  committed leaves the list.
+- A `refused` entry says "this build cannot read it", never "the server
+  refused it". Under one chain shared by client and server it cannot have
+  committed: a server that cannot read it would have refused it, or, if an
+  older build committed it, now refuses the whole document (the third row).
+  Only a client and server whose chains differ could disagree, and that is
+  already an error (the fourth row).
 
 Invariant 7 reads "the journal and the replica refuse to open with a typed
 error". This note keeps that for committed history and for a newer version,
@@ -339,8 +400,9 @@ wording should say so (§10).
   the envelope and in the replica state's `pending`, and `refused` a new
   optional key in the replica state; an older build would refuse a state
   holding either (`onExcessProperty: 'error'`), which is the rollback case.
-- Nothing public is removed, so there is no deprecation. `Operation` gains
-  the `written` field on its decoded side.
+- Nothing public is removed, so there is no deprecation. The decoded
+  `Operation`'s `message` is now always at the current version; `Rejection`
+  gains `message`; `foldkit-durable`'s codec gains the optional `compared`.
 
 ## 7. What it leaves out
 
@@ -400,7 +462,8 @@ wording should say so (§10).
   unmet, taken, invalid, referenced) has none that fits. Item 5 decides
   whether it joins that vocabulary or is Sync's own; it should also decide
   whether server rejections persist in `refused` (§7).
-- **Phase 5 item 6** builds the chain, the transforming operation codec, the
+- **Phase 5 item 6** builds the chain, the transforming operation codec,
+  `foldkit-durable`'s `compared`, the
   version scan in `journalExchange` and the `foldkit-durable` change in §5.
   Its "done when" ("a renamed durable Message replays from an old journal")
   needs, beyond that: an outbox written by the old build opening under the
