@@ -5,7 +5,6 @@ import { Disclosure as UiDisclosure } from '@foldkit/ui'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import { Disclosure } from 'foldkit-mixins-ui'
 
-import * as Icon from '../../icon.js'
 import { Message as UiMessage } from '../message.js'
 import type { UiModel } from '../model.js'
 import {
@@ -31,13 +30,6 @@ const COLLAPSED_PREVIEW_PARAGRAPHS: ReadonlyArray<string> = [
 ]
 
 type Slots = SlotBuilders<typeof DisclosurePageSlots, UiMessage>
-
-/** The chevron turns over while the button is `data-open`, which its Style reads. */
-const buttonContent = (slots: Slots, h: HtmlBuilder<UiMessage>): Html =>
-  h.div(slots.buttonContent.attrs(), [
-    h.span(slots.buttonLabel.attrs(), ['What is Foldkit?']),
-    h.span(slots.chevron.attrs(), [Icon.chevronDown(slots.chevronIcon.attrs(), h)]),
-  ])
 
 const panelText = (slots: Slots, h: HtmlBuilder<UiMessage>): Html =>
   h.p(slots.panelText.attrs(), [PANEL_TEXT])
@@ -70,7 +62,7 @@ const DisclosurePage = SlotView.forMessages<UiMessage>()
             })
 
             return h.div(slots.demo.attrs(), [
-              h.button(disclosure.button, [buttonContent(slots, h)]),
+              h.button(disclosure.button, ['What is Foldkit?']),
               model.isDisclosureBasicDemoOpen
                 ? h.div(disclosure.panel, [panelText(slots, h)])
                 : h.empty,
@@ -94,7 +86,7 @@ const DisclosurePage = SlotView.forMessages<UiMessage>()
             })
 
             return h.div(slots.animatedFrame.attrs(), [
-              h.button(disclosure.button, [buttonContent(slots, h)]),
+              h.button(disclosure.button, ['What is Foldkit?']),
               disclosure.animatePanel(h.div(disclosure.panel, [panelText(slots, h)])),
             ])
           },

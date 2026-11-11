@@ -371,7 +371,49 @@ selection is complete) and pass `DatePickerView.view` `selection`, `triggerConte
 input (`FormData.getAll(name)` is `[start, end]`). Result types: `ResolvedButton<M>`,
 `ResolvedRadioGroup<V, M>`, and so on.
 
-`Recipes.Accordion | Button | Input | Textarea | Select | Checkbox | Switch | RadioGroup | Slider | Dialog | Tabs | Segmented | Menu | Listbox | Combobox | Calendar | DatePicker | Popover | Tooltip | Toast | FileDrop | Alert | AspectRatio | Avatar | Badge | Breadcrumb | ButtonGroup | Card | CardGroup | Carousel | CheckboxGroup | CodeBlock | ColorPicker | Command | Empty | HoverCard | Icon | InputCopy | Item | Kbd | Label | Menubar | MenubarMenu | Meter | Nav | NumberField | OtpField | Pagination | PasswordInput | Progress | Rating | Resizable | ScrollArea | Separator | Sheet | Picker | Drawer | Sidebar | Skeleton | Spinner | Steps | Table | TagsInput | TreeView | Typography | VirtualList | ChatMessage | ChatMessageGroup | MessageScroller | ThinkingIndicator | ThinkingSteps | Questionnaire | AngleSlider | Timer | Marquee | ImageCropper | SignaturePad | QrCode | Chart | CascadeSelect | FloatingPanel | Tour | Image | Figure | AppShell` are shipped
+`Recipes.Disclosure` (`variant`: `plain`, `bordered`, `ghost`; `indicator`: `chevron`, `none`)
+draws the button's chevron as its `::after`; the panel's height is upstream's `animatePanel`, an
+inline transition no knob reaches. `Recipes.Fieldset` (`variant`: `plain`, `bordered`, `filled`)
+floats the legend into the group and dims the legend and description of a disabled fieldset.
+A disclosure with its recipe: the recipe draws the button and the panel's box,
+and `animatePanel` keeps the shut panel inert and moves its height.
+
+<!-- docs-check
+declare const ToggledDetails: (payload: { readonly isOpen: boolean }) => Message
+-->
+
+```ts
+import { Disclosure as UiDisclosure } from '@foldkit/ui'
+import { Style } from 'foldkit-mixins'
+import { Disclosure, DisclosureSlots, Recipes } from 'foldkit-mixins-ui'
+
+const DetailsStyle = Style.forSlots(DisclosureSlots)(Recipes.Disclosure({ variant: 'bordered' }))
+
+const details = (isOpen: boolean, h: HtmlBuilder<Message>) =>
+  UiDisclosure.view(
+    {
+      id: 'details',
+      isOpen,
+      onToggle: isOpen => ToggledDetails({ isOpen }),
+      toView: attributes => {
+        const disclosure = Disclosure.resolve(attributes, [DetailsStyle.mixin], {
+          input: undefined,
+          h,
+        })
+        return h.div(
+          [],
+          [
+            h.button(disclosure.button, ['Shipping details']),
+            disclosure.animatePanel(h.div(disclosure.panel, ['Shipped in two days.'])),
+          ],
+        )
+      },
+    },
+    h,
+  )
+```
+
+`Recipes.Accordion | Button | Input | Textarea | Select | Checkbox | Switch | Fieldset | Disclosure | RadioGroup | Slider | Dialog | Tabs | Segmented | Menu | Listbox | Combobox | Calendar | DatePicker | Popover | Tooltip | Toast | FileDrop | Alert | AspectRatio | Avatar | Badge | Breadcrumb | ButtonGroup | Card | CardGroup | Carousel | CheckboxGroup | CodeBlock | ColorPicker | Command | Empty | HoverCard | Icon | InputCopy | Item | Kbd | Label | Menubar | MenubarMenu | Meter | Nav | NumberField | OtpField | Pagination | PasswordInput | Progress | Rating | Resizable | ScrollArea | Separator | Sheet | Picker | Drawer | Sidebar | Skeleton | Spinner | Steps | Table | TagsInput | TreeView | Typography | VirtualList | ChatMessage | ChatMessageGroup | MessageScroller | ThinkingIndicator | ThinkingSteps | Questionnaire | AngleSlider | Timer | Marquee | ImageCropper | SignaturePad | QrCode | Chart | CascadeSelect | FloatingPanel | Tour | Image | Figure | AppShell` are shipped
 `Style.recipeFor` recipes over those contracts: `Style.forSlots(ButtonSlots)(Recipes.Button({ tone:
 'danger', variant: 'outline', size: 'sm' }))`, adjusted with `.extend(patch)`. They reference
 the shipped tokens (`Theme.root(Theme.standard(theme))` ships them; a theme is typed knob values,

@@ -510,8 +510,8 @@ adapter.
 | Select | `select`, `label`, `description`. The native `<select>`; the recipe draws its own chevron and mutes a chosen placeholder. For icons, descriptions, groups or a check in the list, draw a Listbox as a custom select with `Listbox.parts` (below) |
 | Checkbox | `checkbox`, `label`, `description`, `hiddenInput` |
 | Switch | `button`, `label`, `description`, `hiddenInput`. `Switch.draggable(onToggle)` beside the style lets the thumb be dragged: it follows the pointer past 4px, and on release `onToggle` is sent for the side its middle is on (nothing when that is the side it began on); a click after a drag is swallowed, right to left mirrors it, and a disabled or read-only switch does not drag. Pass the `onToggle` the view was given |
-| Fieldset | `fieldset`, `legend`, `description` |
-| Disclosure | `button`, `panel` |
+| Fieldset | `fieldset`, `legend`, `description`. The recipe floats the legend into the group, so a box drawn round it holds the legend, and a disabled fieldset dims its legend and description beside the controls the browser disables. Recipe `variant`: `plain` (default, no box), `bordered`, `filled`; a boxed group pads its fields, and a control in it takes a corner concentric with the box's |
+| Disclosure | `button`, `panel`. The recipe draws the button as a row with a chevron of its own (down shut, up once `data-open`) and the panel's box; draw the panel only while open, or through upstream's `animatePanel`, which keeps a shut panel inert and moves its height itself, by an inline 200ms transition that neither the `motion` knob nor reduced motion reaches. Recipe `variant`: `plain` (default), `bordered` (one box round the button and the panel, whose lower corners square onto the panel while open), `ghost` (filled under the pointer); `indicator`: `chevron` (default), `none` |
 | Dialog | `dialog`, `backdrop`, `panel`, `title`, `description`, `initialFocus`, `closeButton`, and this package's `handle` (the Sheet's grabber, `aria-hidden`), `body`, `scroll`, `scrollBar`, `scrollThumb` and `footer`: draw `scroll` and its bar inside `body` and the answers in `footer`, and a body taller than the screen scrolls under the title while the footer stays (`Dialog.overlayBars` beside the style draws the overlay bar). `Dialog.keyboard` among the mixins of a dialog or sheet that holds a field measures the on-screen keyboard on the panel, and the recipes keep the panel above it (a Dialog shrinks, a bottom Sheet stands on it): iOS Safari and Chrome on Android otherwise leave it under the keys. An alert dialog is this one with `role: 'alertdialog'` in its context (`Dialog.toView(mixins, { h, role: 'alertdialog' }, draw)`), which puts `role="alertdialog"` on the `dialog` bundle; draw no close button, and drop the Messages `Dialog.isDismissal` names (Escape, the backdrop, the close button) in `update`, so only its own buttons, closing with `@foldkit/ui`'s `close`, answer it. `covered: true` in the context marks the panel `data-covered`, for a dialog another was opened from (draw the second inside the first's `dialog`, beside its panel), and the recipe steps it back; `attributes` adds to a bundle before the mixins resolve. Recipe `size`: `sm`, `md` (default), `lg`, `xl`, `full`; `title`: `shown` (default) or `hidden`, which leaves the heading to a screen reader alone (it still names the dialog, as `display: none` would not). The backdrop is the `overlay.scrim` token |
 | Popover | `button`, `panel`, `backdrop`, `arrow`, and this package's `layer`, drawn around the panel to show it in the top layer (see [The top layer](#the-top-layer)); `Popover.anchor(config?)` is the placement. Recipe `arrow`: `shown` (default), `none` |
 | Tooltip | `trigger`, `panel`, `arrow`, and this package's `layer`. `Tooltip.toView(mixins, { h, id }, draw)` takes the Tooltip's id (`model.id`), whose trigger the arrow points at; `Tooltip.anchor(config?)` is the placement, above by default. Recipe `arrow`: `shown` (default), `none` |
@@ -526,6 +526,44 @@ adapter.
 | Listbox | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator`, and this package's `rows`, `highlight`, `indicator`, `scrollBar`, `scrollThumb`, and an option's and the trigger's parts (`itemIcon`, `itemLabel`, `itemDescription`, `itemCheck`, `value`, `valueText`, `chevron`, …) (over the `ListboxView` fork; single and multi share one transcription). A custom select is a Listbox drawn with `Listbox.parts(mixins, { h })`: `part.option({ label, description?, icon? })` as an item's content and `part.trigger(chosen, placeholder)` as the button's, its value or the placeholder (muted, `data-placeholder`) and a chevron. Recipe axes `width`: `auto` (default) or `trigger`; `check`: `end` (default), `start`, `none`; `trigger`: `outline` (default), `filled`, `ghost`; `size`: `sm`, `md`, `lg` |
 | Combobox | `wrapper`, `inputWrapper`, `input`, `toggleButton`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator`, and this package's `rows`, `highlight`, `indicator`, `scrollBar`, `scrollThumb`, `chips`, `chip`, `chipRemove`, `clearButton`, `empty` and an option's parts (over the `ComboboxView` fork; single and multi share one transcription). The view inputs add `chips: { label?, removeLabel? }` (each chosen value a chip in the field, its remove button choosing it again, which a multiple combobox toggles off: with `ComboboxView.Multi`, a tags field with suggestions), `clearContent` and `clearLabel` (a clear button while the field has text) and `empty` (shown, as a polite status, in the list's place while open with nothing to list; a loading line too). `Combobox.parts(mixins, { h }).option(content, query)` marks the typed text in an option's label. Recipe axis `width`: `trigger` (default) or `auto` |
 | DatePicker | `trigger`, `panel`, `backdrop` (over the `DatePickerView` fork, which keeps upstream's Popover+Calendar composition and seams only the popover assembly). A range or many days in the popover: see [Why some components needed a fork](#why-some-components-needed-a-fork) |
+
+A disclosure with its recipe: the recipe draws the button and the panel's box,
+and `animatePanel` keeps the shut panel inert and moves its height.
+
+<!-- docs-check
+declare const ToggledDetails: (payload: { readonly isOpen: boolean }) => Message
+-->
+
+```ts
+import { Disclosure as UiDisclosure } from '@foldkit/ui'
+import { Style } from 'foldkit-mixins'
+import { Disclosure, DisclosureSlots, Recipes } from 'foldkit-mixins-ui'
+
+const DetailsStyle = Style.forSlots(DisclosureSlots)(Recipes.Disclosure({ variant: 'bordered' }))
+
+const details = (isOpen: boolean, h: HtmlBuilder<Message>) =>
+  UiDisclosure.view(
+    {
+      id: 'details',
+      isOpen,
+      onToggle: isOpen => ToggledDetails({ isOpen }),
+      toView: attributes => {
+        const disclosure = Disclosure.resolve(attributes, [DetailsStyle.mixin], {
+          input: undefined,
+          h,
+        })
+        return h.div(
+          [],
+          [
+            h.button(disclosure.button, ['Shipping details']),
+            disclosure.animatePanel(h.div(disclosure.panel, ['Shipped in two days.'])),
+          ],
+        )
+      },
+    },
+    h,
+  )
+```
 
 ## Views and components of this package
 
