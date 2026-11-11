@@ -363,7 +363,7 @@ replaces the panel's 14rem minimum with the trigger's width (`--button-width`), 
 Right to left: Menu, Menubar, TreeView, Resizable and a horizontal Listbox take `direction?: 'ltr' | 'rtl'`,
 swap the arrows into reading order and draw it as the root's `dir`; `Tabs.readingKeys`,
 `RadioGroup.readingKeys` and `Calendar.readingKeys` (a mixin each, opt-in for Scene's sake) read upstream's
-arrows by `:dir()`; the `fluid` indicators measure again when a `dir` changes. `DatePicker.toView(mixins, (resolved, h) => …)`
+arrows by `:dir()`; `Switch.draggable(onToggle)` (opt-in too, with the `onToggle` the view was given) lets the thumb be dragged, toggling on release past the middle of the track; the `fluid` indicators measure again when a `dir` changes. `DatePicker.toView(mixins, (resolved, h) => …)`
 takes no builder: its bundles speak the date picker's own Message, so it hands `draw` the date picker's
 builder. For a range or many days in the popover, fold with `DatePicker.update(selection)` (open until the
 selection is complete) and pass `DatePickerView.view` `selection`, `triggerContent: selection => Html` and

@@ -166,6 +166,12 @@ export const Switch = Style.recipeFor(SwitchSlots)({
       Style.nest(`&${checked}:dir(rtl)::before`, {
         translate: `calc(-1 * (${rail} * 0.7 - ${stretch})) 0`,
       }),
+      // Dragged (`Switch.draggable`), the thumb follows the pointer at once,
+      // from the drag's own place, whichever side it began on or the direction.
+      Style.nest('&[data-dragging]:is(:dir(ltr), :dir(rtl))::before', {
+        translate: 'var(--_fk-switch-drag, 0px) 0',
+        transitionDuration: '0s',
+      }),
       focusRing,
       disabled,
     ),

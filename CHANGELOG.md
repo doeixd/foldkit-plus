@@ -89,6 +89,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Switch.draggable(onToggle)`: drag the thumb** (`foldkit-mixins-ui`). A
+  mixin beside the style: press the switch, move past 4px, and the thumb
+  follows the pointer; let go with its middle past the middle of the track and
+  `onToggle` is sent for that side, where a drag that ends on the side it began
+  on sends nothing. A plain click still toggles once, the click after a drag
+  is swallowed, right to left mirrors it, and a disabled or read-only switch
+  does not drag. Opt-in, as its Mount sends a Message that a Scene test must
+  resolve.
 - **`foldkit-host`, re-exported as `foldkit-plus/host`: the parts of a
   server's `fetch`** (#235). `Host.isolate(key, build)` builds a value once
   per binding, keyed weakly so a reloaded binding builds again, and forgets
