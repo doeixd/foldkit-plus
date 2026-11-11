@@ -34,6 +34,7 @@ import {
 } from 'foldkit-durable/core'
 import { sequence } from './ids.js'
 import type { AuthorizeDecision } from './make.js'
+import { SyncRefusal } from './refusal.js'
 import type { Operation, Sync, TransportClient } from './sync.js'
 import { checkRevalidate } from './revalidate.js'
 import {
@@ -88,6 +89,11 @@ export interface JournalExchangeOptions<Message, Shared, Principal> {
   readonly limit?: number | undefined
 }
 
+const encodeRefusal = Schema.encodeSync(SyncRefusal)
+/** A refusal in the server's own words, which name no Entity's invariant. */
+const invalidAs = (message: string): SyncRefusal =>
+  SyncRefusal.Invalid({ entity: Option.none(), rule: Option.none(), message, path: [] })
+
 /** The id an entry names, read without trusting the rest of it. */
 const idOf = (input: unknown): Option.Option<string> =>
   Option.map(
@@ -140,13 +146,23 @@ export const journalExchange = <Message, Shared, Principal>(
         return yield* Effect.fail(new Error(`Cursor ${cursor} is ahead of the server's ${at}`))
       }
       const rejected: Array<string> = []
+      const refusals: Array<{ readonly opId: string; readonly refusal: unknown }> = []
+      // Deprecated: the words alone, for a replica that reads `reason`.
       const reasons: Array<{ readonly opId: string; readonly reason: string }> = []
-      // Each reason is words for the person whose edit came back: a policy's own,
-      // or a fixed sentence, never an error's message, which may carry internals.
-      const reject = (opId: string, reason: string) => {
+      // Words reach the person whose edit came back: a policy's own, or a fixed
+      // sentence, never an error's message, which may carry internals.
+      const reject = (opId: string, refusal: SyncRefusal, reason: string) => {
         rejected.push(opId)
+        refusals.push({ opId, refusal: encodeRefusal(refusal) })
         reasons.push({ opId, reason })
       }
+      const forbid = (opId: string, reason: string | undefined, otherwise: string) =>
+        reject(
+          opId,
+          SyncRefusal.Forbidden({ reason: Option.fromUndefinedOr(reason) }),
+          reason ?? otherwise,
+        )
+      const invalid = (opId: string, message: string) => reject(opId, invalidAs(message), message)
       const acknowledged: Array<string> = []
       for (const input of pending) {
         const decoded = operationOf(input)
@@ -154,16 +170,17 @@ export const journalExchange = <Message, Shared, Principal>(
           const id = idOf(input)
           if (Option.isNone(id))
             return yield* Effect.fail(new Error('A pending entry names no operation'))
-          reject(id.value, 'Not an operation this server accepts')
+          invalid(id.value, 'Not an operation this server accepts')
           continue
         }
         const operation = decoded.value
         const admitted = options.admit === undefined ? true : options.admit(operation)
         const decision = Effect.isEffect(admitted) ? yield* admitted : admitted
         if (decision !== true) {
-          reject(
+          forbid(
             operation.opId,
-            decision === false ? 'This connection may not make changes' : decision.reason,
+            decision === false ? undefined : decision.reason,
+            'This connection may not make changes',
           )
           continue
         }
@@ -181,15 +198,18 @@ export const journalExchange = <Message, Shared, Principal>(
           // `JournalError` may not, so it still fails the exchange.
           Effect.catchTags({
             OperationRejectedError: error =>
-              Effect.sync(() => reject(error.opId, error.reason ?? 'Refused by the server')),
+              Effect.sync(() => forbid(error.opId, error.reason, 'Refused by the server')),
             InvalidOperationError: () =>
-              Effect.sync(() => reject(operation.opId, 'Not a valid operation')),
+              Effect.sync(() => invalid(operation.opId, 'Not a valid operation')),
             IdentityConflictError: () =>
-              Effect.sync(() => reject(operation.opId, 'Its id was already used for another')),
+              Effect.sync(() => invalid(operation.opId, 'Its id was already used for another')),
           }),
         )
       }
       if (options.settle !== undefined) yield* options.settle
+      // Sent only when something was refused: a replica built before `refusals`
+      // decodes the reply strictly and fails on the key, so it fails only then.
+      const refused = refusals.length === 0 ? {} : { refusals }
       // A cursor below the compacted floor is answered with the snapshot; the
       // read decides that itself, so a compaction cannot slip in between.
       const read = yield* journal.read(key, Cursor.make(from), { limit }).pipe(
@@ -201,6 +221,7 @@ export const journalExchange = <Message, Shared, Principal>(
           Effect.succeed({
             operations: rows.map(committedOf),
             rejected,
+            ...refused,
             reasons,
             acknowledged,
             more: rows.length === limit,
@@ -210,6 +231,7 @@ export const journalExchange = <Message, Shared, Principal>(
           Effect.map(journal.load(key), loaded => ({
             operations: [],
             rejected,
+            ...refused,
             reasons,
             acknowledged,
             checkpoint: { cursor: loaded.cursor, model: snapshot.encode(loaded.snapshot) },

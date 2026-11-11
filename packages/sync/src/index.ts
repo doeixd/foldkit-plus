@@ -106,7 +106,9 @@ export type {
   ListenerFailed,
   ListenerSite,
   SyncDiagnostic,
+  UnknownRefusal,
 } from './diagnostics.js'
+export { SyncRefusal } from './refusal.js'
 export {
   indexedDb,
   tabStorage,

@@ -28,6 +28,9 @@ afterEach(() => {
   closeScopes()
 })
 
+/** A refusal in the server's fixed words, as the wire carries it. */
+const invalid = (message: string) => ({ _tag: 'Invalid', rule: null, message, path: [] })
+
 describe('journalExchange', () => {
   it('appends what a replica sends, acknowledges it, and replicas converge through it', async () => {
     const journal = openJournal()
@@ -56,8 +59,17 @@ describe('journalExchange', () => {
     expect(reply.reasons).toEqual([
       { opId: first!.opId, reason: 'Not an operation this server accepts' },
     ])
+    expect(reply.refusals).toEqual([
+      { opId: first!.opId, refusal: invalid('Not an operation this server accepts') },
+    ])
     expect(reply.acknowledged).toEqual([second!.opId])
     expect(reply.committed).toEqual([second!.opId])
+  })
+
+  it('sends no refusals key when nothing was refused, so an older replica still reads it', async () => {
+    const exchange = journalExchange({ sync: Todos, journal: openJournal(), principal: 'ada' })
+    const raw = await exchange.exchange(sequence(0), await pendingOf('a', ['Milk']))
+    expect(Object.keys(raw as object)).not.toContain('refusals')
   })
 
   it('rejects an operation naming another document', async () => {
@@ -68,6 +80,9 @@ describe('journalExchange', () => {
     expect(reply).toMatchObject({
       rejected: [operation!.opId],
       reasons: [{ opId: operation!.opId, reason: 'Not an operation this server accepts' }],
+      refusals: [
+        { opId: operation!.opId, refusal: invalid('Not an operation this server accepts') },
+      ],
       acknowledged: [],
     })
   })
@@ -80,6 +95,7 @@ describe('journalExchange', () => {
     expect(reply).toMatchObject({
       rejected: [operation!.opId],
       reasons: [{ opId: operation!.opId, reason: 'Not a valid operation' }],
+      refusals: [{ opId: operation!.opId, refusal: invalid('Not a valid operation') }],
       acknowledged: [],
     })
   })
@@ -97,6 +113,8 @@ describe('journalExchange', () => {
     expect(reply).toMatchObject({
       rejected: [first!.opId],
       reasons: [{ opId: first!.opId, reason: 'This connection may not make changes' }],
+      // A plain refusal names no reason; the sentence is the deprecated field's alone.
+      refusals: [{ opId: first!.opId, refusal: { _tag: 'Forbidden' } }],
       acknowledged: [second!.opId],
     })
     expect(reply.committed).toEqual([second!.opId])
@@ -118,6 +136,7 @@ describe('journalExchange', () => {
     expect(reply).toMatchObject({
       rejected: [first!.opId],
       reasons: [{ opId: first!.opId, reason: 'Not your list' }],
+      refusals: [{ opId: first!.opId, refusal: { _tag: 'Forbidden', reason: 'Not your list' } }],
       acknowledged: [second!.opId],
     })
   })
@@ -147,6 +166,9 @@ describe('journalExchange', () => {
     expect(await send(exchange, 1, [reused])).toMatchObject({
       rejected: [operation!.opId],
       reasons: [{ opId: operation!.opId, reason: 'Its id was already used for another' }],
+      refusals: [
+        { opId: operation!.opId, refusal: invalid('Its id was already used for another') },
+      ],
       acknowledged: [],
     })
   })
@@ -181,6 +203,10 @@ describe('journalExchange', () => {
       reasons: [
         { opId: tea!.opId, reason: 'No tea here' },
         { opId: gin!.opId, reason: 'Refused by the server' },
+      ],
+      refusals: [
+        { opId: tea!.opId, refusal: { _tag: 'Forbidden', reason: 'No tea here' } },
+        { opId: gin!.opId, refusal: { _tag: 'Forbidden' } },
       ],
       acknowledged: [milk!.opId],
     })

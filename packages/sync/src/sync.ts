@@ -36,7 +36,8 @@ import {
 } from './ids.js'
 import { Transport, TransportError } from './transport.js'
 import { Diagnostics } from 'foldkit-surface'
-import { exchangeFailed, historyRebuilt } from './diagnostics.js'
+import { exchangeFailed, historyRebuilt, unknownRefusal } from './diagnostics.js'
+import { SyncRefusal } from './refusal.js'
 
 /** Wire and persisted-format versions. A bump must handle the older value explicitly. */
 const PROTOCOL_VERSION = 1
@@ -66,6 +67,7 @@ export type CommittedOperation = typeof CommittedSchema.Type
 
 const decodeOperation = Schema.decodeUnknownSync(OperationSchema, { onExcessProperty: 'error' })
 const decodeCommitted = Schema.decodeUnknownSync(CommittedSchema, { onExcessProperty: 'error' })
+const decodeRefusal = Schema.decodeUnknownOption(SyncRefusal, { onExcessProperty: 'error' })
 
 /**
  * How many committed-operation ids a replica retains for duplicate detection.
@@ -98,8 +100,13 @@ export interface Exchange<Shared> {
   readonly operations: ReadonlyArray<unknown>
   readonly rejected: ReadonlyArray<OpId>
   /**
-   * Why some of `rejected` were refused, in words the server chose for a person:
-   * a policy's reason, never an internal error. One without a reason is still rejected.
+   * Why some of `rejected` were refused, each an encoded `SyncRefusal`. One
+   * without a refusal is still rejected.
+   */
+  readonly refusals?: ReadonlyArray<{ readonly opId: OpId; readonly refusal: unknown }> | undefined
+  /**
+   * @deprecated Send `refusals`; removed in the next release. Words the server
+   * chose for a person, for some of `rejected`.
    */
   readonly reasons?: ReadonlyArray<{ readonly opId: OpId; readonly reason: string }> | undefined
   /** Sends from the request that are durably committed, so the replica can drop them. */
@@ -166,6 +173,15 @@ export interface ReplicaStatus {
  */
 export interface Rejection {
   readonly opId: OpId
+  /**
+   * Why, typed. None when the server named no refusal (an older or a custom
+   * server), or one this build cannot read (reported as `UnknownRefusal`).
+   */
+  readonly refusal: Option.Option<SyncRefusal>
+  /**
+   * @deprecated Read `refusal`, through `SyncRefusal.match`; removed in the
+   * next release. The server's words from its `reasons`.
+   */
   readonly reason: Option.Option<string>
   readonly operation: Operation
 }
@@ -364,6 +380,9 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
   const ExchangeSchema = Schema.Struct({
     operations: Schema.Array(Schema.Unknown),
     rejected: Schema.Array(OpId),
+    // Each refusal is decoded on its own, when the rejection is read: one this
+    // build cannot read must not fail the exchange that rejected its operation.
+    refusals: Schema.optional(Schema.Array(Schema.Struct({ opId: OpId, refusal: Schema.Unknown }))),
     // A server's words for a person, bounded: a reply is not a place for a document.
     reasons: Schema.optional(
       Schema.Array(
@@ -806,7 +825,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
                   message: 'Server both acknowledged and rejected an operation',
                 })
             }
-            for (const { opId } of response.reasons ?? [])
+            for (const { opId } of [...(response.refusals ?? []), ...(response.reasons ?? [])])
               if (!rejected.has(opId))
                 return yield* new ForeignRejectionError({
                   opId,
@@ -871,12 +890,19 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
           const reasonOf = new Map(
             (response.reasons ?? []).map(({ opId, reason }) => [opId, reason] as const),
           )
+          const refusalOf = new Map<string, SyncRefusal>()
+          for (const { opId, refusal } of response.refusals ?? []) {
+            const decoded = decodeRefusal(refusal)
+            if (Option.isSome(decoded)) refusalOf.set(opId, decoded.value)
+            else yield* Diagnostics.report(unknownRefusal(documentId, replicaId, opId, refusal))
+          }
           // Every rejected id was sent: an unknown one failed the exchange above.
           const sentOf = new Map(
             sent.pending.map(operation => [operation.opId, operation] as const),
           )
           const refused = response.rejected.map((opId): Rejection => ({
             opId,
+            refusal: Option.fromUndefinedOr(refusalOf.get(opId)),
             reason: Option.fromUndefinedOr(reasonOf.get(opId)),
             operation: sentOf.get(opId)!,
           }))

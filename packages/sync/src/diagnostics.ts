@@ -32,6 +32,20 @@ export interface HistoryRebuilt extends Diagnostic {
   readonly replicaId: string
 }
 
+/**
+ * The server rejected an operation with a refusal this build cannot read: a
+ * newer server's case, or one that does not decode. The rejection stands, and
+ * reads with no refusal.
+ */
+export interface UnknownRefusal extends Diagnostic {
+  readonly _tag: 'UnknownRefusal'
+  readonly documentId: string
+  readonly replicaId: string
+  readonly opId: string
+  /** What the server sent, as it sent it. */
+  readonly refusal: unknown
+}
+
 /** Where a document host broke. */
 export type HostStage =
   /** Making or accepting the socket pair (`foldkit-sync/do`). */
@@ -78,7 +92,12 @@ export interface ListenerFailed extends Diagnostic {
 }
 
 /** Every diagnostic Sync reports. */
-export type SyncDiagnostic = ExchangeFailed | HistoryRebuilt | HostDefect | ListenerFailed
+export type SyncDiagnostic =
+  | ExchangeFailed
+  | HistoryRebuilt
+  | HostDefect
+  | ListenerFailed
+  | UnknownRefusal
 
 export const exchangeFailed = (
   documentId: string,
@@ -101,6 +120,22 @@ export const historyRebuilt = (documentId: string, replicaId: string): HistoryRe
   message: `${documentId} (replica ${replicaId}): the server's history changed (another epoch), so the committed state was rebuilt from it; unsent edits were kept.`,
   documentId,
   replicaId,
+})
+
+export const unknownRefusal = (
+  documentId: string,
+  replicaId: string,
+  opId: string,
+  refusal: unknown,
+): UnknownRefusal => ({
+  _tag: 'UnknownRefusal',
+  source,
+  level: 'warning',
+  message: `${documentId} (replica ${replicaId}): the server rejected ${opId} with a refusal this build cannot read; it reads with none.`,
+  documentId,
+  replicaId,
+  opId,
+  refusal,
 })
 
 const stageText: Record<HostStage, string> = {
