@@ -204,8 +204,8 @@ parent owns any request. The generated view retains its submit button, drawn
 The [waitlist](../../examples/foldkit/form/src/main.ts) and
 [login](../../examples/foldkit/auth/src/page/loggedOut/page/login.ts) are real
 custom-layout adopters. The [UI integration tests](test/ui.test.ts) demonstrate
-the generated view with UI field overrides through a Submodel and a strict
-`FormView.submodel(..., { canSubmit: form.isValid })` gate.
+the generated view with UI field overrides through a Submodel and a
+`FormView.submodel(..., { canSubmit: form.isValid })` marking.
 
 ## Example
 
@@ -537,7 +537,8 @@ answered: a list refreshed after it shows that through its own `Refreshing`.
 A write that landed may leave the form unable to submit: a create's form
 starts again blank. Its button reads `aria-disabled`, as it does whenever the
 form cannot submit, so it keeps the focus a press gave it, and a press shows
-what the blank form lacks.
+what the blank form lacks. The view input `saved`, which once chose between
+`disabled` and `aria-disabled`, has no effect any more and is deprecated.
 
 When the write did not land, the view input `failure` (`{ error, retry }`) says
 why, in the `failure` slot (`role="alert"`, above the submit button): a refusal
@@ -554,11 +555,16 @@ EditForm.view(model, h, {
 })
 ```
 
-The submit button is enabled while a check runs and nothing is invalid: a submit
-then waits for the answer, rather than being refused. That leniency is
-`form.canSubmit`, and `FormView.submodel` takes the predicate explicitly so
-the choice stays visible: pass a strict one to disable through checks, or
-`() => true` to never pre-disable and validate wholly at submit.
+A submit made while a check runs waits for the answer by default, rather than
+being refused, and the button stays unmarked meanwhile. That leniency is the
+form's, in `update`; `form.canSubmit` reads it. A page that wants a submit
+refused until every check answers makes the form with `submitWaits: false`
+(`Form.make(…, { submitWaits: false })`): `update` then hands out nothing while
+a check runs, and `form.canSubmit`, which `FormView.submodel` reads by default,
+is false until the answers land, so the button reads `aria-disabled` to match.
+`FormView.submodel`'s `canSubmit` option only chooses when the button is marked
+(`() => true` never marks it, and validates wholly at submit); it cannot make
+a submit be refused or accepted, so the drawn frame is never what decides.
 
 The generated button is never natively `disabled`: it reads `aria-disabled`
 while the form cannot submit or is submitting, so Enter in a field always
@@ -570,8 +576,12 @@ submit the form cannot take marks each missing key invalid and shows why (the
 fields to fix, the errors), hands out nothing, and one the Model can take
 goes through. A press of the button does the same. The button looks disabled
 through the `disabled` treatment of the recipes, which reads
-`[aria-disabled="true"]`, and a screen reader hears it disabled. Moving focus
-to the first missing key is the page's, as the waitlist does. A
+`[aria-disabled="true"]`, and a screen reader hears it disabled. A style of
+your own on the `submit` Slot must match `[aria-disabled="true"]` as well as
+`:disabled`, and keep it out of its hover and press rules. Moving focus
+to the first missing key is the page's, as the waitlist's `FocusField` does:
+without it a repeated refused press changes nothing a person can perceive once
+the errors are shown. A
 custom submit drawn with `Button.view` is likewise only `aria-disabled`, so a
 strict page also refuses a `Submitted` in
 `update` while a check runs: the

@@ -687,7 +687,7 @@ describe('FormView.submodel submit gating', () => {
     expect(button(root)?.data?.attrs?.['aria-disabled']).toBeUndefined()
   })
 
-  it('takes a strict predicate that disables through checks', () => {
+  it('takes a predicate that marks the button aria-disabled, and only marks it', () => {
     const root = drawn(
       FormView.submodel(Edit, FormView.define(Edit), { canSubmit: () => false }),
       ready,

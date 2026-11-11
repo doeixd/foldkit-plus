@@ -358,6 +358,14 @@ export interface FormOptions<
   /** How long a key rests before its check runs, so typing does not ask per keystroke. Default 300ms. */
   readonly debounce?: Duration.Input
   /**
+   * Whether a submit made while a check runs waits for its answer (default
+   * `true`). `false` refuses it instead: nothing is handed out and nothing
+   * waits, the checks go on, and `canSubmit` is `false` until they answer. The
+   * refusal is the form's own, decided from the Model, so a submit sent before
+   * the frame that drew the button disabled is refused too.
+   */
+  readonly submitWaits?: boolean
+  /**
    * The form of a nested key, made with `Form.make` from the input the key nests
    * (`Relation.nested(relation, input)`): the same form that edits the target
    * alone. A nested key given none gets a plain form of its input, with this
@@ -1161,6 +1169,7 @@ const Core = {
     const checks: Readonly<Partial<Record<Key, FormCheck<unknown, Partial<Value>, R>>>> =
       (options.checks ?? {}) as never
     const debounce = options.debounce ?? '300 millis'
+    const submitWaits = options.submitWaits ?? true
 
     /**
      * A key's check, after the debounce: a Command definition, so a test matches
@@ -1556,7 +1565,8 @@ const Core = {
             },
         (form, row) => form.engine.submit(row),
       )
-      if (isValidating(next)) return { model: { ...next, submitPending: true }, commands }
+      if (isValidating(next))
+        return { model: submitWaits ? { ...next, submitPending: true } : next, commands }
       return { ...finish(next), commands }
     }
 
@@ -2049,7 +2059,8 @@ const Core = {
         (rowsOf(model)[key] ?? fail(name, `"${key}" holds a draft, not rows`)) as never,
       /**
        * Whether a submit now could go through: nothing is invalid. A check still
-       * running does not stop it; the submit waits for the answer.
+       * running does not stop it; the submit waits for the answer, unless the
+       * form was made with `submitWaits: false`, which refuses it.
        */
       canSubmit: (model: Model): boolean => {
         const next = submit(model)

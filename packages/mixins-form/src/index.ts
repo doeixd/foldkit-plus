@@ -143,6 +143,14 @@ export interface FormViewInputs<
    * refused again), and the button then reads `words.resubmit`.
    */
   readonly failure?: SubmitFailure | undefined
+  /**
+   * Whether the write the last submit started landed, and the form is not
+   * edited since.
+   *
+   * @deprecated No effect: the submit button is `aria-disabled`, never
+   * `disabled`, so it keeps the focus whatever this says. Removed next release.
+   */
+  readonly saved?: boolean | undefined
 }
 
 /** Why a submitted write did not land, for `FormViewInputs.failure`. */
@@ -222,6 +230,12 @@ export interface FormInput<
 > extends FormViewInputs<Key, ControlKey, PickerKey> {
   readonly model: Model
   readonly errors: ReadonlyArray<string>
+  /**
+   * Whether the submit button is drawn without `aria-disabled`. It only marks
+   * the button: a press or Enter still reaches `update`, which decides from the
+   * Model. Whether a submit made while a check runs is refused is the form's
+   * `submitWaits` option, not this.
+   */
   readonly canSubmit: boolean
   /**
    * Whether the form is submitting: a submit waits for a check, or the
@@ -1249,14 +1263,13 @@ export const FormView = {
     >,
     options: {
       /**
-       * When the submit waits instead of staying disabled. `true` while a
-       * check is running means submitted work waits for it, and the button
-       * stays enabled; `false` keeps the button disabled until every key is
-       * valid. Default `form.canSubmit` (lenient): a submit made mid-check
-       * waits for it. Pass a strict predicate to disable through checks
-       * instead, such as `model => PostForm.engine.value(model.form) !==
-       * undefined`, or `() => true` to never pre-disable and validate wholly
-       * at submit.
+       * When the button reads `aria-disabled`. It marks the button and nothing
+       * more: `update` decides every submit from the Model. Default
+       * `form.canSubmit`, which follows the form's `submitWaits`: with the
+       * default `true` a submit made mid-check waits for the answer and the
+       * button stays enabled; with `false` the form refuses it and the button
+       * reads disabled through the check. Pass `() => true` to never mark it and
+       * validate wholly at submit.
        */
       readonly canSubmit?: (model: Model) => boolean
     } = {},

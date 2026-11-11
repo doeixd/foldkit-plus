@@ -482,6 +482,10 @@ const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
 })
 ```
 
+`submitWaits: false` refuses a submit made while a check runs instead of
+holding it for the answer (the default); `canSubmit` is then false until the
+checks answer.
+
 - A check runs **after** the key's own schema passes, never instead of it, so it
   receives a decoded value: a number, not the text that was typed.
 - While it runs the key reads `Validating`, which is Foldkit core's own state for

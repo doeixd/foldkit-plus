@@ -254,7 +254,11 @@ Data.mutation(model, requestId)._tag === 'Pending'`. Busy ends at the answer.
 The generated submit button is never natively `disabled`: it is `aria-disabled` while the
 form cannot submit, so Enter, even one sent before the frame that enables the button, always
 reaches `update`, which refuses it from the Model (every key marked, errors shown, nothing
-submitted) or accepts it. Focus to the first missing key is the page's.
+submitted) or accepts it. Focus to the first missing key is the page's. A style of your own on
+the `submit` Slot matches `[aria-disabled="true"]` as well as `:disabled`. A form made with
+`submitWaits: false` refuses a submit while a check runs (default: it waits) and its
+`canSubmit` is false then; `FormView.submodel`'s `canSubmit` option only marks the button.
+The view input `saved` is deprecated and has no effect.
 `failure: { error, retry }` draws why the write did not land in the `failure`
 Slot (`role="alert"`): a refusal naming no key (one naming a key goes through
 `Message.Refused`), or a failure, after which `retry` makes the button read
