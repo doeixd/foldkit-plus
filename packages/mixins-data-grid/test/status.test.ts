@@ -116,6 +116,18 @@ describe('the rows’ status', () => {
     expect(Inert.value(waiting, 'disabled')).toBe(true)
   })
 
+  // ARIA counts the header row, so a known empty grid is 1 and an unknown count -1.
+  test.each([
+    ['loading with no rows', '-1', none, RowStatus.Loading()],
+    ['failed with no rows', '-1', none, RowStatus.Failed({ message: 'offline' })],
+    ['answered with no rows', '1', none, RowStatus.Ready()],
+    ['refreshing an empty answer', '1', none, RowStatus.Refreshing()],
+    ['loading over known rows', '3', all, RowStatus.Loading()],
+    ['failed over known rows', '3', all, RowStatus.Failed({ message: 'offline' })],
+  ])('the row count, %s, is %s', (_, count, rows, status) => {
+    expect(Inert.value(grid(draw(input({ rows, status }))), 'aria-rowcount')).toBe(count)
+  })
+
   test('a sortable header says how it sorts; another says nothing', () => {
     const drawn = draw(
       input({ sort: { name: { direction: 'desc', message: Message.Sorted({ column: 'name' }) } } }),

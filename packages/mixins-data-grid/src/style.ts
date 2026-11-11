@@ -5,6 +5,7 @@
  */
 import { Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
+import { Utilities } from 'foldkit-mixins/utilities'
 import { GridSlots } from './slots.js'
 
 /** The tokens the grid's styles draw with; the marks' too (`marks.ts`). */
@@ -311,7 +312,11 @@ export const GridStyle = Style.forSlots(GridSlots)(
       }),
     ),
     placeholder: Style.self({ background: ref.surface.subtle }),
-    status: Style.self({ color: ref.text.muted, padding: ref.space.md }),
+    // A wait is said only once it is noticeable; "No rows." and a failure at once.
+    status: Style.compose(
+      Style.self({ color: ref.text.muted, padding: ref.space.md }),
+      Utilities.busyReveal,
+    ),
   },
   { layer: Layers.standard.layer('components') },
 )

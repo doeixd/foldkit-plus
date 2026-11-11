@@ -137,7 +137,9 @@ the whole wiring, compiled.
   `status`, `onRetry` (`list.refresh`), `onMore` (`list.more`) and `sort`
   (`foldkit-crud`'s `Sort`). Sorting stays the query's. Attach
   `MoreOnScroll` to the view (`.pipe(MoreOnScroll)`) to also send `onMore` as
-  the end comes into view.
+  the end comes into view. With `status`, the grid is `aria-busy` while
+  loading, `GridStyle` reveals its "Loading…" only after 0.6s, and
+  `aria-rowcount` is `-1` until an empty source has answered.
 - Selection is opt-in: `DataGrid.make({ ..., rowSelection: 'multiple',
   cellSelection: true })`. Ask `GridSelection.isSelected(model.grid.selection.rows)`
   once per render; select-all is `AllExcept`, so it holds rows not loaded.

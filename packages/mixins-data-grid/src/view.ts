@@ -1099,12 +1099,27 @@ const view = <Message>() => ({
           ),
         )
 
-        const rowCount = RowCount.match(projection.rowCount, {
-          // The header row is the first row ARIA counts.
-          Known: ({ total }) => total + 1,
-          // ARIA's own spelling of a count not known yet.
-          Unknown: () => -1,
-        })
+        // No rows while the source is loading, or failed with nothing kept, is
+        // no answer yet: a count of 0 would tell a screen reader the grid is empty.
+        const empty = addressableRows(projection.rowCount) === 0
+        const status = input.status ?? RowStatus.Ready()
+        const unanswered =
+          empty &&
+          RowStatus.match(status, {
+            Ready: () => false,
+            Refreshing: () => false,
+            Loading: () => true,
+            Failed: () => true,
+          })
+        // ARIA's own spelling of a count not known yet.
+        const unknownCount = -1
+        const rowCount = unanswered
+          ? unknownCount
+          : RowCount.match(projection.rowCount, {
+              // The header row is the first row ARIA counts.
+              Known: ({ total }) => total + 1,
+              Unknown: () => unknownCount,
+            })
 
         // The end edge is the side the text runs toward, so a drag that way widens.
         const toward = input.direction === 'rtl' ? -1 : 1
@@ -1433,9 +1448,7 @@ const view = <Message>() => ({
         const bodyRows = Array.from({ length: shown.rows.end - shown.rows.start }, (_, offset) =>
           rowAt(shown.rows.start + offset),
         )
-        const empty = addressableRows(projection.rowCount) === 0
 
-        const status = input.status ?? RowStatus.Ready()
         const busy = isBusy(status)
         const words = input.words ?? {}
         const failure = (message: string): ReadonlyArray<Html> => [

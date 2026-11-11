@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A loading data grid no longer tells assistive technology it is empty**
+  (`foldkit-mixins-data-grid`). With no rows and no answer yet (`Loading`, or
+  `Failed` with nothing kept, as `GridCrud.rows` and `GridCrud.status` give
+  for an unanswered Remote page), the grid wrote `aria-rowcount="1"`, the
+  header alone: a known count of no rows. It writes `-1` there, ARIA's count
+  not known, until the source answers.
+
 - **A Disclosure's `animatePanel` follows the `motion` knob and reduced motion**
   (`foldkit-mixins-ui`). Upstream writes the panel's height transition inline
   (`grid-template-rows 200ms ease-out`), which no recipe rule beats, so the
@@ -397,6 +404,11 @@ version changed; `pnpm` skips versions already in the registry.
   again), so a page renders once in `keep` instead of once a minute.
 
 ### Changed
+
+- **The data grid says it is loading only once the wait is noticeable**
+  (`foldkit-mixins-data-grid`). `GridStyle`'s `status` slot takes
+  `Utilities.busyReveal`, so a page answered within 0.6s never flashes
+  "Loading…"; "No rows." and a failure still show at once.
 
 - **`Loading.shown` is deprecated** (`foldkit-mixins-crud`). It is now
   `Utilities.busyReveal` from `foldkit-mixins/utilities` under its old name,

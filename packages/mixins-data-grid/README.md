@@ -205,7 +205,11 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
 - **Where the rows stand**, from `status` (`GridCrud.status` for a Remote
   page): the grid is `aria-busy` while loading or refreshing; with no rows
   it says loading, or the failure with a retry when `onRetry` is given; with
-  rows, a failure is said in the `footer`, below them. `onMore` puts a More
+  rows, a failure is said in the `footer`, below them. `GridStyle` shows the
+  loading line only once the wait is noticeable (`Utilities.busyReveal` from
+  `foldkit-mixins/utilities`), its space held. While there are no rows and no
+  answer (loading, or failed with nothing kept), `aria-rowcount` is `-1`, the
+  count not known, rather than an empty grid's. `onMore` puts a More
   button in the footer while the count is not known. Attach `MoreOnScroll`
   (`DataGridView<Message>().define(Grid).pipe(MoreOnScroll)`) and the button
   also sends it when it comes within 200px of the grid's visible box, and
