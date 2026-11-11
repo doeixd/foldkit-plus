@@ -13,7 +13,11 @@ import {
 import { TOP_RESULT_COUNT, isCompleteCatalogRequired } from '../domain'
 import { DomainsQuery } from '../domainsQuery'
 import { routeToQuery } from '../route'
-import { searchViewState } from '../searchViewState'
+import {
+  DomainRequestPresentation,
+  SearchViewState,
+  searchViewState,
+} from '../searchViewState'
 import { scheduleDomainRequest } from './domainLoading'
 import { informResultsList, resetResultsList } from './resultsList'
 
@@ -72,15 +76,30 @@ export const clearSearch = changeSearchQuery('')
 export const retrySearch = makeStep(model => {
   const search = searchViewState(model)
 
-  if (search._tag === 'Ready' && search.domainRequest._tag === 'Failed') {
-    const range = isCompleteCatalogRequired(
-      model.availabilityFilter,
-      model.sortOrder,
-    )
-      ? { offset: 0, limit: domainTlds.length }
-      : search.domainRequest
+  const failed = SearchViewState.matchOrElse(
+    search,
+    {
+      Ready: ({ domainRequest }) =>
+        DomainRequestPresentation.matchOrElse(
+          domainRequest,
+          { Failed: request => Option.some(request) },
+          () => Option.none(),
+        ),
+    },
+    () => Option.none(),
+  )
 
-    return scheduleDomainRequest(range, true)
-  }
-  return searchQuery(routeToQuery(model.route), true)
+  return Option.match(failed, {
+    onNone: () => searchQuery(routeToQuery(model.route), true),
+    onSome: request => {
+      const range = isCompleteCatalogRequired(
+        model.availabilityFilter,
+        model.sortOrder,
+      )
+        ? { offset: 0, limit: domainTlds.length }
+        : request
+
+      return scheduleDomainRequest(range, true)
+    },
+  })
 })

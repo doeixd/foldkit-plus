@@ -144,8 +144,16 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     }).pipe(Effect.provide(client)),
   )
   const describeLive = (event: typeof liveEvent): string => {
-    if (event?._tag !== 'LiveReceived' || event.event._tag !== 'EntityPatched') return 'nothing'
-    return `${event.event._tag} ${event.event.changed.join(',')}=${String(event.event.values.name)}`
+    if (event?._tag !== 'LiveReceived') return 'nothing'
+    const live = event.event
+    return Match.valueTags(live, {
+      EntityPatched: patched =>
+        `${patched._tag} ${patched.changed.join(',')}=${String(patched.values.name)}`,
+      EntityDeleted: () => 'nothing',
+      ConnectionInsert: () => 'nothing',
+      ConnectionRemove: () => 'nothing',
+      ConnectionInvalidate: () => 'nothing',
+    })
   }
   const renamed = Data.reduce(rename.model, settled)
   say(

@@ -1033,24 +1033,32 @@ export const SiteRenderer = Renderer.make(Site, {
   LatestPages: ({ props, data, appearance, h }) => {
     const drawn = LatestPagesLook.draw({ appearance, h })
     const rows = LatestPages.rows(data)
-    if (rows._tag !== 'Ready' && rows._tag !== 'Refreshing') {
-      // A failed read is an alert, never busy-forever.
-      if (rows._tag === 'Failed')
-        return Failure.view(drawn.status, h, 'The pages could not be read.')
-      return Loading.view(drawn.status, h, 'Loading pages…')
+    const listed = (page: {
+      readonly items: ReadonlyArray<{ readonly id: string; readonly label: string }>
+    }) => {
+      const items = page.items
+        .filter(item => !Option.contains(props.except, item.id))
+        .slice(0, props.count)
+      // Nothing to leave out of is empty; a list left with nothing by `except`
+      // draws nothing, as it did: every page that carries this list leaves out
+      // the page it is on.
+      if (items.length === 0 && page.items.length === 0)
+        return Empty.view(drawn.status, h, 'Nothing yet.')
+      return h.ul(
+        [],
+        items.map(item => h.li([], [item.label])),
+      )
     }
-    const items = rows.value.items
-      .filter(item => !Option.contains(props.except, item.id))
-      .slice(0, props.count)
-    // Nothing to leave out of is empty; a list left with nothing by `except`
-    // draws nothing, as it did: every page that carries this list leaves out
-    // the page it is on.
-    if (items.length === 0 && rows.value.items.length === 0)
-      return Empty.view(drawn.status, h, 'Nothing yet.')
-    return h.ul(
-      [],
-      items.map(item => h.li([], [item.label])),
-    )
+    const loading = () => Loading.view(drawn.status, h, 'Loading pages…')
+    return RemoteData.match(rows, {
+      Ready: listed,
+      Refreshing: listed,
+      // A failed read is an alert, never busy-forever.
+      Failed: () => Failure.view(drawn.status, h, 'The pages could not be read.'),
+      Initial: loading,
+      Loading: loading,
+      NotFound: loading,
+    })
   },
 })
 

@@ -786,9 +786,11 @@ const resultsListView = (
 ): Html => {
   const search = searchViewState(model)
 
-  const viewport = (): Html => {
-    if (search._tag === 'Idle') return h.empty
-    return h.block(
+  const viewport: Html = SearchViewState.matchOrElse(
+    search,
+    { Idle: () => h.empty },
+    () =>
+      h.block(
             ResultsListBinding.embedView({
               slotId: RESULTS_LIST_ID,
               model: model.resultsList,
@@ -830,13 +832,13 @@ const resultsListView = (
                 ]),
               },
             }),
-    )
-  }
+      ),
+  )
 
   return h.div(
     [h.Class('all-results')],
     [
-      viewport(),
+      viewport,
       h.ul(
         [h.Class('results-preview'), h.AriaHidden(true)],
         Array.map(Array.take(results, PREVIEW_RESULT_COUNT), domain =>
