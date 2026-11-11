@@ -221,10 +221,15 @@ In the same change:
     primitives' helpers, the Builder's `RowPressed`, `RowToggled` and
     `Copied`, and `LiveAnnounce.say` removed;
   - `foldkit-remote`'s `Defect` error tag (ce1d99d).
-- [ ] **The branch's PR.** Unmerged since #497: #495, the examples' lint,
-      #482's fix, the client-defect fix, the design notes. Issues done on it,
-      to close when it merges: #495, #481, #482, #230 (its stamps are a backlog
-      item for the next release).
+- [ ] **The branch's PR.** Unmerged since #497 (merged 2026-11-10): about a
+      hundred commits, never through CI, since CI runs on pull requests. The
+      whole CI sequence passed locally on 9b343198 (2026-11-11; only
+      postgres-locale skipped, no server here). Issues done on it, to close
+      when it merges: #495, #481, #482, #230 (its stamps wait for the next
+      release), #236, #500, #479, #478, #498, #499, #501, #502, #435, #432
+      (phase 4 recorded), #438 (Phase 0 below the bar), #235 (closed on the
+      parts). domains-plus's client JS has 1.2 kB of headroom (192.3 of
+      193.5 kB).
 
 ## The queue
 
