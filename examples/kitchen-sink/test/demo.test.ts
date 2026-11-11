@@ -27,10 +27,13 @@ describe('kitchen sink', () => {
     // foldkit-agent, bound to the application's own runtime
     expect(lines).toContain('headless board (read by its Subscription): Ready Apollo II')
     expect(lines).toContain('capabilities: requested_create_note, rename_note, selected_note')
+    expect(lines).toContain('agent create: completed')
     expect(lines).toContain('notes after agent: First note, From the agent')
 
     // The adapters project the same contract
-    expect(lines).toContain('webmcp call: Dispatched RequestedCreateNote')
+    expect(lines).toContain(
+      'webmcp call: Completed: RequestedCreateNote reached its declared state',
+    )
     expect(lines).toContain('mcp tools: requested_create_note, rename_note, selected_note')
     expect(lines).toContain('a2a card: Kitchen Sink (3 skills)')
     expect(lines).toContain('native actions: requested_create_note, rename_note, selected_note')

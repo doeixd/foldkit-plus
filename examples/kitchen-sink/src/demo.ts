@@ -302,9 +302,12 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       .join(', ')}`,
   )
   say(`agent context: ${JSON.stringify(await Effect.runPromise(agent.context))}`)
-  await Effect.runPromise(
+  // The create declares a state completion: dispatched by constructor, its
+  // outcome is typed as a state reached, with no fact Message to read.
+  const created = await Effect.runPromise(
     agent.messages.dispatch(Message.RequestedCreateNote, { id: 'n2', body: 'From the agent' }),
   )
+  say(`agent create: ${created.completion?.status ?? 'no contract'}`)
   say(
     `notes after agent: ${app.host
       .model()
