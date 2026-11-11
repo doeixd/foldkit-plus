@@ -1,6 +1,6 @@
 # Foldkit Plus: Reusing Effect Infrastructure in Sync and Durable
 
-> **Implementation status, checked 2026-11-11:** The decision holds and `foldkit-durable` uses Effect SQL. §14.1's Durable prototype is built and confirms it (keep SQL); §14.2 and §14.3 are unbuilt, and the four upstream PRs were never submitted. See the
+> **Implementation status, checked 2026-11-11:** The decision holds and `foldkit-durable` uses Effect SQL. §14.1's Durable prototype and §14.2's Sync storage prototype are built and confirm it (keep SQL, keep Sync's own IndexedDB storage); §14.3 is unbuilt, and the four upstream PRs were never submitted. See the
 > [design index](./README.md#where-each-design-stands).
 
 **Status:** design review / upstream integration plan  
@@ -8,8 +8,9 @@
 **Target packages:** \`foldkit-sync\`, \`foldkit-durable\`  
 **Effect areas reviewed:** \`effect/unstable/eventlog\`, \`effect/unstable/persistence\`, \`effect/unstable/rpc\`, \`effect/unstable/socket\`, \`effect/unstable/workflow\`, Effect SQL
 
-> **Status: the decision is landed; the prototypes and the PRs are not, and
-> they are gated on different things.** Audited against the code.
+> **Status: the decision is landed and two of its three prototypes confirm it;
+> the third prototype and the PRs are not done, and they are gated on different
+> things.** Audited against the code.
 >
 > **§1's decision holds and is visible.** No `EventLog` or `EventJournal`
 > appears anywhere in `packages/`. `foldkit-durable` sits directly on Effect SQL
@@ -21,12 +22,15 @@
 > **§14.1's Durable prototype is built** and keeps the SQL implementation: compaction
 > and D1 need invasive workarounds over EventLog's `Storage` (§14.1's status).
 >
-> **§6.3, §10, §11, §14.2 and §14.3's prototypes are unbuilt.** Sync has its own socket
-> transport (`transport.ts`) rather than Effect RPC, and its own IndexedDB
-> storage (`indexedDb.ts`) rather than Effect's `KeyValueStore`. Both work.
-> §14.2 and §14.3's acceptance criteria are already written, so the gate here is effort and
-> priority rather than missing evidence — which makes this the one part of the
-> document that is genuinely waiting on someone to do it.
+> **§14.2's Sync storage prototype is built** and keeps `indexedDb.ts`: a
+> `KeyValueStore` lets two writers from one revision both succeed, and the typed
+> IndexedDB of `@effect/platform-browser` meets every criterion but gains too
+> little to adopt (§14.2's status).
+>
+> **§6.3, §11 and §14.3's prototypes are unbuilt.** Sync has its own socket
+> transport (`transport.ts`) rather than Effect RPC. It works, and §14.3's
+> acceptance criteria are already written, so the gate here is effort and
+> priority rather than missing evidence.
 >
 > **§7's four PRs are gated on a queue this repository does not control.** They
 > are proposals with rationale, not submitted work, and nothing here can move
@@ -40,7 +44,10 @@
 > `readwrite` transaction with `durability: 'strict'` — because Sync needed
 > compare-and-swap and the generic implementation could not give it. That is a
 > working reference implementation of the proposal, written for an independent
-> reason, which is the strongest case any of the four has.
+> reason, which is the strongest case any of the four has. Sync itself no longer
+> needs it: §14.2 found that `@effect/platform-browser`'s typed IndexedDB already
+> runs several queries in one transaction, and that an atomic `modify` alone would
+> not make the `KeyValueStore` route pass.
 
 ## 1. Executive decision
 
@@ -1340,6 +1347,87 @@ checkpoint adoption unchanged
 ~~~
 
 If atomic revision protection cannot be represented cleanly, keep the bespoke IndexedDB implementation.
+
+### Status, 2026-11-11: built against Effect 4.1.1; keep the bespoke IndexedDB storage
+
+The prototypes are `packages/sync/test/prototype/effectStorage.ts`, behind
+Sync's `Storage` seam (`load`, `save` under compare-and-swap on the revision,
+and the optional `append`):
+
+- `keyValueStorage` is §10's shape: the encoded replica as JSON under one key
+  of `BrowserKeyValueStore.layerIndexedDb`, compare-and-swap through `modify`.
+- `transactionalStorage` uses `@effect/platform-browser`'s typed IndexedDB
+  (`IndexedDbDatabase`, `IndexedDbTable`) with `indexedDb.ts`'s layout (state,
+  revision, outbox), reading the revision and writing inside one
+  `withTransaction`.
+
+`criteria.browser.test.ts` runs the seven criteria in Chromium against
+`indexedDb` and both prototypes (24 tests, about five seconds). The writer
+criterion is two tests: a second tab opened on a revision the first has since
+moved, and two connections saving from one revision at once, both at creation
+and at update. `criteria.mutations.ts` breaks each criterion in each storage
+(10 mutations, all killed), including running each query of the typed write in
+its own transaction, which only the race catches. The prototypes are kept as
+that evidence and are not exported.
+
+Paths are under `node_modules/effect/dist/` (`persistence/`, `eventlog/`) and
+`node_modules/@effect/platform-browser/dist/`.
+
+| Criterion | `KeyValueStore` | Typed IndexedDB transaction |
+|---|---|---|
+| offline submit persists | native | native; keeps `append`, so a submit writes the operation, not the document |
+| optimistic replay unchanged | native | native |
+| reload reconstructs same state | native (a JSON round trip of the encoded state) | native |
+| two tabs cannot share writer revision | **fails under a race.** A tab on an old revision is refused, but two writers from one revision both succeed, at creation and at update: the generic `modify` is a `get` then a `set` (`persistence/KeyValueStore.js:83-89`), `BrowserKeyValueStore` overrides neither (`BrowserKeyValueStore.js:67-139`), and each write is a transaction of its own with no durability option (`:190-191`). | small adapter. The revision read and the writes share one `IDBTransaction` (`IndexedDbQueryBuilder.d.ts:87-91`), which a failed effect aborts and `PreventSchedulerYield` keeps from committing between queries (`IndexedDbQueryBuilder.js:914-921`); durability is an option, `strict` as in `indexedDb.ts`. |
+| server rejection drops operation and rebases | native | native |
+| lost acknowledgement retries same operation | native | native |
+| checkpoint adoption unchanged | native | native |
+
+Rejection, retry, checkpoint and replay are Sync's protocol; a storage only
+has to keep what the replica saves, so those rows say nothing for or against
+Effect's storage. The writer row decides.
+
+What the two upstream asks would change:
+
+- **PR 3, atomic IndexedDB `modify`, is not needed by Sync, and would not be
+  enough for the `KeyValueStore` route.** It would close the update race, but
+  `modify` "updates the value of the specified key if it exists"
+  (`persistence/KeyValueStore.d.ts:66-69`), so a first `save(state, null)` must
+  still check with `has` and write with `set`, and two tabs creating a replica
+  still both succeed. One key also cannot carry an outbox beside the state, so
+  every submit rewrites the whole document. The typed IndexedDB route needs no
+  change at all.
+- **PR 4, manual settlement for `PersistedQueue`, is not needed.** There is no
+  browser `PersistedQueueStore` (memory, Redis and SQL only,
+  `persistence/PersistedQueue.d.ts:322`, `:387`, `:426`), and the typed
+  prototype keeps the outbox beside the state in one transaction, which is the
+  atomicity §7.4 feared a separate queue would lose.
+
+`EventJournal.makeIndexedDb` (`eventlog/EventJournal.js:577`) is no candidate
+either: it never deletes an entry, only the whole database (`:816`), so a
+rejected operation cannot be dropped or a base replaced by a checkpoint;
+`writeMany` runs the caller's effect before it writes, in a transaction of its
+own (`:652-664`); and tabs share one journal under a Web Lock (`:845-858`),
+where Sync refuses a second writer.
+
+The typed IndexedDB has two gaps `indexedDb.ts` closes. It sets no
+`onversionchange`, so an open connection blocks another tab's upgrade until it
+closes; an adapter can set it on `query.database.current`. And an open that is
+reported blocked fails (`IndexedDbDatabase.js:148-153`) but still stores the
+connection when it later succeeds (`:232-241`), after the layer's finalizer has
+run (`:243`), so nothing closes it: the leak `indexedDb.ts`'s blocked-upgrade
+test covers, which only an upstream change can fix.
+
+**Decision: keep the bespoke IndexedDB storage.** Atomic revision protection
+can be represented cleanly, through the typed IndexedDB's `withTransaction`
+rather than through `KeyValueStore`, so §14.2's stop condition is not what
+decides. Adoption would replace about 150 lines of `indexedDb.ts` with about 95,
+and in exchange make `@effect/platform-browser`'s unstable modules a peer of
+`foldkit-sync`, require a migration that rewrites every stored row (the typed
+table stores `{ value }` rows where `indexedDb.ts` stores raw values), bring
+back the blocked-open leak, and add about 7 kB gzipped to a bundle (esbuild,
+an upper bound). Revisit if `foldkit-sync` takes that package for another
+reason. Neither PR 3 nor PR 4 is needed by Sync.
 
 ## 14.3 Sync-over-Effect-RPC prototype
 
