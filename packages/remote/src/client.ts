@@ -133,9 +133,9 @@ export const connectionChangeOf = (
   change: Schema.Schema.Type<typeof ConnectionChangeSchema>,
 ): ConnectionChange => {
   const edge = { key: change.edge.key, ref: { entity: change.edge.entity, id: change.edge.id } }
-  return change._tag === 'Insert'
-    ? { _tag: 'Insert', connection: change.connection, position: change.position, edge }
-    : { _tag: 'Remove', connection: change.connection, edge }
+  if (change._tag === 'Insert')
+    return { _tag: 'Insert', connection: change.connection, position: change.position, edge }
+  return { _tag: 'Remove', connection: change.connection, edge }
 }
 
 /** Reconstructs the client's `LiveEvent` from the wire's flattened `LiveChange`. */

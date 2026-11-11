@@ -327,10 +327,15 @@ export default [
         find: `      put(
         fields,
         key,
-        member._tag === 'Relation' ? relationField(member) : (member.schema as AnySchema),
+        Match.value(member).pipe(
+          Match.tag('Relation', relationField),
+          Match.orElse(other => other.schema as AnySchema),
+        ),
       )`,
-        replace: `      fields[key] =
-        member._tag === 'Relation' ? relationField(member) : (member.schema as AnySchema)`,
+        replace: `      fields[key] = Match.value(member).pipe(
+        Match.tag('Relation', relationField),
+        Match.orElse(other => other.schema as AnySchema),
+      )`,
       },
     ],
     tests,

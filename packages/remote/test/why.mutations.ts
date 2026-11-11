@@ -99,7 +99,12 @@ export default [
     '!keeps(to)',
     terms,
   ),
-  edit('every read is Initial for why', "data._tag !== 'Initial'", 'false', why),
+  edit(
+    'every read is Initial for why',
+    "Match.tag('Initial', () =>",
+    "Match.tag('Never', () =>",
+    why,
+  ),
   edit(
     'an unread read blames the Subscriptions',
     'names.length === 0 ? Why.NotObserved() : Why.NotFetching({ surfaces: names }),',

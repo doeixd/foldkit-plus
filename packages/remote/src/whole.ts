@@ -24,13 +24,15 @@ export type WholeLists = (entity: string) => ReadonlyArray<WholeList>
 /** A connection's one page, when it was read to both ends and is not stale. */
 const wholePage = (connection: Connection): Option.Option<Segment> => {
   const [only, ...rest] = connection.segments
-  return only !== undefined &&
-    rest.length === 0 &&
-    !connection.stale &&
-    only.start._tag === 'Terminal' &&
-    only.end._tag === 'Terminal'
-    ? Option.some(only)
-    : Option.none()
+  if (
+    only === undefined ||
+    rest.length !== 0 ||
+    connection.stale ||
+    only.start._tag !== 'Terminal' ||
+    only.end._tag !== 'Terminal'
+  )
+    return Option.none()
+  return Option.some(only)
 }
 
 /**

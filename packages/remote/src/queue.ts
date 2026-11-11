@@ -70,10 +70,10 @@ export const signedKey = (madeAs: MadeAs | undefined): Option.Option<string> =>
  * signed in heard under it, for good; a visitor only while no one has been.
  * A cookie dropped, or another's, under Ada's scope leaves it Ada's.
  */
-export const ownerAfter = (owner: Option.Option<MadeAs>, heard: MadeAs): Option.Option<MadeAs> =>
-  signedOwner(owner) || (Option.isSome(owner) && heard._tag === 'Visitor')
-    ? owner
-    : Option.some(heard)
+export const ownerAfter = (owner: Option.Option<MadeAs>, heard: MadeAs): Option.Option<MadeAs> => {
+  if (signedOwner(owner) || (Option.isSome(owner) && heard._tag === 'Visitor')) return owner
+  return Option.some(heard)
+}
 
 /** Two copies' owners as one: a signed-in owner over a visitor or none, the first if both. */
 export const ownerOf = (

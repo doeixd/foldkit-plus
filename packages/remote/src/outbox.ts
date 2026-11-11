@@ -695,8 +695,10 @@ const operationsIn = (
 ): ReadonlyArray<string> =>
   outbox.queue.flatMap(
     Queued.$match({
-      Readable: ({ write, stored }) =>
-        write.state._tag !== 'Failed' && pick(write, stored) ? [write.operation] : [],
+      Readable: ({ write, stored }) => {
+        if (write.state._tag === 'Failed' || !pick(write, stored)) return []
+        return [write.operation]
+      },
       Unreadable: () => [],
     }),
   )

@@ -4,7 +4,7 @@
  * patched with inverses. Settling is remove-the-layer, so overlapping layers
  * rebase for free.
  */
-import { Option } from 'effect'
+import { Match, Option } from 'effect'
 import {
   Operators,
   QueryEvaluateError,
@@ -85,7 +85,10 @@ const toOverlays = (id: string, changes: ReadonlyArray<ConnectionChange>): Conne
     id,
     connection: change.connection,
     edges: [change.edge],
-    position: change._tag === 'Insert' ? change.position : 'remove',
+    position: Match.valueTags(change, {
+      Insert: ({ position }) => position,
+      Remove: () => 'remove' as const,
+    }),
   }))
 
 const change = (

@@ -17,8 +17,8 @@ export default [
     edits: [
       {
         file: reporting,
-        find: "message._tag === 'MutationFailed' && before.mutations.pending.has(message.requestId)",
-        replace: "message._tag === 'MutationFailed'",
+        find: "message._tag !== 'MutationFailed' || !before.mutations.pending.has(message.requestId)",
+        replace: "message._tag !== 'MutationFailed'",
       },
     ],
     tests,

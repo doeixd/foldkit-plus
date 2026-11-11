@@ -78,8 +78,8 @@ export default [
   edit(
     "a failed entity's refresh drops its value",
     '../src/domain.ts',
-    '? failedWith(present, failure)',
-    "? { _tag: 'Failed', error: failure }",
+    'return failedWith(present, failure)',
+    "return { _tag: 'Failed', error: failure }",
   ),
   edit(
     'an invalidated list drops its pages',

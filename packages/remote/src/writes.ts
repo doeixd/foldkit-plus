@@ -88,8 +88,11 @@ const writes: WriteCapability = {
       const connections: Array<ConnectionChange> = []
       for (const operation of predicted) {
         if (isPatch(operation)) continue
-        if (operation._tag === 'Delete') deleted.push(operation)
-        else connections.push(operation)
+        if (operation._tag === 'Delete') {
+          deleted.push(operation)
+          continue
+        }
+        connections.push(operation)
       }
       // A patch's predicted values, adds and computes applied, as the visible store shows them.
       const answered: Answered = {

@@ -505,10 +505,12 @@ const transition = (
   // of splitting, and a query that chooses nothing falls through to `incoming` and
   // still splits. Substituting the Message here rather than recursing is what makes a
   // mark entry update the caret's stored marks through the path a toggle already uses.
-  const menu =
-    incoming._tag === 'Entered'
-      ? slashMenu(slashEntriesFor(model.hostId) ?? slashEntries, menuTextOf(model), model.menuIndex)
-      : undefined
+  const menu = Match.value(incoming).pipe(
+    Match.tag('Entered', () =>
+      slashMenu(slashEntriesFor(model.hostId) ?? slashEntries, menuTextOf(model), model.menuIndex),
+    ),
+    Match.orElse(() => undefined),
+  )
   const message = menu?.highlighted?.message ?? incoming
   return Match.value(message).pipe(
     Match.withReturnType<Update.ReturnWithOutMessage<EditorView, Message, OutMessage>>(),
@@ -529,7 +531,8 @@ const transition = (
     Match.orElse(message => {
       // Every edit the editor asks for is answered, once drawn or refused; a reported caret
       // is not an ask.
-      const answering = message._tag === 'Selected' ? [] : [answer(model.hostId)]
+      const caretMoved = message._tag === 'Selected'
+      const answering = caretMoved ? [] : [answer(model.hostId)]
       let nextId = model.nextId
       // With nothing selected, a mark toggle is the caret's own state: the next
       // typed text lands with it. A caret move ends the format it was carrying.
@@ -551,16 +554,24 @@ const transition = (
           commands: answering,
         }
       }
-      const storedMarks =
-        message._tag === 'ToggledMark' && collapsed
-          ? model.storedMarks?.includes(message.mark)
-            ? model.storedMarks.filter(mark => mark !== message.mark)
-            : [...(model.storedMarks ?? []), message.mark]
-          : model.storedMarks
-      const command =
-        message._tag === 'Typed' && storedMarks !== null
-          ? ({ type: 'InsertText', text: message.text, marks: storedMarks } as const)
-          : toCommand(message)
+      const toggled = (mark: string) => {
+        if (!collapsed) return model.storedMarks
+        if (model.storedMarks?.includes(mark))
+          return model.storedMarks.filter(held => held !== mark)
+        return [...(model.storedMarks ?? []), mark]
+      }
+      const storedMarks = Match.value(message).pipe(
+        Match.tag('ToggledMark', ({ mark }) => toggled(mark)),
+        Match.orElse(() => model.storedMarks),
+      )
+      const command = Match.value(message).pipe(
+        Match.tag('Typed', typed =>
+          storedMarks === null
+            ? toCommand(typed)
+            : ({ type: 'InsertText', text: typed.text, marks: storedMarks } as const),
+        ),
+        Match.orElse(other => toCommand(other)),
+      )
       // Choosing an entry removes the query it was typed into and applies the choice as
       // one action (§124 §5), so one transition and one undo step cover both. The range is
       // a read, not state: `menu.query` is the text the document already holds, and the
@@ -578,15 +589,19 @@ const transition = (
         )
       // What is typed can be a block marker (§124 §4): the rules are the placement's own, so
       // the editor carries none of any syntax's vocabulary itself.
-      const ruled =
-        queryRange === undefined && message._tag === 'Typed'
-          ? RichText.resolveInputRules(inputRulesFor(model.hostId), {
-              textBefore: textBeforeOf(model),
-              text: message.text,
-              insertion: command,
-              within: withinOf(model),
-            })
-          : undefined
+      const ruled = Match.value(message).pipe(
+        Match.tag('Typed', typed =>
+          queryRange === undefined
+            ? RichText.resolveInputRules(inputRulesFor(model.hostId), {
+                textBefore: textBeforeOf(model),
+                text: typed.text,
+                insertion: command,
+                within: withinOf(model),
+              })
+            : undefined,
+        ),
+        Match.orElse(() => undefined),
+      )
       const attempt = runAction(
         queryRange !== undefined
           ? [{ type: 'SetSelection', selection: queryRange }, { type: 'DeleteBackward' }, command]
@@ -617,10 +632,9 @@ const transition = (
           selection: result.state.selection,
           nextId,
           // A caret move ends the format it was carrying; a rule that applied may set the next.
-          storedMarks:
-            message._tag === 'Selected'
-              ? null
-              : ((fallback ? undefined : ruled?.storedMarks) ?? storedMarks),
+          storedMarks: caretMoved
+            ? null
+            : ((fallback ? undefined : ruled?.storedMarks) ?? storedMarks),
           history: contentChanged
             ? RichText.commit(model.history, state, { group: RichText.groupFor(command) })
             : model.history,
@@ -643,16 +657,19 @@ const travel = (
   state: RichText.EditorState,
   message: Extract<Message, { readonly _tag: 'Undone' | 'Redone' }>,
 ): Update.ReturnWithOutMessage<EditorView, Message, OutMessage> => {
-  const restored =
-    message._tag === 'Undone'
-      ? RichText.undo(model.history, state)
-      : RichText.redo(model.history, state)
+  const restored = Match.valueTags(message, {
+    Undone: () => RichText.undo(model.history, state),
+    Redone: () => RichText.redo(model.history, state),
+  })
   if (restored === undefined) {
     return {
       model,
       outMessage: {
         _tag: 'Rejected',
-        error: message._tag === 'Undone' ? 'NothingToUndo' : 'NothingToRedo',
+        error: Match.valueTags(message, {
+          Undone: () => 'NothingToUndo' as const,
+          Redone: () => 'NothingToRedo' as const,
+        }),
       },
     }
   }
@@ -815,19 +832,24 @@ export const placeEditor = (hostId: string, placement: EditorPlacement): void =>
  */
 export const editorAt = (hostId: string, placement: EditorPlacement = {}) => {
   placeEditor(hostId, placement)
+  const adopted = (parent: Model, state: RichText.EditorState) => ({
+    model: {
+      ...parent,
+      document: state.document,
+      editor: { ...parent.editor, selection: state.selection },
+    },
+  })
   return Editor.at(editorLink, {
     args: { hostId },
     // Runs with the child already written back, in the same parent transition.
     onOut: (out: OutMessage) => (parent: Model) =>
-      out._tag === 'Edited' || out._tag === 'Replaced'
-        ? {
-            model: {
-              ...parent,
-              document: out.state.document,
-              editor: { ...parent.editor, selection: out.state.selection },
-            },
-          }
-        : { model: parent },
+      Match.value(out).pipe(
+        Match.tags({
+          Edited: ({ state }) => adopted(parent, state),
+          Replaced: ({ state }) => adopted(parent, state),
+        }),
+        Match.orElse(() => ({ model: parent })),
+      ),
   })
 }
 

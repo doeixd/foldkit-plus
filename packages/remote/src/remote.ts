@@ -3,7 +3,7 @@
  * An ES module rather than an object, so a page keeps only the members it
  * calls: one that reads keeps no transport or resume code (#396).
  */
-import { Clock, Effect, Layer, Option, Record, Schema, Stream } from 'effect'
+import { Clock, Effect, Layer, Match, Option, Record, Schema, Stream } from 'effect'
 import type { ExprContext, MemoryOperators } from 'foldkit-entity'
 import type { RpcClientError } from 'effect/rpc'
 import { mapMessage } from 'foldkit/command'
@@ -1058,10 +1058,13 @@ const bindDomain = <
   const persistedLists: Array<RetentionRoots> = []
   // An application-union case has the runtime shape of the `RemoteMessage` it names.
   const reduce = (model: AppModel, message: RemoteMessage | RemoteMessageInput): AppModel => {
-    const live =
-      message._tag === 'LiveReceived'
-        ? (message as Extract<RemoteMessage, { _tag: 'LiveReceived' }>)
-        : undefined
+    const live = Match.value(message).pipe(
+      Match.tag(
+        'LiveReceived',
+        received => received as Extract<RemoteMessage, { _tag: 'LiveReceived' }>,
+      ),
+      Match.orElse(() => undefined),
+    )
     // A caller that said what it wanted keeps it; `updateRemote` on its own is
     // unchanged, so the pure reducer stays testable without a registry.
     const remote = store.get(model)
@@ -1078,10 +1081,13 @@ const bindDomain = <
             ),
           }
     const reduced = reduceIn(capabilities, remote, resolved as RemoteMessage)
-    const answer =
-      message._tag === 'MutationSucceeded'
-        ? (message as Extract<RemoteMessage, { _tag: 'MutationSucceeded' }>)
-        : undefined
+    const answer = Match.value(message).pipe(
+      Match.tag(
+        'MutationSucceeded',
+        succeeded => succeeded as Extract<RemoteMessage, { _tag: 'MutationSucceeded' }>,
+      ),
+      Match.orElse(() => undefined),
+    )
     // A repeated answer finds every value it carries already held, so it
     // changes nothing and invalidates nothing.
     const next =
@@ -1872,7 +1878,8 @@ const bindDomain = <
     mutation: (model, requestId) => mutationStatus(store.get(model).mutations, requestId),
     refusal: (model, requestId, mutation) => {
       const status = mutationStatus(store.get(model).mutations, requestId)
-      return status._tag === 'Failed' ? refusalOf(status.error, mutation) : Option.none()
+      if (status._tag !== 'Failed') return Option.none()
+      return refusalOf(status.error, mutation)
     },
     failedWrites: (model: AppModel, mutation?: MutationDescriptor<any, any, any, any>) => {
       if (mutation !== undefined)

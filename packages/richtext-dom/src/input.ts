@@ -8,7 +8,7 @@
  * in its own Model: its `update` is the editor's, with each committed edit folded back in.
  * The form owns that Model as the key's draft, and the document is the key's value.
  */
-import { Option, Schema } from 'effect'
+import { Match, Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Input } from 'foldkit-form'
 import * as RichText from 'foldkit-richtext'
@@ -49,9 +49,12 @@ export const EditorInput = Bundle.make({
     const { model: next, outMessage, commands } = Editor.update(model, message, args)
     // An edit and an undo carry the state to commit; a refusal changes nothing to keep.
     const committed =
-      outMessage?._tag === 'Edited' || outMessage?._tag === 'Replaced'
-        ? outMessage.state
-        : undefined
+      outMessage === undefined
+        ? undefined
+        : Match.value(outMessage).pipe(
+            Match.tags({ Edited: ({ state }) => state, Replaced: ({ state }) => state }),
+            Match.orElse(() => undefined),
+          )
     return {
       model:
         committed === undefined

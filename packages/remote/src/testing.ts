@@ -307,9 +307,10 @@ const disagreementsOf = <AppModel, Message>(
   let known = new Set(diagnosticsOf(start))
   const mismatches = history.flatMap(({ message, model }, index) => {
     const recorded = diagnosticsOf(model)
-    const found = recorded.flatMap(diagnostic =>
-      diagnostic._tag === 'PredictionMismatch' && !known.has(diagnostic) ? [diagnostic] : [],
-    )
+    const found = recorded.flatMap(diagnostic => {
+      if (diagnostic._tag !== 'PredictionMismatch' || known.has(diagnostic)) return []
+      return [diagnostic]
+    })
     known = new Set(recorded)
     return found.map(mismatch => ({ index, message, mismatch }))
   })

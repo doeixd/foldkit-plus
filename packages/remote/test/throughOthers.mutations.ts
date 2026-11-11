@@ -156,12 +156,12 @@ export default [
   },
   {
     name: 'a list with more to load is held whole',
-    edits: [{ file: whole, find: "only.end._tag === 'Terminal'", replace: 'true' }],
+    edits: [{ file: whole, find: "only.end._tag !== 'Terminal'", replace: 'false' }],
     tests,
   },
   {
     name: 'a stale list is held whole',
-    edits: [{ file: whole, find: '    !connection.stale &&\n', replace: '' }],
+    edits: [{ file: whole, find: '    connection.stale ||\n', replace: '' }],
     tests,
   },
   {

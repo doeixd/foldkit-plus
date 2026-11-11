@@ -1000,9 +1000,9 @@ export const selectReader = <AppModel, Store extends RemoteModel, Names extends 
       if (present !== undefined) {
         // A value on screen whose refresh failed stays on screen, with the
         // error, which `RemoteData.render` draws as stale.
-        return failure !== undefined && (present._tag === 'Ready' || present._tag === 'Refreshing')
-          ? failedWith(present, failure)
-          : present
+        if (failure !== undefined && (present._tag === 'Ready' || present._tag === 'Refreshing'))
+          return failedWith(present, failure)
+        return present
       }
       if (isLoadingThrough(remote, selection.entity, id, relation)) return LOADING
       if (failure !== undefined) return { _tag: 'Failed', error: failure }

@@ -1561,22 +1561,27 @@ const storedAs = (queued: Queued, stored: boolean): Queued =>
   queued.stored === stored ? queued : { ...queued, stored }
 
 /** A stored entry as the queue holds it: in the store, as read. */
-const queuedOf = (entry: ReadEntry): Queued =>
-  entry._tag === 'Readable'
-    ? Queued.Readable({ write: entry.write, stored: true, attempt: 0, delayed: Option.none() })
-    : Queued.Unreadable({
-        operation: entry.operation,
-        revision: entry.revision,
-        raw: entry.raw,
-        reason: entry.reason,
-        stored: true,
-      })
+const queuedOf = (entry: ReadEntry): Queued => {
+  if (entry._tag === 'Readable')
+    return Queued.Readable({ write: entry.write, stored: true, attempt: 0, delayed: Option.none() })
+  return Queued.Unreadable({
+    operation: entry.operation,
+    revision: entry.revision,
+    raw: entry.raw,
+    reason: entry.reason,
+    stored: true,
+  })
+}
 
-const entryOperation = (entry: ReadEntry): string =>
-  entry._tag === 'Readable' ? entry.write.operation : entry.operation
+const entryOperation = (entry: ReadEntry): string => {
+  if (entry._tag === 'Readable') return entry.write.operation
+  return entry.operation
+}
 
-const entryRevision = (entry: ReadEntry): number =>
-  entry._tag === 'Readable' ? entry.write.revision : entry.revision
+const entryRevision = (entry: ReadEntry): number => {
+  if (entry._tag === 'Readable') return entry.write.revision
+  return entry.revision
+}
 
 /** Whether a stored write's state keeps it in the ledger in flight, its layer shown. */
 const waitingIn = (state: StoredWrite['state']): boolean =>
@@ -2315,9 +2320,14 @@ const reduceRemote = (
         const settled =
           applied.outcome !== 'applied'
             ? []
-            : event._tag === 'EntityPatched'
-              ? [...patchedMarks([{ ...event.ref, values: applied.written }])]
-              : entityFailureMarks(model.failures, entityKey(event.ref.entity, event.ref.id))
+            : Match.value(event).pipe(
+                Match.tag('EntityPatched', patched => [
+                  ...patchedMarks([{ ...patched.ref, values: applied.written }]),
+                ]),
+                Match.orElse(other =>
+                  entityFailureMarks(model.failures, entityKey(other.ref.entity, other.ref.id)),
+                ),
+              )
         const next = {
           ...model,
           entities: applied.store,
