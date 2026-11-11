@@ -1026,7 +1026,14 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
             // once their chains agree: never sent again, never lost.
             const unreadableIds = new Set(
               refusals.flatMap(([opId, refusal]) =>
-                Result.isSuccess(refusal) && refusal.success._tag === 'Unreadable' ? [opId] : [],
+                Result.match(refusal, {
+                  onFailure: (): ReadonlyArray<OpId> => [],
+                  onSuccess: SyncRefusal.match({
+                    Forbidden: (): ReadonlyArray<OpId> => [],
+                    Invalid: () => [],
+                    Unreadable: () => [opId],
+                  }),
+                }),
               ),
             )
             let applied = 0

@@ -133,8 +133,8 @@ export default [
     edits: [
       {
         file: sync,
-        find: "Result.isSuccess(refusal) && refusal.success._tag === 'Unreadable' ? [opId] : [],",
-        replace: '[],',
+        find: '                    Unreadable: () => [opId],',
+        replace: '                    Unreadable: () => [],',
       },
     ],
     tests,
