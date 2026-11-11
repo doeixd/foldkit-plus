@@ -109,7 +109,8 @@ export default [
     name: 'a failed refresh forgets the last value known good',
     edits: [
       {
-        file: editor,
+        // The editor reads what a row holds through RemoteData.held.
+        file: '../../remote/src/remoteData.ts',
         find: 'Failed: (_, previous) => previous,',
         replace: 'Failed: () => Option.none(),',
       },
