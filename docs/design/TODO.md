@@ -85,6 +85,10 @@ phase ships alone and records its number; the gates below are the notes' own.
 
 These wait on upstream Foldkit or Effect, not on work here.
 
+- [ ] **`animatePanel` should read its duration from a custom property** instead
+  of writing the transition inline (`@foldkit/ui` Disclosure). `Recipes.Disclosure`
+  works around it with an important global rule that finds the grid by its
+  panel's `-panel` id; a property would let a plain recipe rule set it.
 - [ ] **Fine-grained reactivity.** Three core primitives in `foldkit/foldkit`,
   then the `reactivity` and `reactivity-html` Plus packages that interpret them.
   [reactivity-DESIGN.md](./reactivity-DESIGN.md)

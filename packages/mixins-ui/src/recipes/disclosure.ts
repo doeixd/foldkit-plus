@@ -5,9 +5,11 @@
  * once open (upstream's `data-open`). The panel's box is the recipe's;
  * whether it is drawn, and its height as it opens, are upstream's: draw the
  * panel only while open, or through `animatePanel`, which keeps a shut panel
- * inert and moves its height by an inline transition (200ms, easing out, so
- * it never passes its end) that neither the `motion` knob nor reduced motion
- * reaches.
+ * inert and moves its height by an inline transition on a grid it draws
+ * round the panel, with no slot, class or attribute of its own. A recipe
+ * rule cannot beat an inline one, so `heightTravel` is an important global
+ * rule that finds that grid by the panel inside it and sets its duration to
+ * a travel: the `motion` knob scales it and reduced motion snaps it.
  *
  * The axes:
  *
@@ -29,12 +31,18 @@ import {
   hover,
   ref,
   transition,
+  travelled,
   triggerChevron,
   unfilledHover,
   variant,
 } from './design.js'
 
 const open = '&[data-open]'
+// Upstream writes `grid-template-rows 200ms ease-out` inline on the grid round
+// the panel (`[id$="-panel"]` is its `panelId`), so only `!important` wins.
+const heightTravel = Style.global(
+  `div[style*="grid-template-rows"]:has(>div>[id$="-panel"]){transition-duration:${travelled(ref.motion.fast)}!important}`,
+)
 const edge = `${ref.border.thin} solid ${ref.outline.default}`
 
 export const Disclosure = Style.recipeFor(DisclosureSlots)({
@@ -64,6 +72,7 @@ export const Disclosure = Style.recipeFor(DisclosureSlots)({
       disabled,
     ),
     panel: component(
+      heightTravel,
       Style.self({
         paddingBlockEnd: ladder('row-pad'),
         paddingInline: '0',

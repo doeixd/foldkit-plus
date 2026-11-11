@@ -15,7 +15,7 @@ import { Layers, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
-import { userEvent } from 'vitest/browser'
+import { cdp, userEvent } from 'vitest/browser'
 import { Disclosure, DisclosureSlots, Fieldset, FieldsetSlots, Recipes } from '../src/index.js'
 
 const theme = Theme.standard(Theme.make({}))
@@ -28,7 +28,7 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const install = (css: string) => {
+const install = (css: string, still = true) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -39,7 +39,7 @@ const install = (css: string) => {
     ) +
     css +
     // Still, so a turn is read where it ends.
-    ':root{--fk-knob-motion:0}'
+    (still ? ':root{--fk-knob-motion:0}' : '')
   document.head.append(sheet)
 }
 
@@ -64,9 +64,9 @@ const embed = (id: string, view: (model: Model, h: HtmlBuilder<Message>) => Html
   )
 }
 
-const mountDisclosure = (selection: Parameters<typeof Recipes.Disclosure>[0]) => {
+const mountDisclosure = (selection: Parameters<typeof Recipes.Disclosure>[0], still = true) => {
   const style = Style.forSlots(DisclosureSlots)(Recipes.Disclosure(selection))
-  install(style.css)
+  install(style.css, still)
   return embed('disclosure-browser', (model, h) =>
     h.div(
       [h.Style({ inlineSize: '20rem' })],
@@ -117,6 +117,43 @@ test('a press turns the chevron up and opens the panel, and a second shuts it to
     button().click()
     await vi.waitFor(() => expect(shown()).toBe(0))
     expect(chevron()).toBe('45deg')
+  } finally {
+    handle.dispose()
+  }
+})
+
+// What moves the panel's height: upstream writes the transition inline on this grid.
+const heightDuration = () =>
+  getComputedStyle(panel().parentElement!.parentElement!).transitionDuration
+
+const preferReducedMotion = (value: 'reduce' | 'no-preference') =>
+  cdp().send('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-reduced-motion', value }],
+  })
+
+test.each([
+  ['reduced motion', 'reduce', '0s'],
+  ['a still theme', 'no-preference', '0s'],
+] as const)('the panel height does not slide under %s', async (_name, preference, expected) => {
+  const handle = mountDisclosure({}, preference === 'no-preference')
+  try {
+    await vi.waitFor(() => expect(button()).not.toBeNull())
+    await park()
+    await preferReducedMotion(preference === 'reduce' ? 'reduce' : 'no-preference')
+    await vi.waitFor(() => expect(heightDuration()).toBe(expected))
+  } finally {
+    await preferReducedMotion('no-preference')
+    handle.dispose()
+  }
+})
+
+test('the panel height still slides at the default motion', async () => {
+  const handle = mountDisclosure({}, false)
+  try {
+    await vi.waitFor(() => expect(button()).not.toBeNull())
+    await park()
+    await preferReducedMotion('no-preference')
+    expect(parseFloat(heightDuration())).toBeGreaterThan(0)
   } finally {
     handle.dispose()
   }

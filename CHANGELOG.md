@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A Disclosure's `animatePanel` follows the `motion` knob and reduced motion**
+  (`foldkit-mixins-ui`). Upstream writes the panel's height transition inline
+  (`grid-template-rows 200ms ease-out`), which no recipe rule beats, so the
+  panel kept sliding for a user who asked for reduced motion. `Recipes.Disclosure`
+  now draws an important rule for that grid with a travelled duration.
 - **An agent contract with a completion can be exported from a project that
   emits declarations** (`foldkit-agent`). Its inferred type carried the whole
   variants object, so a completion's `success` constructor was written as

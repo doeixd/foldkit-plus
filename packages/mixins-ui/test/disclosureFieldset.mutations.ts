@@ -11,6 +11,33 @@ const design = '../src/recipes/design.ts'
 
 export default [
   {
+    name: 'the panel height transition is no longer important, so the inline one wins',
+    edits: [
+      {
+        file: disclosure,
+        find: '{transition-duration:${travelled(ref.motion.fast)}!important}',
+        replace: '{transition-duration:${travelled(ref.motion.fast)}}',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the panel height duration ignores the travel knob',
+    edits: [
+      {
+        file: disclosure,
+        find: '{transition-duration:${travelled(ref.motion.fast)}!important}',
+        replace: '{transition-duration:${ref.motion.fast}!important}',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the panel height rule is not drawn',
+    edits: [{ file: disclosure, find: '      heightTravel,\n', replace: '' }],
+    tests: browser,
+  },
+  {
     name: 'the chevron is not drawn on the button',
     edits: [
       {
