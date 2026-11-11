@@ -41,9 +41,9 @@
  *
  *   node scripts/tags-check.mjs [dir…]   list findings (in the projects named, if any); exit 1 if there are any
  */
-import { existsSync, readdirSync } from 'node:fs'
-import { join, relative, resolve } from 'node:path'
+import { relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { programsFor, projectsIn } from './programs.mjs'
 // The compiler API, which TypeScript 7 no longer ships: 6 is installed beside it.
 import ts from 'typescript-6'
 
@@ -90,10 +90,7 @@ const isPositiveEquality = kind =>
 // A condition with its parentheses and `!` taken off: `!(x._tag === 'A')` is the same branch.
 const unnegated = node => {
   let inner = unwrap(node)
-  while (
-    ts.isPrefixUnaryExpression(inner) &&
-    inner.operator === ts.SyntaxKind.ExclamationToken
-  )
+  while (ts.isPrefixUnaryExpression(inner) && inner.operator === ts.SyntaxKind.ExclamationToken)
     inner = unwrap(inner.operand)
   return inner
 }
@@ -426,37 +423,8 @@ export const check = (program, files, found = findings) => {
 
 const main = () => {
   // `node scripts/tags-check.mjs packages/remote` reads only the projects named.
-  const named = process.argv.slice(2).map(arg => resolve(root, arg))
-  const projectDirs = [
-    ...['packages', 'examples', 'examples/foldkit'].flatMap(parent =>
-      readdirSync(join(root, parent), { withFileTypes: true })
-        .filter(entry => entry.isDirectory())
-        .map(entry => join(root, parent, entry.name)),
-    ),
-  ]
-    .filter(dir => named.length === 0 || named.includes(dir))
-    .sort()
-
-  for (const dir of projectDirs) {
-    const config = join(dir, 'tsconfig.json')
-    if (!existsSync(config)) continue
-    const parsed = ts.getParsedCommandLineOfConfigFile(
-      config,
-      {},
-      {
-        ...ts.sys,
-        onUnRecoverableConfigFileDiagnostic: () => {},
-      },
-    )
-    // TypeScript lists files with `/`; `join` writes `\` on Windows, where a
-    // raw comparison matched nothing and the check passed having read no file.
-    const sources = join(dir, 'src')
-    const files = parsed?.fileNames.filter(file => resolve(file).startsWith(sources)) ?? []
-    if (files.length === 0) continue
-    const program = ts.createProgram({
-      rootNames: files,
-      options: { ...parsed.options, noEmit: true },
-    })
+  for (const { options, files } of programsFor(projectsIn(root, process.argv.slice(2)))) {
+    const program = ts.createProgram({ rootNames: files, options })
     check(program, files)
   }
 

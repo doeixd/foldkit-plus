@@ -8,7 +8,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 // @ts-expect-error the checker is plain JavaScript
-import { check, programsFor, reachesSeams } from '../writes-check.mjs'
+import { check, reachesSeams } from '../writes-check.mjs'
 // @ts-expect-error the compiler API of TypeScript 6, which TypeScript 7 no longer ships
 import ts from 'typescript-6'
 import { afterAll, describe, expect, test } from 'vitest'
@@ -190,32 +190,5 @@ describe('which projects can hold a write', () => {
   test('reads the real references, and surface reaches itself', () => {
     expect(reachesSeams(at('packages/remote'))).toBe(true)
     expect(reachesSeams(at('packages/surface'))).toBe(true)
-  })
-})
-
-describe('programs shared between projects', () => {
-  const project = (paths: Record<string, string[]>, files: string[], strict = true) => ({
-    options: { strict, pathsBasePath: '/w/p', paths },
-    files,
-  })
-  const base = project({ 'foldkit-a': ['./a.ts'] }, ['/w/p/one.ts'])
-
-  test('projects with the same options share one program, with their paths and files merged', () => {
-    const programs = programsFor([
-      base,
-      project({ 'foldkit-b': ['./b.ts'] }, ['/w/p/two.ts', '/w/p/one.ts']),
-    ])
-    expect(programs).toHaveLength(1)
-    expect(programs[0]?.files).toEqual(['/w/p/one.ts', '/w/p/two.ts'])
-    expect(Object.keys(programs[0]?.options.paths ?? {})).toEqual(['foldkit-a', 'foldkit-b'])
-  })
-
-  test('a name mapped to another file stands in a program of its own', () => {
-    const programs = programsFor([base, project({ 'foldkit-a': ['./other.ts'] }, ['/w/p/two.ts'])])
-    expect(programs).toHaveLength(2)
-  })
-
-  test('projects compiled with different options do not share a program', () => {
-    expect(programsFor([base, project({}, ['/w/p/two.ts'], false)])).toHaveLength(2)
   })
 })

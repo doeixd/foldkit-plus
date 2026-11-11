@@ -26,9 +26,10 @@
  *
  *   node scripts/writes-check.mjs [dir…]   list findings (in the projects named, if any); exit 1 if there are any
  */
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { programsFor, projectsIn } from './programs.mjs'
 // The compiler API, which TypeScript 7 no longer ships: 6 is installed beside it.
 import ts from 'typescript-6'
 
@@ -177,79 +178,9 @@ export const check = (program, files, found = findings, allowed = Object.keys(in
   }
 }
 
-/**
- * One program for every project compiled with the same options: binding the
- * dependency closure (Effect's declarations most of it) is the cost of a
- * program, so sharing it is what makes a whole-tree run take a minute, not
- * a quarter of an hour. Their `paths` are merged; where two projects map one
- * name to different files they cannot share, and stand apart.
- */
-export const programsFor = projects => {
-  const groups = new Map()
-  for (const { options, files } of projects) {
-    const { paths, pathsBasePath, rootDir, outDir, configFilePath, tsBuildInfoFile, ...rest } =
-      options
-    const absolute = Object.entries(paths ?? {}).map(([name, targets]) => [
-      name,
-      targets.map(target => resolve(pathsBasePath ?? root, target)),
-    ])
-    const key = JSON.stringify(rest)
-    const candidates = groups.get(key) ?? []
-    const group = candidates.find(candidate =>
-      absolute.every(
-        ([name, targets]) =>
-          !candidate.paths.has(name) || candidate.paths.get(name).join() === targets.join(),
-      ),
-    )
-    if (group === undefined) {
-      candidates.push({ rest, paths: new Map(absolute), files: new Set(files) })
-      groups.set(key, candidates)
-    } else {
-      for (const [name, targets] of absolute) group.paths.set(name, targets)
-      for (const file of files) group.files.add(file)
-    }
-  }
-  return [...groups.values()].flat().map(({ rest, paths, files }) => ({
-    options: {
-      ...rest,
-      noEmit: true,
-      pathsBasePath: root,
-      paths: Object.fromEntries(paths),
-    },
-    files: [...files],
-  }))
-}
-
 const main = () => {
   // `node scripts/writes-check.mjs packages/remote` reads only the projects named.
-  const named = process.argv.slice(2).map(arg => resolve(root, arg))
-  const projectDirs = [
-    ...['packages', 'examples', 'examples/foldkit'].flatMap(parent =>
-      readdirSync(join(root, parent), { withFileTypes: true })
-        .filter(entry => entry.isDirectory())
-        .map(entry => join(root, parent, entry.name)),
-    ),
-  ]
-    .filter(dir => named.length === 0 || named.includes(dir))
-    .sort()
-
-  const projects = []
-  for (const dir of projectDirs) {
-    const config = join(dir, 'tsconfig.json')
-    if (!existsSync(config) || !reachesSeams(dir)) continue
-    const parsed = ts.getParsedCommandLineOfConfigFile(
-      config,
-      {},
-      {
-        ...ts.sys,
-        onUnRecoverableConfigFileDiagnostic: () => {},
-      },
-    )
-    const sources = join(dir, 'src')
-    const files = parsed?.fileNames.filter(file => resolve(file).startsWith(sources)) ?? []
-    if (files.length > 0) projects.push({ options: parsed.options, files })
-  }
-
+  const projects = projectsIn(root, process.argv.slice(2), reachesSeams)
   for (const { options, files } of programsFor(projects)) {
     const program = ts.createProgram({ rootNames: files, options })
     check(program, files)
