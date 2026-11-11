@@ -466,13 +466,18 @@ while keeping the best of what this project already has:
 
 ## Sync, Durable and Effect reuse
 
-- [ ] Durable-over-Effect-storage prototype.
+- [x] Durable-over-Effect-storage prototype: keep Durable's SQL journal.
+  EventLog's Storage meets six of §14.1's eight criteria; compaction (no
+  redaction or store drop) and D1's same-transaction write are invasive
+  (9df7027d, 608757a1).
   [effect-reuse-sync-durable-DESIGN.md](./effect-reuse-sync-durable-DESIGN.md) §14.1
 - [ ] Sync-over-Effect-storage prototype. §14.2, same document
 - [ ] Sync-over-Effect-RPC prototype. §14.3, same document
 - [ ] Submit the four upstream Effect PRs. None has been submitted. §7, §13, same document
-  - [ ] EventLog server Storage entry lookup
-  - [ ] a public EntryId string codec
+  - [ ] EventLog server Storage entry lookup (Durable no longer needs it:
+    `entriesAfter`'s batch hint looks an entry up, 9df7027d)
+  - [ ] a public EntryId string codec (Durable no longer needs it: a digest
+    of the opId gives a retry the same `EntryId`)
   - [ ] atomic IndexedDB `KeyValueStore.modify`
   - [ ] manual settlement for PersistedQueue
 
