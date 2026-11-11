@@ -109,7 +109,10 @@ const claimedVersion = Schema.decodeUnknownOption(
  * A stored row that will not read, as the journal reports it: a
  * `JournalError` whose cause is the codec's own error, never told by its words.
  */
-const unreadableHistory = (documentId: string, cause: unknown): Option.Option<UnreadableHistoryError> =>
+const unreadableHistory = (
+  documentId: string,
+  cause: unknown,
+): Option.Option<UnreadableHistoryError> =>
   cause instanceof UnreadableMessageError
     ? Option.some(
         new UnreadableHistoryError({
@@ -609,7 +612,9 @@ export interface DocumentHostOptions<Message, Shared, Principal, RP = never> {
     | undefined
   /** After each exchange's appends, given the journal. See `journalExchange`'s `settle`. */
   readonly settle?:
-    | ((journal: Journal<Operation, Shared, Principal, WrittenOperation>) => Effect.Effect<void, unknown>)
+    | ((
+        journal: Journal<Operation, Shared, Principal, WrittenOperation>,
+      ) => Effect.Effect<void, unknown>)
     | undefined
   /** Whether `principal` may open the document. See `journalExchange`'s `opens`. */
   readonly opens?: ((principal: Principal) => Effect.Effect<boolean>) | undefined

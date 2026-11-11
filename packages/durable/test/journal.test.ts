@@ -86,7 +86,14 @@ const missing = documentId('missing')
 type Hooks = Partial<
   Pick<
     JournalOptions<Operation, Snapshot, Principal>,
-    'validate' | 'authorize' | 'reduce' | 'snapshotEvery' | 'replicaId' | 'legacyReplicaId'
+    | 'validate'
+    | 'authorize'
+    | 'reduce'
+    | 'snapshotEvery'
+    | 'replicaId'
+    | 'legacyReplicaId'
+    | 'operation'
+    | 'stamp'
   >
 >
 
@@ -382,6 +389,108 @@ describe('the stored snapshot', () => {
         path,
       )
     }))
+})
+
+/**
+ * A codec whose payload carries a note the decoded operation drops: what is
+ * stored and reduced is the decoded form, but a retransmission is compared by
+ * the payload as it was sent, its note in lower case.
+ */
+const comparing: Codec<Operation> = {
+  ...operation,
+  compared: value => ({
+    ...(value as object),
+    note: String((value as { readonly note?: unknown }).note).toLowerCase(),
+  }),
+}
+const noted = (note: string) => ({ ...add(1, 'a'), note })
+
+describe('the compared form', () => {
+  it('compares a retransmission by the codec’s compared form, not by what is stored', () =>
+    withJournal(
+      function* (journal) {
+        yield* journal.append(todos, noted('first'), principal)
+        const again = yield* journal.append(todos, noted('first'), principal)
+        expect(appendCommitted(again).operation).toEqual(add(1, 'a'))
+        const other = yield* Effect.result(journal.append(todos, noted('second'), principal))
+        expect(other).toMatchObject({
+          _tag: 'Failure',
+          failure: { _tag: 'IdentityConflictError' },
+        })
+      },
+      { operation: comparing },
+    ))
+
+  it('compares by encode(decode(input)) when the codec names no compared form', () =>
+    withJournal(function* (journal) {
+      yield* journal.append(todos, noted('first'), principal)
+      expect(
+        appendCommitted(yield* journal.append(todos, noted('second'), principal)),
+      ).toMatchObject({ sequence: 1 })
+    }))
+
+  it('compares a row stored with no hash by the compared form of both', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'foldkit-compared-'))
+    const path = join(directory, 'journal.sqlite')
+    try {
+      await withJournal(
+        function* (journal) {
+          yield* journal.append(todos, noted('first'), principal)
+        },
+        { operation: comparing },
+        path,
+      )
+      // As a row written before payload hashes were kept, holding the payload as sent.
+      const database = new DatabaseSync(path)
+      database
+        .prepare('UPDATE operations SET payload_hash = NULL, input = ? WHERE op_id = ?')
+        .run(JSON.stringify(noted('First')), 'a:1')
+      database.close()
+      await withJournal(
+        function* (journal) {
+          expect(
+            // Equal once both are compared, though the stored text is not what is sent.
+            appendCommitted(yield* journal.append(todos, noted('first'), principal)),
+          ).toMatchObject({ sequence: 1 })
+          const other = yield* Effect.result(journal.append(todos, noted('second'), principal))
+          expect(other).toMatchObject({
+            _tag: 'Failure',
+            failure: { _tag: 'IdentityConflictError' },
+          })
+        },
+        { operation: comparing },
+        path,
+      )
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('reports a committed row that will not read as the server’s failure, not the sender’s', () => {
+    // The stamped form is stored; a decode that refuses it cannot read the row back.
+    const unread = new Error('stored row refused')
+    const refusingStamped: Codec<Operation> = {
+      ...operation,
+      decode: value => {
+        if (typeof value === 'object' && value !== null && 'stamped' in value) throw unread
+        return operation.decode(value)
+      },
+    }
+    return withJournal(
+      function* (journal) {
+        yield* journal.append(todos, add(1, 'a'), principal)
+        const again = yield* Effect.result(journal.append(todos, add(1, 'a'), principal))
+        expect(again).toMatchObject({
+          _tag: 'Failure',
+          failure: { _tag: 'JournalError', cause: unread },
+        })
+      },
+      {
+        operation: refusingStamped,
+        stamp: value => ({ ...value, stamped: true }) as Operation,
+      },
+    )
+  })
 })
 
 describe('a durable journal', () => {
