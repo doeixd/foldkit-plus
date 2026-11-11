@@ -20,9 +20,7 @@ export default [
   },
   {
     name: 'a scalar call is refused',
-    edits: [
-      { file: compile, find: "|| call._tag === 'Call'", replace: '|| false' },
-    ],
+    edits: [{ file: compile, find: "|| call._tag === 'Call'", replace: '|| false' }],
     tests,
   },
   {
