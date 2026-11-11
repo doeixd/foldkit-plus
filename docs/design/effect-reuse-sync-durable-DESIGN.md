@@ -1,6 +1,6 @@
 # Foldkit Plus: Reusing Effect Infrastructure in Sync and Durable
 
-> **Implementation status, checked 2026-11-11:** The decision holds and `foldkit-durable` uses Effect SQL. §14.1's Durable prototype and §14.2's Sync storage prototype are built and confirm it (keep SQL, keep Sync's own IndexedDB storage); §14.3 is unbuilt, and the four upstream PRs were never submitted. See the
+> **Implementation status, checked 2026-11-11:** The decision holds and `foldkit-durable` uses Effect SQL. All three prototypes of §14 are built and confirm it: keep SQL (§14.1), keep Sync's own IndexedDB storage (§14.2), keep Sync's own socket transport rather than Effect RPC (§14.3). The four upstream PRs were never submitted. See the
 > [design index](./README.md#where-each-design-stands).
 
 **Status:** design review / upstream integration plan  
@@ -8,9 +8,8 @@
 **Target packages:** \`foldkit-sync\`, \`foldkit-durable\`  
 **Effect areas reviewed:** \`effect/unstable/eventlog\`, \`effect/unstable/persistence\`, \`effect/unstable/rpc\`, \`effect/unstable/socket\`, \`effect/unstable/workflow\`, Effect SQL
 
-> **Status: the decision is landed and two of its three prototypes confirm it;
-> the third prototype and the PRs are not done, and they are gated on different
-> things.** Audited against the code.
+> **Status: the decision is landed and all three of its prototypes confirm it;
+> the PRs are not done.** Audited against the code.
 >
 > **§1's decision holds and is visible.** No `EventLog` or `EventJournal`
 > appears anywhere in `packages/`. `foldkit-durable` sits directly on Effect SQL
@@ -27,10 +26,12 @@
 > IndexedDB of `@effect/platform-browser` meets every criterion but gains too
 > little to adopt (§14.2's status).
 >
-> **§6.3, §11 and §14.3's prototypes are unbuilt.** Sync has its own socket
-> transport (`transport.ts`) rather than Effect RPC. It works, and §14.3's
-> acceptance criteria are already written, so the gate here is effort and
-> priority rather than missing evidence.
+> **§14.3's Sync transport prototype is built** (§6.3 and §11's shape) and keeps
+> `transport.ts`: an `RpcGroup` meets every criterion, natively or through a
+> small adapter, but costs about 11 kB gzipped on the client, gives up resending
+> a lost reply's frame on reconnect, and leaves presence without the socket it
+> shares; and RPC lets a request's headers override the upgrade's, so who is
+> asking must still be decided on the upgrade (§14.3's status).
 >
 > **§7's four PRs are gated on a queue this repository does not control.** They
 > are proposals with rationale, not submitted work, and nothing here can move
@@ -1440,6 +1441,93 @@ disconnect/retry does not duplicate semantic operations
 browser/node transports remain possible
 tests can use in-memory/loopback transport
 ~~~
+
+### Status, 2026-11-11: built against Effect 4.1.1; keep the socket transport
+
+The prototype is `packages/sync/test/prototype/effectRpc.ts`: an `RpcGroup`
+of two procedures behind Sync's `Transport` seam. `Exchange` carries the
+frame `layerSocket` writes (`cursor`, `pending`, `epoch`; the RPC request id
+stands for the frame's `id`) and fails with Sync's own `TransportError`, a
+`Schema.TaggedError` that serves as the error schema unchanged. `Changes` is
+a `stream: true` procedure in place of the notice frame. `layerRpc` is the
+client, a `Layer<Transport, never, RpcClient.Protocol>`; `serveRpcSocket`
+serves one accepted socket, as `serveSocket` does, over the same
+`journalExchange` and `journalChanges`.
+
+`rpcCriteria.test.ts` beside it runs the criteria against five subjects: the
+loopback, the socket transport over a socket pair, and the prototype through
+`RpcTest.makeClient`, in process; and the socket transport and the prototype
+over real WebSockets on localhost (Node's global `WebSocket`, the browser's
+API, against a `ws` server), where reconnects and frames are real (25 tests
+and one skipped, since the loopback carries no notices; about 1.5 seconds). `rpcCriteria.mutations.ts` breaks each criterion in the
+prototype, the socket transport and the journal (13 mutations, all killed).
+The prototype is kept as that evidence and is not exported.
+
+The wire was diffed: every frame the socket transport writes, less its `id`,
+decodes under `ExchangePayload` with excess keys refused and comes back
+equal. Two fields have to stay as
+loose as the socket protocol keeps them. `pending` is an array of unknown
+entries, because `journalExchange` refuses a bad operation by its id; typed,
+one tampered operation fails the whole call and blocks the outbox (a
+mutation shows it). The reply is `Schema.Unknown`, because the replica's
+`decodeExchange` is its strict check, and RPC decodes with default parse
+options unless an RPC is annotated (`rpc/RpcClient.js:495`,
+`rpc/RpcServer.js:380`); the payload carries `Rpc.ParseOptions` with
+`onExcessProperty: 'error'`.
+
+Paths are under `node_modules/effect/dist/`.
+
+| Criterion | Verdict | What it took |
+|---|---|---|
+| Transport remains replaceable | native for the exchange; **presence needs RPCs of its own** | `layerRpc` is one more Layer of the seam, and the same replica converges through all five subjects. `TransportSocket`, the socket the exchange shares with presence (`examples/registry`, `examples/pages`), has no counterpart: neither the RPC client nor its socket protocol lets another protocol read or write raw frames (a probe found the client ignores a frame that is not RPC), so presence would move to an RPC stream and a send. |
+| exchange semantics unchanged | small adapter | Refusal by id, the server's words on a refused connection, the epoch sent back once seen and not before, and a notice after another replica's commit hold in every subject that carries them. Differences in place: a malformed frame (a negative cursor) is refused by the client as it builds the request, a defect, where the socket server answers an error frame; and the notice a (re)connection owes moves from the client, which published one on open, to the server, which sends one as each subscription starts. |
+| disconnect/retry does not duplicate semantic operations | native, by Sync's protocol | A reply lost to a dropped socket commits once in both, through the journal's opId check (mutating it fails both). The socket transport sends an unanswered frame again with its id on the next connection, so one `synchronize` outlasts the drop. RPC fails every call in flight on a socket error (`rpc/RpcClient.js:889`) and fails a new one at once until a socket is back (`:902`), so the retry is the replica's next exchange, after `start`'s backoff (from 0.5 s). |
+| browser/node transports remain possible | native, with a small server adapter | Both run on Node's global `WebSocket` (`Socket.layerWebSocketConstructorGlobal`), which sends no header of the page's. The server side is one RPC server per accepted socket, through `makeProtocolSocketServer` and a `SocketServer` that yields that one socket (about ten lines), so its handlers close over the principal the upgrade resolved, as `documentHost` does. Not run on workerd. `portSocket` and `workerSocket` would need `Socket` adapters of their own; neither was built. |
+| tests can use in-memory/loopback transport | native | `RpcTest.makeClient` with the group's handlers, and `layerLoopback` unchanged. `RpcTest` uses no serialization (`rpc/RpcTest.js`), so a fault only a JSON encoding shows appears on a wire alone; the client still checks each payload. |
+
+**Authorization and CSRF.** RPC does not lift the WebSocket header trap; it
+moves headers into frames. `RpcClient.withHeaders` writes them into each
+request, which a browser can do, and the server concatenates the
+connection's headers before the request's (`rpc/RpcServer.js:875` for HTTP,
+`:1153` for a WebSocket upgrade), keeping the last of each name
+(`http/Headers.js:116-118`). So a request's own `origin`, `cookie` or CSRF
+header overrides the upgrade's, and a cross-site page that opened the socket
+with the victim's cookie can claim any `Origin` to a check that reads a
+handler's or middleware's `headers` (a test pins this; reversing the
+concatenation by hand turned it red). Who is asking, and from where, must be
+decided on the upgrade request before an RPC server runs, as
+`documentHost`'s `resolvePrincipal(request)` decides today. The prototype
+keeps that shape: a server per socket, whose protocol passes no upgrade
+headers at all (`rpc/RpcServer.js:743`). `toHttpEffectWebsocket`, one server
+for every socket, invites the unsafe shape. On Workers the HTTP protocol is
+no option for `Changes` either: one request's commit cannot wake another
+request's stream, so RPC would run on the Durable Object's sockets, as
+`foldkit-sync/do` does now.
+
+**Bundle.** A replica over `indexedDb` running `start`, minified and gzipped:
+48.6 kB with no transport, 49.9 kB with `layerSocket`, and 60.8 kB with
+`layerRpc` over `RpcClient.layerProtocolSocket`, `Socket.layerWebSocket` and
+`RpcSerialization.layerJson`, built with rolldown, which Vite 8 uses. RPC
+costs about 11 kB more than the socket transport. esbuild keeps more (155.8,
+158.4 and 197.0 kB): it keeps `encoding/SchemaBinary.js`, 59 kB minified,
+which `rpc/RpcSerialization.js:15` imports for a serialization the client
+never uses.
+
+**Decision: keep the socket transport.** §14.3's criteria hold, natively or
+through a small adapter, so nothing stops adoption; it gains too little. The
+client and server prototype is about 90 lines of code against about 300 in
+`transport.ts` (`layerSocket`, `serveSocket`, `nativeSocket`), but adopting
+it adds about 11 kB gzipped to every client, recovers a lost reply only on
+the replica's backoff instead of at once, moves presence to RPCs of its own,
+and puts `effect/rpc` and `effect/socket`, both marked unstable, on the
+client's path. §8.1 holds: no Sync RPC primitive is needed upstream, and none
+of the RPC route's costs is Sync-specific. Two upstream changes would lower
+them and are general enough to propose: a request's headers that do not
+override the connection's (or arrive apart from them), which any RPC server
+authorizing on an upgrade needs; and a JSON serialization that does not keep
+`SchemaBinary` in a bundle. Revisit when Sync wants a second procedure
+(presence, or a pushed stream richer than a notice), or when the applications
+it serves already ship `effect/rpc`, which would make the bundle cost nil.
 
 ---
 
