@@ -1021,10 +1021,12 @@ Foldkit's own behaviour that we work around is listed in
   resolver. Send such requests through `node:http`, as
   `examples/reference/test/worker.test.ts` does.
 - **An Effect RPC request's headers override its connection's.** `RpcServer`
-  puts the upgrade's headers before each frame's (`rpc/RpcServer.js:875`,
-  `:1153`) and `Headers.fromInput` keeps the last, so a frame can claim
-  another `origin`, `cookie` or CSRF header. Decide the principal on the
-  upgrade request, one server per socket (Sync's §14.3 prototype pins it).
+  puts the connection's headers before each request's (`rpc/RpcServer.js:875`
+  over HTTP, `:1153` over a WebSocket) and `Headers.fromInput` keeps the
+  last, so a request body or frame can claim another `origin`, `cookie` or
+  CSRF header. Decide the principal from the real request in front of the
+  route, never from an `RpcMiddleware`'s `headers` (Sync's §14.3 prototype
+  pins it; no shipped server here reads them, ac62e3d3).
 - **A browser `WebSocket` sends no header of yours.** Its constructor takes
   a URL and subprotocols only, so a CSRF header (`x-effect-auth-csrf`) that
   every Remote POST carries never reaches a Sync upgrade; a resolver asking
