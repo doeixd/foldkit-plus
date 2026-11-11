@@ -2305,6 +2305,10 @@ of its own named a form field "fits the Catalog". Read words with
   capture `OLD=$(git rev-parse HEAD)` once, build from `read-tree "$OLD"`, and
   pass the same `$OLD` to `update-ref`; then check `git diff --stat $OLD
   <new>` names only your files.
+- **`git commit-tree` does not sign unless told to.** `commit.gpgsign` applies
+  to `git commit` only, so every temporary-index commit went out unsigned and
+  GitHub shows it Unverified (5fce21a5, 8a46cd79, 4675986b and more). Pass
+  `-S`: `git commit-tree -S -p "$OLD" -m … "$TREE"`.
 - **A new file committed through a temporary index needs `--add` in the real
   one.** `git update-index --cacheinfo` refuses a path the real index lacks;
   without `--add` it shows the file as a staged deletion plus an untracked
