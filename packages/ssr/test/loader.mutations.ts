@@ -12,6 +12,7 @@ const chunk = '../src/runtimeChunk.ts'
 const browser = ['packages/ssr/test/loader.browser.test.ts']
 const checked = ['packages/ssr/test/keepChecked.test.ts']
 const unkept = ['packages/ssr/test/unkeptField.test.ts']
+const preload = ['packages/ssr/test/loaderPreload.browser.test.ts']
 const built = ['packages/ssr/test/loaderBuild.test.ts']
 
 export default [
@@ -193,5 +194,28 @@ export default [
       },
     ],
     tests: built,
+  },
+  {
+    name: 'the chunk is fetched when idle, not as the loader starts',
+    edits: [
+      {
+        file: loader,
+        find: '  const fetched = fetchChunk()\n',
+        replace:
+          '  let fetched: Promise<void> = Promise.resolve()\n  whenIdle(() => void (fetched = fetchChunk()))\n',
+      },
+    ],
+    tests: preload,
+  },
+  {
+    name: 'the chunk is never fetched ahead of its run',
+    edits: [
+      {
+        file: loader,
+        find: '  const fetched = fetchChunk()\n',
+        replace: '  const fetched = Promise.resolve()\n',
+      },
+    ],
+    tests: preload,
   },
 ]

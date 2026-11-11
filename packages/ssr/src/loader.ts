@@ -4,9 +4,9 @@
  * the page loads it without `effect`, Foldkit or the application.
  *
  * It follows the plan's `start`, which the server writes into the envelope:
- * `'now'` runs the chunk at once; `'idle'` fetches it when the page is idle
- * after load and runs it when idle again; `'on-interaction'` fetches it the
- * same way and runs it on the first intent, a pointer over or down, focus or
+ * `'now'` runs the chunk at once; `'idle'` fetches it at once and runs it when
+ * the page is idle after load and the chunk has arrived; `'on-interaction'`
+ * fetches it at once and runs it on the first intent, a pointer over or down, focus or
  * a key on an element the server marked (a binding or a kept field), or a
  * scroll. Until `SSR.hydrate` in the chunk takes over, it holds each event a
  * marker names, a form's submission prevented, and hands them over to be
@@ -33,7 +33,7 @@ export interface LoaderOptions {
    * Runs the runtime's chunk: a dynamic import of the module that calls
    * `SSR.hydrate`, such as `() => import('./entry.js')`. Called once. With
    * `runtimeChunk` from `foldkit-ssr/vite` naming the same module, a build
-   * also fetches the chunk when the page is idle, without running it
+   * also fetches the chunk as the loader starts, without running it
    * (`<link rel="modulepreload">`); without it, the chunk is fetched as it runs.
    */
   readonly runtime: () => Promise<unknown>
@@ -81,6 +81,23 @@ const afterLoad = (run: () => void): void => {
   if (document.readyState === 'complete') whenIdle(run)
   else window.addEventListener('load', () => whenIdle(run), { once: true })
 }
+
+/**
+ * Asks for the runtime's chunk now, without running it, and settles when it
+ * has arrived or failed (a failure is the import's to report). With no built
+ * address there is nothing to ask for and it settles at once.
+ */
+const fetchChunk = (): Promise<void> =>
+  runtimeUrl === UNBUILT
+    ? Promise.resolve()
+    : new Promise(settle => {
+        const link = document.createElement('link')
+        link.rel = 'modulepreload'
+        link.href = runtimeUrl
+        link.addEventListener('load', () => settle(), { once: true })
+        link.addEventListener('error', () => settle(), { once: true })
+        document.head.append(link)
+      })
 
 /** Starts the page's runtime as its plan says, holding what it must answer until it runs. */
 export const load = (options: LoaderOptions): void => {
@@ -184,17 +201,6 @@ export const load = (options: LoaderOptions): void => {
   if (envelope.start === 'on-interaction') {
     window.addEventListener('scroll', scrolled, { passive: true, once: true })
   }
-  afterLoad(() => {
-    const then = envelope.start === 'idle' ? () => whenIdle(run) : () => undefined
-    if (runtimeUrl === UNBUILT || ran) {
-      then()
-      return
-    }
-    const link = document.createElement('link')
-    link.rel = 'modulepreload'
-    link.href = runtimeUrl
-    link.addEventListener('load', then, { once: true })
-    link.addEventListener('error', then, { once: true })
-    document.head.append(link)
-  })
+  const fetched = fetchChunk()
+  if (envelope.start === 'idle') afterLoad(() => void fetched.then(() => whenIdle(run)))
 }

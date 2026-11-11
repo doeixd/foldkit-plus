@@ -140,7 +140,7 @@ test('a cart press before the runtime is answered once after it, and nothing is 
     const label = (await button.getAttribute('aria-label'))!
     const name = label.replace(/^Add /, '').replace(/ to cart$/, '')
     await button.click()
-    // The chunk is asked for by the press, and held: the page is the served one.
+    // The chunk was asked for at load (modulepreload), and is held: the page is the served one.
     await expect.poll(chunk.asked, { timeout: 30_000 }).toBeGreaterThan(0)
     expect(await page.locator('[data-foldkit-app]').count()).toBe(1)
     expect(await page.getByRole('button', { name: 'Cart, 1 domains' }).count()).toBe(0)

@@ -1444,8 +1444,8 @@ load({ runtime: () => import('./entry.js') }) // entry.ts calls SSR.hydrate
 ```text
 load ──▶ read start from the envelope
   'now'            ──▶ run the chunk
-  'idle'           ──▶ idle after load: fetch the chunk ──▶ idle again: run it
-  'on-interaction' ──▶ idle after load: fetch the chunk ──▶ first intent: run it
+  'idle'           ──▶ fetch the chunk now ──▶ idle after load, chunk here: run it
+  'on-interaction' ──▶ fetch the chunk now ──▶ first intent: run it
 until SSR.hydrate takes over: a marked event ──▶ held (a submission prevented)
 SSR.hydrate ──▶ starts now ──▶ answers each held event from the markers, once
 ```
@@ -1472,15 +1472,18 @@ SSR.hydrate ──▶ starts now ──▶ answers each held event from the mark
   releases what was held as `SSR.hydrate` refuses it.
 - **Fetched without running.** With `runtimeChunk` from `foldkit-ssr/vite`
   naming the same module, a client build writes the chunk's address into the
-  loader, which fetches it when idle with `<link rel="modulepreload">`:
+  loader, which fetches it as it starts, at load and before any idle or intent,
+  with `<link rel="modulepreload">`:
 
   ```ts sketch
   plugins: [foldkit({ ssr: { clientEntry: '/src/client/loader.ts', … } }),
             runtimeChunk({ entry: '/src/client/entry.ts' })]
   ```
 
-  Without it, or under the development server, the chunk is fetched as it
-  runs. A modulepreload fetches that one file; a chunk the runtime shares
+  Fetching is not running: a press before the chunk runs still waits for its
+  evaluation, which a page that evaluates at once (no loader) has begun
+  already. Without it, or under the development server, the chunk is fetched
+  as it runs. A modulepreload fetches that one file; a chunk the runtime shares
   with another dynamic import is fetched when the runtime runs.
 
 ## Forms that work without scripts
