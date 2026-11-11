@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A Slot's protected attributes can no longer be set through a generic builder**
+  (`foldkit-mixins`, `foldkit-mixins-data-grid`). The resolver compared the
+  builder's tag with the protected list, so `h.AriaLabel` was refused but
+  `h.Attribute('aria-label', …)`, `h.DataAttribute('grid-checkbox', …)` and a
+  `Prop` of `ariaLabel` were not. It now compares the HTML attribute the
+  contribution sets, normalized the same way as the Slot's list. The data
+  grid's `checkbox` Slot also protects `data-grid-checkbox`, which routes its
+  presses.
+
 - **A CMS editor whose entry-state read failed no longer opens badged New**
   (`foldkit-cms`). `status` counted a failed state read as answered, so the
   form opened with no state, and `stateBadge` says New for none. It reports
