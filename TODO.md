@@ -242,7 +242,11 @@ and Site Phase 0 (no non-landing route alone imports over 2 KB against the
 
 1. **`SSR.static`'s builder type** (a Slot-styled region without a cast).
    In progress.
-2. **H4** only if 30+ lines of glue stay shared after H2.
+2. **`examples/auth` and `examples/cloudflare` onto the host parts.** H4
+   is not due (the reference shares 3 to 5 lines of glue with any other
+   example, against 30), so #235 closes on the parts once these use them;
+   cloudflare's auth cache also keeps one build for any D1 binding, the
+   reload fault `Host.isolate` fixes. In progress.
 3. **The rest of the small findings** in `docs/design/TODO.md` (the 90 KB
    against 69 KB page, from Foldkit's identity markers; Chirp's bundle
    extras).
