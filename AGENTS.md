@@ -1362,6 +1362,12 @@ of its own named a form field "fits the Catalog". Read words with
   one project against whatever the referenced packages last emitted, so it
   passes code that the change it depends on broke. Use `tsc -b`.
 
+- **A check keyed by a builder's tag misses the generic builders.** The
+  resolver refused a protected `aria-label` given as `h.AriaLabel`, but
+  compared tags, so `h.Attribute('aria-label', …)`, `DataAttribute` and `Prop`
+  passed, and `OnCustomEvent('click')` slipped past a protected `click`
+  (c00a90c1, 5442e938). Compare the name a contribution actually sets.
+
 - **Capability names can be object prototype keys.** `__proto__` passes name
   validation but assigning it to `{}` loses the registry entry. Use a `Map` or
   a record with no prototype for capability lookups.
