@@ -20,6 +20,7 @@ import {
   update,
 } from '../apps/app.js'
 import { PostForm, Posts } from '../content/domain.js'
+import { heldOf } from '../held.js'
 import type { Principal } from '../server/server.js'
 import { chairHarness, openBackend, visitBySlug } from './harness.js'
 
@@ -71,11 +72,13 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       resumed: () => Option.getOrElse(PostEditor.resumed(harness.model()), () => 'not opened'),
       worklist: () => {
         const page = Worklist.page(harness.model())
-        return page._tag === 'Ready' || page._tag === 'Refreshing'
-          ? page.value.items
+        return Option.match(heldOf(page), {
+          onSome: held =>
+            held.items
               .map(row => `${row.label} (${Display.show(Cms.Display.State.of({}), row.state)})`)
-              .join(', ') || 'empty'
-          : page._tag
+              .join(', ') || 'empty',
+          onNone: () => page._tag,
+        })
       },
       /** A post as this chair's own pages read it. */
       page: async (id: string): Promise<string> => {
@@ -88,9 +91,10 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
             ),
           )
         const read = projection.read(harness.model())
-        return read._tag === 'Ready' || read._tag === 'Refreshing'
-          ? `"${read.value.title}" at /blog/${read.value.slug}: ${read.value.body}`
-          : read._tag
+        return Option.match(heldOf(read), {
+          onSome: held => `"${held.title}" at /blog/${held.slug}: ${held.body}`,
+          onNone: () => read._tag,
+        })
       },
       /** The site's page for an address: what `bySlug` finds, read as a page. */
       visit: (slug: string) =>

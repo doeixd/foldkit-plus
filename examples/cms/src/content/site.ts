@@ -17,6 +17,7 @@ import { PAGE_CONTAINER, Renderer } from 'foldkit-composition/foldkit'
 import { QueryBlock } from 'foldkit-composition/remote'
 import { Entity, type Selected } from 'foldkit-entity'
 import { Input } from 'foldkit-form'
+import { RemoteData } from 'foldkit-remote'
 import { ImageAsset, Layout as MediaLayout } from 'foldkit-media'
 import { Capability, Layers, Slot, SlotView, Slots, Style } from 'foldkit-mixins'
 import { Empty, Failure, Loading } from 'foldkit-mixins-crud'
@@ -982,15 +983,21 @@ export const SiteRenderer = Renderer.make(Site, {
   PostList: ({ props, data, appearance, h }) => {
     const drawn = PostsLook.draw({ appearance, h })
     const rows = PostList.rows(data)
+    const listed = (page: { readonly items: ReadonlyArray<PostCard> }) =>
+      page.items.length === 0
+        ? [Empty.view(drawn.status, h, 'Nothing is published yet.')]
+        : [postCards(h, drawn, page.items)]
+    const loading = () => [Loading.view(drawn.status, h, 'Loading posts…')]
     return h.section(drawn.root.attrs(), [
       ...(props.heading === '' ? [] : [h.h2(drawn.heading.attrs(), [props.heading])]),
-      ...(rows._tag === 'Ready' || rows._tag === 'Refreshing'
-        ? rows.value.items.length === 0
-          ? [Empty.view(drawn.status, h, 'Nothing is published yet.')]
-          : [postCards(h, drawn, rows.value.items)]
-        : rows._tag === 'Failed'
-          ? [Failure.view(drawn.status, h, 'The posts could not be read.')]
-          : [Loading.view(drawn.status, h, 'Loading posts…')]),
+      ...RemoteData.match(rows, {
+        Ready: listed,
+        Refreshing: listed,
+        Failed: () => [Failure.view(drawn.status, h, 'The posts could not be read.')],
+        Initial: loading,
+        Loading: loading,
+        NotFound: loading,
+      }),
     ])
   },
   FeaturedPost: ({ props, data, appearance, h }) => {
@@ -998,8 +1005,8 @@ export const SiteRenderer = Renderer.make(Site, {
     const rows = FeaturedPost.rows(data)
     // No post chosen is nothing to show, not something still arriving.
     if (Option.isNone(props.post)) return Empty.view(drawn.status, h, 'Choose a post to feature.')
-    if (rows._tag === 'Ready' || rows._tag === 'Refreshing') {
-      const found = Arr.head(rows.value.items)
+    const featured = (page: { readonly items: ReadonlyArray<PostCard> }) => {
+      const found = Arr.head(page.items)
       if (Option.isNone(found)) return Empty.view(drawn.status, h, 'That post is not published.')
       const post = found.value
       return h.article(drawn.root.attrs(), [
@@ -1012,19 +1019,26 @@ export const SiteRenderer = Renderer.make(Site, {
         ]),
       ])
     }
-    // A failed read is an alert, never busy-forever.
-    return rows._tag === 'Failed'
-      ? Failure.view(drawn.status, h, 'The featured post could not be read.')
-      : Loading.view(drawn.status, h, 'Loading the post…')
+    const loading = () => Loading.view(drawn.status, h, 'Loading the post…')
+    return RemoteData.match(rows, {
+      Ready: featured,
+      Refreshing: featured,
+      // A failed read is an alert, never busy-forever.
+      Failed: () => Failure.view(drawn.status, h, 'The featured post could not be read.'),
+      Initial: loading,
+      Loading: loading,
+      NotFound: loading,
+    })
   },
   LatestPages: ({ props, data, appearance, h }) => {
     const drawn = LatestPagesLook.draw({ appearance, h })
     const rows = LatestPages.rows(data)
-    if (rows._tag !== 'Ready' && rows._tag !== 'Refreshing')
+    if (rows._tag !== 'Ready' && rows._tag !== 'Refreshing') {
       // A failed read is an alert, never busy-forever.
-      return rows._tag === 'Failed'
-        ? Failure.view(drawn.status, h, 'The pages could not be read.')
-        : Loading.view(drawn.status, h, 'Loading pages…')
+      if (rows._tag === 'Failed')
+        return Failure.view(drawn.status, h, 'The pages could not be read.')
+      return Loading.view(drawn.status, h, 'Loading pages…')
+    }
     const items = rows.value.items
       .filter(item => !Option.contains(props.except, item.id))
       .slice(0, props.count)

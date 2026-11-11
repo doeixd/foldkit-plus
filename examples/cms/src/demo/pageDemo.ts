@@ -6,7 +6,7 @@
  * entry. The Builder adds no CMS state: every save, revision and publish is the
  * CMS's, with the page as one form key's value.
  */
-import { Clock, Effect, Option, Schema } from 'effect'
+import { Clock, Effect, Option, Result, Schema } from 'effect'
 import { Agent } from 'foldkit-agent'
 import { Message as BuilderMessage, type Model as BuilderModel } from 'foldkit-builder'
 import { Cms } from 'foldkit-cms'
@@ -31,6 +31,7 @@ import {
   update,
 } from '../apps/pageApp.js'
 import { PageAgent } from '../content/pageAgent.js'
+import { heldOf } from '../held.js'
 import { PageForm, Pages } from '../content/pageDomain.js'
 import type { Principal } from '../server/server.js'
 import { chairHarness, openBackend, visitBySlug } from './harness.js'
@@ -225,7 +226,7 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
           ),
         )
         for (const message of pending.splice(0)) await send(message)
-        return result._tag === 'Success' ? 'done' : result.failure._tag
+        return Result.match(result, { onSuccess: () => 'done', onFailure: error => error._tag })
       },
       /** The id of the first node of a Block, as the agent reads it in the outline. */
       idOf: (block: string) =>
@@ -255,9 +256,10 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
             ),
           )
         const found = projection.read(harness.model())
-        return found._tag === 'Ready' || found._tag === 'Refreshing'
-          ? read(found.value.document)
-          : found._tag
+        return Option.match(heldOf(found), {
+          onSome: held => read(held.document),
+          onNone: () => found._tag,
+        })
       },
       /** The public site at an address: what a visitor is sent, drawn. */
       visit: (slug: string) =>

@@ -37,6 +37,7 @@ import {
   statusLine,
 } from './shell.js'
 import { pageHref } from '../content/siteRoutes.js'
+import { heldOf } from '../held.js'
 import { PageForm } from '../content/pageDomain.js'
 import { AdminSlots, AdminStyle, PagesListStyle } from '../styles/adminStyle.js'
 
@@ -97,9 +98,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
     Option.filter(PageEditor.pageId(model), () => stateIs(state, 'Published', 'Changed')),
     id => {
       const read = pageView(id).read(model)
-      return read._tag === 'Ready' || read._tag === 'Refreshing'
-        ? Option.some(read.value.slug)
-        : Option.none()
+      return Option.map(heldOf(read), held => held.slug)
     },
   )
   return h.div(slots.editorScreen.attrs([h.Id('editor')]), [

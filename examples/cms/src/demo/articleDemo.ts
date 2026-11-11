@@ -30,6 +30,7 @@ import { markdownInputRules, print } from 'foldkit-richtext-markdown'
 import { Surface } from 'foldkit-surface'
 import { defineMessageUnion } from 'foldkit/message'
 import { Article, ArticleId } from '../content/articleDomain.js'
+import { heldOf } from '../held.js'
 import { Policy, ServedArticle, write, type Principal } from '../server/server.js'
 import { chairHarness, openBackend, visitBySlug } from './harness.js'
 
@@ -244,9 +245,10 @@ export const runArticleDemo = async (): Promise<ReadonlyArray<string>> => {
           ),
         )
         const read = projection.read(harness.model())
-        return read._tag === 'Ready' || read._tag === 'Refreshing'
-          ? html(read.value.body)
-          : read._tag
+        return Option.match(heldOf(read), {
+          onSome: held => html(held.body),
+          onNone: () => read._tag,
+        })
       },
       /** The site's page for an address, as a visitor's browser gets it. */
       visit: (slug: string) =>

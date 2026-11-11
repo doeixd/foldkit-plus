@@ -26,6 +26,7 @@ import { QueryBlock } from 'foldkit-composition/remote'
 import { Post, PostById, RecentPosts } from '../content/domain.js'
 import { Page, PageForm, PageId, PageView, Pages } from '../content/pageDomain.js'
 import { PageBuilder, Site } from '../content/site.js'
+import { heldOf } from '../held.js'
 import { PageFieldStyle, PageFormStyle } from '../styles/formStyles.js'
 import {
   beginMissing,
@@ -209,7 +210,10 @@ const placed = placements.update((model, message) => {
           {
             name: 'FollowLink',
             effect: Navigation.load(
-              request._tag === 'Internal' ? urlToString(request.url) : request.href,
+              Navigation.UrlRequest.match(request, {
+                Internal: ({ url }) => urlToString(url),
+                External: ({ href }) => href,
+              }),
             ).pipe(Effect.as(Message.Ticked())),
           },
         ],
@@ -369,14 +373,14 @@ export const builderInputs = (model: Model): BuilderViewInputs => {
   return BuilderView.inputs({
     data: actives.blocks.data(model),
     options: {
-      'LatestPages.except':
-        pages._tag === 'Ready' || pages._tag === 'Refreshing'
-          ? pages.value.items.map(page => ({ value: page.id, label: page.label }))
-          : [],
-      'FeaturedPost.post':
-        posts._tag === 'Ready' || posts._tag === 'Refreshing'
-          ? posts.value.items.map(post => ({ value: post.id, label: post.title }))
-          : [],
+      'LatestPages.except': Option.match(heldOf(pages), {
+        onSome: held => held.items.map(page => ({ value: page.id, label: page.label })),
+        onNone: () => [],
+      }),
+      'FeaturedPost.post': Option.match(heldOf(posts), {
+        onSome: held => held.items.map(post => ({ value: post.id, label: post.title })),
+        onNone: () => [],
+      }),
     },
   })
 }

@@ -226,7 +226,10 @@ const placed = placements.update((model, message) => {
           {
             name: 'FollowLink',
             effect: Navigation.load(
-              request._tag === 'Internal' ? urlToString(request.url) : request.href,
+              Navigation.UrlRequest.match(request, {
+                Internal: ({ url }) => urlToString(url),
+                External: ({ href }) => href,
+              }),
             ).pipe(Effect.as(Message.Ticked())),
           },
         ],

@@ -46,6 +46,7 @@ import {
 } from './shell.js'
 import { article } from '../content/site.js'
 import { postHref } from '../content/siteRoutes.js'
+import { heldOf } from '../held.js'
 import { AdminSlots, AdminStyle } from '../styles/adminStyle.js'
 import { ListStyle } from '../styles/formStyles.js'
 import { SiteSlots, SiteStyle } from '../styles/siteStyle.js'
@@ -185,9 +186,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
   // Where the post is read once it is on the site.
   const address = Option.flatMap(PostEditor.pageId(model), id => {
     const read = postPage(id).read(model)
-    return read._tag === 'Ready' || read._tag === 'Refreshing'
-      ? Option.some(read.value.slug)
-      : Option.none()
+    return Option.map(heldOf(read), held => held.slug)
   })
 
   const bar = editorBar(slots, h, {
