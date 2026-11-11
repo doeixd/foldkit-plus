@@ -661,6 +661,13 @@ Foldkit's own behaviour that we work around is listed in
   upstream does. Test such a key by its `defaultPrevented` and poll where the
   page lands: reading the offset straight after the press failed on CI, where
   the Command ran frames later.
+- **A press on server-drawn markup before hydration is lost.** The auth
+  e2e waited for "Signed in as grace", which the server draws, then pressed
+  Sign out once; when the client entry was still loading the click did
+  nothing and nothing sent it again (one run in six, every run with the
+  entry held by `page.route`). Server text is no evidence a press will be
+  heard: press until the outcome shows (`pressUntil` in
+  `examples/auth/e2e/auth.e2e.ts`).
 - **Foldkit warns of a hydration mismatch only in development.** Its
   warning is gated on `import.meta.hot`, which a Vite build strips, so a
   production e2e that listens for "server DOM did not match" passes whatever

@@ -67,10 +67,11 @@ phase ships alone and records its number; the gates below are the notes' own.
   [376-433-148-149-renderer-DESIGN.md](./376-433-148-149-renderer-DESIGN.md)
 ## Bugs and findings from 2026-11-10
 
-- [ ] **`examples/auth`'s e2e flaked once in six runs** (2026-11-10, after
-  H1): in "a session the server no longer holds is refused…", after Sign
-  out the page still read "Signed in as grace" through the 5 s poll. Not
-  compared with the commit before H1. Watch for a recurrence.
+- [x] **`examples/auth`'s e2e flaked once in six runs**: Sign out was
+  pressed on server-drawn markup before hydration, and the press was lost
+  (39ff7fa6; the test now presses until signed out). The same loss meets a
+  real user who presses early: no Foldkit page here replays a press made
+  before hydration. Whether the SSR delivery loader should is open there.
 - [ ] **Foldkit's view-identity markers add 20 KB to a served page**
   (domains-plus on workerd: 487 `data-foldkit-identity` attributes, 38
   distinct; the whole 90 KB against 69 KB gap). Neither the Vite plugin nor
