@@ -1237,6 +1237,12 @@ only over `Remote.rpcProtocolHttp(url)` in place of
 and loses its status: a durable write would then read as unreachable and be
 sent again for good.
 
+Decide who is asking from the HTTP request, in front of the route, never
+from the `headers` an `RpcMiddleware` or a handler is given. `RpcServer`
+puts the HTTP request's headers before those the request body carries and
+keeps the last of each name, so a body can claim another `cookie`, `origin`
+or CSRF header; over a WebSocket, every frame can.
+
 ## Over fetch (Workers)
 
 `serveFetch` from `foldkit-remote-server/fetch` is that route as a value: a
