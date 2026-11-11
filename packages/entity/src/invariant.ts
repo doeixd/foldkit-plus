@@ -164,9 +164,10 @@ const declareOn = <E extends AnyEntity>(
   const fields = entity.fields as Readonly<Record<string, E['fields'][string]>>
   const relations = entity.relations as Readonly<Record<string, EntityMember>>
   // A `one` relation reads as the id it points at; a `many` holds no one value.
-  const links = Object.values(relations).flatMap(member =>
-    member._tag === 'Relation' && member.cardinality === 'one' ? [member as OneRelation] : [],
-  )
+  const links = Object.values(relations).flatMap(member => {
+    if (member._tag !== 'Relation' || member.cardinality !== 'one') return []
+    return [member as OneRelation]
+  })
   const nexts = [
     ...Object.entries(fields).map(([key, field]) => [key, Expr.next(field)] as const),
     ...links.map(link => [link.key, Expr.next(link)] as const),

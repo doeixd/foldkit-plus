@@ -479,7 +479,8 @@ const walked = <E, R>(
           }
         }
         const end = yield* read(at, path.field.key)
-        return end._tag === 'Unheld' ? end : Held.of(end.value ?? null)
+        if (end._tag === 'Unheld') return end
+        return Held.of(end.value ?? null)
       }),
   })
 
@@ -652,7 +653,9 @@ const computationOf = (
     // `Next` is refused where an assignment is declared.
     case 'Field':
     case 'Next':
-      return Computation.Field({ key: expr._tag === 'Field' ? expr.key : expr.field.key })
+      return Computation.Field({
+        key: Match.valueTags(expr, { Field: ({ key }) => key, Next: ({ field }) => field.key }),
+      })
     case 'Literal':
       return Computation.Value({ value: expr.value })
     case 'Input':
@@ -872,13 +875,17 @@ export const Write = {
       const links: Record<string, Option.Option<EntityRef>> = {}
       const unfilled: Array<string> = []
       for (const { member, value } of write.context) {
-        const comes: Option.Option<unknown> =
-          value._tag === 'ViewerPath'
-            ? Held.match(yield* walked(value, by, read), {
-                onHeld: held => Option.some(held),
+        const comes: Option.Option<unknown> = yield* Match.value(value).pipe(
+          Match.tag('ViewerPath', path =>
+            Effect.map(walked(path, by, read), held =>
+              Held.match(held, {
+                onHeld: some => Option.some(some),
                 onUnheld: () => Option.none(),
-              })
-            : contextValue(value, by)
+              }),
+            ),
+          ),
+          Match.orElse(other => Effect.succeed(contextValue(other, by))),
+        )
         if (Option.isNone(comes)) {
           unfilled.push(member.key)
         } else if (member._tag === 'Relation') {
@@ -900,11 +907,10 @@ export const Write = {
   /** The Entities a write's paths from the viewer read, by name: what a server must have a source of. */
   contextReads: (write: AnyWrite): ReadonlyArray<string> => [
     ...new Set(
-      write.context.flatMap(({ value }) =>
-        value._tag === 'ViewerPath'
-          ? [value.viewer.entity.name, ...value.via.map(relation => relation.target().name)]
-          : [],
-      ),
+      write.context.flatMap(({ value }) => {
+        if (value._tag !== 'ViewerPath') return []
+        return [value.viewer.entity.name, ...value.via.map(relation => relation.target().name)]
+      }),
     ),
   ],
 

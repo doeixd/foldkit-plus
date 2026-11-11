@@ -5,7 +5,7 @@
  * reads Entities keeps none of the invariant judge or its expression
  * evaluator (#378).
  */
-import { Option, Schema } from 'effect'
+import { Match, Option, Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import { extend, make, mapValues, partsOf, remake, variantBases } from './descriptor.js'
 import type { OneRelation } from './expr.js'
@@ -865,17 +865,20 @@ export const input = <
       own(given, key) ??
       own(fields, key) ??
       fail(entity, `input key "${key}" names no field; map it to a member or Entity.unmapped`)
-    const owned =
-      member._tag === 'Field'
-        ? member
-        : member._tag === 'RelationInput' || member._tag === 'NestedInput'
-          ? member.relation
-          : member._tag === 'Unmapped'
-            ? undefined
-            : fail(
-                entity,
-                `input key "${key}" maps to a Field, Relation.input(relation), Relation.nested(relation, input), or Entity.unmapped`,
-              )
+    const owned = Match.value(member).pipe(
+      Match.tag('Field', field => field),
+      Match.tags({
+        RelationInput: ({ relation }) => relation,
+        NestedInput: ({ relation }) => relation,
+      }),
+      Match.tag('Unmapped', () => undefined),
+      Match.orElse(() =>
+        fail(
+          entity,
+          `input key "${key}" maps to a Field, Relation.input(relation), Relation.nested(relation, input), or Entity.unmapped`,
+        ),
+      ),
+    )
     if (owned !== undefined && owned.owner.token !== entity.identity.token)
       fail(entity, `input key "${key}" is mapped to a member of "${owned.owner.name}"`)
     if (
@@ -934,14 +937,13 @@ export const selectFor = <E extends AnyEntity, Fields extends Schema.Struct.Fiel
   const members: Readonly<Record<string, InputMember>> = input.members as never
   const spec = Object.fromEntries(
     Object.values(members).flatMap((member): ReadonlyArray<readonly [string, unknown]> =>
-      member._tag === 'Field'
-        ? [[member.key, true]]
-        : member._tag === 'RelationInput'
-          ? [[member.relation.key, true]]
-          : member._tag === 'NestedInput'
-            ? // What the nested input writes of the target, so its keys can be shown too.
-              [[member.relation.key, selectFor(member.input)]]
-            : [],
+      Match.valueTags(member, {
+        Field: ({ key }) => [[key, true] as const],
+        RelationInput: ({ relation }) => [[relation.key, true] as const],
+        // What the nested input writes of the target, so its keys can be shown too.
+        NestedInput: ({ relation, input: nested }) => [[relation.key, selectFor(nested)] as const],
+        Unmapped: () => [],
+      }),
     ),
   )
   return select(input.entity, { ...spec, ...options.also } as never) as never
@@ -969,7 +971,11 @@ export const valuesFor = <E extends AnyEntity, Fields extends Schema.Struct.Fiel
           : undefined
   const entries = Object.entries(members).flatMap(([key, member]) => {
     if (member._tag === 'Unmapped') return []
-    const written = member._tag === 'Field' ? member.key : member.relation.key
+    const written = Match.valueTags(member, {
+      Field: ({ key: field }) => field,
+      RelationInput: ({ relation }) => relation.key,
+      NestedInput: ({ relation }) => relation.key,
+    })
     if (!(written in value)) return []
     const read = value[written]
     switch (member._tag) {

@@ -1128,11 +1128,16 @@ const callCollation = (
   }
   // Named only in a refusal: rendering each voter on every call is exponential in a
   // nesting of calls that share their arguments.
-  const voters = args.flatMap(arg =>
-    isPredicate(arg) || arg._tag === 'Literal' || arg._tag === 'Input' || sideKind(arg) !== 'text'
-      ? []
-      : [{ arg, collation: collationOf(arg) }],
-  )
+  const voters = args.flatMap(arg => {
+    if (
+      isPredicate(arg) ||
+      arg._tag === 'Literal' ||
+      arg._tag === 'Input' ||
+      sideKind(arg) !== 'text'
+    )
+      return []
+    return [{ arg, collation: collationOf(arg) }]
+  })
   const collations = voters.flatMap(({ arg, collation }) =>
     Option.match(collation, {
       onSome: each => [each],
@@ -1307,15 +1312,17 @@ const expandedCache = new WeakMap<object, AnyExpr | Predicate>()
 const expandedScalar = (scalar: AnyExpr): AnyExpr => {
   const known = expandedCache.get(scalar)
   if (known !== undefined) return known as AnyExpr
-  const result =
-    scalar._tag === 'Call'
-      ? Option.match(scalar.expansion, {
-          onSome: expandedScalar,
-          // An operator with no definition stays, for an interpreter to run or refuse by
-          // name; a defined one among its arguments is expanded all the same.
-          onNone: () => node<AnyExpr>({ ...scalar, args: scalar.args.map(expandedSide) }),
-        })
-      : scalar
+  const result = Match.value(scalar).pipe(
+    Match.tag('Call', call =>
+      Option.match(call.expansion, {
+        onSome: expandedScalar,
+        // An operator with no definition stays, for an interpreter to run or refuse by
+        // name; a defined one among its arguments is expanded all the same.
+        onNone: () => node<AnyExpr>({ ...call, args: call.args.map(expandedSide) }),
+      }),
+    ),
+    Match.orElse(other => other),
+  )
   expandedCache.set(scalar, result)
   return result
 }
@@ -2079,13 +2086,16 @@ const substitutedSide = (side: Operandish, rewrite: OperandRewrite): Operandish 
  * under it is rewritten as one read directly is; anything else by `rewrite`.
  */
 const substitutedScalar = (scalar: AnyExpr, rewrite: OperandRewrite): AnyExpr =>
-  scalar._tag === 'Call'
-    ? node({
-        ...scalar,
-        args: Object.freeze(scalar.args.map(arg => substitutedSide(arg, rewrite))),
-        expansion: Option.map(scalar.expansion, expansion => substitutedScalar(expansion, rewrite)),
-      })
-    : rewrite(scalar)
+  Match.value(scalar).pipe(
+    Match.tag('Call', call =>
+      node({
+        ...call,
+        args: Object.freeze(call.args.map(arg => substitutedSide(arg, rewrite))),
+        expansion: Option.map(call.expansion, expansion => substitutedScalar(expansion, rewrite)),
+      }),
+    ),
+    Match.orElse(other => rewrite(other)),
+  )
 
 const substituted = (predicate: Predicate, rewrite: OperandRewrite): Predicate => {
   switch (predicate._tag) {

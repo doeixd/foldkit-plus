@@ -143,7 +143,12 @@ export default [
     'Value: ({ value }) => Outcome.Value({ value: foldText(value) }),',
     'Value: ({ value }) => Outcome.Value({ value }),',
   ),
-  edit('every two values are alike', helper, ': sameValue(left.value, right.value)', ': true'),
+  edit(
+    'every two values are alike',
+    helper,
+    'return sameValue(left.value, right.value)',
+    'return true',
+  ),
   edit('a failed law is not reported', helper, 'if (!plan.holds(left, right)) {', 'if (false) {'),
   {
     name: 'a law no call answered holds',
@@ -153,8 +158,8 @@ export default [
   edit(
     'two refusals count as a case',
     helper,
-    "if (left._tag === 'Value' && right._tag === 'Value') cases += 1",
-    "if (left._tag === 'Value' || right._tag === 'Refused') cases += 1",
+    "if (left._tag === 'Value' && right._tag === 'Value') {",
+    "if (left._tag === 'Value' || right._tag === 'Refused') {",
   ),
 
   // ---- choosing and running cases

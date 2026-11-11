@@ -149,9 +149,9 @@ const rowsOf = (tables: ReadonlyArray<HeldTable>): HeldRows => {
               const link = each.field(relation.key)
               if (link._tag === 'Unheld') {
                 missing = Option.orElse(missing, () => Option.some(link.reason))
-              } else if (link.value === id) {
-                rows.push(each)
+                continue
               }
+              if (link.value === id) rows.push(each)
             }
             return { rows, missing: Option.map(missing, reason => `${named}: ${reason}`) }
           },
@@ -257,7 +257,14 @@ export const Held = {
   match: <A, B>(
     value: Held<A>,
     cases: { readonly onHeld: (value: A) => B; readonly onUnheld: (reason: string) => B },
-  ): B => (value._tag === 'Held' ? cases.onHeld(value.value) : cases.onUnheld(value.reason)),
+  ): B => {
+    switch (value._tag) {
+      case 'Held':
+        return cases.onHeld(value.value)
+      case 'Unheld':
+        return cases.onUnheld(value.reason)
+    }
+  },
   /** Rows held as plain records; see `HeldTable`. */
   rows: rowsOf,
   fromRefs,

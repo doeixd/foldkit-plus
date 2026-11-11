@@ -164,10 +164,10 @@ const sameValue = (left: unknown, right: unknown): boolean => {
 }
 
 /** Two outcomes alike: equal values as stored, or both refusals. */
-const same = (left: Outcome, right: Outcome): boolean =>
-  left._tag === 'Refused' || right._tag === 'Refused'
-    ? left._tag === right._tag
-    : sameValue(left.value, right.value)
+const same = (left: Outcome, right: Outcome): boolean => {
+  if (left._tag === 'Refused' || right._tag === 'Refused') return left._tag === right._tag
+  return sameValue(left.value, right.value)
+}
 
 /** Text by code point, as every interpreter's `binary` orders it; `<` compares UTF-16 units. */
 const byCodePoint = (left: string, right: string): number => {
@@ -397,8 +397,11 @@ const verdictOf = (
           right,
         })
       }
-      if (left._tag === 'Value' && right._tag === 'Value') cases += 1
-      else if (Option.isNone(refusal) && left._tag === 'Refused') refusal = Option.some(left.reason)
+      if (left._tag === 'Value' && right._tag === 'Value') {
+        cases += 1
+        continue
+      }
+      if (Option.isNone(refusal) && left._tag === 'Refused') refusal = Option.some(left.reason)
     }
     if (cases === 0) {
       return LawsVerdict.Unanswered({

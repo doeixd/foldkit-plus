@@ -78,8 +78,8 @@ export default [
   edit(
     'an end the holder lacks is read as null',
     write,
-    "return end._tag === 'Unheld' ? end : Held.of(end.value ?? null)",
-    "return Held.of(end._tag === 'Unheld' ? null : (end.value ?? null))",
+    "if (end._tag === 'Unheld') return end",
+    "if (end._tag === 'Unheld') return Held.of(null)",
   ),
   edit(
     'a viewer of any Entity starts the path',

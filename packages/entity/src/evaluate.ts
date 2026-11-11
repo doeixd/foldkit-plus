@@ -264,7 +264,14 @@ const exists = (node: ExistsPredicate, scope: Scope): Judged => {
   const pinned = Option.match(node.where, {
     onNone: (): Pinned => new Map(),
     onSome: where =>
-      pinsOf(where._tag === 'And' ? where.operands : [where], scope.input, scope.context).pins,
+      pinsOf(
+        Match.value(where).pipe(
+          Match.tag('And', ({ operands }) => operands),
+          Match.orElse(single => [single]),
+        ),
+        scope.input,
+        scope.context,
+      ).pins,
   })
   const { rows, missing } = anchor.pointing(node.relation, pinned)
   let unheld = Option.map(missing, reason => new Unheld(reason))
@@ -895,8 +902,14 @@ export const Judge = {
   match: <T, A>(
     verdict: Verdict<T>,
     cases: { readonly onKnown: (truth: T) => A; readonly onUnknown: (reason: string) => A },
-  ): A =>
-    verdict._tag === 'Known' ? cases.onKnown(verdict.truth) : cases.onUnknown(verdict.reason),
+  ): A => {
+    switch (verdict._tag) {
+      case 'Known':
+        return cases.onKnown(verdict.truth)
+      case 'Unknown':
+        return cases.onUnknown(verdict.reason)
+    }
+  },
 }
 
 /** Every predicate must hold: the list is the conjunction, as it is in a `Query`. */

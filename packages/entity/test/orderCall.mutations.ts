@@ -88,8 +88,8 @@ export default [
     edits: [
       {
         file: expr,
-        find: 'onNone: () => node<AnyExpr>({ ...scalar, args: scalar.args.map(expandedSide) }),',
-        replace: 'onNone: () => scalar,',
+        find: 'onNone: () => node<AnyExpr>({ ...call, args: call.args.map(expandedSide) }),',
+        replace: 'onNone: () => call,',
       },
     ],
     tests,
