@@ -1736,6 +1736,11 @@ of its own named a form field "fits the Catalog". Read words with
   longer restored the text, a commit made an empty undo step, and a second
   ask restarted the session. For state held across transitions, test each
   transition that can land in the middle.
+- **Enter submits through a button the last frame drew enabled.** The crud
+  editor test pressed Enter right after `fill`, before the frame that enables
+  the submit button, so the implicit submission did nothing and the wait for
+  `aria-busy` timed out (once in a full run). Wait for the button to be enabled
+  first; hold `requestAnimationFrame` across the fill to make it fail every time.
 - **Keys faster than a frame meet the last frame's view.** Typing on the grid
   opened an editor, but keys sent before it was drawn and focused reached
   the grid, whose drawn state still said "not editing", so each restarted the

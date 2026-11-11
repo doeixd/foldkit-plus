@@ -141,6 +141,19 @@ const mount = (client: Layer.Layer<RemoteClient>) => {
   )
 }
 
+/** Runs `act` with every frame held, then lets them go: what it sent meets the page as last drawn. */
+const beforeNextFrame = async (act: () => Promise<void>) => {
+  const real = window.requestAnimationFrame
+  const held: Array<FrameRequestCallback> = []
+  window.requestAnimationFrame = callback => held.push(callback)
+  try {
+    await act()
+  } finally {
+    window.requestAnimationFrame = real
+    held.forEach(callback => real.call(window, callback))
+  }
+}
+
 const form = () => document.querySelector('form')!
 const title = () => document.getElementById('SaveNote-title')!
 const save = () => document.querySelector<HTMLButtonElement>('form button[type="submit"]')!
@@ -150,8 +163,16 @@ test('the form is aria-busy until the save is answered, and keeps the focus a pr
   const handle = mount(holding)
   try {
     await vi.waitFor(() => expect(title()).not.toBeNull())
-    await userEvent.fill(title(), 'Groceries')
     expect(form().getAttribute('aria-busy')).toBeNull()
+
+    // Enter submits through the form's button, which stays disabled until the
+    // frame that draws the title: a key sent before it submits nothing.
+    await beforeNextFrame(async () => {
+      await userEvent.fill(title(), 'Groceries')
+      await userEvent.type(title(), '{Enter}')
+    })
+    expect(saves).toBe(0)
+    await vi.waitFor(() => expect(save().disabled).toBe(false))
 
     // Enter in the field submits.
     await userEvent.type(title(), '{Enter}')
