@@ -6,7 +6,7 @@
  * The resolver allows one owner per event on a slot, so a host that needs
  * both arrows and typeahead takes this, not `RovingTabindex` plus `Typeahead`.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Match, Option, Schema } from 'effect'
 import type { HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
@@ -145,10 +145,10 @@ export const behavior =
     const focused = (id: string): ParentMessage => wrap(Message.Focused({ id }))
     const slice = (input: Input): Model => input[declared.field]
     const itemsOf = perInput(options.items)
-    const outcomeMessage = (outcome: KeyOutcome): ParentMessage =>
-      outcome._tag === 'Navigate'
-        ? focused(outcome.id)
-        : wrap(Message.Typed({ char: outcome.char, match: outcome.match }))
+    const outcomeMessage = (outcome: KeyOutcome): ParentMessage => {
+      if (outcome._tag === 'Navigate') return focused(outcome.id)
+      return wrap(Message.Typed({ char: outcome.char, match: outcome.match }))
+    }
     return Behavior.forSlots(slots)<Input, ParentMessage>(
       {
         [options.container]: Behavior.slot({
@@ -232,8 +232,10 @@ export const behavior =
                     }
                   }
                   const result = decision.outcome
-                  const target =
-                    result._tag === 'Navigate' ? result.id : (result.match ?? state.current)
+                  const target = Match.valueTags(result, {
+                    Navigate: ({ id }) => id,
+                    Type: ({ match }) => match ?? state.current,
+                  })
                   return {
                     // `:not(*)` matches nothing: a typed key with no match and
                     // nothing current moves no focus but is still recorded.

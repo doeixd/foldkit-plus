@@ -13,7 +13,7 @@
  * `TreeNavigation` on the layers, `Targets` on the canvas (hover and click pick
  * a node), and the Builder's `keyPressed` shortcuts on the layers and the canvas.
  */
-import { Option, Schema } from 'effect'
+import { Match, Option, Schema } from 'effect'
 import {
   Layers,
   controlOf,
@@ -1377,7 +1377,10 @@ export const BuilderView = {
         const { selected } = input
         const drop = dropOf(input.drag)
         const dragged = Option.flatMap(input.drag, drag =>
-          drag.source._tag === 'Existing' ? Option.some(drag.source.id) : Option.none(),
+          Match.valueTags(drag.source, {
+            Existing: ({ id }) => Option.some(id),
+            New: () => Option.none(),
+          }),
         )
         const shown = TreeNavigation.shown(rowsOf(document), input.layers, layersArgs)
         const tree = h.ul(
@@ -1582,13 +1585,17 @@ export const BuilderView = {
             // A link on the page being edited selects its node; it does not navigate.
             preventDefault: true,
             toMessage: fact =>
-              Option.match(asNodeId(fact.id), {
-                onNone: () =>
-                  fact._tag === 'TargetHovered' ? Message.Unhovered() : Message.Deselected(),
-                onSome: id =>
-                  fact._tag === 'TargetHovered'
-                    ? Message.Hovered({ id })
-                    : Message.Selected({ id }),
+              Match.valueTags(fact, {
+                TargetHovered: ({ id }) =>
+                  Option.match(asNodeId(id), {
+                    onNone: () => Message.Unhovered(),
+                    onSome: node => Message.Hovered({ id: node }),
+                  }),
+                TargetPressed: ({ id }) =>
+                  Option.match(asNodeId(id), {
+                    onNone: () => Message.Deselected(),
+                    onSome: node => Message.Selected({ id: node }),
+                  }),
               }),
           }),
           // A node is dragged onto another; the keyboard's way is the shortcuts.

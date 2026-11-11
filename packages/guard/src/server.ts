@@ -202,18 +202,18 @@ export const GuardServer = {
             const decided = members.map(member => ({
               ...member,
               // A redacted value is a decoded one; the record holds what the store holds.
-              redacted:
-                member.deny._tag === 'Redact'
-                  ? Option.some(
-                      Schema.encodeSync(
-                        (
-                          entity.members as Readonly<
-                            Record<string, { readonly schema: Schema.Top }>
-                          >
-                        )[member.member]!.schema as unknown as Schema.Codec<unknown, unknown>,
-                      )(member.deny.value),
-                    )
-                  : Option.none(),
+              redacted: Match.value(member.deny).pipe(
+                Match.tag('Redact', deny =>
+                  Option.some(
+                    Schema.encodeSync(
+                      (entity.members as Readonly<Record<string, { readonly schema: Schema.Top }>>)[
+                        member.member
+                      ]!.schema as unknown as Schema.Codec<unknown, unknown>,
+                    )(deny.value),
+                  ),
+                ),
+                Match.orElse(() => Option.none()),
+              ),
             }))
             return {
               fields: [
@@ -1353,12 +1353,15 @@ export const GuardServer = {
           // A rule calling an operator the policy's table does not run would fail when
           // asked, so the server does not start with one (expr-operations-DESIGN §5.6).
           const operatorProblems = attachedRules(attachment).flatMap(rule =>
-            rule._tag === 'RowGuard'
-              ? Query.unsupported(rule.query, supported, policy.operators).map(
+            Match.value(rule).pipe(
+              Match.tag('RowGuard', guard =>
+                Query.unsupported(guard.query, supported, policy.operators).map(
                   missing =>
-                    `${name}'s ${rule.name} calls ${missing}, which the policy does not run`,
-                )
-              : [],
+                    `${name}'s ${guard.name} calls ${missing}, which the policy does not run`,
+                ),
+              ),
+              Match.orElse(() => []),
+            ),
           )
           // A live Source sends what it reads: only one reading through the Source
           // checked above is known to send what a read would.

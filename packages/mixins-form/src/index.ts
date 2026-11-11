@@ -7,7 +7,7 @@
  * SlotView, and the form stays free of a view dependency.
  */
 // `Option` is this package's own name, a picker's choice: Effect's goes by another here.
-import { Option as Maybe } from 'effect'
+import { Match, Option as Maybe } from 'effect'
 import {
   Input,
   fillWords,
@@ -419,20 +419,24 @@ type FieldView<Key extends string, Message> = SlotView.SlotView<
 >
 
 const errorsOf = (field: FieldValidation.Field<unknown>): ReadonlyArray<string> =>
-  field._tag === 'Invalid' ? field.errors : []
+  Match.valueTags(field, {
+    Invalid: ({ errors }) => errors,
+    NotValidated: () => [],
+    Validating: () => [],
+    Valid: () => [],
+  })
 
 /**
  * The state of a key a control backed by a Bundle edits, as a field is drawn:
  * its validation state, with no draft. The Bundle's Model travels as `bundle`.
  */
 const withoutDraft = (field: FieldValidation.Field<unknown>): FieldValidation.Field<Draft> =>
-  field._tag === 'Invalid'
-    ? FieldValidation.Invalid({ value: '', errors: field.errors })
-    : field._tag === 'Valid'
-      ? FieldValidation.Valid({ value: '' })
-      : field._tag === 'Validating'
-        ? FieldValidation.Validating({ value: '' })
-        : FieldValidation.NotValidated({ value: '' })
+  Match.valueTags(field, {
+    Invalid: ({ errors }) => FieldValidation.Invalid({ value: '', errors }),
+    Valid: () => FieldValidation.Valid({ value: '' }),
+    Validating: () => FieldValidation.Validating({ value: '' }),
+    NotValidated: () => FieldValidation.NotValidated({ value: '' }),
+  })
 
 /** What a renderer draws one control from. */
 export interface RenderContext<Message> {

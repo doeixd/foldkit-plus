@@ -884,11 +884,12 @@ export const bodyOperations: ReadonlyArray<Operation> = [...supported, 'path', '
 export const reachedEntities = (body: AnyQuery): ReadonlyArray<EntityIdentity<string>> => {
   const owners = new Map<symbol, EntityIdentity<string>>()
   for (const reached of Query.dependencies(body).reaches) {
-    const met = [
-      ...(reached._tag === 'ViewerPath' ? [reached.viewer.entity] : []),
-      ...reached.via.map(relation => relation.target().identity),
-      ...(reached._tag === 'Exists' ? [reached.relation.owner] : []),
-    ]
+    const through = reached.via.map(relation => relation.target().identity)
+    const met = Match.valueTags(reached, {
+      ViewerPath: ({ viewer }) => [viewer.entity, ...through],
+      Path: () => through,
+      Exists: ({ relation }) => [...through, relation.owner],
+    })
     for (const owner of met) owners.set(owner.token, owner)
   }
   return [...owners.values()]
@@ -906,7 +907,10 @@ const checkReach = (
   query: string,
 ): void => {
   // A path from the viewer reads no column of the judged row, so its table may meet it.
-  const met = reached._tag === 'ViewerPath' ? [] : [target.table]
+  const met: Array<CompileTarget['table']> = Match.value(reached).pipe(
+    Match.tag('ViewerPath', () => []),
+    Match.orElse(() => [target.table]),
+  )
   const meet = (table: CompileTarget, owner: EntityIdentity<string>): void => {
     if (met.includes(table.table)) {
       throw new QueryCompileError(

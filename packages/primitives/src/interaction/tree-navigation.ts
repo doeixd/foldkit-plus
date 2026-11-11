@@ -13,7 +13,7 @@
  * What a key does is a pure function of those rows and the Model; the Behavior
  * wires it to the slots and writes the tree's ARIA attributes.
  */
-import { Option, Schema } from 'effect'
+import { Match, Option, Schema } from 'effect'
 import type { HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
@@ -277,12 +277,11 @@ export const behavior =
                 const action = move(rows, model.current, key, modifiers, model, args, direction)
                 if (action === undefined) return Option.none()
                 // Opening or closing keeps focus on the row it acted on.
-                const message =
-                  action._tag === 'Focus'
-                    ? Message.Focused({ id: action.id })
-                    : action._tag === 'Open'
-                      ? Message.Opened({ id: action.id })
-                      : Message.Closed({ id: action.id })
+                const message = Match.valueTags(action, {
+                  Focus: ({ id }) => Message.Focused({ id }),
+                  Open: ({ id }) => Message.Opened({ id }),
+                  Close: ({ id }) => Message.Closed({ id }),
+                })
                 return Option.some({
                   focusSelector: idSelector(domId(action.id)),
                   message: wrap(message),
