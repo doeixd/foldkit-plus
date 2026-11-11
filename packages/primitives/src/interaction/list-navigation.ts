@@ -145,10 +145,13 @@ export const behavior =
     const focused = (id: string): ParentMessage => wrap(Message.Focused({ id }))
     const slice = (input: Input): Model => input[declared.field]
     const itemsOf = perInput(options.items)
-    const outcomeMessage = (outcome: KeyOutcome): ParentMessage => {
-      if (outcome._tag === 'Navigate') return focused(outcome.id)
-      return wrap(Message.Typed({ char: outcome.char, match: outcome.match }))
-    }
+    const outcomeMessage = (outcome: KeyOutcome): ParentMessage =>
+      wrap(
+        Match.valueTags(outcome, {
+          Navigate: ({ id }): Message => Message.Focused({ id }),
+          Type: ({ char, match }): Message => Message.Typed({ char, match }),
+        }),
+      )
     return Behavior.forSlots(slots)<Input, ParentMessage>(
       {
         [options.container]: Behavior.slot({
@@ -210,7 +213,8 @@ export const behavior =
             }
             const messageOf = (decision: Decision): ParentMessage => {
               if (decision._tag === 'Commit') return decision.message
-              return outcomeMessage(decision.outcome)
+              const { outcome } = decision
+              return outcomeMessage(outcome)
             }
             const stop = RovingTabindex.tabStop(items, state.current)
             const stopId = stop === -1 ? undefined : items.ids[stop]
