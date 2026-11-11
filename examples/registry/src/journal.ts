@@ -149,17 +149,19 @@ export const openJournal = (
     tableRevision: Effect.try(() => table.revision()),
     holdsThrough: (snapshot, through) => ProductEdits.holdsThrough(snapshot.edits, through),
     // The server writes as a producer of its own, sequenced from the
-    // authoritative cursor, which only advances and keeps each id unique.
-    absorbed: (through, cursor) => ({
-      protocolVersion: 1,
-      schemaVersion: 1,
-      documentId: RegistrySync.documentId,
-      replicaId: replicaId(server.actorId),
-      localSequence: localSequence(cursor + 1),
-      opId: opId(`${server.actorId}:${cursor + 1}`),
-      baseCursor: sequence(cursor),
-      message: encodeMessage(Message.AbsorbedEdits({ through })),
-    }),
+    // authoritative cursor, which only advances and keeps each id unique,
+    // and written as a replica writes, at the document's current version.
+    absorbed: (through, cursor) =>
+      journalContract().operation.encode({
+        protocolVersion: 1,
+        schemaVersion: 1,
+        documentId: RegistrySync.documentId,
+        replicaId: replicaId(server.actorId),
+        localSequence: localSequence(cursor + 1),
+        opId: opId(`${server.actorId}:${cursor + 1}`),
+        baseCursor: sequence(cursor),
+        message: encodeMessage(Message.AbsorbedEdits({ through })),
+      }),
     server,
   })
 

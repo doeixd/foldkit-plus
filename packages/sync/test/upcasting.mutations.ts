@@ -25,7 +25,13 @@ export default [
   },
   {
     name: 'a step is not checked against its own Schema before it runs',
-    edits: [{ file: migrations, find: '        steps[at - 1]!.normalize(value)\n', replace: '' }],
+    edits: [
+      {
+        file: migrations,
+        find: '        value = steps[at]!.up!(steps[at - 1]!.normalize(value))',
+        replace: '        value = steps[at]!.up!(value)',
+      },
+    ],
     tests,
   },
   {
@@ -44,8 +50,8 @@ export default [
     edits: [
       {
         file: sync,
-        find: 'return current === 1 ? envelope : { ...envelope, messageVersion: current }',
-        replace: 'return { ...envelope, messageVersion: current }',
+        find: 'current === 1 ? envelope : { ...envelope, messageVersion: current }',
+        replace: '{ ...envelope, messageVersion: current }',
       },
     ],
     tests,
@@ -55,8 +61,8 @@ export default [
     edits: [
       {
         file: sync,
-        find: 'return current === 1 ? envelope : { ...envelope, messageVersion: current }',
-        replace: 'return envelope',
+        find: 'current === 1 ? envelope : { ...envelope, messageVersion: current }',
+        replace: 'envelope',
       },
     ],
     tests,
@@ -225,6 +231,50 @@ export default [
         file: journal,
         find: '  if (cause instanceof UnsupportedMessageVersionError)\n',
         replace: '  if (false)\n',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a step is given its version’s value as written, not normalized',
+    edits: [
+      {
+        file: migrations,
+        find: '        value = steps[at]!.up!(steps[at - 1]!.normalize(value))',
+        replace: '        value = steps[at]!.up!((steps[at - 1]!.normalize(value), value))',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a history made by hand is read as one',
+    edits: [
+      {
+        file: migrations,
+        find: '  if (history === undefined) throw',
+        replace: '  if (false) throw',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'dismissing an id not held still writes',
+    edits: [
+      {
+        file: sync,
+        find: '            if (left.length === refused.length) return [false, current] as const\n',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an unreadable history tells the replica whose operation it is',
+    edits: [
+      {
+        file: journal,
+        find: "const HISTORY_UNREADABLE = 'This server cannot read the history of this document'",
+        replace: 'const HISTORY_UNREADABLE = String(Math.random())',
       },
     ],
     tests,

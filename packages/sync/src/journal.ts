@@ -106,6 +106,13 @@ const claimedVersion = Schema.decodeUnknownOption(
 )
 
 /**
+ * What the replica is told: a socket sends an error's message, and the
+ * operation's id and version are another replica's. They stay on the error,
+ * for the server's own logs.
+ */
+const HISTORY_UNREADABLE = 'This server cannot read the history of this document'
+
+/**
  * A stored row that will not read, as the journal reports it: a
  * `JournalError` whose cause is the codec's own error, never told by its words.
  */
@@ -119,7 +126,7 @@ const unreadableHistory = (
         documentId,
         opId: cause.opId,
         version: cause.version,
-        message: `Document ${documentId} holds operation ${cause.opId}, written at Message version ${cause.version}, which no step reads`,
+        message: HISTORY_UNREADABLE,
       }),
     )
   if (cause instanceof UnsupportedMessageVersionError)
@@ -128,7 +135,7 @@ const unreadableHistory = (
         documentId,
         opId: cause.opId,
         version: cause.found,
-        message: `Document ${documentId} holds operation ${cause.opId}, written at Message version ${cause.found}; this server reads up to ${cause.supported}`,
+        message: HISTORY_UNREADABLE,
       }),
     )
   return Option.none()

@@ -5,16 +5,20 @@
  * through the history; what nothing reads is refused by its id or stops the
  * document, typed, and nothing is dropped.
  */
-import { mkdtempSync, rmSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
+import { IDBFactory } from 'fake-indexeddb'
 import { Effect, Exit, Match, Option, Schema, Scope } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
-import { ActorId, Journal, OpId } from 'foldkit-durable'
+import { ActorId, DocumentId as JournalDocumentId, Journal, OpId } from 'foldkit-durable'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  StorageError,
   Sync,
   SyncRefusal,
   documentId,
@@ -22,6 +26,7 @@ import {
   replicaId,
   sequence,
   type AuthorizeDecision,
+  type Migrations,
   type Operation,
   type Replica as Replica_,
   type Storage,
@@ -293,6 +298,56 @@ describe('the wire', () => {
   })
 })
 
+/** What the release before upcasting wrote: `fixtures/previousNote.json` says how. */
+const previous = JSON.parse(
+  readFileSync(new URL('./fixtures/previousNote.json', import.meta.url), 'utf8'),
+) as {
+  readonly state: string
+  readonly row: { readonly input: string; readonly payloadHash: string }
+}
+
+/** Durable's canonical form: keys sorted, at every depth. */
+const canonical = (value: unknown): string =>
+  JSON.stringify(value, (_, inner: unknown) =>
+    inner !== null && typeof inner === 'object' && !Array.isArray(inner)
+      ? Object.fromEntries(Object.entries(inner).sort(([a], [b]) => (a < b ? -1 : 1)))
+      : inner,
+  )
+
+describe('the release before', () => {
+  it('saves the replica state it saved, byte for byte, for a document with no migrations', async () => {
+    let saved = ''
+    const storage: Storage = {
+      ...keptStorage(),
+      save: state => Effect.sync(() => void (saved = JSON.stringify(state))),
+    }
+    const replica = await open(OldNote, storage)
+    await Effect.runPromise(replica.submit(old('Groceries')))
+    expect(saved).toBe(previous.state)
+  })
+
+  it('stores the journal row it stored, with the same hash', async () => {
+    const file = journalFile()
+    const journal = openJournal(OldNote, file)
+    const [sent] = JSON.parse(previous.state).pending as ReadonlyArray<unknown>
+    await Effect.runPromise(
+      journal.append(JournalDocumentId.make('note'), OldNote.codec.writtenFrom(sent, key), 'ada'),
+    )
+    const database = new DatabaseSync(file)
+    const row = database.prepare('SELECT input, payload_hash FROM operations').get()
+    database.close()
+    expect(row).toEqual({ input: previous.row.input, payload_hash: previous.row.payloadHash })
+  })
+
+  it('hashes a version-1 operation the new history compares as the old build hashed it', () => {
+    const [sent] = JSON.parse(previous.state).pending as ReadonlyArray<unknown>
+    const compared = NewNote.journalContract().operation.compared(sent)
+    expect(createHash('sha256').update(canonical(compared)).digest('hex')).toBe(
+      previous.row.payloadHash,
+    )
+  })
+})
+
 describe('across a deploy', () => {
   it('reads an edit committed by the old build, whose acknowledgement was lost, as committed', async () => {
     const file = journalFile()
@@ -347,7 +402,7 @@ describe('across a deploy', () => {
     ])
   })
 
-  it('refuses a document whose committed history no step reads, typed, for every exchange', async () => {
+  it('fails an exchange from behind a committed row no step reads, typed, and says nothing of it', async () => {
     const file = journalFile()
     const before = await open(OldNote, keptStorage())
     await Effect.runPromise(before.submit(old('')))
@@ -362,12 +417,35 @@ describe('across a deploy', () => {
       journal: openJournal(NewNote, file),
       principal: 'ada',
     })
-    await expect(newServer.exchange(sequence(0), [])).rejects.toMatchObject({
+    const failed = newServer.exchange(sequence(0), [])
+    await expect(failed).rejects.toMatchObject({
       _tag: 'UnreadableHistoryError',
       documentId: 'note',
       opId: 'a:1',
       version: 1,
     })
+    // What a socket sends a replica: not another replica's operation.
+    await expect(failed).rejects.toMatchObject({
+      message: 'This server cannot read the history of this document',
+    })
+  })
+
+  it('serves a replica past a committed row no step reads', async () => {
+    const file = journalFile()
+    const before = await open(OldNote, keptStorage())
+    await Effect.runPromise(before.submit(old('')))
+    await synchronize(
+      before,
+      journalExchange({ sync: OldNote, journal: openJournal(OldNote, file), principal: 'ada' }),
+    )
+    const newServer = journalExchange({
+      sync: NewNote,
+      journal: openJournal(NewNote, file),
+      principal: 'ada',
+    })
+    // The journal reads no row at or before the cursor it is asked from.
+    const reply = NewNote.codec.decodeExchange(await newServer.exchange(sequence(1), []))
+    expect(reply).toMatchObject({ operations: [], rejected: [] })
   })
 
   it('refuses a document, after a rollback, that holds a version the server lacks', async () => {
@@ -469,6 +547,155 @@ describe('a client and a server of different builds', () => {
     expect(status.pending).toBe(0)
     expect(status.refused).toEqual([expect.objectContaining({ opId: 'a:1' })])
     expect(status.rejected[0]?.refusal).toEqual(Option.some(SyncRefusal.Unreadable({ version: 1 })))
+  })
+})
+
+describe('what the replica keeps', () => {
+  it('writes nothing to dismiss an id it does not hold', async () => {
+    const storage = keptStorage()
+    let saves = 0
+    const counted: Storage = {
+      ...storage,
+      save: (state, expected) => {
+        saves += 1
+        return storage.save(state, expected)
+      },
+    }
+    const replica = await open(NewNote, counted)
+    const before = saves
+    await Effect.runPromise(replica.dismiss(opId('a:9')))
+    expect(saves).toBe(before)
+  })
+
+  it('keeps refused through IndexedDB, whose submits are appended rather than saved', async () => {
+    const factory = new IDBFactory()
+    const storageOf = () => Sync.indexedDb('note', factory)
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const replica = yield* OldNote.openReplica(yield* storageOf(), {
+            replicaId: replicaId('a'),
+          })
+          yield* replica.submit(old(''))
+          yield* replica.submit(old('Eggs'))
+        }),
+      ),
+    )
+    const reopened = () =>
+      Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const replica = yield* NewNote.openReplica(yield* storageOf())
+            const status = yield* replica.status
+            return { pending: status.pending, refused: status.refused.map(({ opId }) => opId) }
+          }),
+        ),
+      )
+    expect(await reopened()).toEqual({ pending: 1, refused: ['a:1'] })
+    // Saved over the appended outbox: a second open finds it moved, not twice.
+    expect(await reopened()).toEqual({ pending: 1, refused: ['a:1'] })
+  })
+
+  it('fails to open, its outbox intact, when another tab wrote between its read and its refusal', async () => {
+    // A store that checks the revision, as IndexedDB does.
+    let stored: { readonly revision: number } | undefined
+    const store: Storage = {
+      load: () => Effect.sync(() => structuredClone(stored)),
+      save: (state, expected) =>
+        (stored?.revision ?? null) === expected
+          ? Effect.sync(() => void (stored = structuredClone(state) as { revision: number }))
+          : Effect.fail(new StorageError({ message: 'Replica was changed by another writer' })),
+      close: Effect.void,
+    }
+    const before = await open(OldNote, store)
+    await Effect.runPromise(before.submit(old('')))
+    const raced: Storage = {
+      ...store,
+      load: () =>
+        Effect.map(store.load(), state => {
+          // Another tab's write lands after this tab read the store.
+          stored = { ...stored!, revision: stored!.revision + 1 }
+          return state
+        }),
+    }
+    const exit = await Effect.runPromiseExit(NewNote.openReplica(raced))
+    expect(exit).toMatchObject({
+      _tag: 'Failure',
+      cause: { reasons: [{ error: { _tag: 'StorageError' } }] },
+    })
+    expect(stored).toMatchObject({ pending: [expect.objectContaining({ opId: 'a:1' })] })
+  })
+
+  it('fails an exchange whose Unreadable refusal names an operation it did not reject', async () => {
+    const replica = await open(NewNote, keptStorage())
+    await Effect.runPromise(replica.submit(Renamed.make({ name: 'Milk' })))
+    const exit = await synchronize(replica, {
+      exchange: async () => ({
+        operations: [],
+        rejected: [],
+        refusals: [{ opId: 'a:1', refusal: { _tag: 'Unreadable', version: 1 } }],
+      }),
+    })
+    expect(Exit.isFailure(exit)).toBe(true)
+    expect(await Effect.runPromise(replica.status)).toMatchObject({ pending: 1, refused: [] })
+  })
+})
+
+describe('a server of the old version', () => {
+  it('appends nothing of an outbox holding a newer entry after a readable one', async () => {
+    const journal = openJournal(OldNote, ':memory:')
+    const reader = await Effect.runPromise(
+      OldNote.openReplica(keptStorage(), { replicaId: replicaId('b') }),
+    )
+    await Effect.runPromise(reader.submit(old('Eggs')))
+    const [readable] = await held(reader)
+    const writer = await open(NewNote, keptStorage())
+    await Effect.runPromise(writer.submit(Renamed.make({ name: 'Milk' })))
+    const [newer] = await held(writer)
+    const exchange = journalExchange({ sync: OldNote, journal, principal: 'ada' })
+    await expect(exchange.exchange(sequence(0), [readable!, newer!])).rejects.toMatchObject({
+      _tag: 'UnsupportedMessageVersionError',
+    })
+    expect(Effect.runSync(journal.cursor(JournalDocumentId.make('note')))).toBe(0)
+  })
+})
+
+describe('a history', () => {
+  it('refuses one not made by Sync.migrations', () => {
+    const forged: Migrations<typeof NoteMessage.Type, typeof NoteMessage.Encoded> = {
+      version: 2,
+      current: NoteMessage,
+      next: NoteHistory.next,
+    }
+    expect(() =>
+      Sync.define({ documentId: key, migrations: forged, ...shared, replay: state => state }),
+    ).toThrow('comes from Sync.migrations')
+  })
+
+  it('gives each step its version’s value normalized, the form it is compared by', () => {
+    const TrimmedV1 = Schema.TaggedStruct('Renamed', { title: Schema.Trim })
+    const Trimmed = Sync.define({
+      documentId: key,
+      migrations: Sync.migrations(Schema.Union([TrimmedV1, Cleared])).next(NoteMessage, previous =>
+        Match.valueTags(previous, {
+          Renamed: ({ title }) => ({ _tag: 'Renamed' as const, name: title }),
+          Cleared: cleared => cleared,
+        }),
+      ),
+      ...shared,
+      replay: state => state,
+    })
+    const read = Trimmed.codec.normalizeOperation({
+      protocolVersion: 1,
+      schemaVersion: 1,
+      documentId: 'note',
+      replicaId: 'a',
+      localSequence: 1,
+      opId: 'a:1',
+      baseCursor: 0,
+      message: { _tag: 'Renamed', title: '  Milk ' },
+    })
+    expect(read.message).toEqual({ _tag: 'Renamed', name: 'Milk' })
   })
 })
 

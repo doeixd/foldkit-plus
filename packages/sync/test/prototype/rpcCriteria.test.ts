@@ -21,8 +21,8 @@ import {
   serveSocket,
   Transport,
   TransportError,
-  type Operation,
   type SocketLike,
+  type WrittenOperation,
 } from '../../src/index.js'
 import { journalChanges, journalExchange } from '../../src/journal.js'
 import { closeScopes, Message, openJournal, pendingOf, replica, Todos } from '../fixtures/todos.js'
@@ -210,7 +210,7 @@ const using = async <A, E>(
 /** One exchange through the transport, its result or its failure. */
 const exchange = (cursor: number, pending: ReadonlyArray<unknown>, epoch?: string) =>
   Effect.flatMap(Effect.service(Transport), transport =>
-    Effect.result(transport.exchange(cursor, pending as ReadonlyArray<Operation>, epoch)),
+    Effect.result(transport.exchange(cursor, pending as ReadonlyArray<WrittenOperation>, epoch)),
   )
 
 /** Two replicas converge through the transport: what one writes, the other reads. */

@@ -12,31 +12,34 @@ import {
   Sequence,
   StorageError,
   type Exchange,
-  type Operation,
   type Storage,
+  type WrittenOperation,
 } from 'foldkit-sync'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Message, type Shared } from '../src/app.js'
 import { openJournal, type Principal } from '../src/journal.js'
+import { TodoSync } from '../src/sync.js'
 import { serverAgentHost } from '../src/serverAgent.js'
 import { closeStorages, openReplica, openStorage, type PromiseReplica } from './helpers.js'
 
 const principal = { actorId: 'owner', documentId: 'todos', canWrite: true }
 const created = (id: string, title = id) => Message.CreatedTodo({ id, title })
+/** An operation as a replica would send it, written at the current version. */
 const operation = (
   replica: string,
   local: number,
   message: Message = created(replica),
-): Operation => ({
-  protocolVersion: 1,
-  schemaVersion: 1,
-  documentId: DocumentId.make('todos'),
-  replicaId: ReplicaId.make(replica),
-  localSequence: LocalSequence.make(local),
-  opId: OpId.make(`${replica}:${local}`),
-  baseCursor: Sequence.make(0),
-  message,
-})
+): WrittenOperation =>
+  TodoSync.journalContract().operation.encode({
+    protocolVersion: 1,
+    schemaVersion: 1,
+    documentId: DocumentId.make('todos'),
+    replicaId: ReplicaId.make(replica),
+    localSequence: LocalSequence.make(local),
+    opId: OpId.make(`${replica}:${local}`),
+    baseCursor: Sequence.make(0),
+    message,
+  })
 let factory: IDBFactory
 let server: ReturnType<typeof openJournal>
 let replicas: Array<PromiseReplica>

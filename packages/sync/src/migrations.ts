@@ -18,7 +18,10 @@ export interface Migrations<Type, Encoded> {
   readonly current: Schema.Codec<Type, Encoded, never, never>
   /**
    * The next version: its Schema, and how a Message of the version before,
-   * encoded, becomes one of this version, encoded.
+   * encoded, becomes one of this version, encoded. `up` must be pure and
+   * deterministic: the server reads an entry more than once (its `admit`, then
+   * the journal), so a clock or a random id in it would let `admit` judge one
+   * Message and the journal commit another.
    */
   readonly next: <T, E>(
     schema: Schema.Codec<T, E, never, never>,
@@ -58,12 +61,11 @@ const chain = <Type, Encoded>(
     version: steps.length,
     upcast: (version, encoded) => {
       let value = encoded
-      for (let at = version; at < steps.length; at++) {
-        // Checked against the whole Schema of the version it is at, then passed
-        // on as it was: `up` is typed by that version's encoded side.
-        steps[at - 1]!.normalize(value)
-        value = steps[at]!.up!(value)
-      }
+      // Each step is given its version's value checked and normalized, the
+      // form the payload is compared by, so what is hashed and what is read
+      // cannot differ under one operation id.
+      for (let at = version; at < steps.length; at++)
+        value = steps[at]!.up!(steps[at - 1]!.normalize(value))
       return value
     },
     normalize: (version, encoded) => steps[version - 1]!.normalize(encoded),

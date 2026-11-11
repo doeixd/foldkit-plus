@@ -15,7 +15,7 @@ import { Effect, Layer, Queue, Schedule, Schema, Stream, type Duration } from 'e
 import { Rpc, RpcClient, RpcGroup, RpcSerialization, RpcServer } from 'effect/rpc'
 import { NetAddress } from 'effect/net'
 import { type Socket, SocketServer } from 'effect/socket'
-import { Transport, TransportError, type Operation, type TransportShape } from '../../src/index.js'
+import { Transport, TransportError, type TransportShape, type WrittenOperation } from '../../src/index.js'
 
 export const ExchangePayload = Schema.Struct({
   cursor: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
@@ -36,7 +36,7 @@ export const SyncRpcs = RpcGroup.make(
 export interface ServeOptions {
   readonly exchange: (
     cursor: number,
-    pending: ReadonlyArray<Operation>,
+    pending: ReadonlyArray<WrittenOperation>,
     epoch?: string | undefined,
   ) => unknown | Promise<unknown>
   readonly changes?: ((listener: () => void) => () => void) | undefined
@@ -52,7 +52,7 @@ export const handlers = (options: ServeOptions) =>
       Effect.tryPromise({
         // Entries are unknown, as `serveSocket` passes them: the exchange decodes each.
         try: () =>
-          Promise.resolve(options.exchange(cursor, pending as ReadonlyArray<Operation>, epoch)),
+          Promise.resolve(options.exchange(cursor, pending as ReadonlyArray<WrittenOperation>, epoch)),
         catch: failure,
       }),
     // One notice at once: a replica that (re)subscribed may have missed some.

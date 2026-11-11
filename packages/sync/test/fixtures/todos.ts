@@ -14,6 +14,7 @@ import {
   sequence,
   type Operation,
   type TransportClient,
+  type WrittenOperation,
 } from '../../src/index.js'
 import { memoryStorage } from '../memoryStorage.js'
 import { Message, Todos } from './todos-contract.js'
@@ -60,7 +61,7 @@ export const pendingOf = async (name: string, titles: ReadonlyArray<string>) => 
   for (const [index, title] of titles.entries()) {
     await Effect.runPromise(writer.submit(Message.CreatedTodo({ id: `${name}${index}`, title })))
   }
-  let held: ReadonlyArray<Operation> = []
+  let held: ReadonlyArray<WrittenOperation> = []
   await Effect.runPromise(
     writer.synchronize.pipe(
       Effect.provide(
@@ -81,7 +82,7 @@ export const pendingOf = async (name: string, titles: ReadonlyArray<string>) => 
 export const send = async (
   exchange: TransportClient,
   cursor: number,
-  pending: ReadonlyArray<Operation>,
+  pending: ReadonlyArray<WrittenOperation>,
 ) => {
   const reply = Todos.codec.decodeExchange(await exchange.exchange(sequence(cursor), pending))
   return {

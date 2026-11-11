@@ -69,11 +69,22 @@ export type Operation = typeof OperationSchema.Type
  * is absent for version 1, so a document with no migrations writes today's
  * envelope byte for byte.
  */
-const WrittenOperationSchema = Schema.Struct({
+const WrittenFields = Schema.Struct({
   ...OperationSchema.fields,
   messageVersion: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(1))),
 })
+/** The written shape, unbranded: what the codec reads before it vouches for anything. */
+type WrittenShape = typeof WrittenFields.Type
+/**
+ * Branded, so only Sync makes one: decoding an entry, or writing an
+ * `Operation` at the current version (`journalContract().operation.encode`).
+ * A decoded `Operation` is not one, since its missing `messageVersion` would
+ * read as version 1 and be upcast again.
+ */
+const WrittenOperationSchema = WrittenFields.pipe(Schema.brand('foldkit-sync/WrittenOperation'))
 export type WrittenOperation = typeof WrittenOperationSchema.Type
+/** What the codec has checked or written itself. */
+const vouched = (operation: WrittenShape): WrittenOperation => operation as WrittenOperation
 
 const committedFields = {
   serverSequence: Sequence.check(Schema.isGreaterThanOrEqualTo(1)),
@@ -85,7 +96,7 @@ const CommittedSchema = Schema.Struct({ ...OperationSchema.fields, ...committedF
 export type CommittedOperation = typeof CommittedSchema.Type
 /** A committed operation as the server sends it: written at the server's current version. */
 const CommittedWrittenSchema = Schema.Struct({
-  ...WrittenOperationSchema.fields,
+  ...WrittenFields.fields,
   ...committedFields,
 })
 
@@ -96,7 +107,7 @@ const decodeCommittedWritten = Schema.decodeUnknownSync(CommittedWrittenSchema, 
   onExcessProperty: 'error',
 })
 /** The version an operation was written at: absent is 1. */
-const versionOf = (operation: WrittenOperation): number => operation.messageVersion ?? 1
+const versionOf = (operation: WrittenShape): number => operation.messageVersion ?? 1
 const decodeRefusal = Schema.decodeUnknownResult(SyncRefusal, { onExcessProperty: 'error' })
 
 /**
@@ -538,7 +549,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
       supported: current,
       message: `Operation ${opId} was written at Message version ${version}; this build reads up to ${current}`,
     })
-  const messageOf = (operation: WrittenOperation): Message => {
+  const messageOf = (operation: WrittenShape): Message => {
     const version = versionOf(operation)
     if (version > current) throw newer(operation.opId, version)
     let decoded: Message
@@ -558,20 +569,20 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
     return decoded
   }
   /** The envelope alone: the decoded side holds no version, only the current Message. */
-  const envelopeOf = <O extends WrittenOperation>({
+  const envelopeOf = <O extends WrittenShape>({
     messageVersion: _,
     ...envelope
   }: O): Omit<O, 'messageVersion'> => envelope
   /** Written at the current version, which an explicit 1 is not. */
   const write = (operation: Operation): WrittenOperation => {
     const envelope = envelopeOf(operation)
-    return current === 1 ? envelope : { ...envelope, messageVersion: current }
+    return vouched(current === 1 ? envelope : { ...envelope, messageVersion: current })
   }
-  const assertDocument = <O extends WrittenOperation>(operation: O, key: DocumentId): O => {
+  const assertDocument = <O extends WrittenShape>(operation: O, key: DocumentId): O => {
     if (operation.documentId !== key) throw new Error('Wrong document')
     return operation
   }
-  const read = (written: WrittenOperation): Operation => {
+  const read = (written: WrittenShape): Operation => {
     checkIdentity(written)
     return { ...envelopeOf(written), message: encodeMessage(messageOf(written)) }
   }
@@ -609,11 +620,11 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
     const version = versionOf(written)
     if (version > current) throw newer(written.opId, version)
     const envelope = envelopeOf(written)
-    return {
+    return vouched({
       ...envelope,
       ...(version === 1 ? {} : { messageVersion: version }),
       message: history.normalize(version, written.message),
-    }
+    })
   }
 
   const journalContract = (): JournalContract<Operation, Shared> => ({
@@ -1094,6 +1105,8 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
               },
               [
                 ...(current.refused ?? []),
+                // A refusal names only a rejected id (anything else failed the
+                // exchange above), so what moves here has left `pending`.
                 ...current.pending.filter(operation => unreadableIds.has(operation.opId)),
               ],
             )

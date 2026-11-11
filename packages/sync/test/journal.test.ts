@@ -9,7 +9,7 @@ import { Effect, Exit, Fiber, Scope } from 'effect'
 import { ActorId, DocumentId, Journal, OpId, Sequence } from 'foldkit-durable'
 import { MessageSet, Projection } from 'foldkit-surface'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Sync, documentId, sequence, type Operation, type TransportClient } from '../src/index.js'
+import { Sync, documentId, sequence, type Operation, type TransportClient, type WrittenOperation } from '../src/index.js'
 import { journalChanges, journalExchange, serveJournal } from '../src/journal.js'
 import { socketPair } from './sockets.js'
 import {
@@ -253,7 +253,7 @@ describe('journalExchange', () => {
   it('fails the exchange only for an entry that names no operation', async () => {
     const exchange = journalExchange({ sync: Todos, journal: openJournal(), principal: 'ada' })
     // @ts-expect-error an entry that is no operation, as a broken client might send
-    const broken: Operation = { nothing: true }
+    const broken: WrittenOperation = { nothing: true }
     await expect(send(exchange, 0, [broken])).rejects.toThrow(/names no operation/)
   })
 

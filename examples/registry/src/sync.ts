@@ -14,6 +14,7 @@ import {
   Sync,
   type Mounted,
   type Operation,
+  type WrittenOperation,
   type PolicyJournalContract,
   type Rejection,
   type Replica,
@@ -130,7 +131,7 @@ export const pausable = <Out, E>(
       const shape = yield* Transport
       return {
         ...shape,
-        exchange: (cursor: number, pending: ReadonlyArray<Operation>, epoch?: string) =>
+        exchange: (cursor: number, pending: ReadonlyArray<WrittenOperation>, epoch?: string) =>
           paused()
             ? Effect.fail(new TransportError({ message: 'working offline' }))
             : shape.exchange(cursor, pending, epoch),

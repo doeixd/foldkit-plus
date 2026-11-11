@@ -49,7 +49,13 @@ import {
   writer,
 } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
-import { Sync, documentId, type Operation, type Sync as SyncContract } from 'foldkit-sync'
+import {
+  Sync,
+  documentId,
+  type Operation,
+  type Sync as SyncContract,
+  type WrittenOperation,
+} from 'foldkit-sync'
 import { Domain } from './domain.js'
 import { AllTodos, CreateTodo, DeleteTodo, RenameTodo, ToggleTodo } from './operations.js'
 
@@ -126,7 +132,7 @@ export const Todos: SyncContract<Message, Model> = Sync.forApplication(App).make
 })
 
 export type Shared = typeof Todos extends Sync<Message, infer S> ? S : never
-export type TodoJournal = JournalShape<Operation, Shared, string, Operation>
+export type TodoJournal = JournalShape<Operation, Shared, string, WrittenOperation>
 
 const TODOS_KEY = 'todos'
 const SETTLED_KEY = 'todos-settled'

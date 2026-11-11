@@ -1,0 +1,8 @@
+{
+  "about": "Written by foldkit-sync and foldkit-durable at 9ee45b30, before upcasting: one Renamed { title: 'Groceries' } submitted by replica a, the replica state it saved (as text, so its bytes are pinned) and the journal row it committed.",
+  "state": "{\"protocolVersion\":1,\"schemaVersion\":1,\"documentId\":\"note\",\"replicaId\":\"a\",\"revision\":1,\"nextLocalSequence\":2,\"cursor\":0,\"committed\":{\"names\":[]},\"committedIds\":[],\"pending\":[{\"protocolVersion\":1,\"schemaVersion\":1,\"documentId\":\"note\",\"replicaId\":\"a\",\"localSequence\":1,\"opId\":\"a:1\",\"baseCursor\":0,\"message\":{\"_tag\":\"Renamed\",\"title\":\"Groceries\"}}]}",
+  "row": {
+    "input": "{\"baseCursor\":0,\"documentId\":\"note\",\"localSequence\":1,\"message\":{\"_tag\":\"Renamed\",\"title\":\"Groceries\"},\"opId\":\"a:1\",\"protocolVersion\":1,\"replicaId\":\"a\",\"schemaVersion\":1}",
+    "payloadHash": "926bf08ff17dbdf89c523c4cd2a06dc209cc17c46c8b6696dfb5c3f844d3a030"
+  }
+}

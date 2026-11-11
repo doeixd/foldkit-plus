@@ -148,10 +148,15 @@ export class UnreadableMessageError extends Schema.TaggedError<UnreadableMessage
 
 /**
  * A committed operation of the document will not read: written at a version
- * this server's history lacks, or at one no step reads. Committed history is
- * the base every replica builds on, so the document is not served until a
- * build reads it; other documents are not affected. Server-side only:
- * `journalExchange` fails with it, and the replica sees its exchanges fail.
+ * this server's history lacks, or at one no step reads. The journal reads a
+ * stored row only when it needs it, so this fails what needs that row: an
+ * exchange from a replica whose cursor is before it (after appending what
+ * that replica sent, which commits, and is acknowledged on a retry once a
+ * build reads the row), a retransmission of its id, and, while the row is
+ * after the stored snapshot, every append and load of the document. A
+ * replica past the row is served. Other documents are not affected.
+ * Server-side only: its fields are for the server's logs, and its message,
+ * which a socket sends, names neither.
  */
 export class UnreadableHistoryError extends Schema.TaggedError<UnreadableHistoryError>()(
   'UnreadableHistoryError',
