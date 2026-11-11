@@ -4082,6 +4082,9 @@ importers:
       '@effect/sql-d1':
         specifier: ^4.1.1
         version: 4.1.1(effect@4.1.1)
+      '@types/ws':
+        specifier: ^8.18.2
+        version: 8.18.2
       effect:
         specifier: ^4.1.1
         version: 4.1.1
@@ -4115,6 +4118,9 @@ importers:
       typescript:
         specifier: 7.0.2
         version: 7.0.2
+      ws:
+        specifier: ^8.22.0
+        version: 8.22.0
 
 packages:
 
