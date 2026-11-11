@@ -72,7 +72,13 @@ phase ships alone and records its number; the gates below are the notes' own.
   (39ff7fa6; the test now presses until signed out). The same loss meets a
   real user who presses early: the example draws Sign out with plain `h`,
   not `foldkit-ssr`'s resumable builder, which keeps such a press
-  (`resumable.ts`).
+  (`resumable.ts`). The example now uses it with `foldkit-ssr/loader`, so a
+  press or typing before boot lands (e5d61c33).
+- [ ] **`PasswordInput.view` cannot be drawn resumably.** It takes only
+  closures for `onInput`/`onToggle` and offers no `KeepTyped`, so
+  `examples/auth` draws its password field by hand from
+  `PasswordInputSlots` (e5d61c33). `Input.view`'s `onInput` has the same
+  closure-only shape. A Message-member form would let both resume.
 - [ ] **Foldkit's view-identity markers add 20 KB to a served page**
   (domains-plus on workerd: 487 `data-foldkit-identity` attributes, 38
   distinct; the whole 90 KB against 69 KB gap). Neither the Vite plugin nor
