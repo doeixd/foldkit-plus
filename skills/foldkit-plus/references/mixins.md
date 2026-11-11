@@ -211,7 +211,9 @@ names, so `U.p('4xl')` and `U.bg('surface.nope')` are type errors. `U.scrollFade
 scroller's content toward an edge with more to scroll (CSS only); `U.scrollDivider(axis)` on a
 positioned parent with `U.scrollTimeline(axis)` on the scroller draws a hairline at such an edge
 (where `timeline-scope` exists); and `U.steady(weight)` keeps room
-for a label at a heavier weight from its `data-label`, so turning bold moves nothing. For a page in a
+for a label at a heavier weight from its `data-label`, so turning bold moves nothing. `U.busyReveal`
+on a status Slot shows an `aria-busy="true"` line only after 0.6s (its space held), so a quick read
+never flashes "Loading…"; draw the wait with `aria-busy`, and the empty or failed line without. For a page in a
 browser running no scripts, `U.scriptedOnly` (last in a slot's pieces) hides a control only a script
 drives and `U.plainOnly('flex')` shows its plain stand-in there; write no `srOnly` or media query of your own.
 

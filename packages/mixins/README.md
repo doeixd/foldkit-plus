@@ -768,7 +768,11 @@ is past them, and a browser without scroll timelines gets no fade), `scrollDivid
 `::before` and `::after` (the fade's mask would erase a line inside the scroller) from the timeline
 the scroller names, where the browser has `timeline-scope`, and `steady(weight)`, room for a
 label at a heavier weight, read from the element's `data-label`, so turning bold moves nothing
-beside it. Each is a `Style.self` rule, unlayered, so it takes the
+beside it, and `busyReveal`, busy text said only once a wait is noticeable: on an element marked
+`aria-busy="true"` it fades in after 0.6s, so a read answered sooner never flashes a "Loading…";
+the element renders from the start, holding its space, and without `aria-busy` the piece does
+nothing, so one status Slot also says "Nothing here." plainly. Its fade follows the `motion` knob;
+its delay does not, or a still theme would bring the flash back. Each is a `Style.self` rule, unlayered, so it takes the
 layer of the style it is composed into, and a plain declaration after it wins per property. A
 value off the scale is a plain declaration (`{ fontSize: '3.75rem' }`); a color outside
 the palette's groups is read through `t`.

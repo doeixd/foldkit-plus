@@ -83,7 +83,19 @@ const timelines = {
   inline: withTimelineScope(self({ scrollTimeline: `${timelineOf('inline')} inline` })),
 } as const
 
-const showLine = keyframes({ from: { opacity: '0' }, to: { opacity: '1' } })
+const fadeIn = keyframes({ from: { opacity: '0' }, to: { opacity: '1' } })
+/**
+ * How long a wait runs before it is noticed: a busy line shown sooner reads
+ * as a flash. Not scaled by the `motion` knob, since a stiller theme would
+ * shorten it and bring the flash back; only the fade itself follows the knob.
+ */
+const NOTICEABLE = '0.6s'
+const busyReveal = compose(
+  fadeIn.style,
+  nest('&[aria-busy="true"]', {
+    animation: `${fadeIn.name} var(--fk-motion-moderate, 160ms) ${NOTICEABLE} both`,
+  }),
+)
 const hideLine = keyframes({ from: { opacity: '1' }, to: { opacity: '0' } })
 
 /** How far a scroll goes before the start line is fully drawn, and the end line fully gone. */
@@ -105,7 +117,7 @@ const divider = (axis: 'block' | 'inline'): StyleValue => {
         }
   const drawn = { content: '""', position: 'absolute', opacity: '0', pointerEvents: 'none' }
   return compose(
-    showLine.style,
+    fadeIn.style,
     hideLine.style,
     withTimelineScope(
       compose(
@@ -113,7 +125,7 @@ const divider = (axis: 'block' | 'inline'): StyleValue => {
         nest('&::before', {
           ...drawn,
           ...edges.start,
-          animation: `${showLine.name} linear both`,
+          animation: `${fadeIn.name} linear both`,
           animationTimeline: name,
           animationRangeStart: '0',
           animationRangeEnd: lineRange,
@@ -262,4 +274,15 @@ export const Utilities = {
       visibility: 'hidden',
       fontWeight: t.weight[weight],
     }),
+  /**
+   * Busy text said only once the wait is noticeable: on a status whose
+   * `aria-busy="true"` marks a wait, it fades in after 0.6s, so a read that
+   * answers sooner shows nothing where a "Loading…" drawn for a frame read as a
+   * flash. The element itself always renders, so its space is held from the
+   * start and nothing moves when the text shows; an answer in time removes
+   * `aria-busy` before the delay ends, and the text never appears. Without
+   * `aria-busy` it does nothing, so the same Slot can say "Nothing here."
+   * plainly. The fade follows the `motion` knob, the delay does not.
+   */
+  busyReveal,
 } as const

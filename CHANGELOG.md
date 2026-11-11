@@ -100,6 +100,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Utilities.busyReveal`** (`foldkit-mixins/utilities`): the delayed reveal
+  of a busy status, moved from `foldkit-mixins-crud` so any package or page
+  can use it. On an element marked `aria-busy="true"` it fades the text in
+  after 0.6s, holding its space from the start, so a read answered sooner
+  never flashes a "Loading…"; without `aria-busy` it does nothing. The fade
+  now follows the `motion` knob (`--fk-motion-moderate`); the delay does not,
+  so a still theme snaps the line in without bringing the flash back.
+
 - **`Recipes.Disclosure` and `Recipes.Fieldset`** (`foldkit-mixins-ui`). The
   Disclosure recipe draws the button as a row with its own chevron (an
   `::after`, down shut, up once `data-open`) and the panel's box: `variant`
@@ -389,6 +397,10 @@ version changed; `pnpm` skips versions already in the registry.
   again), so a page renders once in `keep` instead of once a minute.
 
 ### Changed
+
+- **`Loading.shown` is deprecated** (`foldkit-mixins-crud`). It is now
+  `Utilities.busyReveal` from `foldkit-mixins/utilities` under its old name,
+  and the `List` and `Editor` recipes use that; import it from there.
 
 - **`Cms.historyCard` takes `locale` and `timeZone`, both required**
   (`foldkit-cms`). It wrote each revision's date and time in the runtime's
