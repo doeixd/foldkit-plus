@@ -61,6 +61,7 @@ const toolError = (text: string) => ({ content: [{ type: 'text', text }], isErro
  * clients retry it as a transport fault.
  */
 const isProtocolError = (tag: string): boolean =>
+  // tag-check: open, a failure's tag is any name an application chose
   tag === 'AgentUnknownCapabilityError' || tag === 'AgentInvalidInputError'
 
 /**

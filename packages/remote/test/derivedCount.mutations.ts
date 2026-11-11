@@ -25,8 +25,8 @@ export default [
   edit(
     'a row not held points nowhere',
     '../src/mutation.ts',
-    "return kind === 'Insert' ? Option.some(null) : Option.none()",
-    'return Option.some(null)',
+    'Match.orElse(() => Option.none()),',
+    'Match.orElse(() => Option.some(null)),',
   ),
   edit(
     'a held row with no ref is read as pointing nowhere',

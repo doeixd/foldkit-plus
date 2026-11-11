@@ -199,7 +199,10 @@ const movedBy = (
       if (member.viewer === relation && Option.isSome(viewerKey)) return viewerKey
     }
     // A row not there points nowhere, unless an update or a delete expected one.
-    return kind === 'Insert' ? Option.some(null) : Option.none()
+    return Match.value(kind).pipe(
+      Match.when('Insert', () => Option.some(null)),
+      Match.orElse(() => Option.none()),
+    )
   }
   const patched = patchOfWrite(bound).values
   const after = (relation: string): Option.Option<unknown> =>
@@ -263,9 +266,14 @@ const movedBy = (
             id: refParts(ref).id,
             values,
             ...(Object.keys(moved).length === 0 ? {} : { adds: moved }),
-            ...(kind === 'Insert' && Object.keys(moved).length > 0
-              ? { creates: { entity: bound.entity, id: bound.id } }
-              : {}),
+            ...Match.value(kind).pipe(
+              Match.when('Insert', () =>
+                Object.keys(moved).length > 0
+                  ? { creates: { entity: bound.entity, id: bound.id } }
+                  : {},
+              ),
+              Match.orElse(() => ({})),
+            ),
           },
         ]
   })

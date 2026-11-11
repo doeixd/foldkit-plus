@@ -568,6 +568,7 @@ export const expose = <
       const made = toMessage(input, context)
       // A whole Message, as `Agent.action` gives, must be the one this key names.
       const madeTag = Predicate.hasProperty(made, '_tag') ? made._tag : undefined
+      // tag-check: open, a toMessage may make any application's Message
       if (typeof madeTag === 'string' && madeTag !== tag)
         throw new Error(`"${name}" made a "${madeTag}" Message, but is exposed as "${tag}"`)
       return make(made)

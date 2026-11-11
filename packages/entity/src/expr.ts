@@ -507,12 +507,15 @@ const toOperand = <T>(value: Operand<T> | T): Operandish => {
   const tag = tagOf(value)
   // An `EntityField` and a `FieldExpr` share the tag. A `FieldExpr` is already
   // built, its collation with it, which its field's metadata no longer holds.
+  // tag-check: open, an operand is any value a caller passed
   if (tag === 'Field' && !Object.hasOwn(value as object, 'metadata')) {
     return value as FieldExpr<unknown>
   }
+  // tag-check: open, an operand is any value a caller passed
   if (tag === 'Field') {
     return fieldExpr(value as EntityField<string, string, Schema.Constraint>)
   }
+  // tag-check: open, an operand is any value a caller passed
   if (tag === 'Relation') {
     const relation = value as EntityRelation<string, string, AnyEntity, Cardinality, boolean>
     if (relation.cardinality !== 'one') {
@@ -522,6 +525,7 @@ const toOperand = <T>(value: Operand<T> | T): Operandish => {
     }
     return linkExpr(relation as OneRelation)
   }
+  // tag-check: open, an operand is any value a caller passed
   if (
     tag === 'Literal' ||
     tag === 'Input' ||
@@ -1387,6 +1391,7 @@ export type PathEnd<Name extends string> =
 
 /** A value checked to be a `one` relation, or refused with what to write instead. */
 const oneRelation = (step: 'path' | 'exists', value: unknown): OneRelation => {
+  // tag-check: open, an operand is any value a caller passed
   if (tagOf(value) !== 'Relation') {
     throw new Error(
       `[foldkit-entity] Expr.${step}: the first argument is a relation (Post.relations.author)`,
@@ -1435,6 +1440,7 @@ const viewerPathOf = (from: ViewerExpr<unknown>, end: unknown): ViewerPathExpr<u
 
 /** `Expr.path`: `relation` followed first, then whatever `end` reads, checked to be on its target. */
 const pathOf = (relation: unknown, end: unknown): PathExpr<unknown> | ExistsPredicate => {
+  // tag-check: open, an operand is any value a caller passed
   if (tagOf(relation) === 'Viewer')
     return viewerPathOf(relation as ViewerExpr<unknown>, end) as never
   const first = oneRelation('path', relation)
@@ -1547,6 +1553,7 @@ const isOf = (
   tag: string,
   build?: (fields: Readonly<Record<string, unknown>>) => unknown,
 ): Predicate => {
+  // tag-check: open, an operand is any value a caller passed
   const relation =
     tagOf(subject) === 'Relation'
       ? (subject as EntityRelation<string, string, AnyEntity, Cardinality, boolean>)
@@ -2252,6 +2259,7 @@ export type Ordering = OrderTerm | ChosenOrder
  * ref, not the id it orders by, so it could not place a row there.
  */
 const orderOperand = (expr: unknown, step: 'asc' | 'desc' | 'chosen'): AnyExpr => {
+  // tag-check: open, an operand is any value a caller passed
   if (tagOf(expr) === 'Relation') {
     throw new Error(
       `[foldkit-entity] Order.${step}: a list orders by its own fields, not by where a relation points`,

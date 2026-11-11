@@ -51,8 +51,8 @@ export default [
     edits: [
       {
         file: '../src/mutation.ts',
-        find: "...(kind === 'Insert' && Object.keys(moved).length > 0",
-        replace: '...(false',
+        find: "Match.when('Insert', () =>\n                Object.keys(moved).length > 0",
+        replace: "Match.when('Insert', () =>\n                false",
       },
     ],
     tests,

@@ -630,7 +630,9 @@ const decisionOf = (delivery: DispatchProgress<unknown>['delivery']): AuditDecis
  * undone -- so neither may be recorded as a decision not to act.
  */
 const outcomeOf = (cause: Cause.Cause<unknown>, tag: string | undefined): string => {
+  // tag-check: open, a failure's tag is any name an application chose
   if (tag === 'AgentCompletionTimeoutError') return 'timeout'
+  // tag-check: open, a failure's tag is any name an application chose
   if (tag !== undefined) return tag
   return Cause.hasInterrupts(cause) ? 'interrupted' : 'AgentDefect'
 }

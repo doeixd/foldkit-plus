@@ -51,6 +51,7 @@ export const checkedSet = (
   if (key === 'id') return fail(entity, 'sets the id, which the client names')
   if (Object.hasOwn(entity.sets, key)) return fail(entity, `"${key}" is set already`)
   const tag = tagOf(value)
+  // tag-check: open, the value is whatever the application wrote
   if (tag !== 'Viewer' && tag !== 'Now' && tag !== 'ViewerPath') {
     return fail(
       entity,
