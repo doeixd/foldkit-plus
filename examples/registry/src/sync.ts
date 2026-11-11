@@ -15,7 +15,9 @@ import {
   type Mounted,
   type Operation,
   type PolicyJournalContract,
+  type Rejection,
   type Replica,
+  SyncRefusal,
   type Sync as SyncContract,
   Transport,
   TransportError,
@@ -86,6 +88,17 @@ export const journalContract = (): PolicyJournalContract<Operation, Shared, Prin
   definition.journalContract()
 
 const decodeMessage = Schema.decodeUnknownOption(Message)
+
+/** What a refused cell says: the server's own words where it gave some. */
+const said = (rejection: Rejection): string =>
+  Option.match(rejection.refusal, {
+    onNone: () => 'Refused by the server',
+    onSome: SyncRefusal.match({
+      Forbidden: ({ reason }) => Option.getOrElse(reason, () => 'You may not change this'),
+      Invalid: ({ message }) => message,
+      Unreadable: () => 'Made by another version of the page; reload to send it again',
+    }),
+  })
 
 /** The cells an operation's edit changes: each product's fields it holds. */
 const changedCells = (operation: Operation): ReadonlyArray<Pick<Refusal, 'id' | 'column'>> =>
@@ -172,13 +185,13 @@ export const mountRegistry = (
   const status = Effect.runFork(
     Stream.runForEach(replica.statusChanges, ({ pending, lastError, rejected }) =>
       Effect.sync(() => {
-        const refusals = rejected.flatMap(({ opId, reason, operation }) =>
-          reported.has(opId)
+        const refusals = rejected.flatMap(rejection =>
+          reported.has(rejection.opId)
             ? []
-            : changedCells(operation).map(cell => ({
-                opId,
+            : changedCells(rejection.operation).map(cell => ({
+                opId: rejection.opId,
                 ...cell,
-                reason: Option.getOrElse(reason, () => 'Refused by the server'),
+                reason: said(rejection),
               })),
         )
         reported = new Set(rejected.map(({ opId }) => opId))
