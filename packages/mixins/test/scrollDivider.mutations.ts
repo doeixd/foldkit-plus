@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file,
-        find: "const showLine = keyframes({ from: { opacity: '0' }, to: { opacity: '1' } })",
-        replace: "const showLine = keyframes({ from: { opacity: '1' }, to: { opacity: '1' } })",
+        find: "const fadeIn = keyframes({ from: { opacity: '0' }, to: { opacity: '1' } })",
+        replace: "const fadeIn = keyframes({ from: { opacity: '1' }, to: { opacity: '1' } })",
       },
     ],
     tests,
