@@ -18,6 +18,7 @@ import {
   type WritableProjection,
 } from 'foldkit-surface'
 import type { DocumentId } from './ids.js'
+import type { Migrations } from './migrations.js'
 import {
   defineSync,
   type CommitStamp,
@@ -38,6 +39,23 @@ type AppMessage<
   F extends Schema.Struct.Fields,
   Cases extends Record<string, Schema.Struct.Fields>,
 > = Schema.Schema.Type<AppScope<AppModel, F, Cases>['Message']>
+
+type AppMessageEncoded<
+  AppModel,
+  F extends Schema.Struct.Fields,
+  Cases extends Record<string, Schema.Struct.Fields>,
+> = AppScope<AppModel, F, Cases>['Message']['Encoded']
+
+/** `make`'s Message history, typed by the application's own Message. */
+export interface HistoryOption<Message, Encoded> {
+  /**
+   * The Schemas the document's durable Messages were stored in, ending at the
+   * application's own `Message` (`Sync.migrations(V1).next(App.Message, up)`):
+   * operations written at an older version are upcast wherever they are read.
+   * Without it, the Message is version 1.
+   */
+  readonly migrations?: Migrations<Message, Encoded> | undefined
+}
 
 /** Reads the tag off a Foldkit Message constructor without constructing one. */
 const messageTag = (constructor: unknown): string | undefined => {
@@ -273,16 +291,18 @@ export interface ApplicationSync<
       Subset,
       Ms extends readonly MessageConstructor<AppMessage<AppModel, F, Cases>>[],
     >(
-      options: MakeOptions<AppModel, Fields, Subset, Ms, Principal> & {
-        readonly authorize: AuthorizePolicy<Principal, NoInfer<Fields>, NoInfer<Ms>>
-      },
+      options: MakeOptions<AppModel, Fields, Subset, Ms, Principal> &
+        HistoryOption<AppMessage<AppModel, F, Cases>, AppMessageEncoded<AppModel, F, Cases>> & {
+          readonly authorize: AuthorizePolicy<Principal, NoInfer<Fields>, NoInfer<Ms>>
+        },
     ): DefinedSync<AppModel, Fields, AppMessage<AppModel, F, Cases>, Ms, Principal, true>
     <
       Fields extends Schema.Struct.Fields,
       Subset,
       Ms extends readonly MessageConstructor<AppMessage<AppModel, F, Cases>>[],
     >(
-      options: MakeOptions<AppModel, Fields, Subset, Ms, Principal>,
+      options: MakeOptions<AppModel, Fields, Subset, Ms, Principal> &
+        HistoryOption<AppMessage<AppModel, F, Cases>, AppMessageEncoded<AppModel, F, Cases>>,
     ): DefinedSync<AppModel, Fields, AppMessage<AppModel, F, Cases>, Ms, Principal>
   }
 }
@@ -390,10 +410,14 @@ const build = <
   )
 
   const make = (
-    options: MakeOptions<AppModel, any, any, any, Principal>,
+    options: MakeOptions<AppModel, any, any, any, Principal> & HistoryOption<Message, unknown>,
   ): DefinedSync<AppModel, any, Message, any, Principal, boolean> => {
     type Shared = Record<string, unknown>
-    const { shared, durable } = options
+    const { shared, durable, migrations } = options
+    // A Schema of an older version can equal the current one structurally, so
+    // the types cannot tell a history that stops short; identity can.
+    if (migrations !== undefined && (migrations.current as unknown) !== app.Message)
+      throw new Error("Sync.make: the Message history must end at the application's own Message")
 
     // Two applications can have structurally identical Message unions, so the
     // types cannot separate them; the owner token can.
@@ -418,7 +442,9 @@ const build = <
       | undefined
     const sync = defineSync<Message, Shared, unknown, unknown>({
       documentId: options.documentId,
-      message: app.Message as unknown as Schema.Codec<Message, unknown>,
+      ...(migrations === undefined
+        ? { message: app.Message as unknown as Schema.Codec<Message, unknown> }
+        : { migrations }),
       shared: sharedCodec,
       empty: shared.get(app.initial),
       durable: message => Option.exists(tagOf(message), tag => durableTags.has(tag)),

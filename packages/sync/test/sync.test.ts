@@ -549,8 +549,11 @@ describe('the replica', () => {
           refusal: Option.none(),
           reason: Option.none(),
           operation: expect.objectContaining({ opId: 'a:1', message: created('t') }),
+          message: created('t'),
         },
       ],
+      // Nothing this build cannot read.
+      refused: [],
     })
   })
 
@@ -571,12 +574,14 @@ describe('the replica', () => {
         refusal: Option.none(),
         reason: Option.none(),
         operation: expect.objectContaining({ message: created('t') }),
+        message: created('t'),
       },
       {
         opId: 'a:2',
         refusal: Option.none(),
         reason: Option.some('Only the owner can do that'),
         operation: expect.objectContaining({ message: created('u') }),
+        message: created('u'),
       },
     ])
   })

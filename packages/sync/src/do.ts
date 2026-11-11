@@ -37,7 +37,7 @@ import {
 import { checkRevalidate } from './revalidate.js'
 import { hostDefect, reportTo } from './diagnostics.js'
 import type { AuthorizeDecision } from './make.js'
-import type { Operation, Sync } from './sync.js'
+import type { Operation, Sync, WrittenOperation } from './sync.js'
 import { workerSocket } from './transport.js'
 
 /** The sliver of a Durable Object the host uses: state for the journal to open with. */
@@ -59,7 +59,7 @@ export interface DocumentHostConfig<Message, Shared, Principal, Env, RP = never>
   readonly openJournal: (
     ctx: DocumentHostContext,
     env: Env,
-  ) => Promise<Journal<Operation, Shared, Principal, Operation>>
+  ) => Promise<Journal<Operation, Shared, Principal, WrittenOperation>>
   /**
    * Who is opening this socket, from the upgrade request. Fails with a
    * `RemoteUnauthenticated` (`foldkit-remote`; `RemoteServer.unauthenticated()`
@@ -80,7 +80,7 @@ export interface DocumentHostConfig<Message, Shared, Principal, Env, RP = never>
   readonly settle?:
     | ((
         env: Env,
-        journal: Journal<Operation, Shared, Principal, Operation>,
+        journal: Journal<Operation, Shared, Principal, WrittenOperation>,
       ) => Effect.Effect<void, unknown>)
     | undefined
   /**
@@ -192,7 +192,7 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
 
     constructor(ctx: DocumentHostContext, env: Env) {
       super(ctx, env)
-      let ready: Promise<Journal<Operation, Shared, Principal, Operation>> | undefined
+      let ready: Promise<Journal<Operation, Shared, Principal, WrittenOperation>> | undefined
       const { layer, settle } = config
       this.host = documentHost<Message, Shared, Principal, RP>({
         sync: config.sync,
