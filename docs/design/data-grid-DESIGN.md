@@ -295,7 +295,10 @@ and the copy, cut and paste handlers in the view. Where it departs from §14:
   dates and custom strategies are not built. A drag held at or past the
   grid's edge scrolls it; the drag lives on the cells' container, not the
   handle, so it outlasts the handle's cell scrolling away.
-- **Not built:** HTML clipboard data, multi-range copy.
+- **Not built:** HTML clipboard data, multi-range copy. Weighed with date and
+  custom fill series in [144-grid-leftovers-DESIGN.md](./144-grid-leftovers-DESIGN.md)
+  (2026-11-11): each waits for an adopter, and HTML paste and multi-range
+  copy are recommended against.
 
 ## Phase 6 as built (2026-10-03)
 
