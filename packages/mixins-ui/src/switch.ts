@@ -162,8 +162,8 @@ const Drag = Mount.defineStream('SwitchDrag', {
             Queue.offerUnsafe(queue, Dragged.make({ isChecked }))
           }
           const click = (event: Event) => {
-            // The browser sends it right after the release, though not before
-            // `lostpointercapture`, which comes a task later.
+            // The browser sends it right after the release, after the pointer
+            // events: a timer set at the release ran before it.
             if (event.timeStamp - releasedAt > CLICK_AFTER_DRAG) return
             releasedAt = Number.NEGATIVE_INFINITY
             event.preventDefault()

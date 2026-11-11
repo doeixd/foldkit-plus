@@ -446,7 +446,7 @@ while keeping the best of what this project already has:
   Not taken: thickening icon strokes on hover, which would restyle every
   application's icon set. Toggles stand on the ladder, and the Switch has
   Fluid's 34×20 geometry and hover pill. Done: dragging the Switch's thumb
-  (`Switch.draggable`, a Mount of its own: `PointerDrag` is a drop between zones, not a thumb; COMMIT). Open: Select's pause after a pick (upstream's). [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §7
+  (`Switch.draggable`, a Mount of its own: `PointerDrag` is a drop between zones, not a thumb; c3a6db7). Open: Select's pause after a pick (upstream's). [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §7
 - [ ] **UI polish: bugs, merges and depth.** A review of the gallery found
   shared faults (hovers that lay grey on coloured surfaces, corners that are
   not concentric, collapses that overshoot, popups stacked inside their
