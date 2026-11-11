@@ -1,6 +1,6 @@
 # The data grid's last leftovers: HTML clipboard, multi-range copy, fill series (#144)
 
-Status: decided 2026-11-11, nothing built. The three items are the rest of
+Status: decided 2026-11-11 and revised after review the same day; nothing built. The three items are the rest of
 #144's leftovers ([data-grid-DESIGN.md](./data-grid-DESIGN.md), "Phase 8 as
 built so far": "Not built: HTML clipboard data, multi-range copy", and "dates
 and custom strategies are not built"). Nobody has asked for any of them, so
@@ -14,8 +14,8 @@ where) or *recalled* (from memory, not verified).
 
 | Item | Verdict | Why |
 | --- | --- | --- |
-| Copy as `text/html` | When an adopter asks, after an upstream builder | Spreadsheets already read today's TSV. HTML only helps when pasting into a document or an email. Foldkit's clipboard builders write `text/plain` alone. |
-| Paste `text/html` | Not at all, unless a source that writes no `text/plain` is shown | Every source in §3 writes TSV beside its HTML (Glide checked, Excel and Sheets recalled). Parsing untrusted markup is risk with no gain. |
+| Copy as `text/html` | When an adopter asks | Spreadsheets already read today's TSV. HTML only helps when pasting into a document or an email. Foldkit's builders write `text/plain` alone, but a second listener in the same copy event can add the HTML (probed in Chromium, §5.1). |
+| Paste `text/html` | Not at all, unless a source that writes no `text/plain` is shown | Every source in §3 that writes HTML also writes TSV beside it: checked for Glide, recalled for Excel and Sheets. Parsing untrusted markup is risk with no gain. |
 | Multi-range copy | Not at all for now | The grid has no multi-range selection. Building one collides with Ctrl+click's row toggle, and the copy itself has three incompatible precedents. |
 | Date fill series | When an adopter asks; first in line | Small, and contained in `fill.ts`. A Date column's fill text is already an ISO day. |
 | Custom fill series | When an adopter asks | One optional column field. It has no design question, only no caller. |
@@ -146,24 +146,54 @@ none of that.
 const toHtml: (rows: ReadonlyArray<ReadonlyArray<string>>) => string
 ```
 
-**Options considered.**
+**Chosen: a second listener in the same dispatch.** The grid already
+mounts its own Mount, `CellPress` (`press.ts:55`), on the cells' container
+inside the grid. When it starts, it can also add `copy` and `cut` listeners
+to the grid root. The view's `OnCopyText` and `OnCutText` sit on that root
+(`view.ts:1723`), and the root is the copy event's target, since it holds
+focus.
 
-- **A Mount on the cells' container that writes both types.** Rejected.
-  That element already holds the press Mount (`press.ts`), and an element
-  holds one Mount. A Mount's arguments are also read once at insert, while
-  the copied range changes with every selection.
-- **`navigator.clipboard.write` from a Command.** Rejected. It is
-  asynchronous, may ask for permission, and runs after the copy event has
-  already ended.
-- **An upstream Foldkit builder.** Chosen. Propose
-  `h.OnCopyData({ 'text/plain': tsv, 'text/html': html })` and its cut twin,
-  each setting every type while the event runs.
+The new listener does nothing unless `event.defaultPrevented`, which means
+`OnCopyText` handled the event and a field's own copy is left alone. It then
+reads the TSV back with `clipboardData.getData('text/plain')` and adds
+`setData('text/html', Clipboard.toHtml(Clipboard.parseTsv(tsv)))`. Its
+arguments never go stale, because the text comes from the event and not from
+the Mount. The HTML is derived from the TSV, so the two cannot disagree.
 
-Until that builder exists, this item waits.
+The listener must go on the root (or the document), not on the container
+`CellPress` is drawn on. A copy aimed at the focused root never reaches a
+descendant.
 
-**Failure semantics.** The HTML is built from the same matrix as the TSV, so
-a cell cannot appear in one and not the other. A target that ignores HTML
-reads the TSV.
+**Probed** on 2026-11-11 in Chromium (headless shell 1243, through
+Playwright, keyboard Ctrl+C on a focused `role="grid"` root; a scratch
+script, since deleted):
+
+- A second `copy` listener on the root ran after the first, which had set
+  `text/plain` and called `preventDefault`. Its `getData('text/plain')`
+  returned the TSV. Its `setData('text/html', …)` took effect, and `types`
+  read `["text/plain","text/html"]`.
+- A listener on the `document` saw both types.
+- A listener on a descendant of the root never ran.
+- A following Ctrl+V into a textarea read both the TSV and the HTML.
+
+Firefox and WebKit were not probed. That is the first step of the build,
+together with whether Foldkit's listener on the root is registered before a
+Mount's, which a `document` listener would make irrelevant.
+
+**Options rejected.**
+
+- **`navigator.clipboard.write` from a Command.** It is asynchronous, may
+  ask for permission, and runs after the copy event has ended.
+- **An upstream Foldkit builder,**
+  `h.OnCopyData({ 'text/plain': tsv, 'text/html': html })` with a cut twin.
+  It would be tidier, but it is not a prerequisite. If upstream adds one, the
+  listener above goes.
+
+So this item waits for an adopter, not for upstream.
+
+**Failure semantics.** A target that ignores HTML reads the TSV. If the
+listener does not run, for instance in a browser where the order differs,
+the copy is today's: TSV alone.
 
 ### 5.2 HTML paste (recommended against)
 
@@ -206,10 +236,12 @@ positions:
 
 - Ranges that span the same columns join top to bottom in row order.
 - Ranges that span the same rows join side by side.
-- Anything else is refused, and the clipboard is left as it was. The view
-  draws no copy handler for such a selection, so the refusal is visible as
-  "nothing copied". Saying why needs a live region, which the grid does not
-  draw today; it would be part of that work.
+- Anything else is refused. The view draws no copy handler for such a
+  selection, so the browser does its default copy: whatever page text is
+  selected, usually nothing in a grid, which leaves the clipboard as it was.
+  To refuse explicitly, the view would draw a handler that prevents the
+  default and writes nothing. Saying why needs a live region, which the grid
+  does not draw today; it would be part of that work.
 
 AG Grid's stacking and Glide's last-range-only were rejected: each copies
 something other than what is shown. Cut, paste and fill over several ranges
@@ -226,29 +258,47 @@ that are all calendar days, `YYYY-MM-DD`:
   months apart, continue by months. Each is counted from the source's day,
   so a 31st clamps to a shorter month and comes back after it: Jan 31,
   Feb 28, Mar 31. This is *recalled* as Excel's month fill.
+- **Both fit, month wins.** Sources that fit a day step and a month step
+  (Feb 1, Mar 1 in a common year: 28 days, one month) continue by months.
+- **Already clamped.** Sources that are not on one day of the month
+  (Jan 31, Feb 28) are not a month step. They continue by their day step:
+  28 days, so Mar 28.
 - **Anything else** repeats, as today. A single day repeats too, as a single
   number does. The behaviour stays uniform, and that is why this departs
   from Excel's +1 day.
 
-The arithmetic is on the calendar date alone (UTC fields of `Date.UTC(y, m,
-d)`), so no time zone moves a day. The inference reads text, not the
-column, so any column whose drafts are ISO days gets it. The column's schema
-still judges each result.
+**Not a day.** A text matching the pattern but naming no real day
+(`2024-02-30`) is not a day, so its lane repeats. The check runs before
+`Date.UTC`, which would silently normalize that text to March 1.
 
-This changes a published function's behaviour. Its build updates the
-README's `Fill.series` line, the skill's data-grid reference and the
-changelog.
+The arithmetic is on the calendar date alone (UTC fields of `Date.UTC(y, m,
+d)`), so no time zone moves a day. The column's schema still judges each
+result.
+
+**A behaviour change, for the changelog.** The inference reads text, not the
+column. A plain text column whose cells look like ISO days (a SKU column
+holding `2026-01-05` and `2026-01-06`, say) would step where it repeats
+today. This changes a published function, `Fill.series`. Its build updates
+the README's `Fill.series` line, the skill's data-grid reference and the
+changelog's entry, and it runs the Jev review.
 
 ### 5.5 Custom series
 
 ```ts
-// Planned: an optional field of a column spec.
-/** Continues a lane of this column's drafts for `count` cells; none uses Fill.series. */
-readonly fill?: (
-  source: ReadonlyArray<string>,
-  count: number,
-  backward: boolean,
-) => Option.Option<ReadonlyArray<string>>
+// Planned: in ColumnEdit, beside `draft`, since only an editable column fills.
+export interface FillLane {
+  /** The source's drafts in this column, top to bottom. */
+  readonly source: ReadonlyArray<string>
+  /** How many cells the fill writes beyond the source. */
+  readonly count: number
+  readonly toward: 'down' | 'up'
+}
+
+/**
+ * The texts a fill writes in this column, the first next to the source;
+ * none uses `Fill.series`.
+ */
+readonly fill?: (lane: FillLane) => Option.Option<ReadonlyArray<string>>
 ```
 
 - **Scope.** It applies only to fills down or up, where a lane is one column.
@@ -256,10 +306,15 @@ readonly fill?: (
 - **Why one call per lane.** AG Grid calls back once per cell. One call per
   lane gives the function the whole source, which is what series inference
   needs, and returning `Option.none()` defers to the default.
-- **Failure semantics.** The returned texts are judged like any fill, and a
-  refused text lands in `refused`. Returning a length other than `count` is
-  a programming error: `Grid.fill` throws, naming the column, rather than
-  padding or cutting quietly.
+- **Failure semantics.**
+  - `Grid.fill` runs in the application's `update`, so nothing here throws.
+  - The returned texts are judged like any fill, and a text the schema
+    refuses lands in `refused`.
+  - Of a longer answer, the first `count` texts are taken.
+  - A shorter answer leaves the cells past its end refused, each with an
+    empty `text` and the error "The column's series gave no text here", in
+    the existing `refused` list. The fault is visible per cell; it is neither
+    a crash nor a silent repeat.
 
 ## 6. What this leaves out
 
