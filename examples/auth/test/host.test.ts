@@ -122,3 +122,21 @@ describe('one fetch handler for the site', () => {
     }
   })
 })
+
+describe("the sign-in form's markup", () => {
+  it('names the Message each field sends and keeps what is typed before boot', async () => {
+    const html = await (await navigate('/')).text()
+    // The envelope rides as JSON in a single-quoted attribute; this page's holds no entity.
+    const envelope = JSON.parse(/data-foldkit-plus-resume='([^']*)'/.exec(html)![1]!) as {
+      readonly bindings: ReadonlyArray<{ readonly message: { readonly _tag: string } }>
+    }
+    const sends = (id: string) => {
+      const field = new RegExp(`<input[^>]*id="${id}"[^>]*>`).exec(html)![0]
+      const ordinal = /data-foldkit-plus-on-input="(\d+)"/.exec(field)![1]!
+      expect(field).toContain(`data-foldkit-plus-keep="${ordinal}"`)
+      return envelope.bindings[Number(ordinal)]?.message._tag
+    }
+    expect(sends('email')).toBe('ChangedEmail')
+    expect(sends('password-input')).toBe('ChangedPassword')
+  })
+})

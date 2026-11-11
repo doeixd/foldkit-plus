@@ -7,7 +7,7 @@
 import { Option } from 'effect'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, type SlotBuilders } from 'foldkit-mixins'
-import { Alert, AppShell, Badge, Button, Card, Input, PasswordInputSlots } from 'foldkit-mixins-ui'
+import { Alert, AppShell, Badge, Button, Card, Input, PasswordInput } from 'foldkit-mixins-ui'
 import { May } from 'foldkit-guard'
 import { Denied, RemoteData, type RemoteError } from 'foldkit-remote'
 import { Access, Site } from 'foldkit-site'
@@ -49,47 +49,6 @@ const failure = (error: RemoteError): string =>
     }),
   })
 
-/**
- * The password field, drawn from `PasswordInput`'s Slots: its `view` takes
- * closures, and only a Message member lets the server name what typing here
- * means, which `KeepTyped` replays before the runtime starts.
- */
-const passwordField = (model: Model, h: ResumableBuilder<Message>): Html => {
-  const builders = SlotView.buildersFor(PasswordInputSlots, [PasswordStyle.mixin], {
-    input: undefined,
-    h,
-  })
-  return h.div(builders.root.attrs(), [
-    h.label(builders.label.attrs([h.For('password-input')]), ['Password']),
-    h.div(builders.group.attrs(), [
-      h.input(
-        builders.input.attrs([
-          h.Id('password-input'),
-          h.Type(model.passwordShown ? 'text' : 'password'),
-          h.Value(model.password),
-          h.Autocomplete('current-password'),
-          // Shown as text, a password must not be checked, corrected or capitalized.
-          h.Spellcheck(false),
-          h.Autocapitalize('off'),
-          h.Attribute('autocorrect', 'off'),
-          h.OnInput(Message.ChangedPassword),
-          h.KeepTyped(),
-        ]),
-      ),
-      h.button(
-        builders.toggle.attrs([
-          h.Type('button'),
-          h.AriaLabel('Show password'),
-          h.AriaPressed(String(model.passwordShown)),
-          h.AriaControls('password-input'),
-          h.OnClick(Message.ToggledPassword()),
-        ]),
-        [],
-      ),
-    ]),
-  ])
-}
-
 const signInForm = (model: Model, slots: Slots, h: ResumableBuilder<Message>): Html =>
   h.form(slots.form.attrs([h.Id('sign-in'), h.OnSubmit(Message.SubmittedSignIn())]), [
     Input.view(
@@ -97,17 +56,30 @@ const signInForm = (model: Model, slots: Slots, h: ResumableBuilder<Message>): H
         id: 'email',
         type: 'email',
         value: model.email,
+        // A member, not a closure: the server names it, so typing before boot is answered.
+        onInput: h.OnInput(Message.ChangedEmail),
         style: FieldStyle,
         draw: resolved =>
           h.div(slots.field.attrs(), [
             h.label(resolved.label, ['Email']),
-            // Not `onInput`: that takes a closure, which the page cannot answer before it boots.
-            h.input([...resolved.input, h.OnInput(Message.ChangedEmail), h.KeepTyped()]),
+            h.input([...resolved.input, h.KeepTyped()]),
           ]),
       },
       h,
     ),
-    passwordField(model, h),
+    PasswordInput.view(
+      {
+        id: 'password',
+        label: 'Password',
+        value: model.password,
+        onInput: h.OnInput(Message.ChangedPassword),
+        visible: model.passwordShown,
+        onToggle: Message.ToggledPassword(),
+        attributes: { input: [h.KeepTyped()] },
+        style: PasswordStyle,
+      },
+      h,
+    ),
     Button.view({ label: 'Sign in', type: 'submit', style: PrimaryButtonStyle }, h),
   ])
 

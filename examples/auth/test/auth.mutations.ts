@@ -490,4 +490,33 @@ export default [
     ],
     tests: app,
   },
+  {
+    name: 'the password field sends through a closure the page cannot name',
+    edits: [
+      {
+        file: '../src/view.ts',
+        find: 'onInput: h.OnInput(Message.ChangedPassword),',
+        replace: 'onInput: value => Message.ChangedPassword({ value }),',
+      },
+    ],
+    tests: host,
+  },
+  {
+    name: 'the password field drops what is typed before boot',
+    edits: [
+      { file: '../src/view.ts', find: 'attributes: { input: [h.KeepTyped()] },', replace: '' },
+    ],
+    tests: host,
+  },
+  {
+    name: 'the email field drops what is typed before boot',
+    edits: [
+      {
+        file: '../src/view.ts',
+        find: 'h.input([...resolved.input, h.KeepTyped()])',
+        replace: 'h.input(resolved.input)',
+      },
+    ],
+    tests: host,
+  },
 ]
