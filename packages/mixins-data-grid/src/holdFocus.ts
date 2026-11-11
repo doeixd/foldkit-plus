@@ -6,6 +6,7 @@ export const HoldingFocus = Schema.TaggedStruct('HoldingFocus', {})
 
 type Editable = Element & {
   readonly value?: string
+  readonly selectionStart?: number | null
   readonly focus?: () => void
   readonly setSelectionRange?: (start: number, end: number) => void
   readonly showPicker?: () => void
@@ -29,8 +30,12 @@ export const HoldFocus = Mount.defineStream('DataGridHoldFocus', {
           const editor = element as Editable
           const grid = element.closest('[role="grid"]') as (Element & { focus?: () => void }) | null
           editor.focus?.()
-          const end = editor.value?.length ?? 0
-          editor.setSelectionRange?.(end, end)
+          // A date input has no selection (`selectionStart` is null), and
+          // `setSelectionRange` on it throws, which would fail this Mount.
+          if (typeof editor.selectionStart === 'number') {
+            const end = editor.value?.length ?? 0
+            editor.setSelectionRange?.(end, end)
+          }
           if (element.tagName === 'SELECT') {
             try {
               editor.showPicker?.()
