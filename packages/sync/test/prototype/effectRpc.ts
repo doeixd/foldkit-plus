@@ -80,6 +80,7 @@ export const fromClient = <E>(
   // A dropped connection ends the stream; subscribing again is the reconnect.
   changes: client.Changes().pipe(
     Stream.retry(Schedule.spaced(options.resubscribe ?? '1 second')),
+    // The schedule never ends: this only gives the seam the error-free stream it takes.
     Stream.catch(() => Stream.empty),
   ),
 })

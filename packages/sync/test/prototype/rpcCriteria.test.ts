@@ -307,7 +307,7 @@ describe.each(inProcess)('$name', subject => {
         // What a (re)connection announces lands first; only a notice after the commit counts.
         yield* Effect.sleep('50 millis')
         const before = heard
-        yield* Effect.promise(() => serve.exchange(0, [operation!]) as Promise<unknown>)
+        yield* Effect.promise(async () => serve.exchange(0, [operation!]))
         yield* Effect.sleep('10 millis').pipe(
           Effect.repeat({ until: () => heard > before, times: 100 }),
         )
@@ -463,7 +463,7 @@ describe.each(wires)('$name', wire => {
           Effect.flatMap(result => (result._tag === 'Success' ? Effect.void : Effect.fail(result))),
           Effect.retry({ schedule: Schedule.spaced(quick), times: 100 }),
         )
-        yield* Effect.promise(() => serve.exchange(0, [operation!]) as Promise<unknown>)
+        yield* Effect.promise(async () => serve.exchange(0, [operation!]))
         return yield* Fiber.join(heard)
       }),
     )
