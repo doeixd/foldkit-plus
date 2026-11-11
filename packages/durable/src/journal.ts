@@ -957,11 +957,17 @@ const makeShape = <
       catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
     })
 
+  /** What a payload is compared by: `encode(decode(input))` unless the codec says otherwise. */
+  const compared = operationCodec.compared
+
   interface PreparedOperation {
     readonly operation: Operation
     readonly opId: OpId
     readonly actorId: ActorId
+    /** What is stored: the decoded operation, encoded. */
     readonly encoded: string
+    /** What a retransmission is compared by, and what `payloadHash` hashes. */
+    readonly compared: string
     readonly payloadHash: string
   }
 
@@ -989,7 +995,25 @@ const makeShape = <
         catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
       })
       const encoded = yield* encodeCanonical(operation)
-      return { operation, opId, actorId, encoded, payloadHash: hashPayload(encoded) }
+      const comparedJson =
+        compared === undefined
+          ? encoded
+          : yield* Effect.try({
+              try: () => {
+                const json = canonicalJson(compared(input))
+                if (json === undefined) throw new Error('compared gave no JSON value')
+                return json
+              },
+              catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
+            })
+      return {
+        operation,
+        opId,
+        actorId,
+        encoded,
+        compared: comparedJson,
+        payloadHash: hashPayload(comparedJson),
+      }
     })
 
   /**
@@ -1018,19 +1042,23 @@ const makeShape = <
         if (row.input !== null) {
           // Compare what was sent, by its canonical hash: the stored input is the
           // stamped operation, and a retransmission with a different key order is
-          // the same operation. A row without a hash is compared by its canonical form.
+          // the same operation. A row without a hash is compared by its canonical
+          // form. A stored row that will not read is the server's failure, not the
+          // sender's: a `JournalError`, carrying the codec's own cause.
           const same =
             row.payload_hash !== null
               ? row.payload_hash === payloadHash
               : (yield* Effect.try({
-                  try: () => canonicalJson(JSON.parse(String(row.input))),
-                  catch: cause =>
-                    new InvalidOperationError({ message: 'Invalid operation', cause }),
-                })) === encoded
+                  try: () => {
+                    const stored = JSON.parse(String(row.input)) as OperationEncoded
+                    return canonicalJson(compared === undefined ? stored : compared(stored))
+                  },
+                  catch: cause => journalError('Could not read a committed operation', cause),
+                })) === prepared.compared
           if (!same || priorActor !== actorId) return yield* Effect.fail(conflict())
           const stored = yield* Effect.try({
             try: () => operationCodec.decode(JSON.parse(String(row.input))),
-            catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
+            catch: cause => journalError('Could not read a committed operation', cause),
           })
           return {
             result: {

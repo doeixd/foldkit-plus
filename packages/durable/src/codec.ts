@@ -11,6 +11,15 @@ import { Schema } from 'effect'
 export interface Codec<Value, Encoded = unknown> {
   readonly encode: (value: Value) => Encoded
   readonly decode: (value: Encoded) => Value
+  /**
+   * Optional, for operations: the form a payload is compared by when its id
+   * is sent again, hashed in place of `encode(decode(input))`. A codec that
+   * reads several versions of its payload gives the payload normalized at
+   * the version it was written at, so an operation committed before the
+   * codec changed is still recognized after it. What is stored stays
+   * `encode` of the decoded value.
+   */
+  readonly compared?: ((value: Encoded) => Encoded) | undefined
 }
 
 /**
