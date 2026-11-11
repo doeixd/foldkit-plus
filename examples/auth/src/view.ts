@@ -114,9 +114,13 @@ const session = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyA
       }),
   })
 
+/** A wait: busy, so the status Slot says it only once it is noticeable. */
+const waiting = (slots: Slots, h: HtmlBuilder<Message>, text: string): Html =>
+  h.p(slots.status.attrs([h.Role('status'), h.AriaBusy(true)]), [text])
+
 const noteList = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> =>
   RemoteData.render(Surface.read(NoteList, model).notes, {
-    loading: () => [h.p(slots.status.attrs([h.Role('status')]), ['Loading…'])],
+    loading: () => [waiting(slots, h, 'Loading…')],
     notFound: () => [h.p(slots.status.attrs(), ['No list.'])],
     // A refusal is announced once, by the session line above.
     failed: error =>
@@ -148,9 +152,9 @@ const notes = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =>
         Access.match(accessOf(model), {
           Allowed: () => noteList(model, slots, h),
           // `Me` is still loading: no sign-in page flashed at someone signed in.
-          Pending: () => [h.p(slots.status.attrs([h.Role('status')]), ['Loading…'])],
+          Pending: () => [waiting(slots, h, 'Loading…')],
           // `update` is replacing the address.
-          Denied: () => [h.p(slots.status.attrs(), ['Taking you to sign in…'])],
+          Denied: () => [waiting(slots, h, 'Taking you to sign in…')],
         }),
       ),
       style: CardStyle,

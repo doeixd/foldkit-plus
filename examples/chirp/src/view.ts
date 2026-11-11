@@ -6,6 +6,7 @@
 import { Option } from 'effect'
 import { chirpDemo } from 'foldkit-example-site/demos'
 import { demoGuide } from 'foldkit-example-site/guide'
+import type { EditorStatus } from 'foldkit-crud'
 import { May } from 'foldkit-guard'
 import { Icon, type IconData } from 'foldkit-media'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
@@ -104,8 +105,8 @@ const chirp = (post: Row, slots: Slots, h: H): ReadonlyArray<Html> => [
       : []),
   ]),
 ]
-const editorNote = (model: Model): string => {
-  switch (PostEditor.status(model)) {
+const editorNote = (status: EditorStatus): string => {
+  switch (status) {
     case 'Loading':
       return 'Loading…'
     case 'Saving':
@@ -127,6 +128,13 @@ const editorNote = (model: Model): string => {
   }
 }
 
+/** What the open editor is doing; busy while the post loads, so the wait is said late. */
+const note = (status: EditorStatus, slots: Slots, h: H): Html =>
+  h.p(
+    slots.note.attrs([h.AriaLive('polite'), ...(status === 'Loading' ? [h.AriaBusy(true)] : [])]),
+    [editorNote(status)],
+  )
+
 /** A post, keyed by its id: its author's avatar beside it, or beside its editor while open. */
 const article = (row: Row, slots: Slots, h: H, body: ReadonlyArray<Html>): Html =>
   h.article(slots.post.attrs([h.Key(row.id), h.AriaLabel(`Post by ${row.author.name}`)]), [
@@ -144,7 +152,7 @@ const post = (row: Row, model: Model, slots: Slots, h: H): Html =>
     ? article(row, slots, h, [
         h.div(slots.editing.attrs(), [
           EditorForm.view(model, h, { words: { submit: 'Save' } }),
-          h.p(slots.note.attrs([h.AriaLive('polite')]), [editorNote(model)]),
+          note(PostEditor.status(model), slots, h),
           h.button(slots.done.attrs([h.Type('button'), h.OnClick(Message.ClosedEditor())]), [
             'Done',
           ]),
@@ -160,7 +168,7 @@ const answered = <A>(
   draw: (value: A) => ReadonlyArray<Html>,
 ): ReadonlyArray<Html> =>
   Data.render(data, {
-    loading: () => [h.p(slots.empty.attrs(), ['Loading…'])],
+    loading: () => [h.p(slots.loading.attrs([h.Role('status'), h.AriaBusy(true)]), ['Loading…'])],
     notFound: () => [h.p(slots.empty.attrs(), ['Nothing here.'])],
     failed: error => [h.p(slots.empty.attrs(), [error.message])],
     data: draw,
