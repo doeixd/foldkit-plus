@@ -119,8 +119,8 @@ export default [
     edits: [
       {
         file,
-        find: '(comparesHeld(node.expression) || comparesDirect(node.expression))',
-        replace: 'comparesDirect(node.expression)',
+        find: '.find(expression => comparesHeld(expression) || comparesDirect(expression))',
+        replace: '.find(expression => comparesDirect(expression))',
       },
     ],
     tests,
@@ -130,8 +130,8 @@ export default [
     edits: [
       {
         file,
-        find: '!(ts.isIfStatement(node.parent) && node.parent.elseStatement === node) &&',
-        replace: '',
+        find: '!(ts.isIfStatement(node.parent) && node.parent.elseStatement === node)',
+        replace: 'true',
       },
     ],
     tests,
@@ -178,8 +178,8 @@ export default [
     edits: [
       {
         file,
-        find: '(comparesHeld(node.expression) || comparesDirect(node.expression))',
-        replace: 'comparesHeld(node.expression)',
+        find: '.find(expression => comparesHeld(expression) || comparesDirect(expression))',
+        replace: '.find(expression => comparesHeld(expression))',
       },
     ],
     tests,
@@ -211,8 +211,118 @@ export default [
     edits: [
       {
         file,
-        find: 'const literal = side => ts.isStringLiteralLike(unwrap(side))',
-        replace: 'const literal = () => true',
+        find: 'ts.isStringLiteralLike(unwrap(side)) || checker.getTypeAtLocation(side).isStringLiteral()',
+        replace: 'true',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a later condition of an else-if chain is not read',
+    edits: [
+      {
+        file,
+        find: '.map(branch => branch.expression)',
+        replace: '.slice(0, 1).map(branch => branch.expression)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an if followed by a return is not a pair',
+    edits: [
+      {
+        file,
+        find: 'endsInReturn(statement.thenStatement) &&',
+        replace: 'false &&',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a block that ends in a return is not a then-branch that returns',
+    edits: [
+      {
+        file,
+        find: 'statement.statements.length > 0 &&',
+        replace: 'false &&',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a guard mixing a tag with another check is a pair',
+    edits: [
+      {
+        file,
+        find: 'onlyTags(statement.expression)',
+        replace: '(comparesHeld(statement.expression) || comparesDirect(statement.expression))',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a pair that is also sibling ifs is reported twice',
+    edits: [
+      {
+        file,
+        find: '!inRun.has(statement) &&',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a negated tag comparison is not unwrapped',
+    edits: [
+      {
+        file,
+        find: 'inner.operator === ts.SyntaxKind.ExclamationToken',
+        replace: 'false',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a loose == is not a comparison',
+    edits: [
+      {
+        file,
+        find: 'kind === ts.SyntaxKind.EqualsEqualsToken ||\n  kind === ts.SyntaxKind.ExclamationEqualsToken',
+        replace: 'kind === ts.SyntaxKind.ExclamationEqualsToken',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a loose != is not a comparison',
+    edits: [
+      {
+        file,
+        find: '||\n  kind === ts.SyntaxKind.ExclamationEqualsToken\nconst isPositiveEquality',
+        replace: '\nconst isPositiveEquality',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an element access of _tag is not a tag',
+    edits: [
+      {
+        file,
+        find: '(ts.isElementAccessExpression(node) &&',
+        replace: '(false &&',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a constant of a literal type is not a literal',
+    edits: [
+      {
+        file,
+        find: '|| checker.getTypeAtLocation(side).isStringLiteral()',
+        replace: '|| false',
       },
     ],
     tests,

@@ -151,6 +151,66 @@ const refused: ReadonlyArray<readonly [string, string, string]> = [
     'if/else on a tag',
   ],
   [
+    'an else-if whose later condition is a direct tag',
+    'export const a = (n: number): number => {\n  if (n > 0) {\n    return 1\n  } else if (read._tag === "Failed") {\n    return 2\n  } else {\n    return 3\n  }\n}',
+    'if/else on a tag',
+  ],
+  [
+    'an else-if chain with a tag in its last condition, once',
+    'export const a = (n: number): number => {\n  if (n > 0) return 1\n  else if (n < 0) return 2\n  else if (read._tag === "Failed") return 3\n  else return 4\n}',
+    'if/else on a tag',
+  ],
+  [
+    'an if/return pair on a direct tag',
+    'export const a = (): number => {\n  if (read._tag === "Ready") return 1\n  return 2\n}',
+    'if/return pair on a tag',
+  ],
+  [
+    'an if/return pair whose then-branch is a block',
+    'export const a = (): number => {\n  if (read._tag === "Ready") {\n    return 1\n  }\n  return 2\n}',
+    'if/return pair on a tag',
+  ],
+  [
+    'an if/return pair on a held tag',
+    'const tag = read._tag\nexport const a = (): number => {\n  if (tag === "Ready") return 1\n  return 2\n}',
+    'if/return pair on a held tag',
+  ],
+  [
+    'an if/return pair on two tags joined by ||',
+    'export const a = (): number => {\n  if (read._tag === "Ready" || read._tag === "Failed") return 1\n  return 2\n}',
+    'if/return pair on a tag',
+  ],
+  [
+    'an if/return pair on a negated tag comparison',
+    'export const a = (): number => {\n  if (!(read._tag === "Ready")) return 1\n  return 2\n}',
+    'if/return pair on a tag',
+  ],
+  [
+    'a negated tag comparison in a ternary',
+    'export const a = !(read._tag === "Ready") ? 1 : 2',
+    'ternary on a tag',
+  ],
+  [
+    'a loose == on a tag in a ternary',
+    'export const a = read._tag == "Ready" ? 1 : 2',
+    'ternary on a tag',
+  ],
+  [
+    'a loose != on a tag in an if/else',
+    'export const a = (): number => {\n  if (read._tag != "Ready") {\n    return 1\n  } else {\n    return 2\n  }\n}',
+    'if/else on a tag',
+  ],
+  [
+    'a tag read as x["_tag"] in a ternary',
+    'export const a = read["_tag"] === "Ready" ? 1 : 2',
+    'ternary on a tag',
+  ],
+  [
+    'a tag compared with a constant of a literal type',
+    'const READY = "Ready" as const\nexport const a = read._tag === READY ? 1 : 2',
+    'ternary on a tag',
+  ],
+  [
     'a ternary inside a filter predicate',
     'declare const rows: ReadonlyArray<Read>\nexport const a = rows.filter(row => (row._tag === "Ready" ? true : false))',
     'ternary on a tag',
@@ -170,7 +230,7 @@ const kept: ReadonlyArray<readonly [string, string]> = [
   ],
   [
     'a held tag narrowed once with an early return',
-    'const tag = read._tag\nexport const a = (): number => {\n  if (tag === "Ready") return 1\n  return 2\n}',
+    'const tag = read._tag\nexport const a = (): number => {\n  if (tag === "Ready") return 1\n  console.log(tag)\n  return 2\n}',
   ],
   [
     'a function returning a tag of literals, compared once',
@@ -210,7 +270,23 @@ const kept: ReadonlyArray<readonly [string, string]> = [
   ],
   [
     'a lone if on a direct tag, a narrowing guard',
-    'export const a = (): number => {\n  if (read._tag === "Ready") return 1\n  return 2\n}',
+    'export const a = (): number => {\n  if (read._tag === "Ready") return 1\n  console.log(read)\n  return 2\n}',
+  ],
+  [
+    'a guard mixing a tag with another check, then a return',
+    'export const a = (n: number): number => {\n  if (read._tag !== "Ready" || n > 0) return 1\n  return 2\n}',
+  ],
+  [
+    'a lone narrowing if with no return after it',
+    'export const a = (): void => {\n  if (read._tag === "Ready") console.log(read)\n}',
+  ],
+  [
+    'a tag compared with a constant typed string',
+    'declare const READY: string\nexport const a = read._tag === READY ? 1 : 2',
+  ],
+  [
+    'an else-if chain with no tag in it',
+    'export const a = (n: number): number => {\n  if (n > 0) return 1\n  else if (n < 0) return 2\n  else return 3\n}',
   ],
   [
     'a direct tag compared as a value in a filter predicate',

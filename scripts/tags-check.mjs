@@ -22,13 +22,24 @@
  * a two-arm match the checker cannot see.
  *
  * So is a ternary or an `if`/`else` whose condition compares `x._tag` itself to
- * a literal (`===`, `!==`, either way round, alone or inside `&&`/`||`), even on
- * a precisely typed union: use the union's `match`. Allowed: a lone `if` without
- * `else` (a narrowing guard or early return), and a comparison used as a value,
- * such as the predicate of `filter`/`find`/`some`, which selects rows and does
- * not branch. Only the condition of a `?:` or `if`/`else` is held to this.
+ * a literal (`===`, `!==`, `==`, `!=`, either way round, `x._tag` or `x['_tag']`,
+ * alone, negated with `!`, or inside `&&`/`||`), even on a precisely typed
+ * union: use the union's `match`. A named constant stands for a literal when
+ * its type is a string literal (`message._tag === NAVIGATE`); one typed `string`
+ * is not read as a tag at all. An `if`/`else if`/`else` chain is judged once at
+ * its head, over every condition in it. `if (<tag>) return a; return b` is the
+ * same two-arm match and is refused too, when every operand of its condition
+ * is a tag comparison; one mixed with another check (`x._tag !== 'A' || x.key
+ * !== key`) is a guard with more to it. Allowed: a lone `if` without `else`
+ * whose other path goes on with more statements (a narrowing guard or early
+ * return), and a comparison used as a value, such as the predicate of
+ * `filter`/`find`/`some`, which selects rows and does not branch. Only the
+ * condition of a `?:` or `if` is held to this.
  *
- *   node scripts/tags-check.mjs     list findings; exit 1 if there are any
+ * A `const` boolean made from a tag comparison and used once is not reported:
+ * it is a value, and finding the match it hides would need a use-count.
+ *
+ *   node scripts/tags-check.mjs [dir…]   list findings (in the projects named, if any); exit 1 if there are any
  */
 import { existsSync, readdirSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
@@ -39,7 +50,11 @@ import ts from 'typescript-6'
 const root = fileURLToPath(new URL('..', import.meta.url))
 export const findings = []
 
-const isTagAccess = node => ts.isPropertyAccessExpression(node) && node.name.text === '_tag'
+const isTagAccess = node =>
+  (ts.isPropertyAccessExpression(node) && node.name.text === '_tag') ||
+  (ts.isElementAccessExpression(node) &&
+    ts.isStringLiteralLike(node.argumentExpression) &&
+    node.argumentExpression.text === '_tag')
 const literalTags = type =>
   (type.isUnion() ? type.types : [type]).every(
     member => member.isStringLiteral() || (member.flags & ts.TypeFlags.Undefined) !== 0,
@@ -64,9 +79,24 @@ const unwrap = node => {
   return inner
 }
 
-const isStrictEquality = kind =>
+// `==` and `!=` too: they compare a tag as well as the strict ones do.
+const isEquality = kind =>
   kind === ts.SyntaxKind.EqualsEqualsEqualsToken ||
-  kind === ts.SyntaxKind.ExclamationEqualsEqualsToken
+  kind === ts.SyntaxKind.ExclamationEqualsEqualsToken ||
+  kind === ts.SyntaxKind.EqualsEqualsToken ||
+  kind === ts.SyntaxKind.ExclamationEqualsToken
+const isPositiveEquality = kind =>
+  kind === ts.SyntaxKind.EqualsEqualsEqualsToken || kind === ts.SyntaxKind.EqualsEqualsToken
+// A condition with its parentheses and `!` taken off: `!(x._tag === 'A')` is the same branch.
+const unnegated = node => {
+  let inner = unwrap(node)
+  while (
+    ts.isPrefixUnaryExpression(inner) &&
+    inner.operator === ts.SyntaxKind.ExclamationToken
+  )
+    inner = unwrap(inner.operand)
+  return inner
+}
 
 // The symbols in one file that carry a `_tag` value: variables initialised from
 // one, local functions that return one, and parameters such a value is passed to.
@@ -207,27 +237,58 @@ export const check = (program, files, found = findings) => {
       found.push(`${relative(root, file)}:${lineOf(node) + 1}  ${what}`)
     }
     const comparesHeld = expression => {
-      const inner = unwrap(expression)
+      const inner = unnegated(expression)
       if (!ts.isBinaryExpression(inner)) return false
       const kind = inner.operatorToken.kind
       if (kind === ts.SyntaxKind.BarBarToken || kind === ts.SyntaxKind.AmpersandAmpersandToken)
         return comparesHeld(inner.left) || comparesHeld(inner.right)
-      return isStrictEquality(kind) && (held(inner.left) || held(inner.right))
+      return isEquality(kind) && (held(inner.left) || held(inner.right))
     }
     // `x._tag === 'A'` (or `!==`, either way round) in a condition: a branch on a tag read right here.
     const comparesDirect = expression => {
-      const inner = unwrap(expression)
+      const inner = unnegated(expression)
       if (!ts.isBinaryExpression(inner)) return false
       const kind = inner.operatorToken.kind
       if (kind === ts.SyntaxKind.BarBarToken || kind === ts.SyntaxKind.AmpersandAmpersandToken)
         return comparesDirect(inner.left) || comparesDirect(inner.right)
-      const literal = side => ts.isStringLiteralLike(unwrap(side))
+      // A named constant counts as a literal when its type is one (`const NAVIGATE = 'Navigate'`).
+      const literal = side =>
+        ts.isStringLiteralLike(unwrap(side)) || checker.getTypeAtLocation(side).isStringLiteral()
       return (
-        isStrictEquality(kind) &&
+        isEquality(kind) &&
         ((isTagAccess(unwrap(inner.left)) && literal(inner.right)) ||
           (isTagAccess(unwrap(inner.right)) && literal(inner.left)))
       )
     }
+    const chainOf = head => {
+      const chain = []
+      for (let branch = head; branch !== undefined;) {
+        chain.push(branch)
+        branch =
+          branch.elseStatement && ts.isIfStatement(branch.elseStatement)
+            ? branch.elseStatement
+            : undefined
+      }
+      return chain
+    }
+    // Every operand of a condition compares a tag: with another check mixed in
+    // (`x._tag !== 'A' || x.key !== key`) it is a guard with more to it, not a match.
+    const onlyTags = expression => {
+      const inner = unnegated(expression)
+      if (
+        ts.isBinaryExpression(inner) &&
+        (inner.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+          inner.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken)
+      )
+        return onlyTags(inner.left) && onlyTags(inner.right)
+      return comparesHeld(inner) || comparesDirect(inner)
+    }
+    // `if (x._tag === 'A') return a` followed by `return b`: the two-arm match again.
+    const endsInReturn = statement =>
+      ts.isReturnStatement(statement) ||
+      (ts.isBlock(statement) &&
+        statement.statements.length > 0 &&
+        ts.isReturnStatement(statement.statements[statement.statements.length - 1]))
     const visit = node => {
       if (isTagAccess(node)) {
         const subject = unwrap(node.expression)
@@ -235,10 +296,7 @@ export const check = (program, files, found = findings) => {
           report(node, `_tag read through a cast: ${node.getText().slice(0, 60)}`)
         } else {
           const parent = node.parent
-          const compared =
-            ts.isBinaryExpression(parent) &&
-            (parent.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken ||
-              parent.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken)
+          const compared = ts.isBinaryExpression(parent) && isEquality(parent.operatorToken.kind)
           const type = checker.getTypeAtLocation(node)
           if (compared && !literalTags(type)) {
             report(
@@ -268,7 +326,7 @@ export const check = (program, files, found = findings) => {
           )
         }
       }
-      if (ts.isBinaryExpression(node) && isStrictEquality(node.operatorToken.kind)) {
+      if (ts.isBinaryExpression(node) && isEquality(node.operatorToken.kind)) {
         const side = held(node.left) ? node.left : held(node.right) ? node.right : undefined
         if (side !== undefined) {
           const type = checker.getTypeAtLocation(side)
@@ -288,17 +346,27 @@ export const check = (program, files, found = findings) => {
         if (what !== undefined)
           report(node, `ternary on ${what}: ${node.condition.getText().slice(0, 60)}`)
       }
+      // A chain is judged once at its head, over every condition in it.
       if (
         ts.isIfStatement(node) &&
         node.elseStatement !== undefined &&
-        !(ts.isIfStatement(node.parent) && node.parent.elseStatement === node) &&
-        (comparesHeld(node.expression) || comparesDirect(node.expression))
-      )
-        report(
-          node,
-          `if/else on ${comparesHeld(node.expression) ? 'a held tag' : 'a tag'}: ${node.expression.getText().slice(0, 60)}`,
-        )
-      if (ts.isBlock(node) || ts.isSourceFile(node) || ts.isCaseClause(node)) {
+        !(ts.isIfStatement(node.parent) && node.parent.elseStatement === node)
+      ) {
+        const tagged = chainOf(node)
+          .map(branch => branch.expression)
+          .find(expression => comparesHeld(expression) || comparesDirect(expression))
+        if (tagged !== undefined)
+          report(
+            node,
+            `if/else on ${comparesHeld(tagged) ? 'a held tag' : 'a tag'}: ${tagged.getText().slice(0, 60)}`,
+          )
+      }
+      if (
+        ts.isBlock(node) ||
+        ts.isSourceFile(node) ||
+        ts.isCaseClause(node) ||
+        ts.isDefaultClause(node)
+      ) {
         const runs = new Map()
         for (const statement of node.statements) {
           if (!ts.isIfStatement(statement)) continue
@@ -309,33 +377,46 @@ export const check = (program, files, found = findings) => {
               collect(expression.left)
               collect(expression.right)
             } else if (
-              expression.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken &&
+              isPositiveEquality(expression.operatorToken.kind) &&
               isTagAccess(expression.left) &&
-              ts.isStringLiteral(expression.right)
+              ts.isStringLiteralLike(expression.right)
             ) {
               subjects.add(`${expression.left.expression.getText()}._tag`)
             } else if (
-              expression.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken &&
+              isPositiveEquality(expression.operatorToken.kind) &&
               held(expression.left) &&
-              ts.isStringLiteral(expression.right)
+              ts.isStringLiteralLike(expression.right)
             ) {
               subjects.add(expression.left.getText())
             }
           }
-          for (let branch = statement; branch !== undefined;) {
-            collect(branch.expression)
-            branch =
-              branch.elseStatement && ts.isIfStatement(branch.elseStatement)
-                ? branch.elseStatement
-                : undefined
-          }
+          for (const branch of chainOf(statement)) collect(branch.expression)
           for (const subject of subjects)
             runs.set(subject, [...(runs.get(subject) ?? []), statement])
         }
+        const inRun = new Set()
         for (const [subject, statements] of runs) {
-          if (statements.length >= 2)
+          if (statements.length >= 2) {
             report(statements[0], `${statements.length} ifs on ${subject}`)
+            for (const statement of statements) inRun.add(statement)
+          }
         }
+        node.statements.forEach((statement, index) => {
+          const next = node.statements[index + 1]
+          if (
+            ts.isIfStatement(statement) &&
+            statement.elseStatement === undefined &&
+            !inRun.has(statement) &&
+            next !== undefined &&
+            ts.isReturnStatement(next) &&
+            endsInReturn(statement.thenStatement) &&
+            onlyTags(statement.expression)
+          )
+            report(
+              statement,
+              `if/return pair on ${comparesHeld(statement.expression) ? 'a held tag' : 'a tag'}: ${statement.expression.getText().slice(0, 60)}`,
+            )
+        })
       }
       ts.forEachChild(node, visit)
     }
@@ -344,13 +425,17 @@ export const check = (program, files, found = findings) => {
 }
 
 const main = () => {
+  // `node scripts/tags-check.mjs packages/remote` reads only the projects named.
+  const named = process.argv.slice(2).map(arg => resolve(root, arg))
   const projectDirs = [
     ...['packages', 'examples', 'examples/foldkit'].flatMap(parent =>
       readdirSync(join(root, parent), { withFileTypes: true })
         .filter(entry => entry.isDirectory())
         .map(entry => join(root, parent, entry.name)),
     ),
-  ].sort()
+  ]
+    .filter(dir => named.length === 0 || named.includes(dir))
+    .sort()
 
   for (const dir of projectDirs) {
     const config = join(dir, 'tsconfig.json')
