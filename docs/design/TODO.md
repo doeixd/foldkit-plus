@@ -68,8 +68,6 @@ phase ships alone and records its number; the gates below are the notes' own.
   attributes carry the page's Message, so a Slot-styled static region needs a
   cast (found by #432's spike, 1a4b05a). Type it so a region of Message-free
   Slot attributes compiles without one.
-- [ ] **domains-plus's Worker is over its budget**: 3,175,432 B against
-  3,175,000 (`serverBundle.test.ts`), red at 43dd9f3. Being bisected.
 - [ ] **`examples/auth`'s e2e flaked once in six runs** (2026-11-10, after
   H1): in "a session the server no longer holds is refused…", after Sign
   out the page still read "Signed in as grace" through the 5 s poll. Not

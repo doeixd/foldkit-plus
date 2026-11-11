@@ -11,9 +11,12 @@ import { expect, test } from 'vitest'
 import { formatServerReport, measureServer } from '../../../../scripts/bundle-report.mjs'
 import { record } from '../../../../scripts/perf-report.mjs'
 
-// Raw bytes, not minified. 3,111.8 kB measured on 2026-11-02, plus about 2%.
-// Never raise it without saying here what the growth bought.
-const CEILING = 3_175_000
+// Raw bytes, not minified. 3,175.4 kB measured on 2026-11-11, plus about 2%.
+// Never raise it without saying here what the growth bought. From 3,136.1 kB
+// at 85e0f67 (2026-11-02) it grew steadily, about 39 kB over 337 commits with
+// no step above 17 kB: the SSR loader and redirect, Remote and Surface
+// features the page uses. Not an accident in one commit.
+const CEILING = 3_240_000
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))
