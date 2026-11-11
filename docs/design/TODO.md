@@ -24,7 +24,9 @@ phase ships alone and records its number; the gates below are the notes' own.
   press at `load` 1,194 ms against 312, total script +1.9 kB; the cost is
   evaluating the chunk, which today's entry starts before `load`. Phase 1 built: one round trip per pass
   (#435). #427 closed: the `Link` header saved 6 ms of FCP (bar 50). #432's
-  hydration spike is still to run.
+  spike is run and not kept: `SSR.static` on the footer and the hero's copy
+  moved boot by -7 and +96 ms across two runs of 12 at 4x (bar -10) and
+  blocking +23 and +62 ms; #432 can close on those numbers.
   [472-427-432-435-ssr-delivery-DESIGN.md](./472-427-432-435-ssr-delivery-DESIGN.md)
 - [ ] **Site and host** (#236, #235, #438). Built: B (#501, #502: b10c409),
   D1 (Chirp on node Surfaces, the policy-by-route recipe: e91a378) and H1

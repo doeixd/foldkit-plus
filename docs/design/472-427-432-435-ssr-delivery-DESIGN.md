@@ -4,7 +4,7 @@ Status: decided 2026-11-10 (decisions delegated by the owner). Phase 0 is run (s
 "Phase 0 results"); the `Link` probe failed decision 6's bar, so phase 3 is not built and #427
 closes with its numbers. Phase 2's loader is built in `foldkit-ssr` and wired into domains-plus as
 an opt-in build (`DOMAINS_PLUS_LOADER=1`), measured (section 5, "Phase 2 result") and not its
-default: a press at `load` takes three times as long as today's. Phase 1 is owed (a search pass
+default: a press at `load` takes three times as long as today's. Phase 4's spike is run and not kept (section 5, "Phase 4 result"). Phase 1 is owed (a search pass
 makes two client calls).
 
 Four issues ask how a page `foldkit-ssr` renders reaches the browser: when its
@@ -526,6 +526,47 @@ leave before the render (an early hint, a streamed response) could use it. Neith
 decision 6 builds headers first only on this probe passing. The header is not added to the app.
 The probe did not run a streamed response: decision 6 gates it on the buffered header and the
 header alone moves nothing.
+
+### Phase 4 result
+
+`SSR.static` on domains-plus's display regions, run 2026-11-11 on built Workers (`wrangler dev
+--local`, workerd 1.20261019, Chromium headless shell 1243), `/?q=acme`, CPU throttled 4 times, a fresh
+context per run, the two builds served side by side and alternated (which goes first alternates
+too), median of 12 after 3 unrecorded, page kept before the first run, two such runs
+(`renderer-baseline/2026-11-11-phase4-boot-cpu4x-{1,2}.json`, taken with `node
+scripts/render-baseline.mjs --boot --reps 12 --throttle 4`). The change is
+`2026-11-11-phase4-static-regions.patch` beside them: the footer, the hero's heading and line, and the
+"Begin your search" section as `SSR.static` regions behind `DOMAINS_PLUS_STATIC=1`, with
+`[data-foldkit-plus-static] { display: contents }` so the region's wrapper adds no box. The header
+(a brand link with `OnClick`, the cart buttons) and the search form cannot be static: a handler in a
+region is refused.
+
+| Median of 12 (min to max) | Without, run 1 / run 2 | With, run 1 / run 2 |
+| --- | --- | --- |
+| Runtime taken over (resume marker gone), from navigation start | 832 ms (750 to 1,160) / 799 ms (758 to 1,028) | 825 ms (766 to 1,119) / 895 ms (782 to 1,038) |
+| Total main-thread blocking, every long task | 972 ms (815 to 1,349) / 972 ms (854 to 1,059) | 995 ms (885 to 1,178) / 1,034 ms (938 to 1,129) |
+| First press at `load`, to the cart showing the domain | 404 ms (379 to 469) / 402 ms (376 to 436) | 414 ms (363 to 480) / 409 ms (380 to 455) |
+| Page, brotli | 6,045 / 6,043 B | 6,121 / 6,108 B (+76 and +65 B) |
+| Script, brotli | 207,455 / 207,411 B | 207,389 / 207,513 B |
+
+Served elements rebuilt by the first client view: none in either build (the `adoption` check, kept
+at `interactive` and tested for `isConnected` in every run without a press), and nothing logged or
+thrown.
+
+**Verdict: not kept, and the numbers are recorded.** Boot is 7 ms faster in one run and 96 ms
+slower in the other, against a bar of 10 ms faster, and the runs' own spread is 250 to 400 ms;
+blocking is 23 and 62 ms worse and the first press is unmoved. The regions are small (a footer, two
+lines of copy, one empty-state section), so what adopting skips (drawing them) is less than what
+`SSR.hydrate` adds (reading each region's `innerHTML`, which Foldkit parses and compares), as the
+note's section on #432 predicted. The page grows 65 to 76 B. The change is not applied:
+the example's Worker bundle test is at its ceiling (it already read 3,175.4 kB against 3,175.0 at
+the parent commit, and the flag added about 0.3 kB more to the server). Decision 8 (c), the upstream
+ask to adopt a subtree without reading it, is not posted: the cost of the read is not shown to
+exceed the gain of skipping the draw by a margin a phone would feel.
+
+Reaching for `SSR.static` from a Slot-styled view needs a cast: its `render` takes the Message-free
+`HtmlBuilder<never>`, while a Slot's attributes are typed with the page's Message. That is a typing
+gap in the published API, not blocking; it is not changed here.
 
 Phase 2 does not wait on #473 or foldkit#1657 (decision 5). A deadline
 release still sends a reader to a render that may fail with 1102, as a
