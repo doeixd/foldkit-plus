@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A CMS editor whose entry-state read failed no longer opens badged New**
+  (`foldkit-cms`). `status` counted a failed state read as answered, so the
+  form opened with no state, and `stateBadge` says New for none. It reports
+  `LoadFailed` until the state is held.
+
 - **A loading data grid no longer tells assistive technology it is empty**
   (`foldkit-mixins-data-grid`). With no rows and no answer yet (`Loading`, or
   `Failed` with nothing kept, as `GridCrud.rows` and `GridCrud.status` give

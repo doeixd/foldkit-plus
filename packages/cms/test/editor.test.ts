@@ -53,9 +53,12 @@ type Root = { readonly editor: ReturnType<typeof Editor.bundle.init>['model'] }
 /**
  * The entry, its draft and its row as the editor reads them, and one publish,
  * refused with `refused` when it is some; the entry's state read waiting when
- * `stateLoading`.
+ * `stateLoading`, or failed when `stateFailed`.
  */
-const world = (refused: Option.Option<unknown>, { stateLoading = false } = {}) => {
+const world = (
+  refused: Option.Option<unknown>,
+  { stateLoading = false, stateFailed = false } = {},
+) => {
   const ready = (value: unknown) => ({ _tag: 'Ready' as const, value })
   const held: Readonly<Record<string, unknown>> = {
     CmsEntry: { id: 'e1', type: 'posts', targetId: 'p1', revision: 1, archivedAt: null },
@@ -69,9 +72,11 @@ const world = (refused: Option.Option<unknown>, { stateLoading = false } = {}) =
     }) => ({
       read: () =>
         'state' in selection.members
-          ? stateLoading
-            ? { _tag: 'Loading' as const }
-            : ready({ state: 'Published', may: [] })
+          ? stateFailed
+            ? { _tag: 'Failed' as const, error: { _tag: 'Network', message: 'down' } }
+            : stateLoading
+              ? { _tag: 'Loading' as const }
+              : ready({ state: 'Published', may: [] })
           : held[selection.entity.name] === undefined
             ? { _tag: 'NotFound' as const }
             : ready(held[selection.entity.name]),
@@ -122,6 +127,11 @@ describe('opening an entry', () => {
     expect(waiting.placed.status(waiting.opened)).toBe('Loading')
     const read = world(Option.none())
     expect(read.placed.status(read.opened)).toBe('Opened')
+  })
+
+  it('is not opened while the entry’s state read has failed, which would badge it New', () => {
+    const failed = world(Option.none(), { stateFailed: true })
+    expect(failed.placed.status(failed.opened)).toBe('LoadFailed')
   })
 
   it('waits for no state for something new, which the server does not hold yet', () => {

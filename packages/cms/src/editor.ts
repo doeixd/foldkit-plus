@@ -1075,17 +1075,17 @@ export const makeEditor =
             if (editor.mode === 'closed') return 'Closed'
             // An entry opened from the server is loading until its state is read
             // too, so what the state draws (the badge, the history, Publish)
-            // arrives with the form instead of a moment after it.
+            // arrives with the form instead of a moment after it. A state whose
+            // read failed holds nothing either: the badge would say New.
+            const stateRead = read(root, 'state')
             const stateUnread =
               editor.mode === 'edit' &&
-              !Option.match(Option.fromUndefinedOr(read(root, 'state')), {
-                onNone: () => false,
-                onSome: RemoteData.answered,
-              })
+              (stateRead === undefined ||
+                (stateRead._tag !== 'NotFound' && Option.isNone(RemoteData.held(stateRead))))
             if (!editor.filled || stateUnread) {
               const entry = read(root, 'entry')
               if (entry?._tag === 'NotFound') return 'NotFound'
-              const parts = [entry, read(root, 'draft'), read(root, 'row')]
+              const parts = [entry, read(root, 'draft'), read(root, 'row'), stateRead]
               return parts.some(part => part?._tag === 'Failed') ? 'LoadFailed' : 'Loading'
             }
             const publish = statusOf(root, editor.publishId)

@@ -18,4 +18,15 @@ export default [
     edits: [{ file, find: "              editor.mode === 'edit' &&\n", replace: '' }],
     tests,
   },
+  {
+    name: 'a state whose read failed counts as read',
+    edits: [
+      {
+        file,
+        find: 'Option.isNone(RemoteData.held(stateRead))',
+        replace: '!RemoteData.answered(stateRead)',
+      },
+    ],
+    tests,
+  },
 ]
