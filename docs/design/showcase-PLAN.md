@@ -81,14 +81,14 @@ Each lands with its test in the same change, as the 0.12 slices did.
   checked; `entry.ts` and the runtime test share it.
 - **Todo agent learns completion.** `examples/todo/src/agent.ts:30-60`,
   the onboarding path, teaches fire-and-forget; `todo-app` next door
-  models intent→fact with `correlate` and `requestId`. **Blocked on a
-  tooling quirk:** the port (a `CreateTodo` Command + a `SubmittedTodo`
-  fact carrying `requestId`) hits `TS2742` — `completion.success:
-  Message.SubmittedTodo` makes `AppAgent`'s inferred type reference
-  `foldkit/dist/schema/index.js`, unnameable in that example's declaration
-  emit (`todo-app` is exempt for a reason not yet found). Annotating widens
-  the Message universe and breaks host `dispatch` typing, so it is not a
-  cast-away. The README's false completion claim was corrected meanwhile.
+  models intent→fact with `correlate` and `requestId`. **Built:** the port
+  (a `SaveTodo` Command and a `SubmittedTodo` fact carrying `requestId`)
+  first hit TS2742, because the contract's type carried the whole variants
+  object and named `foldkit/schema`'s `CallableTaggedStruct`, which the
+  example never imports (`todo-app` was exempt only because foldkit-remote's
+  declarations bring that module in). `foldkit-agent` now keeps only each
+  variant's name and input in a contract's type (0768491), and the example
+  completes on its fact (2e347c4).
 - **`Input.view` / `Textarea.view` get their first app callers.**
   `examples/foldkit/websocket-chat/src/main.ts` (`Input.view`
   composer) and
