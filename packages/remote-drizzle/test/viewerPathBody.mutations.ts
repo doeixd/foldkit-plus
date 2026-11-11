@@ -24,13 +24,13 @@ export default [
   ),
   edit(
     "a path from the viewer may not meet the judged row's table",
-    "const met = reached._tag === 'ViewerPath' ? [] : [target.table]",
-    'const met = [target.table]',
+    "    Match.tag('ViewerPath', () => []),\n",
+    '',
   ),
   edit(
     "the viewer's table's visibility is not resolved",
-    "      ...(reached._tag === 'ViewerPath' ? [reached.viewer.entity] : []),\n",
-    '',
+    'ViewerPath: ({ viewer }) => [viewer.entity, ...through],',
+    'ViewerPath: () => through,',
   ),
   edit(
     'the path follows none of its relations from the viewer',

@@ -50,8 +50,8 @@ export default [
   edit(
     'startup checks a rule against no table',
     guardServer,
-    'Query.unsupported(rule.query, supported, policy.operators)',
-    'Query.unsupported(rule.query, supported)',
+    'Query.unsupported(guard.query, supported, policy.operators)',
+    'Query.unsupported(guard.query, supported)',
   ),
   edit(
     'a guarded read in memory runs with the kernel',
