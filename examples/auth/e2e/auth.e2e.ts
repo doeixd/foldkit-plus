@@ -113,13 +113,35 @@ const signIn = async (page: Page, subjectId: 'ada' | 'grace') => {
   await page.getByRole('button', { name: 'Sign in' }).click()
 }
 
+/**
+ * Presses the button `name` until `done`. The server's page shows its
+ * buttons before the runtime has taken the page over, and a press then does
+ * nothing, so the page reading "Signed in as grace" is no sign that a press
+ * will be heard; one that takes effect is. Pressed again only after a pause
+ * longer than a sign-out needs, so a press that was heard is not repeated.
+ */
+const pressUntil = (page: Page, name: string, done: () => Promise<boolean>) =>
+  expect
+    .poll(
+      async () => {
+        if (await done()) return true
+        await page
+          .getByRole('button', { name })
+          .click({ timeout: 1_000 })
+          .catch(() => undefined)
+        return false
+      },
+      { interval: 2_000, timeout: 60_000 },
+    )
+    .toBe(true)
+const isVisitor = (page: Page) => async () => (await who(page)) === 'Visitor'
+
 /** Signs this context out, whatever the test before left. */
 const signedOut = async () => {
   const page = await open([])
   await expect.poll(() => who(page), { timeout: 120_000 }).not.toBe('Checking who you are…')
   if ((await who(page))?.startsWith('Signed in as') === true) {
-    await page.getByRole('button', { name: 'Sign out' }).click()
-    await expect.poll(() => who(page)).toBe('Visitor')
+    await pressUntil(page, 'Sign out', isVisitor(page))
   }
   await page.close()
 }
@@ -163,8 +185,7 @@ test("a reader's notes are in the page the server sends, and a sign-out there re
   await expect.poll(() => listed(page)).toEqual(everyTitle)
 
   const entries = await page.evaluate(() => history.length)
-  await page.getByRole('button', { name: 'Sign out' }).click()
-  await expect.poll(() => pathOf(page)).toBe('/')
+  await pressUntil(page, 'Sign out', async () => pathOf(page) === '/')
   expect(new URL(page.url()).search).toBe('?returnTo=%2Fnotes')
   expect(await page.evaluate(() => history.length)).toBe(entries)
   await expect.poll(() => who(page)).toBe('Visitor')
@@ -193,8 +214,7 @@ test('a sign-out in one tab reaches the other, and a member reads only their not
   const second = await open(errors)
   await expect.poll(() => who(second), { timeout: 60_000 }).toBe('Signed in as ada')
   const refusedFirst = refusals(first)
-  await second.getByRole('button', { name: 'Sign out' }).click()
-  await expect.poll(() => who(second)).toBe('Visitor')
+  await pressUntil(second, 'Sign out', isVisitor(second))
 
   // The first tab hears it over the broadcast, with no reload, and leaves the
   // notes. It let go of its belief before reading again, so nothing it asked
