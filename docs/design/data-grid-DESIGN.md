@@ -261,7 +261,12 @@ full seed, and checked by hand in Chromium.
 - **Search and filter (§17) are the query's.** The grid holds no filter
   state: `examples/registry` puts a search in the Model, passes it as
   `ProductsQuery`'s input, and the query's body (`Expr.contains`) is compiled
-  by the server. A filter control drawn by the grid, per column, is not built.
+  by the server. A filter control drawn by the grid, per column, is built
+  (2026-11-11, #144's leftovers, [144-grid-filters-DESIGN.md](./144-grid-filters-DESIGN.md)):
+  a column with `filter` draws a form on its header, the grid holds only the
+  open form, and the value stays the application's, reported as
+  `Out.Filtered`; `examples/data-grid` filters its held rows by it and
+  `examples/registry` passes statuses and a price range as the query's input.
 - **Not built from §22:** custom columns and bulk edits beyond a paste and a
   fill.
 

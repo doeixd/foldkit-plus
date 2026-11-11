@@ -233,8 +233,9 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
 - **The column menu**, with `columnMenu: true`: each header has a button
   (`menuButton`, `aria-haspopup="menu"`) that opens a `role="menu"` below
   it, listing `Grid.menuItems`: pin to the start or the end or unpin, hide,
-  and show each hidden column. On a focused header Alt+ArrowDown, Shift+F10
-  or the menu key opens it. The menu takes focus and points at its active
+  and show each hidden column. On a focused header Shift+F10 or the menu key
+  opens it, and Alt+ArrowDown on a column that does not filter (on one that
+  does, Alt+ArrowDown opens its filter). The menu takes focus and points at its active
   item with `aria-activedescendant`; the arrows, Home and End walk it, Enter
   or Space or a click runs an item, and Escape, a choice, or focus leaving
   closes it, focus going back to the grid unless the user sent it
@@ -262,6 +263,33 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   unsorted, so sorting moves nothing, and a header label never wraps. Enter
   on the focused header sends it too. `GridStyle` parts columns with a faint
   line, which on a header is the resize handle, darker under the pointer.
+- **Filters** are the application's, as sorting is: a column with
+  `filter` (`foldkit-data-grid`) needs `filters`, the application's
+  `Grid.Filters` value, and a grid with none refuses it (`FiltersInput`).
+  Each such header draws a `filterButton` (`aria-haspopup="dialog"`, named
+  "Filter {column}", out of the tab order), and Alt+ArrowDown on the focused
+  header opens the same form, advertised as the header's
+  `aria-keyshortcuts`. The form is a `filter` Slot, a non-modal
+  `role="dialog"` in the header cell, holding native fields for the column's
+  kind: a text field ("Contains"), two bounds ("At least", "At most", typed
+  with a decimal keypad), a choice's checkboxes in a `role="group"`, a
+  checkbox column's radios (Any, Checked, Unchecked) in a
+  `role="radiogroup"`, or two days ("From", "To"). Its first field takes
+  focus; it applies as it is typed, with no Apply button; a bound that is no
+  number, or an upper bound below the lower, is `aria-invalid` and described
+  by a `filterError`; `filterClear` empties it while a filter holds. Escape
+  closes it, focus going back to the grid on its header, and so does focus
+  leaving the header; a press on the filter button while it is open stays
+  inside and closes it. While a column is filtered its header and button
+  carry `data-filtered`, and the header says "Filtered" as its
+  `aria-description`. Every header is named by its own words
+  (`aria-label`), so neither its buttons nor an open form join its name.
+  While the form is open the grid's clipboard handlers are off, so a cut in
+  a field clears no cell. The words are `words.filters`; the Slots are
+  `filterButton`, `filter`, `filterLabel`, `filterField`, `filterGroup`,
+  `filterCheck`, `filterError` and `filterClear`, styled by `GridStyle`.
+  Like the menu, the form is drawn inside the grid's scroll box, so a grid
+  too short to hold it clips it.
 - **Pinned columns** stick to their edge with `position: sticky` and carry
   `data-pinned="start"` or `"end"`; the pinned column next to the scrolling
   ones also carries `data-pinned-edge`, header and cells, where `GridStyle`

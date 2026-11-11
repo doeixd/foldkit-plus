@@ -1,7 +1,8 @@
 # Per-column filter controls for the data grid (#144)
 
-Status: designed 2026-11-11, revised after review round 1 the same day; not
-built. One of #144's leftovers ([data-grid-DESIGN.md](./data-grid-DESIGN.md),
+Status: designed 2026-11-11, revised after review rounds 1 and 2 the same
+day, and built the same day (see "As built" at the end); §4 now states the
+shape as built. One of #144's leftovers ([data-grid-DESIGN.md](./data-grid-DESIGN.md),
 "The reference application as built so far": "A filter control drawn by the
 grid, per column, is not built").
 
@@ -128,10 +129,16 @@ is lost. The check showed this.
 The kind is read from the **decoded** side, unlike the editor. `editorOf`
 reads a choice from the encoded side, because that is the text typed. A
 filter compares decoded values, the application's own fields. So `true`
-uses `filterKindOf(schema)`, a sibling of `editorOf` with the same order of
-checks (checkbox first), over `SchemaAST.toType`. The type-level `FilterKind`
-below follows the same rule, so the runtime and the types agree for any
-schema: a literal text decoding to numbers is a Number range on both sides.
+uses `filterKindOf(schema)`. It and `editorOf` are one classifier,
+`classify(typeAst, choiceAst)`, checkbox first: `editorOf` passes the
+encoded side as `choiceAst` and `filterKindOf` the type side. The
+type-level `FilterKind` below follows the same rule: a choice only when the
+value is a union of text literals, so a branded text (`string & Brand`) and
+a template literal are text on both sides, and a literal text decoding to
+numbers is a Number range on both sides. A table test runs `filterKindOf`
+and `KindOfValue` over the same schemas, each row compiling only when the
+type agrees and passing only when the run time does
+(`packages/data-grid/test/filter.test.ts`).
 
 ```ts
 const columns = Columns.define<Product>()({
@@ -167,17 +174,28 @@ type Between = {
 /** `ColumnFilter`: the union, and its constructors (a `defineTaggedUnion`). */
 type ColumnFilter = Contains | Range | OneOf<string> | Is | Between
 
+type IsTextLiteral<M> = M extends string
+  ? string extends M
+    ? false
+    : // A template literal or a branded text keys an index signature, which `{}` fits.
+      {} extends Record<M, 1>
+      ? false
+      : true
+  : false
+type AllTextLiterals<V> = [V] extends [string]
+  ? false extends (V extends unknown ? IsTextLiteral<V> : never)
+    ? false
+    : true
+  : false
 type KindOfValue<V> = [V] extends [boolean]
   ? 'Checkbox'
   : [V] extends [Date]
     ? 'Date'
     : [V] extends [number]
       ? 'Number'
-      : string extends V
-        ? 'Text'
-        : [V] extends [string]
-          ? 'Choice'
-          : 'Text'
+      : AllTextLiterals<V> extends true
+        ? 'Choice'
+        : 'Text'
 /** A column's filter kind, as `filterKindOf` reads it at run time. */
 type FilterKind<Spec> = Spec extends { readonly filter: infer F }
   ? F extends true
@@ -188,11 +206,12 @@ type FilterKind<Spec> = Spec extends { readonly filter: infer F }
       ? T
       : never
   : never
-type ChoiceOf<Spec> = Spec extends {
-  readonly filter: true
-  readonly edit: { readonly schema: Schema.Codec<infer V, string> }
-}
-  ? V & string
+// In two steps: matched against `filter: true` and the schema at once, a
+// spec that is an intersection (`GridCrud.columns`) infers `unknown`.
+type ChoiceOf<Spec> = Spec extends { readonly filter: true }
+  ? Spec extends { readonly edit: { readonly schema: Schema.Codec<infer V, string> } }
+    ? V & string
+    : string
   : string
 export type FilterOf<Spec> = {
   Text: Contains
@@ -257,8 +276,8 @@ interface GridFilters<Row, Specs> {
   readonly Filters: Schema.Codec<Filters<Specs>, unknown>
   /** Every column none: the application's starting value. */
   readonly noFilters: Filters<Specs>
-  /** `filters` with one `Out.Filtered` written in: the only way the value changes. */
-  readonly setFilter: (filters: Filters<Specs>, filtered: Filtered<Specs>) => Filters<Specs>
+  /** `filters` with one `Out.Filtered`'s change written in: the only way the value changes. */
+  readonly setFilter: (filters: Filters<Specs>, change: FilterChange<Specs>) => Filters<Specs>
   /**
    * A predicate over held rows that keeps a row every given filter keeps. `read`
    * names the application's own field per column, typed by its variant. Built
@@ -270,10 +289,14 @@ interface GridFilters<Row, Specs> {
   ) => (row: Row) => boolean
 }
 
-/** `Out.Filtered`, one case per filterable column, its filter its own variant. */
-type Filtered<Specs> = {
+/**
+ * What `Out.Filtered({ change })` carries: one case per filterable column, its
+ * filter its own variant. A field of its own, because `Out` is a
+ * `defineTaggedUnion`, whose cases are structs: the change's schema is the
+ * union of the columns' schemas, typed `FilterChange<Specs>`.
+ */
+type FilterChange<Specs> = {
   [K in FilterableId<Specs>]: {
-    readonly _tag: 'Filtered'
     readonly column: K
     readonly filter: Option.Option<FilterOf<Specs[K]>>
   }
@@ -339,9 +362,9 @@ FilterForm = Schema.Struct({
 
 ```ts
 FilterOpened: { column: FilterColumn, drawn: Schema.OptionFromNullOr(ColumnFilter) },
-FilterTyped: { field: Schema.Literals(['text', 'min', 'max', 'from', 'to']), text: Schema.String },
-FilterOptionToggled: { option: Schema.String },
-FilterChecked: { state: Schema.Literals(['any', 'true', 'false']) },
+FilterTyped: { field: Schema.Literals(['text', 'min', 'max', 'from', 'to']), text: Schema.String, stale: Stale },
+FilterOptionToggled: { option: Schema.String, stale: Stale },
+FilterChecked: { state: Schema.Literals(['any', 'true', 'false']), stale: Stale },
 FilterCleared: {},
 FilterClosed: {},
 ```
@@ -369,8 +392,20 @@ FilterClosed: {},
 - `FilterCleared` empties the form, and reports none if `reported` was a
   filter.
 - `FilterClosed` drops the form.
-- These drop `filtering` too: `MenuOpened`, `Focused`, `CellPressed`,
-  `EditStarted`, `FillStarted`, and `ColumnHidden` of its column.
+- These drop `filtering` too: whatever focuses a cell or opens an edit,
+  the menu or a fill (`Focused`, `Moved`, `CellPressed`, `EditStarted`,
+  `EditTyped`, `EditToggled`, `MenuOpened`, `FillStarted`), and
+  `ColumnHidden` of its column.
+- **A stale frame.** `Stale` is `Option<{ drawn, reported }>`. The
+  application writes `Out.Filtered` in the same update that reports it, so
+  the value it holds differs from `filtering.reported` only after a write
+  from outside the form (a URL, a saved view). The view draws such a frame
+  stale: the form as `formOf(drawn)`, and every field change from it carries
+  `{ drawn, reported }`. `update` reseeds the form and `reported` from
+  `drawn` before applying the change, but only while the Model's `reported`
+  is still the frame's: a second key from the same frame then adds to the
+  first rather than starting over. This replaces the rule that the
+  application send `FilterClosed` before such a write.
 - While the form is open, `Pasted`, `FillRequested`, `UndoRequested` and
   `RedoRequested` are refused, as `UndoRequested` already is during an edit.
   Ctrl+X in a filter field otherwise fires the root's `OnCutText`
@@ -542,7 +577,9 @@ export const FilteredProducts = Query.define(
   the field mounting reach the grid's root, on the header. Printable keys
   there do nothing, so they are dropped, not carried into the field. Escape
   at the root while the form is open closes it, as Escape cancels a drag.
-  Carrying typed keys, as `EditTyped` does for a cell, is left out (§8).
+  Carrying typed keys, as `EditTyped` does for a cell, is left out (§10).
+  Escape at the root is checked first in its key handler, before a drag's,
+  a fill's and a cell range's Escape.
 - **Applying.** A filter applies as it is typed. There is no Apply button,
   so a filter is never typed and left unapplied.
 - **Clipboard.** While the form is open, the clipboard box is none
@@ -570,12 +607,10 @@ export const FilteredProducts = Query.define(
 - **A Remote read that fails** for a filter is the list's failure, shown as
   any failed read is (`GridCrud.status`). The filter stays, and Retry asks
   for the same input.
-- **A stale form.** The form is seeded when it opens. An application that
-  changes a filter while its form may be open, from a URL or from history,
-  sends `FilterClosed` through the grid's wrapper first. Otherwise the
-  form's next report is judged against the old `reported` and overwrites the
-  change, as an edit's commit is judged from the text it began from. No
-  example does this: a press anywhere else closes the form.
+- **A filter written from outside while the form is open** (a URL, a saved
+  view): the next frame shows the written filter in the form, and the next
+  field change starts from it (§4.3, "A stale frame"). Nothing has to close
+  the form first.
 - **A hidden column still filters.** The value is the application's, so
   hiding a column does not clear its filter, and the grid draws no header
   that could say so. The application decides whether hiding clears a
@@ -648,3 +683,38 @@ The change is additive.
   schema.
 - **`GridCrud` deriving filters from a list's Query.** The Query's input is
   the application's to declare.
+
+## As built (2026-11-11)
+
+Built as designed above, in `packages/data-grid/src/{columns,filter,grid}.ts`
+and `packages/mixins-data-grid/src/{view,filterForm,slots,style,headerPress}.ts`,
+with `examples/data-grid` filtering held rows and `examples/registry`
+filtering on the server. What building found:
+
+- **`Out.Filtered` carries `{ change }`,** not `{ column, filter }`: a
+  `defineTaggedUnion` case is a struct, so the per-column union is one field.
+  Every `Grid.Out.match` gains this arm, grids that do not filter included.
+- **A `GridCrud` spec is an intersection,** and inferring a choice's
+  literals against `filter: true` and the schema at once read `unknown`;
+  `ChoiceOf` infers in two steps.
+- **`Expr.in` over a null list does not compile in `foldkit-remote-drizzle`,
+  even inside `Expr.whenGiven`:** the compiler compiles every operand of an
+  `or` before deciding it ("asks whether a value is in something that is not
+  a list"). The registry passes every status when the column is not
+  filtered; a bound still uses `whenGiven`. This contradicts `whenGiven`'s
+  documentation ("compiles to true") for `Expr.in` and is worth an issue.
+- **`Option.match` over a column's `change.filter`** (a union of Options)
+  does not infer; annotate it as `Option<ColumnFilter>` first.
+- **`MoreOnScroll` was typed over `GridInput` exactly,** so the view's input,
+  now `GridInput & FiltersInput<Specs>`, did not fit it; it now takes any
+  input with `status` and `onMore`.
+- **A choice option the column does not offer** needed no guard: the next
+  options are the column's own, filtered, so such an option changes
+  nothing. The mutation removing the guard survived; the guard is gone.
+- **Two guards are doubled on purpose:** the clipboard box is off while a
+  form is open and the update refuses a paste, fill, undo and redo then.
+- **Every header is named by its own words** (`aria-label`), checked in
+  Chrome's accessibility tree; a read-only header's description is still
+  "Read-only".
+- **The data grid example's client grew by 4.0 kB brotli, the registry's
+  by 5.5 kB;** their budgets were raised with the reason beside them.

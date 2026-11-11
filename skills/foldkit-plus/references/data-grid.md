@@ -1,6 +1,6 @@
 # foldkit-data-grid and foldkit-mixins-data-grid
 
-Checked against `foldkit-data-grid` 0.5.0 and `foldkit-mixins-data-grid` 0.4.0.
+Checked against `foldkit-data-grid` 0.6.0 and `foldkit-mixins-data-grid` 0.5.0.
 
 **Experimental** (on npm since the 0.15.0 release). Phases 0 to 8 of the DataGrid design are
 built: the pure model, focus, two-axis virtualization, the accessible view in
@@ -10,13 +10,16 @@ by Schema (a choice of literals is a combobox and listbox the grid draws,
 or a native select with `choiceEditor: 'native'`; a `DateFromString` column
 is `CellEditor.Date`, and the field opens on the local calendar day,
 `YYYY-MM-DD`, unless the column's `draft` returns a string; one decoding to
-a boolean is a checkbox).
+a boolean is a checkbox), and a filter form on each filtering column's
+header, whose value is the application's.
 
 ## What it owns
 
 Geometry: which cells exist and where they stand, given rows the application
 supplies, typed columns, and a column layout. The grid never sorts, filters or
-fetches; row order is the application's (its Model or Remote query). For a
+fetches; row order is the application's (its Model or Remote query). A column
+with `filter` draws a filter form, but the filter value is the application's
+to store and apply; the grid holds only the open form. For a
 plain sortable list of records, use `foldkit-crud`'s `Crud.list` with
 `foldkit-mixins-crud` instead.
 
@@ -120,6 +123,8 @@ the whole wiring, compiled.
   `Pasted({ accepted, refused })`, `Filled({ source, to })` (Ctrl/Meta+D or
   R, or the fill handle, whose drag scrolls the grid at its edge; write
   `Grid.fill(rows, model.grid, request).accepted`),
+  `Filtered({ change })` (a column's filter form changed; write it with
+  `Grid.setFilter(filters, change)`),
   `RowsRequested({ from, to })` (a Shift click without `cellSelection`;
   answer with `grid: () => Grid.extendRows(rows, model.grid, request)`),
   or `UndoRequested`/`RedoRequested` (Ctrl/Meta+Z, with Shift or Ctrl+Y; the
@@ -170,6 +175,38 @@ the whole wiring, compiled.
   const tasks = Columns.define<{ readonly id: string; readonly done: boolean }>()({
     done: { header: 'Done', value: task => task.done, edit: { schema: Columns.checkbox } },
   })
+  ```
+- `filter: true` on a column (or a `CellEditor`, for one that does not edit)
+  draws a filter form on its header: Alt+ArrowDown on the header or its
+  button opens a `role="dialog"` of native fields for the column's kind,
+  read from `edit.schema`'s decoded side: text contains, a number range, a
+  choice's literals, a checkbox's any/checked/unchecked, a range of days.
+  The application holds `Grid.Filters` (start with `Grid.noFilters`), gives
+  it to the view as `filters` (required exactly when a column filters),
+  writes each `Out.Filtered` with `Grid.setFilter`, and applies it: held
+  rows through `Grid.keeps(filters, { column: row => row.field })` (read the
+  row's own field, typed by the filter: a range reads a number, not the
+  cell's text), memoized per filters value; a Remote list by mapping the
+  filters onto the query's input (`Expr.whenGiven` for a bound, `Expr.in`
+  over every literal when a choice is not filtered). An empty filter is none;
+  a bound that is no number is not reported. A Scene test resolves the open
+  form with `resolveOpened(Grid, { wrap, opened: 'filter' })`.
+
+  ```ts
+  import { Schema } from 'effect'
+  import { CellEditor, DataGrid } from 'foldkit-data-grid'
+
+  const Status = Schema.Literals(['Open', 'Done'])
+  type Task = { readonly id: string; readonly status: 'Open' | 'Done'; readonly hours: number }
+  const TaskGrid = DataGrid.make({
+    id: 'tasks',
+    columns: Columns.define<Task>()({
+      status: { header: 'Status', value: task => task.status, edit: { schema: Status }, filter: true },
+      hours: { header: 'Hours', value: task => task.hours.toFixed(1), filter: CellEditor.Number() },
+    }),
+  })
+  const shown = (tasks: ReadonlyArray<Task>, filters: typeof TaskGrid.Filters.Type) =>
+    tasks.filter(TaskGrid.keeps(filters, { status: task => task.status, hours: task => task.hours }))
   ```
 - `marks: address => Option.some({ name, description })` on the view gives a
   cell a state of the application's (an unsaved edit): `data-mark` on the
