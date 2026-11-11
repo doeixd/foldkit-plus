@@ -11,7 +11,8 @@ import { BundleSurface } from 'foldkit-bundle-surface'
 import { type Contract, MessageSet, Module, Projection } from 'foldkit-surface'
 import {
   DocumentId,
-  Sync,
+  forApplication,
+  mount,
   type Mounted,
   type Operation,
   type WrittenOperation,
@@ -48,7 +49,7 @@ export const everyone: Principal = { actorId: 'registry' }
 /** The server itself, which alone records what the table has absorbed. */
 export const server: Principal = { actorId: 'registry-server' }
 
-const definition = Sync.forApplication(App)
+const definition = forApplication(App)
   .withPrincipal<Principal>()
   .make({
     // Versioned with the shape of `edits`: a replica stored under the last one
@@ -155,7 +156,7 @@ export const mountRegistry = (
     readonly device: string
   },
 ): { readonly mounted: Mounted<Model, Message>; readonly dispose: () => Promise<void> } => {
-  const mounted = Sync.mount(App, definition, {
+  const mounted = mount(App, definition, {
     replica,
     container: options.container,
     view: (model, h) => view(model, h, manifest),

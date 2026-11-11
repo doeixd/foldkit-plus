@@ -11,7 +11,7 @@ import { Entity, Expr, Order } from 'foldkit-entity'
 import { Guards, Interaction } from 'foldkit-guard'
 import { Query, Remote } from 'foldkit-remote'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
-import { Sync, documentId } from 'foldkit-sync'
+import { forApplication, documentId, type Sync } from 'foldkit-sync'
 
 /** The principal the guards read: built per request from the session's subject. */
 export const User = Schema.Struct({
@@ -78,7 +78,7 @@ const Board = Surface.application({
  * pins offline, and the server orders them. Its socket is opened with the
  * session cookie, as Remote's reads are (`server.ts`, `http.ts`).
  */
-export const PinBoard: Sync<BoardMessage, BoardModel> = Sync.forApplication(Board).make({
+export const PinBoard: Sync<BoardMessage, BoardModel> = forApplication(Board).make({
   documentId: documentId('board'),
   shared: Projection.pick(Board.model.pins),
   durable: MessageSet.make(Board, [BoardMessage.Pinned]),

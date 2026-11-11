@@ -3,7 +3,7 @@
  * stopping it shows what a replica does offline: edits go on, and are kept, until it is back.
  */
 import { Option } from 'effect'
-import { Sync, type SocketLike } from 'foldkit-sync'
+import { createPresenceHub, servePresence, type SocketLike } from 'foldkit-sync'
 import { WebSocketServer, type WebSocket } from 'ws'
 import type { openJournal } from './journal.js'
 import { tabOf } from './serving.js'
@@ -28,7 +28,7 @@ export const startPagesServer = async (options: {
 }): Promise<{ readonly url: string; readonly close: () => Promise<void> }> => {
   const { journal } = options
   // Presence fans out to every tab; each tab validates what it receives.
-  const presence = Sync.presence.hub<unknown>()
+  const presence = createPresenceHub<unknown>()
   const sockets = new WebSocketServer({ host: '127.0.0.1', port: options.port ?? 0 })
   await new Promise<void>((resolve, reject) => {
     sockets.once('listening', () => resolve())
@@ -45,7 +45,7 @@ export const startPagesServer = async (options: {
     const stops = [
       journal.serve(socketLike(socket), tab.value),
       // On the same socket: the connection's tab is the identity its presence goes out under.
-      Sync.presence.serve(socketLike(socket), presence, { peerId: tab.value }),
+      servePresence(socketLike(socket), presence, { peerId: tab.value }),
     ]
     socket.on('close', () => {
       for (const stop of stops) stop()

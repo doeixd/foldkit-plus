@@ -93,7 +93,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
-import { DocumentId, Sync } from 'foldkit-sync'
+import { DocumentId, forApplication } from 'foldkit-sync'
 
 const Model = Schema.Struct({
   todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
@@ -130,7 +130,7 @@ const update = (model: Model, message: Message): Return =>
 
 const App = Surface.application({ Model, Message, initial, update })
 
-const TodoSync = Sync.forApplication(App).make({
+const TodoSync = forApplication(App).make({
   documentId: DocumentId.make('todos'),
   shared: Projection.pick(App.model.todos),
   durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
@@ -295,6 +295,11 @@ says why each rule is there, and [`examples/sync`](../../examples/sync) writes
 the exchange by hand, with an effect policy per committed operation.
 
 A server that is not Durable implements the same [exchange](#the-exchange).
+
+Import what a server calls by name (`forApplication`, `serveJournal`,
+`servePresence`), not through the `Sync` namespace object: a bundler keeps
+every member of an object, so `Sync.forApplication` in a server's bundle also
+carries the client's mount, sockets, presence and IndexedDB code.
 
 ## Serving from a Durable Object
 
@@ -515,7 +520,7 @@ Each feature declares the fields it shares and the Messages that change them;
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
-import { DocumentId, Sync } from 'foldkit-sync'
+import { DocumentId, forApplication } from 'foldkit-sync'
 const Model = Schema.Struct({
   todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
   members: Schema.Array(Schema.String),
@@ -533,7 +538,7 @@ const App = Surface.application({
 })
 -->
 ```ts
-const AppSync = Sync.forApplication(App)
+const AppSync = forApplication(App)
 
 const Todos = AppSync.fragment({
   shared: Projection.pick(App.model.todos),
@@ -561,7 +566,7 @@ Policy belongs on the contract, beside the Messages it governs, and runs on the
 server inside the journal's commit. The client never runs it.
 
 ```ts
-const Authorized = Sync.forApplication(App).withPrincipal<{ readonly role: 'admin' | 'guest' }>()
+const Authorized = forApplication(App).withPrincipal<{ readonly role: 'admin' | 'guest' }>()
 
 const GuardedBoard = Authorized.make({
   documentId: DocumentId.make('board'),
@@ -596,7 +601,7 @@ the journal commits:
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
-import { DocumentId, Sync } from 'foldkit-sync'
+import { DocumentId, forApplication } from 'foldkit-sync'
 const Model = Schema.Struct({
   prices: Schema.Array(Schema.Struct({ id: Schema.String, cents: Schema.Number, at: Schema.Number })),
 })
@@ -614,7 +619,7 @@ const App = Surface.application({
   update: model => ({ model }),
 })
 
-const Prices = Sync.forApplication(App).make({
+const Prices = forApplication(App).make({
   documentId: DocumentId.make('prices'),
   shared: Projection.pick(App.model.prices),
   durable: MessageSet.make(App, [Message.PriceEdited]),
@@ -670,7 +675,7 @@ import { Match, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
-import { DocumentId, Sync } from 'foldkit-sync'
+import { DocumentId, forApplication, migrations } from 'foldkit-sync'
 const Model = Schema.Struct({
   notes: Schema.Array(Schema.Struct({ id: Schema.String, name: Schema.String })),
 })
@@ -701,14 +706,14 @@ const RenamedNoteV1 = Schema.TaggedStruct('RenamedNote', {
 const MessageV1 = Schema.Union([RenamedNoteV1, Message.ClearedNotes])
 
 // Version 2 is the application's own Message, where `title` became `name`.
-const NoteHistory = Sync.migrations(MessageV1).next(App.Message, previous =>
+const NoteHistory = migrations(MessageV1).next(App.Message, previous =>
   Match.valueTags(previous, {
     RenamedNote: ({ id, title }) => ({ _tag: 'RenamedNote' as const, id, name: title }),
     ClearedNotes: cleared => cleared,
   }),
 )
 
-const Notes = Sync.forApplication(App).make({
+const Notes = forApplication(App).make({
   documentId: DocumentId.make('notes'),
   shared: Projection.pick(App.model.notes),
   durable: MessageSet.make(App, [Message.RenamedNote, Message.ClearedNotes]),

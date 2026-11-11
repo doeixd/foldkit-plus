@@ -17,7 +17,7 @@ import {
   type EditorView,
 } from 'foldkit-richtext-dom/editor-bundle'
 import { markdownInputRules } from 'foldkit-richtext-markdown'
-import { Sync } from 'foldkit-sync'
+import { fact as durableFact } from 'foldkit-sync'
 import { pageSlashEntries, rendering, vocabulary } from './vocabulary.js'
 
 const { Replicated } = RichText
@@ -391,7 +391,7 @@ const applyEdit = (
       ),
       ...commands.filter(command => command.name !== 'RichText.patch'),
       carets(model, page.id, body),
-      Sync.fact(fact),
+      durableFact(fact),
     ],
   }
 }
@@ -594,13 +594,13 @@ export const update = (model: Model, message: Message): Return =>
       const id = `${model.session}:${model.minted}`
       return {
         model: modifyFields(afresh(model, Option.some(id)), { minted: () => model.minted + 1 }),
-        commands: [Sync.fact(Message.CreatedPage({ id, title, key: `${id}:seed` }))],
+        commands: [durableFact(Message.CreatedPage({ id, title, key: `${id}:seed` }))],
       }
     },
     // Closes the page here if it is open, then trashes it everywhere.
     TrashedPage: ({ id }) => ({
       model: Option.contains(model.open, id) ? afresh(model, Option.none()) : model,
-      commands: [Sync.fact(Message.DeletedPage({ id }))],
+      commands: [durableFact(Message.DeletedPage({ id }))],
     }),
     OpenedPage: ({ id }) => {
       if (Option.contains(model.open, id)) return { model }

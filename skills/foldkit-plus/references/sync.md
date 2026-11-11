@@ -42,7 +42,7 @@ import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
-import { DocumentId, Sync } from 'foldkit-sync'
+import { DocumentId, forApplication } from 'foldkit-sync'
 
 const Model = Schema.Struct({
   todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
@@ -67,7 +67,7 @@ const update = (model: Model, message: Message): Return =>
 
 const App = Surface.application({ Model, Message, initial, update })
 
-export const TodoSync = Sync.forApplication(App).make({
+export const TodoSync = forApplication(App).make({
   documentId: DocumentId.make('todos'),
   shared: Projection.pick(App.model.todos),                   // replicated slice
   durable: MessageSet.make(App, [Message.CreatedTodo]),        // SelectedTodo stays local
@@ -216,8 +216,10 @@ const agent = Agent.make({
 ## Authorization (enforced on the server)
 
 ```ts
+import { forApplication } from 'foldkit-sync'
+
 type Principal = { readonly actorId: string; readonly role: 'admin' | 'guest' }
-const Authorized = Sync.forApplication(App).withPrincipal<Principal>()
+const Authorized = forApplication(App).withPrincipal<Principal>()
 
 const Board = Authorized.make({
   documentId: DocumentId.make('board'),
@@ -270,10 +272,11 @@ upcast:
 
 ```ts
 import { Match, Schema } from 'effect'
+import { migrations } from 'foldkit-sync'
 
 // Version 1 called `title` `text`; copy only changed variants, and durable ones only.
 const CreatedTodoV1 = Schema.TaggedStruct('CreatedTodo', { id: Schema.String, text: Schema.String })
-const TodoHistory = Sync.migrations(Schema.Union([CreatedTodoV1])).next(
+const TodoHistory = migrations(Schema.Union([CreatedTodoV1])).next(
   Schema.Union([Message.CreatedTodo]),
   ({ id, text }) => ({ _tag: 'CreatedTodo' as const, id, title: text }),
 )

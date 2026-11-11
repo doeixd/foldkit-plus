@@ -80,7 +80,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
-import { DocumentId, Sync } from 'foldkit-sync'
+import { DocumentId, forApplication } from 'foldkit-sync'
 
 const Model = Schema.Struct({
   todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
@@ -119,7 +119,7 @@ const App = Surface.application({ Model, Message, initial, update })
 
 type Principal = { readonly actorId: string; readonly canWrite: boolean }
 
-const TodoSync = Sync.forApplication(App)
+const TodoSync = forApplication(App)
   .withPrincipal<Principal>()
   .make({
     documentId: DocumentId.make('todos'),
@@ -315,7 +315,7 @@ The todo list is one document, so a cap on its length is a function of its
 snapshot. `shared` is the snapshot, and `authorize` sees it:
 
 ```ts
-const CappedTodoSync = Sync.forApplication(App)
+const CappedTodoSync = forApplication(App)
   .withPrincipal<Principal>()
   .make({
     documentId: DocumentId.make('todos-capped'),
@@ -481,6 +481,7 @@ Declare the history instead. Say the first build called the field `text`:
 
 ```ts
 import { Match } from 'effect'
+import { migrations } from 'foldkit-sync'
 
 // Version 1, kept while any stored operation may hold it.
 const RenamedTodoV1 = Schema.TaggedStruct('RenamedTodo', {
@@ -490,14 +491,14 @@ const RenamedTodoV1 = Schema.TaggedStruct('RenamedTodo', {
 const MessageV1 = Schema.Union([Message.CreatedTodo, RenamedTodoV1])
 
 // Version 2 is the application's Message as it is now.
-const TodoHistory = Sync.migrations(MessageV1).next(App.Message, previous =>
+const TodoHistory = migrations(MessageV1).next(App.Message, previous =>
   Match.valueTags(previous, {
     CreatedTodo: created => created,
     RenamedTodo: ({ id, text }) => ({ _tag: 'RenamedTodo' as const, id, title: text }),
   }),
 )
 
-const VersionedTodos = Sync.forApplication(App).make({
+const VersionedTodos = forApplication(App).make({
   documentId: DocumentId.make('todos'),
   shared: Projection.pick(App.model.todos),
   durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),

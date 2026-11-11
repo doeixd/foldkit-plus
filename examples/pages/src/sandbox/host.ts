@@ -9,7 +9,7 @@ import * as WasmClient from '@effect/sql-sqlite-wasm/SqliteClient'
 import { Effect, Layer, ManagedRuntime, Option } from 'effect'
 import { Journal } from 'foldkit-durable/core'
 import type { ConversationHandler } from 'foldkit-primitives/net'
-import { portSocket, Sync, type Operation } from 'foldkit-sync'
+import { createPresenceHub, portSocket, servePresence, type Operation } from 'foldkit-sync'
 import type { Shared } from '../app.js'
 import { journalOptions, servingOn, tabOf, type Principal } from '../serving.js'
 import type { SyncOpening } from './opening.js'
@@ -25,7 +25,7 @@ export const openHost = async (): Promise<ConversationHandler<SyncOpening>> => {
   )
   const serving = servingOn(await runtime.runPromise(Effect.service(Pages.tag)))
   // Presence fans out to every tab; each tab validates what it receives.
-  const presence = Sync.presence.hub<unknown>()
+  const presence = createPresenceHub<unknown>()
   // Deleted text is collected once an hour, as on the Node server.
   setInterval(
     () => {
@@ -43,7 +43,7 @@ export const openHost = async (): Promise<ConversationHandler<SyncOpening>> => {
         // Both stop when the tab goes: the socket closes with its signal.
         const socket = portSocket(port, { signal })
         serving.serve(socket, actor)
-        Sync.presence.serve(socket, presence, { peerId: actor })
+        servePresence(socket, presence, { peerId: actor })
       },
     })
 }

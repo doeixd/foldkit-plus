@@ -2,7 +2,8 @@ import type { Document, HtmlBuilder } from 'foldkit/html'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
 import {
   DocumentId,
-  Sync,
+  forApplication,
+  mount,
   type Mounted,
   type Replica,
   type Sync as SyncContract,
@@ -19,7 +20,7 @@ const application = (session: string) =>
   Surface.application({ Model, Message, initial: initialModel(session), update })
 
 const contractFor = (App: ReturnType<typeof application>) =>
-  Sync.forApplication(App).make({
+  forApplication(App).make({
     documentId: DocumentId.make('pages'),
     shared: Projection.pick(App.model.pages),
     durable: MessageSet.make(App, [
@@ -58,7 +59,7 @@ export const mountPages = (
   },
 ): Mounted<Model, Message, Shared> => {
   const App = application(session)
-  return Sync.mount(App, contractFor(App), {
+  return mount(App, contractFor(App), {
     replica,
     onReinstall: reinstalled,
     ...options,

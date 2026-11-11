@@ -21,7 +21,8 @@
 import { Effect, Match, Option, Schema } from 'effect'
 import { ActorId, OpId, type Journal, type JournalStoreOptions } from 'foldkit-durable/core'
 import {
-  Sync,
+  createPresenceHub,
+  servePresence,
   localSequence,
   opId,
   replicaId,
@@ -180,7 +181,7 @@ export const openJournal = (
     }),
   })
   // Presence fans out to every device; each validates what it receives.
-  const presence = Sync.presence.hub<unknown>()
+  const presence = createPresenceHub<unknown>()
   return {
     transport: journalExchange(exchangeAs(everyone)),
     transportAs: principal => journalExchange(exchangeAs(principal)),
@@ -189,7 +190,7 @@ export const openJournal = (
         serveJournal(socket, exchangeAs(principal)),
         // On the same socket: where each device is, under the name it connected as.
         // Only to who may open the document, as its exchanges are.
-        Sync.presence.serve(socket, presence, {
+        servePresence(socket, presence, {
           peerId: principal.actorId,
           opens: GuardSync.opens(Policy, ProductDocument, Option.some(principal)),
         }),

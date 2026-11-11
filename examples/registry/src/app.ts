@@ -29,7 +29,7 @@ import { GridCrud } from 'foldkit-data-grid/crud'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { persistence, RemotePersistence } from 'foldkit-remote/persistence'
 import { Projection, Surface } from 'foldkit-surface'
-import { Sync } from 'foldkit-sync'
+import { fact } from 'foldkit-sync'
 import { RemoteEdits } from 'foldkit-sync/remote'
 import {
   EditedColumn,
@@ -355,7 +355,7 @@ const changeOf = (cell: Cell): ProductChange => {
   })
 }
 
-// The grid reports text; the fact it becomes is durable. `Sync.fact` applies
+// The grid reports text; the fact it becomes is durable. `fact` applies
 // it within this transition, so no later Message sees the Model without it.
 // A paste the columns refused all of writes nothing. The grid reports no
 // cell left as it began, so an unchanged one never reaches here.
@@ -376,7 +376,7 @@ const edited = (model: Model, cells: ReadonlyArray<Cell>) => {
       redo: () => [],
       heldBack: () => Option.none(),
     }),
-    commands: [Sync.fact(Message.EditedProducts({ changes }))],
+    commands: [fact(Message.EditedProducts({ changes }))],
   }
 }
 
@@ -422,7 +422,7 @@ const replay = (model: Model, by: 'undo' | 'redo') => {
     commands:
       taken.length === 0
         ? []
-        : [Sync.fact(Message.EditedProducts({ changes: taken.map(cell => cell.before) }))],
+        : [fact(Message.EditedProducts({ changes: taken.map(cell => cell.before) }))],
   }
 }
 

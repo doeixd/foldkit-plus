@@ -1,7 +1,7 @@
 /**
  * The local-first contract, derived from the application.
  *
- * Nothing here restates behaviour. `Sync.forApplication(App)` reads the Model and
+ * Nothing here restates behaviour. `forApplication(App)` reads the Model and
  * Message schemas, the initial Model, and `update` from `surface.ts`, and the
  * fragments below say only *which* fields replicate and *which* Messages change
  * them. Replay is the application's `update` on the shared slice, and it is
@@ -29,7 +29,8 @@ import type { Subscriptions } from 'foldkit/subscription'
 import { MessageSet, type Contract } from 'foldkit-surface'
 import {
   DocumentId,
-  Sync,
+  forApplication,
+  mount,
   type MountUrl,
   type Mounted,
   type Operation,
@@ -42,7 +43,7 @@ import { Message, type Model, type Shared } from './app.js'
 import { isOwner, type SyncPrincipal } from './principal.js'
 import { App, ListMeta, Todos } from './surface.js'
 
-const TodoApp = Sync.forApplication(App).withPrincipal<SyncPrincipal>()
+const TodoApp = forApplication(App).withPrincipal<SyncPrincipal>()
 
 /** The list: the todos and every Message that changes them. */
 export const TodosFragment = TodoApp.fragment({
@@ -105,7 +106,7 @@ export const journalContract = (): PolicyJournalContract<Operation, Shared, Sync
   definition.journalContract()
 
 /**
- * Runs the application over an open replica with `Sync.mount`: one reducer, a
+ * Runs the application over an open replica with `mount`: one reducer, a
  * durable Message applied at once and persisted after, the shared slice
  * re-installed when an exchange or a rejection moves the replica. The
  * application's update may require the store service (the mirrors' wiring
@@ -123,4 +124,4 @@ export const mountTodos = (
     readonly url?: MountUrl<Model, Message> | undefined
     readonly onPersistenceFailure?: (model: Model, error: ReplicaError) => Model
   },
-): Mounted<Model, Message> => Sync.mount(App, definition, { replica, ...options })
+): Mounted<Model, Message> => mount(App, definition, { replica, ...options })

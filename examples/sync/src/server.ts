@@ -1,5 +1,11 @@
 import { WebSocketServer, type WebSocket } from 'ws'
-import { Sequence, Sync, type PresenceHub, type SocketLike } from 'foldkit-sync'
+import {
+  Sequence,
+  servePresence,
+  serveSocket,
+  type PresenceHub,
+  type SocketLike,
+} from 'foldkit-sync'
 import type { Principal, ServerJournal } from './journal.js'
 
 /** Adapts one `ws` socket to the transport's minimal socket. */
@@ -71,7 +77,7 @@ export const startSyncServer = async <Presence = unknown>(options: {
 
     const handler = options.journal.transport(principal)
     const stops = [
-      Sync.transport.serve(socketLike(socket), {
+      serveSocket(socketLike(socket), {
         exchange: (cursor, pending, epoch) =>
           handler.exchange(Sequence.make(cursor), pending, epoch),
         // A commit to this document is announced, so the client exchanges without polling.
@@ -83,7 +89,7 @@ export const startSyncServer = async <Presence = unknown>(options: {
     ]
     if (options.presence !== undefined)
       stops.push(
-        Sync.presence.serve(socketLike(socket), options.presence(principal.documentId), {
+        servePresence(socketLike(socket), options.presence(principal.documentId), {
           peerId: principal.actorId,
         }),
       )
