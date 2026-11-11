@@ -7,7 +7,7 @@
  * localhost (Node's global `WebSocket`, the browser's API, against a `ws`
  * server), where reconnects and frames are real.
  */
-import { Effect, Fiber, Layer, Schedule, Schema, Scope, Stream, Exit } from 'effect'
+import { Cause, Effect, Exit, Fiber, Layer, Schedule, Schema, Scope, Stream } from 'effect'
 import { HttpEffect } from 'effect/http'
 import { RpcClient, RpcSerialization, RpcServer, RpcTest } from 'effect/rpc'
 import { Socket } from 'effect/socket'
@@ -284,7 +284,10 @@ describe.each(inProcess)('$name', subject => {
         Effect.flatMap(Effect.service(Transport), transport => transport.exchange(-1, [])),
       ),
     )
-    const refused = Exit.isSuccess(exit) ? 'no' : Exit.hasDies(exit) ? 'defect' : 'failure'
+    const refused = Exit.match(exit, {
+      onSuccess: () => 'no',
+      onFailure: cause => (Cause.hasDies(cause) ? 'defect' : 'failure'),
+    })
     expect({ refused, asked }).toEqual({
       refused: subject.refusesFrames,
       asked: subject.refusesFrames === 'no' ? [-1] : [],
@@ -459,10 +462,9 @@ describe.each(wires)('$name', wire => {
         // Opened; then dropped, and opened again: a notice each time; then the commit.
         yield* exchange(0, [])
         server.drop()
-        yield* exchange(0, []).pipe(
-          Effect.flatMap(result => (result._tag === 'Success' ? Effect.void : Effect.fail(result))),
-          Effect.retry({ schedule: Schedule.spaced(quick), times: 100 }),
-        )
+        yield* transport
+          .exchange(0, [])
+          .pipe(Effect.retry({ schedule: Schedule.spaced(quick), times: 100 }))
         yield* Effect.promise(async () => serve.exchange(0, [operation!]))
         return yield* Fiber.join(heard)
       }),
