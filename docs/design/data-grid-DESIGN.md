@@ -338,11 +338,22 @@ departs from §11:
   a boolean, so `Columns.define` checks it at the type level; a `GridCrud`
   member's value is text, so it takes no checkbox. A press carries the cell's
   DOM id and the drawn state, read from the page by `CellPress` (a Mount's
-  arguments are its first render's); a key carries the focused cell, and is
-  refused when focus has moved since its frame was drawn, rather than
-  toggling the cell it left. Two toggles within one frame both carry the
-  drawn value and set it once; holding a pending toggle in the Model to
-  count them would be a second copy of the value, which is the application's.
+  arguments are its first render's), and only the grid's own box (marked
+  `data-grid-checkbox`) is one, so a `role="checkbox"` an application draws
+  in a cell stays the cell's to press. A key acts on the tab stop the frame
+  drew, as every other key does, and carries the focus that frame was drawn
+  from (`Toggle.Key({ drawn })`): before anything is focused the tab stop is
+  the first cell, and `update` refuses only a key whose `drawn` is no longer
+  the Model's focus, rather than toggling the cell focus left. A first cut
+  that required a focused cell in the Model refused Space for a keyboard user
+  who had only tabbed in. While a checkbox's cell is the focused one,
+  `aria-activedescendant` names the box: Chrome's tree showed the gridcell
+  with no checked state, and a widget in a cell is what the grid pattern
+  points at. Every toggle sends the opposite of the value drawn, so until
+  the application's write is drawn (a server's answer, for a Remote row)
+  each further toggle asks for the same value; holding a pending toggle in
+  the Model to count them would be a second copy of the value, which is the
+  application's. A cut or Delete leaves a checkbox alone: it has no empty value.
 
 ## Phase 5 as built so far (2026-10-03)
 

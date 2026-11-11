@@ -118,8 +118,10 @@ version changed; `pnpm` skips versions already in the registry.
   `CellEditor.Checkbox`: the view draws a `role="checkbox"` in the new
   `checkbox` Slot, and a press on it, or Space or Enter on its cell, sends
   `EditToggled`, which commits the other value as `Out.Edited` with no
-  draft. `Columns.define` refuses such a column whose `value` is not a
-  boolean, and `GridCrud.columns` refuses one outright.
+  draft. While its cell is focused the grid's `aria-activedescendant` names
+  the box, so its state is said. `Columns.define` refuses such a column
+  whose `value` is not a boolean, and `GridCrud.columns` refuses one
+  outright.
 
 - **`Input.view` and `PasswordInput.view` can be drawn resumably**
   (`foldkit-mixins-ui`). Their `onInput` also takes the `OnInput` attribute

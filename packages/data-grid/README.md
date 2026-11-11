@@ -395,21 +395,28 @@ const checked = (cell: Extract<typeof Tasks.Out.Type, { _tag: 'Edited' }>) =>
 - **`EditToggled({ cell, checked, by })`** commits the column's text for the
   other value at once and reports `Out.Edited`, as a commit does; the
   application writes the row. `cell` is the cell's DOM id and `checked` the
-  value as drawn. The view sends it for a press on the box (`by: 'press'`)
-  and for Space or Enter on the focused cell (`by: 'key'`).
+  value as drawn. The view sends it for a press on the box
+  (`by: Grid.Toggle.Press()`) and for Space or Enter on the cell holding the
+  grid's tab stop (`by: Grid.Toggle.Key({ drawn })`, `drawn` the focus that
+  frame was drawn from). Before anything is focused the tab stop is the
+  first cell, so a keyboard user who tabs in can toggle it at once.
 - **`update` refuses it,** changing nothing, on a cell whose column does not
-  edit or is no checkbox, while an edit is open, and for a key whose cell
-  focus has left: the view drew the key's frame before focus moved, and it
-  would toggle the wrong cell. `EditStarted` and `EditTyped` on a checkbox
-  change nothing.
+  edit or is no checkbox, while an edit is open, and for a key whose `drawn`
+  is no longer the Model's focus: the key's frame was drawn before focus
+  moved, and it would toggle the cell focus left. `EditStarted` and
+  `EditTyped` on a checkbox change nothing.
 - **The value must be a boolean.** The checkbox is drawn from it, so
   `Columns.define` refuses a column with `Columns.checkbox` whose `value`
   returns anything else, at the `value`. `GridCrud.columns` refuses a
   checkbox outright: a listed member's value is its text.
-- **Paste, fill and Delete** judge its text by the schema, as on any column:
-  `true` and `false` pass, and Delete's empty text is refused.
-- **Two presses inside one frame toggle once.** Each carries the value as
-  drawn, so both set the same one.
+- **Paste and fill** judge its text by the schema, as on any column: `true`
+  and `false` pass. A cut or Delete leaves a checkbox as it is, since it has
+  no empty value, and clears the other cells in its range.
+- **Every toggle sends the opposite of the value drawn,** so until the
+  application's write of the last one is drawn, each further press or key
+  sends the same value again. Where the row changes only when a server
+  answers, every toggle before the answer asks for the same value, and a
+  second press does not take the first one back.
 
 ## The clipboard
 

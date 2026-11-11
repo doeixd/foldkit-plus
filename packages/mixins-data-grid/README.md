@@ -180,13 +180,17 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
 - **A checkbox**, for a column whose schema decodes to a boolean
   (`Columns.checkbox`): the cell holds a `role="checkbox"` (the `checkbox`
   slot) whose `aria-checked` is the column's value and whose name is the
-  column's header, in place of the cell's text (and of `cell`). A press on
-  the box, or Space or Enter on the focused cell, sends `EditToggled`, and
-  no field opens; Space toggles here rather than selecting the row, and a
-  press with Shift, Ctrl or Meta is the cell's, as on any cell. Focus stays
-  on the grid, which points at the cell, so the box is never a tab stop.
-  `GridStyle` draws a box the size of the text, filled with the accent and
-  ticked when checked.
+  column's header, in place of the cell's text (and of `cell`). A plain press
+  on the box, or Space or Enter on the focused cell, sends `EditToggled`, and
+  no field opens; Space toggles here rather than selecting the row. A press
+  with Shift, Ctrl, Meta or Alt is the cell's, as on any cell, and so is a
+  press on a `role="checkbox"` an application draws with `cell`: only the
+  grid's own box toggles. Focus stays on the grid, so the box is never a tab
+  stop; while its cell is the focused one, `aria-activedescendant` names the
+  box rather than the cell, since the cell has no checked state to say. A
+  checkbox cell has no `data-editable` (no text cursor) and no double-click
+  edit. `GridStyle` draws a box the size of the text, filled with the accent
+  and ticked when checked.
 - **Editing**, for a column with `edit`: Enter, F2 or a double-click opens a
   text field in the cell on its text, and a printable key opens it on that
   character (`EditTyped`); keys typed before the field is drawn add to it,

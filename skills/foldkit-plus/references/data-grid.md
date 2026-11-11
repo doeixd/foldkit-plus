@@ -162,7 +162,9 @@ the whole wiring, compiled.
   `true` and `false`. It is drawn from the column's `value`, which must be a
   boolean (a type error at `value` otherwise), opens no field, and toggles in
   place on a press, Space or Enter (`EditToggled`), reported as `Edited` like
-  any commit. `GridCrud.columns` takes no checkbox: a member's value is text.
+  any commit. While its cell is focused, `aria-activedescendant` names the
+  box, not the cell. `GridCrud.columns` takes no checkbox: a member's value
+  is text.
 
   ```ts
   const tasks = Columns.define<{ readonly id: string; readonly done: boolean }>()({
