@@ -21,8 +21,16 @@ import { record } from '../../../scripts/perf-report.mjs'
 // Never raise it without saying here what the growth bought.
 const CEILING = 4_485_000
 
+// The replica side of `foldkit-sync`. A server reaches `Sync` through the namespace
+// object, or a shared module does, and the bundler then keeps all of these.
+const SYNC_CLIENT_MODULES = ['mount', 'indexedDb', 'presence', 'lww']
+
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureWorker(resolve(import.meta.dirname, '..'), 'src/worker.ts')
+  const client = report.files.filter(file =>
+    SYNC_CLIENT_MODULES.some(name => file.startsWith('foldkit-sync/') && file.includes(`${name}.`)),
+  )
+  expect(client, 'the Worker bundles foldkit-sync client modules: import by name').toEqual([])
   record({ kind: 'size', name: 'cloudflare Worker bundle', value: report.bytes, budget: CEILING })
   const message = `${formatServerReport(report)}\n\nbudget: ${CEILING} bytes`
   expect(report.bytes, message).toBeLessThanOrEqual(CEILING)

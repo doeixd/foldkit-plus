@@ -458,7 +458,8 @@ export const exclusiveModules = (graph, entries, roots) => {
 
 const routeFigures = (client, routes, chunks, loaded, entryBrotli) => {
   const graphPath = join(client, '..', 'graph.json')
-  if (!existsSync(graphPath)) throw new Error('no module graph beside the build; build it with measure')
+  if (!existsSync(graphPath))
+    throw new Error('no module graph beside the build; build it with measure')
   const graph = Object.fromEntries(
     Object.entries(readJson(graphPath)).map(([id, edges]) => [
       normalize(id),
@@ -507,7 +508,8 @@ const routeFigures = (client, routes, chunks, loaded, entryBrotli) => {
       module: route.module,
       landing: route.landing === true,
       split,
-      firstLoadBrotli: entryBrotli + [...extra].reduce((sum, file) => sum + chunks.get(file).brotli, 0),
+      firstLoadBrotli:
+        entryBrotli + [...extra].reduce((sum, file) => sum + chunks.get(file).brotli, 0),
       aloneBrotli: Math.round(alone),
       aloneModules: [...keys].sort(),
     }
@@ -678,6 +680,7 @@ export const reportServerFile = (file, label) => {
     gzip: gzipSync(code, { level: 9 }).length,
     rows: ranked(groups),
     modules: ranked(modules).slice(0, 80),
+    files: [...modules.keys()],
   }
 }
 

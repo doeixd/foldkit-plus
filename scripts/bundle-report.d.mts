@@ -69,6 +69,8 @@ export interface ServerReport {
   readonly gzip: number
   readonly rows: ReadonlyArray<{ readonly name: string; readonly bytes: number }>
   readonly modules: ReadonlyArray<{ readonly name: string; readonly bytes: number }>
+  /** Every module in the bundle, not only the largest. */
+  readonly files: ReadonlyArray<string>
 }
 
 export declare const measureServer: (
