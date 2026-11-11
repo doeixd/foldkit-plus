@@ -113,7 +113,9 @@ export interface HistoryCardSlots<M> {
  * the entry is on the site; restoring it is offered only while a draft sits
  * over it, since otherwise it changes nothing. A history still being read
  * says so as a busy status, and one that failed as an alert, so neither is
- * mistaken for nothing published nor read as plain text. A failed read is not
+ * mistaken for nothing published nor read as plain text; give `muted`
+ * `Utilities.busyReveal` (`foldkit-mixins/utilities`) and the wait is said
+ * only once it is noticeable. A failed read is not
  * retried on its own: given `onRetry`, a button sends it, drawn on the
  * restore slot so no new builder is required of every studio. Who published
  * is the application's to name (`authorName`), as only it knows its chairs.

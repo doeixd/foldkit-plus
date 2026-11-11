@@ -222,9 +222,11 @@ explicit code it replaces stays clearer; elimination (§34.5) is the test.
 - [ ] **A delayed busy reveal in `foldkit-mixins`:** `aria-busy` lines shown
   only once a wait is noticeable, their space held. And a review of every
   package view for facts drawn before they are read (`Initial` is unknown,
-  not empty). §33.6 (The reveal itself is built as `Loading.shown` in
-  `mixins-crud`; open: the view audit, and whether the convention
-  generalizes to `foldkit-mixins`.)
+  not empty). §33.6 (Built 2026-11-11 as `Utilities.busyReveal` in
+  `foldkit-mixins/utilities`; crud's `Loading.shown` is its deprecated
+  alias, and the data grid, Chirp, the reference and auth examples use it;
+  the grid's `aria-rowcount` is unknown, not 0, while it loads. Open: the
+  rest of the view audit.)
 - [ ] **Locales in the route graph:** a top-level locale parameter, targets
   with alternates, and data sources that take the locale. §33.11
 - [ ] **Genuine nested route nodes:** layout, child routes, child models and

@@ -527,7 +527,7 @@ Three facts compose into it:
    gate, so there is nothing to waterfall behind — at the cost the pending-UI
    convention answers: `Initial` and `Loading` mean unknown, a busy line
    carries `aria-busy` and appears only once the wait is noticeable
-   (`Loading.shown`), its space held from the start.
+   (`Utilities.busyReveal`), its space held from the start.
 
 A write that moves a list's membership costs one round trip too: the
 request names the first page of each active list its prediction moves
