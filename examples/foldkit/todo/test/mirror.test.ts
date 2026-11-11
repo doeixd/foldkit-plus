@@ -3,7 +3,9 @@ import { KeyValueStore } from 'effect/persistence'
 import { describe, expect, test } from 'vitest'
 
 import { type Model, TodosMirror, flags, init } from '../src/main.js'
-import { modelWithTodos } from './fixtures.js'
+import { modelWithTodos, urlOrThrow } from './fixtures.js'
+
+const start = urlOrThrow('http://localhost/')
 
 /** What `init` shows when the store holds `stored` under the list's key. */
 const loadedFrom = (stored: string | undefined): Promise<Model> =>
@@ -12,7 +14,7 @@ const loadedFrom = (stored: string | undefined): Promise<Model> =>
       const store = yield* KeyValueStore.KeyValueStore
       yield* store.set('todos', stored)
     }
-    return init(yield* flags).model
+    return init(yield* flags, start).model
   }).pipe(Effect.provide(KeyValueStore.layerMemory), Effect.runPromise)
 
 describe('the todos mirror', () => {
@@ -22,7 +24,7 @@ describe('the todos mirror', () => {
       yield* Stream.runDrain(
         write.dependenciesToStream({ keys: TodosMirror.encode(modelWithTodos) }),
       )
-      return init(yield* flags).model
+      return init(yield* flags, start).model
     }).pipe(Effect.provide(KeyValueStore.layerMemory), Effect.runPromise)
 
     expect(loaded.todos).toStrictEqual(modelWithTodos.todos)

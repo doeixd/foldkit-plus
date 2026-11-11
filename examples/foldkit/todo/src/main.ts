@@ -3,11 +3,13 @@ import * as UiCheckbox from '@foldkit/ui/checkbox'
 import * as UiInput from '@foldkit/ui/input'
 import { Array, Clock, Effect, Match, Option, Random, Schema, String } from 'effect'
 import type { KeyValueStore } from 'effect/persistence'
-import { Command, type Runtime, Subscription, type Update } from 'foldkit'
+import { Command, Subscription, type Update } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
+import { UrlRequest, load, pushUrl } from 'foldkit/navigation'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
+import { Url, toString as urlToString } from 'foldkit/url'
 import { Mirror } from 'foldkit-mirror'
 import { type NamedStyle, SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import { Button, type ButtonSlots, Checkbox, Input } from 'foldkit-mixins-ui'
@@ -81,6 +83,10 @@ export const Message = defineMessageUnion({
   ToggledAll: {},
   ClearedCompleted: {},
   SelectedFilter: { filter: Filter },
+  ClickedLink: { request: UrlRequest },
+  ChangedUrl: { url: Url },
+  CompletedNavigateInternal: {},
+  CompletedLoadExternal: {},
 })
 export type Message = typeof Message.Type
 
@@ -111,6 +117,20 @@ export const TodosMirror = Mirror.kv(App, {
   throttle: 0,
 })
 
+/**
+ * The filter, kept in the query (`?filter=Active`), so a link or a reload
+ * shows the same view. The Model owns it: `update` changes it, the mirror's
+ * Subscription writes the URL, and `Mirror.routing` reads the URL back at
+ * start and on back and forward. Each choice is a history entry, as a
+ * TodoMVC filter link is. `All` is the default and is left out.
+ */
+export const FilterMirror = Mirror.url(App, {
+  name: 'filter',
+  initial: initialModel,
+  fields: [App.model.filter],
+  keys: { filter: { history: 'push' } },
+})
+
 // FLAGS
 
 export const Flags = Schema.Struct({
@@ -120,7 +140,13 @@ export type Flags = typeof Flags.Type
 
 // INIT
 
-export const init: Runtime.ApplicationInit<Model, Message, Flags> = flags => ({
+/**
+ * The stored list only: `Mirror.routing` (below) reads the filter from the
+ * starting URL into what this returns. The list is this device's and the
+ * filter the link's, and neither mirror holds the other's field, so a shared
+ * link shows its filter over the reader's own list.
+ */
+const storedInit = (flags: Flags, _url: Url): { readonly model: Model } => ({
   model: Mirror.bootstrap(initialModel, TodosMirror.bootstrap(flags.todos)),
 })
 
@@ -128,7 +154,7 @@ export const init: Runtime.ApplicationInit<Model, Message, Flags> = flags => ({
 
 type UpdateReturn = Update.Return<Model, Message>
 
-export const update = (model: Model, message: Message) =>
+const ownUpdate = (model: Model, message: Message) =>
   Message.match<UpdateReturn>(message, {
     UpdatedNewTodo: ({ text }) => ({
       model: modifyFields(model, {
@@ -257,7 +283,38 @@ export const update = (model: Model, message: Message) =>
         filter: () => filter,
       }),
     }),
+
+    // The page draws no link, but a routing application answers one: as a
+    // browser would.
+    ClickedLink: ({ request }) =>
+      UrlRequest.match<UpdateReturn>(request, {
+        Internal: ({ url }) => ({ model, commands: [NavigateInternal({ url: urlToString(url) })] }),
+        External: ({ href }) => ({ model, commands: [LoadExternal({ href })] }),
+      }),
+
+    // `Mirror.routing` has already read the filter from `url`; this is also
+    // the echo of the mirror's own writes, so it leaves the Model as it is.
+    ChangedUrl: () => ({ model }),
+
+    CompletedNavigateInternal: () => ({ model }),
+    CompletedLoadExternal: () => ({ model }),
   })
+
+// ROUTING
+
+/** `init`, `update` and `routing` for `Runtime.makeApplication`, the filter read from every URL. */
+export const routed = Mirror.routing({
+  mirrors: [FilterMirror],
+  urlChanged: 'ChangedUrl',
+  init: storedInit,
+  update: ownUpdate,
+  routing: {
+    onUrlRequest: request => Message.ClickedLink({ request }),
+    onUrlChange: url => Message.ChangedUrl({ url }),
+  },
+})
+
+export const { init, update } = routed
 
 // COMMAND
 
@@ -274,11 +331,24 @@ export const GenerateTodo = Command.define('GenerateTodo', {
     }),
 })
 
+const NavigateInternal = Command.define('NavigateInternal', {
+  args: { url: Schema.String },
+  messages: [Message.CompletedNavigateInternal],
+  execute: ({ url }) => pushUrl(url).pipe(Effect.as(Message.CompletedNavigateInternal())),
+})
+
+const LoadExternal = Command.define('LoadExternal', {
+  args: { href: Schema.String },
+  messages: [Message.CompletedLoadExternal],
+  execute: ({ href }) => load(href).pipe(Effect.as(Message.CompletedLoadExternal())),
+})
+
 // SUBSCRIPTION
 
 export const subscriptions = Subscription.make<Model, Message, KeyValueStore.KeyValueStore>()(
   () => ({
     ...TodosMirror.subscriptions,
+    ...FilterMirror.subscriptions,
   }),
 )
 
