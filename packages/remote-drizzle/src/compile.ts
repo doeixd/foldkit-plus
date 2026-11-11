@@ -824,6 +824,9 @@ const undecided = (
     }
     case 'In': {
       const among = operand(node.among, target, input, query)
+      // Null stays unknown, as evaluate has it, so a `whenGiven` guard can
+      // settle the `or` that holds it.
+      if (among === null || among === undefined) return sql`null`
       if (!Array.isArray(among)) {
         throw new QueryCompileError(
           `query "${query}" asks whether a value is in something that is not a list`,

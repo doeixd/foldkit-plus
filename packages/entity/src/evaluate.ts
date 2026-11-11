@@ -650,6 +650,10 @@ const holds = (node: Predicate, scope: Scope): Judged => {
     case 'In': {
       const among = valueOf(node.among, scope)
       if (isUnheld(among)) return among
+      // A list that is null (an optional input not given) is unknown, as `x in
+      // null` is in SQL and as a comparison with null is: `whenGiven` guards
+      // it, and every operand of an `or` is still asked.
+      if (isNull(among)) return 'unknown'
       if (!Array.isArray(among)) {
         throw new QueryEvaluateError('a membership test was given a list that is not a list')
       }

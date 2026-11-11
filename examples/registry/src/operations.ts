@@ -29,13 +29,9 @@ export const ProductsQuery = Query.define(
   {
     sort: ProductSort.Schema,
     search: Schema.String,
-    // The statuses kept: every one when the column is not filtered. Not null for
-    // none: the Drizzle compiler refuses `Expr.in` over a null list even inside
-    // `whenGiven`. At most every status, each once.
-    statuses: Schema.Array(Status).check(
-      Schema.isMinLength(1),
-      Schema.isMaxLength(3),
-      Schema.isUnique(),
+    // The statuses kept, or null for every one: `whenGiven` filters only by what is given.
+    statuses: Schema.NullOr(
+      Schema.Array(Status).check(Schema.isMinLength(1), Schema.isMaxLength(3), Schema.isUnique()),
     ),
     // A price bound given, or null: `whenGiven` filters only by what is given.
     minCents: Schema.NullOr(Schema.Int),
@@ -48,7 +44,7 @@ export const ProductsQuery = Query.define(
           Expr.contains(fields.description, input.search),
           Text.startsWith(fields.upc, input.search),
         ),
-        Expr.in(fields.status, input.statuses),
+        Expr.whenGiven(input.statuses, statuses => Expr.in(fields.status, statuses)),
         Expr.whenGiven(input.minCents, min => Expr.gte(fields.cents, min)),
         Expr.whenGiven(input.maxCents, max => Expr.lte(fields.cents, max)),
       ),

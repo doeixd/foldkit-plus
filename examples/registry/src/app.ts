@@ -40,7 +40,6 @@ import {
   ProductId,
   ProductRow,
   Registry,
-  Status,
 } from './domain.js'
 import { ProductSort, ProductsQuery } from './operations.js'
 import { live } from 'foldkit-remote/live'
@@ -308,7 +307,7 @@ export const Products = ProductList.at({
       sort: model.sort,
       search: model.search,
       statuses: Option.match(model.filters.status, {
-        onNone: () => Status.literals,
+        onNone: () => null,
         onSome: ({ options }) => options,
       }),
       ...centsOf(model.filters.cents),
