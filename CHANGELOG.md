@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **The grid's date editor no longer loses focus** (`foldkit-mixins-data-grid`).
+  Opening a date cell drew an input whose `setSelectionRange` throws (a date
+  input has no selection), which failed the focus Mount: nothing took focus and
+  none was handed back, so after Enter the keyboard left the grid for the page.
+  The caret is placed only where the input has a selection.
+
 - **A Slot's protected attributes can no longer be set through a generic builder**
   (`foldkit-mixins`, `foldkit-mixins-data-grid`). The resolver compared the
   builder's tag with the protected list, so `h.AriaLabel` was refused but
