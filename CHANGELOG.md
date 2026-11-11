@@ -95,6 +95,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Recipes.Disclosure` and `Recipes.Fieldset`** (`foldkit-mixins-ui`). The
+  Disclosure recipe draws the button as a row with its own chevron (an
+  `::after`, down shut, up once `data-open`) and the panel's box: `variant`
+  `plain`, `bordered` (one box, the button's lower corners squaring onto the
+  panel while open) or `ghost`, and `indicator` `chevron` or `none`. The
+  panel's height stays upstream's `animatePanel`. The Fieldset recipe floats
+  the legend into the group, so a box holds it, and dims the legend and
+  description of a disabled fieldset: `variant` `plain`, `bordered` or
+  `filled`. The ui-showcase's hand-written styles moved onto them.
 - **`Agent.Variant`: what `Agent.variant` returns** (`foldkit-agent`). A named
   type with the completion erased to `AnyCompletion`, where the return type
   was `Omit<typeof config, …>`, which spelled out the completion's

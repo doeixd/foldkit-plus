@@ -492,8 +492,8 @@ its README the details.
   hand out attributes with no adapter. Menu, Listbox, Combobox, DatePicker,
   Toast, FileDrop, Calendar, Nav and VirtualList have adapters (checked
   2026-11-09). Recipes exist for Select, Popover, Tooltip, Slider, RadioGroup,
-  Calendar, Nav and VirtualList, and `hoverCard` wraps HoverIntent. Fieldset
-  and Disclosure still have no recipe.
+  Calendar, Nav, VirtualList, Fieldset and Disclosure, and `hoverCard` wraps
+  HoverIntent.
   Internal items with class-only hooks need upstream render/attribute hooks,
   not a second accessibility/state owner. `Textarea.resolve` and its result
   types are fixed; review any remaining direct `SlotBuilder.attrs()` textarea
