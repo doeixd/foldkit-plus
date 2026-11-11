@@ -169,13 +169,18 @@ version changed; `pnpm` skips versions already in the registry.
   current version and still recognizes a retransmission committed before the
   deploy. An older operation no step reads moves from the outbox to
   `status.refused`, kept with its payload until `replica.dismiss(opId)`, and
-  `journalExchange` rejects one as `Unreadable`; committed history no step
-  reads fails the document's exchanges with `UnreadableHistoryError`. A newer
+  `journalExchange` rejects one as `Unreadable`; a committed one no step
+  reads fails, with `UnreadableHistoryError`, what reads it: exchanges from a
+  cursor before it, a retransmission of it, a rebuild from an older snapshot
+  (a replica past it is served). A newer
   version refuses to open the replica or fails the exchange with
   `UnsupportedMessageVersionError`, and `journalExchange` refuses a replica
-  ahead of it before appending anything, so nothing is lost. Deploy this
-  release to every server and client before an application's first `next`:
-  an older server refuses an operation carrying `messageVersion`.
+  ahead of it before appending anything, so nothing is lost. A step must be
+  pure. Deploy this release to every server and client before an
+  application's first `next`, or edits are lost: an older server rejects an
+  operation carrying `messageVersion`, and an older replica drops one refused
+  as `Unreadable`. Rolling this release back meets a replica state holding
+  `refused` as `InvalidReplicaHistoryError`; do not clear storage on it.
   `foldkit-durable`'s function-pair codec gains an optional `compared`, the
   form a retransmission is compared by. New exports: `migrations`,
   `Migrations`, `WrittenOperation`, `MessageHistory`, `SyncDefinitionOptions`,
@@ -509,7 +514,11 @@ version changed; `pnpm` skips versions already in the registry.
 - **What a replica holds as written is typed `WrittenOperation`**
   (`foldkit-sync`, #190): `Replica.pending`, `ReplicaState.pending`,
   `Transport`'s and `TransportClient`'s `pending`, and `Rejection.operation`,
-  which may carry `messageVersion`. `Rejection` gains `message`, the Message
+  which may carry `messageVersion`. It is branded, so a decoded `Operation`
+  no longer type-checks where one is required: a server that appends an
+  operation it built writes it with `journalContract().operation.encode`, and
+  a journal typed `Journal<Operation, S, P, Operation>` is now
+  `Journal<Operation, S, P, WrittenOperation>`. `Rejection` gains `message`, the Message
   encoded at the current version, to read it by; `ReplicaStatus` gains
   `refused`; `SyncDefinition` is a type taking `message` or `migrations`;
   `editsJournal`'s `absorbed` returns a `WrittenOperation`, and a document
