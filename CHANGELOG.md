@@ -132,6 +132,32 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Durable Messages upcast through a declared history** (`foldkit-sync`,
+  `foldkit-durable`, #190). `Sync.migrations(V1).next(V2, up)` declares the
+  Schemas a document's durable Messages were stored in and how each becomes
+  the next; `Sync.define` takes it in place of `message`, and
+  `Sync.forApplication(App).make({ …, migrations })` takes one ending at
+  `App.Message` itself. An operation keeps the version it was written at
+  (`messageVersion` on its envelope, absent for version 1, so a document with
+  no migrations writes what it wrote before) in the outbox and on the wire,
+  and every reader (`admit`, `validate`, `authorize`, `reduce`, `stamp`,
+  replay) sees it upcast to the current version; the journal stores the
+  current version and still recognizes a retransmission committed before the
+  deploy. An older operation no step reads moves from the outbox to
+  `status.refused`, kept with its payload until `replica.dismiss(opId)`, and
+  `journalExchange` rejects one as `Unreadable`; committed history no step
+  reads fails the document's exchanges with `UnreadableHistoryError`. A newer
+  version refuses to open the replica or fails the exchange with
+  `UnsupportedMessageVersionError`, and `journalExchange` refuses a replica
+  ahead of it before appending anything, so nothing is lost. Deploy this
+  release to every server and client before an application's first `next`:
+  an older server refuses an operation carrying `messageVersion`.
+  `foldkit-durable`'s function-pair codec gains an optional `compared`, the
+  form a retransmission is compared by. New exports: `migrations`,
+  `Migrations`, `WrittenOperation`, `MessageHistory`, `SyncDefinitionOptions`,
+  `HistoryOption`, `UnsupportedMessageVersionError`, `UnreadableMessageError`,
+  `UnreadableHistoryError`; `codec.messageVersion` and `codec.writtenFrom`.
+
 - **A boolean data grid column is a checkbox** (`foldkit-data-grid`,
   `foldkit-mixins-data-grid`). A column whose `edit.schema` decodes to a
   boolean (`Columns.checkbox`, the text `true` and `false`) is
@@ -456,13 +482,30 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **What a replica holds as written is typed `WrittenOperation`**
+  (`foldkit-sync`, #190): `Replica.pending`, `ReplicaState.pending`,
+  `Transport`'s and `TransportClient`'s `pending`, and `Rejection.operation`,
+  which may carry `messageVersion`. `Rejection` gains `message`, the Message
+  encoded at the current version, to read it by; `ReplicaStatus` gains
+  `refused`; `SyncDefinition` is a type taking `message` or `migrations`;
+  `editsJournal`'s `absorbed` returns a `WrittenOperation`, and a document
+  with migrations writes it with `journalContract().operation.encode`.
+
+- **A stored operation that no longer decodes is a `JournalError`**
+  (`foldkit-durable`, #190), carrying the codec's error as its `cause`, where a
+  retransmission of a committed id read it back; it was an
+  `InvalidOperationError`, which `journalExchange` rejected as the sender's
+  fault though the edit had committed.
+
 - **Sync rejections carry a typed refusal** (`foldkit-sync`, #190). Each
   `status.rejected` entry has `refusal: Option<SyncRefusal>`, in Remote's
   vocabulary for "not saved": `Forbidden { reason }` when `authorize` or
   `admit` refused (Remote's `Denied.Forbidden`), `Invalid { message, entity,
   rule, path }` when the operation failed, with `journalExchange`'s fixed
-  sentence (Remote's `Refusal.invalid`), and `Unreadable { version }`,
-  declared for upcasting and not sent yet. Read it through `SyncRefusal.match`.
+  sentence (Remote's `Refusal.invalid`), and `Unreadable { version }`, for an
+  operation written at an older Message version no step of the document's
+  history reads (see the upcasting entry under Added). Read it through
+  `SyncRefusal.match`.
   The exchange reply gains `refusals: [{ opId, refusal }]` (an encoded
   `SyncRefusal` each, at most one per operation), which `journalExchange`
   sends only when it refused something; a refusal the replica cannot read
