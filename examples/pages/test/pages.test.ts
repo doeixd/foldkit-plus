@@ -7,7 +7,15 @@
 import { Effect, Option, Schema } from 'effect'
 import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
-import { ReplicaId, Sequence, Sync, type Mounted, type Replica, type Storage } from 'foldkit-sync'
+import {
+  ReplicaId,
+  Sequence,
+  Sync,
+  SyncRefusal,
+  type Mounted,
+  type Replica,
+  type Storage,
+} from 'foldkit-sync'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   initialModel,
@@ -241,7 +249,13 @@ describe('two people on one page', () => {
     const [waiting] = Effect.runSync(replica.pending)
     await synchronize(replica, 'mallory')
     expect(Effect.runSync(replica.status).rejected).toEqual([
-      { opId: waiting!.opId, reason: Option.some('Refused by the server'), operation: waiting },
+      {
+        opId: waiting!.opId,
+        // Another actor holds the replica: refused as who sent it, with no reason.
+        refusal: Option.some(SyncRefusal.Forbidden({ reason: Option.none() })),
+        reason: Option.some('Refused by the server'),
+        operation: waiting,
+      },
     ])
     expect(titles(journal.snapshot())).toEqual(['A'])
   })
@@ -661,7 +675,14 @@ describe('two people on one page', () => {
     const [sent] = Effect.runSync(replica.pending)
     await synchronize(replica, 'tab-bob')
     expect(Effect.runSync(replica.status).rejected).toEqual([
-      { opId: sent!.opId, reason: Option.some('only the server collects'), operation: sent },
+      {
+        opId: sent!.opId,
+        refusal: Option.some(
+          SyncRefusal.Forbidden({ reason: Option.some('only the server collects') }),
+        ),
+        reason: Option.some('only the server collects'),
+        operation: sent,
+      },
     ])
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(heard).toBe(0)
