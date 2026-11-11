@@ -238,15 +238,13 @@ against 312, the cost being evaluation), Site and host D1, H1, H3 and H2
 (c3a6db7..d61b307), `serveFetch`'s refusal drain (563d53d), #432's spike
 (not kept: boot 7 ms faster in one run, 96 slower in the other; 1a4b05a),
 and Site Phase 0 (no non-landing route alone imports over 2 KB against the
-20 KB bar, so C1 to C3 are not built and #438 closes: 24474ee).
+20 KB bar, so C1 to C3 are not built and #438 closes: 24474ee), H4 not
+due (3 to 5 shared lines against 30) with auth and cloudflare moved onto the
+host parts instead, so #235 closes on the parts (cloudflare's per-binding
+auth: 8ed9094; auth on `Host.node`: 2d35f11).
 
 1. **`SSR.static`'s builder type** (a Slot-styled region without a cast).
    In progress.
-2. **`examples/auth` and `examples/cloudflare` onto the host parts.** H4
-   is not due (the reference shares 3 to 5 lines of glue with any other
-   example, against 30), so #235 closes on the parts once these use them;
-   cloudflare's auth cache also keeps one build for any D1 binding, the
-   reload fault `Host.isolate` fixes. In progress.
 3. **The rest of the small findings** in `docs/design/TODO.md` (the 90 KB
    against 69 KB page, from Foldkit's identity markers; Chirp's bundle
    extras).
