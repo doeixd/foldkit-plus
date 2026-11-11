@@ -218,11 +218,6 @@ export interface SubmitInputs {
    * naming none of the form's keys, or a failure, which a submit sends again.
    */
   readonly failure?: { readonly error: string; readonly retry: boolean } | undefined
-  /**
-   * The save landed and the form is not edited since: a create's form, started
-   * again blank, keeps the focus its button was given.
-   */
-  readonly saved?: boolean | undefined
 }
 
 /**
@@ -1140,12 +1135,6 @@ export const Crud = {
         /** Whether the save is in flight: started, and not yet answered. */
         const busy = (root: Root): boolean => saveOf(root)._tag === 'Pending'
 
-        /** Whether the last save landed and the form is not edited since. */
-        const saved = (root: Root): boolean => {
-          const { requestId, settledFor, edited } = slice.get(root)
-          return requestId !== null && Option.contains(settledFor, requestId) && !edited
-        }
-
         /**
          * Why the save did not land, while the form is as it was saved. A
          * refusal that names one of the form's keys shows on that key instead;
@@ -1228,7 +1217,6 @@ export const Crud = {
                 ...own,
                 submitting: busy(root) || own.submitting === true,
                 failure: own.failure ?? Option.getOrUndefined(failure(root)),
-                saved: saved(root) || own.saved === true,
               } as Inputs
             },
           },

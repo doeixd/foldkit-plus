@@ -143,14 +143,6 @@ export interface FormViewInputs<
    * refused again), and the button then reads `words.resubmit`.
    */
   readonly failure?: SubmitFailure | undefined
-  /**
-   * Whether the write the last submit started landed, and the form is not
-   * edited since. A form a save started again blank cannot submit, so its
-   * button would be `disabled`, and the focus a press gave it would drop to
-   * the page; while `saved` it is `aria-disabled` instead. `Crud.editor`
-   * gives it.
-   */
-  readonly saved?: boolean | undefined
 }
 
 /** Why a submitted write did not land, for `FormViewInputs.failure`. */
@@ -1028,7 +1020,6 @@ export const FormView = {
           make: form.Message as unknown as NestedForm['Message'],
         }
         const submitting = input.submitting === true
-        const saved = input.saved === true
         const fields = draw(top, form.bundle.name, '')
         return h.form(
           slots.root.attrs([
@@ -1086,12 +1077,14 @@ export const FormView = {
                   h.button(
                     slots.submit.attrs([
                       h.Type('submit'),
-                      // Disabling it would drop the focus a press gave it: while
-                      // submitting a press reaches a submit that waits or a
-                      // write in flight, which ignores it, and once saved one
-                      // shows what the blank form lacks.
-                      h.Disabled(!input.canSubmit && !saved),
-                      ...(submitting || (saved && !input.canSubmit) ? [h.AriaDisabled(true)] : []),
+                      // Never natively `disabled`: the browser submits through the
+                      // form's default button only if it is enabled, so an Enter sent
+                      // before the frame that enables it was dropped silently, and a
+                      // disabled button also drops the focus a press gave it. It
+                      // reads `aria-disabled` instead, and `update` decides from the
+                      // Model: a submit the form cannot take marks every key and shows
+                      // why, a valid one goes through.
+                      ...(!input.canSubmit || submitting ? [h.AriaDisabled(true)] : []),
                     ]),
                     [
                       submitting

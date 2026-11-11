@@ -165,17 +165,14 @@ test('the form is aria-busy until the save is answered, and keeps the focus a pr
     await vi.waitFor(() => expect(title()).not.toBeNull())
     expect(form().getAttribute('aria-busy')).toBeNull()
 
-    // Enter submits through the form's button, which stays disabled until the
-    // frame that draws the title: a key sent before it submits nothing.
+    // Enter submits through the form's button, which still reads aria-disabled
+    // in the page as drawn: the Enter meets `update`, which has the title, so
+    // it saves.
     await beforeNextFrame(async () => {
+      expect(save().getAttribute('aria-disabled')).toBe('true')
       await userEvent.fill(title(), 'Groceries')
       await userEvent.type(title(), '{Enter}')
     })
-    expect(saves).toBe(0)
-    await vi.waitFor(() => expect(save().disabled).toBe(false))
-
-    // Enter in the field submits.
-    await userEvent.type(title(), '{Enter}')
     await vi.waitFor(() => expect(form().getAttribute('aria-busy')).toBe('true'))
     expect(saves).toBe(1)
     expect([title(), save()]).toContain(document.activeElement)
@@ -216,7 +213,8 @@ test('the form is aria-busy until the save is answered, and keeps the focus a pr
     expect(save().getAttribute('aria-disabled')).toBeNull()
     await userEvent.fill(title(), '')
     await frames.settle()
-    expect(save().disabled).toBe(true)
+    expect(save().getAttribute('aria-disabled')).toBe('true')
+    expect(save().disabled).toBe(false)
   } finally {
     handle.dispose()
     frames.dispose()

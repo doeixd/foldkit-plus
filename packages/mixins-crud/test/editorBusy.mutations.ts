@@ -29,22 +29,10 @@ export default [
     '',
   ),
   edit(
-    'the submit is disabled while submitting, and drops its focus',
+    'the submit is natively disabled while it cannot submit or submits, and drops its focus',
     '../../mixins-form/src/index.ts',
-    'h.Disabled(!input.canSubmit && !saved),',
-    'h.Disabled((!input.canSubmit && !saved) || submitting),',
-  ),
-  edit(
-    'a created form, started again blank, drops the focus its button had',
-    '../../mixins-form/src/index.ts',
-    'h.Disabled(!input.canSubmit && !saved),',
-    'h.Disabled(!input.canSubmit),',
-  ),
-  edit(
-    'the editor never says its save landed',
-    '../../crud/src/index.ts',
-    'saved: saved(root) || own.saved === true,',
-    'saved: own.saved === true,',
+    '...(!input.canSubmit || submitting ? [h.AriaDisabled(true)] : [])',
+    'h.Disabled(!input.canSubmit || submitting)',
   ),
   edit(
     'a press while the save is in flight writes again',

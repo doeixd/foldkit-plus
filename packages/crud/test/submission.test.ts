@@ -143,7 +143,7 @@ describe('An editor’s submission', () => {
   it('is busy from submit until the answer, and not after', async () => {
     const ready = typed(await opened(), 'Revised')
     expect(NoteEditor.busy(ready)).toBe(false)
-    expect(inputs(ready)).toEqual({ submitting: false, failure: undefined, saved: false })
+    expect(inputs(ready)).toEqual({ submitting: false, failure: undefined })
 
     const submitted = submit(ready)
     expect(NoteEditor.busy(submitted.model)).toBe(true)
@@ -151,10 +151,8 @@ describe('An editor’s submission', () => {
 
     const saved = await answer(submitted.model, submitted.commands![0]!)
     expect(NoteEditor.busy(saved)).toBe(false)
-    expect(inputs(saved)).toEqual({ submitting: false, failure: undefined, saved: true })
+    expect(inputs(saved)).toEqual({ submitting: false, failure: undefined })
     expect(NoteEditor.status(saved)).toBe('Saved')
-    // An edit makes the form the author's again.
-    expect(inputs(typed(saved, 'Again')).saved).toBe(false)
   })
 
   it('does nothing when submitted again while busy: no second write, the Model unchanged', async () => {
@@ -167,10 +165,9 @@ describe('An editor’s submission', () => {
     expect(sent).toHaveLength(1)
   })
 
-  it('keeps a busy flag, a saved flag and a failure the page gives, over its own', async () => {
+  it('keeps a busy flag and a failure the page gives, over its own', async () => {
     const ready = await opened()
     expect(NoteEditor.placement.viewInputs(ready, { submitting: true }).submitting).toBe(true)
-    expect(NoteEditor.placement.viewInputs(ready, { saved: true }).saved).toBe(true)
     answers = [{ _tag: 'Fail' }]
     const submitted = submit(typed(ready, 'Revised'))
     const failed = await answer(submitted.model, submitted.commands![0]!)
@@ -249,7 +246,7 @@ describe('An editor’s submission', () => {
     const saved = await answer(retried.model, retried.commands![0]!)
 
     expect(NoteEditor.status(saved)).toBe('Saved')
-    expect(inputs(saved)).toEqual({ submitting: false, failure: undefined, saved: true })
+    expect(inputs(saved)).toEqual({ submitting: false, failure: undefined })
     // The same write: one request id, one operation id, so the server can tell.
     expect(sent).toHaveLength(2)
     expect(sent[1]!.requestId).toBe(sent[0]!.requestId)
