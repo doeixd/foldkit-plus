@@ -283,7 +283,32 @@ const begun = (result: ReturnType<typeof stepped>): ReturnType<typeof stepped> =
   return { ...result, model: { ...model, fresh } }
 }
 
-export const update = (model: Model, message: Message) => follow(begun(stepped(model, message)))
+/** The instant a schedule box's text names, as `ScheduleAsked` takes it: `''` for none. */
+export const scheduleInstant = (text: string): string => {
+  const at = new Date(text)
+  return Number.isNaN(at.getTime()) ? '' : at.toISOString()
+}
+
+/**
+ * The schedule box empties once its schedule is taken: in the one Message that
+ * moves the editor from Scheduling to Scheduled, and only while the box still
+ * names the time that was asked. Judged on every Message, "scheduled" would
+ * empty a new time typed for a reschedule at the next unrelated read, and
+ * "the box names the time taken" would empty a retyped time; emptied on the
+ * press, a failed schedule would lose the text. Neither a failure nor a time
+ * typed while the schedule was on its way is cleared.
+ */
+const clearedWhenScheduled = (before: Model, after: Model): Model =>
+  PostEditor.status(before) === 'Scheduling' &&
+  PostEditor.status(after) === 'Scheduled' &&
+  scheduleInstant(after.scheduleAt) === after.editor.scheduleAt
+    ? modifyFields(after, { scheduleAt: () => '' })
+    : after
+
+export const update = (model: Model, message: Message) => {
+  const next = follow(begun(stepped(model, message)))
+  return { ...next, model: clearedWhenScheduled(model, next.model) }
+}
 
 export const initial: Model = placements.initial({
   remote: Remote.initial,

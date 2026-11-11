@@ -7,10 +7,10 @@
  * the runtime's subscriptions send; saves and permissions run against one
  * in-process backend.
  */
-import { Effect, Option } from 'effect'
+import { Effect, Layer, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Cms } from 'foldkit-cms'
-import { RemotePolicy } from 'foldkit-remote'
+import { RemoteClient, RemotePolicy, RemoteUnreachable } from 'foldkit-remote'
 import { Inert } from 'foldkit-mixins/testing'
 import type { Html } from 'foldkit/html'
 import { chairHarness, openBackend } from '../src/demo/harness.js'
@@ -179,5 +179,111 @@ describe('the posts’ editor', () => {
     expect(Inert.text(Inert.draw(Studio, harness.model()))).toContain(
       'Enter a date and time to schedule it.',
     )
+  })
+})
+
+describe('the schedule box', () => {
+  const soon = '2030-03-02T09:00'
+  const later = '2030-04-01T17:30'
+  const schedule = () =>
+    editorOf(Editor.Message.ScheduleAsked({ at: new Date(soon).toISOString() }))
+
+  /** A post ready to schedule, and a way to hold a schedule's answer back. */
+  const ready = async () => {
+    const { harness, look } = setup()
+    await harness.send(Message.StartedPost({ entry: 'entry-later' }))
+    for (const [key, value] of [
+      ['title', 'Later'],
+      ['body', 'Soon.'],
+    ] as const) {
+      await harness.send(
+        Message.GotEditorMessage({ message: PostForm.Message.Changed({ key, value }) }),
+      )
+    }
+    await look()
+    /** Sends `message` and keeps its Commands: the schedule is on its way. */
+    const hold = (message: Message) => {
+      const next = update(harness.model(), message)
+      harness.setModel(next.model)
+      return next.commands ?? []
+    }
+    /** The held Commands answered, through `client`. */
+    const answer = async (
+      commands: ReturnType<typeof hold>,
+      client: Layer.Layer<RemoteClient> = harness.client,
+    ) => {
+      for (const command of commands) {
+        await harness.send(await Effect.runPromise(command.effect.pipe(Effect.provide(client))))
+      }
+    }
+    const box = () => harness.model().scheduleAt
+    const status = () => PostEditor.status(harness.model())
+    return { harness, look, hold, answer, box, status }
+  }
+
+  /** Typed, pressed and taken. */
+  const scheduled = async () => {
+    const post = await ready()
+    await post.harness.send(Message.TypedSchedule({ text: soon }))
+    await post.answer(post.hold(schedule()))
+    expect(post.status()).toBe('Scheduled')
+    return post
+  }
+
+  it('empties once the schedule it asked for is taken', async () => {
+    const { harness, hold, answer, box, status } = await ready()
+    await harness.send(Message.TypedSchedule({ text: soon }))
+    const asked = hold(schedule())
+    expect(status()).toBe('Scheduling')
+    expect(box()).toBe(soon)
+    await answer(asked)
+    expect(status()).toBe('Scheduled')
+    expect(box()).toBe('')
+  })
+
+  it('keeps a time typed while the schedule was on its way', async () => {
+    const { harness, hold, answer, box, status } = await ready()
+    await harness.send(Message.TypedSchedule({ text: soon }))
+    const asked = hold(schedule())
+    await harness.send(Message.TypedSchedule({ text: later }))
+    await answer(asked)
+    expect(status()).toBe('Scheduled')
+    expect(box()).toBe(later)
+  })
+
+  it('keeps the text when the schedule fails', async () => {
+    const { harness, hold, answer, box, status } = await ready()
+    await harness.send(Message.TypedSchedule({ text: soon }))
+    const asked = hold(schedule())
+    const service = Effect.runSync(
+      Effect.provide(
+        Effect.gen(function* () {
+          return yield* RemoteClient
+        }),
+        harness.client,
+      ),
+    )
+    const offline = Layer.succeed(RemoteClient, {
+      ...service,
+      mutate: () => Effect.fail(new RemoteUnreachable({ message: 'offline' })),
+    })
+    await answer(asked, offline)
+    expect(status()).toBe('ScheduleFailed')
+    expect(box()).toBe(soon)
+  })
+
+  it('keeps a new time typed once scheduled across an unrelated read', async () => {
+    const { harness, look, box } = await scheduled()
+    await harness.send(Message.TypedSchedule({ text: later }))
+    await look()
+    await harness.send(Message.Searched({ text: 'other' }))
+    expect(box()).toBe(later)
+  })
+
+  it('keeps the same time typed again once scheduled', async () => {
+    const { harness, look, box } = await scheduled()
+    await harness.send(Message.TypedSchedule({ text: soon }))
+    await look()
+    expect(box()).toBe(soon)
   })
 })

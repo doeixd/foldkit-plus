@@ -269,6 +269,13 @@ says otherwise, so it shows only what is published.
   do that for themselves (`listing` in `app.ts` and `pageApp.ts`).
 - `http.ts` keeps time: the CMS owns no timer, so the host asks what is due every
   five seconds. Schedule something a minute out and watch it go.
+- **The schedule box empties when its schedule is taken**: in the Message that
+  moves the editor from Scheduling to Scheduled, and only while the box still
+  names the time asked (`clearedWhenScheduled` in `app.ts`). Judged on every
+  Message instead, a new time typed for a reschedule would vanish at the next
+  unrelated read, or a time typed again would; emptied on the press, a failed
+  schedule would lose the text. A failure, and a time typed while the
+  schedule was on its way, stay in the box.
 - **`x-chair` stands in for authentication.** It is the client saying who it is,
   which no real server believes: a real one derives the principal from a session
   it has verified. Everything else about the boundary is real — a visitor's reads

@@ -26,6 +26,7 @@ import {
   WorklistList,
   history,
   postPage,
+  scheduleInstant,
   type Model,
 } from '../apps/app.js'
 import { PostForm, type PostPreview } from '../content/domain.js'
@@ -351,11 +352,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
                   action(
                     'schedule',
                     'Schedule',
-                    ask(
-                      Editor.Message.ScheduleAsked({
-                        at: Number.isNaN(at.getTime()) ? '' : at.toISOString(),
-                      }),
-                    ),
+                    ask(Editor.Message.ScheduleAsked({ at: scheduleInstant(model.scheduleAt) })),
                     !Number.isNaN(at.getTime()),
                   ),
                 ]),
