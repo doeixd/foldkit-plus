@@ -295,8 +295,8 @@ export default [
     edits: [
       {
         file: '../src/app.ts',
-        find: 'Option.some({ sort: model.sort, search: model.search })',
-        replace: "Option.some({ sort: model.sort, search: '' })",
+        find: '      search: model.search,\n      statuses:',
+        replace: "      search: '',\n      statuses:",
       },
     ],
     tests,

@@ -24,7 +24,7 @@ import { Equal, Match, Option, Schema, SchemaGetter } from 'effect'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { Crud } from 'foldkit-crud'
-import { type CellAddress, DataGrid, RowModel } from 'foldkit-data-grid'
+import { type CellAddress, CellEditor, DataGrid, RowModel } from 'foldkit-data-grid'
 import { GridCrud } from 'foldkit-data-grid/crud'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { persistence, RemotePersistence } from 'foldkit-remote/persistence'
@@ -40,6 +40,7 @@ import {
   ProductId,
   ProductRow,
   Registry,
+  Status,
 } from './domain.js'
 import { ProductSort, ProductsQuery } from './operations.js'
 import { live } from 'foldkit-remote/live'
@@ -93,9 +94,11 @@ export const columns = GridCrud.columns(ProductList, {
     line: { width: 100, edit: { schema: LineName } },
     // One of the Product's own statuses: edited as a choice of them, wide
     // enough for the longest in its select.
-    status: { width: 130, edit: { schema: Product.fields.status.schema } },
+    status: { width: 130, edit: { schema: Product.fields.status.schema }, filter: true },
     cents: {
       width: 90,
+      // A range typed in dollars, as the cells show prices; `Products` turns it into cents.
+      filter: CellEditor.Number(),
       edit: { schema: Dollars, draft: row => Schema.encodeSync(Dollars)(row.cents) },
     },
   },
@@ -173,6 +176,8 @@ const Base = Bundle.compose({
   sort: ProductSort.Schema,
   /** The text descriptions are searched for: the query's input too, so the server filters. */
   search: Schema.String,
+  /** What the status and price columns are filtered by: the query's input too. */
+  filters: Grid.Filters,
   /**
    * Every cell edited, the latest per cell, and when each committed. The
    * replicated slice: the journal's, not this device's.
@@ -281,9 +286,33 @@ const cache = persistence(Data, {
     RemotePersistence.snapshotOf(remote, { connections: Object.keys(remote.connections), maxAge }),
 })
 
+/** A price range typed in dollars, as the query's bounds in cents: null where none is given. */
+const centsOf = (
+  range: Option.Option<{
+    readonly min: Option.Option<number>
+    readonly max: Option.Option<number>
+  }>,
+) => {
+  const cents = (dollars: Option.Option<number>) =>
+    Option.getOrNull(Option.map(dollars, given => Math.round(given * 100)))
+  return Option.match(range, {
+    onNone: () => ({ minCents: null, maxCents: null }),
+    onSome: ({ min, max }) => ({ minCents: cents(min), maxCents: cents(max) }),
+  })
+}
+
 export const Products = ProductList.at({
   data: Data,
-  input: (model: Model) => Option.some({ sort: model.sort, search: model.search }),
+  input: (model: Model) =>
+    Option.some({
+      sort: model.sort,
+      search: model.search,
+      statuses: Option.match(model.filters.status, {
+        onNone: () => Status.literals,
+        onSome: ({ options }) => options,
+      }),
+      ...centsOf(model.filters.cents),
+    }),
 })
 
 type Cell = {
@@ -436,6 +465,10 @@ const Page = Base.pipe(
             grid: () => Grid.extendRows(rowsOf(model), model.grid, request),
           }),
         }),
+        // The query's input: the server filters, over every product.
+        Filtered: ({ change }) => ({
+          model: modifyFields(model, { filters: filters => Grid.setFilter(filters, change) }),
+        }),
       }),
   }),
   Bundle.withWiring(
@@ -514,6 +547,7 @@ export const initial = (): Model =>
     remote: Remote.initial,
     sort: ProductSort.none,
     search: '',
+    filters: Grid.noFilters,
     edits: [],
     exchange: { pending: 0, error: Option.none() },
     refused: [],

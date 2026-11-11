@@ -70,11 +70,12 @@ export type FilterKind<Spec> = Spec extends { readonly filter: infer F }
       ? T
       : never
   : never
-type ChoiceOf<Spec> = Spec extends {
-  readonly filter: true
-  readonly edit: { readonly schema: Schema.Codec<infer V, string> }
-}
-  ? V & string
+// Inferred in two steps: matched against `filter: true` and the schema at
+// once, a spec that is an intersection (`GridCrud.columns`) infers `unknown`.
+type ChoiceOf<Spec> = Spec extends { readonly filter: true }
+  ? Spec extends { readonly edit: { readonly schema: Schema.Codec<infer V, string> } }
+    ? V & string
+    : string
   : string
 /** The filter of a column, by its spec: the variant its kind takes. */
 export type FilterOf<Spec> = {

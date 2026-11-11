@@ -1454,3 +1454,48 @@ test('a search is the query’s input: the server filters every product by descr
     await dispose()
   }
 })
+
+test('a column filtered from its header is the query’s input: the server keeps the statuses and prices chosen', async () => {
+  const { dispose, latest } = await mount(serve(), memoryStorage())
+  const header = (column: string) => document.getElementById(GridFocus.headerId('products', column))
+  const filterField = (id: string) =>
+    document.getElementById(`products:${id}`) as HTMLInputElement | null
+  const shown = (column: string) =>
+    Array.from(
+      document.querySelectorAll(`#products [role="gridcell"][id$=":${column}"]`),
+      element => element.textContent ?? '',
+    )
+  try {
+    await vi.waitFor(() => expect(cell(productId(0), 'upc')?.textContent).toBe(seedOf(0).upc))
+    header('status')!
+      .querySelector('button[aria-haspopup="dialog"]')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    const discontinued = await vi.waitFor(() => {
+      const box = Array.from(
+        document.querySelectorAll<HTMLInputElement>('#products [role="dialog"] input'),
+      ).find(input => input.parentElement?.textContent === 'Discontinued')
+      expect(box).toBeDefined()
+      return box!
+    })
+    discontinued.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    // Every fifth product, read from the server's filter: a page of them, not of the page loaded.
+    await vi.waitFor(() => expect(cell(productId(0), 'upc')).toBeNull())
+    await vi.waitFor(() => expect(shown('status').length).toBeGreaterThan(5))
+    expect(shown('status').every(status => status === 'Discontinued')).toBe(true)
+    expect(loaded(latest())).toBe(100)
+
+    // A price range in dollars, as the cells show prices: the query's bounds in cents.
+    header('cents')!
+      .querySelector('button[aria-haspopup="dialog"]')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await vi.waitFor(() => expect(filterField('cents:filter:max')).not.toBeNull())
+    const max = filterField('cents:filter:max')!
+    max.value = '5'
+    max.dispatchEvent(new Event('input', { bubbles: true }))
+    await vi.waitFor(() => expect(shown('cents').every(price => Number(price) <= 5)).toBe(true))
+    expect(shown('cents').length).toBeGreaterThan(0)
+    expect(shown('status').every(status => status === 'Discontinued')).toBe(true)
+  } finally {
+    await dispose()
+  }
+})
