@@ -244,9 +244,9 @@ host parts instead, so #235 closes on the parts (cloudflare's per-binding
 auth: 8ed9094; auth on `Host.node`: 2d35f11), and `SSR.unbound` for a
 Slot's attributes in a static region (0887cf3).
 
-1. **The rest of the small findings** in `docs/design/TODO.md` (the 90 KB
-   against 69 KB page, from Foldkit's identity markers; Chirp's bundle
-   extras).
+1. **Triage of `docs/design/TODO.md`** for open items buildable now, with
+   no upstream gate (the 90 KB page waits on Foldkit's identity markers;
+   Chirp's JSON Schema extra left with 6ade70b). In progress.
 2. **The UI polish leftovers** in `docs/design/TODO.md`, one per bout between
    larger items.
 
