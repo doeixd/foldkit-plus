@@ -285,18 +285,35 @@ const cache = persistence(Data, {
     RemotePersistence.snapshotOf(remote, { connections: Object.keys(remote.connections), maxAge }),
 })
 
-/** A price range typed in dollars, as the query's bounds in cents: null where none is given. */
-const centsOf = (
+/**
+ * A price range typed in dollars, as the query's bounds in cents, null where
+ * none is given. The bounds round inward, so the server keeps what the range
+ * says: a lowest price of 1.234 keeps 1.24 and up, not 1.23. A price typed
+ * past any the table could hold is held at the largest whole number of cents
+ * a query's `Int` takes, which no price reaches.
+ */
+export const centsOf = (
   range: Option.Option<{
     readonly min: Option.Option<number>
     readonly max: Option.Option<number>
   }>,
 ) => {
-  const cents = (dollars: Option.Option<number>) =>
-    Option.getOrNull(Option.map(dollars, given => Math.round(given * 100)))
+  const cents = (dollars: Option.Option<number>, inward: (cents: number) => number) =>
+    Option.getOrNull(
+      Option.map(dollars, given => {
+        const exact = given * 100
+        // 1.23 * 100 is 122.99999999999999: a whole number of cents is not rounded away.
+        const whole = Math.round(exact)
+        const rounded = Math.abs(exact - whole) < 1e-6 ? whole : inward(exact)
+        return Math.max(-Number.MAX_SAFE_INTEGER, Math.min(Number.MAX_SAFE_INTEGER, rounded))
+      }),
+    )
   return Option.match(range, {
     onNone: () => ({ minCents: null, maxCents: null }),
-    onSome: ({ min, max }) => ({ minCents: cents(min), maxCents: cents(max) }),
+    onSome: ({ min, max }) => ({
+      minCents: cents(min, Math.ceil),
+      maxCents: cents(max, Math.floor),
+    }),
   })
 }
 
