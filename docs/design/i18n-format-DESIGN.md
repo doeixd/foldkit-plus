@@ -1,8 +1,8 @@
 # Formats: `LocaleFormat.of(conventions)` (i18n step 3)
 
-Status: decided 2026-11-11 (decisions delegated by the owner). Nothing here is
-built. Verdict: **not yet.** Phase F0 fixes three views that read the
-runtime's defaults and needs no new API; the formatter itself (F1 to F4) is
+Status: decided 2026-11-11 (decisions delegated by the owner). F0 is built
+(0103c0b); nothing else is. Verdict: **not yet.** Phase F0 fixes three views
+that read the runtime's defaults and needs no new API; the formatter itself (F1 to F4) is
 gated on [i18n-DESIGN.md](./i18n-DESIGN.md) step 1, because no Model in this
 repository holds a locale to give it.
 
@@ -204,7 +204,7 @@ is not known here and is F4's first probe.
 
 | Phase | Ships | Measure | Tests |
 | --- | --- | --- | --- |
-| F0, now | `Cms.historyCard` takes its locale and zone from its options instead of the runtime (`cms/src/views.ts:82`); the two example views say theirs. No new package API beyond that option | the three sites of section 1 read no default | S6's check for the card: rendered in two child processes (`TZ`, `LANG` differing), the HTML is equal. Mutation: restore `undefined`; drop `timeZone` |
+| F0, built (0103c0b) | `Cms.historyCard` takes its locale and zone from its options instead of the runtime (`cms/src/views.ts:82`); the two example views say theirs. No new package API beyond that option | the three sites of section 1 read no default | S6's check for the card: rendered in two child processes (`TZ`, `LANG` differing), the HTML is equal. Mutation: restore `undefined`; drop `timeZone`. Built as `cms/test/history.test.ts`; both options are required (no studio-wide configuration exists to give them once, and a default would be the hidden one this phase removes) |
 | gate | i18n step 1: a Model in the CMS example holds a locale | | |
 | F1 | `foldkit-entity/locale`: `Conventions`, `of`, `supported`, all but `relative`. `cms/src/kinds.ts` and `form-recipes` use it; their four caches go | lines deleted (about 60); formatting a drawn cell no slower than today's caches (`pnpm bench`); an entry that imports none of it is the same size | Types, one defect per negative: no `timeZone`; `timeZone` in a style; text given to `instant`; a number given to `day`. Mutations: drop the zone; write `day` in the zone (a zone west of UTC); drop `'en'` from the list (a child process whose default is `de`, an unknown tag); key the memo without the zone; remove the bound |
 | F2 | `DisplayWords.conventions`; the Moment and recipe Displays read it; the CMS example's lists in its second locale | the 14 frozen reads follow the Model | a list in the second locale shows no month of the first; the conventions pass through `h.submodel`; a declared `locale` still wins |

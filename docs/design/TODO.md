@@ -345,8 +345,8 @@ the steps land in the packages that own them.
   words), with plural forms in `fillWords` and a check listing missing keys.
 - [ ] **`Format.of(locale)`** for dates, numbers and relative times, with an
   explicit time zone; nothing reads the runtime's default.
-  [i18n-format-DESIGN.md](./i18n-format-DESIGN.md): not yet. Fix the three
-  views that read the runtime's defaults now (F0); build `LocaleFormat` in
+  [i18n-format-DESIGN.md](./i18n-format-DESIGN.md): not yet. The three
+  views that read the runtime's defaults are fixed (F0, 0103c0b); build `LocaleFormat` in
   `foldkit-entity/locale` once the step above puts a locale in a Model.
 - [ ] **Per-locale CMS entries,** slugs and locale-aware reads. cms-DESIGN §14
 - [ ] **Schema labels per locale:** `Words.of(schema, { locale, table })` over a
