@@ -89,7 +89,7 @@ export default [
     edits: [
       {
         file: sync,
-        find: '          if (cause instanceof UnreadableMessageError) unreadable.push(pending)',
+        find: '          if (cause instanceof UnreadableMessageError) unreadable.add(pending)',
         replace: '          if (cause instanceof UnreadableMessageError) void pending',
       },
     ],
@@ -214,6 +214,17 @@ export default [
         file: journal,
         find: '          ? Option.getOrElse(unreadableHistory(sync.documentId, error.cause), () => error)',
         replace: '          ? error',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a stored row of a newer version is an untyped JournalError',
+    edits: [
+      {
+        file: journal,
+        find: '  if (cause instanceof UnsupportedMessageVersionError)\n',
+        replace: '  if (false)\n',
       },
     ],
     tests,

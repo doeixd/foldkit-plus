@@ -112,26 +112,27 @@ const claimedVersion = Schema.decodeUnknownOption(
 const unreadableHistory = (
   documentId: string,
   cause: unknown,
-): Option.Option<UnreadableHistoryError> =>
-  cause instanceof UnreadableMessageError
-    ? Option.some(
-        new UnreadableHistoryError({
-          documentId,
-          opId: cause.opId,
-          version: cause.version,
-          message: `Document ${documentId} holds operation ${cause.opId}, written at Message version ${cause.version}, which no step reads`,
-        }),
-      )
-    : cause instanceof UnsupportedMessageVersionError
-      ? Option.some(
-          new UnreadableHistoryError({
-            documentId,
-            opId: cause.opId,
-            version: cause.found,
-            message: `Document ${documentId} holds operation ${cause.opId}, written at Message version ${cause.found}; this server reads up to ${cause.supported}`,
-          }),
-        )
-      : Option.none()
+): Option.Option<UnreadableHistoryError> => {
+  if (cause instanceof UnreadableMessageError)
+    return Option.some(
+      new UnreadableHistoryError({
+        documentId,
+        opId: cause.opId,
+        version: cause.version,
+        message: `Document ${documentId} holds operation ${cause.opId}, written at Message version ${cause.version}, which no step reads`,
+      }),
+    )
+  if (cause instanceof UnsupportedMessageVersionError)
+    return Option.some(
+      new UnreadableHistoryError({
+        documentId,
+        opId: cause.opId,
+        version: cause.found,
+        message: `Document ${documentId} holds operation ${cause.opId}, written at Message version ${cause.found}; this server reads up to ${cause.supported}`,
+      }),
+    )
+  return Option.none()
+}
 
 /** The id an entry names, read without trusting the rest of it. */
 const idOf = (input: unknown): Option.Option<string> =>
@@ -144,12 +145,18 @@ const idOf = (input: unknown): Option.Option<string> =>
  * One replica's exchanges with the journal, as the replica's transport
  * speaks them (`Sync.transport.fromPromise`, or behind
  * `Sync.transport.serve` on a socket). Each pending operation is appended in
- * order, and acknowledged once committed, or already committed. One is
- * rejected by its id when its message does not decode, it names another
- * document, or the journal refuses it (`authorize`, `validate`); the replica
- * drops it rather than send it again. Only an entry with no id at all, a
- * cursor ahead of the journal's, a connection `opens` refuses, or `admit` or
- * the journal failing fails the exchange. The reply carries what committed
+ * order, as received, and acknowledged once committed, or already
+ * committed. Every hook (`admit`, and the journal's `validate`, `authorize`,
+ * `reduce` and `stamp`) sees its Message upcast to the current version. One
+ * is rejected by its id when its message does not decode, it names another
+ * document, the journal refuses it (`authorize`, `validate`), or it was
+ * written at an older version no step reads (`Unreadable`); the replica drops
+ * it, or keeps an unreadable one in `refused`, rather than send it again. An
+ * entry written at a version newer than this server's fails the exchange
+ * before anything is appended, so its replica waits with its outbox whole; so
+ * do an entry with no id at all, a cursor ahead of the journal's, a
+ * connection `opens` refuses, `admit` or the journal failing, and a stored
+ * operation that will not read (`UnreadableHistoryError`). The reply carries what committed
  * after the replica's cursor, a checkpoint when that history was compacted,
  * and the journal's epoch, so a replica of a reset journal starts again.
  */
@@ -481,9 +488,11 @@ export interface EditsJournalOptions<Shared, Principal, Change> {
   /**
    * The server's operation saying the table holds every edit through
    * `through`, sequenced from `cursor`, the journal's: the replicas drop those
-   * edits on hearing it.
+   * edits on hearing it. Appended as written, so a document with migrations
+   * writes it at its current version
+   * (`sync.journalContract().operation.encode`); one without needs nothing.
    */
-  readonly absorbed: (through: number, cursor: number) => Operation
+  readonly absorbed: (through: number, cursor: number) => WrittenOperation
   /** Who the server commits `absorbed` as; the contract's `authorize` should let only it. */
   readonly server: Principal
 }

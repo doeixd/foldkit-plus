@@ -698,7 +698,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
       const pendingIds = new Set<string>()
       // Written at an older version no step reads: refused by its id, kept as
       // written, so the rest of the outbox opens and sends.
-      const unreadable: Array<WrittenOperation> = []
+      const unreadable = new Set<WrittenOperation>()
       for (const pending of state.pending) {
         if (
           pending.replicaId !== replicaId ||
@@ -713,7 +713,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
         } catch (cause) {
           // A newer build wrote it: nothing is removed, and that build reads it.
           if (cause instanceof UnsupportedMessageVersionError) return yield* cause
-          if (cause instanceof UnreadableMessageError) unreadable.push(pending)
+          if (cause instanceof UnreadableMessageError) unreadable.add(pending)
           else return yield* new InvalidOutboxError({ message: 'Invalid outbox' })
         }
       }
@@ -738,13 +738,13 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
       // The one write an open makes, under the loaded revision: a tab that
       // opened the same store meanwhile fails it as a conflict.
       const opened: ReplicaState<Shared> =
-        unreadable.length === 0
+        unreadable.size === 0
           ? state
           : withRefused(
               {
                 ...state,
                 revision: state.revision + 1,
-                pending: state.pending.filter(operation => !unreadable.includes(operation)),
+                pending: state.pending.filter(operation => !unreadable.has(operation)),
               },
               [...(state.refused ?? []), ...unreadable],
             )

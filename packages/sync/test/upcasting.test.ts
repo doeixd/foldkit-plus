@@ -370,6 +370,26 @@ describe('across a deploy', () => {
     })
   })
 
+  it('refuses a document, after a rollback, that holds a version the server lacks', async () => {
+    const file = journalFile()
+    const writer = await open(NewNote, keptStorage())
+    await Effect.runPromise(writer.submit(Renamed.make({ name: 'Groceries' })))
+    await synchronize(
+      writer,
+      journalExchange({ sync: NewNote, journal: openJournal(NewNote, file), principal: 'ada' }),
+    )
+    const rolledBack = journalExchange({
+      sync: OldNote,
+      journal: openJournal(OldNote, file),
+      principal: 'ada',
+    })
+    await expect(rolledBack.exchange(sequence(0), [])).rejects.toMatchObject({
+      _tag: 'UnreadableHistoryError',
+      opId: 'a:1',
+      version: 2,
+    })
+  })
+
   it('refuses a retransmission of a committed operation no step reads as the server’s failure', async () => {
     const file = journalFile()
     const before = await open(OldNote, keptStorage())
