@@ -26,8 +26,8 @@ export default [
   edit(
     'outcomes are compared as JSON',
     helper,
-    'sameValue(left.value, right.value)',
-    'JSON.stringify(left.value) === JSON.stringify(right.value)',
+    'sameValue(value, other.value)',
+    'JSON.stringify(value) === JSON.stringify(other.value)',
   ),
   edit(
     'a witness is called with no collation',
@@ -146,8 +146,8 @@ export default [
   edit(
     'every two values are alike',
     helper,
-    'return sameValue(left.value, right.value)',
-    'return true',
+    'Value: other => sameValue(value, other.value),',
+    'Value: () => true,',
   ),
   edit('a failed law is not reported', helper, 'if (!plan.holds(left, right)) {', 'if (false) {'),
   {

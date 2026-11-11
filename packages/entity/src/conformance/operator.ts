@@ -10,7 +10,7 @@
  * chosen by a seeded shuffle when there are more than asked for, so a run is
  * repeatable.
  */
-import { Data, Option, Schema, SchemaAST } from 'effect'
+import { Data, Match, Option, Schema, SchemaAST } from 'effect'
 import {
   Collation,
   Evidence,
@@ -164,10 +164,15 @@ const sameValue = (left: unknown, right: unknown): boolean => {
 }
 
 /** Two outcomes alike: equal values as stored, or both refusals. */
-const same = (left: Outcome, right: Outcome): boolean => {
-  if (left._tag === 'Refused' || right._tag === 'Refused') return left._tag === right._tag
-  return sameValue(left.value, right.value)
-}
+const same = (left: Outcome, right: Outcome): boolean =>
+  Match.valueTags(left, {
+    Refused: () => right._tag === 'Refused',
+    Value: ({ value }) =>
+      Match.valueTags(right, {
+        Refused: () => false,
+        Value: other => sameValue(value, other.value),
+      }),
+  })
 
 /** Text by code point, as every interpreter's `binary` orders it; `<` compares UTF-16 units. */
 const byCodePoint = (left: string, right: string): number => {

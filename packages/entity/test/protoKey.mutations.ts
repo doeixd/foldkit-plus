@@ -61,14 +61,14 @@ export default [
   edit(
     'a context value is assigned',
     write,
-    'put(values, member.key, comes.value)',
-    'values[member.key] = comes.value',
+    'put(values, field.key, given)',
+    'values[field.key] = given',
   ),
   edit(
     'a context link is assigned',
     write,
-    'put(links, member.key, Option.some({ entity: member.target().name, id: String(id) }))',
-    'links[member.key] = Option.some({ entity: member.target().name, id: String(id) })',
+    'put(\n                  links,\n                  relation.key,\n                  Option.some({ entity: relation.target().name, id: String(given) }),\n                )',
+    'void (links[relation.key] = Option.some({ entity: relation.target().name, id: String(given) }))',
   ),
   edit(
     'an input key is read with what it inherits',

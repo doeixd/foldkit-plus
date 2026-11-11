@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: evaluate,
-        find: "  if (predicate.right._tag === 'Field') return Option.some([predicate.right, predicate.left])\n",
-        replace: '',
+        find: 'Option.map(fieldOf(right), field => [field, left] as const)',
+        replace: 'Option.none()',
       },
     ],
     tests,

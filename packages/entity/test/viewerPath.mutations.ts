@@ -78,8 +78,8 @@ export default [
   edit(
     'an end the holder lacks is read as null',
     write,
-    "if (end._tag === 'Unheld') return end",
-    "if (end._tag === 'Unheld') return Held.of(null)",
+    'onUnheld: () => end,',
+    'onUnheld: () => Held.of(null),',
   ),
   edit(
     'a viewer of any Entity starts the path',
@@ -90,8 +90,8 @@ export default [
   edit(
     'a path names no Entity it reads past the viewer',
     write,
-    '[value.viewer.entity.name, ...value.via.map(relation => relation.target().name)]',
-    '[value.viewer.entity.name]',
+    '[viewer.entity.name, ...via.map(relation => relation.target().name)]',
+    '[viewer.entity.name]',
   ),
   edit(
     "a path's end need not fit its field",

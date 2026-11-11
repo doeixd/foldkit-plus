@@ -211,14 +211,17 @@ const pinnable = (value: unknown): boolean =>
   (typeof value === 'number' && !Number.isNaN(value))
 
 /** An `eq` of a field of the row and something else, the field first. */
-const fieldAndSide = (
-  predicate: Predicate,
-): Option.Option<readonly [{ readonly key: string }, Operandish]> => {
-  if (predicate._tag !== 'Eq') return Option.none()
-  if (predicate.left._tag === 'Field') return Option.some([predicate.left, predicate.right])
-  if (predicate.right._tag === 'Field') return Option.some([predicate.right, predicate.left])
-  return Option.none()
-}
+const fieldAndSide = Match.type<Predicate>().pipe(
+  Match.tag(
+    'Eq',
+    ({ left, right }): Option.Option<readonly [{ readonly key: string }, Operandish]> =>
+      Option.orElse(
+        Option.map(fieldOf(left), field => [field, right] as const),
+        () => Option.map(fieldOf(right), field => [field, left] as const),
+      ),
+  ),
+  Match.orElse((): Option.Option<readonly [{ readonly key: string }, Operandish]> => Option.none()),
+)
 
 const pinsOf = (
   predicates: ReadonlyArray<Predicate>,
@@ -251,6 +254,17 @@ const pinsOf = (
   return { pins, whole }
 }
 
+const fieldOf = Match.type<Operandish>().pipe(
+  Match.tag('Field', field => Option.some(field)),
+  Match.orElse((): Option.Option<{ readonly key: string }> => Option.none()),
+)
+
+/** A filter's conjuncts; built once, since `exists` asks for every row judged. */
+const operandsOf = Match.type<Predicate>().pipe(
+  Match.tag('And', ({ operands }): ReadonlyArray<Predicate> => operands),
+  Match.orElse(single => [single]),
+)
+
 /**
  * Whether some row pointing at the one `via` reaches holds the filter: true
  * as soon as a held one does, false only when every one is held and none
@@ -263,15 +277,7 @@ const exists = (node: ExistsPredicate, scope: Scope): Judged => {
   if (isUnheld(anchor)) return anchor
   const pinned = Option.match(node.where, {
     onNone: (): Pinned => new Map(),
-    onSome: where =>
-      pinsOf(
-        Match.value(where).pipe(
-          Match.tag('And', ({ operands }) => operands),
-          Match.orElse(single => [single]),
-        ),
-        scope.input,
-        scope.context,
-      ).pins,
+    onSome: where => pinsOf(operandsOf(where), scope.input, scope.context).pins,
   })
   const { rows, missing } = anchor.pointing(node.relation, pinned)
   let unheld = Option.map(missing, reason => new Unheld(reason))

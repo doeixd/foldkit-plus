@@ -1797,7 +1797,8 @@ export const Expr = {
       if (node._tag === 'Literal') {
         return Array.isArray(node.value) ? node.value.some(nul) : nul(node.value)
       }
-      return childrenOf(node).some(walk)
+      const children = childrenOf(node)
+      return children.some(walk)
     }
     return nodes.some(walk)
   },

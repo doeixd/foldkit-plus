@@ -18,7 +18,7 @@
  * write applies now is its `when`'s.
  */
 import { Metadata } from 'foldkit-metadata'
-import { Option, Schema, type SchemaAST } from 'effect'
+import { Match, Option, Schema, type SchemaAST } from 'effect'
 import { OperatorMissingError, truthOver, type Row } from './evaluate.js'
 import { kernelOperators } from './memoryTable.js'
 import type { MemoryOperators } from './operators.js'
@@ -440,11 +440,15 @@ export const check = <E extends AnyEntity>(
       )
     }
     const judged = judge(entity, { after: row }, options.operators)
-    if (judged._tag !== 'Invalid') return undefined
-    return judged.failures.flatMap((failure): ReadonlyArray<Schema.FilterIssue> =>
-      failure.path.length === 0
-        ? [failure.message]
-        : failure.path.map(key => ({ path: [key], issue: failure.message })),
-    )
+    return Match.valueTags(judged, {
+      Invalid: ({ failures }) =>
+        failures.flatMap((failure): ReadonlyArray<Schema.FilterIssue> =>
+          failure.path.length === 0
+            ? [failure.message]
+            : failure.path.map(key => ({ path: [key], issue: failure.message })),
+        ),
+      Valid: () => undefined,
+      Undecided: () => undefined,
+    })
   })
 }
