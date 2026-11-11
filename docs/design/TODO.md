@@ -209,11 +209,13 @@ Each item says how it would attach; none is started.
   Messages one by one. [bundle-DESIGN.md](./bundle-DESIGN.md) Deferred
 - [ ] Derive the whole parent Model and Message from an assembly, once real
   applications ask for it. [bundle-DESIGN.md](./bundle-DESIGN.md) Deferred
-- [ ] A size budget in CI for each example's entry chunk (#229). Built for
-  chirp, todo-app, domains-plus, and since a96da4a auth, cms, cloudflare,
-  reference and registry. Left: the other examples with a client build
-  (data-grid, design-system, entity, richtext-playground, site, widgets,
-  pages, and the `foldkit/*` ports), each one ~11 s of CI.
+- [x] A size budget in CI for each example's entry chunk (#229). Built for
+  every example with a client build: chirp, todo-app, domains-plus, auth, cms,
+  cloudflare, reference, registry, data-grid, design-system, entity,
+  richtext-playground, site, widgets, pages, and the `foldkit/*` ports (one
+  table in `examples/foldkit/test/bundle.test.ts`, each build in a process of
+  its own). `examples/richtext` has no client build to measure. They run with
+  the unit suite, not the `perf` job, as the earlier ones do.
   [244-lazy-resources-DESIGN.md](./244-lazy-resources-DESIGN.md) Deferred
 
 ## Routing and navigation
