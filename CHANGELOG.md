@@ -112,6 +112,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **A boolean data grid column is a checkbox** (`foldkit-data-grid`,
+  `foldkit-mixins-data-grid`). A column whose `edit.schema` decodes to a
+  boolean (`Columns.checkbox`, the text `true` and `false`) is
+  `CellEditor.Checkbox`: the view draws a `role="checkbox"` in the new
+  `checkbox` Slot, and a press on it, or Space or Enter on its cell, sends
+  `EditToggled`, which commits the other value as `Out.Edited` with no
+  draft. `Columns.define` refuses such a column whose `value` is not a
+  boolean, and `GridCrud.columns` refuses one outright.
+
 - **`Input.view` and `PasswordInput.view` can be drawn resumably**
   (`foldkit-mixins-ui`). Their `onInput` also takes the `OnInput` attribute
   the view's builder makes, so `foldkit-ssr`'s resumable builder can name a

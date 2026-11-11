@@ -367,6 +367,50 @@ const repriced = (cell: Extract<Out, { _tag: 'Edited' }>) =>
 - **A click on another cell commits first;** a refused draft keeps the edit
   and the click waits. Hiding the edited column ends the edit.
 
+### Checkboxes
+
+A column whose `schema` decodes to a boolean is `CellEditor.Checkbox`: its
+cells are checkboxes drawn from the column's value, toggled in place, and no
+draft opens. `Columns.checkbox` is that schema for the text `true` and
+`false`, which is what a boolean shows as; any schema from text to a boolean
+works the same way.
+
+```ts
+interface Task {
+  readonly id: string
+  readonly title: string
+  readonly done: boolean
+}
+const tasks = Columns.define<Task>()({
+  title: { header: 'Title', value: task => task.title },
+  done: { header: 'Done', value: task => task.done, edit: { schema: Columns.checkbox } },
+})
+const Tasks = DataGrid.make({ id: 'tasks', columns: tasks })
+
+// In `onOut`, as any edit: the text read back as a boolean.
+const checked = (cell: Extract<typeof Tasks.Out.Type, { _tag: 'Edited' }>) =>
+  Tasks.matchEdit(cell, { done: ({ row, value }) => ({ row, done: value }) })
+```
+
+- **`EditToggled({ cell, checked, by })`** commits the column's text for the
+  other value at once and reports `Out.Edited`, as a commit does; the
+  application writes the row. `cell` is the cell's DOM id and `checked` the
+  value as drawn. The view sends it for a press on the box (`by: 'press'`)
+  and for Space or Enter on the focused cell (`by: 'key'`).
+- **`update` refuses it,** changing nothing, on a cell whose column does not
+  edit or is no checkbox, while an edit is open, and for a key whose cell
+  focus has left: the view drew the key's frame before focus moved, and it
+  would toggle the wrong cell. `EditStarted` and `EditTyped` on a checkbox
+  change nothing.
+- **The value must be a boolean.** The checkbox is drawn from it, so
+  `Columns.define` refuses a column with `Columns.checkbox` whose `value`
+  returns anything else, at the `value`. `GridCrud.columns` refuses a
+  checkbox outright: a listed member's value is its text.
+- **Paste, fill and Delete** judge its text by the schema, as on any column:
+  `true` and `false` pass, and Delete's empty text is refused.
+- **Two presses inside one frame toggle once.** Each carries the value as
+  drawn, so both set the same one.
+
 ## The clipboard
 
 Copy and paste speak the tab-separated text spreadsheets do. `Clipboard` is

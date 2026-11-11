@@ -9,7 +9,8 @@ and CRUD rows, the clipboard, header drag, a column menu, and editing typed
 by Schema (a choice of literals is a combobox and listbox the grid draws,
 or a native select with `choiceEditor: 'native'`; a `DateFromString` column
 is `CellEditor.Date`, and the field opens on the local calendar day,
-`YYYY-MM-DD`, unless the column's `draft` returns a string).
+`YYYY-MM-DD`, unless the column's `draft` returns a string; one decoding to
+a boolean is a checkbox).
 
 ## What it owns
 
@@ -156,6 +157,18 @@ the whole wiring, compiled.
   below it (`editorError` slot, `aria-describedby`). Cells carry
   `data-editable` and `data-editing`, and the last pinned column
   `data-pinned-edge`, for styles; `GridStyle` draws them.
+- A column whose `edit.schema` decodes to a boolean is a checkbox
+  (`CellEditor.Checkbox`); `Columns.checkbox` is the schema for the text
+  `true` and `false`. It is drawn from the column's `value`, which must be a
+  boolean (a type error at `value` otherwise), opens no field, and toggles in
+  place on a press, Space or Enter (`EditToggled`), reported as `Edited` like
+  any commit. `GridCrud.columns` takes no checkbox: a member's value is text.
+
+  ```ts
+  const tasks = Columns.define<{ readonly id: string; readonly done: boolean }>()({
+    done: { header: 'Done', value: task => task.done, edit: { schema: Columns.checkbox } },
+  })
+  ```
 - `marks: address => Option.some({ name, description })` on the view gives a
   cell a state of the application's (an unsaved edit): `data-mark` on the
   cell Slot, styled by name, and the text as its `aria-description`. The

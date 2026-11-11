@@ -321,6 +321,28 @@ departs from §11:
   their text format from the AST would be a guess.
 - **A pointer leaving an edit commits it,** as a spreadsheet does; a refused
   draft keeps the edit and the click waits.
+- **A checkbox is read from the schema too (2026-11-11, #144's leftovers).**
+  A schema that decodes to a boolean is `CellEditor.Checkbox`, checked before
+  the choice since `Columns.checkbox`'s text is the literals `true` and
+  `false`. Three shapes were weighed. A draft editor (open, toggle, commit)
+  makes a click a three-step session and Escape meaningful where nothing
+  was typed; a spreadsheet toggles in place. A real `<input
+  type="checkbox">` in the cell takes focus on a press, and the grid's focus
+  model is one tab stop pointing at cells with `aria-activedescendant`, so
+  it would pull focus off the grid; with `tabindex="-1"` it still takes it.
+  So the cell draws a `role="checkbox"` span with `aria-checked` (the
+  `checkbox` Slot), and one Message, `EditToggled({ cell, checked, by })`,
+  commits the encoded opposite of the value as drawn through the same
+  `Out.Edited` a draft's commit reports: paste, fill, `matchEdit` and the
+  application's history need nothing new. The value it is drawn from must be
+  a boolean, so `Columns.define` checks it at the type level; a `GridCrud`
+  member's value is text, so it takes no checkbox. A press carries the cell's
+  DOM id and the drawn state, read from the page by `CellPress` (a Mount's
+  arguments are its first render's); a key carries the focused cell, and is
+  refused when focus has moved since its frame was drawn, rather than
+  toggling the cell it left. Two toggles within one frame both carry the
+  drawn value and set it once; holding a pending toggle in the Model to
+  count them would be a second copy of the value, which is the application's.
 
 ## Phase 5 as built so far (2026-10-03)
 
@@ -1608,7 +1630,7 @@ Acceptance:
 - [ ] Enter/Tab commit-and-move
 - [ ] `Editor.text`
 - [ ] `Editor.number`
-- [ ] checkbox editor
+- [x] checkbox editor (a toggle in place; see Phase 6 as built)
 - [ ] generic custom editor
 - [ ] validation/error hooks
 - [ ] reuse `EditableText` where appropriate

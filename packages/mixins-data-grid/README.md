@@ -177,6 +177,16 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   screen, its list open at once where the browser allows (`showPicker`).
   One that decodes to a number is a text field with a decimal keypad on
   touch; anything else is text (`editor`).
+- **A checkbox**, for a column whose schema decodes to a boolean
+  (`Columns.checkbox`): the cell holds a `role="checkbox"` (the `checkbox`
+  slot) whose `aria-checked` is the column's value and whose name is the
+  column's header, in place of the cell's text (and of `cell`). A press on
+  the box, or Space or Enter on the focused cell, sends `EditToggled`, and
+  no field opens; Space toggles here rather than selecting the row, and a
+  press with Shift, Ctrl or Meta is the cell's, as on any cell. Focus stays
+  on the grid, which points at the cell, so the box is never a tab stop.
+  `GridStyle` draws a box the size of the text, filled with the accent and
+  ticked when checked.
 - **Editing**, for a column with `edit`: Enter, F2 or a double-click opens a
   text field in the cell on its text, and a printable key opens it on that
   character (`EditTyped`); keys typed before the field is drawn add to it,
