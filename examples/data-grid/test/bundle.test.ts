@@ -10,9 +10,11 @@ import { formatReport, measure } from '../../../scripts/bundle-report.mjs'
 import { record } from '../../../scripts/perf-report.mjs'
 
 // Brotli bytes. Never raise it without saying here what the growth bought.
-// 136.5 kB (136,537 bytes) measured on 2026-11-11; the ceiling is that plus about 2%,
-// rounded up to the next 500 bytes.
-const CEILING = 139_500
+// 136.5 kB (136,537 bytes) measured on 2026-11-11; 140.5 kB (140,548) the same
+// day once every column filtered from its header (the filter form, the
+// per-column filter schemas, and the page's filtering: 4.0 kB). The ceiling
+// is that plus about 2%, rounded up to the next 500 bytes.
+const CEILING = 143_500
 
 test('the data-grid client loads at most the budgeted brotli JavaScript', async () => {
   const report = await measure(resolve(import.meta.dirname, '..'))
