@@ -109,6 +109,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 - **`RemoteData.held`** (`foldkit-remote`): the value a read holds, as an
   `Option`: `Ready`'s, `Refreshing`'s, or a failed refresh's `previous`.
+  `foldkit-cms`'s editor reads through it, so it now also takes a failed
+  refresh's kept value where its own copy took none: it fills the form from
+  it, and sends its `updatedAt` and `revision` as a save's and a publish's
+  `basedOn`, instead of `null`.
 
 - **`Utilities.busyReveal`** (`foldkit-mixins/utilities`): the delayed reveal
   of a busy status, moved from `foldkit-mixins-crud` so any package or page
