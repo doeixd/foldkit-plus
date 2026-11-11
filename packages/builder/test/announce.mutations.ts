@@ -33,7 +33,7 @@ export default [
     edits: [
       {
         file: builder,
-        find: "message._tag === 'Undid' ? words.undone : words.redone,",
+        find: 'Match.valueTags(message, { Undid: () => words.undone, Redid: () => words.redone }),',
         replace: "'',",
       },
     ],

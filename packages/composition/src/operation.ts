@@ -11,7 +11,7 @@
  * refuse an edit because of something already wrong elsewhere in the Document,
  * so an author keeps working around content the deployment no longer knows.
  */
-import { Option, Result, Schema } from 'effect'
+import { Match, Option, Result, Schema } from 'effect'
 import { ActionRef, checkActions } from './action.js'
 import { Block } from './block.js'
 import { Catalog } from './catalog.js'
@@ -304,14 +304,20 @@ const arrayAt = (catalog: Catalog, draft: Draft, at: Position): ReadonlyArray<No
 }
 
 const describePosition = (at: Position): string =>
-  at._tag === 'Root' ? `root ${at.index}` : `"${at.parent}"'s ${at.region} at ${at.index}`
+  Match.valueTags(at, {
+    Root: ({ index }) => `root ${index}`,
+    Region: ({ parent, region, index }) => `"${parent}"'s ${region} at ${index}`,
+  })
 
 /** Whether an index is within the array it points into; the end is within. */
 const checkIndex = (at: Position, array: ReadonlyArray<NodeId>): void => {
   if (!Number.isInteger(at.index) || at.index < 0 || at.index > array.length)
     refuse(
       'composition:bad-position',
-      `${describePosition(at)} is outside ${at._tag === 'Root' ? 'the roots' : `"${at.parent}"'s ${at.region}`}, which has ${array.length}`,
+      `${describePosition(at)} is outside ${Match.valueTags(at, {
+        Root: () => 'the roots',
+        Region: ({ parent, region }) => `"${parent}"'s ${region}`,
+      })}, which has ${array.length}`,
     )
 }
 
@@ -569,9 +575,10 @@ const step = (catalog: Catalog, draft: Draft, op: Operation): void => {
       // A reorder stays in the array it was in: it never leaves a Region short.
       const reorder =
         from !== undefined &&
-        (to._tag === 'Root'
-          ? from.parent === undefined
-          : from.parent === to.parent && from.region === to.region)
+        Match.valueTags(to, {
+          Root: () => from.parent === undefined,
+          Region: ({ parent, region }) => from.parent === parent && from.region === region,
+        })
       unplace(catalog, draft, op.id, () => reorder)
       checkPlacement(catalog, draft, op.id, to, reorder)
       place(draft, op.id, to)
@@ -596,10 +603,11 @@ const step = (catalog: Catalog, draft: Draft, op: Operation): void => {
     case 'SetProp':
     case 'UnsetProp': {
       const node = nodeOf(draft, op.id)
-      const props =
-        op._tag === 'SetProp'
-          ? { ...node.props, [op.prop]: op.value }
-          : Object.fromEntries(Object.entries(node.props).filter(([key]) => key !== op.prop))
+      const props = Match.valueTags(op, {
+        SetProp: ({ prop, value }) => ({ ...node.props, [prop]: value }),
+        UnsetProp: ({ prop }) =>
+          Object.fromEntries(Object.entries(node.props).filter(([key]) => key !== prop)),
+      })
       const next = { ...node, props }
       checkProps(catalog, op.id, next)
       write(draft, op.id, next)
@@ -618,8 +626,10 @@ const step = (catalog: Catalog, draft: Draft, op: Operation): void => {
         if (finding !== undefined)
           refuse(finding.code, `"${op.id}"'s ${finding.path.join('.')}: ${finding.message}`)
       }
-      const field = op._tag === 'SetWhen' ? 'when' : 'appearance'
-      const value = op._tag === 'SetWhen' ? op.when : op.appearance
+      const [field, value] = Match.valueTags(op, {
+        SetWhen: ({ when }) => ['when', when] as const,
+        SetAppearance: ({ appearance }) => ['appearance', appearance] as const,
+      })
       const { [field]: _, ...rest } = node
       write(draft, op.id, value === null ? rest : { ...rest, [field]: value })
       return
