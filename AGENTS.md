@@ -897,6 +897,12 @@ Foldkit's own behaviour that we work around is listed in
   behind `Resource.lazy`, since the entry imported `domain.ts` for `Me`. Move
   what only a lazy chunk and the server need into a module of its own, and
   check which modules a chunk holds (`split.test.ts`), not only its size.
+- **A namespace object (`Sync.forApplication`) keeps every member's module.**
+  The cloudflare Worker read `Sync.forApplication` and carried Sync's client
+  mount, sockets, presence and IndexedDB, 492 kB raw, until it imported
+  `forApplication` by name. A server imports the one function it calls, and a
+  budget that creeps up should be compared module by module in fresh builds
+  of both commits before its ceiling is raised.
 - **A constant from `foldkit/experimental/server` brings the server along.**
   `client.ts` imported `FOLDKIT_APP_ATTRIBUTE` from it, and the browser bundle
   grew by the server renderer and its HTML parser (700 KB to 880 KB); so does

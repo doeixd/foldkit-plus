@@ -10,11 +10,16 @@ import { expect, test } from 'vitest'
 import { formatServerReport, measureWorker } from '../../../scripts/bundle-report.mjs'
 import { record } from '../../../scripts/perf-report.mjs'
 
-// Raw bytes, not minified. 4,817.6 kB measured on 2026-11-03, plus about 1.7%;
-// 26.2 kB less than before, because a SQLite app no longer bundles
-// `drizzle-orm/pg-core`'s dialect (#464).
+// Raw bytes, not minified. 4,410.2 kB measured on 2026-11-11, plus about 1.7%.
+// The ceiling fell 413.8 kB from 4,898.8: the Worker called `Sync.forApplication`,
+// and the `Sync` namespace object kept every client module (mount, transport
+// sockets, presence, IndexedDB, LWW) and what they import, 492 kB in a fresh
+// build. It imports `forApplication` by name now. Since the 4,817.6 kB of
+// 2026-11-03, the Sync journal's refusals and typed upcasting (#190) added
+// 14.5 kB of real server code (`foldkit-sync` `sync`, `journal`, `refusal`,
+// `migrations`, `errors`).
 // Never raise it without saying here what the growth bought.
-const CEILING = 4_898_800
+const CEILING = 4_485_000
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureWorker(resolve(import.meta.dirname, '..'), 'src/worker.ts')
