@@ -1129,6 +1129,37 @@ battery draws the fork and upstream's view over the same models; state,
 Messages, update, Commands, and Mounts stay upstream in every case. If
 upstream gains seams, the forks go away.
 
+That seam is what makes a row styleable. Drawn through `@foldkit/ui`'s own
+view, a Menu item or a Listbox or Combobox option takes only a `className`
+(its `itemToConfig`), so no Slot's attributes reach it and no Mixin can land
+on it: the page can style it only from the panel's Slot, with a rule under it
+keyed on the role and the state attributes upstream writes. Drawn through
+the fork, the row is the `item` Slot, styled like any other:
+
+```ts standalone
+import { Capability, Slot, Slots, Style } from 'foldkit-mixins'
+import { Theme } from 'foldkit-mixins/theme'
+import { ListboxSlots } from 'foldkit-mixins-ui'
+
+const t = Theme.ref(Theme.standard(Theme.make({})))
+
+// Through `Listbox.toView`: each option is the `item` Slot.
+const ListboxStyle = Style.forSlots(ListboxSlots)({
+  item: [{ cursor: 'pointer' }, Style.pseudo('[data-active]', { background: t.surface.muted })],
+})
+
+// Through upstream's view: the options are reached from the panel's Slot.
+const PanelSlots = Slots.define({ items: Slot.make({ capability: Capability.Container }) })
+const PanelStyle = Style.forSlots(PanelSlots)({
+  items: Style.nest('[role="option"][data-active]', { background: t.surface.muted }),
+})
+```
+
+The second keeps the rule in the panel's layer and reads only what
+`@foldkit/ui` publishes (`role`, `data-active`, `data-selected`,
+`data-disabled`), but no Behavior or Mount can reach the row that way. Use
+it for a port that keeps upstream's view; draw through the adapter otherwise.
+
 `Listbox`, `Combobox` and `Calendar` draw the standard markup from the
 styled bundles when `toView` is given no `draw`; pass a `draw` to arrange the
 parts yourself.
