@@ -271,23 +271,21 @@ work wave 0 (correctness) first, then wave 1 (adoptions), then wave 2
   2e347c4 completes on `SubmittedTodo`);
   `Input.view`/`Textarea.view` callers (built); the small-gaps batch (scroll
   options, `stateBadge` None, `Data.meta` stale/loading, bootstrap meets
-  routing, kitchen-sink `correlate`, explicit submit gate); staleness stays
-  designed, not built.
-  - **Needs a decision first** (do not code blind):
-    - **Kitchen-sink `correlate`** — `RequestedCreateNote` already carries a
-      caller-supplied id and adds the note synchronously, so there is no fact to
-      correlate against; completion is either state-based (`Agent.when` on the
-      note, needing `subscribe` on the host) or needs a new fact.
-    - **`Mirror.bootstrap` meeting `Mirror.routing`** in one app (which example,
-      and what each owns) and **`FormView.submodel(…, { canSubmit })`** (which
-      form has a constant-valid submit).
-    - **Studio's `clear-on-scheduled`.** The schedule box holds the text of a
-      `datetime-local` input; what "clear on scheduled" means has a surprise
-      either way. Clear when the entry is scheduled, and a new time typed
-      before an unrelated read goes away; clear only when the box's exact text
-      is the schedule taken, and retyping that time empties the box on the next
-      message; clear on the Schedule press, and a failed schedule loses the
-      text. Pick the rule and its failure story before coding.
+  routing, kitchen-sink `correlate`, explicit submit gate: all built, the last three as decided below);
+  staleness stays designed, not built.
+  - **Decided and built** (example-level; the owner delegated the rules):
+    - Kitchen-sink `correlate`: the caller names the note's id and `update`
+      adds it at once, so `requested_create_note` completes on state
+      (`Agent.when`) with the body checked too, since `update` drops a create
+      over a taken id (f00749e).
+    - `Mirror.bootstrap` meets `Mirror.routing` in `examples/foldkit/todo`: the
+      stored list is the device's (bootstrapped from Flags), the filter the
+      link's (a URL mirror read by routing) (9f6ce4b); the `canSubmit: () =>
+      true` adopter is cloudflare's quick add, whose disabled button had
+      silently stopped an empty Enter (2c25eee).
+    - Studio's `clear-on-scheduled`: the box empties in the Message that moves
+      the editor from Scheduling to Scheduled, while it still names the time
+      asked; a failure or a time typed in flight stays (dd6a6e1).
 - [ ] **2. Polish, hygiene, docs:** form focus story **built** (a refused
   submit focuses the first missing key, `test/focus.browser.test.ts`);
   waitlist dedup **built** (the shared `foldkit-mixins-form/ui` override, and

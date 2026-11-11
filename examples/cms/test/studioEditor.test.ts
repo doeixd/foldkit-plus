@@ -2,9 +2,10 @@
 /**
  * The posts' editor as drawn: a preview whose read is still under way reads
  * as loading, an entry that failed to read offers to ask again, Publish is
- * disabled while the form cannot be submitted, and an unusable schedule date
- * is said. The read states are driven through `update` with the same Messages
- * the runtime's subscriptions send; saves and permissions run against one
+ * disabled while the form cannot be submitted, an unusable schedule date is
+ * said, and the schedule box empties only when its schedule is taken. The
+ * read states are driven through `update` with the same Messages the
+ * runtime's subscriptions send; saves and permissions run against one
  * in-process backend.
  */
 import { Effect, Layer, Option } from 'effect'

@@ -107,9 +107,13 @@ Each lands with its test in the same change, as the 0.12 slices did.
   `Data.meta(...).stale/.loading` read, not just
   `.updatedAt` (`examples/foldkit/api-cache/src/main.ts:207`) — **built**
   (the detail footnote says "Refreshing…"/"May be out of date") ;
-  `Mirror.bootstrap` meeting `Mirror.routing` in one app
-  (`examples/foldkit/query-sync`); `correlate` in kitchen-sink's agent;
-  a `FormView.submodel(…, { canSubmit: () => true })` adopter.
+  `Mirror.bootstrap` meeting `Mirror.routing` in one app — **built** in
+  `examples/foldkit/todo` instead (the stored list bootstraps from Flags,
+  the filter is a URL mirror read by routing), since query-sync holds
+  nothing a device keeps; kitchen-sink's agent completion — **built** on
+  state, not `correlate` (the caller names the id, and no fact follows); a
+  `FormView.submodel(…, { canSubmit: () => true })` adopter — **built**
+  (cloudflare's quick add, whose disabled button stopped an empty Enter).
 - **Staleness gate stays designed, not bolted on.** No plan sets
   `version`, no hydrate passes `fresh` — because nobody has defined what
   the data version *is* (a Remote cursor? a revision?). Define it first;
@@ -142,9 +146,9 @@ Only after wave 0; polish on top of a lie is paint.
 - **Studio smalls.** Pages visitor screen missing the `Go to the site`
   link posts has (`pagesView.ts:185-194` vs `view.ts:354-357`) — **built**
   (wave 0); the schedule input needs its own slot plus an invalid-date hint
-  plus clear-on-scheduled (`view.ts:292-312`) — **partly built** (own slot,
-  hint; `clear-on-scheduled` needs the rule chosen first, see the TODO: every
-  way of deciding when to clear surprises someone); `aria-busy` on the refreshing pages list — **built** (the pages
+  plus clear-on-scheduled (`view.ts:292-312`) — **built** (own slot,
+  hint, and `clear-on-scheduled`: the box empties at the answer that takes
+  its schedule, while it still names the time asked); `aria-busy` on the refreshing pages list — **built** (the pages
   list adopts `RowListView`); touch-target width for tabs and toolbar
   buttons — **built** (`Touch.target` on `tab`, `button` and `danger`, with
   `test/touch.test.ts` covering the 44px floor both ways round).
