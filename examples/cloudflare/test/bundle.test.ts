@@ -10,7 +10,7 @@ import { formatReport, measure } from '../../../scripts/bundle-report.mjs'
 import { record } from '../../../scripts/perf-report.mjs'
 
 // Brotli bytes. Never raise it without saying here what the growth bought.
-// 213.3 kB (213,305 bytes) measured on 2026-11-10; the ceiling is that plus about 2%,
+// 213.3 kB (213,305 bytes) measured on 2026-11-11; the ceiling is that plus about 2%,
 // rounded up to the next 500 bytes.
 const CEILING = 218_000
 
