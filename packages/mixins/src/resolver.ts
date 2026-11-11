@@ -5,7 +5,7 @@
  * one `OnMount`. Conflicts throw a `DiagnosticError` before Foldkit could
  * silently chain or replace.
  */
-import { Cause, Option, Stream } from 'effect'
+import { Cause, Match, Option, Stream } from 'effect'
 import type { Attribute, ChildAttribute } from 'foldkit/html'
 import type { MountAction } from 'foldkit/mount'
 import { Diagnostics as Reported } from 'foldkit-surface'
@@ -55,21 +55,27 @@ const isClass = (value: unknown): value is { readonly _tag: 'Class'; readonly va
 const splitClasses = (value: string): ReadonlyArray<string> =>
   value.split(/\s+/).filter(token => token.length > 0)
 
-/** `Prop`/`Attribute`/`DataAttribute`/`OnCustomEvent` are keyed individually. */
+/** The field that keys an attribute that is owned individually, not by its tag. */
+const OWNERSHIP_FIELD: ReadonlyMap<string, 'key' | 'name'> = new Map([
+  ['Prop', 'key'],
+  ['Attribute', 'key'],
+  ['DataAttribute', 'key'],
+  ['OnCustomEvent', 'name'],
+])
+
+// The tag may come from a child attribute another package built, so it is
+// text, not a union we hold.
 const ownershipKey = (tag: string, value: unknown): string => {
-  if (typeof value !== 'object' || value === null) return tag
-  const record = value as { readonly key?: unknown; readonly name?: unknown }
-  switch (tag) {
-    case 'Prop':
-    case 'Attribute':
-    case 'DataAttribute':
-      return `${tag}:${String(record.key)}`
-    case 'OnCustomEvent':
-      return `${tag}:${String(record.name)}`
-    default:
-      return tag
-  }
+  const field = OWNERSHIP_FIELD.get(tag)
+  if (field === undefined || typeof value !== 'object' || value === null) return tag
+  return `${tag}:${String((value as { readonly key?: unknown; readonly name?: unknown })[field])}`
 }
+
+/** `OnCustomEvent` is keyed by its event name and `OnMount` is composed, not one native event. */
+const NOT_NATIVE_EVENT: ReadonlySet<string> = new Set(['OnMount', 'OnCustomEvent'])
+
+// tag-check: open — any `On…` tag is a native handler by prefix, and a child attribute's tag is another package's.
+const isNativeEvent = (tag: string): boolean => tag.startsWith('On') && !NOT_NATIVE_EVENT.has(tag)
 
 const toDiagnostic = (
   code: DiagnosticCode,
@@ -170,9 +176,9 @@ export const resolve = <Message>(
   }
 
   const reserve = (tag: string, value: unknown): void => {
+    // tag-check: open — the tag may be a child attribute's, from another package.
     if (tag === 'OnMount') return
-    // `OnCustomEvent` is keyed by its event name, not treated as one native event.
-    if (tag.startsWith('On') && tag !== 'OnCustomEvent') {
+    if (isNativeEvent(tag)) {
       ownedEvents.set(eventNameOfTag(tag), tag)
       return
     }
@@ -192,23 +198,68 @@ export const resolve = <Message>(
       preserved.push(attribute)
       return
     }
-    const tag = attribute._tag
-    switch (tag) {
-      case 'Class':
-        for (const token of splitClasses(attribute.value)) addClass(token)
-        return
-      case 'Style':
-        for (const [property, value] of Object.entries(attribute.value)) {
-          writeStyle(property, value, 'base')
-        }
-        return
-      case 'OnMount':
-        addMount(attribute.action)
-        return
-      default:
-        reserve(tag, attribute)
-        preserved.push(attribute)
+    Match.value(attribute).pipe(
+      Match.tags({
+        Class: ({ value }) => {
+          for (const token of splitClasses(value)) addClass(token)
+        },
+        Style: ({ value }) => {
+          for (const [property, entry] of Object.entries(value)) {
+            writeStyle(property, entry, 'base')
+          }
+        },
+        OnMount: ({ action }) => addMount(action),
+      }),
+      Match.orElse(other => {
+        reserve(other._tag, other)
+        preserved.push(other)
+      }),
+    )
+  }
+
+  const failStructural = (tag: string): never =>
+    fail(
+      'mixins:structural-override',
+      `a Mixin may not contribute "${tag}"; it is structural ownership`,
+      { tag },
+    )
+
+  // A contribution's tag that is not one of the above: a native handler or an attribute.
+  const claim = (tag: string, attribute: unknown): void => {
+    if (isNativeEvent(tag)) {
+      const eventName = eventNameOfTag(tag)
+      if (protectedEvents.has(eventName)) {
+        fail('mixins:protected-event', `slot "${slot ?? '?'}" protects event "${eventName}"`, {
+          tag,
+          event: eventName,
+        })
+      }
+      const owner = ownedEvents.get(eventName)
+      if (owner !== undefined) {
+        fail(
+          'mixins:event-conflict',
+          `two owners for event "${eventName}": "${owner}" already owns it`,
+          { tag, event: eventName, owner },
+        )
+      }
+      ownedEvents.set(eventName, tag)
+      return
     }
+    const key = ownershipKey(tag, attribute)
+    if (protectedAttributes.has(normalizeName(tag))) {
+      fail('mixins:protected-attribute', `slot "${slot ?? '?'}" protects attribute "${tag}"`, {
+        tag,
+      })
+    }
+    const owner = ownedAttributes.get(key)
+    if (owner !== undefined) {
+      fail(
+        'mixins:attribute-conflict',
+        `two owners for "${key}": a ${owner} attribute already occupies it`,
+        { tag, key, owner },
+      )
+    }
+    ownedAttributes.set(key, tag)
   }
 
   const applyMixinAttribute = (attribute: Attribute<Message> | ChildAttribute): void => {
@@ -218,66 +269,26 @@ export const resolve = <Message>(
       added.push(attribute)
       return
     }
-    const tag = attribute._tag
-    switch (tag) {
-      case 'Class':
-        for (const token of splitClasses(attribute.value)) addClass(token)
-        return
-      case 'Style':
+    Match.value(attribute).pipe(
+      Match.tags({
+        Class: ({ value }) => {
+          for (const token of splitClasses(value)) addClass(token)
+        },
         // A `Style` attribute inside a contribution's attributes is a Behavior's.
-        for (const [property, value] of Object.entries(attribute.value)) {
-          writeStyle(property, value, 'behavior')
-        }
-        return
-      case 'OnMount':
-        addMount(attribute.action)
-        return
-      case 'Key':
-      case 'InnerHTML':
-        fail(
-          'mixins:structural-override',
-          `a Mixin may not contribute "${tag}"; it is structural ownership`,
-          { tag },
-        )
-      default:
-        if (tag.startsWith('On') && tag !== 'OnCustomEvent') {
-          const eventName = eventNameOfTag(tag)
-          if (protectedEvents.has(eventName)) {
-            fail('mixins:protected-event', `slot "${slot ?? '?'}" protects event "${eventName}"`, {
-              tag,
-              event: eventName,
-            })
+        Style: ({ value }) => {
+          for (const [property, entry] of Object.entries(value)) {
+            writeStyle(property, entry, 'behavior')
           }
-          const owner = ownedEvents.get(eventName)
-          if (owner !== undefined) {
-            fail(
-              'mixins:event-conflict',
-              `two owners for event "${eventName}": "${owner}" already owns it`,
-              { tag, event: eventName, owner },
-            )
-          }
-          ownedEvents.set(eventName, tag)
-        } else {
-          const key = ownershipKey(tag, attribute)
-          if (protectedAttributes.has(normalizeName(tag))) {
-            fail(
-              'mixins:protected-attribute',
-              `slot "${slot ?? '?'}" protects attribute "${tag}"`,
-              { tag },
-            )
-          }
-          const owner = ownedAttributes.get(key)
-          if (owner !== undefined) {
-            fail(
-              'mixins:attribute-conflict',
-              `two owners for "${key}": a ${owner} attribute already occupies it`,
-              { tag, key, owner },
-            )
-          }
-          ownedAttributes.set(key, tag)
-        }
-        added.push(attribute)
-    }
+        },
+        OnMount: ({ action }) => addMount(action),
+        Key: ({ _tag: tag }) => failStructural(tag),
+        InnerHTML: ({ _tag: tag }) => failStructural(tag),
+      }),
+      Match.orElse(other => {
+        claim(other._tag, other)
+        added.push(other)
+      }),
+    )
   }
 
   for (const attribute of base ?? []) addBase(attribute)
