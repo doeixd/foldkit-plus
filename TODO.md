@@ -241,14 +241,13 @@ and Site Phase 0 (no non-landing route alone imports over 2 KB against the
 20 KB bar, so C1 to C3 are not built and #438 closes: 24474ee), H4 not
 due (3 to 5 shared lines against 30) with auth and cloudflare moved onto the
 host parts instead, so #235 closes on the parts (cloudflare's per-binding
-auth: 8ed9094; auth on `Host.node`: 2d35f11).
+auth: 8ed9094; auth on `Host.node`: 2d35f11), and `SSR.unbound` for a
+Slot's attributes in a static region (0887cf3).
 
-1. **`SSR.static`'s builder type** (a Slot-styled region without a cast).
-   In progress.
-3. **The rest of the small findings** in `docs/design/TODO.md` (the 90 KB
+1. **The rest of the small findings** in `docs/design/TODO.md` (the 90 KB
    against 69 KB page, from Foldkit's identity markers; Chirp's bundle
    extras).
-4. **The UI polish leftovers** in `docs/design/TODO.md`, one per bout between
+2. **The UI polish leftovers** in `docs/design/TODO.md`, one per bout between
    larger items.
 
 Waiting on the owner: #424's defaults (its 75-line target is out of reach),
