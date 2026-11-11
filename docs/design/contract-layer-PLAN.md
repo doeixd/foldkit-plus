@@ -231,6 +231,12 @@ Gate: none. Starts now.
    vocabulary (§5.2 there), not a new one. It needs one case that vocabulary
    lacks: an operation no upcaster reads (`Unreadable { version }`, from
    [190-upcasting-DESIGN.md](./190-upcasting-DESIGN.md) §9).
+   **Built** (2026-11-11), per
+   [190-sync-refusals-DESIGN.md](./190-sync-refusals-DESIGN.md), reviewed in
+   three rounds: `SyncRefusal` (`Forbidden`, `Invalid`, `Unreadable`) on
+   `Rejection.refusal` and the reply's `refusals`; `reason` and `reasons`
+   deprecated for one release. `Unreadable` is declared and decoded; its
+   producer lands with Phase 5 item 6.
 6. A design note for upcasting durable Messages (invariant 7). **Written and
    reviewed** (2026-11-11): [190-upcasting-DESIGN.md](./190-upcasting-DESIGN.md).
 7. A section in `docs/replication.md` on choosing document boundaries: a Sync

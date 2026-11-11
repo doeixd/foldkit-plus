@@ -465,7 +465,8 @@ version changed; `pnpm` skips versions already in the registry.
   with an ellipsis instead of failing every exchange at the replica. **Breaking
   for a client of an earlier release:** it decodes the reply strictly, so
   once the server refuses one of its operations its exchanges fail until it
-  runs the new build. Nothing is lost; the refused operation is rejected
+  runs the new build, and every commit anyone makes to the document wakes
+  it to fail again. Nothing is lost; the refused operation is rejected
   again then. A custom server sends `refusals`, each
   `Schema.encodeSync(SyncRefusal)(SyncRefusal.Forbidden({ reason }))` or
   another case, instead of `reasons`.

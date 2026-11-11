@@ -25,6 +25,7 @@ export const fitWords = (words: string): string => {
   return `${words.slice(0, cut)}…`
 }
 
+/** Why the server refused an operation, on `Rejection.refusal`: read it with `SyncRefusal.match`. */
 export const SyncRefusal = defineTaggedUnion({
   /** Who sent it may not make it (`authorize` or `admit` refused), with the rule's words when it gave some. */
   Forbidden: { reason: Schema.OptionFromOptionalKey(Words) },
