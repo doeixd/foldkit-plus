@@ -78,19 +78,6 @@ export default [
     tests: [...server, ...host],
   },
   {
-    name: 'only the last Set-Cookie of an answer is sent',
-    edits: [
-      {
-        file: '../src/http.ts',
-        find: "    'set-cookie': answered.headers.getSetCookie(),\n",
-        replace: '',
-      },
-    ],
-    tests: server,
-    survives:
-      'Password sign-in and sign-out each set one cookie; a multi-step method sets its flow cookie beside the session, which this example does not offer.',
-  },
-  {
     name: 'a change of principal here keeps what was read',
     edits: [
       {
