@@ -331,8 +331,11 @@ asked of a server graph. [server-DESIGN.md](./server-DESIGN.md) §19
   Layer. The CMS's due publishing is polled by hand in two hosts. §19.2
 - [ ] **Static emission from the graph:** a document node's paths from a query,
   the host's file layout, cache headers, redirects (from slug history) and a
-  real 404 for generated prefixes. The published demo serves a 200 with the
-  studio's shell for an unknown `/site/` address. §19.3, §19.4. Absorb SSR
+  real 404 for generated prefixes. The demo's build now emits a static
+  `404.html` through `staticSite`'s `emit` (ff2a155d), so Pages stops serving
+  the studio's shell with a 200 (unverified until the next deploy); the
+  package itself still knows no 404 or prefix, and `emit` is not given the
+  template, so the example keeps it in a module variable. §19.3, §19.4. Absorb SSR
   S7's `staticSite` plugin (paths, per-host layout, sitemap, robots) rather
   than reinventing static emission beside it.
 - [ ] **Principal and CSRF middleware** per host, for cookie-authenticated
