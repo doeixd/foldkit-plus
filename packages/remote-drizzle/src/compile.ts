@@ -577,7 +577,8 @@ const truthComparison = (
   if (asked._tag === 'Null') {
     return predicate({ ...asked, present: !asked.present }, target, input, query)
   }
-  return negate(predicate(asked, target, input, query))
+  const positive = predicate(asked, target, input, query)
+  return negate(positive)
 }
 
 /**
@@ -907,10 +908,11 @@ const checkReach = (
   query: string,
 ): void => {
   // A path from the viewer reads no column of the judged row, so its table may meet it.
-  const met: Array<CompileTarget['table']> = Match.value(reached).pipe(
-    Match.tag('ViewerPath', () => []),
-    Match.orElse(() => [target.table]),
-  )
+  const met: Array<CompileTarget['table']> = Match.valueTags(reached, {
+    ViewerPath: () => [],
+    Path: () => [target.table],
+    Exists: () => [target.table],
+  })
   const meet = (table: CompileTarget, owner: EntityIdentity<string>): void => {
     if (met.includes(table.table)) {
       throw new QueryCompileError(
@@ -1050,11 +1052,7 @@ export const compilePredicates = (
  * SQL of its own, is refused, as is anything that is not a call.
  */
 export const compileCall = (call: Operandish, target: CompileTarget, query: string): SQL => {
-  if (isPredicate(call)) {
-    if (call._tag === 'Test') return callSql(call, target, {}, query)
-  } else if (call._tag === 'Call') {
-    return callSql(call, target, {}, query)
-  }
+  if (call._tag === 'Test' || call._tag === 'Call') return callSql(call, target, {}, query)
   throw new QueryCompileError(`${query}: only a call of an operator compiles alone`)
 }
 

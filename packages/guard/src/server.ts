@@ -202,8 +202,8 @@ export const GuardServer = {
             const decided = members.map(member => ({
               ...member,
               // A redacted value is a decoded one; the record holds what the store holds.
-              redacted: Match.value(member.deny).pipe(
-                Match.tag('Redact', deny =>
+              redacted: Match.valueTags(member.deny, {
+                Redact: deny =>
                   Option.some(
                     Schema.encodeSync(
                       (entity.members as Readonly<Record<string, { readonly schema: Schema.Top }>>)[
@@ -211,9 +211,11 @@ export const GuardServer = {
                       ]!.schema as unknown as Schema.Codec<unknown, unknown>,
                     )(deny.value),
                   ),
-                ),
-                Match.orElse(() => Option.none()),
-              ),
+                NotFound: () => Option.none(),
+                Omit: () => Option.none(),
+                Forbidden: () => Option.none(),
+                Explain: () => Option.none(),
+              }),
             }))
             return {
               fields: [

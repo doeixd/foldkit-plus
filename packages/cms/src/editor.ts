@@ -11,7 +11,7 @@
  * saves have got. What the server holds is read from Remote, never copied: the
  * draft's `updatedAt` a save is based on, and the entry's `revision` a publish is.
  */
-import { Duration, Effect, Option, Predicate, Schema } from 'effect'
+import { Duration, Effect, Match, Option, Predicate, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity, type AnyEntity } from 'foldkit-entity'
 import type { Submitted } from 'foldkit-form'
@@ -207,10 +207,17 @@ export interface EditorContent<FormModel, FormMessage, Value, Resources = {}, Se
     | undefined
 }
 
-const held = <A>(read: RemoteData<A> | undefined): A | undefined => {
-  if (read?._tag === 'Ready' || read?._tag === 'Refreshing') return read.value
-  return undefined
-}
+const held = <A>(read: RemoteData<A> | undefined): A | undefined =>
+  read === undefined
+    ? undefined
+    : RemoteData.match(read, {
+        Ready: (value): A | undefined => value,
+        Refreshing: value => value,
+        Failed: () => undefined,
+        Initial: () => undefined,
+        Loading: () => undefined,
+        NotFound: () => undefined,
+      })
 
 /** Read, and not being read again: what the server said last, not what it said before. */
 const fresh = (read: RemoteData<unknown> | undefined): boolean =>
@@ -885,12 +892,16 @@ export const makeEditor =
           if (editor().publishWanted && !saving() && editor().settling === null) {
             const save = statusOf(root, editor().saveId)
             const resumedDraft = editor().resumed === 'Model' || editor().resumed === 'Values'
-            const saveApplied = save._tag === 'Applied'
-            const saveFailed = save._tag === 'Failed'
+            const { applied, failed } = Match.valueTags(save, {
+              Applied: () => ({ applied: true, failed: false }),
+              Failed: () => ({ applied: false, failed: true }),
+              Pending: () => ({ applied: false, failed: false }),
+              Unknown: () => ({ applied: false, failed: false }),
+            })
             const saved =
               editor().edits === editor().savedEdit &&
-              (editor().saveId === null ? resumedDraft : saveApplied)
-            if (saveFailed && editor().edits === editor().savedEdit) {
+              (editor().saveId === null ? resumedDraft : applied)
+            if (failed && editor().edits === editor().savedEdit) {
               // The draft could not be saved, so there is nothing to publish; the save says why.
               root = slice.set(root, { ...editor(), publishWanted: false })
             } else if (!saved) {
@@ -1081,11 +1092,8 @@ export const makeEditor =
             if (!editor.filled || stateUnread) {
               const entry = read(root, 'entry')
               if (entry?._tag === 'NotFound') return 'NotFound'
-              return [entry, read(root, 'draft'), read(root, 'row')].some(
-                part => part?._tag === 'Failed',
-              )
-                ? 'LoadFailed'
-                : 'Loading'
+              const parts = [entry, read(root, 'draft'), read(root, 'row')]
+              return parts.some(part => part?._tag === 'Failed') ? 'LoadFailed' : 'Loading'
             }
             const publish = statusOf(root, editor.publishId)
             const save = statusOf(root, editor.saveId)
@@ -1117,7 +1125,7 @@ export const makeEditor =
                     return later ? 'ScheduleFailed' : 'PublishFailed'
                   case 'Applied':
                     return later ? 'Scheduled' : 'Published'
-                  case 'Unknown':
+                  case 'Unknown': {
                     // Nothing pending and nothing entered: the form is as it was found. A
                     // draft it was filled from is on the server already; anything else is not.
                     const onServer =
@@ -1125,6 +1133,7 @@ export const makeEditor =
                       editor.resumed === 'Model' ||
                       editor.resumed === 'Values'
                     return onServer ? 'Saved' : 'Opened'
+                  }
                 }
             }
           },

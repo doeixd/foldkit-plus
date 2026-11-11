@@ -44,8 +44,8 @@ export default [
   edit(
     'a reused operation id writes as a new operation',
     drizzle,
-    "if (done._tag === 'Reused') return yield* reused(operation, id)",
-    "if (done._tag === 'Reused') return { _tag: 'Written', rows: [] } as const",
+    'Reused: () => reused(operation, id),',
+    "Reused: () => Effect.succeed({ _tag: 'Written', rows: [] } as const),",
   ),
   edit('the ledger records no request', drizzle, '        request: digest,\n      })', '      })'),
   edit(

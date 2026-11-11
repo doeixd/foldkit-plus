@@ -24,8 +24,8 @@ export default [
   ),
   edit(
     "a path from the viewer may not meet the judged row's table",
-    "    Match.tag('ViewerPath', () => []),\n",
-    '',
+    '    ViewerPath: () => [],\n',
+    '    ViewerPath: () => [target.table],\n',
   ),
   edit(
     "the viewer's table's visibility is not resolved",

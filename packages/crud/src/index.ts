@@ -498,9 +498,12 @@ export const Crud = {
 
           /** Why the last delete failed, while `status` is `DeleteFailed`. */
           error: (root: Root): RemoteError | undefined => {
-            const deleting = outcome(root)
-            if (deleting._tag === 'Failed') return deleting.error
-            return undefined
+            return Match.valueTags(outcome(root), {
+              Failed: ({ error }): RemoteError | undefined => error,
+              Unknown: () => undefined,
+              Pending: () => undefined,
+              Applied: () => undefined,
+            })
           },
         }
       },
@@ -1284,9 +1287,12 @@ export const Crud = {
 
           /** Why the last save failed, while `status` is `SaveFailed`. */
           saveError: (root: Root): RemoteError | undefined => {
-            const save = saveOf(root)
-            if (save._tag === 'Failed') return save.error
-            return undefined
+            return Match.valueTags(saveOf(root), {
+              Failed: ({ error }): RemoteError | undefined => error,
+              Unknown: () => undefined,
+              Pending: () => undefined,
+              Applied: () => undefined,
+            })
           },
 
           /**
@@ -1326,8 +1332,16 @@ export const Crud = {
                 return moved(root) ? 'Moved' : 'Saved'
               case 'Unknown':
                 if (editor.filled) return moved(root) ? 'Moved' : 'Editing'
-                if (read?._tag === 'Failed') return 'LoadFailed'
-                return 'Loading'
+                return read === undefined
+                  ? 'Loading'
+                  : RemoteData.match(read, {
+                      Failed: () => 'LoadFailed' as const,
+                      Initial: () => 'Loading' as const,
+                      Loading: () => 'Loading' as const,
+                      Ready: () => 'Loading' as const,
+                      Refreshing: () => 'Loading' as const,
+                      NotFound: () => 'Loading' as const,
+                    })
             }
           },
         }

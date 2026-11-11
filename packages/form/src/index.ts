@@ -494,10 +494,11 @@ interface AnyFormMessage {
 }
 
 /** An edit, however deep. */
-const isEdit = (message: AnyFormMessage): boolean => {
-  if (message._tag === 'Nested') return isEdit(message.message as AnyFormMessage)
-  return edits[message._tag]
-}
+const isEdit = (message: AnyFormMessage): boolean =>
+  Match.value(message._tag).pipe(
+    Match.when('Nested', () => isEdit(message.message as AnyFormMessage)),
+    Match.orElse(tag => edits[tag]),
+  )
 
 interface Plan extends FormControl {
   readonly kind: HeldDraft
@@ -569,16 +570,13 @@ const wordsOf = (
   schema: Schema.Top,
   member: InputMember,
 ): { readonly label: string; readonly description: string | undefined } => {
-  const own = Match.value(member).pipe(
-    Match.tag('Unmapped', () => undefined),
-    Match.tag('Field', field => field),
-    Match.orElse(({ relation }) => relation),
-  )
+  const { own, fieldSchemas } = Match.valueTags(member, {
+    Unmapped: () => ({ own: undefined, fieldSchemas: [] }),
+    Field: field => ({ own: field, fieldSchemas: [field.schema as Schema.Top] }),
+    RelationInput: ({ relation }) => ({ own: relation, fieldSchemas: [] }),
+    NestedInput: ({ relation }) => ({ own: relation, fieldSchemas: [] }),
+  })
   const [labelled] = own === undefined ? [] : labelKey.get(own.metadata)
-  const fieldSchemas = Match.value(member).pipe(
-    Match.tag('Field', field => [field.schema as Schema.Top]),
-    Match.orElse(() => []),
-  )
   const words = [schema, ...fieldSchemas].map(Words.of)
   const first = (pick: (entry: SchemaWords) => Option.Option<string>) =>
     Option.firstSomeOf(words.map(pick))
@@ -1407,7 +1405,8 @@ const Core = {
       keys.flatMap(key => {
         const member = members[key]!
         if (member._tag !== 'Field') return []
-        return [[member.key, key] as const]
+        const field = member.key
+        return [[field, key] as const]
       }),
     )
 
@@ -1709,8 +1708,12 @@ const Core = {
           case 'Validated': {
             const state = drafts(model)[message.key]
             // Only a key not validated yet: any other state already answers for this draft.
-            if (state._tag !== 'NotValidated') return { model }
-            return validateKey(model, message.key, state.value)
+            return FieldValidation.match(state, {
+              onNotValidated: value => validateKey(model, message.key, value),
+              onValidating: () => ({ model }),
+              onValid: () => ({ model }),
+              onInvalid: () => ({ model }),
+            })
           }
           case 'ValidatedAll':
             return validateAll(model)
@@ -2085,8 +2088,12 @@ const Core = {
                   ...field,
                   value: plan.bundled.settled(field.value),
                 } as FieldValidation.Field<Draft>)
-          if (held._tag === 'Validating') return FieldValidation.NotValidated({ value: held.value })
-          return held
+          return FieldValidation.match(held, {
+            onNotValidated: () => held,
+            onValidating: value => FieldValidation.NotValidated({ value }),
+            onValid: () => held,
+            onInvalid: () => held,
+          })
         }),
         rows: Object.fromEntries(
           rowsKeys.map(key => [
