@@ -249,8 +249,9 @@ host parts instead, so #235 closes on the parts (cloudflare's per-binding
 auth: 8ed9094; auth on `Host.node`: 2d35f11), and `SSR.unbound` for a
 Slot's attributes in a static region (0887cf3), and the tag rules' gaps (else-if chains, the
 if/return pair, negated, loose and bracketed tags) with every dodge the
-review found matched (373215ee..0d6a06b8). `RemoteData.held`, replacing
-three copies of the held-value helper, is being built.
+review found matched (373215ee..0d6a06b8). `RemoteData.held` replaces
+the three copies of the held-value helper (dea8fa61..edee1a04; a CMS save
+or publish after a failed refresh is now based on the kept value, 4d22c234).
 
 1. **Triage of `docs/design/TODO.md`** for open items buildable now, with
    no upstream gate (the 90 KB page waits on Foldkit's identity markers;
