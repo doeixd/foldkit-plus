@@ -17,7 +17,7 @@
 > | 9 | Root README diagram showing both write paths | Done |
 > | 10 | Typechecked architecture examples | Done — `examples/todo-app/test/state-seams.test.ts` |
 > | 11 | Tests for `ModelRef.modify` | Done — `packages/surface/test` |
-> | 12 | A `prefer-evo-model-update` lint rule | **Not done, and it is not a small item.** |
+> | 12 | A `prefer-evo-model-update` lint rule | **Not done, and it is not a small item.** The write-seam half is done without a linter: `pnpm writes:check` (`scripts/writes-check.mjs`) reports `ModelRef`/`WritableProjection` writes outside the owning modules, as `tags:check` does for tags. |
 >
 > Item 12 reads as "consider a lint rule", and its own text says to consider it
 > only once the convention is taught. The convention now is. But this repository

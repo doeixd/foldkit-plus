@@ -46,6 +46,11 @@ checkpoint / URL / cache result / reconciliation
 applied to `get` — not a transition mechanism. It delegates through the
 ref's own `set`, so container-aware `.at`/`.index` insertion keeps working.
 
+`pnpm writes:check` holds the line: it reports a use of `ModelRef.focus(ref).set`
+or `.modify`, or of `WritableProjection.set`, outside the modules that own these
+seams. A one-off seam elsewhere says why on the line above it with
+`// write: infrastructure — <why>`; an ordinary state change sends a Message.
+
 ## The matrix
 
 | Situation | Owner | Change mechanism |
