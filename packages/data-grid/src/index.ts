@@ -24,6 +24,7 @@ export {
   type FormReading,
   type KindOfValue,
   type OneOf,
+  formOf,
   readForm,
 } from './filter.js'
 export { GridFocus, type Direction, type KeyOptions } from './focus.js'

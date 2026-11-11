@@ -187,6 +187,58 @@ export const GridSlots = Slots.define({
     protected: { events: [Event.Click], attributes: [Attr.Role, Id] },
   }),
   /**
+   * The button on a filterable column's header that opens its filter form,
+   * when the view is given `filters`: `aria-haspopup="dialog"` and
+   * `aria-expanded`, out of the tab order like the grid's other controls;
+   * `data-filtered` while the column is filtered.
+   */
+  filterButton: Slot.make({
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaLabel],
+    protected: { events: [Event.Click], attributes: [AriaHasPopup, Attr.AriaExpanded, Tabindex] },
+  }),
+  /**
+   * A column's open filter form, below its header: a non-modal
+   * `role="dialog"` holding native fields. Escape and focus leaving the
+   * header close it.
+   */
+  filter: Slot.make({
+    capability: Capability.Focusable,
+    events: [Event.KeyDown],
+    protected: {
+      events: [Event.KeyDown],
+      attributes: [Attr.Role, Tabindex, Id],
+      style: ['position'],
+    },
+  }),
+  /** A `label` in the filter form: a field's words and its field, or an option's box and words. */
+  filterLabel: Slot.make({ capability: Capability.Base }),
+  /**
+   * A typed field of the filter form: text, a bound, or a day. `aria-invalid`
+   * on a bound that is no number, or above the upper bound.
+   */
+  filterField: Slot.make({
+    capability: Capability.TextInput,
+    events: [Event.Input],
+    protected: { events: [Event.Input], attributes: [Id] },
+  }),
+  /** A choice's checkboxes, or a checkbox column's radios: `role="group"` or `"radiogroup"`. */
+  filterGroup: Slot.make({
+    capability: Capability.Container,
+    protected: { attributes: [Attr.Role] },
+  }),
+  /** One option's native checkbox, or one radio of a checkbox column's filter. */
+  filterCheck: Slot.make({
+    capability: Capability.Focusable,
+    events: [Event.Click],
+    protected: { events: [Event.Click] },
+  }),
+  /** Why a bound is refused, below the form; its field names it with `aria-describedby`. */
+  filterError: Slot.make({ capability: Capability.Base, protected: { attributes: [Id] } }),
+  /** Empties the form, reporting no filter: drawn while a filter holds. */
+  filterClear: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+  /**
    * The button on a sortable column's header: a click sends its sort Message.
    * `data-sort` is `asc` or `desc` while the column is sorted.
    */

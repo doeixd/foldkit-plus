@@ -11,11 +11,14 @@ import { isBusy, type GridInput } from './view.js'
  * source is busy. Attach it to a grid's view:
  * `DataGridView<Message>().define(Grid).pipe(MoreOnScroll)`.
  */
-export const MoreOnScroll = <Row, Id extends string, GridMessage, Message>(
-  view: SlotView.SlotView<typeof GridSlots, GridInput<Row, Id, GridMessage, Message>, Message>,
-): SlotView.SlotView<typeof GridSlots, GridInput<Row, Id, GridMessage, Message>, Message> =>
+export const MoreOnScroll = <
+  Input extends Pick<GridInput<never, string, never, Message>, 'status' | 'onMore'>,
+  Message,
+>(
+  view: SlotView.SlotView<typeof GridSlots, Input, Message>,
+): SlotView.SlotView<typeof GridSlots, Input, Message> =>
   Behavior.attach(
-    Behavior.forSlots(GridSlots)<GridInput<Row, Id, GridMessage, Message>, Message>(
+    Behavior.forSlots(GridSlots)<Input, Message>(
       {
         more: Behavior.slot({
           // The view keys the button by the rows loaded and whether a load is

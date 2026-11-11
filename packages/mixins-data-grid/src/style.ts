@@ -302,6 +302,73 @@ export const GridStyle = Style.forSlots(GridSlots)(
       Style.self({ cursor: 'pointer', paddingBlock: ref.space.xs, paddingInline: ref.space.sm }),
       Style.nest('&[data-active="true"]', { background: ref.surface.muted }),
     ),
+    filterButton: Style.compose(
+      Style.self({
+        background: 'none',
+        border: 'none',
+        color: ref.text.muted,
+        cursor: 'pointer',
+        // A finger's target, however small the glyph.
+        minBlockSize: '1.5rem',
+        minInlineSize: '1.5rem',
+        paddingInline: ref.space.xs,
+      }),
+      Style.nest('&[data-filtered="true"]', { color: ref.outline.focus }),
+      Style.nest('&[aria-expanded="true"]', { color: ref.text.default }),
+    ),
+    // Stacked as the menu is: above the body's cells, pinned ones included.
+    filter: Style.compose(
+      Style.self({
+        background: ref.surface.base,
+        border: line,
+        borderRadius: ref.radius.md,
+        display: 'grid',
+        fontWeight: ref.weight.normal,
+        gap: ref.space.sm,
+        minWidth: '12rem',
+        padding: ref.space.sm,
+        whiteSpace: 'normal',
+        zIndex: '4',
+      }),
+      Style.pseudo(':focus-visible', { outline: `${ref.border.thick} solid ${ref.outline.focus}` }),
+    ),
+    filterLabel: Style.self({
+      alignItems: 'center',
+      display: 'flex',
+      gap: ref.space.xs,
+      // The header cuts its own label; a form's words wrap.
+      flexWrap: 'wrap',
+    }),
+    filterField: Style.compose(
+      Style.self({
+        background: ref.surface.base,
+        border: line,
+        borderRadius: ref.radius.sm,
+        color: 'inherit',
+        flex: '1',
+        font: 'inherit',
+        minWidth: '0',
+        paddingInline: ref.space.xs,
+      }),
+      Style.pseudo(':focus-visible', {
+        outline: `${ref.border.thick} solid ${ref.outline.focus}`,
+      }),
+      Style.nest('&[aria-invalid="true"]', { borderColor: ref.error.default }),
+      // At least 16px on a touch screen, where iOS zooms into any smaller focused field.
+      Style.media('(pointer: coarse)', { fontSize: 'max(1rem, 1em)' }),
+    ),
+    filterGroup: Style.self({ border: 'none', display: 'grid', gap: ref.space.xs }),
+    filterError: Style.self({ color: ref.error.default, fontSize: ref.size.sm, margin: '0' }),
+    filterClear: Style.self({
+      background: 'none',
+      border: line,
+      borderRadius: ref.radius.sm,
+      color: 'inherit',
+      cursor: 'pointer',
+      font: 'inherit',
+      justifySelf: 'start',
+      paddingInline: ref.space.sm,
+    }),
     // The header's label, as text: the direction is drawn after it.
     sort: Style.compose(
       Style.self({
