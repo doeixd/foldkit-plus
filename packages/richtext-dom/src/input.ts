@@ -51,10 +51,11 @@ export const EditorInput = Bundle.make({
     const committed =
       outMessage === undefined
         ? undefined
-        : Match.value(outMessage).pipe(
-            Match.tags({ Edited: ({ state }) => state, Replaced: ({ state }) => state }),
-            Match.orElse(() => undefined),
-          )
+        : Match.valueTags(outMessage, {
+            Edited: ({ state }) => state,
+            Replaced: ({ state }) => state,
+            Rejected: () => undefined,
+          })
     return {
       model:
         committed === undefined

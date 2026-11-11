@@ -297,6 +297,12 @@ type Item = Attribute<unknown> | ChildAttribute
 
 const isAttribute = (item: Item): item is Attribute<unknown> => '_tag' in item
 
+// Built once: a matcher made in `mark` would be rebuilt for every attribute of every element.
+const eventOf = Match.type<Attribute<unknown>>().pipe(
+  Match.tag('OnCustomEvent', custom => custom.name),
+  Match.orElse((other): string | undefined => EVENT_OF[other._tag]),
+)
+
 const builders = new WeakMap<object, unknown>()
 
 /** Each attribute `KeepTyped` made: a request to the element it is given, never written as it is. */
@@ -346,10 +352,7 @@ export const builder = <Builder extends AnyBuilder>(
     const named = new Map<string, number>()
     for (const item of attributes) {
       if (!isAttribute(item)) continue
-      const event = Match.value(item).pipe(
-        Match.tag('OnCustomEvent', custom => custom.name),
-        Match.orElse(other => EVENT_OF[other._tag]),
-      )
+      const event = eventOf(item)
       if (event === undefined) continue
       // Recorded for the refusal; the render does not survive it.
       if (now.mode === 'collect' && now.region !== undefined) {
