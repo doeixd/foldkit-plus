@@ -457,6 +457,49 @@ today's, which means starting the chunk's fetch at `load` rather than at idle (a
 when the press lands, evaluation still on the press), or #473's cheaper render making the GET form
 a fallback that costs nothing. Neither is built.
 
+### Phase 2, fetch at load
+
+`foldkit-ssr/loader` now asks for the runtime's chunk as it starts
+(`<link rel="modulepreload">`, before `load`, idle and any intent) and runs it as the plan's
+`start` says: under `'idle'` when the page is idle after `load` and the chunk has arrived, under
+`'on-interaction'` on the first intent. A press made at `load` finds the request in flight. The
+browser test `loaderPreload.browser.test.ts` fails with the link added at idle or not at all
+(both mutations in `loader.mutations.ts`).
+
+Run 2026-11-11, the method of "Phase 2 result" (Chromium headless shell 1243, workerd, `/?q=acme`,
+CPU throttle 4, a fresh context per run, both builds on local workerd, order alternated, median of
+12, min to max, page kept before the first run). Each figure is its own set of runs: a press at
+`load`, a press 5 s after, and a run with no press that is left 6 s for the long tasks and the
+resume marker.
+
+| Median of 12 (min to max) | Today's entry | Loader, fetch at idle (before) | Loader, fetch at load |
+| --- | --- | --- | --- |
+| Script at start, brotli | 207,527 B | 2,316 B | 2,344 B |
+| Total script, brotli | 207,527 B | 209,691 B (+2,371 B) | 209,434 B (+1,907 B) |
+| First press, at `load` | **312 ms** (276 to 372) | 1,224 ms | **1,194 ms** (990 to 1,298) |
+| First press, 5 s after `load` | 138 ms (122 to 156) | 195 ms | 140 ms (125 to 203) |
+| Runtime taken over, from navigation start | 814 ms | 1,158 ms | 876 ms |
+| Total main-thread blocking, every long task | 943 ms (819 to 1,059) | 784 ms | 909 ms (824 to 1,115) |
+| First contentful paint | 148 ms | 146 ms | 144 ms |
+
+The "before" column is the earlier note's own run; today's entry moved between the two runs (the
+machine), so compare the new column with today's entry in the same run.
+
+**Verdict: the loader still does not become the default.** Blocking (909 against 943) and 5 s
+after (140 against 138) are no worse, and script at start is 2.3 KB. Total script is 1.9 KB worse
+(209,434 against 207,527 B, +0.9%; the three files compress apart), and the first press at `load` is 3.8 times today's (1,194 against 312 ms), not better than before.
+
+The cause is evaluation, not the fetch. The chunk is served from the same machine, so its request
+costs a few ms either way; the ~800 ms at throttle 4 is running it. Today's page begins
+evaluating it as soon as it is parsed, before `load`, so a press at `load` meets a task mostly done;
+the loader's plan evaluates after `load` (idle) or on the press, so that press pays all of it.
+Fetching at load should help a reader whose network is slower than the page's `load`; a local
+workerd does not measure that, so it is not shown here, and the loader keeps the change. To make a press at `load` cost
+no more than today's, the chunk must begin evaluating before `load`, which is `start: 'now'`
+and the loader's gain in script at start then buys nothing a press can feel: the decision 5 bar
+cannot be met by moving the fetch. The default stays today's entry; `DOMAINS_PLUS_LOADER=1`
+remains the opt-in.
+
 ### Phase 3 result
 
 The `Link` probe, run 2026-11-10 on domains-plus's built Worker (`wrangler dev --local`, workerd
