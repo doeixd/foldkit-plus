@@ -484,12 +484,11 @@ its README the details.
   Documented in foldkit-bundle's README, "A union Model: a Link per branch"
   (eecf3e04): a custom `Link.make` over the union, the next branch built in
   the login/logout transition. No helper until a second adopter.
-- [ ] **Mixins: a class `@foldkit/ui` sets inside a ChildAttribute can be
-  styled only by a descendant rule,** not by a Mixin on that element. The
-  resolver preserves ChildAttributes by identity on purpose (they are the
-  component's own), so the extension point is `Style.nest`/`pseudo` under the
-  slot. Decide whether that is enough before changing ownership.
-  `foldkit-pixel-art`, `foldkit-ui-showcase`, `foldkit-job-application`
+- [x] **Mixins: styling a row upstream's own Listbox/Menu draws.** Decided in
+  design review §6 (657e73b8): no change. The mixins-ui forks draw each row
+  as the `item` Slot; a port keeping upstream's view styles rows by a rule
+  under the panel's Slot, keyed on upstream's `role` and `data-*`, as the
+  mixins-ui README shows.
 - [x] **Mixins: recipe omission and result-key typing.** Decided in design
   review §8: a recipe's base slots are typed present in every selection, so
   the `?? Style.empty` fallbacks are gone (4c39b095..fffa3ec0); omission is
