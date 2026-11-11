@@ -366,6 +366,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **The signature pad's "Sign here" and line follow the reading direction**
+  (`foldkit-mixins-ui`). They were placed from the left; under `dir="rtl"` the
+  words now start at the right. `Style.compose`'s inline-shorthand check also
+  covers `borderInlineStart`/`borderInlineEnd` and `borderBlockStart`/
+  `borderBlockEnd`, as it did `borderLeft`. `pnpm rtl:check` keeps an unmarked
+  physical `left`/`right`, margin, padding, border side, `textAlign` or `float`
+  out of every `src`; a side that is the screen's says so with `// physical:`.
 - **`foldkit-ssr/loader` fetches the runtime's chunk as it starts** (#472), with
   `<link rel="modulepreload">` before `load`, not when idle, and still runs it
   as the plan's `start` says. A press at `load` still waits for the chunk's
