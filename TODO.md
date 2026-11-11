@@ -226,7 +226,11 @@ In the same change:
     (34109eab..a9bbe3dd; independent review passed in two rounds);
   - #190 item 5: `SyncRefusal`, `Rejection.refusal`, `Exchange.refusals`,
     the `UnknownRefusal` diagnostic, and `Rejection.reason` and
-    `Exchange.reasons` deprecated (7da2abad..4f1493a8).
+    `Exchange.reasons` deprecated (7da2abad..4f1493a8);
+  - #190 upcasting: `Sync.migrations`, the branded `WrittenOperation`,
+    `status.refused` and `replica.dismiss`, `Rejection.message`, three new
+    errors, and Durable's codec `compared` (d8f9c666..339f1fa9);
+  - `Expr.in` over a null list now reads as unknown (482c0783).
 - [ ] **The branch's PR.** Unmerged since #497 (merged 2026-11-10): about a
       hundred commits, never through CI, since CI runs on pull requests. The
       whole CI sequence passed locally on 81458646 (2026-11-11, perf and
@@ -285,4 +289,8 @@ identity markers, floating-ui), and the Jev reviews (no key here).
   rejection carries a typed `SyncRefusal` (7da2abad..4f1493a8, reviewed in
   three rounds). The next release removes `Rejection.reason` and stops
   `journalExchange` writing `reasons`; the replica keeps reading `reasons`.
+  Phase 5 item 6, upcasting, is built (d8f9c666..339f1fa9, reviewed in two
+  rounds). Phase 0's canary spike is recorded in the plan's §8 (6250722e):
+  the canary breaks today's workspace, so Phase 1 migrates in dependency
+  order, and Sync needs an upstream hook to wrap the root `update`.
   Phase 1 waits on foldkit/foldkit#1655.
