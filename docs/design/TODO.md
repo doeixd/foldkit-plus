@@ -30,7 +30,8 @@ phase ships alone and records its number; the gates below are the notes' own.
   D1 (Chirp on node Surfaces, the policy-by-route recipe: e91a378) and H1
   (`SSR.entry`'s `redirect`: 4b7ed9a..6f6f73c) and H3 (`AuthServer.host`,
   resolvers typed apart: a187704..f3692c8) and H2 (`foldkit-host`:
-  6647aa3..ae46ef6; its workerd tests and e2e still to run). Then: Phase 0 per-route baselines. C1 to C3 only if Phase 0 finds 20 KB
+  6647aa3..ae46ef6; reference workerd test, e2e, mutations and
+  `pack:check` green, bodies restored: fe52bf3). Then: Phase 0 per-route baselines. C1 to C3 only if Phase 0 finds 20 KB
   brotli or more that one non-landing route alone imports. H4 only if 30
   lines or more of glue stay shared after H2; `visibleLinks` (D2) only if
   decision 3's rule is met. Close #236 when the branch merges.
@@ -61,9 +62,6 @@ phase ships alone and records its number; the gates below are the notes' own.
   [376-433-148-149-renderer-DESIGN.md](./376-433-148-149-renderer-DESIGN.md)
 ## Bugs and findings from 2026-11-10
 
-- [ ] **The reference Worker's test sends refused calls bodiless**, a
-  workaround for `serveFetch`'s undrained refusal body, now fixed (563d53d):
-  send the bodies again.
 - [ ] **`examples/auth`'s e2e flaked once in six runs** (2026-11-10, after
   H1): in "a session the server no longer holds is refused…", after Sign
   out the page still read "Signed in as grace" through the 5 s poll. Not

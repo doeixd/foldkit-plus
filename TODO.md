@@ -234,18 +234,17 @@ queue (details in `docs/design/TODO.md`): #500, #501/#502, #478's `step`,
 renderer phases 0a and 0b, SSR delivery phases 0 to 2 (the loader, opt-in;
 fetching at `load` did not pass decision 5 either: a press at `load` 1,194 ms
 against 312, the cost being evaluation), Site and host D1, H1, H3 and H2
-(`foldkit-host`), and `serveFetch`'s refusal drain (563d53d).
+(`foldkit-host`, checked on workerd: fe52bf3), the Switch's thumb drag
+(c3a6db7..d61b307), and `serveFetch`'s refusal drain (563d53d).
 
-1. **H2's owed checks:** the reference Worker's workerd test (with its
-   request bodies restored), its e2e and mutations, `pack:check`. In progress.
-2. **#432's hydration spike** (`SSR.static` on display regions; the bar is
+1. **#432's hydration spike** (`SSR.static` on display regions; the bar is
    boot 10 ms faster at 4x).
-3. **Site and host Phase 0:** per-route baselines; C1 to C3 only if it finds
+2. **Site and host Phase 0:** per-route baselines; C1 to C3 only if it finds
    20 KB; H4 only if 30+ lines of glue stay shared after H2.
-4. **The rest of the small findings** in `docs/design/TODO.md` (the 90 KB
+3. **The rest of the small findings** in `docs/design/TODO.md` (the 90 KB
    against 69 KB page, from Foldkit's identity markers; Chirp's bundle
    extras).
-5. **The UI polish leftovers** in `docs/design/TODO.md`, one per bout between
+4. **The UI polish leftovers** in `docs/design/TODO.md`, one per bout between
    larger items.
 
 Waiting on the owner: #424's defaults (its 75-line target is out of reach),
