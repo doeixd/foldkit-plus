@@ -67,6 +67,9 @@ pnpm --filter foldkit-example-foldkit-ui-showcase dev
   Date Picker pages, which upstream draws twice.
 - **Dialog widths** are the recipe's `sm` (24rem) and `md` (32rem), where
   upstream uses 24, 28 and 32rem.
+- **A dialog closes from its action buttons.** They carry `dialog.closeButton`
+  with the page's button looks, so each Dialog selection leaves out the
+  recipe's corner placement for that slot by destructuring it.
 - **A `ChangedUrl` for the page shown, with the menu closed, returns the Model
   unchanged.** Upstream closes the menu on every URL change, and closing a
   closed dialog copies its Model, which redrew the page.
@@ -84,9 +87,6 @@ pnpm --filter foldkit-example-foldkit-ui-showcase dev
 - No recipe for Select, Fieldset, Disclosure, Popover, Tooltip, Hover Intent,
   Radio Group or Calendar; `Recipes.Slider` styles `foldkit-mixins-ui`'s own
   slider, not upstream's markup.
-- A recipe's pieces are optional per slot, so reusing `Recipes.Button`'s look
-  on a plain `h.button` needs `?? Style.empty`; and `extend` cannot drop a
-  slot's piece, so the Dialog recipe's corner close button is destructured out.
 
 ## Tests
 

@@ -3,6 +3,8 @@
  * label above a trigger, and the looks of the buttons and floating panels it
  * draws itself. A page contract spreads `demoSlots` and its Style spreads
  * `demoStyles`, so the shared pieces keep one name and one look everywhere.
+ * A plain `h.button` the page draws takes the look the shipped Button recipe
+ * gives an `@foldkit/ui` Button, so every button on the page is one family.
  */
 import { Capability, Slot, Style, type StyleValue } from 'foldkit-mixins'
 import { Recipes } from 'foldkit-mixins-ui'
@@ -43,18 +45,9 @@ export const demoStyles = {
   anchor: Style.self({ position: 'relative' }),
 } as const
 
-/**
- * A plain `h.button` the page draws for itself takes the look the shipped
- * Button recipe gives an `@foldkit/ui` Button, so every button on the page is
- * one family. Every selection defines `button`; `StylePieces` types each slot
- * optional, hence the fallback.
- */
-const buttonLook = (selection: Parameters<typeof Recipes.Button>[0]): StyleValue =>
-  Recipes.Button(selection).button ?? Style.empty
-
 /** Upstream's white trigger with a gray border. */
 export const triggerLook: StyleValue = Style.compose(
-  buttonLook({ tone: 'neutral', variant: 'outline' }),
+  Recipes.Button({ tone: 'neutral', variant: 'outline' }).button,
   Style.self({
     borderColor: t.outline.default,
     borderRadius: t.radius.lg,
@@ -64,12 +57,12 @@ export const triggerLook: StyleValue = Style.compose(
 )
 
 export const primaryLook: StyleValue = Style.compose(
-  buttonLook({ tone: 'accent', variant: 'solid' }),
+  Recipes.Button({ tone: 'accent', variant: 'solid' }).button,
   Style.self({ borderRadius: t.radius.lg, fontWeight: t.weight.normal }),
 )
 
 export const dangerLook: StyleValue = Style.compose(
-  buttonLook({ tone: 'danger', variant: 'solid' }),
+  Recipes.Button({ tone: 'danger', variant: 'solid' }).button,
   Style.self({ borderRadius: t.radius.lg, fontWeight: t.weight.normal }),
 )
 

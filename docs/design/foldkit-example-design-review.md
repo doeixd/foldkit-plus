@@ -118,6 +118,8 @@ The showcase test helper still explains the old Inert limitation and wraps anoth
 
 Removing a style is not removing markup. An unwanted close control must be omitted by the view's composition policy; dropping its style only removes the recipe's appearance.
 
+**Status: decided 2026-11-11. Result keys typed; no omission operation.** A selection's base slots are now typed present (`RecipePieces<Slots, Known>`, `Known` inferred from `def.base` and grown by each `.extend` base), which removed every `?? Style.empty` over a recipe in the packages and examples; a variant's or compound's slot stays optional because `null` can unset its axis, and a base passed as a `StylePieces` value names nothing present, so partial styles stay valid. No `.omit` was added: a selection is a plain object, and destructuring it (`const { closeButton: _, ...pieces } = Recipes.Dialog({})`) already drops a piece with exact types, so a recipe method would be a second way to do it, and `.extend` stays additive. The optional-piece variant already exists as a mechanism (a defaulted axis that `null` unsets) and is what a design system should use when a piece is optional by design; the Dialog's corner `closeButton` placement was not moved onto such an axis, because one example wanting otherwise (it hands `dialog.closeButton` to footer buttons) does not show demand, and the same reasoning would then apply to the Toast's and Floating Panel's `close` pieces. Revisit with a second application that does the same.
+
 ### 9. Dynamic SSR rejects the same metadata supported by generated pages
 
 **Priority: high for production SSR. Owner: SSR/host integration boundary.**
