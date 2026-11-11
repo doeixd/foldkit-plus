@@ -475,7 +475,10 @@ while keeping the best of what this project already has:
   A `KeyValueStore` replica lets two writers win one revision; the typed
   IndexedDB transaction meets every criterion but adds a peer, a row
   migration and ~7 kB for no gain (6f28f435..730e311a). §14.2, same document
-- [ ] Sync-over-Effect-RPC prototype. §14.3, same document
+- [x] Sync-over-Effect-RPC prototype: keep Sync's socket transport. RPC
+  meets the five criteria but costs ~11 kB gzipped per client, recovers a
+  lost reply only on the replica's backoff, and needs presence moved to
+  procedures of its own (d847bbbe..f7611473). §14.3, same document
 - [ ] Submit the four upstream Effect PRs. None has been submitted. §7, §13, same document
   - [ ] EventLog server Storage entry lookup (Durable no longer needs it:
     `entriesAfter`'s batch hint looks an entry up, 9df7027d)
