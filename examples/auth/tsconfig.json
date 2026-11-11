@@ -27,6 +27,7 @@
       "foldkit-guard/media": ["../../packages/guard/src/media.ts"],
       "foldkit-guard/server": ["../../packages/guard/src/server.ts"],
       "foldkit-guard/sync": ["../../packages/guard/src/sync.ts"],
+      "foldkit-host": ["../../packages/host/src/index.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins-ui": ["../../packages/mixins-ui/src/index.ts"],
@@ -107,6 +108,9 @@
     },
     {
       "path": "../../packages/auth/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/host/tsconfig.build.json"
     },
     {
       "path": "../../packages/primitives/tsconfig.build.json"

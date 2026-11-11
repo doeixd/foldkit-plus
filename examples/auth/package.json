@@ -17,6 +17,7 @@
     "foldkit-entity": "workspace:*",
     "foldkit-example-site": "workspace:*",
     "foldkit-guard": "workspace:*",
+    "foldkit-host": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-ui": "workspace:*",
     "foldkit-primitives": "workspace:*",

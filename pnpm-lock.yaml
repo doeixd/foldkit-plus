@@ -121,6 +121,9 @@ importers:
       foldkit-guard:
         specifier: workspace:*
         version: link:../../packages/guard
+      foldkit-host:
+        specifier: workspace:*
+        version: link:../../packages/host
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../packages/mixins
