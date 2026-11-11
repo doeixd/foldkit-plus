@@ -25,6 +25,29 @@ export const declaresTooLarge = (request: Request, limit: number): boolean => {
 }
 
 /**
+ * Consumes a body nobody read, before a refusal is answered: workerd drops the
+ * connection the next request shares when an answer leaves a body unread, and
+ * cancelling it is not enough. Read up to `limit` bytes and discarded, then
+ * cancelled, so a refusal never reads more than a request may carry.
+ */
+export const discardBody = async (request: Request, limit: number): Promise<void> => {
+  if (request.body === null || request.bodyUsed) return
+  const reader = request.body.getReader()
+  let total = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) return
+      total += value.byteLength
+      if (total > limit) break
+    }
+  } catch {
+    return
+  }
+  await reader.cancel().catch(() => {})
+}
+
+/**
  * `request`'s body, at most `limit` bytes of it. Rejects with `BodyTooLarge`
  * once more arrive, having cancelled the rest, or with the stream's own error.
  */

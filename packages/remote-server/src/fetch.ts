@@ -49,7 +49,7 @@ import {
   type RemoteUnauthenticated,
   type ScriptedRequest,
 } from 'foldkit-remote'
-import { declaresTooLarge, readJson, tooLargeAnswer } from './body.js'
+import { declaresTooLarge, discardBody, readJson, tooLargeAnswer } from './body.js'
 import { cachedReadDiffers, serverDefect } from './diagnostics.js'
 import {
   cacheKey,
@@ -578,6 +578,7 @@ export const serveFetch = <P, R, Env, RP = never>(
   // keep it for another. A `cache-control` of the application's own (`headers`) stands.
   return async (request, env) => {
     const response = await served(request, env)
+    await discardBody(request, maxBodyBytes)
     if (!response.headers.has('cache-control')) {
       response.headers.set('cache-control', 'private, no-store')
     }
