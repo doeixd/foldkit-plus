@@ -490,11 +490,11 @@ its README the details.
   component's own), so the extension point is `Style.nest`/`pseudo` under the
   slot. Decide whether that is enough before changing ownership.
   `foldkit-pixel-art`, `foldkit-ui-showcase`, `foldkit-job-application`
-- [ ] **Mixins: recipe omission and result-key typing.** Evaluate a typed
-  omission of selected recipe pieces or an optional-piece variant for the
-  showcase Dialog; keep `.extend` additive. Preserve known output keys where
-  useful to avoid `?? Style.empty`, without requiring every Slot in partial
-  styles. Removing a style does not remove markup. Design review §8.
+- [x] **Mixins: recipe omission and result-key typing.** Decided in design
+  review §8: a recipe's base slots are typed present in every selection, so
+  the `?? Style.empty` fallbacks are gone (4c39b095..fffa3ec0); omission is
+  destructuring, not a method, and Dialog gains no optional-piece axis until a
+  second app asks.
 - [ ] **Mixins-UI: adapters still missing.** DragAndDrop and Animation still
   hand out attributes with no adapter. Menu, Listbox, Combobox, DatePicker,
   Toast, FileDrop, Calendar, Nav and VirtualList have adapters (checked
