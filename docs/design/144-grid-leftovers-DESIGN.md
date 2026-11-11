@@ -153,8 +153,11 @@ to the grid root. The view's `OnCopyText` and `OnCutText` sit on that root
 (`view.ts:1723`), and the root is the copy event's target, since it holds
 focus.
 
-The new listener does nothing unless `event.defaultPrevented`, which means
-`OnCopyText` handled the event and a field's own copy is left alone. It then
+The new listener acts only when the event's target is the grid root, it is
+`defaultPrevented`, and `getData('text/html')` is still empty. Prevented alone
+says some handler took the copy, not that the grid did: a cell editor or an
+application handler inside the grid that writes its own clipboard would
+otherwise gain grid HTML built from its text. It then
 reads the TSV back with `clipboardData.getData('text/plain')` and adds
 `setData('text/html', Clipboard.toHtml(Clipboard.parseTsv(tsv)))`. Its
 arguments never go stale, because the text comes from the event and not from
