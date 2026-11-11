@@ -142,6 +142,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`submitWaits: false` on a form** (`foldkit-form`). A submit made while a
+  check runs is refused from the Model instead of waiting for the answer, and
+  `canSubmit` is false until the checks answer; the default (`true`) is the
+  waiting behaviour as before. It is how a page gets a strict submit now that
+  the generated button is never natively `disabled`.
+
 - **Grid columns filter from their headers** (`foldkit-data-grid`,
   `foldkit-mixins-data-grid`, #144). A column with `filter: true` (its kind
   read from `edit.schema`'s decoded side by `filterKindOf`: text, a number
@@ -515,6 +521,13 @@ version changed; `pnpm` skips versions already in the registry.
   `maxAge` (`foldkit-ssr`'s `cache` only; the browser reads its stale reads
   again), so a page renders once in `keep` instead of once a minute.
 
+### Deprecated
+
+- **`FormViewInputs.saved` and `SubmitInputs.saved`** (`foldkit-mixins-form`,
+  `foldkit-crud`). They have no effect: the submit button is `aria-disabled`,
+  never `disabled`, whatever they say. Delete the field; they are removed in the
+  next release.
+
 ### Changed
 
 - **The form's submit button is `aria-disabled`, never `disabled`**
@@ -525,8 +538,13 @@ version changed; `pnpm` skips versions already in the registry.
   or is submitting, and `update` decides from the Model: a submit it cannot take
   marks every key and shows why, one it can goes through. The recipes already
   style `[aria-disabled="true"]` as disabled and Chrome reads the button disabled.
-  `FormViewInputs.saved` and `SubmitInputs.saved` are removed: they only chose
-  between the two attributes.
+  **A style of your own on the form's `submit` Slot must match
+  `[aria-disabled="true"]` as well as `:disabled`**, and exclude it from its
+  hover and press rules; `Defaults.body` now dims such a button too.
+  `FormView.submodel`'s `canSubmit` option only marks the button; to refuse a
+  submit while a check runs, make the form with `submitWaits: false` (see Added).
+  Moving focus to the first missing key stays the page's, as the waitlist's
+  `FocusField` does.
 
 - **Grid behaviour that column filters changed** (`foldkit-data-grid`,
   `foldkit-mixins-data-grid`, #144).
