@@ -136,6 +136,26 @@ it("holds the Chirp button's word in its middle, both ways", async () => {
   expect(Math.abs(y)).toBeLessThanOrEqual(0.5)
 })
 
+it('dims the compose button while it reads aria-disabled, and keeps hover off it', async () => {
+  await mount('/')
+  const submit = await vi.waitUntil(
+    () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Chirp'),
+    answered,
+  )
+  // The form marks it so while it submits or cannot; set here, since an empty
+  // chirp is a valid form and nothing in the page holds it marked for long.
+  const enabled = getComputedStyle(submit).opacity
+  const resting = getComputedStyle(submit).backgroundColor
+  submit.setAttribute('aria-disabled', 'true')
+  expect(enabled).toBe('1')
+  expect(getComputedStyle(submit).opacity).toBe('0.5')
+  await userEvent.hover(submit)
+  expect(getComputedStyle(submit).backgroundColor).toBe(resting)
+  submit.removeAttribute('aria-disabled')
+  await userEvent.hover(document.body, { position: { x: 1, y: 300 } })
+  expect(getComputedStyle(submit).opacity).toBe('1')
+})
+
 it("cuts a profile's portrait out of the banner in the avatar's shape", async () => {
   await mount(profileHref('you'))
   const portrait = await vi.waitUntil(

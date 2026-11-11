@@ -469,8 +469,12 @@ export const FormStyle = forSlots(FormSlots)(
         background: t.accent.default,
         color: t.accent['on-fill'],
       },
-      Style.pseudo(':hover', { background: t.accent.hover }),
-      Style.pseudo(':disabled', { opacity: '0.5', cursor: 'default' }),
+      // The form draws its submit `aria-disabled` while it cannot submit, so
+      // the dim and the missing hover answer to that as well as to `:disabled`.
+      Style.pseudo(':hover:not(:is([aria-disabled="true"], :disabled))', {
+        background: t.accent.hover,
+      }),
+      Style.pseudo(':is([aria-disabled="true"], :disabled)', { opacity: '0.5', cursor: 'default' }),
     ],
   },
   { name: 'ChirpForm' },
