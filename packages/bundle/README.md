@@ -1265,6 +1265,88 @@ The scope is sugar over these, which remain for code that composes by hand:
 | `placements.init` | every single placement's init, then each wiring's, as one `Update.Step` |
 | `declared.at<Model>()(config)`, `declaredEach.each<Model>()(config)` | a declaration placed without a scope |
 
+## A union Model: a Link per branch
+
+A Link is a lens, and a lens need not be a struct field. When the parent Model
+is itself a union (`LoggedOut | LoggedIn`), each branch is a child that is
+present only while the Model is on it. Write one `Link.make` per branch whose
+`read` answers `Option.none()` on the other branches:
+
+```ts standalone
+import { Match, Option, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { taggedStruct } from 'foldkit/schema'
+import * as Update from 'foldkit/update'
+import { Link } from 'foldkit-bundle'
+
+const LoggedOut = taggedStruct('LoggedOut', { route: Schema.Literals(['Home', 'Login']) })
+const LoggedIn = taggedStruct('LoggedIn', { session: Schema.String, draftName: Schema.String })
+const Model = Schema.Union([LoggedOut, LoggedIn])
+type Model = typeof Model.Type
+
+const LoggedInMessage = defineMessageUnion({ ChangedName: { name: Schema.String } })
+type LoggedInMessage = typeof LoggedInMessage.Type
+
+const Message = defineMessageUnion({
+  SucceededLogin: { session: Schema.String },
+  RequestedLogout: {},
+  GotLoggedInMessage: { message: LoggedInMessage },
+})
+type Message = typeof Message.Type
+
+const loggedIn = Link.make({
+  read: (model: Model) =>
+    Match.value(model).pipe(
+      Match.tagsExhaustive({
+        LoggedOut: () => Option.none(),
+        LoggedIn: branch => Option.some(branch),
+      }),
+    ),
+  write: (_model: Model, branch: typeof LoggedIn.Type): Model => branch,
+  wrapper: Link.wrapper(Message.GotLoggedInMessage),
+  path: [],
+})
+
+const foldLoggedIn = Update.foldChild({
+  ...loggedIn,
+  update: (branch: typeof LoggedIn.Type, message: LoggedInMessage) =>
+    LoggedInMessage.match<Update.Return<typeof LoggedIn.Type, LoggedInMessage>>(message, {
+      ChangedName: ({ name }) => ({ model: { ...branch, draftName: name } }),
+    }),
+})
+
+export const update = (model: Model, message: Message) =>
+  Message.match<Update.Return<Model, Message>>(message, {
+    SucceededLogin: ({ session }) => ({ model: LoggedIn({ session, draftName: '' }) }),
+    RequestedLogout: () => ({ model: LoggedOut({ route: 'Home' }) }),
+    GotLoggedInMessage: ({ message }) => foldLoggedIn(model, message),
+  })
+```
+
+- **Reading and writing happen only while the branch is active.** A
+  `GotLoggedInMessage` that arrives on `LoggedOut` finds `read` empty, and
+  `foldChild` returns the Model it was given, so a late Message from a signed-out
+  page redraws nothing. `write` replaces the whole Model with the branch.
+- **The transition initializes the branch, not the Link.** Login builds the
+  `LoggedIn` Model from values only known then (here the session), and logout
+  returns a fresh `LoggedOut`, which drops the signed-in Model and everything
+  in it. `Link.foldInit` and `placements.initial(rest)` write a child into a
+  field of a struct parent, so they have nothing to do here.
+- **Lifecycle follows the branch.** The Link ignores Messages for an inactive
+  branch; a Subscription that branch needs is declared on the parent and reads
+  the same `Match` over the Model, so it stops when the Model leaves the
+  branch. A `Link.make` whose `path` is empty names no top-level field.
+- **Branch on the union through its match.** `Match.tagsExhaustive` (or the
+  union's own `match`) makes a new variant a type error here; a
+  `model._tag === 'LoggedIn'` ternary would not.
+
+Nothing in this is a helper: it is the same `read`, `write` and
+`toParentMessage` that `Update.foldChild` takes everywhere. The Foldkit
+[auth port](../../examples/foldkit/auth) is this shape in full, with each
+branch's OutMessages folding the login and logout transitions; a helper that
+writes the `read` and `write` is worth adding only once a second adopter
+repeats them.
+
 ## Limits
 
 - **Managed Resources are provided by tag.** The Foldkit runtime provides a

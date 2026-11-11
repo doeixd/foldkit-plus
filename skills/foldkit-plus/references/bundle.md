@@ -224,6 +224,13 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   and `Link.optional` writes keep the parent when the child is unchanged, so an
   ignored Message does not redraw. Nothing is routed or lifted automatically;
   for that, use `Bundle.fromParts`.
+- **A union Model:** a branch (`LoggedOut | LoggedIn`) is a child through
+  `Link.make` whose `read` is `Option.none()` off that branch (match with
+  `Match.tagsExhaustive`) and whose `write` returns the branch as the Model.
+  `Update.foldChild({ ...link, update })` then ignores Messages for an inactive
+  branch; the transition (login, logout) builds the next branch itself, since
+  `Link.foldInit` and `placements.initial` write struct fields. No helper
+  exists; see the README's "A union Model: a Link per branch".
 - **Presets:** `MediaQuery.with({ query })` binds args; place it with no `args`.
   `Page.place(bundle, 'field', config)` places without a separate `declare`.
 - **Helpers:** `helpers: { reset: (model: CounterModel, to: number) => ({ model }) }` become

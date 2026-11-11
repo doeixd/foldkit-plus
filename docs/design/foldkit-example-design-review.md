@@ -160,6 +160,8 @@ There is also a concrete release-time concern in the low-level primitive: [Point
 
 **Priority: low-medium. Owner: Bundle DX/docs.**
 
+**Status: documented.** `foldkit-bundle`'s README has "A union Model: a Link per branch" (a compiled `Link.make` over a tagged-union branch, initialization by the transition, inactive-branch Messages ignored). No helper was added; no second adopter repeats the `read`/`write`.
+
 Auth's root Model is a union. Login/logout replace the active branch and its state, with initialization data known only during that transition. Standard field declarations and `assembly.initial(rest)` fit struct parents more naturally.
 
 The README overstates “a placement is a field of a parent struct”: [Link.make](../../packages/bundle/src/link.ts), lines 127–179, accepts custom `read`, `write`, and wrapper functions, including absence. The real issue is ergonomic branch linkage and transition-time initialization, not that all child folding is impossible outside a struct.
