@@ -146,7 +146,10 @@ version changed; `pnpm` skips versions already in the registry.
   check runs is refused from the Model instead of waiting for the answer, and
   `canSubmit` is false until the checks answer; the default (`true`) is the
   waiting behaviour as before. It is how a page gets a strict submit now that
-  the generated button is never natively `disabled`.
+  the generated button is never natively `disabled`. A checked key that has
+  never been checked (a form filled from an existing record) cannot submit at
+  rest then: the first submit starts its check and is refused, and the reader
+  submits again after the answer.
 
 - **Grid columns filter from their headers** (`foldkit-data-grid`,
   `foldkit-mixins-data-grid`, #144). A column with `filter: true` (its kind
@@ -540,7 +543,11 @@ version changed; `pnpm` skips versions already in the registry.
   style `[aria-disabled="true"]` as disabled and Chrome reads the button disabled.
   **A style of your own on the form's `submit` Slot must match
   `[aria-disabled="true"]` as well as `:disabled`**, and exclude it from its
-  hover and press rules; `Defaults.body` now dims such a button too.
+  hover and press rules; `Defaults.controls` (`foldkit-mixins`) now dims such a button and keeps
+  it out of its hover rule.
+  A page that passed a strict `canSubmit` predicate to `FormView.submodel` must
+  now make its form with `submitWaits: false`, or it submits while a check
+  runs.
   `FormView.submodel`'s `canSubmit` option only marks the button; to refuse a
   submit while a check runs, make the form with `submitWaits: false` (see Added).
   Moving focus to the first missing key stays the page's, as the waitlist's
