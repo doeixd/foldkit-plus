@@ -35,6 +35,7 @@ const start = placed.init({
       cells: Option.none(),
     },
     editing: Option.none(),
+    filtering: Option.none(),
   },
 }).model
 const step = (model: typeof start, message: typeof Grid.Message.Type) =>
@@ -63,6 +64,7 @@ describe('DataGrid', () => {
       },
 
       editing: Option.none(),
+      filtering: Option.none(),
     })
   })
 
@@ -429,6 +431,7 @@ describe('DataGrid', () => {
       filling: null,
       selection: { rows: { _tag: 'Keys', keys: [] }, anchor: null, cells: null },
       editing: null,
+      filtering: null,
     })
     expect(Schema.decodeUnknownSync(Grid.Model)(encoded)).toEqual(model)
   })

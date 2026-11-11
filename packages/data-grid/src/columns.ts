@@ -1,4 +1,4 @@
-import { Schema, SchemaAST, SchemaGetter } from 'effect'
+import { Option, Schema, SchemaAST, SchemaGetter } from 'effect'
 import { defineTaggedUnion } from 'foldkit/schema'
 /** What a column shows and where it starts out. Its id is its key in `Columns.define`. */
 export interface ColumnSpec<Row, Value> {
@@ -26,6 +26,15 @@ export interface ColumnSpec<Row, Value> {
    * (`Columns.checkbox`) makes the cells checkboxes, toggled in place.
    */
   readonly edit?: ColumnEdit<Row, unknown>
+  /**
+   * Draws a filter control on the column's header (`foldkit-mixins-data-grid`).
+   * `true` reads its kind from `edit.schema`'s decoded side (`filterKindOf`):
+   * a boolean is a checkbox, a `Date` a range of days, a number a range, text
+   * literals a choice of them, anything else text. A `CellEditor` names the
+   * kind for a column that does not edit. The value filtered by is the
+   * application's: the grid reports it as `Out.Filtered`.
+   */
+  readonly filter?: true | CellEditor
 }
 
 export interface ColumnEdit<Row, Value = string> {
@@ -79,22 +88,58 @@ const isDate = (ast: SchemaAST.AST): boolean => {
   )
 }
 
-/** A column's editor, from its schema; a column with none edits text. */
-export const editorOf = (schema: Schema.Top | undefined): CellEditor => {
+const isBooleanLike = (ast: SchemaAST.AST): boolean =>
+  SchemaAST.isBoolean(ast) ||
+  (SchemaAST.isLiteral(ast) && typeof ast.literal === 'boolean') ||
+  (SchemaAST.isUnion(ast) && ast.types.every(isBooleanLike))
+const isNumberLike = (ast: SchemaAST.AST): boolean =>
+  SchemaAST.isNumber(ast) ||
+  (SchemaAST.isLiteral(ast) && typeof ast.literal === 'number') ||
+  (SchemaAST.isUnion(ast) && ast.types.length > 0 && ast.types.every(isNumberLike))
+/** The text literals an AST is one of, when it is nothing else. */
+const textLiterals = (ast: SchemaAST.AST): Option.Option<ReadonlyArray<string>> => {
+  if (SchemaAST.isLiteral(ast)) {
+    return typeof ast.literal === 'string' ? Option.some([ast.literal]) : Option.none()
+  }
+  if (!SchemaAST.isUnion(ast) || ast.types.length === 0) return Option.none()
+  const options = ast.types.flatMap(member =>
+    SchemaAST.isLiteral(member) && typeof member.literal === 'string' ? [member.literal] : [],
+  )
+  return options.length === ast.types.length ? Option.some(options) : Option.none()
+}
+
+/**
+ * The one classifier behind `editorOf` and `filterKindOf`: a checkbox when
+ * the value is a boolean (first: `Columns.checkbox`'s text is the literals
+ * `true` and `false`), a choice when `choice` is text literals, then a date,
+ * a number, or text. `FilterKind` says the same at the type level, and a
+ * table test holds the two together.
+ */
+const classify = (type: SchemaAST.AST, choice: SchemaAST.AST): CellEditor => {
+  if (isBooleanLike(type)) return CellEditor.Checkbox()
+  const options = textLiterals(choice)
+  if (Option.isSome(options)) return CellEditor.Choice({ options: options.value })
+  if (isDate(type)) return CellEditor.Date()
+  return isNumberLike(type) ? CellEditor.Number() : CellEditor.Text()
+}
+
+/**
+ * A column's editor, from its schema; a column with none edits text. A choice
+ * is read from the text side, since its literals are what is typed.
+ */
+export const editorOf = (schema: Schema.Top | undefined): CellEditor =>
+  schema === undefined
+    ? CellEditor.Text()
+    : classify(SchemaAST.toType(schema.ast), SchemaAST.toEncoded(schema.ast))
+
+/**
+ * A column's filter kind, from its schema; a column with none filters text.
+ * Everything is read from the decoded side, the values a filter compares.
+ */
+export const filterKindOf = (schema: Schema.Top | undefined): CellEditor => {
   if (schema === undefined) return CellEditor.Text()
   const type = SchemaAST.toType(schema.ast)
-  // Before the choice: `Columns.checkbox`'s text is the literals `true` and `false`.
-  if (SchemaAST.isBoolean(type)) return CellEditor.Checkbox()
-  const encoded = SchemaAST.toEncoded(schema.ast)
-  if (SchemaAST.isUnion(encoded)) {
-    const options = encoded.types.flatMap(member =>
-      SchemaAST.isLiteral(member) && typeof member.literal === 'string' ? [member.literal] : [],
-    )
-    // Every member a text literal: anything else typed would be refused.
-    if (options.length === encoded.types.length) return CellEditor.Choice({ options })
-  }
-  if (isDate(type)) return CellEditor.Date()
-  return SchemaAST.isNumber(type) ? CellEditor.Number() : CellEditor.Text()
+  return classify(type, type)
 }
 
 /** The ids of the columns that edit. */

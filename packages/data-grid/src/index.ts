@@ -9,8 +9,23 @@ export {
   type ColumnId,
   type ColumnSpec,
   type EditableId,
+  filterKindOf,
 } from './columns.js'
 export { DataGrid, type DataGridOf } from './grid.js'
+export {
+  ColumnFilter,
+  type FilterableId,
+  type FilterChange,
+  type FilterForm,
+  type FilterKind,
+  type FilterOf,
+  type Filters,
+  type FilterValue,
+  type FormReading,
+  type KindOfValue,
+  type OneOf,
+  readForm,
+} from './filter.js'
 export { GridFocus, type Direction, type KeyOptions } from './focus.js'
 export { ColumnLayout } from './layout.js'
 export {
