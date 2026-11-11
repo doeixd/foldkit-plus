@@ -1736,11 +1736,17 @@ of its own named a form field "fits the Catalog". Read words with
   longer restored the text, a commit made an empty undo step, and a second
   ask restarted the session. For state held across transitions, test each
   transition that can land in the middle.
-- **Enter submits through a button the last frame drew enabled.** The crud
-  editor test pressed Enter right after `fill`, before the frame that enables
-  the submit button, so the implicit submission did nothing and the wait for
-  `aria-busy` timed out (once in a full run). Wait for the button to be enabled
-  first; hold `requestAnimationFrame` across the fill to make it fail every time.
+- **Enter submits through a button the last frame drew enabled.** A natively
+  `disabled` default button made the browser drop Enter, so the crud editor
+  test, pressing it right after `fill` and before the frame that enables the
+  submit button, saw no submit and timed out waiting for `aria-busy` (once in
+  a full run); a user who pastes and presses Enter does the same. The form's
+  button is now `aria-disabled`, never `disabled`, and `update` decides from the
+  Model, so such an Enter is accepted once the Model is valid and refused
+  visibly (every key marked) when not. Hold `requestAnimationFrame` across the
+  fill to test it (`submitKeys.browser.test.ts`); a button of your own with
+  `h.Disabled` still drops the key. Playwright refuses to click an
+  `aria-disabled` element: press it with `focus()` and `click()`.
 - **Keys faster than a frame meet the last frame's view.** Typing on the grid
   opened an editor, but keys sent before it was drawn and focused reached
   the grid, whose drawn state still said "not editing", so each restarted the

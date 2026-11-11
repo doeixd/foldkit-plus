@@ -251,9 +251,10 @@ started is answered is Remote's, read by its request id, never a flag of your
 own: `Crud.editor` passes it (see [crud.md](crud.md)), and a page that mutates
 in its own `onOut` keeps the request id and passes `submitting:
 Data.mutation(model, requestId)._tag === 'Pending'`. Busy ends at the answer.
-The view input `saved` (the write landed, no edit since) keeps a button that
-cannot submit `aria-disabled` rather than `disabled`, so a create's form,
-started again blank, keeps the focus its button had; `Crud.editor` passes it.
+The generated submit button is never natively `disabled`: it is `aria-disabled` while the
+form cannot submit, so Enter, even one sent before the frame that enables the button, always
+reaches `update`, which refuses it from the Model (every key marked, errors shown, nothing
+submitted) or accepts it. Focus to the first missing key is the page's.
 `failure: { error, retry }` draws why the write did not land in the `failure`
 Slot (`role="alert"`): a refusal naming no key (one naming a key goes through
 `Message.Refused`), or a failure, after which `retry` makes the button read
