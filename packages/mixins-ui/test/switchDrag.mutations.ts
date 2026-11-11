@@ -36,9 +36,7 @@ export default [
   },
   {
     name: 'the middle is a quarter of the way',
-    edits: [
-      { file: source, find: 'held.place > held.room / 2', replace: 'held.place > held.room / 4' },
-    ],
+    edits: [{ file: source, find: 'place > room / 2', replace: 'place > room / 4' }],
     tests,
   },
   {
@@ -61,8 +59,8 @@ export default [
     edits: [
       {
         file: source,
-        find: 'Math.min(Math.max(press.from + along, 0), press.room)',
-        replace: 'Math.max(press.from + along, 0)',
+        find: 'Math.min(Math.max(from + along, 0), room)',
+        replace: 'Math.max(from + along, 0)',
       },
     ],
     tests,

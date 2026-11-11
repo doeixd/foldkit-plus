@@ -1,5 +1,5 @@
 import type { SwitchAttributes } from '@foldkit/ui/switch'
-import { Effect, Queue, Schema, Stream } from 'effect'
+import { Effect, Option, Queue, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
 import { Attr, Behavior, Capability, Event, Slot, Slots } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
@@ -79,23 +79,17 @@ const Drag = Mount.defineStream('SwitchDrag', {
       Effect.acquireRelease(
         Effect.sync(() => {
           const target = element as Capturing
-          let press: {
-            readonly pointerId: number
-            readonly x: number
-            readonly sign: 1 | -1
-            readonly from: number
-            readonly room: number
-            dragging: boolean
-            place: number
-          } | null = null
-          let settle: MutationObserver | null = null
+          const styled = element as HTMLElement
+          // The press being followed, with what ends it; only a press has listeners beyond `pointerdown`.
+          let press = Option.none<{ readonly pointerId: number; readonly stop: () => void }>()
+          let settle = Option.none<MutationObserver>()
           let releasedAt = Number.NEGATIVE_INFINITY
           const rest = () => {
-            settle?.disconnect()
-            settle = null
+            if (Option.isSome(settle)) settle.value.disconnect()
+            settle = Option.none()
             element.removeAttribute('data-dragging')
-            ;(element as HTMLElement).style.removeProperty('--_fk-switch-drag')
-            ;(element as HTMLElement).style.removeProperty('touch-action')
+            styled.style.removeProperty('--_fk-switch-drag')
+            styled.style.removeProperty('touch-action')
           }
           const down = (event: Event) => {
             const pointer = event as PointerEvent
@@ -103,63 +97,64 @@ const Drag = Mount.defineStream('SwitchDrag', {
               element.getAttribute('aria-disabled') === 'true' ||
               element.getAttribute('aria-readonly') === 'true' ||
               element.hasAttribute('disabled')
-            if (off || pointer.button !== 0 || press !== null) return
+            if (off || pointer.button !== 0 || Option.isSome(press)) return
             rest()
             const sign = element.matches(':dir(rtl)') ? -1 : 1
-            const box = element.getBoundingClientRect()
             const thumb = Number.parseFloat(getComputedStyle(element, '::before').inlineSize)
             const from = placeOf(element, sign)
-            press = {
-              pointerId: pointer.pointerId,
-              x: pointer.clientX,
-              sign,
-              from,
-              // The thumb rests 2px in from each end of the track.
-              room: box.width - 4 - thumb,
-              dragging: false,
-              place: from,
-            }
-          }
-          const move = (event: Event) => {
-            const pointer = event as PointerEvent
-            if (press === null || press.pointerId !== pointer.pointerId) return
-            const along = press.sign * (pointer.clientX - press.x)
-            if (!press.dragging) {
-              if (Math.abs(along) < DRAG_SLOP) return
-              press.dragging = true
-              try {
-                target.setPointerCapture?.(press.pointerId)
-              } catch {
-                // Without capture the move still reports while over the element.
+            // The thumb rests 2px in from each end of the track.
+            const room = element.getBoundingClientRect().width - 4 - thumb
+            let dragging = false
+            let place = from
+            const move = (moved: Event) => {
+              const at = moved as PointerEvent
+              if (at.pointerId !== pointer.pointerId) return
+              const along = sign * (at.clientX - pointer.clientX)
+              if (!dragging) {
+                if (Math.abs(along) < DRAG_SLOP) return
+                dragging = true
+                try {
+                  target.setPointerCapture?.(pointer.pointerId)
+                } catch {
+                  // Without capture the move still reports while over the element.
+                }
+                element.setAttribute('data-dragging', '')
+                styled.style.setProperty('touch-action', 'pan-y')
               }
-              element.setAttribute('data-dragging', '')
-              ;(element as HTMLElement).style.setProperty('touch-action', 'pan-y')
+              place = Math.min(Math.max(from + along, 0), room)
+              styled.style.setProperty('--_fk-switch-drag', `${sign * place}px`)
             }
-            press.place = Math.min(Math.max(press.from + along, 0), press.room)
-            ;(element as HTMLElement).style.setProperty(
-              '--_fk-switch-drag',
-              `${press.sign * press.place}px`,
-            )
-          }
-          const end = (event: Event) => {
-            const pointer = event as PointerEvent
-            const held = press
-            if (held === null || held.pointerId !== pointer.pointerId) return
-            press = null
-            if (!held.dragging) return
-            releasedAt = event.timeStamp
-            const isChecked = held.place > held.room / 2
-            const unchanged = isChecked === (element.getAttribute('aria-checked') === 'true')
-            const cancelled = event.type !== 'pointerup'
-            if (cancelled || unchanged) {
-              rest()
-              return
+            const end = (ended: Event) => {
+              if ((ended as PointerEvent).pointerId !== pointer.pointerId) return
+              stop()
+              press = Option.none()
+              if (!dragging) return
+              releasedAt = ended.timeStamp
+              const isChecked = place > room / 2
+              const unchanged = isChecked === (element.getAttribute('aria-checked') === 'true')
+              const cancelled = ended.type !== 'pointerup'
+              if (cancelled || unchanged) {
+                rest()
+                return
+              }
+              // Held where it was let go until the Model's answer redraws the
+              // switch, so the thumb does not slide back and forth.
+              const observer = new MutationObserver(rest)
+              observer.observe(element, { attributes: true, attributeFilter: ['aria-checked'] })
+              settle = Option.some(observer)
+              Queue.offerUnsafe(queue, Dragged.make({ isChecked }))
             }
-            // Held where it was let go until the Model's answer redraws the
-            // switch, so the thumb does not slide back and forth.
-            settle = new MutationObserver(rest)
-            settle.observe(element, { attributes: true, attributeFilter: ['aria-checked'] })
-            Queue.offerUnsafe(queue, Dragged.make({ isChecked }))
+            const during = [
+              ['pointermove', move],
+              ['pointerup', end],
+              ['pointercancel', end],
+              ['lostpointercapture', end],
+            ] as const
+            const stop = () => {
+              for (const [type, listener] of during) element.removeEventListener(type, listener)
+            }
+            for (const [type, listener] of during) element.addEventListener(type, listener)
+            press = Option.some({ pointerId: pointer.pointerId, stop })
           }
           const click = (event: Event) => {
             // The browser sends it right after the release, after the pointer
@@ -169,18 +164,12 @@ const Drag = Mount.defineStream('SwitchDrag', {
             event.preventDefault()
             event.stopImmediatePropagation()
           }
-          const listeners = [
-            ['pointerdown', down],
-            ['pointermove', move],
-            ['pointerup', end],
-            ['pointercancel', end],
-            ['lostpointercapture', end],
-          ] as const
-          for (const [type, listener] of listeners) element.addEventListener(type, listener)
+          element.addEventListener('pointerdown', down)
           element.addEventListener('click', click, { capture: true })
           return () => {
-            for (const [type, listener] of listeners) element.removeEventListener(type, listener)
+            element.removeEventListener('pointerdown', down)
             element.removeEventListener('click', click, { capture: true })
+            if (Option.isSome(press)) press.value.stop()
             rest()
           }
         }),
@@ -191,8 +180,9 @@ const Drag = Mount.defineStream('SwitchDrag', {
 
 /**
  * Lets the thumb be dragged: past the middle of the track on release, the
- * switch turns to the side it is on, sent as `onToggle`'s Message beside the
- * click's. Not built in, as a Scene test must resolve every Mount with a
+ * switch turns to the side it is on, sent as `onToggle`'s Message. The click
+ * the browser sends after the drag is swallowed, so a drag sends that one
+ * Message and never two. Not built in, as a Scene test must resolve every Mount with a
  * Message; pass it beside the style (`mixins: [style.mixin, Switch.draggable(onToggle)]`),
  * with the `onToggle` the view was given. A disabled or read-only switch
  * does not drag.
