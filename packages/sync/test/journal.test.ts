@@ -141,6 +141,23 @@ describe('journalExchange', () => {
     })
   })
 
+  it('cuts a reason too long for a refusal, so the replica still reads the reply', async () => {
+    const long = 'No. '.repeat(200)
+    const exchange = journalExchange({
+      sync: Todos,
+      journal: openJournal(),
+      principal: 'guest',
+      admit: () => ({ allowed: false, reason: long }),
+    })
+    const [operation] = await pendingOf('a', ['Milk'])
+    const reply = await send(exchange, 0, [operation!])
+    const cut = `${long.slice(0, 499)}…`
+    expect(reply.reasons).toEqual([{ opId: operation!.opId, reason: cut }])
+    expect(reply.refusals).toEqual([
+      { opId: operation!.opId, refusal: { _tag: 'Forbidden', reason: cut } },
+    ])
+  })
+
   it('refuses a connection that may not open the document, reading and appending nothing', async () => {
     const journal = openJournal()
     const [operation] = await pendingOf('a', ['Milk'])

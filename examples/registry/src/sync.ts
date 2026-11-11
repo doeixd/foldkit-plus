@@ -96,7 +96,7 @@ const said = (rejection: Rejection): string =>
     onSome: SyncRefusal.match({
       Forbidden: ({ reason }) => Option.getOrElse(reason, () => 'You may not change this'),
       Invalid: ({ message }) => message,
-      Unreadable: () => 'Made by another version of the page; reload to send it again',
+      Unreadable: () => 'Made by another version of the page, so not saved',
     }),
   })
 

@@ -34,7 +34,7 @@ import {
 } from 'foldkit-durable/core'
 import { sequence } from './ids.js'
 import type { AuthorizeDecision } from './make.js'
-import { SyncRefusal } from './refusal.js'
+import { fitWords, SyncRefusal } from './refusal.js'
 import type { Operation, Sync, TransportClient } from './sync.js'
 import { checkRevalidate } from './revalidate.js'
 import {
@@ -156,12 +156,14 @@ export const journalExchange = <Message, Shared, Principal>(
         refusals.push({ opId, refusal: encodeRefusal(refusal) })
         reasons.push({ opId, reason })
       }
-      const forbid = (opId: string, reason: string | undefined, otherwise: string) =>
+      const forbid = (opId: string, reason: string | undefined, otherwise: string) => {
+        const fitted = reason === undefined ? undefined : fitWords(reason)
         reject(
           opId,
-          SyncRefusal.Forbidden({ reason: Option.fromUndefinedOr(reason) }),
-          reason ?? otherwise,
+          SyncRefusal.Forbidden({ reason: Option.fromUndefinedOr(fitted) }),
+          fitted ?? otherwise,
         )
+      }
       const invalid = (opId: string, message: string) => reject(opId, invalidAs(message), message)
       const acknowledged: Array<string> = []
       for (const input of pending) {

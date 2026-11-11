@@ -25,7 +25,7 @@ export default [
     edits: [
       {
         file: journal,
-        find: 'SyncRefusal.Forbidden({ reason: Option.fromUndefinedOr(reason) }),',
+        find: 'SyncRefusal.Forbidden({ reason: Option.fromUndefinedOr(fitted) }),',
         replace: 'SyncRefusal.Forbidden({ reason: Option.none() }),',
       },
     ],
@@ -80,8 +80,8 @@ export default [
     edits: [
       {
         file: replica,
-        find: 'else yield* Diagnostics.report(unknownRefusal(documentId, replicaId, opId, refusal))',
-        replace: 'else void unknownRefusal',
+        find: 'yield* Diagnostics.report(\n                unknownRefusal(',
+        replace: 'yield* Effect.succeed(\n                unknownRefusal(',
       },
     ],
     tests: replicaTests,
@@ -91,8 +91,8 @@ export default [
     edits: [
       {
         file: replica,
-        find: "const decodeRefusal = Schema.decodeUnknownOption(SyncRefusal, { onExcessProperty: 'error' })",
-        replace: 'const decodeRefusal = Schema.decodeUnknownOption(SyncRefusal)',
+        find: "const decodeRefusal = Schema.decodeUnknownResult(SyncRefusal, { onExcessProperty: 'error' })",
+        replace: 'const decodeRefusal = Schema.decodeUnknownResult(SyncRefusal)',
       },
     ],
     tests: replicaTests,
@@ -102,7 +102,7 @@ export default [
     edits: [
       {
         file: refusal,
-        find: 'const Words = Schema.String.check(Schema.isMaxLength(500))',
+        find: 'const Words = Schema.String.check(Schema.isMaxLength(WORDS))',
         replace: 'const Words = Schema.String',
       },
     ],
@@ -118,5 +118,32 @@ export default [
       },
     ],
     tests: replicaTests,
+  },
+  {
+    name: 'two refusals for one operation are taken',
+    edits: [{ file: replica, find: 'if (refusing.has(opId))', replace: 'if (false)' }],
+    tests: replicaTests,
+  },
+  {
+    name: 'a long reason is sent whole',
+    edits: [
+      {
+        file: journal,
+        find: 'const fitted = reason === undefined ? undefined : fitWords(reason)',
+        replace: 'const fitted = reason',
+      },
+    ],
+    tests: exchangeTests,
+  },
+  {
+    name: 'words are cut inside a surrogate pair',
+    edits: [
+      {
+        file: refusal,
+        find: 'const cut = end >= 0xd800 && end <= 0xdbff ? WORDS - 2 : WORDS - 1',
+        replace: 'const cut = WORDS - 1',
+      },
+    ],
+    tests: ['packages/sync/test/refusal.test.ts'],
   },
 ]

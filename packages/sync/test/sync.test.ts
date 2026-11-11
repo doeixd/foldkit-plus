@@ -650,7 +650,7 @@ describe('the replica', () => {
       rejected: [{ opId: 'a:1', refusal: Option.none() }],
     })
     expect(collected.reported).toEqual([
-      expect.objectContaining({ _tag: 'UnknownRefusal', opId: 'a:1', refusal }),
+      expect.objectContaining({ _tag: 'UnknownRefusal', opId: 'a:1', issue: expect.any(String) }),
     ])
   })
 
@@ -666,6 +666,24 @@ describe('the replica', () => {
         }),
       }),
     ).rejects.toThrow('did not reject')
+    expect((await status(replica)).pending).toBe(1)
+  })
+
+  it('fails an exchange that gives two refusals for one operation', async () => {
+    const replica = await open('a')
+    await submit(replica, created('t'))
+    await expect(
+      sync(replica, {
+        exchange: async () => ({
+          operations: [],
+          rejected: ['a:1'],
+          refusals: [
+            { opId: 'a:1', refusal: { _tag: 'Forbidden' } },
+            { opId: 'a:1', refusal: { _tag: 'Forbidden', reason: 'No' } },
+          ],
+        }),
+      }),
+    ).rejects.toThrow('two refusals')
     expect((await status(replica)).pending).toBe(1)
   })
 

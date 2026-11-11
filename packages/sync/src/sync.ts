@@ -6,6 +6,7 @@ import {
   PubSub,
   Queue,
   Ref,
+  Result,
   Schema,
   Stream,
   SynchronizedRef,
@@ -37,7 +38,7 @@ import {
 import { Transport, TransportError } from './transport.js'
 import { Diagnostics } from 'foldkit-surface'
 import { exchangeFailed, historyRebuilt, unknownRefusal } from './diagnostics.js'
-import { SyncRefusal } from './refusal.js'
+import { fitWords, SyncRefusal } from './refusal.js'
 
 /** Wire and persisted-format versions. A bump must handle the older value explicitly. */
 const PROTOCOL_VERSION = 1
@@ -67,7 +68,7 @@ export type CommittedOperation = typeof CommittedSchema.Type
 
 const decodeOperation = Schema.decodeUnknownSync(OperationSchema, { onExcessProperty: 'error' })
 const decodeCommitted = Schema.decodeUnknownSync(CommittedSchema, { onExcessProperty: 'error' })
-const decodeRefusal = Schema.decodeUnknownOption(SyncRefusal, { onExcessProperty: 'error' })
+const decodeRefusal = Schema.decodeUnknownResult(SyncRefusal, { onExcessProperty: 'error' })
 
 /**
  * How many committed-operation ids a replica retains for duplicate detection.
@@ -103,7 +104,9 @@ export interface Exchange<Shared> {
    * Why some of `rejected` were refused, each an encoded `SyncRefusal`. One
    * without a refusal is still rejected.
    */
-  readonly refusals?: ReadonlyArray<{ readonly opId: OpId; readonly refusal: unknown }> | undefined
+  readonly refusals?:
+    | ReadonlyArray<{ readonly opId: OpId; readonly refusal: typeof SyncRefusal.Encoded }>
+    | undefined
   /**
    * @deprecated Send `refusals`; removed in the next release. Words the server
    * chose for a person, for some of `rejected`.
@@ -831,6 +834,16 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
                   opId,
                   message: 'Server gave a reason for an operation it did not reject',
                 })
+            // One each, so there are no more to decode than operations it rejected.
+            const refusing = new Set<string>()
+            for (const { opId } of response.refusals ?? []) {
+              if (refusing.has(opId))
+                return yield* new ForeignRejectionError({
+                  opId,
+                  message: 'Server gave two refusals for one operation',
+                })
+              refusing.add(opId)
+            }
             let applied = 0
             for (const raw of response.operations) {
               const { committed: operation, message } = yield* Effect.try({
@@ -893,8 +906,11 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
           const refusalOf = new Map<string, SyncRefusal>()
           for (const { opId, refusal } of response.refusals ?? []) {
             const decoded = decodeRefusal(refusal)
-            if (Option.isSome(decoded)) refusalOf.set(opId, decoded.value)
-            else yield* Diagnostics.report(unknownRefusal(documentId, replicaId, opId, refusal))
+            if (Result.isSuccess(decoded)) refusalOf.set(opId, decoded.success)
+            else
+              yield* Diagnostics.report(
+                unknownRefusal(documentId, replicaId, opId, fitWords(decoded.failure.message)),
+              )
           }
           // Every rejected id was sent: an unknown one failed the exchange above.
           const sentOf = new Map(

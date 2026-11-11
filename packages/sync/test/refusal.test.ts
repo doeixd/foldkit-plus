@@ -6,6 +6,7 @@ import { Option, Schema } from 'effect'
 import { Refusal } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
 import { SyncRefusal } from '../src/index.js'
+import { fitWords } from '../src/refusal.js'
 
 const invalid = SyncRefusal.Invalid({
   entity: Option.some('Todo'),
@@ -38,5 +39,15 @@ describe('SyncRefusal', () => {
     expect(Schema.decodeUnknownSync(SyncRefusal)({ _tag: 'Forbidden' })).toEqual(
       SyncRefusal.Forbidden({ reason: Option.none() }),
     )
+  })
+
+  it('cuts words to 500 units, never inside a surrogate pair', () => {
+    expect(fitWords('a'.repeat(500))).toBe('a'.repeat(500))
+    expect(fitWords('a'.repeat(501))).toBe(`${'a'.repeat(499)}…`)
+    // A pair whose first half would be the last unit kept goes whole.
+    const pair = String.fromCodePoint(0x1f600)
+    const words = `${'a'.repeat(498)}${pair}${'b'.repeat(10)}`
+    expect(fitWords(words)).toBe(`${'a'.repeat(498)}…`)
+    expect(fitWords(words)).toHaveLength(499)
   })
 })
