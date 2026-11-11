@@ -484,7 +484,9 @@ const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
 
 `submitWaits: false` refuses a submit made while a check runs instead of
 holding it for the answer (the default); `canSubmit` is then false until the
-checks answer.
+checks answer. A checked key that has never been checked, as in a form filled
+from an existing record, cannot submit at rest then: the first submit only
+starts its check and is refused, and the reader submits again after the answer.
 
 - A check runs **after** the key's own schema passes, never instead of it, so it
   receives a decoded value: a number, not the text that was typed.

@@ -362,7 +362,10 @@ export interface FormOptions<
    * `true`). `false` refuses it instead: nothing is handed out and nothing
    * waits, the checks go on, and `canSubmit` is `false` until they answer. The
    * refusal is the form's own, decided from the Model, so a submit sent before
-   * the frame that drew the button disabled is refused too.
+   * the frame that drew the button disabled is refused too. A checked key that
+   * has never been checked (a form filled from an existing record) therefore
+   * cannot submit at rest: the first submit only starts its check and is
+   * refused, and the reader submits again after the answer.
    */
   readonly submitWaits?: boolean
   /**

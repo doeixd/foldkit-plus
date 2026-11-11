@@ -21,4 +21,20 @@ export default [
     edits: [{ file, find: 'border-block-end-width:2px;', replace: '' }],
     tests,
   },
+  {
+    name: 'an aria-disabled button lights under the pointer',
+    edits: [
+      {
+        file,
+        find: '[type=reset]):hover:not([aria-disabled=true]){background:',
+        replace: '[type=reset]):hover{background:',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an aria-disabled button is not dimmed',
+    edits: [{ file, find: ',button[aria-disabled=true]){opacity:0.5', replace: '){opacity:0.5' }],
+    tests,
+  },
 ]

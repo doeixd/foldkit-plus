@@ -562,6 +562,9 @@ refused until every check answers makes the form with `submitWaits: false`
 (`Form.make(…, { submitWaits: false })`): `update` then hands out nothing while
 a check runs, and `form.canSubmit`, which `FormView.submodel` reads by default,
 is false until the answers land, so the button reads `aria-disabled` to match.
+A checked key never checked yet (a form filled from an existing record) is
+such a check: the first submit starts it and is refused, and the reader
+submits again after the answer.
 `FormView.submodel`'s `canSubmit` option only chooses when the button is marked
 (`() => true` never marks it, and validates wholly at submit); it cannot make
 a submit be refused or accepted, so the drawn frame is never what decides.
