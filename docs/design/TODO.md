@@ -480,11 +480,10 @@ The [`examples/foldkit/*`](../../examples/README.md#foldkits-own-examples-on-fol
 ports worked around each of these; the example named has the workaround and
 its README the details.
 
-- [ ] **Bundle: union-branch linkage and transition-time initialization.**
-  Document a branch-aware custom `Link.make` for `foldkit-auth`, including
-  initialization on login/logout and inactive-branch lifecycle gates. Standard
-  struct-field conveniences are narrower than Links themselves. Add a branch
-  helper only if a real adopter justifies it. Design review §12.
+- [x] **Bundle: union-branch linkage and transition-time initialization.**
+  Documented in foldkit-bundle's README, "A union Model: a Link per branch"
+  (eecf3e04): a custom `Link.make` over the union, the next branch built in
+  the login/logout transition. No helper until a second adopter.
 - [ ] **Mixins: a class `@foldkit/ui` sets inside a ChildAttribute can be
   styled only by a descendant rule,** not by a Mixin on that element. The
   resolver preserves ChildAttributes by identity on purpose (they are the
