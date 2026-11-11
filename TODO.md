@@ -273,4 +273,7 @@ identity markers, floating-ui), and the Jev reviews (no key here).
   deployed Workers, which needs a deploy and the Cloudflare login.
 - **#413:** our half is done (page 362 to 69 KB, parse5 175 to 41 ms; workerd
   125 to 150 ms warm). The rest waits on foldkit#1657.
-- **#190** (the contract layer): a note of its own, not started.
+- **#190** (the contract layer): Phase 0 items 6 and 7 done 2026-11-11 (the
+  upcasting note, reviewed in three rounds: 0a185be1..13bd41fd; document
+  boundaries in `docs/replication.md`: 71855f3f). Item 5 (Sync rejections as
+  Remote `Refusal`s) is next; Phase 1 waits on foldkit/foldkit#1655.
