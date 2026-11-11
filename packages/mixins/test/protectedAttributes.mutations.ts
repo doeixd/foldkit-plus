@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: resolver,
-        find: "if (tag === 'Attribute' || tag === 'Prop') return normalizeName(key)",
-        replace: "if (tag === 'Prop') return normalizeName(key)",
+        find: "  ['Attribute', (key: string) => key],\n",
+        replace: '',
       },
     ],
     tests,
@@ -22,8 +22,8 @@ export default [
     edits: [
       {
         file: resolver,
-        find: "if (tag === 'Attribute' || tag === 'Prop') return normalizeName(key)",
-        replace: "if (tag === 'Attribute') return normalizeName(key)",
+        find: "  ['Prop', (key: string) => key],\n",
+        replace: '',
       },
     ],
     tests,
@@ -33,8 +33,8 @@ export default [
     edits: [
       {
         file: resolver,
-        find: 'normalizeName(`data-${key}`)',
-        replace: 'normalizeName(key)',
+        find: "['DataAttribute', (key: string) => `data-${key}`]",
+        replace: "['DataAttribute', (key: string) => key]",
       },
     ],
     tests,
@@ -44,7 +44,7 @@ export default [
     edits: [
       {
         file: resolver,
-        find: "if (tag === 'DataAttribute') return normalizeName(`data-${key}`)",
+        find: "  ['DataAttribute', (key: string) => `data-${key}`],\n",
         replace: '',
       },
     ],

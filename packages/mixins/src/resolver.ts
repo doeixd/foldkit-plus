@@ -80,11 +80,19 @@ const attributeNameOf = (tag: string, value: unknown): string => {
       ? (value as { readonly key?: unknown }).key
       : undefined
   if (typeof key !== 'string') return normalizeName(tag)
-  // tag-check: open — the tag may be a child attribute's, from another package.
-  if (tag === 'DataAttribute') return normalizeName(`data-${key}`)
-  if (tag === 'Attribute' || tag === 'Prop') return normalizeName(key)
-  return normalizeName(tag)
+  return normalizeName(Option.getOrElse(namedByKey(tag, key), () => tag))
 }
+
+/** The builders that name their attribute by argument, and the name each sets. */
+const KEYED_BUILDERS: ReadonlyMap<string, (key: string) => string> = new Map([
+  ['DataAttribute', (key: string) => `data-${key}`],
+  ['Attribute', (key: string) => key],
+  ['Prop', (key: string) => key],
+])
+
+// The tag is open: it may be a child attribute's, from another package.
+const namedByKey = (tag: string, key: string): Option.Option<string> =>
+  Option.map(Option.fromNullishOr(KEYED_BUILDERS.get(tag)), name => name(key))
 
 /** `OnCustomEvent` names its event by argument and `OnMount` is composed, not one native event. */
 const NOT_NATIVE_EVENT: ReadonlySet<string> = new Set(['OnMount', 'OnCustomEvent'])
