@@ -269,6 +269,11 @@ says otherwise, so it shows only what is published.
   do that for themselves (`listing` in `app.ts` and `pageApp.ts`).
 - `http.ts` keeps time: the CMS owns no timer, so the host asks what is due every
   five seconds. Schedule something a minute out and watch it go.
+- **The schedule box belongs to the post it was typed for**: the Model keeps the
+  text with that post's id (`scheduleDraft`, read through `scheduleText` in
+  `app.ts`), so opening another post shows an empty box and one press of
+  Schedule cannot schedule it with the first post's time. Opening the same post
+  again, or an address that names the post already shown, keeps the draft.
 - **The schedule box empties when its schedule is taken**: in the Message that
   moves the editor from Scheduling to Scheduled, and only while the box still
   names the time asked (`clearedWhenScheduled` in `app.ts`). Judged on every

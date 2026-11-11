@@ -24,6 +24,7 @@ import {
   history,
   initial,
   postPage,
+  scheduleText,
   update,
   type Model,
 } from '../src/apps/app.js'
@@ -217,7 +218,7 @@ describe('the schedule box', () => {
         await harness.send(await Effect.runPromise(command.effect.pipe(Effect.provide(client))))
       }
     }
-    const box = () => harness.model().scheduleAt
+    const box = () => scheduleText(harness.model())
     const status = () => PostEditor.status(harness.model())
     return { harness, look, hold, answer, box, status }
   }
@@ -286,5 +287,61 @@ describe('the schedule box', () => {
     await harness.send(Message.TypedSchedule({ text: soon }))
     await look()
     expect(box()).toBe(soon)
+  })
+
+  /** A post of its own, started through the Message that opens a new one. */
+  const startPost = async ({ harness, look }: Awaited<ReturnType<typeof ready>>, entry: string) => {
+    await harness.send(Message.StartedPost({ entry }))
+    for (const [key, value] of [
+      ['title', entry],
+      ['body', 'Soon.'],
+    ] as const) {
+      await harness.send(
+        Message.GotEditorMessage({ message: PostForm.Message.Changed({ key, value }) }),
+      )
+    }
+    await look()
+  }
+
+  it('is empty for another post, so Schedule there asks for no time', async () => {
+    const post = await ready()
+    const { harness, box } = post
+    await harness.send(Message.TypedSchedule({ text: soon }))
+    expect(box()).toBe(soon)
+    await startPost(post, 'entry-other')
+    expect(box()).toBe('')
+    const drawn = Inert.draw(Studio, harness.model())
+    expect(Inert.value(button(drawn, 'schedule'), 'disabled')).toBe(true)
+  })
+
+  it('keeps the draft when the same post is opened again', async () => {
+    const { harness, box } = await ready()
+    await harness.send(Message.TypedSchedule({ text: soon }))
+    await harness.send(Message.OpenedEntry({ entry: 'entry-later' }))
+    expect(box()).toBe(soon)
+    await harness.send(
+      Message.UrlChanged({
+        url: {
+          protocol: 'http:',
+          host: 'studio',
+          port: Option.none(),
+          pathname: '/',
+          search: Option.some('post=entry-later'),
+          hash: Option.none(),
+        },
+      }),
+    )
+    expect(box()).toBe(soon)
+  })
+
+  it('is not emptied or overwritten by a schedule answered after switching posts', async () => {
+    const post = await ready()
+    const { harness, hold, answer, box } = post
+    await harness.send(Message.TypedSchedule({ text: soon }))
+    const asked = hold(schedule())
+    await startPost(post, 'entry-other')
+    await harness.send(Message.TypedSchedule({ text: later }))
+    await answer(asked)
+    expect(box()).toBe(later)
   })
 })

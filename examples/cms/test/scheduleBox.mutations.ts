@@ -9,7 +9,11 @@ export default [
   {
     name: 'the box never empties',
     edits: [
-      { file: app, find: "? modifyFields(after, { scheduleAt: () => '' })", replace: '? after' },
+      {
+        file: app,
+        find: "? modifyFields(after, { scheduleDraft: () => ({ entry: Option.none(), text: '' }) })",
+        replace: '? after',
+      },
     ],
     tests,
   },
@@ -18,7 +22,7 @@ export default [
     edits: [
       {
         file: app,
-        find: "PostEditor.status(after) === 'Scheduled' &&\n  scheduleInstant(after.scheduleAt) === after.editor.scheduleAt",
+        find: "PostEditor.status(after) === 'Scheduled' &&\n  scheduleInstant(scheduleText(after)) === after.editor.scheduleAt",
         replace: "PostEditor.status(after) === 'Scheduled'",
       },
     ],
@@ -35,7 +39,7 @@ export default [
       { file: app, find: "PostEditor.status(before) === 'Scheduling' &&\n", replace: '' },
       {
         file: app,
-        find: "PostEditor.status(after) === 'Scheduled' &&\n  scheduleInstant(after.scheduleAt) === after.editor.scheduleAt",
+        find: "PostEditor.status(after) === 'Scheduled' &&\n  scheduleInstant(scheduleText(after)) === after.editor.scheduleAt",
         replace: "PostEditor.status(after) === 'Scheduled'",
       },
     ],
@@ -59,6 +63,28 @@ export default [
         file: app,
         find: "return Number.isNaN(at.getTime()) ? '' : at.toISOString()",
         replace: "return Number.isNaN(at.getTime()) ? '' : text",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the box shows the draft of whatever post is open',
+    edits: [
+      {
+        file: app,
+        find: "Equal.equals(model.scheduleDraft.entry, PostEditor.entry(model)) ? model.scheduleDraft.text : ''",
+        replace: 'model.scheduleDraft.text',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a time is typed for no post in particular',
+    edits: [
+      {
+        file: app,
+        find: 'scheduleDraft: () => ({ entry: PostEditor.entry(model), text })',
+        replace: 'scheduleDraft: () => ({ entry: model.scheduleDraft.entry, text })',
       },
     ],
     tests,

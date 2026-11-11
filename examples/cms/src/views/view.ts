@@ -27,6 +27,7 @@ import {
   history,
   postPage,
   scheduleInstant,
+  scheduleText,
   type Model,
 } from '../apps/app.js'
 import { PostForm, type PostPreview } from '../content/domain.js'
@@ -175,7 +176,8 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
   // Publishing submits the form, so while its checks fail the bar's Publish is
   // disabled rather than refusing after the click; the submit stays the enforcer.
   const submittable = PostForm.canSubmit(model.editor.form)
-  const at = new Date(model.scheduleAt)
+  const draft = scheduleText(model)
+  const at = new Date(draft)
   const action = (id: string, label: string, message: Message, enabled = true): Html =>
     h.button(slots.button.attrs([h.Id(id), h.OnClick(message), h.Disabled(!enabled)]), [label])
   // Where the post is read once it is on the site.
@@ -344,7 +346,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
                     slots.search.attrs([
                       h.Id('at'),
                       h.Type('datetime-local'),
-                      h.Value(model.scheduleAt),
+                      h.Value(draft),
                       h.OnInput(text => Message.TypedSchedule({ text })),
                       h.Style({ paddingInlineStart: '0.7rem' }),
                     ]),
@@ -352,13 +354,13 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
                   action(
                     'schedule',
                     'Schedule',
-                    ask(Editor.Message.ScheduleAsked({ at: scheduleInstant(model.scheduleAt) })),
+                    ask(Editor.Message.ScheduleAsked({ at: scheduleInstant(draft) })),
                     !Number.isNaN(at.getTime()),
                   ),
                 ]),
                 // An invalid date is said, not just a disabled button: the box
                 // holds text the schedule cannot use.
-                ...(model.scheduleAt !== '' && Number.isNaN(at.getTime())
+                ...(draft !== '' && Number.isNaN(at.getTime())
                   ? [h.p(slots.muted.attrs(), ['Enter a date and time to schedule it.'])]
                   : []),
               ]

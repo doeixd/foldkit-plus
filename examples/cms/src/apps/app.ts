@@ -79,8 +79,12 @@ const Slot = Bundle.declare(
 export const Model = Schema.Struct({
   remote: Remote.Model,
   ...Slot.fields,
-  /** What the schedule box holds: the text of a `datetime-local` input. */
-  scheduleAt: Schema.String,
+  /**
+   * What the schedule box holds: the text of a `datetime-local` input, and the
+   * entry it was typed for. Read through `scheduleText`, which is empty for any
+   * other entry, so opening another post never shows (or schedules) this one's time.
+   */
+  scheduleDraft: Schema.Struct({ entry: Schema.Option(Schema.String), text: Schema.String }),
   /** What the worklist is narrowed to: its search text, and whether it shows the archive. */
   search: Schema.String,
   archived: Schema.Boolean,
@@ -196,7 +200,11 @@ const placed = placements.update((model, message) => {
     AskedForPost: () => ({ model, commands: [newPost] }),
     StartedPost: ({ entry }) => leaving(EditorSlot.helpers.create(entry)),
     ClosedEditor: () => leaving(EditorSlot.helpers.close()),
-    TypedSchedule: ({ text }) => ({ model: modifyFields(model, { scheduleAt: () => text }) }),
+    TypedSchedule: ({ text }) => ({
+      model: modifyFields(model, {
+        scheduleDraft: () => ({ entry: PostEditor.entry(model), text }),
+      }),
+    }),
     Searched: ({ text }) => ({ model: modifyFields(model, { search: () => text }) }),
     ToggledArchive: () => ({ model: modifyFields(model, { archived: archived => !archived }) }),
     RetriedList: () => ({ model: Worklist.refresh(model) }),
@@ -283,6 +291,10 @@ const begun = (result: ReturnType<typeof stepped>): ReturnType<typeof stepped> =
   return { ...result, model: { ...model, fresh } }
 }
 
+/** What the schedule box shows: its draft while the entry it was typed for is open, else nothing. */
+export const scheduleText = (model: Model): string =>
+  Equal.equals(model.scheduleDraft.entry, PostEditor.entry(model)) ? model.scheduleDraft.text : ''
+
 /** The instant a schedule box's text names, as `ScheduleAsked` takes it: `''` for none. */
 export const scheduleInstant = (text: string): string => {
   const at = new Date(text)
@@ -301,8 +313,8 @@ export const scheduleInstant = (text: string): string => {
 const clearedWhenScheduled = (before: Model, after: Model): Model =>
   PostEditor.status(before) === 'Scheduling' &&
   PostEditor.status(after) === 'Scheduled' &&
-  scheduleInstant(after.scheduleAt) === after.editor.scheduleAt
-    ? modifyFields(after, { scheduleAt: () => '' })
+  scheduleInstant(scheduleText(after)) === after.editor.scheduleAt
+    ? modifyFields(after, { scheduleDraft: () => ({ entry: Option.none(), text: '' }) })
     : after
 
 export const update = (model: Model, message: Message) => {
@@ -312,7 +324,7 @@ export const update = (model: Model, message: Message) => {
 
 export const initial: Model = placements.initial({
   remote: Remote.initial,
-  scheduleAt: '',
+  scheduleDraft: { entry: Option.none(), text: '' },
   search: '',
   archived: false,
   previewAsked: Option.none(),
