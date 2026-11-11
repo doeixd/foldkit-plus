@@ -282,7 +282,9 @@ const TodoHistory = Sync.migrations(Schema.Union([CreatedTodoV1])).next(
 `Sync.define({ migrations, … })` takes it in place of `message`;
 `Sync.forApplication(App).make({ …, migrations })` takes one whose last Schema
 is `App.Message` itself (checked by identity; with no `migrations`, version 1,
-written as before). Each step's input is typed by the version before.
+written as before). Each step's input is typed by the version before, given
+normalized by that version's Schema; a step must be pure (no clock, no random
+id), since the server reads an entry more than once.
 
 - An operation keeps its `messageVersion` (absent for 1) in the outbox and on
   the wire (`WrittenOperation`: `replica.pending`, a rejection's
@@ -291,15 +293,24 @@ written as before). Each step's input is typed by the version before.
   recognizes a pre-deploy retransmission (Durable's codec `compared`).
 - Older, no step reads it: a pending one moves to `status.refused` (kept, with
   its payload, until `replica.dismiss(opId)`; the rest sends); the server
-  rejects one as `Unreadable`; committed history fails every exchange of the
-  document with `UnreadableHistoryError` on the server.
+  rejects one as `Unreadable`; a committed one fails, with
+  `UnreadableHistoryError` on the server, whatever reads it: exchanges from a
+  cursor before it, a retransmission of it, a rebuild from an older snapshot.
+  A replica past it is served; the replica is told no operation id.
 - Newer (a rollback, an old client): `UnsupportedMessageVersionError` refuses
   to open the replica, fails the exchange that receives one (in `lastError`,
   retried; reload the page), and a server fails an exchange carrying one
   before appending, so the client waits. Nothing is removed.
-- Deploy the Sync release everywhere first, then the app's version server
-  first. A server appending its own operation (`editsJournal`'s `absorbed`)
-  writes it with `journalContract().operation.encode`. The shared slice's own
+- Deploy the Sync release everywhere first, or lose edits: an older server
+  rejects an operation carrying `messageVersion`, and an older replica drops
+  one refused as `Unreadable`. Then the app's version, server first. Never
+  clear storage on `InvalidReplicaHistoryError` after rolling Sync back (a
+  state with `refused`): the outbox is in it.
+- A server appending its own operation (`editsJournal`'s `absorbed`) writes
+  it with `journalContract().operation.encode`: the journal takes a branded
+  `WrittenOperation`, so a decoded `Operation` (read as version 1) does not
+  type-check. A custom exchange fails the whole exchange on an entry newer
+  than `codec.messageVersion` before appending, as `journalExchange` does. The shared slice's own
   Schema has no history: changing it is yours.
 
 ## Server: foldkit-durable Journal

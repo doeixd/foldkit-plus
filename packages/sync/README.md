@@ -720,8 +720,12 @@ Version 1 is the first Schema; each `next` adds a version with its Schema and
 a function from the version before, encoded, to its own, encoded. Each step's
 input is typed by the step before, so a step that returns the old shape does
 not compile. Steps are written once and never changed: a later change adds a
-step. The history must end at `App.Message` itself (`make` throws otherwise),
-and with no `migrations` the Message is version 1, written exactly as before.
+step. A step must be pure and deterministic, with no clock and no random id:
+the server reads an entry more than once (`admit`, then the journal), and
+each read must find the same Message. It is given the version before checked
+and normalized by that version's Schema. The history must end at
+`App.Message` itself (`make` throws otherwise), and with no `migrations` the
+Message is version 1, written exactly as before.
 
 What each side does with it:
 
@@ -744,10 +748,16 @@ When something will not read:
   rest of the outbox opens and sends. No Schema of this build reads it, so a
   page shows it raw (`operation.message`, `operation.messageVersion`) or not at
   all. The server rejects one it receives as `Unreadable { version }`, and the
-  replica keeps it in `refused` too. A committed one stops the document:
-  every exchange fails with `UnreadableHistoryError` on the server, and only
-  a build with a step that reads it recovers it. Other documents are not
-  affected.
+  replica keeps it in `refused` too. A committed one fails what has to read
+  it, with `UnreadableHistoryError` on the server: every exchange of a
+  replica whose cursor is before it (what that replica sends still commits,
+  and is acknowledged once a build reads the row), a retransmission of its
+  id, and, while the row is after the journal's stored snapshot, an append
+  or load that rebuilds the document from that snapshot. A replica past the
+  row is served, and other documents are not affected. Only a build with a
+  step that reads it recovers it. The replica is told only "This server
+  cannot read the history of this document"; the operation's id and
+  version stay on the error, for the server's logs.
 - **A newer version** (a rollback, or an old client): the replica refuses to
   open on one in its outbox (`UnsupportedMessageVersionError`, nothing
   removed), and an exchange that receives one fails with it, recorded in
@@ -757,15 +767,27 @@ When something will not read:
   waits with its edits rather than losing them.
 
 Deploy order: the release of Sync that reads `messageVersion` goes to every
-server and client first (an older server refuses an operation that carries
-it). Then deploy an application's new version server first. A client on the
+server and client first, and skipping that step **loses edits**. A server on
+an older release rejects an operation carrying `messageVersion` as `Invalid`,
+and the replica drops it; a replica on an older release that is sent an
+`Unreadable` refusal drops that operation too, since it keeps no `refused`
+list. Then deploy an application's new version server first. A client on the
 old version keeps syncing until the first operation of the new version
 commits, then fails its exchanges until it reloads; its outbox is kept and
 sent after the reload.
 
+A rollback of the Sync release itself meets a replica state holding
+`refused`, which an older release refuses to open
+(`InvalidReplicaHistoryError`). Do not clear storage on that error: the
+outbox is in the same state, and clearing it loses every unsent edit.
+Roll forward instead.
+
 A server that builds an operation itself and appends it (`editsJournal`'s
 `absorbed`) writes it at the current version:
-`Notes.journalContract().operation.encode(operation)`. Changing the shared
+`Notes.journalContract().operation.encode(operation)`. The journal takes a
+`WrittenOperation`, which is branded so that only Sync makes one: a decoded
+`Operation` names no version, would read as version 1, and is refused by the
+type. Changing the shared
 slice's own Schema is not covered: a stored snapshot or checkpoint of the old
 shape still needs a migration of your own.
 
@@ -948,7 +970,10 @@ application come first.
 - **An operation from another build of the application.** An older version no
   step reads lands in `status.refused`, kept until dismissed; a newer one
   refuses to open the replica, or fails the exchange, with
-  `UnsupportedMessageVersionError`, and nothing is removed.
+  `UnsupportedMessageVersionError`, and nothing is removed. Moving an
+  operation to `refused` is the one write an open makes, under the revision
+  it read: if another tab wrote the store meanwhile, the open fails with
+  `StorageError`, and opening again reads both.
 - **The server answers nonsense.** Malformed exchanges, gaps in the committed
   order, acknowledgements or rejections for operations the replica never sent:
   each fails the exchange rather than touch local work.
@@ -1043,7 +1068,13 @@ answer     operations     committed after the cursor, contiguous
 ```
 
 An acknowledged operation leaves the outbox once its committed copy has
-arrived or the last page has been read. A rejected one leaves at once. The
+arrived or the last page has been read. A rejected one leaves at once.
+
+A custom server that reads operations through the codec, or appends them to
+a Durable journal itself, must do what `journalExchange` does with a newer
+`messageVersion` than its own (`codec.messageVersion`): fail the whole
+exchange before appending anything. Durable alone sees such an entry as an
+`InvalidOperationError`, and rejecting it by id loses the edit. The
 replica validates every field; see [when things go wrong](#when-things-go-wrong).
 
 ### Transports

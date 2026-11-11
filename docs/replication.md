@@ -531,15 +531,25 @@ What will not read:
 | --- | --- | --- |
 | A device's outbox | the replica refuses to open, `UnsupportedMessageVersionError`; nothing is removed | moved to `status.refused` with its payload, never sent, until dismissed; the rest sends |
 | An operation a server receives | the exchange fails before anything is appended: the client waits | rejected as `Unreadable { version }`; the replica keeps it in `refused` |
-| The journal's committed history | the document is not served: `UnreadableHistoryError` | the same: committed history is every replica's base |
+| The journal's committed history | `UnreadableHistoryError` wherever the row is read: every exchange of a replica whose cursor is before it, a retransmission of its id, and an append or load that rebuilds from a snapshot older than it; a replica past it is served | the same |
 | A committed operation a replica receives | its exchanges fail with `UnsupportedMessageVersionError` until it reloads | `InvalidReplicaHistoryError`: client and server disagree on a step |
 
 So deploy in this order: the Sync release that reads `messageVersion`
-everywhere first; then the application's new version, server first. A client
+everywhere first; then the application's new version, server first. The
+first step is not optional: a server on an older release rejects an
+operation carrying `messageVersion`, and a replica on an older release drops
+an operation refused as `Unreadable`, and both lose that edit. A client
 still on the old version syncs until an operation of the new version commits,
 then fails its exchanges until it reloads, keeping its outbox. A rollback
 meets versions it lacks and refuses them, typed, deleting nothing; rolling
-forward reads them again.
+forward reads them again. A rollback of the Sync release itself cannot open
+a replica state holding `refused` (`InvalidReplicaHistoryError`): never clear
+storage on that error, since the outbox is in the same state.
+
+A step must be pure and deterministic: the server reads an entry more than
+once, and each read must find the same Message. A server that builds an
+operation itself writes it with `journalContract().operation.encode`; the
+journal's input type, `WrittenOperation`, refuses a decoded `Operation`.
 
 The history covers durable Messages, not the shared slice: a change to the
 slice's own Schema still breaks a stored snapshot or checkpoint.
