@@ -54,6 +54,12 @@ beforeAll(async () => {
   })
   browser = await chromium.launch()
   context = await browser.newContext()
+  // The dev server transforms and pre-bundles on the first load, which can take
+  // longer than a test waits for the runtime: load once so no test is the first.
+  const warm = await context.newPage()
+  await warm.goto(origin)
+  await booted(warm)
+  await warm.close()
 })
 
 afterAll(async () => {
@@ -72,6 +78,12 @@ const who = (page: Page) => page.locator('#who').textContent({ timeout: 120_000 
 const listed = (page: Page) => page.locator('#notes li').allTextContents()
 // The server's word on the row, drawn as a badge.
 const admin = (page: Page) => page.getByText('Admin', { exact: true }).count()
+/**
+ * `expect.poll` gives a second; a press or typing on a page the runtime has
+ * not started yet is answered when it does, which the dev server can take
+ * longer than that to serve.
+ */
+const poll = <T>(read: () => T | Promise<T>) => expect.poll(read, { timeout: 30_000 })
 const pathOf = (page: Page) => new URL(page.url()).pathname
 const titlesBy = (author: string) =>
   notes.filter(note => note.authorId === author).map(note => `${note.title} (${note.authorId})`)
@@ -114,26 +126,30 @@ const signIn = async (page: Page, subjectId: 'ada' | 'grace') => {
 }
 
 /**
- * Presses the button `name` until `done`. The server's page shows its
- * buttons before the runtime has taken the page over, and a press then does
- * nothing, so the page reading "Signed in as grace" is no sign that a press
- * will be heard; one that takes effect is. Pressed again only after a pause
- * longer than a sign-out needs, so a press that was heard is not repeated.
+ * Holds the entry that boots the runtime until the returned `release`, so the
+ * page stays as the server drew it. The loader's dynamic import of it does not
+ * delay the load event, so `goto` returns with the served page and nothing booted.
  */
-const pressUntil = (page: Page, name: string, done: () => Promise<boolean>) =>
-  expect
-    .poll(
-      async () => {
-        if (await done()) return true
-        await page
-          .getByRole('button', { name })
-          .click({ timeout: 1_000 })
-          .catch(() => undefined)
-        return false
-      },
-      { interval: 2_000, timeout: 60_000 },
-    )
-    .toBe(true)
+const holdEntry = async (page: Page) => {
+  let release = (): void => undefined
+  const held = new Promise<void>(resolve => {
+    release = resolve
+  })
+  await page.route('**/src/client.ts*', async route => {
+    await held
+    await route.continue()
+  })
+  return release
+}
+/** The runtime has taken the served page over: its root has lost the resume envelope. */
+const booted = (page: Page) =>
+  page.waitForFunction(
+    () => document.querySelector('[data-foldkit-plus-resume]') === null,
+    undefined,
+    {
+      timeout: 120_000,
+    },
+  )
 const isVisitor = (page: Page) => async () => (await who(page)) === 'Visitor'
 
 /** Signs this context out, whatever the test before left. */
@@ -141,7 +157,8 @@ const signedOut = async () => {
   const page = await open([])
   await expect.poll(() => who(page), { timeout: 120_000 }).not.toBe('Checking who you are…')
   if ((await who(page))?.startsWith('Signed in as') === true) {
-    await pressUntil(page, 'Sign out', isVisitor(page))
+    await page.getByRole('button', { name: 'Sign out' }).click()
+    await poll(isVisitor(page)).toBe(true)
   }
   await page.close()
 }
@@ -162,11 +179,11 @@ test('a visitor asking for the notes is sent home by the server, and a sign-in g
   expect(imported).toEqual([])
   // Typing an email starts loading it, before the sign-in is pressed.
   await page.getByLabel('Email').fill('a')
-  await expect.poll(() => imported.length).toBe(1)
+  await poll(() => imported.length).toBe(1)
 
   await signIn(page, 'ada')
-  await expect.poll(() => pathOf(page)).toBe('/notes')
-  await expect.poll(() => listed(page)).toEqual(everyTitle)
+  await poll(() => pathOf(page)).toBe('/notes')
+  await poll(() => listed(page)).toEqual(everyTitle)
   expect(imported).toHaveLength(1)
   expect(errors).toEqual([])
 })
@@ -182,13 +199,14 @@ test("a reader's notes are in the page the server sends, and a sign-out there re
   expect(served).toContain('Signed in as ada')
   // Resumed with the page: the browser asks for none of it again.
   await expect.poll(() => who(page), { timeout: 120_000 }).toBe('Signed in as ada')
-  await expect.poll(() => listed(page)).toEqual(everyTitle)
+  await poll(() => listed(page)).toEqual(everyTitle)
 
   const entries = await page.evaluate(() => history.length)
-  await pressUntil(page, 'Sign out', async () => pathOf(page) === '/')
+  await page.getByRole('button', { name: 'Sign out' }).click()
+  await poll(() => pathOf(page)).toBe('/')
   expect(new URL(page.url()).search).toBe('?returnTo=%2Fnotes')
   expect(await page.evaluate(() => history.length)).toBe(entries)
-  await expect.poll(() => who(page)).toBe('Visitor')
+  await poll(() => who(page)).toBe('Visitor')
   expect(errors).toEqual([])
 })
 
@@ -203,10 +221,10 @@ test('a sign-out in one tab reaches the other, and a member reads only their not
   // nothing is refused first.
   const asked = operations(first)
   await signIn(first, 'ada')
-  await expect.poll(() => who(first)).toBe('Signed in as ada')
+  await poll(() => who(first)).toBe('Signed in as ada')
   expect(await admin(first)).toBe(1)
   await first.getByRole('link', { name: 'Your notes' }).click()
-  await expect.poll(() => listed(first)).toEqual(everyTitle)
+  await poll(() => listed(first)).toEqual(everyTitle)
   await first.waitForTimeout(500)
   expect(asked).toEqual(['read', 'query'])
 
@@ -214,26 +232,27 @@ test('a sign-out in one tab reaches the other, and a member reads only their not
   const second = await open(errors)
   await expect.poll(() => who(second), { timeout: 60_000 }).toBe('Signed in as ada')
   const refusedFirst = refusals(first)
-  await pressUntil(second, 'Sign out', isVisitor(second))
+  await second.getByRole('button', { name: 'Sign out' }).click()
+  await poll(isVisitor(second)).toBe(true)
 
   // The first tab hears it over the broadcast, with no reload, and leaves the
   // notes. It let go of its belief before reading again, so nothing it asked
   // was refused for naming ada.
-  await expect.poll(() => who(first)).toBe('Visitor')
-  await expect.poll(() => pathOf(first)).toBe('/')
+  await poll(() => who(first)).toBe('Visitor')
+  await poll(() => pathOf(first)).toBe('/')
   expect(await admin(first)).toBe(0)
   expect(refusedFirst).toEqual([])
 
   // Its sign-in goes back to the notes it was sent from.
   await signIn(first, 'grace')
-  await expect.poll(() => who(first)).toBe('Signed in as grace')
-  await expect.poll(() => pathOf(first)).toBe('/notes')
-  await expect.poll(() => listed(first)).toEqual(titlesBy('grace'))
+  await poll(() => who(first)).toBe('Signed in as grace')
+  await poll(() => pathOf(first)).toBe('/notes')
+  await poll(() => listed(first)).toEqual(titlesBy('grace'))
   expect(await admin(first)).toBe(0)
   // And the second tab follows the sign-in too.
-  await expect.poll(() => who(second)).toBe('Signed in as grace')
+  await poll(() => who(second)).toBe('Signed in as grace')
   await second.getByRole('link', { name: 'Your notes' }).click()
-  await expect.poll(() => listed(second)).toEqual(titlesBy('grace'))
+  await poll(() => listed(second)).toEqual(titlesBy('grace'))
   expect(errors).toEqual([])
 })
 
@@ -242,7 +261,7 @@ test('a session the server no longer holds is refused, and a wrong password is t
   const before = await open([])
   await expect.poll(() => who(before), { timeout: 120_000 }).toBe('Visitor')
   await signIn(before, 'ada')
-  await expect.poll(() => who(before)).toBe('Signed in as ada')
+  await poll(() => who(before)).toBe('Signed in as ada')
   await before.close()
   // A restart empties the in-memory store; the browser still holds the cookie.
   const { port } = new URL(server.url)
@@ -251,22 +270,61 @@ test('a session the server no longer holds is refused, and a wrong password is t
 
   const errors: Array<string> = []
   const page = await open(errors)
-  await expect.poll(() => who(page)).toBe('Your session ended. Sign in again.')
+  await poll(() => who(page)).toBe('Your session ended. Sign in again.')
   await page.getByLabel('Email').fill('ada@example.invalid')
   await page.getByLabel('Password', { exact: true }).fill('not her password')
   await page.getByRole('button', { name: 'Sign in' }).click()
-  await expect
+  await poll(
     // The notice, not the line saying who this tab is, which is an alert of its own here.
-    .poll(() => page.getByRole('alert').and(page.locator(':not(#who)')).textContent())
-    .toBe('That email and password do not match.')
+    () => page.getByRole('alert').and(page.locator(':not(#who)')).textContent(),
+  ).toBe('That email and password do not match.')
   // A sign-in reads `Me` once: this tab hears its own broadcast, and neither
   // forgets twice nor is refused for the change it made.
   const asked = operations(page)
   await signIn(page, 'ada')
-  await expect.poll(() => who(page)).toBe('Signed in as ada')
+  await poll(() => who(page)).toBe('Signed in as ada')
   await page.getByRole('link', { name: 'Your notes' }).click()
-  await expect.poll(() => listed(page)).toEqual(everyTitle)
+  await poll(() => listed(page)).toEqual(everyTitle)
   await page.waitForTimeout(500)
   expect(asked).toEqual(['read', 'query'])
+  expect(errors).toEqual([])
+})
+
+test('typing and a submission on the server-drawn page, made before its script runs, are answered once it does', async () => {
+  await signedOut()
+  const errors: Array<string> = []
+  const grace = accounts.find(each => each.subjectId === 'grace')!
+  const page = await context.newPage()
+  page.on('pageerror', error => errors.push(String(error)))
+  const release = await holdEntry(page)
+  await page.goto(origin)
+  await page.getByLabel('Email').fill(grace.email)
+  await page.getByLabel('Password', { exact: true }).fill(grace.password)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  expect(await who(page)).toBe('Visitor')
+  release()
+  await poll(() => who(page)).toBe('Signed in as grace')
+  expect(errors).toEqual([])
+})
+
+test('a single press of Sign out on the server-drawn page, made before its script runs, is answered once it does', async () => {
+  await signedOut()
+  const first = await open([])
+  // Signed in only once the page is up: this test is about the press, not the sign-in.
+  await booted(first)
+  await signIn(first, 'grace')
+  await poll(() => who(first)).toBe('Signed in as grace')
+  await first.close()
+
+  const errors: Array<string> = []
+  const page = await context.newPage()
+  page.on('pageerror', error => errors.push(String(error)))
+  const release = await holdEntry(page)
+  await page.goto(origin)
+  expect(await who(page)).toBe('Signed in as grace')
+  await page.getByRole('button', { name: 'Sign out' }).click()
+  expect(await who(page)).toBe('Signed in as grace')
+  release()
+  await poll(isVisitor(page)).toBe(true)
   expect(errors).toEqual([])
 })

@@ -46,7 +46,8 @@ GET /notes ─> page.ts: Data.satisfy through the reader the host attached
            ─> accessOf(model): Site.accessOf(AppSite, route, Me)
                 Denied({ url })  ─> 303 to /?returnTo=%2Fnotes, nothing rendered
                 Allowed, Pending ─> SSR renders the page from what was read
-browser    ─> SSR.hydrate starts from that Model; update asks accessOf after
+browser    ─> loader.ts holds a press or a submission on the served page;
+              SSR.hydrate starts from that Model, answers what was held; update asks accessOf after
               every Message, and a Denied replaces the address (sign-out on /notes)
 ```
 
@@ -118,8 +119,15 @@ Read the files in this order.
    500. Vite renders in a process of its own, so `entry.server.ts` attaches
    `httpReader`, Remote over HTTP with the cookie, the page's origin and
    the CSRF header.
-6. [`src/view.ts`](src/view.ts) and [`src/client.ts`](src/client.ts). The page,
-   and `SSR.hydrate` with its two services: `Remote.http('/remote')`,
+6. [`src/view.ts`](src/view.ts), [`src/loader.ts`](src/loader.ts) and
+   [`src/client.ts`](src/client.ts). The page is drawn with the resumable
+   builder (`Resume.builder`), so the server's markup names the Message of
+   Sign out, the form's submission and each field (`KeepTyped`). `Session` and
+   `SignInForm` list those Messages, which is what lets a page dispatch them
+   before its runtime starts. `loader.ts` is the entry script: it holds a
+   press until `client.ts` has run, and `SSR.hydrate`, there, answers it once;
+   typing before then is kept by the field itself. `client.ts` is
+   `SSR.hydrate` with its two services: `Remote.http('/remote')`,
    sending Yielded's CSRF header through `belief.fetch`, and Yielded's client
    through `foldkit-bundle`'s `Resource.lazy`. `app.ts` names `AppClient` by
    its type only; [`src/authClient.ts`](src/authClient.ts) builds it, and Vite
@@ -232,8 +240,9 @@ only for an `http:` origin.
 - `e2e/auth.e2e.ts` (`pnpm e2e examples/auth`): two tabs of one Chromium,
   sign-in, sign-out reaching the other tab, a member's notes, the refusal
   after a restart, the host's `303` and a sign-in returning to the notes, a
-  reader's notes in the page before any script runs, and a sign-out on
-  `/notes` replacing the address.
+  reader's notes in the page before any script runs, a sign-out on `/notes`
+  replacing the address, and typing, a submission and a Sign out press made
+  on the served page while `client.ts` is held, each answered once it runs.
 
 ## Limits
 

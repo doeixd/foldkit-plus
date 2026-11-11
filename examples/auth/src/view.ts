@@ -7,10 +7,11 @@
 import { Option } from 'effect'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, type SlotBuilders } from 'foldkit-mixins'
-import { Alert, AppShell, Badge, Button, Card, Input, PasswordInput } from 'foldkit-mixins-ui'
+import { Alert, AppShell, Badge, Button, Card, Input, PasswordInputSlots } from 'foldkit-mixins-ui'
 import { May } from 'foldkit-guard'
 import { Denied, RemoteData, type RemoteError } from 'foldkit-remote'
 import { Access, Site } from 'foldkit-site'
+import { Resume, type ResumableBuilder } from 'foldkit-ssr/client'
 import { Surface } from 'foldkit-surface'
 import {
   AppRoute,
@@ -48,33 +49,65 @@ const failure = (error: RemoteError): string =>
     }),
   })
 
-const signInForm = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =>
+/**
+ * The password field, drawn from `PasswordInput`'s Slots: its `view` takes
+ * closures, and only a Message member lets the server name what typing here
+ * means, which `KeepTyped` replays before the runtime starts.
+ */
+const passwordField = (model: Model, h: ResumableBuilder<Message>): Html => {
+  const builders = SlotView.buildersFor(PasswordInputSlots, [PasswordStyle.mixin], {
+    input: undefined,
+    h,
+  })
+  return h.div(builders.root.attrs(), [
+    h.label(builders.label.attrs([h.For('password-input')]), ['Password']),
+    h.div(builders.group.attrs(), [
+      h.input(
+        builders.input.attrs([
+          h.Id('password-input'),
+          h.Type(model.passwordShown ? 'text' : 'password'),
+          h.Value(model.password),
+          h.Autocomplete('current-password'),
+          // Shown as text, a password must not be checked, corrected or capitalized.
+          h.Spellcheck(false),
+          h.Autocapitalize('off'),
+          h.Attribute('autocorrect', 'off'),
+          h.OnInput(Message.ChangedPassword),
+          h.KeepTyped(),
+        ]),
+      ),
+      h.button(
+        builders.toggle.attrs([
+          h.Type('button'),
+          h.AriaLabel('Show password'),
+          h.AriaPressed(String(model.passwordShown)),
+          h.AriaControls('password-input'),
+          h.OnClick(Message.ToggledPassword()),
+        ]),
+        [],
+      ),
+    ]),
+  ])
+}
+
+const signInForm = (model: Model, slots: Slots, h: ResumableBuilder<Message>): Html =>
   h.form(slots.form.attrs([h.Id('sign-in'), h.OnSubmit(Message.SubmittedSignIn())]), [
     Input.view(
       {
         id: 'email',
         type: 'email',
         value: model.email,
-        onInput: value => Message.ChangedEmail({ value }),
         style: FieldStyle,
-        draw: (resolved, h) =>
-          h.div(slots.field.attrs(), [h.label(resolved.label, ['Email']), h.input(resolved.input)]),
+        draw: resolved =>
+          h.div(slots.field.attrs(), [
+            h.label(resolved.label, ['Email']),
+            // Not `onInput`: that takes a closure, which the page cannot answer before it boots.
+            h.input([...resolved.input, h.OnInput(Message.ChangedEmail), h.KeepTyped()]),
+          ]),
       },
       h,
     ),
-    PasswordInput.view(
-      {
-        id: 'password',
-        label: 'Password',
-        value: model.password,
-        onInput: value => Message.ChangedPassword({ value }),
-        visible: model.passwordShown,
-        onToggle: Message.ToggledPassword(),
-        autocomplete: 'current-password',
-        style: PasswordStyle,
-      },
-      h,
-    ),
+    passwordField(model, h),
     Button.view({ label: 'Sign in', type: 'submit', style: PrimaryButtonStyle }, h),
   ])
 
@@ -90,7 +123,7 @@ const who = (
 const unknown = (slots: Slots, h: HtmlBuilder<Message>, text: string) =>
   h.p(slots.who.attrs([h.Id('who'), h.Role('alert'), h.DataAttribute('failed', '')]), [text])
 
-const session = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> =>
+const session = (model: Model, slots: Slots, h: ResumableBuilder<Message>): ReadonlyArray<Html> =>
   RemoteData.render(Surface.read(Session, model).me, {
     loading: () => [who(slots, h, 'Checking who you are…')],
     notFound: () => [who(slots, h, 'The server did not say who you are.')],
@@ -171,7 +204,10 @@ const page = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArra
     ],
   })
 
-export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
+export const view = (model: Model, base: HtmlBuilder<Message>): Document => {
+  // The server writes each press and keystroke's Message into its markup, so
+  // one made before the runtime starts is answered when it does.
+  const h = Resume.builder(base)
   const slots = SlotView.buildersFor(Page.slots, [Page.style.mixin], { input: undefined, h })
   return {
     title: Site.titleOf(AppSite, model.route) ?? 'Not found',
