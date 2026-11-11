@@ -14,7 +14,7 @@ version changed; `pnpm` skips versions already in the registry.
   variants object, so a completion's `success` constructor was written as
   `CallableTaggedStruct`, which only `foldkit/schema` exports; a project that
   never imported it failed with TS2883 (`examples/todo`). A contract's type now
-  keeps each variant's `name` and `input` alone.
+  keeps each variant's `name`, `input` and completion outcome alone.
 - **`serveFetch` reads a refused POST's body before answering**
   (`foldkit-remote-server`). A call refused early (no principal, another
   path, a body over `maxBodyBytes`, a failed layer) answered with its body
@@ -375,6 +375,21 @@ version changed; `pnpm` skips versions already in the registry.
   again), so a page renders once in `keep` instead of once a minute.
 
 ### Changed
+
+- **A completion's outcome is typed by its contract** (`foldkit-agent`).
+  `dispatch` by Message constructor returned `completion.message` as any
+  Message, so `examples/todo` narrowed its fact with `Schema.is`. Now a
+  `completed` outcome carries the contract's success Message, a `failed` one
+  its failure Message (no `failed` branch when it names none), a state
+  contract's outcome has no `message`, and a capability without a contract has
+  `completion: undefined`; the result's `message` is the dispatched Message.
+  `DispatchResult` and `Agent.Variant` take an `Outcome` parameter, and
+  `MessageOutcome` and `StateOutcome` are exported. Narrower types can break a
+  caller: one that compared a no-failure contract's status with `'failed'`, or
+  read `completion` of a capability without a contract. Inside
+  `Agent.variant`, an `Agent.when` whose `request` annotation disagrees with
+  `input` is now reported at `completion`. Dispatch by name and
+  `dispatchUnknown` keep the wide type.
 
 - **The signature pad's "Sign here" and line follow the reading direction**
   (`foldkit-mixins-ui`). They were placed from the left; under `dir="rtl"` the

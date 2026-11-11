@@ -17,6 +17,7 @@ import { awaitCompletion, awaitState, type CompiledCompletion } from './completi
 import { messageTag } from './tag.js'
 import type {
   AnyMessage,
+  CompletionOutcome,
   DispatchResult,
   Invocation,
   InvocationContext,
@@ -86,6 +87,14 @@ type PrincipalOf<Principal> = unknown extends Principal
 /** A Message constructor, used to name a capability by reference. */
 type MessageConstructorFor<Tag extends string> = (...args: never) => { readonly _tag: Tag }
 
+/** What dispatching a capability returns: its Message, and its contract's outcome. */
+type ResultOf<Capability> = Capability extends {
+  readonly message: infer Message extends AnyMessage
+  readonly completion: infer Outcome extends CompletionOutcome | undefined
+}
+  ? DispatchResult<Message, Outcome>
+  : DispatchResult
+
 /**
  * Names a capability and types its input.
  *
@@ -98,7 +107,7 @@ export interface Dispatch<ByName, ByTag> {
     message: MessageConstructorFor<Tag>,
     input: ByTag[Tag] extends { readonly input: infer Input } ? Input : never,
     invocation?: Partial<Invocation>,
-  ): Effect.Effect<DispatchResult, DispatchError>
+  ): Effect.Effect<ResultOf<ByTag[Tag]>, DispatchError>
 
   <Name extends keyof ByName & string>(
     name: Name,

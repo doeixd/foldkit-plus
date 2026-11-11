@@ -188,8 +188,17 @@ export interface AgentSchema {
   readonly context?: JsonSchemaDocument | undefined
 }
 
-/** The result of a successful validated dispatch. */
-export interface DispatchResult<Message extends AnyMessage = AnyMessage> {
+/**
+ * The result of a successful validated dispatch.
+ *
+ * Dispatched by Message constructor, `Message` is that capability's Message and
+ * `Outcome` its contract's: a success Message is `completed`, a failure one
+ * `failed`, and a capability with no contract has no outcome.
+ */
+export interface DispatchResult<
+  Message extends AnyMessage = AnyMessage,
+  Outcome extends CompletionOutcome | undefined = CompletionOutcome | undefined,
+> {
   readonly name: string
   readonly tag: string
   /** The Message that was dispatched into the Foldkit Runtime. */
@@ -199,12 +208,21 @@ export interface DispatchResult<Message extends AnyMessage = AnyMessage> {
    * How the operation finished, when the capability declares a completion
    * contract. Absent otherwise: validated dispatch is then the boundary.
    */
-  readonly completion?: CompletionOutcome | undefined
+  readonly completion?: Outcome
 }
+
+/**
+ * How a Message contract finished: `completed` with one of its success
+ * Messages, or `failed` with one of its failure Messages, when it names any.
+ */
+export type MessageOutcome<Success extends AnyMessage, Failure extends AnyMessage = never> =
+  | { readonly status: 'completed'; readonly message: Success }
+  | ([Failure] extends [never] ? never : { readonly status: 'failed'; readonly message: Failure })
+
+/** How a state contract finished: the state holds. It has no Message and cannot fail. */
+export type StateOutcome = { readonly status: 'completed'; readonly message?: undefined }
 
 /** How a dispatched Message finished, once a completion contract is declared. */
 export type CompletionOutcome<Message extends AnyMessage = AnyMessage> =
-  /** A Message contract: the Message that completed or failed the operation. */
-  | { readonly status: 'completed' | 'failed'; readonly message: Message }
-  /** A state contract: the state holds. It has no Message and cannot fail. */
-  | { readonly status: 'completed'; readonly message?: undefined }
+  | MessageOutcome<Message, Message>
+  | StateOutcome

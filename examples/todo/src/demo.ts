@@ -1,7 +1,7 @@
 import { Agent } from 'foldkit-agent'
 import { AgentWebMcp } from 'foldkit-agent-webmcp'
 import type { ModelContext, RegisterToolOptions, ToolDescriptor } from 'foldkit-agent-webmcp'
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Option } from 'effect'
 import { AppAgent, type Principal, bindAgent } from './agent.js'
 import { Message } from './app.js'
 import { makeStore } from './store.js'
@@ -67,9 +67,9 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   say(`dispatched ${created.tag} as "${created.name}" over ${created.invocation.transport}`)
   const fact = created.completion?.message
   say(
-    Schema.is(Message.SubmittedTodo)(fact)
-      ? `completed by ${fact._tag}: ${fact.id} "${fact.title}"`
-      : 'resolved without its fact',
+    fact === undefined
+      ? 'resolved without its fact'
+      : `completed by ${fact._tag}: ${fact.id} "${fact.title}"`,
   )
   say(
     `todos: ${store

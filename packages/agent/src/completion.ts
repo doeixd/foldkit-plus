@@ -227,8 +227,9 @@ export const awaitCompletion = (options: {
 
     // `settled` is the guard against a second Message; the subscription itself
     // is released by the caller's finalizer, on every exit path.
-    settled = { status, message }
-    settle?.(settled)
+    const outcome: CompletionOutcome = { status, message }
+    settled = outcome
+    settle?.(outcome)
   })
 
   const outcome = Effect.callback<CompletionOutcome>(resume => {

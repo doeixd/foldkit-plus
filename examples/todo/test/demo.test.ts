@@ -1,5 +1,5 @@
 import { Agent } from 'foldkit-agent'
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { AppAgent, bindAgent } from '../src/agent.js'
 import { Message } from '../src/app.js'
@@ -96,8 +96,7 @@ describe('the example contract', () => {
       Effect.all([create, create], { concurrency: 'unbounded' }).pipe(
         Effect.map(calls =>
           calls.map(call => {
-            const fact = call.completion?.message
-            const id = Schema.is(Message.SubmittedTodo)(fact) ? fact.id : undefined
+            const id = call.completion?.message.id
             return { id, listedThen: listed(id) }
           }),
         ),

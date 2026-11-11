@@ -2,7 +2,7 @@
  * Compile-time expectations. This file is type-checked, not executed: every
  * `@ts-expect-error` below must stay an error for the contract to hold.
  */
-import { Option, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Agent } from '../src/index.js'
 import { Projection } from 'foldkit-surface'
@@ -81,15 +81,13 @@ Agent.expose(Message, {
   }),
 })
 
-// A wrong annotation is rejected: it disagrees with `input`, so the variant
-// reports the mismatch where the input is declared and read.
+// A wrong annotation is rejected where it is written: it disagrees with `input`.
 Agent.expose(Message, {
   RequestedDeleteTodo: Agent.variant({
     description: 'Delete a todo',
-    // @ts-expect-error the request annotation says `id`, but the input declares `todoId`.
     input: Schema.Struct({ todoId: Schema.String }),
-    // @ts-expect-error so the input `toMessage` reads has no `todoId`.
     toMessage: input => ({ id: input.todoId }),
+    // @ts-expect-error the request annotation says `id`, but the input declares `todoId`.
     completion: Agent.when({
       projection: TodoList,
       predicate: (_value, request: { readonly id: string }) => request.id === '',
@@ -684,3 +682,76 @@ completing.messages.dispatch('add_todo', { id: 'x' })
 
 // @ts-expect-error the variant's name replaced requested_rename_todo.
 completing.messages.dispatch('requested_rename_todo', { id: 'x' })
+
+// Dispatched by constructor, a completion's outcome is typed by its contract:
+// `completed` carries a success Message, `failed` a failure one.
+const settling = Agent.bind({
+  definition: Agent.make({
+    messages: Agent.expose(Deletion, {
+      RequestedDeleteTodo: {
+        description: 'Delete a todo',
+        completion: { success: Deletion.DeletedTodo, failure: Deletion.FailedDeleteTodo },
+      },
+      DeletedTodo: Agent.variant({
+        description: 'Mark a todo deleted',
+        input: Schema.Struct({ todoId: Schema.String }),
+        toMessage: input => ({ id: input.todoId }),
+        completion: { success: Deletion.DeletedTodo },
+      }),
+      FailedDeleteTodo: Agent.variant({
+        description: 'Fail a deletion',
+        input: Schema.Struct({ todoId: Schema.String }),
+        toMessage: input => ({ id: input.todoId, reason: 'x' }),
+        completion: Agent.when({
+          source: { get: () => 1, subscribe: () => () => {} },
+          predicate: () => true,
+        }),
+      }),
+      Unrelated: 'Count something',
+    }),
+  }),
+  host: { model: () => model, dispatch: () => {}, observe: () => () => {} },
+})
+
+settling.messages.dispatch(Deletion.RequestedDeleteTodo, { id: 'x' }).pipe(
+  Effect.map(result => {
+    result.message.id satisfies string
+    const outcome = result.completion
+    if (outcome?.status === 'completed') {
+      outcome.message.id satisfies string
+      // @ts-expect-error `reason` is on the failure Message, not on DeletedTodo.
+      outcome.message.reason
+    }
+    if (outcome?.status === 'failed') outcome.message.reason satisfies string
+    // @ts-expect-error `count` is on a Message this contract never names.
+    outcome?.message.count
+  }),
+)
+
+// The same through `Agent.variant`, whose contract names no failure.
+settling.messages.dispatch(Deletion.DeletedTodo, { todoId: 'x' }).pipe(
+  Effect.map(result => {
+    result.completion?.message.id satisfies string | undefined
+    // @ts-expect-error `reason` is on FailedDeleteTodo, which this contract never names.
+    result.completion?.message.reason
+    // @ts-expect-error no failure Message is named, so it cannot fail.
+    result.completion?.status === 'failed'
+  }),
+)
+
+// A state contract completes with no Message.
+settling.messages.dispatch(Deletion.FailedDeleteTodo, { todoId: 'x' }).pipe(
+  Effect.map(result => {
+    // @ts-expect-error a state contract carries no Message.
+    result.completion?.message._tag
+  }),
+)
+
+// Without a contract there is no outcome to read.
+settling.messages.dispatch(Deletion.Unrelated, { count: 1 }).pipe(
+  Effect.map(result => {
+    result.completion satisfies undefined
+    // @ts-expect-error a capability with no contract has no outcome.
+    result.completion?.status
+  }),
+)

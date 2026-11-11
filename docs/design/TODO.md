@@ -260,9 +260,6 @@ misinforms, unadopted 0.12 contracts, UX polish, hygiene and docs.
 work wave 0 (correctness) first, then wave 1 (adoptions), then wave 2
 (polish), with package prerequisites as their own slices.
 
-- [ ] **An agent completion's `message` is any Message**, not the success
-  variant, so `examples/todo` narrows it with `Schema.is(Message.SubmittedTodo)`
-  (found with 2e347c4). Type it as the completion's success.
 - [ ] **1. Adoptions:** SSG adopts `staticSite` (built: plugin, sitemap/
   robots, the prepared-posts dependency, canonical, blessed-example note);
   `assembly.runtime` in one real assembly (built); todo agent learns

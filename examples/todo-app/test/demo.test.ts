@@ -1,4 +1,4 @@
-import { Effect, Option, Schema } from 'effect'
+import { Effect } from 'effect'
 import { Agent } from 'foldkit-agent'
 import { describe, expect, it } from 'vitest'
 import { AppAgent, bindAgent } from '../src/agent.js'
@@ -72,15 +72,7 @@ describe('the todo app', () => {
     const add = () =>
       Effect.runPromise(agent.messages.dispatch(Message.RequestedTodo, { title: 'Milk' }))
     const [first, second] = await Promise.all([add(), add()])
-    // Read back through the app's own Messages: the completion knows only it is one.
-    const created = (result: typeof first) =>
-      Option.getOrUndefined(
-        Option.filter(
-          Schema.decodeUnknownOption(Message)(result.completion?.message),
-          (message): message is typeof Message.SubmittedTodo.Type =>
-            message._tag === 'SubmittedTodo',
-        ),
-      )
+    const created = (result: typeof first) => result.completion?.message
     expect(created(first)?.requestId).toBe(first.invocation.id)
     expect(created(second)?.requestId).toBe(second.invocation.id)
     expect(created(first)?.id).not.toBe(created(second)?.id)
