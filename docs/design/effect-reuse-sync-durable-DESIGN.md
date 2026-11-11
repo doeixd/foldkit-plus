@@ -1,6 +1,6 @@
 # Foldkit Plus: Reusing Effect Infrastructure in Sync and Durable
 
-> **Implementation status, checked 2026-09-27:** The decision holds and `foldkit-durable` uses Effect SQL; the prototypes are unbuilt and the four upstream PRs were never submitted. See the
+> **Implementation status, checked 2026-11-11:** The decision holds and `foldkit-durable` uses Effect SQL. §14.1's Durable prototype is built and confirms it (keep SQL); §14.2 and §14.3 are unbuilt, and the four upstream PRs were never submitted. See the
 > [design index](./README.md#where-each-design-stands).
 
 **Status:** design review / upstream integration plan  
@@ -18,10 +18,13 @@
 > but `foldkit-surface`. So the executive decision is not a plan — it is a
 > description of the repository.
 >
-> **§6.3, §10, §11 and §14's prototypes are unbuilt.** Sync has its own socket
+> **§14.1's Durable prototype is built** and keeps the SQL implementation: compaction
+> and D1 need invasive workarounds over EventLog's `Storage` (§14.1's status).
+>
+> **§6.3, §10, §11, §14.2 and §14.3's prototypes are unbuilt.** Sync has its own socket
 > transport (`transport.ts`) rather than Effect RPC, and its own IndexedDB
 > storage (`indexedDb.ts`) rather than Effect's `KeyValueStore`. Both work.
-> §14's acceptance criteria are already written, so the gate here is effort and
+> §14.2 and §14.3's acceptance criteria are already written, so the gate here is effort and
 > priority rather than missing evidence — which makes this the one part of the
 > document that is genuinely waiting on someone to do it.
 >
@@ -1272,6 +1275,55 @@ effect ledger
 ~~~
 
 If any of these require invasive EventLog workarounds, keep the existing Durable SQL implementation.
+
+### Status, 2026-11-11: built against Effect 4.1.1; keep the SQL implementation
+
+The prototype is `packages/durable/test/prototype/eventLogJournal.ts`: the
+append path over `SqlEventLogServerUnencrypted.makeStorage()` (from
+`effect/eventlog`) on the journal's own `SqlClient`, with Foldkit's snapshot
+and cursor in a table beside Effect's. `criteria.test.ts` beside it runs the
+eight criteria against the current journal and the prototype alike, so each
+one is shown to hold for the journal too; `criteria.mutations.ts` breaks each
+in both (14 mutations, all killed). The prototype is kept as that evidence and
+is not exported.
+
+Effect's API, as installed (paths under `node_modules/effect/dist/eventlog/`):
+`Storage` is `EventLogServerUnencrypted.d.ts:191-218` (`entriesAfter`, `write`,
+`changes`, `withTransaction`); the SQL backend is
+`SqlEventLogServerUnencrypted.js`.
+
+| Criterion | Verdict | What it took |
+|---|---|---|
+| same opId + same payload/actor => acknowledgement | small adapter | No point lookup, but `entriesAfter(store, probe, [probe])` returns the entries sharing the probe's id (`SqlEventLogServerUnencrypted.js:296-331`), which is how Effect's own server acknowledges duplicates (`EventLogServerUnencrypted.js:79`). The opId becomes an `EntryId` as the first 16 bytes of its SHA-256 (`EntryId` accepts any bytes, `EventJournal.js:119`) and rides in the entry's `primaryKey`; the payload is a JSON envelope of actor, canonical hash and input. |
+| same opId + different payload/actor => conflict | small adapter | Foldkit compares the envelope's actor and hash, as §4.1 expected. Storage has no say. |
+| concurrent appends => gap-free sequence | native | `write` locks the store row and allocates `next_sequence` (`:248-272`, `:360-397`). Foldkit's cursor, kept in its own table, must equal what `write` returned, which holds inside one transaction. On a pooled dialect, caller-owned transactions can publish out of order (`:42`); every Durable driver is SQLite, so this does not bite today. |
+| append => snapshot + cursor in one transaction | small adapter on SQLite; **invasive on D1** | `withTransaction` joins a caller's transaction (`:222`), so lookup, `write` and the snapshot upsert share one, and a rollback drops the entry and its `afterCommit` publish (`:395`). The memory `Storage` cannot do this: it publishes inside `write` (`EventLogServerUnencrypted.js:525`) and its transaction is a semaphore with no rollback (`:572`). On D1, which Durable supports (`d1: true`), every `write` runs in a transaction and `@effect/sql-d1` dies on one (`D1Client.js:181`), so Storage cannot write at all. |
+| restart => snapshot/history kept | native | Both tables persist; a retry after reopening is still acknowledged. |
+| changes => committed operations in order | native, plus a floor check | `changes` subscribes before it reads the backlog (`:398-414`), which is tighter than the journal's key wake-ups plus `read`. Storage has no bounded read by sequence (`entriesAfter` without a batch orders by entry id, `:332-337`), so the prototype's `read` takes `cursor - after` items from the endless `changes` stream. |
+| compaction => checkpoint semantics | **invasive** | Storage cannot rewrite or delete an entry. The prototype rewrites payloads in `effect_events`, Effect's own table, behind the interface's back; that schema is not a contract. EventLog's compactors (`EventLogServerUnencrypted.d.ts:240-274`) rewrite a backlog as it is served, a different notion. `reset` has the same gap: no store can be dropped. |
+| effect ledger unaffected | native | The ledger is its own table; the test runs the journal's ledger and EventLog's tables in one file across a restart. |
+
+Failures are a further mismatch. Storage turns every `SqlError` into a defect
+(`SqlEventLogServerUnencrypted.js:359`, `:397`, `:414`, `:415`), where the
+journal reports a `JournalError` a caller retries. Adopting it would mean
+catching defects and guessing which were the database's.
+
+Throughput is no argument either way: 2,000 sequential appends to a SQLite
+file, three rounds, ran at 1,164-1,550 per second through the journal and
+918-1,351 through the prototype (one extra lookup and the store-row update
+per append).
+
+**Decision: keep the SQL implementation.** Compaction and D1 need invasive
+workarounds, and §14.1 says to stop there. None of §7's four PRs would change
+that. PR 1 is no longer needed: the batch hint to `entriesAfter` is already
+a lookup in both backends, and a backend that ignores it still returns the entry. PR 2 is not needed: a digest of the opId gives a retry the same
+`EntryId`, though no public string-to-`EntryId` codec exists yet
+(`EventJournal.js:24` imports `internal/uuid.js`). PRs 3 and 4 concern Sync.
+Adoption would take three different upstream changes: a Storage operation that
+redacts an entry's payload by sequence and one that drops a store, typed
+storage errors, and a write path that needs no transaction for D1. Only the
+first is general enough to propose, and it can wait until another user asks
+for it.
 
 ## 14.2 Sync-over-Effect-storage prototype
 
