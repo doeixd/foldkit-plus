@@ -53,7 +53,8 @@ const wallClock = (): number => Date.now()
  */
 const policy: LiveCapability['policy'] = (lists, visible, event, context) => {
   if (event._tag !== 'ConnectionInsert') return undefined
-  return Option.match(lists.queryOf(event.connection), {
+  const query = lists.queryOf(event.connection)
+  return Option.match(query, {
     onNone: () => undefined,
     onSome: ({ descriptor, encoded }) => {
       const declared = (descriptor.Result as Partial<ConnectionSpec> | undefined)?.live

@@ -49,8 +49,8 @@ export default [
     edits: [
       {
         file: optimistic,
-        find: "else if (operation._tag === 'Delete') deletes.push(operation)",
-        replace: "else if (operation._tag === 'Delete') void operation",
+        find: 'Delete: pending => deletes.push(pending),',
+        replace: 'Delete: pending => void pending,',
       },
     ],
     tests,

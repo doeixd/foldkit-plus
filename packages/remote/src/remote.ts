@@ -1260,7 +1260,8 @@ const bindDomain = <
     if (message._tag !== 'LiveReceived') return []
     const event = message.event as LiveEvent
     if (event._tag !== 'EntityPatched') return []
-    return [{ entity: event.ref.entity, id: event.ref.id, values: event.values }]
+    const { ref, values } = event
+    return [{ entity: ref.entity, id: ref.id, values }]
   }
 
   /**
@@ -1878,8 +1879,12 @@ const bindDomain = <
     mutation: (model, requestId) => mutationStatus(store.get(model).mutations, requestId),
     refusal: (model, requestId, mutation) => {
       const status = mutationStatus(store.get(model).mutations, requestId)
-      if (status._tag !== 'Failed') return Option.none()
-      return refusalOf(status.error, mutation)
+      return Match.valueTags(status, {
+        Failed: ({ error }) => refusalOf(error, mutation),
+        Unknown: () => Option.none(),
+        Pending: () => Option.none(),
+        Applied: () => Option.none(),
+      })
     },
     failedWrites: (model: AppModel, mutation?: MutationDescriptor<any, any, any, any>) => {
       if (mutation !== undefined)
@@ -1910,11 +1915,10 @@ const bindDomain = <
       const remote = store.get(model)
       const dismissed = dismissQueued(remote, requestId)
       if (dismissed !== remote) return store.set(model, dismissed as Store)
-      if (mutationStatus(remote.mutations, requestId)._tag !== 'Failed') return model
-      return store.set(model, {
-        ...remote,
-        mutations: forgetFailure(remote.mutations, requestId),
-      } as Store)
+      const status = mutationStatus(remote.mutations, requestId)
+      if (status._tag !== 'Failed') return model
+      const forgotten = { ...remote, mutations: forgetFailure(remote.mutations, requestId) }
+      return store.set(model, forgotten as Store)
     },
     signedIn: model => {
       const remote = store.get(model)

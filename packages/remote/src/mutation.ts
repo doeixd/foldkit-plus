@@ -604,8 +604,11 @@ export const brokenByWrite = (
     ),
     operators,
   )
-  if (judged._tag !== 'Invalid') return Option.none()
-  return Option.fromUndefinedOr(judged.failures[0])
+  return Match.valueTags(judged, {
+    Invalid: ({ failures }) => Option.fromUndefinedOr(failures[0]),
+    Valid: () => Option.none(),
+    Undecided: () => Option.none(),
+  })
 }
 
 /** Each supplied member of `entity` that says which write its value refuses, by key. */

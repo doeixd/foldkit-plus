@@ -67,8 +67,8 @@ export default [
     edits: [
       {
         file: '../src/bodies.ts',
-        find: "Relational.placement(body, encoded, { operators })._tag !== 'Placeable'",
-        replace: 'true',
+        find: "if (placement._tag !== 'Placeable') return []",
+        replace: 'if (true) return []',
       },
     ],
     tests,
@@ -78,8 +78,8 @@ export default [
     edits: [
       {
         file: '../src/bodies.ts',
-        find: "Relational.placement(body, encoded, { operators })._tag !== 'Placeable'",
-        replace: 'false',
+        find: "if (placement._tag !== 'Placeable') return []",
+        replace: 'if (false) return []',
       },
     ],
     tests,

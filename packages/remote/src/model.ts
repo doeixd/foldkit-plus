@@ -1541,10 +1541,8 @@ const withQueued = (
   const at = outbox.queue.findIndex(queued => operationOf(queued) === operation)
   const queued = outbox.queue[at]
   if (queued?._tag !== 'Readable') return outbox
-  return {
-    ...outbox,
-    queue: outbox.queue.map((each, index) => (index === at ? change(queued) : each)),
-  }
+  const queue = outbox.queue.map((each, index) => (index === at ? change(queued) : each))
+  return { ...outbox, queue }
 }
 
 /** The outbox with `operation` settled: out of the queue, and remembered as done. */
@@ -1561,27 +1559,25 @@ const storedAs = (queued: Queued, stored: boolean): Queued =>
   queued.stored === stored ? queued : { ...queued, stored }
 
 /** A stored entry as the queue holds it: in the store, as read. */
-const queuedOf = (entry: ReadEntry): Queued => {
-  if (entry._tag === 'Readable')
-    return Queued.Readable({ write: entry.write, stored: true, attempt: 0, delayed: Option.none() })
-  return Queued.Unreadable({
-    operation: entry.operation,
-    revision: entry.revision,
-    raw: entry.raw,
-    reason: entry.reason,
-    stored: true,
+const queuedOf = (entry: ReadEntry): Queued =>
+  Match.valueTags(entry, {
+    Readable: ({ write }) =>
+      Queued.Readable({ write, stored: true, attempt: 0, delayed: Option.none() }),
+    Unreadable: ({ operation, revision, raw, reason }) =>
+      Queued.Unreadable({ operation, revision, raw, reason, stored: true }),
   })
-}
 
-const entryOperation = (entry: ReadEntry): string => {
-  if (entry._tag === 'Readable') return entry.write.operation
-  return entry.operation
-}
+const entryOperation = (entry: ReadEntry): string =>
+  Match.valueTags(entry, {
+    Readable: ({ write }) => write.operation,
+    Unreadable: ({ operation }) => operation,
+  })
 
-const entryRevision = (entry: ReadEntry): number => {
-  if (entry._tag === 'Readable') return entry.write.revision
-  return entry.revision
-}
+const entryRevision = (entry: ReadEntry): number =>
+  Match.valueTags(entry, {
+    Readable: ({ write }) => write.revision,
+    Unreadable: ({ revision }) => revision,
+  })
 
 /** Whether a stored write's state keeps it in the ledger in flight, its layer shown. */
 const waitingIn = (state: StoredWrite['state']): boolean =>
@@ -2320,14 +2316,13 @@ const reduceRemote = (
         const settled =
           applied.outcome !== 'applied'
             ? []
-            : Match.value(event).pipe(
-                Match.tag('EntityPatched', patched => [
+            : Match.valueTags(event, {
+                EntityPatched: patched => [
                   ...patchedMarks([{ ...patched.ref, values: applied.written }]),
-                ]),
-                Match.orElse(other =>
-                  entityFailureMarks(model.failures, entityKey(other.ref.entity, other.ref.id)),
-                ),
-              )
+                ],
+                EntityDeleted: deleted =>
+                  entityFailureMarks(model.failures, entityKey(deleted.ref.entity, deleted.ref.id)),
+              })
         const next = {
           ...model,
           entities: applied.store,

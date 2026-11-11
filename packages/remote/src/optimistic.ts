@@ -140,9 +140,15 @@ export const beginOptimistic = (
   const deletes: PendingDelete[] = []
   const changes: ConnectionChange[] = []
   for (const operation of operations) {
-    if (isPatch(operation)) patches.push(operation)
-    else if (operation._tag === 'Delete') deletes.push(operation)
-    else changes.push(operation)
+    if (isPatch(operation)) {
+      patches.push(operation)
+      continue
+    }
+    Match.valueTags(operation, {
+      Delete: pending => deletes.push(pending),
+      Insert: change => changes.push(change),
+      Remove: change => changes.push(change),
+    })
   }
   if (patches.length === 0 && deletes.length === 0 && changes.length === 0) return optimistic
   return {

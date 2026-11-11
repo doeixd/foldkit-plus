@@ -154,7 +154,7 @@ export default [
     edits: [
       {
         file: '../src/remote.ts',
-        find: "      if (mutationStatus(remote.mutations, requestId)._tag !== 'Failed') return model\n",
+        find: "      if (status._tag !== 'Failed') return model\n",
         replace: '',
       },
     ],
@@ -165,8 +165,8 @@ export default [
     edits: [
       {
         file: '../src/remote.ts',
-        find: '        mutations: forgetFailure(remote.mutations, requestId),',
-        replace: '        mutations: remote.mutations,',
+        find: 'mutations: forgetFailure(remote.mutations, requestId)',
+        replace: 'mutations: remote.mutations',
       },
     ],
     tests,
