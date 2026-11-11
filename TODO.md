@@ -247,7 +247,10 @@ and Site Phase 0 (no non-landing route alone imports over 2 KB against the
 due (3 to 5 shared lines against 30) with auth and cloudflare moved onto the
 host parts instead, so #235 closes on the parts (cloudflare's per-binding
 auth: 8ed9094; auth on `Host.node`: 2d35f11), and `SSR.unbound` for a
-Slot's attributes in a static region (0887cf3).
+Slot's attributes in a static region (0887cf3), and the tag rules' gaps (else-if chains, the
+if/return pair, negated, loose and bracketed tags) with every dodge the
+review found matched (373215ee..0d6a06b8). `RemoteData.held`, replacing
+three copies of the held-value helper, is being built.
 
 1. **Triage of `docs/design/TODO.md`** for open items buildable now, with
    no upstream gate (the 90 KB page waits on Foldkit's identity markers;
