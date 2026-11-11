@@ -657,32 +657,37 @@ const shown = (all: ReadonlyArray<Job>, filters: JobFilters) =>
 
 - **`filter: true`** reads the kind from `edit.schema`'s decoded side
   (`filterKindOf`): a boolean is a checkbox, a `Date` a range of days, a
-  number a range, text literals a choice of them, anything else text. A
-  column with no schema filters text; a `CellEditor` names the kind for one
-  that does not edit.
+  number a range, text literals or a text enum a choice of them, a number
+  enum a number, anything else text (a branded text, a template literal, a
+  mixed enum). A column with no schema filters text; a `CellEditor` names the
+  kind for one that does not edit.
 - **`ColumnFilter`** is the value, one variant per kind: `Contains`,
   `Range`, `OneOf`, `Is`, `Between`. A filter that keeps every row (empty
   text, no bound, nothing ticked, any) is reported as none, never an empty
   variant. Each column's is typed by its spec (`FilterOf`), so
   `JobGrid.Filters.Type['status']` is `Option<OneOf<'Open' | 'Done'>>`.
 - **`Out.Filtered({ change })`** carries one column's new filter or none;
-  `setFilter` writes it in. It is a new arm of `Out.match`.
+  `setFilter` writes it in. Only a grid with a filtering column has this arm,
+  so a grid that filters nothing matches no `Filtered`.
 - **`keeps(filters, read)`** is a predicate over held rows. `read` names
   each filtering column's own field, typed by its variant, never the text a
   cell shows: `hours: job => job.hours.toFixed(1)` does not compile.
   `Contains` folds ASCII case only, as `Expr.contains` does on every backend;
-  a `Between` compares a `Date` by its local day. Build it once per filters
-  value: the predicate is a function of the filters alone.
+  a `Between` compares a `Date` by its local day, so a server applying the
+  same filter must store or compare local days too to agree with it. Build it
+  once per filters value: the predicate is a function of the filters alone.
 - **`Filters`** is the stored form: `null` for none, and each column only
   its own variant, never empty, a choice only of its literals each once,
-  bounds finite numbers or `YYYY-MM-DD` days. Decode a URL's or a saved
-  view's with `onExcessProperty: 'error'`.
+  bounds finite numbers or `YYYY-MM-DD` days. A key no filtering column has
+  is refused whatever the decode is given, so a URL or a saved view naming a
+  removed column fails to decode rather than being dropped silently.
 - **Over a Remote list,** the application maps its filters onto the
   query's input, and the query's body filters what is given
-  (`Expr.whenGiven(input.min, min => Expr.gte(fields.cents, min))`, and
-  `Expr.in` over a list of every literal when a choice is not filtered: the
-  Drizzle compiler refuses `Expr.in` over a null list even inside
-  `whenGiven`). `examples/registry` filters statuses and prices that way.
+  (`Expr.whenGiven(input.statuses, statuses => Expr.in(fields.status,
+  statuses))`, `Expr.whenGiven(input.min, min => Expr.gte(fields.cents,
+  min))`), with null for a column not filtered. `examples/registry` filters
+  statuses and prices that way, its prices typed in dollars and rounded inward
+  to cents so the server keeps what the range says.
 
 The form's update:
 
@@ -693,15 +698,21 @@ The form's update:
 - **A field's change** (`FilterTyped`, `FilterOptionToggled`,
   `FilterChecked`) is applied to the form as it is now, so keys faster than a
   frame add up. It is reported when the form reads as a valid filter other
-  than the last reported. A bound that is no number is not reported, so the
-  rows stay filtered by the last filter that held; crossed bounds are
-  reported, and keep nothing.
+  than the last reported. A bound that is no number (`1x`, `0x10`, or 309
+  digits, past every finite number) is not reported, so the rows stay
+  filtered by the last filter that held; crossed bounds are reported, and keep
+  nothing.
 - **A filter the application wrote while the form was open** (from a URL, a
-  saved view): the view draws the frame stale, and a change sent from that
-  frame starts over from the written filter, once.
+  saved view): the view draws that frame stale, showing the written filter,
+  and every change it sends (Clear included) carries the form's generation
+  when it was drawn. The first such change seeds the form from the written
+  filter before it applies; the reseed and each report move the generation
+  on, so the frame's later changes add to the first rather than seeding
+  again.
 - **While the form is open,** a paste, a fill, an undo and a redo are
   refused, as during an edit; whatever focuses a cell or opens an edit, the
-  menu or a fill closes the form, and so does hiding its column.
+  menu or a fill closes the form, and so does hiding its column (a column
+  hidden by a write to the Model closes it on the next Message).
 
 ## Limits
 

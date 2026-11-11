@@ -396,15 +396,18 @@ FilterClosed: {},
   the menu or a fill (`Focused`, `Moved`, `CellPressed`, `EditStarted`,
   `EditTyped`, `EditToggled`, `MenuOpened`, `FillStarted`), and
   `ColumnHidden` of its column.
-- **A stale frame.** `Stale` is `Option<{ drawn, reported }>`. The
+- **A stale frame.** `Stale` is `Option<{ drawn, generation }>`. The
   application writes `Out.Filtered` in the same update that reports it, so
   the value it holds differs from `filtering.reported` only after a write
   from outside the form (a URL, a saved view). The view draws such a frame
-  stale: the form as `formOf(drawn)`, and every field change from it carries
-  `{ drawn, reported }`. `update` reseeds the form and `reported` from
-  `drawn` before applying the change, but only while the Model's `reported`
-  is still the frame's: a second key from the same frame then adds to the
-  first rather than starting over. This replaces the rule that the
+  stale: the form as `formOf(drawn)`, and every change from it, Clear
+  included, carries `drawn` and the form's `generation` when the frame was
+  drawn. `update` reseeds the form and `reported` from `drawn` before
+  applying the change only while the Model's generation is still the
+  frame's; a reseed and each report move it on, so the frame's later
+  changes add to the first rather than seeding again. (A first cut compared
+  `reported` values instead: a first change that reported the old value
+  again let the second reseed and lose it.) This replaces the rule that the
   application send `FilterClosed` before such a write.
 - While the form is open, `Pasted`, `FillRequested`, `UndoRequested` and
   `RedoRequested` are refused, as `UndoRequested` already is during an edit.
@@ -689,20 +692,27 @@ The change is additive.
 Built as designed above, in `packages/data-grid/src/{columns,filter,grid}.ts`
 and `packages/mixins-data-grid/src/{view,filterForm,slots,style,headerPress}.ts`,
 with `examples/data-grid` filtering held rows and `examples/registry`
-filtering on the server. What building found:
+filtering on the server. What building and the code review found:
 
 - **`Out.Filtered` carries `{ change }`,** not `{ column, filter }`: a
   `defineTaggedUnion` case is a struct, so the per-column union is one field.
-  Every `Grid.Out.match` gains this arm, grids that do not filter included.
+  `Out` is typed conditionally, as `FiltersInput` is: a grid with no
+  filtering column has no `Filtered` arm to match.
 - **A `GridCrud` spec is an intersection,** and inferring a choice's
   literals against `filter: true` and the schema at once read `unknown`;
   `ChoiceOf` infers in two steps.
-- **`Expr.in` over a null list does not compile in `foldkit-remote-drizzle`,
-  even inside `Expr.whenGiven`:** the compiler compiles every operand of an
-  `or` before deciding it ("asks whether a value is in something that is not
-  a list"). The registry passes every status when the column is not
-  filtered; a bound still uses `whenGiven`. This contradicts `whenGiven`'s
-  documentation ("compiles to true") for `Expr.in` and is worth an issue.
+- **A TypeScript enum** is classified as its type says: text values a
+  choice, numbers a number, mixed text, on both sides, with rows in the
+  table test.
+- **A number as typed must also be finite:** 309 digits match the decimal
+  pattern and read as `Infinity`, which a `Range` refuses, and the update
+  threw.
+- **`Filters` refuses excess keys in the schema** (the keys are checked
+  before the struct, which would drop them whatever the decode is given),
+  and a grid that filters nothing holds nothing, not any object.
+- **`Expr.in` over a null list** did not compile in
+  `foldkit-remote-drizzle` inside `Expr.whenGiven`; it is now unknown there
+  (482c0783), and the registry sends null for a status column not filtered.
 - **`Option.match` over a column's `change.filter`** (a union of Options)
   does not infer; annotate it as `Option<ColumnFilter>` first.
 - **`MoreOnScroll` was typed over `GridInput` exactly,** so the view's input,
@@ -711,10 +721,18 @@ filtering on the server. What building found:
 - **A choice option the column does not offer** needed no guard: the next
   options are the column's own, filtered, so such an option changes
   nothing. The mutation removing the guard survived; the guard is gone.
-- **Two guards are doubled on purpose:** the clipboard box is off while a
-  form is open and the update refuses a paste, fill, undo and redo then.
+- **The clipboard is guarded twice, and both are needed:** the view's
+  clipboard box is off while a form is open, or Ctrl+C and Ctrl+X in a field
+  write the cell's text and Ctrl+V is swallowed; the update refuses a paste,
+  fill, undo and redo then. A browser test sends real clipboard events.
 - **Every header is named by its own words** (`aria-label`), checked in
-  Chrome's accessibility tree; a read-only header's description is still
-  "Read-only".
-- **The data grid example's client grew by 4.0 kB brotli, the registry's
-  by 5.5 kB;** their budgets were raised with the reason beside them.
+  Chrome's accessibility tree; a filtered read-only header says
+  "Read-only, Filtered", since its description replaces the title's.
+- **The registry's price bounds round inward** (ceiling for the lowest,
+  floor for the highest, a whole number of cents kept through floating
+  point) and are held within a safe integer, so the server keeps what the
+  range typed says and a huge price does not overflow the query's `Int`.
+- **Bundle cost.** About 4 kB brotli, paid by every grid, filtering or not:
+  the filter union, its Messages and the form are in the grid's own modules.
+  Paying nothing when no column filters needs the filter parts in an entry
+  of their own, handed to `DataGrid.make`; not built.

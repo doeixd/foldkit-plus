@@ -282,10 +282,11 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   leaving the header; a press on the filter button while it is open stays
   inside and closes it. While a column is filtered its header and button
   carry `data-filtered`, and the header says "Filtered" as its
-  `aria-description`. Every header is named by its own words
+  `aria-description` ("Read-only, Filtered" on a column that does not edit,
+  whose title's description it replaces). Every header is named by its own words
   (`aria-label`), so neither its buttons nor an open form join its name.
-  While the form is open the grid's clipboard handlers are off, so a cut in
-  a field clears no cell. The words are `words.filters`; the Slots are
+  While the form is open the grid's clipboard handlers are off, so copy, cut
+  and paste in its fields are the fields' own. The words are `words.filters`; the Slots are
   `filterButton`, `filter`, `filterLabel`, `filterField`, `filterGroup`,
   `filterCheck`, `filterError` and `filterClear`, styled by `GridStyle`.
   Like the menu, the form is drawn inside the grid's scroll box, so a grid

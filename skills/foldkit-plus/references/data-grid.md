@@ -123,8 +123,8 @@ the whole wiring, compiled.
   `Pasted({ accepted, refused })`, `Filled({ source, to })` (Ctrl/Meta+D or
   R, or the fill handle, whose drag scrolls the grid at its edge; write
   `Grid.fill(rows, model.grid, request).accepted`),
-  `Filtered({ change })` (a column's filter form changed; write it with
-  `Grid.setFilter(filters, change)`),
+  `Filtered({ change })` (only with a filtering column: a column's filter
+  form changed; write it with `Grid.setFilter(filters, change)`),
   `RowsRequested({ from, to })` (a Shift click without `cellSelection`;
   answer with `grid: () => Grid.extendRows(rows, model.grid, request)`),
   or `UndoRequested`/`RedoRequested` (Ctrl/Meta+Z, with Shift or Ctrl+Y; the
@@ -187,10 +187,12 @@ the whole wiring, compiled.
   rows through `Grid.keeps(filters, { column: row => row.field })` (read the
   row's own field, typed by the filter: a range reads a number, not the
   cell's text), memoized per filters value; a Remote list by mapping the
-  filters onto the query's input (`Expr.whenGiven` for a bound, `Expr.in`
-  over every literal when a choice is not filtered). An empty filter is none;
-  a bound that is no number is not reported. A Scene test resolves the open
-  form with `resolveOpened(Grid, { wrap, opened: 'filter' })`.
+  filters onto the query's input (`Expr.whenGiven` over a nullable input,
+  null for a column not filtered). An empty filter is none; a bound that is
+  no number is not reported. `Filtered` is an arm of `Grid.Out.match` only
+  on a grid with a filtering column. `Grid.Filters` refuses a key no
+  filtering column has. A Scene test resolves the open form with
+  `resolveOpened(Grid, { wrap, opened: 'filter' })`.
 
   ```ts
   import { Schema } from 'effect'
