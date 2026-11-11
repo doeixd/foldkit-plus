@@ -112,6 +112,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Input.view` and `PasswordInput.view` can be drawn resumably**
+  (`foldkit-mixins-ui`). Their `onInput` also takes the `OnInput` attribute
+  the view's builder makes, so `foldkit-ssr`'s resumable builder can name a
+  Message member there (`onInput: rh.OnInput(Message.ChangedEmail)`), which a
+  closure cannot be. `PasswordInput.view` takes `attributes` per Slot, added
+  before the mixins resolve, for `{ input: [rh.KeepTyped()] }`; `Input.view`
+  keeps a field in its `draw`.
+
 - **`RemoteData.held`** (`foldkit-remote`): the value a read holds, as an
   `Option`: `Ready`'s, `Refreshing`'s, or a failed refresh's `previous`.
   `foldkit-cms`'s editor reads through it, so it now also takes a failed

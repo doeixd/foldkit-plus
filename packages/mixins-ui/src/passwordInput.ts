@@ -1,6 +1,16 @@
 import { Option } from 'effect'
-import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import {
+  Attr,
+  Capability,
+  Event,
+  Slot,
+  Slots,
+  SlotView,
+  type NamedStyle,
+  type SlotAttributes,
+} from 'foldkit-mixins'
 import type { Html, HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
+import { onInputOf, type OnInput } from './field.js'
 import * as Meter from './meter.js'
 import type { MixinList } from './resolve.js'
 
@@ -59,8 +69,12 @@ export interface PasswordInputView<Message> {
   readonly id: string
   readonly label: string
   readonly value: string
-  /** The Message for the text typed; its type comes from `h`. */
-  readonly onInput: (value: string) => NoInfer<Message>
+  /**
+   * The Message for the text typed; its type comes from `h`. A resumable
+   * builder's `OnInput` attribute (`rh.OnInput(Message.ChangedPassword)`)
+   * names it in the server's markup.
+   */
+  readonly onInput: OnInput<NoInfer<Message>>
   /** Whether the password shows as text. */
   readonly visible: boolean
   readonly onToggle: NoInfer<Message>
@@ -94,6 +108,13 @@ export interface PasswordInputView<Message> {
   readonly style?: NamedStyle<typeof PasswordInputSlots> | undefined
   /** Mixins beside the style. */
   readonly mixins?: MixinList<Message> | undefined
+  /**
+   * Attributes added to a Slot before the mixins resolve, such as a
+   * resumable builder's `KeepTyped` on the `input`.
+   */
+  readonly attributes?:
+    | { readonly [K in keyof typeof PasswordInputSlots]?: SlotAttributes<NoInfer<Message>> }
+    | undefined
 }
 
 export const view = <Message>(
@@ -105,6 +126,8 @@ export const view = <Message>(
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
     { input: undefined, h },
   )
+  const attrs = (slot: keyof typeof PasswordInputSlots, base: SlotAttributes<Message> = []) =>
+    builders[slot].attrs([...base, ...(options.attributes?.[slot] ?? [])])
   const disabled = options.disabled === true
   const inputId = `${options.id}-input`
   const descriptionId = `${options.id}-description`
@@ -118,11 +141,11 @@ export const view = <Message>(
     ...(capsOn ? [capsLockId] : []),
   ]
   const states = options.requirementStates ?? { met: 'met', unmet: 'not met' }
-  return h.div(builders.root.attrs(), [
-    h.label(builders.label.attrs([h.For(inputId)]), [options.label]),
-    h.div(builders.group.attrs(), [
+  return h.div(attrs('root'), [
+    h.label(attrs('label', [h.For(inputId)]), [options.label]),
+    h.div(attrs('group'), [
       h.input(
-        builders.input.attrs([
+        attrs('input', [
           h.Id(inputId),
           h.Type(options.visible ? 'text' : 'password'),
           h.Value(options.value),
@@ -137,7 +160,7 @@ export const view = <Message>(
           ...(disabled
             ? [h.Disabled(true)]
             : [
-                h.OnInput(options.onInput),
+                onInputOf(h, options.onInput),
                 ...(capsLock === undefined
                   ? []
                   : [h.OnKeyDown((key, modifiers) => capsLock.onKey(capsLockOf(key, modifiers)))]),
@@ -145,7 +168,7 @@ export const view = <Message>(
         ]),
       ),
       h.button(
-        builders.toggle.attrs([
+        attrs('toggle', [
           h.Type('button'),
           h.AriaLabel(options.toggleLabel ?? 'Show password'),
           h.AriaPressed(String(options.visible)),
@@ -160,25 +183,25 @@ export const view = <Message>(
       : [
           // Drawn always, so the region is in place before it speaks.
           h.p(
-            builders.capsLock.attrs([h.Id(capsLockId), h.Role('status')]),
+            attrs('capsLock', [h.Id(capsLockId), h.Role('status')]),
             capsOn ? [capsLock.hint ?? 'Caps Lock is on'] : [],
           ),
         ]),
     ...(options.description === undefined
       ? []
-      : [h.p(builders.description.attrs([h.Id(descriptionId)]), [options.description])]),
+      : [h.p(attrs('description', [h.Id(descriptionId)]), [options.description])]),
     ...(options.strength === undefined
       ? []
-      : [h.div(builders.strength.attrs(), [Meter.view(options.strength, h)])]),
+      : [h.div(attrs('strength'), [Meter.view(options.strength, h)])]),
     ...(requirements === undefined || requirements.length === 0
       ? []
       : [
           h.ul(
-            builders.requirements.attrs([h.Id(requirementsId)]),
+            attrs('requirements', [h.Id(requirementsId)]),
             requirements.map(requirement =>
-              h.li(builders.requirement.attrs([h.DataAttribute('met', String(requirement.met))]), [
+              h.li(attrs('requirement', [h.DataAttribute('met', String(requirement.met))]), [
                 requirement.label,
-                h.span(builders.requirementState.attrs(), [
+                h.span(attrs('requirementState'), [
                   `, ${requirement.met ? states.met : states.unmet}`,
                 ]),
               ]),

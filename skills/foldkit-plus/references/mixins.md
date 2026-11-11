@@ -523,7 +523,7 @@ that derived.
 | `NumberField` | `{ id, label, description?, value, onChange, min?, max?, step?, page?, format?, disabled? }`; `NumberField.settled(value, bounds)` clamps a value onto its step. The APG's editable spinbutton: an input with `role="spinbutton"` that the arrows, PageUp and PageDown, Home and End step, a typed number committing on change, between steppers out of the tab order that disable at their bound. | No axis. Slots `root`, `label`, `group`, `input`, `decrement`, `increment`, `description`. |
 | `OtpField` | `{ label, value, onChange, length?, pattern?, groups?, disabled? }`; `OtpField.kept(text, length, pattern)` filters a code. shadcn's input-otp: one real input (`autocomplete="one-time-code"`, paste and Backspace the browser's) over cells that mirror it, the next cell marked `data-next` for its caret. | No axis. Slots `root`, `input`, `group`, `cell`, `separator`. |
 | `Pagination` | `{ page, pageCount, onPage, label?, siblings?, boundaries?, numbered?, ends?, range? }`. Fewer than two pages draws nothing. `Pagination.itemsOf(page, pageCount, window?)` is the stops; `Pagination.summaryOf(page, { total, perPage, text? })` is `"1–10 of 97"`, drawn with `range`; `range.choose: { sizes, onPerPage, label? }` adds a rows-per-page select. `numbered: false` leaves previous and next alone; `ends` draws first and last. The current stop holds ` / 12` (`pageCount`, hidden from assistive technology). | `compact`: `narrow` (default, a window under 30rem), `always`, `never`: only the current number shows, with its total. The current stop reads `aria-current`. Slots `root`, `summary`, `perPage`, `perPageSelect`, `first`, `prev`, `next`, `last`, `page`, `pageCount`, `ellipsis`. |
-| `PasswordInput` | `PasswordInput.view({ id, label, value, onInput, visible, onToggle, autocomplete?, toggleLabel?, description?, invalid?, disabled? }, h)`: a password field whose toggle button (`aria-pressed`, `aria-controls`, one fixed name) shows it as text. `autocomplete` is `current-password` (default) or `new-password`; spellcheck and autocorrect stay off. `strength` is a `Meter` view's options, drawn under the field; `requirements` are `{ label, met }[]` (`PasswordRequirement`), listed and each read as met or not (`requirementStates`); `capsLock: { on, onKey }` says Caps Lock is on, politely, `onKey` given `capsLockOf(key, modifiers)` for each key (an `Option`: none for a key that says nothing of it). The app owns the text, the flag and the Caps Lock reading. | `size` (`sm`, `md`, `lg`). Input's pieces in InputGroup's box; the eye is `Icons.glyph` by `aria-pressed`. Slots `root`, `label`, `group`, `input`, `toggle`, `description`, `strength`, `requirements`, `requirement`, `requirementState`, `capsLock`. |
+| `PasswordInput` | `PasswordInput.view({ id, label, value, onInput, visible, onToggle, autocomplete?, toggleLabel?, description?, invalid?, disabled?, attributes? }, h)`: a password field whose toggle button (`aria-pressed`, `aria-controls`, one fixed name) shows it as text. `autocomplete` is `current-password` (default) or `new-password`; spellcheck and autocorrect stay off. `strength` is a `Meter` view's options, drawn under the field; `requirements` are `{ label, met }[]` (`PasswordRequirement`), listed and each read as met or not (`requirementStates`); `capsLock: { on, onKey }` says Caps Lock is on, politely, `onKey` given `capsLockOf(key, modifiers)` for each key (an `Option`: none for a key that says nothing of it). The app owns the text, the flag and the Caps Lock reading. `attributes: { input?, toggle?, … }` adds to a Slot before the mixins resolve. | `size` (`sm`, `md`, `lg`). Input's pieces in InputGroup's box; the eye is `Icons.glyph` by `aria-pressed`. Slots `root`, `label`, `group`, `input`, `toggle`, `description`, `strength`, `requirements`, `requirement`, `requirementState`, `capsLock`. |
 | `Progress` | `@foldkit/ui`'s Progress: `Progress.view({ id, label, value, min?, max?, valueText?, style? }, h)` draws a `progressbar` named by its label. `value` is an `Option`; none is indeterminate, and the bar's fill sweeps toward the inline end, leftward right to left. The root carries the share done as `--fk-progress`. `showValue` draws the value (`valueText`, else a percentage) at the end of a bar's label line and inside a ring. A `value` given as `ProgressSection`s is one stacked bar of toned parts, read aloud as their sum; `buffer` draws how far the work could go behind the fill; `segments` cuts the track into steps. | `shape`: `bar` (default) or `ring`, Circular Progress; `tone`: `accent`, `neutral`, `success`, `warning`, `error`, `info` (Meter's tokens); `stripes`: `none` (default), `still`, `moving` (travel-aware); `size`: `sm`, `md`, `lg`. Slots `root`, `label`, `track`, `indicator`. |
 | `Rating` | `Rating.view({ id, label, value, onChange, max?, starLabel?, readOnly?, disabled?, style? }, h)`: a `radiogroup` of native radios named by its label, one per star under one name, so the browser's arrows move the choice and a form submits it. `value` is an `Option`; none is unrated. Read-only, it is one `img` whose name says the rating. `precision: 0.5` draws two radios a star; a read-only value of any fraction fills its last star part way. `onClear` is sent by a press on the star already chosen; `showValue` shows `starLabel` of the rating beside the stars, so a word per value is one function. Home and End go to the ends through the `Rating.Ends` Mount (resolve it in a Scene test with a choice's Message). A read-only rating (`readOnly: true`) takes no `onChange`. | `tone`: `warning` (default, gold), `accent` or `error`; `glyph`: `star` (default), `heart`, `circle`, or `--_fk-rating-shape`; `size`: `sm`, `md`, `lg`. Stars are a CSS `clip-path` on each radio's `::before`; pointing previews the rating. Slots `root`, `label`, `star`. |
 | `ScrollArea` | `{ content }`. The height that makes it scroll is the caller's mixin, on `viewport` or `root`; a width goes on `root`. The viewport is tabbable. A bar per axis is drawn beside it; `mixins: ScrollArea.overlayBars` lays them over the viewport's edge, driven by `ScrollBars` (4px thumb, 6px hovered, fades when idle; native on a coarse pointer). | `orientation`: `vertical` (default), `horizontal`, `both`; the first two fade toward an edge with more and draw a hairline there. Slots `root`, `viewport`, `bar`, `thumb`. |
@@ -560,6 +560,43 @@ that derived.
 | `ThinkingSteps` | The trace of what an assistant did: `ThinkingSteps.view({ id, steps, open, onToggle, duration?, summary?, openSteps?, onToggleStep?, stateWords?, style? }, h)`. Each step is `{ id, title, state, duration?, detail?, icon?, steps? }`, `state` being `pending`, `running`, `done` or `failed`, said in words too. The button says the running step's title, or "Thought for 4s". Its openness is yours, an `Option<boolean>`: none opens it while a step runs and shuts it once all are done, and the press sends the state the reader asked for. `openSteps` and `onToggleStep` make each step's detail collapsible (`Accordion.toggled`). | `variant` (`plain`, `card`), `connector` (`line`, `none`). Slots `root`, `trigger`, `summary`, `chevron`, `panel`, `list`, `step`, `head`, `marker`, `title`, `state`, `duration`, `body`, `detail`. |
 | `Timer` | After Zag's: a countdown (`Timer.init({ id, countdown: true, duration })`) or a stopwatch (`Timer.init({ id, interval? })`), folded with `Timer.update`, whose Commands (`Timer.Stamp`, `Timer.Tick`) read Effect's `Clock`, so TestClock drives a run. `Timer.view({ model, onMessage, label, units?, separator?, labels?, style? }, h)`: a `role="timer"` with each unit in a Slot, one press that says what comes next, and reset. `Timer.phase(model)` is `idle`, `running`, `paused` or `done`; to start at once, return `Timer.update(model, Timer.Message.Pressed({ action: 'start' }))` from `init`. | `tone`, `look`, `progress`, `size`. Slots `root`, `label`, `area`, `item`, `separator`, `controls`, `action`. |
 | `Tour` | Steps anchored beside their targets in the top layer, over a dim with a cutout the target's presses reach. `Tour.init({ id })`, started with `Tour.start(model, config, { opener })` and folded with `Tour.update(config)` (`config` is `{ steps: [{ title, description, target?, placement? }] }`); `Tour.view({ model, config, onMessage, padding?, interactive?, dismissOnOutside?, closeOnEscape?, labels?, direction?, style? }, h)`. The target scrolls into view; Next, Back and the arrows move on, Escape and Skip end it with focus back to the opener, and `update` returns `Ended { completed }`. A step without a target, or whose target is missing, stands in the middle. The cutout is placed from `--fk-tour-x/-y/-w/-h/-radius`, which `TrackBox` (`foldkit-primitives/dom`) writes on the `layer`. | No axis. Slots `layer`, `blocker`, `spotlight`, `panel`, `arrow`, `progress`, `title`, `description`, `actions`, `back`, `next`, `skip`. |
+
+`Input.view`'s and `PasswordInput.view`'s `onInput` is a closure or the `OnInput` attribute
+the view's builder makes. A closure is not data, so on a resumable page (`foldkit-ssr`'s
+`Resume.builder`) pass the attribute made from a Message member, which the server writes into
+its markup, and keep early typing with `rh.KeepTyped()`: in `Input.view`'s `draw`, or in
+`PasswordInput`'s `attributes.input` while the field is enabled (a disabled field sends
+nothing, and the server refuses a kept field with nothing to replay):
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+const Message = defineMessageUnion({ ChangedPassword: { value: Schema.String }, Toggled: {} })
+type Message = typeof Message.Type
+declare const model: { readonly password: string; readonly shown: boolean }
+-->
+
+```ts
+import { PasswordInput } from 'foldkit-mixins-ui'
+import { Resume } from 'foldkit-ssr/client'
+
+const password = (h: HtmlBuilder<Message>) => {
+  const rh = Resume.builder(h)
+  return PasswordInput.view(
+    {
+      id: 'password',
+      label: 'Password',
+      value: model.password,
+      onInput: rh.OnInput(Message.ChangedPassword),
+      visible: model.shown,
+      onToggle: Message.Toggled(),
+      attributes: { input: [rh.KeepTyped()] },
+    },
+    rh,
+  )
+}
+```
 
 Ship both halves of the theme with `Theme.root` (scales once, palette beside them):
 

@@ -253,6 +253,8 @@ const Message = defineMessageUnion({
   TypedEmail: { value: Schema.String },
   TypedTitle: { value: Schema.String },
   TypedReply: { value: Schema.String },
+  TypedPassword: { value: Schema.String },
+  ToggledPassword: {},
   ToggledMark: { mark: Schema.String },
 })
 type Message = typeof Message.Type
@@ -327,6 +329,57 @@ const emailField = (value: string, h: HtmlBuilder<Message>) =>
     },
     h,
   )
+```
+
+A closure is not data, so a page that answers before its script runs
+(`foldkit-ssr`'s [resumable pages](https://github.com/doeixd/foldkit-plus/blob/main/packages/ssr/README.md#resumable-pages-answering-before-the-runtime-boots))
+cannot write it into the server's markup. There, give `onInput` the
+`OnInput` attribute the resumable builder makes from a Message member; the
+view adds it as it would the closure, and `KeepTyped` keeps what is typed
+before the script runs:
+
+```ts
+import { Resume } from 'foldkit-ssr/client'
+
+const resumableEmail = (value: string, h: HtmlBuilder<Message>) => {
+  const rh = Resume.builder(h)
+  return Input.view(
+    {
+      id: 'email',
+      value,
+      onInput: rh.OnInput(Message.TypedEmail),
+      type: 'email',
+      draw: ({ input, label }) =>
+        rh.div([], [rh.label(label, ['Email']), rh.input([...input, rh.KeepTyped()])]),
+    },
+    rh,
+  )
+}
+```
+
+`PasswordInput` draws its own input, so `KeepTyped` goes in its
+`attributes`, which adds to a Slot before the mixins resolve. Give it only
+while the field is enabled: a disabled field sends nothing, and the server
+refuses a kept field with nothing to replay (`UnkeepableField`).
+
+```ts
+import { PasswordInput } from 'foldkit-mixins-ui'
+
+const resumablePassword = (password: string, shown: boolean, h: HtmlBuilder<Message>) => {
+  const rh = Resume.builder(h)
+  return PasswordInput.view(
+    {
+      id: 'password',
+      label: 'Password',
+      value: password,
+      onInput: rh.OnInput(Message.TypedPassword),
+      visible: shown,
+      onToggle: Message.ToggledPassword(),
+      attributes: { input: [rh.KeepTyped()] },
+    },
+    rh,
+  )
+}
 ```
 
 `Input.field` and `Textarea.field` draw a whole field from a
@@ -643,7 +696,7 @@ glyph with it, so the recipe's size is the drawing's.
 | `NumberField` | `{ id, label, description?, value, onChange, min?, max?, step?, page?, format?, disabled? }`; `NumberField.settled(value, bounds)` clamps a value onto its step. The APG's editable spinbutton: an input with `role="spinbutton"` that the arrows, PageUp and PageDown, Home and End step, a typed number committing on change, between steppers out of the tab order that disable at their bound. | No axis. Slots `root`, `label`, `group`, `input`, `decrement`, `increment`, `description`. |
 | `OtpField` | `{ label, value, onChange, length?, pattern?, groups?, disabled? }`; `OtpField.kept(text, length, pattern)` filters a code. shadcn's input-otp: one real input (`autocomplete="one-time-code"`, paste and Backspace the browser's) over cells that mirror it, the next cell marked `data-next` for its caret. | No axis. Slots `root`, `input`, `group`, `cell`, `separator`. |
 | `Pagination` | `{ page, pageCount, onPage, label?, siblings?, boundaries?, numbered?, ends?, range? }`. Fewer than two pages draws nothing. `Pagination.itemsOf(page, pageCount, window?)` is the stops; `Pagination.summaryOf(page, { total, perPage, text? })` is `"1–10 of 97"`, drawn before the stops when `range` is given. `range.choose: { sizes, onPerPage, label? }` adds a select of rows per page (labelled `Rows per page` by default) that sends `onPerPage` with the size; the application sets `perPage` and a page that keeps its rows in view. `numbered: false` leaves previous and next alone; `ends` draws first and last. The current stop holds ` / 12` in a `pageCount` span hidden from assistive technology. | `compact`: `narrow` (default, below a 30rem window), `always` or `never`. Compact shows only the current number, with its ` / 12`, and no ellipses. The current stop reads `aria-current`. Slots `root`, `summary`, `perPage`, `perPageSelect`, `first`, `prev`, `next`, `last`, `page`, `pageCount`, `ellipsis`. |
-| `PasswordInput` | `PasswordInput.view({ id, label, value, onInput, visible, onToggle, autocomplete?, toggleLabel?, description?, invalid?, disabled? }, h)`: a password field whose toggle button (`aria-pressed`, `aria-controls`, one fixed name) shows it as text. `autocomplete` is `current-password` (default) or `new-password`; spellcheck and autocorrect stay off. `strength` is a `Meter` view's options, drawn under the field; `requirements` are `{ label, met }[]` (`PasswordRequirement`), listed and each read as met or not (`requirementStates`); `capsLock: { on, onKey }` says Caps Lock is on, politely, `onKey` given `capsLockOf(key, modifiers)` for each key (an `Option`: none for a key that says nothing of it). The app owns the text, the flag and the Caps Lock reading. | `size` (`sm`, `md`, `lg`). Input's pieces in InputGroup's box; the eye is `Icons.glyph` by `aria-pressed`. Slots `root`, `label`, `group`, `input`, `toggle`, `description`, `strength`, `requirements`, `requirement`, `requirementState`, `capsLock`. |
+| `PasswordInput` | `PasswordInput.view({ id, label, value, onInput, visible, onToggle, autocomplete?, toggleLabel?, description?, invalid?, disabled?, attributes? }, h)`: a password field whose toggle button (`aria-pressed`, `aria-controls`, one fixed name) shows it as text. `autocomplete` is `current-password` (default) or `new-password`; spellcheck and autocorrect stay off. `strength` is a `Meter` view's options, drawn under the field; `requirements` are `{ label, met }[]` (`PasswordRequirement`), listed and each read as met or not (`requirementStates`); `capsLock: { on, onKey }` says Caps Lock is on, politely, `onKey` given `capsLockOf(key, modifiers)` for each key (an `Option`: none for a key that says nothing of it). The app owns the text, the flag and the Caps Lock reading. `onInput` is a closure or a resumable builder's `OnInput` attribute, and `attributes` adds to any Slot (`{ input: [rh.KeepTyped()] }`), as the resumable examples above show. | `size` (`sm`, `md`, `lg`). Input's pieces in InputGroup's box; the eye is `Icons.glyph` by `aria-pressed`. Slots `root`, `label`, `group`, `input`, `toggle`, `description`, `strength`, `requirements`, `requirement`, `requirementState`, `capsLock`. |
 | `Progress` | `@foldkit/ui`'s Progress: `Progress.view({ id, label, value, min?, max?, valueText?, style? }, h)` draws a `progressbar` named by its label. `value` is an `Option`; none is indeterminate, and the bar's fill sweeps toward the inline end, leftward right to left. The root carries the share done as `--fk-progress`. `showValue` draws the value (`valueText`, else a percentage) at the end of a bar's label line and inside a ring. A `value` given as `ProgressSection`s is one stacked bar of toned parts, read aloud as their sum; `buffer` draws how far the work could go behind the fill; `segments` cuts the track into steps. | `shape`: `bar` (default) or `ring`, Circular Progress; `tone`: `accent`, `neutral`, `success`, `warning`, `error`, `info` (Meter's tokens); `stripes`: `none` (default), `still`, `moving` (travel-aware); `size`: `sm`, `md`, `lg`. Slots `root`, `label`, `track`, `indicator`. |
 | `QrCode` | After Zag's: `QrCode.view({ id, value, label?, level?, quietZone?, overlay?, tooLong?, style? }, h)`, one `img` named `QR code: <value>` (or `label`), every dark module one SVG `path` over a background that carries the quiet zone. `level` is the error correction, `M` by default and `H` under an `overlay` (a logo at the centre). `QrCode.encode(text, level)` gives the matrix, none when no version holds the text, and `pathOf` its path; both are pure. `QrCode.Download({ id, format, filename, pixels })` saves the drawn code as PNG or SVG in the colors it shows; the overlay is not in the file. | `scheme` (`light`, dark on light on any page, or `page`), `size`. Slots `root`, `frame`, `background`, `pattern`, `overlay`, `fallback`. |
 | `Questionnaire` | An assistant's questions answered in the chat. `Questionnaire.init({ id, questions, layout? })` with `Questionnaire.single`, `multiple` and `text` questions (`Question` is a Schema, so a tool's input decodes into it), folded with `Questionnaire.update`, which says what is missing and focuses it, and returns `OutMessage.Answered({ answers })` once every required question is answered; the form then gives way to a summary. `Questionnaire.view({ model, onMessage, title?, style?, radioGroup?, checkboxGroup?, input?, textarea?, button?, submitButton? }, h)`: the controls are the package's RadioGroup, CheckboxGroup, Input and Textarea, each taking its own style. | `variant` (`plain`, `card`), `actions` (`end`, `start`). Slots `root`, `title`, `progress`, `question`, `prompt`, `words`, `field`, `other`, `otherLabel`, `error`, `actions`, `summary`, `asked`, `answer`. |

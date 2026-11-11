@@ -3,7 +3,7 @@ import { Option } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, type NamedStyle } from 'foldkit-mixins'
 import { FieldValidation } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { descriptionOf, type FieldParts } from './field.js'
+import { descriptionOf, onInputOf, type FieldParts, type OnInput } from './field.js'
 import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
 
 export const InputSlots = Slots.define({
@@ -45,7 +45,8 @@ export const toView =
 export interface InputView<Message> {
   readonly id: string
   readonly value?: string | undefined
-  readonly onInput?: ((value: string) => Message) | undefined
+  /** What typing sends; a resumable builder's `OnInput` attribute names it in the server's markup. */
+  readonly onInput?: OnInput<Message> | undefined
   readonly disabled?: boolean | undefined
   readonly invalid?: boolean | undefined
   readonly described?: boolean | undefined
@@ -65,17 +66,26 @@ export const view = <Message>(options: InputView<Message>, h: HtmlBuilder<Messag
     {
       id: options.id,
       ...(options.value === undefined ? {} : { value: options.value }),
-      ...(options.onInput === undefined ? {} : { onInput: options.onInput }),
       ...(options.disabled === undefined ? {} : { isDisabled: options.disabled }),
       ...(options.invalid === undefined ? {} : { isInvalid: options.invalid }),
       ...(options.described === undefined ? {} : { hasDescription: options.described }),
       ...(options.type === undefined ? {} : { type: options.type }),
       ...(options.placeholder === undefined ? {} : { placeholder: options.placeholder }),
-      toView: toView(
-        [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
-        { input: options.input, h },
-        resolved => options.draw(resolved, h),
-      ),
+      toView: attributes =>
+        options.draw(
+          resolve(
+            // Bound here: `@foldkit/ui`'s own `onInput` takes a closure alone.
+            options.onInput === undefined || options.disabled === true
+              ? attributes
+              : { ...attributes, input: [...attributes.input, onInputOf(h, options.onInput)] },
+            [
+              ...(options.style === undefined ? [] : [options.style.mixin]),
+              ...(options.mixins ?? []),
+            ],
+            { input: options.input, h },
+          ),
+          h,
+        ),
     },
     h,
   )

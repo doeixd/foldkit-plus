@@ -5,7 +5,7 @@
  */
 import { Array, Option } from 'effect'
 import { FieldValidation } from 'foldkit'
-import type { Html } from 'foldkit/html'
+import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 
 /** A labelled field's pieces, drawn: the label, the control, and its description. */
 export interface FieldParts {
@@ -13,6 +13,21 @@ export interface FieldParts {
   readonly control: Html
   readonly description: Html
 }
+
+/**
+ * What typing into a field sends: a closure from the text to a Message, or
+ * the `OnInput` attribute the view's builder makes. The attribute is for a
+ * builder whose `OnInput` takes more than a closure: `foldkit-ssr`'s resumable
+ * builder takes a Message member (`rh.OnInput(Message.ChangedEmail)`) and
+ * names it in the server's markup, which a closure cannot be.
+ */
+export type OnInput<Message> =
+  | ((value: string) => Message)
+  | Extract<Attribute<Message>, { readonly _tag: 'OnInput' }>
+
+/** The field's `OnInput` attribute, built by `h` from a closure or passed through as given. */
+export const onInputOf = <Message>(h: HtmlBuilder<Message>, onInput: OnInput<Message>) =>
+  typeof onInput === 'function' ? h.OnInput(onInput) : onInput
 
 /** What a text field says under itself: its first error, or that it is being checked. */
 export const descriptionOf = (field: FieldValidation.Field<unknown>): Option.Option<string> =>

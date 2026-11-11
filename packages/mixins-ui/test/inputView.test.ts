@@ -4,12 +4,15 @@
  * and the rest of `@foldkit/ui`'s own config, drawn on the real runtime.
  */
 import { Schema } from 'effect'
-import { Style } from 'foldkit-mixins'
+import { SlotView, Style } from 'foldkit-mixins'
+import { Inert } from 'foldkit-mixins/testing'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
+import { Scene } from 'foldkit/test'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Input, InputSlots, type InputView } from '../src/index.js'
+import { sends } from './fixture.js'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -91,5 +94,30 @@ describe('Input.view', () => {
     } finally {
       handle.dispose()
     }
+  })
+
+  const bound = (h: HtmlBuilder<Message>, disabled: boolean) =>
+    Input.view(
+      {
+        id: 'email',
+        onInput: h.OnInput(value => Message.Typed({ value })),
+        disabled,
+        draw: ({ input, label }) => h.div([], [h.label(label, ['Email']), h.input(input)]),
+      },
+      h,
+    )
+
+  it("sends the text through the builder's own OnInput, given as an attribute", () => {
+    sends(
+      (h: HtmlBuilder<Message>) => bound(h, false),
+      Scene.type(Scene.label('Email'), 'a@b.c'),
+      Scene.expectOutMessage(Message.Typed({ value: 'a@b.c' })),
+    )
+  })
+
+  it('leaves out the OnInput attribute given once disabled', () => {
+    const [input] = Inert.byTag(bound(SlotView.inertBuilder<Message>(), true), 'input')
+    expect(Inert.value(input, 'disabled')).toBeDefined()
+    expect(input?.data?.on?.['input']).toBeUndefined()
   })
 })
