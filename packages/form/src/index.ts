@@ -494,8 +494,10 @@ interface AnyFormMessage {
 }
 
 /** An edit, however deep. */
-const isEdit = (message: AnyFormMessage): boolean =>
-  message._tag === 'Nested' ? isEdit(message.message as AnyFormMessage) : edits[message._tag]
+const isEdit = (message: AnyFormMessage): boolean => {
+  if (message._tag === 'Nested') return isEdit(message.message as AnyFormMessage)
+  return edits[message._tag]
+}
 
 interface Plan extends FormControl {
   readonly kind: HeldDraft
@@ -567,12 +569,17 @@ const wordsOf = (
   schema: Schema.Top,
   member: InputMember,
 ): { readonly label: string; readonly description: string | undefined } => {
-  const own =
-    member._tag === 'Unmapped' ? undefined : member._tag === 'Field' ? member : member.relation
-  const [labelled] = own === undefined ? [] : labelKey.get(own.metadata)
-  const words = [schema, ...(member._tag === 'Field' ? [member.schema as Schema.Top] : [])].map(
-    Words.of,
+  const own = Match.value(member).pipe(
+    Match.tag('Unmapped', () => undefined),
+    Match.tag('Field', field => field),
+    Match.orElse(({ relation }) => relation),
   )
+  const [labelled] = own === undefined ? [] : labelKey.get(own.metadata)
+  const fieldSchemas = Match.value(member).pipe(
+    Match.tag('Field', field => [field.schema as Schema.Top]),
+    Match.orElse(() => []),
+  )
+  const words = [schema, ...fieldSchemas].map(Words.of)
   const first = (pick: (entry: SchemaWords) => Option.Option<string>) =>
     Option.firstSomeOf(words.map(pick))
   return {
@@ -1255,10 +1262,11 @@ const Core = {
       const accepts = Schema.is(bundled.bundle.Message as Schema.Codec<unknown>)
       const toParentMessage = (message: unknown): Message =>
         Message.Control({ key: key as ControlKey, message })
-      const fromParentMessage = (message: Message): Option.Option<unknown> =>
-        message._tag === 'Control' && message.key === key && accepts(message.message)
-          ? Option.some(message.message)
-          : Option.none()
+      const fromParentMessage = (message: Message): Option.Option<unknown> => {
+        if (message._tag !== 'Control' || message.key !== key || !accepts(message.message))
+          return Option.none()
+        return Option.some(message.message)
+      }
       const link = Link.make({
         read: (model: Model) => Option.some(drafts(model)[key].value),
         // The draft changes and its validation state stays: `update` revalidates
@@ -1701,9 +1709,8 @@ const Core = {
           case 'Validated': {
             const state = drafts(model)[message.key]
             // Only a key not validated yet: any other state already answers for this draft.
-            return state._tag === 'NotValidated'
-              ? validateKey(model, message.key, state.value)
-              : { model }
+            if (state._tag !== 'NotValidated') return { model }
+            return validateKey(model, message.key, state.value)
           }
           case 'ValidatedAll':
             return validateAll(model)
@@ -2078,9 +2085,8 @@ const Core = {
                   ...field,
                   value: plan.bundled.settled(field.value),
                 } as FieldValidation.Field<Draft>)
-          return held._tag === 'Validating'
-            ? FieldValidation.NotValidated({ value: held.value })
-            : held
+          if (held._tag === 'Validating') return FieldValidation.NotValidated({ value: held.value })
+          return held
         }),
         rows: Object.fromEntries(
           rowsKeys.map(key => [

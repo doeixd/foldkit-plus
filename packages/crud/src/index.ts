@@ -271,7 +271,10 @@ const heldValue = <A>(read: RemoteData<A>): Option.Option<A> =>
 
 const columnLabel = (key: string, member: EntityMember): string =>
   Option.getOrElse(
-    member._tag === 'Relation' ? Option.none() : Words.of(member.schema as Schema.Top).title,
+    Match.value(member).pipe(
+      Match.tag('Relation', () => Option.none()),
+      Match.orElse(other => Words.of(other.schema as Schema.Top).title),
+    ),
     () => Form.labelOf(member) ?? key,
   )
 
@@ -289,15 +292,16 @@ const columnsOf = <Members>(
     const member = members[key]!
     const how = selected[key]!
     // A relation read through a Selection shows the target's own members.
-    const nested =
-      how === true || member._tag !== 'Relation'
-        ? undefined
-        : SelectionPageTypeId in how
-          ? { shape: 'page' as const, columns: columnsOf(how.selection) }
-          : {
-              shape: member.cardinality === 'many' ? ('many' as const) : ('one' as const),
-              columns: columnsOf(how),
-            }
+    const nestedOf = () => {
+      if (how === true || member._tag !== 'Relation') return undefined
+      if (SelectionPageTypeId in how)
+        return { shape: 'page' as const, columns: columnsOf(how.selection) }
+      return {
+        shape: member.cardinality === 'many' ? ('many' as const) : ('one' as const),
+        columns: columnsOf(how),
+      }
+    }
+    const nested = nestedOf()
     return {
       key: key as keyof Members & string,
       label: columnLabel(key, member),
@@ -484,21 +488,19 @@ export const Crud = {
           status: (root: Root): RemoverStatus => {
             const { target } = slice.get(root)
             const deleting = outcome(root)
-            return deleting._tag === 'Pending'
-              ? 'Deleting'
-              : deleting._tag === 'Applied'
-                ? 'Deleted'
-                : deleting._tag === 'Failed'
-                  ? 'DeleteFailed'
-                  : target === null
-                    ? 'Idle'
-                    : 'Confirming'
+            return Match.valueTags(deleting, {
+              Pending: () => 'Deleting' as const,
+              Applied: () => 'Deleted' as const,
+              Failed: () => 'DeleteFailed' as const,
+              Unknown: () => (target === null ? ('Idle' as const) : ('Confirming' as const)),
+            })
           },
 
           /** Why the last delete failed, while `status` is `DeleteFailed`. */
           error: (root: Root): RemoteError | undefined => {
             const deleting = outcome(root)
-            return deleting._tag === 'Failed' ? deleting.error : undefined
+            if (deleting._tag === 'Failed') return deleting.error
+            return undefined
           },
         }
       },
@@ -1283,7 +1285,8 @@ export const Crud = {
           /** Why the last save failed, while `status` is `SaveFailed`. */
           saveError: (root: Root): RemoteError | undefined => {
             const save = saveOf(root)
-            return save._tag === 'Failed' ? save.error : undefined
+            if (save._tag === 'Failed') return save.error
+            return undefined
           },
 
           /**
@@ -1323,7 +1326,8 @@ export const Crud = {
                 return moved(root) ? 'Moved' : 'Saved'
               case 'Unknown':
                 if (editor.filled) return moved(root) ? 'Moved' : 'Editing'
-                return read?._tag === 'Failed' ? 'LoadFailed' : 'Loading'
+                if (read?._tag === 'Failed') return 'LoadFailed'
+                return 'Loading'
             }
           },
         }

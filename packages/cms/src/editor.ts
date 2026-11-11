@@ -207,8 +207,10 @@ export interface EditorContent<FormModel, FormMessage, Value, Resources = {}, Se
     | undefined
 }
 
-const held = <A>(read: RemoteData<A> | undefined): A | undefined =>
-  read?._tag === 'Ready' || read?._tag === 'Refreshing' ? read.value : undefined
+const held = <A>(read: RemoteData<A> | undefined): A | undefined => {
+  if (read?._tag === 'Ready' || read?._tag === 'Refreshing') return read.value
+  return undefined
+}
 
 /** Read, and not being read again: what the server said last, not what it said before. */
 const fresh = (read: RemoteData<unknown> | undefined): boolean =>
@@ -883,10 +885,12 @@ export const makeEditor =
           if (editor().publishWanted && !saving() && editor().settling === null) {
             const save = statusOf(root, editor().saveId)
             const resumedDraft = editor().resumed === 'Model' || editor().resumed === 'Values'
+            const saveApplied = save._tag === 'Applied'
+            const saveFailed = save._tag === 'Failed'
             const saved =
               editor().edits === editor().savedEdit &&
-              (editor().saveId === null ? resumedDraft : save._tag === 'Applied')
-            if (save._tag === 'Failed' && editor().edits === editor().savedEdit) {
+              (editor().saveId === null ? resumedDraft : saveApplied)
+            if (saveFailed && editor().edits === editor().savedEdit) {
               // The draft could not be saved, so there is nothing to publish; the save says why.
               root = slice.set(root, { ...editor(), publishWanted: false })
             } else if (!saved) {
@@ -1116,11 +1120,11 @@ export const makeEditor =
                   case 'Unknown':
                     // Nothing pending and nothing entered: the form is as it was found. A
                     // draft it was filled from is on the server already; anything else is not.
-                    return save._tag === 'Applied' ||
+                    const onServer =
+                      save._tag === 'Applied' ||
                       editor.resumed === 'Model' ||
                       editor.resumed === 'Values'
-                      ? 'Saved'
-                      : 'Opened'
+                    return onServer ? 'Saved' : 'Opened'
                 }
             }
           },
