@@ -46,6 +46,18 @@ describe('RemoteData', () => {
     expect(RemoteData.answered(data)).toBe(answered)
   })
 
+  it.each<[RemoteData<number>, Option.Option<number>]>([
+    [{ _tag: 'Initial' }, Option.none()],
+    [{ _tag: 'Loading' }, Option.none()],
+    [{ _tag: 'Ready', value: 1 }, Option.some(1)],
+    [{ _tag: 'Refreshing', value: 2 }, Option.some(2)],
+    [{ _tag: 'Failed', error: { _tag: 'Boom', message: 'x' } }, Option.none()],
+    [{ _tag: 'Failed', error: { _tag: 'Boom', message: 'x' }, previous: 3 }, Option.some(3)],
+    [{ _tag: 'NotFound' }, Option.none()],
+  ])('reads the value %o holds', (data, held) => {
+    expect(RemoteData.held(data)).toEqual(held)
+  })
+
   it('maps values and preserves failures', () => {
     expect(RemoteData.map({ _tag: 'Ready', value: 2 }, n => n + 1)).toEqual({
       _tag: 'Ready',

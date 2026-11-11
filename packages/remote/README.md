@@ -714,6 +714,9 @@ When a read sits at `Initial` and you expected data, ask the Model why with
 `RemoteData.match` is exhaustive, so adding or omitting a state is visible at
 compile time. `RemoteData.answered(data)` is whether a read has an answer yet:
 `Ready`, `Refreshing`, `Failed` or `NotFound`, not `Initial` or `Loading`.
+`RemoteData.held(data)` is the value it holds, as an `Option`: `Ready`'s,
+`Refreshing`'s, or the last value a failed refresh kept; none in every other
+state.
 
 ### Drawing one: `RemoteData.render`
 

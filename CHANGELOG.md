@@ -107,6 +107,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`RemoteData.held`** (`foldkit-remote`): the value a read holds, as an
+  `Option`: `Ready`'s, `Refreshing`'s, or a failed refresh's `previous`.
+
 - **`Utilities.busyReveal`** (`foldkit-mixins/utilities`): the delayed reveal
   of a busy status, moved from `foldkit-mixins-crud` so any package or page
   can use it. On an element marked `aria-busy="true"` it fades the text in

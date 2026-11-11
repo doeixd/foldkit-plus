@@ -44,7 +44,8 @@ Data.reduce(model, message)     the only way the cache changes
 
 The read entry diffs requirements against the store and fetches only missing or
 stale fields. An inactive Surface creates no work. `RemoteData` is a closed union
-(`RemoteData.match` is exhaustive; `RemoteData.answered(data)` is whether it has an answer yet):
+(`RemoteData.match` is exhaustive; `RemoteData.answered(data)` is whether it has an answer yet;
+`RemoteData.held(data)` is the value it holds, an `Option`, kept through `Refreshing` and a failed refresh):
 
 - `Initial`: absent, **nothing is fetching it** (often a wiring bug: not observed).
   `why(Data, model, projection, { surfaces })` says which: its first reason is
