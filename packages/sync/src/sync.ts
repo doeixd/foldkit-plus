@@ -384,7 +384,11 @@ export interface Sync<Message, Shared, Durable = Message> {
      */
     readonly normalizeOperation: (input: unknown) => Operation
     readonly operationFrom: (input: unknown, documentId: DocumentId) => Operation
-    /** An operation as written, checked as an envelope of this document, its Message unread. */
+    /**
+     * An entry as received, checked as an envelope of this document, its Message unread.
+     * Never pass it an `Operation`: that Message is already current and would be read
+     * as version 1. Write one with `journalContract().operation.encode`.
+     */
     readonly writtenFrom: (input: unknown, documentId: DocumentId) => WrittenOperation
     readonly committedFrom: (input: unknown, documentId: DocumentId) => CommittedOperation
     readonly decodeExchange: (input: unknown) => Exchange<Shared>
