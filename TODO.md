@@ -255,9 +255,12 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
 
 1. **Triage of `docs/design/TODO.md`** for open items buildable now, with
    no upstream gate (the 90 KB page waits on Foldkit's identity markers;
-   Chirp's JSON Schema extra left with 6ade70b). In progress.
-2. **The UI polish leftovers** in `docs/design/TODO.md`, one per bout between
-   larger items.
+   Chirp's JSON Schema extra left with 6ade70b). Drained 2026-11-11: the
+   last ungated items were #229's budgets for every remaining example
+   (ab26dd79, 2eedd82f, 4801c950) and the CMS demo's `404.html` (ff2a155d).
+   What remains waits on upstream, a deploy, a release or the owner.
+2. **The UI polish leftovers** in `docs/design/TODO.md`: all wait on
+   `@foldkit/ui` (foldkit/foldkit#1686 to #1689).
 
 Waiting on the owner: #424's defaults (its 75-line target is out of reach),
 the upstream posts (foldkit#1657, #1872, the Workers `fetch` signature, the
