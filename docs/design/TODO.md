@@ -142,13 +142,6 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
 [schema-to-ui-PLAN.md](./schema-to-ui-PLAN.md), for
 [#188](https://github.com/doeixd/foldkit-plus/issues/188).
 
-- [ ] **`busy` without `settled` as a type error.** `Input.bundle` refuses it
-  when the control is made; a union of the two specs broke inference of `fill`.
-  [#491](https://github.com/doeixd/foldkit-plus/issues/491)
-- [ ] **A picker's "Show more" typed by relation keys.** `FormView`'s `more` is
-  keyed by every form key, so a key with no picker type-checks and draws nothing.
-  [#492](https://github.com/doeixd/foldkit-plus/issues/492)
-
 ## Guards
 
 Who may do what, declared once on the domain. Slices 1 to 11 of
@@ -198,16 +191,12 @@ Each item says how it would attach; none is started.
 
 ## Wiring and Bundle
 
-- [ ] Decide whether Wiring lives in `foldkit-surface` or its own package.
-  [wiring-DESIGN.md](./wiring-DESIGN.md) Open questions
 - [ ] Decide whether `Sync.mount` takes the whole assembly.
   [wiring-DESIGN.md](./wiring-DESIGN.md) Open questions
 - [ ] Re-rooted Surfaces per placement, so an agent can expose a placement's
   Messages one by one. [bundle-DESIGN.md](./bundle-DESIGN.md) Deferred
 - [ ] Derive the whole parent Model and Message from an assembly, once real
   applications ask for it. [bundle-DESIGN.md](./bundle-DESIGN.md) Deferred
-- [ ] `withResources`, `Link.key` and HashMap storage, which W5 left out.
-  [bundle-DX-PLAN.md](./bundle-DX-PLAN.md) Outcome
 - [ ] A size budget in CI for each example's entry chunk; `split.test.ts`
   checks which modules are in which chunk, not their size (#229).
   [244-lazy-resources-DESIGN.md](./244-lazy-resources-DESIGN.md) Deferred
@@ -464,9 +453,6 @@ while keeping the best of what this project already has:
   [ui-polish-DESIGN.md](./ui-polish-DESIGN.md)
 
 ## React
-
-- [ ] A `Resource` → Suspense bridge (`useResource`). `readAsyncData` covers
-  Model `AsyncData` only. [react-DESIGN.md](./react-DESIGN.md) §20
 
 ## Sync, Durable and Effect reuse
 
