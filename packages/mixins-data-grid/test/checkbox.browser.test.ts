@@ -37,7 +37,10 @@ type Frame = {
   readonly childFrames?: ReadonlyArray<Frame>
 }
 type AxNode = {
+  readonly nodeId: string
+  readonly parentId?: string
   readonly backendDOMNodeId?: number
+  readonly name?: { readonly value?: unknown }
   readonly role?: { readonly value?: string }
   readonly properties?: ReadonlyArray<{
     readonly name: string
@@ -49,7 +52,9 @@ type AxNode = {
 }
 /**
  * The node Chrome's accessibility tree takes the grid's active descendant to
- * be, with its role and checked state: what a screen reader is told.
+ * be, with its role and checked state, and the cell and row it sits in: what
+ * a screen reader is told. Chrome's properties carry no row or column index
+ * for these nodes; the context is the tree, the box a child of its gridcell.
  */
 const activeInChrome = async () => {
   await cdp().send('Accessibility.enable')
@@ -70,7 +75,16 @@ const activeInChrome = async () => {
     const target = gridNode && property(gridNode, 'activedescendant')?.relatedNodes?.[0]
     const active = nodes.find(node => node.backendDOMNodeId === target?.backendDOMNodeId)
     if (active !== undefined) {
-      return { role: active.role?.value, checked: property(active, 'checked')?.value }
+      const parentOf = (node: AxNode) => nodes.find(each => each.nodeId === node.parentId)
+      const cell = parentOf(active)
+      const row = cell && parentOf(cell)
+      return {
+        role: active.role?.value,
+        checked: property(active, 'checked')?.value,
+        // The context a screen reader says around it: the cell it is in, and that cell's row.
+        cell: { role: cell?.role?.value, name: cell?.name?.value },
+        row: row?.role?.value,
+      }
     }
   }
   return undefined
@@ -119,13 +133,23 @@ test('tabbing in and pressing Space toggles the first cell, and Chrome says the 
     await userEvent.tab()
     expect(document.activeElement).toBe(grid())
     await vi.waitFor(async () =>
-      expect(await activeInChrome()).toEqual({ role: 'checkbox', checked: 'false' }),
+      expect(await activeInChrome()).toEqual({
+        role: 'checkbox',
+        checked: 'false',
+        cell: { role: 'gridcell', name: 'Done' },
+        row: 'row',
+      }),
     )
     await userEvent.keyboard(' ')
     await vi.waitFor(() => expect(checked('t0')).toBe('true'))
     focusIsOn('t0')
     await vi.waitFor(async () =>
-      expect(await activeInChrome()).toEqual({ role: 'checkbox', checked: 'true' }),
+      expect(await activeInChrome()).toEqual({
+        role: 'checkbox',
+        checked: 'true',
+        cell: { role: 'gridcell', name: 'Done' },
+        row: 'row',
+      }),
     )
     expect(mounted.latest().edits).toEqual(['t0.done=true'])
   } finally {

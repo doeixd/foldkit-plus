@@ -2,6 +2,12 @@
  * The checkbox editor, each rule broken in turn: `pnpm mutate
  * packages/mixins-data-grid/test/checkbox.mutations.ts` checks that a test
  * fails for every one.
+ *
+ * Run note: the two type-level survivors ("a checkbox column may read any
+ * value", "a listed member may be a checkbox") are killed by `tsc -b`, which
+ * reports their `@ts-expect-error` unused (types.test-d.ts:256,
+ * crud.test.ts:95); `pnpm mutate` runs no typecheck, so they were checked by
+ * hand on 2026-11-11.
  */
 const grid = '../../data-grid/src/grid.ts'
 const columns = '../../data-grid/src/columns.ts'
