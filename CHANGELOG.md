@@ -17,6 +17,11 @@ version changed; `pnpm` skips versions already in the registry.
   contribution sets, normalized the same way as the Slot's list. The data
   grid's `checkbox` Slot also protects `data-grid-checkbox`, which routes its
   presses.
+  `OnCustomEvent` named its event by argument and so bypassed `protected.events`
+  and event-conflict detection; it now counts as the DOM event it names, so
+  `OnCustomEvent('click')` is refused where `OnClick` is, and two owners of
+  one event conflict as `mixins:event-conflict` (two custom events of one
+  name used to report `mixins:attribute-conflict`).
 
 - **A CMS editor whose entry-state read failed no longer opens badged New**
   (`foldkit-cms`). `status` counted a failed state read as answered, so the
