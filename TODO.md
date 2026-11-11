@@ -223,7 +223,10 @@ In the same change:
   - `foldkit-remote`'s `Defect` error tag (ce1d99d);
   - #144's checkbox column: `Columns.checkbox`, `CellEditor.Checkbox`,
     `EditToggled` with `Grid.Toggle`, and the `checkbox` Slot
-    (34109eab..a9bbe3dd; independent review passed in two rounds).
+    (34109eab..a9bbe3dd; independent review passed in two rounds);
+  - #190 item 5: `SyncRefusal`, `Rejection.refusal`, `Exchange.refusals`,
+    the `UnknownRefusal` diagnostic, and `Rejection.reason` and
+    `Exchange.reasons` deprecated (7da2abad..4f1493a8).
 - [ ] **The branch's PR.** Unmerged since #497 (merged 2026-11-10): about a
       hundred commits, never through CI, since CI runs on pull requests. The
       whole CI sequence passed locally on 520755cf (2026-11-11, perf and
@@ -278,5 +281,8 @@ identity markers, floating-ui), and the Jev reviews (no key here).
   125 to 150 ms warm). The rest waits on foldkit#1657.
 - **#190** (the contract layer): Phase 0 items 6 and 7 done 2026-11-11 (the
   upcasting note, reviewed in three rounds: 0a185be1..13bd41fd; document
-  boundaries in `docs/replication.md`: 71855f3f). Item 5 (Sync rejections as
-  Remote `Refusal`s) is next; Phase 1 waits on foldkit/foldkit#1655.
+  boundaries in `docs/replication.md`: 71855f3f). Item 5 done too: a Sync
+  rejection carries a typed `SyncRefusal` (7da2abad..4f1493a8, reviewed in
+  three rounds). The next release removes `Rejection.reason` and stops
+  `journalExchange` writing `reasons`; the replica keeps reading `reasons`.
+  Phase 1 waits on foldkit/foldkit#1655.
