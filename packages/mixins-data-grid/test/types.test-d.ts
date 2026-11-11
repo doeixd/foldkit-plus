@@ -109,3 +109,20 @@ View(
     Filtered: () => 0,
   })
 }
+
+// A grid that filters must match its `Filtered` arm.
+{
+  const filtering = Columns.define<Item>()({
+    id: { header: 'Id', value: item => item.id, filter: true },
+  })
+  const Filtering = DataGrid.make({ id: 'filtering-out', columns: filtering })
+  // @ts-expect-error a grid with a filtering column reports `Filtered`, so its match needs the arm
+  Filtering.Out.match(Filtering.Out.UndoRequested(), {
+    Edited: () => 0,
+    Pasted: () => 0,
+    UndoRequested: () => 0,
+    RedoRequested: () => 0,
+    Filled: () => 0,
+    RowsRequested: () => 0,
+  })
+}
