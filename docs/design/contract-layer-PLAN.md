@@ -119,8 +119,11 @@ breaks one is wrong even when every test passes.
    devices, or produced by an agent names its target by placement and domain
    key. Foldkit's per-runtime `generation` never leaves the runtime that made it.
 7. **Durable Messages stay readable.** Every stored durable Message decodes
-   under the current build, through declared upcasters, or the journal and the
-   replica refuse to open with a typed error. Nothing is dropped silently.
+   under the current build, through declared upcasters. Committed history no
+   upcaster reads, and an operation from a newer build, make the journal and
+   the replica refuse to open with a typed error; an unreadable pending
+   operation is refused by its id into a persisted list, so it neither blocks
+   the outbox nor is lost. Nothing is dropped silently.
 8. **Server-only Messages cannot originate from a client.** Constructing one
    for submission is a type error on the client, and the journal refuses one by
    tag before `validate` and `authorize` run.
@@ -225,11 +228,15 @@ Gate: none. Starts now.
    decision already taken in
    [remote-improvement-plan.md](./remote-improvement-plan.md) (§15 decision
    12, "a Sync rejection reads as a `Refusal`") with Remote's `Refusal`
-   vocabulary (§5.2 there), not a new one.
-6. A design note for upcasting durable Messages (invariant 7).
+   vocabulary (§5.2 there), not a new one. It needs one case that vocabulary
+   lacks: an operation no upcaster reads (`Unreadable { version }`, from
+   [190-upcasting-DESIGN.md](./190-upcasting-DESIGN.md) §9).
+6. A design note for upcasting durable Messages (invariant 7). **Written and
+   reviewed** (2026-11-11): [190-upcasting-DESIGN.md](./190-upcasting-DESIGN.md).
 7. A section in `docs/replication.md` on choosing document boundaries: a Sync
    key is the unit inside which `validate` may enforce a rule; a rule across
    keys gets its own key (a username claim) or a reserve-then-confirm flow.
+   **Done**: its "Choosing document boundaries" section (71855f3f).
 
 Done when: the measurements and probe answers are in §8, items 4 and 5 are
 merged with tests and mutations, and items 6 and 7 are written.
@@ -356,8 +363,14 @@ Gate: Phase 0 item 5. Independent of Phases 1 to 4.
    Remote `Mutation` does; `validate` returns one; the replica's rejected
    operation carries it decoded, so a cell shows the reason the same way
    whether Remote or Sync refused the change.
-6. **Upcasters.** `Sync.migrations([...])` from Phase 0 item 6, applied
-   wherever an operation is decoded (journal load, replica outbox, exchange).
+6. **Upcasters.** The history from Phase 0 item 6
+   ([190-upcasting-DESIGN.md](./190-upcasting-DESIGN.md)): a chain,
+   `Sync.migrations(V1).next(V2, up)`, in place of a list, so each step's input
+   is typed by the step before it. It is applied in Sync's operation codec, so
+   every hook (`admit`, `validate`, `authorize`, `reduce`, `stamp`) sees the
+   current Message while the outbox and the payload hash keep the version
+   written. It covers `foldkit-durable`'s optional `compared` form and a
+   stored row that will not decode reported as a `JournalError`.
 7. **Deadlines and processes: deferred until a Sync application needs one.**
    Reactions alone cannot express "if nobody accepts the invite within seven
    days, expire it", or Phase 0 item 7's reserve-then-confirm flow with a
@@ -379,7 +392,12 @@ Done when: an example records a payment confirmation from a webhook as a
 server-only Message, a reaction sends a notice once per commit across a
 restart, a guest replica never receives the owner-only part of a document, a
 rejection reaches the UI typed, and a renamed durable Message replays from an
-old journal.
+old journal. For item 6 also: an outbox written by the old build opens under
+the new one; an acknowledgement lost across a deploy reads as already
+committed; a client ahead of its server waits rather than losing the edit; an
+unreadable pending operation lands in `refused` while the rest of the outbox
+is sent; and a client claiming an old version is refused by `admit` and
+`authorize` exactly as the current Message would be.
 
 ### 6.6 Phase 6: authorities we do not own (M)
 

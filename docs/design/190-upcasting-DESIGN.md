@@ -1,6 +1,7 @@
 # Upcasting durable Messages (#190, Phase 0 item 6)
 
-Status: designed 2026-11-11, not built. Phase 0 item 6 of
+Status: designed 2026-11-11 and reviewed in three rounds the same day, with
+no blocking finding left; not built. Phase 0 item 6 of
 [contract-layer-PLAN.md](./contract-layer-PLAN.md), for its invariant 7
 ("durable Messages stay readable"). Phase 5 item 6 builds it.
 
@@ -303,10 +304,27 @@ with no hash (`:1025-1029`) compares `compared` of both. An explicit
 `messageVersion: 1` is dropped by `compared` too, so it and an absent field
 hash alike (today's `shape` would keep it, `sync.ts:428`).
 
+So `prepare` keeps two strings where it keeps one today
+(`durable/src/journal.ts:991-992`, `:1126`): the canonical
+`encode(operation)`, which is stored (or the stamped one), and the canonical
+`compared(input)`, which is hashed. In the legacy comparison for a row with
+no hash, `compared(JSON.parse(row.input))` throwing on an unreadable old row
+is a `JournalError`, not the `InvalidOperationError` it maps to today
+(`:1025-1029`), for the same reason as the already-committed path in §5: a
+stored row that will not read is not the sender's fault.
+
+**The as-written form gets its own type.** `Replica.pending`
+(`sync.ts:201`, `:945`), `Transport`'s `pending` (`transport.ts:16`, `:39`)
+and `Rejection.operation` are public and typed `Operation`, but hold what
+was written. They become `WrittenOperation`, the codec's encoded side, so
+one name never means two forms. Upcasting them on the way out was rejected:
+the transport must send exactly what was written, or the hash above breaks,
+and a reader that wants the meaning has `Rejection.message` or the codec.
+
 The as-written form therefore lives in exactly two places, both outside the
-decoded `Operation`: the replica's outbox (as stored) and the payload hash
-(as compared). The hash argument holds on one condition: the application's
-kept Schema of an old version must normalize as the old build's Schema did.
+decoded `Operation`: the replica's outbox and what it sends
+(`WrittenOperation`), and the payload hash (as compared). The hash argument
+holds on one condition: the application's kept Schema of an old version must normalize as the old build's Schema did.
 §8.
 
 ## 5. Failure semantics
@@ -401,8 +419,9 @@ wording should say so (§10).
   optional key in the replica state; an older build would refuse a state
   holding either (`onExcessProperty: 'error'`), which is the rollback case.
 - Nothing public is removed, so there is no deprecation. The decoded
-  `Operation`'s `message` is now always at the current version; `Rejection`
-  gains `message`; `foldkit-durable`'s codec gains the optional `compared`.
+  `Operation`'s `message` is now always at the current version;
+  `Replica.pending`, `Transport`'s `pending` and `Rejection.operation` are
+  typed `WrittenOperation`; `Rejection` gains `message`; `foldkit-durable`'s codec gains the optional `compared`.
 
 ## 7. What it leaves out
 
@@ -478,7 +497,9 @@ wording should say so (§10).
   versions are the same document-wide number, and its tag check runs after
   upcasting (§4).
 
-## 10. To record
+## 10. Recorded in the plan
+
+Both are now in contract-layer-PLAN (invariant 7, Phase 5 item 6).
 
 - contract-layer-PLAN invariant 7: committed history and newer versions
   refuse to open; an unreadable pending operation is refused by its id into
