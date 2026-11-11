@@ -352,6 +352,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-ssr/loader` fetches the runtime's chunk as it starts** (#472), with
+  `<link rel="modulepreload">` before `load`, not when idle, and still runs it
+  as the plan's `start` says. A press at `load` still waits for the chunk's
+  evaluation, so domains-plus keeps today's entry as its default.
+
 - **`Data.satisfy` reads a pass's Surfaces in one round trip** (`foldkit-remote`,
   #435). A pass used to await each Surface's read before planning the next, so
   a domains-plus search made two client calls; it now plans every Surface over
