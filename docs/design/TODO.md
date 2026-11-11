@@ -303,7 +303,8 @@ work wave 0 (correctness) first, then wave 1 (adoptions), then wave 2
   covers rings on keyboard focus, and a route change moves focus to what it
   drew, in `test/siteChrome.test.ts` and `test/siteFocus.test.ts`); studio
   touch targets **built** (`Touch.target` on tabs and toolbar buttons); the
-  320px header/footer proof still open (screenshot, don't guess); teaching
+  320px header/footer proof **built** (`e2e/narrow.e2e.ts`: no sideways
+  scroll, every chrome control inside and none overlapping; 726dbad); teaching
   comments **built** — six of the seven named were
   already in place (`statusText`, `listing`, `follow`/`begun`, `Narrowing`,
   `scheduleAt`, the CMS `hydrate` refusal); added the seventh, on the editor
