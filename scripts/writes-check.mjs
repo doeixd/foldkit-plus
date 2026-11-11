@@ -27,7 +27,7 @@
  *   node scripts/writes-check.mjs [dir…]   list findings (in the projects named, if any); exit 1 if there are any
  */
 import { existsSync, readdirSync } from 'node:fs'
-import { join, relative, resolve } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 // The compiler API, which TypeScript 7 no longer ships: 6 is installed beside it.
 import ts from 'typescript-6'
@@ -37,6 +37,7 @@ export const findings = []
 
 /** The interfaces whose `set`/`modify` write the Model, by the file that declares them. */
 const seamFile = 'packages/surface/src/index.ts'
+const seamProject = 'packages/surface'
 const seams = new Map([
   ['Focus', new Set(['set', 'modify'])],
   ['WritableProjection', new Set(['set'])],
@@ -65,14 +66,57 @@ export const infrastructure = {
 const marker = /\/\/\s*write:\s*infrastructure\b/
 const reason = /\/\/\s*write:\s*infrastructure\s*[—-]\s*\S/
 
-const seamOf = (checker, node, symbol = checker.getSymbolAtLocation(node)) => {
+const memberNames = new Set([...seams.values()].flatMap(names => [...names]))
+
+// Only a seam member's name is looked up (a `get` is a read), and only those: asking
+// the checker about every property access is most of this check's time.
+const seamOf = (checker, node, symbol) => {
+  if (!memberNames.has(node.text)) return undefined
+  symbol ??= checker.getSymbolAtLocation(node)
   for (const declaration of symbol?.declarations ?? []) {
     const owner = declaration.parent
     if (!ts.isInterfaceDeclaration(owner)) continue
     if (!owner.getSourceFile().fileName.endsWith(seamFile)) continue
-    if (seams.get(owner.name.text)?.has(declaration.name?.getText())) return owner.name.text
+    if (seams.has(owner.name.text)) return owner.name.text
   }
   return undefined
+}
+
+/**
+ * The directories a project's tsconfigs reference, directly. Both configs are
+ * read because the program is built from `tsconfig.json` while `paths:check`
+ * derives its `paths` from the references of either.
+ */
+const referencesOf = dir => {
+  const out = new Set()
+  for (const name of ['tsconfig.json', 'tsconfig.build.json']) {
+    const config = join(dir, name)
+    if (!existsSync(config)) continue
+    const { config: json } = ts.readConfigFile(config, ts.sys.readFile)
+    for (const reference of json?.references ?? []) {
+      const target = resolve(dir, reference.path)
+      out.add(target.endsWith('.json') ? dirname(target) : target)
+    }
+  }
+  return out
+}
+
+/**
+ * Whether a project can hold a use of a seam: its program must contain the file
+ * that declares them, and a program holds a workspace package's source only by a
+ * `paths` entry, which exists only for a referenced project (`pnpm paths:check`).
+ * So it is the project itself or one reaching `packages/surface` through references.
+ */
+export const reachesSeams = (dir, references = referencesOf) => {
+  const target = resolve(root, seamProject)
+  const seen = new Set()
+  const walk = from => {
+    if (from === target) return true
+    if (seen.has(from)) return false
+    seen.add(from)
+    return [...references(from)].some(walk)
+  }
+  return walk(resolve(dir))
 }
 
 export const check = (program, files, found = findings, allowed = Object.keys(infrastructure)) => {
@@ -120,9 +164,10 @@ export const check = (program, files, found = findings, allowed = Object.keys(in
       } else if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {
         const key = node.propertyName ?? node.name
         // A shorthand `{ set }` names a local; the member is read off the destructured type.
-        const seam = ts.isIdentifier(key)
-          ? seamOf(checker, key, checker.getTypeAtLocation(node.parent).getProperty(key.text))
-          : undefined
+        const seam =
+          ts.isIdentifier(key) && memberNames.has(key.text)
+            ? seamOf(checker, key, checker.getTypeAtLocation(node.parent).getProperty(key.text))
+            : undefined
         if (seam !== undefined)
           report(node, `${seam}.${key.text} writes the Model outside a Message`)
       }
@@ -130,6 +175,49 @@ export const check = (program, files, found = findings, allowed = Object.keys(in
     }
     visit(source)
   }
+}
+
+/**
+ * One program for every project compiled with the same options: binding the
+ * dependency closure (Effect's declarations most of it) is the cost of a
+ * program, so sharing it is what makes a whole-tree run take a minute, not
+ * a quarter of an hour. Their `paths` are merged; where two projects map one
+ * name to different files they cannot share, and stand apart.
+ */
+export const programsFor = projects => {
+  const groups = new Map()
+  for (const { options, files } of projects) {
+    const { paths, pathsBasePath, rootDir, outDir, configFilePath, tsBuildInfoFile, ...rest } =
+      options
+    const absolute = Object.entries(paths ?? {}).map(([name, targets]) => [
+      name,
+      targets.map(target => resolve(pathsBasePath ?? root, target)),
+    ])
+    const key = JSON.stringify(rest)
+    const candidates = groups.get(key) ?? []
+    const group = candidates.find(candidate =>
+      absolute.every(
+        ([name, targets]) =>
+          !candidate.paths.has(name) || candidate.paths.get(name).join() === targets.join(),
+      ),
+    )
+    if (group === undefined) {
+      candidates.push({ rest, paths: new Map(absolute), files: new Set(files) })
+      groups.set(key, candidates)
+    } else {
+      for (const [name, targets] of absolute) group.paths.set(name, targets)
+      for (const file of files) group.files.add(file)
+    }
+  }
+  return [...groups.values()].flat().map(({ rest, paths, files }) => ({
+    options: {
+      ...rest,
+      noEmit: true,
+      pathsBasePath: root,
+      paths: Object.fromEntries(paths),
+    },
+    files: [...files],
+  }))
 }
 
 const main = () => {
@@ -145,9 +233,10 @@ const main = () => {
     .filter(dir => named.length === 0 || named.includes(dir))
     .sort()
 
+  const projects = []
   for (const dir of projectDirs) {
     const config = join(dir, 'tsconfig.json')
-    if (!existsSync(config)) continue
+    if (!existsSync(config) || !reachesSeams(dir)) continue
     const parsed = ts.getParsedCommandLineOfConfigFile(
       config,
       {},
@@ -158,11 +247,11 @@ const main = () => {
     )
     const sources = join(dir, 'src')
     const files = parsed?.fileNames.filter(file => resolve(file).startsWith(sources)) ?? []
-    if (files.length === 0) continue
-    const program = ts.createProgram({
-      rootNames: files,
-      options: { ...parsed.options, noEmit: true },
-    })
+    if (files.length > 0) projects.push({ options: parsed.options, files })
+  }
+
+  for (const { options, files } of programsFor(projects)) {
+    const program = ts.createProgram({ rootNames: files, options })
     check(program, files)
   }
 

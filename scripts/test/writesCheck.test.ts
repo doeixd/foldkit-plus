@@ -8,10 +8,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 // @ts-expect-error the checker is plain JavaScript
-import { check } from '../writes-check.mjs'
+import { check, programsFor, reachesSeams } from '../writes-check.mjs'
 // @ts-expect-error the compiler API of TypeScript 6, which TypeScript 7 no longer ships
 import ts from 'typescript-6'
-import { afterAll, expect, test } from 'vitest'
+import { afterAll, describe, expect, test } from 'vitest'
 
 const dir = mkdtempSync(join(tmpdir(), 'writes-check-'))
 afterAll(() => rmSync(dir, { recursive: true, force: true }))
@@ -153,4 +153,69 @@ test('a marker covers its own statement only', () => {
   )
   expect(found).toHaveLength(1)
   expect(found[0]).toMatch(/^\d+  Focus\.set/)
+})
+
+describe('which projects can hold a write', () => {
+  const root = new URL('../..', import.meta.url).pathname.replace(/\/$/, '')
+  const at = (name: string): string => `${root}/${name}`
+  const graph: Record<string, string[]> = {
+    [at('packages/surface')]: [],
+    [at('packages/remote')]: [at('packages/surface')],
+    [at('packages/crud')]: [at('packages/remote')],
+    [at('examples/app')]: [at('packages/crud')],
+    [at('packages/metadata')]: [],
+    [at('examples/plain')]: [at('packages/metadata')],
+    [at('packages/loop-a')]: [at('packages/loop-b')],
+    [at('packages/loop-b')]: [at('packages/loop-a')],
+  }
+  const reaches = (name: string): boolean =>
+    reachesSeams(at(name), dir => new Set(graph[dir] ?? []))
+
+  test.each([
+    ['surface itself', 'packages/surface'],
+    ['a direct reference', 'packages/remote'],
+    ['a reference through two packages', 'examples/app'],
+  ])('keeps %s', (_name, project) => {
+    expect(reaches(project)).toBe(true)
+  })
+
+  test.each([
+    ['a project with no references', 'packages/metadata'],
+    ['a project referencing packages that do not reach surface', 'examples/plain'],
+    ['a cycle that does not reach surface', 'packages/loop-a'],
+  ])('skips %s', (_name, project) => {
+    expect(reaches(project)).toBe(false)
+  })
+
+  test('reads the real references, and surface reaches itself', () => {
+    expect(reachesSeams(at('packages/remote'))).toBe(true)
+    expect(reachesSeams(at('packages/surface'))).toBe(true)
+  })
+})
+
+describe('programs shared between projects', () => {
+  const project = (paths: Record<string, string[]>, files: string[], strict = true) => ({
+    options: { strict, pathsBasePath: '/w/p', paths },
+    files,
+  })
+  const base = project({ 'foldkit-a': ['./a.ts'] }, ['/w/p/one.ts'])
+
+  test('projects with the same options share one program, with their paths and files merged', () => {
+    const programs = programsFor([
+      base,
+      project({ 'foldkit-b': ['./b.ts'] }, ['/w/p/two.ts', '/w/p/one.ts']),
+    ])
+    expect(programs).toHaveLength(1)
+    expect(programs[0]?.files).toEqual(['/w/p/one.ts', '/w/p/two.ts'])
+    expect(Object.keys(programs[0]?.options.paths ?? {})).toEqual(['foldkit-a', 'foldkit-b'])
+  })
+
+  test('a name mapped to another file stands in a program of its own', () => {
+    const programs = programsFor([base, project({ 'foldkit-a': ['./other.ts'] }, ['/w/p/two.ts'])])
+    expect(programs).toHaveLength(2)
+  })
+
+  test('projects compiled with different options do not share a program', () => {
+    expect(programsFor([base, project({}, ['/w/p/two.ts'], false)])).toHaveLength(2)
+  })
 })
