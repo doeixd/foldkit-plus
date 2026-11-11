@@ -35,7 +35,7 @@ tables (`packages/durable/src/journal.ts:543-649`, `UnsupportedJournalVersionErr
 | a retransmitted id already committed (`durable/src/journal.ts:1031-1034`) | the stored row | `InvalidOperationError`: an edit that **did** commit comes back rejected, "Not a valid operation" |
 | `materialize` (`durable/src/journal.ts:812-820`) | stored rows since the last snapshot | `JournalError` "Could not load the snapshot": every exchange of the document fails |
 | `read` (`durable/src/journal.ts:938-946`) | stored rows after a cursor | `JournalError` "Could not read the log": the same |
-| `committedOf` (`sync/src/journal.ts:121-125`, called in `:202`) | a row the journal read | a throw inside `Effect.map`, so a defect, not a typed error |
+| `committedOf` (`sync/src/journal.ts:121-125`, called in `:199-202`) | a row the journal read | a throw inside `Option.match` and `Effect.succeed` in the generator, so a defect, not a typed error |
 | `reduce`, `stamp` (`sync.ts:461`, `:467-472`), `authorize` (`make.ts:458`) | an operation the journal holds | thrown inside the journal's transaction |
 
 So a changed Schema already fails loudly on most paths, but in the wrong
@@ -97,8 +97,9 @@ read.**
 
 ## 4. The chosen shape
 
-An operation keeps the version it was written at. Whoever reads its meaning
-upcasts it.
+An operation is stored and sent at the version it was written at. Every
+reader of its meaning, Sync's and the application's, sees it upcast to the
+current version.
 
 The application declares its history as a chain. Version 1 is the first
 Schema; each `next` adds a version, with the Schema of that version and a
@@ -181,7 +182,7 @@ export const NoteHistory = migrations(NoteMessageV1).next(NoteMessage, previous 
   }),
 )
 
-// `Sync.define({ …, message: NoteMessage, migrations: NoteHistory })` would take:
+// `Sync.define({ …, migrations: NoteHistory })` would take:
 declare const takes: (
   migrations: Migrations<typeof NoteMessage.Encoded>,
 ) => void
@@ -205,34 +206,63 @@ An old version's Schema reuses the variants that did not change (`Cleared`
 above), so keeping one costs the changed variants only. It lists only
 durable variants: nothing else is stored.
 
-`Sync.define` and `Sync.forApplication(App).make` take `migrations` as an
-option. The type requires its encoded side to be the current Message's; at
-definition time Sync also checks `migrations.current === message` by
+`Sync.define` takes the history in place of `message`, and reads the current
+Message from it (`migrations.current`), so the two cannot disagree; without
+it, `message` stays as today and the history is that Schema alone, at
+version 1. `Sync.forApplication(App).make` cannot derive its Message, which
+is `App.Message`, so there the option's type requires the current encoded
+side and the definition checks `migrations.current === App.Message` by
 identity, since a structurally equal Schema of an older version would pass
-the type. Without the option, the history is the current Schema alone, at
-version 1.
+the type.
 
-**Where it applies.** Sync's `shape` (`sync.ts:426-429`) changes in one
-respect: it reads `messageVersion` (absent is 1), refuses a version above
-the current one, and normalizes the Message **at its own version**, by
-decoding and encoding it with that version's Schema, instead of the current
-one. A stored or sent operation is therefore never rewritten by reading it.
-Every site that reads a Message's meaning (`reduce`, `stamp`, `authorize`,
-`optimistic`, the exchange's `replay`, `coalesce`) calls
-`upcast(version, message)` and then decodes with the current Schema. A
-new operation is written at the current version, with the field omitted
-while that is 1 (§6). `stamp` re-encodes at the current version, so a stamped
-row is stored at the current version; its hash is taken before stamping
-(`durable/src/journal.ts:992`, `:1114-1126`), as today. A `Rejection`
-carries its operation as stored (`sync.ts:167-171`), so an application
-reading `rejection.operation.message` gets it at its own version; the
-contract should offer the upcast Message beside it.
+**Two sides of one operation.** Sync's operation codec becomes a
+transforming codec. Its encoded side is the operation **as written**: the
+envelope with `messageVersion` and the Message at that version, normalized by
+decoding and encoding it with that version's Schema. Its decoded side, the
+`Operation` every caller receives, holds the Message **upcast to the current
+version**, and keeps the as-written form beside it for encoding (a field such
+as `written`, an `Option`; *Sketch*). So:
 
-Normalizing at the operation's own version keeps the payload hash stable
-across a deploy: a retransmission of an operation committed under the old
-build hashes as the old build hashed it, so it reads as already committed,
-not as an id reused for another (`IdentityConflictError`). This holds only
-if the kept Schema of that version normalizes as the old build's did; §8.
+- **Storage and the payload hash see the as-written form.** The journal
+  hashes `canonicalJson(operationCodec.encode(operation))`
+  (`durable/src/journal.ts:950-958`, `:992`), which is now the as-written
+  envelope: a retransmission of an operation committed under the old build
+  hashes as the old build hashed it, and reads as already committed rather
+  than as an id reused for another (`IdentityConflictError`). An explicit
+  `messageVersion: 1` is dropped when encoding, so it and an absent field
+  hash alike; today's `shape` would keep it (`sync.ts:428`).
+- **Every application-facing hook sees the current Message.** That is
+  `journalExchange`'s `admit` (`sync/src/journal.ts:84-86`, `:161`),
+  including `GuardSync.admit`'s `changesOf` (`guard/src/sync.ts:194-207`);
+  the journal's `validate` and `authorize` (`durable/src/journal.ts:1088`,
+  `:1093`); `reduce` and `stamp`; `Rejection.operation`
+  (`sync.ts:167-171`); and `codec.operationFrom` (`sync.ts:281-285`).
+  Without this, an application reader that decodes `operation.message` with
+  the current Message would misread an old one: the registry's `changesOf`
+  returns `[]` on a decode failure (`examples/registry/src/journal.ts:72-80`)
+  and `[]` is admitted (`:109-112`), so a client claiming version 1 would
+  pass the guard and `authorize`, and `reduce` would then apply the upcast
+  edit. Upcasting in the codec closes that, whatever version a client
+  claims.
+- **Tag checks run on the current Message**, including the durable check in
+  `decodeDurable` (`sync.ts:421-425`) and Phase 5's server-only check, so a
+  step that maps an old variant into a server-only one is refused like a
+  server-only Message sent today (invariant 8).
+- **`stamp` writes the current version.** It replaces the Message
+  (`sync.ts:468-475`), so it also drops `written`: the stamped row is encoded
+  at the current version, with `messageVersion` set to it (omitted when it is
+  1). Otherwise a row labelled 1 would carry a version-2 payload, which the
+  strict version-1 decode refuses, and the document would not open. The hash
+  is taken before stamping (`:992`, `:1114-1126`), as today.
+- **A new operation** is written at the current version, with
+  `messageVersion` omitted while that is 1 (§6).
+- **`coalesce` sees one version.** It merges only an operation in `unsent`,
+  submitted since this replica opened (`sync.ts:567`, `:628-634`), so
+  written by this build at the current version; the merged operation is
+  re-encoded at it (`:654`).
+
+The hash argument holds on one condition: the application's kept Schema of
+an old version must normalize as the old build's Schema did. §8.
 
 ## 5. Failure semantics
 
@@ -242,20 +272,43 @@ Schema refuses it, or `up` throws).
 
 | Where | A newer version | A known version no step reads |
 | --- | --- | --- |
-| Outbox, at `openReplica` | The replica refuses to open with a typed `UnsupportedMessageVersionError` (found, supported). Nothing is removed: a newer build reads it. | Refused by its id **locally**: moved from `pending` to a persisted `refused` list in the replica state, in the same write, and reported in `status.rejected` until the application dismisses it. The rest of the outbox opens and sends. |
-| Server, a pending entry in `journalExchange` | The exchange fails with a typed error before anything is appended, so the replica keeps it and retries on its backoff. A rolling deploy that reached the client first is temporary. | Rejected by its id with a typed reason (`Unreadable`, §9), as an undecodable entry is today. The replica moves it to `refused`. |
-| Server, a committed row (`materialize`, `read`, an already-committed id) | The document refuses to open: a typed `UnreadableHistoryError` (document, sequence, version), a `JournalError` case, for every exchange of that document. Other documents are unaffected. | The same. Committed history is the base every replica builds on; skipping a row would give replicas a different snapshot than the server. |
+| Outbox, at `openReplica` | The replica refuses to open with a typed `UnsupportedMessageVersionError` (found, supported). Nothing is removed: a newer build reads it. | Refused by its id **locally**: moved from `pending` to a persisted `refused` list in the replica state, and reported in `status.rejected` until the application dismisses it. The rest of the outbox opens and sends. |
+| Server, pending entries in `journalExchange` | The exchange fails with a typed error before anything is appended, so the replica keeps them and retries on its backoff. Today's loop appends as it goes (`sync/src/journal.ts:151-191`), so this needs a scan of every entry's version before the loop. | Rejected by its id with a typed reason (`Unreadable`, §9), as an undecodable entry is today. The replica moves it to `refused`. |
+| Server, a committed row (`materialize`, `read`, an already-committed id) | The document refuses to open with a typed `UnreadableHistoryError` (document, sequence, version) for every exchange of that document. Other documents are unaffected. | The same. Committed history is the base every replica builds on; skipping a row would give replicas a different snapshot than the server. |
 | Replica, a committed operation from the server | `UnsupportedMessageVersionError`: the client is older than the server and must reload. | `InvalidReplicaHistoryError`, as today. A server with the same chain refuses the document first, so this means client and server disagree on a step. |
 
-The outbox refuses locally, rather than sending what it cannot read, because
-the server applies the same chain, so the round trip could only refuse it
-too, and because the replica cannot build its optimistic view while the
-operation sits in it. The `refused` list keeps the encoded operation, so its
-payload is never lost: an application can show it, offer to retry it under a
-corrected step, or discard it.
+**Who builds `UnreadableHistoryError`.** `foldkit-durable` knows no Message
+or version, so it cannot. Sync's codec throws a typed `UnreadableMessage`
+(opId, version) when a stored row will not decode; `foldkit-durable` reports
+any failure to decode a **stored** row as a `JournalError` carrying that
+cause, and Sync's `journalExchange` turns such a `JournalError` into
+`UnreadableHistoryError`. That needs one change in `foldkit-durable`: the
+already-committed path decodes the stored row after the hashes match
+(`durable/src/journal.ts:1022-1034`) and maps a failure to
+`InvalidOperationError` (`:1033`), which `journalExchange` rejects by id
+(`sync/src/journal.ts:185-186`). An unreadable stored row is not the
+sender's fault, so it becomes a `JournalError` there, as in `materialize`
+(`:819`) and `read` (`:945`).
 
-`committedOf` (`sync/src/journal.ts:121-125`) moves inside a typed `Effect.try`,
-so an unreadable row is the error above, not a defect.
+`committedOf` (`sync/src/journal.ts:121-125`) runs inside `Option.match` and
+`Effect.succeed` in the generator (`:199-202`), so a throw there is a defect
+today; it moves inside a typed `Effect.try`.
+
+**The local refusal.** The outbox refuses locally, rather than sending what
+it cannot read, because the server applies the same chain, so the round trip
+could only refuse it too, and because the replica cannot build its optimistic
+view while the operation sits in it. The `refused` list keeps the encoded
+operation, so its payload is never lost: an application can show it, offer
+to retry it under a corrected step, or discard it. Two consequences:
+
+- `openReplica` writes nothing on open today (`sync.ts:559`, only for an
+  empty store). Moving an entry to `refused` is a new write, made through
+  `store` with the loaded revision, so a second tab that opened the same
+  store meanwhile fails it as a revision conflict.
+- The entry may have committed before its acknowledgement was lost. It is
+  then not a refusal at all, so a `refused` entry says "this build cannot
+  read it", never "the server refused it", and one whose id later arrives
+  committed leaves the list.
 
 Invariant 7 reads "the journal and the replica refuse to open with a typed
 error". This note keeps that for committed history and for a newer version,
@@ -270,19 +323,24 @@ wording should say so (§10).
   current `decodeOperation` refuses excess keys (`sync.ts:67`); a field
   written by default would get every new client's edits refused by a server
   still on the old release.
-- **An application's first `next`** is deployed server first: a server on
-  version 2 reads version 1 and 2; a version-1 client still talking to it is
-  fine. A version-2 client reaching a version-1 server (after this release)
-  waits and retries (§5). Before this release, such a server rejects it by
-  id, which is why the release itself goes everywhere first.
+- **An application's first `next`** is deployed server first. A server on
+  version 2 reads versions 1 and 2. A version-1 client keeps syncing with it
+  only until the first version-2 operation commits: from then on the client
+  receives an operation it cannot read, gets `UnsupportedMessageVersionError`,
+  and stops syncing until it reloads the new build. Its pending edits stay in
+  its outbox and are sent after the reload. A version-2 client reaching a
+  version-1 server (after this release) waits and retries (§5). Before this
+  release, such a server rejects it by id, which is why the release itself
+  goes everywhere first.
 - **A rollback** to an older build meets operations above its version: the
   replica refuses to open, and the server refuses the document, with typed
   errors, and nothing is deleted. Rolling forward again reads them.
 - **`SCHEMA_VERSION` does not change.** `messageVersion` is an optional key in
-  the envelope and in the replica state's `pending`, and a new optional
-  `refused` key in the replica state; an older build would refuse a state
+  the envelope and in the replica state's `pending`, and `refused` a new
+  optional key in the replica state; an older build would refuse a state
   holding either (`onExcessProperty: 'error'`), which is the rollback case.
-- Nothing public is removed, so there is no deprecation.
+- Nothing public is removed, so there is no deprecation. `Operation` gains
+  the `written` field on its decoded side.
 
 ## 7. What it leaves out
 
@@ -306,19 +364,29 @@ wording should say so (§10).
   in-memory list (`sync.ts:564`, `:883`). Whether they join `refused` is item
   5's decision.
 
-## 8. Unknowns
+## 8. Unknowns and what is still vague
 
 - Whether an application's kept copy of an old Schema normalizes exactly as
   the old build's did. If not, a retransmission across the deploy reads as
-  an identity conflict. A test helper could compare stored rows' hashes with
-  the chain's normalization; not designed.
-- What `UnsupportedMessageVersionError` on the client should do beyond
-  stopping the exchange: reload by itself, or leave it to the application.
+  an identity conflict, and a committed edit is reported refused. A test
+  helper could compare stored rows' hashes with the chain's normalization;
+  not designed.
+- **`UnsupportedMessageVersionError` on the client**: whether it joins
+  `ReplicaError` and ends `start`'s retries, or is recorded in
+  `status.lastError` and retried on the backoff like other exchange failures
+  (`sync.ts:892-905`); and whether the replica reloads by itself or leaves
+  that to the application. Undecided.
+- **Who decodes a `refused` entry for display.** It holds the encoded,
+  unreadable form by definition, so no Schema of this build reads it. An
+  application shows it raw, or not at all; nothing here decides which.
+- **An unreadable committed row stops every replica of the document**, and
+  only a new build with a step that reads it recovers it. No tool here edits
+  or removes a committed row.
 - Whether the server should tell a replica its current version in the
   exchange, so an old client learns it is old before receiving an operation
   it cannot read. Not needed for correctness here.
-- The cost of `upcast` on every `materialize` of a long uncompacted log at an
-  old version. Not measured.
+- The cost of upcasting every row on a `materialize` of a long uncompacted
+  log at an old version. Not measured.
 - Whether `tsc` time stays within invariant 12's budget for a long chain;
   each `next` is one generic call, so it is expected to, but Phase 0 has not
   set the budget yet.
@@ -332,19 +400,28 @@ wording should say so (§10).
   unmet, taken, invalid, referenced) has none that fits. Item 5 decides
   whether it joins that vocabulary or is Sync's own; it should also decide
   whether server rejections persist in `refused` (§7).
-- **Phase 5 item 6** builds `Sync.migrations` as above, at every site in
-  §1's table. Its "done when" ("a renamed durable Message replays from an old
-  journal") needs, beyond that: an outbox written by the old build opening
-  under the new one, an acknowledgement lost across the deploy reading as
-  already committed, a client ahead of its server waiting rather than losing
-  the edit, and an unreadable pending operation landing in `refused` with
-  the rest of the outbox sent.
+- **Phase 5 item 6** builds the chain, the transforming operation codec, the
+  version scan in `journalExchange` and the `foldkit-durable` change in §5.
+  Its "done when" ("a renamed durable Message replays from an old journal")
+  needs, beyond that: an outbox written by the old build opening under the
+  new one; an acknowledgement lost across the deploy reading as already
+  committed; a client ahead of its server waiting rather than losing the
+  edit; an unreadable pending operation landing in `refused` with the rest of
+  the outbox sent; a stamped old operation stored at the current version;
+  and a client claiming an old version refused by `admit` and `authorize`
+  exactly as the current Message would be.
 - **Phase 5 items 1 and 3** (server-only Messages and state) store Messages
   in the same journal, so they take the same chain; a server-only Message's
-  versions are the same document-wide number.
+  versions are the same document-wide number, and its tag check runs after
+  upcasting (§4).
 
 ## 10. To record
 
 - contract-layer-PLAN invariant 7: committed history and newer versions
   refuse to open; an unreadable pending operation is refused by its id into
   a persisted list.
+- contract-layer-PLAN Phase 5 item 6 (`contract-layer-PLAN.md:359`) names
+  `Sync.migrations([...])`, a list. This note changes it to a chain,
+  `Sync.migrations(V1).next(V2, up)`, so each step's input is typed by the
+  step before it; and applies it in the operation codec rather than at each
+  decode site, so every hook sees the current Message.
