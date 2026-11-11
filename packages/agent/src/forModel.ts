@@ -4,6 +4,7 @@ import {
   type AnyCapabilitiesByTag,
   type CapabilitiesByName,
   type CapabilitiesByTag,
+  type DeclaredVariants,
   type Cases,
   type ExposedMessages,
   type SubsetCases,
@@ -31,7 +32,12 @@ export interface BoundAgent<Model, Principal> {
   >(
     message: MessageUnion<C>,
     variants: V & ValidateVariants<C, Ext, Model, Principal>,
-  ) => ExposedMessages<Model, Principal, CapabilitiesByName<C, V>, CapabilitiesByTag<C, V>>
+  ) => ExposedMessages<
+    Model,
+    Principal,
+    CapabilitiesByName<C, DeclaredVariants<V>>,
+    CapabilitiesByTag<C, DeclaredVariants<V>>
+  >
 
   readonly exposeSubset: <
     Root,
@@ -47,8 +53,8 @@ export interface BoundAgent<Model, Principal> {
   ) => ExposedMessages<
     Model,
     Principal,
-    CapabilitiesByName<SubsetCases<AllCases, Ms>, V>,
-    CapabilitiesByTag<SubsetCases<AllCases, Ms>, V>
+    CapabilitiesByName<SubsetCases<AllCases, Ms>, DeclaredVariants<V>>,
+    CapabilitiesByTag<SubsetCases<AllCases, Ms>, DeclaredVariants<V>>
   >
 
   readonly resource: <Value>(

@@ -166,6 +166,8 @@ const WithCompletion = DeleteAgent.make({
 
 The result carries `completion: { status: 'completed' | 'failed', message }`.
 
+`Agent.variant` returns an `Agent.Variant`. A contract's type keeps only each variant's `name` and `input`, so a project emitting declarations can export a contract with a completion without importing `foldkit/schema`.
+
 To complete on **state** instead, use `Agent.when`. The Model form needs `host.subscribe`:
 
 ```ts sketch

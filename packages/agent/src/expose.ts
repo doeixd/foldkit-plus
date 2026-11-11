@@ -147,6 +147,25 @@ type NameFor<Config, Tag extends string> = Config extends {
   ? Name
   : SnakeCase<Tag>
 
+/**
+ * What the capability maps read of each declared variant: its `name` and
+ * `input`, and nothing else a contract's type would then carry, such as a
+ * completion's `success` constructor: its type lives in `foldkit/schema`, and
+ * a project emitting declarations without importing that cannot name it
+ * (TS2883, `examples/todo`).
+ *
+ * The conditional is load-bearing: a resolved branch keeps no alias, so a
+ * declaration writes the reduced object rather than `DeclaredVariants<…>`
+ * around the whole variants object.
+ */
+export type DeclaredVariants<V> = V extends unknown
+  ? {
+      readonly [Tag in keyof V]: {
+        readonly [Key in keyof V[Tag] as Key & ('name' | 'input')]: V[Tag][Key]
+      }
+    }
+  : never
+
 /** Capability input types keyed by protocol name, for dispatching by name. */
 export type CapabilitiesByName<C extends Cases, V> = {
   readonly [Tag in ExposedTags<C, V> as NameFor<V[Tag], Tag>]: ExternalInputFor<C, V, Tag>
@@ -281,6 +300,38 @@ type VariantCompletion<Request, Success extends Constructors, Failure extends Co
 }
 
 /**
+ * What `Agent.variant` returns: its config, with the completion contract
+ * erased to `AnyCompletion`.
+ *
+ * Named, and free of the `success` and `failure` constructors, so a project
+ * emitting declarations can write a contract's type: the constructor's own
+ * type lives in `foldkit/schema`, which such a project need not import, and
+ * its inferred definition then failed with TS2883. An omitted `name` is
+ * absent, not `name?: string`, which `NameFor` would read as any key.
+ */
+export type Variant<
+  ExternalInput,
+  Encoded,
+  MessageInput,
+  Name extends string | undefined = undefined,
+  Model = any,
+  Principal = any,
+> = {
+  readonly description: string
+  readonly available?: ((model: Model) => boolean) | undefined
+  readonly input: Schema.Codec<ExternalInput, Encoded, never, never>
+  readonly toMessage: (
+    input: ExternalInput,
+    context: InvocationContext<Model, Principal>,
+  ) => MessageInput
+  readonly authorize?: VariantConfig<MessageInput, ExternalInput, Model, Principal>['authorize']
+  // Erased: the contract was checked against this variant's own input, and
+  // `expose`'s constraint types `completion` for the inline form, which is a
+  // different (internal) request type.
+  readonly completion?: AnyCompletion | undefined
+} & (undefined extends Name ? { readonly name?: undefined } : { readonly name: Name })
+
+/**
  * Types a variant that maps a distinct external input onto its Message.
  *
  * `expose` already infers `toMessage` and `authorize` from the `input` codec
@@ -322,15 +373,7 @@ export const variant = <
     | VariantCompletion<ExternalInput, Success, Failure>
     | StateCompletion<ExternalInput, Model>
     | undefined
-}): Omit<typeof config, 'name' | 'completion'> &
-  // Erased on the way out: the contract was checked against this variant's own
-  // input above, and `expose`'s constraint types `completion` for the inline
-  // form, which is a different (internal) request type.
-  { readonly completion?: AnyCompletion | undefined } &
-  // `NameFor` only reads a *required* `name`, so an omitted one must not leave
-  // an optional `name?: string` behind: that would widen the capability's key.
-  (undefined extends Name ? { readonly name?: undefined } : { readonly name: Name }) =>
-  config as never
+}): Variant<ExternalInput, Encoded, MessageInput, Name, Model, Principal> => config as never
 
 /**
  * A `foldkit-surface` Action as a variant: its name, description and input,
@@ -376,18 +419,7 @@ export const action = <
     // The whole Message: `expose` checks its tag is the key's before dispatching.
     toMessage: input => action.toMessage(input),
     ...extras,
-  }) as ReturnType<
-    typeof variant<
-      Input,
-      Encoded,
-      Omit<ActionMessage, '_tag'>,
-      MessageConstructor,
-      never,
-      Name,
-      Model,
-      Principal
-    >
-  > & {
+  }) as Variant<Input, Encoded, Omit<ActionMessage, '_tag'>, Name, Model, Principal> & {
     /** Types only: the tag of the Message the Action makes, which `expose` requires of the key. Never set. */
     readonly messageTag?: ActionMessage['_tag']
   }
@@ -439,7 +471,12 @@ export const expose = <
 >(
   message: MessageUnion<C>,
   variants: V & ValidateVariants<C, Ext, Model, Principal>,
-): ExposedMessages<Model, Principal, CapabilitiesByName<C, V>, CapabilitiesByTag<C, V>> => {
+): ExposedMessages<
+  Model,
+  Principal,
+  CapabilitiesByName<C, DeclaredVariants<V>>,
+  CapabilitiesByTag<C, DeclaredVariants<V>>
+> => {
   const union = message as unknown as Record<string, unknown>
 
   const compiled = Object.keys(variants).map((tag): ExposedVariant<Model, Principal> => {
@@ -552,8 +589,8 @@ export const exposeSubset = <
 ): ExposedMessages<
   Model,
   Principal,
-  CapabilitiesByName<SubsetCases<AllCases, Ms>, V>,
-  CapabilitiesByTag<SubsetCases<AllCases, Ms>, V>
+  CapabilitiesByName<SubsetCases<AllCases, Ms>, DeclaredVariants<V>>,
+  CapabilitiesByTag<SubsetCases<AllCases, Ms>, DeclaredVariants<V>>
 > =>
   expose(
     subsetUnion(subset) as unknown as MessageUnion<SubsetCases<AllCases, Ms>>,
@@ -561,6 +598,6 @@ export const exposeSubset = <
   ) as unknown as ExposedMessages<
     Model,
     Principal,
-    CapabilitiesByName<SubsetCases<AllCases, Ms>, V>,
-    CapabilitiesByTag<SubsetCases<AllCases, Ms>, V>
+    CapabilitiesByName<SubsetCases<AllCases, Ms>, DeclaredVariants<V>>,
+    CapabilitiesByTag<SubsetCases<AllCases, Ms>, DeclaredVariants<V>>
   >

@@ -638,3 +638,49 @@ Agent.expose(Message, {
     },
   }),
 })
+
+// `Agent.variant` returns `Agent.Variant`, a type a declaration can write: its
+// name and input are kept, its completion's constructors erased.
+const renameVariant = Agent.variant({
+  name: 'rename',
+  description: 'Rename a todo',
+  input: Schema.Struct({ id: Schema.String }),
+  toMessage: input => ({ id: input.id, title: 'x' }),
+  completion: { success: Message.ReceivedTodos },
+})
+
+type RenameInput = { readonly id: string }
+type RenamePayload = { id: string; title: string }
+
+export const declaredVariant: Agent.Variant<RenameInput, RenameInput, RenamePayload, 'rename'> =
+  renameVariant
+
+// @ts-expect-error the variant is named rename, not other.
+export const misnamedVariant: Agent.Variant<RenameInput, RenameInput, RenamePayload, 'other'> =
+  renameVariant
+
+// A capability with a completion keeps its name and input in the contract's
+// type, whether the completion is inline or through `Agent.variant`.
+const completing = Agent.bind({
+  definition: Agent.make({
+    context: TodoList,
+    messages: Agent.expose(Message, {
+      RequestedCreateTodo: {
+        name: 'add_todo',
+        description: 'Add a todo',
+        completion: { success: Message.ReceivedTodos },
+      },
+      RequestedRenameTodo: renameVariant,
+    }),
+  }),
+  host: { model: () => model, dispatch: () => {}, observe: () => () => {} },
+})
+
+completing.messages.dispatch('add_todo', { title: 'x' })
+completing.messages.dispatch('rename', { id: 'x' })
+
+// @ts-expect-error add_todo takes a title, not an id.
+completing.messages.dispatch('add_todo', { id: 'x' })
+
+// @ts-expect-error the variant's name replaced requested_rename_todo.
+completing.messages.dispatch('requested_rename_todo', { id: 'x' })

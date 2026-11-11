@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **An agent contract with a completion can be exported from a project that
+  emits declarations** (`foldkit-agent`). Its inferred type carried the whole
+  variants object, so a completion's `success` constructor was written as
+  `CallableTaggedStruct`, which only `foldkit/schema` exports; a project that
+  never imported it failed with TS2883 (`examples/todo`). A contract's type now
+  keeps each variant's `name` and `input` alone.
 - **`serveFetch` reads a refused POST's body before answering**
   (`foldkit-remote-server`). A call refused early (no principal, another
   path, a body over `maxBodyBytes`, a failed layer) answered with its body
@@ -89,6 +95,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Agent.Variant`: what `Agent.variant` returns** (`foldkit-agent`). A named
+  type with the completion erased to `AnyCompletion`, where the return type
+  was `Omit<typeof config, …>`, which spelled out the completion's
+  constructors in every declaration that wrote it.
 - **`SSR.unbound(attributes)`: a Slot's attributes in a static region**
   (`foldkit-ssr`, #432). `SSR.static`'s `ih` is `HtmlBuilder<never>`, and a
   Slot's attributes are typed with the page's Message, so styling a region

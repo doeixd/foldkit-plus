@@ -15,6 +15,7 @@ export {
   exposeSubset,
   variant,
   type ExposedMessages,
+  type Variant,
   type ExposedVariant,
   type MessageInputOf,
 } from './expose.js'
