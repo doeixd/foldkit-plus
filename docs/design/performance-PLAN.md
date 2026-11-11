@@ -140,6 +140,18 @@ Phase 0 of #420 (2026-11-10, dbfbbe8): the style rows sum to 30.1 KB brotli, ove
 
 Phase 0a of #433's client half (2026-11-10, 4x CPU, two rounds on a shared tree): `UpdatedSearch` (38-39 ms view plus patch) and `SelectedItem` (39-43 ms) are over 16 ms in both rounds, so step 0b runs for them later and the client half stays open.
 
+Phase 0 of #438 (2026-11-11, c2dcbe5, `scripts/bundle-report.mjs --route`): first-load JavaScript per route, a production build against `dist` with the branding plugin removed. A route is the module or modules an application names as its root; "only this" is the brotli, estimated from each module's share of its chunk, of the modules that route alone reaches by static imports (what the entry or another route also reaches is in none). No application splits a route into a chunk of its own, so every route's first load is the whole entry; the lazy chunks beside it (a sandbox's SQLite host, Yielded's client) are not route chunks and are not counted.
+
+| Application | Route (roots) | First load, brotli | Only this route imports |
+| --- | --- | --- | --- |
+| `examples/reference` | one route: the whole entry (`src/view.ts`; its three routes are arms of one `AppRoute.match`) | 242.0 KB | no split to measure |
+| `examples/chirp` | one route: the whole entry (`src/view.ts`; Home, Profile and Status are arms of one `AppRoute.match`) | 237.5 KB | no split to measure |
+| `examples/cms` | posts, the landing (`apps/app.ts`, `views/view.ts`) | 283.9 KB | 5.8 KB |
+| | pages (`apps/pageApp.ts`, `views/pagesView.ts`) | 283.9 KB | 2.0 KB |
+| | site (`apps/siteApp.ts`, `views/siteView.ts`) | 283.9 KB | 1.7 KB |
+
+The CMS entry's 283.9 KB is the studio and the site in one entry; a 305.2 KB lazy chunk (the in-page sandbox) is not on the first load. The page builder is not a route's own: `content/site.ts` is imported by the pages, the posts view and the site. The likeliest candidate, the pages route, owns 2.0 KB with the site counted as a route, and 2.3 KB against the posts alone. Reference and Chirp have no route modules, so the report names the whole entry as the one route rather than inventing a split. The largest figure for a non-landing route is 2.0 KB against decision 6's 20 KB: C1 to C3 are not due, and #438 closes (B's bugs are fixed, b10c409).
+
 **HTML**: the theme stylesheet, about 92 KB uncompressed, inlined into every
 response (#419).
 

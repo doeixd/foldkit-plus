@@ -33,8 +33,11 @@ phase ships alone and records its number; the gates below are the notes' own.
   (`SSR.entry`'s `redirect`: 4b7ed9a..6f6f73c) and H3 (`AuthServer.host`,
   resolvers typed apart: a187704..f3692c8) and H2 (`foldkit-host`:
   6647aa3..ae46ef6; reference workerd test, e2e, mutations and
-  `pack:check` green, bodies restored: fe52bf3). Then: Phase 0 per-route baselines. C1 to C3 only if Phase 0 finds 20 KB
-  brotli or more that one non-landing route alone imports. H4 only if 30
+  `pack:check` green, bodies restored: fe52bf3) and Phase 0 (c2dcbe5,
+  2026-11-11): the most that one non-landing route alone imports is 2.0 KB
+  brotli (the CMS pages route; Chirp and the reference have no route
+  modules), under the 20 KB bar, so C1 to C3 are not built and #438 closes
+  (numbers in [performance-PLAN.md](./performance-PLAN.md)). H4 only if 30
   lines or more of glue stay shared after H2; `visibleLinks` (D2) only if
   decision 3's rule is met. Close #236 when the branch merges.
   [235-236-438-site-host-DESIGN.md](./235-236-438-site-host-DESIGN.md)
