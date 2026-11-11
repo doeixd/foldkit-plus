@@ -1318,6 +1318,7 @@ const view = <Message>() => ({
                 ...(Option.isNone(pinned(id)) ? { position: 'relative' } : {}),
                 ...Option.match(dragged, {
                   onNone: () => ({}),
+                  // physical: a pointer delta, in screen pixels
                   onSome: ({ delta }) => ({ transform: `translateX(${px(delta * toward)})` }),
                 }),
               }),

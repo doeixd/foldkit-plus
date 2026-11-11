@@ -59,6 +59,7 @@ export const arrow = (look: {
       boxSizing: 'border-box',
       background: look.fill,
       borderTop: `${ref.border.thin} solid ${look.line}`,
+      // physical: the arrow is placed by the anchor's physical side
       borderLeft: `${ref.border.thin} solid ${look.line}`,
       pointerEvents: 'none',
     }),

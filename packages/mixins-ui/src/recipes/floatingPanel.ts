@@ -68,6 +68,7 @@ const bar: Declarations = {
 
 /** Where each edge's and corner's handle sits, physically, as `data-edge` names it. */
 const edges: ReadonlyArray<readonly [string, Declarations]> = [
+  // physical: resize handles are named by compass point, as the pointer moves them
   ['n', { top: '-4px', left: '8px', right: '8px', height: '8px', cursor: 'ns-resize' }],
   ['s', { bottom: '-4px', left: '8px', right: '8px', height: '8px', cursor: 'ns-resize' }],
   ['e', { right: '-4px', top: '8px', bottom: '8px', width: '8px', cursor: 'ew-resize' }],

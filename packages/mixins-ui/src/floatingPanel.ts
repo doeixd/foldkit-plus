@@ -483,6 +483,7 @@ export const view = <ParentMessage>(
       ? { position: 'fixed', inset: '0', width: 'auto', height: 'auto' }
       : {
           position: 'fixed',
+          // physical: the panel's measured pixel position
           left: `${rect.x}px`,
           top: `${rect.y}px`,
           width: `${rect.width}px`,

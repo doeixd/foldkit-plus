@@ -121,11 +121,13 @@ export const Drawer = Style.recipeFor(DrawerSlots)({
       // looks the same either way, and logical sides swapped the halves right
       // to left, turning each on its outer end.
       Style.pseudo('::before', {
+        // physical: the grab bar is a drawing
         right: 'calc(50% - 0.0625rem)',
         transformOrigin: 'right center',
         rotate: `calc(var(--_fk-drawer-bend, 0) * -${BEND}deg)`,
       }),
       Style.pseudo('::after', {
+        // physical: the grab bar is a drawing
         left: 'calc(50% - 0.0625rem)',
         transformOrigin: 'left center',
         rotate: `calc(var(--_fk-drawer-bend, 0) * ${BEND}deg)`,

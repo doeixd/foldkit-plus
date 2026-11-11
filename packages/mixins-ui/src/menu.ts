@@ -518,6 +518,7 @@ export type Point = typeof Point.Type
 const pointMark = (point: Option.Option<Point>) => ({
   ...Option.match(point, {
     onNone: () => ({}),
+    // physical: the pointer's screen coordinates
     onSome: ({ x, y }) => ({ position: 'fixed', left: `${x}px`, top: `${y}px` }),
   }),
   inlineSize: '0',

@@ -277,6 +277,7 @@ export const tokens = define({
   // `viewport-fit=cover`. Physical, as the screen is; a fixed bar pads the edge it touches.
   safe: {
     top: 'env(safe-area-inset-top, 0px)',
+    // physical: the screen's insets are named by screen side
     right: 'env(safe-area-inset-right, 0px)',
     bottom: 'env(safe-area-inset-bottom, 0px)',
     left: 'env(safe-area-inset-left, 0px)',

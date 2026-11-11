@@ -86,7 +86,8 @@ export const Dialog = Style.recipeFor(DialogSlots)({
         // Scrolled to its end, a swipe stays in it rather than moving the page behind.
         overscrollBehavior: 'contain',
         // Held off each screen edge by what it takes there, and centered by the dialog's
-        // grid in what is left. Physical, as the screen's insets are.
+        // grid in what is left.
+        // physical: the screen's safe-area insets are named by screen side
         marginTop: ref.safe.top,
         marginRight: ref.safe.right,
         marginBottom: `calc(${ref.safe.bottom} + var(--fk-keyboard-inset, 0px))`,

@@ -30,6 +30,7 @@ const Model = Schema.Struct({
 type Model = typeof Model.Type
 
 afterEach(() => {
+  document.documentElement.removeAttribute('dir')
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
   document.body.replaceChildren()
 })
@@ -245,6 +246,25 @@ test('the line and "Sign here" are drawn to sign on, and the words go once signe
     expect(getComputedStyle(words).opacity).toBe('1')
     draw(across(40))
     await vi.waitFor(() => expect(getComputedStyle(words).opacity).toBe('0'))
+  } finally {
+    mounted.dispose()
+  }
+})
+
+test('"Sign here" starts at the reading start, so at the right edge of the line right to left', async () => {
+  document.documentElement.dir = 'rtl'
+  const mounted = mount()
+  try {
+    await ready()
+    const guide = document
+      .querySelector<HTMLElement>('#sign-control > div')!
+      .getBoundingClientRect()
+    const words = Array.from(control()!.querySelectorAll('span')).find(
+      span => span.textContent === 'Sign here',
+    )!
+    const box = words.getBoundingClientRect()
+    expect(box.right).toBeCloseTo(guide.right, 0)
+    expect(box.left).toBeGreaterThan(guide.left + 20)
   } finally {
     mounted.dispose()
   }

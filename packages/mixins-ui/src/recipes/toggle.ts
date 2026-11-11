@@ -74,6 +74,7 @@ export const Checkbox = Style.recipeFor(CheckboxSlots)({
         content: '""',
         position: 'absolute',
         top: `calc(10.7% + ${ref.border.glyph} * 0.354)`,
+        // physical: a drawn check mark
         left: '34%',
         inlineSize: '32%',
         blockSize: '56%',
@@ -93,6 +94,7 @@ export const Checkbox = Style.recipeFor(CheckboxSlots)({
         // The check's stroke, on the middle: a share of the box was 1.4px at
         // 16px, thinner than the check and blurred off its pixel rows.
         top: `calc(50% - ${ref.border.glyph} / 2)`,
+        // physical: a drawn check mark
         right: '22%',
         left: '22%',
         inlineSize: 'auto',

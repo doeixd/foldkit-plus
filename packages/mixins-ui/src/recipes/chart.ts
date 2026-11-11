@@ -190,6 +190,7 @@ export const Chart = Style.recipeFor(ChartSlots)({
         ...role('caption'),
         position: 'absolute',
         insetBlockStart: ref.space.xs,
+        // physical: as the drawing is, a category's place does not flip
         left: 'var(--_fk-chart-at)',
         zIndex: '1',
         display: 'grid',

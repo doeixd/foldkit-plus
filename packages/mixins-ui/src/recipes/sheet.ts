@@ -60,6 +60,7 @@ const travel = 'var(--fk-sheet-offset, calc((1 - var(--fk-sheet-snap, 1)) * 100%
 /** The translate that draws the panel `by` in from its edge. */
 const moved = (side: Side, by: string): string =>
   ({
+    // physical: a sheet's side is the screen edge the application names
     top: `0 calc(-1 * ${by})`,
     right: `${by} 0`,
     bottom: `0 ${by}`,
@@ -81,6 +82,7 @@ const placed = {
 const clear = (side: Side): Declarations => {
   const away = { top: 'bottom', right: 'left', bottom: 'top', left: 'right' }[side]
   const padding = {
+    // physical: a sheet's side is the screen edge the application names
     top: 'paddingTop',
     right: 'paddingRight',
     bottom: 'paddingBottom',
@@ -116,6 +118,7 @@ const grabber: Record<Side, Declarations> = {
     position: 'absolute',
     insetBlock: '0',
     marginBlock: 'auto',
+    // physical: the grabber stands on the screen edge the sheet is opened from
     left: ref.space.xs,
     inlineSize: thickness,
     blockSize: length,
@@ -124,6 +127,7 @@ const grabber: Record<Side, Declarations> = {
     position: 'absolute',
     insetBlock: '0',
     marginBlock: 'auto',
+    // physical: the grabber stands on the screen edge the sheet is opened from
     right: ref.space.xs,
     inlineSize: thickness,
     blockSize: length,

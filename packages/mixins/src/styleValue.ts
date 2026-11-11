@@ -96,8 +96,13 @@ const shorthands = [
   'background',
   'border',
   'borderBlock',
+  'borderBlockEnd',
+  'borderBlockStart',
   'borderBottom',
   'borderInline',
+  'borderInlineEnd',
+  'borderInlineStart',
+  // physical: these name the shorthands that write a physical side
   'borderLeft',
   'borderRadius',
   'borderRight',

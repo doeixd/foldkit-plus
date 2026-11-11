@@ -164,6 +164,7 @@ export const transition = (properties: string): Declarations => ({
  * left landed a quarter off (a shut row's chevron pointed up).
  */
 export const cornerSides = (width: string, color: string): Declarations => ({
+  // physical: a drawn mark, see above
   borderRight: `${width} solid ${color}`,
   borderBottom: `${width} solid ${color}`,
 })
