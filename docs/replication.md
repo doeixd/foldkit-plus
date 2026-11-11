@@ -207,7 +207,8 @@ request    cursor, pending operations, the epoch the replica last saw
 answer     operations     committed after the cursor, in order
            acknowledged   ids accepted (also when their payload is not repeated)
            rejected       ids refused
-           reasons?       [{ opId, reason }]: why, in words for a person, for some of rejected
+           refusals?      [{ opId, refusal }]: why, for some of rejected, a typed SyncRefusal each
+           reasons?       [{ opId, reason }]: deprecated, the same in words alone
            checkpoint?    { cursor, model } when the tail was compacted away
            more?          another page follows
            epoch          this server's history
@@ -304,8 +305,8 @@ When a rule refuses, the operation is *rejected by its id*: the replica drops
 it, replays what remains, and the field reverts, as in
 [section 4](#4-what-the-user-sees-and-what-waits-for-the-server). Use
 `authorize` for a rule a person should read about, because its `reason`
-reaches the replica; a `validate` refusal arrives as the fixed sentence "Not a
-valid operation". An operation that names another document is rejected the
+reaches the replica as a `Forbidden` refusal's; a `validate` refusal arrives as
+an `Invalid` one whose message is the fixed sentence "Not a valid operation". An operation that names another document is rejected the
 same way before the journal sees it.
 
 ### A rule that fits: at most 100 todos
@@ -403,9 +404,9 @@ the point. Two things need more:
 
 - **A refused edit.** It comes back as a rejection on the next exchange, the
   replica drops it, the mount re-installs the slice, and the field reverts.
-  `replica.status.rejected` names the operation, with the server's reason
-  when it gave one (an `authorize` rule's `{ allowed: false, reason }`), so
-  the UI can say why.
+  `replica.status.rejected` names the operation, with a typed refusal
+  (`Forbidden` with an `authorize` rule's `reason` when it gave one,
+  `Invalid` when the operation failed), so the UI can say why.
   `onPersistenceFailure` does not run for this; the local save succeeded.
 - **Something that must not claim success early.** An agent tool, a "shared
   with the team" confirmation. These wait on `mounted.committed`, the slice as

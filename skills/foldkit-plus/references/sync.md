@@ -235,9 +235,30 @@ A variant with no rule is allowed, and a non-durable key is a type error. Rules
 compile into `journalContract()` and run only on the server. A rule returns
 `true`, `false`, or `{ allowed: false, reason }`. A refused edit comes back as
 an exchange rejection, and the replica drops it; `status.rejected` is
-`[{ opId, reason: Option<string>, operation }]`, the reason the rule gave, or a
-fixed sentence from `journalExchange` (never an error's message), and the
-refused operation itself, to read what it changed.
+`[{ opId, refusal: Option<SyncRefusal>, operation }]`: why, in Remote's
+vocabulary, and the refused operation itself, to read what it changed.
+`Forbidden { reason }` is `authorize` or `admit` refusing, with the rule's
+words (Remote's `Denied.Forbidden`); `Invalid { message, ... }` is the
+operation failing, with a fixed sentence from `journalExchange`, never an
+error's message (Remote's `Refusal.invalid`); `Unreadable { version }` is for
+upcasting and not sent yet. None means the server named no refusal, or one
+this build cannot read (reported as `UnknownRefusal`). `reason`, the words
+alone, is deprecated.
+
+```ts
+import { Option } from 'effect'
+import { SyncRefusal, type Rejection } from 'foldkit-sync'
+
+const said = (rejection: Rejection): string =>
+  Option.match(rejection.refusal, {
+    onNone: () => 'Refused by the server',
+    onSome: SyncRefusal.match({
+      Forbidden: ({ reason }) => Option.getOrElse(reason, () => 'You may not change this'),
+      Invalid: ({ message }) => message,
+      Unreadable: () => 'Made by another version of the app, so not saved',
+    }),
+  })
+```
 
 ## Server: foldkit-durable Journal
 

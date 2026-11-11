@@ -426,8 +426,8 @@ const status = Effect.runSync(replica.status)
 
 `pending` above zero means edits the server has not confirmed; `lastError` is
 the last failed exchange, cleared by the next success; `rejected` lists recent
-edits the server refused, most recent first, each `{ opId, reason, operation }`,
-where `reason` is an `Option` of the server's words for the person and
+edits the server refused, most recent first, each `{ opId, refusal, operation }`,
+where `refusal` is an `Option` of why (a `SyncRefusal`, below) and
 `operation` is the refused operation itself, which the replica has dropped
 from the outbox, so a page reads what it changed from here. `replica.statusChanges` is a Stream of the same,
 emitted now and after every submit and exchange (subscribed before its first
@@ -438,13 +438,47 @@ pairs it with the optimistic `shared` value so one subscription sees both.
 error. The replica drops it and replays the rest; the mount re-installs the
 shared slice, and the field the user edited reverts. `onPersistenceFailure`
 does not run for this, since the local save succeeded. Watch `rejected` to
-explain the revert: `journalExchange` gives each rejection a reason, the
-`authorize` rule's own when it gave one. Otherwise it gives a fixed sentence:
-"Refused by the server" when `authorize` refused with none (a plain `false`),
-and "Not a valid operation" when the operation failed (`validate` refused or
-threw, `authorize` threw, or the reducer could not apply it). It never sends
-an error's message, which may carry internals, so a rule a person should read
-about belongs in `authorize` with a `reason`, not in `validate`.
+explain the revert. Each rejection's `refusal` is a `SyncRefusal`, in Remote's
+vocabulary for "not saved", so a page that also shows Remote's refusals
+handles both with one function:
+
+- `Forbidden { reason }`: `authorize` or `admit` refused who sent it, or its
+  replica belongs to another actor. `reason` is the rule's own words when it
+  gave some (a plain `false` gives none), cut to 500 characters. Remote's
+  `Denied.Forbidden` has the same shape.
+- `Invalid { message, entity, rule, path }`: the operation failed, with a fixed
+  sentence as `message`. "Not a valid operation" when `validate` refused or
+  threw, `authorize` threw, or the reducer could not apply it; "Not an
+  operation this server accepts" when it did not decode or named another
+  document; "Its id was already used for another" for a reused id.
+  `journalExchange` names no Entity, so `entity`, `rule` and `path` are empty;
+  the shape is Remote's `Refusal.invalid`.
+- `Unreadable { version }`: written at a Message version the server's history
+  does not read. Nothing sends it yet; it is there for upcasting, so a match
+  written now is already whole.
+
+```ts
+import { Option } from 'effect'
+import { SyncRefusal, type Rejection } from 'foldkit-sync'
+
+const said = (rejection: Rejection): string =>
+  Option.match(rejection.refusal, {
+    onNone: () => 'Refused by the server',
+    onSome: SyncRefusal.match({
+      Forbidden: ({ reason }) => Option.getOrElse(reason, () => 'You may not change this'),
+      Invalid: ({ message }) => message,
+      Unreadable: () => 'Made by another version of the app, so not saved',
+    }),
+  })
+```
+
+`refusal` is none when the server named none (an older or a custom server), or
+named one this build cannot read, which the replica reports as
+`UnknownRefusal` and still treats as rejected. The server never sends an
+error's message, which may carry internals, so a rule a person should read
+about belongs in `authorize` with a `reason`, not in `validate`. The
+deprecated `reason` (the words alone, an `Option<string>`) is still filled
+for one release; read `refusal` instead.
 
 **Waiting for the server.** The Model shows an edit before the server has it.
 Something that must not report success until the edit is committed, an agent
@@ -536,7 +570,8 @@ const GuardedBoard = Authorized.make({
 ```
 
 A rule returns `true`, `false`, or `{ allowed: false, reason }`; the reason
-is sent to the replica whose edit it was, as its rejection's `reason`.
+is sent to the replica whose edit it was, as its rejection's
+`Forbidden` refusal.
 
 `message` is exactly that variant, `shared` is the authoritative snapshot, and
 `principal` is whatever the server's transport established for the connection;
@@ -875,7 +910,8 @@ request    cursor
 answer     operations     committed after the cursor, contiguous
            acknowledged   ids the server accepted without repeating them
            rejected       ids the server refused
-           reasons?       [{ opId, reason }]: why, for some of rejected; at most 500 characters each
+           refusals?      [{ opId, refusal }]: why, for some of rejected, one each; an encoded SyncRefusal
+           reasons?       [{ opId, reason }]: deprecated words, at most 500 characters each
            checkpoint?    { cursor, model } when the history is gone
            more?          true when another page follows
            epoch?         the server's history

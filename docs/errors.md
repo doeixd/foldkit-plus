@@ -386,11 +386,12 @@ are different from a mutation's. See [When things go wrong](../packages/sync/REA
   `ExchangeFailed`.
 - **A rejected edit** arrives on the next exchange, not as an error. The
   replica drops it from the outbox and replays the rest, and the field reverts.
-  `status.rejected` lists it with the operation and a `reason`: the
-  `authorize` rule's own words when it gave some, `Refused by the server` when
-  it refused without any (a plain `false`), and `Not a valid operation` when
-  the operation itself failed (`validate` refused or threw, `authorize` threw,
-  or the reducer could not apply it). An error's message is never sent.
+  `status.rejected` lists it with the operation and a typed `refusal`, in
+  Remote's vocabulary: `Forbidden` with the `authorize` rule's own words when
+  it gave some (none for a plain `false`), and `Invalid` with the fixed
+  sentence `Not a valid operation` when the operation itself failed
+  (`validate` refused or threw, `authorize` threw, or the reducer could not
+  apply it). An error's message is never sent.
 - **A persist that fails** reverts the edit and calls `onPersistenceFailure`,
   whose returned Model is what the reader sees next. The reader must redo it.
 - **The outbox is user data, not a cache.** Edits not yet committed live only

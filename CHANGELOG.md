@@ -450,6 +450,26 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Sync rejections carry a typed refusal** (`foldkit-sync`, #190). Each
+  `status.rejected` entry has `refusal: Option<SyncRefusal>`, in Remote's
+  vocabulary for "not saved": `Forbidden { reason }` when `authorize` or
+  `admit` refused (Remote's `Denied.Forbidden`), `Invalid { message, entity,
+  rule, path }` when the operation failed, with `journalExchange`'s fixed
+  sentence (Remote's `Refusal.invalid`), and `Unreadable { version }`,
+  declared for upcasting and not sent yet. Read it through `SyncRefusal.match`.
+  The exchange reply gains `refusals: [{ opId, refusal }]` (an encoded
+  `SyncRefusal` each, at most one per operation), which `journalExchange`
+  sends only when it refused something; a refusal the replica cannot read
+  leaves the rejection standing with no refusal and is reported as
+  `UnknownRefusal`. A rule's reason longer than 500 characters is now cut
+  with an ellipsis instead of failing every exchange at the replica. **Breaking
+  for a client of an earlier release:** it decodes the reply strictly, so
+  once the server refuses one of its operations its exchanges fail until it
+  runs the new build. Nothing is lost; the refused operation is rejected
+  again then. A custom server sends `refusals`, each
+  `Schema.encodeSync(SyncRefusal)(SyncRefusal.Forbidden({ reason }))` or
+  another case, instead of `reasons`.
+
 - **Breaking: PasswordInput's `strength` takes a drawn gauge**
   (`foldkit-mixins-ui`). It is `Html`, placed in the `strength` Slot, where it
   was a Meter's options that PasswordInput drew itself; so PasswordInput no
@@ -614,6 +634,15 @@ version changed; `pnpm` skips versions already in the registry.
   it to `serveFetch`'s `cache.store` is a type error: a read's answer carries
   no age, and one served past its `maxAge` would read as fresh. `memory`,
   `workers` and `kv` without `keep` are accepted by both.
+
+### Deprecated
+
+- **`Rejection.reason` and the exchange reply's `reasons`** (`foldkit-sync`,
+  #190), removed in the next release. Read `rejection.refusal` (a
+  `SyncRefusal`) instead of `rejection.reason`; a custom server sends
+  `refusals` instead of `reasons`. Both are still filled with today's words
+  for this release, and the replica keeps accepting `reasons` on a reply after
+  that, since a server a release behind sends it on every reply.
 
 ### Removed
 
