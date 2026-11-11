@@ -230,7 +230,13 @@ In the same change:
   - #190 upcasting: `Sync.migrations`, the branded `WrittenOperation`,
     `status.refused` and `replica.dismiss`, `Rejection.message`, three new
     errors, and Durable's codec `compared` (d8f9c666..339f1fa9);
-  - `Expr.in` over a null list now reads as unknown (482c0783).
+  - `Expr.in` over a null list now reads as unknown (482c0783);
+  - #144's column filters: `ColumnSpec.filter`, `ColumnFilter`, `Filters`,
+    `FilterChange`, `Grid.keeps`/`setFilter`/`noFilters`, `Out.Filtered`
+    (only on a grid that filters), and the editor classifier change
+    (bddd2372..59bf7a06; independent review passed in two rounds). Every
+    grid carries about 4 kB brotli of filter code; splitting it out is an
+    API change to decide before 1.0.
 - [ ] **The branch's PR.** Unmerged since #497 (merged 2026-11-10): about a
       hundred commits, never through CI, since CI runs on pull requests. The
       whole CI sequence passed locally on 81458646 (2026-11-11, perf and
