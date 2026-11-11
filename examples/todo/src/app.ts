@@ -1,6 +1,8 @@
-import { Option, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
+import * as Command from 'foldkit/command'
 import { modifyFields } from 'foldkit/struct'
 import { defineMessageUnion } from 'foldkit/message'
+import type * as Update from 'foldkit/update'
 
 /** The application half of the example: an ordinary Foldkit Model and Message union. */
 
@@ -29,7 +31,12 @@ export type Model = typeof Model.Type
  * agent can originate the same transition.
  */
 export const Message = defineMessageUnion({
-  RequestedCreateTodo: { title: Schema.String },
+  /**
+   * Someone asked for a todo. It is not in the list until `SubmittedTodo`, the
+   * fact, lands. `requestId` is the call waiting for that fact (an agent's
+   * invocation), so two requests for one title are told apart.
+   */
+  RequestedCreateTodo: { title: Schema.String, requestId: Schema.optionalKey(Schema.String) },
   RequestedRenameTodo: { id: Schema.String, title: Schema.String },
   RequestedDeleteTodo: { id: Schema.String },
   RequestedToggleTodo: { id: Schema.String },
@@ -37,6 +44,12 @@ export const Message = defineMessageUnion({
   ClearedSelection: {},
 
   // Internal. Never exposed: an agent has no business originating these.
+  /** The todo was saved. Carries the request it answers, where one waits. */
+  SubmittedTodo: {
+    id: Schema.String,
+    title: Schema.String,
+    requestId: Schema.optionalKey(Schema.String),
+  },
   ReceivedTodos: { todos: Schema.Array(Todo) },
   FailedToLoadTodos: { message: Schema.String },
 })
@@ -50,46 +63,73 @@ export const initialModel: Model = {
   nextId: 1,
 }
 
-/**
- * The state transition function.
- *
- * A real Foldkit `update` returns Commands alongside the Model; this stand-in
- * returns only the Model, because what the example demonstrates is the agent
- * layer above it. Nothing else here changes.
- */
-export const update = (model: Model, message: Message): Model =>
-  Message.match(message, {
-    RequestedCreateTodo: ({ title }) =>
-      modifyFields(model, {
-        todos: () => [...model.todos, { id: `todo-${model.nextId}`, title, completed: false }],
-        nextId: () => model.nextId + 1,
-      }),
+type Return = Update.Return<Model, Message>
 
-    RequestedRenameTodo: ({ id, title }) =>
-      modifyFields(model, {
+/**
+ * Stands in for the I/O a real create waits on (a save, a server's answer):
+ * a Command, so the todo appears only when its fact comes back.
+ */
+const SaveTodo = Command.define('SaveTodo', {
+  args: { id: Schema.String, title: Schema.String, requestId: Schema.optionalKey(Schema.String) },
+  messages: [Message.SubmittedTodo],
+  execute: todo => Effect.succeed(Message.SubmittedTodo(todo)),
+})
+
+/** The state transition function: a Model, and the Commands to run after it. */
+export const update = (model: Model, message: Message): Return =>
+  Message.match<Return>(message, {
+    // The id is reserved here, so two requests in flight never share one; the
+    // todo itself waits for the fact.
+    RequestedCreateTodo: ({ title, requestId }) => ({
+      model: modifyFields(model, { nextId: () => model.nextId + 1 }),
+      commands: [
+        SaveTodo({
+          id: `todo-${model.nextId}`,
+          title,
+          ...(requestId === undefined ? {} : { requestId }),
+        }),
+      ],
+    }),
+
+    SubmittedTodo: ({ id, title }) => ({
+      model: modifyFields(model, {
+        todos: () => [...model.todos, { id, title, completed: false }],
+      }),
+    }),
+
+    RequestedRenameTodo: ({ id, title }) => ({
+      model: modifyFields(model, {
         todos: () => model.todos.map(todo => (todo.id === id ? { ...todo, title } : todo)),
       }),
+    }),
 
-    RequestedDeleteTodo: ({ id }) =>
-      modifyFields(model, {
+    RequestedDeleteTodo: ({ id }) => ({
+      model: modifyFields(model, {
         todos: () => model.todos.filter(todo => todo.id !== id),
         selectedTodoId: () => Option.filter(model.selectedTodoId, selected => selected !== id),
       }),
+    }),
 
-    RequestedToggleTodo: ({ id }) =>
-      modifyFields(model, {
+    RequestedToggleTodo: ({ id }) => ({
+      model: modifyFields(model, {
         todos: () =>
           model.todos.map(todo =>
             todo.id === id ? { ...todo, completed: !todo.completed } : todo,
           ),
       }),
+    }),
 
-    SelectedTodo: ({ id }) => modifyFields(model, { selectedTodoId: () => Option.some(id) }),
+    SelectedTodo: ({ id }) => ({
+      model: modifyFields(model, { selectedTodoId: () => Option.some(id) }),
+    }),
 
-    ClearedSelection: () => modifyFields(model, { selectedTodoId: () => Option.none() }),
+    ClearedSelection: () => ({
+      model: modifyFields(model, { selectedTodoId: () => Option.none() }),
+    }),
 
-    ReceivedTodos: ({ todos }) => modifyFields(model, { todos: () => todos }),
+    ReceivedTodos: ({ todos }) => ({ model: modifyFields(model, { todos: () => todos }) }),
 
-    FailedToLoadTodos: ({ message }) =>
-      modifyFields(model, { lastError: () => Option.some(message) }),
+    FailedToLoadTodos: ({ message }) => ({
+      model: modifyFields(model, { lastError: () => Option.some(message) }),
+    }),
   })

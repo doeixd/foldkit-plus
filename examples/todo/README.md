@@ -53,14 +53,17 @@ Follow one immediate capability from [agent.ts](src/agent.ts) into
 existing Message reaches `update`. Read the projected context again to observe
 the change. Declaring the capability alone executes none of these steps.
 
-Then compare the add capability. Here it is immediate — declared as a
-description, with `update` minting the id in one step — so a call resolves when
-its Message is applied. A completion contract, where the call waits for a
-correlated application result, needs an intent→fact Command; see
-[todo-app](../todo-app/src/agent.ts), where `add_todo` does exactly that. That
-is also why a host must report Messages as well as expose the current Model, and
-the WebMCP adapter uses this same bound runtime rather than implementing a second
-todo service.
+Then compare the create capability. `RequestedCreateTodo` is the *intent*:
+`update` reserves an id and runs a `SaveTodo` Command, and the todo joins the
+list only when that Command's `SubmittedTodo`, the *fact*, lands. A call that
+resolved on dispatch would report done before the todo existed, so the
+capability declares a completion contract: the call waits for the
+`SubmittedTodo` carrying its own invocation id (`requestId`), even when two
+creates for one title are in flight, and returns it. That is why the host
+reports every Message (`observe`) as well as the current Model, and the WebMCP
+adapter uses this same bound runtime rather than implementing a second todo
+service. [todo-app](../todo-app/src/agent.ts)'s `add_todo` is the same pattern
+in a full application.
 
 ## Run it
 
@@ -83,7 +86,7 @@ one file.
 | --- | --- |
 | [`src/app.ts`](./src/app.ts) | an ordinary Foldkit Model, Message union, and `update`; no agent code |
 | [`src/agent.ts`](./src/agent.ts) | the application-specialized builder and concrete agent contract |
-| [`src/store.ts`](./src/store.ts) | the host seam that gives the contract a live Model and dispatch function |
+| [`src/store.ts`](./src/store.ts) | the host seam: a live Model, dispatch, the Messages it handles, and Commands run after their transition |
 | [`src/demo.ts`](./src/demo.ts) | direct invocation, availability, authorization, WebMCP, and invalid input end to end |
 
 ## The contract: what may the agent see and do?
@@ -217,9 +220,11 @@ The transcript follows the agent architecture in eight steps:
 1. **The contract is data.** `Agent.messages(AppAgent)` can inspect capability
    names, tags, and descriptions without an LLM or running protocol adapter.
 2. **One state machine.** A todo added from the human/application side appears in
-   the agent's projected context because both read the same Model.
+   the agent's projected context, once its save lands, because both read the
+   same Model.
 3. **The agent causes the same transition.** Direct runtime dispatch produces an
-   existing application Message rather than an agent-specific action.
+   existing application Message rather than an agent-specific action, and the
+   create call resolves with the fact that put its todo in the list.
 4. **Availability follows the Model.** `delete_selected_todo` appears only when a
    selection exists.
 5. **Availability is not authorization.** A caller may see an available
@@ -251,14 +256,14 @@ changes, the adapter does not get independent authority to override it.
 
 ## Notes
 
-`update` in this small example returns only a Model. A production Foldkit update
-may also return Commands; that does not change the agent layer. The agent still
-only dispatches Messages and lets the application decide what those Messages
-mean.
+`update` returns Commands as a Foldkit update does, and `src/store.ts` runs
+each one after the transition that asked for it, as the runtime would. The
+agent still only dispatches Messages and lets the application decide what those
+Messages mean.
 
-`RequestedCreateTodo` uses the description shorthand, so its protocol-facing
-name is the normalized Message tag (`requested_create_todo`). Capabilities that
-want a different public name specify one explicitly, as `rename_todo` and
+`RequestedCreateTodo` declares no `name`, so its protocol-facing name is the
+normalized Message tag (`requested_create_todo`). Capabilities that want a
+different public name specify one explicitly, as `rename_todo` and
 `delete_selected_todo` do.
 
 Selecting is its own capability. An agent does not have to manipulate UI state
