@@ -41,7 +41,15 @@ const RenameView = FormView.define(RenameTodoForm, {
   field: FormView.field(RenameTodoForm).pipe(field),
 }).pipe(form)
 
-const AddBundle = AddTodoForm.bundle.pipe(Bundle.withView(FormView.submodel(AddTodoForm, AddView)))
+/**
+ * The quick add never disables its button: its one key is empty at rest, so
+ * the default gate (`AddTodoForm.canSubmit`) disables it then, and a disabled
+ * default button stops Enter's implicit submission, so an empty Enter said
+ * nothing. Enabled, the submit itself refuses and says the title is required.
+ */
+export const QuickAddView = FormView.submodel(AddTodoForm, AddView, { canSubmit: () => true })
+
+const AddBundle = AddTodoForm.bundle.pipe(Bundle.withView(QuickAddView))
 
 const Editor = Crud.editor('TodoEditor', { form: RenameTodoForm, mutation: RenameTodo })
 const EditorBundle = Editor.bundle.pipe(
