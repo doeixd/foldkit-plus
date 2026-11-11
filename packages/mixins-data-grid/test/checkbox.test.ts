@@ -50,6 +50,9 @@ test('a press on the box, Space and Enter toggle it, and no draft opens', async 
   const editor = () => document.querySelector('#tasks input, #tasks [role="combobox"]')
   try {
     await vi.waitFor(() => expect(boxOf('t0')).not.toBeNull())
+    // A press on a checked box unchecks it.
+    click(boxOf('t1')!)
+    await vi.waitFor(() => expect(checked('t1')).toBe('false'))
     click(boxOf('t0')!)
     await vi.waitFor(() => expect(checked('t0')).toBe('true'))
     expect(grid().getAttribute('aria-activedescendant')).toBe(cellOf('t0', 'done')!.id)
@@ -59,7 +62,12 @@ test('a press on the box, Space and Enter toggle it, and no draft opens', async 
     expect(mounted.latest().grid.selection.rows).toEqual({ _tag: 'Keys', keys: [] })
     press('Enter')
     await vi.waitFor(() => expect(checked('t0')).toBe('true'))
-    expect(mounted.latest().edits).toEqual(['t0.done=true', 't0.done=false', 't0.done=true'])
+    expect(mounted.latest().edits).toEqual([
+      't1.done=false',
+      't0.done=true',
+      't0.done=false',
+      't0.done=true',
+    ])
     // Neither a typed key, F2 nor a double-click opens a draft on it.
     press('x')
     press('F2')

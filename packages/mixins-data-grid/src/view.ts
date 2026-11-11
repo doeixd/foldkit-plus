@@ -111,7 +111,10 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
   readonly headerHeight: number
   readonly overscan?: { readonly rows?: number; readonly columns?: number }
   readonly direction?: Direction
-  /** Draws one cell; by default the column's value, as text. */
+  /**
+   * Draws one cell; by default the column's value, as text. A checkbox
+   * column's cell is its checkbox, and is not asked.
+   */
   readonly cell?: (column: Id, row: Row, h: HtmlBuilder<Message>) => Html | string
   /** A cell's mark, if it has one; asked only for the cells drawn. */
   readonly marks?: (address: CellAddress<Id>) => Option.Option<CellMark>
@@ -312,10 +315,10 @@ const view = <Message>() => ({
               onNone: () => [],
               onSome: side => [h.DataAttribute('pinned-edge', side)],
             }),
-            // Editable: double-clicking edits, as Enter does; a checkbox opens no edit.
-            ...(editable(id) ? [h.DataAttribute('editable', 'true')] : []),
-            ...(editable(id) && !checkboxes.has(id)
+            // Editable: double-clicking edits, as Enter does (a checkbox's update refuses).
+            ...(editable(id)
               ? [
+                  h.DataAttribute('editable', 'true'),
                   h.OnDoubleClick(
                     args.wrap(
                       grid.Message.EditStarted({
