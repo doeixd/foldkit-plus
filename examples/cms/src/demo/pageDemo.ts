@@ -14,7 +14,7 @@ import { Composition, type Document } from 'foldkit-composition'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { Display } from 'foldkit-crud'
 import { SlotView } from 'foldkit-mixins'
-import { RemotePolicy } from 'foldkit-remote'
+import { RemoteData, RemotePolicy } from 'foldkit-remote'
 import { inertHtml, type Html } from 'foldkit/html'
 import { fromString } from 'foldkit/url'
 import {
@@ -31,7 +31,6 @@ import {
   update,
 } from '../apps/pageApp.js'
 import { PageAgent } from '../content/pageAgent.js'
-import { heldOf } from '../held.js'
 import { PageForm, Pages } from '../content/pageDomain.js'
 import type { Principal } from '../server/server.js'
 import { chairHarness, openBackend, visitBySlug } from './harness.js'
@@ -256,7 +255,7 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
             ),
           )
         const found = projection.read(harness.model())
-        return Option.match(heldOf(found), {
+        return Option.match(RemoteData.held(found), {
           onSome: held => read(held.document),
           onNone: () => found._tag,
         })

@@ -19,7 +19,7 @@ import { FieldRecipes } from 'foldkit-form-recipes'
 import { Display } from 'foldkit-crud'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
-import { Mutation, Remote, RemoteClient, RemotePolicy } from 'foldkit-remote'
+import { Mutation, Remote, RemoteClient, RemoteData, RemotePolicy } from 'foldkit-remote'
 import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import { bind, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -30,7 +30,6 @@ import { markdownInputRules, print } from 'foldkit-richtext-markdown'
 import { Surface } from 'foldkit-surface'
 import { defineMessageUnion } from 'foldkit/message'
 import { Article, ArticleId } from '../content/articleDomain.js'
-import { heldOf } from '../held.js'
 import { Policy, ServedArticle, write, type Principal } from '../server/server.js'
 import { chairHarness, openBackend, visitBySlug } from './harness.js'
 
@@ -245,7 +244,7 @@ export const runArticleDemo = async (): Promise<ReadonlyArray<string>> => {
           ),
         )
         const read = projection.read(harness.model())
-        return Option.match(heldOf(read), {
+        return Option.match(RemoteData.held(read), {
           onSome: held => html(held.body),
           onNone: () => read._tag,
         })

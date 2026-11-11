@@ -31,7 +31,6 @@ import { Url } from 'foldkit/url'
 import { ORIGIN, Post, PostPage, Posts, PostById, RecentPosts } from '../content/domain.js'
 import { Page, Pages, PublishedPages } from '../content/pageDomain.js'
 import { PostCard, Site as Kit } from '../content/site.js'
-import { heldOf } from '../held.js'
 import {
   Route,
   blogRouter,
@@ -108,7 +107,7 @@ export const blogRead = (model: Model) =>
 
 /** The first row a read holds, once it holds any. */
 export const firstOf = <A>(read: RemoteData<RemotePage<A>>): Option.Option<A> =>
-  Option.flatMap(heldOf(read), page => Arr.head(page.items))
+  Option.flatMap(RemoteData.held(read), page => Arr.head(page.items))
 
 /** The page being shown, once it is read. */
 export const pageDocument = (model: Model): Option.Option<Document> =>

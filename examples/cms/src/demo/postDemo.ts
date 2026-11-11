@@ -7,7 +7,7 @@
 import { Effect, Option } from 'effect'
 import { Cms } from 'foldkit-cms'
 import { Display } from 'foldkit-crud'
-import { RemotePolicy } from 'foldkit-remote'
+import { RemoteData, RemotePolicy } from 'foldkit-remote'
 import {
   Data,
   Editor,
@@ -20,7 +20,6 @@ import {
   update,
 } from '../apps/app.js'
 import { PostForm, Posts } from '../content/domain.js'
-import { heldOf } from '../held.js'
 import type { Principal } from '../server/server.js'
 import { chairHarness, openBackend, visitBySlug } from './harness.js'
 
@@ -72,7 +71,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       resumed: () => Option.getOrElse(PostEditor.resumed(harness.model()), () => 'not opened'),
       worklist: () => {
         const page = Worklist.page(harness.model())
-        return Option.match(heldOf(page), {
+        return Option.match(RemoteData.held(page), {
           onSome: held =>
             held.items
               .map(row => `${row.label} (${Display.show(Cms.Display.State.of({}), row.state)})`)
@@ -91,7 +90,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
             ),
           )
         const read = projection.read(harness.model())
-        return Option.match(heldOf(read), {
+        return Option.match(RemoteData.held(read), {
           onSome: held => `"${held.title}" at /blog/${held.slug}: ${held.body}`,
           onNone: () => read._tag,
         })

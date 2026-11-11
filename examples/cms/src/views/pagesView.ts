@@ -37,7 +37,7 @@ import {
   statusLine,
 } from './shell.js'
 import { pageHref } from '../content/siteRoutes.js'
-import { heldOf } from '../held.js'
+import { RemoteData } from 'foldkit-remote'
 import { PageForm } from '../content/pageDomain.js'
 import { AdminSlots, AdminStyle, PagesListStyle } from '../styles/adminStyle.js'
 
@@ -98,7 +98,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
     Option.filter(PageEditor.pageId(model), () => stateIs(state, 'Published', 'Changed')),
     id => {
       const read = pageView(id).read(model)
-      return Option.map(heldOf(read), held => held.slug)
+      return Option.map(RemoteData.held(read), held => held.slug)
     },
   )
   return h.div(slots.editorScreen.attrs([h.Id('editor')]), [
