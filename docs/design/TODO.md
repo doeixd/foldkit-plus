@@ -469,9 +469,10 @@ while keeping the best of what this project already has:
 
 ## Tooling
 
-- [ ] A lint rule for the semantic-vs-structural write rule (`ModelRef.set`
-  outside infrastructure). The repository has no linter; Foldkit's Oxlint plugin
-  is the likely home. [evo-DESIGN.md](./evo-DESIGN.md) item 12
+- [x] A check for the semantic-vs-structural write rule (`ModelRef.set`
+  outside infrastructure): `pnpm writes:check`, in CI (2eefd270, cc11f5bc;
+  about 55s since 28d9a9b2). Evo item 12's `prefer-evo-model-update` lint
+  stays open there.
 
 ## Found by porting Foldkit's examples
 
