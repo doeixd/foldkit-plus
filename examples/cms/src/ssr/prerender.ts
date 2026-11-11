@@ -62,6 +62,63 @@ export const siteTemplate = (built: string): string => {
     )
 }
 
+/** The address the 404 page is drawn from: a page the site does not have. */
+const MISSING_PATH = '/site/not-found'
+
+const stripped = (html: string, pattern: RegExp, replacement = ''): string => {
+  const result = html.replace(pattern, replacement)
+  if (result === html) throw new Error(`the 404 page no longer has ${pattern}`)
+  return result
+}
+
+/**
+ * The site's missing page, made static: `html` is a page rendered at
+ * `MISSING_PATH`, with what ties it to that address taken out. The host serves
+ * it at every unknown address, so it carries no takeover envelope, no
+ * canonical or `og:url`, and no script: a booting client would read the real
+ * address and, off `/site`, draw the studio over it. It says it is not found
+ * and is not indexed.
+ */
+const notFoundPage = (html: string): string =>
+  [
+    (h: string) => stripped(h, /\s+data-foldkit-plus-resume='[^']*'/),
+    (h: string) => stripped(h, /\s+data-foldkit-app="[^"]*"/),
+    (h: string) => stripped(h, /\s+data-foldkit-build="[^"]*"/),
+    (h: string) => stripped(h, /\s*<link rel="canonical"[^>]*>/),
+    (h: string) => stripped(h, /\s*<meta property="og:url"[^>]*>/),
+    (h: string) => stripped(h, /\s*<script\b[^>]*><\/script>/g),
+    (h: string) =>
+      stripped(
+        h,
+        /<title>[^<]*<\/title>/,
+        '<title>Not found · Journal</title>\n    <meta name="robots" content="noindex" />',
+      ),
+  ]
+    .reduce((page, step) => step(page), html)
+    // The build preloads the sandbox's code and its wasm; the built shell has them, the source's does not.
+    .replace(/\s*<link rel="(?:module)?preload"[^>]*>/g, '')
+
+/** The site's 404 page: the missing-page view in the site's own template and chrome. */
+export const renderNotFound = async (
+  site: Awaited<ReturnType<typeof prepareSite>>,
+  template: string,
+): Promise<string> => {
+  const { pages } = await Effect.runPromise(
+    generateStaticSite({
+      config: path => site.configFor(path),
+      plan,
+      origin: ORIGIN,
+      paths: [{ path: MISSING_PATH }],
+      template,
+      head: rendered => stylesOf(rendered.html),
+      files: 'flat',
+    }),
+  )
+  const [page] = pages
+  if (page === undefined) throw new Error('the 404 page was not rendered')
+  return notFoundPage(page.html)
+}
+
 /** The page's own styles, so its first paint is styled before any script runs. */
 export const stylesOf = (html: string): string => `<style>${Style.usedIn(html)}</style>`
 

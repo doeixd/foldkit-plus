@@ -91,6 +91,7 @@ says who each chair is, and what the clock publishes, for both hosts. The page i
 the sandbox's code and its wasm are fetched with the page, and
 [public/_headers](public/_headers) has Cloudflare Pages keep what is under
 `/assets` for a year, since its names change with its content.
+The build also emits a static `404.html` (the site's own chrome, no script, `noindex`), which Pages serves with a 404 status for an unknown address instead of the studio's shell with a 200.
 
 The build then renders the public site with `foldkit-ssr` ([prerender.ts](src/ssr/prerender.ts),
 described for the build in [siteBuild.ts](src/ssr/siteBuild.ts) and rendered by
