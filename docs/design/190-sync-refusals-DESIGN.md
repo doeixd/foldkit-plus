@@ -278,8 +278,9 @@ accepts" and every stored replica refuse to open, far worse than what follows.
   exchange of that tab fails (the refused operation is still in its outbox and
   is refused again), and the tab shows `lastError` and adopts no commit until
   it runs the new build. Each commit notice on its socket wakes it to
-  exchange again, so the server runs the append and the refusal again each
-  time, on its backoff. A tab reloads into the new build; an installed or
+  exchange again at once, ahead of its backoff (`sync.ts`'s start loop races
+  the two), so the server runs the append and the refusal again for every
+  commit anyone makes to the document. A tab reloads into the new build; an installed or
   service-worker-cached client may keep the old one past a reload. Nothing
   is lost: the operations the server took are committed and are
   acknowledged again on the retry, and the new build sends the refused one

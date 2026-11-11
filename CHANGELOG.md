@@ -642,7 +642,10 @@ version changed; `pnpm` skips versions already in the registry.
   `SyncRefusal`) instead of `rejection.reason`; a custom server sends
   `refusals` instead of `reasons`. Both are still filled with today's words
   for this release, and the replica keeps accepting `reasons` on a reply after
-  that, since a server a release behind sends it on every reply.
+  that, since a server a release behind sends it on every reply. The two can
+  differ: a plain `false` from `admit` or `authorize` still reads "This
+  connection may not make changes" or "Refused by the server" in `reason`,
+  where `refusal` is `Forbidden` with no reason, for the page to word.
 
 ### Removed
 

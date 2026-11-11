@@ -69,7 +69,7 @@ describe('journalExchange', () => {
   it('sends no refusals key when nothing was refused, so an older replica still reads it', async () => {
     const exchange = journalExchange({ sync: Todos, journal: openJournal(), principal: 'ada' })
     const raw = await exchange.exchange(sequence(0), await pendingOf('a', ['Milk']))
-    expect(Object.keys(raw as object)).not.toContain('refusals')
+    expect(raw).not.toHaveProperty('refusals')
   })
 
   it('rejects an operation naming another document', async () => {

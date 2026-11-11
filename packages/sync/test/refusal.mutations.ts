@@ -120,6 +120,11 @@ export default [
     tests: replicaTests,
   },
   {
+    name: 'the deprecated words lose their fixed sentence',
+    edits: [{ file: journal, find: 'fitted ?? otherwise,', replace: "fitted ?? ''," }],
+    tests: exchangeTests,
+  },
+  {
     name: 'two refusals for one operation are taken',
     edits: [{ file: replica, find: 'if (refusing.has(opId))', replace: 'if (false)' }],
     tests: replicaTests,

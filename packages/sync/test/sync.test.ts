@@ -623,7 +623,7 @@ describe('the replica', () => {
 
   it.each([
     ['a case this build does not know', { _tag: 'Conflict' }],
-    ['a known case with a key it lacks', { _tag: 'Forbidden', reason: 'No', by: 'ada' }],
+    ['a known case with a key it does not declare', { _tag: 'Forbidden', reason: 'No', by: 'ada' }],
     ['words past the bound', { _tag: 'Forbidden', reason: 'x'.repeat(501) }],
     ['a version below the first', { _tag: 'Unreadable', version: 0 }],
   ])('rejects with no refusal, reported, for %s', async (_, refusal) => {
