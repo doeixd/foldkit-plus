@@ -81,7 +81,6 @@ export const retrySearch = makeStep(model => {
       : search.domainRequest
 
     return scheduleDomainRequest(range, true)
-  } else {
-    return searchQuery(routeToQuery(model.route), true)
   }
+  return searchQuery(routeToQuery(model.route), true)
 })

@@ -5,7 +5,7 @@
  * prefetch, select, a stale-while-revalidate refresh, render, mutate,
  * retention, and a decode failure — against an in-process `RemoteClient`.
  */
-import { Effect, Layer, Option, Schema, Stream } from 'effect'
+import { Effect, Layer, Match, Option, Schema, Stream } from 'effect'
 import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
 import {
@@ -115,9 +115,10 @@ const StatusBehavior = Behavior.forSlots(ProjectSlots)<Projected, PageMessage>(
   {
     status: Behavior.slot({
       attributes: ({ input, h }) =>
-        input.project._tag === 'Ready'
-          ? [h.DataAttribute('status', input.project.value.status)]
-          : [],
+        Match.value(input.project).pipe(
+          Match.tag('Ready', ({ value }) => [h.DataAttribute('status', value.status)]),
+          Match.orElse(() => []),
+        ),
     }),
   },
   { name: 'StatusBehavior' },

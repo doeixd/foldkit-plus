@@ -1,7 +1,7 @@
 import { Agent } from 'foldkit-agent'
 import { AgentWebMcp } from 'foldkit-agent-webmcp'
 import type { ModelContext, RegisterToolOptions, ToolDescriptor } from 'foldkit-agent-webmcp'
-import { Effect, Option } from 'effect'
+import { Effect, Option, Result } from 'effect'
 import { AppAgent, type Principal, bindAgent } from './agent.js'
 import { Message } from './app.js'
 import { makeStore } from './store.js'
@@ -96,7 +96,12 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const denied = await Effect.runPromise(
     Effect.result(agent.messages.dispatch(Message.RequestedDeleteTodo, {})),
   )
-  say(denied._tag === 'Failure' ? `refused: ${denied.failure.message}` : 'unexpectedly allowed')
+  say(
+    Result.match(denied, {
+      onFailure: error => `refused: ${error.message}`,
+      onSuccess: () => 'unexpectedly allowed',
+    }),
+  )
   say(`todos still: ${store.model().todos.length}`)
 
   // 6. The same contract, reached the way a browser agent would reach it.

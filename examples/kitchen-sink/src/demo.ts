@@ -4,7 +4,7 @@
  * The same `update` is driven by a server-derived read, a durable replicated
  * note, a human, and an agent; the four agent adapters project one contract.
  */
-import { Effect, Fiber, Option, Schema, Stream } from 'effect'
+import { Effect, Fiber, Match, Option, Schema, Stream } from 'effect'
 import { ConnectionChange } from 'foldkit-remote'
 import { RemotePersistence } from 'foldkit-remote/persistence'
 import { Agent } from 'foldkit-agent'
@@ -116,7 +116,10 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   say(`after fetch (Drizzle SQLite): ${describeData(projection.read(loaded))}`)
   const fetched = projection.read(loaded)
   say(
-    `nested selection (one read): owner ${fetched._tag === 'Ready' ? fetched.value.owner.name : fetched._tag}`,
+    `nested selection (one read): owner ${Match.value(fetched).pipe(
+      Match.tag('Ready', ({ value }) => value.owner.name),
+      Match.orElse(other => other._tag),
+    )}`,
   )
 
   // A live subscription for the Board is registered with the server's hub
@@ -137,20 +140,18 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       while ((yield* liveHub.size) === 0) yield* Effect.yieldNow
       const settled = yield* rename.command.effect
       const head = yield* Fiber.join(subscription)
-      return { settled, liveEvent: head._tag === 'Some' ? head.value : undefined }
+      return { settled, liveEvent: Option.getOrUndefined(head) }
     }).pipe(Effect.provide(client)),
   )
+  const describeLive = (event: typeof liveEvent): string => {
+    if (event?._tag !== 'LiveReceived' || event.event._tag !== 'EntityPatched') return 'nothing'
+    return `${event.event._tag} ${event.event.changed.join(',')}=${String(event.event.values.name)}`
+  }
   const renamed = Data.reduce(rename.model, settled)
   say(
     `mutation (${rename.requestId}): ${settled._tag} -> ${describeData(projection.read(renamed))}`,
   )
-  say(
-    `live (published by the mutation): ${
-      liveEvent?._tag === 'LiveReceived' && liveEvent.event._tag === 'EntityPatched'
-        ? `${liveEvent.event._tag} ${liveEvent.event.changed.join(',')}=${String(liveEvent.event.values.name)}`
-        : 'nothing'
-    }`,
-  )
+  say(`live (published by the mutation): ${describeLive(liveEvent)}`)
 
   // A query is a Projection: the connection read as a page of the selected
   // items. The prefetch runs the query through the Drizzle source, whose

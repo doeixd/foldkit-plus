@@ -6,7 +6,7 @@
  * what it claims to. Read it as a tour; every section names the file it
  * exercises.
  */
-import { Effect, Stream } from 'effect'
+import { Effect, Result, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import { Agent } from 'foldkit-agent'
 import { AgentWebMcp } from 'foldkit-agent-webmcp'
@@ -126,7 +126,9 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const refused = await Effect.runPromise(
     Effect.result(guestAgent.messages.dispatch(Message.ClearedCompleted, {})),
   )
-  say(`guest clear_completed: ${refused._tag === 'Failure' ? refused.failure._tag : 'allowed'}`)
+  say(
+    `guest clear_completed: ${Result.match(refused, { onFailure: error => error._tag, onSuccess: () => 'allowed' })}`,
+  )
   await Effect.runPromise(agent.messages.dispatch(Message.ClearedCompleted, {}))
   say(`owner clear_completed: ${titles(store.model().todos)}`)
   // `rename_list` completes when the list carries the title, not on a Message.
@@ -167,7 +169,9 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     // @ts-expect-error a local Message does not compile at `submit`; sent anyway, it is refused
     Effect.result(replica.submit(Message.FilterSelected({ filter: 'active' }))),
   )
-  say(`submit FilterSelected: ${local._tag === 'Failure' ? local.failure._tag : 'accepted'}`)
+  say(
+    `submit FilterSelected: ${Result.match(local, { onFailure: error => error._tag, onSuccess: () => 'accepted' })}`,
+  )
   await Effect.runPromise(replica.submit(Message.RenamedList({ title: 'Groceries' })))
   say(`shared after RenamedList: ${JSON.stringify(Effect.runSync(replica.shared))}`)
   await Effect.runPromise(replica.close)

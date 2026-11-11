@@ -4,7 +4,7 @@
  */
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Match, Option, Schema } from 'effect'
 import { databaseLayer } from 'foldkit-remote-drizzle'
 import { Refusal } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -61,10 +61,12 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       return `written ${JSON.stringify(outcome.success.entities[0]?.values)}`
     }
     const { failure } = outcome
-    const refused =
-      failure._tag === 'RemoteMutationError'
-        ? Schema.decodeUnknownOption(mutation.Refusal)(failure.refusal)
-        : Option.none()
+    const refused = Match.value(failure).pipe(
+      Match.tag('RemoteMutationError', ({ refusal }) =>
+        Schema.decodeUnknownOption(mutation.Refusal)(refusal),
+      ),
+      Match.orElse(() => Option.none()),
+    )
     return Option.match(refused, {
       onNone: () => failure._tag,
       onSome: refusal =>
