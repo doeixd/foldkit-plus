@@ -469,10 +469,6 @@ while keeping the best of what this project already has:
 
 ## Tooling
 
-- [ ] **`pnpm tags:check` misses a tag read into a variable.** It inspects
-  `._tag` accesses only, so `const tag = read(model)._tag` compared later as
-  a `string`, and ternaries over it, passed (the CMS blog list, fixed in
-  1a943d9). Follow a `._tag` value into the variable it is assigned to.
 - [ ] A lint rule for the semantic-vs-structural write rule (`ModelRef.set`
   outside infrastructure). The repository has no linter; Foldkit's Oxlint plugin
   is the likely home. [evo-DESIGN.md](./evo-DESIGN.md) item 12
