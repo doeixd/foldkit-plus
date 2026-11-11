@@ -513,3 +513,94 @@ describe('a saved draft', () => {
     expect(CheckedForm.field(stored, 'slug')).toEqual({ _tag: 'NotValidated', value: 'looking' })
   })
 })
+
+describe('a save or publish after a refresh failed', () => {
+  const failed = (previous: unknown) => ({
+    _tag: 'Failed' as const,
+    error: { _tag: 'RemoteMutationError', message: 'offline' },
+    previous,
+  })
+  const kept = {
+    entry: { id: 'e1', type: 'posts', targetId: 'p1', revision: 7, archivedAt: null },
+    draft: { updatedAt: '2026-01-01T00:00:00.000Z', values: {}, model: {}, form: 'PostForm' },
+  }
+
+  /** What each Operation was sent, given the entry's and the draft's reads. */
+  const sentWith = (reads: { readonly entry: unknown; readonly draft: unknown }) => {
+    const sent: Array<{ readonly name: string; readonly input: Record<string, unknown> }> = []
+    const data = {
+      get: (selection: {
+        readonly entity: { readonly name: string }
+        readonly members: Readonly<Record<string, unknown>>
+      }) => ({
+        read: () =>
+          'state' in selection.members
+            ? { _tag: 'Ready' as const, value: { state: 'Draft', may: [] } }
+            : selection.entity.name === 'CmsEntry'
+              ? reads.entry
+              : selection.entity.name === 'CmsDraft'
+                ? reads.draft
+                : { _tag: 'NotFound' as const },
+      }),
+      mutation: (): MutationStatus => ({ _tag: 'Unknown' }),
+      mutate: (
+        model: Root,
+        mutation: { readonly name: string },
+        input: Record<string, unknown>,
+      ) => {
+        sent.push({ name: mutation.name, input })
+        return { model, requestId: 'r1', command: { name: 'send', args: {}, effect: Effect.never } }
+      },
+      refresh: (model: Root) => model,
+      [Capability]: { domain: 'stub', layers: Option.none() },
+      store: { get: () => Remote.initial },
+      reduce: (model: Root) => model,
+      active: (name: string, projectionOf: unknown) => ({
+        name,
+        owner: {},
+        messages: [],
+        projectionOf,
+      }),
+    }
+    const slice = ModelRef.fromOptic(
+      Editor.bundle.Model,
+      Optic.makeLens<Root, Root['editor']>(
+        root => root.editor,
+        (editor, root) => ({ ...root, editor }),
+      ),
+      ['editor'],
+    )
+    const placed = Editor.at<Root>({ data: data as never, model: slice })
+    const opened = placed.sync({
+      editor: { ...Editor.bundle.init(undefined).model, mode: 'edit' as const, entry: 'e1' },
+    }).model
+    return { placed, opened, sent }
+  }
+
+  it.each([
+    { held: 'kept by a failed refresh', draft: failed(kept.draft), based: kept.draft.updatedAt },
+    { held: 'there', draft: { _tag: 'Ready', value: kept.draft }, based: kept.draft.updatedAt },
+    { held: 'known absent', draft: { _tag: 'NotFound' }, based: null },
+  ])('bases a save on the draft $held', ({ draft, based }) => {
+    const { placed, opened, sent } = sentWith({
+      entry: { _tag: 'Ready', value: kept.entry },
+      draft,
+    })
+    placed.onOut({ _tag: 'Save' })(opened)
+    expect(sent.map(s => s.name)).toEqual(['CmsSaveDraft'])
+    expect(sent[0]?.input.basedOn).toBe(based)
+  })
+
+  it.each([
+    { held: 'kept by a failed refresh', entry: failed(kept.entry), based: 7 },
+    { held: 'there', entry: { _tag: 'Ready', value: kept.entry }, based: 7 },
+    { held: 'known absent', entry: { _tag: 'NotFound' }, based: null },
+  ])('bases a publish on the entry $held', ({ entry, based }) => {
+    const { placed, opened, sent } = sentWith({ entry, draft: failed(kept.draft) })
+    // The open draft is the saved one, so the publish goes out without a save first.
+    const saved = { editor: { ...opened.editor, resumed: 'Model' as const, filled: true } }
+    placed.onOut({ _tag: 'Publish' })(saved)
+    expect(sent.map(s => s.name)).toEqual(['CmsPublish'])
+    expect(sent[0]?.input.basedOn).toBe(based)
+  })
+})
