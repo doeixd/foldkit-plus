@@ -108,15 +108,21 @@ export default [
     edits: [
       {
         file,
-        find: 'if (ts.isConditionalExpression(node) && comparesHeld(node.condition))',
-        replace: 'if (false)',
+        find: 'const what = comparesHeld(node.condition)',
+        replace: 'const what = false',
       },
     ],
     tests,
   },
   {
     name: 'an if/else on a held tag is allowed',
-    edits: [{ file, find: 'comparesHeld(node.expression)', replace: 'false' }],
+    edits: [
+      {
+        file,
+        find: '(comparesHeld(node.expression) || comparesDirect(node.expression))',
+        replace: 'comparesDirect(node.expression)',
+      },
+    ],
     tests,
   },
   {
@@ -158,6 +164,55 @@ export default [
         file,
         find: 'return tagLike(checker.getTypeAtLocation(inner))',
         replace: 'return true',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a ternary on a direct tag is allowed',
+    edits: [{ file, find: ': comparesDirect(node.condition)', replace: ': false' }],
+    tests,
+  },
+  {
+    name: 'an if/else on a direct tag is allowed',
+    edits: [
+      {
+        file,
+        find: '(comparesHeld(node.expression) || comparesDirect(node.expression))',
+        replace: 'comparesHeld(node.expression)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a direct tag inside && or || is not read',
+    edits: [
+      {
+        file,
+        find: 'return comparesDirect(inner.left) || comparesDirect(inner.right)',
+        replace: 'return false',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a direct tag with the literal on the left is not read',
+    edits: [
+      {
+        file,
+        find: '(isTagAccess(unwrap(inner.right)) && literal(inner.left))',
+        replace: 'false',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a direct comparison of a tag with anything is a branch',
+    edits: [
+      {
+        file,
+        find: 'const literal = side => ts.isStringLiteralLike(unwrap(side))',
+        replace: 'const literal = () => true',
       },
     ],
     tests,

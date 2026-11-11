@@ -21,6 +21,13 @@
  * ternaries are held to the same rules, and an `if`/`else` or ternary on it is
  * a two-arm match the checker cannot see.
  *
+ * So is a ternary or an `if`/`else` whose condition compares `x._tag` itself to
+ * a literal (`===`, `!==`, either way round, alone or inside `&&`/`||`), even on
+ * a precisely typed union: use the union's `match`. Allowed: a lone `if` without
+ * `else` (a narrowing guard or early return), and a comparison used as a value,
+ * such as the predicate of `filter`/`find`/`some`, which selects rows and does
+ * not branch. Only the condition of a `?:` or `if`/`else` is held to this.
+ *
  *   node scripts/tags-check.mjs     list findings; exit 1 if there are any
  */
 import { existsSync, readdirSync } from 'node:fs'
@@ -207,6 +214,20 @@ export const check = (program, files, found = findings) => {
         return comparesHeld(inner.left) || comparesHeld(inner.right)
       return isStrictEquality(kind) && (held(inner.left) || held(inner.right))
     }
+    // `x._tag === 'A'` (or `!==`, either way round) in a condition: a branch on a tag read right here.
+    const comparesDirect = expression => {
+      const inner = unwrap(expression)
+      if (!ts.isBinaryExpression(inner)) return false
+      const kind = inner.operatorToken.kind
+      if (kind === ts.SyntaxKind.BarBarToken || kind === ts.SyntaxKind.AmpersandAmpersandToken)
+        return comparesDirect(inner.left) || comparesDirect(inner.right)
+      const literal = side => ts.isStringLiteralLike(unwrap(side))
+      return (
+        isStrictEquality(kind) &&
+        ((isTagAccess(unwrap(inner.left)) && literal(inner.right)) ||
+          (isTagAccess(unwrap(inner.right)) && literal(inner.left)))
+      )
+    }
     const visit = node => {
       if (isTagAccess(node)) {
         const subject = unwrap(node.expression)
@@ -258,15 +279,25 @@ export const check = (program, files, found = findings) => {
             )
         }
       }
-      if (ts.isConditionalExpression(node) && comparesHeld(node.condition))
-        report(node, `ternary on a held tag: ${node.condition.getText().slice(0, 60)}`)
+      if (ts.isConditionalExpression(node)) {
+        const what = comparesHeld(node.condition)
+          ? 'a held tag'
+          : comparesDirect(node.condition)
+            ? 'a tag'
+            : undefined
+        if (what !== undefined)
+          report(node, `ternary on ${what}: ${node.condition.getText().slice(0, 60)}`)
+      }
       if (
         ts.isIfStatement(node) &&
         node.elseStatement !== undefined &&
         !(ts.isIfStatement(node.parent) && node.parent.elseStatement === node) &&
-        comparesHeld(node.expression)
+        (comparesHeld(node.expression) || comparesDirect(node.expression))
       )
-        report(node, `if/else on a held tag: ${node.expression.getText().slice(0, 60)}`)
+        report(
+          node,
+          `if/else on ${comparesHeld(node.expression) ? 'a held tag' : 'a tag'}: ${node.expression.getText().slice(0, 60)}`,
+        )
       if (ts.isBlock(node) || ts.isSourceFile(node) || ts.isCaseClause(node)) {
         const runs = new Map()
         for (const statement of node.statements) {

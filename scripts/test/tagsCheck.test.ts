@@ -110,6 +110,51 @@ const refused: ReadonlyArray<readonly [string, string, string]> = [
     'const tag = read._tag\nexport const a = (): number => {\n  switch (tag) {\n    case "Ready": return 1\n    default: return 2\n  }\n}',
     'switch on tag misses',
   ],
+  [
+    'a ternary on a direct tag',
+    'export const a = read._tag === "Ready" ? 1 : 2',
+    'ternary on a tag',
+  ],
+  [
+    'a ternary on a direct tag with !==',
+    'export const a = read._tag !== "Ready" ? 1 : 2',
+    'ternary on a tag',
+  ],
+  [
+    'a ternary with the literal on the left',
+    'export const a = "Ready" === read._tag ? 1 : 2',
+    'ternary on a tag',
+  ],
+  [
+    'a ternary whose && holds a direct tag',
+    'export const a = read._tag === "Ready" && one(1)._tag === "Failed" ? 1 : 2',
+    'ternary on a tag',
+  ],
+  [
+    'a ternary whose || holds a direct tag',
+    'export const a = read._tag === "Ready" || read._tag === "Failed" ? 1 : 2',
+    'ternary on a tag',
+  ],
+  [
+    'an if/else on a direct tag',
+    'export const a = (): number => {\n  if (read._tag === "Ready") {\n    return 1\n  } else {\n    return 2\n  }\n}',
+    'if/else on a tag',
+  ],
+  [
+    'an if/else with !== and &&',
+    'export const a = (n: number): number => {\n  if (n > 0 && read._tag !== "Ready") {\n    return 1\n  } else {\n    return 2\n  }\n}',
+    'if/else on a tag',
+  ],
+  [
+    'an if/else if chain on a direct tag, once',
+    'export const a = (): number => {\n  if (read._tag === "Ready") {\n    return 1\n  } else if (read._tag === "Failed") {\n    return 2\n  } else {\n    return 3\n  }\n}',
+    'if/else on a tag',
+  ],
+  [
+    'a ternary inside a filter predicate',
+    'declare const rows: ReadonlyArray<Read>\nexport const a = rows.filter(row => (row._tag === "Ready" ? true : false))',
+    'ternary on a tag',
+  ],
 ]
 
 test.each(refused)('refuses %s', (_name, body, what) => {
@@ -162,6 +207,34 @@ const kept: ReadonlyArray<readonly [string, string]> = [
   [
     'a boolean made from a tag',
     'const ready = read._tag === "Ready"\nexport const a = ready ? 1 : 2',
+  ],
+  [
+    'a lone if on a direct tag, a narrowing guard',
+    'export const a = (): number => {\n  if (read._tag === "Ready") return 1\n  return 2\n}',
+  ],
+  [
+    'a direct tag compared as a value in a filter predicate',
+    'declare const rows: ReadonlyArray<Read>\nexport const a = rows.filter(row => row._tag === "Ready")',
+  ],
+  [
+    'a direct tag compared as a value in find and some',
+    'declare const rows: ReadonlyArray<Read>\nexport const a = [rows.find(row => row._tag !== "Ready"), rows.some(row => row._tag === "Failed")]',
+  ],
+  [
+    'a ternary on a direct tag marked open',
+    '// tag-check: open, another application\'s Message\nexport const a = loose._tag === "Ready" ? 1 : 2',
+  ],
+  [
+    'an if/else on a direct tag marked open',
+    'export const a = (): number => {\n  // tag-check: open, another application\'s Message\n  if (loose._tag === "Ready") {\n    return 1\n  } else {\n    return 2\n  }\n}',
+  ],
+  [
+    'a ternary comparing two tags, neither a literal',
+    'declare const other: Read\nexport const a = read._tag === other._tag ? 1 : 2',
+  ],
+  [
+    'a ternary on something that is not a tag comparison',
+    'export const a = read._tag.length === 5 ? 1 : 2',
   ],
 ]
 
