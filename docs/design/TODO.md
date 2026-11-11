@@ -70,8 +70,9 @@ phase ships alone and records its number; the gates below are the notes' own.
 - [x] **`examples/auth`'s e2e flaked once in six runs**: Sign out was
   pressed on server-drawn markup before hydration, and the press was lost
   (39ff7fa6; the test now presses until signed out). The same loss meets a
-  real user who presses early: no Foldkit page here replays a press made
-  before hydration. Whether the SSR delivery loader should is open there.
+  real user who presses early: the example draws Sign out with plain `h`,
+  not `foldkit-ssr`'s resumable builder, which keeps such a press
+  (`resumable.ts`).
 - [ ] **Foldkit's view-identity markers add 20 KB to a served page**
   (domains-plus on workerd: 487 `data-foldkit-identity` attributes, 38
   distinct; the whole 90 KB against 69 KB gap). Neither the Vite plugin nor
