@@ -255,6 +255,8 @@ describe('two people on one page', () => {
         refusal: Option.some(SyncRefusal.Forbidden({ reason: Option.none() })),
         reason: Option.some('Refused by the server'),
         operation: waiting,
+        // Written at version 1, the only one, so as it was sent.
+        message: waiting!.message,
       },
     ])
     expect(titles(journal.snapshot())).toEqual(['A'])
@@ -682,6 +684,7 @@ describe('two people on one page', () => {
         ),
         reason: Option.some('only the server collects'),
         operation: sent,
+        message: sent!.message,
       },
     ])
     await new Promise(resolve => setTimeout(resolve, 0))
