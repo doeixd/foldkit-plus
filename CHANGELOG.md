@@ -145,26 +145,22 @@ version changed; `pnpm` skips versions already in the registry.
 - **Grid columns filter from their headers** (`foldkit-data-grid`,
   `foldkit-mixins-data-grid`, #144). A column with `filter: true` (its kind
   read from `edit.schema`'s decoded side by `filterKindOf`: text, a number
-  range, a choice of literals, a checkbox, a range of days) or a
-  `CellEditor` draws a button on its header; it, or Alt+ArrowDown on the
+  range, a choice of literals or a text enum, a checkbox, a range of days)
+  or a `CellEditor` draws a button on its header; it, or Alt+ArrowDown on the
   header, opens a non-modal `role="dialog"` of native fields that applies as
   it is typed. The value is the application's: the grid holds only the open
   form and reports each change as `Out.Filtered({ change })`, typed per
   column (`ColumnFilter`, `FilterOf`, `FilterChange`), which `Grid.setFilter`
   writes into the application's `Grid.Filters` (start from
-  `Grid.noFilters`; the schema refuses an empty filter, a stale option and a
-  bound that is not finite). `Grid.keeps(filters, read)` filters held rows
-  through each row's own field, folding ASCII case as `Expr.contains` does;
-  over Remote, map the filters onto the query's input. The view takes
-  `filters` exactly when a column filters (`FiltersInput`). `Grid.Out.match`
-  needs the new `Filtered` arm, on every grid. Every header is now named by
-  its own words (`aria-label`); Alt+ArrowDown on a filtering column opens
-  its filter rather than the column menu (Shift+F10 and the menu key still
-  open the menu); `resolveOpened` takes `'filter'`; `MoreOnScroll` takes any
-  input with `status` and `onMore`; and `editorOf` reads a single text
-  literal as a choice and number literals as a number, as the filter does.
-  `examples/data-grid` filters its products, and `examples/registry`
-  passes the status and price filters to the server as the query's input.
+  `Grid.noFilters`; the schema refuses an empty filter, a stale option, a
+  bound that is not finite and a key no filtering column has).
+  `Grid.keeps(filters, read)` filters held rows through each row's own
+  field, folding ASCII case as `Expr.contains` does; over Remote, map the
+  filters onto the query's input. The view takes `filters` exactly when a
+  column filters (`FiltersInput`), and `resolveOpened` takes `'filter'`.
+  `examples/data-grid` filters its products, and `examples/registry` passes
+  the status and price filters to the server as the query's input, its
+  price bounds rounded inward to whole cents.
 
 - **Durable Messages upcast through a declared history** (`foldkit-sync`,
   `foldkit-durable`, #190). `Sync.migrations(V1).next(V2, up)` declares the
@@ -520,6 +516,23 @@ version changed; `pnpm` skips versions already in the registry.
   again), so a page renders once in `keep` instead of once a minute.
 
 ### Changed
+
+- **Grid behaviour that column filters changed** (`foldkit-data-grid`,
+  `foldkit-mixins-data-grid`, #144).
+  - `Grid.Out` has a `Filtered` arm on a grid with a filtering column, so
+    its `Grid.Out.match` needs one; a grid that filters nothing has none.
+  - `editorOf` now shares the filter's classifier: a single text literal
+    edits as a one-option choice, number literals as a number, boolean
+    literals as a checkbox, and a text enum as a choice of its values (a
+    number enum as a number).
+  - Every column header is named by its own words (`aria-label`), so its
+    buttons and an open form are no longer part of its name; a filtered
+    read-only header's description is "Read-only, Filtered".
+  - Alt+ArrowDown on a filtering column's header opens its filter, not the
+    column menu; Shift+F10 and the menu key still open the menu, and
+    Alt+ArrowDown does on a column that does not filter.
+  - `MoreOnScroll` is generic over any view input with `status` and
+    `onMore` (`<Input, Message>`), not over `GridInput`'s four parameters.
 
 - **What a replica holds as written is typed `WrittenOperation`**
   (`foldkit-sync`, #190): `Replica.pending`, `ReplicaState.pending`,
