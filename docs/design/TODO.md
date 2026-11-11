@@ -20,8 +20,9 @@ phase ships alone and records its number; the gates below are the notes' own.
   domains-plus (`DOMAINS_PLUS_LOADER=1`). Not the default (decision 5): at 4x,
   script at start 207 to 2.3 kB and blocking no worse, but total script
   +2.4 kB and a press at `load` 1,224 ms against 403 ms, since the chunk is
-  fetched at idle. Next: try fetching the chunk at `load` (evaluated at idle
-  or intent) and measure again. Phase 1 built: one round trip per pass
+  fetched at idle. Fetching it at `load` (9d673d0) did not pass either: a
+  press at `load` 1,194 ms against 312, total script +1.9 kB; the cost is
+  evaluating the chunk, which today's entry starts before `load`. Phase 1 built: one round trip per pass
   (#435). #427 closed: the `Link` header saved 6 ms of FCP (bar 50). #432's
   hydration spike is still to run.
   [472-427-432-435-ssr-delivery-DESIGN.md](./472-427-432-435-ssr-delivery-DESIGN.md)

@@ -228,26 +228,29 @@ In the same change:
 
 ## The queue
 
-In order. Every item runs the loop above. Done today and off the queue: #500
-(803f3dc), #501 and #502 (b10c409), the reference Worker's `WeakMap`
-(1088a2d), the `writeTrace` helper (7cc664a), #478's `step` (bdf0537), and
-the styling and renderer phase 0 measurements (b05106a, 533dffe).
+In order. Every item runs the loop above. Built on the branch and off the
+queue (details in `docs/design/TODO.md`): #500, #501/#502, #478's `step`,
+#498/#499 and Remote's `writing`, #420 phase 1 (build-time style modules),
+renderer phases 0a and 0b, SSR delivery phases 0 to 2 (the loader, opt-in;
+fetching at `load` did not pass decision 5 either: a press at `load` 1,194 ms
+against 312, the cost being evaluation), Site and host D1, H1, H3 and H2
+(`foldkit-host`), and `serveFetch`'s refusal drain (563d53d).
 
-1. **#498 and #499, one change (Remote note phase 1a/1b).** In progress.
-2. **#420 phase 1, build-time style modules,** with the 12 KB exit gate. In
-   progress.
-3. **Renderer phase 0b** (ablate drawing for `UpdatedSearch` and
-   `SelectedItem`, clean tree). In progress.
-4. **Site and host:** D1 (Chirp on node Surfaces) and H1 (`SSR.entry`'s
-   `redirect`) in progress; then Phase 0 baselines, H3, H2.
-5. **SSR delivery:** phase 0 probes, then phase 2, the loader (after #420
-   frees domains-plus).
-6. **Remote phase 2** (`writing`), after #498/#499; **#424's defaults**,
-   after #420.
-7. **The rest of the small findings** in `docs/design/TODO.md` (the 90 KB
-   against 69 KB page; Chirp's bundle extras).
-8. **The UI polish leftovers** in `docs/design/TODO.md`, one per bout between
+1. **H2's owed checks:** the reference Worker's workerd test (with its
+   request bodies restored), its e2e and mutations, `pack:check`. In progress.
+2. **#432's hydration spike** (`SSR.static` on display regions; the bar is
+   boot 10 ms faster at 4x).
+3. **Site and host Phase 0:** per-route baselines; C1 to C3 only if it finds
+   20 KB; H4 only if 30+ lines of glue stay shared after H2.
+4. **The rest of the small findings** in `docs/design/TODO.md` (the 90 KB
+   against 69 KB page, from Foldkit's identity markers; Chirp's bundle
+   extras).
+5. **The UI polish leftovers** in `docs/design/TODO.md`, one per bout between
    larger items.
+
+Waiting on the owner: #424's defaults (its 75-line target is out of reach),
+the upstream posts (foldkit#1657, #1872, the Workers `fetch` signature, the
+identity markers, floating-ui), and the Jev reviews (no key here).
 
 ## Parked
 
