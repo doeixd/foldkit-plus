@@ -68,13 +68,15 @@ test('a press on the box, Space and Enter toggle it, and no draft opens', async 
       't0.done=false',
       't0.done=true',
     ])
-    // Neither a typed key, F2 nor a double-click opens a draft on it.
+    // Neither a typed key, F2 nor a double-click opens a draft on it. A
+    // Space after them is the settle: an edit they opened would refuse it.
     press('x')
     press('F2')
     cellOf('t0', 'done')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
-    await new Promise(resolve => setTimeout(resolve, 20))
+    press(' ')
+    await vi.waitFor(() => expect(checked('t0')).toBe('false'))
     expect(editor()).toBeNull()
-    expect(mounted.latest().grid.editing._tag).toBe('None')
+    expect(mounted.latest().edits.at(-1)).toBe('t0.done=false')
   } finally {
     mounted.dispose()
   }
