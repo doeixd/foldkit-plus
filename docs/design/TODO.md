@@ -358,8 +358,10 @@ the steps land in the packages that own them.
 - [ ] **Per-locale CMS entries,** slugs and locale-aware reads. cms-DESIGN §14
 - [ ] **Schema labels per locale:** `Words.of(schema, { locale, table })` over a
   keyed table.
-- [ ] **Right to left:** an audit of the remaining physical `left`/`right`
-  properties, and a check that keeps them out.
+- [ ] **Right to left:** the audit and `pnpm rtl:check` are built (5a638b4..
+  8d8041c: 41 lines made logical, about 62 marked `// physical:` with the
+  reason). Open: a Sheet or Toast side named by inline direction (today a
+  screen side), and icons that mirror in RTL through a Slot.
 - [ ] Generated pages per locale and negotiation at the edge: SSR Phase S9,
   server-DESIGN §19.9.
 
