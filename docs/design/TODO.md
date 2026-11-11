@@ -260,28 +260,19 @@ misinforms, unadopted 0.12 contracts, UX polish, hygiene and docs.
 work wave 0 (correctness) first, then wave 1 (adoptions), then wave 2
 (polish), with package prerequisites as their own slices.
 
+- [ ] **An agent completion's `message` is any Message**, not the success
+  variant, so `examples/todo` narrows it with `Schema.is(Message.SubmittedTodo)`
+  (found with 2e347c4). Type it as the completion's success.
 - [ ] **1. Adoptions:** SSG adopts `staticSite` (built: plugin, sitemap/
   robots, the prepared-posts dependency, canonical, blessed-example note);
   `assembly.runtime` in one real assembly (built); todo agent learns
-  completion;
+  completion (built: 0768491 names an agent's contract in declarations,
+  2e347c4 completes on `SubmittedTodo`);
   `Input.view`/`Textarea.view` callers (built); the small-gaps batch (scroll
   options, `stateBadge` None, `Data.meta` stale/loading, bootstrap meets
   routing, kitchen-sink `correlate`, explicit submit gate); staleness stays
   designed, not built.
   - **Needs a decision first** (do not code blind):
-    - **Todo agent completion** (`examples/todo`) — blocked, then designed.
-      The example deliberately has no Commands and mints ids synchronously in
-      `update`, so intent and fact collapse; the port is a `CreateTodo` Command
-      and a `SubmittedTodo` fact carrying `requestId`, mirroring `todo-app`.
-      It hits `TS2742`: the completion's `success: Message.SubmittedTodo`
-      makes `AppAgent`'s inferred type reference `foldkit/dist/schema/index.js`,
-      which the example's declaration emit cannot name (`todo-app` does not hit
-      it, for a structural reason not yet found). Annotating with
-      `Agent.Definition`/`ReturnType<typeof make>` silences it but widens the
-      Message universe, breaking the host's `dispatch` typing — i.e. it trades
-      away the capability typing the example exists to teach. Needs a proper
-      fix (name the definition type, or find why `todo-app` is exempt) rather
-      than a cast.
     - **Kitchen-sink `correlate`** — `RequestedCreateNote` already carries a
       caller-supplied id and adds the note synchronously, so there is no fact to
       correlate against; completion is either state-based (`Agent.when` on the
