@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`serveFetch` reads a refused POST's body before answering**
+  (`foldkit-remote-server`). A call refused early (no principal, another
+  path, a body over `maxBodyBytes`, a failed layer) answered with its body
+  unread, and on workerd the next request on that keep-alive connection failed
+  with a 500 about one run in four. The unread body is now read, up to
+  `maxBodyBytes`, and cancelled past it; the answers are unchanged.
 - **`styles()` writes the files its sheet names** (`foldkit-mixins/vite`, #420).
   The sheet is built apart and a server build emits no assets, so a font
   reached only through the sheet (`?url`) was named in the CSS and written
