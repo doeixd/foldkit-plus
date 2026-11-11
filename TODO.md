@@ -239,7 +239,7 @@ In the same change:
     API change to decide before 1.0.
 - [ ] **The branch's PR.** Unmerged since #497 (merged 2026-11-10): about a
       hundred commits, never through CI, since CI runs on pull requests. The
-      whole CI sequence passed locally on 81458646 (2026-11-11, perf and
+      whole CI sequence passed locally on 4a3ff6a2 (2026-11-11, perf and
       scaffold jobs included; only postgres-locale skipped, no server here). Issues done on it, to close
       when it merges: #495, #481, #482, #230 (its stamps wait for the next
       release), #236, #500, #479, #478, #498, #499, #501, #502, #435, #432
