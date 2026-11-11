@@ -148,8 +148,9 @@ const previewing = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =
     h.div(slots.preview.attrs(), [Preview(post, h)])
   const nothing = () =>
     h.p(slots.muted.attrs(), ['There is nothing to preview yet: write a title.'])
+  // `Initial` is a read nothing has asked yet, not an answer that there is nothing.
   return RemoteData.match(data, {
-    Initial: nothing,
+    Initial: () => Loading.view(slots.muted, h, 'Loading…'),
     Loading: () => Loading.view(slots.muted, h, 'Loading…'),
     Ready: preview,
     Refreshing: preview,

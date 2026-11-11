@@ -345,3 +345,22 @@ describe('the schedule box', () => {
     expect(box()).toBe(later)
   })
 })
+
+describe('the preview of a read nothing has asked yet', () => {
+  it('reads as busy, not as an empty draft', () => {
+    let model = step(initial, Message.StartedPost({ entry: 'entry-unasked' }))
+    model = step(model, editorOf(Editor.Message.PreviewShown()))
+    // Without the overlay the preview shows, nothing holds or fetches the post.
+    model = {
+      ...model,
+      remote: { ...model.remote, optimistic: { ...model.remote.optimistic, layers: [] } },
+    }
+    expect(postPage('entry-unasked').read(model)._tag).toBe('Initial')
+    const tree = Inert.draw(Studio, model)
+    const busy = Inert.byRole(tree, 'status').filter(
+      node => Inert.value(node, 'aria-busy') === 'true',
+    )
+    expect(busy.map(node => Inert.text(node)).join(' ')).toContain('Loading…')
+    expect(Inert.text(tree)).not.toContain('There is nothing to preview yet')
+  })
+})
