@@ -77,8 +77,8 @@ phase ships alone and records its number; the gates below are the notes' own.
 - [x] **`PasswordInput.view` cannot be drawn resumably.** Both views take
   the caller's builder's `OnInput` attribute (`rh.OnInput(Message.X)`), and
   `PasswordInput.view` takes slot `attributes` for `KeepTyped`; auth uses
-  it (197efac9, 5578db58). Left: `PasswordInput` imports `Meter` for
-  `strength`, so a page with no meter ships one (auth's budget rose 1.2 kB).
+  it (197efac9, 5578db58). `strength` now takes a gauge the application
+  draws, so a page with none ships no Meter (auth's client fell 0.9 kB).
 - [ ] **Foldkit's view-identity markers add 20 KB to a served page**
   (domains-plus on workerd: 487 `data-foldkit-identity` attributes, 38
   distinct; the whole 90 KB against 69 KB gap). Neither the Vite plugin nor

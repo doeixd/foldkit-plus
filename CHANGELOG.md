@@ -425,6 +425,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Breaking: PasswordInput's `strength` takes a drawn gauge**
+  (`foldkit-mixins-ui`). It is `Html`, placed in the `strength` Slot, where it
+  was a Meter's options that PasswordInput drew itself; so PasswordInput no
+  longer imports Meter, and a page with no gauge ships none (the auth
+  example's client fell 0.9 kB brotli). Migrate by drawing the Meter:
+  `strength: Meter.view({ id, label, value, max, style }, h)`.
+
 - **A slot recipe's selection types its base slots as present**
   (`foldkit-mixins`). `Style.recipeFor(Slots)(def)` returns
   `selection => RecipePieces<Slots, Known>` (exported), where `Known` is the

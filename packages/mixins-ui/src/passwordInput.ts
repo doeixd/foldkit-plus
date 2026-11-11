@@ -11,7 +11,6 @@ import {
 } from 'foldkit-mixins'
 import type { Html, HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { onInputOf, type OnInput } from './field.js'
-import * as Meter from './meter.js'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -38,7 +37,7 @@ export const PasswordInputSlots = Slots.define({
     attributes: [Attr.AriaLabel, Attr.AriaPressed, Attr.Disabled],
   }),
   description: Slot.make({ capability: Capability.Container }),
-  /** Holds the strength Meter, which brings its own slots. */
+  /** Holds the strength gauge the application draws, which brings its own slots. */
   strength: Slot.make({ capability: Capability.Container }),
   requirements: Slot.make({ capability: Capability.Container }),
   requirement: Slot.make({ capability: Capability.Container }),
@@ -86,8 +85,11 @@ export interface PasswordInputView<Message> {
   readonly placeholder?: string | undefined
   readonly invalid?: boolean | undefined
   readonly disabled?: boolean | undefined
-  /** The strength Meter under the field, drawn by `Meter.view` with its own style. */
-  readonly strength?: Meter.MeterView<NoInfer<Message>> | undefined
+  /**
+   * A strength gauge under the field, drawn by the application (`Meter.view`
+   * with its own style), so a page with none ships no Meter.
+   */
+  readonly strength?: Html | undefined
   /** The rules the password must keep, listed under the field. */
   readonly requirements?: ReadonlyArray<Requirement> | undefined
   /** A requirement's state, read after its label; default `met` and `not met`. */
@@ -190,9 +192,7 @@ export const view = <Message>(
     ...(options.description === undefined
       ? []
       : [h.p(attrs('description', [h.Id(descriptionId)]), [options.description])]),
-    ...(options.strength === undefined
-      ? []
-      : [h.div(attrs('strength'), [Meter.view(options.strength, h)])]),
+    ...(options.strength === undefined ? [] : [h.div(attrs('strength'), [options.strength])]),
     ...(requirements === undefined || requirements.length === 0
       ? []
       : [

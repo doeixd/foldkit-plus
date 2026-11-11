@@ -10,7 +10,14 @@ import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
 import { A11y, Style, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { MeterSlots, PasswordInput, PasswordInputSlots, Patterns, Recipes } from '../src/index.js'
+import {
+  Meter,
+  MeterSlots,
+  PasswordInput,
+  PasswordInputSlots,
+  Patterns,
+  Recipes,
+} from '../src/index.js'
 import { h, message, sends, type TestMessage } from './fixture.js'
 
 const Edited = defineMessageUnion({ Typed: { text: Schema.String }, Toggled: {} })
@@ -242,14 +249,37 @@ describe('PasswordInput.view', () => {
     expect(Inert.byTag(aided({ requirements: [] }), 'ul')).toEqual([])
   })
 
-  it('draws the strength Meter given, with its own label', () => {
+  it('draws the strength gauge given in its Slot, and no Slot without one', () => {
     const meter = Style.forSlots(MeterSlots)(Recipes.Meter({}))
-    const tree = aided({
-      strength: { id: 'new-strength', label: 'Strength', value: 1, max: 4, style: meter },
-    })
-    const [gauge] = Inert.byRole(tree, 'meter')
+    const Drawn = SlotView.forMessages<TestMessage>().define(
+      PasswordInputSlots,
+      (withGauge: boolean, __, h) =>
+        PasswordInput.view(
+          {
+            id: 'new',
+            label: 'Password',
+            value: '',
+            onInput: () => message('Other'),
+            visible: false,
+            onToggle: message('Clicked'),
+            ...(withGauge
+              ? {
+                  strength: Meter.view(
+                    { id: 'new-strength', label: 'Strength', value: 1, max: 4, style: meter },
+                    h,
+                  ),
+                }
+              : {}),
+          },
+          h,
+        ),
+    )
+    const [slot, ...more] = Inert.bySlot(Inert.draw(Drawn, true), 'strength')
+    expect(more).toEqual([])
+    const [gauge] = Inert.byRole(slot, 'meter')
     expect(Inert.value(gauge, 'aria-valuenow')).toBe('1')
     expect(Inert.value(gauge, 'aria-valuemax')).toBe('4')
+    expect(Inert.bySlot(Inert.draw(Drawn, false), 'strength')).toEqual([])
   })
 
   it.each([

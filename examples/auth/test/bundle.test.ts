@@ -10,10 +10,11 @@ import { formatReport, measure } from '../../../scripts/bundle-report.mjs'
 import { record } from '../../../scripts/perf-report.mjs'
 
 // Brotli bytes. Never raise it without saying here what the growth bought.
-// 224.1 kB (224,133 bytes) measured on 2026-11-11; the ceiling is that plus about 2%,
+// 223.2 kB (223,245 bytes) measured on 2026-11-11; the ceiling is that plus about 2%,
 // rounded up to the next 500 bytes. It was 222.9 kB before the password field
-// was drawn with `PasswordInput.view`, whose `strength` keeps the Meter it never draws.
-const CEILING = 229_000
+// was drawn with `PasswordInput.view` (its Caps Lock hint and requirements), and
+// 224.1 kB while PasswordInput imported the Meter for a `strength` this page never draws.
+const CEILING = 228_000
 
 test('the auth client loads at most the budgeted brotli JavaScript', async () => {
   const report = await measure(resolve(import.meta.dirname, '..'))

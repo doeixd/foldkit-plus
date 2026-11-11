@@ -145,6 +145,28 @@ export default [
     tests: [unit],
   },
   {
+    name: 'the strength gauge given is not drawn',
+    edits: [
+      {
+        file: '../src/passwordInput.ts',
+        find: "[h.div(attrs('strength'), [options.strength])]",
+        replace: "[h.div(attrs('strength'), [])]",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the strength gauge sits outside its Slot',
+    edits: [
+      {
+        file: '../src/passwordInput.ts',
+        find: "[h.div(attrs('strength'), [options.strength])]",
+        replace: '[h.div([], [options.strength])]',
+      },
+    ],
+    tests: [unit],
+  },
+  {
     name: 'a met ring stays hollow',
     edits: [
       {
