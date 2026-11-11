@@ -71,6 +71,23 @@ const ownershipKey = (tag: string, value: unknown): string => {
   return `${tag}:${String((value as { readonly key?: unknown; readonly name?: unknown })[field])}`
 }
 
+/**
+ * The HTML attribute a contribution sets, normalized to compare with a protected one:
+ * `AriaLabel`, `Attribute('aria-label')` and `Prop({ key: 'ariaLabel' })` all read
+ * `arialabel`, and `DataAttribute('x')` reads as `data-x`.
+ */
+const attributeNameOf = (tag: string, value: unknown): string => {
+  const key =
+    typeof value === 'object' && value !== null
+      ? (value as { readonly key?: unknown }).key
+      : undefined
+  if (typeof key !== 'string') return normalizeName(tag)
+  // tag-check: open — the tag may be a child attribute's, from another package.
+  if (tag === 'DataAttribute') return normalizeName(`data-${key}`)
+  if (tag === 'Attribute' || tag === 'Prop') return normalizeName(key)
+  return normalizeName(tag)
+}
+
 /** `OnCustomEvent` is keyed by its event name and `OnMount` is composed, not one native event. */
 const NOT_NATIVE_EVENT: ReadonlySet<string> = new Set(['OnMount', 'OnCustomEvent'])
 
@@ -246,9 +263,11 @@ export const resolve = <Message>(
       return
     }
     const key = ownershipKey(tag, attribute)
-    if (protectedAttributes.has(normalizeName(tag))) {
+    const attributeName = attributeNameOf(tag, attribute)
+    if (protectedAttributes.has(attributeName)) {
       fail('mixins:protected-attribute', `slot "${slot ?? '?'}" protects attribute "${tag}"`, {
         tag,
+        attribute: attributeName,
       })
     }
     const owner = ownedAttributes.get(key)
