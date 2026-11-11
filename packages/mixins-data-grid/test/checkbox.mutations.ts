@@ -26,7 +26,7 @@ export default [
     edits: [
       {
         file: columns,
-        find: 'if (SchemaAST.isBoolean(type)) return CellEditor.Checkbox()',
+        find: 'if (isBooleanLike(type)) return CellEditor.Checkbox()',
         replace: 'if (false) return CellEditor.Checkbox()',
       },
     ],
@@ -37,14 +37,14 @@ export default [
     edits: [
       {
         file: columns,
-        find: '  if (SchemaAST.isBoolean(type)) return CellEditor.Checkbox()\n',
+        find: '  if (isBooleanLike(type)) return CellEditor.Checkbox()\n',
         replace: '',
       },
       {
         file: columns,
         find: '  if (isDate(type)) return CellEditor.Date()',
         replace:
-          '  if (SchemaAST.isBoolean(type)) return CellEditor.Checkbox()\n  if (isDate(type)) return CellEditor.Date()',
+          '  if (isBooleanLike(type)) return CellEditor.Checkbox()\n  if (isDate(type)) return CellEditor.Date()',
       },
     ],
     tests: unit,
@@ -96,7 +96,7 @@ export default [
     edits: [
       {
         file: grid,
-        find: '                  Option.isNone(model.editing) &&\n',
+        find: '                Option.isNone(model.editing) &&\n',
         replace: '                  true &&\n',
       },
     ],
@@ -130,7 +130,7 @@ export default [
     edits: [
       {
         file: grid,
-        find: '                model: clearCells(focusTo(model, address)),\n                outMessage: Out.Edited',
+        find: '              model: clearCells(focusTo(model, address)),\n              outMessage: Out.Edited',
         replace:
           '                model: clearCells(model),\n                outMessage: Out.Edited',
       },

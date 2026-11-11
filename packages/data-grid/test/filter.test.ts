@@ -89,6 +89,10 @@ describe('the kind a column filters as', () => {
     ['a template literal', () => agree(Schema.TemplateLiteral([Schema.Number, 'px']), 'Text')],
     ['text literals', () => agree(Status, 'Choice')],
     ['one text literal', () => agree(Schema.Literal('Only'), 'Choice')],
+    [
+      'a text literal or a number',
+      () => agree(Schema.Union([Schema.Literal('a'), Schema.Number]), 'Text'),
+    ],
     ['a nullable literal', () => agree(Schema.NullOr(Status), 'Text')],
     ['a boolean', () => agree(Schema.Boolean, 'Checkbox')],
     ['the checkbox text', () => agree(Columns.checkbox, 'Checkbox')],
@@ -173,10 +177,14 @@ describe('the filter form', () => {
       open('hours'),
       typed('min', '1'),
       typed('min', '1x'),
+      typed('min', '2'),
+      typed('min', '2y'),
       typed('min', ''),
     ])
+    // Through each bound that is no number the rows stay filtered by the last that held.
     expect(reported).toEqual([
       { column: 'hours', filter: Option.some(range(Option.some(1), fresh)) },
+      { column: 'hours', filter: Option.some(range(Option.some(2), fresh)) },
       { column: 'hours', filter: Option.none() },
     ])
     expect(Option.map(model.filtering, each => each.reported)).toEqual(Option.some(fresh))
@@ -296,16 +304,24 @@ describe('the filter form', () => {
       drawn: Option.some(ColumnFilter.OneOf({ options: ['Done'] })),
       reported: Option.some(ColumnFilter.OneOf({ options: ['Open'] })),
     })
-    const { reported } = run(opened, [Grid.Message.FilterOptionToggled({ option: 'Doing', stale })])
+    // Two presses from that one frame: the first reseeds, the second adds to it.
+    const { reported } = run(opened, [
+      Grid.Message.FilterOptionToggled({ option: 'Doing', stale }),
+      Grid.Message.FilterOptionToggled({ option: 'Open', stale }),
+    ])
     expect(reported).toEqual([
       { column: 'status', filter: Option.some(ColumnFilter.OneOf({ options: ['Doing', 'Done'] })) },
+      {
+        column: 'status',
+        filter: Option.some(ColumnFilter.OneOf({ options: ['Open', 'Doing', 'Done'] })),
+      },
     ])
   })
 
   test.each([
     [
       'a paste',
-      Grid.Message.Pasted({ cells: [{ row: 't', column: 'title', text: '', from: 'a' }] }),
+      Grid.Message.Pasted({ cells: [{ row: 't', column: 'status', text: 'Done', from: 'Open' }] }),
     ],
     [
       'a fill',
@@ -452,6 +468,12 @@ describe('keeps', () => {
       })
     expect(on('2026-01-02')).toEqual(['a'])
     expect(on('2026-01-03')).toEqual(['b'])
+    // From a day on, with no last day: still not an invalid date.
+    expect(
+      kept({
+        due: Option.some(ColumnFilter.Between({ from: Option.some('2026-01-03'), to: fresh })),
+      }),
+    ).toEqual(['b'])
   })
   test('writes one change in', () => {
     const next = Grid.setFilter(Grid.noFilters, {

@@ -147,16 +147,6 @@ export const filterSchemaOf = (kind: CellEditor): Schema.Codec<ColumnFilter, unk
   return schema as unknown as Schema.Codec<ColumnFilter, unknown>
 }
 
-/** Which variant a kind's filter is. */
-export const variantOf = (kind: CellEditor): ColumnFilter['_tag'] =>
-  CellEditor.match(kind, {
-    Text: () => 'Contains' as const,
-    Number: () => 'Range' as const,
-    Choice: () => 'OneOf' as const,
-    Checkbox: () => 'Is' as const,
-    Date: () => 'Between' as const,
-  })
-
 /**
  * An open filter form as typed: each kind reads its own fields, and a bound
  * is text, so it holds `1.` while it is typed.

@@ -65,7 +65,7 @@ export default [
     edits: [
       {
         file: '../src/grid.ts',
-        find: '          return accepted.length === 0 && refused.length === 0',
+        find: '        return accepted.length === 0 && refused.length === 0',
         replace: '          return false',
       },
     ],

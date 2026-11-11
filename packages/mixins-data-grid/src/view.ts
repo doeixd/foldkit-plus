@@ -1781,8 +1781,8 @@ const view = <Message>() => ({
   /**
    * The Mounts the grid starts as it opens something over itself, resolved
    * with the `MountStarted` the runtime sends: `'editor'` is a cell's field
-   * (a native select included) and `'menu'` a column's menu, each holding
-   * focus; `'choice'` is a choice's combobox and the list beside it, which
+   * (a native select included), `'menu'` a column's menu and `'filter'` its
+   * filter form, each holding focus; `'choice'` is a choice's combobox and the list beside it, which
    * keeps a press on an option from taking that focus. Resolve them once it
    * is drawn, and acknowledge them once it closes:
    * `Scene.Mount.expectEnded(...opened.map(([mount]) => mount))`.
@@ -1792,7 +1792,7 @@ const view = <Message>() => ({
     options: {
       /** The view's `wrap`. */
       readonly wrap: (message: typeof grid.Message.Type) => Message
-      readonly opened: 'editor' | 'choice' | 'menu'
+      readonly opened: 'editor' | 'choice' | 'menu' | 'filter'
     },
   ): ReadonlyArray<Scene.MountResolver<Message>> => {
     const started = options.wrap(grid.Message.MountStarted())

@@ -1265,10 +1265,9 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         }),
       FilterOptionToggled: ({ option, stale }): Return =>
         filterEdited(model, stale, (form, kind) =>
+          // An option the column does not offer is not among `offered`, so it changes nothing.
           Option.flatMap(
-            Option.filter(Option.liftPredicate(kind, CellEditor.guards.Choice), choice =>
-              choice.options.includes(option),
-            ),
+            Option.liftPredicate(kind, CellEditor.guards.Choice),
             ({ options: offered }) => {
               const ticked = new Set(form.options)
               const on = !ticked.has(option)

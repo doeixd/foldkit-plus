@@ -98,7 +98,7 @@ export default [
     edits: [
       {
         file: grid,
-        find: '              column => options.columns.byId[column].resizable !== false,',
+        find: '            column => options.columns.byId[column].resizable !== false,',
         replace: '              () => true,',
       },
     ],
