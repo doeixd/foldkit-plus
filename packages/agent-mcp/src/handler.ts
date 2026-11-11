@@ -1,5 +1,5 @@
 import { Agent } from 'foldkit-agent'
-import { Effect } from 'effect'
+import { Effect, Result } from 'effect'
 import type { ReportDiagnostic } from 'foldkit-surface'
 import { capabilityDefect, reportTo, requestDefect, toolListDefect } from './diagnostics.js'
 import {
@@ -207,11 +207,13 @@ export const handler = <Model, Context_, Principal, ByName, ByTag>(
     }
 
     const value = await Effect.runPromise(Effect.result(agent.resources.read(name)))
-    return value._tag === 'Failure'
-      ? failure(id, code.REQUEST_FAILED, value.failure.message)
-      : success(id, {
-          contents: [{ uri, mimeType: 'application/json', text: JSON.stringify(value.success) }],
-        })
+    return Result.match(value, {
+      onFailure: error => failure(id, code.REQUEST_FAILED, error.message),
+      onSuccess: read =>
+        success(id, {
+          contents: [{ uri, mimeType: 'application/json', text: JSON.stringify(read) }],
+        }),
+    })
   }
 
   const handleRequest = async (request: Request): Promise<Response> => {

@@ -1229,18 +1229,18 @@ const makeShape = <
 
   // Publish and observe only after the transaction committed, so a subscriber
   // never sees a change that could still roll back.
-  const announce = (key: DocumentId, outcome: AppendOutcome): Effect.Effect<void> =>
-    outcome.changed && outcome.result._tag === 'Committed'
-      ? Effect.all([
-          Metric.update(journalMetrics.appends, 1),
-          Effect.logDebug('journal append', {
-            key,
-            opId: outcome.result.committed.opId,
-            sequence: outcome.result.committed.sequence,
-          }),
-          PubSub.publish(changes, key),
-        ]).pipe(Effect.asVoid)
-      : Effect.void
+  const announce = (key: DocumentId, outcome: AppendOutcome): Effect.Effect<void> => {
+    if (!outcome.changed || outcome.result._tag !== 'Committed') return Effect.void
+    return Effect.all([
+      Metric.update(journalMetrics.appends, 1),
+      Effect.logDebug('journal append', {
+        key,
+        opId: outcome.result.committed.opId,
+        sequence: outcome.result.committed.sequence,
+      }),
+      PubSub.publish(changes, key),
+    ]).pipe(Effect.asVoid)
+  }
 
   const append: Shape['append'] = Effect.fn('Journal.append')(function* (
     key: DocumentId,

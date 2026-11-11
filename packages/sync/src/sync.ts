@@ -918,19 +918,22 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
         while (!(yield* Ref.get(closed))) {
           const exit = yield* Effect.exit(synchronize)
           if (yield* Ref.get(closed)) return
-          if (exit._tag === 'Success') {
-            failures = 0
-            yield* Queue.take(wake)
-          } else {
-            // Retried on a backoff, or sooner on a submit: an outbox must not
-            // wait for the next keystroke to be delivered.
-            failures += 1
-            const backoff = Math.min(
-              START_RETRY_MAX,
-              START_RETRY_BASE * 2 ** Math.min(failures - 1, 16),
-            )
-            yield* Effect.raceFirst(Queue.take(wake), Effect.sleep(backoff))
-          }
+          yield* Exit.match(exit, {
+            onSuccess: () => {
+              failures = 0
+              return Queue.take(wake)
+            },
+            onFailure: () => {
+              // Retried on a backoff, or sooner on a submit: an outbox must not
+              // wait for the next keystroke to be delivered.
+              failures += 1
+              const backoff = Math.min(
+                START_RETRY_MAX,
+                START_RETRY_BASE * 2 ** Math.min(failures - 1, 16),
+              )
+              return Effect.raceFirst(Queue.take(wake), Effect.sleep(backoff))
+            },
+          })
         }
       })
 

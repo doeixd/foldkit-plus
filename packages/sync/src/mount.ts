@@ -7,7 +7,7 @@
  * shared slice is re-installed from the replica when an exchange changes it or
  * a persist fails, through one private Message the application never sees.
  */
-import { Effect, Exit, Layer, Option, Schema, Stream } from 'effect'
+import { Effect, Exit, Layer, Option, Result, Schema, Stream } from 'effect'
 import { absurd } from 'effect/Function'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import * as Navigation from 'foldkit/navigation'
@@ -393,10 +393,10 @@ export const mount = <
         // A link the application did not claim: follow it. The runtime then
         // reports the new URL through `onUrlChange`.
         const { request } = message
-        const follow =
-          request._tag === 'Internal'
-            ? Navigation.pushUrl(Url.toString(request.url))
-            : Navigation.load(request.href)
+        const follow = Navigation.UrlRequest.match(request, {
+          Internal: ({ url }) => Navigation.pushUrl(Url.toString(url)),
+          External: ({ href }) => Navigation.load(href),
+        })
         return {
           model,
           commands: [
@@ -484,9 +484,10 @@ export const mount = <
         yield* Effect.promise(() => previous)
         edit.started = (yield* replica.snapshot).nextLocalSequence
         const outcome = yield* Effect.result(replica.submit(edit.message))
-        return outcome._tag === 'Success'
-          ? ({ _tag: PERSISTED } as RuntimeMessage)
-          : ({ _tag: FAILED, error: outcome.failure } as RuntimeMessage)
+        return Result.match(outcome, {
+          onSuccess: () => ({ _tag: PERSISTED }) as RuntimeMessage,
+          onFailure: error => ({ _tag: FAILED, error }) as RuntimeMessage,
+        })
       }).pipe(
         // `ensuring`, so a defect in storage still releases the next submit and `dispose`.
         Effect.ensuring(Effect.sync(release)),

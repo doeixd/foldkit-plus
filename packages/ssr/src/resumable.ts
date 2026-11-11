@@ -13,7 +13,7 @@
  * In the browser the builder marks nothing: it is the application's `h`, with
  * the hole forms turned into the closures Foldkit expects.
  */
-import { Schema, SchemaAST } from 'effect'
+import { Match, Schema, SchemaAST } from 'effect'
 import type { Attribute, ChildAttribute, HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { current, type Binding } from './context.js'
 import { BINDING_ATTRIBUTE, KEEP_ATTRIBUTE } from './marks.js'
@@ -346,7 +346,10 @@ export const builder = <Builder extends AnyBuilder>(
     const named = new Map<string, number>()
     for (const item of attributes) {
       if (!isAttribute(item)) continue
-      const event = item._tag === 'OnCustomEvent' ? item.name : EVENT_OF[item._tag]
+      const event = Match.value(item).pipe(
+        Match.tag('OnCustomEvent', custom => custom.name),
+        Match.orElse(other => EVENT_OF[other._tag]),
+      )
       if (event === undefined) continue
       // Recorded for the refusal; the render does not survive it.
       if (now.mode === 'collect' && now.region !== undefined) {

@@ -1,4 +1,4 @@
-import { Cause, Effect, Option, Schema } from 'effect'
+import { Cause, Effect, Match, Option, Schema } from 'effect'
 import type { Definition } from './make.js'
 import {
   AuthorizationError,
@@ -426,19 +426,22 @@ export const bind = <
       const waiter =
         compiled === undefined
           ? undefined
-          : compiled._tag === 'State'
-            ? awaitState({
-                completion: compiled,
-                input: decoded,
-                model: host.model,
-                subscribe: compiled.subscribe ?? host.subscribe!,
-              })
-            : awaitCompletion({
-                completion: compiled,
-                input: decoded,
-                invocation,
-                observe: host.observe!,
-              })
+          : Match.valueTags(compiled, {
+              State: completion =>
+                awaitState({
+                  completion,
+                  input: decoded,
+                  model: host.model,
+                  subscribe: completion.subscribe ?? host.subscribe!,
+                }),
+              Message: completion =>
+                awaitCompletion({
+                  completion,
+                  input: decoded,
+                  invocation,
+                  observe: host.observe!,
+                }),
+            })
 
       // Inside `suspend` so a host that throws synchronously fails the Effect
       // rather than the generator: a JS `try` around `yield*` would not see a
