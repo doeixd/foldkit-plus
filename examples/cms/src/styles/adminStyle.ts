@@ -4,9 +4,10 @@
  * links, buttons, badges, disclosures) lives in `style.ts`.
  */
 import { Slots, Style } from 'foldkit-mixins'
-import { Loading, RowListSlots } from 'foldkit-mixins-crud'
+import { RowListSlots } from 'foldkit-mixins-crud'
 import { Recipes, Touch } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
+import { Utilities } from 'foldkit-mixins/utilities'
 import {
   app,
   button,
@@ -567,9 +568,9 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         whiteSpace: 'nowrap',
       }),
       Style.nest('&[data-tone="error"]', { color: t.error.ink }),
-      Loading.shown,
+      Utilities.busyReveal,
     ),
-    muted: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Loading.shown),
+    muted: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Utilities.busyReveal),
     // The attribute `Cms.stateBadge` writes.
     badge: stateBadge,
     // As tall as the tabs and buttons beside it, not a form's full field.
@@ -581,7 +582,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         padding: '0 0.7rem 0 2.1rem',
       }),
     ),
-    // A label over a control this package did not draw: no `Loading.shown` here.
+    // A label over a control this package did not draw: no `Utilities.busyReveal` here.
     fieldLabel: Style.self({ color: t.text.muted, margin: '0' }),
   },
   { name: 'AdminStyle', layer: app },
@@ -627,7 +628,7 @@ export const PagesListStyle = Style.forSlots(RowListSlots)(
       Style.nest('> :last-child', { marginInlineStart: 'auto' }),
       Style.pseudo(':hover', { background: t.surface.subtle }),
     ),
-    status: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Loading.shown),
+    status: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Utilities.busyReveal),
     retry: button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
   },
   { name: 'PagesListStyle', layer: app },

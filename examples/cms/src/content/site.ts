@@ -23,6 +23,7 @@ import { Empty, Failure, Loading } from 'foldkit-mixins-crud'
 import { BuilderView } from 'foldkit-mixins-builder'
 import { Layout } from 'foldkit-mixins/layout'
 import { Theme } from 'foldkit-mixins/theme'
+import { Utilities } from 'foldkit-mixins/utilities'
 import { Prose } from 'foldkit-mixins/prose'
 import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -640,7 +641,7 @@ const PostsLook = Appearance.make(PostsSlots, {
       root: Layout.stack({ gap: t.space.md }),
       heading: Style.self({ fontFamily: t.font.heading, fontSize: t.size.xl, margin: '0' }),
       // Said as a status, never as busy-forever: a failed read is an alert.
-      status: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Loading.shown),
+      status: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Utilities.busyReveal),
       list: Style.self({
         display: 'grid',
         gap: t.space.lg,
@@ -808,7 +809,7 @@ const FeaturedLook = Appearance.make(FeaturedSlots, {
       excerpt: Style.self({ color: t.text.muted, margin: '0' }),
       link: Style.self({ color: t.accent.ink, fontWeight: t.weight.semibold }),
       // Said as a status, never as busy-forever: a failed read is an alert.
-      status: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Loading.shown),
+      status: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Utilities.busyReveal),
     },
   }),
 })
@@ -845,7 +846,7 @@ const LatestPagesLook = Appearance.make(LatestPagesSlots, {
   recipe: Style.recipeFor(LatestPagesSlots)({
     base: {
       // Said as a status, never as busy-forever: a failed read is an alert.
-      status: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Loading.shown),
+      status: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Utilities.busyReveal),
     },
   }),
 })
