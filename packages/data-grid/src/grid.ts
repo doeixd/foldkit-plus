@@ -103,6 +103,15 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     Show: { column: Column },
   })
   type MenuItem = typeof MenuItem.Type
+  /**
+   * What toggled a checkbox: a press on its box, or a key on the cell the
+   * frame was drawn focusing, with the focus that frame was drawn from.
+   */
+  const Toggle = defineTaggedUnion({
+    Press: {},
+    Key: { drawn: Schema.OptionFromNullOr(focus.Address) },
+  })
+  const sameFocus = Option.makeEquivalence((a: Address, b: Address) => sameCell(a, b))
   const Message = defineMessageUnion({
     /** The pointer or the browser focused a cell. */
     Focused: { address: focus.Address },
@@ -195,18 +204,15 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     MountStarted: {},
     /**
      * The checkbox in the cell whose DOM id is `cell`, drawn `checked`, was
-     * pressed (`by: 'press'`), or Space or Enter was pressed on its focused
-     * cell (`by: 'key'`): the column's text for the other value is committed
-     * at once and reported as `Out.Edited`, with no draft. The id comes from
-     * the page, so a cell that is not a checkbox of this grid, or a toggle
-     * while an edit is open, changes nothing; nor does a key sent from a
-     * frame drawn before focus left the cell, which would toggle the wrong one.
+     * pressed (`Toggle.Press`), or Space or Enter was pressed on the cell a
+     * frame drew as the tab stop (`Toggle.Key`, with the focus that frame was
+     * drawn from): the column's text for the other value is committed at once
+     * and reported as `Out.Edited`, with no draft. The id comes from the page,
+     * so a cell that is not a checkbox of this grid, or a toggle while an edit
+     * is open, changes nothing; nor does a key whose frame was drawn before
+     * focus moved, which would toggle the cell focus left.
      */
-    EditToggled: {
-      cell: Schema.String,
-      checked: Schema.Boolean,
-      by: Schema.Literals(['key', 'press']),
-    },
+    EditToggled: { cell: Schema.String, checked: Schema.Boolean, by: Toggle },
     /**
      * An edit began on an editable cell, with the text it starts from. A
      * checkbox's cell opens none: it is toggled (`EditToggled`).
@@ -906,10 +912,12 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
             Option.flatMap(
               Option.filter(
                 addressOf(cell),
-                address =>
+                () =>
                   Option.isNone(model.editing) &&
-                  (by === 'press' ||
-                    Option.exists(model.focus.current, current => sameCell(current, address))),
+                  Toggle.match(by, {
+                    Press: () => true,
+                    Key: ({ drawn }) => sameFocus(drawn, model.focus.current),
+                  }),
               ),
               address =>
                 Option.flatMap(Option.fromUndefinedOr(toggles.get(address.column)), toggle =>
@@ -1189,6 +1197,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     editorFor,
     MenuItem,
     menuItems,
+    Toggle,
     columns: options.columns,
     rowSelection: options.rowSelection,
     cellSelection: options.cellSelection === true,

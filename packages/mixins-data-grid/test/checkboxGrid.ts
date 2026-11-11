@@ -2,7 +2,7 @@
  * A grid of tasks with a checkbox column the application writes back, on the
  * real runtime: shared by the jsdom and the browser tests of the checkbox.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
@@ -15,10 +15,13 @@ import { DataGridView, GridStyle } from 'foldkit-mixins-data-grid'
 const Task = Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean })
 type Task = typeof Task.Type
 
+// The checkbox column first, so the grid's first cell, its tab stop before
+// anything is focused, is a checkbox.
 const columns = Columns.define<Task>()({
-  title: { header: 'Title', value: task => task.title, width: 100, edit: {} },
   done: { header: 'Done', value: task => task.done, width: 80, edit: { schema: Columns.checkbox } },
-  // A boolean that does not edit is its text, with no checkbox to press.
+  title: { header: 'Title', value: task => task.title, width: 100, edit: {} },
+  // A boolean that does not edit: the application draws its own checkbox
+  // (`drawCell`), which is no control of the grid's.
   seen: { header: 'Seen', value: task => task.done, width: 80 },
 })
 
@@ -50,7 +53,16 @@ const application = Bundle.assemble<Model, Message>()([
             edits: edits => [...edits, `${edited.row}.${edited.column}=${edited.text}`],
           }),
         }),
-        Pasted: () => ({ model }),
+        // A paste or a clear is only logged: accepted as row.column=text, refused with a `!`.
+        Pasted: ({ accepted, refused }) => ({
+          model: modifyFields(model, {
+            edits: edits => [
+              ...edits,
+              ...accepted.map(cell => `${cell.row}.${cell.column}=${cell.text}`),
+              ...refused.map(cell => `${cell.row}.${cell.column}!${cell.text}`),
+            ],
+          }),
+        }),
         UndoRequested: () => ({ model }),
         RedoRequested: () => ({ model }),
         Filled: () => ({ model }),
@@ -60,11 +72,34 @@ const application = Bundle.assemble<Model, Message>()([
 ])
 
 const taskKey = (task: Task) => task.id
+const drawCell = (column: string, task: Task, h: HtmlBuilder<Message>) =>
+  column === 'seen'
+    ? h.span([h.Role('checkbox'), h.AriaChecked(task.done), h.AriaLabel('Seen')], [])
+    : String(column === 'title' ? task.title : task.done)
+
+// The rows, with one row counted and keyed but not loaded yet, as a page
+// still on its way leaves it; one model per tasks array, as `fromArray` keeps.
+const unloadedRows = new WeakMap<ReadonlyArray<Task>, RowModel<Task>>()
+const rowsOf = (tasks: ReadonlyArray<Task>, unloaded: Option.Option<string>) => {
+  const rows = RowModel.fromArray(tasks, taskKey)
+  if (Option.isNone(unloaded)) return rows
+  const kept = unloadedRows.get(tasks)
+  if (kept !== undefined) return kept
+  const held: RowModel<Task> = {
+    ...rows,
+    rowAt: index => Option.filter(rows.rowAt(index), task => task.id !== unloaded.value),
+  }
+  unloadedRows.set(tasks, held)
+  return held
+}
 const View = DataGridView<Message>().define(Grid).pipe(Style.attach(GridStyle))
 const wrap = (message: typeof Grid.Message.Type) => Placement.wrapper.make(message)
 
-/** The grid on the real runtime over three tasks, the second done; and the latest Model. */
-export const mountTasks = () => {
+/**
+ * The grid on the real runtime over three tasks, the second done, the row
+ * keyed `unloaded` not loaded yet; and the latest Model.
+ */
+export const mountTasks = (unloaded: Option.Option<string> = Option.none()) => {
   const container = document.createElement('div')
   container.id = 'grid-checkbox'
   document.body.appendChild(container)
@@ -95,7 +130,8 @@ export const mountTasks = () => {
             View(
               {
                 state: model.grid,
-                rows: RowModel.fromArray(model.tasks, taskKey),
+                rows: rowsOf(model.tasks, unloaded),
+                cell: drawCell,
                 wrap,
                 label: 'Tasks',
                 rowHeight: 24,
@@ -113,5 +149,5 @@ export const mountTasks = () => {
 export const grid = () => document.getElementById('tasks')!
 export const cellOf = (row: string, column: 'title' | 'done' | 'seen') =>
   document.getElementById(GridFocus.cellId('tasks', { row, column }))
-export const boxOf = (row: string) =>
-  cellOf(row, 'done')?.querySelector('[role="checkbox"]') ?? null
+export const boxOf = (row: string, column: 'done' | 'seen' = 'done') =>
+  cellOf(row, column)?.querySelector('[role="checkbox"]') ?? null

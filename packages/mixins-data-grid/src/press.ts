@@ -19,7 +19,14 @@ export const CellClicked = Schema.TaggedStruct('CellClicked', {
 })
 
 /**
- * A plain click on the checkbox a gridcell draws (`role="checkbox"`), with
+ * Marks the checkbox the grid draws in a checkbox column's cell, so a
+ * `role="checkbox"` an application draws in a cell of its own stays the
+ * cell's to press.
+ */
+export const checkboxAttribute = 'data-grid-checkbox'
+
+/**
+ * A plain click on the checkbox the grid draws in a cell, with
  * the state it was drawn in: read from the page at the click, since a
  * Mount's arguments are its first render's.
  */
@@ -33,13 +40,14 @@ type Modified = Event & {
   readonly shiftKey?: boolean
   readonly ctrlKey?: boolean
   readonly metaKey?: boolean
+  readonly altKey?: boolean
 }
 
 /**
  * Clicks on a grid's cells, with their modifier keys, and the fill handle's
  * drag (`fillDragOn`), from listeners on the element that holds the cells
  * rather than one per cell: one Mount, since an element holds one. A click
- * with no modifier on a cell's checkbox is a `CheckboxClicked`. A click
+ * with no modifier on the grid's checkbox in a cell is a `CheckboxClicked`. A click
  * outside a gridcell, on the fill handle, or ending a fill reports nothing;
  * what a click means is the grid's update. It answers `CellsListening` when
  * it starts, so a Scene test resolves it with a Message the runtime also sends.
@@ -69,8 +77,9 @@ export const CellPress = Mount.defineStream('DataGridCellPress', {
             const modified = event as Modified
             const shiftKey = modified.shiftKey === true
             const toggleKey = modified.ctrlKey === true || modified.metaKey === true
-            const box = from.closest('[role="checkbox"]')
-            if (box !== null && cell.contains(box) && !shiftKey && !toggleKey) {
+            const plain = !shiftKey && !toggleKey && modified.altKey !== true
+            const box = from.closest(`[${checkboxAttribute}]`)
+            if (box !== null && plain) {
               Queue.offerUnsafe(
                 queue,
                 CheckboxClicked.make({

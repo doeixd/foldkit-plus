@@ -30,7 +30,7 @@ import { fillHandleAttribute } from './fillDrag.js'
 import { HoldFocus } from './holdFocus.js'
 import { KeepFocus } from './keepFocus.js'
 import { HeaderPress } from './headerPress.js'
-import { CellPress } from './press.js'
+import { CellPress, checkboxAttribute } from './press.js'
 import { GridSlots } from './slots.js'
 
 export interface GridWords {
@@ -149,6 +149,10 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
 }
 
 const px = (value: number): string => `${value}px`
+
+/** The DOM id of the checkbox in a checkbox column's cell: its cell's, with `:checkbox`. */
+const checkboxId = (gridId: string, address: CellAddress<string>): string =>
+  `${GridFocus.cellId(gridId, address)}:checkbox`
 
 // Spacers hold the width of the columns not drawn; nothing to see or style.
 const spacer = <Message>(h: HtmlBuilder<Message>, size: number): ReadonlyArray<Html> =>
@@ -315,8 +319,9 @@ const view = <Message>() => ({
               onNone: () => [],
               onSome: side => [h.DataAttribute('pinned-edge', side)],
             }),
-            // Editable: double-clicking edits, as Enter does (a checkbox's update refuses).
-            ...(editable(id)
+            // Editable: double-clicking edits, as Enter does. A checkbox has no
+            // text to edit, so neither the mark (a text cursor) nor the gesture.
+            ...(editable(id) && !checkboxes.has(id)
               ? [
                   h.DataAttribute('editable', 'true'),
                   h.OnDoubleClick(
@@ -346,6 +351,8 @@ const view = <Message>() => ({
               checkboxes.has(id)
                 ? h.span(
                     slots.checkbox.attrs([
+                      h.Attribute(checkboxAttribute, ''),
+                      h.Id(checkboxId(grid.id, address)),
                       h.Role('checkbox'),
                       h.AriaChecked(grid.columns.byId[id].value(row) === true),
                       h.AriaLabel(grid.columns.byId[id].header),
@@ -481,14 +488,25 @@ const view = <Message>() => ({
         const isRowShown = (address: CellAddress<Id>) =>
           Option.isSome(projection.positionOf(address))
         const onHeader = state.focus.header
-        // The header row's cells are drawn whenever their column is.
+        // The value a cell is drawn from, when its row is loaded.
+        const valueAt = (address: CellAddress<Id>): Option.Option<unknown> =>
+          Option.map(
+            Option.flatMap(projection.rowIndex(address.row), index => projection.rows.rowAt(index)),
+            row => grid.columns.byId[address.column].value(row),
+          )
+        // The header row's cells are drawn whenever their column is. On a
+        // checkbox it points at the box, a widget in the cell, so assistive
+        // technology says its state: the cell itself has none to say.
+        const cellTarget = (address: CellAddress<Id>): string =>
+          checkboxes.has(address.column) && Option.isSome(valueAt(address))
+            ? checkboxId(grid.id, address)
+            : GridFocus.cellId(grid.id, address)
         const activeDescendant: Option.Option<string> = Option.match(onHeader, {
           onSome: column =>
             drawn.includes(column)
               ? Option.some(GridFocus.headerId(grid.id, column))
               : Option.none(),
-          onNone: () =>
-            Option.map(Option.filter(stop, isDrawn), address => GridFocus.cellId(grid.id, address)),
+          onNone: () => Option.map(Option.filter(stop, isDrawn), cellTarget),
         })
 
         const revealOf = (address: CellAddress<Id>) =>
@@ -666,12 +684,6 @@ const view = <Message>() => ({
               )
             : Option.none()
 
-        // The value a cell is drawn from, when its row is loaded.
-        const valueAt = (address: CellAddress<Id>): Option.Option<unknown> =>
-          Option.map(
-            Option.flatMap(projection.rowIndex(address.row), index => projection.rows.rowAt(index)),
-            row => grid.columns.byId[address.column].value(row),
-          )
         // Space or Enter on a checkbox toggles it, ahead of Space's row selection.
         const checkboxKey = (
           key: string,
@@ -685,7 +697,8 @@ const view = <Message>() => ({
                     grid.Message.EditToggled({
                       cell: GridFocus.cellId(grid.id, address),
                       checked: value === true,
-                      by: 'key',
+                      // The focus this frame was drawn from, which `stop` came from.
+                      by: grid.Toggle.Key({ drawn: state.focus.current }),
                     }),
                   ),
               )
@@ -940,7 +953,9 @@ const view = <Message>() => ({
             row,
             column: box.columns[0]!,
           }))
-        // A box's editable cells laid with empty text: what a cut or Delete clears.
+        // A box's editable cells laid with empty text: what a cut or Delete
+        // clears. A checkbox has no empty value, so it is left as it is.
+        const clearable = (column: Id) => editable(column) && !checkboxes.has(column)
         const clearedOf = (box: CellBox<Id>) =>
           Option.match(cornerOf(box), {
             onNone: () => [],
@@ -951,7 +966,7 @@ const view = <Message>() => ({
                 Array.from({ length: box.rows.end - box.rows.start }, () =>
                   box.columns.map(() => ''),
                 ),
-                { editable, from: draftOf },
+                { editable: clearable, from: draftOf },
               ),
           })
         const clipboard = (box: CellBox<Id>) => {
@@ -1115,7 +1130,7 @@ const view = <Message>() => ({
               CellClicked: ({ cell, shiftKey, toggleKey }) =>
                 grid.Message.CellPressed({ cell, shiftKey, toggleKey }),
               CheckboxClicked: ({ cell, checked }) =>
-                grid.Message.EditToggled({ cell, checked, by: 'press' }),
+                grid.Message.EditToggled({ cell, checked, by: grid.Toggle.Press() }),
               FillDragStarted: () => grid.Message.FillStarted(),
               FillDraggedOver: ({ cell }) => grid.Message.FillDragged({ cell }),
               FillDragEnded: ({ completed }) => grid.Message.FillEnded({ completed }),

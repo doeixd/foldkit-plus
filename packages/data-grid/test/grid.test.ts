@@ -1210,7 +1210,10 @@ describe('DataGrid checkboxes', () => {
   const empty = Tasks.bundle.init(undefined).model
   const cellOf = (column: string, row = 't:2') => GridFocus.cellId('tasks', { row, column })
   const toggled = (column: string, checked: boolean, model = empty) =>
-    run(model, Tasks.Message.EditToggled({ cell: cellOf(column), checked, by: 'press' }))
+    run(
+      model,
+      Tasks.Message.EditToggled({ cell: cellOf(column), checked, by: Tasks.Toggle.Press() }),
+    )
 
   test.each([
     ['done', false, 'true'],
@@ -1253,28 +1256,38 @@ describe('DataGrid checkboxes', () => {
     ['a column the grid does not have', cellOf('missing')],
     ['another grid’s cell', GridFocus.cellId('other', { row: 't:2', column: 'done' })],
   ])('a toggle on %s changes nothing', (_, cell) => {
-    const result = run(empty, Tasks.Message.EditToggled({ cell, checked: false, by: 'press' }))
+    const result = run(
+      empty,
+      Tasks.Message.EditToggled({ cell, checked: false, by: Tasks.Toggle.Press() }),
+    )
     expect(result.model).toBe(empty)
     expect(result.outMessage).toBeUndefined()
   })
 
-  test('a key toggles only the focused cell: one from a frame drawn before focus moved does nothing', () => {
-    const keyed = (model: typeof empty) =>
-      run(model, Tasks.Message.EditToggled({ cell: cellOf('done'), checked: true, by: 'key' }))
-    const there = run(
-      empty,
-      Tasks.Message.Focused({ address: { row: 't:2', column: 'done' } }),
-    ).model
-    expect(keyed(there).outMessage).toEqual(
-      Tasks.Out.Edited({ row: 't:2', column: 'done', text: 'false' }),
-    )
+  test('a key toggles the cell its frame drew, while focus is what that frame drew from', () => {
+    const done = { row: 't:2', column: 'done' } as const
+    const keyed = (model: typeof empty, drawn: Option.Option<typeof done>) =>
+      run(
+        model,
+        Tasks.Message.EditToggled({
+          cell: cellOf('done'),
+          checked: true,
+          by: Tasks.Toggle.Key({ drawn }),
+        }),
+      )
+    const edited = Tasks.Out.Edited({ row: 't:2', column: 'done', text: 'false' })
+    const there = run(empty, Tasks.Message.Focused({ address: done })).model
+    expect(keyed(there, Option.some(done)).outMessage).toEqual(edited)
+    // Nothing focused yet: the frame drew its tab stop on the first cell.
+    expect(keyed(empty, Option.none()).outMessage).toEqual(edited)
+    // Focus moved after the frame was drawn: the key would toggle the cell it left.
     const moved = run(
       there,
       Tasks.Message.Focused({ address: { row: 't:3', column: 'done' } }),
     ).model
-    expect(keyed(moved).model).toBe(moved)
-    expect(keyed(moved).outMessage).toBeUndefined()
-    expect(keyed(empty).model).toBe(empty)
+    expect(keyed(moved, Option.some(done)).model).toBe(moved)
+    expect(keyed(moved, Option.some(done)).outMessage).toBeUndefined()
+    expect(keyed(there, Option.none()).model).toBe(there)
   })
 
   test('a toggle while an edit is open changes nothing: the edit has the keyboard', () => {

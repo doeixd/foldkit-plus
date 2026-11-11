@@ -112,11 +112,12 @@ export const GridSlots = Slots.define({
    * A checkbox column's control, in place of the cell's text: a
    * `role="checkbox"` whose `aria-checked` is the column's value. A press on
    * it, or Space or Enter on its cell, toggles it; focus stays on the grid,
-   * which points at the cell.
+   * whose `aria-activedescendant` points at the box while its cell is the
+   * focused one, so its state is said.
    */
   checkbox: Slot.make({
     capability: Capability.Base,
-    protected: { attributes: [Attr.Role, AriaChecked] },
+    protected: { attributes: [Attr.Role, Id, AriaChecked, Attr.AriaLabel] },
   }),
   /**
    * Why the column refused a draft, shown below the field while the edit
