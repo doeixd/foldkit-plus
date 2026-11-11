@@ -30,4 +30,5 @@ export const configFor = (buildId: string): UserConfig => ({
 })
 
 // One build is one deployment: its id is new each time, and the Worker reads it from the build.
-export default defineConfig(configFor(crypto.randomUUID()))
+// `FOLDKIT_BUILD_ID` pins it, which the bundle budget needs to measure the same bytes twice (#490).
+export default defineConfig(configFor(process.env.FOLDKIT_BUILD_ID ?? crypto.randomUUID()))
