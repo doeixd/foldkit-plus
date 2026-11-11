@@ -219,14 +219,15 @@ only what is left, rather than arriving as one first cut that becomes a
 second framework. A slice that hides the URL lifecycle has to own it, or the
 explicit code it replaces stays clearer; elimination (§34.5) is the test.
 
-- [ ] **A delayed busy reveal in `foldkit-mixins`:** `aria-busy` lines shown
+- [x] **A delayed busy reveal in `foldkit-mixins`:** `aria-busy` lines shown
   only once a wait is noticeable, their space held. And a review of every
   package view for facts drawn before they are read (`Initial` is unknown,
   not empty). §33.6 (Built 2026-11-11 as `Utilities.busyReveal` in
   `foldkit-mixins/utilities`; crud's `Loading.shown` is its deprecated
   alias, and the data grid, Chirp, the reference and auth examples use it;
-  the grid's `aria-rowcount` is unknown, not 0, while it loads. Open: the
-  rest of the view audit.)
+  the grid's `aria-rowcount` is unknown, not 0, while it loads. The rest
+  of the audit found one more: the CMS badge read "New" over a failed state
+  read, adae1c3d.)
 - [ ] **Locales in the route graph:** a top-level locale parameter, targets
   with alternates, and data sources that take the locale. §33.11
 - [ ] **Genuine nested route nodes:** layout, child routes, child models and
