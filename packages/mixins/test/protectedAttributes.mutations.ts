@@ -61,4 +61,38 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a custom event is not read as the event it names, when claimed',
+    edits: [
+      {
+        file: resolver,
+        find: "if (tag !== 'OnCustomEvent') return undefined",
+        replace: 'return undefined',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a custom event name keeps its spelling',
+    edits: [
+      {
+        file: resolver,
+        find: "return typeof name === 'string' ? normalizeName(name) : undefined",
+        replace: "return typeof name === 'string' ? name : undefined",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a custom event is not reserved when the view sets it',
+    edits: [
+      {
+        file: resolver,
+        find: '    const eventName = eventNameOf(tag, value)\n    if (eventName !== undefined) {\n      ownedEvents.set(eventName, tag)',
+        replace:
+          '    const eventName = isNativeEvent(tag) ? eventNameOfTag(tag) : undefined\n    if (eventName !== undefined) {\n      ownedEvents.set(eventName, tag)',
+      },
+    ],
+    tests,
+  },
 ]

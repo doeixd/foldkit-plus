@@ -56,19 +56,17 @@ const splitClasses = (value: string): ReadonlyArray<string> =>
   value.split(/\s+/).filter(token => token.length > 0)
 
 /** The field that keys an attribute that is owned individually, not by its tag. */
-const OWNERSHIP_FIELD: ReadonlyMap<string, 'key' | 'name'> = new Map([
+const OWNERSHIP_FIELD: ReadonlyMap<string, 'key'> = new Map([
   ['Prop', 'key'],
   ['Attribute', 'key'],
   ['DataAttribute', 'key'],
-  ['OnCustomEvent', 'name'],
 ])
 
 // The tag may come from a child attribute another package built, so it is
 // text, not a union we hold.
 const ownershipKey = (tag: string, value: unknown): string => {
-  const field = OWNERSHIP_FIELD.get(tag)
-  if (field === undefined || typeof value !== 'object' || value === null) return tag
-  return `${tag}:${String((value as { readonly key?: unknown; readonly name?: unknown })[field])}`
+  if (!OWNERSHIP_FIELD.has(tag) || typeof value !== 'object' || value === null) return tag
+  return `${tag}:${String((value as { readonly key?: unknown }).key)}`
 }
 
 /**
@@ -88,11 +86,26 @@ const attributeNameOf = (tag: string, value: unknown): string => {
   return normalizeName(tag)
 }
 
-/** `OnCustomEvent` is keyed by its event name and `OnMount` is composed, not one native event. */
+/** `OnCustomEvent` names its event by argument and `OnMount` is composed, not one native event. */
 const NOT_NATIVE_EVENT: ReadonlySet<string> = new Set(['OnMount', 'OnCustomEvent'])
 
 // tag-check: open — any `On…` tag is a native handler by prefix, and a child attribute's tag is another package's.
 const isNativeEvent = (tag: string): boolean => tag.startsWith('On') && !NOT_NATIVE_EVENT.has(tag)
+
+/**
+ * The DOM event a contribution listens to, normalized like a protected event:
+ * `OnClick` and `OnCustomEvent('click')` both read `click`. Undefined for a non-event.
+ */
+const eventNameOf = (tag: string, value: unknown): string | undefined => {
+  if (isNativeEvent(tag)) return eventNameOfTag(tag)
+  // tag-check: open — the tag may be a child attribute's, from another package.
+  if (tag !== 'OnCustomEvent') return undefined
+  const name =
+    typeof value === 'object' && value !== null
+      ? (value as { readonly name?: unknown }).name
+      : undefined
+  return typeof name === 'string' ? normalizeName(name) : undefined
+}
 
 const toDiagnostic = (
   code: DiagnosticCode,
@@ -195,8 +208,9 @@ export const resolve = <Message>(
   const reserve = (tag: string, value: unknown): void => {
     // tag-check: open — the tag may be a child attribute's, from another package.
     if (tag === 'OnMount') return
-    if (isNativeEvent(tag)) {
-      ownedEvents.set(eventNameOfTag(tag), tag)
+    const eventName = eventNameOf(tag, value)
+    if (eventName !== undefined) {
+      ownedEvents.set(eventName, tag)
       return
     }
     ownedAttributes.set(ownershipKey(tag, value), tag)
@@ -243,8 +257,8 @@ export const resolve = <Message>(
 
   // A contribution's tag that is not one of the above: a native handler or an attribute.
   const claim = (tag: string, attribute: unknown): void => {
-    if (isNativeEvent(tag)) {
-      const eventName = eventNameOfTag(tag)
+    const eventName = eventNameOf(tag, attribute)
+    if (eventName !== undefined) {
       if (protectedEvents.has(eventName)) {
         fail('mixins:protected-event', `slot "${slot ?? '?'}" protects event "${eventName}"`, {
           tag,

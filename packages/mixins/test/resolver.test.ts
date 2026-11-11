@@ -138,8 +138,58 @@ describe('Resolver.resolve', () => {
     const out = Resolver.resolve([custom('a')], [{ attributes: [custom('b')] }])
     expect(tags(out)).toEqual(['OnCustomEvent', 'OnCustomEvent'])
     expect(codeOf(() => Resolver.resolve([custom('a')], [{ attributes: [custom('a')] }]))).toBe(
-      'mixins:attribute-conflict',
+      'mixins:event-conflict',
     )
+  })
+
+  describe('a custom event is the DOM event it names', () => {
+    const custom = (name: string): Attribute<TestMessage> =>
+      ({
+        _tag: 'OnCustomEvent',
+        name,
+        f: () => Option.some({ _tag: 'Clicked' }),
+      }) as Attribute<TestMessage>
+    const protection = Slot.make({
+      protected: { events: [Event.Click], attributes: [], style: [] },
+    }).protected
+
+    it.each(['click', 'Click'])('refuses a protected event set as %s', name => {
+      expect(
+        codeOf(() =>
+          Resolver.resolve([], [{ attributes: [custom(name)] }], {
+            slot: 'root',
+            protected: protection,
+          }),
+        ),
+      ).toBe('mixins:protected-event')
+    })
+
+    it('leaves an unrelated custom event alone', () => {
+      expect(() =>
+        Resolver.resolve([], [{ attributes: [custom('clicked'), custom('grid-select')] }], {
+          slot: 'root',
+          protected: protection,
+        }),
+      ).not.toThrow()
+    })
+
+    it('finds two owners of one event when one is custom', () => {
+      expect(
+        codeOf(() =>
+          Resolver.resolve([h.OnClick({ _tag: 'Clicked' })], [{ attributes: [custom('click')] }]),
+        ),
+      ).toBe('mixins:event-conflict')
+      expect(
+        codeOf(() =>
+          Resolver.resolve([], [{ attributes: [h.OnClick({ _tag: 'Clicked' }), custom('click')] }]),
+        ),
+      ).toBe('mixins:event-conflict')
+      expect(
+        codeOf(() =>
+          Resolver.resolve([custom('click')], [{ attributes: [h.OnClick({ _tag: 'Clicked' })] }]),
+        ),
+      ).toBe('mixins:event-conflict')
+    })
   })
 
   it('rejects a redundant raw attribute key', () => {
