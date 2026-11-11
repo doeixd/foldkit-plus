@@ -5,14 +5,23 @@
  * reads both into the grid's terms: columns, a row model, and a status. It
  * fetches nothing and holds nothing.
  */
-import { Option } from 'effect'
+import { Option, type Schema } from 'effect'
 import { Display, type DisplayColumn, type DisplayWords } from 'foldkit-crud'
 import { type Page, RemoteData } from 'foldkit-remote'
-import { Columns, type ColumnSpec } from './columns.js'
+import { type CheckboxValues, Columns, type ColumnSpec } from './columns.js'
 import { RowCount, RowModel, RowStatus } from './rows.js'
 
 /** What a grid adds to a listed member's column: where it stands, its size, and editing. */
 type ColumnOptions<Row> = Partial<Omit<ColumnSpec<Row, string>, 'value'>>
+
+/** A listed member's value is its text, so its column cannot be a checkbox (`Columns.checkbox`). */
+type TextEdits<Options> = {
+  readonly [K in keyof Options]: Options[K] extends {
+    readonly edit: { readonly schema: Schema.Codec<boolean, string> }
+  }
+    ? { readonly edit: 'A listed member shows as text, so it cannot be a checkbox' }
+    : unknown
+}
 
 /**
  * The grid's columns for a list: one per listed member, keyed by its member
@@ -29,7 +38,7 @@ const columns = <
   Options extends { readonly [K in Key]?: ColumnOptions<Row> },
 >(
   list: { readonly columns: ReadonlyArray<DisplayColumn<Key>>; readonly Row: Row },
-  options: { readonly words?: DisplayWords; readonly columns?: Options } = {},
+  options: { readonly words?: DisplayWords; readonly columns?: Options & TextEdits<Options> } = {},
 ): Columns<Row, { readonly [K in Key]: ColumnSpec<Row, string> & Options[K] }> => {
   // Filled for every listed key below, so the record holds each Key.
   const specs = {} as Record<Key, ColumnSpec<Row, string>>
@@ -42,10 +51,9 @@ const columns = <
     }
   }
   // Each spec is the member's column with its options spread over it, so it
-  // holds what `Options` says of it.
-  return Columns.define<Row>()(
-    specs as { readonly [K in Key]: ColumnSpec<Row, string> & Options[K] },
-  )
+  // holds what `Options` says of it, and `TextEdits` kept a checkbox out.
+  type Specs = { readonly [K in Key]: ColumnSpec<Row, string> & Options[K] }
+  return Columns.define<Row>()<Specs>(specs as Specs & CheckboxValues<Row, Specs>)
 }
 
 /**

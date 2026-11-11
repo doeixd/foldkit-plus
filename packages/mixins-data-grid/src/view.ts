@@ -858,6 +858,8 @@ const view = <Message>() => ({
               Text: () => [field(Option.none())],
               Number: () => [field(Option.some('decimal'))],
               Date: () => [field(Option.none(), 'date')],
+              // The grid opens no edit on a checkbox, which toggles in place.
+              Checkbox: () => [field(Option.none())],
               Choice: ({ options }): ReadonlyArray<Html> =>
                 input.choiceEditor === 'native'
                   ? [

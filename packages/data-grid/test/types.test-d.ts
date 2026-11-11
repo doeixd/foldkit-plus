@@ -232,3 +232,29 @@ Columns.define<{ readonly n: number }>()({
     edit: { schema: Schema.Number },
   },
 })
+
+// A schema that decodes to a boolean makes a checkbox, drawn from the
+// column's value, so the value must be a boolean too; `matchEdit` hands it back.
+interface Task {
+  readonly id: string
+  readonly done: boolean
+  readonly count: number
+}
+const Checked = DataGrid.make({
+  id: 'checked',
+  columns: Columns.define<Task>()({
+    done: { header: 'Done', value: task => task.done, edit: { schema: Columns.checkbox } },
+  }),
+})
+Checked.matchEdit(
+  { row: 'r', column: 'done', text: 'true' },
+  { done: ({ value }) => expectTypeOf(value).toEqualTypeOf<boolean>() },
+)
+Columns.define<Task>()({
+  count: {
+    header: 'Count',
+    // @ts-expect-error a checkbox column reads a boolean from its row
+    value: task => task.count,
+    edit: { schema: Columns.checkbox },
+  },
+})

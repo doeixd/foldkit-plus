@@ -445,6 +445,7 @@ describe('a column’s editor', () => {
       value: () => new Date('2026-10-08T00:00:00.000Z'),
       edit: { schema: Schema.DateFromString },
     },
+    done: { header: 'Done', value: () => true, edit: { schema: Columns.checkbox } },
     // Without a schema even a date value edits as text.
     stamp: {
       header: 'Stamp',
@@ -460,6 +461,8 @@ describe('a column’s editor', () => {
     { column: 'price', editor: CellEditor.Number() },
     { column: 'either', editor: CellEditor.Text() },
     { column: 'due', editor: CellEditor.Date() },
+    // Its text is the literals `true` and `false`, but it is no choice.
+    { column: 'done', editor: CellEditor.Checkbox() },
     { column: 'stamp', editor: CellEditor.Text() },
   ])('$column is edited as its schema says', ({ column, editor }) => {
     expect(Editing.editorFor(column)).toEqual(Option.some(editor))

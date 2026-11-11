@@ -1,4 +1,4 @@
-import { Schema, SchemaAST } from 'effect'
+import { Schema, SchemaAST, SchemaGetter } from 'effect'
 import { defineTaggedUnion } from 'foldkit/schema'
 /** What a column shows and where it starts out. Its id is its key in `Columns.define`. */
 export interface ColumnSpec<Row, Value> {
@@ -19,10 +19,11 @@ export interface ColumnSpec<Row, Value> {
   /** Whether it can be hidden. Default `true`. */
   readonly hideable?: boolean
   /**
-   * Makes the column's cells editable as text. The grid holds the draft,
-   * commits it only when the column's schema decodes it, and reports the
-   * committed text as an `Edited` OutMessage; `matchEdit` reads its value
-   * back, and writing it is the application's.
+   * Makes the column's cells editable. The grid holds the draft, commits it
+   * only when the column's schema decodes it, and reports the committed text
+   * as an `Edited` OutMessage; `matchEdit` reads its value back, and writing
+   * it is the application's. A schema that decodes to a boolean
+   * (`Columns.checkbox`) makes the cells checkboxes, toggled in place.
    */
   readonly edit?: ColumnEdit<Row, unknown>
 }
@@ -40,8 +41,8 @@ export interface ColumnEdit<Row, Value = string> {
 }
 
 /**
- * How a cell's edit is drawn, read from its column's schema: a choice of the
- * literals its text may be, a number typed, or text.
+ * How a cell's edit is drawn, read from its column's schema: a checkbox, a
+ * choice of the literals its text may be, a number typed, or text.
  */
 export const CellEditor = defineTaggedUnion({
   Text: {},
@@ -51,6 +52,11 @@ export const CellEditor = defineTaggedUnion({
   Choice: { options: Schema.Array(Schema.String) },
   /** The schema decodes to a date: a native date field over the draft text. */
   Date: {},
+  /**
+   * The schema decodes to a boolean: a checkbox drawn from the column's
+   * value, toggled in place (`EditToggled`); it opens no draft.
+   */
+  Checkbox: {},
 })
 export type CellEditor = typeof CellEditor.Type
 
@@ -76,6 +82,9 @@ const isDate = (ast: SchemaAST.AST): boolean => {
 /** A column's editor, from its schema; a column with none edits text. */
 export const editorOf = (schema: Schema.Top | undefined): CellEditor => {
   if (schema === undefined) return CellEditor.Text()
+  const type = SchemaAST.toType(schema.ast)
+  // Before the choice: `Columns.checkbox`'s text is the literals `true` and `false`.
+  if (SchemaAST.isBoolean(type)) return CellEditor.Checkbox()
   const encoded = SchemaAST.toEncoded(schema.ast)
   if (SchemaAST.isUnion(encoded)) {
     const options = encoded.types.flatMap(member =>
@@ -84,7 +93,6 @@ export const editorOf = (schema: Schema.Top | undefined): CellEditor => {
     // Every member a text literal: anything else typed would be refused.
     if (options.length === encoded.types.length) return CellEditor.Choice({ options })
   }
-  const type = SchemaAST.toType(schema.ast)
   if (isDate(type)) return CellEditor.Date()
   return SchemaAST.isNumber(type) ? CellEditor.Number() : CellEditor.Text()
 }
@@ -101,6 +109,18 @@ export type EditValue<Spec> = Spec extends {
 }
   ? Value
   : string
+
+/**
+ * A checkbox column's cells are drawn from its value, so a spec whose edit
+ * decodes to a boolean must read a boolean from its row.
+ */
+export type CheckboxValues<Row, Specs> = {
+  readonly [K in keyof Specs]: Specs[K] extends {
+    readonly edit: { readonly schema: Schema.Codec<boolean, string> }
+  }
+    ? { readonly value: (row: Row) => boolean }
+    : unknown
+}
 
 export interface Column<Row, Id extends string, Value> extends ColumnSpec<Row, Value> {
   readonly id: Id
@@ -137,6 +157,17 @@ export const Columns = {
   defaultWidth: 120,
   /** The narrowest a column with no `minWidth` resizes to. */
   minWidth: 40,
+  /**
+   * A boolean as a cell's text, `true` or `false`: give it as a column's
+   * `edit.schema` and the cells are checkboxes. Any schema from text to a
+   * boolean does the same; this one reads what `textOf` writes.
+   */
+  checkbox: Schema.Literals(['true', 'false']).pipe(
+    Schema.decodeTo(Schema.Boolean, {
+      decode: SchemaGetter.transform(text => text === 'true'),
+      encode: SchemaGetter.transform(value => (value ? 'true' : 'false')),
+    }),
+  ),
   /** A value as a cell shows it: nothing for `null` or `undefined`. */
   textOf: (value: unknown): string => (value === null || value === undefined ? '' : String(value)),
   /**
@@ -147,14 +178,15 @@ export const Columns = {
   define:
     <Row>() =>
     <Specs extends Record<string, ColumnSpec<Row, unknown>>>(
-      specs: Specs,
+      specs: Specs & CheckboxValues<Row, Specs>,
     ): NoInfer<Columns<Row, Specs>> => {
       // A literal `__proto__:` key sets the prototype instead of naming a
       // column, so the column would vanish from `Object.keys`.
       if (Object.getPrototypeOf(specs) !== Object.prototype || Object.hasOwn(specs, '__proto__')) {
         throw new Error('Columns.define: "__proto__" cannot name a column.')
       }
-      const ids = Object.keys(specs)
+      const given: Record<string, ColumnSpec<Row, unknown>> = specs
+      const ids = Object.keys(given)
       const byId: Record<string, Column<Row, string, unknown>> = {}
       for (const id of ids) {
         if (arrayIndex.test(id)) {
@@ -162,7 +194,7 @@ export const Columns = {
             `Columns.define: the column id "${id}" is an array index, which JavaScript orders before every other key. Give it a name that is not a number.`,
           )
         }
-        byId[id] = Object.freeze({ ...specs[id]!, id })
+        byId[id] = Object.freeze({ ...given[id]!, id })
       }
       return Object.freeze({
         ids: Object.freeze(ids),

@@ -1181,3 +1181,112 @@ describe('DataGrid choices', () => {
     expect(run(empty, Tasks.Message.EditChosen({ draft: 'Paused' })).model).toBe(empty)
   })
 })
+
+describe('DataGrid checkboxes', () => {
+  interface Task {
+    readonly id: string
+    readonly done: boolean
+    readonly note: string
+  }
+  // A checkbox over yes and no: any schema from text to a boolean is one.
+  const YesNo = Schema.Literals(['yes', 'no']).pipe(
+    Schema.decodeTo(Schema.Boolean, {
+      decode: SchemaGetter.transform(text => text === 'yes'),
+      encode: SchemaGetter.transform(value => (value ? 'yes' : 'no')),
+    }),
+  )
+  const Tasks = DataGrid.make({
+    id: 'tasks',
+    columns: Columns.define<Task>()({
+      done: { header: 'Done', value: task => task.done, edit: { schema: Columns.checkbox } },
+      agreed: { header: 'Agreed', value: task => task.done, edit: { schema: YesNo } },
+      // A boolean that does not edit: no checkbox to toggle.
+      shown: { header: 'Shown', value: task => task.done },
+      note: { header: 'Note', value: task => task.note, edit: {} },
+    }),
+  })
+  const run = (model: typeof Tasks.Model.Type, message: typeof Tasks.Message.Type) =>
+    Tasks.bundle.update(model, message, undefined)
+  const empty = Tasks.bundle.init(undefined).model
+  const cellOf = (column: string, row = 't:2') => GridFocus.cellId('tasks', { row, column })
+  const toggled = (column: string, checked: boolean, model = empty) =>
+    run(model, Tasks.Message.EditToggled({ cell: cellOf(column), checked }))
+
+  test.each([
+    ['done', false, 'true'],
+    ['done', true, 'false'],
+    ['agreed', false, 'yes'],
+    ['agreed', true, 'no'],
+  ] as const)('%s drawn checked %s commits %s, in its schema’s text', (column, checked, text) => {
+    const { model, outMessage } = toggled(column, checked)
+    expect(outMessage).toEqual(Tasks.Out.Edited({ row: 't:2', column, text }))
+    // It opens no draft, and focuses the cell it toggled.
+    expect(model.editing).toEqual(Option.none())
+    expect(model.focus.current).toEqual(Option.some({ row: 't:2', column }))
+  })
+
+  test.each([
+    ['done', 'true', true],
+    ['agreed', 'no', false],
+  ] as const)('matchEdit reads %s’s text %s back as %s', (column, text, value) => {
+    const read = (edited: { readonly value: boolean }) => edited.value
+    expect(
+      Tasks.matchEdit({ row: 't:2', column, text }, { done: read, agreed: read, note: () => null }),
+    ).toBe(value)
+  })
+
+  test('a toggle lets a range go, as any press on a cell does', () => {
+    const ranged = run(
+      empty,
+      Tasks.Message.CellsSelected({
+        anchor: { row: 't:1', column: 'done' },
+        focus: { row: 't:3', column: 'note' },
+        reveal: Option.none(),
+      }),
+    ).model
+    expect(toggled('done', false, ranged).model.selection.cells).toEqual(Option.none())
+  })
+
+  test.each([
+    ['a column that does not edit', cellOf('shown')],
+    ['a column that edits text', cellOf('note')],
+    ['a column the grid does not have', cellOf('missing')],
+    ['another grid’s cell', GridFocus.cellId('other', { row: 't:2', column: 'done' })],
+  ])('a toggle on %s changes nothing', (_, cell) => {
+    const result = run(empty, Tasks.Message.EditToggled({ cell, checked: false }))
+    expect(result.model).toBe(empty)
+    expect(result.outMessage).toBeUndefined()
+  })
+
+  test('a toggle while an edit is open changes nothing: the edit has the keyboard', () => {
+    const typing = run(
+      empty,
+      Tasks.Message.EditStarted({ address: { row: 't:1', column: 'note' }, draft: 'x' }),
+    ).model
+    const result = toggled('done', false, typing)
+    expect(result.model).toBe(typing)
+    expect(result.outMessage).toBeUndefined()
+  })
+
+  test('a checkbox opens no draft, by a key or a double-click', () => {
+    const done = { row: 't:2', column: 'done' } as const
+    expect(run(empty, Tasks.Message.EditStarted({ address: done, draft: 'true' })).model).toBe(
+      empty,
+    )
+    expect(
+      run(empty, Tasks.Message.EditTyped({ address: done, text: 'x', from: 'true' })).model,
+    ).toBe(empty)
+  })
+
+  test('a paste on a checkbox is judged by its schema', () => {
+    const pasted = (text: string) => ({ row: 't:2', column: 'done' as const, text, from: 'false' })
+    expect(
+      run(empty, Tasks.Message.Pasted({ cells: [pasted('true'), pasted('yes')] })).outMessage,
+    ).toEqual(
+      Tasks.Out.Pasted({
+        accepted: [{ row: 't:2', column: 'done', text: 'true' }],
+        refused: [{ row: 't:2', column: 'done', text: 'yes', error: 'Expected "true" | "false"' }],
+      }),
+    )
+  })
+})

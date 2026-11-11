@@ -193,7 +193,19 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
      * test resolves them with a Message the runtime sends too.
      */
     MountStarted: {},
-    /** An edit began on an editable cell, with the text it starts from. */
+    /**
+     * The checkbox in the cell whose DOM id is `cell` was pressed, or Space or
+     * Enter was pressed on it, while it was drawn `checked`: the column's
+     * text for the other value is committed at once and reported as
+     * `Out.Edited`, with no draft. The id comes from the page, so a cell that
+     * is not a checkbox of this grid, or a press while an edit is open,
+     * changes nothing.
+     */
+    EditToggled: { cell: Schema.String, checked: Schema.Boolean },
+    /**
+     * An edit began on an editable cell, with the text it starts from. A
+     * checkbox's cell opens none: it is toggled (`EditToggled`).
+     */
     EditStarted: { address: focus.Address, draft: Schema.String },
     /**
      * A key typed on the grid itself, over an editable cell: it starts an
@@ -364,12 +376,22 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
   type Id = keyof Specs & string
   const decoders = new Map<string, (text: string) => Result.Result<unknown, Schema.SchemaError>>()
   const editors = new Map<string, CellEditor>()
+  // A checkbox column's text for a value, from its schema.
+  const toggles = new Map<string, (value: boolean) => Option.Option<string>>()
   for (const id of options.columns.ids) {
     const edit = options.columns.byId[id].edit
     if (edit === undefined) continue
     decoders.set(id, Schema.decodeUnknownResult(edit.schema ?? Schema.String))
-    editors.set(id, editorOf(edit.schema))
+    const editor = editorOf(edit.schema)
+    editors.set(id, editor)
+    if (edit.schema !== undefined && CellEditor.guards.Checkbox(editor)) {
+      const encode = Schema.encodeUnknownResult(edit.schema)
+      toggles.set(id, value => Result.getSuccess(encode(value)))
+    }
   }
+  /** Whether a column's cells open a draft to edit: they edit, and are no checkbox. */
+  const drafts = (column: Id): boolean =>
+    options.columns.byId[column].edit !== undefined && !toggles.has(column)
   /** How a column's cells are edited: as text, a number, or a choice; none when it does not edit. */
   const editorFor = (column: Id): Option.Option<CellEditor> =>
     Option.fromUndefinedOr(editors.get(column))
@@ -446,6 +468,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         Text: () => Option.none(),
         Number: () => Option.none(),
         Date: () => Option.none(),
+        Checkbox: () => Option.none(),
         Choice: ({ options }) => Option.some(options),
       }),
     )
@@ -871,8 +894,27 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
                 ? { model }
                 : afterEdit(model, settled => pressed(settled, address, shiftKey, toggleKey)),
           }),
+        // An open edit keeps the keyboard, and a refused draft the pointer too:
+        // the browser commits it as focus leaves its field, before a press lands.
+        EditToggled: ({ cell, checked }): Return =>
+          Option.match(
+            Option.flatMap(
+              Option.filter(addressOf(cell), () => Option.isNone(model.editing)),
+              address =>
+                Option.flatMap(Option.fromUndefinedOr(toggles.get(address.column)), toggle =>
+                  Option.map(toggle(!checked), text => ({ address, text })),
+                ),
+            ),
+            {
+              onNone: () => ({ model }),
+              onSome: ({ address, text }) => ({
+                model: clearCells(focusTo(model, address)),
+                outMessage: Out.Edited({ row: address.row, column: address.column, text }),
+              }),
+            },
+          ),
         EditStarted: ({ address, draft }): Return =>
-          options.columns.byId[address.column].edit === undefined
+          !drafts(address.column)
             ? { model }
             : {
                 model: modifyFields(clearCells(focusTo(model, address)), {
@@ -880,7 +922,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
                 }),
               },
         EditTyped: ({ address, text, from }): Return => {
-          if (options.columns.byId[address.column].edit === undefined) return { model }
+          if (!drafts(address.column)) return { model }
           const open = Option.filter(model.editing, editing => sameCell(editing.address, address))
           // On a choice a key finds an option; elsewhere it is typed.
           const typed = (draft: string) =>
