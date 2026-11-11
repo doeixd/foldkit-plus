@@ -565,11 +565,42 @@ Built in `packages/sync/src/migrations.ts`, `sync.ts`, `journal.ts`,
   Each older version's Schema checks the value strictly before its `up`; the
   current version is decoded once, by the Message's own codec.
 - **An operation a server builds itself** is appended as written: an
-  `Operation` with no `messageVersion` reads as version 1. `editsJournal`'s
-  `absorbed` is typed `WrittenOperation` and documented to be written with
-  `journalContract().operation.encode`. The type cannot enforce it, since an
-  `Operation` is a `WrittenOperation` structurally; a brand would break every
-  server that builds one today. Recorded as a limitation.
+  `Operation` with no `messageVersion` reads as version 1, so a step would
+  run on it again (cents multiplied twice, committed with no error; review
+  round 1, blocking). `WrittenOperation` is branded: only decoding an entry
+  and `journalContract().operation.encode` make one, so `journal.append` and
+  `editsJournal`'s `absorbed` refuse a decoded `Operation` by type. A server
+  that typed its journal `Journal<Operation, S, P, Operation>` writes
+  `WrittenOperation` there. `codec.committedFrom` and `normalizeOperation`
+  take `unknown`, so a server flattening a decoded operation for them encodes
+  it first, as the sync example's `toCommitted` now does.
+- **What a step is given**: its version's value checked and normalized by
+  that version's Schema, the form the payload is compared by, so the hashed
+  form and the meaning cannot diverge under one id. A step must be pure: the
+  server reads an entry for `admit` and again in the journal.
+- **What an unreadable committed row stops** (the note's §5 said "the
+  document"): the journal reads a stored row only when it needs it, so it
+  fails exchanges from a cursor before the row, a retransmission of its id,
+  and an append or load that rebuilds from a stored snapshot older than it.
+  A replica past the row is served. An exchange from before the row appends
+  what the replica sent before its read fails; that is kept, not reordered:
+  the commits are idempotent, are acknowledged on the retry once a build
+  reads the row, and checking every row first would decode the whole tail
+  on each exchange. `UnreadableHistoryError`'s message, which a socket sends,
+  is fixed; its id and version stay in its fields for the server's logs.
+- **Durable does not learn of versions.** Making a newer entry a retryable
+  failure inside Durable would need a protocol between codec and journal
+  (an error class Durable recognizes) for one caller; `journalExchange`'s
+  scan covers Sync's path, and the README's exchange section tells a custom
+  server to scan too.
+- **An `Unreadable` refusal for an id the reply did not reject** cannot
+  reach `refused`: any refusal naming an unrejected id already fails the
+  exchange (`ForeignRejectionError`). A test pins it.
+- **Deploy order loses edits when skipped**, both ways (an older server
+  rejects `messageVersion`; an older replica drops an `Unreadable` refusal),
+  and a rollback of the release meets `refused` as
+  `InvalidReplicaHistoryError`, on which storage must not be cleared. The
+  README and the replication guide say so.
 - **Durable alone.** A `compared` that throws (Sync's, for a newer version)
   is an `InvalidOperationError`, as a decode failure is; only
   `journalExchange`'s scan keeps such an entry from being rejected, so a
