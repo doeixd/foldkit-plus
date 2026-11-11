@@ -9,7 +9,14 @@ import { Effect, Exit, Fiber, Scope } from 'effect'
 import { ActorId, DocumentId, Journal, OpId, Sequence } from 'foldkit-durable'
 import { MessageSet, Projection } from 'foldkit-surface'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Sync, documentId, sequence, type Operation, type TransportClient, type WrittenOperation } from '../src/index.js'
+import {
+  Sync,
+  documentId,
+  sequence,
+  type Operation,
+  type TransportClient,
+  type WrittenOperation,
+} from '../src/index.js'
 import { journalChanges, journalExchange, serveJournal } from '../src/journal.js'
 import { socketPair } from './sockets.js'
 import {
