@@ -6,9 +6,21 @@
  * with these edits applied; `migrations.test.ts` reads the tables through Vite.
  */
 const worker = ['examples/cloudflare/test/auth.test.ts']
+const isolate = ['examples/cloudflare/test/authIsolate.test.ts']
 const migration = ['examples/cloudflare/test/migrations.test.ts']
 
 export default [
+  {
+    name: 'auth is kept for every D1 binding, reloaded or not',
+    edits: [
+      {
+        file: '../src/worker.ts',
+        find: '(env: { readonly DB: D1Database; readonly AUTH_ORIGIN: string }) => env.DB,',
+        replace: '() => globalThis,',
+      },
+    ],
+    tests: isolate,
+  },
   {
     name: 'sign-up provisions a row without the name it was given',
     edits: [
