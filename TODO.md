@@ -235,12 +235,14 @@ renderer phases 0a and 0b, SSR delivery phases 0 to 2 (the loader, opt-in;
 fetching at `load` did not pass decision 5 either: a press at `load` 1,194 ms
 against 312, the cost being evaluation), Site and host D1, H1, H3 and H2
 (`foldkit-host`, checked on workerd: fe52bf3), the Switch's thumb drag
-(c3a6db7..d61b307), and `serveFetch`'s refusal drain (563d53d).
+(c3a6db7..d61b307), `serveFetch`'s refusal drain (563d53d), #432's spike
+(not kept: boot 7 ms faster in one run, 96 slower in the other; 1a4b05a),
+and Site Phase 0 (no non-landing route alone imports over 2 KB against the
+20 KB bar, so C1 to C3 are not built and #438 closes: 24474ee).
 
-1. **#432's hydration spike** (`SSR.static` on display regions; the bar is
-   boot 10 ms faster at 4x).
-2. **Site and host Phase 0:** per-route baselines; C1 to C3 only if it finds
-   20 KB; H4 only if 30+ lines of glue stay shared after H2.
+1. **`SSR.static`'s builder type** (a Slot-styled region without a cast).
+   In progress.
+2. **H4** only if 30+ lines of glue stay shared after H2.
 3. **The rest of the small findings** in `docs/design/TODO.md` (the 90 KB
    against 69 KB page, from Foldkit's identity markers; Chirp's bundle
    extras).
