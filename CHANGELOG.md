@@ -517,6 +517,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **The form's submit button is `aria-disabled`, never `disabled`**
+  (`foldkit-mixins-form`, `foldkit-crud`). A natively disabled default button
+  makes the browser drop Enter, so an Enter sent in the frame of the edit that
+  made the form valid (a paste or an autofill) submitted nothing and said
+  nothing. The button now reads `aria-disabled` whenever the form cannot submit
+  or is submitting, and `update` decides from the Model: a submit it cannot take
+  marks every key and shows why, one it can goes through. The recipes already
+  style `[aria-disabled="true"]` as disabled and Chrome reads the button disabled.
+  `FormViewInputs.saved` and `SubmitInputs.saved` are removed: they only chose
+  between the two attributes.
+
 - **Grid behaviour that column filters changed** (`foldkit-data-grid`,
   `foldkit-mixins-data-grid`, #144).
   - `Grid.Out` has a `Filtered` arm on a grid with a filtering column, so
