@@ -220,7 +220,10 @@ In the same change:
   - #495's: `helpers` as a function of the args, `Bundle.helpersOf`, the
     primitives' helpers, the Builder's `RowPressed`, `RowToggled` and
     `Copied`, and `LiveAnnounce.say` removed;
-  - `foldkit-remote`'s `Defect` error tag (ce1d99d).
+  - `foldkit-remote`'s `Defect` error tag (ce1d99d);
+  - #144's checkbox column: `Columns.checkbox`, `CellEditor.Checkbox`,
+    `EditToggled` with `Grid.Toggle`, and the `checkbox` Slot
+    (34109eab..a9bbe3dd; independent review passed in two rounds).
 - [ ] **The branch's PR.** Unmerged since #497 (merged 2026-11-10): about a
       hundred commits, never through CI, since CI runs on pull requests. The
       whole CI sequence passed locally on 520755cf (2026-11-11, perf and
