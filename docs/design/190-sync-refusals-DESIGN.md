@@ -1,7 +1,8 @@
 # Sync rejections as typed refusals (#190, Phase 0 item 5)
 
 Status: designed 2026-11-11, revised after one review round the same day;
-built on the branch (see contract-layer-PLAN §6.0 item 5). Phase 0 item 5 of
+built on the branch (see contract-layer-PLAN §6.0 item 5). `Unreadable`'s
+producer landed with Phase 5 item 6 (upcasting note §11). Phase 0 item 5 of
 [contract-layer-PLAN.md](./contract-layer-PLAN.md), building decision 12 of
 [remote-improvement-plan.md](./remote-improvement-plan.md) ("a Sync rejection
 reads as a `Refusal`") with the case

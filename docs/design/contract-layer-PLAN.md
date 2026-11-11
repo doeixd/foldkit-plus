@@ -237,7 +237,7 @@ Gate: none. Starts now.
    three rounds: `SyncRefusal` (`Forbidden`, `Invalid`, `Unreadable`) on
    `Rejection.refusal` and the reply's `refusals`; `reason` and `reasons`
    deprecated for one release. `Unreadable` is declared and decoded; its
-   producer lands with Phase 5 item 6.
+   producer, `journalExchange`, landed with Phase 5 item 6.
 6. A design note for upcasting durable Messages (invariant 7). **Written and
    reviewed** (2026-11-11): [190-upcasting-DESIGN.md](./190-upcasting-DESIGN.md).
 7. A section in `docs/replication.md` on choosing document boundaries: a Sync
@@ -377,7 +377,10 @@ Gate: Phase 0 item 5. Independent of Phases 1 to 4.
    every hook (`admit`, `validate`, `authorize`, `reduce`, `stamp`) sees the
    current Message while the outbox and the payload hash keep the version
    written. It covers `foldkit-durable`'s optional `compared` form and a
-   stored row that will not decode reported as a `JournalError`.
+   stored row that will not decode reported as a `JournalError`. **Built
+   2026-11-11** on the branch, with the five named tests
+   (`packages/sync/test/upcasting.test.ts`); the decisions the note left open
+   are its §11. Jev did not run (`TYPESAFE_API_KEY` unset).
 7. **Deadlines and processes: deferred until a Sync application needs one.**
    Reactions alone cannot express "if nobody accepts the invite within seven
    days, expire it", or Phase 0 item 7's reserve-then-confirm flow with a

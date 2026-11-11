@@ -1,9 +1,10 @@
 # Upcasting durable Messages (#190, Phase 0 item 6)
 
 Status: designed 2026-11-11 and reviewed in three rounds the same day, with
-no blocking finding left; not built. Phase 0 item 6 of
+no blocking finding left; built on the branch 2026-11-11 (Phase 5 item 6),
+with the decisions §8 left open recorded in §11. Phase 0 item 6 of
 [contract-layer-PLAN.md](./contract-layer-PLAN.md), for its invariant 7
-("durable Messages stay readable"). Phase 5 item 6 builds it.
+("durable Messages stay readable").
 
 ## 1. The problem
 
@@ -509,3 +510,69 @@ Both are now in contract-layer-PLAN (invariant 7, Phase 5 item 6).
   `Sync.migrations(V1).next(V2, up)`, so each step's input is typed by the
   step before it; and applies it in the operation codec rather than at each
   decode site, so every hook sees the current Message.
+
+## 11. Decisions made while building
+
+Built in `packages/sync/src/migrations.ts`, `sync.ts`, `journal.ts`,
+`make.ts` and `packages/durable/src/codec.ts`, `journal.ts`; tested in
+`packages/sync/test/upcasting.test.ts` (mutations in
+`upcasting.mutations.ts`), `migrations.test-d.ts` and Durable's
+`journal.test.ts` ("the compared form").
+
+- **`UnsupportedMessageVersionError` on the client** (§8) joins
+  `ReplicaError`, with `opId`, `found` and `supported`. Received in an
+  exchange it is recorded in `status.lastError` and retried on the backoff
+  like any failed exchange; it does not end `start`, and the replica does not
+  reload by itself. The application tells it from other failures by the
+  typed error on the `ExchangeFailed` diagnostic and reloads the page. A
+  retry costs one exchange every 30 s at most, and a deploy that reaches the
+  client clears it. `journalExchange` fails with the same error when its scan
+  finds an entry newer than the server.
+- **What "a known version no step reads" covers.** Only an operation written
+  below the current version whose chain fails (its version's Schema refuses
+  it, `up` throws, or the result fails the current Schema). A Message written
+  at the current version that does not decode is malformed, as today: the
+  outbox fails to open with `InvalidOutboxError`, and the server rejects it as
+  `Invalid`. So an application with no migrations behaves exactly as before.
+  A step that maps an old variant onto a local-only one fails the durable
+  check after upcasting, and is `Invalid` like a local-only Message sent
+  today.
+- **The persisted list is `status.refused`**, `WrittenOperation`s as written,
+  read from the replica state's optional `refused` key (absent when empty, so
+  a state with none is byte-for-byte today's), and dismissed by
+  `replica.dismiss(opId)`, a revision-checked write. Not `status.rejected`:
+  that is the server's in-memory list of 32, whose entries carry a server
+  refusal and can be pushed out.
+- **Server rejections persisting** (§7): an `Unreadable` rejection also moves
+  its operation to `refused`, since its payload is the only copy and no
+  build may read it yet; every other rejection stays in memory, as item 5
+  left it.
+- **Who decodes a `refused` entry for display** (§8): nobody here. No Schema
+  of the build reads it by definition, so a page shows `operation.message`
+  and `operation.messageVersion` raw, or a count. The README says so.
+- **`Rejection.message`** is the Message encoded at the current version
+  (`unknown`, like `Operation.message`): `Rejection` is not generic, and every
+  operation a replica sends is one it read on open or wrote itself.
+- **The codec's error is `UnreadableMessageError`** (`opId`, `version`), the
+  note's `UnreadableMessage`, named like the package's other errors.
+  `UnreadableHistoryError` carries `documentId`, `opId` and `version`, not a
+  sequence: the codec knows the operation's id, and Durable's `JournalError`
+  does not carry the row's sequence. A newer committed row (a rollback) is
+  the same error with its version.
+- **Steps are not public.** `Migrations` exposes `version`, `current` and
+  `next`; the steps live in a module-private `WeakMap`, and a `Migrations`
+  not made by `Sync.migrations` is refused when the contract is defined.
+  Each older version's Schema checks the value strictly before its `up`; the
+  current version is decoded once, by the Message's own codec.
+- **An operation a server builds itself** is appended as written: an
+  `Operation` with no `messageVersion` reads as version 1. `editsJournal`'s
+  `absorbed` is typed `WrittenOperation` and documented to be written with
+  `journalContract().operation.encode`. The type cannot enforce it, since an
+  `Operation` is a `WrittenOperation` structurally; a brand would break every
+  server that builds one today. Recorded as a limitation.
+- **Durable alone.** A `compared` that throws (Sync's, for a newer version)
+  is an `InvalidOperationError`, as a decode failure is; only
+  `journalExchange`'s scan keeps such an entry from being rejected, so a
+  custom server calling `append` directly should scan as it does.
+- **The shared snapshot's Schema** stays out of scope (§7).
+
