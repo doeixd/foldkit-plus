@@ -103,6 +103,17 @@ export default [
     tests: [unit],
   },
   {
+    name: 'the placeholder is placed from the left, not the reading start',
+    edits: [
+      {
+        file: '../src/recipes/signaturePad.ts',
+        find: '        insetInlineStart: ref.space.lg,\n        bottom:',
+        replace: '        left: ref.space.lg,\n        bottom:',
+      },
+    ],
+    tests: [browser],
+  },
+  {
     name: 'a pen reads as a mouse',
     edits: [{ file: source, find: "pen: pointerType === 'pen'", replace: 'pen: false' }],
     tests: [browser],
