@@ -494,8 +494,9 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
   const keptIn = (slotId: string, view: ErasedView) => {
     const known = kept.get(slotId)
     if (known !== undefined) return known
-    const made = keptDrawing((model, h) =>
-      h.submodel({ slotId, model, view, toParentMessage: link.toParentMessage }),
+    const made = keptDrawing(
+      (model, h) => h.submodel({ slotId, model, view, toParentMessage: link.toParentMessage }),
+      view,
     )
     kept.set(slotId, made)
     return made

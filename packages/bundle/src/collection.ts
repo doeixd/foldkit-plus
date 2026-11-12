@@ -379,16 +379,28 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
   // it: swept when there are more than twice as many as items, so a list
   // whose items come and go keeps no drawing of each one it ever held.
   const kept = new Map<string, (model: unknown, h: HtmlBuilder<any>) => Html>()
+  // The items of the parent last drawn: a first draw misses once per item, and
+  // listing them for each miss is quadratic (#520).
+  let listed:
+    | { readonly parent: unknown; readonly entries: ReturnType<typeof link.entries> }
+    | undefined
+  const entriesOf = (parent: unknown) => {
+    if (listed !== undefined && listed.parent === parent) return listed.entries
+    const entries = link.entries(parent)
+    listed = { parent, entries }
+    return entries
+  }
   const keptFor = (parent: unknown, key: string, view: NonNullable<typeof childView>) => {
     const known = kept.get(key)
     if (known !== undefined) return known
-    const entries = link.entries(parent)
+    const entries = entriesOf(parent)
     if (kept.size >= 2 * entries.length) {
       const held = new Set(entries.map(([at]) => at))
       for (const at of kept.keys()) if (!held.has(at)) kept.delete(at)
     }
-    const made = keptDrawing((model: unknown, builder: HtmlBuilder<any>) =>
-      drawItem(key, model, builder, view),
+    const made = keptDrawing(
+      (model: unknown, builder: HtmlBuilder<any>) => drawItem(key, model, builder, view),
+      view,
     )
     kept.set(key, made)
     return made
@@ -462,7 +474,7 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
     },
     view,
     viewAll: (parent: unknown, h: HtmlBuilder<any>, viewInputs?: unknown) =>
-      Array.map(link.entries(parent), ([key]) => view(parent, h, key, viewInputs)),
+      Array.map(entriesOf(parent), ([key]) => view(parent, h, key, viewInputs)),
     // As a placement's: helpers that read the args take the retained ones.
     get helpers() {
       return Record.map(

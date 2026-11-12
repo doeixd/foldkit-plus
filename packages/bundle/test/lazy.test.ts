@@ -232,3 +232,102 @@ describe('a load that fails (#502)', () => {
     expect(Clicker.isLoaded()).toBe(true)
   })
 })
+
+describe('arrival over a kept drawing (#511)', () => {
+  const GotCount = Link.wrapper('GotCount', ClickerMessage)
+  const PrimitiveModel = Schema.Struct({ c: Schema.Number, other: Schema.Number })
+  type PrimitiveModel = typeof PrimitiveModel.Type
+  const PrimitiveMessage = defineMessageUnion({ ...GotCount.cases, Poked: {} })
+
+  const tell = (word: string) =>
+    Submodel.defineView<number, ClickerMessage>((_model, h) =>
+      h.button([h.Class('count'), h.OnClick(ClickerMessage.Clicked())], [word]),
+    )
+  const Counted = (
+    load: () => Promise<Bundle.Body<number, ClickerMessage, void, never, never, void>>,
+  ) =>
+    Bundle.lazy(
+      {
+        name: 'Counted',
+        Model: Schema.Number,
+        Message: ClickerMessage,
+        init: () => ({ model: 0 }),
+        while: tell('…'),
+      },
+      load,
+    )
+
+  it('draws the bodies of a primitive Model on the next render of the parent', async () => {
+    const Clicker = Counted(async () => ({ update: model => ({ model }), view: tell('loaded') }))
+    const Placed = Clicker.at(Link.field<PrimitiveModel>()('c', GotCount))
+    const placements = Bundle.assemble<PrimitiveModel, typeof PrimitiveMessage.Type>()([Placed])
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      setTimeout(() => callback(performance.now()), 0),
+    )
+    vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+    const container = document.createElement('div')
+    container.id = 'lazy-primitive'
+    document.body.appendChild(container)
+    const handle = Runtime.embed(
+      Runtime.makeElement(
+        placements.complete({
+          Model: PrimitiveModel,
+          container,
+          init: () => placements.init({ c: 0, other: 0 }),
+          update: placements.update((model, message) =>
+            message._tag === 'Poked' ? { model: { ...model, other: model.other + 1 } } : { model },
+          ),
+          view: (model: PrimitiveModel, h: HtmlBuilder<typeof PrimitiveMessage.Type>) =>
+            h.main(
+              [],
+              [
+                h.button(
+                  [h.Class('poke'), h.OnClick(PrimitiveMessage.Poked())],
+                  [String(model.other)],
+                ),
+                Placed.view(model, h),
+              ],
+            ),
+          subscriptions: placements.subscriptions(),
+        }),
+      ),
+    )
+    try {
+      await vi.waitFor(() => expect(text('.count')).toBe('…'))
+      click('.count')
+      await vi.waitFor(() => expect(Clicker.isLoaded()).toBe(true))
+      click('.poke')
+      await vi.waitFor(() => expect(text('.poke')).toBe('1'))
+      await vi.waitFor(() => expect(text('.count')).toBe('loaded'))
+    } finally {
+      handle.dispose()
+    }
+  })
+})
+
+it('keeps the class of an instance Model in the copy that draws the arrival (#511)', async () => {
+  class Box {
+    constructor(readonly n: number) {}
+    get double() {
+      return this.n * 2
+    }
+  }
+  const view = Submodel.defineView<Box, ClickerMessage>(() => null)
+  const L = Bundle.lazy(
+    {
+      name: 'Boxed',
+      Model: Schema.instanceOf(Box),
+      Message: ClickerMessage,
+      init: () => ({ model: new Box(1) }),
+      while: view,
+    },
+    async () => ({ update: (model: Box) => ({ model }), view }),
+  )
+  const given = new Box(2)
+  ;(L.view as any)(given, {})
+  await L.load()
+  const after = L.update(given, ClickerMessage.Clicked(), undefined).model
+  expect(after).not.toBe(given)
+  expect(after).toBeInstanceOf(Box)
+  expect((after as Box).double).toBe(4)
+})

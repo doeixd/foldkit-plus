@@ -8,6 +8,7 @@
 import { Effect } from 'effect'
 import * as Submodel from 'foldkit/submodel'
 import type { AnyMessage } from './link.js'
+import { drawEpochs } from './memo.js'
 import {
   make,
   type Bundle,
@@ -149,13 +150,18 @@ export const lazy = <
       | undefined
     return current === undefined ? null : current(...args)
   }) as never)
+  drawEpochs.set(view, () => body !== undefined)
   // The first update of a Model the placeholder drew, once the body is loaded: if it
   // returned the Model it was given, hand back an equal copy once, so the
   // arrival is drawn. Every later no-op returns the Model it was given.
   const redraw = <Step extends { readonly model: Model }>(step: Step, given: Model): Step => {
     if (typeof given !== 'object' || given === null || !drawnPlaceholder.delete(given)) return step
     if (step.model !== given) return step
-    const copy = (Array.isArray(given) ? [...given] : { ...given }) as Model
+    const copy = (
+      Array.isArray(given)
+        ? [...given]
+        : Object.create(Object.getPrototypeOf(given), Object.getOwnPropertyDescriptors(given))
+    ) as Model
     return { ...step, model: copy }
   }
   const bundle = make({

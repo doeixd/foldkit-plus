@@ -252,3 +252,62 @@ describe('A collection item', () => {
     }
   })
 })
+
+describe('A collection', () => {
+  const Row = Schema.Struct({ n: Schema.Number })
+  const Rows = Schema.Struct({ rows: Schema.Record(Schema.String, Row) })
+  type Rows = typeof Rows.Type
+  const Item = Bundle.make({
+    name: 'Item',
+    Model: Row,
+    Message: CounterMessage,
+    init: () => ({ model: { n: 0 } }),
+    update: model => ({ model }),
+    view: Submodel.defineView<typeof Row.Type, CounterMessage>((model, h) =>
+      h.span([h.Class('item')], [String(model.n)]),
+    ),
+  })
+  const GotItem = Link.keyedWrapper('GotItem', CounterMessage)
+  const RowsMessage = defineMessageUnion({ ...GotItem.cases })
+
+  // The count of `entries` calls is exact where a clock is not: one list per
+  // draw, not one per item (#520).
+  it('lists its entries once per draw, however many items it draws for the first time', async () => {
+    const size = 400
+    const link = Link.collection<Rows>()('rows', GotItem)
+    let listed = 0
+    const counting = {
+      ...link,
+      entries: (parent: Rows) => {
+        listed++
+        return link.entries(parent)
+      },
+    }
+    const Placed = Item.each(counting as typeof link)
+    const placements = Bundle.assemble<Rows, typeof RowsMessage.Type>()([Placed])
+    const container = document.createElement('div')
+    container.id = 'bundle-collection-first-draw'
+    document.body.appendChild(container)
+    timedFrames()
+    const rows = Object.fromEntries(Array.from({ length: size }, (_, i) => [`r${i}`, { n: i }]))
+    const handle = Runtime.embed(
+      Runtime.makeElement(
+        placements.complete({
+          Model: Rows,
+          container,
+          init: () => placements.init({ rows }),
+          update: placements.update(),
+          view: (model: Rows, h: HtmlBuilder<typeof RowsMessage.Type>) =>
+            h.main([], Placed.viewAll(model, h)),
+          subscriptions: placements.subscriptions(),
+        }),
+      ),
+    )
+    try {
+      await vi.waitFor(() => expect(document.querySelectorAll('.item')).toHaveLength(size))
+      expect(listed).toBeLessThanOrEqual(3)
+    } finally {
+      handle.dispose()
+    }
+  })
+})
