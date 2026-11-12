@@ -148,6 +148,34 @@ const buildMissing = async (dirs, rebuild, build) => {
     if (stale) console.error(`rebuilding ${manifest.name}: its dist is older than its source`)
     const config = (await import(pathToFileURL(join(packageDir, 'tsdown.config.ts')).href)).default
     await build({ ...config, config: false, cwd: packageDir, dts: false, logLevel: 'silent' })
+    canonicalizeDist(join(packageDir, 'dist'))
+  }
+}
+
+const IMPORT_LINE = /^(?:import|export \*).* from "[^"]+";$/
+
+/**
+ * The text with its leading run of one-line `import … from` and `export * from` statements sorted.
+ * Rolldown writes them in the order it happened to finish reading each module, so two builds of one
+ * source differ, the bundles an application makes from them differ, and a size budget reading
+ * 351,342 bytes once read 351,485 the next time.
+ */
+export const sortLeadingImports = text => {
+  const lines = text.split('\n')
+  let end = 0
+  while (end < lines.length && IMPORT_LINE.test(lines[end])) end++
+  return [...lines.slice(0, end).sort(), ...lines.slice(end)].join('\n')
+}
+
+export const canonicalizeDist = dir => {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name)
+    if (entry.isDirectory()) canonicalizeDist(path)
+    else if (entry.name.endsWith('.js') || entry.name.endsWith('.mjs')) {
+      const text = readFileSync(path, 'utf8')
+      const sorted = sortLeadingImports(text)
+      if (sorted !== text) writeFileSync(path, sorted)
+    }
   }
 }
 
