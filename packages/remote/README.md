@@ -803,9 +803,42 @@ value used as if it were always there, and a read of another application's
 Model in this one's Surface. What it cannot see: a ternary over `_tag` (`pnpm
 tags:check` refuses it in a package's or example's `src`), a cast, a Model
 that structurally contains another application's, and which of two bindings
-over one Model made a read. A combinator that joins two reads into one is not
-offered: draw each with its own fold, since which of `NotFound` and `Failed`
-should win is the view's decision.
+over one Model made a read. `RemoteData.all` joins reads when a view
+needs them together (below); a view that wants another precedence folds each
+read with its own `match`.
+
+### Joining reads: `RemoteData.all`
+
+`RemoteData.all({ project: projectRead, owner: ownerRead })` takes a struct of reads and answers one
+`RemoteData` of the struct of their values, so a view that needs all of them
+draws once. It is a pure function of the values you pass: it fetches nothing.
+The first state any entry is in decides the result, in this order:
+
+```text
+Failed  >  NotFound  >  Initial  >  Loading  >  Refreshing  >  Ready
+```
+
+`Failed` carries the first failed key's error. When every entry holds a value
+the result is `Refreshing` if any entry is, else `Ready`: it is as fresh as its
+stalest entry. A `Failed` result carries `previous` (the struct of values) only
+when every entry still held one (a `Ready`, a `Refreshing`, or a `Failed` with
+its own `previous`), so `render` draws that set stale instead of an error alone.
+With no entries it is `Ready` of an empty struct.
+
+<!-- docs-check
+import { RemoteData } from 'foldkit-remote'
+declare const projectRead: RemoteData<{ readonly name: string }>
+declare const ownerRead: RemoteData<{ readonly handle: string }>
+-->
+
+```ts
+const page = RemoteData.all({ project: projectRead, owner: ownerRead })
+// RemoteData<{ readonly project: { name: string }; readonly owner: { handle: string } }>
+```
+
+An entry that is not a `RemoteData` is a type error. Which of `NotFound` and
+`Failed` should win is a view decision: the order above is this function's, and
+a view that wants another folds each read with `match`.
 
 ## When it does not do what you expect
 
@@ -2246,6 +2279,39 @@ as its reads draw them, for a persistence `snapshot` that stores a list as
 shown.
 `Data.refresh` stays for what an answer cannot say, such as a server-side
 effect on rows it did not return.
+
+### Which lists a declared write can reach
+
+The judgement above runs on an answer. The same question can be asked before
+anything is sent, of the declarations alone: `reaches(write, query)` compares
+what a write may write (`Write.writes`) with what the query's body reads (its
+`fields`, and what it reaches through a path, an exists and its `where`, or a
+path from the viewer), by the identity of each member's Entity, so two
+Entities of one name are told apart. It is pure, reads no Model and sends
+nothing.
+
+<!-- docs-check
+import { Mutation, Query, Reach, reaches } from 'foldkit-remote'
+declare const RenameCategory: Parameters<typeof Mutation.write>[1]
+declare const InToys: ReturnType<typeof Query.define>
+-->
+
+```ts
+Reach.match(reaches(RenameCategory, InToys), {
+  Reads: () => 'the write can change this list',
+  Unaffected: () => 'it cannot',
+  Unknown: ({ why }) => `the declarations do not say (${why})`,
+})
+```
+
+`write` is a `Write`, or a mutation declared with `Mutation.write`. `Unknown`
+is never `Unaffected`: `NoBody` is a query declared with `Query.make`, whose
+meaning is its server's, and `Handler` is a mutation declared with
+`Mutation.make`, whose writes only its handler knows (when both apply,
+`Handler` is named). `explain` lists, as `reachedBy`, the registered
+mutations whose write `Reads` the list; a handler mutation is never listed.
+The answer says what a declaration allows, not what a given invocation
+changed, so a `Reads` is a possibility and `Unaffected` is a guarantee.
 
 ### What became of a write
 
@@ -3732,6 +3798,7 @@ explain(Data, model, projects)
 //   select: { entity: 'Project', fields: ['id', 'name'] },
 //   body: 'FROM Project\nWHERE Project.ownerId = $ownerId\nORDER BY Project.name DESC',
 //   dependencies: { fields: [...], inputs: ['ownerId'], operations: ['eq'] },
+//   reachedBy: ['RenameProject'],
 //   state: 'Ready',
 // }
 ```
@@ -3741,6 +3808,10 @@ whatever the backend compiled — an input shows as `$ownerId` rather than a bou
 parameter, and `contains` is named rather than rendered as somebody's `like`. A
 definition made with `Query.make` has no `body`, because its meaning lives on
 the server that answers it.
+
+`reachedBy` names the domain's registered mutations whose declared write can
+change the list (see [Which lists a declared write can reach](#which-lists-a-declared-write-can-reach));
+it is absent with the body.
 
 `state` comes from the projection's own read, so an explanation and the view
 cannot disagree about whether the data is there.
