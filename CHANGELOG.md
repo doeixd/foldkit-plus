@@ -7,6 +7,106 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+Fixes from a review of everything 0.39.0 changed (#511 to #530).
+
+### Added
+
+- `Host.node` takes `maxBodyBytes` (default 32 MiB) and answers `413` for a
+  larger request body before the handler runs (`foldkit-host`).
+
+### Changed
+
+- **What a Sync transport receives is `unknown`** (`foldkit-sync`,
+  `foldkit-durable`, #517). `Sync.transport.serve`'s `exchange`,
+  `TransportClient.exchange`, `TransportShape.exchange`, a `loopback` handler
+  and `ExchangeFrame.pending` now take `ReadonlyArray<unknown>`, not the
+  branded `WrittenOperation`; `journalContract().operation.compared` returns an
+  unbranded value, and `foldkit-durable`'s `Codec.compared` returns `unknown`,
+  since it is only hashed. Before, a custom server could append a socket's
+  entries, or `compared`'s output, straight to the journal and skip the
+  server-only and `server/` replica checks; now only `codec.writtenFrom` makes
+  an entry `append` accepts. A handler that annotated `pending` as
+  `WrittenOperation` reads each entry with `codec.writtenFrom`.
+- **A Slot's protected events, attributes and style can no longer be
+  bypassed** (`foldkit-mixins`, #523, #524). The resolver compares what Foldkit
+  actually sets on the element:
+  - an event builder reads as the DOM event Foldkit registers for it
+    (`OnKeyDownPreventDefault`, `OnKeyDownSelf` and `OnKeyDownFocus` are
+    `keydown`, `OnDoubleClick` is `dblclick`, `OnFocusEnter`/`OnFocusLeave`
+    are `focusin`/`focusout`, `OnFileChange` is `change`, `OnDropFiles` is
+    `drop`, `AllowDrop` is `dragover`), so `protected.events` and
+    `mixins:event-conflict` see it; a variant beside the view's own handler
+    for the same event is now a conflict, and a handler tag Foldkit does not
+    have is refused (`mixins:unsupported-event`);
+  - an attribute is owned by the HTML attribute it writes, so `AriaLabel` and
+    `Attribute('aria-label')`, or `For` and `Prop('htmlFor')`, are one owner;
+  - a Mixin's `ChildAttribute` meets the same checks as its own, and its
+    `Class` joins the slot's one class;
+  - a Mixin may not set `class` or `style` through `Attribute`, `Prop` or a
+    child `Style`, and a `Prop` that replaces the children (`innerHTML`,
+    `textContent`, …) is `mixins:structural-override`.
+- `Button.view`'s `attributes` join the Slot before the mixins resolve, as
+  `PasswordInput.view`'s do, so a class joins the recipe's instead of
+  replacing it and an event a mixin owns is a conflict (`foldkit-mixins-ui`,
+  #528).
+- A data-grid filter form keeps its draft while open (`foldkit-data-grid`,
+  `foldkit-mixins-data-grid`, #514): `Model.filtering` gains `sent`, and
+  `isEcho` is exported. See Fixed.
+- The examples' client budget tests share `scripts/bundle-budget.mjs`, and
+  each names the modules that differ when its two builds disagree (#529).
+
+### Fixed
+
+- `foldkit-remote`: a row held with more fields than a read asks no longer
+  stays expired for good after its re-read. Freshness is dated per field
+  asked, kept in memory; a row restored from storage or a server page falls
+  back to its oldest date (#512).
+- `foldkit-remote`: a relative write started after a live patch is predicted
+  over the patch, not the value from before it. A kept pre-patch value applies
+  only to the requests pending when the patch landed (#513).
+- `foldkit-remote-drizzle`: a delete that clears links (`onDelete: 'setNull'`)
+  holds each cleared row to its Entity's invariants with the link null; where
+  one would break, or is unknown, nothing is deleted and the writer answers
+  `Referenced` for that relation (#516).
+- `foldkit-remote-drizzle`: a delete that clears links judges whether its asker
+  may see each cleared row before the link is cleared, so a `visible` rule that
+  reads the link no longer hides the row from `cleared` (#518).
+- `foldkit-remote-drizzle`: `bind` refuses a foreign key that sets null (or a
+  default) on a relation that does not declare `onDelete: 'setNull'` (#519).
+- `foldkit-remote-drizzle`: the README no longer claims a cascade, restriction
+  or clear that the writer holds alone is safe against concurrent links on
+  Postgres; keep the foreign key there (#521).
+- `foldkit-bundle`: a collection's first draw listed its entries once per item
+  (8,000 rows took about 29 s); it now lists them once per draw (#520).
+- `foldkit-bundle`: a lazy bundle with a primitive Model no longer stays on
+  `while` after its bodies load, and an instance Model keeps its class when the
+  arrival is drawn (#511).
+- `foldkit-data-grid`, `foldkit-mixins-data-grid`: a column filter form no
+  longer loses typed input when the application stores a reported filter late
+  (URL, `UrlChanged`, debounced) or cleaned (trimmed). Only a filter the form
+  never sent (a saved view, a URL navigation) reseeds it (#514).
+- `foldkit-host`: `Host.node` cancels a streamed answer built after the client
+  had already left (#515).
+- `foldkit-media`: `uploadFile` fails its Stream with `UploadFailed`
+  (`Malformed`) for a file name that cannot be URI-encoded, instead of
+  throwing when called (#522).
+- `foldkit-mixins/vite`: listing any `modules` turned off run-time CSS
+  injection for the whole production browser build, so a Style compiled in the
+  page shipped with no rule and no error. The build now fails, naming the
+  modules that bring the Style compiler into the bundle (#525).
+- `foldkit-mixins-ui`: `Switch.draggable` no longer leaves the thumb pinned on
+  the dragged side when `update` refuses or ignores the toggle; the thumb waits
+  at most 300 ms for the Model's answer (#526).
+- `foldkit-mixins`: `Defaults.controls` gives an aria-disabled button no
+  pressed fill, and dims an aria-disabled submit, button or reset `input` as it
+  does a `button` (#530).
+- `foldkit-mixins-ui`: the Disclosure recipe's height rule reaches only its own
+  panel, not an application's grid round an id ending `-panel` (#530).
+- `pnpm tags:check` and `scripts/rtl-check.mjs` no longer accept a marker that
+  gives no reason; `scripts/bundle-report.mjs` writes `--json` for `--server`
+  and `--worker`, lists its flags, and recovers a `dist` lock from a dead
+  process at once (#527).
+
 ## 0.39.0
 
 Sync takes server-only Messages, appended once per key, and reactions that
@@ -36,7 +136,8 @@ text rules), `foldkit-ssr` (a deferred plan refuses an unkept field),
 Visible without a code change: the form's `aria-disabled` submit
 (`foldkit-mixins-form`, `foldkit-crud`: a style of your own must match it),
 `foldkit-mixins`' protected attributes, which a generic builder can no longer
-set, and `Expr.in` over a null list, which is now unknown rather than refused
+set (an event-variant builder, a Mixin's child attribute and a raw `style`
+still could; closed in the release after), and `Expr.in` over a null list, which is now unknown rather than refused
 (`foldkit-entity`, `foldkit-remote-drizzle`).
 
 ### Added
@@ -802,6 +903,9 @@ set, and `Expr.in` over a null list, which is now unknown rather than refused
   `OnCustomEvent('click')` is refused where `OnClick` is, and two owners of
   one event conflict as `mixins:event-conflict` (two custom events of one
   name used to report `mixins:attribute-conflict`).
+  This left three routes open, closed in the release after: Foldkit's
+  event-variant builders (`OnKeyDownPreventDefault` and others), a Mixin's
+  `ChildAttribute`, and `h.Attribute('style', …)` (#523).
 
 - **A CMS editor whose entry-state read failed no longer opens badged New**
   (`foldkit-cms`). `status` counted a failed state read as answered, so the
