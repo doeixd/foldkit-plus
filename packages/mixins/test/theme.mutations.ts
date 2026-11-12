@@ -49,7 +49,7 @@ export default [
   },
   {
     name: 'a hard shadow keeps the faint color of a soft one',
-    edits: [{ file: '../src/theme/shadows.ts', find: ' l c h / 0.9)', replace: ' l c h)' }],
+    edits: [{ file: '../src/theme/shadows.ts', find: ' l a b / 0.9)', replace: ' l a b)' }],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
   },
   {
@@ -57,8 +57,8 @@ export default [
     edits: [
       {
         file: '../src/theme/shadows.ts',
-        find: 'l c h / 0.9) ${strength}, transparent)`',
-        replace: 'l c h / 0.9) 100%, transparent)`',
+        find: 'l a b / 0.9) ${strength}, transparent)`',
+        replace: 'l a b / 0.9) 100%, transparent)`',
       },
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
@@ -200,8 +200,8 @@ export default [
     edits: [
       {
         file: '../src/theme/shadows.ts',
-        find: '`${layer} color-mix(in oklch, ${shade} ${strength}, transparent)`',
-        replace: '`${layer} color-mix(in oklch, ${shade} 100%, transparent)`',
+        find: '`${layer} color-mix(in oklab, ${shade} ${strength}, transparent)`',
+        replace: '`${layer} color-mix(in oklab, ${shade} 100%, transparent)`',
       },
     ],
     tests: ['packages/mixins/test/themePage.test.ts'],

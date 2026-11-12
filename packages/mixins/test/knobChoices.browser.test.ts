@@ -61,7 +61,7 @@ test('ink outlines are the textâ€™s own ink at their strength, not the paletteâ€
   const text = drawn(
     { shape: { outlines: 'ink' } },
     'color',
-    'color-mix(in oklch, var(--fk-text-overt) 88%, transparent)',
+    'color-mix(in oklab, var(--fk-text-overt) 88%, transparent)',
   )
   expect(ink).toBe(text)
   expect(ink).not.toBe(soft)

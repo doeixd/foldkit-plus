@@ -51,7 +51,7 @@ export const ExplorerPage = slots(
     brand: [U.text('lg'), U.font('semibold')],
     tagline: [
       U.text('sm'),
-      { color: `color-mix(in oklch, ${t.accent['on-fill']} 70%, ${t.accent.default})` },
+      { color: `color-mix(in oklab, ${t.accent['on-fill']} 70%, ${t.accent.default})` },
     ],
     main: { paddingBottom: t.space['2xl'] },
     content: L.in('layouts', Layout.center({ max: '72rem' })),

@@ -11,20 +11,23 @@ const strength = 'var(--fk-knob-shadow-strength, 100%)'
 /** No shadow, as a shadow: one a transition can interpolate from, unlike `none`. */
 export const FLAT = '0 0 #0000'
 
-/** Layers in the shadow's color, faded by `shadow-strength`. */
+/**
+ * Layers in the shadow's color, faded by `shadow-strength`. Shadows mix and
+ * re-alpha in OKLab, which has no hue for a grey shade to carry.
+ */
 export const shadow = (...layers: ReadonlyArray<string>) =>
-  layers.map(layer => `${layer} color-mix(in oklch, ${shade} ${strength}, transparent)`).join(', ')
+  layers.map(layer => `${layer} color-mix(in oklab, ${shade} ${strength}, transparent)`).join(', ')
 
 /** A hard step: the shadow's color, nearly opaque, offset with no blur. */
 const hard = (offset: number) =>
-  `${offset}px ${offset}px 0 0 color-mix(in oklch, oklch(from ${shade} l c h / 0.9) ${strength}, transparent)`
+  `${offset}px ${offset}px 0 0 color-mix(in oklab, oklab(from ${shade} l a b / 0.9) ${strength}, transparent)`
 
 /** An edge of a bevel: `color` faded by `shadow-strength`, as every shadow is. */
-const edge = (color: string) => `color-mix(in oklch, ${color} ${strength}, transparent)`
+const edge = (color: string) => `color-mix(in oklab, ${color} ${strength}, transparent)`
 /** Lit from the top left: white, dimmer in a dark scheme, where white would glare. */
 const lit = (alpha: number, darkAlpha: number) =>
   edge(`light-dark(oklch(100% 0 0 / ${alpha}), oklch(100% 0 0 / ${darkAlpha}))`)
-const shaded = (alpha: number) => edge(`oklch(from ${shade} l c h / ${alpha})`)
+const shaded = (alpha: number) => edge(`oklab(from ${shade} l a b / ${alpha})`)
 
 /**
  * Two rings of edges, lit at the top left and shaded at the bottom right,

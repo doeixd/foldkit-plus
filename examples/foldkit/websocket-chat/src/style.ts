@@ -116,7 +116,7 @@ export const ChatPage = slots(
       U.text('xs'),
       { margin: `${t.space['2xs']} 0 0` },
       Style.states({
-        sent: { color: `color-mix(in oklch, ${t.accent['on-fill']} 75%, transparent)` },
+        sent: { color: `color-mix(in oklab, ${t.accent['on-fill']} 75%, transparent)` },
         received: { color: t.text.muted },
       }),
     ],

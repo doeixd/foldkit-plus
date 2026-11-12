@@ -198,7 +198,7 @@ export default [
     edits: [
       {
         file: recipe,
-        find: '0 1px 2px 0 color-mix(in oklch, black 14%, transparent), ',
+        find: '0 1px 2px 0 color-mix(in oklab, black 14%, transparent), ',
         replace: '',
       },
     ],

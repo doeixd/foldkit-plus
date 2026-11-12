@@ -681,7 +681,7 @@ export const AttachmentPart = slots(
       },
       Style.pseudo(':hover', {
         borderColor: t.accent.default,
-        background: `color-mix(in oklch, ${t.accent.subtle} 50%, transparent)`,
+        background: `color-mix(in oklab, ${t.accent.subtle} 50%, transparent)`,
       }),
       Style.pseudo('[data-drag-over]', {
         borderColor: t.accent.default,

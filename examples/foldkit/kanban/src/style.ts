@@ -37,7 +37,7 @@ const visuallyHidden: StyleValue = Style.self({
 const smallShadow = '0 1px 3px 0 rgb(0 0 0 / 10%), 0 1px 2px -1px rgb(0 0 0 / 10%)'
 
 /** Upstream's `blue-300`, the dashed edge of a drop target. */
-const dropEdge = `color-mix(in oklch, ${t.accent.default} 55%, ${t.surface.base})`
+const dropEdge = `color-mix(in oklab, ${t.accent.default} 55%, ${t.surface.base})`
 
 const cardBox = [U.p('sm'), U.rounded('lg'), U.bg('surface.base')]
 

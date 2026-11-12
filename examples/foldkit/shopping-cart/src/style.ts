@@ -116,7 +116,7 @@ export const ShopPage = slots(
       },
       Style.pseudo(':hover', { background: t.accent.hover }),
       Style.pseudo('[aria-current="page"]', {
-        background: `color-mix(in oklch, ${t.accent.active} 50%, transparent)`,
+        background: `color-mix(in oklab, ${t.accent.active} 50%, transparent)`,
       }),
     ],
     main: U.py('xl'),

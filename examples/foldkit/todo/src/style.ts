@@ -182,7 +182,7 @@ export const ClearButtonStyle = forSlots(ButtonSlots)(
         filled(
           t.error.subtle,
           t.error.ink,
-          `color-mix(in oklch, ${t.error.subtle} 80%, ${t.error.default})`,
+          `color-mix(in oklab, ${t.error.subtle} 80%, ${t.error.default})`,
         ),
       ],
     },

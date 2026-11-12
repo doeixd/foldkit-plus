@@ -62,7 +62,7 @@ export const DragAndDropPageStyle = forSlots(DragAndDropPageSlots)(
       }),
       Style.pseudo('[data-drop-target]', {
         borderStyle: 'dashed',
-        borderColor: `color-mix(in oklch, ${t.accent.default} 50%, transparent)`,
+        borderColor: `color-mix(in oklab, ${t.accent.default} 50%, transparent)`,
       }),
     ),
     card: Style.compose(
@@ -83,7 +83,7 @@ export const DragAndDropPageStyle = forSlots(DragAndDropPageSlots)(
     ),
     placeholder: Style.self({
       height: '2.25rem',
-      border: `${t.border.thick} dashed color-mix(in oklch, ${t.accent.default} 50%, transparent)`,
+      border: `${t.border.thick} dashed color-mix(in oklab, ${t.accent.default} 50%, transparent)`,
       borderRadius: t.radius.lg,
     }),
     ghost: Style.compose(card, Style.self({ borderColor: t.accent.default, boxShadow: shadow.lg })),

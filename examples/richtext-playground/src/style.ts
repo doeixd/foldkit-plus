@@ -170,8 +170,8 @@ const writing = Style.compose(
     fontSize: '0.88em',
   }),
   Style.nest('[data-comment]', {
-    background: `color-mix(in oklch, ${t.warning.default} 22%, transparent)`,
-    borderBlockEnd: `2px solid color-mix(in oklch, ${t.warning.default} 70%, transparent)`,
+    background: `color-mix(in oklab, ${t.warning.default} 22%, transparent)`,
+    borderBlockEnd: `2px solid color-mix(in oklab, ${t.warning.default} 70%, transparent)`,
     cursor: 'pointer',
   }),
   Style.nest('blockquote', {
@@ -202,7 +202,7 @@ const writing = Style.compose(
   Style.nest('[data-callout]', {
     position: 'relative',
     padding: `${t.space.md} ${t.space.lg} ${t.space.md} calc(${t.space.lg} + 1.75rem)`,
-    border: `1px solid color-mix(in oklch, ${t.accent.default} 20%, transparent)`,
+    border: `1px solid color-mix(in oklab, ${t.accent.default} 20%, transparent)`,
     borderRadius: t.radius.xl,
     background: t.accent.subtle,
     whiteSpace: 'pre-wrap',
@@ -263,7 +263,7 @@ const writing = Style.compose(
     color: t.text.default,
   }),
   Style.nest('tr:not([data-header]):hover td', {
-    background: `color-mix(in oklch, ${t.surface.muted} 45%, transparent)`,
+    background: `color-mix(in oklab, ${t.surface.muted} 45%, transparent)`,
   }),
   Style.nest('pre', {
     position: 'relative',

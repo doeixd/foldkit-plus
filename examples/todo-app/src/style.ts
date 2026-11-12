@@ -51,7 +51,7 @@ const shippedRef = Theme.ref(shipped)
 /** What only this app names, derived from the palette so it follows the scheme too. */
 const own = Theme.define({
   radius: { card: '16px', control: '10px' },
-  text: { done: `color-mix(in oklch, ${shippedRef.text.muted} 60%, ${shippedRef.surface.base})` },
+  text: { done: `color-mix(in oklab, ${shippedRef.text.muted} 60%, ${shippedRef.surface.base})` },
 })
 
 export const theme = Theme.compose(shipped, own)

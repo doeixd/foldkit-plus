@@ -212,5 +212,21 @@ export const bounded = (hue: Hue) => {
   return `min(c, l * ${ref('s')}, (1 - l) / max(0.001, ${ref('ua')} + ${ref('ub')} * l))`
 }
 
-/** `color` with its chroma reduced into sRGB, keeping its lightness, hue and alpha. */
-export const fit = (color: string, hue: Hue) => `oklch(from ${color} l ${bounded(hue)} h / alpha)`
+/**
+ * `color` with its chroma reduced into sRGB, keeping its lightness and alpha,
+ * on `hue`. The hue is the palette's, never `color`'s own `h`: a grey's hue
+ * is powerless, and engines disagree on what it reads (0, a named grey's
+ * rounding noise of about 24, or the hue it was written with), which a later
+ * step adding chroma or mixing in OKLCH would carry into red.
+ */
+export const fit = (color: string, hue: Hue) =>
+  `oklch(from ${color} l ${bounded(hue)} ${hues[hue]} / alpha)`
+
+/**
+ * `fit` for a mix of two palette colors, made in OKLab: its hue lies between
+ * theirs, so it keeps its own, bounded as on `hue`. A mix of two greys is a
+ * grey whose hue no engine agrees on, but `fit` only takes chroma away, and
+ * nothing in the palette adds chroma to a mix or mixes one again in OKLCH.
+ */
+export const fitMix = (color: string, hue: Hue) =>
+  `oklch(from ${color} l ${bounded(hue)} h / alpha)`

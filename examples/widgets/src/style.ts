@@ -116,7 +116,7 @@ const modalBackdrop = Style.self({
   position: 'fixed',
   inset: '0',
   zIndex: '10',
-  background: `color-mix(in oklch, ${t.surface.bedrock} 40%, transparent)`,
+  background: `color-mix(in oklab, ${t.surface.bedrock} 40%, transparent)`,
 })
 
 /**

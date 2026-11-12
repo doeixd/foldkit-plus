@@ -143,7 +143,7 @@ export const ImageCropper = Style.recipeFor(ImageCropperSlots)({
         boxSizing: 'border-box',
         border: `${ref.border.thin} solid ${ref.surface.base}`,
         // The veil over the rest of the image: a shadow wider than any viewport, clipped by it.
-        boxShadow: `0 0 0 100vmax color-mix(in oklch, ${ref.surface.bedrock} 55%, transparent)`,
+        boxShadow: `0 0 0 100vmax color-mix(in oklab, ${ref.surface.bedrock} 55%, transparent)`,
         cursor: 'move',
         ...glides('left, top, width, height'),
       }),

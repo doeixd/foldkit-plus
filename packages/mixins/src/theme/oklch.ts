@@ -9,7 +9,7 @@
  * choice is a `color-scheme` override.
  */
 import { define } from './core.js'
-import { boundaryVariables, chartHue, fit, gamut, hue, type Hue } from './gamut.js'
+import { boundaryVariables, chartHue, fit, fitMix, gamut, hue, type Hue } from './gamut.js'
 import { standard, unsetOf } from './knobs.js'
 
 const v = (group: string, name: string) => `var(--fk-${group}-${name})`
@@ -17,7 +17,7 @@ const ld = (light: string, dark: string) => `light-dark(${light}, ${dark})`
 /** Each half of a `light-dark()` pair fitted into sRGB on `hue`. */
 const fitted = (hue: Hue, light: string, dark: string) => ld(fit(light, hue), fit(dark, hue))
 const offset = (amount: number) => `${amount < 0 ? '-' : '+'} ${Math.abs(amount)}`
-/** `oklch(from <color> …)` with the hue kept. */
+/** `oklch(from <color> …)` with the hue kept, until `fit` sets the palette's. */
 const from = (color: string, l: string, c: string) => `oklch(from ${color} ${l} ${c} h)`
 const shift = (color: string, dl: number, dc: number) =>
   from(color, `calc(l ${offset(dl)})`, `calc(c ${offset(dc)})`)
@@ -61,12 +61,16 @@ const reach = ([lightness, chroma]: Step): Step => [
   Number((1 + (chroma - 1) * REACH).toFixed(4)),
 ]
 
-/** A surface step: the base mixed toward a target by `surface-contrast`. */
+/**
+ * A surface step: the base mixed toward a target by `surface-contrast`, in
+ * OKLab, which has no hue: a grey's hue is powerless, and an OKLCH mix reads
+ * it as each engine pleases (Chromium keeps the hue it was written with).
+ */
 const surfaceStep = (lightStep: Step, darkStep: Step) => {
   const amount = v('knob', 'surface-contrast')
   const [light, dark] = [reach(lightStep), reach(darkStep)]
   const target = ld(scale(base, light[0], light[1]), scale(base, dark[0], dark[1]))
-  return fit(`color-mix(in oklch, ${base} calc(100% - ${amount}), ${target} ${amount})`, 'neutral')
+  return fit(`color-mix(in oklab, ${base} calc(100% - ${amount}), ${target} ${amount})`, 'neutral')
 }
 
 /** `a` where the 0-or-1 knob `name` is 1, `b` where it is 0. */
@@ -92,12 +96,12 @@ const family = (name: Hue, defaultValue: string) => {
   return {
     default: defaultValue,
     hover: fit(shift(color, -0.06, 0), name),
-    // Deeper by 0.05 of chroma, but at most twice its own: a grey has no hue
-    // to deepen (its hue is powerless, and Chromium reads a named grey's as
-    // about 24, a red), so a grey fill stays grey when pressed.
+    // Deeper by 0.05 of chroma, but at most twice its own, so a grey fill
+    // stays grey when pressed: chroma added to a grey would show the family's
+    // hue, a tint the theme did not ask for. `fit` sets that hue, not the fill's.
     active: fit(from(color, 'calc(l - 0.1)', 'min(c + 0.05, c * 2)'), name),
     // A mix of two colors inside sRGB can bend out of it, toward white most.
-    subtle: fit(tint(color, 85), name),
+    subtle: fitMix(tint(color, 85), name),
     outline: fitted(name, shift(color, -0.05, 0), shift(color, 0.05, 0)),
     'on-fill': contrast(color, name),
     ink: ink(color, name),
@@ -170,7 +174,7 @@ const colorScale = (name: ScaleName) => {
   const step = (index: number) =>
     fit(`oklch(${scaleL[index]}% calc(${scaleC[index]} * ${v('knob', 'scale-c')}) ${hue})`, name)
   const wash = (share: number) =>
-    fit(`color-mix(in oklab, ${v(name, '6')} ${share}%, ${v('surface', 'base')})`, name)
+    fitMix(`color-mix(in oklab, ${v(name, '6')} ${share}%, ${v('surface', 'base')})`, name)
   return {
     '1': step(0),
     '2': step(1),
@@ -194,7 +198,7 @@ const colorScale = (name: ScaleName) => {
  * text's own ink: `outline-ink` 0 is the line itself, 1 the ink at its strength.
  */
 const inked = (line: string, strength: 'subtle' | 'default' | 'overt') =>
-  `color-mix(in oklch, ${line}, color-mix(in oklch, ${v('text', 'overt')} ${v('knob', `outline-ink-${strength}`)}, transparent) calc(${v('knob', 'outline-ink')} * 100%))`
+  `color-mix(in oklab, ${line}, color-mix(in oklab, ${v('text', 'overt')} ${v('knob', `outline-ink-${strength}`)}, transparent) calc(${v('knob', 'outline-ink')} * 100%))`
 
 const accent = v('accent', 'default')
 

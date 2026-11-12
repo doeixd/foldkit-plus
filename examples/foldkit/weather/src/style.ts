@@ -24,7 +24,7 @@ export { stylesheet }
 
 /** The accent at `percent` over the base surface: upstream's blue-50 to blue-300. */
 const wash = (percent: number): string =>
-  `color-mix(in oklch, ${t.surface.base} ${percent}%, ${t.accent.default})`
+  `color-mix(in oklab, ${t.surface.base} ${percent}%, ${t.accent.default})`
 
 /**
  * A column that centers its children, like upstream's `flex-col items-center`.
@@ -62,7 +62,7 @@ export const WeatherPage = slots(
         // The stack sets its children's block margins to 0; this is upstream's `mb-8`.
         marginBlockEnd: t.space.xl,
         // Upstream's blue-900: the accent, darker.
-        color: `oklch(from ${t.accent.default} 0.38 calc(c * 0.7) h)`,
+        color: `oklch(from ${t.accent.default} 0.38 calc(c * 0.7) ${t.hue.accent})`,
       },
     ],
     // Upstream's `w-full max-w-md`; the stack already makes its children full width.
