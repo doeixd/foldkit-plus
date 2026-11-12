@@ -75,6 +75,7 @@ Link and Placement to Connection and Segment, are in the
 | Decide between a hand-wired Submodel and a Bundle, and see what a placement replaces | [Bundle versus Submodel](./bundle-vs-submodel.md) | `foldkit-bundle` |
 | Choose between a Surface and a Bundle, or combine them | [Surface versus Bundle](./surface-vs-bundles.md) | `foldkit-surface`, `foldkit-bundle` |
 | Change one server row so the change holds where it commits: who may, when it makes sense, by how much, and safe to retry | [Declared writes](./declared-writes.md) | `foldkit-entity`, `foldkit-guard`, `foldkit-remote-drizzle`, `foldkit-remote` |
+| Decide where a rule goes: a Schema, an invariant, a write's `when`, or a guard, and what each refuses as | [Laws](./laws.md) | `foldkit-entity`, `foldkit-guard`, `foldkit-remote` |
 | Name a rule once, search and order by what the kernel lacks, compute a write, and have server and client mean the same by it | [Operators](./operators.md) | `foldkit-entity`, `foldkit-remote-drizzle`, `foldkit-remote`, `foldkit-guard` |
 | Tell who is asking from what they may do, and wire the two | [Auth and Guard](./auth-and-guard.md) | `foldkit-auth`, `foldkit-guard` |
 | Let callers restyle/decorate views through typed extension points | [View composition](./mixins.md) | `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui` |
