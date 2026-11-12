@@ -98,6 +98,26 @@ export const remoteDataSchema = <A>(
   return built
 }
 
+/** The value types of a struct of `RemoteData`, which `RemoteData.all` gathers. */
+export type RemoteDataValues<Entries extends Readonly<Record<string, RemoteData<unknown>>>> = {
+  readonly [Key in keyof Entries]: Entries[Key] extends RemoteData<infer Value> ? Value : never
+}
+
+/**
+ * Which entry decides `RemoteData.all`: lower wins, and a tie goes to the
+ * first key. Among entries that all hold a value, a `Refreshing` outranks a
+ * `Ready`, so the result is as fresh as its stalest entry.
+ */
+const precedence = <A>(data: RemoteData<A>): number =>
+  RemoteData.match(data, {
+    Failed: () => 0,
+    NotFound: () => 1,
+    Initial: () => 2,
+    Loading: () => 3,
+    Refreshing: () => 4,
+    Ready: () => 5,
+  })
+
 export const RemoteData = {
   /**
    * The `RemoteData` schema for a value schema. Exposed so a `RemoteData` can
@@ -240,6 +260,54 @@ export const RemoteData = {
   isUnreachable: (error: RemoteError): boolean =>
     // tag-check: open — a RemoteError carries any transport failure's tag.
     error._tag === unreachable,
+
+  /**
+   * Several reads as one, so a view that needs all of them draws once. The
+   * first state any entry is in decides the result, in this order: `Failed`
+   * (the first failed key's error), `NotFound`, `Initial`, `Loading`. When
+   * every entry holds a value the result is `Refreshing` if any entry is,
+   * else `Ready`. A failure carries `previous` only when every entry still
+   * held a value (a `Ready`, a `Refreshing`, or a `Failed` with its own
+   * `previous`), so `render` draws that set stale rather than an error alone.
+   * With no entries the result is `Ready` of an empty struct.
+   *
+   * A view that wants another order folds each read with `match` instead.
+   *
+   * ```ts
+   * RemoteData.all({ project, owner }) // RemoteData<{ project: Project; owner: User }>
+   * ```
+   */
+  all: <const Entries extends Readonly<Record<string, RemoteData<unknown>>>>(
+    entries: Entries,
+  ): RemoteData<RemoteDataValues<Entries>> => {
+    const keys = Object.keys(entries)
+    const decisive = keys.reduce<RemoteData<unknown> | undefined>(
+      (best, key) =>
+        best === undefined || precedence(entries[key]!) < precedence(best) ? entries[key] : best,
+      undefined,
+    )
+    const held = keys.map(key => [key, RemoteData.held(entries[key]!)] as const)
+    const values = held.every(([, value]) => Option.isSome(value))
+      ? Option.some(
+          Object.fromEntries(
+            held.flatMap(([key, value]) => (Option.isSome(value) ? [[key, value.value]] : [])),
+          ) as RemoteDataValues<Entries>,
+        )
+      : Option.none()
+    if (decisive === undefined) return { _tag: 'Ready', value: {} as RemoteDataValues<Entries> }
+    return RemoteData.match<unknown, RemoteData<RemoteDataValues<Entries>>>(decisive, {
+      Failed: error =>
+        Option.match(values, {
+          onNone: () => ({ _tag: 'Failed', error }),
+          onSome: previous => ({ _tag: 'Failed', error, previous }),
+        }),
+      NotFound: () => ({ _tag: 'NotFound' }),
+      Initial: () => ({ _tag: 'Initial' }),
+      Loading: () => ({ _tag: 'Loading' }),
+      Ready: () => ({ _tag: 'Ready', value: Option.getOrThrow(values) }),
+      Refreshing: () => ({ _tag: 'Refreshing', value: Option.getOrThrow(values) }),
+    })
+  },
 
   map: <A, B>(data: RemoteData<A>, f: (value: A) => B): RemoteData<B> => {
     switch (data._tag) {
