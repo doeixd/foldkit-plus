@@ -84,6 +84,8 @@ export default [
   },
   {
     name: 'the stream keeps observing after it ends',
+    survives:
+      'the closed queue drops what a leaked observer offers, so nothing a test can see; the observer is released with the scope',
     edits: [{ file, find: '          observer.disconnect()\n', replace: '' }],
     tests,
   },

@@ -77,6 +77,31 @@ it('reads what is on screen once, and what scrolls into view after it', async ()
   }
 })
 
+// An IntersectionObserver in the test's iframe is clipped by the iframe's own
+// box, so a margin cannot widen what it sees there: the option is checked as
+// passed on, and the real observer is left to do the rest.
+it('gives the margin to the observer it makes, and 0px when none is given', async () => {
+  const given: Array<string | undefined> = []
+  const Real = window.IntersectionObserver
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class extends Real {
+      constructor(callback: IntersectionObserverCallback, init?: IntersectionObserverInit) {
+        given.push(init?.rootMargin)
+        super(callback, init)
+      }
+    },
+  )
+  const plain = reading()
+  const wide = reading({ margin: '300px' })
+  try {
+    await expect.poll(() => given).toEqual(['0px', '300px'])
+  } finally {
+    await plain.stop()
+    await wide.stop()
+  }
+})
+
 it('reads an address once though several links on the page go there', async () => {
   const [first, second] = column(2)
   second!.href = first!.href
