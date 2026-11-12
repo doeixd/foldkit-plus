@@ -114,6 +114,9 @@ export default [
           '{ predicate: (input: unknown) => predicate(input as Input), piece: toStyleValue(piece) },',
       },
     ],
+    // The sheet build is a build of its own, which `pnpm mutate`'s plugin does not reach. Applied by hand,
+    // four tests go red: the imported predicate, its draws, the sheet's classes and the rule check.
+    survives: 'style.ts is bundled by the sheet build, outside this run',
     tests,
   },
   {

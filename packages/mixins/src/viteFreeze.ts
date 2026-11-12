@@ -250,7 +250,7 @@ class Writer {
     if (found === undefined)
       return fail(
         this.id,
-        `${where} Style.whenInput and a predicate that is not imported. Move the predicate to a module of its own that is not listed, and import it.`,
+        `${where} Style.whenInput and a predicate that is not imported. Move the predicate to a module of its own that is not listed, and import it by name.`,
       )
     if (found.listed)
       return fail(

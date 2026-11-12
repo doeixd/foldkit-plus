@@ -16,6 +16,7 @@ import type * as Entry from './fixtures/viteStyles/frozenEntry.js'
 import type * as InputEntry from './fixtures/viteStyles/inputEntry.js'
 import * as Runtime from './fixtures/viteStyles/frozen.js'
 import * as Conditional from './fixtures/viteStyles/whenImported.js'
+import { isLarge, isOn } from './fixtures/viteStyles/predicate.js'
 
 const root = fileURLToPath(new URL('./fixtures/viteStyles/', import.meta.url))
 const mixins = fileURLToPath(new URL('../src/index.ts', import.meta.url))
@@ -259,5 +260,24 @@ describe('the rule check', () => {
     expect(() =>
       assertRules(new Map([['/frozen.ts', frozen]]), css.replace(missing.css, '')),
     ).toThrow(`"/frozen.ts" draws "${missing.className}", which the stylesheet has no rule for`)
+  })
+
+  it('holds the sheet to the classes a condition draws too', () => {
+    // What the sheet build records for a listed module's imports, by hand.
+    const known = new WeakMap<object, unknown>()
+    const key = Symbol.for('foldkit-mixins/FrozenImports')
+    Object.assign(globalThis, { [key]: known })
+    known.set(isOn, { from: './predicate.js', name: 'isOn', listed: false })
+    known.set(isLarge, { from: './predicate.js', name: 'isLarge', listed: false })
+    const conditional = freeze('/whenImported.ts', Conditional)
+    const rules = Conditional.Toggle.rules
+    const sheet = rules.map(rule => rule.css).join('') + Conditional.Declared.style.css
+    expect(() => assertRules(new Map([['/whenImported.ts', conditional]]), sheet)).not.toThrow()
+    // The root's rules come first, base then each condition: the third is one nested in another.
+    const last = rules[2]
+    if (last === undefined) throw new Error('the fixture compiles no rule')
+    expect(() =>
+      assertRules(new Map([['/whenImported.ts', conditional]]), sheet.replace(last.css, '')),
+    ).toThrow(`"${last.className}", which the stylesheet has no rule for`)
   })
 })
