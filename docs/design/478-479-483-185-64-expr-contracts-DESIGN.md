@@ -79,7 +79,9 @@ written would move a refusal that lands at the mistake today to run time.
    node alike, and `Post.fields.title` is an `EntityField`, so a method on
    nodes would leave half the chains starting with a wrapper. It would
    also give every frozen literal a prototype for a spelling.
-4. **`Num` and more `Text` operators: (a), no.** No numeric scalar operator
+4. **`Num` and more `Text` operators: (a), no.** (Revised 2026-11-12:
+   [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md), F1, builds them, each by data-query §6.0.2's
+   procedure.) No numeric scalar operator
    has a caller in `packages/*/src`, each is a primitive needing a memory
    and two SQL implementations with agreed null and collation behaviour,
    and `Num.gte` is `Expr.gte`. Subtraction waits for the inventory
@@ -103,7 +105,8 @@ written would move a refusal that lands at the mistake today to run time.
    change is planned for that.
 7. **#483: (a), close on `verify`.** A Model-reading `Expr` would be a tenth
    scalar variant that every interpreter but a new one answers "refused".
-   A `Derived` as a `struct` entry waits for a caller; none exists.
+   A `Derived` as a `struct` entry waited for a caller; [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md)
+   (F2) builds it.
 8. **Namesakes in `Reads`: (a), no.** Run time decides by identity
    (`checkOwnership`), nothing consumes a type-level distinction, and a
    unique symbol per `Entity.define` would reach every `Reads` in every
@@ -337,7 +340,8 @@ negative case that goes red when the constraint is widened. By that test:
 
 Of #479's suggested queries, `ValueOf` and `ReadsOf` exist and are
 exported. `RequirementsOf`, `ErrorsOf`, `WritesOf`, `OwnerOf` and
-`AssuranceOf` have no consumer and are not proposed.
+`AssuranceOf` had no consumer and were not proposed; [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md) (F1)
+builds `WritesOf` and `OwnerOf`, and keeps the other three out as unsound.
 
 ### 3.3 #185: is the open-operations design finished
 

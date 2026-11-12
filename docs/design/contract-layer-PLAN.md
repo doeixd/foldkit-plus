@@ -368,7 +368,8 @@ Gate: Phase 0 item 5. Independent of Phases 1 to 4.
    same note). The example the "done when" names is not written yet.
 3. **Server-only state.** A part of the snapshot the journal keeps and never
    sends. Only server-only Messages may change it, so the client's `update`
-   never needs it.
+   never needs it. To be built, after the follow-ups: D2 of
+   [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md).
 4. **What each reader may see.** Today a replica holds the whole shared
    snapshot. Readers of one document may need different slices: an owner sees
    the budget, a guest does not. The journal filters what it sends each
@@ -376,8 +377,10 @@ Gate: Phase 0 item 5. Independent of Phases 1 to 4.
    `foldkit-remote-server` already filters reads, and refuses an operation
    that touches a part its sender cannot read. The hard part is replay: a
    replica runs `update` over a partial snapshot, so an `update` must not
-   depend on a part the reader lacks. §7 Q13 asks whether that can be checked
-   or only documented.
+   depend on a part the reader lacks. §7 Q13 asked whether that can be checked
+   or only documented; it is answered (the slice is checked at commit by
+   replaying with each part withheld). To be built, after item 3: D3 of
+   [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md).
 5. **Typed rejections.** A durable Message declares its `Refusal` union, as a
    Remote `Mutation` does; `validate` returns one; the replica's rejected
    operation carries it decoded, so a cell shows the reason the same way
@@ -408,7 +411,8 @@ Gate: Phase 0 item 5. Independent of Phases 1 to 4.
    by id. Where it would run is §7 Q12.
 8. **Journal Stories.** Given committed operations, when a principal submits
    one, then it commits or is rejected with this rejection. Runs without a
-   server.
+   server. To be built as `foldkit-sync/testing`: D4 of
+   [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md).
 
 Done when: an example records a payment confirmation from a webhook as a
 server-only Message, a reaction sends a notice once per commit across a
@@ -492,7 +496,7 @@ one trace spans browser and server.
 | Q10 | Should `foldkit-composition` rename, or should we ask upstream to? | Ours to rename; decide the names in Phase 1 |
 | Q11 | How does each surface ask a person to approve? In-app it is Model state and a Message; MCP may offer elicitation; HTTP and CLI need a pending id. Who may approve: the caller, or a named role? | Phase 4, starting from Domain's `needsApproval` (alchemy-run/alchemy#2585) |
 | Q12 | When a Sync application first needs a deadline, which process runtime does a reaction hand it to: Domain's Sagas, Effect's workflow modules, or a Durable Object alarm? Each must fire at least once across restarts. Only if none fits: where does our own timer run? | Phase 5, when that application exists, with a probe of the runtime it already uses |
-| Q13 | Can we check that `update` reads nothing a reader's slice lacks, or only document it? A replay over a partial snapshot that reads a missing part diverges silently | Phase 5; try deriving each durable Message's reads from its Projection first |
+| Q13 | Can we check that `update` reads nothing a reader's slice lacks, or only document it? A replay over a partial snapshot that reads a missing part diverges silently | Answered in decisions-2026-11-12-build-deferred.md (section 4, D3): checked at commit by replaying with each part withheld |
 
 ## 8. Phase 0 findings
 

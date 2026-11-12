@@ -9,7 +9,7 @@ same day and its method is in the #430 section.
 
 | Issue | Decision | GitHub state |
 | --- | --- | --- |
-| #424 | Done at 108 lines. The 75-line target is withdrawn, and the motion items stay out until a second application writes them. | Close as completed |
+| #424 | Done at 108 lines. The 75-line target is withdrawn. The motion items are built after all, by [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md) (B1). | Close as completed |
 | #430 | The trace is taken. Placement is not what makes a frame slow, so the trace condition is retired and CSS placement is not built. It waits on upstream alone. | Stay open, `waiting on upstream`; no retitle |
 
 Other groups decided today: performance (#411, #417, #426, #473, #474,
@@ -75,9 +75,9 @@ domains-plus's look and parity tests unchanged. What is left is one
 application's look. A line count was a stand-in for that, and chasing 75 now
 would mean moving one application's choices into shared recipes.
 
-**The motion items stay out.** The 2026-11-10 rule holds: an axis one
-application passes is an option nobody else passes. Nothing has changed
-since; the search above is the evidence.
+**The motion items.** This note kept them out, on the 2026-11-10 rule that
+an axis one application passes is an option nobody else passes. [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md)
+(B1) builds them: a test or an example is a consumer.
 
 ### Next step
 

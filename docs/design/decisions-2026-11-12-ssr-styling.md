@@ -219,9 +219,10 @@ left to build?
 ### Decision
 
 **Close #420 as completed.** Every line of its "done when" holds and both
-gates passed with room. Phase 2 stays not planned: it has no caller, and the
-way to keep a conditional piece is to leave its module off the list, which
-the refusal's message says.
+gates passed with room. Phase 2 was left not planned here for want of a
+caller; [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md) (B2) builds it. Until then the way to keep a
+conditional piece is to leave its module off the list, which the refusal's
+message says.
 
 The evaluation time at 4x is not chased. #472's runs put the whole chunk's
 evaluation at about 800 ms at 4x before and after the same week's changes
@@ -305,15 +306,15 @@ it.
 
 ### Next step, done when
 
-Nothing to build. Reopen when all three hold, each observable:
+Nothing to build. Reopen when the first two hold, each observable (a third
+condition, "someone needs what only it gives", no longer applies under
+[decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md)):
 
 1. a compiled server row is product code (not a file under `test/`) and
    `pnpm bench:render` or `cpu.test.ts` shows 556 rows drawn in 10 ms or
    less on the server;
 2. `SSR.entry` can send rows after the first screen (a streamed body), or
-   the owner raises the HTML budget by the measured cost of the rows; and
-3. someone needs what only it gives: find-in-page over the whole list, or
-   the whole list without scripts.
+   the owner raises the HTML budget by the measured cost of the rows.
 
 ### GitHub
 

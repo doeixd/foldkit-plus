@@ -592,8 +592,9 @@ something; find it or revert the phase, and say which in #420.
 
 **Phase 1 parity on the build (2026-11-10).** `examples/foldkit/domains-plus/e2e/built.e2e.ts` loads the built Worker with the bundle held and asserts the served card and header read their frozen values (padding, border, sticky, flex), then releases it, types a search, and asserts the rows the runtime draws are styled, that every `style-` class in the document has a rule in a linked sheet, that no `<style>` was present at first paint and only the devtools overlay's is there after, and that no console error is logged. Dropping `modules` from the plugin turned it red at the card's padding (0px for 20px). Found while running it: the build names `geist-latin-wght-normal-*.woff2` in its sheet and preload but emits no such file (404 in the browser); the e2e lets that one through.
 
-**Phase 2: #420, conditional pieces.** Not planned. It is reopened by an
-application or shipped recipe that needs `whenInput` in a listed module.
+**Phase 2: #420, conditional pieces.** Built by B2 of
+[decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md): `whenInput` in a listed module, for a predicate
+imported from a module that is not listed. `perItem` stays refused.
 
 **Phase 3: #424, recipe defaults and shared pieces.** One recipe change per
 commit, each with a recipe test, and a browser test where the claim is
@@ -831,8 +832,8 @@ rests on the corrected one.
    root's reset, the no-script pair, which `recipes/windowList.ts` already
    writes by hand). `title: 'hidden'` ships because the wrong way to hide a
    dialog's title removes its accessible name. `motion: 'none'` and a sheet
-   duration knob wait for a second consumer: an axis one application passes
-   is an option nobody else passes. The `control` base is not shipped.
+   duration (a token, not an option) are built by B1 of
+   [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md). The `control` base is not shipped.
 
 ### #429
 

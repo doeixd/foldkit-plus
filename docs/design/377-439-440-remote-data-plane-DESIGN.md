@@ -511,7 +511,7 @@ absence of the extra count.
 | 1a | #498 (H4): a relative layer resolves over the value kept from before the first live patch | The four traces of section 2.3 as a table test: visible never exceeds the server's count in any frame, and `Data.confirmed` is the stream's value in every frame | The `it.fails` at `temporal.test.ts` "does not count a write's own live echo twice" becomes `it`; a mutation spec that resolves over the base again must be killed by rows 1 and 2; one case through the live entry with a lagging driver (`overlappingReads.test.ts`'s), the echo queued ahead of the answer; a failure shows the base at once; the record dropped on `forget`, on a live delete, and after `echoKept`; a second pending like whose first fails, and one whose first succeeds; a `computes` whose operand a live patch moves; the visible read's memo misses when the record changes and hits when it does not (two transitions) |
 | 1b | #499: an answer that disagrees with what a stream wrote while it was pending writes its value and reads the field again | The matrix's trace: answered after the third event, the read is `Refreshing` with a read planned, and the read's answer is what stays | The `it.fails` "does not let a late answer overwrite a newer live patch" is rewritten to assert the read planned and the value after `ReadReceived`, as its neighbour "reads the field again when a patch after the answer is not the answer" does; the three passing positions keep their frames, and "never Ada once the answer is in" stays; a stream that coalesces past the write (the newer value, never the write's own) is read again; an answer equal to what the stream left plans no read; a write with no prediction; mutations dropping the comparison and the record |
 | 2 | #377 ideas 2 and 3: `writing` | Chirp's `waiting` becomes a match on it, with its browser test unchanged | A table over the ledger and outbox states, one row per variant, `Unreadable` included; mutations for the precedence order and for `attempt > 0`; a restored outbox and a second tab (`outboxTabs.browser.test.ts`) read the same state; a type test that `row` refuses a string and `mutation` a name; `scripts/test/readOnlyPage.test.ts` unchanged |
-| 3 | #439 R1, when #437 or `explain` asks | Replaces `writeTrace.test.ts`'s local `candidate` | The #477 fixture, plus an exists whose `where` reads the written member (the helper's omission), a namesake Entity, a handler mutation; mutations dropping each reach variant |
+| 3 | #439 R1 (built by A1 of the build-deferred note, no longer waiting for a consumer) | Replaces `writeTrace.test.ts`'s local `candidate` | The #477 fixture, plus an exists whose `where` reads the written member (the helper's omission), a namesake Entity, a handler mutation; mutations dropping each reach variant |
 | 4 | #439 R2, when a page with many long lists exists | `read.bench.ts`: a list read after a write to another Entity falls from about 22 µs to a memo hit | In development, compare the kept value with a fresh read and report a difference (the pass's checker); a nested Selection reading a second Entity; a body reaching a third |
 
 **Phase 2 as built.** `writing(Data, model, { mutation, row })` is exported
@@ -592,6 +592,11 @@ at `c31754c`.
    `where` that helper omits. R2 is built when `read.bench.ts`'s figure
    times a real page's lists passes 1 ms per write. Until one of those
    happens the issue holds no work.
+
+   **Superseded for R1 on 2026-11-12** by [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md) (A1): R1 is
+   built now, with `explain` naming the writes that reach a list, since its
+   tests and `explain` are a consumer. R2 stays unbuilt on its measurement,
+   and #439 is reopened.
 
 5. **#377 idea 4: stage live patches under a pending relative layer?**
    Options: (a) H1, stage and read again on disagreement; (b) H2, freeze

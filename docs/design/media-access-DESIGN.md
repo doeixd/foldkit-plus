@@ -27,8 +27,8 @@ Three things change, in this order:
    back on the server. A registration mutation then takes a hash from the client, never facts,
    and guard governs it as any other write.
 3. **Private variants: not now.** The variant route stays readable by whoever holds a URL. §5
-   records the two designs that would change that and what each costs, so the choice is made
-   when an application needs it.
+   records the two designs that would change that and what each costs. [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md)
+   (G1) builds the guarded route; signed URLs stay unbuilt.
 
 | Route | Decides today | Decides after |
 | --- | --- | --- |
