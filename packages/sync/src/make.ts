@@ -350,7 +350,9 @@ export interface ApplicationSync<
  * projection. Replay refuses one that returns a Command (a live effect cannot be
  * replayed) or that changes a Model field outside the projection (the change
  * would be silently lost), so a Message that needs either stays local and emits
- * a durable fact once the effect settles.
+ * a durable fact once the effect settles. What a Message reads is not visible
+ * here, where every other field is `initial`: `Sync.mount` checks it against the
+ * live Model.
  */
 const derivedReplay = <
   AppModel,

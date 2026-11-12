@@ -2,8 +2,9 @@
  * `Sync.mount`: runs a Foldkit application over a replica with one reducer.
  *
  * A durable Message is a state-only, deterministic transition of the shared
- * projection (the derived replay enforces it), so the application's own `update`
- * is applied at once and the Message is persisted afterwards in a Command. The
+ * projection. The derived replay enforces that it writes nothing else and the mount, with
+ * `Closure.reads`, that it reads nothing else, so the application's own `update` is
+ * applied at once and the Message is persisted afterwards in a Command. The
  * shared slice is re-installed from the replica when an exchange changes it or
  * a persist fails, through one private Message the application never sees.
  */
@@ -18,8 +19,8 @@ import * as Subscription from 'foldkit/subscription'
 import type { Subscriptions } from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import * as Url from 'foldkit/url'
-import type { RunnableApplication } from 'foldkit-surface'
-import type { ReplicaError } from './errors.js'
+import { Closure, type RunnableApplication } from 'foldkit-surface'
+import { ReplayError, type ReplicaError } from './errors.js'
 import type { DefinedSync } from './make.js'
 import type { Replica, ReplicaStatus } from './sync.js'
 
@@ -452,6 +453,16 @@ export const mount = <
           >,
         )
 
+  // The Model fields outside the slice that a durable Message's result depends on. An `update`
+  // that throws on the reset Model is left to `submit`, which refuses what replay cannot apply.
+  const readsOutside = (model: Model, message: Message & Tagged): ReadonlyArray<string> => {
+    try {
+      return Closure.reads(app, sync.projection, model, message)
+    } catch {
+      return []
+    }
+  }
+
   /** The application's transition for one of its Messages, with the persist a durable one needs. */
   const step = (
     model: Model,
@@ -460,6 +471,24 @@ export const mount = <
     notifyEach(messageListeners, message)
     const result = app.update(model, message) as Update.Return<Model, RuntimeMessage, Resources>
     if (!durable.has(message._tag)) return result
+    const outside = readsOutside(model, message)
+    if (outside.length > 0) {
+      // Not applied and not submitted: every other replica and the server replay this Message over
+      // the slice alone, so the slice shown here would be one that none of them ever holds.
+      persistsOwed++
+      const error = new ReplayError({
+        message: `durable "${message._tag}" reads Model fields outside the shared projection: ${outside.join(', ')}`,
+      })
+      return {
+        model,
+        commands: [
+          {
+            name: 'foldkit-sync/closure',
+            effect: Effect.succeed({ _tag: FAILED, error } as RuntimeMessage),
+          },
+        ],
+      }
+    }
     editedSinceInstall = true
     persistsOwed++
     const edit: LocalEdit<Message> = { message, started: undefined }
