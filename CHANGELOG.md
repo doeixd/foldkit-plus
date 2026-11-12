@@ -35,8 +35,10 @@ version changed; `pnpm` skips versions already in the registry.
   `defineDocumentHost({ server: { principal, reactions } })` registers them
   when the journal opens, sets the object's alarm before replying to an
   exchange that committed, runs them after the reply, and gives the class an
-  `alarm()` that runs them and sets the alarm again from their answer. A
-  pass that broke is a `HostDefect` with stage `Alarm`.
+  `alarm()` that runs them and sets the alarm again from their answer, then
+  the base class's own `alarm()`. A pass that broke is a `HostDefect` with
+  stage `Alarm`. `armAlarm(storage, at)` brings the object's one alarm
+  earlier and never later, for a base class's own wake.
 - **Named cursors and parked runs** (`foldkit-durable`, #190): schema 7 adds
   `foldkit_durable_cursors` and `foldkit_durable_parked`, and
   `journal.cursors` (`track`, `settled`, `advance`, `stalled`, `park`,

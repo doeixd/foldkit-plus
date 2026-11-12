@@ -1438,3 +1438,30 @@ findings and twelve advisories, each checked against the source first).
 
 Jev did not run for this round either (`TYPESAFE_API_KEY` unset).
 
+**What the second review round changed** (advisories only, no blocking
+finding).
+
+- **A.** `ServerJournalOptions.server`'s doc now says what a changed
+  `actorId` does: a new trigger's append and a new key commit as the new
+  actor; a redelivered key is an `IdentityConflictError`, and a run retried
+  after its first append committed under the old actor parks.
+- **B.** Every reaction append (per trigger and index) and every
+  `appendAsServer` key leaves a row in Durable's `replicas` table, which
+  neither compaction nor `reset` deletes. The README says so; pruning, or
+  binding nothing under `server/` (§10), is a follow-up in `TODO.md`.
+- **C.** The DO host passes the runtime's alarm arguments to the base
+  class's `alarm()`, and exports `armAlarm(storage, at)`, the helper it uses
+  itself, which only brings the object's one alarm earlier. The class doc
+  and README say the base runs on every wake, decides what is due, must
+  only bring the alarm earlier, and that a subclass overriding `alarm()`
+  calls `super.alarm()`.
+- **D.** `serverJournal` serializes its own passes (a semaphore around
+  `react`), so "safe to call at any time" holds within one instance; the DO
+  host's promise chain is gone. Two instances over one store still do not
+  wait for each other, as `react`'s doc says.
+- **E.** A workerd mutation removes the alarm a pass sets from its answer;
+  the flaky-reaction test kills it. The README says a redelivery after a
+  refusal is judged afresh, never `ServerKeyReusedError`.
+
+Jev did not run for this round either (`TYPESAFE_API_KEY` unset).
+

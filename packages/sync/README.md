@@ -363,7 +363,11 @@ Sync.transport.socket({ url: 'wss://example.com/sync' })
   object is made. A `setAlarm` that fails after a commit is reported, the
   application's `settle` still runs, and the next exchange arms again.
   A pass that broke is a `HostDefect` (`Alarm`), and the alarm comes back in
-  30 seconds.
+  30 seconds. The base class's `alarm()` shares that one alarm: it runs on
+  every wake, so it decides for itself what is due, and sets its own next
+  wake with `armAlarm(ctx.storage, at)` from `foldkit-sync/do`, which only
+  ever brings the alarm earlier. A subclass that overrides `alarm()` calls
+  `super.alarm()`, or the reactions stop being resumed.
 - `settle: (env, journal) => Effect` runs after each exchange's appends, before
   the reply is read, to apply what committed elsewhere — the Remote tables a
   reader then queries. `journal.recover` makes it crash-safe and idempotent;
@@ -766,7 +770,14 @@ const serving = Effect.gen(function* () {
 - **A refused append frees its key.** The key is recorded before the append,
   so a redelivery after a deploy appends the bytes first written; when the
   journal refuses the append (`validate`, `authorize`), nothing committed and
-  the record is cleared, so the key can name a Message the rules take.
+  the record is cleared, so the key can name a Message the rules take. A
+  redelivery after a refusal is judged afresh: refused again with the same
+  error, or committed if the rules now take it, never `ServerKeyReusedError`.
+- **Each key leaves a row.** The journal keeps a replica binding per
+  `appendAsServer` key, and one per reaction append (per trigger and
+  index), in `foldkit-durable`'s `replicas` table; neither compaction nor
+  `reset` deletes them, so they grow with the facts and reactions recorded.
+  Nothing prunes them yet.
 - A server that hands `foldkit-durable`'s `append` input it did not first read
   with a `codec` reader gets no server-only check: the journal knows no
   Message's tag. Read every sent entry with `codec.writtenFrom` before

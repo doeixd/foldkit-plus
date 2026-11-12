@@ -307,3 +307,9 @@ identity markers, floating-ui), and the Jev reviews (no key here).
   the canary breaks today's workspace, so Phase 1 migrates in dependency
   order, and Sync needs an upstream hook to wrap the root `update`.
   Phase 1 waits on foldkit/foldkit#1655.
+  Phase 5 items 1 and 2 (server-only Messages, reactions) are built on the
+  branch (23266628..). Follow-ups: prune the `replicas` rows each reaction
+  append and each `appendAsServer` key leave, which neither compaction nor
+  reset deletes (or bind nothing under `server/`, the note's §10); the
+  plan's "done when" example; the sync example's effects migration;
+  `settleTodos` onto `journal.cursors`.
