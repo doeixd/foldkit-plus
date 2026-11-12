@@ -145,8 +145,13 @@ Build, in `foldkit-guard`:
 - `enforced(entity)`: `attached(entity)`, except that `None` for an identity
   recorded as guarded throws: `[foldkit-guard] Product carries guards on
   another descriptor of it; pass the one Guards.attach returned`.
-- The enforcing readers call `enforced`: `server.ts` (`:142`, `:410`, `:615`,
-  `:1214`), `drizzle.ts:30`, `sync.ts` (`:98`, `:133`). The hint readers
+- The enforcing readers call `enforced`: every read of `attached` in
+  `server.ts` (`me`, `writer` and its `children`, `validate`), and
+  `GuardServer.filter` and `mutation` where they are built (`memory` builds
+  a `filter` per Entity), `drizzle.ts`'s Read rules, and `sync.ts`'s
+  `document` and `opens`. (As built: the first version listed only the
+  `attached` lines, which left `filter`, `memory` and `mutation` reading the
+  Entity's rules through the Policy unchecked.) The hint readers
   (`may.ts`, `condition.ts`, `placed.ts`) keep `attached`: a rule declared
   with `guard.row(ProductFields, …)` is how every guard set starts.
 
@@ -1013,8 +1018,9 @@ packages read.
   comment.
 - **API:** D1 and D2.
 - **Done when:** the issue's four calls answer `Invalid`; a test over each
-  of the form, `brokenByWrite`, the Drizzle writer and `invariantChecks`
-  built on the bare descriptor; a guarded writer, a Drizzle guard and a Sync
+  of the form, `brokenByWrite`, the Drizzle writer and `checkConstraints`
+  (named `invariantChecks` here first; no such function exists) built on the
+  bare descriptor; a guarded writer, a Drizzle guard and a Sync
   guard made from a bare descriptor of a guarded Entity each throw by name;
   `docs/declared-writes.md` and `docs/entity.md` say that either name
   judges, and that a server binds the descriptor `Guards.attach` returned;
