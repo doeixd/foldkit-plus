@@ -24,7 +24,6 @@ import { RemoteServer } from 'foldkit-remote-server'
 import {
   ReplicaId,
   Sync,
-  type WrittenOperation,
   type ReplicaStatus,
   type Storage,
   type TransportClient,
@@ -84,10 +83,10 @@ const serve = () => {
   // A client between the page and the server that says its edits committed:
   // what the journal refuses, as a page's own edit never is.
   let tampering = false
-  const forged = (operation: WrittenOperation): WrittenOperation => ({
-    ...operation,
-    message: Object.assign({}, operation.message, { at: 1 }),
-  })
+  const forged = (entry: unknown) => {
+    const operation = RegistrySync.codec.writtenFrom(entry, RegistrySync.documentId)
+    return { ...operation, message: Object.assign({}, operation.message, { at: 1 }) }
+  }
   /** The page's way to the server, as one device: it commits as `device`. */
   const transportFor = (device: string) => {
     const client: TransportClient = {

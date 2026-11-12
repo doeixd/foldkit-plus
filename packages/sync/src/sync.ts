@@ -206,10 +206,14 @@ export interface ReplicaState<Shared> {
  * is the primary seam.
  */
 export interface TransportClient {
-  /** `epoch` is the server history the replica's cursor points into, when it knows one. */
+  /**
+   * `epoch` is the server history the replica's cursor points into, when it
+   * knows one. `pending` is unread, as on every transport seam: a server reads
+   * each entry with `codec.writtenFrom`, which refuses what only it may append.
+   */
   exchange(
     cursor: Sequence,
-    pending: ReadonlyArray<WrittenOperation>,
+    pending: ReadonlyArray<unknown>,
     epoch?: string | undefined,
   ): Promise<unknown>
 }

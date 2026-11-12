@@ -67,7 +67,7 @@ export const pendingOf = async (name: string, titles: ReadonlyArray<string>) => 
       Effect.provide(
         Sync.transport.fromPromise({
           exchange: async (_, pending) => {
-            held = pending
+            held = pending.map(entry => Todos.codec.writtenFrom(entry, Todos.documentId))
             throw new Error('held')
           },
         }),
@@ -82,7 +82,7 @@ export const pendingOf = async (name: string, titles: ReadonlyArray<string>) => 
 export const send = async (
   exchange: TransportClient,
   cursor: number,
-  pending: ReadonlyArray<WrittenOperation>,
+  pending: ReadonlyArray<unknown>,
 ) => {
   const reply = Todos.codec.decodeExchange(await exchange.exchange(sequence(cursor), pending))
   return {

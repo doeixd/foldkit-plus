@@ -144,8 +144,8 @@ const synchronize = (replica: Replica, client: TransportClient) =>
   )
 
 /** What a replica would send, held back. */
-const held = async (replica: Replica): Promise<ReadonlyArray<WrittenOperation>> => {
-  let sent: ReadonlyArray<WrittenOperation> = []
+const held = async (replica: Replica): Promise<ReadonlyArray<unknown>> => {
+  let sent: ReadonlyArray<unknown> = []
   await synchronize(replica, {
     exchange: async (_, pending) => {
       sent = pending
@@ -766,14 +766,15 @@ describe('a client claiming an old version', () => {
         NewNote.openReplica(keptStorage(), { replicaId: replicaId(`new-${name}`) }),
       )
       await Effect.runPromise(replica.submit(Renamed.make({ name })))
-      return (await held(replica))[0]!
+      // Read as the server reads it, for its id.
+      return NewNote.codec.writtenFrom((await held(replica))[0], NewNote.documentId)
     }
     const asOld = async (name: string) => {
       const replica = await Effect.runPromise(
         OldNote.openReplica(keptStorage(), { replicaId: replicaId(`old-${name}`) }),
       )
       await Effect.runPromise(replica.submit(old(name)))
-      return (await held(replica))[0]!
+      return NewNote.codec.writtenFrom((await held(replica))[0], NewNote.documentId)
     }
     const exchange = journalExchange({
       sync: NewNote,

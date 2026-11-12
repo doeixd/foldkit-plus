@@ -265,7 +265,9 @@ const tested = Effect.gen(function* () {
   Effect.provide(
     Sync.transport.loopback((_cursor, pending) => ({
       operations: [],
-      acknowledged: pending.map(operation => operation.opId),
+      acknowledged: pending.map(
+        entry => TodoSync.codec.writtenFrom(entry, TodoSync.documentId).opId,
+      ),
       rejected: [],
     })),
   ),

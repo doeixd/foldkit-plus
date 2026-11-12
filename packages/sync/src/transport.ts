@@ -1,6 +1,6 @@
 import { Clock, Context, Duration, Effect, Layer, PubSub, Schema, Stream } from 'effect'
 import { sequence } from './ids.js'
-import type { TransportClient, WrittenOperation } from './sync.js'
+import type { TransportClient } from './sync.js'
 import { Diagnostics } from 'foldkit-surface'
 import { listenerFailed } from './diagnostics.js'
 
@@ -13,7 +13,7 @@ export class TransportError extends Schema.TaggedError<TransportError>()('SyncTr
 export interface ExchangeFrame {
   readonly id: string
   readonly cursor: number
-  readonly pending: ReadonlyArray<WrittenOperation>
+  readonly pending: ReadonlyArray<unknown>
   readonly epoch?: string | undefined
 }
 
@@ -33,10 +33,14 @@ export interface NotifyFrame {
 }
 
 export interface TransportShape {
-  /** `epoch` is the server history the replica's cursor points into, when it knows one. */
+  /**
+   * `epoch` is the server history the replica's cursor points into, when it
+   * knows one. `pending` is unread: whoever answers reads each entry with
+   * `codec.writtenFrom` before appending it.
+   */
   readonly exchange: (
     cursor: number,
-    pending: ReadonlyArray<WrittenOperation>,
+    pending: ReadonlyArray<unknown>,
     epoch?: string | undefined,
   ) => Effect.Effect<unknown, TransportError>
   /**
@@ -75,7 +79,7 @@ const failure = (error: unknown): TransportError =>
 export const layerLoopback = (
   handler: (
     cursor: number,
-    pending: ReadonlyArray<WrittenOperation>,
+    pending: ReadonlyArray<unknown>,
     epoch?: string | undefined,
   ) => unknown | Promise<unknown>,
 ): Layer.Layer<Transport> =>
@@ -117,7 +121,7 @@ export const serveSocket = (
   options: {
     readonly exchange: (
       cursor: number,
-      pending: ReadonlyArray<WrittenOperation>,
+      pending: ReadonlyArray<unknown>,
       epoch?: string | undefined,
     ) => unknown | Promise<unknown>
     /** Subscribes to the document's commits; returns the unsubscribe. */
@@ -160,7 +164,7 @@ export const serveSocket = (
     const frame: ExchangeFrame = {
       id,
       cursor,
-      pending: pending as ReadonlyArray<WrittenOperation>,
+      pending,
       epoch: typeof epoch === 'string' ? epoch : undefined,
     }
     void (async () => {
@@ -393,7 +397,7 @@ export const layerSocket = (
       interface Entry {
         readonly id: string
         readonly cursor: number
-        readonly pending: ReadonlyArray<WrittenOperation>
+        readonly pending: ReadonlyArray<unknown>
         readonly epoch: string | undefined
         readonly resume: (effect: Effect.Effect<unknown, TransportError>) => void
       }

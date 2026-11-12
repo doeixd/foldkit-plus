@@ -51,7 +51,9 @@ test('an operation whose price breaks the Product’s rules is refused, and noth
       Effect.provide(
         Sync.transport.fromPromise({
           exchange: async (_, pending) => {
-            sent = pending
+            sent = pending.map(entry =>
+              RegistrySync.codec.writtenFrom(entry, RegistrySync.documentId),
+            )
             throw new Error('held')
           },
         }),

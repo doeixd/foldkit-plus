@@ -499,7 +499,10 @@ const serving = Effect.gen(function* () {
   (`codec.writtenFrom`, `normalizeOperation`, `operationFrom`) refuses one
   after upcasting (`ServerOnlyMessageError`), and `journalExchange` rejects it
   as `Forbidden` and reports `ServerOnlySubmitted`. Replica ids under
-  `server/` and past 128 characters are refused (`Invalid`).
+  `server/` and past 128 characters are refused (`Invalid`). What an exchange
+  receives (`Sync.transport.serve`'s `exchange`, a `TransportClient`, a
+  `loopback` handler) is `ReadonlyArray<unknown>`: a custom server reaches
+  `append` only through `codec.writtenFrom`, which makes these checks.
   `journalContract().operation.decode` reads history, server-only included:
   a hand-made journal's `decode` must be it, not `normalizeOperation`.
 - `appendAsServer(message, { key })` takes server-only Messages, a key of at

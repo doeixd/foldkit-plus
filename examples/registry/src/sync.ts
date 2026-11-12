@@ -147,7 +147,7 @@ export const pausable = <Out, E>(
       const shape = yield* Transport
       return {
         ...shape,
-        exchange: (cursor: number, pending: ReadonlyArray<WrittenOperation>, epoch?: string) =>
+        exchange: (cursor: number, pending: ReadonlyArray<unknown>, epoch?: string) =>
           paused()
             ? Effect.fail(new TransportError({ message: 'working offline' }))
             : shape.exchange(cursor, pending, epoch),

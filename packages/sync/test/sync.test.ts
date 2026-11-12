@@ -62,6 +62,9 @@ const definition: SyncDefinition<Message, Shared, unknown, unknown> = {
 }
 
 const Sync = defineSync(definition)
+/** What a test server reads what it is sent as, as a real one does. */
+const received = (pending: ReadonlyArray<unknown>) =>
+  pending.map(entry => Sync.codec.operationFrom(entry, definition.documentId))
 
 const replayCalls = { count: 0 }
 const CountingSync = defineSync({
@@ -990,7 +993,8 @@ describe('a paged exchange', () => {
     )
     const seen: Array<Array<string>> = []
     await sync(replica, {
-      exchange: async (cursor, pending) => {
+      exchange: async (cursor, entries) => {
+        const pending = received(entries)
         seen.push(shared(replica).todos.map(todo => todo.id))
         for (const sent of pending)
           if (!log.some(operation => operation.opId === sent.opId))
@@ -1032,7 +1036,8 @@ describe('a server that was reset', () => {
   const server = (epoch: string | undefined, log: Array<CommittedOperation>, page = 100) => {
     const state = { epoch, log, seen: [] as Array<string | undefined> }
     const client: TransportClient = {
-      exchange: async (cursor, sent, seen) => {
+      exchange: async (cursor, entries, seen) => {
+        const sent = received(entries)
         state.seen.push(seen)
         const from = seen !== undefined && seen !== state.epoch ? 0 : cursor
         for (const operation of sent)
@@ -1282,7 +1287,7 @@ describe('Replica.start', () => {
     const replica = await open('a')
     const exchange = layerFromPromise({
       exchange: async (cursor, pending) => ({
-        operations: pending.map((operation, index) => ({
+        operations: received(pending).map((operation, index) => ({
           ...operation,
           serverSequence: cursor + index + 1,
           actorId: 'server',
@@ -1347,7 +1352,7 @@ describe('Replica.start', () => {
         calls += 1
         if (calls <= 2) throw new Error('offline')
         return {
-          operations: pending.map((operation, index) => ({
+          operations: received(pending).map((operation, index) => ({
             ...operation,
             serverSequence: cursor + index + 1,
             actorId: 'server',

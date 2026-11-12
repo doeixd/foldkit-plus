@@ -114,7 +114,8 @@ const server = (options: { readonly refuse?: ReadonlyArray<string> } = {}) => {
   const transport: TransportClient = {
     exchange: async (cursor, pending) => {
       const rejected: Array<Operation['opId']> = []
-      for (const operation of pending) {
+      for (const entry of pending) {
+        const operation = Sync.codec.operationFrom(entry, Sync.documentId)
         received.push(operation.opId)
         if (log.some(entry => entry.opId === operation.opId)) continue
         if (options.refuse?.includes((operation.message as Message).title))
