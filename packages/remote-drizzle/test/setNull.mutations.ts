@@ -58,6 +58,12 @@ export default [
   ),
   edit('bind clears nothing', bind, '      clears,\n', '      clears: [],\n'),
   edit(
+    'a foreign key that sets null binds where the domain clears nothing',
+    bind,
+    "(action === 'set null' || action === 'set default') && declared !== 'setNull'",
+    'false',
+  ),
+  edit(
     'the writer is never asked to clear',
     server,
     'cleared.length > 0 && writer.clears !== true',

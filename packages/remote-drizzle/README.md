@@ -1370,7 +1370,12 @@ takes `clearing`, each Entity's rules for unlinking such a row as a
 `children`, and the writer refuses the whole delete as `Forbidden` where a
 row it would clear does not hold them (unknown counts as not), naming the
 Entity and none of the rows. A cascade into an Entity whose links something
-clears is refused where the writer is made.
+clears is refused where the writer is made. `bind` refuses a foreign key that
+sets null (or a default) on a relation that does not declare `setNull`, since
+the store would clear links no client foresaw. One that refuses the delete
+(`restrict`, `no action`, or no `onDelete`, the default) is let through on a
+relation that declares nothing: the delete then fails as a database error,
+not `Referenced`, so declare `onDelete: 'restrict'` to have it answered.
 
 **A cascade takes no row its deleter may not delete.** `delete` takes
 `cascading`, each Entity's `Delete` rule as a `CascadeRequirement` (Guard's

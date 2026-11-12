@@ -290,6 +290,45 @@ describe('A cleared link where the writer is made', () => {
     )
   })
 
+  // #519: a table that clears the link itself, where the domain does not, goes unforeseen.
+  const linkedBy = (onDelete: 'set null' | 'set default', declared: boolean) => {
+    const Shelf = Entity.define('Shelf', Schema.Struct({ id: Schema.String }))
+    const Box = Entity.define('Box', Schema.Struct({ id: Schema.String }))
+    const Store = Entity.relate(
+      { Shelf, Box },
+      {
+        Box: {
+          shelf: declared
+            ? Relation.one(Shelf, { optional: true, onDelete: 'setNull' })
+            : Relation.one(Shelf, { optional: true }),
+        },
+      },
+    )
+    const shelves = sqliteTable('shelves', { id: text('id').primaryKey() })
+    const boxes = sqliteTable('boxes', {
+      id: text('id').primaryKey(),
+      shelf: text('shelf').references(() => shelves.id, { onDelete }),
+    })
+    return () =>
+      bind(Store, {
+        Shelf: { table: shelves },
+        Box: { table: boxes, relations: { shelf: { field: boxes.shelf } } },
+      })
+  }
+
+  it.each(['set null', 'set default'] as const)(
+    'refuses a foreign key that would %s a link the domain does not clear',
+    action => {
+      expect(linkedBy(action, false)).toThrow(
+        `relation "shelf" on entity "Box" is stored on "shelf", whose foreign key says on delete ${action}; declare it Relation.one(Shelf, { optional: true, onDelete: 'setNull' }), so a client foresees it and the writer reports it`,
+      )
+    },
+  )
+
+  it('binds a foreign key that sets null where the domain clears the link', () => {
+    expect(linkedBy('set null', true)).not.toThrow()
+  })
+
   it('refuses a cascade into an Entity whose links something clears', () => {
     const Shelf = Entity.define('Shelf', Schema.Struct({ id: Schema.String }))
     const Box = Entity.define('Box', Schema.Struct({ id: Schema.String }))

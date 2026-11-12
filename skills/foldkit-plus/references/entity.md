@@ -114,7 +114,8 @@ the Drizzle writer holds it in the delete statement and answers
 `Refusal.referenced` (its `entity` and `relation`), naming no row.
 `{ optional: true, onDelete: 'setNull' }` keeps the comment and clears its
 link (`Entity.clearing`), in the delete's transaction, held to the comment's
-own `Update` and `Unlink` rules (Guard's `children`).
+own `Update` and `Unlink` rules (Guard's `children`); `bind` refuses a table
+foreign key that sets null where the relation does not declare `setNull`.
 
 `Derived.exists(relation, { viewer })` is a viewer-relative member: the id of a
 row pointing here through `relation` whose `viewer` relation points at whoever
