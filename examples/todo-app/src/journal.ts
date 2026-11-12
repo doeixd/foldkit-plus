@@ -73,8 +73,11 @@ export const openJournal = (path: string): ServerJournal => {
 
   const append = (input: unknown, principal: SyncPrincipal): Committed => {
     if (!principal.actorId || !principal.canWrite) throw new Error('Unauthorized operation')
+    // Read as a sent entry before the journal sees it: the journal decodes
+    // history, which takes what only the server may append.
+    const written = TodoSync.codec.writtenFrom(input, SyncDocumentId.make(principal.documentId))
     const result: DurableAppendResult<Operation> = Effect.runSync(
-      durable.append(DocumentId.make(principal.documentId), input, principal),
+      durable.append(DocumentId.make(principal.documentId), written, principal),
     )
     if (result._tag === 'AlreadyCommitted')
       throw new Error(
