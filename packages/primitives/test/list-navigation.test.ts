@@ -269,6 +269,6 @@ describe('why one Bundle', () => {
       fruits,
     }
     const b = SlotView.buildersFor(ListSlots, [roving.mixin, search.mixin], { input, h: hh })
-    expect(() => b.list.attrs()).toThrow(/two owners for event "keydownfocus"/)
+    expect(() => b.list.attrs()).toThrow(/two owners for event "keydown"/)
   })
 })
