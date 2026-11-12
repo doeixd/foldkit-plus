@@ -1,6 +1,6 @@
 # foldkit-surface
 
-Checked against `foldkit-surface` 0.12.0 and `foldkit-metadata` 0.1.0.
+Checked against `foldkit-surface` 0.14.0 and `foldkit-metadata` 0.1.0.
 
 ## What it is and what it owns
 

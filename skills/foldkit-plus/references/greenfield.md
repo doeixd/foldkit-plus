@@ -1,6 +1,6 @@
 # Starting a new application
 
-Checked against `foldkit-plus` 0.19.0.
+Checked against `foldkit-plus` 0.21.0.
 
 For an empty folder, or a user who says "build me an app". Extending an
 existing application is `npx --legacy-peer-deps foldkit-plus setup` alone.

@@ -1,6 +1,6 @@
 # foldkit-media
 
-Checked against `foldkit-media` 0.5.0.
+Checked against `foldkit-media` 0.7.0.
 
 Responsive images as URLs to write. Given an image's facts, a provider that
 knows a host's URL scheme, and how wide the image is drawn, it derives every

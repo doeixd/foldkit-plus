@@ -1,6 +1,6 @@
 # foldkit-sync + foldkit-durable
 
-Checked against `foldkit-sync` 0.15.0 and `foldkit-durable` 0.12.0.
+Checked against `foldkit-sync` 0.16.0 and `foldkit-durable` 0.13.0.
 
 Local-first replication of part of a Foldkit Model. `foldkit-sync` is the client
 replica, and `foldkit-durable` is the optional SQLite server journal that owns
@@ -247,7 +247,7 @@ error's message (Remote's `Refusal.invalid`); `Unreadable { version }` is an
 older Message version no step of the history reads (below), which the replica
 also keeps in `status.refused`. None means the server named no refusal, or one
 this build cannot read (reported as `UnknownRefusal`). `reason`, the words
-alone, is deprecated.
+alone, and the exchange reply's `reasons` are deprecated, removed in the following release.
 
 ```ts
 import { Option } from 'effect'

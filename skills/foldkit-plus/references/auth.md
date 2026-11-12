@@ -1,6 +1,6 @@
 # foldkit-auth
 
-Checked against `foldkit-auth` 0.4.0, `foldkit-remote-server` and `foldkit-remote` in the same tree.
+Checked against `foldkit-auth` 0.5.0, `foldkit-remote-server` and `foldkit-remote` in the same tree.
 
 A [Yielded Auth](https://github.com/yielded-dev/auth) session read from a
 request and handed to Remote's `serveFetch` (`AuthServer.resolver`), a page's

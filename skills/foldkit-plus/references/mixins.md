@@ -1,6 +1,6 @@
 # Mixins: `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui`
 
-Checked against `foldkit-mixins` 0.22.0, `foldkit-mixins-surface` 0.8.0 and `foldkit-mixins-ui` 0.23.0.
+Checked against `foldkit-mixins` 0.24.0, `foldkit-mixins-surface` 0.10.0 and `foldkit-mixins-ui` 0.25.0.
 
 ## 1. Purpose
 
@@ -69,7 +69,10 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   (layerable, overridable); `Style.inline` sits outside every layer and beats
   everything, so only for values no theme may touch. Bases go in `components`,
   selections in `variants`, the page's own rules in `app` (always last).
-- `protected: { events, attributes, style }` forbids attachments from supplying those.
+- `protected: { events, attributes, style }` forbids attachments from supplying those. An
+  attribute is compared by the HTML attribute a contribution sets, so `h.Attribute('aria-label', …)`,
+  `h.DataAttribute` and a `Prop` are refused where `h.AriaLabel` is; `OnCustomEvent` counts as the
+  DOM event it names.
 - **Resolver rules:** classes additive + deduped into one `Class`; Style pieces' inline style
   merged per property (later wins) over the base, but a property a Behavior sets via `h.Style`
   has one owner (`mixins:style-property-conflict` otherwise); each event / scalar attribute has

@@ -55,15 +55,21 @@ const brotliSize = text =>
   }).length
 
 /** The workspace packages an example depends on, directly or through each other. */
-const workspaceClosure = exampleDir => {
+export const workspaceClosure = exampleDir => {
   const dirOf = new Map()
   for (const dir of readdirSync(join(repo, 'packages'))) {
     const manifest = join(repo, 'packages', dir, 'package.json')
     if (existsSync(manifest)) dirOf.set(readJson(manifest).name, dir)
   }
   const seen = new Set()
-  const visit = manifest => {
-    const deps = { ...manifest.dependencies, ...manifest.peerDependencies }
+  const visit = (manifest, own = false) => {
+    // An example's own `devDependencies` count: it bundles them, and a package whose `dist` is
+    // not built resolves from source instead, so the bytes depended on which other budget had built it.
+    const deps = {
+      ...(own ? manifest.devDependencies : {}),
+      ...manifest.dependencies,
+      ...manifest.peerDependencies,
+    }
     for (const name of Object.keys(deps)) {
       const dir = dirOf.get(name)
       if (dir === undefined || seen.has(dir)) continue
@@ -71,7 +77,7 @@ const workspaceClosure = exampleDir => {
       visit(readJson(join(repo, 'packages', dir, 'package.json')))
     }
   }
-  visit(readJson(join(exampleDir, 'package.json')))
+  visit(readJson(join(exampleDir, 'package.json')), true)
   return [...seen]
 }
 
@@ -106,6 +112,38 @@ export const isStale = packageDir =>
  */
 const ensureDist = async (dirs, rebuild) => {
   const { build } = await import('tsdown')
+  // Bundle budgets run as parallel processes (CI shards, a wide local run), each finding `dist`
+  // missing. A build empties `dist` first, so a second build rewrote the one a reading process was
+  // bundling, and tsdown orders a module's imports by which resolved first, so two builds of the
+  // same source differ and so did the bundles built from them (351,342 against 351,485 bytes).
+  // One build at a time; the rest find it done.
+  const release = await lockDist()
+  try {
+    await buildMissing(dirs, rebuild, build)
+  } finally {
+    release()
+  }
+}
+
+const LOCK = join(tmpdir(), 'foldkit-plus-dist.lock')
+const LOCK_STALE_MS = 10 * 60_000
+
+const lockDist = async () => {
+  for (;;) {
+    try {
+      mkdirSync(LOCK)
+      return () => rmSync(LOCK, { recursive: true, force: true })
+    } catch (error) {
+      if (error?.code !== 'EEXIST') throw error
+      // A killed holder leaves its folder; a build never takes this long.
+      if (Date.now() - statSync(LOCK, { throwIfNoEntry: false })?.mtimeMs > LOCK_STALE_MS)
+        rmSync(LOCK, { recursive: true, force: true })
+      await new Promise(done => setTimeout(done, 200))
+    }
+  }
+}
+
+const buildMissing = async (dirs, rebuild, build) => {
   for (const dir of dirs) {
     const packageDir = join(repo, 'packages', dir)
     const manifest = readJson(join(packageDir, 'package.json'))
@@ -116,6 +154,34 @@ const ensureDist = async (dirs, rebuild) => {
     if (stale) console.error(`rebuilding ${manifest.name}: its dist is older than its source`)
     const config = (await import(pathToFileURL(join(packageDir, 'tsdown.config.ts')).href)).default
     await build({ ...config, config: false, cwd: packageDir, dts: false, logLevel: 'silent' })
+    canonicalizeDist(join(packageDir, 'dist'))
+  }
+}
+
+const IMPORT_LINE = /^(?:import|export \*).* from "[^"]+";$/
+
+/**
+ * The text with its leading run of one-line `import … from` and `export * from` statements sorted.
+ * Rolldown writes them in the order it happened to finish reading each module, so two builds of one
+ * source differ, the bundles an application makes from them differ, and a size budget reading
+ * 351,342 bytes once read 351,485 the next time.
+ */
+export const sortLeadingImports = text => {
+  const lines = text.split('\n')
+  let end = 0
+  while (end < lines.length && IMPORT_LINE.test(lines[end])) end++
+  return [...lines.slice(0, end).sort(), ...lines.slice(end)].join('\n')
+}
+
+export const canonicalizeDist = dir => {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name)
+    if (entry.isDirectory()) canonicalizeDist(path)
+    else if (entry.name.endsWith('.js') || entry.name.endsWith('.mjs')) {
+      const text = readFileSync(path, 'utf8')
+      const sorted = sortLeadingImports(text)
+      if (sorted !== text) writeFileSync(path, sorted)
+    }
   }
 }
 
@@ -578,6 +644,8 @@ export const reportFor = (client, exampleDir, routes = []) => {
     modules: modules.slice(0, 25),
     /** Every module loaded at start, by name, however small: what a test asks is in it. */
     included: modules.map(entry => entry.module),
+    /** Each loaded module's minified bytes, for naming what differs between two builds. */
+    sizes: Object.fromEntries(modules.map(entry => [entry.module, entry.minified])),
     styleSystemBrotli: style,
     ...(routes.length > 0
       ? { routes: routeFigures(client, routes, chunks, loaded, total.brotli) }
@@ -635,10 +703,48 @@ export const formatRoutes = report => {
   ].join('\n')
 }
 
+/**
+ * What differs between two builds of one source: the modules whose minified bytes differ, and the
+ * first differing region of each chunk (`dumpA`, `dumpB` are the `dump` folders of the two builds).
+ */
+export const explainDifference = (a, b, dumpA, dumpB) => {
+  const lines = [`brotli ${a.total.brotli} against ${b.total.brotli}`]
+  const names = [...new Set([...Object.keys(a.sizes), ...Object.keys(b.sizes)])].sort()
+  const moved = names.filter(name => a.sizes[name] !== b.sizes[name])
+  lines.push(
+    `modules whose minified bytes differ: ${moved.length}`,
+    ...moved.map(
+      name => `  ${name}: ${a.sizes[name] ?? 'absent'} against ${b.sizes[name] ?? 'absent'}`,
+    ),
+  )
+  const files = jsFiles(dumpA)
+    .map(file => relative(dumpA, file))
+    .sort()
+  const others = jsFiles(dumpB)
+    .map(file => relative(dumpB, file))
+    .sort()
+  if (files.join() !== others.join())
+    lines.push(`chunk files: ${files.join()} against ${others.join()}`)
+  for (const file of files.filter(name => others.includes(name))) {
+    const x = readFileSync(join(dumpA, file), 'utf8')
+    const y = readFileSync(join(dumpB, file), 'utf8')
+    if (x === y) continue
+    let at = 0
+    while (at < x.length && x[at] === y[at]) at++
+    lines.push(
+      `${file} first differs at character ${at} (${x.length} against ${y.length} characters):`,
+      `  first:  ${JSON.stringify(x.slice(Math.max(0, at - 80), at + 240))}`,
+      `  second: ${JSON.stringify(y.slice(Math.max(0, at - 80), at + 240))}`,
+    )
+  }
+  return lines.join('\n')
+}
+
 /** Builds the example's client and reports it; the test and the CLI share this. */
 export const measure = async (exampleDirectory, options) => {
   const built = await buildClient(exampleDirectory, options)
   try {
+    if (options?.dump !== undefined) cpSync(built.client, options.dump, { recursive: true })
     return reportFor(built.client, resolve(exampleDirectory), options?.routes)
   } finally {
     built.cleanup()
@@ -761,7 +867,7 @@ if (
   const target = args.find(
     (arg, index) =>
       !arg.startsWith('--') &&
-      !['--json', '--worker', '--route', '--landing'].includes(args[index - 1]),
+      !['--json', '--worker', '--route', '--landing', '--dump'].includes(args[index - 1]),
   )
   if (target === undefined) {
     console.error('usage: node scripts/bundle-report.mjs <example dir> [--json <file>] [--rebuild]')
@@ -783,7 +889,12 @@ if (
     const [name, module] = arg.split('=')
     return [{ name, module, landing: name === landing }]
   })
-  const report = await measure(target, { rebuild: flag('--rebuild') !== -1, routes })
+  const dumpAt = flag('--dump')
+  const report = await measure(target, {
+    rebuild: flag('--rebuild') !== -1,
+    routes,
+    dump: dumpAt === -1 ? undefined : resolve(args[dumpAt + 1]),
+  })
   console.log(formatReport(report))
   if (routes.length > 0) console.log(`\n${formatRoutes(report)}`)
   if (jsonPath !== undefined) {

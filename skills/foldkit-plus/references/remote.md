@@ -1,6 +1,6 @@
 # Remote: server-owned data cached in the Model
 
-Checked against `foldkit-remote` 0.23.0, `foldkit-remote-server` 0.20.0, `foldkit-remote-drizzle` 0.18.0 and `foldkit-plus` 0.19.0.
+Checked against `foldkit-remote` 0.25.0, `foldkit-remote-server` 0.22.0, `foldkit-remote-drizzle` 0.19.0 and `foldkit-plus` 0.21.0.
 
 `foldkit-remote` keeps a **normalized, disposable cache of server-owned facts
 inside the Foldkit Model**. Features declare which entity fields they need;
