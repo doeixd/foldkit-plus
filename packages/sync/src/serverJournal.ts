@@ -477,7 +477,12 @@ export const serverJournal = <
           },
         )
       if (!same) return yield* new ServerKeyReusedError({ key: fact })
-      return yield* journal.append(key, writtenEnvelope(recorded), server)
+      // A record that is no envelope is the store's fault, as a row that will not read is.
+      const kept = yield* Effect.try({
+        try: () => writtenEnvelope(recorded),
+        catch: cause => new JournalError({ message: 'Could not read a recorded operation', cause }),
+      })
+      return yield* journal.append(key, kept, server)
     })
 
   /** The run of one reaction on one committed operation: its answer, then its appends. */
