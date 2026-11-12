@@ -1,5 +1,6 @@
 import { Option, Schema, SchemaGetter } from 'effect'
 import {
+  isEcho,
   CellEditor,
   ColumnFilter,
   Columns,
@@ -154,6 +155,7 @@ describe('the filter form', () => {
         column: 'hours',
         form: { text: '', min: '2', max: '', options: [], checked: 'any', from: '', to: '' },
         reported: Option.some(range(Option.some(2), Option.none())),
+        sent: [Option.some(range(Option.some(2), Option.none()))],
         generation: 0,
       }),
     )
@@ -311,6 +313,16 @@ describe('the filter form', () => {
       { column: 'title', filter: Option.some(ColumnFilter.Contains({ text: 'xyz' })) },
     ])
     expect(Option.map(model.filtering, each => each.form.text)).toEqual(Option.some('xyz'))
+  })
+
+  test("a stale frame that is only the form's own report, late or trimmed, reseeds nothing", () => {
+    const contains = (text: string) => Option.some(ColumnFilter.Contains({ text }))
+    const sent = [Option.none(), contains('a '), contains('ab')]
+    expect(isEcho(sent, Option.none())).toBe(true)
+    expect(isEcho(sent, contains('a'))).toBe(true)
+    expect(isEcho(sent, contains('ab '))).toBe(true)
+    expect(isEcho(sent, contains('x'))).toBe(false)
+    expect(isEcho(sent, Option.some(range(Option.some(1), Option.none())))).toBe(false)
   })
 
   test('reseeds a choice from a stale frame before ticking', () => {

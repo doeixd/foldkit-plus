@@ -104,13 +104,24 @@ export default [
   ),
   grid(
     'a stale frame does not reseed',
-    '          ? { ...filtering, form: formOf(drawn), reported: drawn, generation: generation + 1 }',
-    '          ? filtering',
+    '        generation === filtering.generation\n          ?',
+    '        false\n          ?',
   ),
   grid(
     'a reseed leaves the generation',
-    'reported: drawn, generation: generation + 1 }',
-    'reported: drawn, generation }',
+    'sent: [drawn],\n              generation: generation + 1,',
+    'sent: [drawn],\n              generation,',
+  ),
+  filter('a trimmed echo is a write from outside', 'each.text.trim()', 'each.text'),
+  filter(
+    'a late echo is a write from outside',
+    'return sent.some(each',
+    'return sent.slice(-1).some(each',
+  ),
+  grid(
+    'a report is not remembered as sent',
+    'sent: [...base.sent, reading.filter],',
+    'sent: base.sent,',
   ),
   grid(
     'clearing keeps the form',

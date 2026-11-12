@@ -702,13 +702,22 @@ The form's update:
   digits, past every finite number) is not reported, so the rows stay
   filtered by the last filter that held; crossed bounds are reported, and keep
   nothing.
-- **A filter the application wrote while the form was open** (from a URL, a
-  saved view): the view draws that frame stale, showing the written filter,
-  and every change it sends (Clear included) carries the form's generation
-  when it was drawn. The first such change seeds the form from the written
-  filter before it applies; the reseed and each report move the generation
-  on, so the frame's later changes add to the first rather than seeding
-  again.
+- **The form's draft is the grid's while it is open.** The application may
+  store each `Out.Filtered` change whenever it likes (in the same update, on
+  a `UrlChanged`, debounced) and may clean it (trim a text): the form keeps
+  what was typed. The grid remembers every filter the form opened with or
+  reported since it was last seeded, and the application's filter is the
+  form's own echo while it is one of these, a `Contains` compared with its
+  text trimmed (`isEcho`). Anything else is a write from outside the form
+  (a saved view, a URL navigation, a value the application changed beyond
+  trimming, such as a clamped `Range`): the view draws that frame stale,
+  showing the written filter, and every change it sends (Clear included)
+  carries the form's generation when it was drawn. The first such change
+  seeds the form from the written filter before it applies; the reseed and
+  each report move the generation on, so the frame's later changes add to
+  the first rather than seeding again. An outside write that equals a filter
+  the form already sent cannot be told from its echo, so it leaves the form
+  as typed.
 - **While the form is open,** a paste, a fill, an undo and a redo are
   refused, as during an edit; whatever focuses a cell or opens an edit, the
   menu or a fill closes the form, and so does hiding its column (a column

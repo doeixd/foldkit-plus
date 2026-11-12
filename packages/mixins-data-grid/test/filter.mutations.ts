@@ -56,6 +56,13 @@ export default [
     unit,
   ),
   one(
+    'a filter the form sent is a write from outside',
+    view,
+    '                  const stale = isEcho(sent, drawn)',
+    '                  const stale = isEcho(sent, drawn) && false',
+    unit,
+  ),
+  one(
     'focus leaving the header leaves the form open',
     view,
     '                ? [h.OnFocusLeave(input.wrap(grid.Message.FilterClosed()))]',

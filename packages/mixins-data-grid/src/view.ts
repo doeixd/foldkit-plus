@@ -1,4 +1,4 @@
-import { Equal, Match, Option } from 'effect'
+import { Match, Option } from 'effect'
 import type { Attribute, Html, HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import * as Mount from 'foldkit/mount'
 import type { Scene } from 'foldkit/test'
@@ -17,6 +17,7 @@ import {
   type FilterForm,
   type Filters,
   formOf,
+  isEcho,
   type DataGridOf,
   type GridProjection,
   type Direction,
@@ -112,6 +113,7 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
       readonly column: Id
       readonly form: FilterForm
       readonly reported: Option.Option<ColumnFilter>
+      readonly sent: ReadonlyArray<Option.Option<ColumnFilter>>
       readonly generation: number
     }>
   }
@@ -1455,11 +1457,11 @@ const view = <Message>() => ({
               )
               return Option.match(open, {
                 onNone: () => [button],
-                onSome: ({ form, reported, generation }) => {
-                  // The application writes each report in the update that makes it,
-                  // so its filter differs from the last reported only after a write
-                  // from outside the form: a change from this frame starts from it.
-                  const stale = Equal.equals(drawn, reported)
+                onSome: ({ form, sent, generation }) => {
+                  // The form owns its draft while open: the application's filter
+                  // is stale only when it is none the form sent, so a store that
+                  // is late or cleans the value does not undo what was typed.
+                  const stale = isEcho(sent, drawn)
                     ? Option.none()
                     : Option.some({ drawn, generation })
                   return [

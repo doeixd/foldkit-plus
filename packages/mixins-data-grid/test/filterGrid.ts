@@ -61,6 +61,8 @@ const Message = defineMessageUnion({
   ...Placement.cases,
   /** The application wrote the filters itself, as a URL or a saved view would. */
   Wrote: {},
+  /** The application stores the changes it held back (`store: 'late'`). */
+  Flushed: {},
 })
 type Message = typeof Message.Type
 
@@ -71,16 +73,40 @@ const logged = (filter: Option.Option<ColumnFilter>): string =>
     onSome: given => JSON.stringify(Schema.encodeSync(ColumnFilter)(given)),
   })
 
+/** How the application stores each reported change; set by `mountTasks`. */
+type Store = 'now' | 'late' | 'trimmed'
+let store: Store = 'now'
+const held: Array<Parameters<typeof Grid.setFilter>[1]> = []
+
 const application = Bundle.assemble<Model, Message>()([
   Bundle.parent({ Model, Message }).at(Placement, {
     onOut: out => model =>
       Grid.Out.match(out, {
-        Filtered: ({ change }) => ({
-          model: modifyFields(model, {
-            filters: filters => Grid.setFilter(filters, change),
-            log: log => [...log, `${change.column}=${logged(change.filter)}`],
-          }),
-        }),
+        Filtered: ({ change }) => {
+          const log = (log: ReadonlyArray<string>) => [
+            ...log,
+            `${change.column}=${logged(change.filter)}`,
+          ]
+          if (store === 'late') {
+            held.push(change)
+            return { model: modifyFields(model, { log }) }
+          }
+          const stored =
+            store === 'trimmed' && change.column === 'title'
+              ? {
+                  column: change.column,
+                  filter: Option.map(change.filter, each =>
+                    ColumnFilter.Contains({ text: each.text.trim() }),
+                  ),
+                }
+              : change
+          return {
+            model: modifyFields(model, {
+              filters: filters => Grid.setFilter(filters, stored),
+              log,
+            }),
+          }
+        },
         Pasted: ({ accepted }) => ({
           model: modifyFields(model, { log: log => [...log, `pasted ${accepted.length}`] }),
         }),
@@ -121,7 +147,9 @@ export const tasks: ReadonlyArray<Task> = [
  * The grid on the real runtime, with the latest Model, and `write` to change
  * the filters as the application would from outside the grid (a URL).
  */
-export const mountTasks = () => {
+export const mountTasks = (options: { readonly store?: Store } = {}) => {
+  store = options.store ?? 'now'
+  held.length = 0
   const container = document.createElement('div')
   container.id = 'grid-filter'
   document.body.appendChild(container)
@@ -139,16 +167,22 @@ export const mountTasks = () => {
       init: () => application.initial(latest),
       update: (model: Model, message: Message) => {
         const next =
-          message._tag === 'Wrote'
+          message._tag === 'Flushed'
             ? {
                 model: modifyFields(model, {
-                  filters: filters => ({
-                    ...filters,
-                    title: Option.some(ColumnFilter.Contains({ text: 'paint' })),
-                  }),
+                  filters: filters => held.splice(0).reduce(Grid.setFilter, filters),
                 }),
               }
-            : update(model, message)
+            : message._tag === 'Wrote'
+              ? {
+                  model: modifyFields(model, {
+                    filters: filters => ({
+                      ...filters,
+                      title: Option.some(ColumnFilter.Contains({ text: 'paint' })),
+                    }),
+                  }),
+                }
+              : update(model, message)
         latest = next.model
         return next
       },
@@ -170,6 +204,7 @@ export const mountTasks = () => {
             ),
             // After the grid: what writes the filters as a URL would.
             h.button([h.Id('write'), h.Type('button'), h.OnClick(Message.Wrote())], ['Write']),
+            h.button([h.Id('flush'), h.Type('button'), h.OnClick(Message.Flushed())], ['Flush']),
           ],
         ),
     }),

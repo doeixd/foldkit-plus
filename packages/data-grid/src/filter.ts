@@ -1,4 +1,4 @@
-import { Option, Schema } from 'effect'
+import { Equal, Option, Schema } from 'effect'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { CellEditor } from './columns.js'
 
@@ -175,6 +175,22 @@ export const emptyForm: FilterForm = {
 const shown = (value: Option.Option<number | string>): string =>
   Option.match(value, { onNone: () => '', onSome: String })
 
+/**
+ * Whether the application's `drawn` filter is one the form itself sent (or
+ * opened with): a store that is late, or that trims a text, writes it back, and
+ * that is no write from outside the form.
+ */
+export const isEcho = (
+  sent: ReadonlyArray<Option.Option<ColumnFilter>>,
+  drawn: Option.Option<ColumnFilter>,
+): boolean => {
+  const trimmed = (filter: Option.Option<ColumnFilter>) =>
+    Option.map(filter, each =>
+      ColumnFilter.guards.Contains(each) ? ColumnFilter.Contains({ text: each.text.trim() }) : each,
+    )
+  const wanted = trimmed(drawn)
+  return sent.some(each => Equal.equals(trimmed(each), wanted))
+}
 /** The form a filter is drawn as; none is the empty form. */
 export const formOf = (filter: Option.Option<ColumnFilter>): FilterForm =>
   Option.match(filter, {

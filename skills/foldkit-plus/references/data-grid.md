@@ -189,7 +189,9 @@ the whole wiring, compiled.
   cell's text), memoized per filters value; a Remote list by mapping the
   filters onto the query's input (`Expr.whenGiven` over a nullable input,
   null for a column not filtered). An empty filter is none; a bound that is
-  no number is not reported. `Filtered` is an arm of `Grid.Out.match` only
+  no number is not reported. The open form keeps its draft: store each
+  change when you like and trim a text if you wish; a filter that is not one
+  the form sent (a saved view) replaces the draft. `Filtered` is an arm of `Grid.Out.match` only
   on a grid with a filtering column. `Grid.Filters` refuses a key no
   filtering column has. A Scene test resolves the open form with
   `resolveOpened(Grid, { wrap, opened: 'filter' })`.
