@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { Diagnostics, Layers, Style } from '../src/index.js'
 import { Knob, Theme } from '../src/theme.js'
-import { fit } from '../src/theme/gamut.js'
+import { fit, fitMix } from '../src/theme/gamut.js'
 import { palette as colors } from '../src/theme/oklch.js'
 
 const cssOf = (piece: { readonly globalCss?: ReadonlyArray<string> }) =>
@@ -420,7 +420,7 @@ describe('the palette', () => {
       expect(ladder(name)).toEqual(first)
       expect(brand[name]['6']).toContain(`var(--fk-knob-${name}-h)`)
       expect(brand[name]['wash-1']).toBe(
-        fit(`color-mix(in oklab, var(--fk-${name}-6) 8%, var(--fk-surface-base))`, name),
+        fitMix(`color-mix(in oklab, var(--fk-${name}-6) 8%, var(--fk-surface-base))`, name),
       )
     }
   })
@@ -501,7 +501,7 @@ describe('the palette', () => {
   it('derives surfaces by mixing the base toward a target by surface-contrast', () => {
     expect(brand.surface.default).toBe(
       fit(
-        'color-mix(in oklch, var(--fk-surface-base) calc(100% - var(--fk-knob-surface-contrast)), light-dark(oklch(from var(--fk-surface-base) calc(l - 0.1375) calc(c * 1.625) h), oklch(from var(--fk-surface-base) calc(l + 0.1125) calc(c * 1.25) h)) var(--fk-knob-surface-contrast))',
+        'color-mix(in oklab, var(--fk-surface-base) calc(100% - var(--fk-knob-surface-contrast)), light-dark(oklch(from var(--fk-surface-base) calc(l - 0.1375) calc(c * 1.625) h), oklch(from var(--fk-surface-base) calc(l + 0.1125) calc(c * 1.25) h)) var(--fk-knob-surface-contrast))',
         'neutral',
       ),
     )

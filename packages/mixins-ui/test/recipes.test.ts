@@ -680,7 +680,7 @@ describe('Recipes', () => {
     const css = Style.forSlots(ButtonSlots)(Recipes.Button({ variant: 'primary', size: 'sm' })).css
     expect(css).toContain('background-color:var(--fk-text-overt)')
     expect(css).toContain('color:var(--fk-surface-base)')
-    expect(css).toContain('color-mix(in oklch, var(--fk-text-overt) 85%, var(--fk-surface-base))')
+    expect(css).toContain('color-mix(in oklab, var(--fk-text-overt) 85%, var(--fk-surface-base))')
   })
 
   it.each(['outline', 'ghost', 'icon'] as const)(

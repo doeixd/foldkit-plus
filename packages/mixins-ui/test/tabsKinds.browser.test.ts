@@ -440,7 +440,7 @@ test.each(['light', 'dark'] as const)(
       expect(chip.boxShadow).toMatch(/\) 0px 0px 0px 1px$/)
       expect(chip.backgroundColor).not.toBe(tray.backgroundColor)
       // In a dark scheme the chip's fill is near its tray's, so its ring is a step stronger.
-      const ring = /oklch\(([\d.]+) [^)]*\) 0px 0px 0px 1px$/.exec(chip.boxShadow)
+      const ring = /ok(?:lch|lab)\(([\d.]+) [^)]*\) 0px 0px 0px 1px$/.exec(chip.boxShadow)
       expect(Number(ring?.[1])).toBeGreaterThan(scheme === 'dark' ? 0.4 : 0.8)
     } finally {
       handle.dispose()

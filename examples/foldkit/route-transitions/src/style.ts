@@ -81,7 +81,7 @@ export const RoutePage = slots(
         transition: `background ${t.motion.fast} ${t.motion.ease}`,
       },
       Style.pseudo(':hover', {
-        background: `color-mix(in oklch, ${t.accent.default} 80%, white)`,
+        background: `color-mix(in oklab, ${t.accent.default} 80%, white)`,
       }),
       Style.pseudo('[aria-current="page"]', { background: t.accent.active }),
     ],

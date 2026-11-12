@@ -73,7 +73,7 @@ export default [
     edits: [
       {
         file: oklch,
-        find: "fit(`color-mix(in oklab, ${v(name, '6')} ${share}%, ${v('surface', 'base')})`, name)",
+        find: "fitMix(`color-mix(in oklab, ${v(name, '6')} ${share}%, ${v('surface', 'base')})`, name)",
         replace: "`color-mix(in oklab, ${v(name, '6')} ${share}%, ${v('surface', 'base')})`",
       },
     ],

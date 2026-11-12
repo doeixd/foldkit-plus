@@ -484,7 +484,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       Style.nest('&[data-live] > :first-child', {
         background: t.success.default,
         borderColor: t.success.default,
-        boxShadow: `0 0 0 3px color-mix(in oklch, ${t.success.default} 22%, transparent)`,
+        boxShadow: `0 0 0 3px color-mix(in oklab, ${t.success.default} 22%, transparent)`,
       }),
     ),
     revisionMark: Style.self({
@@ -508,7 +508,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       margin: '0',
     }),
     revisionLive: Style.self({
-      background: `color-mix(in oklch, ${t.success.default} 14%, ${t.surface.base})`,
+      background: `color-mix(in oklab, ${t.success.default} 14%, ${t.surface.base})`,
       borderRadius: t.radius.full,
       color: t.success.ink,
       fontSize: t.size.xs,

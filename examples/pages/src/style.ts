@@ -176,7 +176,7 @@ const writing = Style.compose(
   Style.nest('[data-callout]', {
     position: 'relative',
     padding: `${t.space.md} ${t.space.lg} ${t.space.md} calc(${t.space.lg} + 1.75rem)`,
-    border: `1px solid color-mix(in oklch, ${t.accent.default} 20%, transparent)`,
+    border: `1px solid color-mix(in oklab, ${t.accent.default} 20%, transparent)`,
     borderRadius: t.radius.xl,
     background: t.accent.subtle,
     whiteSpace: 'pre-wrap',
@@ -358,7 +358,7 @@ export const Page = demoStyle.slots({
     marginInlineStart: 'auto',
     paddingInline: '6px',
     borderRadius: t.radius.full,
-    background: `color-mix(in oklch, ${peer} 35%, transparent)`,
+    background: `color-mix(in oklab, ${peer} 35%, transparent)`,
     color: t.text.default,
     fontSize: t.size.xs,
     fontWeight: t.weight.semibold,
@@ -414,7 +414,7 @@ export const Page = demoStyle.slots({
   peerAvatar: Style.compose(
     avatar,
     Style.self({
-      background: `color-mix(in oklch, ${peer} 40%, ${t.surface.base})`,
+      background: `color-mix(in oklab, ${peer} 40%, ${t.surface.base})`,
       color: t.text.default,
       boxShadow: `0 0 0 2px ${t.surface.base}`,
     }),

@@ -230,6 +230,42 @@ at fault: it keeps a color's hue, and the hue was what the grey lacked. `active`
 0.05 but at most doubles the chroma (`min(c + 0.05, c * 2)`), so a grey
 stays grey, and a fill with 0.05 of chroma or more presses exactly as before.
 
+**No color takes a grey's hue.** The maintainer then saw the CMS sidebar's
+active link and hovers paint red in desktop Chrome, on the deployed demos.
+Chromium 153, the one engine measured here, painted them blue, locally and
+from the deployed page; so did every token of the deployed CMS, site,
+registry and richtext pages, and a sweep of themes. The build was checked
+too: Lightning CSS turns `light-dark()` into variable toggles and gives the
+shadow's black a `lab()` fallback, and bakes nothing else. What engines do
+disagree on is a grey's hue, which CSS Color 4 calls powerless. Chromium 153
+keeps the hue a grey was written with as a live hue in an OKLCH mix (`color-mix(in oklch, oklch(0.5 0.2 145) 14%, oklch(1 0 235))` is hue
+222, where the spec gives 145), writes a hue of 0 for a grey that came
+through OKLab, and reads a named grey's as about 24. A grey of hue 24 mixed in OKLCH with a blue at 30% painted
+`oklch(0.88 0.045 339)`, a pink. So the palette no longer lets a grey's hue
+reach a color, in any engine:
+
+- `fit` sets the hue from the palette's hue expression (`var(--fk-hue-neutral)`
+  and so on), never from the color's own `h`. A mix of two palette colors, a
+  family's `subtle` and a scale's washes, keeps the hue the mix gave it
+  (`fitMix`): it lies between the two, and `fit` only takes chroma away.
+- Every mix of the palette, its recipes and the examples is made in OKLab,
+  which has no hue: the surface steps, inked outlines, shadows, the scrim,
+  the primary button's states. Two remain in OKLCH on purpose, the CMS's
+  accent-to-tertiary gradients, whose middle should stay vivid; both sides
+  are fitted on their own hues.
+
+In Chromium 153 not one palette token paints differently, in any theme of the
+sweep: the steps' two sides share a hue, so their OKLab and OKLCH mixes agree.
+What moved is outside the palette: the CMS's Live badge, the success color
+mixed into the page in OKLCH, painted `oklch(0.937 0.021 222)`, a blue, and now
+paints green, and the examples' other mixes of a color toward the page keep
+that color's hue the same way. Tests that a grey whose hue is red, set as the base in
+raw CSS, leaves every neutral on the neutral's hue and an application's OKLCH
+mix on the accent's side of the wheel are in `neutralHue.browser.test.ts`; a
+production build of the default foundations is checked for baked colors in
+`builtPalette.test.ts`. Whether Chrome 154 is what painted the red was not
+established.
+
 ## Deferred
 
 - **Scaffold templates** (`create-foldkit-app`). Another session owns the

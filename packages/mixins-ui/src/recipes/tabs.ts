@@ -55,7 +55,7 @@ const verticalRtl = `:where(${upright}:dir(rtl))`
  * and a hairline ring, a step stronger in a dark scheme, where the chip's fill
  * is only a little lighter than its tray.
  */
-const raisedEdge = `0 1px 2px 0 color-mix(in oklch, black 14%, transparent), ${ref.shadow.xs}, 0 0 0 ${ref.border.thin} light-dark(${ref.outline.default}, ${ref.outline.overt})`
+const raisedEdge = `0 1px 2px 0 color-mix(in oklab, black 14%, transparent), ${ref.shadow.xs}, 0 0 0 ${ref.border.thin} light-dark(${ref.outline.default}, ${ref.outline.overt})`
 
 /**
  * The narrowest a wrapping row's tabs go before it falls to fewer columns,

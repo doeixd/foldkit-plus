@@ -29,8 +29,8 @@ const NARROW = '(max-width: 43.74rem)'
 
 const rule = `${t.border.thin} solid ${t.outline.subtle}`
 /** A faint wash of the text's colour: what a row under the pointer reads. */
-const wash = `color-mix(in oklch, ${t.text.overt} 4%, transparent)`
-const tint = (color: string) => `color-mix(in oklch, ${color} 12%, transparent)`
+const wash = `color-mix(in oklab, ${t.text.overt} 4%, transparent)`
+const tint = (color: string) => `color-mix(in oklab, ${color} 12%, transparent)`
 const pill = { borderRadius: '9999px', border: '0', cursor: 'pointer', textDecoration: 'none' }
 
 /** Something pressed or followed: its focus ring drawn in the accent. */
@@ -164,7 +164,7 @@ export const ChirpPage = slots(
         gap: t.space.lg,
         minHeight: '3.3rem',
         padding: `0 ${t.space.md}`,
-        background: `color-mix(in oklch, ${t.surface.base} 85%, transparent)`,
+        background: `color-mix(in oklab, ${t.surface.base} 85%, transparent)`,
         backdropFilter: 'blur(12px)',
         borderBottom: rule,
       },
@@ -307,7 +307,7 @@ export const ChirpPage = slots(
     banner: [
       {
         height: '8rem',
-        background: `linear-gradient(135deg, ${t.accent.default}, color-mix(in oklch, ${t.accent.default} 35%, ${t.surface.base}))`,
+        background: `linear-gradient(135deg, ${t.accent.default}, color-mix(in oklab, ${t.accent.default} 35%, ${t.surface.base}))`,
       },
     ],
     profile: [{ padding: `0 ${t.space.md} ${t.space.md}`, borderBottom: rule }],

@@ -91,6 +91,17 @@ version changed; `pnpm` skips versions already in the registry.
   now adds 0.05 but at most doubles the chroma, so a grey stays grey and a fill
   with 0.05 or more presses as before.
 
+- `foldkit-mixins`, `foldkit-mixins-ui`, `foldkit-mixins-data-grid`: no derived
+  color takes a grey's hue. A grey's hue is powerless, and engines read it
+  differently: Chromium keeps the hue a grey was written with in an OKLCH mix,
+  and reads a named grey's as about 24. The palette now sets every fitted
+  color's hue from its `hue` token (a tint or a wash keeps its mix's), and the
+  palette, the recipes (Button's primary states, Tabs, ImageCropper, the data
+  grid's lines) and the shadows and scrim mix in OKLab. In Chromium 153 no
+  palette token paints differently. The examples mix in OKLab too: the CMS's
+  Live badge, the success color mixed into the page in OKLCH, painted blue
+  (hue 222) and now paints green.
+
 - `foldkit-sync`: `Sync.mount` refuses a durable Message whose slice depends on a
   local Model field. Replay runs over the slice alone, so such a Message showed one
   slice on the page and was stored as another; it is now neither applied nor

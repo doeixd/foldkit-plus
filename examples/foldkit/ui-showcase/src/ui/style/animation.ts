@@ -27,7 +27,7 @@ export const AnimationPageStyle = forSlots(AnimationPageSlots)(
     content: Style.compose(
       Style.self({
         padding: t.space.md,
-        border: `${t.border.thin} solid color-mix(in oklch, ${t.accent.default} 25%, ${t.surface.base})`,
+        border: `${t.border.thin} solid color-mix(in oklab, ${t.accent.default} 25%, ${t.surface.base})`,
         borderRadius: t.radius.lg,
         background: t.accent.subtle,
         transitionProperty: 'opacity, scale, translate',

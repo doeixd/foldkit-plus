@@ -13,7 +13,7 @@ export const ref = Theme.ref(Theme.standard())
 
 const line = `${ref.border.thin} solid ${ref.outline.subtle}`
 // Between columns: barely there, so rows read across and columns still part.
-const faint = `${ref.border.thin} solid color-mix(in oklch, ${ref.outline.subtle} 55%, transparent)`
+const faint = `${ref.border.thin} solid color-mix(in oklab, ${ref.outline.subtle} 55%, transparent)`
 // Where the pinned columns end and the scrolling ones pass under them.
 const pinnedEdge = [
   Style.nest('&[data-pinned-edge="start"]', {
@@ -236,7 +236,7 @@ export const GridStyle = Style.forSlots(GridSlots)(
     // darkens and thickens under the pointer, or while dragged.
     resizeHandle: Style.compose(
       Style.self({
-        background: `linear-gradient(to right, transparent calc(100% - 1px), color-mix(in oklch, ${ref.outline.subtle} 70%, transparent) calc(100% - 1px))`,
+        background: `linear-gradient(to right, transparent calc(100% - 1px), color-mix(in oklab, ${ref.outline.subtle} 70%, transparent) calc(100% - 1px))`,
         WebkitTouchCallout: 'none',
       }),
       Style.pseudo(':hover', {

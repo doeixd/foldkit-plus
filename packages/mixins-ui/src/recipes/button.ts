@@ -204,12 +204,12 @@ export const Button = Style.recipeFor(ButtonSlots)({
         button: variant(
           Style.self({ backgroundColor: ref.text.overt, color: ref.surface.base }),
           hover({
-            backgroundColor: `color-mix(in oklch, ${ref.text.overt} 85%, ${ref.surface.base})`,
+            backgroundColor: `color-mix(in oklab, ${ref.text.overt} 85%, ${ref.surface.base})`,
           }),
           ...press(
             ref.text.overt,
-            `color-mix(in oklch, ${ref.text.overt} 85%, ${ref.surface.base})`,
-            `color-mix(in oklch, ${ref.text.overt} 72%, ${ref.surface.base})`,
+            `color-mix(in oklab, ${ref.text.overt} 85%, ${ref.surface.base})`,
+            `color-mix(in oklab, ${ref.text.overt} 72%, ${ref.surface.base})`,
           ),
           ...raised,
         ),

@@ -499,7 +499,11 @@ is declared, so knobs set below the root change nothing derived from them there:
 `Theme.standard(theme)` holds typed tokens for surfaces, text, outlines, and the accent, secondary,
 tertiary and feedback families, derived from the theme's knobs. Only the `knob` group holds literals; every other value is a CSS
 expression over other tokens (`oklch(from …)`, `color-mix()`, `light-dark()`), so the browser does
-the derivation and one knob override recolors everything below it. Each family (`accent`,
+the derivation and one knob override recolors everything below it. A derived color takes its hue
+from the palette's hue tokens (`hue.neutral`, `hue.accent`), never from the color it starts from,
+and the palette mixes in OKLab: a grey's hue is powerless, engines read it differently (Chromium
+keeps the hue a grey was written with, others read 0, a red), and an OKLCH mix or added chroma
+carries it into the result. Mix tokens of your own the same way, `color-mix(in oklab, …)`. Each family (`accent`,
 `secondary`, `tertiary`, `success`, `warning`, `error`, `info`) is one shape: a fill, `default`,
 lighter in a dark scheme; `hover` and `active` (darker, and `active` more vivid by 0.05 of chroma, at most
 twice its own, so a grey fill stays grey when pressed); `subtle`, a tint of it on the base; `outline`, a
