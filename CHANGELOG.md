@@ -41,6 +41,17 @@ version changed; `pnpm` skips versions already in the registry.
   of days apart; months win when both fit. It reads text, not the column, so a
   text column holding ISO days now steps where it repeated. `Fill.cells` returns
   `FilledCell`, a `PastedCell` that may carry a `refusal`.
+- `foldkit-surface`: `Closure.reads(app, projection, model, message)` names the
+  top-level Model fields outside a projection that its value after `message`
+  depends on, by running `update` again with them reset to `initial` (#543).
+
+### Fixed
+
+- `foldkit-sync`: `Sync.mount` refuses a durable Message whose slice depends on a
+  local Model field. Replay runs over the slice alone, so such a Message showed one
+  slice on the page and was stored as another; it is now neither applied nor
+  submitted, and `onPersistenceFailure` gets a `ReplayError` that names the
+  fields. It costs one more `update` per durable dispatch (#543).
 
 ## 0.40.0
 
