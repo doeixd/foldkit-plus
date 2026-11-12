@@ -453,6 +453,27 @@ const membersRead = (rule: AnyRule): ReadonlyArray<string> =>
 export const attached = (entity: AnyEntity): Option.Option<Attachment> =>
   Option.fromUndefinedOr(key.get(entity.metadata)[0])
 
+/** Each Entity some descriptor of which carries guards. */
+const guarded = new WeakSet<AnyEntity['identity']>()
+
+/**
+ * `attached`, for a reader that enforces the guards (a server's Source or
+ * writer, a SQL rule, a Sync document). A descriptor without them, of an
+ * Entity another descriptor of which carries them, would be read as
+ * unguarded and serve every row open, so it throws (#539). A hint reader
+ * (`may`, a client's placement) keeps `attached`: a rule is declared over
+ * the bare descriptor before any guard is attached.
+ */
+export const enforced = (entity: AnyEntity): Option.Option<Attachment> => {
+  const attachment = attached(entity)
+  if (Option.isNone(attachment) && guarded.has(entity.identity)) {
+    throw new Error(
+      `[foldkit-guard] ${entity.name} carries guards on another descriptor of it; pass the one Guards.attach returned`,
+    )
+  }
+  return attachment
+}
+
 export const Attaching = {
   /**
    * Attaches guards to an Entity, per surface and interaction. A surface's list
@@ -493,6 +514,8 @@ export const Attaching = {
           [...(attachment.row['Read']?.rules ?? []), ...attachment.always].flatMap(membersRead),
         ),
       ]
+      // Recorded once nothing above can refuse the attachment.
+      guarded.add(entity.identity)
       return entity.pipe(
         Entity.annotate(Metadata.combine([key.of(attachment), ReadFilter.of(filtered)])),
       )

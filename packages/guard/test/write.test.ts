@@ -838,12 +838,12 @@ describe('GuardServer.mutation', () => {
         () => Effect.succeed({ output: {} }),
       ),
     ).toThrow("ArchiveTodo's Source does not apply Todo's Read rules")
-    // A Todo's rule is not a Project's, though neither carries guards of its own.
+    // A Todo's rule is not a User's, though a User carries no guards.
     expect(() =>
       GuardServer.mutation(
         ArchiveTodo,
         {
-          entity: Related.Project,
+          entity: UserRow,
           policy: Policy,
           interaction: 'Update',
           id: input => input.id,
@@ -851,7 +851,7 @@ describe('GuardServer.mutation', () => {
         },
         () => Effect.succeed({ output: {} }),
       ),
-    ).toThrow("ArchiveTodo's Source does not apply Project's Read rules")
+    ).toThrow("ArchiveTodo's Source does not apply User's Read rules")
   })
 })
 

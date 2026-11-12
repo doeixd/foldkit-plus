@@ -18,7 +18,7 @@ import { Effect, Match, Option, Schema } from 'effect'
 import type { AnyEntity } from 'foldkit-entity'
 import type { EntitySource } from 'foldkit-remote-server'
 import type { AuthorizeDecision, Operation } from 'foldkit-sync'
-import { attached, isAnyone, restricts, surfaceOf, type Deny } from './attach.js'
+import { enforced, isAnyone, restricts, surfaceOf, type Deny } from './attach.js'
 import { Condition } from './condition.js'
 import type { Policy, PrincipalGuard } from './index.js'
 
@@ -95,7 +95,7 @@ export const GuardSync = {
     for (const member of members) {
       if (!Object.hasOwn(entity.fields, member)) fail(`${member} is not a field of it`)
     }
-    Option.map(attached(entity), attachment => {
+    Option.map(enforced(entity), attachment => {
       for (const member of members) {
         if (restricts(surfaceOf(attachment, { _tag: 'Member', member, interaction: 'Read' })))
           fail(`${member} has a Read rule of its own, and every reader receives every edit`)
@@ -130,7 +130,7 @@ export const GuardSync = {
     document: GuardedDocument<User>,
     principal: Option.Option<User>,
   ): Effect.Effect<boolean> => {
-    const always = Option.match(attached(document.entity), {
+    const always = Option.match(enforced(document.entity), {
       onNone: () => [],
       onSome: ({ always }) => always.filter(rule => rule._tag === 'PrincipalGuard'),
     }) as ReadonlyArray<PrincipalGuard<User>>

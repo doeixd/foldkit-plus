@@ -30,7 +30,11 @@ export default [
   {
     name: 'a declaration never learns its Entity',
     edits: [
-      { file: '../../entity/src/invariant.ts', find: '    attached = entity.name\n', replace: '' },
+      {
+        file: '../../entity/src/invariant.ts',
+        find: '    attached = { identity: entity.identity, name: entity.name }\n',
+        replace: '',
+      },
     ],
     tests,
   },
@@ -39,7 +43,7 @@ export default [
     edits: [
       {
         file: '../../entity/src/invariant.ts',
-        find: 'if (attached !== undefined && attached !== entity.name)',
+        find: 'if (attached.identity !== entity.identity)',
         replace: 'if (false)',
       },
     ],

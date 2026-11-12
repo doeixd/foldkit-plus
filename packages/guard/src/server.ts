@@ -44,8 +44,8 @@ import {
   type WriteWhen,
 } from 'foldkit-remote-server'
 import {
-  attached,
   attachedRules,
+  enforced,
   readRowsRuled,
   readRuled,
   surfaceOf,
@@ -139,7 +139,7 @@ export const GuardServer = {
     policy: Policy<User, R>,
   ): EntitySource<Option.Option<User>, R> => {
     // Otherwise every read would die deciding another set's guards.
-    Option.map(attached(entity), ({ set }) => {
+    Option.map(enforced(entity), ({ set }) => {
       if (set !== policy.set) {
         throw new Error(
           `[foldkit-guard] GuardServer.me: Me carries the guards of ${set}, not ${policy.set}`,
@@ -182,8 +182,9 @@ export const GuardServer = {
    * RemoteServer.entity(Todo, { read, filter: GuardServer.filter(Todo, Policy) })
    * ```
    */
-  filter: <User, R>(entity: AnyEntity, policy: Policy<User, R>) =>
-    memberRules.add(
+  filter: <User, R>(entity: AnyEntity, policy: Policy<User, R>) => {
+    enforced(entity)
+    return memberRules.add(
       (
         principal: Option.Option<User>,
         fields: readonly string[],
@@ -252,7 +253,8 @@ export const GuardServer = {
         ),
       policy,
       [entity],
-    ),
+    )
+  },
 
   /**
    * `RemoteServer.memory`'s `readable` and `filter` for `entities`, the
@@ -407,7 +409,7 @@ export const GuardServer = {
       )
     }
     // A rule reading another row is judged in the statement that writes: the writer must.
-    const reaching = Option.match(attached(entity), {
+    const reaching = Option.match(enforced(entity), {
       onNone: () => [],
       onSome: ({ row }) =>
         (['Update', 'Delete'] as const).flatMap(interaction =>
@@ -427,6 +429,7 @@ export const GuardServer = {
         `[foldkit-guard] GuardServer.writer: ${entity.name}'s ${reaching.join(', ')} reads another row, which only a writer judging rules in its statement can hold it to (foldkit-remote-drizzle's writer); this writer does not`,
       )
     }
+    ;(options.children ?? []).forEach(enforced)
     const judging = cascadeJudges(entity, options.children ?? [])
     if (judging.length > 0 && (writer.requires !== true || writer.cascades !== true)) {
       throw new Error(
@@ -612,7 +615,7 @@ export const GuardServer = {
         )
       return loop(3)
     }
-    const attachment = attached(entity)
+    const attachment = enforced(entity)
     const hiddenByBody = new WeakMap<AnyQuery, ReadonlyArray<string>>()
     // An invariant reading a member a Read rule hides is still enforced, but named to no
     // one: which one failed, and where, would say what that member holds.
@@ -1082,6 +1085,7 @@ export const GuardServer = {
     >,
   ): MutationSource<Option.Option<User>, R | RS | RM> => {
     const { entity, policy, interaction, id, source } = guard
+    enforced(entity)
     if (!rowRules.has(source.visible, policy, entity)) {
       throw new Error(
         `[foldkit-guard] GuardServer.mutation: ${mutation.name}'s Source does not apply ${entity.name}'s Read rules`,
@@ -1198,12 +1202,12 @@ export const GuardServer = {
     /** Whether a reached member has a Read rule; one of an Entity not validated has none checked. */
     const hidesFromReach = ({ entity, key }: ReachedMember) =>
       Option.exists(
-        Option.flatMap(Option.fromUndefinedOr(byName.get(entity)), attached),
+        Option.flatMap(Option.fromUndefinedOr(byName.get(entity)), enforced),
         attachment => readRuled(attachment, key),
       )
     /** Whether who may read the rows of `entity` depends on who is asking. */
     const rowsRuled = (entity: AnyEntity | undefined) =>
-      Option.exists(Option.flatMap(Option.fromUndefinedOr(entity), attached), attachment =>
+      Option.exists(Option.flatMap(Option.fromUndefinedOr(entity), enforced), attachment =>
         readRowsRuled(attachment),
       )
     // A query the domain does not declare lists an Entity no one can name.
@@ -1211,7 +1215,7 @@ export const GuardServer = {
       .filter(query => !config.domain.registry.queries.has(query))
       .map(query => `query ${query} is served, but the domain does not declare it`)
     const entityProblems = config.entities.flatMap(entity =>
-      Option.match(attached(entity), {
+      Option.match(enforced(entity), {
         onNone: () => [],
         onSome: attachment => {
           const name = entity.name

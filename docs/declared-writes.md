@@ -333,6 +333,11 @@ const Stock = StockFields.pipe(
 )
 ```
 
+- **The Entity's, not one name's.** `StockFields` and `Stock` are two
+  descriptors of one Entity, and both carry the invariant: a write, a form or a
+  server binding made from either judges it. Guards differ: they travel on the
+  descriptor `Guards.attach` returns, so a server binds that one, and every
+  guard seam given another descriptor of a guarded Entity throws by name.
 - **Judged over the row a write leaves.** The writer compiles it into the same
   `WHERE`, with the fields the write sets read as their new values and each
   incremented field as its column moved: `… and reserved <= 3`. The row judged
