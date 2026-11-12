@@ -199,9 +199,17 @@ Attachments are not concatenated and left to renderer order. The resolver applie
 - inline styles from Style pieces merge per property, later attachments winning, over the
   view's base; a property a Behavior sets (through `h.Style` in its attributes) has exactly one
   owner, so a Style piece, the base, or a second Behavior setting the same property is an error;
-- an event or scalar attribute has exactly one owner — a second owner is an error;
-- a `ChildAttribute` (a Submodel's published handler) is preserved by identity;
-- `Key` and `InnerHTML` are structural and cannot be overridden;
+- an event or scalar attribute has exactly one owner — a second owner is an error. Owners are
+  compared by what Foldkit really sets on the element: `h.OnKeyDownPreventDefault` owns `keydown`
+  as `h.OnKeyDown` does, `h.OnDoubleClick` owns `dblclick`, and `h.AriaLabel`,
+  `h.Attribute('aria-label', …)` and a `Prop` named `ariaLabel` share one owner;
+- a `ChildAttribute` (a Submodel's published handler) is preserved by identity; one a Mixin adds
+  meets the same ownership and protection checks as its own attributes, and a child `Class` joins
+  the one `Class`;
+- the resolver writes the one `class` and `style`, so a Mixin may not set either through
+  `h.Attribute`, a `Prop` or a child `Style`;
+- `Key`, `InnerHTML` and a `Prop` that replaces the children are structural and cannot be
+  overridden;
 - multiple mount contributions compose into exactly one `OnMount`.
 
 Conflicts throw `Diagnostics.DiagnosticError` with stable codes such as
@@ -1318,7 +1326,10 @@ styles({ sheet: '/src/server/sheet.ts', modules: ['/src/client/style.ts'] })
   module and the sheet import.
 - **Production and development.** With a module listed, a production browser
   build's Slots inject nothing: the linked sheet holds every class, and the
-  build fails if a class a frozen module draws has no rule in it. Development
+  build fails if a class a frozen module draws has no rule in it. It fails
+  too if the page still compiles a Style (a module left off the list, or a
+  `Style.perItem` made at draw time), naming the modules that bring the
+  compiler, since its classes would have no rule to draw. Development
   is unchanged: modules run as written, and a Slot injects what it draws. The
   server build is unchanged too.
 

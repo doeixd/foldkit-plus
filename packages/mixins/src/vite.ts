@@ -47,7 +47,8 @@ export interface StylesOptions {
    * a string or an object of strings (`t`); a Style using `Style.whenInput` or
    * `Style.perItem` fails the build, and a module that needs one stays off the
    * list. With any module listed, the build's Slots inject no CSS: the sheet
-   * holds every class, and the build fails if a frozen class has no rule in it.
+   * holds every class, and the build fails if a frozen class has no rule in it
+   * or if the page still compiles a Style (a module off the list).
    * Development is unchanged.
    */
   readonly modules?: ReadonlyArray<string> | undefined
@@ -151,6 +152,44 @@ interface Built {
   readonly assets: ReadonlyArray<Rollup.OutputAsset>
 }
 
+// The Style compiler's rules module, the one thing a page that compiles a Style at run time holds.
+const COMPILER = /[\\/]styleRules\.[cm]?[jt]s$/
+const OWN_PACKAGE = /[\\/]mixins[\\/](src|dist)[\\/]|[\\/]foldkit-mixins[\\/]/
+
+/**
+ * Freezing turns the run-time injection off, which a Style compiled in the
+ * page needs for its classes to have any rule: one in a module off the list,
+ * or made per item at draw time. The compiler in the bundle is the sign of
+ * one, so the build names the modules that bring it and fails.
+ */
+const refuseCompiler = (context: Rollup.PluginContext, bundle: Rollup.OutputBundle): void => {
+  const rendered = new Set(
+    Object.values(bundle).flatMap(file =>
+      file.type === 'chunk'
+        ? Object.entries(file.modules).flatMap(([id, info]) =>
+            info.renderedLength > 0 ? [id] : [],
+          )
+        : [],
+    ),
+  )
+  const compiler = [...rendered].filter(id => COMPILER.test(id))
+  if (compiler.length === 0) return
+  // Up from the compiler through this package to the application's own modules.
+  const culprits = new Set<string>()
+  const seen = new Set<string>(compiler)
+  const queue = [...compiler]
+  for (const id of queue)
+    for (const importer of context.getModuleInfo(id)?.importers ?? []) {
+      if (seen.has(importer)) continue
+      seen.add(importer)
+      if (OWN_PACKAGE.test(importer)) queue.push(importer)
+      else if (rendered.has(importer)) culprits.add(importer)
+    }
+  throw new Error(
+    `foldkit-mixins/vite: ${[...culprits].slice(0, 5).join(', ') || 'a module'} compiles Styles in the browser build, which \`modules\` leaves with no run-time injection, so a class compiled there would have no rule. List the module in \`modules\`, or drop \`modules\`.`,
+  )
+}
+
 /** The plugin: see the module's comment. */
 export const styles = (options: StylesOptions): Plugin => {
   const modules = [...new Set(options.modules ?? [])]
@@ -252,6 +291,7 @@ export const styles = (options: StylesOptions): Plugin => {
     async generateBundle(_options, bundle) {
       // The browser build comes first, and is the one a host serves files from.
       if (this.environment.name !== 'client') return
+      if (freezing(this.environment.name)) refuseCompiler(this, bundle)
       const { css, fileName, assets } = await build()
       this.emitFile({ type: 'asset', fileName, source: css })
       // Hashed by content, so a file the browser build also references is the same file.

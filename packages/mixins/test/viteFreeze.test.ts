@@ -127,6 +127,18 @@ describe('a module in `modules`', { timeout: 60_000 }, () => {
     expect(entryOf(await built(['/frozen.ts']))).not.toContain('data-foldkit-styles')
   })
 
+  it('fails the build when a module left off the list compiles Styles in the page', async () => {
+    // The listed module turns the run-time injection off, so the unlisted Style's class would be unstyled.
+    const failure = await built(['/frozen.ts'], 'mixedEntry.ts').then(
+      () => 'built',
+      (error: unknown) => String(error),
+    )
+    expect(failure).toContain('compiles Styles in the browser build')
+    expect(failure).toContain('unlisted.ts')
+    // The same page with nothing listed keeps its injection and builds.
+    await expect(built([], 'mixedEntry.ts')).resolves.toBeDefined()
+  })
+
   it('stays as written in development, where Slots inject what they draw', async () => {
     const vite = await createServer({
       root,
