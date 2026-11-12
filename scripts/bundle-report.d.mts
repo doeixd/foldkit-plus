@@ -2,6 +2,17 @@
 export declare const newestMtime: (dir: string) => number
 /** Whether a package's `dist` is missing or older than its `src` or `package.json`. */
 export declare const isStale: (packageDir: string) => boolean
+/** The text with its leading one-line `import … from` and `export * from` statements sorted. */
+export declare const sortLeadingImports: (text: string) => string
+/** The workspace packages (folder names) an example's bundle reaches, its `devDependencies` included. */
+export declare const workspaceClosure: (exampleDir: string) => ReadonlyArray<string>
+/** What differs between two builds of one source, from their reports and `dump` folders. */
+export declare const explainDifference: (
+  first: BundleReport,
+  second: BundleReport,
+  firstDump: string,
+  secondDump: string,
+) => string
 
 export interface BundleReport {
   readonly example: string
@@ -24,6 +35,8 @@ export interface BundleReport {
   }>
   /** Every module loaded at start, by name, however small. */
   readonly included: ReadonlyArray<string>
+  /** Each loaded module's minified bytes. */
+  readonly sizes: Readonly<Record<string, number>>
   readonly styleSystemBrotli: number
   /** Present when `routes` were given. */
   readonly routes?: ReadonlyArray<RouteFigures>
@@ -59,7 +72,12 @@ export declare const exclusiveModules: (
 
 export declare const measure: (
   exampleDirectory: string,
-  options?: { readonly rebuild?: boolean; readonly routes?: ReadonlyArray<RouteSpec> },
+  options?: {
+    readonly rebuild?: boolean
+    readonly routes?: ReadonlyArray<RouteSpec>
+    /** A folder to copy the built client into. */
+    readonly dump?: string
+  },
 ) => Promise<BundleReport>
 export declare const formatReport: (report: BundleReport) => string
 
