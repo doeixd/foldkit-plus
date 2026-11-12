@@ -244,7 +244,7 @@ set, and `Expr.in` over a null list, which is now unknown rather than refused
   it with `<link rel="modulepreload">` without running it. `KeepTyped` also
   takes a checkbox or radio: its `checked` is compared with the served one and
   replayed as its named `OnChange`, `OnInput` or `OnClick` Message.
-  domains-plus builds with it under `DOMAINS_PLUS_LOADER=1`; it is not yet its
+  domains-plus builds with it under `DOMAINS_PLUS_LOADER=1`; it is not its
   default.
 
 - **`FileDrop.Message`** (`foldkit-mixins-ui`). The drop zone's four Messages

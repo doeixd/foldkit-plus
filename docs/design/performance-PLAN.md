@@ -165,14 +165,16 @@ look (#424).
 
 #426 tracks the outcome against the baseline above:
 
-- no 1102s on the free plan: under 10 ms of CPU warm (#417);
+- no 1102s on the free plan: a kept page under 10 ms of CPU warm (done, held
+  at 15 ms by `cpu.test.ts`: decisions-2026-11-12-performance.md); a rendered page's target is
+  set by #473's S1;
 - time to first byte within 2× Solid's;
 - Top Results priced sooner than stock Foldkit;
 - JavaScript under stock Foldkit's;
 - HTML under 8 KB brotli;
 - CLS under 0.1;
 - Total Blocking Time and Speed Index within stock Foldkit's, on mobile and
-  desktop (#475);
+  desktop (#472);
 - a new search no slower than stock Foldkit's (#474);
 - `style.ts` under 700 lines.
 
@@ -230,12 +232,12 @@ interleaved cold loads of `/?q=sunbeam`):
 | Requests at load | 7 | 9 | 6 | already ahead |
 | Without JavaScript | works | no prices | works | already ahead |
 | Time to first byte | 71 ms | 55 ms | 81 ms | #469, #468 |
-| JS at load, brotli | 79 KB | 215 KB | 268 KB | #472; then #420, #430 |
+| JS at load, brotli | 79 KB | 215 KB | 268 KB | #472 is opt-in; #420 done (191.6 KB); only #430 remains |
 | CSS, brotli | 8.9 KB | 8.0 KB | 18.1 KB | #487: the theme tokens nothing reads, not #471 (below) |
 | HTML, brotli | 5.4 KB | 4.5 KB | 11.1 KB | #470, #473 (it carries the prices; compare HTML with data) |
 | Failed loads (1102) | 0 | 0 | 13 of 15 never-seen searches | #473; #469 and #468 for repeated pages |
 | New search | 215 ms | 246 ms | 307 ms | #474 |
-| Speed Index, mobile (v0.37.0) | 0.9–2.4 s | 1.5–1.6 s | 3.2–4.1 s | #475 |
+| Speed Index, mobile (v0.37.0) | 0.9–2.4 s | 1.5–1.6 s | 3.2–4.1 s | #472 |
 | First 60 names priced | 213 ms | 638 ms | not reached (24 drawn) | #475 |
 
 A new search, re-measured 2026-11-09 against stock Foldkit's copy in
@@ -365,11 +367,13 @@ minutes, 10 of 10 loads were served from KV, and Worker startup fell from
    `answeredOf` reads the label once.
 5. #472: the runtime starts on intent, its chunk downloaded on idle, every
    form control's state and the scroll read into the Model at boot. Report
-   total JS and first-interaction INP beside JS at load.
+   total JS and first-interaction INP beside JS at load. Decided 2026-11-12:
+   #472 closed, the loader stays opt-in (decisions-2026-11-12-ssr-styling.md).
 6. #474: profile a new search and cut its largest part. #475: rerun
    PageSpeed on 0.38.0, fix what paints late, and give the comparison a
    milestone all three reach.
-7. #470 (with #436), #471, #420, #430.
+7. #470 (with #436), #471, #420, #430. #471 and #420 are decided
+   (decisions-2026-11-12-ssr-styling.md): #471 not built, #420 done.
 
 **Phase 1: fix what is broken.** These touch separate code and can run in
 parallel.
@@ -395,7 +399,8 @@ parallel.
     foldkit/foldkit#1657's next step upstream. That means commenting with our
     numbers and offering the PR, posted only with the maintainer's go-ahead.
 
-  #417 closes when `cpu.test.ts` holds 10 ms.
+  #417 is closed (decisions-2026-11-12-performance.md); the earlier "closes when
+  `cpu.test.ts` holds 10 ms" is superseded.
 - **Layout shift** (#418): find the moving nodes and add a CLS budget.
 - **Measurement** (#421): a bundle report by package and a JS budget. Its
   table decides how much #420 and #432 are worth, and what else to file.
@@ -410,20 +415,21 @@ parallel.
 - #428: edge caching from the declarations. A cached page also costs no CPU.
   Built in 0.38.0; on `workers.dev` it held copies only while warm (#468).
 - #429: `content-visibility` lists. They remove the list's measuring code,
-  and probably #418's shift with it.
+  and probably #418's shift with it. Settled as "first screen only"
+  (decisions-2026-11-12-ssr-styling.md).
 - #430: platform popups, removing floating-ui.
 - #431: regions memoized by default, measured with `pnpm bench:render`.
 - #427: streaming SSR, with #435 starting every read at route match.
 
 Then, from the declared-optimization note:
-- #439: the invalidation map, after #431. Narrowed 2026-11-10 to a static write-against-query function (when #437 or `explain` first needs it) and per-Entity versions (when `read.bench.ts`'s figure passes 1 ms per write on a real page), each with its trigger: [377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md).
+- #439: the invalidation map, after #431. Narrowed 2026-11-10 to a static write-against-query function and per-Entity versions, each with a trigger. Not planned since #439 closed 2026-11-12: #437 shipped without the static function, and the largest page costs 0.1 ms per write. Each reopens as a new issue naming its consumer: [377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md).
 - #437: index checks.
 - #438: route splitting.
 - #440: selection codecs, if #421 shows Schema is a real share. Decided closed 2026-11-10 on the measurement (Schema is 7.0% and 8.9% of the two clients; at most 0.76 kB could go): [377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md).
 
 Each lands with its checker in the same change.
 
-One decision joins #415, #427 and #429: how much of a long list the server
+Settled 2026-11-12 as "first screen only" (decisions-2026-11-12-ssr-styling.md). One decision joined #415, #427 and #429: how much of a long list the server
 draws. Drawing all 556 rows as `content-visibility` rows is the best page
 (no layout shift, find-in-page, no measuring), but the view's cost grows
 with the rows (about 38 ms for 66 today). Measure it after #413. Then either

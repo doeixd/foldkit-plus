@@ -22,7 +22,9 @@ phase ships alone and records its number; the gates below are the notes' own.
   +2.4 kB and a press at `load` 1,224 ms against 403 ms, since the chunk is
   fetched at idle. Fetching it at `load` (9d673d0) did not pass either: a
   press at `load` 1,194 ms against 312, total script +1.9 kB; the cost is
-  evaluating the chunk, which today's entry starts before `load`. Phase 1 built: one round trip per pass
+  evaluating the chunk, which today's entry starts before `load`. #472 closed
+  on those numbers (decisions-2026-11-12-ssr-styling.md); the loader stays
+  opt-in. Phase 1 built: one round trip per pass
   (#435). #427 closed: the `Link` header saved 6 ms of FCP (bar 50). #432's
   spike is run and not kept: `SSR.static` on the footer and the hero's copy
   moved boot by -7 and +96 ms across two runs of 12 at 4x (bar -10) and
@@ -45,20 +47,24 @@ phase ships alone and records its number; the gates below are the notes' own.
   (3c7aacb, d8e4402, e932171). Phase 2 built: `writing`
   (e35fbc3..323d1a1). Chirp's `waiting` stays on `outboxStatus` (it asks a
   per-state question; see the note). Phases 3 and
-  4 (#439's static function, per-Entity versions) wait until #437 or
-  `explain` asks, or `read.bench.ts`'s figure passes 1 ms per write.
+  4 are not planned (#439 closed 2026-11-12): #437 shipped without the static
+  function, and the largest page costs 0.1 ms per write. Each reopens as a new
+  issue naming its consumer.
   [377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md)
 - [ ] **Styling platform** (#420, #424, #429, #430). #420 phase 1 built:
   domains-plus's start-up script 217.5 to 191.6 kB brotli (39a003c..775f0bc),
   with a production-build parity e2e (c7d3471). #424 phase 3 built
   (359d739..6ad14c8): the block went from 124 to 108 lines, and 75 is out of
-  reach within the decided scope; the target is the owner's (#424 comment).
-  #429 and #430 wait on their named conditions; the upstream request
+  reach within the decided scope; #424 closed at 108 lines, the target
+  withdrawn (decisions-2026-11-12-ui.md). #420 closed as completed; #429
+  closed as not planned; #430 waits on upstream alone, its trace taken and
+  that condition retired (decisions-2026-11-12-ssr-styling.md,
+  decisions-2026-11-12-ui.md); the upstream request
   (floating-ui) can now be posted with the measured figure.
   [420-424-429-430-styling-platform-DESIGN.md](./420-424-429-430-styling-platform-DESIGN.md)
 - [ ] **Expr contracts** (#478, #479, #483, #185, #64). Phase 1 (#500) and
   phase 2 (`step`, +1.05% instantiations) are built (803f3dc, bdf0537); only
-  their Jev review is left. Close #500, #479 and #478 when the branch merges.
+  their Jev review is left (the branch merged in PR #503).
   [478-479-483-185-64-expr-contracts-DESIGN.md](./478-479-483-185-64-expr-contracts-DESIGN.md)
 - [ ] **Renderer** (#376, #148, #149). Phase 0 done: drawing and diffing are
   under half of each slow frame (32366ed), so #433's client half is closed as

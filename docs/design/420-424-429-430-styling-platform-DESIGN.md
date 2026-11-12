@@ -1,6 +1,6 @@
 # Styles at build, defaults, long lists and popups on the platform (#420, #424, #429, #430)
 
-Status: decided 2026-11-10 (decisions delegated by the owner). #420's phase 0 measured 30.1 KB and phase 1 (static style modules) is built and passed its gate, 26.0 KB off domains-plus; #424's recipe defaults are next; #429 and #430 wait on named conditions.
+Status: decided 2026-11-10 (decisions delegated by the owner). #420's phase 0 measured 30.1 KB and phase 1 (static style modules) is built and passed its gate, 26.0 KB off domains-plus; #424 closed at 108 lines, its target withdrawn, and #420 and #429 closed, and #430's trace condition retired so it waits on upstream alone (decisions-2026-11-12-ui.md, decisions-2026-11-12-ssr-styling.md).
 
 Four issues from [performance-PLAN.md](./performance-PLAN.md) that all change
 what `foldkit-mixins` and `foldkit-mixins-ui` hand a browser: less script
@@ -655,7 +655,7 @@ budget on 556 rows; a Message that changes no row draws no row, counted
 after a second change. The recipe's `content-visibility` rule stands inside
 `@supports (overflow-anchor: auto)`.
 
-**Phase 5: #430, CSS placement.** Waits. Built for Listbox first when either
+**Phase 5: #430, CSS placement.** Waits. The trace condition below is superseded by decisions-2026-11-12-ui.md: the trace is taken, and only upstream's request remains. Built for Listbox first when either
 condition holds:
 
 - upstream ships a way to leave floating-ui out of the chunk (the request
@@ -870,7 +870,7 @@ rests on the corrected one.
 
 ### #430
 
-9. **(b): not built now. Built for Listbox when upstream can drop
+9. **(Superseded for the trace condition by decisions-2026-11-12-ui.md.) (b): not built now. Built for Listbox when upstream can drop
    floating-ui, or when a trace shows placement costing a frame.** The
    trial saves no bytes (floating-ui stays for the fallback and for
    `anchor.ts`, `cascadeSelect.ts` and `tour.ts`), nothing has measured the

@@ -9,8 +9,9 @@ export default defineConfig(({ command }) => {
   // the build's id, or the browser contains every page instead of resuming it.
   if (command === 'build') process.env.FOLDKIT_BUILD_ID ??= crypto.randomUUID()
   // Opt-in (#472): the page loads `foldkit-ssr/loader`, and the plan starts
-  // idle. Not the default until its first press, Total Blocking Time and
-  // total script are measured against today's entry.
+  // idle. Not the default: its first press, Total Blocking Time and
+  // total script were measured against today's entry, and the default stays
+  // (decisions-2026-11-12-ssr-styling.md).
   const loader = process.env.DOMAINS_PLUS_LOADER === '1'
   return {
     define: { 'import.meta.env.DOMAINS_PLUS_LOADER': JSON.stringify(loader ? '1' : '') },

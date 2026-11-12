@@ -213,15 +213,18 @@ In the same change:
       go-ahead. #185, #64, #483 and #440 closed; the narrowed issues retitled
       and commented; park comments on #376, #433, #148, #149 and a comment on
       #474; the two Bundle.lazy bugs filed as #501 and #502.
-- [ ] **Release 0.39.0 is on `main`, not tagged** (#504, with #505's server-only
-      Messages and reactions folded in by #506): 44 packages one minor up,
-      `foldkit-host` first published at 0.1.0. A cloud session can neither push
-      the tag (the git proxy answers 403) nor dispatch `release.yml` (403 for the
-      GitHub integration), so the maintainer runs it. To publish: `git tag v0.39.0 && git push origin v0.39.0` on `main` runs
-      `release.yml`, which publishes when `NPM_TOKEN` is set and makes the GitHub
-      release from `## 0.39.0`. Afterwards mark `foldkit-host` Published in
-      `docs/releases.md`. The release after removes `saved`, `Rejection.reason`
-      and the server's `reasons`.
+- [ ] **Release 0.39.0: tagged, but its Release run failed** (#504, with
+      #505's server-only Messages and reactions folded in by #506): 44 packages
+      one minor up, `foldkit-host` first published at 0.1.0. `v0.39.0` was
+      tagged at 3672017b, and Release run 43218652067 failed in `pnpm test`
+      (the domains-plus look test timed out). #509 fixed that. The maintainer
+      moves the tag to ec970799 and re-runs the release: `release.yml` publishes
+      when `NPM_TOKEN` is set and makes the GitHub release from `## 0.39.0`. A
+      cloud session can neither push a tag (the git proxy answers 403) nor
+      dispatch `release.yml` (403 for the GitHub integration). Afterwards mark
+      `foldkit-host` Published in `docs/releases.md`. The release after removes
+      `saved`, `Rejection.reason`, the server's `reasons`, and `editsJournal`'s
+      `absorbed` and `server` options.
 - [ ] **`TYPESAFE_API_KEY`**, so the Jev review can run. It is owed on:
   - #497's public API: `SSR.headed`, `RootRefusesHead`, the exported SSR
     diagnostic types, `Button.view`'s `attributes`, the resolver's class
@@ -288,15 +291,15 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
 2. **The UI polish leftovers** in `docs/design/TODO.md`: all wait on
    `@foldkit/ui` (foldkit/foldkit#1686 to #1689).
 
-Waiting on the owner: #424's defaults (its 75-line target is out of reach),
-the upstream posts (foldkit#1657, #1872, the Workers `fetch` signature, the
+Waiting on the owner: the upstream posts (foldkit#1657, #1872, the Workers `fetch` signature, the
 identity markers, floating-ui), and the Jev reviews (no key here).
 
 ## Parked
 
 - **#474:** a new search is ahead of stock Foldkit locally (198 against 260
   ms at 1x). What is left is the live three-way benchmark against the
-  deployed Workers, which needs a deploy and the Cloudflare login.
+  deployed Workers, which needs a deploy and the Cloudflare login; decided by
+  #426's run (decisions-2026-11-12-performance.md).
 - **#413:** our half is done (page 362 to 69 KB, parse5 175 to 41 ms; workerd
   125 to 150 ms warm). The rest waits on foldkit#1657.
 - **#190** (the contract layer): Phase 0 items 6 and 7 done 2026-11-11 (the
@@ -313,6 +316,10 @@ identity markers, floating-ui), and the Jev reviews (no key here).
   Phase 5 items 1 and 2 (server-only Messages, reactions) are built on the
   branch (23266628..). Follow-ups: prune the `replicas` rows each reaction
   append and each `appendAsServer` key leave, which neither compaction nor
-  reset deletes (or bind nothing under `server/`, the note's §10); the
-  plan's "done when" example; the sync example's effects migration;
-  `settleTodos` onto `journal.cursors`.
+  reset deletes. Follow-ups, in order:
+  1. the editing guide off the deprecated `editsJournal` options;
+  2. bind nothing under `server/` (the note's §10);
+  3. `settleTodos` onto `journal.cursors`;
+  4. the sync example's effects as a reaction, with the plan's "done when"
+     example;
+  5. remove the deprecated options in the release after 0.39.0.
