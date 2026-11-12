@@ -1,6 +1,6 @@
 {
   "name": "foldkit-host",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The parts of a server's fetch handler for a Foldkit Plus application: values built once per isolate, the built page template, an ordered route table behind one configured origin, and a Node adapter for the same handler.",
   "keywords": [
     "foldkit",
