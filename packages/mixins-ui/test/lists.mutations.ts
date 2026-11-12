@@ -98,8 +98,8 @@ export default [
     edits: [
       {
         file: '../../mixins/src/resolver.ts',
-        find: '      if (isClass(inner)) {',
-        replace: '      if (false && isClass(inner)) {',
+        find: 'drop the other.\n      if (isClass(inner)) {',
+        replace: 'drop the other.\n      if (false && isClass(inner)) {',
       },
     ],
     tests: [...tests, 'packages/mixins-ui/test/fileDrop.test.ts'],
