@@ -7,7 +7,32 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
-Fixes from a review of everything 0.39.0 changed (#511 to #530).
+## 0.40.0
+
+Fixes from a review of everything 0.39.0 changed (#511 to #530). A Sync
+transport and a durable codec take what a socket sends as `unknown`, so only
+`codec.writtenFrom` can make an entry the journal appends. A Slot's protected
+events, attributes and style can no longer be bypassed by another spelling, a
+Mixin's child attribute or a raw `style`. A data-grid filter form keeps its
+draft, a lazy bundle and a collection draw correctly, and the Drizzle writer
+checks what a clearing delete leaves behind.
+
+Versions: 35 packages are a new minor: the eleven whose code or README changed
+(`foldkit-bundle`, `foldkit-data-grid`, `foldkit-durable`, `foldkit-host`,
+`foldkit-media`, `foldkit-mixins`, `foldkit-mixins-data-grid`,
+`foldkit-mixins-ui`, `foldkit-remote`, `foldkit-remote-drizzle` and
+`foldkit-sync`) and each package that depends on one of them. `foldkit-agent*`,
+`foldkit-entity`, `foldkit-metadata`, `foldkit-mirror`, `foldkit-react`,
+`foldkit-react-codegen`, `foldkit-ssr` and `foldkit-surface` keep their
+versions. Breaking, in types: `foldkit-sync` (an exchange handler's `pending`
+is `unknown`; `operation.encode` refuses a `codec.committedFrom` value),
+`foldkit-durable` (`Codec.compared` returns `unknown`; `Codec.decode` is a
+method) and `foldkit-data-grid` (`Model.filtering` gains `sent`). Breaking in
+behaviour: `foldkit-mixins`, whose resolver now refuses a Mixin's `class`,
+`style`, inline handler or children-replacing `Prop`, and reads a handler,
+attribute or style property by what it writes. Still deprecated, not yet
+removed: `editsJournal`'s `absorbed` and `server`, and the `saved` input on
+`foldkit-mixins-form` and `foldkit-crud`.
 
 ### Added
 
