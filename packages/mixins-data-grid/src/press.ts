@@ -1,5 +1,6 @@
 import { Effect, Queue, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
+import { copyHtmlOn } from './copyHtml.js'
 import {
   FillDragEnded,
   FillDragStarted,
@@ -92,13 +93,18 @@ export const CellPress = Mount.defineStream('DataGridCellPress', {
             Queue.offerUnsafe(queue, CellClicked.make({ cell: cell.id, shiftKey, toggleKey }))
           }
           element.addEventListener('click', listener)
+          // The root's copy and cut are the view's; this adds the HTML to them. A copy
+          // aimed at the focused root never reaches the cells' container.
+          const root = element.closest('[role="grid"]')
+          const copying = root === null ? () => {} : copyHtmlOn(root)
           Queue.offerUnsafe(queue, CellsListening.make({}))
-          return { listener, fill }
+          return { listener, fill, copying }
         }),
-        ({ listener, fill }) =>
+        ({ listener, fill, copying }) =>
           Effect.sync(() => {
             element.removeEventListener('click', listener)
             fill.dispose()
+            copying()
           }),
       ),
     ),

@@ -155,3 +155,34 @@ describe('Clipboard.pasteAt', () => {
     ])
   })
 })
+
+describe('Clipboard.toHtml', () => {
+  test.each<[string, ReadonlyArray<ReadonlyArray<string>>, string]>([
+    [
+      'a table of the matrix',
+      [
+        ['a', 'b'],
+        ['c', 'd'],
+      ],
+      '<table><tbody><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></tbody></table>',
+    ],
+    [
+      'markup is escaped',
+      [['<img src=x onerror=alert(1)>', 'a & "b"']],
+      '<table><tbody><tr><td>&lt;img src=x onerror=alert(1)&gt;</td><td>a &amp; &quot;b&quot;</td></tr></tbody></table>',
+    ],
+    [
+      'a line break is a br, whichever it was',
+      [['a\nb\r\nc\rd']],
+      '<table><tbody><tr><td>a<br>b<br>c<br>d</td></tr></tbody></table>',
+    ],
+    [
+      'an empty cell is an empty td',
+      [['', 'x']],
+      '<table><tbody><tr><td></td><td>x</td></tr></tbody></table>',
+    ],
+    ['no rows is an empty table', [], '<table><tbody></tbody></table>'],
+  ])('%s', (_, rows, html) => {
+    expect(Clipboard.toHtml(rows)).toBe(html)
+  })
+})
