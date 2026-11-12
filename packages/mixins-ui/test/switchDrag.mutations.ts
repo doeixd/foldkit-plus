@@ -55,6 +55,17 @@ export default [
     tests,
   },
   {
+    name: 'a refused drag keeps the thumb held',
+    edits: [
+      {
+        file: source,
+        find: 'timer: window.setTimeout(rest, HOLD_FOR_ANSWER)',
+        replace: 'timer: 0',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'the thumb is not held at the far end',
     edits: [
       {
