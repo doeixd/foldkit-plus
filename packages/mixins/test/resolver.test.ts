@@ -34,6 +34,13 @@ const codeOf = (f: () => unknown): string => {
 const prop = (key: string, value: unknown): Attribute<TestMessage> =>
   ({ _tag: 'Prop', key, value }) as unknown as Attribute<TestMessage>
 
+const customEvent = (name: string): Attribute<TestMessage> =>
+  ({
+    _tag: 'OnCustomEvent',
+    name,
+    f: () => Option.some({ _tag: 'Clicked' }),
+  }) as Attribute<TestMessage>
+
 describe('Resolver.resolve', () => {
   it('adds and deduplicates class tokens, emitting one Class', () => {
     const out = Resolver.resolve([h.Class('a b'), h.Class('b c')], [{ classes: ['c', 'd'] }])
@@ -103,21 +110,172 @@ describe('Resolver.resolve', () => {
     ).toBe('mixins:event-conflict')
   })
 
-  it('keys the self-only and before-input variants apart from their base events', () => {
-    // Foldkit 0.159 added `OnKeyDownSelf` and `OnBeforeInput`; each is its own
-    // event token, as `OnKeyDownPreventDefault` already was beside `OnKeyDown`.
+  it('keeps before-input apart from input: they are two DOM events', () => {
     const out = Resolver.resolve(
-      [h.OnKeyDown(() => ({ _tag: 'Clicked' })), h.OnInput(() => ({ _tag: 'Clicked' }))],
-      [
-        {
-          attributes: [
-            h.OnKeyDownSelf(() => ({ _tag: 'Other' })),
-            h.OnBeforeInput(() => ({ _tag: 'Other' })),
-          ],
-        },
-      ],
+      [h.OnInput(() => ({ _tag: 'Clicked' }))],
+      [{ attributes: [h.OnBeforeInput(() => ({ _tag: 'Other' }))] }],
     )
-    expect(tags(out)).toEqual(['OnKeyDown', 'OnInput', 'OnKeyDownSelf', 'OnBeforeInput'])
+    expect(tags(out)).toEqual(['OnInput', 'OnBeforeInput'])
+  })
+
+  describe('an event variant is the DOM event it listens to (#523)', () => {
+    const none = () => Option.none()
+    const keydownVariants: ReadonlyArray<readonly [string, () => Attribute<TestMessage>]> = [
+      ['OnKeyDownPreventDefault', () => h.OnKeyDownPreventDefault(none)],
+      ['OnKeyDownSelf', () => h.OnKeyDownSelf(() => ({ _tag: 'Other' }))],
+      ['OnKeyDownSelfPreventDefault', () => h.OnKeyDownSelfPreventDefault(none)],
+      ['OnKeyDownFocus', () => h.OnKeyDownFocus(none)],
+    ]
+
+    it.each(keydownVariants)('refuses %s on a slot protecting keydown', (_name, make) => {
+      const protection = Slot.make({
+        protected: { events: [Event.KeyDown], attributes: [], style: [] },
+      }).protected
+      expect(
+        codeOf(() =>
+          Resolver.resolve([], [{ attributes: [make()] }], {
+            slot: 'editor',
+            protected: protection,
+          }),
+        ),
+      ).toBe('mixins:protected-event')
+    })
+
+    it.each(keydownVariants)('finds %s a second owner of the view keydown', (_name, make) => {
+      expect(
+        codeOf(() =>
+          Resolver.resolve([h.OnKeyDown(() => ({ _tag: 'Clicked' }))], [{ attributes: [make()] }]),
+        ),
+      ).toBe('mixins:event-conflict')
+    })
+
+    it.each([
+      ['OnDoubleClick', 'dblclick', () => h.OnDoubleClick({ _tag: 'Clicked' })],
+      ['OnFocusEnter', 'focusin', () => h.OnFocusEnter({ _tag: 'Clicked' })],
+      ['OnFocusLeave', 'focusout', () => h.OnFocusLeave({ _tag: 'Clicked' })],
+      ['OnFileChange', 'change', () => h.OnFileChange(() => ({ _tag: 'Clicked' }))],
+      ['OnDropFiles', 'drop', () => h.OnDropFiles(() => ({ _tag: 'Clicked' }))],
+      ['AllowDrop', 'dragover', () => h.AllowDrop()],
+      ['OnCopyText', 'copy', () => h.OnCopyText('x')],
+      ['OnCancelPreventDefault', 'cancel', () => h.OnCancelPreventDefault()],
+    ])('meets a custom %s event under the name %s', (_name, event, make) => {
+      expect(codeOf(() => Resolver.resolve([make()], [{ attributes: [customEvent(event)] }]))).toBe(
+        'mixins:event-conflict',
+      )
+    })
+
+    it('refuses a handler tag Foldkit does not have, rather than guess its event', () => {
+      const unknown = {
+        _tag: 'OnKeyDownSomehow',
+        f: () => Option.none(),
+      } as unknown as Attribute<TestMessage>
+      expect(codeOf(() => Resolver.resolve([], [{ attributes: [unknown] }]))).toBe(
+        'mixins:unsupported-event',
+      )
+    })
+  })
+
+  describe("a Mixin's child attribute meets the same checks as its own (#523, #524)", () => {
+    const protection = Slot.make({
+      protected: { events: [Event.Click], attributes: [Attr.Role], style: [] },
+    }).protected
+    const options = { slot: 'root', protected: protection }
+
+    it('refuses a protected event or attribute wrapped in a child', () => {
+      expect(
+        codeOf(() =>
+          Resolver.resolve(
+            [],
+            [{ attributes: [fakeChild(h.OnClick({ _tag: 'Clicked' }))] }],
+            options,
+          ),
+        ),
+      ).toBe('mixins:protected-event')
+      expect(
+        codeOf(() => Resolver.resolve([], [{ attributes: [fakeChild(h.Role('x'))] }], options)),
+      ).toBe('mixins:protected-attribute')
+    })
+
+    it('finds a child a second owner', () => {
+      expect(
+        codeOf(() =>
+          Resolver.resolve(
+            [h.OnClick({ _tag: 'Clicked' })],
+            [{ attributes: [fakeChild(h.OnClick({ _tag: 'Other' }))] }],
+          ),
+        ),
+      ).toBe('mixins:event-conflict')
+      expect(
+        codeOf(() =>
+          Resolver.resolve([h.Role('button')], [{ attributes: [fakeChild(h.Role('link'))] }]),
+        ),
+      ).toBe('mixins:attribute-conflict')
+    })
+
+    it("joins a child's class to the slot's one class", () => {
+      const out = Resolver.resolve([h.Class('slot')], [{ attributes: [fakeChild(h.Class('mix'))] }])
+      expect(tags(out)).toEqual(['Class'])
+      expect(classOf(out)).toBe('slot mix')
+    })
+
+    it('refuses structure wrapped in a child', () => {
+      expect(codeOf(() => Resolver.resolve([], [{ attributes: [fakeChild(h.Key('row'))] }]))).toBe(
+        'mixins:structural-override',
+      )
+    })
+  })
+
+  it.each([
+    ['Attribute', () => h.Attribute('style', 'position:absolute')],
+    ['Prop', () => prop('style', 'position:absolute')],
+    ['a child Style', () => fakeChild(h.Style({ position: 'absolute' }))],
+  ])('refuses a style set through %s, which would replace the slot style', (_name, make) => {
+    const protection = Slot.make({
+      protected: { events: [], attributes: [], style: ['position'] },
+    }).protected
+    for (const options of [{}, { slot: 'root', protected: protection }]) {
+      expect(codeOf(() => Resolver.resolve([], [{ attributes: [make()] }], options))).toBe(
+        'mixins:attribute-conflict',
+      )
+    }
+  })
+
+  it.each([
+    ['Attribute', () => h.Attribute('class', 'x')],
+    ['Prop', () => prop('className', 'x')],
+  ])('refuses a class list set through %s, which would replace the slot class', (_name, make) => {
+    expect(codeOf(() => Resolver.resolve([], [{ attributes: [make()] }]))).toBe(
+      'mixins:attribute-conflict',
+    )
+  })
+
+  it.each([['innerHTML'], ['outerHTML'], ['textContent'], ['innerText']])(
+    'refuses a Prop that replaces the children (%s)',
+    key => {
+      expect(codeOf(() => Resolver.resolve([], [{ attributes: [prop(key, 'x')] }]))).toBe(
+        'mixins:structural-override',
+      )
+    },
+  )
+
+  it.each([
+    ['AriaLabel', 'Attribute', () => h.AriaLabel('a'), () => h.Attribute('aria-label', 'b')],
+    ['AriaLabel', 'Prop', () => h.AriaLabel('a'), () => prop('ariaLabel', 'b')],
+    ['Attribute', 'AriaLabel', () => h.Attribute('aria-label', 'a'), () => h.AriaLabel('b')],
+    ['Role', 'Attribute', () => h.Role('a'), () => h.Attribute('role', 'b')],
+    ['For', 'Attribute', () => h.For('a'), () => h.Attribute('for', 'b')],
+    ['For', 'Prop', () => h.For('a'), () => prop('htmlFor', 'b')],
+    ['CiteAttr', 'Attribute', () => h.CiteAttr('a'), () => h.Attribute('cite', 'b')],
+    [
+      'DataAttribute',
+      'Attribute',
+      () => h.DataAttribute('grid', 'a'),
+      () => h.Attribute('data-grid', 'b'),
+    ],
+  ])('finds %s and %s owners of one HTML attribute (#524)', (_a, _b, view, mixin) => {
+    expect(codeOf(() => Resolver.resolve([view()], [{ attributes: [mixin()] }]))).toBe(
+      'mixins:attribute-conflict',
+    )
   })
 
   it('treats distinct raw attribute keys as distinct owners', () => {
@@ -129,26 +287,14 @@ describe('Resolver.resolve', () => {
   })
 
   it('keys a custom event by its name instead of one native event', () => {
-    const custom = (name: string): Attribute<TestMessage> =>
-      ({
-        _tag: 'OnCustomEvent',
-        name,
-        f: () => Option.some({ _tag: 'Clicked' }),
-      }) as Attribute<TestMessage>
-    const out = Resolver.resolve([custom('a')], [{ attributes: [custom('b')] }])
+    const out = Resolver.resolve([customEvent('a')], [{ attributes: [customEvent('b')] }])
     expect(tags(out)).toEqual(['OnCustomEvent', 'OnCustomEvent'])
-    expect(codeOf(() => Resolver.resolve([custom('a')], [{ attributes: [custom('a')] }]))).toBe(
-      'mixins:event-conflict',
-    )
+    expect(
+      codeOf(() => Resolver.resolve([customEvent('a')], [{ attributes: [customEvent('a')] }])),
+    ).toBe('mixins:event-conflict')
   })
 
   describe('a custom event is the DOM event it names', () => {
-    const custom = (name: string): Attribute<TestMessage> =>
-      ({
-        _tag: 'OnCustomEvent',
-        name,
-        f: () => Option.some({ _tag: 'Clicked' }),
-      }) as Attribute<TestMessage>
     const protection = Slot.make({
       protected: { events: [Event.Click], attributes: [], style: [] },
     }).protected
@@ -156,7 +302,7 @@ describe('Resolver.resolve', () => {
     it.each(['click', 'Click'])('refuses a protected event set as %s', name => {
       expect(
         codeOf(() =>
-          Resolver.resolve([], [{ attributes: [custom(name)] }], {
+          Resolver.resolve([], [{ attributes: [customEvent(name)] }], {
             slot: 'root',
             protected: protection,
           }),
@@ -166,27 +312,40 @@ describe('Resolver.resolve', () => {
 
     it('leaves an unrelated custom event alone', () => {
       expect(() =>
-        Resolver.resolve([], [{ attributes: [custom('clicked'), custom('grid-select')] }], {
-          slot: 'root',
-          protected: protection,
-        }),
+        Resolver.resolve(
+          [],
+          [{ attributes: [customEvent('clicked'), customEvent('grid-select')] }],
+          {
+            slot: 'root',
+            protected: protection,
+          },
+        ),
       ).not.toThrow()
     })
 
     it('finds two owners of one event when one is custom', () => {
       expect(
         codeOf(() =>
-          Resolver.resolve([h.OnClick({ _tag: 'Clicked' })], [{ attributes: [custom('click')] }]),
+          Resolver.resolve(
+            [h.OnClick({ _tag: 'Clicked' })],
+            [{ attributes: [customEvent('click')] }],
+          ),
         ),
       ).toBe('mixins:event-conflict')
       expect(
         codeOf(() =>
-          Resolver.resolve([], [{ attributes: [h.OnClick({ _tag: 'Clicked' }), custom('click')] }]),
+          Resolver.resolve(
+            [],
+            [{ attributes: [h.OnClick({ _tag: 'Clicked' }), customEvent('click')] }],
+          ),
         ),
       ).toBe('mixins:event-conflict')
       expect(
         codeOf(() =>
-          Resolver.resolve([custom('click')], [{ attributes: [h.OnClick({ _tag: 'Clicked' })] }]),
+          Resolver.resolve(
+            [customEvent('click')],
+            [{ attributes: [h.OnClick({ _tag: 'Clicked' })] }],
+          ),
         ),
       ).toBe('mixins:event-conflict')
     })
