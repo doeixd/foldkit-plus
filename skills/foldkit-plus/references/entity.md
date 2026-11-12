@@ -36,11 +36,11 @@ Entity
  └── sets        the members a write's context fills (who asks, when), never an input
 ```
 
-An Entity has one set of members: `Entity.relate`, `Entity.derived` and
-`Entity.sets` add to it, and every descriptor of it reads them, the one declared
-before `relate` and the one `target()` returns included. `Entity.annotate`,
-`annotateMembers` and `invariant` return a new descriptor carrying its own
-metadata. Compare with `Entity.same(a, b)`, never `===`. `Entity` is an ES module
+An Entity has one set of members and one of invariants: `Entity.relate`,
+`Entity.derived`, `Entity.sets` and `Entity.invariant` add to it, and every
+descriptor of it reads them, the one declared before `relate` and the one
+`target()` returns included. `Entity.annotate` and `annotateMembers` return a
+new descriptor carrying its own metadata. Compare with `Entity.same(a, b)`, never `===`. `Entity` is an ES module
 namespace: a page keeps only the members it calls, so one that declares and
 selects Entities keeps none of the invariant judge.
 
@@ -362,7 +362,9 @@ const Restock = Write.update(
   writer judges them in the statement that writes, and refuses a breaking write as `Refusal.invalid`.
 - **Not a rule.** No guard alternative excuses an invariant, and a valid row grants no one anything.
 - **A handle, not a string.** `Entity.invariant` returns the pipe step, carrying its `id` and, once attached,
-  its Entity's name (one declaration per Entity; reading `entity` before it is attached throws). Export it and
+  its Entity's name (one declaration per Entity; reading `entity` before it is attached throws; applying it to
+  that Entity again adds nothing). It is the Entity's: `ProductFields` judges it as `Product` does, so a form,
+  a write or a binding made from either holds it. Export it and
   match a refusal with `Refusal.isInvalidBy(refusal, reservedWithinStock)` (`foldkit-remote`) rather than
   spelling the id again. Hoisted, it needs the Entity's type (`Entity.invariant<typeof ProductFields>`);
   inline in `.pipe(…)` it infers it.

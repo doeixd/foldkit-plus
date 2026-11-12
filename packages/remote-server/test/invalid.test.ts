@@ -128,7 +128,8 @@ describe('An invalid row', () => {
       'Other',
       Schema.Struct({ id: Schema.String, quantity: Schema.Number, reserved: Schema.Number }),
     )
-    StockFields.pipe(loose)
+    // A Stock of its own: an invariant attached to `StockFields` would be every Stock's.
+    Entity.define('Stock', StockFields.schema).pipe(loose)
     expect(loose.entity).toBe('Stock')
     // @ts-expect-error a declaration is typed to its own Entity
     expect(() => loose(Other)).toThrow('is declared on Stock already')
@@ -160,7 +161,10 @@ describe('An invalid row', () => {
     const Plain = Mutation.write(
       'Plain',
       Write.update(
-        Entity.input(StockFields, Schema.Struct({ id: Schema.String, quantity: Schema.Number })),
+        Entity.input(
+          Entity.define('Stock', StockFields.schema),
+          Schema.Struct({ id: Schema.String, quantity: Schema.Number }),
+        ),
         {
           id: 'id',
         },
@@ -171,7 +175,7 @@ describe('An invalid row', () => {
 
   it("is refused where it is served for an update the Entity's transition invariants judge, and not for an insert", () => {
     const { invariants: _, ...blind } = refusing(RemoteServer.invalid('x'))
-    const Moving = StockFields.pipe(
+    const Moving = Entity.define('Stock', StockFields.schema).pipe(
       Entity.invariant(
         'neverFalls',
         ({ before, after }) => Expr.gte(after.quantity, before.quantity),

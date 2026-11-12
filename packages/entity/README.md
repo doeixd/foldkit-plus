@@ -51,7 +51,7 @@ Entity
  ├── derived     readable values an interpreter supplies, counts or finds
  ├── members     all three under one namespace; keys never collide
  ├── sets        members the write's context fills (who asks, when)
- └── invariants  what every stored row must hold (kept in its metadata)
+ └── invariants  what every stored row must hold (Entity.invariant)
 
 over it, as data:
  Selection   which members a consumer reads            Entity.select
@@ -62,18 +62,19 @@ interpreter ──(foldkit-metadata)──► Entity / member        attaches wh
 interpreter ◄── reads all of the above, and runs it (SQL, the client's store)
 ```
 
-An Entity has **one set of members**. `Entity.relate`, `Entity.derived` and
-`Entity.sets` add to it, and every descriptor of the Entity reads it: the one
-declared before `relate`, the one a relation's `target()` returns, the one a
-query captured. Metadata is the exception: `Entity.annotate`,
-`Entity.annotateMembers` and `Entity.invariant` return a new descriptor that
-carries its own, so one reader's view (a form's labels) stays its own. Compare
-descriptors with `Entity.same(a, b)`, not `a === b`.
+An Entity has **one set of members**, and one set of invariants.
+`Entity.relate`, `Entity.derived`, `Entity.sets` and `Entity.invariant` add
+to it, and every descriptor of the Entity reads it: the one declared before
+`relate`, the one a relation's `target()` returns, the one a query captured.
+Metadata is the exception: `Entity.annotate` and `Entity.annotateMembers`
+return a new descriptor that carries its own, so one reader's view (a form's
+labels) stays its own. Compare descriptors with `Entity.same(a, b)`, not
+`a === b`.
 
 ```text
-identity ── relations, derived, sets       one per Entity; relate / derived / sets add
-   ├── descriptor  fields, metadata         define, relate, derived, sets return it
-   └── descriptor  fields, metadata'        annotate / annotateMembers / invariant make one
+identity ── relations, derived, sets, invariants   one per Entity; relate / derived / sets / invariant add
+   ├── descriptor  fields, metadata                 define, relate, derived, sets, invariant return it
+   └── descriptor  fields, metadata'                annotate / annotateMembers make one
 ```
 
 A descriptor's *type* still shows only the steps it came through: read typed
@@ -1313,7 +1314,10 @@ relation as it. A `many` relation holds no one value, so it is not there.
 `Entity.invariant` returns the step that attaches it, carrying its `id` and,
 once attached, its Entity's name as `entity`: an id is unique only within an
 Entity, so a refusal names both. A declaration attaches to one Entity; reading
-`entity` before it is attached throws. Hoist it to export it, naming the
+`entity` before it is attached throws, and applying it to that Entity again
+adds nothing. The invariant is the Entity's, so `InventoryFields` below judges
+it as `Inventory` does: a form, a write or a server binding made from either
+name holds it. Hoist it to export it, naming the
 Entity's type (what it reads is checked against it), and match a refusal
 against it rather than spelling the id again:
 
