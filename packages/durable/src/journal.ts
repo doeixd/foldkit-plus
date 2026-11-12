@@ -41,7 +41,7 @@ import {
   UnsupportedJournalVersionError,
 } from './errors.js'
 
-const SCHEMA_VERSION = 6
+const SCHEMA_VERSION = 7
 /** How many documents' states a journal keeps decoded in memory. */
 const CACHED_DOCUMENTS = 256
 
@@ -237,6 +237,82 @@ export type AppendResult<Operation> =
       readonly actorId: ActorId
     }
 
+/**
+ * Where a named piece of work over one document has reached, in the
+ * document's current epoch: every commit at or before `cursor` was handled or
+ * set aside. A lower bound over the effect ledger, so set back it costs
+ * ledger reads, never a second run.
+ */
+export interface TrackedCursor {
+  /** The document's epoch the cursor counts in: what `advance` and `stalled` name. */
+  readonly epoch: string
+  readonly cursor: Cursor
+  /** How many runs have failed at the commit after `cursor` since it last moved. */
+  readonly attempts: number
+  /** When the first of those failed, in ms since the Unix epoch. */
+  readonly firstFailedAt: Option.Option<number>
+  /** When the last of those failed. */
+  readonly failedAt: Option.Option<number>
+}
+
+/** A run set aside so its cursor could move past it, kept until a person resolves it. */
+export interface ParkedRun {
+  /** The cursor's name. */
+  readonly name: string
+  readonly opId: OpId
+  /** The epoch it was parked in: a row of another names a history `reset` removed. */
+  readonly epoch: string
+  readonly sequence: Sequence
+  /** What the caller needs to run it again, as JSON: the commit survives compaction here. */
+  readonly input: unknown
+  readonly error: string
+}
+
+/**
+ * Named cursors over documents and the runs parked behind them, stored beside
+ * the effect ledger. Every write names the epoch it was decided in and does
+ * nothing once that epoch is gone, so a runner holding a reset history cannot
+ * write over the new one. `reset` deletes none of it: a row of another epoch
+ * reads as 0, or as stale.
+ */
+export interface Cursors {
+  /**
+   * Starts a cursor at the document's current cursor (or at its compaction
+   * floor, `from: 'floor'`) unless it exists in this epoch; one of another
+   * epoch starts again at 0. Work tracked from here sees every later commit.
+   */
+  readonly track: (
+    key: DocumentId,
+    name: string,
+    options?: { readonly from?: 'cursor' | 'floor' },
+  ) => Effect.Effect<void, JournalError>
+  /** The cursor in the current epoch: 0 for one tracked in another, none when never tracked. */
+  readonly settled: (
+    key: DocumentId,
+    name: string,
+  ) => Effect.Effect<Option.Option<TrackedCursor>, JournalError>
+  /** Moves the cursor forward, never back, clearing its failures when it moves. */
+  readonly advance: (
+    key: DocumentId,
+    name: string,
+    epoch: string,
+    cursor: Cursor,
+  ) => Effect.Effect<void, JournalError>
+  /** Counts a failed run at the commit after the cursor, at `at` (ms since the Unix epoch). */
+  readonly stalled: (
+    key: DocumentId,
+    name: string,
+    epoch: string,
+    at: number,
+  ) => Effect.Effect<void, JournalError>
+  /** Sets a run aside; a run already parked in this epoch stays as it was. */
+  readonly park: (key: DocumentId, run: ParkedRun) => Effect.Effect<void, JournalError>
+  /** The document's parked runs, every epoch's, by name and sequence. */
+  readonly parked: (key: DocumentId) => Effect.Effect<ReadonlyArray<ParkedRun>, JournalError>
+  /** Forgets a parked run. */
+  readonly unpark: (key: DocumentId, name: string, opId: OpId) => Effect.Effect<void, JournalError>
+}
+
 export interface Journal<Operation, Snapshot, Principal, OperationEncoded = unknown> {
   readonly load: (
     key: DocumentId,
@@ -343,6 +419,8 @@ export interface Journal<Operation, Snapshot, Principal, OperationEncoded = unkn
    * adapts it at the edge.
    */
   readonly subscribe: Stream.Stream<string>
+  /** Named cursors and parked runs: where work after a commit has reached (Sync's reactions). */
+  readonly cursors: Cursors
 }
 
 const describe = (cause: unknown): string =>
@@ -636,6 +714,20 @@ const migrate = (
             sql`INSERT OR IGNORE INTO epochs (key, epoch) VALUES (${row.key}, ${globalThis.crypto.randomUUID()})`,
           { discard: true },
         )
+      }
+      if (current < 7) {
+        // Prefixed: `IF NOT EXISTS` would quietly adopt an application's own
+        // `cursors` table in a shared database.
+        yield* sql`CREATE TABLE IF NOT EXISTS foldkit_durable_cursors (
+            key TEXT NOT NULL, name TEXT NOT NULL, epoch TEXT NOT NULL, cursor INTEGER NOT NULL,
+            attempts INTEGER NOT NULL DEFAULT 0, first_failed_at INTEGER, failed_at INTEGER,
+            PRIMARY KEY (key, name)
+          )`
+        yield* sql`CREATE TABLE IF NOT EXISTS foldkit_durable_parked (
+            key TEXT NOT NULL, name TEXT NOT NULL, op_id TEXT NOT NULL, epoch TEXT NOT NULL,
+            sequence INTEGER NOT NULL, input TEXT NOT NULL, error TEXT NOT NULL,
+            PRIMARY KEY (key, name, op_id)
+          )`
       }
       if (d1) {
         yield* sql`INSERT INTO durable_meta (key, value) VALUES (${META_VERSION_KEY}, ${String(SCHEMA_VERSION)}) ON CONFLICT(key) DO UPDATE SET value = excluded.value`
@@ -1556,6 +1648,127 @@ const makeShape = <
     return settled
   })
 
+  // Each write is one statement guarded by the epoch it names, so D1, which
+  // has no transaction, keeps the same guarantees.
+  const cursors: Cursors = {
+    track: Effect.fn('Journal.cursors.track')(function* (key, name, trackOptions) {
+      yield* Effect.annotateCurrentSpan({ key, name })
+      const before = yield* epoch(key)
+      const start =
+        trackOptions?.from === 'floor' ? Number(yield* floor(key)) : Number(yield* cursor(key))
+      // A reset between the reads made `start` a position in a history this
+      // epoch does not name: the new history starts at 0.
+      const now = yield* epoch(key)
+      const at = before === now ? start : 0
+      yield* sql`INSERT INTO foldkit_durable_cursors (key, name, epoch, cursor, attempts) VALUES (${key}, ${name}, ${now}, ${at}, 0) ON CONFLICT(key, name) DO UPDATE SET epoch = excluded.epoch, cursor = 0, attempts = 0, first_failed_at = NULL, failed_at = NULL WHERE foldkit_durable_cursors.epoch <> excluded.epoch`.pipe(
+        Effect.catchTag('SqlError', asJournalError('Could not track the cursor')),
+      )
+    }),
+    settled: Effect.fn('Journal.cursors.settled')(function* (key, name) {
+      yield* Effect.annotateCurrentSpan({ key, name })
+      const now = yield* epoch(key)
+      const rows = yield* sql<{
+        readonly epoch: string
+        readonly cursor: number
+        readonly attempts: number
+        readonly first_failed_at: number | null
+        readonly failed_at: number | null
+      }>`SELECT epoch, cursor, attempts, first_failed_at, failed_at FROM foldkit_durable_cursors WHERE key = ${key} AND name = ${name}`.pipe(
+        Effect.catchTag('SqlError', asJournalError('Could not read the cursor')),
+      )
+      const row = rows[0]
+      if (row === undefined) return Option.none<TrackedCursor>()
+      if (String(row.epoch) !== now)
+        return Option.some<TrackedCursor>({
+          epoch: now,
+          cursor: toCursor(0),
+          attempts: 0,
+          firstFailedAt: Option.none(),
+          failedAt: Option.none(),
+        })
+      return Option.some<TrackedCursor>({
+        epoch: now,
+        cursor: toCursor(Number(row.cursor)),
+        attempts: Number(row.attempts),
+        firstFailedAt: Option.map(Option.fromNullOr(row.first_failed_at), Number),
+        failedAt: Option.map(Option.fromNullOr(row.failed_at), Number),
+      })
+    }),
+    // SQLite reads every right-hand side from the row as it was, so each
+    // `CASE` compares the stored epoch and cursor, not the ones just set.
+    advance: Effect.fn('Journal.cursors.advance')(function* (key, name, at, to) {
+      yield* Effect.annotateCurrentSpan({ key, name, cursor: to })
+      yield* sql`UPDATE foldkit_durable_cursors SET
+          cursor = CASE WHEN epoch = ${at} THEN MAX(cursor, ${to}) ELSE ${to} END,
+          attempts = CASE WHEN epoch = ${at} AND cursor >= ${to} THEN attempts ELSE 0 END,
+          first_failed_at = CASE WHEN epoch = ${at} AND cursor >= ${to} THEN first_failed_at ELSE NULL END,
+          failed_at = CASE WHEN epoch = ${at} AND cursor >= ${to} THEN failed_at ELSE NULL END,
+          epoch = ${at}
+        WHERE key = ${key} AND name = ${name} AND ${at} = (SELECT epoch FROM epochs WHERE key = ${key})`.pipe(
+        Effect.catchTag('SqlError', asJournalError('Could not advance the cursor')),
+      )
+    }),
+    stalled: Effect.fn('Journal.cursors.stalled')(function* (key, name, at, when) {
+      yield* Effect.annotateCurrentSpan({ key, name })
+      yield* sql`UPDATE foldkit_durable_cursors SET
+          attempts = CASE WHEN epoch = ${at} THEN attempts + 1 ELSE 1 END,
+          first_failed_at = CASE WHEN epoch = ${at} AND first_failed_at IS NOT NULL THEN first_failed_at ELSE ${when} END,
+          failed_at = ${when},
+          cursor = CASE WHEN epoch = ${at} THEN cursor ELSE 0 END,
+          epoch = ${at}
+        WHERE key = ${key} AND name = ${name} AND ${at} = (SELECT epoch FROM epochs WHERE key = ${key})`.pipe(
+        Effect.catchTag('SqlError', asJournalError('Could not record the failed run')),
+      )
+    }),
+    // A row of another epoch is replaced: left alone, the run parked now would
+    // be recorded nowhere once its cursor moved past it.
+    park: Effect.fn('Journal.cursors.park')(function* (key, run) {
+      yield* Effect.annotateCurrentSpan({ key, name: run.name, opId: run.opId })
+      const input = yield* Effect.try({
+        try: () => {
+          const json = canonicalJson(run.input)
+          if (json === undefined) throw new Error('the run encoded to no JSON value')
+          return json
+        },
+        catch: cause => journalError('Could not park the run', cause),
+      })
+      yield* sql`INSERT INTO foldkit_durable_parked (key, name, op_id, epoch, sequence, input, error) VALUES (${key}, ${run.name}, ${run.opId}, ${run.epoch}, ${run.sequence}, ${input}, ${run.error}) ON CONFLICT(key, name, op_id) DO UPDATE SET epoch = excluded.epoch, sequence = excluded.sequence, input = excluded.input, error = excluded.error WHERE foldkit_durable_parked.epoch <> excluded.epoch`.pipe(
+        Effect.catchTag('SqlError', asJournalError('Could not park the run')),
+      )
+    }),
+    parked: Effect.fn('Journal.cursors.parked')(function* (key) {
+      yield* Effect.annotateCurrentSpan({ key })
+      const rows = yield* sql<{
+        readonly name: string
+        readonly op_id: string
+        readonly epoch: string
+        readonly sequence: number
+        readonly input: string
+        readonly error: string
+      }>`SELECT name, op_id, epoch, sequence, input, error FROM foldkit_durable_parked WHERE key = ${key} ORDER BY name, sequence, op_id`.pipe(
+        Effect.catchTag('SqlError', asJournalError('Could not read the parked runs')),
+      )
+      return yield* Effect.try({
+        try: () =>
+          rows.map((row): ParkedRun => ({
+            name: String(row.name),
+            opId: toOpId(String(row.op_id)),
+            epoch: String(row.epoch),
+            sequence: toSequence(Number(row.sequence)),
+            input: JSON.parse(String(row.input)),
+            error: String(row.error),
+          })),
+        catch: cause => journalError('Could not read the parked runs', cause),
+      })
+    }),
+    unpark: Effect.fn('Journal.cursors.unpark')(function* (key, name, id) {
+      yield* Effect.annotateCurrentSpan({ key, name, opId: id })
+      yield* sql`DELETE FROM foldkit_durable_parked WHERE key = ${key} AND name = ${name} AND op_id = ${id}`.pipe(
+        Effect.catchTag('SqlError', asJournalError('Could not unpark the run')),
+      )
+    }),
+  }
+
   const subscribe: Shape['subscribe'] = Stream.fromPubSub(changes)
 
   return {
@@ -1576,5 +1789,6 @@ const makeShape = <
     reset,
     recover,
     subscribe,
+    cursors,
   }
 }
