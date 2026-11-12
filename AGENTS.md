@@ -1049,7 +1049,8 @@ Foldkit's own behaviour that we work around is listed in
   puts the connection's headers before each request's (`rpc/RpcServer.js:907`
   over HTTP, `:1204` over a WebSocket); `Headers.fromInput` kept the last
   through 4.1.1 and joins repeats with `", "` since 4.1.4, so a request body
-  or frame can claim, or add to, another `origin`, `cookie` or CSRF header. Decide the principal from the real request in front of the
+  or frame can claim, or add to, another `origin`, `cookie` or CSRF header.
+  Decide the principal from the real request in front of the
   route, never from an `RpcMiddleware`'s `headers` (Sync's §14.3 prototype
   pins it; no shipped server here reads them, ac62e3d3).
 - **A browser `WebSocket` sends no header of yours.** Its constructor takes
@@ -2178,7 +2179,7 @@ of its own named a form field "fits the Catalog". Read words with
   that day's release in most projects, the pinned one in two, so two drizzles
   existed and `examples/cloudflare` failed to typecheck. That package publishes
   daily and is pinned exactly wherever it is declared, so a version move is one
-  deliberate edit per manifest (2026-10-22: `5.20261022.1`); no override covers
+  deliberate edit per manifest (2026-11-12: `5.20261112.1`); no override covers
   it. Check `pnpm-lock.yaml` for two copies after any move.
   After a version move, count the copies (`grep -o 'name@[0-9.]*'
   pnpm-lock.yaml | sort | uniq -c`) and regenerate from the old lockfile.
