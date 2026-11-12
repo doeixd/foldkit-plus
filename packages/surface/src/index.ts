@@ -20,6 +20,7 @@ import type { Url } from 'foldkit/url'
 import { Metadata, type MetadataSummary } from 'foldkit-metadata'
 
 export { Metadata, MetadataTypeId, type MetadataKey, type MetadataSummary } from 'foldkit-metadata'
+export { Closure, type ClosureProjection } from './closure.js'
 export { Diagnostics, type Diagnostic, type ReportDiagnostic } from './diagnostics.js'
 export {
   CachedRead,
