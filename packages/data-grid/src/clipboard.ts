@@ -24,6 +24,26 @@ const quote = (cell: string): string =>
 const toTsv = (rows: ReadonlyArray<ReadonlyArray<string>>): string =>
   rows.map(row => row.map(quote).join('\t')).join('\n')
 
+const escapes: Readonly<Record<string, string>> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+}
+
+const htmlCell = (cell: string): string =>
+  cell.replace(/[&<>"]/g, char => escapes[char]!).replace(/\r\n|\r|\n/g, '<br>')
+
+/**
+ * Rows of cells as an HTML `<table>`, for a target that reads `text/html`.
+ * Every cell is escaped and a line break becomes `<br>`, so nothing a cell
+ * holds is markup.
+ */
+const toHtml = (rows: ReadonlyArray<ReadonlyArray<string>>): string =>
+  `<table><tbody>${rows
+    .map(row => `<tr>${row.map(cell => `<td>${htmlCell(cell)}</td>`).join('')}</tr>`)
+    .join('')}</tbody></table>`
+
 /**
  * Tab-separated text as rows of cells. Quoted cells may hold tabs, line
  * breaks and doubled quotes; `\r\n` and `\r` end a row as `\n` does; the line
@@ -127,4 +147,4 @@ const pasteAt = <Row, Id extends string>(
     },
   })
 
-export const Clipboard = { toTsv, parseTsv, copy, pasteAt }
+export const Clipboard = { toTsv, toHtml, parseTsv, copy, pasteAt }

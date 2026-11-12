@@ -145,7 +145,10 @@ describe('GuardSync.document', () => {
     ).toEqual([false, true])
     // Rows anyone may read: a document of them names no readers, and is anyone's.
     const Open = GuardSync.document<User>(
-      { entity: ProductFields, members: ['name'] },
+      {
+        entity: ProductFields.pipe(Guards.attach(G, { row: { Update: [G.isOwner] } })),
+        members: ['name'],
+      },
       { readers: [] },
     )
     expect(

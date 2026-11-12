@@ -297,8 +297,9 @@ describe.each(backends)('Invariants over %s', (_, backend) => {
 
 describe('A writer over an Entity with invariants', () => {
   it('refuses, where it is made, an invariant its database cannot compile', () => {
-    // Text holding a NUL, which no SQL text holds portably.
-    const Unwritable = StockFields.pipe(
+    // Text holding a NUL, which no SQL text holds portably. An Entity of its own, since
+    // an invariant declared over `StockFields` would be every Stock's.
+    const Unwritable = Entity.define('Stock', StockFields.schema).pipe(
       Entity.invariant(
         'notNul',
         ({ after }) => Expr.not(Expr.eq(after.status, `a${String.fromCharCode(0)}b`)),
@@ -372,5 +373,39 @@ describe('checkConstraints over invariants', () => {
     await expect(
       pglite.exec("update stock set status = 'shipped' where id = 's1'"),
     ).rejects.toThrow('stock_shippedHasAddress')
+  })
+})
+
+describe('A binding of the descriptor its invariants were attached after (#539)', () => {
+  const Bare = bind(
+    { Stock: StockFields },
+    { Stock: { table: sqliteStock, fields: { shippedTo: sqliteStock.shippedTo } } },
+  )
+
+  it('enforces them in its writer, and lists each as a CHECK', async () => {
+    const db = new DatabaseSync(':memory:')
+    db.exec(`${create}; insert into stock values ('s1', 'packed', 10, 5, null, 1)`)
+    const handlers = RemoteServer.handlers(
+      RemoteServer.make({
+        entities: [],
+        mutations: [RemoteServer.write(SetQuantity, writer(Bare.Stock))],
+      }),
+      undefined,
+    )
+    const sent = await Effect.runPromise(
+      handlers
+        .FoldkitRemoteMutate({
+          requestId: 'r1',
+          mutation: 'SetQuantity',
+          input: { id: 's1', quantity: 3 },
+        })
+        .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: db })))),
+    )
+    expect(sent).toMatchObject(invalid('reservedWithinQuantity', ['reserved']))
+    expect(db.prepare('select quantity from stock').get()).toEqual({ quantity: 10 })
+    expect(checkConstraints(Bare.Stock).constraints.map(check => check.name)).toEqual([
+      'stock_reservedWithinQuantity',
+      'stock_shippedHasAddress',
+    ])
   })
 })

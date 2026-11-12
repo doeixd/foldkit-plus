@@ -215,6 +215,21 @@ and from 8.82 to 8.92 (dark), and on the muted surface from 5.11 to 5.72 and
 from 10.06 to 10.17. A label on the accent went from 3.86 to 4.50 (light) and
 from 8.23 to 7.88 (dark). Every pair the test checks stays at AA.
 
+**Re-measured, 2026-11.** Chromium 153 still clips: `oklch(0.45 0.225 235)`
+paints `rgb(0 91 189)` in a canvas and in a screenshot alike, the value
+above, where CSS Color 4's mapping gives `rgb(0 93 130)`. So the bounding
+stays; leaving it to the browser would bring the 20-degree drift back.
+Firefox and Safari were not measured here.
+
+**A pressed grey turned red.** A family's `active` added 0.05 of chroma to
+its fill, at the fill's hue. A fill with no chroma has a powerless hue: a
+black accent like shadcn's (hue 286, chroma 0) pressed its secondary, turned
+to 346, as a dark red, and a fill named as a grey (`white`, `#808080`)
+Chromium reads at hue 24, so its press painted red too. The bounding was not
+at fault: it keeps a color's hue, and the hue was what the grey lacked. `active` now adds
+0.05 but at most doubles the chroma (`min(c + 0.05, c * 2)`), so a grey
+stays grey, and a fill with 0.05 of chroma or more presses exactly as before.
+
 ## Deferred
 
 - **Scaffold templates** (`create-foldkit-app`). Another session owns the

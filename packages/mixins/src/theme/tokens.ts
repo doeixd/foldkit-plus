@@ -146,6 +146,10 @@ export const tokens = define({
     'fast-exit': duration(60),
     'moderate-exit': duration(120),
     'slow-exit': duration(160),
+    // A sheet's slide and its exit: the slow tier until a theme sets them
+    // (as one that keeps another application's timing does).
+    sheet: 'var(--fk-motion-slow)',
+    'sheet-exit': 'var(--fk-motion-slow-exit)',
     ease: 'var(--fk-knob-ease)',
     'ease-exit': 'ease-in',
     // Springs sampled as CSS easings, so they need no JavaScript and follow

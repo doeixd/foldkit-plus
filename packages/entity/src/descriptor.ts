@@ -7,20 +7,28 @@ import { Option, Pipeable, type Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import { EntityTypeId } from './ids.js'
 import type { AnyEntity, EntityIdentity, EntityMember } from './index.js'
+import type { Invariant } from './invariant.js'
 import { own, put } from './record.js'
 import type { EntitySet } from './sets.js'
 import { variantsOf } from './variants.js'
 
 /**
  * What every descriptor of one Entity shares: the members `Entity.relate`,
- * `Entity.derived` and `Entity.sets` add. It belongs to the identity, so a
- * member added through one descriptor is a member of every other, the one a
- * relation's `target()` returns and the one declared before `relate` alike.
+ * `Entity.derived` and `Entity.sets` add, and the invariants
+ * `Entity.invariant` declares. It belongs to the identity, so a member added
+ * through one descriptor is a member of every other, the one a relation's
+ * `target()` returns and the one declared before `relate` alike. An invariant
+ * is a fact about the stored row, so no descriptor may judge without it (#539).
  */
 interface Shape {
   readonly relations: Record<string, EntityMember>
   readonly derived: Record<string, EntityMember>
   readonly sets: Record<string, EntitySet>
+  /**
+   * In the order they were declared. Replaced, never changed, so a reader that
+   * kept it (a binding compiling its checks) keeps what it compiled.
+   */
+  invariants: ReadonlyArray<Invariant>
   /** Moves with every addition, so a descriptor knows when its view is stale. */
   revision: number
 }
@@ -30,7 +38,7 @@ const shapes = new WeakMap<EntityIdentity<string>, Shape>()
 const shapeOf = (identity: EntityIdentity<string>): Shape => {
   const known = shapes.get(identity)
   if (known !== undefined) return known
-  const shape: Shape = { relations: {}, derived: {}, sets: {}, revision: 0 }
+  const shape: Shape = { relations: {}, derived: {}, sets: {}, invariants: [], revision: 0 }
   shapes.set(identity, shape)
   return shape
 }
@@ -123,13 +131,18 @@ export const relationsOf = (
   identity: EntityIdentity<string>,
 ): Readonly<Record<string, EntityMember>> => shapeOf(identity).relations
 
-/** Adds to the Entity's shared members, which every descriptor of it then reads. */
+/** The invariants every descriptor of the Entity `identity` names judges. */
+export const invariantsOfIdentity = (identity: EntityIdentity<string>): ReadonlyArray<Invariant> =>
+  shapeOf(identity).invariants
+
+/** Adds to the Entity's shared parts, which every descriptor of it then reads. */
 export const extend = (
   entity: AnyEntity,
   added: {
     readonly relations?: Readonly<Record<string, EntityMember>>
     readonly derived?: Readonly<Record<string, EntityMember>>
     readonly sets?: Readonly<Record<string, EntitySet>>
+    readonly invariants?: ReadonlyArray<Invariant>
   },
 ): void => {
   const shape = shapeOf(entity.identity)
@@ -137,6 +150,8 @@ export const extend = (
     put(shape.relations, key, member)
   for (const [key, member] of Object.entries(added.derived ?? {})) put(shape.derived, key, member)
   for (const [key, set] of Object.entries(added.sets ?? {})) put(shape.sets, key, set)
+  if (added.invariants !== undefined)
+    shape.invariants = Object.freeze([...shape.invariants, ...added.invariants])
   shape.revision += 1
 }
 

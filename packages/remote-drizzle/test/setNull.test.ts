@@ -28,18 +28,22 @@ import { bind, databaseLayer, query, source, writer, type DrizzleDatabase } from
 
 postgres()
 
-const UserFields = Entity.define('User', Schema.Struct({ id: Schema.String }))
-const FolderFields = Entity.define('Folder', Schema.Struct({ id: Schema.String }))
-const DocFields = Entity.define('Doc', Schema.Struct({ id: Schema.String }))
-const Files = Entity.relate(
-  { User: UserFields, Folder: FolderFields, Doc: DocFields },
-  {
-    Doc: {
-      folder: Relation.one(FolderFields, { optional: true, onDelete: 'setNull' }),
-      owner: Relation.one(UserFields, { optional: true }),
+/** The domain, made afresh for each use: an invariant added to one's Doc is every one of its Docs'. */
+const files = () => {
+  const UserFields = Entity.define('User', Schema.Struct({ id: Schema.String }))
+  const FolderFields = Entity.define('Folder', Schema.Struct({ id: Schema.String }))
+  const DocFields = Entity.define('Doc', Schema.Struct({ id: Schema.String }))
+  return Entity.relate(
+    { User: UserFields, Folder: FolderFields, Doc: DocFields },
+    {
+      Doc: {
+        folder: Relation.one(FolderFields, { optional: true, onDelete: 'setNull' }),
+        owner: Relation.one(UserFields, { optional: true }),
+      },
     },
-  },
-)
+  )
+}
+const Files = files()
 const { User, Folder, Doc } = Files
 // Bo's docs must be filed, so clearing the folder of one breaks it (#516). A
 // doc with no owner, unfiled, holds it unknown.
@@ -48,7 +52,8 @@ const filed = Entity.invariant<typeof Doc>(
   ({ after }) => Expr.or(Expr.not(Expr.eq(after.owner, 'bo')), Expr.isNotNull(after.folder)),
   { message: "Bo's docs stay in a folder" },
 )
-const FiledDoc = Doc.pipe(filed)
+const Filed = files()
+Filed.Doc.pipe(filed)
 
 const sqliteTables = {
   users: sqliteTable('users', { id: text('id').primaryKey() }),
@@ -69,8 +74,8 @@ const pgTables = {
   }),
 }
 type Tables = typeof sqliteTables | typeof pgTables
-const bindOn = ({ users, folders, docs }: Tables, ownDocs = false, doc: typeof Doc = Doc) =>
-  bind({ User, Folder, Doc: doc }, {
+const bindOn = ({ users, folders, docs }: Tables, ownDocs = false, domain: typeof Files = Files) =>
+  bind({ User: domain.User, Folder: domain.Folder, Doc: domain.Doc }, {
     User: { table: users },
     Folder: { table: folders },
     Doc: {
@@ -136,7 +141,7 @@ const backends: ReadonlyArray<readonly [string, () => Promise<Backend>]> = [
         rows: async statement => joined(sqlite.prepare(statement).all()),
         Db: bindOn(sqliteTables),
         Own: bindOn(sqliteTables, true),
-        Filed: bindOn(sqliteTables, false, FiledDoc),
+        Filed: bindOn(sqliteTables, false, Filed),
       }
     },
   ],
@@ -151,7 +156,7 @@ const backends: ReadonlyArray<readonly [string, () => Promise<Backend>]> = [
           joined((await pglite.query<Record<string, unknown>>(statement)).rows),
         Db: bindOn(pgTables),
         Own: bindOn(pgTables, true),
-        Filed: bindOn(pgTables, false, FiledDoc),
+        Filed: bindOn(pgTables, false, Filed),
       }
     },
   ],
@@ -170,7 +175,7 @@ const backends: ReadonlyArray<readonly [string, () => Promise<Backend>]> = [
           joined((await db.prepare(statement).all<Record<string, unknown>>()).results),
         Db: bindOn(sqliteTables),
         Own: bindOn(sqliteTables, true),
-        Filed: bindOn(sqliteTables, false, FiledDoc),
+        Filed: bindOn(sqliteTables, false, Filed),
       }
     },
   ],
@@ -181,7 +186,7 @@ const ownerOnly = (viewer: string, reason?: string): CascadeRequirement => ({
   entity: 'Doc',
   requires: {
     holds: RowRequirement.Body({
-      query: Body.from(Doc).pipe(Body.where(Expr.eq(Doc.relations.owner, Expr.viewer(UserFields)))),
+      query: Body.from(Doc).pipe(Body.where(Expr.eq(Doc.relations.owner, Expr.viewer(User)))),
       input: {},
       context: { viewer: Option.some({ entity: 'User', id: viewer }), now: Option.none() },
     }),

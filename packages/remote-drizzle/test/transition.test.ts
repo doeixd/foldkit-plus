@@ -242,7 +242,8 @@ describe.each(backends)('Transition invariants over %s', (_, backend) => {
 
 describe('A writer over an Entity with transition invariants', () => {
   it('refuses, where it is made, a transition invariant its database cannot compile', () => {
-    const Unwritable = Order.pipe(
+    // An Entity of its own: an invariant declared over `Order` would be every Order's.
+    const Unwritable = Entity.define('Order', Order.schema).pipe(
       Entity.invariant(
         'notNul',
         ({ before, after }) =>

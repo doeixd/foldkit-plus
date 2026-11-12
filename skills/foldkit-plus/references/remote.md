@@ -45,7 +45,9 @@ Data.reduce(model, message)     the only way the cache changes
 The read entry diffs requirements against the store and fetches only missing or
 stale fields. An inactive Surface creates no work. `RemoteData` is a closed union
 (`RemoteData.match` is exhaustive; `RemoteData.answered(data)` is whether it has an answer yet;
-`RemoteData.held(data)` is the value it holds, an `Option`, kept through `Refreshing` and a failed refresh):
+`RemoteData.held(data)` is the value it holds, an `Option`, kept through `Refreshing` and a failed refresh;
+`RemoteData.all({ a, b })` joins reads into one `RemoteData` of the struct of values, the first state any entry is in
+deciding it: `Failed`, `NotFound`, `Initial`, `Loading`, else `Refreshing` if any entry is, else `Ready`):
 
 - `Initial`: absent, **nothing is fetching it** (often a wiring bug: not observed).
   `why(Data, model, projection, { surfaces })` says which: its first reason is
@@ -669,6 +671,12 @@ change through other rows that moves a row of the list by its order moves it too
 invalidated by any change to its Entity, and a list whose body declares no
 order (the server's `orderBy` decides it) by any change to a row it holds. `Data.refresh` remains for effects the answer does not name.
 
+**Which lists a declared write can reach, before it is sent.** `reaches(write, query)` (a `Write` or a
+`Mutation.write`, and a query descriptor) compares `Write.writes` with what the body reads (`fields`, and `reaches`:
+a path, an exists with its `where`, a path from the viewer) by owner identity, and answers a `Reach`: `Reads`,
+`Unaffected`, or `Unknown({ why: 'NoBody' | 'Handler' })` for a `Query.make` query or a `Mutation.make` handler.
+Never `Unaffected` where the declarations are silent; `explain`'s `reachedBy` lists the registered mutations that `Reads` a list.
+
 **Declared writes.** `Mutation.write(name, Write.update(input, { id }))` (or
 `Write.insert` with a client-minted id, or `Write.delete`) is a
 mutation whose effect is data: `Data.mutate` derives its optimistic patch
@@ -945,7 +953,7 @@ records it.
 serializable value: `domain`, `query`, `input`, `identity`, `window`, `select`,
 the `body` as readable text with its `dependencies` (each field `{ entity, key }`,
 without the owner identity `Query.dependencies` carries; absent for a
-`Query.make` descriptor, whose meaning lives on the server), and `state` — taken from the
+`Query.make` descriptor, whose meaning lives on the server), `reachedBy` (the registered mutations whose declared write can change the list), and `state` — taken from the
 projection's own read, so an explanation and the view cannot disagree. Given
 `{ surfaces }` — the same active record `subscriptions` takes — it also reports
 every active Surface reading the connection and, for those placed with

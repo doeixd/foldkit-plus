@@ -3,6 +3,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import {
   type CellAddress,
+  type ColumnEdit,
   Columns,
   DataGrid,
   GridFocus,
@@ -1065,6 +1066,53 @@ describe('DataGrid fill', () => {
     expect(
       Editing.fill(rows, blank, { source: one(cell('p:10', 'price')), to: cell('p:10', 'price') }),
     ).toEqual({ accepted: [], refused: [] })
+  })
+})
+
+describe('DataGrid fill with a column’s own series', () => {
+  const custom = (fill: NonNullable<ColumnEdit<Product, string>['fill']>) => {
+    const columns = Columns.define<Product>()({
+      name: { header: 'Name', value: product => product.name, edit: { fill } },
+      price: { header: 'Price', value: product => product.price, edit: {} },
+    })
+    return DataGrid.make({ id: 'custom', columns })
+  }
+  const rows = RowModel.fromArray(products, productKey)
+  const down = {
+    source: {
+      anchor: { row: 'p:10', column: 'name' as const },
+      focus: { row: 'p:10', column: 'name' as const },
+    },
+    to: { row: 'p:1', column: 'name' as const },
+  }
+  const grid = (fill: NonNullable<ColumnEdit<Product, string>['fill']>) => {
+    const made = custom(fill)
+    return made.fill(rows, made.bundle.init(undefined).model, down)
+  }
+
+  test('its texts are written, judged like any fill', () => {
+    expect(grid(() => Option.some(['Gadget']))).toEqual({
+      accepted: [{ row: 'p:1', column: 'name', text: 'Gadget' }],
+      refused: [],
+    })
+  })
+
+  test('a shorter answer is refused cell by cell, not padded', () => {
+    expect(grid(() => Option.some([]))).toEqual({
+      accepted: [],
+      refused: [
+        {
+          row: 'p:1',
+          column: 'name',
+          text: '',
+          error: 'The column’s series gave no text here',
+        },
+      ],
+    })
+  })
+
+  test('none uses the default series', () => {
+    expect(grid(() => Option.none()).accepted.map(cell => cell.text)).toEqual(['Bolt'])
   })
 })
 

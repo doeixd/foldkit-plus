@@ -2,7 +2,7 @@
  * `Fill`'s rules, broken in turn: `pnpm mutate packages/data-grid/test/fill.mutations.ts`
  * checks that a test fails for every one.
  */
-const tests = ['packages/data-grid/test/fill.test.ts']
+const tests = ['packages/data-grid/test/fill.test.ts', 'packages/data-grid/test/grid.test.ts']
 const file = '../src/fill.ts'
 const one = (name: string, find: string, replace: string) => ({
   name,
@@ -28,7 +28,11 @@ export default [
     'const from = backward ? units[0]! : units[units.length - 1]!',
     'const from = units[units.length - 1]!',
   ),
-  one('backward steps forward', '(backward ? -step : step)', 'step'),
+  one(
+    'backward steps forward',
+    '((from + (backward ? -step : step) * (index + 1)) / scale)',
+    '((from + step * (index + 1)) / scale)',
+  ),
   one(
     'a pattern runs on forward when filling back',
     'backward ? at(-1 - index) : at(source.length + index)',
@@ -47,5 +51,57 @@ export default [
     'a fill back starts far from the source',
     '(backward ? [...items].reverse() : items)',
     'items',
+  ),
+  one(
+    'a non-day is a day',
+    '  if (made.getUTCMonth() !== month || made.getUTCDate() !== date) return undefined',
+    '',
+  ),
+  one(
+    'month wins over days only when the days agree',
+    '  if (known.every(found => found.date === first.date) && constant(months)) {',
+    '  if (constant(months)) {',
+  ),
+  one(
+    'days win over months',
+    '  if (known.every(found => found.date === first.date) && constant(months)) {',
+    '  if (false) {',
+  ),
+  one('a month does not clamp', 'Math.min(first.date, daysInMonth(year, month))', 'first.date'),
+  one(
+    'a month step counts from the last day it reached',
+    'const origin = from.year * 12 + from.month',
+    'const origin = last.year * 12 + last.month',
+  ),
+  one(
+    'a month step runs forward when filling back',
+    'const at = origin + (backward ? -step : step) * (index + 1)',
+    'const at = origin + step * (index + 1)',
+  ),
+  one(
+    'a day step runs forward when filling back',
+    'dayText(new Date((from.epoch + (backward ? -step : step) * (index + 1)) * msPerDay))',
+    'dayText(new Date((from.epoch + step * (index + 1)) * msPerDay))',
+  ),
+  one(
+    'an uneven day step continues',
+    '  if (!constant(dayDiffs)) return undefined',
+    '  if (dayDiffs.length === 0) return undefined',
+  ),
+  one('a custom series is ignored', 'options.custom?.(', '(() => undefined)('),
+  one(
+    'a custom series is called with the lane up',
+    "toward: backward ? 'up' : 'down'",
+    "toward: 'down'",
+  ),
+  one(
+    'a short custom answer repeats',
+    "? { row, column, text: '', from, refusal: noSeriesText }",
+    "? { row, column, text: 'x', from }",
+  ),
+  one(
+    'a short custom answer is silently dropped',
+    "? { row, column, text: '', from, refusal: noSeriesText }",
+    "? { row, column, text: '', from }",
   ),
 ]

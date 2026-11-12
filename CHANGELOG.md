@@ -7,6 +7,96 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- `foldkit-remote`: `reaches(write, query)` says which queries a declared write
+  can change, from declarations alone: `Reach.Reads`, `Unaffected`, or
+  `Unknown({ why: 'NoBody' | 'Handler' })`. It compares members by their
+  Entity's identity and reads a body's `fields`, an exists' `where`, and every
+  path and viewer path. `explain` gains `reachedBy`, the registered mutations
+  whose write reaches the list (#439).
+- `foldkit-remote`: `RemoteData.all({ ... })` joins reads into one `RemoteData`
+  of the struct of their values. The first state any entry is in decides:
+  `Failed`, `NotFound`, `Initial`, `Loading`; with every value held it is
+  `Refreshing` if any entry is, else `Ready` (#481).
+- `foldkit-mixins-ui`: `Recipes.Dialog` and `Recipes.Sheet` take `motion`
+  (`standard`, or `none`, which opens, closes and steps back at once in every
+  state) and `close` (`corner`, or `none`, which leaves the `closeButton` Slot
+  unstyled for an application that draws its own buttons with it, as
+  `examples/foldkit/ui-showcase` removed it by hand). `Recipes.sheetPage` and
+  the Sheet's slide read the new `motion.sheet` and `motion.sheet-exit` tokens
+  of `foldkit-mixins`, which default to the `slow` tier and its exit and are
+  still multiplied by `travel`; an application with its own sheet timing sets
+  them in its theme tokens. `examples/foldkit/domains-plus` drops its
+  per-sheet duration overrides for both.
+- `foldkit-mixins/vite`: a `Style.whenInput` in a style module listed in
+  `styles({ modules })` is shipped as data, its predicate kept as the import
+  it was (a named import from a module that is not listed). The condition's
+  classes are compiled at build and the page keeps only the choice, so it still
+  loads no style compiler. A predicate written in place, or imported from a
+  listed module, fails the build and the message says to move it; `perItem`
+  stays refused. `examples/design-system` lists its style module.
+- `foldkit-primitives/dom`: `visibleLinks({ atMost, margin })`, an opt-in
+  stream of same-origin links scrolled into view for `Site.routing`'s
+  `preload.links`. Each address is read once per page and at most `atMost`
+  (8) per page; nothing under Save-Data, on a 2g connection or in a hidden tab.
+- `foldkit-primitives/dom`: `pointedLinks({ rest })` sets how long a hover or
+  focus rests before it counts (default 50 ms), and a link marked
+  `data-preload="none"` is skipped by both streams.
+- `foldkit-data-grid`, `foldkit-mixins-data-grid`: a copy also puts the range
+  on the clipboard as an HTML table (`text/html`, cells escaped, line breaks as
+  `<br>`) beside the tab-separated text; `Clipboard.toHtml(rows)` writes it.
+  Paste still reads `text/plain` only.
+- `foldkit-data-grid`: a column's `edit: { fill }` supplies its own series for
+  a fill down or up, called once per lane with `{ source, count, toward }`
+  (`FillLane`). `Option.none()` keeps `Fill.series`; of a longer answer the
+  first `count` are taken, and each cell past a shorter one is reported in
+  `refused` ("The column's series gave no text here"), not padded.
+
+### Changed
+
+- `foldkit-data-grid`: `Fill.series` continues `YYYY-MM-DD` days: by months
+  when they share a day of the month a constant number of months apart (a 31st
+  clamps to a shorter month and comes back), else by days when a constant number
+  of days apart; months win when both fit. It reads text, not the column, so a
+  text column holding ISO days now steps where it repeated. `Fill.cells` returns
+  `FilledCell`, a `PastedCell` that may carry a `refusal`.
+- `foldkit-surface`: `Closure.reads(app, projection, model, message)` names the
+  top-level Model fields outside a projection that its value after `message`
+  depends on, by running `update` again with them reset to `initial` (#543).
+- `foldkit-entity` (breaking): an invariant is the Entity's, as its relations
+  are. `Entity.invariant` adds it to the Entity and returns the descriptor it
+  was given, so every descriptor judges it: a form, a write's pre-send check, a
+  Drizzle writer and `checkConstraints` over the descriptor declared before the
+  invariant now hold it, where before #539 a binding of that descriptor stored
+  an invalid row. Applying a declaration to its Entity again adds nothing;
+  `Entity.invariant` no longer makes a new descriptor, and the
+  `foldkit-entity/invariants` metadata key is gone. A test that pipes different
+  invariants onto one shared base now gives each its own Entity.
+- `foldkit-guard` (breaking, security): every seam that enforces guards
+  (`GuardServer.writer`, `filter`, `memory` and `mutation`,
+  `GuardDrizzle.visible`, `GuardSync.document` and `opens`) throws where it is
+  built when given a descriptor without guards of an Entity another descriptor
+  of which carries them: `Todo carries guards on another descriptor of it;
+  pass the one Guards.attach returned`. Before, such a descriptor was served
+  as unguarded, and with `unguarded: 'allow'` a writer built from it let
+  anyone write (#539). The client's hints (`may`, placement) are unchanged.
+
+### Fixed
+
+- `foldkit-mixins`: a family's pressed fill (`active`) no longer turns a grey
+  red. It added 0.05 of chroma at the fill's hue, which a grey does not have:
+  shadcn's black accent pressed its secondary as a dark red, and a fill set to
+  a named grey (`white`, `#808080`) took Chromium's hue of about 24. The press
+  now adds 0.05 but at most doubles the chroma, so a grey stays grey and a fill
+  with 0.05 or more presses as before.
+
+- `foldkit-sync`: `Sync.mount` refuses a durable Message whose slice depends on a
+  local Model field. Replay runs over the slice alone, so such a Message showed one
+  slice on the page and was stored as another; it is now neither applied nor
+  submitted, and `onPersistenceFailure` gets a `ReplayError` that names the
+  fields. It costs one more `update` per durable dispatch (#543).
+
 ## 0.40.0
 
 Fixes from a review of everything 0.39.0 changed (#511 to #530). A Sync

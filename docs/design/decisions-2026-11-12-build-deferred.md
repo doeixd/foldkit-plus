@@ -242,6 +242,13 @@ only where both touch `style.ts` (check first).
   `data-preload="none"` is skipped by both streams; Save-Data and a hidden
   tab start none; the reference e2e measures tap to drawn with and without
   the stream and records both numbers in the note.
+- Measured (touch, every read held 400 ms at the network, `examples/reference/e2e/preload.e2e.ts`):
+  a tap draws the note's body in about 70 ms with `visibleLinks` (the page was
+  read while its link was only drawn) and about 830 ms without it, where the
+  tap's own touch starts the read. The test also counts reads before and after
+  the tap, and refuses a page that still sends a write on load: the first run
+  closed the writer's page before the server answered, so the next page
+  replayed the outbox and held the body already, and both timings read 70 ms.
 
 **C2. Route code from the Site tree (#438 C1, C2).** Default (three
 packages' contracts).

@@ -9,7 +9,7 @@
  * The panel rests where `--fk-sheet-snap` (the share of it that shows) puts
  * it; a top or bottom one the view marks `data-snaps`, resting partway, is
  * its `size`'s full height, so that share is of the screen. It follows `--fk-sheet-offset` while dragged, and slides in from its edge
- * on the slow tier; the slide travels, so reduced motion keeps only the fade,
+ * on `motion.sheet`; the slide travels, so reduced motion keeps only the fade,
  * and a drag follows the pointer with no transition. Its padding keeps clear
  * of a phone's safe areas on the sides it touches. `size` is its extent
  * across the page; `handle: 'bar'` (the default) draws the handle a drag
@@ -19,7 +19,7 @@
 import { Style, type Declarations, type StyleValue } from 'foldkit-mixins'
 import { DialogSlots } from '../dialog.js'
 import { component, ref, travelled, variant } from './design.js'
-import { Dialog, titleAxis } from './dialog.js'
+import { closeAxis, Dialog, motionAxis, titleAxis } from './dialog.js'
 
 type Side = 'top' | 'right' | 'bottom' | 'left'
 const allSides = ['top', 'right', 'bottom', 'left'] as const
@@ -164,11 +164,27 @@ const panelOn = (side: Side): StyleValue =>
 const extent = (inline: string, block: string) =>
   variant(Style.self({ '--_fk-sheet-inline': inline, '--_fk-sheet-block': block }))
 
-const dialog = Dialog({ size: null })
+/**
+ * The slide's and the exit's durations, on `motion.sheet` and
+ * `motion.sheet-exit`: in `variants`, so they beat the Dialog's slow tier in
+ * `components`. The slide travels, so reduced motion keeps only the fade.
+ */
+const timing = (duration: string, ease: string): Declarations => ({
+  transitionDuration: `${duration}, ${travelled(duration)}, ${travelled(duration)}`,
+  transitionTimingFunction: `${ease}, ${ease}, ${ease}`,
+})
+const slide = variant(
+  Style.self(timing(ref.motion.sheet, ref.motion.ease)),
+  Style.pseudo('[data-leave]', timing(ref.motion['sheet-exit'], ref.motion['ease-exit'])),
+)
+
+// The axes below are the Sheet's own, so the Dialog's are left unselected.
+const dialog = Dialog({ size: null, close: null, motion: null })
 
 export const Sheet = Style.recipeFor(DialogSlots)({
   base: {
     ...dialog,
+    backdrop: Style.compose(dialog.backdrop, slide),
     dialog: Style.compose(
       dialog.dialog ?? Style.compose(),
       // In `variants`, so it beats the Dialog's centering grid.
@@ -189,6 +205,7 @@ export const Sheet = Style.recipeFor(DialogSlots)({
           overscrollBehavior: 'contain',
         }),
         ...allSides.map(panelOn),
+        slide,
         // It follows the pointer; the release slides on the Dialog's transition.
         Style.pseudo('[data-dragging]', { transitionDuration: '0s' }),
         // Below its highest point a finger's swipe up raises it, so nothing scrolls first.
@@ -235,14 +252,16 @@ export const Sheet = Style.recipeFor(DialogSlots)({
       },
     },
     title: titleAxis,
+    close: closeAxis,
+    motion: motionAxis,
   },
-  defaults: { size: 'md', handle: 'bar', title: 'shown' },
+  defaults: { size: 'md', handle: 'bar', title: 'shown', close: 'corner', motion: 'standard' },
 })
 
 /**
  * For the application's page, behind a sheet drawn with `scalesPage`: it
  * steps back, smaller and rounded, while that sheet is open, as vaul's
- * `shouldScaleBackground`, on the slow tier, which travels. Put it on an
+ * `shouldScaleBackground`, on the sheet's duration, which travels. Put it on an
  * element beside the sheet, never around it: a scaled element holds every
  * fixed element inside it, the sheet's dialog too.
  */
@@ -250,7 +269,7 @@ export const sheetPage: StyleValue = component(
   Style.self({
     transformOrigin: 'top',
     transitionProperty: 'scale, translate, border-radius',
-    transitionDuration: travelled(ref.motion.slow),
+    transitionDuration: travelled(ref.motion.sheet),
     transitionTimingFunction: ref.motion.ease,
   }),
   Style.nest(':root:has([data-scales-page]:not([data-closed])) &', {

@@ -34,6 +34,12 @@ const Item = Entity.define(
   Schema.Struct({ id: Schema.String, code: Schema.String, rank: Schema.Int }),
 ).pipe(Entity.annotateMembers({ code: Collation.of(Collation.binary) }))
 
+/** An Item no other test adds an invariant to: an invariant is the Entity's, not one descriptor's. */
+const itemOfItsOwn = () =>
+  Entity.define('Item', Item.schema).pipe(
+    Entity.annotateMembers({ code: Collation.of(Collation.binary) }),
+  )
+
 /** A sum of two numbers: the plainest operator a parameter's type matters to. */
 const sum = Expr.operator('acme.sum', {
   input: [Schema.Int, Schema.Int],
@@ -528,7 +534,7 @@ describe('A writer over a binding', () => {
   })
 
   it('refuses to be built over an invariant calling an operator its binding does not run', () => {
-    const Bounded = Item.pipe(
+    const Bounded = itemOfItsOwn().pipe(
       Entity.invariant('bounded', ({ after }) => Expr.lt(sum(after.rank, 1), 100), {
         message: 'Too high',
       }),
@@ -541,7 +547,7 @@ describe('A writer over a binding', () => {
   })
 
   it("judges a write's row in memory by its binding's table, naming the invariant it breaks", async () => {
-    const Bounded = Item.pipe(
+    const Bounded = itemOfItsOwn().pipe(
       Entity.invariant('bounded', ({ after }) => Expr.lt(sum(after.rank, 1), 100), {
         message: 'Too high',
       }),

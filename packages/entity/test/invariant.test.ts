@@ -88,16 +88,37 @@ describe('An invariant', () => {
     ).toEqual(failing('endsAfterStart'))
   })
 
-  it('is metadata: attaching adds to what is there, and the Entity is the same', () => {
+  it('is the Entity’s: every descriptor of it judges it, the one declared before too (#539)', () => {
     expect(Entity.invariants(Inventory).map(held => held.id)).toEqual([
       'reservedWithinQuantity',
       'endsAfterStart',
     ])
-    expect(Entity.invariants(InventoryFields)).toEqual([])
-    expect(Entity.same(Inventory, InventoryFields)).toBe(true)
+    expect(Entity.invariants(InventoryFields)).toEqual(Entity.invariants(Inventory))
+    expect(Entity.judge(InventoryFields, { after: { ...row, quantity: 3 } })).toEqual(
+      failing('reservedWithinQuantity'),
+    )
     expect(Entity.invariants(Inventory)[1]?.path).toEqual(['starts', 'ends'])
-    // The same invariants reached twice, as when two annotated copies combine, are held once.
     expect(Entity.invariants(Inventory.pipe(Entity.annotate(Inventory.metadata)))).toHaveLength(2)
+  })
+
+  it('returns the descriptor it was given, and is one when applied twice', () => {
+    const Box = Entity.define('Box', Schema.Struct({ id: Schema.String, size: Schema.Number }))
+    const positive = Entity.invariant<typeof Box>(
+      'positive',
+      ({ after }) => Expr.gt(after.size, 0),
+      {
+        message: 'A box has a size',
+      },
+    )
+    expect(() => positive.entity).toThrow('names no Entity until it is attached')
+    expect(Box.pipe(positive)).toBe(Box)
+    // A module evaluated twice, or two pipes over one base, declare nothing new.
+    expect(Box.pipe(positive, positive)).toBe(Box)
+    expect(Entity.invariants(Box).map(held => held.id)).toEqual(['positive'])
+    expect(positive.entity).toBe('Box')
+    // Another Entity of the same name is not the one it is declared on.
+    const Twin = Entity.define('Box', Schema.Struct({ id: Schema.String, size: Schema.Number }))
+    expect(() => Twin.pipe(positive)).toThrow('is declared on Box already')
   })
 
   it.each([
@@ -253,6 +274,19 @@ describe('Entity.judgeInput', () => {
     expect(
       Entity.judgeInput(Edit, { ...value, quantity: 5, ends: new Date('2025-12-01') }),
     ).toEqual(failing('endsAfterStart'))
+  })
+
+  it('judges an input over the descriptor declared before its invariants (#539)', () => {
+    const Bare = Entity.input(
+      InventoryFields,
+      Schema.Struct({
+        quantity: Schema.Number,
+        reserved: Schema.Option(Schema.NullOr(Schema.Number)),
+      }),
+    )
+    expect(Entity.judgeInput(Bare, { quantity: 3, reserved: Option.some(5) })).toEqual(
+      failing('reservedWithinQuantity'),
+    )
   })
 
   it('leaves an invariant over a key holding nothing undecided', () => {

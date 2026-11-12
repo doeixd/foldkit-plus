@@ -110,8 +110,11 @@ To read a page ahead when the reader means to follow a link, add
 there => Data.preload(there, actives) }` (`pointedLinks` from
 `foldkit-primitives/dom`; `PointedAtLink: { url: Url }` in the app's union)
 and name the services: `Site.routing<Model, Message, Route, RemoteClient>`.
-A link counts after a hover or focus rests 50 ms on it, and at once for a
-finger. The routing claims `intended`, skips addresses the tree does not hold
+A link counts after a hover or focus rests 50 ms on it (`pointedLinks({ rest })`
+changes that), and at once for a finger; `data-preload="none"` on a link
+excludes it. To read what scrolls into view too, merge the opt-in
+`visibleLinks({ atMost = 8, margin })` into `links`: each address once per
+page, at most `atMost` per page, nothing under Save-Data, 2g or a hidden tab. The routing claims `intended`, skips addresses the tree does not hold
 and the route shown, and hands `read` the Model with the route set; the Model
 itself is unchanged, and the reads land as Remote's `Preloaded`. Do not add
 an "intended route" Model field or extra `Surface.at` entries for it.

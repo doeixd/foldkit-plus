@@ -37,6 +37,15 @@ export interface ColumnSpec<Row, Value> {
   readonly filter?: true | CellEditor
 }
 
+/** What a fill down or up asks of a column's own series: one lane, one column. */
+export interface FillLane {
+  /** The source's drafts in this column, top to bottom. */
+  readonly source: ReadonlyArray<string>
+  /** How many cells the fill writes beyond the source. */
+  readonly count: number
+  readonly toward: 'down' | 'up'
+}
+
 export interface ColumnEdit<Row, Value = string> {
   /** The text an edit of a row's cell begins with. Default the value as a string. */
   readonly draft?: (row: Row) => string
@@ -47,6 +56,14 @@ export interface ColumnEdit<Row, Value = string> {
    * any text, as itself.
    */
   readonly schema?: Schema.Codec<Value, string>
+  /**
+   * The texts a fill down or up writes in this column, the first next to the
+   * source; `Option.none()` uses `Fill.series`. Called once per lane. Of a
+   * longer answer the first `count` are taken; for a cell past a shorter
+   * one the fill reports a refusal, never a repeat. A fill right or left
+   * crosses columns and keeps `Fill.series`.
+   */
+  readonly fill?: (lane: FillLane) => Option.Option<ReadonlyArray<string>>
 }
 
 /**

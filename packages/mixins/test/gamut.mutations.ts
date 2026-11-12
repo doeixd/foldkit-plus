@@ -91,6 +91,16 @@ export default [
     tests: browser,
   },
   {
+    name: 'a pressed fill given chroma a grey does not have, at its powerless hue',
+    edits: [{ file: oklch, find: "'min(c + 0.05, c * 2)'", replace: "'calc(c + 0.05)'" }],
+    tests: browser,
+  },
+  {
+    name: 'a pressed fill no deeper than its fill',
+    edits: [{ file: oklch, find: "'min(c + 0.05, c * 2)'", replace: "'c'" }],
+    tests: browser,
+  },
+  {
     name: 'the boundary left unregistered, substituted whole into every color',
     edits: [
       {

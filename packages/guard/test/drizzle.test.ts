@@ -264,9 +264,8 @@ describe('GuardDrizzle.visible at registration', () => {
     expect(() => GuardDrizzle.visible(Policy, [Todo])).toThrow(
       /Todo inherits Project's Read, but Project is not listed/,
     )
-    expect(() => GuardDrizzle.visible(Policy, [Todo, Related.Project])).toThrow(
-      /Project has no Read rule/,
-    )
+    const Unread = Related.Project.pipe(Guards.attach(G, { row: { Update: [G.isAdmin] } }))
+    expect(() => GuardDrizzle.visible(Policy, [Todo, Unread])).toThrow(/Project has no Read rule/)
   })
 
   it('refuses a loop of inherited Reads', () => {

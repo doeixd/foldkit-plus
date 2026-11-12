@@ -26,12 +26,8 @@ which every update must hold.
 
 ## 1. The four kinds, and who owns each
 
-| Kind | Reads | Declared with | Refused as |
-| --- | --- | --- | --- |
-| Authorization | principal, row | `Guards.attach` | `Forbidden` |
-| Precondition | row before, input | `Write.update(…, { when })` | `Unmet` |
-| Transition | row before, row after | `Entity.transition` | `Invalid` |
-| Invariant | row after | `Entity.invariant` | `Invalid` |
+The table of kinds, what each reads, how it is declared and what it is refused as lives in
+[the laws guide](../laws.md#where-does-a-rule-go).
 
 A write lands only when all four hold:
 

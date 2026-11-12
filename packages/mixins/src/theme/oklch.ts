@@ -92,7 +92,10 @@ const family = (name: Hue, defaultValue: string) => {
   return {
     default: defaultValue,
     hover: fit(shift(color, -0.06, 0), name),
-    active: fit(shift(color, -0.1, 0.05), name),
+    // Deeper by 0.05 of chroma, but at most twice its own: a grey has no hue
+    // to deepen (its hue is powerless, and Chromium reads a named grey's as
+    // about 24, a red), so a grey fill stays grey when pressed.
+    active: fit(from(color, 'calc(l - 0.1)', 'min(c + 0.05, c * 2)'), name),
     // A mix of two colors inside sRGB can bend out of it, toward white most.
     subtle: fit(tint(color, 85), name),
     outline: fitted(name, shift(color, -0.05, 0), shift(color, 0.05, 0)),

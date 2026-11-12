@@ -55,9 +55,19 @@ export default [
     'options.path ?? []',
   ),
   edit(
-    'the same invariant is held twice',
-    'merge: values => [...new Set(values)],',
-    'merge: values => values,',
+    'a descriptor judges only what it was given (#539)',
+    'const declared = invariantsOfIdentity(entity.identity)',
+    'const declared: ReadonlyArray<Invariant> = []',
+  ),
+  edit(
+    'a declaration applied to its Entity again declares it twice',
+    '      return entity\n    }\n    if (invariantsOf',
+    '    }\n    if (invariantsOf',
+  ),
+  edit(
+    'a declaration attaches to another Entity of its name',
+    'if (attached.identity !== entity.identity)',
+    'if (false)',
   ),
   edit(
     'a decoded value is judged unencoded',

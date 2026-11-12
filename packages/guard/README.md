@@ -206,6 +206,16 @@ Guards.matrix([Todo])
   error where it is written.
 - Attaching is metadata: the result is the same Entity (`Entity.same`), and
   attaching twice appends to each surface's list and replaces its refusal.
+  The rules travel on the descriptor `Guards.attach` returns, not on the one
+  it was given, so give the returned one to everything that enforces them:
+  `GuardServer.writer`, `filter`, `memory` and `mutation`,
+  `GuardDrizzle.visible`, and `GuardSync.document`. Each throws where it is
+  built when given a descriptor without the rules of an Entity another
+  descriptor of which carries them (`Todo carries guards on another
+  descriptor of it; pass the one Guards.attach returned`), since it would
+  otherwise serve the Entity unguarded. A rule is still declared over the
+  bare descriptor (`guard.row(TodoFields, …)`), and the client's hints
+  (`may`, placement) read whatever descriptor they are given.
 - `Guards.guardFields(Todo, 'Read')` names the members a row interaction's
   guards read, so a change to one is known to change who may.
 - A surface with no guards on a guarded Entity falls to the set's

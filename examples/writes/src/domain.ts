@@ -10,6 +10,8 @@ import { Mutation } from 'foldkit-remote'
 export const User = Schema.Struct({ id: Schema.String })
 export type User = typeof User.Type
 
+// The descriptor the guard rules are declared over. It judges the invariants as `Product` does,
+// but carries no guards: a server binds `Product`, and a guard seam refuses this one by name.
 const ProductFields = Entity.define(
   'Product',
   Schema.Struct({

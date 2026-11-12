@@ -15,7 +15,7 @@ import {
   type Visible,
 } from 'foldkit-remote-drizzle'
 import { RemoteServerError } from 'foldkit-remote-server'
-import { attached, flattenRules, type AnyRule } from './attach.js'
+import { enforced, flattenRules, type AnyRule } from './attach.js'
 import type { Condition } from './condition.js'
 import type { Policy } from './index.js'
 import { rowRules } from './placed.js'
@@ -27,7 +27,7 @@ function fail(message: string): never {
 
 /** Every rule that decides who may read a row of `entity`. */
 const readRules = (entity: AnyEntity): ReadonlyArray<AnyRule> =>
-  Option.match(attached(entity), {
+  Option.match(enforced(entity), {
     onNone: () => [],
     onSome: attachment => [...attachment.always, ...(attachment.row['Read']?.rules ?? [])],
   })

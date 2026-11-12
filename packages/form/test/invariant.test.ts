@@ -9,7 +9,7 @@ import { Entity, Expr, Operators } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
 import { Form } from '../src/index.js'
 
-const Stock = Entity.define(
+const StockFields = Entity.define(
   'Stock',
   Schema.Struct({
     id: Schema.String,
@@ -17,7 +17,8 @@ const Stock = Entity.define(
     reserved: Schema.Number,
     note: Schema.String,
   }),
-).pipe(
+)
+const Stock = StockFields.pipe(
   Entity.invariant(
     'reservedWithinQuantity',
     ({ after }) => Expr.lte(after.reserved, after.quantity),
@@ -76,6 +77,25 @@ describe('A form over an Entity with invariants', () => {
       errors: ['Reserved stock cannot exceed the quantity'],
     })
     expect(model.errors).toEqual([])
+  })
+
+  it('judges them over the descriptor declared before them too (#539)', () => {
+    const Bare = Form.make(
+      'Bare',
+      Entity.input(
+        StockFields,
+        Schema.Struct({ quantity: Schema.Number, reserved: Schema.Number }),
+      ),
+    )
+    const { model, outMessage } = after(Bare.bundle, [
+      Bare.Message.Changed({ key: 'quantity', value: '3' }),
+      Bare.Message.Changed({ key: 'reserved', value: '5' }),
+      Bare.Message.Submitted(),
+    ])
+    expect(outMessage).toBeUndefined()
+    expect(Bare.field(model, 'reserved')).toMatchObject({
+      errors: ['Reserved stock cannot exceed the quantity'],
+    })
   })
 
   it('submits a row that holds every one it can judge', () => {

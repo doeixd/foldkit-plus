@@ -1,8 +1,9 @@
 /**
  * Invariants: what every stored row of an Entity must hold, and what every
- * change of one must, declared once on the Entity through its metadata and read
- * from there by each interpreter: the reference judge here, a Schema check, a
- * form, a server's writer.
+ * change of one must, declared once on the Entity and read by each
+ * interpreter: the reference judge here, a Schema check, a form, a server's
+ * writer. They are the Entity's, as its relations are, so every descriptor of
+ * it judges them, the one they were declared over included.
  *
  * One is built over the row before a write (`before`, each field as `Expr.field`) and
  * the row after it (`after`, each field as `Expr.next`); each `one` relation is
@@ -17,7 +18,6 @@
  * It reads no input and no principal. Who may write is a guard's; whether a
  * write applies now is its `when`'s.
  */
-import { Metadata } from 'foldkit-metadata'
 import { Match, Option, Schema, type SchemaAST } from 'effect'
 import { OperatorMissingError, truthOver, type Row } from './evaluate.js'
 import { kernelOperators } from './memoryTable.js'
@@ -33,7 +33,7 @@ import {
   type Predicate,
   type Reads,
 } from './expr.js'
-import { remake, variantBases } from './descriptor.js'
+import { extend, invariantsOfIdentity, variantBases } from './descriptor.js'
 import type {
   AnyEntity,
   EntityField,
@@ -102,12 +102,6 @@ export interface Change {
   readonly before?: Row
 }
 
-const Invariants = Metadata.key<Invariant>('foldkit-entity/invariants', {
-  // The same invariant reached twice (two annotated copies combined) is one.
-  merge: values => [...new Set(values)],
-  summarize: invariant => invariant.id,
-})
-
 /** What a row, or a change, comes to under an Entity's invariants. */
 export type Judgement =
   | { readonly _tag: 'Valid' }
@@ -126,8 +120,9 @@ export type Judgement =
 export const readsBefore = (held: Invariant): boolean => held.before.length > 0
 
 /**
- * An invariant as declared: the step that attaches it to its Entity, carrying
- * its id and, once attached, that Entity's name, so a refusal is matched
+ * An invariant as declared: the step that attaches it to its Entity and
+ * returns the descriptor it was given, carrying its id and, once attached,
+ * that Entity's name, so a refusal is matched
  * against the declaration rather than a string spelled again
  * (`Refusal.isInvalidBy(refusal, reservedWithinQuantity)`). An id is unique
  * only within an Entity, so the name is part of what a refusal names; reading
@@ -211,7 +206,9 @@ const declareOn = <E extends AnyEntity>(
  * Declares what every stored row, or every change of one, must hold:
  * `Entity.invariant('reservedWithinQuantity', ({ after }) =>
  * Expr.lte(after.reserved, after.quantity), { message })` over the row a
- * write leaves, or with `before` too over the change an update makes.
+ * write leaves, or with `before` too over the change an update makes. It is
+ * the Entity's: every descriptor of it judges it, and the step returns the one
+ * it was given. Applied to that Entity again, it adds nothing.
  * Refused where it is declared: an id declared twice, a predicate over another
  * Entity, one reading an input or nothing of `after` (that is a `when`), a path
  * naming no field.
@@ -221,17 +218,22 @@ export const invariant = <E extends AnyEntity>(
   build: Build<E>,
   options: Options<E>,
 ): DeclaredInvariant<E> => {
-  let attached: string | undefined
+  let attached: { readonly identity: EntityIdentity<string>; readonly name: string } | undefined
   const declared = (entity: E): E => {
     if (id.length === 0) fail(entity, 'an invariant needs an id')
-    if (attached !== undefined && attached !== entity.name)
-      fail(entity, `"${id}" is declared on ${attached} already: declare it again for this Entity`)
+    if (attached !== undefined) {
+      if (attached.identity !== entity.identity)
+        fail(
+          entity,
+          `"${id}" is declared on ${attached.name} already: declare it again for this Entity`,
+        )
+      // Applied again to its Entity, as a module evaluated twice or two pipes over one base do.
+      return entity
+    }
     if (invariantsOf(entity).some(held => held.id === id)) fail(entity, `"${id}" is declared twice`)
-    const held = declareOn(entity, id, build, options)
-    attached = entity.name
-    return remake(entity, {
-      metadata: Metadata.combine([entity.metadata, Invariants.of(held)]),
-    }) as E
+    extend(entity, { invariants: [declareOn(entity, id, build, options)] })
+    attached = { identity: entity.identity, name: entity.name }
+    return entity
   }
   return Object.defineProperties(declared, {
     id: { value: id, enumerable: true },
@@ -243,7 +245,7 @@ export const invariant = <E extends AnyEntity>(
             `[foldkit-entity] Entity.invariant "${id}" names no Entity until it is attached to one`,
           )
         }
-        return attached
+        return attached.name
       },
     },
   }) as DeclaredInvariant<E>
@@ -304,7 +306,7 @@ const caseInvariants = (identity: EntityIdentity<string>): ReadonlyArray<Invaria
 /** The Entity's invariants, in the order they were declared. */
 export const invariantsOf = (entity: AnyEntity): ReadonlyArray<Invariant> => {
   const cases = caseInvariants(entity.identity)
-  const declared = Invariants.get(entity.metadata)
+  const declared = invariantsOfIdentity(entity.identity)
   return cases.length === 0 ? declared : [...cases, ...declared]
 }
 

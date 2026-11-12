@@ -210,6 +210,46 @@ opaque and its entries frozen; only a key's `of` and composition make one.
 Surface never interprets them; `Surface.inspect` and `Module` show them through
 `summarize`.
 
+### Closure
+
+A projection is **closed** when its value after a Message depends only on the
+projection before it and the Message. Sync replays a durable Message over the
+shared slice alone, so the slice has to be closed for it. `Closure.reads` is
+the check: it runs `update` on the Model, and again with every top-level field
+the projection does not depend on reset to `initial`, compares the two
+projections with the projection's codec, and names the fields whose reset
+changed the answer. It returns `[]` for a closed step. Nothing else runs:
+Commands `update` returns are ignored, and nothing is written.
+
+```ts standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Closure, Projection, Surface } from 'foldkit-surface'
+
+const Model = Schema.Struct({
+  todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
+  filter: Schema.String,
+})
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ClearedShown: {} })
+const initial: Model = { todos: [], filter: '' }
+const update = (model: Model, _message: typeof Message.Type) => ({
+  // Removes the todos whose title is the local `filter`.
+  model: { ...model, todos: model.todos.filter(todo => todo.title !== model.filter) },
+})
+
+const App = Surface.application({ Model, Message })
+const shown: Model = { todos: [{ id: 'a', title: 'x' }], filter: 'x' }
+
+Closure.reads({ initial, update }, Projection.pick(App.model.todos), shown, Message.ClearedShown())
+// ['filter']: the slice after ClearedShown depends on it
+```
+
+It takes a read-only `Projection` as well as a `WritableProjection`, and a
+field that holds any path of the projection is never named. `Sync.mount` runs it
+on every durable dispatch; see the
+[Sync README](https://github.com/doeixd/foldkit-plus/blob/main/packages/sync/README.md#what-makes-a-message-durable).
+
 ## Applications
 
 `Surface.application({ Model, Message })` returns an `Application`: the schemas
@@ -651,6 +691,7 @@ that may observe across those runtime boundaries without creating another one.
   interpreter metadata (`Metadata.key`).
 - Application scopes (`Surface.application`) and their identity token.
 - Typed Message subsets (`MessageSet.make`, `MessageSet.union`).
+- `Closure.reads`: whether a projection after a Message depends on the rest of the Model.
 - Actions (`Action.define`, `Action.run`): a named capability ending in a Message.
 - Named Surfaces and their renderer binding.
 - The `Diagnostics` channel and its default reporter; each package owns its own

@@ -33,6 +33,52 @@ export const titleAxis = {
   hidden: { title: variant(Utilities.srOnly) },
 }
 
+/**
+ * The `close` axis of a dialog and a sheet: the close button drawn in the
+ * panel's corner, or left to the application, whose own buttons then carry
+ * the slot (`none`). The Slot is still in the markup either way: this is
+ * its look, not its element.
+ */
+export const closeAxis = {
+  corner: {
+    closeButton: component(
+      Style.self({
+        position: 'absolute',
+        insetBlockStart: ref.space.sm,
+        insetInlineEnd: ref.space.sm,
+        padding: ref.space['2xs'],
+        border: '0',
+        borderRadius: ref.radius.sm,
+        background: 'transparent',
+        color: ref.text.muted,
+        cursor: 'pointer',
+      }),
+      hover({
+        background: unfilledHover,
+        color: ref.text.overt,
+      }),
+      focusRing,
+    ),
+  },
+  none: {},
+}
+
+const still = variant(
+  Style.self({ transitionDuration: '0s' }),
+  // A leave's own duration, which a Sheet writes in `variants` too and a bare
+  // `self` would lose to by specificity.
+  Style.pseudo('[data-leave]', { transitionDuration: '0s' }),
+)
+
+/**
+ * The `motion` axis of a dialog and a sheet. `none` opens, closes and steps
+ * back at once, backdrop and panel alike, whatever the theme's `motion` knob.
+ */
+export const motionAxis = {
+  standard: {},
+  none: { backdrop: still, panel: still },
+}
+
 const width = (max: string) =>
   variant(
     Style.self({
@@ -148,24 +194,6 @@ export const Dialog = Style.recipeFor(DialogSlots)({
       }),
     ),
     description: component(Style.self({ margin: '0', color: ref.text.muted })),
-    closeButton: component(
-      Style.self({
-        position: 'absolute',
-        insetBlockStart: ref.space.sm,
-        insetInlineEnd: ref.space.sm,
-        padding: ref.space['2xs'],
-        border: '0',
-        borderRadius: ref.radius.sm,
-        background: 'transparent',
-        color: ref.text.muted,
-        cursor: 'pointer',
-      }),
-      hover({
-        background: unfilledHover,
-        color: ref.text.overt,
-      }),
-      focusRing,
-    ),
   },
   variants: {
     size: {
@@ -180,6 +208,8 @@ export const Dialog = Style.recipeFor(DialogSlots)({
       },
     },
     title: titleAxis,
+    close: closeAxis,
+    motion: motionAxis,
   },
-  defaults: { size: 'md', title: 'shown' },
+  defaults: { size: 'md', title: 'shown', close: 'corner', motion: 'standard' },
 })

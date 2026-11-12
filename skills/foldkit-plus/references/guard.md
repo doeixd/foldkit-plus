@@ -113,6 +113,12 @@ export const Todo = TodoFields.pipe(
 - The result is the same Entity (metadata only); attaching twice appends. It
   also declares `ReadFilter` (what the row's Read rules read), so Remote
   fetches a list, rather than placing a row it does not hold, on a change to one.
+- The rules travel on the returned descriptor. Every seam that enforces them
+  (`GuardServer.writer`, `filter`, `memory`, `mutation`, `GuardDrizzle.visible`,
+  `GuardSync.document`) throws where it is built when given a descriptor
+  without them of a guarded Entity (`Todo carries guards on another descriptor
+  of it; pass the one Guards.attach returned`). Rules are still declared over
+  the bare one (`guard.row(TodoFields, …)`).
 - A relation's Read rules are guards over the parent row: where they refuse,
   the relation is withheld, like a member.
 - `Guards.matrix([Todo])` prints every surface; `Guards.guardFields(Todo,

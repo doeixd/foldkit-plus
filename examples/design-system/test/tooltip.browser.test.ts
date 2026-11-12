@@ -11,7 +11,7 @@ import { page } from 'vitest/browser'
 import { initModel, update, view, Message, Model } from '../src/main.js'
 
 const modelForTests = initModel({ year: 2026, month: 10, day: 8 })
-import { stylesheet } from '../src/style.js'
+import { stylesheet } from '../src/appStyle.js'
 import { subscriptions } from '../src/subscriptions.js'
 
 afterEach(() => {

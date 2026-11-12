@@ -366,11 +366,11 @@ describe('what the context sets, where the server is made', () => {
   })
 
   it('counts a field the context sets as set where an insert is registered', () => {
-    const dated = Entity.invariant<typeof PostFields>(
-      'dated',
-      ({ after }) => Expr.gte(after.createdAt, 0),
-      { message: 'A post has a time' },
-    )
+    // A declaration attaches to one Entity, and each Post below is one of its own.
+    const dated = () =>
+      Entity.invariant<typeof PostFields>('dated', ({ after }) => Expr.gte(after.createdAt, 0), {
+        message: 'A post has a time',
+      })
     const registered = (Dated: typeof PostFields) =>
       RemoteServer.write(
         Mutation.write(
@@ -386,11 +386,13 @@ describe('what the context sets, where the server is made', () => {
         writer(bind({ Post: Dated }, { Post: { table: posts } }).Post),
       )
     // A Post of its own each time: `Social.Post` is set from the context already.
-    expect(() => registered(postFields().pipe(dated))).toThrow(
+    expect(() => registered(postFields().pipe(dated()))).toThrow(
       'leaves unset a field an invariant reads (dated reads createdAt)',
     )
     expect(() =>
-      registered(postFields().pipe(dated, Entity.sets({ createdAt: Expr.now }, { on: 'create' }))),
+      registered(
+        postFields().pipe(dated(), Entity.sets({ createdAt: Expr.now }, { on: 'create' })),
+      ),
     ).not.toThrow()
   })
 })

@@ -1,20 +1,23 @@
 /**
- * The demo's appearance, as `foldkit-mixins` data.
+ * The demo's appearance, as `foldkit-mixins` data. Production ships this module
+ * as the classes it compiles to (`foldkit-mixins/vite`'s `modules`), so it
+ * exports Styles and nothing else.
  *
- * The look comes from two decisions, both in this file:
+ * The look comes from two decisions:
  *
- * - **The shipped theme.** No knob is set, so the components look as a new
- *   application gets them.
+ * - **The shipped theme** (`appStyle.ts`). No knob is set, so the components
+ *   look as a new application gets them.
  * - **Recipe selections.** Each shadcn intent is one selection: `primary` is
  *   Default, `neutral` solid/outline/ghost are Secondary/Outline/Ghost, and
  *   `danger` solid is Destructive.
  */
-import { Capability, Slot, Slots, Style } from 'foldkit-mixins'
-import { AppStyle } from 'foldkit-mixins/app'
+import { Style } from 'foldkit-mixins'
 import { Layout } from 'foldkit-mixins/layout'
 import { Theme } from 'foldkit-mixins/theme'
 import { Utilities as U } from 'foldkit-mixins/utilities'
+import { app, L, t } from './appStyle.js'
 import { masks } from './iconMasks.js'
+import { pressed } from './predicates.js'
 import {
   AlertSlots,
   AppShellSlots,
@@ -59,34 +62,7 @@ import {
   Touch,
 } from 'foldkit-mixins-ui'
 
-// The shipped theme: the system shows the components as a new application gets them.
-const app = AppStyle.make({})
-
-export const { t, L } = app
-export const stylesheet = app.stylesheet
-
 // --- page chrome ---------------------------------------------------------------
-
-export const PageSlots = Slots.define({
-  root: Slot.make({ capability: Capability.Container }),
-  header: Slot.make({ capability: Capability.Container }),
-  eyebrow: Slot.make({ capability: Capability.Container }),
-  title: Slot.make({ capability: Capability.Container }),
-  lede: Slot.make({ capability: Capability.Container }),
-  controls: Slot.make({ capability: Capability.Container }),
-  controlGroup: Slot.make({ capability: Capability.Container }),
-  controlLabel: Slot.make({ capability: Capability.Container }),
-  section: Slot.make({ capability: Capability.Container }),
-  sectionTitle: Slot.make({ capability: Capability.Container }),
-  sectionText: Slot.make({ capability: Capability.Container }),
-  swatchGrid: Slot.make({ capability: Capability.Container }),
-  swatch: Slot.make({ capability: Capability.Container }),
-  chip: Slot.make({ capability: Capability.Container }),
-  swatchName: Slot.make({ capability: Capability.Container }),
-  row: Slot.make({ capability: Capability.Container }),
-  code: Slot.make({ capability: Capability.Container }),
-  footer: Slot.make({ capability: Capability.Container }),
-})
 
 // The frame: the sections in a sidebar, which a phone opens as a sheet.
 export const AppShellStyle = app.forSlots(AppShellSlots)(Recipes.AppShell({ width: 'contained' }), {
@@ -310,11 +286,6 @@ export const RadioStyle = app.forSlots(RadioGroupSlots)(
   },
 )
 
-export const RadioRowSlots = Slots.define({
-  row: Slot.make({ capability: Capability.Container }),
-  text: Slot.make({ capability: Capability.Container }),
-})
-
 export const RadioRowStyle = app.slots(
   {
     row: [L.in('layouts', Layout.cluster({ gap: t.space.sm, align: 'start' }))],
@@ -423,13 +394,6 @@ export const ComboBoxStyle = app.forSlots(ComboboxSlots)(Recipes.Combobox({}), {
 // parent draws its shell through these slots instead: the month grid inside
 // still resolves through CalendarSlots.
 
-export const DateChromeSlots = Slots.define({
-  picker: Slot.make({ capability: Capability.Container }),
-  trigger: Slot.make({ capability: Capability.Container }),
-  panel: Slot.make({ capability: Capability.Container }),
-  backdrop: Slot.make({ capability: Capability.Container }),
-})
-
 export const DateChromeStyle = app.slots(
   {
     picker: [{ position: 'relative', display: 'inline-block' }],
@@ -461,12 +425,6 @@ export const ToastStyle = app.forSlots(ToastSlots)(Recipes.Toast({}), {
   name: 'ToastStyle',
 })
 
-export const ToastEntrySlots = Slots.define({
-  title: Slot.make({ capability: Capability.Container }),
-  text: Slot.make({ capability: Capability.Container }),
-  dismiss: Slot.make({ capability: Capability.Container }),
-})
-
 export const ToastEntryStyle = app.slots(
   {
     title: [U.m('0'), U.text('sm'), U.font('semibold'), U.color('text.overt')],
@@ -491,13 +449,6 @@ export const FileDropStyle = app.forSlots(FileDropSlots)(Recipes.FileDrop({}), {
   name: 'FileDropStyle',
 })
 
-export const FileTextSlots = Slots.define({
-  primary: Slot.make({ capability: Capability.Container }),
-  secondary: Slot.make({ capability: Capability.Container }),
-  row: Slot.make({ capability: Capability.Container }),
-  fileName: Slot.make({ capability: Capability.Container }),
-})
-
 export const FileTextStyle = app.slots(
   {
     primary: [U.m('0'), U.text('sm'), U.font('medium'), U.color('text.overt')],
@@ -509,12 +460,6 @@ export const FileTextStyle = app.slots(
 )
 
 // --- input group, icons, touch -----------------------------------------------------------
-
-export const InputGroupSlots = Slots.define({
-  group: Slot.make({ capability: Capability.Container }),
-  affix: Slot.make({ capability: Capability.Container }),
-  control: Slot.make({ capability: Capability.TextInput, events: [] }),
-})
 
 /** A text field with a prefix, drawn as one box. */
 export const InputGroupStyle = app.slots(
@@ -533,11 +478,6 @@ export const InputGroupStyle = app.slots(
   },
   { name: 'InputGroupStyle' },
 )
-
-export const IconSlots = Slots.define({
-  row: Slot.make({ capability: Capability.Container }),
-  chip: Slot.make({ capability: Capability.Container }),
-})
 
 /**
  * `Icons` + `Touch` as mechanisms: each chip shows the icon its `data-icon`
@@ -592,11 +532,6 @@ export const PaginationStyle = app.forSlots(PaginationSlots)(Recipes.Pagination(
 
 // --- feedback ----------------------------------------------------------------------------
 
-export const BadgeSlots = Slots.define({
-  row: Slot.make({ capability: Capability.Container }),
-  badge: Slot.make({ capability: Capability.Container }),
-})
-
 export const StatusStyle = app.slots(
   {
     row: L.in('layouts', Layout.cluster({ gap: t.space.sm, align: 'center' })),
@@ -612,10 +547,6 @@ export const StatusStyle = app.slots(
 
 export const DialogPreviewStyle = app.forSlots(DialogSlots)(Recipes.Dialog({ size: 'sm' }), {
   name: 'DialogPreviewStyle',
-})
-
-export const DialogActionsSlots = Slots.define({
-  actions: Slot.make({ capability: Capability.Container }),
 })
 
 export const DialogActionsStyle = app.slots(
@@ -637,6 +568,17 @@ export const CardStyle = app.forSlots(CardSlots)(
     },
   })({ padding: 'roomy' }),
   { name: 'CardStyle' },
+)
+
+/** The card's outline, once a button on it has been pressed: its view's input is the press count. */
+export const CardPressedStyle = app.forSlots(CardSlots)(
+  {
+    root: Style.whenInput(
+      pressed,
+      Style.self({ boxShadow: `0 0 0 ${t.border.thin} ${t.outline.overt}` }),
+    ),
+  },
+  { name: 'CardPressedStyle' },
 )
 
 // --- display + collections ---------------------------------------------------------------
@@ -700,10 +642,6 @@ export const SpinnerStyle = app.forSlots(SpinnerSlots)(Recipes.Spinner({}), {
 
 export const TableStyle = app.forSlots(TableSlots)(Recipes.Table({}), {
   name: 'TableStyle',
-})
-
-export const NoticeListSlots = Slots.define({
-  list: Slot.make({ capability: Capability.Container }),
 })
 
 /** A bordered card for stacked rows: the rows pad themselves, so the list

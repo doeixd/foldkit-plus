@@ -501,7 +501,8 @@ tertiary and feedback families, derived from the theme's knobs. Only the `knob` 
 expression over other tokens (`oklch(from …)`, `color-mix()`, `light-dark()`), so the browser does
 the derivation and one knob override recolors everything below it. Each family (`accent`,
 `secondary`, `tertiary`, `success`, `warning`, `error`, `info`) is one shape: a fill, `default`,
-lighter in a dark scheme; `hover` and `active`; `subtle`, a tint of it on the base; `outline`, a
+lighter in a dark scheme; `hover` and `active` (darker, and `active` more vivid by 0.05 of chroma, at most
+twice its own, so a grey fill stays grey when pressed); `subtle`, a tint of it on the base; `outline`, a
 line in it that stands off the base; and two text colors named for where they go: `on-fill` is
 text on that fill (near white on a mid accent), and `ink` is text in the family's color on the
 base surface, dark enough to read in a light scheme and light enough in a dark one. Colored text
@@ -555,7 +556,8 @@ each level is an even step lighter.
 non-color scales, with `space` and `radius` multiplied by the `density` and `radius-factor` knobs.
 Its `motion` group is three tiers, `fast`, `moderate` and `slow` (80, 160 and 240ms, for hover and
 fades, popups and tabs, dialogs), each with a quicker `-exit` for dismissals, all multiplied by the
-`motion` knob. A duration of something that moves or resizes also multiplies by `knob.travel`,
+`motion` knob. `sheet` and `sheet-exit` time a Sheet's slide: they read the `slow` tier until a theme
+sets them. A duration of something that moves or resizes also multiplies by `knob.travel`,
 which `Defaults.reset` sets to 0 under `prefers-reduced-motion`: the thing stops travelling, and its
 fade still plays.
 
@@ -1319,10 +1321,18 @@ styles({ sheet: '/src/server/sheet.ts', modules: ['/src/client/style.ts'] })
   a `Style.slots` declaration keeps its `slots` contract and its `style`. Its
   other fields (`pieces`, `css`, `rules`) throw when read. A string, or an
   object of strings such as `t`, ships as it is.
+- **`Style.whenInput` keeps its predicate as an import.** The classes of each
+  condition are compiled at build; the page keeps only the choice among them,
+  a call to your predicate. So the predicate must be a named import from a
+  module that is not listed (`import { pressed } from './predicates.js'`), and
+  the frozen module imports it again by the same specifier. A condition
+  nested in a condition works the same way.
 - **What fails the build.** An export that is anything else (a function, an
-  `AppStyle`), and a Style using `Style.whenInput` or `Style.perItem`, which
-  choose classes at run time. The error names the module and the export. Keep
-  such a module at run time by leaving it off the list.
+  `AppStyle`, a bare `Slots.define` contract), a `Style.whenInput` whose
+  predicate is written in place or imported from a listed module, and any
+  `Style.perItem`: a per-item piece compiles its classes when it is drawn, so
+  it needs the compiler the page no longer has. The error names the module and
+  the export. Keep such a module at run time by leaving it off the list.
 - **Attach with `SlotView`.** A module that imports `Style` keeps the compiler
   in the page, so attach a frozen style with `SlotView.attach(Page.style.mixin)`
   rather than `Style.attach(Page.style)`, and keep the `AppStyle` (its `slots`

@@ -13,7 +13,10 @@ import { describe, expect, it } from 'vitest'
 import { mutation } from '../../../scripts/mutation-plugin.mjs'
 import { assertRules, freeze } from '../src/viteFreeze.js'
 import type * as Entry from './fixtures/viteStyles/frozenEntry.js'
+import type * as InputEntry from './fixtures/viteStyles/inputEntry.js'
 import * as Runtime from './fixtures/viteStyles/frozen.js'
+import * as Conditional from './fixtures/viteStyles/whenImported.js'
+import { isLarge, isOn } from './fixtures/viteStyles/predicate.js'
 
 const root = fileURLToPath(new URL('./fixtures/viteStyles/', import.meta.url))
 const mixins = fileURLToPath(new URL('../src/index.ts', import.meta.url))
@@ -49,7 +52,7 @@ const entryOf = (output: Output): string => {
 }
 
 /** The entry chunk, run: it holds everything it imports, so Node loads it as it is. */
-const loaded = (code: string): Promise<typeof Entry> =>
+const loaded = <Exports = typeof Entry>(code: string): Promise<Exports> =>
   import(/* @vite-ignore */ `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
 
 const cssOf = (output: Output): string => {
@@ -103,11 +106,25 @@ describe('a module in `modules`', { timeout: 60_000 }, () => {
   })
 
   it.each([
-    ['whenInput', '/whenInput.ts', 'export "Toggle" styles slot "root" with Style.whenInput'],
+    [
+      'a whenInput with a predicate written in place',
+      '/whenInput.ts',
+      'export "Toggle" styles slot "root" with Style.whenInput and a predicate that is not imported. Move the predicate to a module of its own that is not listed, and import it',
+    ],
+    [
+      'a whenInput over a predicate from a listed module',
+      '/whenListed.ts',
+      'export "Toggle" styles slot "root" with a predicate imported from "./listedPredicate.js", which is itself in `modules`',
+    ],
     ['perItem', '/perItem.ts', 'export "Rows" styles slot "row" with Style.perItem'],
+    [
+      'a perItem behind a whenInput',
+      '/perItemNested.ts',
+      'export "Rows" styles slot "row" with Style.perItem',
+    ],
     ['a function', '/notData.ts', 'export "gap" is not a Style'],
   ])('fails the build when it holds %s, naming the module and the export', async (_, id, says) => {
-    const failure = await built([id], 'entry.ts').then(
+    const failure = await built([id, '/listedPredicate.ts'], 'entry.ts').then(
       () => 'built',
       (error: unknown) => String(error),
     )
@@ -166,6 +183,69 @@ describe('a module in `modules`', { timeout: 60_000 }, () => {
   })
 })
 
+describe('a whenInput with an imported predicate in `modules`', { timeout: 60_000 }, () => {
+  // Both ways for each predicate, so a swapped or dropped one shows.
+  const inputs = [
+    { on: false, large: false },
+    { on: true, large: false },
+    { on: true, large: true },
+    { on: false, large: true },
+  ]
+
+  /** What every Slot of a Style draws for `input`: the conditional ones called, the static ones read. */
+  const drawnFor = (contributions: Readonly<Record<string, unknown>>, input: unknown) =>
+    drawn(
+      Object.fromEntries(
+        Object.entries(contributions).map(([slot, contribution]) => [
+          slot,
+          typeof contribution === 'function' ? contribution({ input }) : contribution,
+        ]),
+      ),
+    )
+
+  it('draws what the run-time Style draws, for an input each way', async () => {
+    const output = await built(['/whenImported.ts'], 'inputEntry.ts')
+    const code = entryOf(output)
+    const frozen = await loaded<typeof InputEntry>(code)
+    for (const input of inputs) {
+      expect(drawnFor(frozen.Toggle.mixin.contributions, input)).toEqual(
+        drawnFor(Conditional.Toggle.mixin.contributions, input),
+      )
+      expect(drawnFor(frozen.Declared.style.mixin.contributions, input)).toEqual(
+        drawnFor(Conditional.Declared.style.mixin.contributions, input),
+      )
+    }
+    // The conditions pick something: the cases above would agree if both ignored the input.
+    const on = drawnFor(frozen.Toggle.mixin.contributions, inputs[2])['root']
+    const off = drawnFor(frozen.Toggle.mixin.contributions, inputs[0])['root']
+    expect(on?.classes.length).toBeGreaterThan(off?.classes.length ?? 0)
+    expect(on?.style).toEqual({ '--toggle-on': '1' })
+    expect(off?.style).toEqual({})
+  })
+
+  it('ships without the compiler, and the sheet holds every class a condition draws', async () => {
+    const output = await built(['/whenImported.ts'], 'inputEntry.ts')
+    const code = entryOf(output)
+    expect(code).not.toContain('Style targets unknown slot')
+    expect(code).not.toContain('data-foldkit-styles')
+    const chunk = output.find(file => file.type === 'chunk' && file.isEntry)
+    const rendered =
+      chunk?.type === 'chunk'
+        ? Object.entries(chunk.modules).flatMap(([id, info]) =>
+            info.renderedLength > 0 ? [id] : [],
+          )
+        : []
+    expect(rendered.filter(id => /styleRules/.test(id))).toEqual([])
+    // The predicate is still an import: the module that holds it is in the page.
+    expect(rendered.some(id => id.endsWith('predicate.ts'))).toBe(true)
+    const css = cssOf(output)
+    expect(Conditional.Toggle.rules.length).toBeGreaterThan(1)
+    for (const { className } of Conditional.Toggle.rules) expect(css).toContain(`.${className}`)
+    for (const { className } of Conditional.Declared.style.rules)
+      expect(css).toContain(`.${className}`)
+  })
+})
+
 describe('the rule check', () => {
   const frozen = freeze('/frozen.ts', Runtime)
   const css = Runtime.Card.css + Runtime.Page.style.css
@@ -180,5 +260,24 @@ describe('the rule check', () => {
     expect(() =>
       assertRules(new Map([['/frozen.ts', frozen]]), css.replace(missing.css, '')),
     ).toThrow(`"/frozen.ts" draws "${missing.className}", which the stylesheet has no rule for`)
+  })
+
+  it('holds the sheet to the classes a condition draws too', () => {
+    // What the sheet build records for a listed module's imports, by hand.
+    const known = new WeakMap<object, unknown>()
+    const key = Symbol.for('foldkit-mixins/FrozenImports')
+    Object.assign(globalThis, { [key]: known })
+    known.set(isOn, { from: './predicate.js', name: 'isOn', listed: false })
+    known.set(isLarge, { from: './predicate.js', name: 'isLarge', listed: false })
+    const conditional = freeze('/whenImported.ts', Conditional)
+    const rules = Conditional.Toggle.rules
+    const sheet = rules.map(rule => rule.css).join('') + Conditional.Declared.style.css
+    expect(() => assertRules(new Map([['/whenImported.ts', conditional]]), sheet)).not.toThrow()
+    // The root's rules come first, base then each condition: the third is one nested in another.
+    const last = rules[2]
+    if (last === undefined) throw new Error('the fixture compiles no rule')
+    expect(() =>
+      assertRules(new Map([['/whenImported.ts', conditional]]), sheet.replace(last.css, '')),
+    ).toThrow(`"${last.className}", which the stylesheet has no rule for`)
   })
 })

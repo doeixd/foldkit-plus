@@ -100,8 +100,9 @@ export const when = (condition: boolean, piece: Piece): StyleValue =>
  *  `predicate` returns true for the input the view was rendered with. */
 export const whenInput = <Input>(predicate: (input: Input) => boolean, piece: Piece): StyleValue =>
   make({
+    // Kept as given, not wrapped: a frozen style module (`viteFreeze.ts`) finds the predicate's import by its identity.
     conditions: Object.freeze([
-      { predicate: (input: unknown) => predicate(input as Input), piece: toStyleValue(piece) },
+      { predicate: predicate as (input: unknown) => boolean, piece: toStyleValue(piece) },
     ]),
   })
 

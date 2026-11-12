@@ -47,6 +47,14 @@ second, different answer can be right:
 | Entity metadata | `Entity.annotate`, `Entity.invariant` | Yes: an interpreter's own view |
 | member metadata | `Entity.annotateMembers` | Yes: a form's label, a CMS display |
 
+**2026-11-12 (#539).** Invariants were wrongly in the metadata row. An
+invariant is a fact about the stored row, true for every writer, so it has one
+answer: `Entity.invariant` now adds to the identity's shape and returns the
+descriptor it was given, and every descriptor judges every invariant. Guards
+stay a view on their descriptor, as below, but each reader that enforces them
+throws when given a descriptor without them of an Entity another descriptor of
+which carries them ([541-laws-DESIGN.md](./541-laws-DESIGN.md), D1 and D2).
+
 Members are facts about the row. Metadata is an interpreter's view of it, and
 views are made on purpose: `examples/entity/src/editForm.ts` labels `editor`
 for one form, `foldkit-crud`'s tests label `author` for one list, and guards

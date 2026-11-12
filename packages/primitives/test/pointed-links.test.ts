@@ -163,3 +163,37 @@ it('reads nothing outside a link, or on another origin', async () => {
   )
   expect(pointed).toEqual([at('/site/blog')])
 })
+
+it('never reads a link marked data-preload="none", by hover, focus or touch', async () => {
+  const [off, offText] = link('/off')
+  off.dataset['preload'] = 'none'
+  const [on] = link('/on')
+  const pointed = await pointedAfter(
+    1,
+    Effect.gen(function* () {
+      pointer(offText, 'pointerover', { pointerType: 'touch' })
+      pointer(offText, 'pointerover')
+      off.focus()
+      yield* rest
+      pointer(on, 'pointerover', { pointerType: 'touch' })
+    }),
+  )
+  expect(pointed).toEqual([at('/on')])
+})
+
+it('waits for the rest it is given, not 50 ms', async () => {
+  const [slow] = link('/slow')
+  const started = performance.now()
+  const stream = pointedLinks({ rest: '300 millis' })
+  const pointed = await Effect.runPromise(
+    Effect.gen(function* () {
+      const attached = listening()
+      const fiber = yield* Effect.forkChild(takeMessages(stream, 1, '2 seconds'))
+      yield* attached
+      pointer(slow, 'pointerover')
+      return (yield* Fiber.join(fiber)).map(urlToString)
+    }),
+  )
+  expect(pointed).toEqual([at('/slow')])
+  expect(performance.now() - started).toBeGreaterThanOrEqual(280)
+})

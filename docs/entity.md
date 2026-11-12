@@ -57,6 +57,12 @@ Three rules keep the copies from coming back:
   server compiles them to SQL, and the client judges the rows it holds by the
   same declaration (`Judge`), so what it shows before an answer is what the
   server will say, or nothing.
+- **An invariant is the Entity's, a guard its descriptor's.** Relations,
+  derived members, `sets` and invariants are added to the Entity itself, so
+  either name of it (the one declared, the one a pipe returned) judges every
+  invariant. `Guards.attach` returns a descriptor that carries its rules;
+  a server binds that one, and a guard seam given another descriptor of a
+  guarded Entity throws by name.
 - **An operation's input is read against the Entity, not derived from it.**
   `Entity.input` says what each key of the struct means (`authorId` is the
   `author` relation). From that reading follow the form's controls, what an edit

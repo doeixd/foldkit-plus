@@ -651,15 +651,26 @@ describe('GuardServer.validate', () => {
   })
 
   it('refuses rules built from an Entity before its guards were attached', () => {
-    const unguarded = RemoteServer.memory({
-      domain: Data,
-      rows,
+    const Early = Entity.define('Early', Schema.Struct({ id: Schema.String }))
+    // Built while no descriptor of it carried guards, so nothing refused it then.
+    const built = GuardServer.memory(Policy, [Early])
+    const Guarded = Early.pipe(Guards.attach(G, { row: { Read: [G.isAdmin] } }))
+    const domain = Remote.define({ entities: [Guarded], queries: [] })
+    const server = RemoteServer.memory({
+      domain,
+      rows: { Early: [] },
       principal: Option.none<User>(),
-      ...GuardServer.memory(Policy, [TodoFields, ProjectFields, NodeFields]),
+      ...built,
     }).server
-    expect(() =>
-      GuardServer.validate(Policy, { entities: [Todo], domain: Data, server: unguarded }),
-    ).toThrow("Todo's Source does not apply its Read rules")
+    expect(() => GuardServer.validate(Policy, { entities: [Guarded], domain, server })).toThrow(
+      "Early's Source does not apply its Read rules",
+    )
+  })
+
+  it('refuses rules built from a descriptor without the guards, where they are built (#539)', () => {
+    expect(() => GuardServer.memory(Policy, [TodoFields, ProjectFields, NodeFields])).toThrow(
+      'Todo carries guards on another descriptor of it',
+    )
   })
 
   it('passes a live Source polling through the Source it checks, and refuses any other', () => {

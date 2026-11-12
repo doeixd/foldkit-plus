@@ -146,7 +146,9 @@ Three decisions are in that declaration, and they are the whole design:
 A durable Message has one obligation: its `update` must be a deterministic,
 state-only transition of the slice, because every replica and the server
 replay it. `make` derives replay from `update` and refuses, at the first
-submit, a Message that returns a Command or writes a local field. So ids and
+submit, a Message that returns a Command or writes a local field. It must
+read nothing outside the slice either: `Sync.mount` refuses, naming the field,
+a durable Message whose slice depends on a local field. So ids and
 timestamps are minted by a local *intent* Message's Command and carried
 *inside* the durable *fact*; the [Sync README](../packages/sync/README.md#what-makes-a-message-durable)
 shows the pattern.
