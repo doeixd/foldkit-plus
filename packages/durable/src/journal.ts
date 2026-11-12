@@ -305,7 +305,10 @@ export interface Cursors {
     epoch: string,
     at: number,
   ) => Effect.Effect<void, JournalError>
-  /** Sets a run aside; a run already parked in this epoch stays as it was. */
+  /**
+   * Sets a run aside; a run already parked in this epoch stays as it was, and
+   * one naming an epoch that is no longer the document's is not written.
+   */
   readonly park: (key: DocumentId, run: ParkedRun) => Effect.Effect<void, JournalError>
   /** The document's parked runs, every epoch's, by name and sequence. */
   readonly parked: (key: DocumentId) => Effect.Effect<ReadonlyArray<ParkedRun>, JournalError>
@@ -1720,8 +1723,10 @@ const makeShape = <
         Effect.catchTag('SqlError', asJournalError('Could not record the failed run')),
       )
     }),
-    // A row of another epoch is replaced: left alone, the run parked now would
-    // be recorded nowhere once its cursor moved past it.
+    // Only a run of the current epoch parks, like every other write here, so
+    // a pass still running from before a reset cannot write over this
+    // history's row. It replaces a row of another epoch: left alone, the run
+    // parked now would be recorded nowhere once its cursor moved past it.
     park: Effect.fn('Journal.cursors.park')(function* (key, run) {
       yield* Effect.annotateCurrentSpan({ key, name: run.name, opId: run.opId })
       const input = yield* Effect.try({
@@ -1732,7 +1737,7 @@ const makeShape = <
         },
         catch: cause => journalError('Could not park the run', cause),
       })
-      yield* sql`INSERT INTO foldkit_durable_parked (key, name, op_id, epoch, sequence, input, error) VALUES (${key}, ${run.name}, ${run.opId}, ${run.epoch}, ${run.sequence}, ${input}, ${run.error}) ON CONFLICT(key, name, op_id) DO UPDATE SET epoch = excluded.epoch, sequence = excluded.sequence, input = excluded.input, error = excluded.error WHERE foldkit_durable_parked.epoch <> excluded.epoch`.pipe(
+      yield* sql`INSERT INTO foldkit_durable_parked (key, name, op_id, epoch, sequence, input, error) SELECT ${key}, ${run.name}, ${run.opId}, ${run.epoch}, ${run.sequence}, ${input}, ${run.error} WHERE ${run.epoch} = (SELECT epoch FROM epochs WHERE key = ${key}) ON CONFLICT(key, name, op_id) DO UPDATE SET epoch = excluded.epoch, sequence = excluded.sequence, input = excluded.input, error = excluded.error WHERE foldkit_durable_parked.epoch <> excluded.epoch`.pipe(
         Effect.catchTag('SqlError', asJournalError('Could not park the run')),
       )
     }),

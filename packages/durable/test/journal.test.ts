@@ -1350,17 +1350,34 @@ describe('named cursors', () => {
       yield* journal.cursors.park(todos, run)
       yield* journal.cursors.park(todos, { ...run, error: 'again' })
       yield* journal.cursors.park(todos, { ...run, name: 'other' })
-      yield* journal.cursors.park(docA, run)
+      yield* journal.cursors.park(docA, { ...run, epoch: yield* journal.epoch(docA) })
       expect(yield* journal.cursors.parked(todos)).toEqual([run, { ...run, name: 'other' }])
-      // Parked again in a later history, it replaces the stale row.
-      yield* journal.cursors.park(todos, { ...run, epoch: 'later', sequence: sequence(4) })
-      expect((yield* journal.cursors.parked(todos))[0]).toMatchObject({
-        epoch: 'later',
-        sequence: 4,
-      })
       yield* journal.cursors.unpark(todos, 'mail', opId('a:1'))
       expect((yield* journal.cursors.parked(todos)).map(parked => parked.name)).toEqual(['other'])
       expect(yield* journal.cursors.parked(docA)).toHaveLength(1)
+    }))
+
+  it('parks only in the current epoch, replacing a stale row and never the new one', () =>
+    withJournal(function* (journal) {
+      const old = yield* journal.epoch(todos)
+      const run = {
+        name: 'mail',
+        opId: opId('a:1'),
+        epoch: old,
+        sequence: sequence(1),
+        input: {},
+        error: 'refused',
+      }
+      yield* journal.cursors.park(todos, run)
+      yield* journal.reset(todos)
+      const fresh = yield* journal.epoch(todos)
+      // Parked again in the new history: the stale row is replaced.
+      yield* journal.cursors.park(todos, { ...run, epoch: fresh, sequence: sequence(4) })
+      expect(yield* journal.cursors.parked(todos)).toEqual([{ ...run, epoch: fresh, sequence: 4 }])
+      // A pass still running from before the reset writes nothing, over the row or beside it.
+      yield* journal.cursors.park(todos, { ...run, error: 'late' })
+      yield* journal.cursors.park(todos, { ...run, opId: opId('a:2') })
+      expect(yield* journal.cursors.parked(todos)).toEqual([{ ...run, epoch: fresh, sequence: 4 }])
     }))
 
   it('keeps cursors and parked runs across reopening the file', async () => {

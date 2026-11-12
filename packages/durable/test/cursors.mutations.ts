@@ -93,6 +93,17 @@ export default [
     tests,
   },
   {
+    name: 'a park naming a reset epoch lands',
+    edits: [
+      {
+        file: journal,
+        find: '${run.error} WHERE ${run.epoch} = (SELECT epoch FROM epochs WHERE key = ${key}) ON CONFLICT',
+        replace: '${run.error} WHERE 1 = 1 ON CONFLICT',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'tracking from the floor starts at the cursor',
     edits: [
       {
