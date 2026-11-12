@@ -87,6 +87,7 @@ export {
 export * from './plan.js'
 export * from './policy.js'
 export * from './query.js'
+export * from './reaches.js'
 export * from './relation.js'
 export * from './remoteData.js'
 export * from './writing.js'

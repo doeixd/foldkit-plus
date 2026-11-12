@@ -165,3 +165,77 @@ for (const size of [25, 100, 400]) {
     })
   })
 }
+
+/**
+ * #439's R2 (a version per Entity, so a list read is kept while nothing it
+ * reads was written) waits on this figure: R2 is built when a page's lists
+ * read after one write cost more than 1 ms. Ten lists of 100 rows, every row
+ * reaching through its owner, all read after one write to an unrelated row;
+ * the first case is the write alone, so the second less the first is the reads.
+ */
+describe('ten lists of 100 rows, after a write to one unrelated entity', () => {
+  const lists = Array.from({ length: 10 }, (_, list) => {
+    const owner = `u${list}`
+    return {
+      projects: Data.query(ByOwner, { ownerId: owner }, { select: Summary, first: 100 }),
+      rows: Array.from({ length: 100 }, (_, n) => ({
+        id: `p${list}-${n}`,
+        name: `Project ${n}`,
+        status: 'active',
+        ownerId: owner,
+        updatedAt: n,
+        owner: `User:${owner}`,
+      })),
+      owner,
+    }
+  })
+  const fetched = Data.reduce(
+    lists.reduce(
+      (model, { projects, rows }) =>
+        Data.reduce(model, {
+          _tag: 'ConnectionMerged',
+          connection: projects.ref.identity,
+          page: {
+            edges: rows.map(row => ({
+              key: `Project:${row.id}`,
+              ref: { entity: 'Project', id: row.id },
+            })),
+            start: { _tag: 'Terminal' },
+            end: { _tag: 'Terminal' },
+          },
+        }),
+      { remote: Remote.initial } as Model,
+    ),
+    {
+      _tag: 'ReadReceived',
+      requests: lists.flatMap(({ rows, owner }) => [
+        ...rows.map(row => ({
+          entity: 'Project',
+          id: row.id,
+          fields: ['id', 'name', 'status', 'owner'],
+        })),
+        { entity: 'User', id: owner, fields: ['name'] },
+      ]),
+      result: {
+        settled: [],
+        entities: lists.flatMap(({ rows, owner }) => [
+          ...rows.map(row => ({ entity: 'Project', id: row.id, values: row })),
+          { entity: 'User', id: owner, values: { name: 'Ada' } },
+        ]),
+      },
+      now: 0,
+    },
+  )
+  for (const { projects } of lists) {
+    if (projects.read(fetched)._tag !== 'Ready') throw new Error('fixture is not Ready')
+  }
+
+  benchmark('the write, without the reads', () => {
+    write(fetched)
+  })
+
+  benchmark('the write, then every list read', () => {
+    const model = write(fetched)
+    for (const { projects } of lists) projects.read(model)
+  })
+})

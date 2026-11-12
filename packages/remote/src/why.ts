@@ -11,6 +11,7 @@ import type { ActiveSurface, Projection, SurfaceSource } from 'foldkit-surface'
 import { askedOf, covers, resolvedOf } from './active.js'
 import type { ModelOfDomain, QueryProjection, RemoteDomain } from './index.js'
 import { innerOf } from './inner.js'
+import { Reach, reaches } from './reaches.js'
 import { liveStatus } from './live.js'
 import type { QueryWindow } from './query.js'
 import type { RemoteData } from './remoteData.js'
@@ -83,6 +84,13 @@ export interface QueryExplanation {
    * is unambiguous because a query reads one Entity.
    */
   readonly dependencies?: ExplainedDependencies | undefined
+  /**
+   * The domain's registered mutations whose declared write can change this
+   * list (`reaches` says `Reads`), by name; absent with the body. A mutation
+   * declared with `Mutation.make` is not listed: what it writes is its
+   * handler's, so no declaration can say it reaches or misses the list.
+   */
+  readonly reachedBy?: ReadonlyArray<string> | undefined
   /** What the read answers from this Model right now. */
   readonly state: RemoteData<unknown>['_tag']
   /**
@@ -174,6 +182,15 @@ export const explain = <Domain extends AnyDomain, Name extends string, Input>(
       : {
           body: Query.show(body),
           dependencies: explainedDependencies(Query.dependencies(body)),
+          reachedBy: [...domain.definition.registry.mutations.values()]
+            .filter(mutation =>
+              Reach.match(reaches(mutation, { body }), {
+                Reads: () => true,
+                Unaffected: () => false,
+                Unknown: () => false,
+              }),
+            )
+            .map(mutation => mutation.name),
         }),
     state: projection.read(model)._tag,
     ...(options?.surfaces === undefined

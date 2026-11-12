@@ -10,22 +10,14 @@
  * only names, `InToys` filters through the category's name, and `Opaque` is a
  * list whose meaning only its server knows (no body).
  */
-import { Match, Option, Schema } from 'effect'
+import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import {
-  Collation,
-  Entity,
-  Expr,
-  Order,
-  Query as Body,
-  Relation,
-  Write,
-  dependenciesOf,
-} from 'foldkit-entity'
+import { Collation, Entity, Expr, Order, Query as Body, Relation, Write } from 'foldkit-entity'
 import { Projection, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { EntityChange, Impact, impactOn, type HeldConnection } from '../src/impact.js'
 import { Mutation, Query, Remote, terminal, type NormalizedPatch } from '../src/index.js'
+import { Reach, reaches } from '../src/reaches.js'
 import { tableOf } from '../src/table.js'
 import { explain, why, Why } from '../src/why.js'
 
@@ -185,44 +177,6 @@ const renameCategory = (id: string, name: string) =>
     values: { name },
   })
 
-/**
- * Edges 1 and 2 from declarations alone, with the existing APIs: what a write
- * may write (`Write.writes`), and whether a body reads it, as its own row's
- * field (`Query.dependencies(...).fields`) or through another row
- * (`reaches`). Compared by the owner's identity, never its name. A query with
- * no body is `unknown`: its meaning is its server's.
- */
-const candidate = (
-  write: Parameters<typeof Write.writes>[0],
-  descriptor: { readonly body?: Parameters<typeof Body.dependencies>[0] | undefined },
-): 'reads' | 'unaffected' | 'unknown' => {
-  if (descriptor.body === undefined) return 'unknown'
-  const writes = Write.writes(write)
-  const same = (owner: { readonly token: symbol }, key: string) =>
-    writes.some(member => member.owner.token === owner.token && member.key === key)
-  const read = Body.dependencies(descriptor.body)
-  const own = read.fields.some(field => same(field.owner, field.key))
-  const through = read.reaches.some(reach =>
-    Match.value(reach).pipe(
-      Match.tagsExhaustive({
-        Path: path =>
-          same(path.field.owner, path.field.key) ||
-          path.via.some(relation => same(relation.owner, relation.key)),
-        Exists: exists =>
-          same(exists.relation.owner, exists.relation.key) ||
-          exists.via.some(relation => same(relation.owner, relation.key)) ||
-          Option.exists(exists.where, where =>
-            dependenciesOf(where).fields.some(field => same(field.owner, field.key)),
-          ),
-        ViewerPath: path =>
-          same(path.field.owner, path.field.key) ||
-          path.via.some(relation => same(relation.owner, relation.key)),
-      }),
-    ),
-  )
-  return own || through ? 'reads' : 'unaffected'
-}
-
 describe('#477 edge 1, the write: what it may change, from its declaration', () => {
   it('names the members each write may write, by their owner', () => {
     expect(Write.writes(SetStatus).map(member => `${member.owner.name}.${member.key}`)).toEqual([
@@ -236,14 +190,14 @@ describe('#477 edge 1, the write: what it may change, from its declaration', () 
 
 describe('#477 edge 2, the queries a write can reach, from declarations alone', () => {
   it('finds the query whose filter reads the member, and not the one that does not', () => {
-    expect(candidate(SetStatus, Active)).toBe('reads')
-    expect(candidate(SetStatus, Named)).toBe('unaffected')
-    expect(candidate(SetStatus, InToys)).toBe('unaffected')
+    expect(reaches(SetStatus, Active)).toEqual(Reach.Reads())
+    expect(reaches(SetStatus, Named)).toEqual(Reach.Unaffected())
+    expect(reaches(SetStatus, InToys)).toEqual(Reach.Unaffected())
   })
 
   it('finds a query that reads the member through a related row, by its reaches', () => {
-    expect(candidate(RenameCategory, InToys)).toBe('reads')
-    expect(candidate(RenameCategory, Active)).toBe('unaffected')
+    expect(reaches(RenameCategory, InToys)).toEqual(Reach.Reads())
+    expect(reaches(RenameCategory, Active)).toEqual(Reach.Unaffected())
     // `fields` alone would miss it: a path's field is not the judged row's.
     expect(
       Body.dependencies(InToys.body!).fields.some(
@@ -253,13 +207,21 @@ describe('#477 edge 2, the queries a write can reach, from declarations alone', 
   })
 
   it("finds a query that reads the member only inside an exists' where, by its reaches", () => {
-    expect(candidate(SetStatus, Stocked)).toBe('reads')
-    expect(candidate(RenameCategory, Stocked)).toBe('unaffected')
+    expect(reaches(SetStatus, Stocked)).toEqual(Reach.Reads())
+    expect(reaches(RenameCategory, Stocked)).toEqual(Reach.Unaffected())
   })
 
   it('is unknown, never unaffected, for a query whose body only its server has', () => {
-    expect(candidate(SetStatus, Opaque)).toBe('unknown')
-    expect(candidate(RenameCategory, Opaque)).toBe('unknown')
+    expect(reaches(SetStatus, Opaque)).toEqual(Reach.Unknown({ why: 'NoBody' }))
+    expect(reaches(RenameCategory, Opaque)).toEqual(Reach.Unknown({ why: 'NoBody' }))
+  })
+
+  it("names, in explain(), the registered mutations whose write reaches the list, and not Opaque's", () => {
+    const reachedBy = (list: keyof typeof lists) => explain(Data, held, lists[list]).reachedBy
+    expect(reachedBy('active')).toEqual(['SetStatus'])
+    expect(reachedBy('named')).toEqual([])
+    expect(reachedBy('toys')).toEqual(['RenameCategory'])
+    expect(reachedBy('opaque')).toBeUndefined()
   })
 
   it('tells two Entities of one name apart by identity, which explain() cannot', () => {
@@ -271,7 +233,7 @@ describe('#477 edge 2, the queries a write can reach, from declarations alone', 
       Entity.input(Namesake, Schema.Struct({ id: Schema.String, status: Schema.String })),
       { id: 'id' },
     )
-    expect(candidate(Other, Active)).toBe('unaffected')
+    expect(reaches(Other, Active)).toEqual(Reach.Unaffected())
     // The serializable explanation names fields by their Entity's name alone.
     const explained = explain(Data, held, lists.active).dependencies?.fields ?? []
     expect(explained).toContainEqual({ entity: 'Product', key: 'status' })

@@ -202,6 +202,7 @@ describe('What an explanation cannot say, and why each one is absent', () => {
       'identity',
       'input',
       'query',
+      'reachedBy',
       'select',
       'state',
       'window',
