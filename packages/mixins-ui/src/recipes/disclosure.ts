@@ -8,7 +8,7 @@
  * inert and moves its height by an inline transition on a grid it draws
  * round the panel, with no slot, class or attribute of its own. A recipe
  * rule cannot beat an inline one, so `heightTravel` is an important global
- * rule that finds that grid by the panel inside it and sets its duration to
+ * rule that finds that grid by the panel's class and sets its duration to
  * a travel: the `motion` knob scales it and reduced motion snaps it.
  *
  * The axes:
@@ -39,9 +39,15 @@ import {
 
 const open = '&[data-open]'
 // Upstream writes `grid-template-rows 200ms ease-out` inline on the grid round
-// the panel (`[id$="-panel"]` is its `panelId`), so only `!important` wins.
-const heightTravel = Style.global(
-  `div[style*="grid-template-rows"]:has(>div>[id$="-panel"]){transition-duration:${travelled(ref.motion.fast)}!important}`,
+// the panel, so only `!important` wins. The grid is found by this recipe's own
+// panel class, not by upstream's `-panel` id, which an application's grid
+// round a Tabs panel matches too.
+const panelClass = 'fk-disclosure-panel'
+const heightTravel = Style.compose(
+  Style.class(panelClass),
+  Style.global(
+    `div[style*="grid-template-rows"]:has(>div>.${panelClass}){transition-duration:${travelled(ref.motion.fast)}!important}`,
+  ),
 )
 const edge = `${ref.border.thin} solid ${ref.outline.default}`
 

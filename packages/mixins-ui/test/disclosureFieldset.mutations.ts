@@ -33,6 +33,17 @@ export default [
     tests: browser,
   },
   {
+    name: 'the panel height rule finds any grid round a -panel id',
+    edits: [
+      {
+        file: disclosure,
+        find: ':has(>div>.${panelClass})',
+        replace: ':has(>div>[id$="-panel"])',
+      },
+    ],
+    tests: browser,
+  },
+  {
     name: 'the panel height rule is not drawn',
     edits: [{ file: disclosure, find: '      heightTravel,\n', replace: '' }],
     tests: browser,
