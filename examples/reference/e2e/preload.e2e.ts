@@ -7,7 +7,7 @@
  * Both timings are printed; the second is the page with `IntersectionObserver`
  * removed before any script runs, which makes `visibleLinks` empty.
  */
-import { type Browser, type BrowserContext, type Page, chromium } from 'playwright'
+import { type Browser, type BrowserContext, type Page, type Request, chromium } from 'playwright'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { buildPage, startStack, type ReferenceStack } from '../src/stack.js'
 
@@ -40,9 +40,29 @@ const signUp = async (page: Page, name: string) => {
   await page.getByText(`${name}, you have written 0 notes.`).waitFor()
 }
 
-/** Milliseconds from a finger's tap on the note's link to its body drawn, on a fresh load of the list. */
-const tapToDrawn = async (context: BrowserContext, withVisibleLinks: boolean): Promise<number> => {
+const operationOf = (request: Request): string => {
+  if (request.method() !== 'POST' || !request.url().endsWith('/remote')) return ''
+  const parsed: unknown = JSON.parse(request.postData() ?? '{}')
+  return typeof parsed === 'object' && parsed !== null && 'operation' in parsed
+    ? String(parsed.operation)
+    : ''
+}
+
+/**
+ * Milliseconds from a finger's tap on the note's link to its body drawn, on a
+ * fresh load of the list, and the reads of the note's body made before and
+ * after the tap.
+ */
+const tapToDrawn = async (
+  context: BrowserContext,
+  withVisibleLinks: boolean,
+): Promise<{ ms: number; readsBeforeTap: number; readsAfterTap: number }> => {
   const page = await context.newPage()
+  const operations: Array<string> = []
+  page.on('request', request => {
+    const operation = operationOf(request)
+    if (operation !== '') operations.push(operation)
+  })
   if (!withVisibleLinks)
     await page.addInitScript(() => Reflect.deleteProperty(window, 'IntersectionObserver'))
   const link = page
@@ -52,12 +72,16 @@ const tapToDrawn = async (context: BrowserContext, withVisibleLinks: boolean): P
   await link.waitFor()
   // Long enough for a read started by the list's being drawn to be answered.
   await page.waitForTimeout(HELD * 3)
+  const readsBeforeTap = operations.filter(operation => operation === 'read').length
+  // A page that still had the note's write to send would hold the body already.
+  expect(operations).not.toContain('mutate')
   const started = Date.now()
   await link.tap()
   await page.getByText(BODY).waitFor()
-  const elapsed = Date.now() - started
+  const ms = Date.now() - started
+  const readsAfterTap = operations.filter(operation => operation === 'read').length - readsBeforeTap
   await page.close()
-  return elapsed
+  return { ms, readsBeforeTap, readsAfterTap }
 }
 
 test('a note on screen is read before the tap: tap to drawn, with and without visibleLinks', async () => {
@@ -66,7 +90,13 @@ test('a note on screen is read before the tap: tap to drawn, with and without vi
   await signUp(page, 'Ada')
   await page.getByLabel('Title').fill('First light')
   await page.getByLabel('Note', { exact: true }).fill(BODY)
+  // Closing the page before the server has answered leaves the write in the
+  // outbox, and the next page to load sends it again and shows its answer's body.
+  const answered = page.waitForResponse(
+    response => response.url().endsWith('/remote') && operationOf(response.request()) === 'mutate',
+  )
   await page.getByRole('button', { name: 'Add' }).click()
+  await answered
   await page.getByText('Ada, you have written 1 note.').waitFor()
   await page.close()
 
@@ -80,7 +110,10 @@ test('a note on screen is read before the tap: tap to drawn, with and without vi
 
   const without = await tapToDrawn(context, false)
   const withStream = await tapToDrawn(context, true)
-  console.log(`tap to drawn: ${withStream} ms with visibleLinks, ${without} ms without`)
-  expect(without).toBeGreaterThanOrEqual(HELD * 0.8)
-  expect(withStream).toBeLessThan(without - HELD / 2)
+  console.log(`tap to drawn: ${withStream.ms} ms with visibleLinks, ${without.ms} ms without`)
+  expect(without.readsBeforeTap).toBe(0)
+  expect(without.readsAfterTap).toBeGreaterThanOrEqual(1)
+  expect(withStream.readsBeforeTap).toBeGreaterThanOrEqual(1)
+  expect(without.ms).toBeGreaterThanOrEqual(HELD * 0.8)
+  expect(withStream.ms).toBeLessThan(without.ms - HELD / 2)
 })
