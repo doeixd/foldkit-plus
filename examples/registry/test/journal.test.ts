@@ -6,6 +6,8 @@
 import { Effect } from 'effect'
 import {
   DocumentId,
+  LocalSequence,
+  OpId,
   ReplicaId,
   Sequence,
   Sync,
@@ -189,9 +191,28 @@ test('a client cannot record what the table holds', async () => {
   const forger = await Effect.runPromise(
     RegistrySync.openReplica(memoryStorage(), { replicaId: ReplicaId.make('forger') }),
   )
-  await Effect.runPromise(forger.submit(Message.AbsorbedEdits({ through: 100 })))
+  // `AbsorbedEdits` is server-only: a replica will not record one.
+  const submitted = await Effect.runPromise(
+    Effect.flip(forger.submit(Message.AbsorbedEdits({ through: 100 }))),
+  )
+  expect(submitted._tag).toBe('InvalidOutboxError')
+  // Written by hand and sent anyway, it is refused by its id, whoever sends it.
+  const forged = RegistrySync.journalContract().operation.encode({
+    protocolVersion: 1,
+    schemaVersion: 1,
+    documentId: RegistrySync.documentId,
+    replicaId: ReplicaId.make('forger'),
+    localSequence: LocalSequence.make(1),
+    opId: OpId.make('forger:1'),
+    baseCursor: Sequence.make(0),
+    message: { _tag: 'AbsorbedEdits', through: 100 },
+  })
+  const reply = await journal.transport.exchange(Sequence.make(0), [forged])
+  expect(reply).toMatchObject({
+    rejected: ['forger:1'],
+    refusals: [{ opId: 'forger:1', refusal: { _tag: 'Forbidden' } }],
+  })
   await Effect.runPromise(forger.synchronize.pipe(Effect.provide(transport)))
-  expect((await Effect.runPromise(forger.status)).rejected).toHaveLength(1)
   expect((await Effect.runPromise(forger.shared)).edits).toHaveLength(1)
 })
 

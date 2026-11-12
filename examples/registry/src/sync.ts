@@ -9,6 +9,8 @@ import { KeyValueStore } from 'effect/persistence'
 import type { RemoteClient } from 'foldkit-remote'
 import { BundleSurface } from 'foldkit-bundle-surface'
 import { type Contract, MessageSet, Module, Projection } from 'foldkit-surface'
+import type { Journal, JournalError } from 'foldkit-durable/core'
+import { serverJournal, type ServerJournal } from 'foldkit-sync/journal'
 import {
   DocumentId,
   forApplication,
@@ -56,10 +58,11 @@ const definition = forApplication(App)
     // does not decode as this one, so it is a document of its own.
     documentId: DocumentId.make('registry-edits-4'),
     shared: Projection.pick(App.model.edits),
-    durable: MessageSet.make(App, [Message.EditedProducts, Message.AbsorbedEdits]),
+    durable: MessageSet.make(App, [Message.EditedProducts]),
     // Dropping edits from every replica is the server's: a client's would drop
-    // someone else's edits before their rows were read.
-    authorize: { AbsorbedEdits: ({ principal }) => principal.actorId === server.actorId },
+    // someone else's edits before their rows were read. Sync refuses one any
+    // replica sends, whoever it says it is.
+    serverOnly: MessageSet.make(App, [Message.AbsorbedEdits]),
     // The journal writes in the sequence each edit committed at, which the
     // table's revision is compared with to know which edits a row holds, and
     // who committed it and from which replica, so a page can tell another's
@@ -84,6 +87,18 @@ export const contract: Contract = definition.contract
  * placement, Remote's wiring and this document. The page's panel lists it.
  */
 export const manifest = Module.manifest(BundleSurface.module(App, placements, [contract]))
+
+/** What only the server appends: that the table holds every edit through `through`. */
+export type Absorbed = Extract<Message, { readonly _tag: 'AbsorbedEdits' }>
+
+/**
+ * The server's side of the document over `journal`: it appends `AbsorbedEdits`
+ * as `server`. Annotated, as `RegistrySync` is.
+ */
+export const serverOf = (
+  journal: Journal<Operation, Shared, Principal, WrittenOperation>,
+): Effect.Effect<ServerJournal<Absorbed, never>, JournalError> =>
+  serverJournal({ sync: definition, journal, server })
 
 /** The journal's codecs, initial snapshot and reducer, for `Journal.make`. */
 export const journalContract = (): PolicyJournalContract<Operation, Shared, Principal> =>
