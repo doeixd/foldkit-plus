@@ -315,6 +315,17 @@ describe('the filter form', () => {
     expect(Option.map(model.filtering, each => each.form.text)).toEqual(Option.some('xyz'))
   })
 
+  test('the form remembers each filter it sent, for the view to tell an echo by', () => {
+    const { model } = run(start, [open('title'), typed('text', 'a'), typed('text', 'ab')])
+    expect(Option.map(model.filtering, each => each.sent)).toEqual(
+      Option.some([
+        Option.none(),
+        Option.some(ColumnFilter.Contains({ text: 'a' })),
+        Option.some(ColumnFilter.Contains({ text: 'ab' })),
+      ]),
+    )
+  })
+
   test("a stale frame that is only the form's own report, late or trimmed, reseeds nothing", () => {
     const contains = (text: string) => Option.some(ColumnFilter.Contains({ text }))
     const sent = [Option.none(), contains('a '), contains('ab')]
