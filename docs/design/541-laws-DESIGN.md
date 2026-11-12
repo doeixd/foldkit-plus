@@ -162,7 +162,7 @@ contract in one place. For a durable Message it compares two values:
 
 ```text
 live     = projection.get(update(model, message).model)
-replayed = sync.replay(projection.get(model), message)
+reset    = projection.get(update(model with the local fields reset to initial, message).model)
 ```
 
 - They are compared with the shared codec's equivalence, after an identity
@@ -181,9 +181,12 @@ replayed = sync.replay(projection.get(model), message)
 - Where `replay` itself throws (a Command, a write outside the projection)
   nothing changes: `submit` refuses it as today.
 
-It is always on. The cost is one more `update` and one comparison per
-durable dispatch; the work package reports a figure for a 10,000-item slice,
-and a regression there is reported, not fixed with an option.
+It is always on. The built check runs `update` on the live Model and on the
+Model with the local fields reset, so it never calls `sync.replay` and a
+custom `replay` is not compared. Measured with a 10,000-item slice and a
+Message renaming one item, `update` takes 0.2 ms: the check adds 0.4 ms (two
+`update`s and the comparison, which stops at items kept by identity) while a
+local field differs from its `initial` value, and nothing otherwise.
 
 `replica.submit` cannot do this: it has no Model. A Message's reads cannot be
 derived statically (contract-layer Q13): `update` is a function.
@@ -1104,8 +1107,9 @@ A bug with a reproduction and a fixed design.
   durable Message that reads a local field without changing the slice is
   accepted; a pending operation causes no false refusal; a figure for a
   10,000-item slice is in the report.
-- **Mutations:** the comparison dropped; the comparison made against the
-  replica's committed slice; `reads` resetting no field.
+- **Mutations:** the comparison dropped; `reads` resetting no field. The
+  comparison made against the replica's committed slice survives: both runs
+  of `reads` start from the same slice, so a pending edit cannot move it.
 
 ### WP6. A document's laws (#534). Default model.
 
@@ -1330,7 +1334,7 @@ owner, not a package here.
   until one repairs it. The alternative is to refuse only an operation that
   takes a holding law to broken, which lets a broken document grow. This
   note chose the strict one.
-- **D3** costs one extra `update` per durable dispatch. WP5 reports the
-  figure.
+- **D3** costs two more `update`s per durable dispatch while a local field
+  differs from its `initial` value, 0.4 ms for a 10,000-item slice (D3).
 - **The stamp on evidence** (D23) tells a produced record from a typed one.
   It is not proof, and the note says what it does not prove.
