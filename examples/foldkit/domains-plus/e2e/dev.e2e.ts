@@ -304,6 +304,9 @@ test('a narrow cart fills the window on an opaque panel', async () => {
   await page.getByRole('button', { name: 'Cart, 1 domains' }).click()
   const panel = page.locator('.cart-panel')
   await panel.waitFor()
+  // The sheet is first drawn `data-closed`, parked past the window's edge
+  // (scrollWidth 640), and opens a frame later; read it once it has.
+  await page.locator('#domains-cart section:not([data-closed])').waitFor()
   // It stands open at once, as upstream's: nothing slides past the window's
   // edge or fades its text below the contrast it is read at.
   expect(await panel.evaluate(element => element.closest('section')?.getAnimations().length)).toBe(
