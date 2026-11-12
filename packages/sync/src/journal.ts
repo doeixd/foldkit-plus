@@ -38,6 +38,7 @@ import type { AuthorizeDecision } from './make.js'
 import { fitWords, SyncRefusal } from './refusal.js'
 import type { Operation, Sync, TransportClient, WrittenOperation } from './sync.js'
 import {
+  ServerOnlyMessageError,
   UnreadableHistoryError,
   UnreadableMessageError,
   UnsupportedMessageVersionError,
@@ -47,12 +48,25 @@ import {
   hostDefect,
   listenerFailed,
   reportTo,
+  serverOnlySubmitted,
   type HostStage,
   type SyncDiagnostic,
 } from './diagnostics.js'
 import { serveSocket, type SocketLike } from './transport.js'
+import type { ServerJournal } from './serverJournal.js'
 
 export type { HostDefect, HostStage } from './diagnostics.js'
+export {
+  reaction,
+  serverJournal,
+  type Parked,
+  type Reaction,
+  type ReactionOptions,
+  type Requires,
+  type ServerJournal,
+  type ServerJournalOptions,
+  type Trigger,
+} from './serverJournal.js'
 
 export interface JournalExchangeOptions<Message, Shared, Principal> {
   /** The document's contract: its codecs, and the snapshot a checkpoint encodes. */
@@ -93,6 +107,11 @@ export interface JournalExchangeOptions<Message, Shared, Principal> {
     | undefined
   /** The most committed operations one reply carries; a replica further behind asks again. Default 500. */
   readonly limit?: number | undefined
+  /**
+   * Where a `ServerOnlySubmitted` goes: a replica sent a Message only the
+   * server appends. The reporter in context when not given, by default the log.
+   */
+  readonly diagnostics?: ReportDiagnostic | undefined
 }
 
 const encodeRefusal = Schema.encodeSync(SyncRefusal)
@@ -141,6 +160,16 @@ const unreadableHistory = (
   return Option.none()
 }
 
+/** What a replica that sent a server-only Message is told. */
+const SERVER_ONLY_REASON = 'Only the server makes this change'
+
+/** The replica id an entry claims, for a diagnostic: read without trusting the rest of it. */
+const replicaOf = (input: unknown): string =>
+  Option.match(Schema.decodeUnknownOption(Schema.Struct({ replicaId: Schema.String }))(input), {
+    onNone: () => '?',
+    onSome: ({ replicaId }) => fitWords(replicaId),
+  })
+
 /** The id an entry names, read without trusting the rest of it. */
 const idOf = (input: unknown): Option.Option<string> =>
   Option.map(
@@ -177,21 +206,24 @@ export const journalExchange = <Message, Shared, Principal>(
   const supported = sync.codec.messageVersion
   /**
    * An entry as written, with what it means: its Message upcast to the current
-   * version. Older and unread by any step is told apart, as `Unreadable`;
-   * anything else that fails is not an operation this server accepts.
+   * version. Older and unread by any step is told apart, as `Unreadable`, and
+   * a Message only the server appends, as `Forbidden`; anything else that
+   * fails is not an operation this server accepts.
    */
   const operationOf = (
     input: unknown,
   ): Result.Result<
     { readonly written: WrittenOperation; readonly operation: Operation },
-    Option.Option<UnreadableMessageError>
+    UnreadableMessageError | ServerOnlyMessageError | 'invalid'
   > => {
     try {
       const written = sync.codec.writtenFrom(input, sync.documentId)
       return Result.succeed({ written, operation: sync.codec.normalizeOperation(written) })
     } catch (cause) {
       return Result.fail(
-        cause instanceof UnreadableMessageError ? Option.some(cause) : Option.none(),
+        cause instanceof UnreadableMessageError || cause instanceof ServerOnlyMessageError
+          ? cause
+          : 'invalid',
       )
     }
   }
@@ -267,15 +299,21 @@ export const journalExchange = <Message, Shared, Principal>(
           const id = idOf(input)
           if (Option.isNone(id))
             return yield* Effect.fail(new Error('A pending entry names no operation'))
-          Option.match(decoded.failure, {
-            onNone: () => invalid(id.value, 'Not an operation this server accepts'),
-            onSome: ({ version }) =>
-              reject(
-                id.value,
-                SyncRefusal.Unreadable({ version }),
-                'Written by a version of the app this server cannot read',
-              ),
-          })
+          const failure = decoded.failure
+          if (failure === 'invalid') invalid(id.value, 'Not an operation this server accepts')
+          else if (failure instanceof UnreadableMessageError)
+            reject(
+              id.value,
+              SyncRefusal.Unreadable({ version: failure.version }),
+              'Written by a version of the app this server cannot read',
+            )
+          else {
+            forbid(id.value, SERVER_ONLY_REASON, SERVER_ONLY_REASON)
+            yield* reportTo(
+              options.diagnostics,
+              serverOnlySubmitted(sync.documentId, id.value, replicaOf(input)),
+            )
+          }
           continue
         }
         const { written, operation } = decoded.success
@@ -457,7 +495,7 @@ export class TableAheadOfJournalError extends Schema.TaggedError<TableAheadOfJou
   }
 }
 
-export interface EditsJournalOptions<Shared, Principal, Change> {
+export interface EditsJournalOptions<Shared, Principal, Change, Absorbed = never> {
   /** The document whose edits the table reads. */
   readonly documentId: string
   /** The journal the edits commit to. */
@@ -493,16 +531,31 @@ export interface EditsJournalOptions<Shared, Principal, Change> {
   /** Whether the snapshot still keeps an edit committed through `through`: whether to absorb. */
   readonly holdsThrough: (snapshot: Shared, through: number) => boolean
   /**
-   * The server's operation saying the table holds every edit through
-   * `through`, sequenced from `cursor`, the journal's: the replicas drop those
-   * edits on hearing it. Appended as written, so a document with migrations
-   * writes it at its current version
-   * (`sync.journalContract().operation.encode`); one without needs nothing.
+   * Records that the table holds every edit through `through`, as the
+   * server: `absorbed(through)` is the server-only Message the replicas drop
+   * those edits on hearing, appended under the key `absorbed/<through>`. The
+   * log is compacted no further than the server journal's `settledThrough`,
+   * so its reactions see every commit first.
    */
-  readonly absorbed: (through: number, cursor: number) => WrittenOperation
-  /** Who the server commits `absorbed` as; the contract's `authorize` should let only it. */
-  readonly server: Principal
+  readonly asServer?:
+    | {
+        readonly journal: ServerJournal<Absorbed, any>
+        readonly absorbed: (through: number) => Absorbed
+      }
+    | undefined
+  /**
+   * @deprecated Declare the Message `serverOnly` and pass `asServer`; removed
+   * in the next release. The server's operation saying the table holds every
+   * edit through `through`, sequenced from `cursor`, the journal's, appended
+   * as written.
+   */
+  readonly absorbed?: ((through: number, cursor: number) => WrittenOperation) | undefined
+  /** @deprecated With `absorbed`: who the server commits it as. */
+  readonly server?: Principal | undefined
 }
+
+/** The stored cursor `editsJournal` keeps: every edit at or before it is in the table. */
+const EDITS_CURSOR = 'edits'
 
 /**
  * The table as the journal's read model: `settle` applies each committed
@@ -510,23 +563,30 @@ export interface EditsJournalOptions<Shared, Principal, Change> {
  * journal what the table holds and compacts the log behind it. For
  * `journalExchange`'s `settle`, and a clock that absorbs.
  *
- * Recovery starts at the journal's floor, where compaction left it, so a
- * server restarted over a journal that outlived it does not ask for history
- * that is gone. Intents are keyed by the journal's epoch as well as the
- * operation, so after a reset an operation sent again is applied again, not
- * taken as already run.
+ * How far the table holds is a cursor the journal stores (`journal.cursors`),
+ * started at the journal's floor, where compaction left it, so a server
+ * restarted over a journal that outlived it neither walks the log again nor
+ * asks for history that is gone. Intents are keyed by the journal's epoch as
+ * well as the operation, so after a reset an operation sent again is applied
+ * again, not taken as already run.
  */
-export const editsJournal = <Shared, Principal, Change>(
-  options: EditsJournalOptions<Shared, Principal, Change>,
+export const editsJournal = <Shared, Principal, Change, Absorbed = never>(
+  options: EditsJournalOptions<Shared, Principal, Change, Absorbed>,
 ): {
   readonly settle: Effect.Effect<void, unknown>
   readonly absorb: Effect.Effect<void, unknown>
 } => {
-  const { journal } = options
+  const { journal, asServer } = options
+  if (asServer === undefined && (options.absorbed === undefined || options.server === undefined))
+    throw new Error('editsJournal: pass asServer, or absorbed with server')
   const key = JournalDocumentId.make(options.documentId)
-  // Operations at or before `applied.cursor` have every change in the table,
-  // in `applied.epoch`: none until a settle has run in this process.
-  let applied: Option.Option<{ readonly cursor: Cursor; readonly epoch: string }> = Option.none()
+  /** The stored cursor in the current epoch, started at the floor the first time. */
+  const tracked = Effect.gen(function* () {
+    const found = yield* journal.cursors.settled(key, EDITS_CURSOR)
+    if (Option.isSome(found)) return found.value
+    yield* journal.cursors.track(key, EDITS_CURSOR, { from: 'floor' })
+    return Option.getOrThrow(yield* journal.cursors.settled(key, EDITS_CURSOR))
+  })
   const intents = (epoch: string) => (operation: Operation) =>
     Option.match(options.editsOf(operation), {
       onNone: () => [],
@@ -540,39 +600,39 @@ export const editsJournal = <Shared, Principal, Change>(
           }),
         })),
     })
-  // Before the first recovery of an epoch: the table must not be past it.
-  const checked = Effect.gen(function* () {
+  const settle = Effect.gen(function* () {
+    // The table must not be past the journal: every edit would be skipped.
     const table = yield* options.tableRevision
     const at = yield* journal.cursor(key)
     if (table > at) return yield* new TableAheadOfJournalError({ table, journal: at })
-    return Cursor.make(yield* journal.floor(key))
+    // A new epoch is a new history: the stored cursor reads 0 in it.
+    const { epoch, cursor } = yield* tracked
+    const through = yield* journal.recover({ key, from: cursor, intents: intents(epoch) })
+    if (through > cursor) yield* journal.cursors.advance(key, EDITS_CURSOR, epoch, through)
   })
-  const settle = Effect.gen(function* () {
-    const epoch = yield* journal.epoch(key)
-    // A new epoch is a new history: recovery starts over at its floor.
-    const from = yield* Option.match(
-      Option.filter(applied, previous => previous.epoch === epoch),
-      {
-        onSome: ({ cursor }) => Effect.succeed(cursor),
-        onNone: () => checked,
-      },
-    )
-    const cursor = yield* journal.recover({ key, from, intents: intents(epoch) })
-    applied = Option.some({ cursor, epoch })
-  })
-  // Two absorbs at once need no lock: both name the record by the journal's
-  // cursor, so the second is the first's retry, answered from history.
+  // Two absorbs at once need no lock: both name the record by `through`, so
+  // the second is the first's retry, answered from history.
   const absorb = Effect.gen(function* () {
-    const epoch = yield* journal.epoch(key)
-    const known = Option.filter(applied, previous => previous.epoch === epoch)
-    if (Option.isNone(known)) return
-    const through = known.value.cursor
+    const found = yield* journal.cursors.settled(key, EDITS_CURSOR)
+    if (Option.isNone(found) || found.value.cursor === 0) return
+    const through = found.value.cursor
     const { snapshot, cursor } = yield* journal.load(key)
     if (!options.holdsThrough(snapshot, through)) return
-    yield* journal.append(key, options.absorbed(through, cursor), options.server)
-    // What the log holds through `through` is in the table and gone from
-    // the snapshot; a replica behind it is sent the snapshot instead.
-    yield* journal.compact(key, Sequence.make(through))
+    const floor = yield* Option.match(Option.fromUndefinedOr(asServer), {
+      onSome: ({ journal: server, absorbed }) =>
+        Effect.gen(function* () {
+          yield* server.appendAsServer(absorbed(through), { key: `absorbed/${through}` })
+          return Math.min(through, yield* server.settledThrough)
+        }),
+      onNone: () =>
+        Effect.as(
+          journal.append(key, options.absorbed!(through, cursor), options.server!),
+          through,
+        ),
+    })
+    // What the log holds through `floor` is in the table and gone from the
+    // snapshot; a replica behind it is sent the snapshot instead.
+    if (floor > (yield* journal.floor(key))) yield* journal.compact(key, Sequence.make(floor))
   })
   return { settle, absorb }
 }

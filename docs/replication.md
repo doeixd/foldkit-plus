@@ -276,6 +276,51 @@ keep:
   claim to be someone else. Durable also binds each replica id to the first
   actor that commits from it, and refuses another's.
 
+- **Only the server records a server-only fact.** A Message the contract
+  declares `serverOnly` is refused from any replica, by tag, after upcasting,
+  before `admit`, `validate` and `authorize`: the check needs no rule about
+  who the principal is. So is an entry claiming a replica id under `server/`,
+  which the server's own operations use.
+
+### The server's own writes, and work after a commit
+
+The server appends what only it may say through `serverJournal`
+(`appendAsServer(message, { key })`), under a key that names the fact, so a
+redelivered webhook commits once. Work that follows a commit (a receipt, a
+provider call, a server-only Message as its result) is a **reaction**, a
+declared value run in journal order from a cursor the journal stores:
+
+```text
+commit N -> reaction cursor < N -> run: answer recorded in the ledger
+                                -> appends committed as the server
+                                -> cursor := N
+```
+
+Two promises, stated narrowly:
+
+- **An external call runs at least once.** SQLite or D1 and a provider share
+  no transaction, so a crash between the call and the record of it runs the
+  call again. Each run carries one key, the same on every retry, for the
+  provider's idempotency; whether a repeat is then harmless is the
+  provider's guarantee, not Sync's. Nothing here is exactly once.
+- **What a reaction appends commits once**: its ids come from the reaction
+  and its trigger's id, and the journal answers a repeat from history.
+
+A run that fails waits on a stored backoff, blocking only its own reaction. A
+run that can never succeed (the journal refuses its append, or its answer is
+outside what it declared) is **parked** for a person, and the reaction goes
+on, so one operation cannot stop it or the log's compaction; so is one that
+has failed eight times over at least an hour, which an outage of a few
+minutes never reaches. A store that is down counts toward neither.
+
+`settle` keeps the job it had: a read model the reply depends on, before the
+reply. Who runs reactions is the host's: a long-lived process forks
+`follow`; a Durable Object sets its alarm before replying and runs them after;
+a stateless Worker uses `waitUntil` and a Cron Trigger, and its reactions'
+commits reach other replicas only when they next exchange. The
+[Sync README](../packages/sync/README.md#work-after-a-commit-reactions) has
+the API.
+
 [`examples/sync/src/journal.ts`](../examples/sync/src/journal.ts) writes the
 exchange by hand, the rules above as code, with server-side effects settled
 before the acknowledgement, and
@@ -594,7 +639,10 @@ The packages leave deliberate gaps, each a deployment decision:
   database forgets them; reject work older than the retained window rather than
   applying it as new.
 - **Effect identities.** A stable key per document, operation, and semantic
-  action, chosen before the action runs and handed to the provider.
+  action, chosen before the action runs and handed to the provider. A
+  reaction derives one for you; the provider's idempotency is still yours.
+- **Parked runs.** Looking at what a reaction set aside, and retrying or
+  dismissing it, is a person's job; the list only says it is there.
 - **Migrations.** Sync and Durable version and refuse their own storage and
   wire formats, and Sync applies the history you declare for a durable
   Message. Writing that history, and evolving the shared slice's own Schema,

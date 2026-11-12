@@ -1,7 +1,9 @@
 # Server-only Messages and reactions for Sync (#190, Phase 5 items 1 and 2)
 
-Status: designed 2026-11-12, not built. Revised the same day after two
-review rounds (six blocking findings; what each changed is §12). Phase 5
+Status: built 2026-11-12 on the branch (decisions made while building, and
+where the note was wrong against the source, are §13). Designed the same
+day and revised after two review rounds (six blocking findings; what each
+changed is §12). Jev did not run (`TYPESAFE_API_KEY` unset). Phase 5
 items 1 and 2 of [contract-layer-PLAN.md](./contract-layer-PLAN.md), for its
 invariants 8 ("server-only Messages cannot originate from a client") and 9
 ("reactions run at least once and are keyed deterministically"). It follows
@@ -1227,3 +1229,239 @@ pages; `Reaction` carries its contract, `on` its application, overlapping
 sets are a type error under one rule (§3.2, §4); the tables are prefixed
 (§4.4); growth has a plan (§10); `baseCursor: 0` is explained (§4.2); and
 §8 says which post-commit path stays.
+
+## 13. Decisions made while building
+
+Built in `packages/sync/src/serverJournal.ts` (exported from
+`foldkit-sync/journal`), `sync.ts`, `make.ts`, `journal.ts`, `do.ts`,
+`diagnostics.ts`, `errors.ts`, and `packages/durable/src/journal.ts`; tested
+in `packages/sync/test/serverMessages.test.ts` (with
+`serverMessages.test-d.ts` and `serverMessages.mutations.ts`),
+`editsJournal.test.ts`, `do.test.ts`, `upcasting.test.ts` (the pinned
+exchange reply), Durable's `journal.test.ts` and `d1.test.ts` (with
+`cursors.mutations.ts`), and on workerd in
+`examples/cloudflare/test/reactions.test.ts` (with
+`reactions.mutations.ts`).
+
+**The *Sketch* points.**
+
+- **Durable's methods** are one object, `journal.cursors`, with the seven
+  names of §4.4. `track` takes `{ from: 'cursor' | 'floor' }`, `'cursor'` by
+  default: `editsJournal`, moving its in-memory cursor to the stored one
+  (§8), must start at the floor as it did, or a deployment whose table had
+  not caught up would skip edits. `settled` returns the current epoch with
+  the cursor, so the caller names it to `advance` and `stalled`. Every
+  write is one statement guarded by the epoch it names
+  (`AND ${epoch} = (SELECT epoch FROM epochs WHERE key = ?)`), so D1 keeps
+  the guarantees with no transaction.
+- **`advance` clears the failure count only when the cursor moves.** As
+  written ("and clears `attempts`"), a pass that advanced to the cursor it
+  already held, before failing again at the next commit, would have reset
+  that commit's backoff and its `attempts` every pass.
+- **Defaults**: a 10 s timeout, 16 Messages, 8 attempts and an hour before
+  parking, pages of 100, a backoff from 0.5 s doubling to 30 s, a key of at
+  most 200 characters, a sent replica id of at most 128, as the note
+  proposed. `runsPerPass` is unbounded unless given. A pass after the
+  journal itself failed answers 5 s, stored nowhere (it counts toward no
+  bound). The Durable Object sets its alarm 1 s after a commit, and 30 s
+  after a pass that broke.
+- **Names**: a reaction's Durable cursor is `react/<name>` (a reaction name
+  cannot hold `/`), `editsJournal`'s is `edits`. Ledger keys are the JSON of
+  `['react', documentId, reaction, opId, 'answer']`,
+  `[..., 'finished', epoch]` and `['server', documentId, key]`;
+  `Trigger.key` is the SHA-256 of `['react', documentId, reaction, opId]`.
+- **`defineDocumentHost` takes `server: { principal, reactions: env => [...],
+  runsPerPass? }`.** `DocumentHostContext.storage` stays `unknown`: typed for
+  `setAlarm`, it would stop an `openJournal` that reads the object's SQLite
+  (`ctx.storage.sql`) as its own type. The host checks for `getAlarm` and
+  `setAlarm` when constructed with `server`, and throws without them. It
+  arms the alarm in the exchange's `settle` hook, after the application's
+  own, only when the journal's cursor moved since it last looked (an
+  in-memory number; a fresh object arms once more, which costs one empty
+  pass). It only ever brings the alarm earlier, and `alarm()` never throws:
+  a pass that broke is a `HostDefect` (new stage `Alarm`) and the alarm comes
+  back in 30 s. The probe's findings hold: the post-reply pass is a fast
+  path, the alarm is set before the reply, and `react`'s answer, never the
+  runtime's retries, sets the next one.
+- **`react` in `settle`** stays the application's own composition; no
+  option was added.
+- **The host arms the alarm before the application's `settle`**, so a
+  `settle` that fails the exchange still leaves what committed to be
+  reacted to.
+- **The client pays 0.4 kB brotli.** `examples/todo-app`'s bundle grew from
+  158,189 to 158,655 bytes, all of it `foldkit-sync` (its readers, the
+  `serverOnly` set, two error classes); its ceiling moved to 160,500.
+
+**Other decisions.**
+
+- **The Node host is `follow`**, a member of `ServerJournal` the note's
+  sketch lacked: an Effect that runs `react` now, after each commit this
+  journal instance publishes, and after the delay `react` answers, until
+  interrupted. `documentHost` is unchanged.
+- **`serverJournal` takes a contract from `forApplication(App).make`**
+  (`DefinedSync`, with its `serverOnly` constructors as a new
+  `serverOnlyMessages` member and a seventh type parameter); `Sync.define`
+  gets the predicate and the strict readers, not `appendAsServer`.
+- **`codec.message`** is new: the current Message Schema, which the runner
+  decodes triggers and encodes answers with.
+- **Overlap under `Sync.define`** is `AmbiguousMessageError`, thrown by every
+  reader, strict or lenient; `submit` refuses such a Message as server-only.
+- **A bad key** (empty, or past 200 characters) is an
+  `InvalidOperationError`, already in `AppendError`, rather than a new error.
+  A Message that is not server-only is refused the same way at run time.
+- **`ServerOnlySubmitted` names the replica id the entry claims, not the
+  actor.** `journalExchange` holds a generic principal with no actor
+  function, and logging the whole principal could log a credential.
+- **Which failures park at once**: an answer that is not a list, holds more
+  than 16 Messages, a Message `appends` does not name, or one that will not
+  encode; an append the journal refuses (`OperationRejectedError`,
+  `IdentityConflictError`, an `InvalidOperationError` from `validate` or one
+  whose cause is `UnreadableMessageError`). An `InvalidOperationError` caused
+  by `UnsupportedMessageVersionError` (a rollback) is retried and parks only
+  at both bounds, as §5 says. The handler's own failure, defect,
+  interruption and timeout are retried.
+- **A commit that will not read** (a `JournalError` whose cause is the
+  codec's `UnreadableMessageError`, `UnsupportedMessageVersionError` or
+  `AmbiguousMessageError`) is counted with `stalled` and reported, so its
+  backoff holds, but never parks, since no operation can be named. Any other
+  `JournalError` counts toward nothing.
+- **The stored failures belong to the commit after the cursor.** Once a pass
+  moves past it, a failure further on starts its own count.
+- **`retry` reads the row again from the store**, not the value it is given:
+  a row already resolved is nothing to do, a stale one is
+  `StaleParkedRunError` (new), and a run of a reaction no longer declared
+  fails. A failed retry leaves the row as it was.
+- **A parked row's `input`** is `{ operation, actorId }`, the operation
+  written at the current version, read back with the lenient reader.
+- **`Sync.mount`** sends a server-only Message the application dispatches to
+  `submit`, which refuses it, as it would a durable Message it could not
+  store: it appears and then the persistence failure is reported.
+- **Migrations done**: the registry (`AbsorbedEdits` server-only, the
+  `authorize` rule and envelope gone, `editsJournal`'s new `asServer`),
+  `examples/sync/test/lww.test.ts` (decodes with
+  `journalContract().operation.decode`), and the specs the change moved.
+
+**Where the note was wrong against the source.**
+
+- **§4.2, the server's actor.** "A deployment that changes the configured
+  server principal's `actorId` has every later server append refused": only
+  a repeated `appendAsServer` key (`IdentityConflictError`, the operation is
+  the first actor's) is, and, as first built, reactions' appends, whose
+  replica ids were fixed. A new key is a new replica id, which the journal
+  binds to the new actor, and commits; since the review below, so is a
+  reaction's append for a new commit. The constraint still stands; the README says
+  what happens.
+- **§3.6, `INSERT OR IGNORE` on the parked row.** After a `reset`, a run of
+  the same `opId` parked again in the new history was ignored beside the
+  stale row, and the cursor then moved past a run recorded nowhere: the
+  failure the paragraph sets out to prevent. A row of another epoch is
+  replaced; one of the same epoch is kept.
+- **§8, the sync example.** "The sync example's `effects` policy and
+  `settleThrough` move to a reaction": that example serves any document id
+  a principal names under one contract whose `documentId` is fixed, while a
+  reaction is declared for a contract and runs over its one document. It was
+  not migrated; doing so is redesigning the example.
+- **§9, "eight times within a minute".** Under the backoff of §5 eight
+  failures take about 61.5 s; the test runs each pass when the previous
+  one's answer says, and parks only past `parkAfter`.
+
+**Not built here.** The example of the plan's "done when" (a webhook's
+payment confirmation, a notice once per commit across a restart, in an
+example) is covered by `serverMessages.test.ts`, not by an example;
+`examples/cloudflare`'s `settleTodos` still keeps its cursor in
+`durable_meta` (it could use `journal.cursors`); pages' `Collect`, the
+examples' agent `appendAsServer` and pruning stay out, as §8 and §10 say.
+
+**What the code review of the build changed** (2026-11-12, two blocking
+findings and twelve advisories, each checked against the source first).
+
+- **B1. A reaction's append is named by its trigger's id**, not its place:
+  `server/r/<reaction>/<sha256 of the trigger's opId>/<index>`, local
+  sequence 1, `baseCursor` the trigger's sequence. Named by the sequence,
+  as §4.3 had it, after a `reset` a reaction running on another's append
+  met the same id for another trigger, found the first one's recorded
+  answer, never ran for the second, and gave the provider the first one's
+  key. The cost is §4.3's "replica ids as many as reactions times 16": each
+  append is a binding row of its own now, one per trigger and index, the
+  growth §10's plan (bind nothing under `server/`) answers. A consequence:
+  after the server's `actorId` changes, a reaction's append for a new
+  commit binds to the new actor and commits; only a redelivered
+  `appendAsServer` key conflicts. The README, the options doc and §13's
+  correction of §4.2 above say so. A chain across a reset is tested.
+- **B2. `park` writes only in the document's current epoch**, through
+  `INSERT … SELECT … WHERE ? = (SELECT epoch FROM epochs …)`, like `advance`
+  and `stalled`. Before, a pass still in its handler during a `reset` parked
+  with the old epoch over the new history's row.
+- **1.** The options doc's actor claim is corrected.
+- **2.** The module header says what a lost cursor row costs: `react`
+  reports it (it is a defect, now caught, below) until the reaction is
+  registered again, at the journal's cursor then, which skips what came
+  between. Re-tracking from the floor was rejected: on a long log it would
+  run every reaction over all of history, which registration exists to
+  prevent.
+- **3.** The changelog says that Durable's own `append` now takes a
+  server-only Message and a `server/` id from input no Sync reader saw.
+  `examples/sync` and `examples/todo-app` read with `codec.writtenFrom`
+  before appending.
+- **4.** The DO's `alarm()` calls the base class's own `alarm()` after the
+  reactions' pass (composing rather than refusing, so an application that
+  had one can still take `server`); opens nothing without `server`; never
+  throws when the reporter fails; and treats an alarm time already past as
+  no alarm, since a runtime may still report the alarm being run inside
+  `alarm()`. Local workerd answers `null` there (the mutation removing the
+  guard survives the workerd test, and says so); production was not
+  measured, so the guard stays, killed by a faked storage in `do.test.ts`. A workerd test fails a reaction twice and sees the alarm
+  re-armed from inside `alarm()` until the run succeeds.
+- **5.** A `setAlarm` that fails after a commit is reported, the
+  application's `settle` still runs, and the host's `seen` cursor does not
+  move, so the next exchange arms again.
+- **6.** Passes run one at a time per object (a promise chain), so a failure
+  is counted once.
+- **7.** `react` catches a defect of a reaction's pass (a trigger that will
+  not decode, a cursor row that is gone) and reports it as `ReactionFailed`,
+  answering 5 s; an interruption still ends it, so `follow` stops when asked.
+- **8.** `runsPerPass` is shared: each reaction gets its share of what is
+  left, and the reaction a pass starts with turns each pass.
+- **9.** `appendAsServer` keeps recording before appending (a redelivery
+  after a deploy must append the bytes first written), and clears the
+  record when the journal refuses the append (`OperationRejectedError`,
+  `InvalidOperationError`): nothing committed, so the key is free again. A
+  conflict keeps it.
+- **10.** `defineDocumentHost` makes the reactions when the object is
+  constructed and refuses one declared for another contract there.
+- **11.** A negative type test: `serverJournal` refuses a `Sync.define`
+  contract.
+- **12.** The workerd eviction test asserts every run carried one key, that
+  it ran more than once (so the eviction cut one off), and polls long enough
+  for the runtime's alarm retry when the reset lands on the alarm itself;
+  the handler sleeps three seconds, so the reset lands mid-call.
+
+Jev did not run for this round either (`TYPESAFE_API_KEY` unset).
+
+**What the second review round changed** (advisories only, no blocking
+finding).
+
+- **A.** `ServerJournalOptions.server`'s doc now says what a changed
+  `actorId` does: a new trigger's append and a new key commit as the new
+  actor; a redelivered key is an `IdentityConflictError`, and a run retried
+  after its first append committed under the old actor parks.
+- **B.** Every reaction append (per trigger and index) and every
+  `appendAsServer` key leaves a row in Durable's `replicas` table, which
+  neither compaction nor `reset` deletes. The README says so; pruning, or
+  binding nothing under `server/` (§10), is a follow-up in `TODO.md`.
+- **C.** The DO host passes the runtime's alarm arguments to the base
+  class's `alarm()`, and exports `armAlarm(storage, at)`, the helper it uses
+  itself, which only brings the object's one alarm earlier. The class doc
+  and README say the base runs on every wake, decides what is due, must
+  only bring the alarm earlier, and that a subclass overriding `alarm()`
+  calls `super.alarm()`.
+- **D.** `serverJournal` serializes its own passes (a semaphore around
+  `react`), so "safe to call at any time" holds within one instance; the DO
+  host's promise chain is gone. Two instances over one store still do not
+  wait for each other, as `react`'s doc says.
+- **E.** A workerd mutation removes the alarm a pass sets from its answer;
+  the flaky-reaction test kills it. The README says a redelivery after a
+  refusal is judged afresh, never `ServerKeyReusedError`.
+
+Jev did not run for this round either (`TYPESAFE_API_KEY` unset).
+

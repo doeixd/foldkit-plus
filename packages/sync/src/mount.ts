@@ -231,6 +231,8 @@ export const mount = <
   Ms extends readonly unknown[],
   Resources = never,
   Principal = unknown,
+  Authorized extends boolean = false,
+  SMs extends readonly unknown[] = [],
 >(
   app: RunnableApplication<Model, F, Cases, Resources>,
   sync: DefinedSync<
@@ -238,7 +240,9 @@ export const mount = <
     Fields,
     MessageOf<RunnableApplication<Model, F, Cases, Resources>>,
     Ms,
-    Principal
+    Principal,
+    Authorized,
+    SMs
   >,
   options: MountOptions<
     Model,

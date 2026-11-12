@@ -108,6 +108,10 @@ export type {
   HostStage,
   ListenerFailed,
   ListenerSite,
+  ReactionFailed,
+  ReactionParked,
+  ReactionSkipped,
+  ServerOnlySubmitted,
   SyncDiagnostic,
   UnknownRefusal,
 } from './diagnostics.js'
@@ -140,6 +144,7 @@ export {
   type MakeOptions,
   type MsgOf,
   type PolicyJournalContract,
+  type ServerMsgOf,
   type StampPolicy,
   type SyncFragment,
 } from './make.js'
@@ -156,6 +161,7 @@ export {
   sequence,
 } from './ids.js'
 export {
+  AmbiguousMessageError,
   CheckpointRegressionError,
   CommittedOrderError,
   ForeignAcknowledgementError,
@@ -165,6 +171,9 @@ export {
   InvalidReplicaHistoryError,
   ReplayError,
   ReplicaClosedError,
+  ServerKeyReusedError,
+  ServerOnlyMessageError,
+  StaleParkedRunError,
   StorageError,
   UnreadableHistoryError,
   UnreadableMessageError,

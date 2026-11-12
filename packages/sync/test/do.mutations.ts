@@ -81,15 +81,15 @@ export default [
     edits: [
       {
         file,
-        find: '(ready ??= config.openJournal(ctx, env))',
-        replace: '(ready = config.openJournal(ctx, env))',
+        find: '(ready ??= config.openJournal(ctx, env).then(',
+        replace: '(ready = config.openJournal(ctx, env).then(',
       },
     ],
     tests,
   },
   {
     name: 'a failed open provisions nothing to retry with',
-    edits: [{ file, find: '            ready = undefined\n', replace: '' }],
+    edits: [{ file, find: '          ready = undefined\n', replace: '' }],
     tests,
   },
   {
@@ -124,8 +124,9 @@ export default [
     edits: [
       {
         file,
-        find: 'journal => settle(env, journal)',
-        replace: '() => settle({} as Env, undefined as never)',
+        find: '                  if (settle !== undefined) yield* settle(env, journal)',
+        replace:
+          '                  if (settle !== undefined) yield* settle({} as Env, undefined as never)',
       },
     ],
     tests,

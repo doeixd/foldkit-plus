@@ -883,7 +883,7 @@ describe('a durable journal', () => {
 
       const migrated = new DatabaseSync(path)
       try {
-        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 6 })
+        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 7 })
         // The payload identity is recomputed canonically, so a later retransmission
         // with a different key order still proves its payload.
         expect(
@@ -929,7 +929,7 @@ describe('a durable journal', () => {
 
       const migrated = new DatabaseSync(path)
       try {
-        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 6 })
+        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 7 })
       } finally {
         migrated.close()
       }
@@ -1050,7 +1050,7 @@ describe('a durable journal', () => {
         CREATE TABLE effects (
           key TEXT PRIMARY KEY, status TEXT NOT NULL, result TEXT, error TEXT
         );
-        PRAGMA user_version = 7;
+        PRAGMA user_version = 8;
       `)
       newer.close()
 
@@ -1061,12 +1061,12 @@ describe('a durable journal', () => {
       )
       expect(result).toMatchObject({
         _tag: 'Failure',
-        failure: { _tag: 'UnsupportedJournalVersionError', found: 7, supported: 6 },
+        failure: { _tag: 'UnsupportedJournalVersionError', found: 8, supported: 7 },
       })
 
       const after = new DatabaseSync(path)
       try {
-        expect(after.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 7 })
+        expect(after.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 8 })
       } finally {
         after.close()
       }
@@ -1237,6 +1237,172 @@ describe('a document’s epoch', () => {
           }),
         ),
       )
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('named cursors', () => {
+  const at = (journal: Journal<Operation, Snapshot, Principal>, name = 'mail') =>
+    Effect.map(journal.cursors.settled(todos, name), found =>
+      Option.map(found, ({ cursor, attempts }) => ({ cursor: Number(cursor), attempts })),
+    )
+
+  it('starts at the document’s cursor when tracked, and tracking again moves nothing', () =>
+    withJournal(function* (journal) {
+      expect(yield* at(journal)).toEqual(Option.none())
+      yield* journal.append(todos, add(1), principal)
+      yield* journal.append(todos, add(2), principal)
+      yield* journal.cursors.track(todos, 'mail')
+      expect(yield* at(journal)).toEqual(Option.some({ cursor: 2, attempts: 0 }))
+      yield* journal.append(todos, add(3), principal)
+      yield* journal.cursors.track(todos, 'mail')
+      expect(yield* at(journal)).toEqual(Option.some({ cursor: 2, attempts: 0 }))
+      // Another name, another document: each its own.
+      expect(yield* at(journal, 'other')).toEqual(Option.none())
+      expect(yield* journal.cursors.settled(docA, 'mail')).toEqual(Option.none())
+    }))
+
+  it('starts at the compaction floor when asked', () =>
+    withJournal(function* (journal) {
+      for (const n of [1, 2, 3]) yield* journal.append(todos, add(n), principal)
+      yield* journal.compact(todos, sequence(1))
+      yield* journal.cursors.track(todos, 'mail', { from: 'floor' })
+      expect(yield* at(journal)).toEqual(Option.some({ cursor: 1, attempts: 0 }))
+    }))
+
+  it('only moves forward, and counts failures until it moves', () =>
+    withJournal(function* (journal) {
+      for (const n of [1, 2, 3]) yield* journal.append(todos, add(n), principal)
+      yield* journal.cursors.track(todos, 'mail', { from: 'floor' })
+      const epoch = yield* journal.epoch(todos)
+      yield* journal.cursors.advance(todos, 'mail', epoch, cursor(2))
+      yield* journal.cursors.advance(todos, 'mail', epoch, cursor(1))
+      expect(yield* at(journal)).toEqual(Option.some({ cursor: 2, attempts: 0 }))
+      yield* journal.cursors.stalled(todos, 'mail', epoch, 1_000)
+      yield* journal.cursors.stalled(todos, 'mail', epoch, 5_000)
+      const stalled = Option.getOrThrow(yield* journal.cursors.settled(todos, 'mail'))
+      expect(stalled).toMatchObject({
+        attempts: 2,
+        firstFailedAt: Option.some(1_000),
+        failedAt: Option.some(5_000),
+      })
+      // An advance that moves nothing keeps the count: the same run is still failing.
+      yield* journal.cursors.advance(todos, 'mail', epoch, cursor(2))
+      expect(yield* at(journal)).toEqual(Option.some({ cursor: 2, attempts: 2 }))
+      yield* journal.cursors.advance(todos, 'mail', epoch, cursor(3))
+      expect(Option.getOrThrow(yield* journal.cursors.settled(todos, 'mail'))).toMatchObject({
+        cursor: 3,
+        attempts: 0,
+        firstFailedAt: Option.none(),
+        failedAt: Option.none(),
+      })
+    }))
+
+  it('reads 0 after a reset, and ignores a write that names the old epoch', () =>
+    withJournal(function* (journal) {
+      for (const n of [1, 2]) yield* journal.append(todos, add(n), principal)
+      yield* journal.cursors.track(todos, 'mail')
+      const old = yield* journal.epoch(todos)
+      yield* journal.cursors.stalled(todos, 'mail', old, 1)
+      yield* journal.reset(todos)
+      const fresh = Option.getOrThrow(yield* journal.cursors.settled(todos, 'mail'))
+      expect(fresh).toMatchObject({ cursor: 0, attempts: 0 })
+      expect(fresh.epoch).not.toBe(old)
+      // A runner still holding the old epoch writes nothing over the new one.
+      yield* journal.append(todos, add(1), principal)
+      yield* journal.cursors.advance(todos, 'mail', old, cursor(1))
+      yield* journal.cursors.stalled(todos, 'mail', old, 2)
+      expect(yield* at(journal)).toEqual(Option.some({ cursor: 0, attempts: 0 }))
+      // One naming the new epoch takes the row over.
+      yield* journal.cursors.stalled(todos, 'mail', fresh.epoch, 3)
+      expect(yield* at(journal)).toEqual(Option.some({ cursor: 0, attempts: 1 }))
+      yield* journal.cursors.advance(todos, 'mail', fresh.epoch, cursor(1))
+      expect(yield* at(journal)).toEqual(Option.some({ cursor: 1, attempts: 0 }))
+      // Nor over the new one's progress once it has some.
+      yield* journal.cursors.advance(todos, 'mail', old, cursor(1))
+      yield* journal.cursors.stalled(todos, 'mail', old, 4)
+      expect(yield* at(journal)).toEqual(Option.some({ cursor: 1, attempts: 0 }))
+    }))
+
+  it('tracks again from 0 after a reset, though the new history has commits', () =>
+    withJournal(function* (journal) {
+      yield* journal.append(todos, add(1), principal)
+      yield* journal.cursors.track(todos, 'mail')
+      yield* journal.reset(todos)
+      for (const n of [1, 2]) yield* journal.append(todos, add(n), principal)
+      yield* journal.cursors.track(todos, 'mail')
+      expect(yield* at(journal)).toEqual(Option.some({ cursor: 0, attempts: 0 }))
+    }))
+
+  it('parks a run once per epoch, lists it, and forgets it', () =>
+    withJournal(function* (journal) {
+      const epoch = yield* journal.epoch(todos)
+      const run = {
+        name: 'mail',
+        opId: opId('a:1'),
+        epoch,
+        sequence: sequence(1),
+        input: { operation: { b: 1, a: [2] } },
+        error: 'refused',
+      }
+      yield* journal.cursors.park(todos, run)
+      yield* journal.cursors.park(todos, { ...run, error: 'again' })
+      yield* journal.cursors.park(todos, { ...run, name: 'other' })
+      yield* journal.cursors.park(docA, { ...run, epoch: yield* journal.epoch(docA) })
+      expect(yield* journal.cursors.parked(todos)).toEqual([run, { ...run, name: 'other' }])
+      yield* journal.cursors.unpark(todos, 'mail', opId('a:1'))
+      expect((yield* journal.cursors.parked(todos)).map(parked => parked.name)).toEqual(['other'])
+      expect(yield* journal.cursors.parked(docA)).toHaveLength(1)
+    }))
+
+  it('parks only in the current epoch, replacing a stale row and never the new one', () =>
+    withJournal(function* (journal) {
+      const old = yield* journal.epoch(todos)
+      const run = {
+        name: 'mail',
+        opId: opId('a:1'),
+        epoch: old,
+        sequence: sequence(1),
+        input: {},
+        error: 'refused',
+      }
+      yield* journal.cursors.park(todos, run)
+      yield* journal.reset(todos)
+      const fresh = yield* journal.epoch(todos)
+      // Parked again in the new history: the stale row is replaced.
+      yield* journal.cursors.park(todos, { ...run, epoch: fresh, sequence: sequence(4) })
+      expect(yield* journal.cursors.parked(todos)).toEqual([{ ...run, epoch: fresh, sequence: 4 }])
+      // A pass still running from before the reset writes nothing, over the row or beside it.
+      yield* journal.cursors.park(todos, { ...run, error: 'late' })
+      yield* journal.cursors.park(todos, { ...run, opId: opId('a:2') })
+      expect(yield* journal.cursors.parked(todos)).toEqual([{ ...run, epoch: fresh, sequence: 4 }])
+    }))
+
+  it('keeps cursors and parked runs across reopening the file', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'foldkit-cursors-'))
+    try {
+      const file = join(directory, 'journal.sqlite')
+      await withJournal(
+        journal =>
+          (function* () {
+            yield* journal.append(todos, add(1), principal)
+            yield* journal.cursors.track(todos, 'mail', { from: 'floor' })
+            yield* journal.cursors.advance(todos, 'mail', yield* journal.epoch(todos), cursor(1))
+          })(),
+        {},
+        file,
+      )
+      const reopened = await withJournal(
+        journal =>
+          (function* () {
+            return yield* at(journal)
+          })(),
+        {},
+        file,
+      )
+      expect(reopened).toEqual(Option.some({ cursor: 1, attempts: 0 }))
     } finally {
       await rm(directory, { recursive: true, force: true })
     }

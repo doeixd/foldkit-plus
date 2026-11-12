@@ -8,7 +8,7 @@
 import { Effect, Exit, Option, Schema, Scope } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
-import { ActorId, DocumentId, Journal, OpId } from 'foldkit-durable'
+import { ActorId, Cursor, DocumentId, Journal, OpId } from 'foldkit-durable'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
 import { afterEach, expect, it } from 'vitest'
 import {
@@ -20,7 +20,13 @@ import {
   sequence,
   type Operation,
 } from '../src/index.js'
-import { TableAheadOfJournalError, editsJournal, journalExchange } from '../src/journal.js'
+import {
+  TableAheadOfJournalError,
+  editsJournal,
+  journalExchange,
+  reaction,
+  serverJournal,
+} from '../src/journal.js'
 import { memoryStorage } from './memoryStorage.js'
 
 const Price = Schema.Struct({
@@ -194,4 +200,104 @@ it('settles a table no further on than its journal', async () => {
   // A second server over the same journal and the table the first wrote.
   const second = tableOver(journal, 1)
   await Effect.runPromise(second.edits.settle)
+})
+
+it('starts again from the cursor it stored, without walking the log again', async () => {
+  const journal = openJournal()
+  const first = tableOver(journal)
+  await send(journal, first.edits.settle, 'ada', [
+    ['a', 1],
+    ['b', 2],
+  ])
+  // A new process: the table holds both, and nothing is applied twice.
+  const again = tableOver(journal, 2)
+  await Effect.runPromise(again.edits.settle)
+  expect(again.writes).toEqual([])
+  expect(
+    Option.map(Effect.runSync(journal.cursors.settled(key, 'edits')), at => at.cursor),
+  ).toEqual(Option.some(2))
+})
+
+it('records what the table holds as a server-only Message, compacting no further than its reactions', async () => {
+  const ServerPrices = Sync.forApplication(App).make({
+    documentId: documentId('prices'),
+    shared: Projection.pick(App.model.prices),
+    durable: MessageSet.make(App, [Message.Priced]),
+    serverOnly: MessageSet.make(App, [Message.Absorbed]),
+    stamp: { Priced: (price, { sequence }) => Message.Priced({ ...price, at: sequence }) },
+  })
+  const scope = Effect.runSync(Scope.make())
+  scopes.push(scope)
+  const journal = Effect.runSync(
+    Journal.make<Operation, Shared, string>({
+      ...ServerPrices.journalContract(),
+      file: ':memory:',
+      opId: operation => OpId.make(operation.opId),
+      actorId: principal => ActorId.make(principal),
+    }).pipe(Effect.provideService(Scope.Scope, scope)),
+  )
+  // A reaction registered before anything committed, and never run: it holds compaction at 0.
+  const audit = reaction(ServerPrices, {
+    name: 'audit',
+    on: MessageSet.make(App, [Message.Priced]),
+    run: () => Effect.void,
+  })
+  const server = Effect.runSync(
+    serverJournal({ sync: ServerPrices, journal, server: 'server', reactions: [audit] }),
+  )
+  const writes: Array<string> = []
+  const edits = editsJournal<
+    Shared,
+    string,
+    typeof Price.Type,
+    Extract<Message, { readonly _tag: 'Absorbed' }>
+  >({
+    documentId: 'prices',
+    journal,
+    editsOf: operation => {
+      const message = decode(operation.message)
+      return message._tag === 'Priced'
+        ? Option.some({ changes: [message], at: Option.fromUndefinedOr(message.at) })
+        : Option.none()
+    },
+    apply: (price, at) => Effect.sync(() => void writes.push(`${price.id}@${at}`)),
+    tableRevision: Effect.succeed(0),
+    holdsThrough: (snapshot, through) =>
+      snapshot.prices.some(price => price.at !== undefined && price.at <= through),
+    asServer: { journal: server, absorbed: through => Message.Absorbed({ through }) },
+  })
+  const replica = await Effect.runPromise(
+    ServerPrices.openReplica(memoryStorage(), { replicaId: replicaId('ada') }),
+  )
+  const price = async (id: string) => {
+    await Effect.runPromise(replica.submit(Message.Priced({ id, cents: 1 })))
+    await Effect.runPromise(
+      replica.synchronize.pipe(
+        Effect.provide(
+          Sync.transport.fromPromise(
+            journalExchange({
+              sync: ServerPrices,
+              journal,
+              principal: 'ada',
+              settle: edits.settle,
+            }),
+          ),
+        ),
+      ),
+    )
+  }
+  await price('a')
+  await Effect.runPromise(Effect.all([edits.absorb, edits.absorb], { concurrency: 'unbounded' }))
+  const rows = Effect.runSync(journal.read(key, Cursor.make(0)))
+  expect(rows.map(row => row.operation.replicaId)).toEqual([
+    'ada',
+    expect.stringMatching(/^server\/k\//),
+  ])
+  expect(Effect.runSync(journal.load(key)).snapshot.prices).toEqual([])
+  expect(Effect.runSync(journal.floor(key))).toBe(0)
+  // Once the reaction has passed them, the log behind the table goes, as far as it has.
+  await Effect.runPromise(server.react)
+  await price('b')
+  await Effect.runPromise(edits.absorb)
+  expect(Effect.runSync(journal.floor(key))).toBe(2)
 })

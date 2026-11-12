@@ -897,6 +897,14 @@ Foldkit's own behaviour that we work around is listed in
   behind `Resource.lazy`, since the entry imported `domain.ts` for `Me`. Move
   what only a lazy chunk and the server need into a module of its own, and
   check which modules a chunk holds (`split.test.ts`), not only its size.
+- **A budget built from whatever `dist` exists measures two programs.**
+  `bundle-report.mjs` built `dist` only for an example's `dependencies` and
+  peers, and the site bundles nine packages it lists under `devDependencies`,
+  so on CI's fresh checkout its first build read them as `.ts` source and its
+  second, after other tests had built them, as `.js`: 351,300 against 351,723
+  bytes, failing one run in two (#504). Two guesses (a lock, an import sort)
+  fixed real but different things. Make a flaky size explain itself (which
+  modules differ, `explainDifference`) before guessing again.
 - **A namespace object (`Sync.forApplication`) keeps every member's module.**
   The cloudflare Worker read `Sync.forApplication` and carried Sync's client
   mount, sockets, presence and IndexedDB, 492 kB raw, until it imported
@@ -1084,6 +1092,13 @@ Foldkit's own behaviour that we work around is listed in
   other optional peers (it had `@effect/sql-sqlite-wasm`) got a second copy,
   and its tables did not type-check against the adapter. A library the
   application also uses is a `peerDependency`.
+
+- **SQLite's change counters see less than a test assumes.** `total_changes()`
+  counts the calling connection's writes only, so a test reading it from a
+  second connection saw none of the journal's; `PRAGMA data_version` sees
+  other connections' commits, but an `UPDATE` that writes the values a row
+  already holds changes no page and moves neither. A mutation adding such a
+  write survives: say so in the spec rather than chase a test.
 
 - **A no-op must return the Model it was given.** Foldkit renders only when the root Model
   changes identity, and `Update.foldChild` writes the child back unconditionally, so a
@@ -2468,6 +2483,10 @@ of its own named a form field "fits the Catalog". Read words with
   it. Keep the history linear and let GitHub delete a branch when its PR
   merges (Settings, General, "Automatically delete head branches"): restarting
   it is then a plain push that recreates it.
+- **A shell variable is gone in the next Bash call.** `F="…"` set in one
+  call and `git commit -m … -- $F` in the next committed only the files
+  `git add` had staged (69cd3085), and the rest needed a second commit. Set
+  the list and commit in one command, and read `git show --stat HEAD`.
 - **Flags go before `--`, and new files need `git add`.** `git commit --
   <paths> -m` parses `-m` as a pathspec and fails, and a pathspec commit skips
   untracked files, so a new module rode an `--amend` into the wrong commit.

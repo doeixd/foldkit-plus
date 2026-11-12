@@ -351,6 +351,23 @@ Sync.transport.socket({ url: 'wss://example.com/sync' })
   request, while the socket is open: a refusal closes it with 4401, and a
   principal whose `key` (`Policy.keyOf`) changed with 1012, which the
   replica reconnects after. Without it a socket serves its first principal until it closes.
+- `server: { principal, reactions: env => [...], runsPerPass? }` gives the
+  object its [reactions](#work-after-a-commit-reactions): registered when the
+  journal opens, before any socket is served; the alarm set before the reply
+  to an exchange that committed, a pass run after it, and `alarm()` running
+  them and setting the alarm from what they answer, then calling the base
+  class's own `alarm()` if it has one. The reactions' part never throws, so
+  the runtime's few retries of a throwing alarm are never what a run depends
+  on; it runs one pass at a time, and only ever brings the object's one alarm
+  earlier. A reaction declared for another contract is refused when the
+  object is made. A `setAlarm` that fails after a commit is reported, the
+  application's `settle` still runs, and the next exchange arms again.
+  A pass that broke is a `HostDefect` (`Alarm`), and the alarm comes back in
+  30 seconds. The base class's `alarm()` shares that one alarm: it runs on
+  every wake, so it decides for itself what is due, and sets its own next
+  wake with `armAlarm(ctx.storage, at)` from `foldkit-sync/do`, which only
+  ever brings the alarm earlier. A subclass that overrides `alarm()` calls
+  `super.alarm()`, or the reactions stop being resumed.
 - `settle: (env, journal) => Effect` runs after each exchange's appends, before
   the reply is read, to apply what committed elsewhere — the Remote tables a
   reader then queries. `journal.recover` makes it crash-safe and idempotent;
@@ -642,6 +659,228 @@ Use it for what a reader compares with the server's order: a read model that
 records the last sequence it applied can tell which edits it holds by comparing
 the two. A client that sends the stamped field itself is claiming a commit it
 did not get; refuse it in the journal's `validate`.
+
+### Messages only the server appends
+
+Some facts only the server may record: a payment provider confirmed a
+charge, the table absorbed an edit. Declare those Messages `serverOnly`,
+beside `durable`. A replica stores and replays them like any other; it can
+never submit one:
+
+<!-- docs-check standalone
+import { Effect, Option, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
+import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { DocumentId, forApplication } from 'foldkit-sync'
+import type { Journal } from 'foldkit-durable/core'
+import type { Operation, WrittenOperation } from 'foldkit-sync'
+const Order = Schema.Struct({ id: Schema.String, paid: Schema.Boolean, receipted: Schema.Boolean })
+const Model = Schema.Struct({ orders: Schema.Array(Order) })
+type Model = typeof Model.Type
+-->
+```ts
+const Message = defineMessageUnion({
+  PlacedOrder: { id: Schema.String },
+  ConfirmedPayment: { id: Schema.String, charge: Schema.String },
+  SentReceipt: { id: Schema.String },
+})
+
+const mark = (model: Model, id: string, change: Partial<typeof Order.Type>): Model =>
+  modifyFields(model, {
+    orders: () => model.orders.map(order => (order.id === id ? { ...order, ...change } : order)),
+  })
+
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { orders: [] },
+  update: (model, message) => ({
+    model: Message.match(message, {
+      PlacedOrder: ({ id }) =>
+        modifyFields(model, {
+          orders: () => [...model.orders, { id, paid: false, receipted: false }],
+        }),
+      ConfirmedPayment: ({ id }) => mark(model, id, { paid: true }),
+      SentReceipt: ({ id }) => mark(model, id, { receipted: true }),
+    }),
+  }),
+})
+
+const Confirmed = MessageSet.make(App, [Message.ConfirmedPayment])
+const Receipted = MessageSet.make(App, [Message.SentReceipt])
+
+const Orders = forApplication(App).make({
+  documentId: DocumentId.make('orders'),
+  shared: Projection.pick(App.model.orders),
+  // What a replica may submit.
+  durable: MessageSet.make(App, [Message.PlacedOrder]),
+  // What only the server appends. A Message in both sets is a type error.
+  serverOnly: MessageSet.union(Confirmed, Receipted),
+})
+```
+
+- **A replica submitting one is a type error**, and refused at run time.
+- **The server refuses one any replica sends**, whoever it says it is:
+  every reader of a sent entry (`codec.writtenFrom`, `normalizeOperation`,
+  `operationFrom`) refuses it, judged after
+  [upcasting](#change-a-durable-message), before `admit`, `validate` or
+  `authorize` run. `journalExchange` rejects it by its id as `Forbidden`
+  ("Only the server makes this change") and reports a `ServerOnlySubmitted`
+  diagnostic; the edits beside it still go. No rule about who the principal
+  is is involved, so a resolver's mistake cannot let one through.
+- **Replica ids under `server/` belong to the server**: a sent entry naming
+  one is rejected as `Invalid`, and so is one whose replica id is longer than
+  128 characters.
+- The contract's `surface` still lists `durable` alone, so an agent bound to
+  it cannot dispatch a server-only Message; `authorize` and `stamp` rules may
+  name one.
+
+The server appends one through `serverJournal` from `foldkit-sync/journal`,
+as a principal it holds in code and never resolves from a request:
+
+<!-- docs-check
+declare const journal: Journal<Operation, { readonly orders: Model['orders'] }, { readonly actorId: string }, WrittenOperation>
+-->
+```ts
+import { serverJournal } from 'foldkit-sync/journal'
+
+const serving = Effect.gen(function* () {
+  const server = yield* serverJournal({ sync: Orders, journal, server: { actorId: 'orders' } })
+  // A payment provider's webhook: its event id names the fact.
+  return (event: { readonly id: string; readonly order: string; readonly charge: string }) =>
+    server.appendAsServer(Message.ConfirmedPayment({ id: event.order, charge: event.charge }), {
+      key: `payment/${event.id}`,
+    })
+})
+```
+
+- **`key` names the fact**, and is required: a webhook's event id, a clock
+  tick. A repeat with the same key and Message appends nothing new, so a
+  redelivered webhook is harmless; the same key with another Message fails
+  with `ServerKeyReusedError`, and the first fact stands. A key is a
+  non-empty string of at most 200 characters.
+- **It goes through the journal's `append`**, so `validate` and `authorize`
+  judge it like any operation.
+- **Keep the server's `actorId`.** The journal binds each replica id to the
+  first actor that commits from it, so after a change of `actorId` a
+  redelivered key is an `IdentityConflictError`: that fact was the first
+  actor's. A new key, and a reaction's append for a new commit, commit as the
+  new actor.
+- **A refused append frees its key.** The key is recorded before the append,
+  so a redelivery after a deploy appends the bytes first written; when the
+  journal refuses the append (`validate`, `authorize`), nothing committed and
+  the record is cleared, so the key can name a Message the rules take. A
+  redelivery after a refusal is judged afresh: refused again with the same
+  error, or committed if the rules now take it, never `ServerKeyReusedError`.
+- **Each key leaves a row.** The journal keeps a replica binding per
+  `appendAsServer` key, and one per reaction append (per trigger and
+  index), in `foldkit-durable`'s `replicas` table; neither compaction nor
+  `reset` deletes them, so they grow with the facts and reactions recorded.
+  Nothing prunes them yet.
+- A server that hands `foldkit-durable`'s `append` input it did not first read
+  with a `codec` reader gets no server-only check: the journal knows no
+  Message's tag. Read every sent entry with `codec.writtenFrom` before
+  appending it, as `journalExchange` does.
+
+### Work after a commit: reactions
+
+A reaction runs after each committed Message of a set, in journal order:
+mail a receipt, call a provider, append a server-only Message as a result.
+It is a declared value, given to the `serverJournal`:
+
+<!-- docs-check
+declare const sendReceipt: (order: string, idempotencyKey: string) => Effect.Effect<void, Error>
+-->
+```ts
+import { reaction } from 'foldkit-sync/journal'
+
+const receipt = reaction(Orders, {
+  name: 'receipt',
+  on: Confirmed,
+  appends: Receipted,
+  run: ({ message, key }) =>
+    sendReceipt(message.id, key).pipe(Effect.as([Message.SentReceipt({ id: message.id })])),
+})
+
+const running = Effect.gen(function* () {
+  // Made before the journal serves its first exchange: the reaction sees every commit after it.
+  const server = yield* serverJournal({
+    sync: Orders,
+    journal,
+    server: { actorId: 'orders' },
+    reactions: [receipt],
+  })
+  // One pass; none when every reaction has caught up, else how long to wait.
+  const next: Option.Option<unknown> = yield* server.react
+  return { server, next }
+})
+```
+
+```text
+commit -> react: read after the stored cursor -> run (answer recorded)
+       -> append the answer as the server -> store the cursor
+```
+
+- **At least once, never exactly once.** The provider and the journal share
+  no transaction: a crash or a timeout between the call and the ledger's
+  record runs the call again. `key` is the same on every run of one
+  reaction on one commit (64 hex characters); give it to the provider as its
+  idempotency key, and the provider decides whether a repeat is a no-op. The
+  appends are once: their ids come from the reaction and its trigger's id
+  (never its place in the order, which a `reset` reuses), and the journal
+  answers a repeat from history.
+- **The cursor is stored** beside the journal (`foldkit-durable`'s schema 7),
+  one per reaction, so a restart neither walks the log again nor misses what
+  committed while it was down. A reaction starts where the journal was when
+  `serverJournal` registered it: deploying a mailer does not mail the past.
+- **A run that fails waits**: that reaction stops at the commit, on a backoff
+  from 0.5 s doubling to 30 s that the store keeps, and the others go on.
+  `react` never fails; it reports `ReactionFailed` and answers the delay. A
+  defect and a timeout (`timeout`, 10 s by default) are failures like any
+  other.
+- **A run that can never succeed is parked**: the journal refused its append
+  (`validate`, `authorize`), or its answer holds a Message `appends` does not
+  name, more than 16, or one that will not encode. So is one that has failed
+  `attempts` times (8) *and* for at least `parkAfter` (an hour), so an outage
+  parks nothing. The journal itself failing counts toward neither. A parked
+  run is reported as `ReactionParked` and set aside with its trigger; the
+  reaction goes on. `parked` lists them, `retry` runs one again out of order
+  (a recorded answer is reused, so no second call), and `dismiss` gives one
+  up. After a `reset` a parked run is `stale`: it can be dismissed, not
+  retried.
+- **Compact no further than `settledThrough`**, the lowest reaction cursor,
+  or a reaction skips what it never saw (`ReactionSkipped`).
+- **What a handler is given** is the committed Message, its id, sequence and
+  actor: never the snapshot, which has moved on by the time it runs. Its
+  fields are what a client wrote; a handler that mails `message.email` mails
+  wherever the client said.
+- A reaction's append commits where the journal is when it runs, after
+  whatever committed meanwhile. Two reactions in a cycle (one appends what
+  the other runs on) are refused when the journal is made.
+
+Who calls `react` is the host's:
+
+- **A long-lived process** forks `server.follow`: it runs `react` now, after
+  each commit this journal instance hears of, and after the delay `react`
+  answers. A reaction's commit reaches the document's sockets through
+  `serveJournal`'s notices.
+- **A Durable Object**: give `defineDocumentHost` a `server` (below). It
+  registers the reactions when it opens the journal, sets the object's alarm
+  before replying to an exchange that committed, runs them without holding
+  the reply, and `alarm()` runs them again and sets the alarm from their
+  answer. Work after a reply lasts only while the object stays loaded; the
+  alarm is what resumes a run eviction cut off.
+- **A stateless Worker over D1**: `ctx.waitUntil(server.react)` in the
+  request that committed, with `runsPerPass` at 1 or 2 since `waitUntil`
+  lasts about 30 seconds, and a Cron Trigger calling `react` for what failed
+  or was cut off. Two isolates may run one reaction at once, a duplicate call
+  without a crash. And no other request is told: a reaction's commit reaches
+  another replica when it next exchanges, never as a notice, since one
+  request cannot wake another's stream.
+
+`settle` stays for a read model the reply depends on: it runs before the
+reply and may fail the exchange. Reactions are for everything else.
 
 ### Coalesce a burst of typing
 
@@ -1079,8 +1318,14 @@ A custom server that reads operations through the codec, or appends them to
 a Durable journal itself, must do what `journalExchange` does with a newer
 `messageVersion` than its own (`codec.messageVersion`): fail the whole
 exchange before appending anything. Durable alone sees such an entry as an
-`InvalidOperationError`, and rejecting it by id loses the edit. The
-replica validates every field; see [when things go wrong](#when-things-go-wrong).
+`InvalidOperationError`, and rejecting it by id loses the edit. It reads
+each sent entry with `codec.writtenFrom` before appending it, too: that is
+where a [server-only Message](#messages-only-the-server-appends), a replica
+id under `server/` or one past 128 characters is refused. Stored history is
+read with `journalContract().operation.decode`, which takes the server's own
+Messages; a journal decoding its rows with `codec.normalizeOperation` would
+refuse them. The replica validates every field; see
+[when things go wrong](#when-things-go-wrong).
 
 ### Transports
 
@@ -1156,9 +1401,15 @@ runs nothing; Sync owns its runtime through `mount`.
 
 ## What Sync owns, and does not
 
-Owns the replication contract (shared slice, durable set, replay, codecs,
-`journalContract`), the replica (outbox, base, cursor, optimistic view, status),
-reconciliation, the transport seam, and the optional presence and LWW helpers.
+Owns the replication contract (shared slice, durable and server-only sets,
+replay, codecs, `journalContract`), the replica (outbox, base, cursor,
+optimistic view, status), reconciliation, the transport seam, the server's own
+appends and reactions (`serverJournal`), and the optional presence and LWW
+helpers.
+
+A reaction's cursor and parked runs are stored by `foldkit-durable`, beside
+the effect ledger that records each run; Sync decides when a run happens and
+what it appends. Whether an external call happened is the provider's to know.
 
 Sync applies a durable Message's history wherever it reads an operation; the
 application owns the history itself (which Schemas it shipped and how each

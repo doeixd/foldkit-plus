@@ -38,10 +38,13 @@ export {
   type AuthorizationDecision,
   type AuthorizationRequest,
   type Committed,
+  type Cursors,
   type EffectRecord,
   type EffectStatus,
   type JournalStoreOptions,
+  type ParkedRun,
   type RecoveryIntent,
   type RecoveryOptions,
+  type TrackedCursor,
   type ValidationRequest,
 } from './journal.js'

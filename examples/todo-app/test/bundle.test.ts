@@ -10,9 +10,12 @@ import { formatReport, measure } from '../../../scripts/bundle-report.mjs'
 import { record } from '../../../scripts/perf-report.mjs'
 
 // Brotli bytes. Never raise it without saying here what the growth bought.
-// 156.5 kB (156,512 bytes) measured on 2026-11-10; the ceiling is that plus about 1%,
+// 156.5 kB (156,512 bytes) measured on 2026-11-10. 158,655 on 2026-11-12, from
+// 158,189 the commit before: server-only Messages (#190) grew `foldkit-sync`'s
+// part by 1.4 kB minified, 0.4 kB brotli (its readers, the serverOnly set, two
+// error classes), and nothing else moved. The ceiling is that plus about 1%,
 // rounded up to the next 500 bytes.
-const CEILING = 158_500
+const CEILING = 160_500
 
 test('the todo-app client loads at most the budgeted brotli JavaScript', async () => {
   const report = await measure(resolve(import.meta.dirname, '..'))

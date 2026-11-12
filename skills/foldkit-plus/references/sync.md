@@ -359,11 +359,14 @@ const server = Effect.gen(function* () {
   edits a read reached with another value, held or not), `shown(model)` for
   cell marks, `clear(model)` on a reset. On the server,
   `editsJournal({ documentId, journal, editsOf, apply, tableRevision,
-  holdsThrough, absorbed, server })` (`foldkit-sync/journal`) gives `settle`,
-  which applies each committed change to the table from the journal's floor,
-  keyed by its epoch, and refuses a table past the journal's cursor
-  (`TableAheadOfJournalError`), and `absorb`, which records what the table
-  holds and compacts. Refuse an edit to a row the table lacks in the journal's
+  holdsThrough, asServer: { journal: server, absorbed: through => … } })`
+  (`foldkit-sync/journal`) gives `settle`, which applies each committed
+  change to the table from a cursor the journal stores (started at its
+  floor), keyed by its epoch, and refuses a table past the journal's cursor
+  (`TableAheadOfJournalError`), and `absorb`, which appends the server-only
+  `absorbed(through)` under the key `absorbed/<through>` and compacts no
+  further than `server.settledThrough`. Its `absorbed`/`server` pair is
+  deprecated. Refuse an edit to a row the table lacks in the journal's
   `validate`. The registry example uses both. For a Drizzle table, `apply` is
   `applyEdits(binding, { revision?, live? })` from `foldkit-remote-drizzle`
   (`revision` a field of the binding, `revision` by default): the member's
@@ -407,6 +410,10 @@ a notice unsent, or a commit stream broken: stage `Changes`) is reported as a `H
 `diagnostics: (diagnostic, request) => Effect` when given, else
 `Diagnostics.Reporter`. `Sync.transport.workerSocket` wraps an
 accepted pair end anywhere else a platform hands one over. Off Cloudflare,
+`server: { principal, reactions: env => [...] }` gives the object its
+reactions (below): registered on open, the alarm set before the reply to an
+exchange that committed, a pass after it, and `alarm()` (which never throws)
+running them and setting the alarm from their answer. Off Cloudflare,
 `documentHost({ sync, journal, resolvePrincipal, layer?, revalidate?, … })`
 (`foldkit-sync/journal`) answers each upgrade request (`Result`: the refusal's
 `Response`, or `{ serve, abandon }`: serve the opened `HostSocket`, or abandon
@@ -431,6 +438,93 @@ Server side, `Sync.presence.serve(socket, hub, { peerId, opens? })` stamps the
 connection's id and joins only a connection `opens` lets (the exchange's own).
 `Sync.lww.register` (experimental) makes one field last-writer-wins. Allocate
 stamps with `Sync.lww.openClock` before dispatch, never in `update`.
+
+## Server-only Messages and reactions
+
+<!-- docs-check standalone
+import { Effect, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { DocumentId, Sync, type Operation, type WrittenOperation } from 'foldkit-sync'
+import type { Journal } from 'foldkit-durable/core'
+const Model = Schema.Struct({ orders: Schema.Array(Schema.Struct({ id: Schema.String })) })
+const Message = defineMessageUnion({
+  PlacedOrder: { id: Schema.String },
+  ConfirmedPayment: { id: Schema.String, charge: Schema.String },
+  SentReceipt: { id: Schema.String },
+})
+const App = Surface.application({ Model, Message, initial: { orders: [] }, update: model => ({ model }) })
+declare const journal: Journal<Operation, { readonly orders: ReadonlyArray<{ readonly id: string }> }, { readonly actorId: string }, WrittenOperation>
+declare const sendReceipt: (order: string, idempotencyKey: string) => Effect.Effect<void, Error>
+-->
+```ts
+import { reaction, serverJournal } from 'foldkit-sync/journal'
+
+const Confirmed = MessageSet.make(App, [Message.ConfirmedPayment])
+const Receipted = MessageSet.make(App, [Message.SentReceipt])
+
+const Orders = Sync.forApplication(App).make({
+  documentId: DocumentId.make('orders'),
+  shared: Projection.pick(App.model.orders),
+  durable: MessageSet.make(App, [Message.PlacedOrder]), // what a replica submits
+  serverOnly: MessageSet.union(Confirmed, Receipted),   // what only the server appends
+})
+
+const receipt = reaction(Orders, {
+  name: 'receipt',             // part of every run's key: renaming it is a new reaction
+  on: Confirmed,
+  appends: Receipted,          // what its answer may hold, checked at run time too
+  run: ({ message, key }) =>   // `key`: the provider's idempotency key, the same on every retry
+    sendReceipt(message.id, key).pipe(Effect.as([Message.SentReceipt({ id: message.id })])),
+})
+
+const serving = Effect.gen(function* () {
+  // Before the journal's first exchange: a reaction sees every commit after this.
+  const server = yield* serverJournal({
+    sync: Orders,
+    journal,
+    server: { actorId: 'orders' },   // never resolved from a request, never changed
+    reactions: [receipt],
+  })
+  yield* Effect.forkScoped(server.follow) // a long-lived process; or `react` from a host
+  return (event: { readonly id: string; readonly order: string; readonly charge: string }) =>
+    server.appendAsServer(Message.ConfirmedPayment({ id: event.order, charge: event.charge }), {
+      key: `payment/${event.id}`,    // a redelivered webhook commits once
+    })
+})
+```
+
+- A Message in both sets is a type error. A replica's `submit` of a
+  server-only one is a type error and refused; every reader of a sent entry
+  (`codec.writtenFrom`, `normalizeOperation`, `operationFrom`) refuses one
+  after upcasting (`ServerOnlyMessageError`), and `journalExchange` rejects it
+  as `Forbidden` and reports `ServerOnlySubmitted`. Replica ids under
+  `server/` and past 128 characters are refused (`Invalid`).
+  `journalContract().operation.decode` reads history, server-only included:
+  a hand-made journal's `decode` must be it, not `normalizeOperation`.
+- `appendAsServer(message, { key })` takes server-only Messages, a key of at
+  most 200 characters; the same key with another Message is
+  `ServerKeyReusedError`. It goes through the journal's `validate` and
+  `authorize`.
+- **At least once.** An external call may run twice (a crash or timeout
+  between the call and the ledger's record); the appends commit once. Never
+  claim exactly once.
+- `react` is one pass: `Option<Duration>`, none when caught up. It never
+  fails: a failing run waits on a stored backoff (0.5 s to 30 s) and blocks
+  only its reaction (`ReactionFailed`); one whose append the journal refuses,
+  or whose answer is outside `appends` or over 16, parks at once; one failing
+  `attempts` (8) times *and* for `parkAfter` (1 hour) parks; a `JournalError`
+  counts toward neither. `parked`, `retry` (reuses the recorded answer),
+  `dismiss`; a run parked before a `reset` is `stale`. Compact no further
+  than `settledThrough`.
+- Cursors and parked runs live in `foldkit-durable` schema 7
+  (`journal.cursors`: `track`, `settled`, `advance`, `stalled`, `park`,
+  `parked`, `unpark`), each row tagged with the epoch.
+- Hosts: Node forks `follow`; a Durable Object takes `server` (above); a
+  stateless Worker calls `ctx.waitUntil(server.react)` with `runsPerPass` 1
+  or 2 and a Cron Trigger, and its reactions' commits reach other replicas
+  only on their next exchange. `settle` stays for a read model the reply
+  needs.
 
 ## Gotchas
 

@@ -23,10 +23,6 @@ import { ActorId, OpId, type Journal, type JournalStoreOptions } from 'foldkit-d
 import {
   createPresenceHub,
   servePresence,
-  localSequence,
-  opId,
-  replicaId,
-  sequence,
   type Operation,
   type SocketLike,
   type TransportClient,
@@ -41,7 +37,7 @@ import {
   RegistrySync,
   everyone,
   journalContract,
-  server,
+  serverOf,
   type Principal,
   type Shared,
 } from './sync.js'
@@ -67,7 +63,6 @@ export interface EditJournal {
 }
 
 const decodeMessage = Schema.decodeUnknownSync(Message)
-const encodeMessage = Schema.encodeSync(Message)
 
 /** The cell edits an operation carries; none for anything else, or a message that is not one. */
 const changesOf = (operation: Operation): ReadonlyArray<ProductChange> =>
@@ -149,21 +144,13 @@ export const openJournal = (
     apply: table.apply,
     tableRevision: Effect.try(() => table.revision()),
     holdsThrough: (snapshot, through) => ProductEdits.holdsThrough(snapshot.edits, through),
-    // The server writes as a producer of its own, sequenced from the
-    // authoritative cursor, which only advances and keeps each id unique,
-    // and written as a replica writes, at the document's current version.
-    absorbed: (through, cursor) =>
-      journalContract().operation.encode({
-        protocolVersion: 1,
-        schemaVersion: 1,
-        documentId: RegistrySync.documentId,
-        replicaId: replicaId(server.actorId),
-        localSequence: localSequence(cursor + 1),
-        opId: opId(`${server.actorId}:${cursor + 1}`),
-        baseCursor: sequence(cursor),
-        message: encodeMessage(Message.AbsorbedEdits({ through })),
-      }),
-    server,
+    // A server-only Message, under a key naming what it records: two
+    // absorbs of one `through` commit it once.
+    asServer: {
+      // The document has no reactions, so registering does nothing to wait on.
+      journal: Effect.runSync(serverOf(journal)),
+      absorbed: through => Message.AbsorbedEdits({ through }),
+    },
   })
 
   // Each exchange is decided as its principal: whether they may open the

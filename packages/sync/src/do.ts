@@ -24,10 +24,10 @@
  * .documentId)`); its in-memory cache and change stream are then exact
  * because nothing else writes.
  */
-import { Cause, type Duration, Effect, type Layer, Result } from 'effect'
+import { Cause, Duration, Effect, Exit, type Layer, Option, Result } from 'effect'
 import type { RemoteUnauthenticated } from 'foldkit-remote'
 import type { Diagnostic } from 'foldkit-surface'
-import type { Journal } from 'foldkit-durable/core'
+import { DocumentId as JournalDocumentId, type Journal } from 'foldkit-durable/core'
 import {
   documentHost,
   type Accepted,
@@ -39,10 +39,57 @@ import { hostDefect, reportTo } from './diagnostics.js'
 import type { AuthorizeDecision } from './make.js'
 import type { Operation, Sync, WrittenOperation } from './sync.js'
 import { workerSocket } from './transport.js'
+import { serverJournal, type Reaction, type ServerJournal } from './serverJournal.js'
 
-/** The sliver of a Durable Object the host uses: state for the journal to open with. */
+/** How long after a commit the alarm is set for: what resumes a run eviction cut off. */
+const ALARM_AFTER_COMMIT = Duration.seconds(1)
+/** When the alarm comes back after a pass that broke: never left to the runtime's retries. */
+const ALARM_AFTER_DEFECT = Duration.seconds(30)
+
+/** The alarm a Durable Object's storage keeps: one per object. */
+export interface AlarmStorage {
+  getAlarm(): Promise<number | null>
+  setAlarm(scheduledTime: number): Promise<void>
+}
+
+/**
+ * Brings a Durable Object's alarm to `at` (ms since the Unix epoch) unless it
+ * is already sooner: what an application's own `alarm()` uses beside the
+ * host's, which shares the object's one alarm. Inside `alarm()` the runtime
+ * may still answer the alarm being run, so a time already past counts as no
+ * alarm.
+ */
+export const armAlarm = async (storage: AlarmStorage, at: number): Promise<void> => {
+  const current = await storage.getAlarm()
+  if (current === null || current <= Date.now() || current > at) await storage.setAlarm(at)
+}
+
+const alarmsOf = (storage: unknown): Option.Option<AlarmStorage> =>
+  typeof storage === 'object' &&
+  storage !== null &&
+  typeof (storage as Partial<AlarmStorage>).getAlarm === 'function' &&
+  typeof (storage as Partial<AlarmStorage>).setAlarm === 'function'
+    ? Option.some(storage as AlarmStorage)
+    : Option.none()
+
+/**
+ * The sliver of a Durable Object the host uses: state for the journal to
+ * open with, and, with `server`, the storage's alarm (`getAlarm`,
+ * `setAlarm`). Left `unknown` so `openJournal` can read the rest of it (the
+ * object's SQLite) as its own type.
+ */
 export interface DocumentHostContext {
   readonly storage?: unknown
+}
+
+/** The server's own side of the document, for `defineDocumentHost`'s `server`. */
+export interface DocumentHostServer<Principal, Env> {
+  /** Who the server commits as. Never resolved from a request, and never changed. */
+  readonly principal: Principal
+  /** The document's reactions, made from the environment (a mailer's key, a binding). */
+  readonly reactions: (env: Env) => ReadonlyArray<Reaction<unknown, never>>
+  /** The most runs one pass starts. */
+  readonly runsPerPass?: number | undefined
 }
 
 /** What `defineDocumentHost` needs of the application, per document. */
@@ -111,6 +158,18 @@ export interface DocumentHostConfig<Message, Shared, Principal, Env, RP = never>
       ) => AuthorizeDecision | Effect.Effect<AuthorizeDecision, unknown>)
     | undefined
   /**
+   * The server's own side: who it commits as, and the document's reactions
+   * (`foldkit-sync/journal`'s `reaction`), for a contract from
+   * `Sync.forApplication(App).make`. The host registers them when it opens
+   * the journal, before the first socket is served. After an exchange that
+   * committed, it sets the object's alarm and then runs them without holding
+   * the reply; `alarm()` runs them and sets the alarm again from what they
+   * answer. A run eviction cut off is resumed by the alarm, never by the
+   * runtime's retries of a throwing `alarm()`. The object has one alarm:
+   * the host only ever brings it earlier.
+   */
+  readonly server?: DocumentHostServer<Principal, Env> | undefined
+  /**
    * Makes the socket pair for an upgrade: the server end is accepted before
    * serving. Defaults to the `WebSocketPair` global where one exists (a
    * worker, miniflare); pass one in tests.
@@ -120,8 +179,9 @@ export interface DocumentHostConfig<Message, Shared, Principal, Env, RP = never>
    * Where each upgrade's diagnostics go, with its request: a `HostDefect`
    * for every failure answered "Internal error" (making the socket pair,
    * the resolver, the journal, the exchange) and the rest `documentHost`
-   * reports. The reporter in the Effect context when not given, by default
-   * the log.
+   * reports. A pass of reactions that broke has no request of its own: it is
+   * reported with one for `https://durable-object/alarm`. The reporter in the
+   * Effect context when not given, by default the log.
    */
   readonly diagnostics?:
     | ((diagnostic: Diagnostic, request: Request) => Effect.Effect<void>)
@@ -185,34 +245,159 @@ const defaultPair = (): readonly [client: WebSocket, server: AcceptingWebSocket]
 export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
   Base: new (ctx: DocumentHostContext, env: Env) => object,
   config: DocumentHostConfig<Message, Shared, Principal, Env, RP> & DocumentHostLayer<Env, RP>,
-): new (ctx: DocumentHostContext, env: Env) => { fetch(request: Request): Promise<Response> } => {
+): new (
+  ctx: DocumentHostContext,
+  env: Env,
+) => {
+  fetch(request: Request): Promise<Response>
+  alarm(...info: Array<unknown>): Promise<void>
+} => {
   checkRevalidate(config.revalidate, 'defineDocumentHost')
+  // The application's own alarm, if its base has one: run after the reactions'.
+  const baseAlarm = (Base.prototype as { readonly alarm?: unknown }).alarm
   return class extends Base {
     private readonly host: (request: Request) => Promise<Result.Result<Accepted, Response>>
+    private readonly react: () => Promise<void>
 
     constructor(ctx: DocumentHostContext, env: Env) {
       super(ctx, env)
-      let ready: Promise<Journal<Operation, Shared, Principal, WrittenOperation>> | undefined
-      const { layer, settle } = config
+      interface Opened {
+        readonly journal: Journal<Operation, Shared, Principal, WrittenOperation>
+        readonly server: Option.Option<ServerJournal<unknown, never>>
+      }
+      let ready: Promise<Opened> | undefined
+      const { layer, settle, server } = config
+      const alarms = Option.flatMap(Option.fromUndefinedOr(server), () => alarmsOf(ctx.storage))
+      if (server !== undefined && Option.isNone(alarms))
+        throw new Error('defineDocumentHost: `server` needs the object’s storage alarm')
+      // Made now, so one declared for another contract fails here and not at
+      // the first upgrade; `serverJournal` checks the rest when it opens.
+      const reactions = server === undefined ? [] : server.reactions(env)
+      for (const each of reactions)
+        if (each.sync !== config.sync)
+          throw new Error(
+            `defineDocumentHost: reaction ${each.name} was declared for another contract`,
+          )
+      /** Reports a pass that broke; a reporter that fails itself is not let out of `alarm()`. */
+      const report = (stage: 'Alarm', cause: Cause.Cause<unknown>): Promise<void> =>
+        Effect.runPromise(
+          reportTo(
+            config.diagnostics === undefined
+              ? undefined
+              : diagnostic =>
+                  config.diagnostics!(diagnostic, new Request('https://durable-object/alarm')),
+            hostDefect(stage, cause),
+          ),
+        ).catch(() => undefined)
+      const arm = (after: Duration.Duration): Promise<void> =>
+        armAlarm(Option.getOrThrow(alarms), Date.now() + Duration.toMillis(after))
+      // The journal and the reactions' registration in one, once per object:
+      // registered before any socket is served, so no commit is missed.
+      const open = (): Promise<Opened> =>
+        (ready ??= config.openJournal(ctx, env).then(async journal => ({
+          journal,
+          server:
+            server === undefined
+              ? Option.none()
+              : Option.some(
+                  await Effect.runPromise(
+                    // The contract's own type is not kept here: `serverJournal`
+                    // refuses a reaction declared for another at run time.
+                    serverJournal({
+                      sync: config.sync,
+                      journal,
+                      server: server.principal,
+                      reactions,
+                      runsPerPass: server.runsPerPass,
+                    } as never) as Effect.Effect<ServerJournal<unknown, never>>,
+                  ),
+                ),
+        }))).catch((error: unknown) => {
+          ready = undefined
+          throw error
+        })
+      /**
+       * One pass, then the alarm from its answer. Never rejects: a pass that
+       * broke (the journal would not open, a reaction was never registered)
+       * is reported and brings the alarm back later.
+       */
+      const runPass = async (): Promise<void> => {
+        if (server === undefined) return
+        const exit = await Effect.runPromiseExit(
+          Effect.gen(function* () {
+            const { server: running } = yield* Effect.promise(open)
+            if (Option.isNone(running)) return
+            const next = yield* running.value.react
+            if (Option.isSome(next)) yield* Effect.promise(() => arm(next.value))
+          }),
+        )
+        if (Exit.isSuccess(exit)) return
+        await report('Alarm', exit.cause)
+        await arm(ALARM_AFTER_DEFECT).catch(() => undefined)
+      }
+      // `serverJournal` runs one pass at a time itself.
+      const pass = runPass
+      this.react = pass
+      // What the host knows was committed, so only an exchange that moved it arms the alarm.
+      let seen = -1
+      const afterExchange = (journal: Journal<Operation, Shared, Principal, WrittenOperation>) =>
+        Effect.gen(function* () {
+          const at = yield* journal.cursor(JournalDocumentId.make(config.sync.documentId))
+          if (at === seen) return
+          // Before the reply, so a run cut off by eviction is resumed. One that
+          // fails is reported, and `seen` stays, so the next exchange arms again.
+          const armed = yield* Effect.promise(() =>
+            arm(ALARM_AFTER_COMMIT).then(
+              () => true,
+              async (error: unknown) => {
+                await report('Alarm', Cause.die(error))
+                return false
+              },
+            ),
+          )
+          if (armed) seen = at
+          // Not awaited: the reply does not wait on a provider.
+          void pass()
+        })
       this.host = documentHost<Message, Shared, Principal, RP>({
         sync: config.sync,
         // Opened on the first upgrade a principal passes, so probes never
         // provision storage; a failed open is tried again on the next.
-        journal: () =>
-          (ready ??= config.openJournal(ctx, env)).catch((error: unknown) => {
-            ready = undefined
-            throw error
-          }),
+        journal: () => open().then(opened => opened.journal),
         resolvePrincipal: request => config.resolvePrincipal(request, env),
         layer: layer === undefined ? undefined : () => layer(env),
         revalidate: config.revalidate,
-        settle: settle === undefined ? undefined : journal => settle(env, journal),
+        settle:
+          settle === undefined && server === undefined
+            ? undefined
+            : journal =>
+                Effect.gen(function* () {
+                  // First: a settle that fails still leaves what committed to be reacted to.
+                  if (server !== undefined) yield* afterExchange(journal)
+                  if (settle !== undefined) yield* settle(env, journal)
+                }),
         opens: config.opens,
         admit: config.admit,
         diagnostics: config.diagnostics,
         // `DocumentHostLayer` already tied `layer` to `RP` on the config; the
         // conditional cannot be resolved for an `RP` still generic here.
       } as DocumentHostOptions<Message, Shared, Principal, RP> & DocumentHostOptionsLayer<RP>)
+    }
+
+    /**
+     * The object's alarm: runs the reactions and sets the alarm again from
+     * what they answer, then the base class's own `alarm()`, if it has one,
+     * with what the runtime passed. The reactions' part never throws, so the
+     * runtime's few retries of a throwing alarm are never what a run depends
+     * on. The object has one alarm, shared: the base runs on every wake, so
+     * it decides itself what is due, and sets its next with `armAlarm`, which
+     * only brings the alarm earlier. A subclass that overrides `alarm()` calls
+     * `super.alarm()`, or the reactions stop being resumed.
+     */
+    async alarm(...info: Array<unknown>): Promise<void> {
+      await this.react()
+      if (typeof baseAlarm === 'function')
+        await (baseAlarm as (...info: Array<unknown>) => Promise<void>).apply(this, info)
     }
 
     async fetch(request: Request): Promise<Response> {

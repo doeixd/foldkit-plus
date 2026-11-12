@@ -7,7 +7,7 @@
  * here instead of passing against a permissive double.
  */
 import * as D1Client from '@effect/sql-d1/D1Client'
-import { Effect, Layer, Schema } from 'effect'
+import { Effect, Layer, Option, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 import { Miniflare } from 'miniflare'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -54,6 +54,8 @@ beforeEach(async () => {
     db.prepare('DROP TABLE IF EXISTS epochs'),
     db.prepare('DROP TABLE IF EXISTS replicas'),
     db.prepare('DROP TABLE IF EXISTS durable_meta'),
+    db.prepare('DROP TABLE IF EXISTS foldkit_durable_cursors'),
+    db.prepare('DROP TABLE IF EXISTS foldkit_durable_parked'),
   ])
 })
 
@@ -168,7 +170,7 @@ describe('durable over D1', () => {
     const meta = await db
       .prepare("SELECT value FROM durable_meta WHERE key = 'schema_version'")
       .all()
-    expect(meta.results).toEqual([{ value: '6' }])
+    expect(meta.results).toEqual([{ value: '7' }])
   }, 30_000)
 
   it('appends, loads, and reads committed operations', async () => {
@@ -254,6 +256,37 @@ describe('durable over D1', () => {
     expect(refused._tag).toBe('OperationRejectedError')
   }, 30_000)
 
+  it('keeps named cursors and parked runs, each write one statement', async () => {
+    const journal = await openJournal()
+    await Effect.runPromise(journal.append(key, note(1), 'ada'))
+    await Effect.runPromise(journal.append(key, note(2), 'ada'))
+    const read = () =>
+      Effect.runPromise(journal.cursors.settled(key, 'mail')).then(found =>
+        Option.map(found, ({ cursor: at, attempts }) => ({ at: Number(at), attempts })),
+      )
+    await Effect.runPromise(journal.cursors.track(key, 'mail'))
+    expect(await read()).toEqual(Option.some({ at: 2, attempts: 0 }))
+    const epoch = await Effect.runPromise(journal.epoch(key))
+    await Effect.runPromise(journal.cursors.stalled(key, 'mail', epoch, 10))
+    await Effect.runPromise(journal.cursors.advance(key, 'mail', 'gone', cursor(2)))
+    expect(await read()).toEqual(Option.some({ at: 2, attempts: 1 }))
+    await Effect.runPromise(journal.cursors.advance(key, 'mail', epoch, cursor(1)))
+    expect(await read()).toEqual(Option.some({ at: 2, attempts: 1 }))
+    const run = {
+      name: 'mail',
+      opId: opId('n:2'),
+      epoch,
+      sequence: sequence(2),
+      input: { n: 2 },
+      error: 'refused',
+    }
+    await Effect.runPromise(journal.cursors.park(key, run))
+    await Effect.runPromise(journal.cursors.park(key, { ...run, error: 'again' }))
+    expect(await Effect.runPromise(journal.cursors.parked(key))).toEqual([run])
+    await Effect.runPromise(journal.reset(key))
+    expect(await read()).toEqual(Option.some({ at: 0, attempts: 0 }))
+  }, 30_000)
+
   it('refuses a schema newer than the build understands', async () => {
     await openJournal()
     await db.prepare("UPDATE durable_meta SET value = '99' WHERE key = 'schema_version'").run()
@@ -287,7 +320,7 @@ describe('durable over D1', () => {
     const meta = await db
       .prepare("SELECT value FROM durable_meta WHERE key = 'schema_version'")
       .all()
-    expect(meta.results).toEqual([{ value: '6' }])
+    expect(meta.results).toEqual([{ value: '7' }])
     const { snapshot, cursor: at } = await Effect.runPromise(reopened.load(key))
     expect(snapshot).toEqual([note(1)])
     expect(at).toBe(cursor(1))
