@@ -751,7 +751,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261022.1",
     "@foldkit/vite-plugin": "0.29.0",
-    "effect": "^4.1.1",
+    "effect": "4.1.4",
     "esbuild": "0.28.2",
     "foldkit": "0.170.0",
     "playwright": "^1.64.1",
@@ -771,6 +771,6 @@
   },
   "setup": {
     "foldkit": "0.170.0",
-    "effect": "4.1.1"
+    "effect": "4.1.4"
   }
 }

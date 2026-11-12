@@ -344,9 +344,11 @@ describe('the wire', () => {
   })
 
   // Effect's behaviour, pinned: a Request's own headers are concatenated after
-  // the connection's (`RpcServer.js:875`, and `:1153` for a WebSocket upgrade),
-  // and `Headers.fromInput` keeps the last, so the client's win.
-  it('lets a request’s headers override the connection’s', async () => {
+  // the connection's (`RpcServer.js:907`, and `:1204` for a WebSocket upgrade).
+  // Through 4.1.1 `Headers.fromInput` kept the last, so the client's won; since
+  // 4.1.4 it joins repeats with ", ". Either way the handler sees a value the
+  // request chose, so a principal is never decided from these headers.
+  it('lets a request’s headers add to the connection’s', async () => {
     const origins: Array<string | undefined> = []
     const handler = await Effect.runPromise(
       Effect.gen(function* () {
@@ -382,7 +384,7 @@ describe('the wire', () => {
         }),
       }),
     )
-    expect(origins).toEqual(['https://app.example'])
+    expect(origins).toEqual(['https://elsewhere.example, https://app.example'])
   })
 })
 

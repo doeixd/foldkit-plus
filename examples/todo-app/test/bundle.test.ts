@@ -13,7 +13,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // part by 1.4 kB minified, 0.4 kB brotli (its readers, the serverOnly set, two
 // error classes), and nothing else moved. The ceiling is that plus about 1%,
 // rounded up to the next 500 bytes.
-const CEILING = 160_500
+// 160,661 bytes on 2026-11-12: the workspace's Effect moved from 4.1.1 to
+// 4.1.4, and `effect` is the package that grew (57.2 kB brotli~ in the report).
+// Ceiling that plus about 1%, rounded up to the next 500 bytes.
+const CEILING = 162_500
 
 clientBudget({
   name: 'todo-app',

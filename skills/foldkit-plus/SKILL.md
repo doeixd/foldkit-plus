@@ -18,7 +18,7 @@ Every package keeps that rule: an agent sends only Messages `update` handles;
 server data and replicas' edits are reduced by `update`; the URL and storage
 mirror a slice of the Model, never own it; views are extended from outside.
 
-Targets Foldkit `0.170.x` and Effect 4.1, tested on `effect@4.1.1`. APIs are
+Targets Foldkit `0.170.x` and Effect 4.1, tested on `effect@4.1.4`. APIs are
 `0.x` and may break between minors. Two whole apps show the packages together. [`examples/chirp`](https://github.com/doeixd/foldkit-plus/blob/main/examples/chirp), a Twitter clone in about 2,000 lines: a post's Entity in [`src/domain.ts`](https://github.com/doeixd/foldkit-plus/blob/main/examples/chirp/src/domain.ts), its guards in [`guard.ts`](https://github.com/doeixd/foldkit-plus/blob/main/examples/chirp/src/guard.ts), its writes in [`operations.ts`](https://github.com/doeixd/foldkit-plus/blob/main/examples/chirp/src/operations.ts), its forms in [`compose.ts`](https://github.com/doeixd/foldkit-plus/blob/main/examples/chirp/src/compose.ts), its views in [`view.ts`](https://github.com/doeixd/foldkit-plus/blob/main/examples/chirp/src/view.ts), its look in [`style.ts`](https://github.com/doeixd/foldkit-plus/blob/main/examples/chirp/src/style.ts). [`examples/reference`](https://github.com/doeixd/foldkit-plus/blob/main/examples/reference), the recommended stack end to end on one Worker over D1 (workerd, Yielded Auth, SSR): [`src/worker.ts`](https://github.com/doeixd/foldkit-plus/blob/main/examples/reference/src/worker.ts), [`wrangler.toml`](https://github.com/doeixd/foldkit-plus/blob/main/examples/reference/wrangler.toml), [`src/stack.ts`](https://github.com/doeixd/foldkit-plus/blob/main/examples/reference/src/stack.ts).
 
 ## Pick the package by who owns the data
@@ -131,7 +131,7 @@ App.model.<field>, … })`, `Mirror.url(App, …)`, and `SurfaceView.define(Todo
   and wirings (`Data.wiring(…)`, `….wiring('UrlChanged')`, `….wiring()`); routing,
   startup Commands, Subscriptions and the Module derive from it (`bundle.md`).
 - **Install** with `npx --legacy-peer-deps foldkit-plus setup`, which prints the
-  steps for its project: Effect pins at 4.1.1, or a later 4.1 patch an npm
+  steps for its project: Effect pins at 4.1.4, or a later 4.1 patch an npm
   lockfile already holds (Foldkit takes `~4.1.0`), the `add` command, a `.gitattributes`. With `foldkit-plus`, import each
   package through its subpath (`foldkit-plus/remote-server`); the snippets
   name each package itself, as installed alone. Adapters with a library of their own

@@ -55,6 +55,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- The workspace's Effect is `4.1.4` (was `4.1.1`), and `foldkit-plus setup`
+  pins it and `@effect/*` at that release. Published packages still peer on
+  `^4.1.0`. Since 4.1.4 `Headers.fromInput` joins a repeated header with
+  `", "` instead of keeping the last one.
 - `foldkit-data-grid`: `Fill.series` continues `YYYY-MM-DD` days: by months
   when they share a day of the month a constant number of months apart (a 31st
   clamps to a shorter month and comes back), else by days when a constant number

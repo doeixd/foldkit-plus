@@ -1046,10 +1046,10 @@ Foldkit's own behaviour that we work around is listed in
   resolver. Send such requests through `node:http`, as
   `examples/reference/test/worker.test.ts` does.
 - **An Effect RPC request's headers override its connection's.** `RpcServer`
-  puts the connection's headers before each request's (`rpc/RpcServer.js:875`
-  over HTTP, `:1153` over a WebSocket) and `Headers.fromInput` keeps the
-  last, so a request body or frame can claim another `origin`, `cookie` or
-  CSRF header. Decide the principal from the real request in front of the
+  puts the connection's headers before each request's (`rpc/RpcServer.js:907`
+  over HTTP, `:1204` over a WebSocket); `Headers.fromInput` kept the last
+  through 4.1.1 and joins repeats with `", "` since 4.1.4, so a request body
+  or frame can claim, or add to, another `origin`, `cookie` or CSRF header. Decide the principal from the real request in front of the
   route, never from an `RpcMiddleware`'s `headers` (Sync's §14.3 prototype
   pins it; no shipped server here reads them, ac62e3d3).
 - **A browser `WebSocket` sends no header of yours.** Its constructor takes
