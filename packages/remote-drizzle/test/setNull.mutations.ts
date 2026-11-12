@@ -87,6 +87,36 @@ export default [
     'Option.isNone(plan) && clears.length === 0',
     'Option.isNone(plan)',
   ),
+  edit(
+    "a clear is not held to its row's invariants",
+    index,
+    '...breaking.map(({ refused }) => sql`not exists (${refused})`),',
+    '',
+  ),
+  edit(
+    'an invariant reads a cleared link as it was',
+    index,
+    '(case when ${edge.column} = ${id} then null else ${edge.column} end)',
+    '${edge.column}',
+  ),
+  edit(
+    'an invariant unknown for a cleared row lets it through',
+    index,
+    'where ${edge.column} = ${id} and (${holds}) is not true',
+    'where ${edge.column} = ${id} and (${holds}) = false',
+  ),
+  edit(
+    'a clear that breaks an invariant is answered as moved',
+    index,
+    '          if (found.length > 0)\n            return DeleteOutcome.Referenced({ entity: edge.entity, relation: edge.relation })\n        }\n        if (Option.isNone(when))',
+    '        }\n        if (Option.isNone(when))',
+  ),
+  edit(
+    'a refused clear is answered as absent',
+    index,
+    'restricted.length === 0 &&\n          breaking.length === 0',
+    'restricted.length === 0',
+  ),
   edit('bind clears nothing', bind, '      clears,\n', '      clears: [],\n'),
   edit(
     'a foreign key that sets null binds where the domain clears nothing',

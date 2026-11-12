@@ -41,6 +41,14 @@ const Files = Entity.relate(
   },
 )
 const { User, Folder, Doc } = Files
+// Bo's docs must be filed, so clearing the folder of one breaks it (#516). A
+// doc with no owner, unfiled, holds it unknown.
+const filed = Entity.invariant<typeof Doc>(
+  'filed',
+  ({ after }) => Expr.or(Expr.not(Expr.eq(after.owner, 'bo')), Expr.isNotNull(after.folder)),
+  { message: "Bo's docs stay in a folder" },
+)
+const FiledDoc = Doc.pipe(filed)
 
 const sqliteTables = {
   users: sqliteTable('users', { id: text('id').primaryKey() }),
@@ -61,8 +69,8 @@ const pgTables = {
   }),
 }
 type Tables = typeof sqliteTables | typeof pgTables
-const bindOn = ({ users, folders, docs }: Tables, ownDocs = false) =>
-  bind({ User, Folder, Doc }, {
+const bindOn = ({ users, folders, docs }: Tables, ownDocs = false, doc: typeof Doc = Doc) =>
+  bind({ User, Folder, Doc: doc }, {
     User: { table: users },
     Folder: { table: folders },
     Doc: {
@@ -93,6 +101,7 @@ interface Backend {
   readonly rows: (statement: string) => Promise<ReadonlyArray<string>>
   readonly Db: ReturnType<typeof bindOn>
   readonly Own: ReturnType<typeof bindOn>
+  readonly Filed: ReturnType<typeof bindOn>
 }
 
 let pglite: PGlite
@@ -127,6 +136,7 @@ const backends: ReadonlyArray<readonly [string, () => Promise<Backend>]> = [
         rows: async statement => joined(sqlite.prepare(statement).all()),
         Db: bindOn(sqliteTables),
         Own: bindOn(sqliteTables, true),
+        Filed: bindOn(sqliteTables, false, FiledDoc),
       }
     },
   ],
@@ -141,6 +151,7 @@ const backends: ReadonlyArray<readonly [string, () => Promise<Backend>]> = [
           joined((await pglite.query<Record<string, unknown>>(statement)).rows),
         Db: bindOn(pgTables),
         Own: bindOn(pgTables, true),
+        Filed: bindOn(pgTables, false, FiledDoc),
       }
     },
   ],
@@ -159,6 +170,7 @@ const backends: ReadonlyArray<readonly [string, () => Promise<Backend>]> = [
           joined((await db.prepare(statement).all<Record<string, unknown>>()).results),
         Db: bindOn(sqliteTables),
         Own: bindOn(sqliteTables, true),
+        Filed: bindOn(sqliteTables, false, FiledDoc),
       }
     },
   ],
@@ -270,6 +282,35 @@ describe.each(backends)('A cleared link, on %s', (_, open) => {
       _tag: 'Success',
     })
     expect(await backend.rows('select id from folders order by id')).toEqual(['f1', 'f3'])
+    expect(await docs(backend)).toEqual(['d1:f1', 'd2:f1', 'd3:f1', 'd4:f3', 'd5:f3', 'd9:null'])
+  })
+
+  it('is refused as referenced where a clear would break a doc invariant', async () => {
+    const backend = await open()
+    // f1 holds Bo's d2, which may not be left unfiled.
+    const answer = await deleting(backend, 'f1', { Db: backend.Filed })
+    expect(answer._tag === 'Success' ? answer.success : answer).toEqual({
+      _tag: 'Referenced',
+      entity: 'Doc',
+      relation: 'folder',
+    })
+    await unchanged(backend)
+  })
+
+  it('counts an invariant unknown for a cleared doc as broken', async () => {
+    const backend = await open()
+    // f3's d5 has no owner, so whether unfiled it holds is unknown.
+    const answer = await deleting(backend, 'f3', { Db: backend.Filed })
+    expect(answer).toMatchObject({ _tag: 'Success', success: { _tag: 'Referenced' } })
+    await unchanged(backend)
+  })
+
+  it('clears what leaves every doc holding its invariants', async () => {
+    const backend = await open()
+    expect(await deleting(backend, 'f2', { Db: backend.Filed })).toMatchObject({
+      _tag: 'Success',
+      success: { _tag: 'Deleted' },
+    })
     expect(await docs(backend)).toEqual(['d1:f1', 'd2:f1', 'd3:f1', 'd4:f3', 'd5:f3', 'd9:null'])
   })
 

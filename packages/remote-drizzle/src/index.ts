@@ -1824,6 +1824,59 @@ export const writer = <P = unknown>(
       }),
     )
 
+  /**
+   * Each relation whose links a delete clears, as the rows pointing at `id`
+   * through it that would break one of their Entity's invariants once cleared
+   * (#516): a link through each relation of theirs that clears reads null
+   * where it points at `id`, and as it is elsewhere. A rule unknown for a row
+   * refuses it, as in an update. Such a row keeps the row it points at, as a
+   * restriction does, and the refusal names the relation alone: the rows and
+   * the invariant may read what the deleter may not see.
+   */
+  const clearBreaks = (
+    id: string,
+  ): Effect.Effect<
+    ReadonlyArray<{ readonly edge: PointerEdge; readonly refused: SQL }>,
+    RemoteServerError
+  > =>
+    Effect.map(
+      Effect.forEach(
+        Object.values(Arr.groupBy(clears, edge => edge.entity)).filter(
+          ([{ owner }]) => owner.invariants.length > 0,
+        ),
+        edges =>
+          compileFor(() => {
+            const [{ owner, entity }] = edges
+            const next: Record<string, SQL> = Object.create(null)
+            for (const edge of edges)
+              next[edge.relation] =
+                sql`(case when ${edge.column} = ${id} then null else ${edge.column} end)`
+            const target = {
+              table: owner.table,
+              columns: owner.columns,
+              relations: owner.relations,
+              next,
+              operators: owner.operators,
+            }
+            const holds = and(
+              ...owner.invariants.flatMap(held =>
+                compilePredicates(
+                  [held.predicate],
+                  target,
+                  {},
+                  `${entity}'s invariant "${held.id}"`,
+                ),
+              ),
+            )
+            return edges.map(edge => ({
+              edge,
+              refused: sql`select ${idColumn(owner)} from ${owner.table} where ${edge.column} = ${id} and (${holds}) is not true`,
+            }))
+          }),
+      ),
+      Arr.flatten,
+    )
+
   /** Each assignment as its compiled computation, in the statement that writes. */
   const assignmentsOf = (
     assignments: Readonly<Record<string, Computation>>,
@@ -2418,10 +2471,12 @@ export const writer = <P = unknown>(
         const at = yield* rowOf(id, expect, when)
         const required = yield* requiredOf(requires)
         const restricted = pointedAt(id)
+        const breaking = yield* clearBreaks(id)
         const where = and(
           at.where,
           ...required,
           ...restricted.map(({ exists }) => sql`not ${exists}`),
+          ...breaking.map(({ refused }) => sql`not exists (${refused})`),
         )
         const refusing = [
           ...(yield* cascadeRefusals(plan, id, cascading)),
@@ -2450,7 +2505,8 @@ export const writer = <P = unknown>(
           Option.isNone(when) &&
           requires === undefined &&
           refusing.length === 0 &&
-          restricted.length === 0
+          restricted.length === 0 &&
+          breaking.length === 0
         )
           return DeleteOutcome.Absent()
         // The delete missed: gone is gone (a retry of this delete, or another's);
@@ -2500,6 +2556,16 @@ export const writer = <P = unknown>(
             binding.table,
             { id: idColumn(binding) },
             { where: and(eq(idColumn(binding), id), exists) },
+          )
+          if (found.length > 0)
+            return DeleteOutcome.Referenced({ entity: edge.entity, relation: edge.relation })
+        }
+        for (const { edge, refused } of breaking) {
+          const found = yield* selectRows(
+            yield* DrizzleDatabase,
+            edge.owner.table,
+            { id: idColumn(edge.owner) },
+            { where: sql`${idColumn(edge.owner)} in (${refused})` },
           )
           if (found.length > 0)
             return DeleteOutcome.Referenced({ entity: edge.entity, relation: edge.relation })
