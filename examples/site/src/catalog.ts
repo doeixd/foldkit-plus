@@ -302,6 +302,7 @@ export const learn: Subsite = {
   sources: [
     { id: 'overview', label: 'Foldkit Plus', file: 'README.md' },
     doc('state', 'Who changes state', 'state-model'),
+    doc('declarations', 'From declarations to the screen', 'declared-data-to-ui'),
     doc('wiring', 'Wiring', 'wiring'),
     doc('errors', 'Errors and failures', 'errors'),
     doc('ui', 'UI architecture', 'ui-architecture'),
