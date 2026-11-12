@@ -102,8 +102,8 @@ export const controls: StyleValue = global(
     `:where(:is(input,select,textarea)[aria-invalid=true]){border-color:${v('error-default', 'red')}}`,
     `:where(button,[type=button],[type=submit],[type=reset]){padding:${v('space-xs', '0.5rem')} ${v('space-md', '1rem')};border:${v('border-thin', '1px')} solid ${v('outline-default', 'ButtonBorder')};border-radius:${v('radius-md', '6px')};background:${v('surface-subtle', 'ButtonFace')};color:${v('text-default', 'ButtonText')};cursor:pointer;transition:background ${v('motion-fast', '150ms')} ${v('motion-ease', 'ease-out')}}`,
     `@media (hover:hover){:where(button,[type=button],[type=submit],[type=reset]):hover:not([aria-disabled=true]){background:${v('surface-muted', 'ButtonFace')}}}`,
-    `:where(button,[type=button],[type=submit],[type=reset]):active{background:${v('surface-muted', 'ButtonFace')}}`,
-    `:where(:is(button,input,select,textarea):disabled,button[aria-disabled=true]){opacity:0.5;cursor:not-allowed}`,
+    `:where(button,[type=button],[type=submit],[type=reset]):active:not([aria-disabled=true]){background:${v('surface-muted', 'ButtonFace')}}`,
+    `:where(:is(button,input,select,textarea):disabled,:is(button,[type=button],[type=submit],[type=reset])[aria-disabled=true]){opacity:0.5;cursor:not-allowed}`,
     `:where(:is(input,select,textarea,button)::placeholder){color:${v('text-muted', 'GrayText')}}`,
   ].join(''),
 )
