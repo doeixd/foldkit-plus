@@ -556,7 +556,6 @@ non-color scales, with `space` and `radius` multiplied by the `density` and `rad
 Its `motion` group is three tiers, `fast`, `moderate` and `slow` (80, 160 and 240ms, for hover and
 fades, popups and tabs, dialogs), each with a quicker `-exit` for dismissals, all multiplied by the
 `motion` knob. `sheet` and `sheet-exit` time a Sheet's slide: they read the `slow` tier until a theme
-sets them. `sheet` and `sheet-exit` time a Sheet's slide: they read the `slow` tier until a theme
 sets them. A duration of something that moves or resizes also multiplies by `knob.travel`,
 which `Defaults.reset` sets to 0 under `prefers-reduced-motion`: the thing stops travelling, and its
 fade still plays.
