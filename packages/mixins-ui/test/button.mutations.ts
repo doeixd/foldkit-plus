@@ -17,8 +17,8 @@ export default [
     edits: [
       {
         file: '../src/button.ts',
-        find: '              : [\n                  h.span(',
-        replace: '              : [options.label] || [\n                  h.span(',
+        find: ': [h.span([...icon',
+        replace: ': [options.label] || [h.span([...icon',
       },
     ],
     tests: [...unit, ...browser],
@@ -28,8 +28,8 @@ export default [
     edits: [
       {
         file: '../src/button.ts',
-        find: '[...icon, h.AriaHidden(true), ...(options.attributes?.icon ?? [])],',
-        replace: '[...icon, ...(options.attributes?.icon ?? [])],',
+        find: '[...icon, h.AriaHidden(true)]',
+        replace: '[...icon]',
       },
     ],
     tests: unit,
@@ -47,7 +47,13 @@ export default [
   },
   {
     name: 'the icon drops the attributes it is handed',
-    edits: [{ file: '../src/button.ts', find: '...(options.attributes?.icon ?? [])', replace: '' }],
+    edits: [
+      {
+        file: '../src/button.ts',
+        find: 'icon: options.attributes?.icon ?? []',
+        replace: 'icon: []',
+      },
+    ],
     tests: unit,
   },
   {

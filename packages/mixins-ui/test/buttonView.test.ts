@@ -101,24 +101,25 @@ describe('Button.view', () => {
     }
   })
 
-  it('adds the attributes it is handed to each slot, after its own', async () => {
+  it("adds the attributes it is handed to each slot, and a class joins the style's", async () => {
     const handle = draw(h => ({
       label: 'Cancel',
       style: SendStyle,
       icon: h.span([], ['×']),
       attributes: {
-        button: [h.DataAttribute('handed', 'button')],
-        icon: [h.DataAttribute('handed', 'icon')],
+        button: [h.DataAttribute('handed', 'button'), h.Class('wide')],
+        icon: [h.DataAttribute('handed', 'icon'), h.Class('big')],
       },
     }))
     try {
       await vi.waitFor(() => expect(document.querySelector('button')).not.toBeNull())
       const button = document.querySelector('button')!
       expect(button.dataset['handed']).toBe('button')
-      // Beside its own: the style's class stays.
-      expect(button.className).toBe('send')
+      expect(button.classList.contains('send')).toBe(true)
+      expect(button.classList.contains('wide')).toBe(true)
       const icon = button.firstElementChild as HTMLElement
       expect(icon.dataset['handed']).toBe('icon')
+      expect(icon.classList.contains('big')).toBe(true)
       expect(icon.getAttribute('aria-hidden')).toBe('true')
     } finally {
       handle.dispose()
