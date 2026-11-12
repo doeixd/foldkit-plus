@@ -225,6 +225,14 @@ In the same change:
       `foldkit-host` Published in `docs/releases.md`. The release after removes
       `saved`, `Rejection.reason`, the server's `reasons`, and `editsJournal`'s
       `absorbed` and `server` options.
+- [ ] **Release 0.40.0 is prepared, not tagged** (db24769e, 58aa1412, b5e1d029):
+      35 packages one minor up, `foldkit-host` at 0.2.0 and marked Published in
+      `docs/releases.md`. Once it is on `main`: `git tag v0.40.0 b5e1d0290 &&
+      git push origin v0.40.0` runs `release.yml`, which publishes when
+      `NPM_TOKEN` is set and makes the GitHub release from `## 0.40.0`. Still
+      deprecated and not removed, though 0.39.0's notes said the next release
+      would: `editsJournal`'s `absorbed` and `server`, and the `saved` inputs
+      of `foldkit-mixins-form` and `foldkit-crud`.
 - [ ] **`TYPESAFE_API_KEY`**, so the Jev review can run. It is owed on:
   - #497's public API: `SSR.headed`, `RootRefusesHead`, the exported SSR
     diagnostic types, `Button.view`'s `attributes`, the resolver's class
