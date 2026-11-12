@@ -167,8 +167,9 @@ export interface DocumentHostConfig<Message, Shared, Principal, Env, RP = never>
    * Where each upgrade's diagnostics go, with its request: a `HostDefect`
    * for every failure answered "Internal error" (making the socket pair,
    * the resolver, the journal, the exchange) and the rest `documentHost`
-   * reports. The reporter in the Effect context when not given, by default
-   * the log.
+   * reports. A pass of reactions that broke has no request of its own: it is
+   * reported with one for `https://durable-object/alarm`. The reporter in the
+   * Effect context when not given, by default the log.
    */
   readonly diagnostics?:
     | ((diagnostic: Diagnostic, request: Request) => Effect.Effect<void>)
@@ -338,8 +339,9 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
             ? undefined
             : journal =>
                 Effect.gen(function* () {
-                  if (settle !== undefined) yield* settle(env, journal)
+                  // First: a settle that fails still leaves what committed to be reacted to.
                   if (server !== undefined) yield* afterExchange(journal)
+                  if (settle !== undefined) yield* settle(env, journal)
                 }),
         opens: config.opens,
         admit: config.admit,

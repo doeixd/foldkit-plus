@@ -854,6 +854,32 @@ describe('defineDocumentHost with reactions', () => {
     expect(storage.state.alarm).toBe(soon)
   })
 
+  it('arms the alarm for what committed even when settle fails', async () => {
+    const file = notesFile()
+    const storage = alarmStorage()
+    const pairs: Array<readonly [FakeWebSocket, FakeWebSocket]> = []
+    const Host = defineDocumentHost(FakeBase, {
+      sync: Notes,
+      openJournal: async () => openNotes(file),
+      resolvePrincipal: () => Effect.succeed('ada'),
+      settle: () => Effect.fail(new Error('the table is down')),
+      server: {
+        principal: 'notes-server',
+        reactions: () => [reaction(Notes, { name: 'notice', on: Wrote, run: () => Effect.void })],
+      },
+      pair: () => {
+        const pair = FakeWebSocket.linked({ lingering: false })
+        pairs.push(pair)
+        return pair as unknown as readonly [WebSocket, AcceptingWebSocket]
+      },
+    })
+    const served = new Host({ storage }, undefined)
+    const { client } = await upgrade(served.fetch.bind(served), pairs, 'ada')
+    const reply = await roundTrip(client, { id: '1', cursor: 0, pending: await wrote('a') })
+    expect(reply.error).toBeDefined()
+    expect(storage.state.alarm).not.toBeNull()
+  })
+
   it('refuses `server` without the object’s alarm', () => {
     const { Host } = hostOf(notesFile(), () => Effect.void)
     expect(() => new Host({}, undefined)).toThrow('alarm')

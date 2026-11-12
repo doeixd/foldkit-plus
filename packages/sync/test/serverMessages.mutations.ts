@@ -335,6 +335,18 @@ export default [
     tests: hosts,
   },
   {
+    name: 'a settle that fails leaves the alarm unset',
+    edits: [
+      {
+        file: host,
+        find: '                  if (server !== undefined) yield* afterExchange(journal)\n                  if (settle !== undefined) yield* settle(env, journal)',
+        replace:
+          '                  if (settle !== undefined) yield* settle(env, journal)\n                  if (server !== undefined) yield* afterExchange(journal)',
+      },
+    ],
+    tests: hosts,
+  },
+  {
     name: 'the host’s alarm runs nothing',
     edits: [{ file: host, find: '      await this.react()', replace: '' }],
     tests: hosts,
