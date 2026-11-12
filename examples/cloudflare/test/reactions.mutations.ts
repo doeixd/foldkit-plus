@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: host,
-        find: '          yield* Effect.promise(() => arm(ALARM_AFTER_COMMIT))',
-        replace: '',
+        find: '            arm(ALARM_AFTER_COMMIT).then(',
+        replace: '            Promise.resolve().then(',
       },
     ],
     tests,
@@ -21,5 +21,18 @@ export default [
     name: 'the alarm runs nothing',
     edits: [{ file: host, find: '      await this.react()', replace: '' }],
     tests,
+  },
+  {
+    name: 'an alarm being run counts as one set, so the alarm is not re-armed',
+    edits: [
+      {
+        file: host,
+        find: 'if (current === null || current <= Date.now() || current > at)',
+        replace: 'if (current === null || current > at)',
+      },
+    ],
+    tests,
+    survives:
+      'local workerd answers getAlarm() with null inside alarm(), so nothing here shows the guard; it is for a runtime that still reports the alarm being run, which do.test.ts fakes and kills',
   },
 ]

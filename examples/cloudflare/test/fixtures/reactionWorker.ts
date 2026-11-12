@@ -2,7 +2,8 @@
  * The Worker behind `reactions.test.ts`: the example's bindings, with a
  * Durable Object whose one reaction is slow enough to be cut off. Each run
  * writes a `reaction_calls` row as it starts, and a `notices` row, the
- * external call, after a second and a half; `/evict` resets the object, as
+ * external call, after three seconds, or at once for a note whose id starts
+ * `flaky`, which fails its first two calls; `/evict` resets the object, as
  * workerd does to an idle one, killing what it runs.
  */
 import * as D1Client from '@effect/sql-d1/D1Client'
@@ -75,7 +76,16 @@ const notice = (db: D1Database) =>
         yield* run(db, 'CREATE TABLE IF NOT EXISTS reaction_calls (key TEXT NOT NULL)')
         yield* run(db, 'CREATE TABLE IF NOT EXISTS notices (key TEXT NOT NULL)')
         yield* run(db, 'INSERT INTO reaction_calls (key) VALUES (?)', key)
-        yield* Effect.sleep('1500 millis')
+        // A flaky provider: down for the first two calls, then up.
+        if (message.id.startsWith('flaky')) {
+          const calls = yield* Effect.promise(() =>
+            db
+              .prepare('SELECT COUNT(*) AS n FROM reaction_calls WHERE key = ?')
+              .bind(key)
+              .first('n'),
+          )
+          if (Number(calls) < 3) return yield* Effect.fail(new Error('the provider is down'))
+        } else yield* Effect.sleep('3 seconds')
         yield* run(db, 'INSERT INTO notices (key) VALUES (?)', key)
         return [Message.Noticed({ id: message.id })]
       }),
