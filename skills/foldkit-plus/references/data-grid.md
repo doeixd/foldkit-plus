@@ -122,7 +122,11 @@ the whole wiring, compiled.
 - A grid has an OutMessage, `Grid.Out`: `Edited({ row, column, text })`,
   `Pasted({ accepted, refused })`, `Filled({ source, to })` (Ctrl/Meta+D or
   R, or the fill handle, whose drag scrolls the grid at its edge; write
-  `Grid.fill(rows, model.grid, request).accepted`),
+  `Grid.fill(rows, model.grid, request).accepted`, and say what `refused`
+  holds; `Fill.series` continues numbers and `YYYY-MM-DD` days, by months
+  when they share a day of the month, and a column's `edit: { fill: lane =>
+  Option<ReadonlyArray<string>> }` replaces it for a fill down or up: a
+  shorter answer than `lane.count` leaves the cells past it in `refused`),
   `Filtered({ change })` (only with a filtering column: a column's filter
   form changed; write it with `Grid.setFilter(filters, change)`),
   `RowsRequested({ from, to })` (a Shift click without `cellSelection`;

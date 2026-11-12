@@ -424,15 +424,22 @@ const checked = (cell: Extract<typeof Tasks.Out.Type, { _tag: 'Edited' }>) =>
 
 Copy and paste speak the tab-separated text spreadsheets do. `Clipboard` is
 pure: it writes and reads that text and lays a paste onto the grid; the view
-wires it to the browser's copy, cut and paste events.
+wires it to the browser's copy, cut and paste events. A copy also carries the
+same cells as an HTML table, for a target that reads `text/html`.
 
 ```ts
 import { Clipboard } from 'foldkit-data-grid'
 
 Clipboard.toTsv([['SKU', 'Price'], ['A-1', '9']]) // 'SKU\tPrice\nA-1\t9'
 Clipboard.parseTsv('a\t"b\tc"\r\n') // [['a', 'b\tc']]
+Clipboard.toHtml([['a<b', 'x\ny']]) // '<table><tbody><tr><td>a&lt;b</td><td>x<br>y</td></tr></tbody></table>'
 ```
 
+- **`Clipboard.toHtml(rows)`** is the same matrix as a `<table>`. Every cell
+  is escaped (`&`, `<`, `>`, `"`) and a line break becomes `<br>`, so nothing
+  a cell holds is markup. The view derives it from the TSV it wrote, so the
+  two cannot disagree. Paste still reads `text/plain` only: HTML pasted from
+  elsewhere is not parsed.
 - **`Clipboard.copy(projection, box, textOf)`** is a box's cells as TSV,
   rows in the projection's order and columns in display order.
 - **`Clipboard.pasteAt(projection, anchor, matrix, { editable, from })`** is
@@ -445,8 +452,14 @@ Clipboard.parseTsv('a\t"b\tc"\r\n') // [['a', 'b\tc']]
   rows win a diagonal). `Fill.cells(projection, plan, { editable, from })`
   is the cells it writes, each lane of the source carried on by
   `Fill.series(texts, count, backward)`: two or more numbers a constant step
-  apart continue their step, keeping the finest decimals, and anything else
-  repeats in order. Like a paste, it drops columns that do not edit and rows
+  apart continue their step, keeping the finest decimals; two or more
+  `YYYY-MM-DD` days continue by months when they share a day of the month a
+  constant number of months apart (a 31st clamps to a shorter month and comes
+  back: Jan 31, Feb 28, Mar 31), else by days when a constant number of days
+  apart, and when both fit months win; anything else repeats in order. The
+  inference reads text, not the column, so a text column that happens to hold
+  ISO days steps where it once repeated. A column's own series is
+  `edit: { fill }`, below. Like a paste, it drops columns that do not edit and rows
   not loaded, and keeps each cell's `from`.
 - **`Pasted({ cells })`** hands those cells to the grid, which drops each one
   its text leaves unchanged (as an edit judges it), checks the rest against
@@ -468,6 +481,47 @@ Clipboard.parseTsv('a\t"b\tc"\r\n') // [['a', 'b\tc']]
   rows it draws: `{ accepted, refused }`, judged as a paste's cells are
   (`Fill.plan` and `Fill.cells`, above). A fill from a lone cell, or by key
   from a range one row tall, carries on the cell above (or before) it.
+- **A column's own series**, `edit: { fill: lane => Option<ReadonlyArray<string>> }`,
+  replaces `Fill.series` for a fill down or up in that column. It is called
+  once per lane with `{ source, count, toward }`: the source's drafts top to
+  bottom, how many cells to write, and the direction. Return the texts, the
+  first next to the source, or `Option.none()` for the default. Of a longer
+  answer the first `count` are taken; for each cell past a shorter one the
+  fill reports a refusal in `refused` (empty `text`, the error "The column’s
+  series gave no text here") rather than padding or repeating. A fill right
+  or left crosses columns and keeps `Fill.series`. The texts are judged by
+  the column's `schema` like any fill.
+
+```ts
+import { Option } from 'effect'
+import { Columns } from 'foldkit-data-grid'
+
+const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+
+interface Shift {
+  readonly day: string
+}
+
+Columns.define<Shift>()({
+  day: {
+    header: 'Day',
+    value: shift => shift.day,
+    edit: {
+      fill: ({ source, count, toward }) => {
+        const last = weekdays.indexOf(toward === 'down' ? source[source.length - 1]! : source[0]!)
+        return last === -1
+          ? Option.none()
+          : Option.some(
+              Array.from({ length: count }, (_, index) => {
+                const step = toward === 'down' ? index + 1 : -(index + 1)
+                return weekdays[(((last + step) % 5) + 5) % 5]!
+              }),
+            )
+      },
+    },
+  },
+})
+```
 
 ## Over a `foldkit-crud` list
 

@@ -150,11 +150,13 @@ const toHtml: (rows: ReadonlyArray<ReadonlyArray<string>>) => string
 mounts its own Mount, `CellPress` (`press.ts:55`), on the cells' container
 inside the grid. When it starts, it can also add `copy` and `cut` listeners
 to the grid root. The view's `OnCopyText` and `OnCutText` sit on that root
-(`view.ts:1723`), and the root is the copy event's target, since it holds
-focus.
+(`view.ts:1723`), and a copy aimed at the focused cell bubbles to it.
 
-The new listener acts only when the event's target is the grid root, it is
-`defaultPrevented`, and `getData('text/html')` is still empty. Prevented alone
+The new listener acts only when the event's target is something the grid
+itself focuses (the root, a `gridcell` or a `columnheader`: Chromium aims a
+copy at the focused cell, which sits under the root, so the root alone would
+never match), it is `defaultPrevented`, and `getData('text/html')` is still
+empty. Prevented alone
 says some handler took the copy, not that the grid did: a cell editor or an
 application handler inside the grid that writes its own clipboard would
 otherwise gain grid HTML built from its text. It then
