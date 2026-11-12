@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins-ui`: `Recipes.Dialog` and `Recipes.Sheet` take `motion`
+  (`standard`, or `none`, which opens, closes and steps back at once in every
+  state) and `close` (`corner`, or `none`, which leaves the `closeButton` Slot
+  unstyled for an application that draws its own buttons with it, as
+  `examples/foldkit/ui-showcase` removed it by hand). `Recipes.sheetPage` and
+  the Sheet's slide read the new `motion.sheet` and `motion.sheet-exit` tokens
+  of `foldkit-mixins`, which default to the `slow` tier and its exit and are
+  still multiplied by `travel`; an application with its own sheet timing sets
+  them in its theme tokens. `examples/foldkit/domains-plus` drops its
+  per-sheet duration overrides for both.
 - `foldkit-mixins/vite`: a `Style.whenInput` in a style module listed in
   `styles({ modules })` is shipped as data, its predicate kept as the import
   it was (a named import from a module that is not listed). The condition's

@@ -219,6 +219,41 @@ describe('the recipe', () => {
     expect(titleRules(recipe, 'shown')).toBeNull()
   })
 
+  const variantsDuration = (
+    recipe: typeof SheetRecipe | typeof DialogRecipe,
+    motion: 'none' | 'standard',
+  ) =>
+    Style.forSlots(DialogSlots)(recipe({ motion })).css.match(
+      /@layer variants\{[^}]*transition-duration:0s[^}]*\}/g,
+    )
+
+  it.each([
+    ['Sheet', SheetRecipe],
+    ['Dialog', DialogRecipe],
+  ])('%s with motion none stills its backdrop and panel in the variants layer', (_, recipe) => {
+    // The panel and the backdrop each write one; the Sheet's drag writes a third.
+    expect(variantsDuration(recipe, 'none')!.length).toBeGreaterThanOrEqual(2)
+    expect(variantsDuration(recipe, 'standard')?.length ?? 0).toBe(recipe === SheetRecipe ? 1 : 0)
+  })
+
+  it.each([
+    ['Sheet', SheetRecipe],
+    ['Dialog', DialogRecipe],
+  ])('%s places its close button in a corner unless close is none', (_, recipe) => {
+    const corner = (close: 'corner' | 'none') =>
+      Style.forSlots(DialogSlots)(recipe({ close })).css.includes('cursor:pointer')
+    expect(corner('corner')).toBe(true)
+    expect(corner('none')).toBe(false)
+  })
+
+  it('times the Sheet by motion.sheet and its exit by motion.sheet-exit, the Dialog by the slow tier', () => {
+    expect(css).toContain('var(--fk-motion-sheet)')
+    expect(css).toContain('var(--fk-motion-sheet-exit)')
+    const dialog = Style.forSlots(DialogSlots)(DialogRecipe({})).css
+    expect(dialog).not.toContain('--fk-motion-sheet')
+    expect(dialog).toContain('var(--fk-motion-slow)')
+  })
+
   it('writes no shorthand that the sorted rule would put after its longhands', () => {
     expect(css).not.toMatch(/@layer variants\{[^}]*(border-width|border-radius):/)
   })

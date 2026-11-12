@@ -1063,7 +1063,7 @@ export const SheetStyle = forSlots(DialogSlots)(Recipes.Sheet({ title: 'hidden' 
 
 /** The cart: a sheet at the window's right edge, upstream's 420px or the whole of a phone. */
 export const CartSheetStyle = forSlots(DialogSlots)(
-  Recipes.Sheet({ size: 'full', handle: 'none' }),
+  Recipes.Sheet({ size: 'full', handle: 'none', motion: 'none' }),
   { name: 'CartSheetStyle' },
 )
 
@@ -1078,32 +1078,16 @@ export const SheetLook = forSlots(DialogSlots)(
   { name: 'SheetLook' },
 )
 
-/** Upstream's cart stands open at once, with no slide and no fade, so its text reads at full contrast. */
+/** Upstream's cart is 420px wide (it stands open at once: `CartSheetStyle`'s `motion: 'none'`). */
 export const CartSheetLook = forSlots(DialogSlots)(
-  {
-    backdrop: { transitionDuration: '0s' },
-    panel: { maxInlineSize: '420px', transitionDuration: '0s' },
-    description: Style.class('demo-note'),
-  },
+  { panel: { maxInlineSize: '420px' }, description: Style.class('demo-note') },
   { name: 'CartSheetLook' },
 )
-
-/**
- * Upstream's phone sheets slide for its own half second, not the theme's
- * motion scale, and not at all under reduced motion; a drag still follows
- * the finger with none.
- */
-const slide = (duration: string): Piece =>
-  Style.pseudo(':not([data-dragging])', {
-    transitionDuration: `calc(${duration} * ${t.knob.travel})`,
-  })
-
-const phoneSheet = { backdrop: [Style.class('filters-backdrop'), slide(d.slide)] }
 
 /** The phone's TLD sheet: its search above, the extensions scrolling below it. */
 export const TldSheetLook = forSlots(DialogSlots)(
   {
-    ...phoneSheet,
+    backdrop: Style.class('filters-backdrop'),
     panel: [
       Style.class('filters-panel'),
       Style.class('tld-panel'),
@@ -1114,7 +1098,6 @@ export const TldSheetLook = forSlots(DialogSlots)(
         overflow: 'hidden',
         padding: `0 0 ${t.safe.bottom}`,
       },
-      slide(d.slide),
     ],
   },
   { name: 'TldSheetLook' },
@@ -1123,11 +1106,10 @@ export const TldSheetLook = forSlots(DialogSlots)(
 /** The phone's Filters and sort sheet: availability, then sort, as upstream's. */
 export const FiltersSheetLook = forSlots(DialogSlots)(
   {
-    ...phoneSheet,
+    backdrop: Style.class('filters-backdrop'),
     panel: [
       Style.class('filters-panel'),
       { maxHeight: '90dvh', padding: `6px 6px max(6px, ${t.safe.bottom})` },
-      slide(d.slide),
     ],
   },
   { name: 'FiltersSheetLook' },
