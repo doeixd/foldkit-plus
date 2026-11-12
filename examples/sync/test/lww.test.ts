@@ -62,7 +62,7 @@ const openJournal = () => {
   const durable = Effect.runSync(
     Journal.make<Operation, Shared, { actorId: string; canWrite: boolean }>({
       file: ':memory:',
-      operation: { encode: value => value, decode: TitlesSync.codec.normalizeOperation },
+      operation: { encode: value => value, decode: TitlesSync.journalContract().operation.decode },
       snapshot: {
         encode: Schema.encodeSync(Shared),
         decode: Schema.decodeUnknownSync(Shared, { onExcessProperty: 'error' }),

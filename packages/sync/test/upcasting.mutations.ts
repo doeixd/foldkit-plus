@@ -172,8 +172,8 @@ export default [
     edits: [
       {
         file: journal,
-        find: '        cause instanceof UnreadableMessageError ? Option.some(cause) : Option.none(),',
-        replace: '        Option.none(),',
+        find: '        cause instanceof UnreadableMessageError || cause instanceof ServerOnlyMessageError',
+        replace: '        cause instanceof ServerOnlyMessageError',
       },
     ],
     tests,

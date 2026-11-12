@@ -1320,6 +1320,10 @@ describe('named cursors', () => {
       expect(yield* at(journal)).toEqual(Option.some({ cursor: 0, attempts: 1 }))
       yield* journal.cursors.advance(todos, 'mail', fresh.epoch, cursor(1))
       expect(yield* at(journal)).toEqual(Option.some({ cursor: 1, attempts: 0 }))
+      // Nor over the new one's progress once it has some.
+      yield* journal.cursors.advance(todos, 'mail', old, cursor(1))
+      yield* journal.cursors.stalled(todos, 'mail', old, 4)
+      expect(yield* at(journal)).toEqual(Option.some({ cursor: 1, attempts: 0 }))
     }))
 
   it('tracks again from 0 after a reset, though the new history has commits', () =>

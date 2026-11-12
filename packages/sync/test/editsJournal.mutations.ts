@@ -7,12 +7,12 @@ const file = '../src/journal.ts'
 
 export default [
   {
-    name: 'recovery starts at the beginning, not the floor',
+    name: 'the stored cursor starts at the head, not the floor',
     edits: [
       {
         file,
-        find: '    return Cursor.make(yield* journal.floor(key))',
-        replace: '    return Cursor.make(0)',
+        find: "    yield* journal.cursors.track(key, EDITS_CURSOR, { from: 'floor' })",
+        replace: "    yield* journal.cursors.track(key, EDITS_CURSOR, { from: 'cursor' })",
       },
     ],
     tests,

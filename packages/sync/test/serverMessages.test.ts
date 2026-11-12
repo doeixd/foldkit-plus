@@ -25,6 +25,7 @@ import {
 import { MessageSet, Projection, Surface, type Diagnostic } from 'foldkit-surface'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  AmbiguousMessageError,
   ServerOnlyMessageError,
   Sync,
   SyncRefusal,
@@ -601,8 +602,10 @@ describe('a reaction', () => {
     await reactAt(server)
     await reactAt(server)
     const database = new DatabaseSync(path)
+    // Moves whenever another connection commits a write to the file.
     const changes = () =>
-      (database.prepare('SELECT total_changes() AS n').get() as { readonly n: number }).n
+      (database.prepare('PRAGMA data_version').get() as { readonly data_version: number })
+        .data_version
     const ledger = () => database.prepare('SELECT key, status FROM effects ORDER BY key').all()
     const before = { cursor: await cursorOf(journal), ledger: ledger() }
     const written = changes()
@@ -1104,6 +1107,44 @@ describe('declaring reactions', () => {
     expect(() =>
       serverJournal({ sync: Orders, journal, server: SERVER, reactions: [one, two] }),
     ).toThrow('two reactions')
+  })
+
+  it('refuses a Message in both sets when the contract is made', () => {
+    expect(() =>
+      Sync.forApplication(App).make({
+        documentId: documentId('both'),
+        shared: Projection.pick(App.model.orders),
+        durable: Placed,
+        // @ts-expect-error the types refuse it too
+        serverOnly: MessageSet.union(Placed, Confirmed),
+      }),
+    ).toThrow('both durable and server-only')
+  })
+
+  it('refuses where it is read, or submitted, a Message both of Sync.define’s predicates accept', async () => {
+    const Both = Sync.define({
+      documentId: documentId('orders'),
+      message: App.Message,
+      shared: Schema.Struct({ n: Schema.Number }),
+      empty: { n: 0 },
+      durable: () => true,
+      serverOnly: message => message._tag === 'ConfirmedPayment',
+      replay: state => state,
+    })
+    const sent = entry(Message.ConfirmedPayment({ id: 'o1', charge: 'c' }))
+    const replica = await run(Both.openReplica(memoryStorage(), { replicaId: replicaId('tab') }))
+    expect(
+      await run(Effect.flip(replica.submit(Message.ConfirmedPayment({ id: 'o1', charge: 'c' })))),
+    ).toMatchObject({
+      _tag: 'InvalidOutboxError',
+      message: 'Message is one only the server appends',
+    })
+    expect(() => Both.journalContract().operation.decode(sent)).toThrow(AmbiguousMessageError)
+    expect(() => Both.codec.normalizeOperation(sent)).toThrow(AmbiguousMessageError)
+    expect(
+      Both.journalContract().operation.decode(entry(Message.PlacedOrder({ id: 'o', cents: 1 })))
+        .opId,
+    ).toBe('tab:1')
   })
 
   it('refuses a name that is not one, and a set of another application', () => {
