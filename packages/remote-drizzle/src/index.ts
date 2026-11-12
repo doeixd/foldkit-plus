@@ -1474,6 +1474,10 @@ export const writer = <P = unknown>(
     (binding.cascades ?? []).length === 0 ? Option.none() : Option.some(cascadePlan(binding))
 
   const clears = binding.clears ?? []
+  // Each Entity whose links a delete clears and that holds invariants, with each such relation of its.
+  const judgedClears = Object.values(Arr.groupBy(clears, edge => edge.entity)).filter(
+    ([{ owner }]) => owner.invariants.length > 0,
+  )
   /** Each cleared link's column by its key in its table, which `update().set` names. */
   const clearedKey = (edge: PointerEdge): string =>
     Object.entries(getTableColumns(edge.owner.table)).find(
@@ -1841,39 +1845,30 @@ export const writer = <P = unknown>(
     RemoteServerError
   > =>
     Effect.map(
-      Effect.forEach(
-        Object.values(Arr.groupBy(clears, edge => edge.entity)).filter(
-          ([{ owner }]) => owner.invariants.length > 0,
-        ),
-        edges =>
-          compileFor(() => {
-            const [{ owner, entity }] = edges
-            const next: Record<string, SQL> = Object.create(null)
-            for (const edge of edges)
-              next[edge.relation] =
-                sql`(case when ${edge.column} = ${id} then null else ${edge.column} end)`
-            const target = {
-              table: owner.table,
-              columns: owner.columns,
-              relations: owner.relations,
-              next,
-              operators: owner.operators,
-            }
-            const holds = and(
-              ...owner.invariants.flatMap(held =>
-                compilePredicates(
-                  [held.predicate],
-                  target,
-                  {},
-                  `${entity}'s invariant "${held.id}"`,
-                ),
-              ),
-            )
-            return edges.map(edge => ({
-              edge,
-              refused: sql`select ${idColumn(owner)} from ${owner.table} where ${edge.column} = ${id} and (${holds}) is not true`,
-            }))
-          }),
+      Effect.forEach(judgedClears, edges =>
+        compileFor(() => {
+          const [{ owner, entity }] = edges
+          const next: Record<string, SQL> = Object.create(null)
+          for (const edge of edges)
+            next[edge.relation] =
+              sql`(case when ${edge.column} = ${id} then null else ${edge.column} end)`
+          const target = {
+            table: owner.table,
+            columns: owner.columns,
+            relations: owner.relations,
+            next,
+            operators: owner.operators,
+          }
+          const holds = and(
+            ...owner.invariants.flatMap(held =>
+              compilePredicates([held.predicate], target, {}, `${entity}'s invariant "${held.id}"`),
+            ),
+          )
+          return edges.map(edge => ({
+            edge,
+            refused: sql`select ${idColumn(owner)} from ${owner.table} where ${edge.column} = ${id} and (${holds}) is not true`,
+          }))
+        }),
       ),
       Arr.flatten,
     )
