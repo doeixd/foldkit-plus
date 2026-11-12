@@ -132,7 +132,11 @@ describe('a module in `modules`', { timeout: 60_000 }, () => {
       root,
       configFile: false,
       logLevel: 'silent',
-      resolve: { alias: { 'foldkit-mixins': mixins } },
+      // `slotView.ts` imports `foldkit-surface`: its source, since CI builds no `dist`.
+      resolve: {
+        alias: { 'foldkit-mixins': mixins },
+        conditions: ['foldkit-plus:source', ...defaultClientConditions],
+      },
       plugins: [styles({ sheet: '/sheet.ts', modules: ['/frozen.ts'] })],
       server: { middlewareMode: true, ws: false },
     })
