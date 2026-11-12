@@ -1093,6 +1093,13 @@ Foldkit's own behaviour that we work around is listed in
   and its tables did not type-check against the adapter. A library the
   application also uses is a `peerDependency`.
 
+- **SQLite's change counters see less than a test assumes.** `total_changes()`
+  counts the calling connection's writes only, so a test reading it from a
+  second connection saw none of the journal's; `PRAGMA data_version` sees
+  other connections' commits, but an `UPDATE` that writes the values a row
+  already holds changes no page and moves neither. A mutation adding such a
+  write survives: say so in the spec rather than chase a test.
+
 - **A no-op must return the Model it was given.** Foldkit renders only when the root Model
   changes identity, and `Update.foldChild` writes the child back unconditionally, so a
   `{ ...model }` equal copy (or a placement that re-wrote an unchanged child) rendered the
@@ -2476,6 +2483,10 @@ of its own named a form field "fits the Catalog". Read words with
   it. Keep the history linear and let GitHub delete a branch when its PR
   merges (Settings, General, "Automatically delete head branches"): restarting
   it is then a plain push that recreates it.
+- **A shell variable is gone in the next Bash call.** `F="…"` set in one
+  call and `git commit -m … -- $F` in the next committed only the files
+  `git add` had staged (69cd3085), and the rest needed a second commit. Set
+  the list and commit in one command, and read `git show --stat HEAD`.
 - **Flags go before `--`, and new files need `git add`.** `git commit --
   <paths> -m` parses `-m` as a pathspec and fails, and a pathspec commit skips
   untracked files, so a new module rode an `--amend` into the wrong commit.
