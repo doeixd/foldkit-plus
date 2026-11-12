@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-remote`: `reaches(write, query)` says which queries a declared write
+  can change, from declarations alone: `Reach.Reads`, `Unaffected`, or
+  `Unknown({ why: 'NoBody' | 'Handler' })`. It compares members by their
+  Entity's identity and reads a body's `fields`, an exists' `where`, and every
+  path and viewer path. `explain` gains `reachedBy`, the registered mutations
+  whose write reaches the list (#439).
+- `foldkit-remote`: `RemoteData.all({ ... })` joins reads into one `RemoteData`
+  of the struct of their values. The first state any entry is in decides:
+  `Failed`, `NotFound`, `Initial`, `Loading`; with every value held it is
+  `Refreshing` if any entry is, else `Ready` (#481).
 - `foldkit-mixins-ui`: `Recipes.Dialog` and `Recipes.Sheet` take `motion`
   (`standard`, or `none`, which opens, closes and steps back at once in every
   state) and `close` (`corner`, or `none`, which leaves the `closeButton` Slot
