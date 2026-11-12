@@ -12,6 +12,8 @@ const client = '../src/client.ts'
 const model = '../src/model.ts'
 const outbox = '../src/outbox.ts'
 const store = '../src/outboxStore.ts'
+const queue = '../src/queue.ts'
+const status = '../src/outboxStatus.ts'
 
 export default [
   edit(
@@ -28,7 +30,7 @@ export default [
   ),
   edit(
     "a visitor's write names someone",
-    outbox,
+    queue,
     'Visitor: () => Option.none(),',
     "Visitor: () => Option.some('User:visitor'),",
   ),
@@ -160,11 +162,11 @@ export default [
   ),
   edit(
     'any write is sent whoever the page heard',
-    store,
+    queue,
     "Signed: ({ key }) => madeAs?._tag === 'Signed' && madeAs.key === key,",
     'Signed: () => true,',
   ),
-  edit("a visitor's page sends nothing", store, 'Visitor: () => true,', 'Visitor: () => false,'),
+  edit("a visitor's page sends nothing", queue, 'Visitor: () => true,', 'Visitor: () => false,'),
   edit(
     'a write made for someone else is not reported',
     outbox,
@@ -173,7 +175,7 @@ export default [
   ),
   edit(
     'a write made for someone else shows as waiting its turn',
-    outbox,
+    status,
     '            heldFrom(write, outbox)\n              ? OutboxItemState',
     '            false\n              ? OutboxItemState',
   ),
@@ -364,7 +366,7 @@ export default [
   ),
   edit(
     "an unstamped write in another's queue is not held",
-    outbox,
+    status,
     '(signedOwner(outbox.owner) &&',
     '(false &&',
   ),

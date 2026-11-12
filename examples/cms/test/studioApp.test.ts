@@ -160,7 +160,7 @@ describe('the studio application', () => {
         message: Posts.Message.TypedSchedule({ text: '2026-10-01T09:00' }),
       }),
     ).model
-    expect(next.posts.scheduleAt).toBe('2026-10-01T09:00')
+    expect(Posts.scheduleText(next.posts)).toBe('2026-10-01T09:00')
     expect(next.posts).not.toBe(model.posts)
     expect(next.pages).toBe(model.pages)
   })
@@ -183,9 +183,9 @@ describe('the studio application', () => {
         message: Posts.Message.TypedSchedule({ text: '2026-10-01T09:00' }),
       }),
     ).model
-    expect(typed.posts.scheduleAt).toBe('2026-10-01T09:00')
+    expect(Posts.scheduleText(typed.posts)).toBe('2026-10-01T09:00')
     const back = changed(changed(typed, '/pages'), '/')
-    expect(back.posts.scheduleAt).toBe('2026-10-01T09:00')
+    expect(Posts.scheduleText(back.posts)).toBe('2026-10-01T09:00')
   })
 
   it('drops the `new` another section named on a switch', () => {

@@ -78,19 +78,6 @@ export default [
     tests: [...server, ...host],
   },
   {
-    name: 'only the last Set-Cookie of an answer is sent',
-    edits: [
-      {
-        file: '../src/http.ts',
-        find: "    'set-cookie': answered.headers.getSetCookie(),\n",
-        replace: '',
-      },
-    ],
-    tests: server,
-    survives:
-      'Password sign-in and sign-out each set one cookie; a multi-step method sets its flow cookie beside the session, which this example does not offer.',
-  },
-  {
     name: 'a change of principal here keeps what was read',
     edits: [
       {
@@ -309,8 +296,8 @@ export default [
     edits: [
       {
         file: '../src/page.ts',
-        find: 'Access.match(accessOf(model), {',
-        replace: 'Access.match(Access.Allowed(), {',
+        find: 'Denied: ({ url }) => Option.some(url),',
+        replace: 'Denied: () => Option.none(),',
       },
     ],
     tests: page,
@@ -332,22 +319,11 @@ export default [
     tests: page,
   },
   {
-    name: 'the host reads for every method',
-    edits: [
-      {
-        file: '../src/page.ts',
-        find: "if (method !== 'GET' && method !== 'HEAD') return entryFor(initial).renderPage(request)",
-        replace: '',
-      },
-    ],
-    tests: page,
-  },
-  {
     name: 'a session that ended fails the page',
     edits: [
       {
         file: '../src/page.ts',
-        find: "    Effect.catchTag('Unauthenticated', () => Effect.succeed(unread)),\n",
+        find: "        Effect.catchTag('Unauthenticated', () => Effect.succeed(unread)),\n",
         replace: '',
       },
     ],
@@ -369,8 +345,20 @@ export default [
     edits: [
       {
         file: '../src/server.ts',
-        find: "resolvePrincipal: AuthServer.resolver({ ...resolving, requests: 'navigation' }),",
-        replace: 'resolvePrincipal: AuthServer.resolver(resolving),',
+        find: 'const read = pageReader({ server, layer: () => Layer.empty, ...auth.navigation })',
+        replace: 'const read = pageReader({ server, layer: () => Layer.empty, ...auth.scripted })',
+      },
+    ],
+    tests: host,
+  },
+  {
+    name: "/remote is answered with a navigation's resolver",
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: 'const remote = serveFetch({ server, layer: () => Layer.empty, ...auth.scripted })',
+        replace:
+          'const remote = serveFetch({ server, layer: () => Layer.empty, ...auth.navigation })',
       },
     ],
     tests: host,
@@ -380,8 +368,8 @@ export default [
     edits: [
       {
         file: '../src/page.ts',
-        find: 'readAs(request, context.value.reader)',
-        replace: "readAs(request, httpReader(request, 'http://127.0.0.1:9'))",
+        find: 'Effect.provide(reader),',
+        replace: "Effect.provide(httpReader(request, 'http://127.0.0.1:9')),",
       },
     ],
     tests: host,
@@ -501,5 +489,34 @@ export default [
       },
     ],
     tests: app,
+  },
+  {
+    name: 'the password field sends through a closure the page cannot name',
+    edits: [
+      {
+        file: '../src/view.ts',
+        find: 'onInput: h.OnInput(Message.ChangedPassword),',
+        replace: 'onInput: value => Message.ChangedPassword({ value }),',
+      },
+    ],
+    tests: host,
+  },
+  {
+    name: 'the password field drops what is typed before boot',
+    edits: [
+      { file: '../src/view.ts', find: 'attributes: { input: [h.KeepTyped()] },', replace: '' },
+    ],
+    tests: host,
+  },
+  {
+    name: 'the email field drops what is typed before boot',
+    edits: [
+      {
+        file: '../src/view.ts',
+        find: 'h.input([...resolved.input, h.KeepTyped()])',
+        replace: 'h.input(resolved.input)',
+      },
+    ],
+    tests: host,
   },
 ]

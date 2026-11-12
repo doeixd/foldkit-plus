@@ -15,6 +15,7 @@
 import { Predicate, Result, Schema } from 'effect'
 import type { KeyboardModifiers } from 'foldkit/html'
 import { BINDING_ATTRIBUTE, EVENT_OF, UNNAMED_HANDLER } from './resumable.js'
+import { pathOf } from './marks.js'
 
 /**
  * A binding as the envelope carries it: Foldkit's attribute (`OnSubmit`,
@@ -244,7 +245,21 @@ export interface ListenOptions {
  * Listens at `root` for every event the bindings name, and answers each from
  * the markers. Returns what removes the listeners.
  */
-export const listen = (root: Element, options: ListenOptions): (() => void) => {
+export const listen = (root: Element, options: ListenOptions): (() => void) =>
+  listening(root, options).stop
+
+/**
+ * `listen`, and also what answers an event already dispatched, from the
+ * elements it passed (`pathOf` as it happened): one `foldkit-ssr/loader`
+ * held, whose own path the browser has since emptied.
+ */
+export const listening = (
+  root: Element,
+  options: ListenOptions,
+): {
+  readonly stop: () => void
+  readonly answer: (event: Event, path: ReadonlyArray<EventTarget>) => void
+} => {
   // The markers as served, read once: the boot takes them off the page before
   // Foldkit adopts it, and an event landing before the first render is still
   // answered from them.
@@ -265,12 +280,9 @@ export const listen = (root: Element, options: ListenOptions): (() => void) => {
   } else {
     for (const held of markers.values()) for (const event of held.keys()) events.add(event)
   }
-  const handler = (event: Event) => {
+  const answer = (event: Event, path: ReadonlyArray<EventTarget>) => {
     const type = event.type
     const messages: Array<unknown> = []
-    // An event that does not bubble (`focus`, `blur`, `mouseenter`) reaches only
-    // its target's own handlers on the live page, so only those answer it here.
-    const path = event.bubbles ? event.composedPath() : [event.target]
     for (const node of path) {
       if (!(node instanceof Element)) continue
       const tokens = markers.get(node)?.get(type)
@@ -303,8 +315,12 @@ export const listen = (root: Element, options: ListenOptions): (() => void) => {
     }
     options.onAnswer({ event, messages })
   }
+  const handler = (event: Event) => answer(event, pathOf(event))
   for (const type of events) root.addEventListener(type, handler, true)
-  return () => {
-    for (const type of events) root.removeEventListener(type, handler, true)
+  return {
+    stop: () => {
+      for (const type of events) root.removeEventListener(type, handler, true)
+    },
+    answer,
   }
 }

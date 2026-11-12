@@ -69,6 +69,7 @@ import {
   TabsSlots,
   TextareaSlots,
   ToastSlots,
+  FileDropSlots,
   TooltipSlots,
   TableSlots,
   ChatMessageSlots,
@@ -648,6 +649,14 @@ const resizableBasic = <Message>(style: NamedStyle<typeof ResizableSlots>, live:
     live.widgets.split,
     message => live.onWidget(Widgets.Message.GotSplit({ message })),
     live.direction,
+    live.h,
+  )
+
+const fileDropBasic = <Message>(style: NamedStyle<typeof FileDropSlots>, live: Live<Message>) =>
+  Snippet.fileDrop(
+    style,
+    { drop: live.widgets.drop, attached: live.widgets.attachments },
+    message => live.onWidget(Widgets.Message.GotDrop({ message })),
     live.h,
   )
 
@@ -3041,6 +3050,21 @@ export const showcases: ReadonlyArray<Showcase> = [
           ),
       },
     ],
+  ),
+  fromRecipe(
+    {
+      slug: 'file-drop',
+      title: 'File drop',
+      summary: 'A zone to drop files on or click to browse, tinted while a drag hovers.',
+      recipe: 'FileDrop',
+      file: 'fileDrop',
+      contract: 'FileDropSlots',
+    },
+    FileDropSlots,
+    Recipes.FileDrop,
+    fileDropBasic,
+    undefined,
+    [{ name: 'basic', title: 'Dropped files', draw: fileDropBasic }],
   ),
   fromRecipe(
     {

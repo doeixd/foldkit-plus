@@ -10,9 +10,18 @@
  * only names, `InToys` filters through the category's name, and `Opaque` is a
  * list whose meaning only its server knows (no body).
  */
-import { Match, Schema } from 'effect'
+import { Match, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Collation, Entity, Expr, Order, Query as Body, Relation, Write } from 'foldkit-entity'
+import {
+  Collation,
+  Entity,
+  Expr,
+  Order,
+  Query as Body,
+  Relation,
+  Write,
+  dependenciesOf,
+} from 'foldkit-entity'
 import { Projection, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { EntityChange, Impact, impactOn, type HeldConnection } from '../src/impact.js'
@@ -47,6 +56,12 @@ const InToys = Query.define('InToys', {}, () =>
   Query.from(Product).pipe(
     Query.where(Expr.eq(Expr.path(Product.relations.category, Category.fields.name), 'toys')),
     Query.orderBy(...byName),
+  ),
+)
+const Stocked = Query.define('Stocked', {}, () =>
+  Query.from(Category).pipe(
+    Query.where(Expr.exists(Product.relations.category, Expr.eq(Product.fields.status, 'active'))),
+    Query.orderBy(Order.asc(Category.fields.id, binary)),
   ),
 )
 const Opaque = Query.make('Opaque', { Input: {}, Result: Product })
@@ -195,7 +210,10 @@ const candidate = (
           path.via.some(relation => same(relation.owner, relation.key)),
         Exists: exists =>
           same(exists.relation.owner, exists.relation.key) ||
-          exists.via.some(relation => same(relation.owner, relation.key)),
+          exists.via.some(relation => same(relation.owner, relation.key)) ||
+          Option.exists(exists.where, where =>
+            dependenciesOf(where).fields.some(field => same(field.owner, field.key)),
+          ),
         ViewerPath: path =>
           same(path.field.owner, path.field.key) ||
           path.via.some(relation => same(relation.owner, relation.key)),
@@ -232,6 +250,11 @@ describe('#477 edge 2, the queries a write can reach, from declarations alone', 
         field => field.owner.token === Category.identity.token,
       ),
     ).toBe(false)
+  })
+
+  it("finds a query that reads the member only inside an exists' where, by its reaches", () => {
+    expect(candidate(SetStatus, Stocked)).toBe('reads')
+    expect(candidate(RenameCategory, Stocked)).toBe('unaffected')
   })
 
   it('is unknown, never unaffected, for a query whose body only its server has', () => {

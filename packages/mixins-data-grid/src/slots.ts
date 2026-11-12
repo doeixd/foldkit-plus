@@ -12,6 +12,8 @@ const AriaValueMax = Attr.make('aria-valuemax')
 const Id = Attr.make('id')
 const MouseDown = Event.make('mousedown')
 const AriaHasPopup = Attr.make('aria-haspopup')
+const AriaChecked = Attr.make('aria-checked')
+const GridCheckbox = Attr.make('data-grid-checkbox')
 
 // What the virtual window is worked out from: a Style that changed one of
 // these would draw rows where the window math does not think they are.
@@ -108,6 +110,17 @@ export const GridSlots = Slots.define({
     protected: { events: [Event.Input, Event.KeyDown, Event.Blur] },
   }),
   /**
+   * A checkbox column's control, in place of the cell's text: a
+   * `role="checkbox"` whose `aria-checked` is the column's value. A press on
+   * it, or Space or Enter on its cell, toggles it; focus stays on the grid,
+   * whose `aria-activedescendant` points at the box while its cell is the
+   * focused one, so its state is said.
+   */
+  checkbox: Slot.make({
+    capability: Capability.Base,
+    protected: { attributes: [Attr.Role, Id, AriaChecked, Attr.AriaLabel, GridCheckbox] },
+  }),
+  /**
    * Why the column refused a draft, shown below the field while the edit
    * lasts; the field names it with `aria-describedby`.
    */
@@ -173,6 +186,58 @@ export const GridSlots = Slots.define({
     events: [Event.Click],
     protected: { events: [Event.Click], attributes: [Attr.Role, Id] },
   }),
+  /**
+   * The button on a filterable column's header that opens its filter form,
+   * when the view is given `filters`: `aria-haspopup="dialog"` and
+   * `aria-expanded`, out of the tab order like the grid's other controls;
+   * `data-filtered` while the column is filtered.
+   */
+  filterButton: Slot.make({
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaLabel],
+    protected: { events: [Event.Click], attributes: [AriaHasPopup, Attr.AriaExpanded, Tabindex] },
+  }),
+  /**
+   * A column's open filter form, below its header: a non-modal
+   * `role="dialog"` holding native fields. Escape and focus leaving the
+   * header close it.
+   */
+  filter: Slot.make({
+    capability: Capability.Focusable,
+    events: [Event.KeyDown],
+    protected: {
+      events: [Event.KeyDown],
+      attributes: [Attr.Role, Tabindex, Id],
+      style: ['position'],
+    },
+  }),
+  /** A `label` in the filter form: a field's words and its field, or an option's box and words. */
+  filterLabel: Slot.make({ capability: Capability.Base }),
+  /**
+   * A typed field of the filter form: text, a bound, or a day. `aria-invalid`
+   * on a bound that is no number, or above the upper bound.
+   */
+  filterField: Slot.make({
+    capability: Capability.TextInput,
+    events: [Event.Input],
+    protected: { events: [Event.Input], attributes: [Id] },
+  }),
+  /** A choice's checkboxes, or a checkbox column's radios: `role="group"` or `"radiogroup"`. */
+  filterGroup: Slot.make({
+    capability: Capability.Container,
+    protected: { attributes: [Attr.Role] },
+  }),
+  /** One option's native checkbox, or one radio of a checkbox column's filter. */
+  filterCheck: Slot.make({
+    capability: Capability.Focusable,
+    events: [Event.Click],
+    protected: { events: [Event.Click] },
+  }),
+  /** Why a bound is refused, below the form; its field names it with `aria-describedby`. */
+  filterError: Slot.make({ capability: Capability.Base, protected: { attributes: [Id] } }),
+  /** Empties the form, reporting no filter: drawn while a filter holds. */
+  filterClear: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
   /**
    * The button on a sortable column's header: a click sends its sort Message.
    * `data-sort` is `asc` or `desc` while the column is sorted.

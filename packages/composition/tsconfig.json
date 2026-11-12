@@ -50,6 +50,7 @@
       "foldkit-richtext-dom/view": ["../richtext-dom/src/view.ts"],
       "foldkit-ssr": ["../ssr/src/index.ts"],
       "foldkit-ssr/client": ["../ssr/src/client.ts"],
+      "foldkit-ssr/loader": ["../ssr/src/loader.ts"],
       "foldkit-ssr/vite": ["../ssr/src/vite.ts"],
       "foldkit-surface": ["../surface/src/index.ts"]
     }

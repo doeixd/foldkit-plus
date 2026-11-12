@@ -17,7 +17,10 @@ type MeterDemo = Readonly<{
   tone: 'success' | 'warning'
 }>
 
-/** No `foldkit-mixins-ui` adapter covers a Meter, so its bundles take the page's Slots. */
+/**
+ * The port keeps upstream's Meter view on purpose (see the README), so its
+ * bundles take the page's Slots.
+ */
 const meterDemo = (demo: MeterDemo, slots: Slots, h: HtmlBuilder<UiMessage>): Html =>
   Meter.view(
     {

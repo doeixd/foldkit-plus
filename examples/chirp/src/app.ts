@@ -5,77 +5,31 @@
  */
 import { Effect, Option, Schema } from 'effect'
 import * as Command from 'foldkit/command'
-import { defineMessageUnion } from 'foldkit/message'
-import { load, pushUrl, UrlRequest } from 'foldkit/navigation'
+import { load } from 'foldkit/navigation'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
-import { Url } from 'foldkit/url'
+import type { Url } from 'foldkit/url'
 import { Bundle } from 'foldkit-bundle'
 import { Entity, type Selected } from 'foldkit-entity'
 import { Remote, RemoteData, RemotePolicy, type RemoteClient } from 'foldkit-remote'
 import { outbox } from 'foldkit-remote/outbox'
 import { Site } from 'foldkit-site'
-import { Surface } from 'foldkit-surface'
 import { Composer } from './compose.js'
-import { Chirper } from './domain.js'
 import { Editing, Editor } from './editor.js'
-import { Like, Post } from './guard.js'
-import {
-  ByAuthor,
-  DeletePost,
-  EditPost,
-  LikePost,
-  PostChirp,
-  Timeline,
-  TimelinePost,
-  Unlike,
-  UserCard,
-  likeOf,
-  NewPost,
-} from './operations.js'
-import { PEOPLE, type Person } from './server/seed.js'
-import { AppRoute, ChirpSite, routeOf } from './site.js'
+import { Post } from './guard.js'
+import { DeletePost, LikePost, PostChirp, Unlike, likeOf, NewPost } from './operations.js'
+import { AppRoute } from './route.js'
+import { ChirpSite, routeOf } from './site.js'
+import { App, Data, Message, Model, Own } from './state.js'
+import type { Person } from './server/seed.js'
 
 type Return = Update.Return<Model, Message, RemoteClient>
 
-const steps = {
-  MintedId: { id: Schema.String },
-  ClickedEdit: { id: Schema.String },
-  ClosedEditor: {},
-  SwitchedPerson: { person: Schema.Literals(PEOPLE) },
-  ClickedLink: { request: UrlRequest },
-  ChangedUrl: { url: Url },
-  CompletedNavigation: {},
-  CompletedLoad: {},
-}
-
-// #region loop
-export const Model = Schema.Struct({
-  ...Composer.fields,
-  ...Editing.fields,
-  remote: Remote.Model,
-  route: AppRoute,
-  me: Schema.Literals(PEOPLE),
-})
-const own = {
-  ClickedLike: { postId: Schema.String },
-  ClickedDelete: { id: Schema.String },
-  ClockedPost: { post: NewPost, now: Schema.Number },
-  ...steps,
-}
-export const Message = defineMessageUnion({
-  ...Remote.messages,
-  ...Composer.cases,
-  ...Editing.cases,
-  ...own,
-})
-const Own = defineMessageUnion(own)
 const reduce = (model: Model, message: typeof Own.Type): Return =>
   Own.match(message, {
     ClickedLike: ({ postId }) => like(model, postId),
     ClickedDelete: ({ id }) => taken(model, id),
     ClockedPost: ({ post, now }) => sent(model, post, now),
-    // #endregion
     MintedId: ({ id }) => ComposeForm.helpers.fill({ id })(model),
     ClickedEdit: ({ id }) => EditorForm.helpers.open(id)(model),
     ClosedEditor: () => EditorForm.helpers.close()(model),
@@ -87,8 +41,6 @@ const reduce = (model: Model, message: typeof Own.Type): Return =>
     CompletedNavigation: () => ({ model }),
     CompletedLoad: () => ({ model }),
   })
-export type Model = typeof Model.Type
-export type Message = typeof Message.Type
 
 /** A fresh id for the next chirp: the client names the row it inserts. */
 export const MintId = Command.define('MintId', {
@@ -100,44 +52,6 @@ const Load = Command.define('Load', {
   args: { href: Schema.String },
   messages: [Message.CompletedLoad],
   execute: ({ href }) => load(href).pipe(Effect.as(Message.CompletedLoad())),
-})
-
-export const App = Surface.application({ Model, Message })
-
-// #region remote-make
-export const Data = Remote.make({
-  model: App.model.remote,
-  entities: [Chirper, Post, Like],
-  queries: [Timeline, ByAuthor],
-  mutations: [PostChirp, EditPost, DeletePost, LikePost, Unlike],
-  // Who reads: whom a like, a chirp's author, and `liked` are predicted for.
-  viewer: model => Option.some(Remote.ref(Chirper, model.me)),
-  // Off in a build; `tsx` has no `import.meta.env`.
-  verifyPredictions: import.meta.env?.DEV === true,
-})
-// #endregion
-
-// #region surface
-export const Home = App.surface('Home', {
-  model: () => ({
-    timeline: Data.query(Timeline, {}, { select: TimelinePost, first: 25 }),
-  }),
-})
-// #endregion
-
-/** A person's page: who they are, and what they posted. */
-export const Profile = App.surface('Profile', {
-  params: { handle: Schema.String },
-  model: ({ params }) => ({
-    person: Data.get(UserCard, params.handle),
-    posts: Data.query(ByAuthor, { authorId: params.handle }, { select: TimelinePost, first: 25 }),
-  }),
-})
-
-/** One post, at its own address. */
-export const Status = App.surface('Status', {
-  params: { id: Schema.String },
-  model: ({ params }) => ({ post: Data.get(TimelinePost, params.id) }),
 })
 
 // #region mutate
@@ -224,9 +138,7 @@ export const EditorForm = Page.at(Editing, PostEditor.placement)
 
 /** Every read the page makes, each while its route is the page's. */
 export const actives = {
-  home: Surface.when(Home, App.model.route, AppRoute.Home, () => undefined),
-  profile: Surface.when(Profile, App.model.route, AppRoute.Profile, ({ handle }) => ({ handle })),
-  status: Surface.when(Status, App.model.route, AppRoute.Status, ({ id }) => ({ id })),
+  ...Site.sources(ChirpSite, App.owner, App.model.route),
   editor: PostEditor.active,
 }
 
@@ -252,15 +164,28 @@ export const durable = outbox(Data, {
 })
 
 /**
- * Every read is fresh for a minute: a page gone back to within it is drawn
- * from the store and asks nothing, and one on screen longer is read again.
+ * Reads are fresh for a minute (a profile's, 15 seconds, below): a page gone
+ * back to within it is drawn from the store and asks nothing, and one on screen
+ * longer is read again.
  */
 export const freshness = RemotePolicy.staleWhileRevalidate({ maxAge: 60_000 })
+
+/** A profile is someone else's page and changes under you: read again after 15 seconds. */
+export const profileFreshness = RemotePolicy.staleWhileRevalidate({ maxAge: 15_000 })
+
+/** The window each page's reads keep, by the route shown. */
+export const policy = (model: Model): RemotePolicy =>
+  AppRoute.match(model.route, {
+    Home: () => freshness,
+    Profile: () => profileFreshness,
+    Status: () => freshness,
+    NotFound: () => freshness,
+  })
 
 const placements = Page.assemble(
   ComposeForm,
   EditorForm,
-  Data.wiring(actives, { policy: freshness }),
+  Data.wiring(actives, { policy }),
   durable,
   Routing,
 )

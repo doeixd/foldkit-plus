@@ -299,7 +299,7 @@ one.
 | `Style.when(condition, piece)` | a boolean known at authoring time |
 | `Style.whenInput(predicate, piece)` | a condition read from the view input at render time |
 | `Style.recipe({ base, variants, defaults, compound })` | one slot: returns `selection => StyleValue`; every field is optional, so a recipe may be only its base |
-| `Style.recipeFor(Slots)({ base, variants, defaults, compound })` | every slot: returns `selection => StylePieces`; `null` unsets a defaulted axis; `.extend(patch)` merges per slot and refuses a slot the contract lacks |
+| `Style.recipeFor(Slots)({ base, variants, defaults, compound })` | every slot: returns `selection => RecipePieces`, in which every `base` slot is present and a variant's slot may be absent; `null` unsets a defaulted axis, which is how a recipe makes a piece optional; `.extend(patch)` composes per slot, removes nothing, and refuses a slot the contract lacks |
 | `Style.perItem(item => piece)` / `Style.stagger({ stepMs })` | a piece from the item the slot is rendered for (`attrs(base, item)`); stagger writes `--fk-index` inline and the `calc` delay as a rule |
 | `Style.forCapability(Slots)(capability, piece)` | one piece for every public slot whose capability satisfies it |
 | `Style.slots(pieces, options?)` / `Style.slot(slotOptions, piece)` | an application's own Slots declared by their style: `{ slots, style }` (see [An application's own look](#an-applications-own-look)) |
@@ -312,9 +312,23 @@ one.
 | `Theme.schemeScript(key?)` / `Theme.chooseScheme(scheme, key?)` / `Theme.currentScheme()` | from `foldkit-mixins/theme`: a head script applying a kept `light` or `dark` before the first paint; a Command's Effect that applies and keeps a choice; the scheme applied now |
 | `Theme.knobScript({ key?, selector? })` / `Theme.chooseKnobs(theme, { base, key?, selector? })` | from `foldkit-mixins/theme`: a head script applying kept knob variables before the first paint; a Command's Effect that applies `theme`'s knobs that differ from `base` and keeps them |
 | `Theme.make(values)` / `Theme.standard(theme?)` / `Theme.fluidType({ min, max })` | from `foldkit-mixins/theme`: a theme, the typed knob values it changes (`Knobs.standard`); every shipped token with a theme's knobs, for `Theme.root`; one size blended between two lengths by the theme's fluid range |
-| `Theme.tokens` / `Theme.breakpointWidths(theme)` | from `foldkit-mixins/theme`: the shipped spacing, type, reading, radius, motion, width, border, shadow and breakpoint scales, `icon` (the masks the components draw their own icons with, Heroicons' outline set at 2px by default; an application's pack is `foldkit-mixins-ui`'s `Icons.tokens(pack)`, passed as its own tokens), and `safe` (what a notch or the home indicator takes from each screen edge, `env(safe-area-inset-*)`, 0 unless the viewport meta says `viewport-fit=cover`); the breakpoints as pixel widths for `foldkit-primitives/media` |
+| `Theme.tokens` / `Theme.breakpointWidths(theme)` | from `foldkit-mixins/theme`: the shipped spacing, type, reading, radius, motion, width, border, shadow and breakpoint scales, `icon` (the masks the components draw their own icons with, Heroicons' outline set at 2px by default; an application's pack is `foldkit-mixins-ui`'s `Icons.tokens(pack)`, passed as its own tokens), and `safe` (what a notch or the home indicator takes from each screen edge, `env(safe-area-inset-*)`, 0 unless the viewport meta says `viewport-fit=cover`), and `overlay.scrim` (what a modal's backdrop draws over the page: the page's own base at 45%, so it dims in either scheme; a theme that wants a darker veil overrides that token in the tokens it composes); the breakpoints as pixel widths for `foldkit-primitives/media` |
 | `Layers.define(names)` / `Layers.standard` | cascade layers as a value: `names`, `declare` (the `@layer …;` statement as a global piece), `in(name, piece)` (a piece's unlayered rules and global CSS inside that layer; what is already layered keeps its layer; a piece wholly in another layer is `style:relayered`) and `layer(name)` (the placement `Style.forSlots(S)(pieces, { layer })` takes, so a slot style is compiled in that layer). A name outside the order is a type error. `standard` is `reset, tokens, theme, defaults, components, layouts, variants, utilities, app`; also under `foldkit-mixins/layers` |
 | `Style.stylesheet(...)` | one `<style>` block from `NamedStyle`s and bare `StyleValue`s: the layer order hoisted first (two different orders is `style:conflicting-layer-order`), then global chunks, then scoped classes, deduplicated. Once an order is declared, a rule outside it is `style:unlayered-rule`, since it would beat every layer; keyframes, font faces and `@property` pass |
+
+A selection is a plain object of pieces. A base slot needs no fallback when one recipe's look goes on
+another element (`Recipes.Button({ tone: 'neutral' }).button`), and leaving a piece out of one use
+is destructuring:
+
+```ts
+import { DialogSlots, Recipes } from 'foldkit-mixins-ui'
+
+const { closeButton: _corner, ...dialogPieces } = Recipes.Dialog({ size: 'sm' })
+const PlainDialogStyle = Style.forSlots(DialogSlots)(dialogPieces)
+```
+
+Leaving out a style does not leave out the element: the view still draws the close button wherever
+it puts `dialog.closeButton`, now without the recipe's look.
 
 Rule-based Style compiles to one deterministic class (an FNV-1a hash of canonical rule text) plus
 CSS as data:
@@ -758,14 +772,21 @@ step is a type error and the value still follows the `density` knob and theme ov
 (`size`), `font` (`weight`), `leading`, `rounded` (`radius`), `color` and `bg` (a palette
 color as `'group.name'`), `items` and `justify` (`'between'` is `space-between`), and the
 constants `flex`, `column`, `grid`, `block`, `hidden`, `wFull`, `textCenter`, `uppercase`,
-`truncate`, `pointer` and `selectNone`, and `scrollFade(axis)`, a scroller's content dissolving
+`truncate`, `srOnly`, `pointer` and `selectNone`, `scriptedOnly` and `plainOnly(display)` (the
+pair for a page in a browser running no scripts: a control only a script drives is hidden there,
+and its plain stand-in, `display: none` until then, is shown as `display`; put `scriptedOnly` last
+in a slot's pieces so it wins over a width's `display`), and `scrollFade(axis)`, a scroller's content dissolving
 toward an edge with more to scroll (a scroll-driven mask: the true ends stay crisp until something
 is past them, and a browser without scroll timelines gets no fade), `scrollDivider(axis)` with
 `scrollTimeline(axis)`, a hairline at each edge with more past it, drawn on a positioned parent's
 `::before` and `::after` (the fade's mask would erase a line inside the scroller) from the timeline
 the scroller names, where the browser has `timeline-scope`, and `steady(weight)`, room for a
 label at a heavier weight, read from the element's `data-label`, so turning bold moves nothing
-beside it. Each is a `Style.self` rule, unlayered, so it takes the
+beside it, and `busyReveal`, busy text said only once a wait is noticeable: on an element marked
+`aria-busy="true"` it fades in after 0.6s, so a read answered sooner never flashes a "Loading…";
+the element renders from the start, holding its space, and without `aria-busy` the piece does
+nothing, so one status Slot also says "Nothing here." plainly. Its fade follows the `motion` knob;
+its delay does not, or a still theme would bring the flash back. Each is a `Style.self` rule, unlayered, so it takes the
 layer of the style it is composed into, and a plain declaration after it wins per property. A
 value off the scale is a plain declaration (`{ fontSize: '3.75rem' }`); a color outside
 the palette's groups is read through `t`.
@@ -1268,6 +1289,43 @@ define. It sees only what is drawn, so a browser test comparing the page's
 computed styles under both sheets covers the states a server never draws
 (`examples/foldkit/domains-plus/test/look.browser.test.ts`). It is off unless
 asked for.
+
+### Style modules shipped as data
+
+The sheet already holds every class, but a page that imports its style
+module still runs the compiler to work out each class's name: the recipes,
+the theme builder and the rules, about 30 KB brotli on domains-plus. Name the
+style modules in `modules`, and the production browser build replaces each
+with what it evaluated to while the sheet was built:
+
+```ts
+styles({ sheet: '/src/server/sheet.ts', modules: ['/src/client/style.ts'] })
+```
+
+- **What a listed module ships.** Each Style keeps its `name` and its `mixin`,
+  whose Slots draw the classes and inline declarations the Style compiled to;
+  a `Style.slots` declaration keeps its `slots` contract and its `style`. Its
+  other fields (`pieces`, `css`, `rules`) throw when read. A string, or an
+  object of strings such as `t`, ships as it is.
+- **What fails the build.** An export that is anything else (a function, an
+  `AppStyle`), and a Style using `Style.whenInput` or `Style.perItem`, which
+  choose classes at run time. The error names the module and the export. Keep
+  such a module at run time by leaving it off the list.
+- **Attach with `SlotView`.** A module that imports `Style` keeps the compiler
+  in the page, so attach a frozen style with `SlotView.attach(Page.style.mixin)`
+  rather than `Style.attach(Page.style)`, and keep the `AppStyle` (its `slots`
+  and `forSlots` are functions) in a module of its own that only the listed
+  module and the sheet import.
+- **Production and development.** With a module listed, a production browser
+  build's Slots inject nothing: the linked sheet holds every class, and the
+  build fails if a class a frozen module draws has no rule in it. Development
+  is unchanged: modules run as written, and a Slot injects what it draws. The
+  server build is unchanged too.
+
+On domains-plus the page's JavaScript fell from 217.5 KB to 191.6 KB brotli,
+and no recipe or rule compiler is left in it (`test/bundle.test.ts`);
+`test/frozen.test.ts` checks that every frozen export draws what the run-time
+module does.
 
 ## `@foldkit/ui`
 

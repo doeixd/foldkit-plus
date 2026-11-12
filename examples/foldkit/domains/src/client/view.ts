@@ -1,4 +1,4 @@
-import { Array, Number, Option, Schema, String, pipe } from 'effect'
+import { Array, Match, Number, Option, Schema, String, pipe } from 'effect'
 import { type Html, childAttributes } from 'foldkit/html'
 
 import { type Listbox } from '@foldkit/ui'
@@ -84,9 +84,10 @@ const searchFormView = (model: Model, h: ApplicationViewBuilder): Html => {
         h.Name('q'),
         h.AriaLabel('Search domains'),
         h.AriaInvalid(isQueryInvalid),
-        ...(search._tag === 'Failed'
-          ? [h.AriaDescribedBy('search-error')]
-          : []),
+        ...Match.value(search).pipe(
+          Match.tag('Failed', () => [h.AriaDescribedBy('search-error')]),
+          Match.orElse(() => []),
+        ),
         h.Placeholder('Search for a domain'),
         h.Value(query),
         h.Autocomplete('off'),
@@ -785,12 +786,11 @@ const resultsListView = (
 ): Html => {
   const search = searchViewState(model)
 
-  return h.div(
-    [h.Class('all-results')],
-    [
-      search._tag === 'Idle'
-        ? h.empty
-        : h.block(
+  const viewport: Html = SearchViewState.matchOrElse(
+    search,
+    { Idle: () => h.empty },
+    () =>
+      h.block(
             ResultsListBinding.embedView({
               slotId: RESULTS_LIST_ID,
               model: model.resultsList,
@@ -832,7 +832,13 @@ const resultsListView = (
                 ]),
               },
             }),
-          ),
+      ),
+  )
+
+  return h.div(
+    [h.Class('all-results')],
+    [
+      viewport,
       h.ul(
         [h.Class('results-preview'), h.AriaHidden(true)],
         Array.map(Array.take(results, PREVIEW_RESULT_COUNT), domain =>
@@ -899,9 +905,8 @@ const resultCountText = (
 
   if (search._tag === 'Ready' && search.domains.length < domainTlds.length) {
     return `${search.domains.length} of ${domainTlds.length} domains checked · Registration prices in USD`
-  } else {
-    return `${results.length} domains · Registration prices in USD`
   }
+  return `${results.length} domains · Registration prices in USD`
 }
 
 const searchResultsView = (model: Model, h: ApplicationViewBuilder): Html => {
@@ -950,14 +955,16 @@ const searchResultsView = (model: Model, h: ApplicationViewBuilder): Html => {
           h.Class('result-count'),
           h.Role('status'),
           h.AriaAtomic(true),
-          ...(search._tag === 'Ready'
-            ? []
-            : [h.AriaLabel('Searching domains')]),
+          ...Match.value(search).pipe(
+            Match.tag('Ready', () => []),
+            Match.orElse(() => [h.AriaLabel('Searching domains')]),
+          ),
         ],
         [
-          search._tag === 'Ready'
-            ? resultCountText(model, results)
-            : 'Checking availability and prices…',
+          Match.value(search).pipe(
+            Match.tag('Ready', () => resultCountText(model, results)),
+            Match.orElse(() => 'Checking availability and prices…'),
+          ),
         ],
       ),
     ],
@@ -983,9 +990,10 @@ const resultsView = (model: Model, h: ApplicationViewBuilder): Html => {
   return h.section(
     [h.Class('results'), h.AriaLabel('Domain results')],
     [
-      search._tag === 'Failed'
-        ? searchErrorView(search.error, h)
-        : searchResultsView(model, h),
+      Match.value(search).pipe(
+        Match.tag('Failed', ({ error }) => searchErrorView(error, h)),
+        Match.orElse(() => searchResultsView(model, h)),
+      ),
     ],
   )
 }

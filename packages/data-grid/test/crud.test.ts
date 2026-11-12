@@ -1,6 +1,6 @@
 import { Option, Schema } from 'effect'
 import { Crud, Display } from 'foldkit-crud'
-import { ColumnLayout, GridProjection, RowCount, RowStatus } from 'foldkit-data-grid'
+import { ColumnLayout, Columns, GridProjection, RowCount, RowStatus } from 'foldkit-data-grid'
 import { GridCrud } from 'foldkit-data-grid/crud'
 import { Entity } from 'foldkit-entity'
 import { type Page, Query, type RemoteData } from 'foldkit-remote'
@@ -91,6 +91,9 @@ describe('GridCrud.columns with the grid’s own options', () => {
     GridCrud.columns(Posts, { columns: { author: { width: 10 } } })
     // @ts-expect-error -- the value is the list's Display, not the grid's to replace.
     GridCrud.columns(Posts, { columns: { title: { value: () => 'x' } } })
+    // A member's value is its text, which no checkbox draws.
+    // @ts-expect-error -- a listed member cannot be a checkbox.
+    GridCrud.columns(Posts, { columns: { title: { edit: { schema: Columns.checkbox } } } })
   })
 })
 

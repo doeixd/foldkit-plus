@@ -74,11 +74,12 @@ const member = async (name: string): Promise<string> => {
 
 /**
  * A page as a browser navigates to it: a `GET` with the cookie, no CSRF
- * header, and the `Sec-Fetch-Mode` a navigation has. Sent with `node:http`,
- * since Node's `fetch` sends `Sec-Fetch-Mode: cors` whatever it is given,
- * which the page's resolver refuses as no navigation.
+ * header, and the `Sec-Fetch-Mode` a navigation has, unless `headers` say
+ * otherwise. Sent with `node:http`, since Node's `fetch` sends
+ * `Sec-Fetch-Mode: cors` whatever it is given, which the page's resolver
+ * refuses as no navigation.
  */
-const page = (path: string, cookie?: string) =>
+const page = (path: string, cookie?: string, headers: Record<string, string> = {}) =>
   new Promise<Response>((resolve, reject) => {
     const asked = request(
       `${stack.origin}${path}`,
@@ -87,6 +88,7 @@ const page = (path: string, cookie?: string) =>
           accept: 'text/html',
           'sec-fetch-mode': 'navigate',
           ...(cookie === undefined ? {} : { cookie }),
+          ...headers,
         },
       },
       answer => {
@@ -182,6 +184,49 @@ describe('pages', () => {
   }, 60_000)
 })
 
+describe("a member's cookie, on /remote and on a page", () => {
+  /** The status of a `/remote` call, with a read as its body, with `headers` beside the cookie. */
+  const callWith = async (cookie: string, headers: Record<string, string>) => {
+    const read = { operation: 'read', payload: { version: REMOTE_PROTOCOL_VERSION, requests: [] } }
+    const response = await fetch(`${stack.origin}/remote`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, ...headers },
+      body: JSON.stringify(read),
+    })
+    await response.text()
+    return response.status
+  }
+
+  it('is read on /remote only from the page’s own script', async () => {
+    const cookie = await member('Edith')
+    expect(await callWith(cookie, scripted())).toBe(200)
+    expect(await callWith(cookie, { origin: stack.origin })).toBe(401)
+    const elsewhere = { ...scripted(), origin: 'http://elsewhere.example' }
+    expect(await callWith(cookie, elsewhere)).toBe(401)
+  }, 60_000)
+
+  it('is read on a page followed from another site, which sends no Origin or header', async () => {
+    const cookie = await member('Hedy')
+    const response = await page('/', cookie, { 'sec-fetch-site': 'cross-site' })
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('Hedy, you have written 0 notes.')
+  }, 60_000)
+
+  it('is not read on a page a script fetches, which is no navigation', async () => {
+    const cookie = await member('Ida')
+    const response = await page('/', cookie, { 'sec-fetch-mode': 'cors', ...scripted() })
+    expect(response.status).toBe(200)
+    expect(await response.text()).not.toContain('Ida, you have written')
+  }, 60_000)
+
+  it('keeps every answer it reads it for out of any shared cache', async () => {
+    const cookie = await member('Joan')
+    expect((await page('/', cookie)).headers.get('cache-control')).toBe('private, no-store')
+    expect((await page('/sign-in', cookie)).headers.get('cache-control')).toBe('private, no-store')
+    expect((await page('/notes/n1')).headers.get('cache-control')).toBe('private, no-store')
+  }, 60_000)
+})
+
 describe('the origin', () => {
   /** A sign-in as Frances, sent straight to the Worker at `at`, naming `at` as its origin. */
   const signInAt = (at: string) =>
@@ -208,7 +253,7 @@ describe('the origin', () => {
     try {
       const response = await fetch(`${unset.origin}/`)
       expect(response.status).toBe(500)
-      expect(await response.text()).toBe('Set ORIGIN to where this Worker is served.')
+      expect(await response.text()).toBe('Set ORIGIN to where this application is served.')
     } finally {
       await unset.stop()
     }

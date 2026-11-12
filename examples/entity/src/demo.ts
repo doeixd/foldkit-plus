@@ -5,7 +5,7 @@
  * This joins the two in process and traces a read from plan to decoded value,
  * then a managed edit from a list row to the SQL row.
  */
-import { Effect, Layer, Schema, Option } from 'effect'
+import { Effect, Layer, Match, Schema, Option } from 'effect'
 import * as FieldValidation from 'foldkit/fieldValidation'
 import { Remote, RemoteData } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -109,7 +109,10 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     lines.push(`latest comment: ${describe(latest.read(paged))}`)
     const still = post.read(paged).post
     lines.push(
-      `every comment, still: ${still._tag === 'Ready' ? still.value.comments.length : still._tag}`,
+      `every comment, still: ${Match.value(still).pipe(
+        Match.tag('Ready', ({ value }) => value.comments.length),
+        Match.orElse(other => other._tag),
+      )}`,
     )
 
     // A second Surface walks the same graph from the other side. Ada's name came
@@ -155,7 +158,10 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     }
     lines.push(`post list: ${describeList(listed)}`)
     const row = Posts.page(listed)
-    const draft = row._tag === 'Ready' ? row.value.items.find(post => !post.published) : undefined
+    const draft = Match.value(row).pipe(
+      Match.tag('Ready', ({ value }) => value.items.find(post => !post.published)),
+      Match.orElse(() => undefined),
+    )
     if (draft === undefined) throw new Error('the list has no draft to open')
 
     lines.push(`row before: ${JSON.stringify(backend.row(draft.id))}`)
@@ -263,10 +269,13 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     )
     // Both came back as patches, so the new post reads with its author and no fetch.
     // A view that also wants comments would be `Initial` until Remote fetched them.
-    const fresh =
-      settled._tag === 'MutationSucceeded'
-        ? (settled.entities.find(patch => patch.entity === 'Post')?.id ?? '')
-        : ''
+    const fresh = Match.value(settled).pipe(
+      Match.tag(
+        'MutationSucceeded',
+        ({ entities }) => entities.find(patch => patch.entity === 'Post')?.id ?? '',
+      ),
+      Match.orElse(() => ''),
+    )
     lines.push(`new post: ${describe(Data.get(PostByline, PostId.make(fresh)).read(model))}`)
   } finally {
     backend.close()

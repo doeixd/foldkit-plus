@@ -15,6 +15,7 @@ export {
   type OutboxUnreadable,
   type OutboxUnsaved,
   type PredictionMismatch,
+  type ReadUnmade,
   type RemoteDiagnostic,
   type VerifyPredictions,
   type WriteUnheard,
@@ -88,6 +89,7 @@ export * from './policy.js'
 export * from './query.js'
 export * from './relation.js'
 export * from './remoteData.js'
+export * from './writing.js'
 export * from './requirement.js'
 export * from './retain.js'
 export * from './selection.js'

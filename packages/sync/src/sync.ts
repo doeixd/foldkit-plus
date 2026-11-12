@@ -6,6 +6,7 @@ import {
   PubSub,
   Queue,
   Ref,
+  Result,
   Schema,
   Stream,
   SynchronizedRef,
@@ -20,10 +21,13 @@ import {
   InvalidReplicaHistoryError,
   ReplayError,
   ReplicaClosedError,
+  UnreadableMessageError,
+  UnsupportedMessageVersionError,
   UnsupportedReplicaVersionError,
   WrongReplicaStorageError,
   type ReplicaError,
 } from './errors.js'
+import { historyOf, migrations, type Migrations } from './migrations.js'
 import type { Storage } from './indexedDb.js'
 import {
   DocumentId,
@@ -36,13 +40,17 @@ import {
 } from './ids.js'
 import { Transport, TransportError } from './transport.js'
 import { Diagnostics } from 'foldkit-surface'
-import { exchangeFailed, historyRebuilt } from './diagnostics.js'
+import { exchangeFailed, historyRebuilt, unknownRefusal } from './diagnostics.js'
+import { fitWords, SyncRefusal } from './refusal.js'
 
 /** Wire and persisted-format versions. A bump must handle the older value explicitly. */
 const PROTOCOL_VERSION = 1
 const SCHEMA_VERSION = 1
 
-/** A client-authored operation envelope. `message` is the application's encoded Message. */
+/**
+ * A client-authored operation envelope. `message` is the application's
+ * Message, encoded at the current version of the document's history.
+ */
 const OperationSchema = Schema.Struct({
   protocolVersion: Schema.Literal(PROTOCOL_VERSION),
   schemaVersion: Schema.Literal(SCHEMA_VERSION),
@@ -55,17 +63,52 @@ const OperationSchema = Schema.Struct({
 })
 export type Operation = typeof OperationSchema.Type
 
-/** An operation the server committed, with its authoritative order and actor. */
-const CommittedSchema = Schema.Struct({
+/**
+ * An operation as it was written: what a replica keeps in its outbox and
+ * sends, with its Message at the version it was written at. `messageVersion`
+ * is absent for version 1, so a document with no migrations writes today's
+ * envelope byte for byte.
+ */
+const WrittenFields = Schema.Struct({
   ...OperationSchema.fields,
+  messageVersion: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(1))),
+})
+/** The written shape, unbranded: what the codec reads before it vouches for anything. */
+type WrittenShape = typeof WrittenFields.Type
+/**
+ * Branded, so only Sync makes one: decoding an entry, or writing an
+ * `Operation` at the current version (`journalContract().operation.encode`).
+ * A decoded `Operation` is not one, since its missing `messageVersion` would
+ * read as version 1 and be upcast again.
+ */
+const WrittenOperationSchema = WrittenFields.pipe(Schema.brand('foldkit-sync/WrittenOperation'))
+export type WrittenOperation = typeof WrittenOperationSchema.Type
+/** What the codec has checked or written itself. */
+const vouched = (operation: WrittenShape): WrittenOperation => operation as WrittenOperation
+
+const committedFields = {
   serverSequence: Sequence.check(Schema.isGreaterThanOrEqualTo(1)),
   actorId: Schema.NonEmptyString,
-})
+}
+/** An operation the server committed, with its authoritative order and actor. */
+const CommittedSchema = Schema.Struct({ ...OperationSchema.fields, ...committedFields })
 /** Named to avoid colliding with `foldkit-durable`'s `Committed`. */
 export type CommittedOperation = typeof CommittedSchema.Type
+/** A committed operation as the server sends it: written at the server's current version. */
+const CommittedWrittenSchema = Schema.Struct({
+  ...WrittenFields.fields,
+  ...committedFields,
+})
 
-const decodeOperation = Schema.decodeUnknownSync(OperationSchema, { onExcessProperty: 'error' })
-const decodeCommitted = Schema.decodeUnknownSync(CommittedSchema, { onExcessProperty: 'error' })
+const decodeWritten = Schema.decodeUnknownSync(WrittenOperationSchema, {
+  onExcessProperty: 'error',
+})
+const decodeCommittedWritten = Schema.decodeUnknownSync(CommittedWrittenSchema, {
+  onExcessProperty: 'error',
+})
+/** The version an operation was written at: absent is 1. */
+const versionOf = (operation: WrittenShape): number => operation.messageVersion ?? 1
+const decodeRefusal = Schema.decodeUnknownResult(SyncRefusal, { onExcessProperty: 'error' })
 
 /**
  * How many committed-operation ids a replica retains for duplicate detection.
@@ -98,8 +141,15 @@ export interface Exchange<Shared> {
   readonly operations: ReadonlyArray<unknown>
   readonly rejected: ReadonlyArray<OpId>
   /**
-   * Why some of `rejected` were refused, in words the server chose for a person:
-   * a policy's reason, never an internal error. One without a reason is still rejected.
+   * Why some of `rejected` were refused, each an encoded `SyncRefusal`. One
+   * without a refusal is still rejected.
+   */
+  readonly refusals?:
+    | ReadonlyArray<{ readonly opId: OpId; readonly refusal: typeof SyncRefusal.Encoded }>
+    | undefined
+  /**
+   * @deprecated Send `refusals`; removed in the next release. Words the server
+   * chose for a person, for some of `rejected`.
    */
   readonly reasons?: ReadonlyArray<{ readonly opId: OpId; readonly reason: string }> | undefined
   /** Sends from the request that are durably committed, so the replica can drop them. */
@@ -126,7 +176,10 @@ export interface ReplicaState<Shared> {
   readonly cursor: Sequence
   readonly committed: Shared
   readonly committedIds: ReadonlyArray<string>
-  readonly pending: ReadonlyArray<Operation>
+  /** Operations not yet committed, as written. */
+  readonly pending: ReadonlyArray<WrittenOperation>
+  /** Operations this build cannot read, kept as written until dismissed; absent when none. */
+  readonly refused?: ReadonlyArray<WrittenOperation>
   /** The server history `cursor` points into, once an exchange has named one. */
   readonly epoch?: string
 }
@@ -139,7 +192,7 @@ export interface TransportClient {
   /** `epoch` is the server history the replica's cursor points into, when it knows one. */
   exchange(
     cursor: Sequence,
-    pending: ReadonlyArray<Operation>,
+    pending: ReadonlyArray<WrittenOperation>,
     epoch?: string | undefined,
   ): Promise<unknown>
 }
@@ -152,6 +205,13 @@ export interface ReplicaStatus {
   readonly lastError: string | undefined
   /** Operations the server refused, most recent first, with its reason when it gave one. */
   readonly rejected: ReadonlyArray<Rejection>
+  /**
+   * Operations this build cannot read, as written: an older version of the
+   * document's Message that no step of its history reads, found in the outbox
+   * or refused by the server as `Unreadable`. Never sent; kept, with their
+   * payload, until `Replica.dismiss`.
+   */
+  readonly refused: ReadonlyArray<WrittenOperation>
   /**
    * The server history the cursor points into, once a server named one. A new
    * one means the server was reset: what the replica had committed is gone.
@@ -166,8 +226,20 @@ export interface ReplicaStatus {
  */
 export interface Rejection {
   readonly opId: OpId
+  /**
+   * Why, typed. None when the server named no refusal (an older or a custom
+   * server), or one this build cannot read (reported as `UnknownRefusal`).
+   */
+  readonly refusal: Option.Option<SyncRefusal>
+  /**
+   * @deprecated Read `refusal`, through `SyncRefusal.match`; removed in the
+   * next release. The server's words from its `reasons`.
+   */
   readonly reason: Option.Option<string>
-  readonly operation: Operation
+  /** The operation as it was sent: its Message at the version it was written at. */
+  readonly operation: WrittenOperation
+  /** The operation's Message, encoded at the current version: what to read it by. */
+  readonly message: unknown
 }
 
 /**
@@ -198,7 +270,8 @@ export interface Replica<Message, Shared> {
    * rejected one never does.
    */
   readonly committed: Effect.Effect<Shared>
-  readonly pending: Effect.Effect<ReadonlyArray<Operation>>
+  /** The outbox, as written. */
+  readonly pending: Effect.Effect<ReadonlyArray<WrittenOperation>>
   readonly cursor: Effect.Effect<Sequence>
   /**
    * Waiting/recovery information without exposing Messages or the Model. It is a
@@ -229,12 +302,35 @@ export interface Replica<Message, Shared> {
    * with `Effect.forkScoped` and provide `Transport`.
    */
   readonly start: Effect.Effect<void, never, Transport>
+  /** Forgets a `status.refused` operation, its payload with it. One that is not there changes nothing. */
+  dismiss(opId: OpId): Effect.Effect<void, ReplicaError>
   readonly close: Effect.Effect<void>
 }
 
-export interface SyncDefinition<Message, Shared, MessageEncoded, SharedEncoded> {
+/**
+ * The document's Message: one Schema, at version 1, or its history
+ * (`Sync.migrations`), whose current Schema is the Message.
+ */
+export type MessageHistory<Message, MessageEncoded> =
+  | {
+      readonly message: Schema.Codec<Message, MessageEncoded, never, never>
+      readonly migrations?: undefined
+    }
+  | {
+      /** The Schemas operations may be stored in, and how each becomes the next. */
+      readonly migrations: Migrations<Message, MessageEncoded>
+      readonly message?: undefined
+    }
+
+export type SyncDefinition<Message, Shared, MessageEncoded, SharedEncoded> = SyncDefinitionOptions<
+  Message,
+  Shared,
+  SharedEncoded
+> &
+  MessageHistory<Message, MessageEncoded>
+
+export interface SyncDefinitionOptions<Message, Shared, SharedEncoded> {
   readonly documentId: DocumentId
-  readonly message: Schema.Codec<Message, MessageEncoded, never, never>
   readonly shared: Schema.Codec<Shared, SharedEncoded, never, never>
   readonly empty: Shared
   readonly durable: (message: Message) => boolean
@@ -279,8 +375,21 @@ export interface Sync<Message, Shared, Durable = Message> {
    * transport or a server that must speak the operation envelope directly.
    */
   readonly codec: {
+    /** The current version of the document's Message history: 1 with no migrations. */
+    readonly messageVersion: number
+    /**
+     * An operation as written, read: its Message upcast to the current version.
+     * Throws `UnsupportedMessageVersionError` for a newer version, and
+     * `UnreadableMessageError` for an older one no step reads.
+     */
     readonly normalizeOperation: (input: unknown) => Operation
     readonly operationFrom: (input: unknown, documentId: DocumentId) => Operation
+    /**
+     * An entry as received, checked as an envelope of this document, its Message unread.
+     * Never pass it an `Operation`: that Message is already current and would be read
+     * as version 1. Write one with `journalContract().operation.encode`.
+     */
+    readonly writtenFrom: (input: unknown, documentId: DocumentId) => WrittenOperation
     readonly committedFrom: (input: unknown, documentId: DocumentId) => CommittedOperation
     readonly decodeExchange: (input: unknown) => Exchange<Shared>
   }
@@ -314,9 +423,16 @@ export interface JournalContract<Operation, Shared> {
   /** Sync's operation id includes the replica, even after Durable compacts its payload. */
   readonly legacyReplicaId: (opId: string) => string
   readonly operation: {
-    /** Operations are stored in their encoded form, so this is the identity. */
-    readonly encode: (operation: Operation) => Operation
+    /** Written at the current version: what the journal stores. */
+    readonly encode: (operation: Operation) => WrittenOperation
+    /** Read from any version the history has, upcast to the current one. */
     readonly decode: (input: unknown) => Operation
+    /**
+     * What a retransmission is compared by: the operation normalized at the
+     * version it was written at, as the build that wrote it normalized it, so
+     * an edit committed before a deploy is still recognized after it.
+     */
+    readonly compared: (input: unknown) => WrittenOperation
   }
   readonly snapshot: {
     readonly encode: (snapshot: Shared) => unknown
@@ -342,8 +458,11 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
   definition: SyncDefinition<Message, Shared, MessageEncoded, SharedEncoded>,
 ): Sync<Message, Shared> => {
   const documentId = definition.documentId
-  const decodeMessage = Schema.decodeUnknownSync(definition.message, { onExcessProperty: 'error' })
-  const encodeMessage = Schema.encodeSync(definition.message)
+  const messages = definition.migrations ?? migrations(definition.message)
+  const history = historyOf(messages as Migrations<unknown, unknown>)
+  const current = history.version
+  const decodeMessage = Schema.decodeUnknownSync(messages.current, { onExcessProperty: 'error' })
+  const encodeMessage = Schema.encodeSync(messages.current)
   const decodeShared = Schema.decodeUnknownSync(definition.shared, { onExcessProperty: 'error' })
   const encodeShared = Schema.encodeSync(definition.shared)
 
@@ -357,13 +476,17 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
     cursor: Sequence,
     committed: definition.shared,
     committedIds: Schema.Array(Schema.String),
-    pending: Schema.Array(OperationSchema),
+    pending: Schema.Array(WrittenOperationSchema),
+    refused: Schema.optionalKey(Schema.Array(WrittenOperationSchema)),
     epoch: Schema.optionalKey(Schema.NonEmptyString),
   })
   const CheckpointSchema = Schema.Struct({ cursor: Sequence, model: definition.shared })
   const ExchangeSchema = Schema.Struct({
     operations: Schema.Array(Schema.Unknown),
     rejected: Schema.Array(OpId),
+    // Each refusal is decoded on its own, when the rejection is read: one this
+    // build cannot read must not fail the exchange that rejected its operation.
+    refusals: Schema.optional(Schema.Array(Schema.Struct({ opId: OpId, refusal: Schema.Unknown }))),
     // A server's words for a person, bounded: a reply is not a place for a document.
     reasons: Schema.optional(
       Schema.Array(
@@ -377,7 +500,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
   })
   const decodeState = Schema.decodeUnknownSync(ReplicaStateSchema, { onExcessProperty: 'error' })
   const encodeState = Schema.encodeSync(ReplicaStateSchema)
-  const encodeOperation = Schema.encodeSync(OperationSchema)
+  const encodeWritten = Schema.encodeSync(WrittenOperationSchema)
   const VersionProbe = Schema.Struct({
     protocolVersion: Schema.optional(Schema.Number),
     schemaVersion: Schema.optional(Schema.Number),
@@ -418,44 +541,101 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
       throw new Error('Invalid operation identity')
     }
   }
-  const decodeDurable = (message: unknown): Message => {
-    const decoded = decodeMessage(message)
+  /**
+   * An operation's Message, upcast to the current version and decoded. The
+   * durable check runs on the current Message, so a step that maps an old
+   * variant onto a local-only one is refused as that one is.
+   */
+  const newer = (opId: string, version: number) =>
+    new UnsupportedMessageVersionError({
+      opId,
+      found: version,
+      supported: current,
+      message: `Operation ${opId} was written at Message version ${version}; this build reads up to ${current}`,
+    })
+  const messageOf = (operation: WrittenShape): Message => {
+    const version = versionOf(operation)
+    if (version > current) throw newer(operation.opId, version)
+    let decoded: Message
+    if (version === current) decoded = decodeMessage(operation.message)
+    else
+      try {
+        decoded = decodeMessage(history.upcast(version, operation.message))
+      } catch (cause) {
+        throw new UnreadableMessageError({
+          opId: operation.opId,
+          version,
+          message: `No step of the Message history reads operation ${operation.opId}, written at version ${version}`,
+          cause,
+        })
+      }
     if (!definition.durable(decoded)) throw new Error('Message is local-only')
     return decoded
   }
-  const shape = <O extends Operation>(operation: O): O => {
-    checkIdentity(operation)
-    return { ...operation, message: encodeMessage(decodeDurable(operation.message)) }
+  /** The envelope alone: the decoded side holds no version, only the current Message. */
+  const envelopeOf = <O extends WrittenShape>({
+    messageVersion: _,
+    ...envelope
+  }: O): Omit<O, 'messageVersion'> => envelope
+  /** Written at the current version, which an explicit 1 is not. */
+  const write = (operation: Operation): WrittenOperation => {
+    const envelope = envelopeOf(operation)
+    return vouched(current === 1 ? envelope : { ...envelope, messageVersion: current })
   }
-  const assertDocument = <O extends Operation>(operation: O, key: DocumentId): O => {
+  const assertDocument = <O extends WrittenShape>(operation: O, key: DocumentId): O => {
     if (operation.documentId !== key) throw new Error('Wrong document')
     return operation
   }
-  const normalizeOperation = (input: unknown): Operation => shape(decodeOperation(input))
+  const read = (written: WrittenShape): Operation => {
+    checkIdentity(written)
+    return { ...envelopeOf(written), message: encodeMessage(messageOf(written)) }
+  }
+  const normalizeOperation = (input: unknown): Operation => read(decodeWritten(input))
   const operationFrom = (input: unknown, key: DocumentId): Operation =>
-    assertDocument(normalizeOperation(input), key)
+    read(assertDocument(decodeWritten(input), key))
+  const writtenFrom = (input: unknown, key: DocumentId): WrittenOperation => {
+    const written = assertDocument(decodeWritten(input), key)
+    checkIdentity(written)
+    return written
+  }
   /**
    * A committed operation arrives with its message already encoded, so decode it
    * once for the contract check and hand it to `replay` instead of decoding and
-   * re-encoding it on the way through `shape`.
+   * re-encoding it on the way.
    */
   const decodeCommittedOperation = (
     input: unknown,
     key: DocumentId,
   ): { readonly committed: CommittedOperation; readonly message: Message } => {
-    const committed = assertDocument(decodeCommitted(input), key)
-    checkIdentity(committed)
-    return { committed, message: decodeDurable(committed.message) }
+    const written = assertDocument(decodeCommittedWritten(input), key)
+    checkIdentity(written)
+    const message = messageOf(written)
+    return { committed: { ...envelopeOf(written), message: encodeMessage(message) }, message }
   }
   const committedFrom = (input: unknown, key: DocumentId): CommittedOperation =>
     decodeCommittedOperation(input, key).committed
+  /**
+   * Normalized at the version it was written at, with no upcast: what the
+   * build that wrote it hashed. An explicit `messageVersion: 1` is dropped,
+   * so it and an absent one compare alike.
+   */
+  const compared = (input: unknown): WrittenOperation => {
+    const written = decodeWritten(input)
+    const version = versionOf(written)
+    if (version > current) throw newer(written.opId, version)
+    const envelope = envelopeOf(written)
+    return vouched({
+      ...envelope,
+      ...(version === 1 ? {} : { messageVersion: version }),
+      message: history.normalize(version, written.message),
+    })
+  }
 
   const journalContract = (): JournalContract<Operation, Shared> => ({
     replicaId: operation => operation.replicaId,
     legacyReplicaId: opId => opId.slice(0, opId.lastIndexOf(':')),
-    // Operations are stored in their encoded form: `normalizeOperation` has
-    // already encoded the Message and validated the identity.
-    operation: { encode: operation => operation, decode: normalizeOperation },
+    // Stored written at the current version; read from any version the history has.
+    operation: { encode: write, decode: normalizeOperation, compared },
     snapshot: { encode: encodeShared, decode: decodeShared },
     empty: () => definition.empty,
     reduce: (snapshot, operation) => definition.replay(snapshot, decodeMessage(operation.message)),
@@ -477,9 +657,15 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
         }),
   })
 
+  /** `state` with `refused` set; the key is absent when none is, so such a state is as before. */
+  const withRefused = (
+    { refused: _, ...state }: ReplicaState<Shared>,
+    refused: ReadonlyArray<WrittenOperation>,
+  ): ReplicaState<Shared> => (refused.length === 0 ? state : { ...state, refused })
+
   const optimistic = (state: ReplicaState<Shared>): Shared =>
     state.pending.reduce(
-      (model, operation) => definition.replay(model, decodeMessage(operation.message)),
+      (model, operation) => definition.replay(model, messageOf(operation)),
       state.committed,
     )
 
@@ -525,19 +711,26 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
       if (state.nextLocalSequence < 1 || committedIds.size !== state.committedIds.length)
         return yield* new InvalidReplicaHistoryError({ message: 'Invalid replica history' })
       const pendingIds = new Set<string>()
+      // Written at an older version no step reads: refused by its id, kept as
+      // written, so the rest of the outbox opens and sends.
+      const unreadable = new Set<WrittenOperation>()
       for (const pending of state.pending) {
-        const operation = yield* Effect.try({
-          try: () => operationFrom(pending, documentId),
-          catch: () => new InvalidOutboxError({ message: 'Invalid outbox' }),
-        })
         if (
-          operation.replicaId !== replicaId ||
-          operation.localSequence >= state.nextLocalSequence ||
-          committedIds.has(operation.opId) ||
-          pendingIds.has(operation.opId)
+          pending.replicaId !== replicaId ||
+          pending.localSequence >= state.nextLocalSequence ||
+          committedIds.has(pending.opId) ||
+          pendingIds.has(pending.opId)
         )
           return yield* new InvalidOutboxError({ message: 'Invalid outbox' })
-        pendingIds.add(operation.opId)
+        pendingIds.add(pending.opId)
+        try {
+          operationFrom(pending, documentId)
+        } catch (cause) {
+          // A newer build wrote it: nothing is removed, and that build reads it.
+          if (cause instanceof UnsupportedMessageVersionError) return yield* cause
+          if (cause instanceof UnreadableMessageError) unreadable.add(pending)
+          else return yield* new InvalidOutboxError({ message: 'Invalid outbox' })
+        }
       }
       // Storage holds the schema's encoded side, so a transforming `shared`
       // codec round-trips: decode on load, encode before every save. Encoding
@@ -557,8 +750,22 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
         yield* storage.save(encoded, expectedRevision)
       })
       if (saved === undefined) yield* store(state, null)
+      // The one write an open makes, under the loaded revision: a tab that
+      // opened the same store meanwhile fails it as a conflict.
+      const opened: ReplicaState<Shared> =
+        unreadable.size === 0
+          ? state
+          : withRefused(
+              {
+                ...state,
+                revision: state.revision + 1,
+                pending: state.pending.filter(operation => !unreadable.has(operation)),
+              },
+              [...(state.refused ?? []), ...unreadable],
+            )
+      if (opened !== state) yield* store(opened, state.revision)
 
-      const stateRef = yield* SynchronizedRef.make(state)
+      const stateRef = yield* SynchronizedRef.make(opened)
       const closed = yield* Ref.make(false)
       const lastError = yield* Ref.make<string | undefined>(undefined)
       const rejectedOps = yield* Ref.make<ReadonlyArray<Rejection>>([])
@@ -602,6 +809,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
             cursor: current.cursor,
             lastError: yield* Ref.get(lastError),
             rejected: yield* Ref.get(rejectedOps),
+            refused: current.refused ?? [],
             epoch: Option.fromUndefinedOr(current.epoch),
           },
           shared: projected,
@@ -630,7 +838,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
               last !== undefined &&
               definition.coalesce !== undefined &&
               (yield* Ref.get(unsent)).has(last.opId)
-                ? definition.coalesce(decodeMessage(last.message), message)
+                ? definition.coalesce(messageOf(last), message)
                 : undefined
             if (merged !== undefined && !definition.durable(merged))
               return yield* new InvalidOutboxError({
@@ -639,20 +847,24 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
             // A merged Message takes the place of the last operation, under its identity.
             const operation = yield* Effect.try({
               try: () =>
-                operationFrom(
-                  merged === undefined
-                    ? {
-                        protocolVersion: PROTOCOL_VERSION,
-                        schemaVersion: SCHEMA_VERSION,
-                        documentId,
-                        replicaId,
-                        localSequence: current.nextLocalSequence,
-                        opId: `${replicaId}:${current.nextLocalSequence}`,
-                        baseCursor: current.cursor,
-                        message: encodeMessage(message),
-                      }
-                    : { ...last!, message: encodeMessage(merged) },
-                  documentId,
+                write(
+                  operationFrom(
+                    write(
+                      merged === undefined
+                        ? {
+                            protocolVersion: PROTOCOL_VERSION,
+                            schemaVersion: SCHEMA_VERSION,
+                            documentId,
+                            replicaId,
+                            localSequence: current.nextLocalSequence,
+                            opId: OpId.make(`${replicaId}:${current.nextLocalSequence}`),
+                            baseCursor: current.cursor,
+                            message: encodeMessage(message),
+                          }
+                        : { ...envelopeOf(last!), message: encodeMessage(merged) },
+                    ),
+                    documentId,
+                  ),
                 ),
               catch: () => new InvalidOutboxError({ message: 'Invalid outbox' }),
             })
@@ -695,7 +907,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
             if (storage.append === undefined) yield* persist(next, current)
             else {
               const encoded = yield* Effect.try({
-                try: () => encodeOperation(operation),
+                try: () => encodeWritten(operation),
                 catch: cause =>
                   new InvalidReplicaHistoryError({
                     message: 'Could not encode the operation',
@@ -750,7 +962,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
               new InvalidExchangeError({ message: 'Invalid sync exchange response', cause }),
           })
         })
-        const restarted = yield* SynchronizedRef.modifyEffect(stateRef, current =>
+        const { restarted, refusals } = yield* SynchronizedRef.modifyEffect(stateRef, current =>
           Effect.gen(function* () {
             // A `close` during the exchange must not persist its result.
             if (yield* Ref.get(closed))
@@ -806,18 +1018,50 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
                   message: 'Server both acknowledged and rejected an operation',
                 })
             }
-            for (const { opId } of response.reasons ?? [])
+            for (const { opId } of [...(response.refusals ?? []), ...(response.reasons ?? [])])
               if (!rejected.has(opId))
                 return yield* new ForeignRejectionError({
                   opId,
                   message: 'Server gave a reason for an operation it did not reject',
                 })
+            // One each, so there are no more to decode than operations it rejected.
+            const refusing = new Set<string>()
+            for (const { opId } of response.refusals ?? []) {
+              if (refusing.has(opId))
+                return yield* new ForeignRejectionError({
+                  opId,
+                  message: 'Server gave two refusals for one operation',
+                })
+              refusing.add(opId)
+            }
+            const refusals = (response.refusals ?? []).map(
+              ({ opId, refusal }) => [opId, decodeRefusal(refusal)] as const,
+            )
+            // What the server could not read is kept, as this build cannot either
+            // once their chains agree: never sent again, never lost.
+            const unreadableIds = new Set(
+              refusals.flatMap(([opId, refusal]) =>
+                Result.match(refusal, {
+                  onFailure: (): ReadonlyArray<OpId> => [],
+                  onSuccess: SyncRefusal.match({
+                    Forbidden: (): ReadonlyArray<OpId> => [],
+                    Invalid: () => [],
+                    Unreadable: () => [opId],
+                  }),
+                }),
+              ),
+            )
             let applied = 0
             for (const raw of response.operations) {
               const { committed: operation, message } = yield* Effect.try({
                 try: () => decodeCommittedOperation(raw, documentId),
                 catch: cause =>
-                  new InvalidReplicaHistoryError({ message: 'Invalid committed operation', cause }),
+                  cause instanceof UnsupportedMessageVersionError
+                    ? cause
+                    : new InvalidReplicaHistoryError({
+                        message: 'Invalid committed operation',
+                        cause,
+                      }),
               })
               if (operation.serverSequence <= cursor) continue
               if (operation.serverSequence !== cursor + 1 || ids.has(operation.opId))
@@ -844,26 +1088,34 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
             if (applied > 0) yield* Metric.update(syncMetrics.applied, applied)
             // Validated and encoded by `persist`, for the same reason as submit.
             const epoch = response.epoch ?? current.epoch
-            const next: ReplicaState<Shared> = {
-              ...current,
-              revision: current.revision + 1,
-              committed,
-              cursor,
-              ...(epoch === undefined ? {} : { epoch }),
-              committedIds: [...ids].slice(-COMMITTED_ID_WINDOW),
-              // While the server has more to send, an acknowledged operation's committed
-              // copy may be on a later page, so it stays in the optimistic view until then.
-              // An acknowledged operation the replica is already past (committed before a
-              // checkpoint, say) never arrives, so it goes once there is no more to read.
-              pending: current.pending.filter(
-                operation =>
-                  !ids.has(operation.opId) &&
-                  !(acknowledged.has(operation.opId) && response.more !== true) &&
-                  !rejected.has(operation.opId),
-              ),
-            }
+            const next = withRefused(
+              {
+                ...current,
+                revision: current.revision + 1,
+                committed,
+                cursor,
+                ...(epoch === undefined ? {} : { epoch }),
+                committedIds: [...ids].slice(-COMMITTED_ID_WINDOW),
+                // While the server has more to send, an acknowledged operation's committed
+                // copy may be on a later page, so it stays in the optimistic view until then.
+                // An acknowledged operation the replica is already past (committed before a
+                // checkpoint, say) never arrives, so it goes once there is no more to read.
+                pending: current.pending.filter(
+                  operation =>
+                    !ids.has(operation.opId) &&
+                    !(acknowledged.has(operation.opId) && response.more !== true) &&
+                    !rejected.has(operation.opId),
+                ),
+              },
+              [
+                ...(current.refused ?? []),
+                // A refusal names only a rejected id (anything else failed the
+                // exchange above), so what moves here has left `pending`.
+                ...current.pending.filter(operation => unreadableIds.has(operation.opId)),
+              ],
+            )
             yield* persist(next, current)
-            return [restarted, next] as const
+            return [{ restarted, refusals }, next] as const
           }),
         )
         yield* Ref.set(lastError, undefined)
@@ -871,15 +1123,29 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
           const reasonOf = new Map(
             (response.reasons ?? []).map(({ opId, reason }) => [opId, reason] as const),
           )
+          const refusalOf = new Map<string, SyncRefusal>()
+          for (const [opId, decoded] of refusals) {
+            if (Result.isSuccess(decoded)) refusalOf.set(opId, decoded.success)
+            else
+              yield* Diagnostics.report(
+                unknownRefusal(documentId, replicaId, opId, fitWords(decoded.failure.message)),
+              )
+          }
           // Every rejected id was sent: an unknown one failed the exchange above.
           const sentOf = new Map(
             sent.pending.map(operation => [operation.opId, operation] as const),
           )
-          const refused = response.rejected.map((opId): Rejection => ({
-            opId,
-            reason: Option.fromUndefinedOr(reasonOf.get(opId)),
-            operation: sentOf.get(opId)!,
-          }))
+          // Every pending operation reads: one that did not was refused on open.
+          const refused = response.rejected.map((opId): Rejection => {
+            const operation = sentOf.get(opId)!
+            return {
+              opId,
+              refusal: Option.fromUndefinedOr(refusalOf.get(opId)),
+              reason: Option.fromUndefinedOr(reasonOf.get(opId)),
+              operation,
+              message: encodeMessage(messageOf(operation)),
+            }
+          })
           yield* Ref.update(rejectedOps, previous => [...refused, ...previous].slice(0, 32))
         }
         yield* PubSub.publish(statusSignals, undefined)
@@ -918,20 +1184,39 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
         while (!(yield* Ref.get(closed))) {
           const exit = yield* Effect.exit(synchronize)
           if (yield* Ref.get(closed)) return
-          if (exit._tag === 'Success') {
-            failures = 0
-            yield* Queue.take(wake)
-          } else {
-            // Retried on a backoff, or sooner on a submit: an outbox must not
-            // wait for the next keystroke to be delivered.
-            failures += 1
-            const backoff = Math.min(
-              START_RETRY_MAX,
-              START_RETRY_BASE * 2 ** Math.min(failures - 1, 16),
-            )
-            yield* Effect.raceFirst(Queue.take(wake), Effect.sleep(backoff))
-          }
+          yield* Exit.match(exit, {
+            onSuccess: () => {
+              failures = 0
+              return Queue.take(wake)
+            },
+            onFailure: () => {
+              // Retried on a backoff, or sooner on a submit: an outbox must not
+              // wait for the next keystroke to be delivered.
+              failures += 1
+              const backoff = Math.min(
+                START_RETRY_MAX,
+                START_RETRY_BASE * 2 ** Math.min(failures - 1, 16),
+              )
+              return Effect.raceFirst(Queue.take(wake), Effect.sleep(backoff))
+            },
+          })
         }
+      })
+
+      const dismiss = Effect.fn('Sync.dismiss')(function* (opId: OpId) {
+        const dismissed = yield* SynchronizedRef.modifyEffect(stateRef, current =>
+          Effect.gen(function* () {
+            if (yield* Ref.get(closed))
+              return yield* new ReplicaClosedError({ message: 'Replica is closed' })
+            const refused = current.refused ?? []
+            const left = refused.filter(operation => operation.opId !== opId)
+            if (left.length === refused.length) return [false, current] as const
+            const next = withRefused({ ...current, revision: current.revision + 1 }, left)
+            yield* persist(next, current)
+            return [true, next] as const
+          }),
+        )
+        if (dismissed) yield* PubSub.publish(statusSignals, undefined)
       })
 
       return {
@@ -947,6 +1232,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
         submit,
         synchronize,
         start,
+        dismiss,
         close: Effect.fn('Sync.close')(function* () {
           yield* Ref.set(closed, true)
           // Wake `start` so it can observe `closed` and return.
@@ -968,7 +1254,14 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
   return {
     documentId,
     durable: definition.durable,
-    codec: { normalizeOperation, operationFrom, committedFrom, decodeExchange },
+    codec: {
+      messageVersion: current,
+      normalizeOperation,
+      operationFrom,
+      writtenFrom,
+      committedFrom,
+      decodeExchange,
+    },
     journalContract,
     openReplica,
   }

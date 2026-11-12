@@ -15,7 +15,7 @@ export default [
     edits: [
       {
         file: optimistic,
-        find: '  if (at === undefined || deleted.length === 0) return optimistic',
+        find: '  if (at === undefined || (deleted.length === 0 && written.length === 0)) return optimistic',
         replace: '  if (at !== -1) return optimistic',
       },
     ],
@@ -37,9 +37,9 @@ export default [
     edits: [
       {
         file: optimistic,
-        find: '      resolvedPatches(base, optimistic, operators).map(patch => {',
+        find: '      resolvedPatches(base, optimistic, kept, operators).map(patch => {',
         replace:
-          '      resolvedPatches(base, optimistic, operators).filter(patch => !isTombstone(base, entityKey(patch.entity, patch.id))).map(patch => {',
+          '      resolvedPatches(base, optimistic, kept, operators).filter(patch => !isTombstone(base, entityKey(patch.entity, patch.id))).map(patch => {',
       },
     ],
     tests,
@@ -49,8 +49,8 @@ export default [
     edits: [
       {
         file: optimistic,
-        find: "else if (operation._tag === 'Delete') deletes.push(operation)",
-        replace: "else if (operation._tag === 'Delete') void operation",
+        find: 'Delete: pending => deletes.push(pending),',
+        replace: 'Delete: pending => void pending,',
       },
     ],
     tests,

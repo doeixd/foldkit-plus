@@ -44,6 +44,7 @@ const randomId = (): string =>
  * next.
  */
 const stateFor = (failureTag: string): TaskState => {
+  // tag-check: open, a failure's tag is any name an application chose; the rest are rejected
   switch (failureTag) {
     case 'AgentCancelledError':
       return 'canceled'

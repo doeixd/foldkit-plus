@@ -42,7 +42,8 @@ import type {
 } from './expr.js'
 import { Held, type HeldRow, type HeldRows, type Pinned } from './held.js'
 import type { AnyEntity } from './index.js'
-import { Operators, type MemoryImplementation, type MemoryOperators } from './operators.js'
+import { kernelOperators } from './memoryTable.js'
+import type { MemoryImplementation, MemoryOperators } from './operators.js'
 import { contextValue, type ExprContext, type NowExpr, type ViewerExpr } from './context.js'
 import { own } from './record.js'
 
@@ -210,14 +211,17 @@ const pinnable = (value: unknown): boolean =>
   (typeof value === 'number' && !Number.isNaN(value))
 
 /** An `eq` of a field of the row and something else, the field first. */
-const fieldAndSide = (
-  predicate: Predicate,
-): Option.Option<readonly [{ readonly key: string }, Operandish]> => {
-  if (predicate._tag !== 'Eq') return Option.none()
-  if (predicate.left._tag === 'Field') return Option.some([predicate.left, predicate.right])
-  if (predicate.right._tag === 'Field') return Option.some([predicate.right, predicate.left])
-  return Option.none()
-}
+const fieldAndSide = Match.type<Predicate>().pipe(
+  Match.tag(
+    'Eq',
+    ({ left, right }): Option.Option<readonly [{ readonly key: string }, Operandish]> =>
+      Option.orElse(
+        Option.map(fieldOf(left), field => [field, right] as const),
+        () => Option.map(fieldOf(right), field => [field, left] as const),
+      ),
+  ),
+  Match.orElse((): Option.Option<readonly [{ readonly key: string }, Operandish]> => Option.none()),
+)
 
 const pinsOf = (
   predicates: ReadonlyArray<Predicate>,
@@ -250,6 +254,17 @@ const pinsOf = (
   return { pins, whole }
 }
 
+const fieldOf = Match.type<Operandish>().pipe(
+  Match.tag('Field', field => Option.some(field)),
+  Match.orElse((): Option.Option<{ readonly key: string }> => Option.none()),
+)
+
+/** A filter's conjuncts; built once, since `exists` asks for every row judged. */
+const operandsOf = Match.type<Predicate>().pipe(
+  Match.tag('And', ({ operands }): ReadonlyArray<Predicate> => operands),
+  Match.orElse(single => [single]),
+)
+
 /**
  * Whether some row pointing at the one `via` reaches holds the filter: true
  * as soon as a held one does, false only when every one is held and none
@@ -262,8 +277,7 @@ const exists = (node: ExistsPredicate, scope: Scope): Judged => {
   if (isUnheld(anchor)) return anchor
   const pinned = Option.match(node.where, {
     onNone: (): Pinned => new Map(),
-    onSome: where =>
-      pinsOf(where._tag === 'And' ? where.operands : [where], scope.input, scope.context).pins,
+    onSome: where => pinsOf(operandsOf(where), scope.input, scope.context).pins,
   })
   const { rows, missing } = anchor.pointing(node.relation, pinned)
   let unheld = Option.map(missing, reason => new Unheld(reason))
@@ -527,7 +541,7 @@ export const valueOfOperand = (
     row: noRow,
     input: options.input ?? {},
     next: noRow,
-    operators: options.operators ?? Operators.kernel,
+    operators: options.operators ?? kernelOperators,
     judging: false,
     find: noRows,
     context: options.context,
@@ -636,6 +650,10 @@ const holds = (node: Predicate, scope: Scope): Judged => {
     case 'In': {
       const among = valueOf(node.among, scope)
       if (isUnheld(among)) return among
+      // A list that is null (an optional input not given) is unknown, as `x in
+      // null` is in SQL and as a comparison with null is: `whenGiven` guards
+      // it, and every operand of an `or` is still asked.
+      if (isNull(among)) return 'unknown'
       if (!Array.isArray(among)) {
         throw new QueryEvaluateError('a membership test was given a list that is not a list')
       }
@@ -729,7 +747,7 @@ const readsBeyond = new WeakMap<Predicate, { readonly field: boolean; readonly c
 export const decided = (
   node: Predicate,
   input: Row,
-  operators: MemoryOperators = Operators.kernel,
+  operators: MemoryOperators = kernelOperators,
   context?: ExprContext,
 ): Option.Option<PredicateTruth> => {
   let reads = readsBeyond.get(node)
@@ -766,7 +784,7 @@ export const truthOver = (
   row: Row,
   input: Row = {},
   next: Row = {},
-  operators: MemoryOperators = Operators.kernel,
+  operators: MemoryOperators = kernelOperators,
 ): PredicateTruth =>
   settled(
     holds(node, {
@@ -833,7 +851,7 @@ export const Judge = {
       row: viewOf(row),
       input: options.input ?? {},
       next: options.next === undefined ? noRow : viewOf(options.next),
-      operators: options.operators ?? Operators.kernel,
+      operators: options.operators ?? kernelOperators,
       judging: true,
       context: options.context,
       find: finder(options.rows),
@@ -864,7 +882,7 @@ export const Judge = {
       row: viewOf(row),
       input,
       next: noRow,
-      operators: options.operators ?? Operators.kernel,
+      operators: options.operators ?? kernelOperators,
       judging: true,
       context: options.context,
       find: finder(options.rows),
@@ -894,8 +912,14 @@ export const Judge = {
   match: <T, A>(
     verdict: Verdict<T>,
     cases: { readonly onKnown: (truth: T) => A; readonly onUnknown: (reason: string) => A },
-  ): A =>
-    verdict._tag === 'Known' ? cases.onKnown(verdict.truth) : cases.onUnknown(verdict.reason),
+  ): A => {
+    switch (verdict._tag) {
+      case 'Known':
+        return cases.onKnown(verdict.truth)
+      case 'Unknown':
+        return cases.onUnknown(verdict.reason)
+    }
+  },
 }
 
 /** Every predicate must hold: the list is the conjunction, as it is in a `Query`. */
@@ -1082,7 +1106,7 @@ export const compareRows = (
 ): number => {
   const scope = {
     input: options.input ?? {},
-    operators: options.operators ?? Operators.kernel,
+    operators: options.operators ?? kernelOperators,
     context: options.context,
   }
   const keys = [keysOf(left, terms, scope), keysOf(right, terms, scope)] as const
@@ -1117,7 +1141,7 @@ export const supported: ReadonlyArray<Operation> = [
  */
 export const assertSupported = (
   body: AnyQuery,
-  operators: MemoryOperators = Operators.kernel,
+  operators: MemoryOperators = kernelOperators,
 ): void => {
   const missing = Query.unsupported(body, supported, operators)
   if (missing.length > 0) {
@@ -1145,7 +1169,7 @@ export const evaluate = (
     readonly context?: ExprContext | undefined
   } = {},
 ): ReadonlyArray<Row> => {
-  const operators = options.operators ?? Operators.kernel
+  const operators = options.operators ?? kernelOperators
   const { context } = options
   assertSupported(body, operators)
   return ordered(
@@ -1183,7 +1207,7 @@ export const evaluateEach = (
     readonly context?: ExprContext | undefined
   } = {},
 ): Evaluated => {
-  const operators = options.operators ?? Operators.kernel
+  const operators = options.operators ?? kernelOperators
   const { context } = options
   assertSupported(body, operators)
   const terms = Query.orderFor(body, input)

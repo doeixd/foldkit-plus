@@ -61,12 +61,14 @@ const positionToContainerStyle = (
     Match.withReturnType<Readonly<Record<string, string>>>(),
     Match.when('TopLeft', () => ({
       ...base,
+      // physical: the position names a screen corner
       top: '0',
       left: '0',
       flexDirection: 'column-reverse',
     })),
     Match.when('TopCenter', () => ({
       ...base,
+      // physical: the position names a screen corner
       top: '0',
       left: '50%',
       transform: 'translateX(-50%)',
@@ -74,18 +76,21 @@ const positionToContainerStyle = (
     })),
     Match.when('TopRight', () => ({
       ...base,
+      // physical: the position names a screen corner
       top: '0',
       right: '0',
       flexDirection: 'column-reverse',
     })),
     Match.when('BottomLeft', () => ({
       ...base,
+      // physical: the position names a screen corner
       bottom: '0',
       left: '0',
       flexDirection: 'column',
     })),
     Match.when('BottomCenter', () => ({
       ...base,
+      // physical: the position names a screen corner
       bottom: '0',
       left: '50%',
       transform: 'translateX(-50%)',
@@ -93,6 +98,7 @@ const positionToContainerStyle = (
     })),
     Match.when('BottomRight', () => ({
       ...base,
+      // physical: the position names a screen corner
       bottom: '0',
       right: '0',
       flexDirection: 'column',

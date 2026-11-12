@@ -66,14 +66,29 @@ export const reduce = Data.reduce
 export const edit = Data.mutate
 `
 
+/** Builds an Expr body and evaluates it, and never describes anything as JSON. */
+const evaluates = `
+import { Schema } from 'effect'
+import { Entity, Expr, Order, Query, evaluate } from 'foldkit-entity'
+
+const Item = Entity.define('Item', Schema.Struct({ id: Schema.String, rank: Schema.Number }))
+const body = Query.from(Item).pipe(
+  Query.where(Expr.gt(Item.fields.rank, 1)),
+  Query.orderBy(Order.asc(Item.fields.rank)),
+)
+export const found = evaluate(body, {}, [{ id: 'a', rank: 2 }])
+`
+
 /** The modules of each build a page keeps code of, by file name. */
 interface Kept {
   readonly entity: ReadonlyArray<string>
   readonly remote: ReadonlyArray<string>
+  /** Every module of the page's bundle, dependencies included, by path. */
+  readonly all: ReadonlyArray<string>
 }
 
-const none: Kept = { entity: [], remote: [] }
-const kept = { declares: none, readOnly: none, writes: none }
+const none: Kept = { entity: [], remote: [], all: [] }
+const kept = { declares: none, readOnly: none, writes: none, evaluates: none }
 const made: Array<string> = []
 
 beforeAll(async () => {
@@ -98,11 +113,16 @@ beforeAll(async () => {
           .map(({ id }) => basename(id).replace(/-[\w-]{8}\.js$/, '.js'))
       )
     }
-    return { entity: under(entityEntry), remote: under(remoteEntry) }
+    return {
+      entity: under(entityEntry),
+      remote: under(remoteEntry),
+      all: modules.filter(({ length }) => length > 0).map(({ id }) => id),
+    }
   }
   kept.declares = await keptBy(declares)
   kept.readOnly = await keptBy(readOnly)
   kept.writes = await keptBy(writes)
+  kept.evaluates = await keptBy(evaluates)
 }, 300_000)
 
 afterAll(() => {
@@ -171,6 +191,22 @@ describe('a read-only Remote page', () => {
   it('keeps no expressions or operator table, which only judging needs (#397)', () => {
     expect(kept.readOnly.entity).not.toContain('expr.js')
     expect(kept.readOnly.entity).not.toContain('operators.js')
+  })
+})
+
+describe('a page that builds an Expr body and evaluates it', () => {
+  it('keeps the evaluator', () => {
+    expect(kept.evaluates.entity).toEqual(expect.arrayContaining(['expr.js', 'evaluate.js']))
+  })
+
+  // `Law.describe` and `Operators.describe` are what turn a schema into JSON
+  // Schema; both sat in objects the evaluator imports, and 3.4 kB came with them.
+  // Hand-mutated: `expr.ts` reading `Law.describe(law).kind` again made this red.
+  it('keeps no JSON Schema of an operator or a law', () => {
+    expect(kept.evaluates.entity).not.toContain('jsonSchema.js')
+    expect(kept.evaluates.entity).not.toContain('law.js')
+    expect(kept.evaluates.entity).not.toContain('operators.js')
+    expect(kept.evaluates.all.filter(id => id.includes('toJsonSchemaDocument'))).toEqual([])
   })
 })
 

@@ -353,7 +353,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/windowList.ts',
-        find: "spacer: component(Style.media('(scripting: none)', { display: 'none' })),",
+        find: 'spacer: component(Utilities.scriptedOnly),',
         replace: 'spacer: component(),',
       },
     ],

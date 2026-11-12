@@ -4,8 +4,9 @@ import type { KeyboardModifiers } from 'foldkit/html'
 import { Attributes, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Selection, TreeNavigation } from 'foldkit-primitives/interaction'
-import { Nav, Sel, initial, navArgs, update, type Message, type Model } from '../src/app.js'
-import { Tree, TreeKeys, TreePicks, TreeSlots, toggleOf } from '../src/view.js'
+import { type Model, initial, navArgs, update } from '../src/app.js'
+import { Message, Nav, Sel } from '../src/message.js'
+import { Tree, TreeKeys, TreePicks, TreeSlots } from '../src/view.js'
 
 const openedSrc = (model: Model): Model =>
   update(model, Nav.wrapper.make(TreeNavigation.Message.Opened({ id: 'src' }))).model
@@ -137,12 +138,10 @@ describe('handler wiring', () => {
     )
   })
 
-  it('toggling follows the branch state', () => {
-    expect(toggleOf(start, 'src')).toEqual(
-      Nav.wrapper.make(TreeNavigation.Message.Opened({ id: 'src' })),
-    )
-    expect(toggleOf(openedSrc(start), 'src')).toEqual(
-      Nav.wrapper.make(TreeNavigation.Message.Closed({ id: 'src' })),
-    )
+  it("an expander's Message opens a shut row and shuts an open one, by the tree's state", () => {
+    const opened = update(start, Message.ToggledRow({ id: 'src' })).model
+    expect(TreeNavigation.isOpen(opened.nav, navArgs, 'src')).toBe(true)
+    const shut = update(opened, Message.ToggledRow({ id: 'src' })).model
+    expect(TreeNavigation.isOpen(shut.nav, navArgs, 'src')).toBe(false)
   })
 })

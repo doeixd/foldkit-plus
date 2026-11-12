@@ -11,7 +11,7 @@ import { Effect, Schema } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
-import { Bundle, type Declared } from 'foldkit-bundle'
+import { Bundle } from 'foldkit-bundle'
 
 export const Politeness = Schema.Literals(['polite', 'assertive'])
 export type Politeness = typeof Politeness.Type
@@ -59,52 +59,51 @@ const after = (ms: number, message: Message, name: string, generation: number) =
   effect: Effect.as(Effect.sleep(ms), message),
 })
 
+const update = (model: Model, message: Message, args: Args): Return =>
+  Message.match<Return>(message, {
+    Announced: ({ message: text, politeness }) => {
+      const generation = model.generation + 1
+      return {
+        model: { ...model, pending: { message: text, politeness }, generation },
+        commands: [
+          after(args.debounceMs, Message.Read({ generation }), 'LiveAnnounce.read', generation),
+        ],
+      }
+    },
+    Read: ({ generation }) => {
+      if (generation !== model.generation || model.pending === null) return { model }
+      const { message: text, politeness } = model.pending
+      const region = politeness === 'polite' ? 'polite' : 'assertive'
+      return {
+        model: { ...model, pending: null, [region]: reread(model[region], text) },
+        commands: [
+          after(
+            args.clearAfterMs,
+            Message.Cleared({ generation }),
+            'LiveAnnounce.clear',
+            generation,
+          ),
+        ],
+      }
+    },
+    Cleared: ({ generation }) =>
+      generation === model.generation
+        ? { model: { ...model, polite: '', assertive: '' } }
+        : { model },
+  })
+
 export const bundle = Bundle.make('LiveAnnounce', {
   Model,
   Message,
   args: Args,
   init: () => ({ model: { polite: '', assertive: '', pending: null, generation: 0 } }),
-  update: (model, message, args): Return =>
-    Message.match<Return>(message, {
-      Announced: ({ message: text, politeness }) => {
-        const generation = model.generation + 1
-        return {
-          model: { ...model, pending: { message: text, politeness }, generation },
-          commands: [
-            after(args.debounceMs, Message.Read({ generation }), 'LiveAnnounce.read', generation),
-          ],
-        }
-      },
-      Read: ({ generation }) => {
-        if (generation !== model.generation || model.pending === null) return { model }
-        const { message: text, politeness } = model.pending
-        const region = politeness === 'polite' ? 'polite' : 'assertive'
-        return {
-          model: { ...model, pending: null, [region]: reread(model[region], text) },
-          commands: [
-            after(
-              args.clearAfterMs,
-              Message.Cleared({ generation }),
-              'LiveAnnounce.clear',
-              generation,
-            ),
-          ],
-        }
-      },
-      Cleared: ({ generation }) =>
-        generation === model.generation
-          ? { model: { ...model, polite: '', assertive: '' } }
-          : { model },
-    }),
+  update,
+  /** What a parent decides: `placed.helpers.announce(text)` reads `text` out, politely by default. */
+  helpers: args => ({
+    announce: (model: Model, text: string, politeness: Politeness = 'polite') =>
+      update(model, Message.Announced({ message: text, politeness }), args),
+  }),
 })
-
-/** The parent Message that announces `text`, to return from `update` or `onOut`. */
-export const say =
-  <Field extends string>(declared: Declared<typeof bundle, Field>) =>
-  <ParentMessage>(text: string, politeness: Politeness = 'polite'): ParentMessage =>
-    declared.wrapper.make(
-      Message.Announced({ message: text, politeness }),
-    ) as unknown as ParentMessage
 
 export const REGION_ATTRIBUTE = 'data-foldkit-plus-live'
 

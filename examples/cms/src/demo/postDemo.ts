@@ -7,7 +7,7 @@
 import { Effect, Option } from 'effect'
 import { Cms } from 'foldkit-cms'
 import { Display } from 'foldkit-crud'
-import { RemotePolicy } from 'foldkit-remote'
+import { RemoteData, RemotePolicy } from 'foldkit-remote'
 import {
   Data,
   Editor,
@@ -71,11 +71,13 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       resumed: () => Option.getOrElse(PostEditor.resumed(harness.model()), () => 'not opened'),
       worklist: () => {
         const page = Worklist.page(harness.model())
-        return page._tag === 'Ready' || page._tag === 'Refreshing'
-          ? page.value.items
+        return Option.match(RemoteData.held(page), {
+          onSome: held =>
+            held.items
               .map(row => `${row.label} (${Display.show(Cms.Display.State.of({}), row.state)})`)
-              .join(', ') || 'empty'
-          : page._tag
+              .join(', ') || 'empty',
+          onNone: () => page._tag,
+        })
       },
       /** A post as this chair's own pages read it. */
       page: async (id: string): Promise<string> => {
@@ -88,9 +90,10 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
             ),
           )
         const read = projection.read(harness.model())
-        return read._tag === 'Ready' || read._tag === 'Refreshing'
-          ? `"${read.value.title}" at /blog/${read.value.slug}: ${read.value.body}`
-          : read._tag
+        return Option.match(RemoteData.held(read), {
+          onSome: held => `"${held.title}" at /blog/${held.slug}: ${held.body}`,
+          onNone: () => read._tag,
+        })
       },
       /** The site's page for an address: what `bySlug` finds, read as a page. */
       visit: (slug: string) =>

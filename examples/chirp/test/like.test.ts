@@ -6,7 +6,8 @@
 import { Option } from 'effect'
 import { Entity } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
-import { Data, Message, initial, update, type Model } from '../src/app.js'
+import { initial, update } from '../src/app.js'
+import { Data, Message, type Model } from '../src/state.js'
 import { Post } from '../src/guard.js'
 
 /**

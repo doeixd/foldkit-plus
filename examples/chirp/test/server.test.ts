@@ -179,6 +179,13 @@ describe('the database', () => {
     )
     expect(insert("insert into users values ('u3', 'cy_3', 'Cy')")).not.toThrow()
   })
+
+  it('takes a post’s likes with it when raw SQL deletes the post', () => {
+    const sqlite = memorySqlite()
+    openServer(sqlite)
+    // p2 is liked in the seed; without the table's cascade its foreign key refuses the delete.
+    expect(() => sqlite.exec("delete from posts where id = 'p2'")).not.toThrow()
+  })
 })
 
 describe('editing', () => {

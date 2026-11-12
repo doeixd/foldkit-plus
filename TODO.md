@@ -142,7 +142,7 @@ In the same change:
 
 ### 9. Record and push
 
-- Tick the backlog entry and update the design note's status.
+- Delete the backlog entry (git keeps it) and update the design note's status.
 - Comment on the issue with what was built, the commits and what is left.
 - Push to `ccr-dfcc253e-4x8hum`.
 - Leave a fixed issue open until the branch merges, and list it in "Waiting on
@@ -194,160 +194,113 @@ In the same change:
 
 ## Waiting on the maintainer
 
-- [ ] **The branch.** `ccr-dfcc253e-4x8hum` holds 66 commits CI has never
-      run, because CI runs on `main` and pull requests only. It needs a PR,
-      and CI watched to green.
-- [ ] **On merge, close what the branch fixed:** #400 (Menu and Menubar),
-      #431, #437, #467, #477, #484, #485, #487, #489, #251, #259, #491, #492,
-      #493.
+- [x] Decisions on the six design notes: made 2026-11-10 by delegation (each
+      note's Decisions section).
 - [ ] **Upstream posts:**
+  - a comment on foldkit#1657 asking for P1 and offering the PR (shortened
+    draft ready; the workerd reading is in `docs/design/performance-PLAN.md`);
+  - a comment on foldkit#1872 per the renderer note, after reading the
+    issue's state;
+  - the `fetch(request, env, ctx)` ask (proposal 8 of
+    `docs/upstream-foldkit-ssr.md`);
+  - the styling request, after its phase 0 measurement;
+  - the SSR delivery note's two conditional drafts (assets to `renderPage`,
+    adopting a subtree without reading it), each when its condition is met;
   - the animation-settle issue (draft written; item 9 of the Order list in
     `docs/upstream-foldkit-ssr.md`);
-  - Proposal 7, a comment on foldkit#1657.
-- [ ] **`TYPESAFE_API_KEY`**, so the Jev review can run.
+  - a comment on foldkit#1448 that `SSR.headed` now carries the head here.
+- [x] **GitHub actions the notes list:** done 2026-11-10 on the maintainer's
+      go-ahead. #185, #64, #483 and #440 closed; the narrowed issues retitled
+      and commented; park comments on #376, #433, #148, #149 and a comment on
+      #474; the two Bundle.lazy bugs filed as #501 and #502.
+- [ ] **`TYPESAFE_API_KEY`**, so the Jev review can run. It is owed on:
+  - #497's public API: `SSR.headed`, `RootRefusesHead`, the exported SSR
+    diagnostic types, `Button.view`'s `attributes`, the resolver's class
+    merge;
+  - #495's: `helpers` as a function of the args, `Bundle.helpersOf`, the
+    primitives' helpers, the Builder's `RowPressed`, `RowToggled` and
+    `Copied`, and `LiveAnnounce.say` removed;
+  - `foldkit-remote`'s `Defect` error tag (ce1d99d);
+  - #144's checkbox column: `Columns.checkbox`, `CellEditor.Checkbox`,
+    `EditToggled` with `Grid.Toggle`, and the `checkbox` Slot
+    (34109eab..a9bbe3dd; independent review passed in two rounds);
+  - #190 item 5: `SyncRefusal`, `Rejection.refusal`, `Exchange.refusals`,
+    the `UnknownRefusal` diagnostic, and `Rejection.reason` and
+    `Exchange.reasons` deprecated (7da2abad..4f1493a8);
+  - #190 upcasting: `Sync.migrations`, the branded `WrittenOperation`,
+    `status.refused` and `replica.dismiss`, `Rejection.message`, three new
+    errors, and Durable's codec `compared` (d8f9c666..339f1fa9);
+  - `Expr.in` over a null list now reads as unknown (482c0783);
+  - #144's column filters: `ColumnSpec.filter`, `ColumnFilter`, `Filters`,
+    `FilterChange`, `Grid.keeps`/`setFilter`/`noFilters`, `Out.Filtered`
+    (only on a grid that filters), and the editor classifier change
+    (bddd2372..59bf7a06; independent review passed in two rounds). Every
+    grid carries about 4 kB brotli of filter code; splitting it out is an
+    API change to decide before 1.0;
+  - the form's submit drawn `aria-disabled`, never natively disabled, with
+    the form option `submitWaits: false` to refuse a submit mid-check, and
+    `saved` deprecated (9513fd20..689d7a28; independent review passed in two
+    rounds).
+- [ ] **The branch's PR.** Unmerged since #497 (merged 2026-11-10): about a
+      hundred commits, never through CI, since CI runs on pull requests. The
+      whole CI sequence passed locally on 4a3ff6a2 (2026-11-11, perf and
+      scaffold jobs included; only postgres-locale skipped, no server here). Issues done on it, to close
+      when it merges: #495, #481, #482, #230 (its stamps wait for the next
+      release), #236, #500, #479, #478, #498, #499, #501, #502, #435, #432
+      (phase 4 recorded), #438 (Phase 0 below the bar), #235 (closed on the
+      parts). domains-plus's client JS has 1.0 kB of headroom (192.5 of
+      193.5 kB).
 
 ## The queue
 
-In order. Every item runs the loop above. The notes give each item's research
-questions, the decisions it must make and its done-when.
+In order. Every item runs the loop above. Built on the branch and off the
+queue (details in `docs/design/TODO.md`): #500, #501/#502, #478's `step`,
+#498/#499 and Remote's `writing`, #420 phase 1 (build-time style modules),
+renderer phases 0a and 0b, SSR delivery phases 0 to 2 (the loader, opt-in;
+fetching at `load` did not pass decision 5 either: a press at `load` 1,194 ms
+against 312, the cost being evaluation), Site and host D1, H1, H3 and H2
+(`foldkit-host`, checked on workerd: fe52bf3), the Switch's thumb drag
+(c3a6db7..d61b307), `serveFetch`'s refusal drain (563d53d), #432's spike
+(not kept: boot 7 ms faster in one run, 96 slower in the other; 1a4b05a),
+and Site Phase 0 (no non-landing route alone imports over 2 KB against the
+20 KB bar, so C1 to C3 are not built and #438 closes: 24474ee), H4 not
+due (3 to 5 shared lines against 30) with auth and cloudflare moved onto the
+host parts instead, so #235 closes on the parts (cloudflare's per-binding
+auth: 8ed9094; auth on `Host.node`: 2d35f11), and `SSR.unbound` for a
+Slot's attributes in a static region (0887cf3), and the tag rules' gaps (else-if chains, the
+if/return pair, negated, loose and bracketed tags) with every dodge the
+review found matched (373215ee..0d6a06b8). `RemoteData.held` replaces
+the three copies of the held-value helper (dea8fa61..edee1a04; a CMS save
+or publish after a failed refresh is now based on the kept value, 4d22c234).
 
-### 1. Correct the record: done 2026-11-09
+1. **Triage of `docs/design/TODO.md`** for open items buildable now, with
+   no upstream gate (the 90 KB page waits on Foldkit's identity markers;
+   Chirp's JSON Schema extra left with 6ade70b). Drained 2026-11-11: the
+   last ungated items were #229's budgets for every remaining example
+   (ab26dd79, 2eedd82f, 4801c950) and the CMS demo's `404.html` (ff2a155d).
+   What remains waits on upstream, a deploy, a release or the owner.
+2. **The UI polish leftovers** in `docs/design/TODO.md`: all wait on
+   `@foldkit/ui` (foldkit/foldkit#1686 to #1689).
 
-- #188 closed. Its leftovers are #491 (`busy` without `settled`), #492 (the
-  picker's `more`) and #493 (a `file` recipe).
-- #237 closed. Reading the compiled build id is Proposal 4 upstream.
-- `docs/design/TODO.md`: all 81 open items checked against the code, 78 by
-  four read-only subagents and Schema to UI's three by hand, each verdict that would tick or rewrite an item
-  confirmed by hand. Ticked: position placement, styled-menu separators,
-  Carousel dots, and the typed principal (not needed). Corrected: Phase 9
-  packages, Phase 12's registry, and the mixins-ui adapter list. The rest are
-  open or partial as written.
-
-### 2. #251: the last name strings: done 2026-11-09
-
-`docs/design/251-name-strings-DESIGN.md` records the decisions:
-
-- The defect is a name nothing checks. Options typed by an Entity's or
-  binding's keys stay, and no reference objects are added beside them.
-- The revision stays a writer option. Declaring it on the Entity would turn
-  pinning on for writers that do not pin today.
-- No lint, because the strings in published types are mostly outputs. The
-  rule went into `AGENTS.md`'s design list instead.
-- The two free strings left, `applyEdits`' `revision` and `entity()`'s
-  `computed` relation, are now typed.
-
-The independent review found nothing blocking, and its advisories are fixed:
-a widely typed `relations` no longer refuses every count, and `applyEdits`
-keeps `P` as its first type parameter.
-
-### 3. #259: the last exact rules: done 2026-11-09
-
-`isInt`, `isStartingWith`, `isEndingWith` and `isIncluding` compile to CHECKs
-(`packages/remote-drizzle/src/checks.ts`). The law test covers each on SQLite
-and PGlite, including NUL, emoji, quotes and the values on either side of
-2^53. That test found that SQLite's `substr` of an empty blob is NULL, which a
-CHECK passes. The design note's status and its "Not done" list are updated,
-including the foreign-key item, which #467 half-closed. Of the 41 mutations,
-40 are killed. The 41st, `collate "C"`, survives with its reason: PGlite's
-database is already binary.
-
-The changelog says how to upgrade: `bind` refuses a migrated table until it
-gains the new clauses.
-
-### 4. Schema to UI: the remaining three
-
-- **#491, done 2026-11-09.** `busy` without `settled` is a type error, through
-  a constraint naming no other type, reported at the call.
-- **#492, done 2026-11-09.** `more` and `AskedForMore` are typed by the form's
-  relation picker keys. A form with none takes no `more`, which closed a
-  fail-open on `{}`.
-- **#493, done 2026-11-09.** Built to the settled note: `fileLayer`,
-  `FileStore` with `claim` and `keepOrClaim`, `serveFetch`'s `files`,
-  `uploadFile`, and `foldkit-form-recipes/file`. An independent review of
-  the code found nothing blocking; its nine advisory findings were fixed
-  (8962978) or written into the README as limits (download memory, two
-  uploaders holding every slot).
-
-### 5. Remote: per-field fetch time
-
-Done 2026-11-09. Two dates per row, not a `writtenAt` per field: `oldestAt`
-for freshness (`plan`, `deadlineOf`, persistence), `updatedAt` for order
-(`countedIn`, `Data.meta`). `docs/design/remote-field-freshness-DESIGN.md`
-says why, and `packages/remote/test/fieldFreshness.test.ts` holds each
-reader to its date.
-
-### 6. mixins-ui: adapters still missing
-
-Re-checked 2026-11-09: Nav and VirtualList have adapters already. Left:
-
-- **#400's remainder: done.** Listbox and Combobox bundles end a leave after
-  the commit through the shared `leaveDrawn.ts`, with a browser test each.
-  Popover is left to upstream: mixins-ui only styles its view, and an
-  exported helper would be a second way to call upstream's `update`.
-- **DragAndDrop** (adopter-led, `docs/design/TODO.md`): kanban already passes
-  `draggable`, `droppable` and `ghostStyle` into Slots of its own. An adapter
-  is worth it only if it removes kanban's hand-written state (`cardStateOf`)
-  and ghost; decide that by porting kanban to it.
-- **Animation**: its one element already takes `className` and `attributes`,
-  so a Slot reaches it without an adapter. Not building one.
-
-### 7. #229: every doc compiles (2026-11-09)
-
-`pnpm docs:check`'s pending list is empty: all 121 documents compile, with
-five Sonnet agents on disjoint batches and the list cut as each reported. The
-check emits no declarations (TS2883 is not a reader's error), and a hidden
-fixture can be defined once and used by later modules (`define`, `use`);
-the four heaviest guides are being folded onto that. Left in #229: examples as
-apps in a scaffolded project. Found on the way: #494 (the ref tree stops at a
-`Bundle.declare` slice) and an `Option` field's focus whose `set` took
-`never` (fixed, 146144d).
-
-### 8. #240 is tracking only
-
-Its remaining children are #235 (host) and #236 (per-route caching), both
-designs of their own; a status comment asks whether to close it.
-
-### Next, ranked 2026-11-09 (value to an app builder, over cost)
-
-Decided this round: #494 kept as a documented limit (types only; reopen on
-an adopter's need), #240 closed in favour of #235 and #236, DragAndDrop and
-Animation adapters parked (step 6).
-
-1. **SSR: a page's head in dynamic serving.** Built 2026-11-10 (4abff56):
-   `meta` in the root, `SSR.headed` moves it, `HeadNotMoved` if not. The
-   independent review's findings are fixed (f441386: the block is read only
-   at the root's end, headless roots refused, a POST page keeps it), and
-   `examples/reference` serves through it with an e2e check (dd8cba5).
-2. **#229: examples as apps.** Done (0be324e): seven examples type-check in
-   the scaffold over the published packages, on all three CI pairs (run
-   locally). Not linted: upstream's rules hold an app to its module layout,
-   and what they found in the primitives is #495.
-3. **A size budget for each example's entry chunk.** Done for todo-app
-   (158.5 kB brotli ceiling) and chirp (239.0 kB), e4e4d61; kitchen-sink is a
-   Node demo with no client. Add one when an example gains a browser entry.
-4. **Strict FormView submit policy.** Done 2026-11-10: the waitlist
-   (`examples/foldkit/form`, not `examples/fields`, which is a static
-   gallery with no check) refuses a submit during a check in `update`, with a
-   browser test of Enter and a press; `Button.view`'s `aria-disabled` alone
-   let both through.
-5. **The UI polish leftovers.** Done 2026-11-10: the RTL pass (the
-   Drawer's handle fixed, the Toast's swipe tested), the Calendar's RTL
-   month buttons (85e0f67), and the Switch thumb drag (not built: no system
-   it follows drags). Part E's remainder is in `docs/design/TODO.md`. Ongoing; take one per
-   bout between larger items.
-
-Waiting on others, not ranked: the branch's PR (yours), Foldkit's upstream
-proposals (#413's parse cost, Proposal 2's head), #235 and #236 (designs of
-their own, to start only when chosen).
+Waiting on the owner: #424's defaults (its 75-line target is out of reach),
+the upstream posts (foldkit#1657, #1872, the Workers `fetch` signature, the
+identity markers, floating-ui), and the Jev reviews (no key here).
 
 ## Parked
 
-- **Performance.** Resume for a regression or a new target.
-  - #474: re-run solid-domains' live benchmark (`scripts/search-compare.mjs`
-    has it ahead locally).
-  - #413: a workerd reading, which needs `Stack.start` to run a Worker that
-    Foldkit's Vite plugin generates. The rest waits on foldkit#1657.
-  - #439: deferred in `docs/design/performance-PLAN.md`.
-- **Large designs**, each needing a note and an owner decision before any
-  code: #190 (the contract layer), #376 and #433 (a fine-grained runtime and
-  compiled views), #432 (islands), #148 and #149 (other platforms).
+- **#474:** a new search is ahead of stock Foldkit locally (198 against 260
+  ms at 1x). What is left is the live three-way benchmark against the
+  deployed Workers, which needs a deploy and the Cloudflare login.
+- **#413:** our half is done (page 362 to 69 KB, parse5 175 to 41 ms; workerd
+  125 to 150 ms warm). The rest waits on foldkit#1657.
+- **#190** (the contract layer): Phase 0 items 6 and 7 done 2026-11-11 (the
+  upcasting note, reviewed in three rounds: 0a185be1..13bd41fd; document
+  boundaries in `docs/replication.md`: 71855f3f). Item 5 done too: a Sync
+  rejection carries a typed `SyncRefusal` (7da2abad..4f1493a8, reviewed in
+  three rounds). The next release removes `Rejection.reason` and stops
+  `journalExchange` writing `reasons`; the replica keeps reading `reasons`.
+  Phase 5 item 6, upcasting, is built (d8f9c666..339f1fa9, reviewed in two
+  rounds). Phase 0's canary spike is recorded in the plan's §8 (6250722e):
+  the canary breaks today's workspace, so Phase 1 migrates in dependency
+  order, and Sync needs an upstream hook to wrap the root `update`.
+  Phase 1 waits on foldkit/foldkit#1655.

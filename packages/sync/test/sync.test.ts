@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { Deferred, Effect, Fiber, Option, PubSub, Schema, Stream } from 'effect'
+import { Diagnostics } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import {
   defineSync,
@@ -10,6 +11,7 @@ import {
   replicaId,
   sequence as toSequence,
   StorageError,
+  SyncRefusal,
   type CommittedOperation,
   type Exchange,
   type Operation,
@@ -544,14 +546,18 @@ describe('the replica', () => {
       rejected: [
         {
           opId: 'a:1',
+          refusal: Option.none(),
           reason: Option.none(),
           operation: expect.objectContaining({ opId: 'a:1', message: created('t') }),
+          message: created('t'),
         },
       ],
+      // Nothing this build cannot read.
+      refused: [],
     })
   })
 
-  it('keeps the reason the server gave for a refusal', async () => {
+  it('reads an older server’s reasons as words with no refusal', async () => {
     const replica = await open('a')
     await submit(replica, created('t'))
     await submit(replica, created('u'))
@@ -565,15 +571,140 @@ describe('the replica', () => {
     expect((await status(replica)).rejected).toEqual([
       {
         opId: 'a:1',
+        refusal: Option.none(),
         reason: Option.none(),
         operation: expect.objectContaining({ message: created('t') }),
+        message: created('t'),
       },
       {
         opId: 'a:2',
+        refusal: Option.none(),
         reason: Option.some('Only the owner can do that'),
         operation: expect.objectContaining({ message: created('u') }),
+        message: created('u'),
       },
     ])
+  })
+
+  it('reads each refusal the server gave, typed', async () => {
+    const replica = await open('a')
+    for (const title of ['t', 'u', 'v', 'w']) await submit(replica, created(title))
+    await sync(replica, {
+      exchange: async () => ({
+        operations: [],
+        rejected: ['a:1', 'a:2', 'a:3', 'a:4'],
+        refusals: [
+          { opId: 'a:1', refusal: { _tag: 'Forbidden', reason: 'Only the owner can do that' } },
+          { opId: 'a:2', refusal: { _tag: 'Forbidden' } },
+          {
+            opId: 'a:3',
+            refusal: { _tag: 'Invalid', rule: null, message: 'Not a valid operation', path: [] },
+          },
+          { opId: 'a:4', refusal: { _tag: 'Unreadable', version: 2 } },
+        ],
+      }),
+    })
+    expect((await status(replica)).rejected.map(({ opId, refusal }) => [opId, refusal])).toEqual([
+      [
+        'a:1',
+        Option.some(SyncRefusal.Forbidden({ reason: Option.some('Only the owner can do that') })),
+      ],
+      ['a:2', Option.some(SyncRefusal.Forbidden({ reason: Option.none() }))],
+      [
+        'a:3',
+        Option.some(
+          SyncRefusal.Invalid({
+            entity: Option.none(),
+            rule: Option.none(),
+            message: 'Not a valid operation',
+            path: [],
+          }),
+        ),
+      ],
+      ['a:4', Option.some(SyncRefusal.Unreadable({ version: 2 }))],
+    ])
+    expect(pending(replica)).toEqual([])
+  })
+
+  it.each([
+    ['a case this build does not know', { _tag: 'Conflict' }],
+    ['a known case with a key it does not declare', { _tag: 'Forbidden', reason: 'No', by: 'ada' }],
+    ['words past the bound', { _tag: 'Forbidden', reason: 'x'.repeat(501) }],
+    ['a version below the first', { _tag: 'Unreadable', version: 0 }],
+  ])('rejects with no refusal, reported, for %s', async (_, refusal) => {
+    const collected = Diagnostics.collect()
+    const replica = await open('a')
+    await submit(replica, created('t'))
+    await submit(replica, created('u'))
+    await Effect.runPromise(
+      Effect.provide(
+        replica.synchronize,
+        layerFromPromise({
+          exchange: async () => ({
+            operations: [],
+            rejected: ['a:1'],
+            acknowledged: ['a:2'],
+            refusals: [{ opId: 'a:1', refusal }],
+          }),
+        }),
+      ).pipe(Effect.provideService(Diagnostics.Reporter, collected.report)),
+    )
+    // The rejection stands, and the exchange it came in did not fail.
+    expect(await status(replica)).toMatchObject({
+      lastError: undefined,
+      rejected: [{ opId: 'a:1', refusal: Option.none() }],
+    })
+    expect(collected.reported).toEqual([
+      expect.objectContaining({ _tag: 'UnknownRefusal', opId: 'a:1', issue: expect.any(String) }),
+    ])
+  })
+
+  it('fails an exchange that gives a refusal for an operation it did not reject', async () => {
+    const replica = await open('a')
+    await submit(replica, created('t'))
+    await expect(
+      sync(replica, {
+        exchange: async () => ({
+          operations: [],
+          rejected: [],
+          refusals: [{ opId: 'a:1', refusal: { _tag: 'Forbidden' } }],
+        }),
+      }),
+    ).rejects.toThrow('did not reject')
+    expect((await status(replica)).pending).toBe(1)
+  })
+
+  it('fails an exchange that gives two refusals for one operation', async () => {
+    const replica = await open('a')
+    await submit(replica, created('t'))
+    await expect(
+      sync(replica, {
+        exchange: async () => ({
+          operations: [],
+          rejected: ['a:1'],
+          refusals: [
+            { opId: 'a:1', refusal: { _tag: 'Forbidden' } },
+            { opId: 'a:1', refusal: { _tag: 'Forbidden', reason: 'No' } },
+          ],
+        }),
+      }),
+    ).rejects.toThrow('two refusals')
+    expect((await status(replica)).pending).toBe(1)
+  })
+
+  it('fails an exchange whose refusal entry carries a key it does not know', async () => {
+    const replica = await open('a')
+    await submit(replica, created('t'))
+    await expect(
+      sync(replica, {
+        exchange: async () => ({
+          operations: [],
+          rejected: ['a:1'],
+          refusals: [{ opId: 'a:1', refusal: { _tag: 'Forbidden' }, extra: true }],
+        }),
+      }),
+    ).rejects.toThrow('Invalid sync exchange response')
+    expect((await status(replica)).pending).toBe(1)
   })
 
   it('fails an exchange that gives a reason for an operation it did not reject', async () => {

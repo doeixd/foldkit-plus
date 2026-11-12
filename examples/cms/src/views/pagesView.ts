@@ -26,6 +26,7 @@ import {
 import { icon } from './icons.js'
 import {
   chair,
+  conventions,
   editorBar,
   failed,
   guideInput,
@@ -36,6 +37,7 @@ import {
   statusLine,
 } from './shell.js'
 import { pageHref } from '../content/siteRoutes.js'
+import { RemoteData } from 'foldkit-remote'
 import { PageForm } from '../content/pageDomain.js'
 import { AdminSlots, AdminStyle, PagesListStyle } from '../styles/adminStyle.js'
 
@@ -96,9 +98,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
     Option.filter(PageEditor.pageId(model), () => stateIs(state, 'Published', 'Changed')),
     id => {
       const read = pageView(id).read(model)
-      return read._tag === 'Ready' || read._tag === 'Refreshing'
-        ? Option.some(read.value.slug)
-        : Option.none()
+      return Option.map(RemoteData.held(read), held => held.slug)
     },
   )
   return h.div(slots.editorScreen.attrs([h.Id('editor')]), [
@@ -149,6 +149,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
                 state,
                 restore: revision => ask(Editor.Message.RestoreAsked({ revision })),
                 authorName: publisherOf,
+                ...conventions,
                 // A history that failed to read is asked for again the same way
                 // a failed entry is: `ReloadAsked` refreshes every active read.
                 onRetry: ask(Editor.Message.ReloadAsked()),

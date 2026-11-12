@@ -43,6 +43,7 @@ const places: Readonly<Record<string, readonly [number, number, string]>> = {
 
 const handleAt = Object.entries(places).map(([handle, [across, down, cursor]]) =>
   Style.pseudo(`[data-handle="${handle}"]`, {
+    // physical: crop geometry is in image pixels
     left: `calc(${v('x')} + ${v('w')} * ${across})`,
     top: `calc(${v('y')} + ${v('h')} * ${down})`,
     cursor,
@@ -101,6 +102,7 @@ export const ImageCropper = Style.recipeFor(ImageCropperSlots)({
     pan: component(
       Style.self({
         position: 'absolute',
+        // physical: crop geometry is in image pixels
         left: v('image-x'),
         top: v('image-y'),
         inlineSize: v('image-w'),
@@ -114,6 +116,7 @@ export const ImageCropper = Style.recipeFor(ImageCropperSlots)({
     image: component(
       Style.self({
         position: 'absolute',
+        // physical: centered on the stage, either direction
         left: '50%',
         top: '50%',
         maxInlineSize: 'none',
@@ -132,6 +135,7 @@ export const ImageCropper = Style.recipeFor(ImageCropperSlots)({
     selection: component(
       Style.self({
         position: 'absolute',
+        // physical: crop geometry is in image pixels
         left: v('x'),
         top: v('y'),
         inlineSize: v('w'),

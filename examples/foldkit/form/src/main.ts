@@ -163,7 +163,8 @@ export const update = (model: Model, message: Message) =>
       // A submit the form refused moves focus to the first thing missing, so
       // the reader is told where to go rather than left to search the card.
       if (message._tag !== 'Submitted') return next
-      return Option.match(firstInvalid(next.model), {
+      const invalid = firstInvalid(next.model)
+      return Option.match(invalid, {
         onNone: () => next,
         onSome: id => ({ ...next, commands: [...(next.commands ?? []), FocusField({ id })] }),
       })

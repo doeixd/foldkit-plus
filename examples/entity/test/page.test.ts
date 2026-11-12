@@ -133,13 +133,21 @@ it('lists posts, edits one through the drawn form, and shows the save in the lis
     await vi.waitFor(() =>
       expect(element('#EditPost-title-error').textContent).toBe('Title is required'),
     )
-    expect(element<HTMLButtonElement>('#editor form button[type="submit"]').disabled).toBe(true)
+    expect(
+      element<HTMLButtonElement>('#editor form button[type="submit"]').getAttribute(
+        'aria-disabled',
+      ),
+    ).toBe('true')
 
     type('#EditPost-title', 'Compilers, revised')
     element('#EditPost-published').click()
     choose('#EditPost-editorId', 'a1')
     await vi.waitFor(() =>
-      expect(element<HTMLButtonElement>('#editor form button[type="submit"]').disabled).toBe(false),
+      expect(
+        element<HTMLButtonElement>('#editor form button[type="submit"]').getAttribute(
+          'aria-disabled',
+        ),
+      ).toBeNull(),
     )
     element('#editor form').dispatchEvent(new Event('submit', { cancelable: true }))
 

@@ -4,9 +4,10 @@
  * all arrive with `Overlay.behaviors(..., Overlay.modal)`. The panel draws
  * only while open; `data-open` drives the CSS slide.
  */
-import { Behavior, Capability, Event, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { Behavior, Capability, Event, Slot, SlotView, Slots } from 'foldkit-mixins'
 import { Overlay } from 'foldkit-primitives/interaction'
-import { Stack, Message, type Model } from './app.js'
+import type { Model } from './app.js'
+import { Message, Stack } from './message.js'
 
 export const DrawerSlots = Slots.define({
   page: Slot.make({ capability: Capability.Container }),

@@ -12,23 +12,64 @@
  * Branch through the union's own `match`, Effect `Match`, or a typed guard
  * (`SchemaAST.isUnion`); see "Tag branching" in AGENTS.md. A tag that is open
  * by design, such as another application's Message at a boundary, is marked on
- * the line above with `// tag-check: open` and the reason.
+ * the line above it (or above the statement holding it) with `// tag-check: open`
+ * and the reason.
  *
- *   node scripts/tags-check.mjs     list findings; exit 1 if there are any
+ * A `_tag` read into a variable (`const tag = x._tag`), through a local
+ * function that returns one, or passed as an argument into a local function's
+ * parameter, is followed: its comparisons, `switch`es, sibling `if`s and
+ * ternaries are held to the same rules, and an `if`/`else` or ternary on it is
+ * a two-arm match the checker cannot see.
+ *
+ * So is a ternary or an `if`/`else` whose condition compares `x._tag` itself to
+ * a literal (`===`, `!==`, `==`, `!=`, either way round, `x._tag` or `x['_tag']`,
+ * alone, negated with `!`, or inside `&&`/`||`), even on a precisely typed
+ * union: use the union's `match`. A named constant stands for a literal when
+ * its type is a string literal (`message._tag === NAVIGATE`); one typed `string`
+ * is not read as a tag at all. An `if`/`else if`/`else` chain is judged once at
+ * its head, over every condition in it. `if (<tag>) return a; return b` is the
+ * same two-arm match and is refused too, when every operand of its condition
+ * is a tag comparison; one mixed with another check (`x._tag !== 'A' || x.key
+ * !== key`) is a guard with more to it. Allowed: a lone `if` without `else`
+ * whose other path goes on with more statements (a narrowing guard or early
+ * return), and a comparison used as a value, such as the predicate of
+ * `filter`/`find`/`some`, which selects rows and does not branch. Only the
+ * condition of a `?:` or `if` is held to this.
+ *
+ * A `const` boolean made from a tag comparison and used once is not reported:
+ * it is a value, and finding the match it hides would need a use-count.
+ *
+ *   node scripts/tags-check.mjs [dir…]   list findings (in the projects named, if any); exit 1 if there are any
  */
-import { existsSync, readdirSync } from 'node:fs'
-import { join, relative, resolve } from 'node:path'
+import { relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { programsFor, projectsIn } from './programs.mjs'
 // The compiler API, which TypeScript 7 no longer ships: 6 is installed beside it.
 import ts from 'typescript-6'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
-const findings = []
+export const findings = []
 
-const isTagAccess = node => ts.isPropertyAccessExpression(node) && node.name.text === '_tag'
+const isTagAccess = node =>
+  (ts.isPropertyAccessExpression(node) && node.name.text === '_tag') ||
+  (ts.isElementAccessExpression(node) &&
+    ts.isStringLiteralLike(node.argumentExpression) &&
+    node.argumentExpression.text === '_tag')
 const literalTags = type =>
   (type.isUnion() ? type.types : [type]).every(
     member => member.isStringLiteral() || (member.flags & ts.TypeFlags.Undefined) !== 0,
+  )
+// A `_tag` of text (or of nothing known): a field called `_tag` that holds an object is no tag.
+const tagLike = type =>
+  (type.isUnion() ? type.types : [type]).every(
+    member =>
+      (member.flags &
+        (ts.TypeFlags.StringLike |
+          ts.TypeFlags.Undefined |
+          ts.TypeFlags.Null |
+          ts.TypeFlags.Unknown |
+          ts.TypeFlags.Any)) !==
+      0,
   )
 const unwrap = node => {
   let inner = node
@@ -38,21 +79,213 @@ const unwrap = node => {
   return inner
 }
 
-const check = (program, files) => {
+// `==` and `!=` too: they compare a tag as well as the strict ones do.
+const isEquality = kind =>
+  kind === ts.SyntaxKind.EqualsEqualsEqualsToken ||
+  kind === ts.SyntaxKind.ExclamationEqualsEqualsToken ||
+  kind === ts.SyntaxKind.EqualsEqualsToken ||
+  kind === ts.SyntaxKind.ExclamationEqualsToken
+const isPositiveEquality = kind =>
+  kind === ts.SyntaxKind.EqualsEqualsEqualsToken || kind === ts.SyntaxKind.EqualsEqualsToken
+// A condition with its parentheses and `!` taken off: `!(x._tag === 'A')` is the same branch.
+const unnegated = node => {
+  let inner = unwrap(node)
+  while (ts.isPrefixUnaryExpression(inner) && inner.operator === ts.SyntaxKind.ExclamationToken)
+    inner = unwrap(inner.operand)
+  return inner
+}
+
+// The symbols in one file that carry a `_tag` value: variables initialised from
+// one, local functions that return one, and parameters such a value is passed to.
+const followTags = (checker, source) => {
+  const variables = new Set()
+  const functions = new Set()
+  const symbolOf = node => checker.getSymbolAtLocation(node)
+  const functionOf = symbol => {
+    const declaration = symbol?.valueDeclaration
+    if (declaration === undefined) return undefined
+    if (ts.isFunctionDeclaration(declaration)) return declaration
+    if (
+      ts.isVariableDeclaration(declaration) &&
+      declaration.initializer !== undefined &&
+      (ts.isArrowFunction(declaration.initializer) ||
+        ts.isFunctionExpression(declaration.initializer))
+    )
+      return declaration.initializer
+    return undefined
+  }
+  const derived = expression => {
+    const inner = unwrap(expression)
+    if (isTagAccess(inner)) return tagLike(checker.getTypeAtLocation(inner))
+    if (ts.isAsExpression(inner) || ts.isTypeAssertionExpression(inner))
+      return derived(inner.expression)
+    if (ts.isIdentifier(inner)) return variables.has(symbolOf(inner))
+    if (ts.isCallExpression(inner)) {
+      const callee = unwrap(inner.expression)
+      return ts.isIdentifier(callee) && functions.has(symbolOf(callee))
+    }
+    if (ts.isConditionalExpression(inner))
+      return derived(inner.whenTrue) || derived(inner.whenFalse)
+    if (ts.isBinaryExpression(inner)) {
+      const kind = inner.operatorToken.kind
+      if (
+        kind === ts.SyntaxKind.QuestionQuestionToken ||
+        kind === ts.SyntaxKind.BarBarToken ||
+        kind === ts.SyntaxKind.AmpersandAmpersandToken
+      )
+        return derived(inner.left) || derived(inner.right)
+    }
+    return false
+  }
+  // What a function hands back: its returned expressions, and the functions
+  // handed to a call there (`Option.match(read, { onSome: x => x._tag })`).
+  const yields = expression => {
+    if (derived(expression)) return true
+    const inner = unwrap(expression)
+    if (ts.isArrowFunction(inner) || ts.isFunctionExpression(inner)) return returnsTag(inner)
+    if (ts.isObjectLiteralExpression(inner))
+      return inner.properties.some(
+        property =>
+          (ts.isPropertyAssignment(property) && yields(property.initializer)) ||
+          (ts.isMethodDeclaration(property) && returnsTag(property)),
+      )
+    return (
+      ts.isCallExpression(inner) &&
+      inner.arguments.some(argument => !derived(argument) && yields(argument))
+    )
+  }
+  const returnsTag = fn => {
+    if (fn.body === undefined) return false
+    if (!ts.isBlock(fn.body)) return yields(fn.body)
+    let found = false
+    const walk = node => {
+      if (ts.isFunctionLike(node)) return
+      if (ts.isReturnStatement(node) && node.expression !== undefined && yields(node.expression))
+        found = true
+      ts.forEachChild(node, walk)
+    }
+    walk(fn.body)
+    return found
+  }
+  const add = (set, symbol) => {
+    if (symbol === undefined || set.has(symbol)) return false
+    set.add(symbol)
+    return true
+  }
+  for (let changed = true; changed;) {
+    changed = false
+    const walk = node => {
+      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+        const symbol = symbolOf(node.name)
+        const fn = functionOf(symbol)
+        if (fn !== undefined ? returnsTag(fn) : derived(node.initializer))
+          changed = add(fn !== undefined ? functions : variables, symbol) || changed
+      }
+      if (ts.isFunctionDeclaration(node) && node.name && returnsTag(node))
+        changed = add(functions, symbolOf(node.name)) || changed
+      if (ts.isCallExpression(node)) {
+        const callee = unwrap(node.expression)
+        const fn = ts.isIdentifier(callee) ? functionOf(symbolOf(callee)) : undefined
+        node.arguments.forEach((argument, index) => {
+          const parameter = fn?.parameters[index]
+          if (parameter && ts.isIdentifier(parameter.name) && derived(argument))
+            changed = add(variables, symbolOf(parameter.name)) || changed
+        })
+      }
+      ts.forEachChild(node, walk)
+    }
+    walk(source)
+  }
+  // A tag held by a name or a call, not read as `x._tag` right here.
+  const held = expression => {
+    const inner = unwrap(expression)
+    return !isTagAccess(inner) && derived(inner)
+  }
+  return { held }
+}
+
+export const check = (program, files, found = findings) => {
   const checker = program.getTypeChecker()
   for (const file of files) {
     const source = program.getSourceFile(file)
+    const { held } = followTags(checker, source)
     const text = source.getFullText()
     const lineOf = node => source.getLineAndCharacterOfPosition(node.getStart()).line
-    const marked = node => {
-      const lines = text.split('\n')
+    const lines = text.split('\n')
+    const markedAt = node => {
       const line = lineOf(node)
       return [lines[line], lines[line - 1]].some(l => l?.includes('tag-check: open'))
     }
+    // A mark covers the statement under it, so one stands over a condition that spans lines.
+    const marked = node => {
+      let statement = node
+      while (
+        statement.parent !== undefined &&
+        !ts.isBlock(statement.parent) &&
+        !ts.isSourceFile(statement.parent) &&
+        !ts.isCaseClause(statement.parent) &&
+        !ts.isDefaultClause(statement.parent)
+      )
+        statement = statement.parent
+      return markedAt(node) || markedAt(statement)
+    }
     const report = (node, what) => {
       if (marked(node)) return
-      findings.push(`${relative(root, file)}:${lineOf(node) + 1}  ${what}`)
+      found.push(`${relative(root, file)}:${lineOf(node) + 1}  ${what}`)
     }
+    const comparesHeld = expression => {
+      const inner = unnegated(expression)
+      if (!ts.isBinaryExpression(inner)) return false
+      const kind = inner.operatorToken.kind
+      if (kind === ts.SyntaxKind.BarBarToken || kind === ts.SyntaxKind.AmpersandAmpersandToken)
+        return comparesHeld(inner.left) || comparesHeld(inner.right)
+      return isEquality(kind) && (held(inner.left) || held(inner.right))
+    }
+    // `x._tag === 'A'` (or `!==`, either way round) in a condition: a branch on a tag read right here.
+    const comparesDirect = expression => {
+      const inner = unnegated(expression)
+      if (!ts.isBinaryExpression(inner)) return false
+      const kind = inner.operatorToken.kind
+      if (kind === ts.SyntaxKind.BarBarToken || kind === ts.SyntaxKind.AmpersandAmpersandToken)
+        return comparesDirect(inner.left) || comparesDirect(inner.right)
+      // A named constant counts as a literal when its type is one (`const NAVIGATE = 'Navigate'`).
+      const literal = side =>
+        ts.isStringLiteralLike(unwrap(side)) || checker.getTypeAtLocation(side).isStringLiteral()
+      return (
+        isEquality(kind) &&
+        ((isTagAccess(unwrap(inner.left)) && literal(inner.right)) ||
+          (isTagAccess(unwrap(inner.right)) && literal(inner.left)))
+      )
+    }
+    const chainOf = head => {
+      const chain = []
+      for (let branch = head; branch !== undefined;) {
+        chain.push(branch)
+        branch =
+          branch.elseStatement && ts.isIfStatement(branch.elseStatement)
+            ? branch.elseStatement
+            : undefined
+      }
+      return chain
+    }
+    // Every operand of a condition compares a tag: with another check mixed in
+    // (`x._tag !== 'A' || x.key !== key`) it is a guard with more to it, not a match.
+    const onlyTags = expression => {
+      const inner = unnegated(expression)
+      if (
+        ts.isBinaryExpression(inner) &&
+        (inner.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+          inner.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken)
+      )
+        return onlyTags(inner.left) && onlyTags(inner.right)
+      return comparesHeld(inner) || comparesDirect(inner)
+    }
+    // `if (x._tag === 'A') return a` followed by `return b`: the two-arm match again.
+    const endsInReturn = statement =>
+      ts.isReturnStatement(statement) ||
+      (ts.isBlock(statement) &&
+        statement.statements.length > 0 &&
+        ts.isReturnStatement(statement.statements[statement.statements.length - 1]))
     const visit = node => {
       if (isTagAccess(node)) {
         const subject = unwrap(node.expression)
@@ -60,10 +293,7 @@ const check = (program, files) => {
           report(node, `_tag read through a cast: ${node.getText().slice(0, 60)}`)
         } else {
           const parent = node.parent
-          const compared =
-            ts.isBinaryExpression(parent) &&
-            (parent.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken ||
-              parent.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken)
+          const compared = ts.isBinaryExpression(parent) && isEquality(parent.operatorToken.kind)
           const type = checker.getTypeAtLocation(node)
           if (compared && !literalTags(type)) {
             report(
@@ -73,7 +303,7 @@ const check = (program, files) => {
           }
         }
       }
-      if (ts.isSwitchStatement(node) && isTagAccess(node.expression)) {
+      if (ts.isSwitchStatement(node) && (isTagAccess(node.expression) || held(node.expression))) {
         const type = checker.getTypeAtLocation(node.expression)
         const variants = (type.isUnion() ? type.types : [type])
           .filter(member => member.isStringLiteral())
@@ -93,7 +323,47 @@ const check = (program, files) => {
           )
         }
       }
-      if (ts.isBlock(node) || ts.isSourceFile(node) || ts.isCaseClause(node)) {
+      if (ts.isBinaryExpression(node) && isEquality(node.operatorToken.kind)) {
+        const side = held(node.left) ? node.left : held(node.right) ? node.right : undefined
+        if (side !== undefined) {
+          const type = checker.getTypeAtLocation(side)
+          if (!literalTags(type))
+            report(
+              node,
+              `tag held as ${checker.typeToString(type)}: ${node.getText().slice(0, 60)}`,
+            )
+        }
+      }
+      if (ts.isConditionalExpression(node)) {
+        const what = comparesHeld(node.condition)
+          ? 'a held tag'
+          : comparesDirect(node.condition)
+            ? 'a tag'
+            : undefined
+        if (what !== undefined)
+          report(node, `ternary on ${what}: ${node.condition.getText().slice(0, 60)}`)
+      }
+      // A chain is judged once at its head, over every condition in it.
+      if (
+        ts.isIfStatement(node) &&
+        node.elseStatement !== undefined &&
+        !(ts.isIfStatement(node.parent) && node.parent.elseStatement === node)
+      ) {
+        const tagged = chainOf(node)
+          .map(branch => branch.expression)
+          .find(expression => comparesHeld(expression) || comparesDirect(expression))
+        if (tagged !== undefined)
+          report(
+            node,
+            `if/else on ${comparesHeld(tagged) ? 'a held tag' : 'a tag'}: ${tagged.getText().slice(0, 60)}`,
+          )
+      }
+      if (
+        ts.isBlock(node) ||
+        ts.isSourceFile(node) ||
+        ts.isCaseClause(node) ||
+        ts.isDefaultClause(node)
+      ) {
         const runs = new Map()
         for (const statement of node.statements) {
           if (!ts.isIfStatement(statement)) continue
@@ -104,27 +374,46 @@ const check = (program, files) => {
               collect(expression.left)
               collect(expression.right)
             } else if (
-              expression.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken &&
+              isPositiveEquality(expression.operatorToken.kind) &&
               isTagAccess(expression.left) &&
-              ts.isStringLiteral(expression.right)
+              ts.isStringLiteralLike(expression.right)
             ) {
-              subjects.add(expression.left.expression.getText())
+              subjects.add(`${expression.left.expression.getText()}._tag`)
+            } else if (
+              isPositiveEquality(expression.operatorToken.kind) &&
+              held(expression.left) &&
+              ts.isStringLiteralLike(expression.right)
+            ) {
+              subjects.add(expression.left.getText())
             }
           }
-          for (let branch = statement; branch !== undefined;) {
-            collect(branch.expression)
-            branch =
-              branch.elseStatement && ts.isIfStatement(branch.elseStatement)
-                ? branch.elseStatement
-                : undefined
-          }
+          for (const branch of chainOf(statement)) collect(branch.expression)
           for (const subject of subjects)
             runs.set(subject, [...(runs.get(subject) ?? []), statement])
         }
+        const inRun = new Set()
         for (const [subject, statements] of runs) {
-          if (statements.length >= 2)
-            report(statements[0], `${statements.length} ifs on ${subject}._tag`)
+          if (statements.length >= 2) {
+            report(statements[0], `${statements.length} ifs on ${subject}`)
+            for (const statement of statements) inRun.add(statement)
+          }
         }
+        node.statements.forEach((statement, index) => {
+          const next = node.statements[index + 1]
+          if (
+            ts.isIfStatement(statement) &&
+            statement.elseStatement === undefined &&
+            !inRun.has(statement) &&
+            next !== undefined &&
+            ts.isReturnStatement(next) &&
+            endsInReturn(statement.thenStatement) &&
+            onlyTags(statement.expression)
+          )
+            report(
+              statement,
+              `if/return pair on ${comparesHeld(statement.expression) ? 'a held tag' : 'a tag'}: ${statement.expression.getText().slice(0, 60)}`,
+            )
+        })
       }
       ts.forEachChild(node, visit)
     }
@@ -132,41 +421,20 @@ const check = (program, files) => {
   }
 }
 
-const projectDirs = [
-  ...['packages', 'examples', 'examples/foldkit'].flatMap(parent =>
-    readdirSync(join(root, parent), { withFileTypes: true })
-      .filter(entry => entry.isDirectory())
-      .map(entry => join(root, parent, entry.name)),
-  ),
-].sort()
+const main = () => {
+  // `node scripts/tags-check.mjs packages/remote` reads only the projects named.
+  for (const { options, files } of programsFor(projectsIn(root, process.argv.slice(2)))) {
+    const program = ts.createProgram({ rootNames: files, options })
+    check(program, files)
+  }
 
-for (const dir of projectDirs) {
-  const config = join(dir, 'tsconfig.json')
-  if (!existsSync(config)) continue
-  const parsed = ts.getParsedCommandLineOfConfigFile(
-    config,
-    {},
-    {
-      ...ts.sys,
-      onUnRecoverableConfigFileDiagnostic: () => {},
-    },
-  )
-  // TypeScript lists files with `/`; `join` writes `\` on Windows, where a
-  // raw comparison matched nothing and the check passed having read no file.
-  const sources = join(dir, 'src')
-  const files = parsed?.fileNames.filter(file => resolve(file).startsWith(sources)) ?? []
-  if (files.length === 0) continue
-  const program = ts.createProgram({
-    rootNames: files,
-    options: { ...parsed.options, noEmit: true },
-  })
-  check(program, files)
+  for (const finding of findings) console.log(finding)
+  if (findings.length > 0) {
+    console.error(
+      `\n${findings.length} tag branches the checker cannot vouch for. See "Tag branching" in AGENTS.md.`,
+    )
+    process.exit(1)
+  }
 }
 
-for (const finding of findings) console.log(finding)
-if (findings.length > 0) {
-  console.error(
-    `\n${findings.length} tag branches the checker cannot vouch for. See "Tag branching" in AGENTS.md.`,
-  )
-  process.exit(1)
-}
+if (process.argv[1] === fileURLToPath(import.meta.url)) main()

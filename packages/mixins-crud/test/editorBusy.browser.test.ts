@@ -141,6 +141,19 @@ const mount = (client: Layer.Layer<RemoteClient>) => {
   )
 }
 
+/** Runs `act` with every frame held, then lets them go: what it sent meets the page as last drawn. */
+const beforeNextFrame = async (act: () => Promise<void>) => {
+  const real = window.requestAnimationFrame
+  const held: Array<FrameRequestCallback> = []
+  window.requestAnimationFrame = callback => held.push(callback)
+  try {
+    await act()
+  } finally {
+    window.requestAnimationFrame = real
+    held.forEach(callback => real.call(window, callback))
+  }
+}
+
 const form = () => document.querySelector('form')!
 const title = () => document.getElementById('SaveNote-title')!
 const save = () => document.querySelector<HTMLButtonElement>('form button[type="submit"]')!
@@ -150,11 +163,16 @@ test('the form is aria-busy until the save is answered, and keeps the focus a pr
   const handle = mount(holding)
   try {
     await vi.waitFor(() => expect(title()).not.toBeNull())
-    await userEvent.fill(title(), 'Groceries')
     expect(form().getAttribute('aria-busy')).toBeNull()
 
-    // Enter in the field submits.
-    await userEvent.type(title(), '{Enter}')
+    // Enter submits through the form's button, which still reads aria-disabled
+    // in the page as drawn: the Enter meets `update`, which has the title, so
+    // it saves.
+    await beforeNextFrame(async () => {
+      expect(save().getAttribute('aria-disabled')).toBe('true')
+      await userEvent.fill(title(), 'Groceries')
+      await userEvent.type(title(), '{Enter}')
+    })
     await vi.waitFor(() => expect(form().getAttribute('aria-busy')).toBe('true'))
     expect(saves).toBe(1)
     expect([title(), save()]).toContain(document.activeElement)
@@ -195,7 +213,8 @@ test('the form is aria-busy until the save is answered, and keeps the focus a pr
     expect(save().getAttribute('aria-disabled')).toBeNull()
     await userEvent.fill(title(), '')
     await frames.settle()
-    expect(save().disabled).toBe(true)
+    expect(save().getAttribute('aria-disabled')).toBe('true')
+    expect(save().disabled).toBe(false)
   } finally {
     handle.dispose()
     frames.dispose()

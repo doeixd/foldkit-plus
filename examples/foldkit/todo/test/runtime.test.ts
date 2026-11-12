@@ -8,7 +8,8 @@ import { KeyValueStore } from 'effect/persistence'
 import * as Runtime from 'foldkit/runtime'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
-import { Flags, Model, Page, flags, init, subscriptions, update } from '../src/main.js'
+import { Flags, Model, TodosMirror, flags, routed, subscriptions, view } from '../src/main.js'
+import { modelWithTodos } from './fixtures.js'
 
 beforeEach(() => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
@@ -23,6 +24,7 @@ afterEach(() => {
   for (const dispose of running.splice(0)) dispose()
   vi.unstubAllGlobals()
   window.localStorage.clear()
+  window.history.replaceState(null, '', '/')
   document.body.replaceChildren()
 })
 
@@ -31,17 +33,16 @@ const mount = (storage: Storage) => {
   container.id = 'todo-runtime'
   document.body.append(container)
   const handle = Runtime.embed(
-    Runtime.makeElement({
+    Runtime.makeApplication({
       Model,
       Flags,
-      flags,
-      init,
-      update,
-      view: Page,
+      ...routed,
+      view,
       subscriptions,
       container,
       resources: KeyValueStore.layerStorage(() => storage),
     }),
+    { flags },
   )
   running.push(() => handle.dispose())
 }
@@ -103,4 +104,38 @@ test('keeps in-memory changes when saving fails', async () => {
   await vi.waitFor(() => expect(status()).toBe('1 active, 0 completed'))
   checkboxOf('Buy milk').click()
   await vi.waitFor(() => expect(status()).toBe('0 active, 1 completed'))
+})
+
+const stored = JSON.stringify({ version: 1, keys: TodosMirror.encode(modelWithTodos) })
+
+const listed = (): ReadonlyArray<string> =>
+  Array.from(document.querySelectorAll('li'), item => item.textContent ?? '')
+
+const filterButton = (name: string): HTMLButtonElement => {
+  const found = Array.from(document.querySelectorAll('button')).find(
+    button => button.textContent === name,
+  )
+  if (found === undefined) throw new Error(`no ${name} filter`)
+  return found
+}
+
+test("a link's filter opens over this device's stored list", async () => {
+  window.localStorage.setItem('todos', stored)
+  window.history.replaceState(null, '', '/?filter=Completed')
+  mount(window.localStorage)
+  // The list from the store and the filter from the URL, both read by `init`.
+  await vi.waitFor(() => expect(status()).toBe('2 active, 1 completed'))
+  expect(listed()).toEqual([expect.stringContaining('Done task')])
+})
+
+test('a filter chosen is a history entry, and back returns to the last one', async () => {
+  window.localStorage.setItem('todos', stored)
+  mount(window.localStorage)
+  await vi.waitFor(() => expect(listed()).toHaveLength(3))
+  filterButton('Active').click()
+  await vi.waitFor(() => expect(window.location.search).toBe('?filter=Active'))
+  expect(listed()).toHaveLength(2)
+  window.history.back()
+  await vi.waitFor(() => expect(window.location.search).toBe(''))
+  await vi.waitFor(() => expect(listed()).toHaveLength(3))
 })

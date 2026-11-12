@@ -128,7 +128,29 @@ const MeRow = Entity.select(Me, { signedIn: true, key: true, may: true })
 const NoteRow = Entity.select(Note, { title: true, authorId: true })
 
 /** Who the page is signed in as, as the server answered. */
-export const Session = App.surface('Session', { model: () => ({ me: Data.get(MeRow, ME) }) })
+export const Session = App.surface('Session', {
+  model: () => ({ me: Data.get(MeRow, ME) }),
+  // Sign out is drawn by the server: a press before the runtime starts is replayed.
+  messages: [Message.ClickedSignOut],
+})
+
+/**
+ * The sign-in form's fields, which the server draws too: what is typed or
+ * pressed before the runtime starts is replayed as these Messages.
+ */
+export const SignInForm = App.surface('SignInForm', {
+  model: ({ model }) => ({
+    email: model.email,
+    password: model.password,
+    passwordShown: model.passwordShown,
+  }),
+  messages: [
+    Message.ChangedEmail,
+    Message.ChangedPassword,
+    Message.ToggledPassword,
+    Message.SubmittedSignIn,
+  ],
+})
 
 /** The notes the server lets this principal read. */
 export const NoteList = App.surface('NoteList', {
@@ -172,6 +194,7 @@ export const notesHref = Site.href(NotesNode, {})
  */
 export const actives = {
   session: Surface.at(Session, undefined),
+  signInForm: Surface.at(SignInForm, undefined),
   ...Site.sources(AppSite, App.owner, App.model.route),
 }
 
@@ -214,6 +237,8 @@ export const plan = SSR.plan(
   {
     id: 'auth',
     state: Projection.pick(App.model.route),
+    // The form starts empty on both sides; what is typed before boot is replayed on top.
+    local: [App.model.email, App.model.password, App.model.passwordShown],
     surfaces: Object.values(actives),
     parts: [Remote.resume(Data)],
   },

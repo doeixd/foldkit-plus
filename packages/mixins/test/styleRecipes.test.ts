@@ -90,16 +90,16 @@ describe('recipeFor', () => {
 
   it('applies base, selected variants, defaults, and a matching compound per slot', () => {
     const pieces = Card({ tone: 'danger', size: 'lg' })
-    expect(pieces.root?.classes).toEqual(['card', 'tone-danger', 'loud'])
-    expect(pieces.root?.style).toEqual({ padding: '16px' })
-    expect(pieces.title?.classes).toEqual(['title', 'title-danger'])
-    expect(Card().root?.classes).toEqual(['card', 'tone-neutral'])
+    expect(pieces.root.classes).toEqual(['card', 'tone-danger', 'loud'])
+    expect(pieces.root.style).toEqual({ padding: '16px' })
+    expect(pieces.title.classes).toEqual(['title', 'title-danger'])
+    expect(Card().root.classes).toEqual(['card', 'tone-neutral'])
   })
 
   it('null unsets a defaulted axis', () => {
     const pieces = Card({ tone: null })
-    expect(pieces.root?.classes).toEqual(['card'])
-    expect(pieces.root?.style).toEqual({ padding: '4px' })
+    expect(pieces.root.classes).toEqual(['card'])
+    expect(pieces.root.style).toEqual({ padding: '4px' })
   })
 
   it('extend merges per slot and refuses a slot the contract lacks', () => {
@@ -108,14 +108,14 @@ describe('recipeFor', () => {
       variants: { tone: { danger: { root: Style.class('brand-danger') } } },
       defaults: { size: 'lg' },
     })
-    expect(Branded({ tone: 'danger' }).root?.classes).toEqual([
+    expect(Branded({ tone: 'danger' }).root.classes).toEqual([
       'card',
       'brand',
       'tone-danger',
       'brand-danger',
       'loud',
     ])
-    expect(Card({ tone: 'danger' }).root?.classes).toEqual(['card', 'tone-danger'])
+    expect(Card({ tone: 'danger' }).root.classes).toEqual(['card', 'tone-danger'])
     expect(codeOf(() => Card.extend({ base: { footer: Style.class('x') } as never }))).toBe(
       'mixins:unknown-slot',
     )
@@ -126,11 +126,23 @@ describe('recipeFor', () => {
     ).toBe('mixins:unknown-slot')
   })
 
+  it('keeps every base slot in every selection, an extended base included', () => {
+    // `title` is set by the base and by `tone: danger`; unsetting every axis keeps the base's.
+    expect(Card({ tone: null, size: null }).title.classes).toEqual(['title'])
+    const Actionable = Card.extend({ base: { action: Style.class('act') } })
+    const pieces = Actionable({ tone: null, size: null })
+    expect([pieces.root.classes, pieces.title.classes, pieces.action.classes]).toEqual([
+      ['card'],
+      ['title'],
+      ['act'],
+    ])
+  })
+
   it('is its base alone when it has no variants', () => {
     const Plain = Style.recipeFor(CardSlots)({ base: { root: Style.class('card') } })
-    expect(Plain().root?.classes).toEqual(['card'])
+    expect(Plain().root.classes).toEqual(['card'])
     expect(Plain.def.variants).toEqual({})
-    expect(Plain.extend({ base: { root: Style.class('brand') } })().root?.classes).toEqual([
+    expect(Plain.extend({ base: { root: Style.class('brand') } })().root.classes).toEqual([
       'card',
       'brand',
     ])

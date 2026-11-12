@@ -167,7 +167,7 @@ it('draws rows, adds and removes them, and submits what they hold', async () => 
     type('Create-comments-r2-body', 'First')
 
     const submit = button('Submit')
-    await vi.waitFor(() => expect(submit.disabled).toBe(false))
+    await vi.waitFor(() => expect(submit.getAttribute('aria-disabled')).toBeNull())
     document.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true }))
 
     await vi.waitFor(() => expect(latest?.saved).toHaveLength(1))

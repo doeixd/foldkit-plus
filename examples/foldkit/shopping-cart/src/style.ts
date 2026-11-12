@@ -227,7 +227,7 @@ export const CheckoutPart = slots(
     ],
     lineItem: {},
     lineName: U.font('medium'),
-    lineQuantity: [U.color('text.muted'), { marginLeft: t.space.xs }],
+    lineQuantity: [U.color('text.muted'), { marginInlineStart: t.space.xs }],
     linePrice: U.font('medium'),
     total: [
       U.flex,
@@ -293,7 +293,13 @@ export const QuantityButtonStyle = forSlots(ButtonSlots)(
 export const RemoveButtonStyle = forSlots(ButtonSlots)(
   Recipes.Button.extend({
     base: {
-      button: [errorFill, U.py('2xs'), U.px('sm'), U.rounded('sm'), { marginLeft: t.space.xs }],
+      button: [
+        errorFill,
+        U.py('2xs'),
+        U.px('sm'),
+        U.rounded('sm'),
+        { marginInlineStart: t.space.xs },
+      ],
     },
   })({ tone: 'danger' }),
   { name: 'RemoveButtonStyle' },

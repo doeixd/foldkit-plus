@@ -577,7 +577,8 @@ const truthComparison = (
   if (asked._tag === 'Null') {
     return predicate({ ...asked, present: !asked.present }, target, input, query)
   }
-  return negate(predicate(asked, target, input, query))
+  const positive = predicate(asked, target, input, query)
+  return negate(positive)
 }
 
 /**
@@ -823,6 +824,9 @@ const undecided = (
     }
     case 'In': {
       const among = operand(node.among, target, input, query)
+      // Null stays unknown, as evaluate has it, so a `whenGiven` guard can
+      // settle the `or` that holds it.
+      if (among === null || among === undefined) return sql`null`
       if (!Array.isArray(among)) {
         throw new QueryCompileError(
           `query "${query}" asks whether a value is in something that is not a list`,
@@ -884,11 +888,12 @@ export const bodyOperations: ReadonlyArray<Operation> = [...supported, 'path', '
 export const reachedEntities = (body: AnyQuery): ReadonlyArray<EntityIdentity<string>> => {
   const owners = new Map<symbol, EntityIdentity<string>>()
   for (const reached of Query.dependencies(body).reaches) {
-    const met = [
-      ...(reached._tag === 'ViewerPath' ? [reached.viewer.entity] : []),
-      ...reached.via.map(relation => relation.target().identity),
-      ...(reached._tag === 'Exists' ? [reached.relation.owner] : []),
-    ]
+    const through = reached.via.map(relation => relation.target().identity)
+    const met = Match.valueTags(reached, {
+      ViewerPath: ({ viewer }) => [viewer.entity, ...through],
+      Path: () => through,
+      Exists: ({ relation }) => [...through, relation.owner],
+    })
     for (const owner of met) owners.set(owner.token, owner)
   }
   return [...owners.values()]
@@ -906,7 +911,11 @@ const checkReach = (
   query: string,
 ): void => {
   // A path from the viewer reads no column of the judged row, so its table may meet it.
-  const met = reached._tag === 'ViewerPath' ? [] : [target.table]
+  const met: Array<CompileTarget['table']> = Match.valueTags(reached, {
+    ViewerPath: () => [],
+    Path: () => [target.table],
+    Exists: () => [target.table],
+  })
   const meet = (table: CompileTarget, owner: EntityIdentity<string>): void => {
     if (met.includes(table.table)) {
       throw new QueryCompileError(
@@ -1046,11 +1055,7 @@ export const compilePredicates = (
  * SQL of its own, is refused, as is anything that is not a call.
  */
 export const compileCall = (call: Operandish, target: CompileTarget, query: string): SQL => {
-  if (isPredicate(call)) {
-    if (call._tag === 'Test') return callSql(call, target, {}, query)
-  } else if (call._tag === 'Call') {
-    return callSql(call, target, {}, query)
-  }
+  if (call._tag === 'Test' || call._tag === 'Call') return callSql(call, target, {}, query)
   throw new QueryCompileError(`${query}: only a call of an operator compiles alone`)
 }
 

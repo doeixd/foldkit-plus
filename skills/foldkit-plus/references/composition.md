@@ -255,12 +255,13 @@ const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuil
   `hovered`, `refused`, `drag`, `clipboard`, `editing` (each an `Option`, stored as `null`), `panel`,
   `viewport`. Messages: `Applied({ op })`, `InsertAsked({ block, at })`,
   `DuplicateAsked({ id, at })`, `PatternAsked({ pattern, at })` (place it with
-  `PageBuilder.patternAt(doc, selected, pattern)`), `CopyAsked({ id })` / `CutAsked({ id })` / `PasteAsked()`
+  `PageBuilder.patternAt(doc, selected, pattern)`), `CopyAsked({ id })` / `CutAsked({ id })` (answered by `Copied({ said })`, which is announced) / `PasteAsked()`
   (the paste reads the system clipboard, `ClipboardRead({ text })`, decodes it strictly,
   rekeys it and inserts it whole or refuses), `EditingAsked({ field })` / `FieldTyped` /
   `EditingCommitted` / `EditingCancelled` (text edited in place on the canvas, a field
   drawn with `field(key)`; one undo step per session, Escape takes it back), `Minted` (from its own Command),
-  `Selected({ id })` / `Deselected()`, `Hovered({ id })` / `Unhovered()`, `Undid`,
+  `Selected({ id })` / `Deselected()`, `Hovered({ id })` / `Unhovered()`, `RowPressed({ id })` /
+  `RowToggled({ id })` (a layers row and its expander, applied through the tree's helpers), `Undid`,
   `Redid`, `PanelChosen`, `ViewportChosen`, `PreviewChosen` / `PreviewCleared`, and
   `DragStarted({ source })` (`{ _tag: 'Existing', id }`, or `{ _tag: 'New', block }` from the
   palette), `DraggedOver({ id, zone })`, `DraggedOverRegion({ id, region })` (over a node's

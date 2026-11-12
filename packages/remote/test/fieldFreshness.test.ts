@@ -3,6 +3,7 @@
  * A row is as fresh as its oldest field: a write of one field leaves the row
  * due when the others are, while the newest write still dates its order.
  */
+import { noKept } from '../src/kept.js'
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { initialRemoteModel } from '../src/model.js'
@@ -58,17 +59,21 @@ describe('plan and deadlineOf', () => {
 
 describe('a pending write', () => {
   it('leaves the row as fresh as the server last made it, though it covers every field', () => {
-    const visible = visibleStore(partly(), {
-      layers: [
-        {
-          id: 'm1',
-          patches: [{ entity: 'Post', id: 'p1', values: { title: 'Ho', likes: 9 } }],
-          deletes: [],
-          viewer: Option.none(),
-        },
-      ],
-      overlays: [],
-    })
+    const visible = visibleStore(
+      partly(),
+      {
+        layers: [
+          {
+            id: 'm1',
+            patches: [{ entity: 'Post', id: 'p1', values: { title: 'Ho', likes: 9 } }],
+            deletes: [],
+            viewer: Option.none(),
+          },
+        ],
+        overlays: [],
+      },
+      noKept,
+    )
     expect(visible[key]).toMatchObject({ values: { title: 'Ho', likes: 9 }, oldestAt: 0 })
     expect(plan(visible, [read], { freshness: { now: 120, freshness: FRESHNESS } })).toEqual([read])
   })

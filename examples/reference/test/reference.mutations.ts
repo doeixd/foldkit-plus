@@ -100,8 +100,8 @@ export default [
     edits: [
       {
         file: '../src/page.ts',
-        find: 'new Response(null, { status: 303, headers: { location: url, ...pageHeaders } }),',
-        replace: 'new Response(null, { status: 200, headers: pageHeaders }),',
+        find: 'Denied: ({ url }) => Option.some(url),',
+        replace: 'Denied: () => Option.none(),',
       },
     ],
     tests: worker,
@@ -111,8 +111,41 @@ export default [
     edits: [
       {
         file: '../src/worker.ts',
-        find: "resolvePrincipal: AuthServer.resolver({ ...resolving, requests: 'navigation' }),",
-        replace: 'resolvePrincipal: AuthServer.resolver(resolving),',
+        find: 'read: pageReader({ ...remote, ...auth.navigation }),',
+        replace: 'read: pageReader({ ...remote, ...auth.scripted }),',
+      },
+    ],
+    tests: worker,
+  },
+  {
+    name: "/remote is answered with a navigation's resolver, so a member's write is refused",
+    edits: [
+      {
+        file: '../src/worker.ts',
+        find: 'remote: serveFetch({ ...remote, ...auth.scripted }),',
+        replace: 'remote: serveFetch({ ...remote, ...auth.navigation }),',
+      },
+    ],
+    tests: worker,
+  },
+  {
+    name: '/remote reads a cookie without the CSRF header, on workerd',
+    edits: [
+      {
+        file: '../../../packages/auth/src/server.ts',
+        find: "requests: 'scripted' }))",
+        replace: "requests: 'browser' }))",
+      },
+    ],
+    tests: worker,
+  },
+  {
+    name: 'a page is answered as cacheable, on workerd',
+    edits: [
+      {
+        file: '../src/page.ts',
+        find: "const pageHeaders = { 'cache-control': 'private, no-store', vary: 'cookie' }",
+        replace: "const pageHeaders = { vary: 'cookie' }",
       },
     ],
     tests: worker,
@@ -121,9 +154,9 @@ export default [
     name: 'the Worker renders under a build id of its own',
     edits: [
       {
-        file: '../src/build.ts',
-        find: 'Option.fromUndefinedOr(pattern.exec(template)?.[1])',
-        replace: "Option.some('not-this-build')",
+        file: '../../../packages/host/src/template.ts',
+        find: 'const buildId = buildIdPattern.exec(html)?.[1]',
+        replace: "const buildId = 'not-this-build'",
       },
     ],
     tests: worker,
@@ -206,12 +239,12 @@ export default [
     tests: worker,
   },
   {
-    name: 'each request is checked against the host it arrived at',
+    name: 'Yielded checks each request against an origin other than ORIGIN',
     edits: [
       {
         file: '../src/worker.ts',
-        find: 'const host = await hostOf(env, env.ORIGIN)',
-        replace: 'const host = await hostOf(env, url.origin)',
+        find: 'http: { origin: env.ORIGIN },',
+        replace: "http: { origin: 'http://elsewhere.example' },",
       },
     ],
     tests: worker,
@@ -220,8 +253,8 @@ export default [
     name: 'a Worker with no ORIGIN answers as if it had one',
     edits: [
       {
-        file: '../src/worker.ts',
-        find: "    if (env.ORIGIN === undefined)\n      return new Response('Set ORIGIN to where this Worker is served.', { status: 500 })\n",
+        file: '../../../packages/host/src/routes.ts',
+        find: '    if (!isSet(env[config.origin])) return unset(config.origin)\n',
         replace: '',
       },
     ],

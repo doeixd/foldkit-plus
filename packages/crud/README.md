@@ -428,8 +428,8 @@ navigation your `update` sends after the save is yours, not the save's.
   that applied it answers from its record. An edit since makes the next submit
   a new write.
 - **A create that landed** starts its form again blank, which cannot submit;
-  the placement passes `saved` until the next edit, so the button stays
-  `aria-disabled` rather than `disabled` and keeps the focus a press gave it.
+  its button reads `aria-disabled`, never `disabled`, so it keeps the focus a
+  press gave it, and a press says what the blank form lacks.
 
 The failure shows only while the form is as it was saved, and it is the one
 place a failed save is announced: `foldkit-mixins-crud`'s `EditorView` says

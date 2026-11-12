@@ -7,7 +7,7 @@
 import { Effect, Layer, Option, Schema } from 'effect'
 import { applyEdits, type AnyEntityBinding, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import type { Journal } from 'foldkit-durable/core'
-import type { CommitStamp, Operation } from 'foldkit-sync'
+import type { CommitStamp, Operation, WrittenOperation } from 'foldkit-sync'
 import { EditableEntity } from 'foldkit-sync/entity'
 import { RemoteEdits } from 'foldkit-sync/remote'
 import { editsJournal } from 'foldkit-sync/journal'
@@ -55,12 +55,12 @@ declare const ProductBinding: AnyEntityBinding
 declare const database: Layer.Layer<DrizzleDatabase>
 const applyProduct = applyEdits(ProductBinding)
 type Shared = { readonly edits: ReadonlyArray<typeof ProductEdits.Edit.Type> }
-declare const journal: Journal<Operation, Shared, string, Operation>
+declare const journal: Journal<Operation, Shared, string, WrittenOperation>
 declare const editsOf: (operation: Operation) => Option.Option<{
   readonly changes: ReadonlyArray<typeof ProductEdits.Change.Type>
   readonly at: Option.Option<number>
 }>
-declare const absorbed: (through: number, cursor: number) => Operation
+declare const absorbed: (through: number, cursor: number) => WrittenOperation
 const { settle, absorb } = editsJournal({
   documentId: 'registry-edits',
   journal,

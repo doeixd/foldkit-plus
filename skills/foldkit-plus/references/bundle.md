@@ -224,10 +224,25 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   and `Link.optional` writes keep the parent when the child is unchanged, so an
   ignored Message does not redraw. Nothing is routed or lifted automatically;
   for that, use `Bundle.fromParts`.
+- **A union Model:** a branch (`LoggedOut | LoggedIn`) is a child through
+  `Link.make` whose `read` is `Option.none()` off that branch (match with
+  `Match.tagsExhaustive`) and whose `write` returns the branch as the Model.
+  `Update.foldChild({ ...link, update })` then ignores Messages for an inactive
+  branch; the transition (login, logout) builds the next branch itself, since
+  `Link.foldInit` and `placements.initial` write struct fields. No helper
+  exists; see the README's "A union Model: a Link per branch".
 - **Presets:** `MediaQuery.with({ query })` binds args; place it with no `args`.
   `Page.place(bundle, 'field', config)` places without a separate `declare`.
 - **Helpers:** `helpers: { reset: (model: CounterModel, to: number) => ({ model }) }` become
-  `placed.helpers.reset(to)`, an `Update.Step` of the parent.
+  `placed.helpers.reset(to)`, an `Update.Step` of the parent. A helper that needs the args is
+  given in a function of them, `helpers: ({ limit }) => ({ fill: model => … })`, which each
+  placement calls with its own args; `Bundle.helpersOf(bundle, args)` reads either form for a
+  parent that folds the child without placing it.
+- **A parent's decision:** its view sends the parent's own Message (`ClickedReset`), and its
+  `update` folds the child's helper (`placed.helpers.reset(0)(model)`); a parent view does
+  not build `wrapper.make(Child.Message.X(...))`, which `@foldkit/oxlint-plugin`'s
+  `no-child-message-construction-in-root` reports. The child's own view and Behaviors still
+  send its Messages; `follow`'s replayed asks are the exception.
 - **Types:** `Bundle.make` takes no explicit generics. The `Model` and
   `Message` Schemas declare those types and every part is checked against
   them (`init` may write `{}` or `'idle'`); the bundle's services are what
@@ -256,7 +271,10 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   OutMessage, R, ViewInputs>`) on the first Message, which is not lost: until
   then `update` returns a `Load<Name>` Command that yields it again, and the
   view renders `while` (give it the handlers that should trigger the load).
-  `bundle.load()` preloads once; `bundle.isLoaded()`. `subscriptions`,
+  A failed load is logged, not a crash: `while` stays and the next Message
+  or `load()` retries. A body arriving over `while` is drawn at that Message,
+  even if its `update` returns the given Model (the bundle hands back an equal
+  copy once). `bundle.load()` preloads once; `bundle.isLoaded()`. `subscriptions`,
   `resources`, `helpers` stay in the declaration. A page's `lazy: [Upload]` in
   `foldkit-ssr`'s config loads them before render and boot.
 - **Services on demand:** `Resource.lazy(Tag, () => import('./x.js').then(m =>

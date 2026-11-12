@@ -6,9 +6,10 @@
  * `Collection.behavior` stays out — its descriptor is shared, its bundles
  * would collide with the navigation's `id` and `aria-disabled`.
  */
-import { Behavior, Behaviors, Capability, Event, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { Behavior, Behaviors, Capability, Event, Slot, SlotView, Slots } from 'foldkit-mixins'
 import { Selection, TreeNavigation } from 'foldkit-primitives/interaction'
-import { Nav, Sel, allRows, labelOf, navArgs, selArgs, type Message, type Model } from './app.js'
+import { type Model, allRows, labelOf, navArgs, selArgs } from './app.js'
+import { Message, Nav, Sel } from './message.js'
 
 export const TreeSlots = Slots.define({
   tree: Slot.make({ capability: Capability.Container }),
@@ -35,14 +36,6 @@ export const TreePicks = Selection.behavior(Sel, selArgs)(TreeSlots)<Model, Mess
   items: model => describeOf(model),
 })
 
-/** The toggle message for a branch row: close when open, open when closed. */
-export const toggleOf = (model: Model, id: string): Message =>
-  Nav.wrapper.make(
-    TreeNavigation.isOpen(model.nav, navArgs, id)
-      ? TreeNavigation.Message.Closed({ id })
-      : TreeNavigation.Message.Opened({ id }),
-  )
-
 export const Tree = SlotView.forMessages<Message>()
   .define(TreeSlots, (model: Model, slots, h) => {
     const showing = showingOf(model)
@@ -57,7 +50,7 @@ export const Tree = SlotView.forMessages<Message>()
                 h.button(
                   slots.expander.attrs([
                     h.AriaLabel(`${open ? 'Collapse' : 'Expand'} ${labelOf(row.id)}`),
-                    h.OnClick(toggleOf(model, row.id)),
+                    h.OnClick(Message.ToggledRow({ id: row.id })),
                   ]),
                   [open ? '▾' : '▸'],
                 ),

@@ -23,6 +23,14 @@ describe('update flows', () => {
     expect(picked.lastRan).toEqual(Option.some('New folder'))
   })
 
+  it('Enter on a row picks it and runs it', () => {
+    const opened = update(initial.model, Message.Opened({})).model
+    const ran = update(opened, Message.Committed({ id: 'new-folder' })).model
+    expect(ran.palettePick.selected).toEqual(['new-folder'])
+    expect(ran.open).toBe(false)
+    expect(ran.lastRan).toEqual(Option.some('New folder'))
+  })
+
   it('re-picking the running command runs nothing new', () => {
     const opened = update(initial.model, Message.Opened({})).model
     const picked = update(

@@ -15,6 +15,7 @@ import {
   type HelperRequirements,
 } from './bundle.js'
 import type { BundleParts } from './declare.js'
+import { helpersFor, readsArgs } from './helpers.js'
 
 type P<B> = BundleParts<B>
 
@@ -119,7 +120,11 @@ export const withHelpers: {
     helpers: Helpers,
   ): Rebuilt<B, WithHelpers<B, Helpers>>
 } = Function.dual(2, (self: AnyBundle, helpers: object) =>
-  rebuild(self, { helpers: { ...self.helpers, ...helpers } }),
+  rebuild(self, {
+    helpers: readsArgs(self.helpers)
+      ? (args: unknown) => ({ ...helpersFor(self.helpers, args), ...helpers })
+      : { ...self.helpers, ...helpers },
+  }),
 )
 
 type HelperOf<B> = HelperRecord<P<B>['Model'], P<B>['Message'], P<B>['OutMessage']>

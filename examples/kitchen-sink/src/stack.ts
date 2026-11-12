@@ -36,7 +36,7 @@ import {
   DocumentId as SyncDocumentId,
   ReplicaId,
   StorageError,
-  Sync,
+  forApplication,
   type Storage,
   type Sync as SyncContract,
   type TransportClient,
@@ -266,7 +266,7 @@ export const NoteChanges = MessageSet.make(App, [
   Message.RequestedCreateNote,
   Message.RequestedRenameNote,
 ])
-const syncDefinition = Sync.forApplication(App).make({
+const syncDefinition = forApplication(App).make({
   documentId: SyncDocumentId.make('kitchen'),
   shared: Notes,
   durable: NoteChanges,

@@ -9,7 +9,14 @@ import { Effect, Exit, Fiber, Scope } from 'effect'
 import { ActorId, DocumentId, Journal, OpId, Sequence } from 'foldkit-durable'
 import { MessageSet, Projection } from 'foldkit-surface'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Sync, documentId, sequence, type Operation, type TransportClient } from '../src/index.js'
+import {
+  Sync,
+  documentId,
+  sequence,
+  type Operation,
+  type TransportClient,
+  type WrittenOperation,
+} from '../src/index.js'
 import { journalChanges, journalExchange, serveJournal } from '../src/journal.js'
 import { socketPair } from './sockets.js'
 import {
@@ -27,6 +34,9 @@ import {
 afterEach(() => {
   closeScopes()
 })
+
+/** A refusal in the server's fixed words, as the wire carries it. */
+const invalid = (message: string) => ({ _tag: 'Invalid', rule: null, message, path: [] })
 
 describe('journalExchange', () => {
   it('appends what a replica sends, acknowledges it, and replicas converge through it', async () => {
@@ -56,8 +66,17 @@ describe('journalExchange', () => {
     expect(reply.reasons).toEqual([
       { opId: first!.opId, reason: 'Not an operation this server accepts' },
     ])
+    expect(reply.refusals).toEqual([
+      { opId: first!.opId, refusal: invalid('Not an operation this server accepts') },
+    ])
     expect(reply.acknowledged).toEqual([second!.opId])
     expect(reply.committed).toEqual([second!.opId])
+  })
+
+  it('sends no refusals key when nothing was refused, so an older replica still reads it', async () => {
+    const exchange = journalExchange({ sync: Todos, journal: openJournal(), principal: 'ada' })
+    const raw = await exchange.exchange(sequence(0), await pendingOf('a', ['Milk']))
+    expect(raw).not.toHaveProperty('refusals')
   })
 
   it('rejects an operation naming another document', async () => {
@@ -68,6 +87,9 @@ describe('journalExchange', () => {
     expect(reply).toMatchObject({
       rejected: [operation!.opId],
       reasons: [{ opId: operation!.opId, reason: 'Not an operation this server accepts' }],
+      refusals: [
+        { opId: operation!.opId, refusal: invalid('Not an operation this server accepts') },
+      ],
       acknowledged: [],
     })
   })
@@ -80,6 +102,7 @@ describe('journalExchange', () => {
     expect(reply).toMatchObject({
       rejected: [operation!.opId],
       reasons: [{ opId: operation!.opId, reason: 'Not a valid operation' }],
+      refusals: [{ opId: operation!.opId, refusal: invalid('Not a valid operation') }],
       acknowledged: [],
     })
   })
@@ -97,6 +120,8 @@ describe('journalExchange', () => {
     expect(reply).toMatchObject({
       rejected: [first!.opId],
       reasons: [{ opId: first!.opId, reason: 'This connection may not make changes' }],
+      // A plain refusal names no reason; the sentence is the deprecated field's alone.
+      refusals: [{ opId: first!.opId, refusal: { _tag: 'Forbidden' } }],
       acknowledged: [second!.opId],
     })
     expect(reply.committed).toEqual([second!.opId])
@@ -118,8 +143,26 @@ describe('journalExchange', () => {
     expect(reply).toMatchObject({
       rejected: [first!.opId],
       reasons: [{ opId: first!.opId, reason: 'Not your list' }],
+      refusals: [{ opId: first!.opId, refusal: { _tag: 'Forbidden', reason: 'Not your list' } }],
       acknowledged: [second!.opId],
     })
+  })
+
+  it('cuts a reason too long for a refusal, so the replica still reads the reply', async () => {
+    const long = 'No. '.repeat(200)
+    const exchange = journalExchange({
+      sync: Todos,
+      journal: openJournal(),
+      principal: 'guest',
+      admit: () => ({ allowed: false, reason: long }),
+    })
+    const [operation] = await pendingOf('a', ['Milk'])
+    const reply = await send(exchange, 0, [operation!])
+    const cut = `${long.slice(0, 499)}…`
+    expect(reply.reasons).toEqual([{ opId: operation!.opId, reason: cut }])
+    expect(reply.refusals).toEqual([
+      { opId: operation!.opId, refusal: { _tag: 'Forbidden', reason: cut } },
+    ])
   })
 
   it('refuses a connection that may not open the document, reading and appending nothing', async () => {
@@ -147,6 +190,9 @@ describe('journalExchange', () => {
     expect(await send(exchange, 1, [reused])).toMatchObject({
       rejected: [operation!.opId],
       reasons: [{ opId: operation!.opId, reason: 'Its id was already used for another' }],
+      refusals: [
+        { opId: operation!.opId, refusal: invalid('Its id was already used for another') },
+      ],
       acknowledged: [],
     })
   })
@@ -182,6 +228,10 @@ describe('journalExchange', () => {
         { opId: tea!.opId, reason: 'No tea here' },
         { opId: gin!.opId, reason: 'Refused by the server' },
       ],
+      refusals: [
+        { opId: tea!.opId, refusal: { _tag: 'Forbidden', reason: 'No tea here' } },
+        { opId: gin!.opId, refusal: { _tag: 'Forbidden' } },
+      ],
       acknowledged: [milk!.opId],
     })
   })
@@ -210,7 +260,7 @@ describe('journalExchange', () => {
   it('fails the exchange only for an entry that names no operation', async () => {
     const exchange = journalExchange({ sync: Todos, journal: openJournal(), principal: 'ada' })
     // @ts-expect-error an entry that is no operation, as a broken client might send
-    const broken: Operation = { nothing: true }
+    const broken: WrittenOperation = { nothing: true }
     await expect(send(exchange, 0, [broken])).rejects.toThrow(/names no operation/)
   })
 

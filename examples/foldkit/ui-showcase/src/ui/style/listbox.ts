@@ -12,12 +12,12 @@ import {
 } from './shared.js'
 
 /**
- * `foldkit-mixins-ui` has no Listbox adapter: `@foldkit/ui` draws the
- * listbox's elements itself and takes only attributes for its button, items,
- * backdrop, separator and wrapper, so those are the page's own Slots. Each
- * option takes only a class name, so the options are styled from their
- * container, by the role and the `data-active` and `data-selected` the
- * component writes.
+ * Drawn through `@foldkit/ui`'s own view, not `foldkit-mixins-ui`'s Listbox
+ * adapter: upstream takes only attributes for its button, items, backdrop,
+ * separator and wrapper, so those are the page's own Slots. Each option takes
+ * only a class name, so the options are styled from their container, by the
+ * role and the `data-active` and `data-selected` the component writes; the
+ * adapter's `item` Slot is the way to style one as a Slot.
  */
 export const ListboxPageSlots = Slots.define({
   ...demoSlots,

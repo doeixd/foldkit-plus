@@ -91,6 +91,7 @@ says who each chair is, and what the clock publishes, for both hosts. The page i
 the sandbox's code and its wasm are fetched with the page, and
 [public/_headers](public/_headers) has Cloudflare Pages keep what is under
 `/assets` for a year, since its names change with its content.
+The build also emits a static `404.html` (the site's own chrome, no script, `noindex`), which Pages serves with a 404 status for an unknown address instead of the studio's shell with a 200.
 
 The build then renders the public site with `foldkit-ssr` ([prerender.ts](src/ssr/prerender.ts),
 described for the build in [siteBuild.ts](src/ssr/siteBuild.ts) and rendered by
@@ -269,6 +270,18 @@ says otherwise, so it shows only what is published.
   do that for themselves (`listing` in `app.ts` and `pageApp.ts`).
 - `http.ts` keeps time: the CMS owns no timer, so the host asks what is due every
   five seconds. Schedule something a minute out and watch it go.
+- **The schedule box belongs to the post it was typed for**: the Model keeps the
+  text with that post's id (`scheduleDraft`, read through `scheduleText` in
+  `app.ts`), so opening another post shows an empty box and one press of
+  Schedule cannot schedule it with the first post's time. Opening the same post
+  again, or an address that names the post already shown, keeps the draft.
+- **The schedule box empties when its schedule is taken**: in the Message that
+  moves the editor from Scheduling to Scheduled, and only while the box still
+  names the time asked (`clearedWhenScheduled` in `app.ts`). Judged on every
+  Message instead, a new time typed for a reschedule would vanish at the next
+  unrelated read, or a time typed again would; emptied on the press, a failed
+  schedule would lose the text. A failure, and a time typed while the
+  schedule was on its way, stay in the box.
 - **`x-chair` stands in for authentication.** It is the client saying who it is,
   which no real server believes: a real one derives the principal from a session
   it has verified. Everything else about the boundary is real — a visitor's reads

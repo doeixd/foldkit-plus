@@ -358,6 +358,17 @@ export interface FormOptions<
   /** How long a key rests before its check runs, so typing does not ask per keystroke. Default 300ms. */
   readonly debounce?: Duration.Input
   /**
+   * Whether a submit made while a check runs waits for its answer (default
+   * `true`). `false` refuses it instead: nothing is handed out and nothing
+   * waits, the checks go on, and `canSubmit` is `false` until they answer. The
+   * refusal is the form's own, decided from the Model, so a submit sent before
+   * the frame that drew the button disabled is refused too. A checked key that
+   * has never been checked (a form filled from an existing record) therefore
+   * cannot submit at rest: the first submit only starts its check and is
+   * refused, and the reader submits again after the answer.
+   */
+  readonly submitWaits?: boolean
+  /**
    * The form of a nested key, made with `Form.make` from the input the key nests
    * (`Relation.nested(relation, input)`): the same form that edits the target
    * alone. A nested key given none gets a plain form of its input, with this
@@ -495,7 +506,10 @@ interface AnyFormMessage {
 
 /** An edit, however deep. */
 const isEdit = (message: AnyFormMessage): boolean =>
-  message._tag === 'Nested' ? isEdit(message.message as AnyFormMessage) : edits[message._tag]
+  Match.value(message._tag).pipe(
+    Match.when('Nested', () => isEdit(message.message as AnyFormMessage)),
+    Match.orElse(tag => edits[tag]),
+  )
 
 interface Plan extends FormControl {
   readonly kind: HeldDraft
@@ -567,12 +581,14 @@ const wordsOf = (
   schema: Schema.Top,
   member: InputMember,
 ): { readonly label: string; readonly description: string | undefined } => {
-  const own =
-    member._tag === 'Unmapped' ? undefined : member._tag === 'Field' ? member : member.relation
+  const { own, fieldSchemas } = Match.valueTags(member, {
+    Unmapped: () => ({ own: undefined, fieldSchemas: [] }),
+    Field: field => ({ own: field, fieldSchemas: [field.schema as Schema.Top] }),
+    RelationInput: ({ relation }) => ({ own: relation, fieldSchemas: [] }),
+    NestedInput: ({ relation }) => ({ own: relation, fieldSchemas: [] }),
+  })
   const [labelled] = own === undefined ? [] : labelKey.get(own.metadata)
-  const words = [schema, ...(member._tag === 'Field' ? [member.schema as Schema.Top] : [])].map(
-    Words.of,
-  )
+  const words = [schema, ...fieldSchemas].map(Words.of)
   const first = (pick: (entry: SchemaWords) => Option.Option<string>) =>
     Option.firstSomeOf(words.map(pick))
   return {
@@ -1156,6 +1172,7 @@ const Core = {
     const checks: Readonly<Partial<Record<Key, FormCheck<unknown, Partial<Value>, R>>>> =
       (options.checks ?? {}) as never
     const debounce = options.debounce ?? '300 millis'
+    const submitWaits = options.submitWaits ?? true
 
     /**
      * A key's check, after the debounce: a Command definition, so a test matches
@@ -1255,10 +1272,11 @@ const Core = {
       const accepts = Schema.is(bundled.bundle.Message as Schema.Codec<unknown>)
       const toParentMessage = (message: unknown): Message =>
         Message.Control({ key: key as ControlKey, message })
-      const fromParentMessage = (message: Message): Option.Option<unknown> =>
-        message._tag === 'Control' && message.key === key && accepts(message.message)
-          ? Option.some(message.message)
-          : Option.none()
+      const fromParentMessage = (message: Message): Option.Option<unknown> => {
+        if (message._tag !== 'Control' || message.key !== key || !accepts(message.message))
+          return Option.none()
+        return Option.some(message.message)
+      }
       const link = Link.make({
         read: (model: Model) => Option.some(drafts(model)[key].value),
         // The draft changes and its validation state stays: `update` revalidates
@@ -1399,7 +1417,8 @@ const Core = {
       keys.flatMap(key => {
         const member = members[key]!
         if (member._tag !== 'Field') return []
-        return [[member.key, key] as const]
+        const field = member.key
+        return [[field, key] as const]
       }),
     )
 
@@ -1549,7 +1568,8 @@ const Core = {
             },
         (form, row) => form.engine.submit(row),
       )
-      if (isValidating(next)) return { model: { ...next, submitPending: true }, commands }
+      if (isValidating(next))
+        return { model: submitWaits ? { ...next, submitPending: true } : next, commands }
       return { ...finish(next), commands }
     }
 
@@ -1701,9 +1721,12 @@ const Core = {
           case 'Validated': {
             const state = drafts(model)[message.key]
             // Only a key not validated yet: any other state already answers for this draft.
-            return state._tag === 'NotValidated'
-              ? validateKey(model, message.key, state.value)
-              : { model }
+            return FieldValidation.match(state, {
+              onNotValidated: value => validateKey(model, message.key, value),
+              onValidating: () => ({ model }),
+              onValid: () => ({ model }),
+              onInvalid: () => ({ model }),
+            })
           }
           case 'ValidatedAll':
             return validateAll(model)
@@ -2039,7 +2062,8 @@ const Core = {
         (rowsOf(model)[key] ?? fail(name, `"${key}" holds a draft, not rows`)) as never,
       /**
        * Whether a submit now could go through: nothing is invalid. A check still
-       * running does not stop it; the submit waits for the answer.
+       * running does not stop it; the submit waits for the answer, unless the
+       * form was made with `submitWaits: false`, which refuses it.
        */
       canSubmit: (model: Model): boolean => {
         const next = submit(model)
@@ -2078,9 +2102,12 @@ const Core = {
                   ...field,
                   value: plan.bundled.settled(field.value),
                 } as FieldValidation.Field<Draft>)
-          return held._tag === 'Validating'
-            ? FieldValidation.NotValidated({ value: held.value })
-            : held
+          return FieldValidation.match(held, {
+            onNotValidated: () => held,
+            onValidating: value => FieldValidation.NotValidated({ value }),
+            onValid: () => held,
+            onInvalid: () => held,
+          })
         }),
         rows: Object.fromEntries(
           rowsKeys.map(key => [

@@ -291,6 +291,10 @@ expectTypeOf(
 // @ts-expect-error every state is handled: `Stale` is missing
 Freshness.match(freshness, { Fresh: () => '', Refreshing: () => '' })
 
+// The value a read holds keeps the read's own type, not the `never` of its empty arms.
+declare const projectRead: RemoteData<{ readonly name: string }>
+expectTypeOf(RemoteData.held(projectRead)).toEqualTypeOf<Option.Option<{ readonly name: string }>>()
+
 // Whether nothing answered is asked of any RemoteError, not of a Freshness or a RemoteData.
 expectTypeOf(
   RemoteData.isUnreachable({ _tag: 'Unreachable', message: 'x' }),

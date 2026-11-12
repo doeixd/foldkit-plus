@@ -8,6 +8,7 @@
 import { Option, Schema } from 'effect'
 import type { Attribute, HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
+import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
 import { Behavior, Behaviors, Capability, type SlotItem } from 'foldkit-mixins'
 import type { Declared } from 'foldkit-bundle'
@@ -38,14 +39,20 @@ export const Args = Schema.Struct({
 })
 export type Args = typeof Args.Type
 
+// Moving focus by key dispatches `Focused`, and the item's `OnFocus` reports it again.
+const update = (model: Model, message: Message): Update.Return<Model, Message> =>
+  model.current === message.id ? { model } : { model: { current: message.id } }
+
 export const bundle = Bundle.make('RovingTabindex', {
   Model,
   Message,
   args: Args,
   init: () => ({ model: { current: null } }),
-  // Moving focus by key dispatches `Focused`, and the item's `OnFocus` reports it again.
-  update: (model, message) =>
-    model.current === message.id ? { model } : { model: { current: message.id } },
+  update,
+  /** What a parent decides: `placed.helpers.focus(id)` makes an item current. */
+  helpers: () => ({
+    focus: (model: Model, id: string) => update(model, Message.Focused({ id })),
+  }),
 })
 
 export type Direction = 'ltr' | 'rtl'

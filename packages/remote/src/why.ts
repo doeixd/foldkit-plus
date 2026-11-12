@@ -229,16 +229,20 @@ export const why = <Domain extends AnyDomain>(
     reading.length > 0 && reading.every(({ entry }) => unasked(model, entry))
       ? [Why.CacheOnly({ surfaces: reading.flatMap(read => read.names) })]
       : []
-  const initial: ReadonlyArray<Why> =
-    data._tag !== 'Initial' || cacheOnly.length > 0
-      ? []
-      : [
-          Option.match(surfaces, {
-            onNone: () => Why.NoActiveRecord(),
-            onSome: names =>
-              names.length === 0 ? Why.NotObserved() : Why.NotFetching({ surfaces: names }),
-          }),
-        ]
+  const initial: ReadonlyArray<Why> = Match.value(data).pipe(
+    Match.tag('Initial', () =>
+      cacheOnly.length > 0
+        ? []
+        : [
+            Option.match(surfaces, {
+              onNone: () => Why.NoActiveRecord(),
+              onSome: names =>
+                names.length === 0 ? Why.NotObserved() : Why.NotFetching({ surfaces: names }),
+            }),
+          ],
+    ),
+    Match.orElse(() => []),
+  )
   const live =
     asked.requirements.some(requirement => requirement.live === true) ||
     asked.connections.some(connection => connection.live === true)

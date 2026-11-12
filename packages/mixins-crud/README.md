@@ -212,10 +212,12 @@ Failure.view(slots.status, h, 'The pages could not be read.')
 
 The words are the caller's; the `role` and `aria-busy` are the views':
 `role="status"` with `aria-busy` while loading, `role="status"` when empty,
-`role="alert"` when failed. Attach `Loading.shown` to the status slot and busy
-text appears only once the wait is noticeable: the paragraph always renders,
-so its space is held, and answering in time removes `aria-busy` before the
-delay ends, so a quick answer never flashes.
+`role="alert"` when failed. Attach `Utilities.busyReveal` from
+`foldkit-mixins/utilities` to the status slot (the `List` and `Editor` recipes
+do) and busy text appears only once the wait is noticeable: the paragraph
+always renders, so its space is held, and answering in time removes
+`aria-busy` before the delay ends, so a quick answer never flashes.
+`Loading.shown` is the same Style under its old name, deprecated.
 
 ## Sorting, more, and special cells
 

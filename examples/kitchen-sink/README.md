@@ -20,6 +20,20 @@ For URL and browser-storage mirroring, see
    Messages. The protocol adapters change how it is called, not who owns the
    transition.
 
+### When the agent's create is done
+
+`requested_create_note` completes on the note's state (`Agent.when`), not on a fact
+Message. The caller names the id and `update` adds the note in the same
+transition, so no later Message says "created", and only a call naming this
+id can make the state hold. Waiting for the id alone would lie: `update`
+drops a create over a taken id (a durable operation can be replayed), so a
+second create for `n1` would read as done while the old body stayed.
+The predicate checks the body too, and a dropped create ends at its
+one-second timeout (`test/completion.test.ts`). Dispatched by constructor,
+the outcome is typed as a state reached, with no Message on it. Where the
+application mints the id, only a fact can say which record is the call's:
+[`examples/todo`](../todo) completes on `SubmittedTodo` with `correlate`.
+
 Start with [Remote](../remote/README.md) or [Sync](../sync/README.md) if the
 first two paths are unfamiliar. The kitchen sink is a composition example,
 not a minimal template that every application needs to copy.
@@ -55,9 +69,10 @@ replicated (durable journal): First note
 headless board (read by its Subscription): Ready Apollo II
 capabilities: requested_create_note, rename_note, selected_note
 agent context: {"notes":[{"id":"n1","body":"First note"}],"selectedNoteId":null}
+agent create: completed
 notes after agent: First note, From the agent
 webmcp tools: requested_create_note, rename_note, selected_note
-webmcp call: Dispatched RequestedCreateNote
+webmcp call: Completed: RequestedCreateNote reached its declared state
 mcp tools: requested_create_note, rename_note, selected_note
 a2a card: Kitchen Sink (3 skills)
 notes after A2A: First note, From the agent, From WebMCP, From A2A

@@ -5,7 +5,8 @@
  */
 import { Style } from 'foldkit-mixins'
 import { Layout } from 'foldkit-mixins/layout'
-import { EditorSlots, Loading, RowListSlots } from 'foldkit-mixins-crud'
+import { Utilities as U } from 'foldkit-mixins/utilities'
+import { EditorSlots, RowListSlots } from 'foldkit-mixins-crud'
 import { Editor, RowList } from 'foldkit-mixins-crud/recipes'
 import { FieldSlots, FormSlots } from 'foldkit-mixins-form'
 import { Field, Form } from 'foldkit-mixins-form/recipes'
@@ -30,7 +31,7 @@ export const NameStyle = demoStyle.forSlots(InputSlots)(Recipes.Input({ size: 's
 
 /** A small button beside words: the status line's dismiss, a row's delete. */
 const small = (tone: 'neutral' | 'danger') =>
-  Recipes.Button({ tone, variant: 'ghost', size: 'sm' }).button ?? Style.empty
+  Recipes.Button({ tone, variant: 'ghost', size: 'sm' }).button
 
 export const Page = demoStyle.slots(
   {
@@ -56,7 +57,7 @@ export const Page = demoStyle.slots(
         color: t.text.muted,
       }),
       Style.nest('&[role="alert"]', { color: t.error.ink }),
-      Loading.shown,
+      U.busyReveal,
     ),
     dismiss: small('neutral'),
     done: Style.self({

@@ -39,4 +39,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a pick selects nothing',
+    edits: [
+      {
+        file: '../src/menubar/app.ts',
+        find: 'SelPlaced.helpers.activate(itemElementId(open.value, message.item))(',
+        replace: 'SelPlaced.helpers.clear()(',
+      },
+    ],
+    tests,
+  },
 ]

@@ -4,7 +4,7 @@
  */
 const tests = ['packages/remote-drizzle/test/operatorConformance.test.ts']
 const compile = '../src/compile.ts'
-const kernel = '../../entity/src/operators.ts'
+const kernel = '../../entity/src/memoryTable.ts'
 
 export default [
   {
@@ -12,17 +12,15 @@ export default [
     edits: [
       {
         file: compile,
-        find: "if (call._tag === 'Test') return callSql(call, target, {}, query)",
-        replace: 'if (false) return callSql(call, target, {}, query)',
+        find: "call._tag === 'Test' ||",
+        replace: 'false ||',
       },
     ],
     tests,
   },
   {
     name: 'a scalar call is refused',
-    edits: [
-      { file: compile, find: "} else if (call._tag === 'Call') {", replace: '} else if (false) {' },
-    ],
+    edits: [{ file: compile, find: "|| call._tag === 'Call'", replace: '|| false' }],
     tests,
   },
   {

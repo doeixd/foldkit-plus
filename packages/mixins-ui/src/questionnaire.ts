@@ -222,9 +222,15 @@ export const init = (options: {
   // Defined, not assigned, so an id such as `__proto__` is a key like any other.
   const radios = Object.fromEntries(
     options.questions.flatMap((question, place) =>
-      question._tag === 'Single'
-        ? [[question.id, UiRadio.init({ id: `${options.id}-q${place}-radio` })] as const]
-        : [],
+      Question.matchOrElse(
+        question,
+        {
+          Single: single => [
+            [single.id, UiRadio.init({ id: `${options.id}-q${place}-radio` })] as const,
+          ],
+        },
+        () => [],
+      ),
     ),
   )
   return {

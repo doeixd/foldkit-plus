@@ -30,6 +30,10 @@ const codeOf = (f: () => unknown): string => {
   throw new Error('expected resolve to throw')
 }
 
+// Foldkit's `Prop` constructor is not a runtime export of `foldkit/html` here.
+const prop = (key: string, value: unknown): Attribute<TestMessage> =>
+  ({ _tag: 'Prop', key, value }) as unknown as Attribute<TestMessage>
+
 describe('Resolver.resolve', () => {
   it('adds and deduplicates class tokens, emitting one Class', () => {
     const out = Resolver.resolve([h.Class('a b'), h.Class('b c')], [{ classes: ['c', 'd'] }])
@@ -134,8 +138,58 @@ describe('Resolver.resolve', () => {
     const out = Resolver.resolve([custom('a')], [{ attributes: [custom('b')] }])
     expect(tags(out)).toEqual(['OnCustomEvent', 'OnCustomEvent'])
     expect(codeOf(() => Resolver.resolve([custom('a')], [{ attributes: [custom('a')] }]))).toBe(
-      'mixins:attribute-conflict',
+      'mixins:event-conflict',
     )
+  })
+
+  describe('a custom event is the DOM event it names', () => {
+    const custom = (name: string): Attribute<TestMessage> =>
+      ({
+        _tag: 'OnCustomEvent',
+        name,
+        f: () => Option.some({ _tag: 'Clicked' }),
+      }) as Attribute<TestMessage>
+    const protection = Slot.make({
+      protected: { events: [Event.Click], attributes: [], style: [] },
+    }).protected
+
+    it.each(['click', 'Click'])('refuses a protected event set as %s', name => {
+      expect(
+        codeOf(() =>
+          Resolver.resolve([], [{ attributes: [custom(name)] }], {
+            slot: 'root',
+            protected: protection,
+          }),
+        ),
+      ).toBe('mixins:protected-event')
+    })
+
+    it('leaves an unrelated custom event alone', () => {
+      expect(() =>
+        Resolver.resolve([], [{ attributes: [custom('clicked'), custom('grid-select')] }], {
+          slot: 'root',
+          protected: protection,
+        }),
+      ).not.toThrow()
+    })
+
+    it('finds two owners of one event when one is custom', () => {
+      expect(
+        codeOf(() =>
+          Resolver.resolve([h.OnClick({ _tag: 'Clicked' })], [{ attributes: [custom('click')] }]),
+        ),
+      ).toBe('mixins:event-conflict')
+      expect(
+        codeOf(() =>
+          Resolver.resolve([], [{ attributes: [h.OnClick({ _tag: 'Clicked' }), custom('click')] }]),
+        ),
+      ).toBe('mixins:event-conflict')
+      expect(
+        codeOf(() =>
+          Resolver.resolve([custom('click')], [{ attributes: [h.OnClick({ _tag: 'Clicked' })] }]),
+        ),
+      ).toBe('mixins:event-conflict')
+    })
   })
 
   it('rejects a redundant raw attribute key', () => {
@@ -194,6 +248,50 @@ describe('Resolver.resolve', () => {
     expect(codeOf(() => Resolver.resolve([], [{ style: { position: 'absolute' } }], options))).toBe(
       'mixins:protected-style-property',
     )
+  })
+
+  it.each([
+    ['Attribute', 'aria-label', () => h.Attribute('aria-label', 'x')],
+    ['Attribute, another case', 'aria-label', () => h.Attribute('ARIA-Label', 'x')],
+    ['Prop', 'aria-label', () => prop('ariaLabel', 'x')],
+    ['AriaLabel', 'aria-label', () => h.AriaLabel('x')],
+    ['DataAttribute', 'data-grid-checkbox', () => h.DataAttribute('grid-checkbox', 'x')],
+    [
+      'Attribute with the data form',
+      'data-grid-checkbox',
+      () => h.Attribute('data-grid-checkbox', 'x'),
+    ],
+  ])('refuses a protected attribute set through %s', (_name, protectedName, make) => {
+    const protection = Slot.make({
+      protected: { events: [], attributes: [Attr.make(protectedName)], style: [] },
+    }).protected
+    expect(
+      codeOf(() =>
+        Resolver.resolve([], [{ attributes: [make()] }], { slot: 'root', protected: protection }),
+      ),
+    ).toBe('mixins:protected-attribute')
+  })
+
+  it('leaves an attribute that is not protected to a generic builder', () => {
+    const protection = Slot.make({
+      protected: { events: [], attributes: [Attr.make('aria-label')], style: [] },
+    }).protected
+    const options = { slot: 'root', protected: protection }
+    expect(() =>
+      Resolver.resolve(
+        [],
+        [
+          {
+            attributes: [
+              h.Attribute('aria-labelx', 'x'),
+              h.DataAttribute('aria-label', 'x'),
+              prop('value', 'x'),
+            ],
+          },
+        ],
+        options,
+      ),
+    ).not.toThrow()
   })
 
   it('is deterministic for the same inputs', () => {

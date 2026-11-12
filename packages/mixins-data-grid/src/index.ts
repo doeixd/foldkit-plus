@@ -11,6 +11,7 @@
 export { GridSlots } from './slots.js'
 export { GridStyle } from './style.js'
 export { MoreOnScroll } from './moreOnScroll.js'
+export { type FilterWords } from './filterForm.js'
 export {
   GridLegend,
   GridLegendSlots,
@@ -25,6 +26,7 @@ export {
   DataGridView,
   type CellMark,
   type ColumnSort,
+  type FiltersInput,
   type GridInput,
   type GridWords,
 } from './view.js'

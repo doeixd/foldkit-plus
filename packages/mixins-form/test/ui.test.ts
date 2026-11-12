@@ -104,7 +104,7 @@ it('routes blur and edits through the Submodel, announces checking/rejection, an
     await vi.waitFor(() => expect(email().getAttribute('aria-busy')).toBe('true'))
     expect(description().textContent).toBe('Work address Checking…')
     expect(description().getAttribute('role')).toBe('status')
-    expect(document.querySelector('button')?.disabled).toBe(true)
+    expect(document.querySelector('button')?.getAttribute('aria-disabled')).toBe('true')
     await vi.waitFor(() => expect(description().textContent).toBe('Work address Taken'))
     expect(description().getAttribute('role')).toBe('alert')
     expect(email().value).toBe('new@example.com')

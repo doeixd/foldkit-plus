@@ -92,6 +92,8 @@ These are two different problems. Components offering attribute bundles can rece
 
 The absent Select, Fieldset, Disclosure, Popover, Tooltip, HoverIntent, Slider, RadioGroup, and Calendar recipes are a **default-design-system coverage gap**, not a behavioral defect. Add recipes after the Slot contract is stable, with visible focus, disabled, invalid, selected, and high-contrast states tested.
 
+**Status: decided 2026-11-11. Rows drawn from a class name: no ownership change.** The backlog item framed this as a class `@foldkit/ui` sets inside a ChildAttribute, which the resolver keeps by identity. Checked against the ports, that is not the mechanism. Pixel Art's theme Listbox, Job Application's step Menu and Listbox, and UI Showcase's Menu, Listbox and Combobox all draw `@foldkit/ui`'s own lazy view; their containers take `childAttributes(slots.x.attrs())` and are styled as Slots, and the rows are the one element left out, because upstream's `itemToConfig` returns only `{ className?, content }` (`ItemConfig` in `@foldkit/ui/listbox/shared.d.ts`, the same in `menu`). No attribute list reaches the row, so neither the resolver nor a new Slot in a page can put a Mixin there; each port styles it from the panel's Slot with `Style.nest('[role="option"][data-active]', …)` and the like. The upstream seam this section asked for already exists here as the forks (`ListboxView`, `MenuView`, `ComboboxView`), whose `item` Slot is the row, with `rows`, `highlight` and the option parts beside it, which is what "markup a package draws outside a Slot" asks for. So: the adapter is the way to style a row as a Slot; for an application that keeps upstream's view (as these ports do, to show `childAttributes`), a descendant rule under the panel's Slot keyed on what upstream publishes (`role`, `data-active`, `data-selected`, `data-disabled`) is the supported extension point, and a Behavior or Mount on the row needs the adapter. Adding a way to compile a Style into a bare `className` for `itemToConfig` was rejected as a second way to reach the same row. Written up with both forms in the `foldkit-mixins-ui` README under "Why some components needed a fork". The ports keep their descendant rules; their comments that `foldkit-mixins-ui` has no Menu, Listbox or Combobox adapter were stale and now name it.
+
 ### 7. UI Showcase's gap list and workaround code lag behind the packages
 
 **Priority: high, small scope. Owner: examples/docs.**
@@ -117,6 +119,8 @@ The showcase test helper still explains the old Inert limitation and wraps anoth
 **Fix:** decide whether this warrants an explicit typed omission operation over selected recipe pieces, or a design-system variant controlling an optional piece. Prefer that focused operation to changing additive `extend` into an ambiguous overwrite/delete mechanism. If callers need required recipe keys, preserve known output keys in recipe typing instead of making every Slot required—partial styles are intentionally valid.
 
 Removing a style is not removing markup. An unwanted close control must be omitted by the view's composition policy; dropping its style only removes the recipe's appearance.
+
+**Status: decided 2026-11-11. Result keys typed; no omission operation.** A selection's base slots are now typed present (`RecipePieces<Slots, Known>`, `Known` inferred from `def.base` and grown by each `.extend` base), which removed every `?? Style.empty` over a recipe in the packages and examples; a variant's or compound's slot stays optional because `null` can unset its axis, and a base passed as a `StylePieces` value names nothing present, so partial styles stay valid. No `.omit` was added: a selection is a plain object, and destructuring it (`const { closeButton: _, ...pieces } = Recipes.Dialog({})`) already drops a piece with exact types, so a recipe method would be a second way to do it, and `.extend` stays additive. The optional-piece variant already exists as a mechanism (a defaulted axis that `null` unsets) and is what a design system should use when a piece is optional by design; the Dialog's corner `closeButton` placement was not moved onto such an axis, because one example wanting otherwise (it hands `dialog.closeButton` to footer buttons) does not show demand, and the same reasoning would then apply to the Toast's and Floating Panel's `close` pieces. Revisit with a second application that does the same.
 
 ### 9. Dynamic SSR rejects the same metadata supported by generated pages
 
@@ -157,6 +161,8 @@ There is also a concrete release-time concern in the low-level primitive: [Point
 ### 12. Auth shows the limits of struct-first conveniences, not a reason to move transitions into Mirror
 
 **Priority: low-medium. Owner: Bundle DX/docs.**
+
+**Status: documented.** `foldkit-bundle`'s README has "A union Model: a Link per branch" (a compiled `Link.make` over a tagged-union branch, initialization by the transition, inactive-branch Messages ignored). No helper was added; no second adopter repeats the `read`/`write`.
 
 Auth's root Model is a union. Login/logout replace the active branch and its state, with initialization data known only during that transition. Standard field declarations and `assembly.initial(rest)` fit struct parents more naturally.
 

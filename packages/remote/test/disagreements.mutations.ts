@@ -49,8 +49,8 @@ export default [
   testing('a disagreement fails nothing', 'if (lines.length > 0)', 'if (false)'),
   testing(
     'a mismatch is counted again at every Model that still holds it',
-    "diagnostic._tag === 'PredictionMismatch' && !known.has(diagnostic)",
-    "diagnostic._tag === 'PredictionMismatch'",
+    "diagnostic._tag !== 'PredictionMismatch' || known.has(diagnostic)",
+    "diagnostic._tag !== 'PredictionMismatch'",
   ),
   testing(
     'a read that changed its tag for a reason fails',

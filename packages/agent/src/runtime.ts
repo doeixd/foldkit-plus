@@ -1,4 +1,4 @@
-import { Cause, Effect, Option, Schema } from 'effect'
+import { Cause, Effect, Match, Option, Schema } from 'effect'
 import type { Definition } from './make.js'
 import {
   AuthorizationError,
@@ -17,6 +17,7 @@ import { awaitCompletion, awaitState, type CompiledCompletion } from './completi
 import { messageTag } from './tag.js'
 import type {
   AnyMessage,
+  CompletionOutcome,
   DispatchResult,
   Invocation,
   InvocationContext,
@@ -86,6 +87,14 @@ type PrincipalOf<Principal> = unknown extends Principal
 /** A Message constructor, used to name a capability by reference. */
 type MessageConstructorFor<Tag extends string> = (...args: never) => { readonly _tag: Tag }
 
+/** What dispatching a capability returns: its Message, and its contract's outcome. */
+type ResultOf<Capability> = Capability extends {
+  readonly message: infer Message extends AnyMessage
+  readonly completion: infer Outcome extends CompletionOutcome | undefined
+}
+  ? DispatchResult<Message, Outcome>
+  : DispatchResult
+
 /**
  * Names a capability and types its input.
  *
@@ -98,7 +107,7 @@ export interface Dispatch<ByName, ByTag> {
     message: MessageConstructorFor<Tag>,
     input: ByTag[Tag] extends { readonly input: infer Input } ? Input : never,
     invocation?: Partial<Invocation>,
-  ): Effect.Effect<DispatchResult, DispatchError>
+  ): Effect.Effect<ResultOf<ByTag[Tag]>, DispatchError>
 
   <Name extends keyof ByName & string>(
     name: Name,
@@ -417,19 +426,22 @@ export const bind = <
       const waiter =
         compiled === undefined
           ? undefined
-          : compiled._tag === 'State'
-            ? awaitState({
-                completion: compiled,
-                input: decoded,
-                model: host.model,
-                subscribe: compiled.subscribe ?? host.subscribe!,
-              })
-            : awaitCompletion({
-                completion: compiled,
-                input: decoded,
-                invocation,
-                observe: host.observe!,
-              })
+          : Match.valueTags(compiled, {
+              State: completion =>
+                awaitState({
+                  completion,
+                  input: decoded,
+                  model: host.model,
+                  subscribe: completion.subscribe ?? host.subscribe!,
+                }),
+              Message: completion =>
+                awaitCompletion({
+                  completion,
+                  input: decoded,
+                  invocation,
+                  observe: host.observe!,
+                }),
+            })
 
       // Inside `suspend` so a host that throws synchronously fails the Effect
       // rather than the generator: a JS `try` around `yield*` would not see a
@@ -621,7 +633,9 @@ const decisionOf = (delivery: DispatchProgress<unknown>['delivery']): AuditDecis
  * undone -- so neither may be recorded as a decision not to act.
  */
 const outcomeOf = (cause: Cause.Cause<unknown>, tag: string | undefined): string => {
+  // tag-check: open, a failure's tag is any name an application chose
   if (tag === 'AgentCompletionTimeoutError') return 'timeout'
+  // tag-check: open, a failure's tag is any name an application chose
   if (tag !== undefined) return tag
   return Cause.hasInterrupts(cause) ? 'interrupted' : 'AgentDefect'
 }

@@ -157,7 +157,7 @@ describe('AppStyle', () => {
 
 describe('Utilities', () => {
   const css = (piece: Piece): string =>
-    Style.forSlots(FieldSlots)({ root: piece }).css.replace(/\.style-\w+/, '.x')
+    Style.forSlots(FieldSlots)({ root: piece }).css.replaceAll(/\.style-\w+/g, '.x')
 
   it.each([
     [U.p('md'), 'padding:var(--fk-space-md)'],
@@ -181,6 +181,13 @@ describe('Utilities', () => {
     ],
   ])('%# writes %s', (piece, declarations) => {
     expect(css(piece)).toBe(`.x{${declarations}}`)
+  })
+
+  it.each([
+    [U.scriptedOnly, '@media (scripting: none){.x{display:none}}'],
+    [U.plainOnly('flex'), '.x{display:none}@media (scripting: none){.x{display:flex}}'],
+  ])('%# writes the no-script pair %s', (piece, rules) => {
+    expect(css(piece)).toBe(rules)
   })
 
   it('names only tokens the shipped theme defines', () => {

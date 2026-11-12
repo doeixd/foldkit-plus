@@ -295,8 +295,8 @@ export default [
     edits: [
       {
         file: '../src/app.ts',
-        find: 'Option.some({ sort: model.sort, search: model.search })',
-        replace: "Option.some({ sort: model.sort, search: '' })",
+        find: '      search: model.search,\n      statuses:',
+        replace: "      search: '',\n      statuses:",
       },
     ],
     tests,
@@ -344,5 +344,49 @@ export default [
       },
     ],
     tests,
+  },
+  {
+    name: 'a lowest price rounds to the nearest cent',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'minCents: cents(min, Math.ceil),',
+        replace: 'minCents: cents(min, Math.round),',
+      },
+    ],
+    tests: ['examples/registry/test/prices.test.ts'],
+  },
+  {
+    name: 'a highest price rounds to the nearest cent',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'maxCents: cents(max, Math.floor),',
+        replace: 'maxCents: cents(max, Math.round),',
+      },
+    ],
+    tests: ['examples/registry/test/prices.test.ts'],
+  },
+  {
+    name: 'a whole number of cents is rounded away',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'Math.abs(exact - whole) < 1e-6 ? whole : inward(exact)',
+        replace: 'inward(exact)',
+      },
+    ],
+    tests: ['examples/registry/test/prices.test.ts'],
+  },
+  {
+    name: 'a price past the table overflows the Int',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'return Math.max(-Number.MAX_SAFE_INTEGER, Math.min(Number.MAX_SAFE_INTEGER, rounded))',
+        replace: 'return rounded',
+      },
+    ],
+    tests: ['examples/registry/test/prices.test.ts'],
   },
 ]

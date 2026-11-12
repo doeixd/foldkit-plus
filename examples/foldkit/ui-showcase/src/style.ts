@@ -106,7 +106,7 @@ export const ShellPage = slots(
         display: 'none',
         flexShrink: '0',
         width: '14rem',
-        borderRight: barBorder,
+        borderInlineEnd: barBorder,
       },
       md({ display: 'flex' }),
     ],

@@ -28,7 +28,7 @@ import {
   type SurfaceSource,
   type Wiring,
 } from 'foldkit-surface'
-import { RemoteClient, remoteError } from './client.js'
+import { RemoteClient, defectAsFailure, remoteError } from './client.js'
 import { madeAsOf } from './queue.js'
 import type { Connection, Edge } from './connection.js'
 import { Entity, type EntityDescriptor, type FieldsFrom } from './entity.js'
@@ -552,10 +552,10 @@ export interface RemoteDomain<
   >
   /**
    * The Model with everything the active Surfaces read, for a render that
-   * fetches nothing (SSR, a prerender). Each pass prefetches every Surface
-   * that plans a read, over the Model the one before it left, so a Surface
-   * active only once another's read has arrived is read in the next pass (or
-   * the same one, when it comes later in `active`). It stops at the first
+   * fetches nothing (SSR, a prerender). Each pass reads what every Surface
+   * plans in one read, over the Model the pass began with, so a Surface
+   * active only once another's read has arrived is read in the next pass,
+   * wherever it comes in `active`. It stops at the first
    * pass that plans nothing, and fails with `RemoteUnsatisfied` when
    * `options.passes` run out first. Reads are cache-first: a field already
    * held is not asked again. A server that could not tell who is asking
@@ -1000,9 +1000,9 @@ export const selectReader = <AppModel, Store extends RemoteModel, Names extends 
       if (present !== undefined) {
         // A value on screen whose refresh failed stays on screen, with the
         // error, which `RemoteData.render` draws as stale.
-        return failure !== undefined && (present._tag === 'Ready' || present._tag === 'Refreshing')
-          ? failedWith(present, failure)
-          : present
+        if (failure !== undefined && (present._tag === 'Ready' || present._tag === 'Refreshing'))
+          return failedWith(present, failure)
+        return present
       }
       if (isLoadingThrough(remote, selection.entity, id, relation)) return LOADING
       if (failure !== undefined) return { _tag: 'Failed', error: failure }
@@ -1701,7 +1701,7 @@ const readMessage = (
     const client = yield* RemoteClient
     const at = now()
     const result = yield* Effect.result(
-      client.read({ version: REMOTE_PROTOCOL_VERSION, requests: requirements }),
+      defectAsFailure(client.read({ version: REMOTE_PROTOCOL_VERSION, requests: requirements })),
     )
     return Result.isFailure(result)
       ? {
@@ -1732,7 +1732,7 @@ const queryMessage = (
   Effect.gen(function* () {
     const client = yield* RemoteClient
     const result = yield* Effect.result(
-      queryRequestOf(query).pipe(Effect.flatMap(request => client.query(request))),
+      defectAsFailure(queryRequestOf(query).pipe(Effect.flatMap(request => client.query(request)))),
     )
     return Result.isFailure(result)
       ? {

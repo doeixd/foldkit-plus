@@ -182,6 +182,8 @@ export const historyHtml: Html = Cms.historyCard(
     state: entryState,
     restore: revision => EntryMessage.RestoreAsked({ revision }),
     authorName: name => name,
+    locale: 'en',
+    timeZone: 'UTC',
   },
 )
 export const moreHtml: ReadonlyArray<Html> = Cms.moreCard(entrySlots, entryH, {

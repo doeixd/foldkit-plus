@@ -2,11 +2,13 @@
  * A product registry in a data grid: 100,000 rows with the UPC pinned,
  * editable descriptions and prices, rows and ranges selected, columns resized,
  * dragged, hidden and pinned from their menus, and copy and paste with a
- * spreadsheet.
+ * spreadsheet, and each column filtered from its header.
  *
  * The products are the application's: they are in its Model, and only its
  * `onOut` changes them, from the text the grid reports. The grid owns where
- * focus is, what is selected, how the columns stand, and the viewport. How
+ * focus is, what is selected, how the columns stand, and the viewport. The
+ * filters are the application's too: the grid reports each as `Filtered`,
+ * and the page filters the products by them before the grid sees a row. How
  * the columns stand is kept in this browser, and read back as the page opens.
  */
 import { Effect, Option, Schema, SchemaGetter } from 'effect'
@@ -52,20 +54,24 @@ export const columns = Columns.define<Product>()({
     width: 320,
     minWidth: 120,
     edit: { schema: Description },
+    filter: true,
   },
-  line: { header: 'Line', value: product => product.line, width: 130 },
+  line: { header: 'Line', value: product => product.line, width: 130, filter: true },
   // One of the Product's own statuses: edited as a choice of them.
   status: {
     header: 'Status',
     value: product => product.status,
     width: 120,
     edit: { schema: Product.fields.status },
+    filter: true,
   },
   price: {
     header: 'Price',
     value: product => product.price.toFixed(2),
     width: 110,
     edit: { schema: Price },
+    // A number to its schema, so a range of prices; the cell shows its text.
+    filter: true,
   },
 })
 
@@ -81,6 +87,8 @@ const Placement = Bundle.declare(Grid.bundle, 'grid')
 export const Model = Schema.Struct({
   ...Placement.fields,
   products: Schema.Array(Product),
+  /** What each column is filtered by: the page's, as the grid reports it. */
+  filters: Grid.Filters,
   /** What the last change said: what it wrote, or why some cells were refused. */
   notice: Schema.String,
 })
@@ -94,7 +102,31 @@ export const Message = defineMessageUnion({
 export type Message = typeof Message.Type
 
 const productKey = (product: Product) => product.id
-const rowsOf = (model: Model) => RowModel.fromArray(model.products, productKey)
+/** Every product, for writing an edit into its place. */
+const allRowsOf = (model: Model) => RowModel.fromArray(model.products, productKey)
+
+// The rows shown, kept per filters value while the products are the same:
+// filtering 100,000 products every render would also miss the grid's
+// projection, which is kept per row model.
+const shown = new WeakMap<
+  object,
+  { readonly products: ReadonlyArray<Product>; readonly rows: RowModel<Product> }
+>()
+/** The products the filters keep, as the grid shows them. */
+const rowsOf = (model: Model): RowModel<Product> => {
+  const known = shown.get(model.filters)
+  if (known !== undefined && known.products === model.products) return known.rows
+  const keeps = Grid.keeps(model.filters, {
+    description: product => product.description,
+    line: product => product.line,
+    status: product => product.status,
+    // The price itself, not the text its cell shows.
+    price: product => product.price,
+  })
+  const rows = RowModel.fromArray(model.products.filter(keeps), productKey)
+  shown.set(model.filters, { products: model.products, rows })
+  return rows
+}
 
 type Cell = {
   readonly row: string
@@ -108,7 +140,7 @@ type Cell = {
  * back, typed for its column.
  */
 const written = (model: Model, cells: ReadonlyArray<Cell>): ReadonlyArray<Product> => {
-  const rows = rowsOf(model)
+  const rows = allRowsOf(model)
   const next = [...model.products]
   for (const cell of cells) {
     const index = rows.indexOf(cell.row)
@@ -157,6 +189,12 @@ const application = Bundle.assemble<Model, Message>()([
             ? { model }
             : laid(model, 'Filled', accepted, refused)
         },
+        Filtered: ({ change }) => ({
+          model: modifyFields(model, {
+            filters: filters => Grid.setFilter(filters, change),
+            notice: () => `Filtered by ${change.column}.`,
+          }),
+        }),
         // These rows keep no history; the registry demo shows undo as new edits.
         UndoRequested: () => ({ model }),
         RedoRequested: () => ({ model }),
@@ -208,7 +246,11 @@ export const init = (
   count = 100_000,
   saved: Option.Option<unknown> = Option.none(),
 ): Update.Return<Model, Message, unknown> => {
-  const start = application.initial({ products: products(count), notice: '' })
+  const start = application.initial({
+    products: products(count),
+    filters: Grid.noFilters,
+    notice: '',
+  })
   return Option.match(saved, {
     onNone: () => start,
     onSome: layout => ({
@@ -310,6 +352,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             headerHeight: 36,
             overscan: { rows: 6, columns: 1 },
             columnMenu: true,
+            filters: model.filters,
           },
           h,
         ),

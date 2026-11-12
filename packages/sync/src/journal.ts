@@ -28,13 +28,20 @@ import type { Diagnostic, ReportDiagnostic } from 'foldkit-surface'
 import {
   Cursor,
   DocumentId as JournalDocumentId,
+  JournalError,
   Sequence,
   type Committed,
   type Journal,
 } from 'foldkit-durable/core'
 import { sequence } from './ids.js'
 import type { AuthorizeDecision } from './make.js'
-import type { Operation, Sync, TransportClient } from './sync.js'
+import { fitWords, SyncRefusal } from './refusal.js'
+import type { Operation, Sync, TransportClient, WrittenOperation } from './sync.js'
+import {
+  UnreadableHistoryError,
+  UnreadableMessageError,
+  UnsupportedMessageVersionError,
+} from './errors.js'
 import { checkRevalidate } from './revalidate.js'
 import {
   hostDefect,
@@ -54,7 +61,7 @@ export interface JournalExchangeOptions<Message, Shared, Principal> {
    * The journal made from `sync.journalContract()`, which orders and keeps the
    * document. One that takes any input, or only operations, is accepted.
    */
-  readonly journal: Journal<Operation, Shared, Principal, Operation>
+  readonly journal: Journal<Operation, Shared, Principal, WrittenOperation>
   /**
    * Who is exchanging, as the transport established it. The journal's
    * `authorize` reads it; a refused operation is reported as rejected.
@@ -88,6 +95,52 @@ export interface JournalExchangeOptions<Message, Shared, Principal> {
   readonly limit?: number | undefined
 }
 
+const encodeRefusal = Schema.encodeSync(SyncRefusal)
+/** A refusal in the server's own words, which name no Entity's invariant. */
+const invalidAs = (message: string): SyncRefusal =>
+  SyncRefusal.Invalid({ entity: Option.none(), rule: Option.none(), message, path: [] })
+
+/** The version an entry claims, read before anything else of it, so a newer one is told from a malformed one. */
+const claimedVersion = Schema.decodeUnknownOption(
+  Schema.Struct({ messageVersion: Schema.optionalKey(Schema.Number) }),
+)
+
+/**
+ * What the replica is told: a socket sends an error's message, and the
+ * operation's id and version are another replica's. They stay on the error,
+ * for the server's own logs.
+ */
+const HISTORY_UNREADABLE = 'This server cannot read the history of this document'
+
+/**
+ * A stored row that will not read, as the journal reports it: a
+ * `JournalError` whose cause is the codec's own error, never told by its words.
+ */
+const unreadableHistory = (
+  documentId: string,
+  cause: unknown,
+): Option.Option<UnreadableHistoryError> => {
+  if (cause instanceof UnreadableMessageError)
+    return Option.some(
+      new UnreadableHistoryError({
+        documentId,
+        opId: cause.opId,
+        version: cause.version,
+        message: HISTORY_UNREADABLE,
+      }),
+    )
+  if (cause instanceof UnsupportedMessageVersionError)
+    return Option.some(
+      new UnreadableHistoryError({
+        documentId,
+        opId: cause.opId,
+        version: cause.found,
+        message: HISTORY_UNREADABLE,
+      }),
+    )
+  return Option.none()
+}
+
 /** The id an entry names, read without trusting the rest of it. */
 const idOf = (input: unknown): Option.Option<string> =>
   Option.map(
@@ -99,12 +152,18 @@ const idOf = (input: unknown): Option.Option<string> =>
  * One replica's exchanges with the journal, as the replica's transport
  * speaks them (`Sync.transport.fromPromise`, or behind
  * `Sync.transport.serve` on a socket). Each pending operation is appended in
- * order, and acknowledged once committed, or already committed. One is
- * rejected by its id when its message does not decode, it names another
- * document, or the journal refuses it (`authorize`, `validate`); the replica
- * drops it rather than send it again. Only an entry with no id at all, a
- * cursor ahead of the journal's, a connection `opens` refuses, or `admit` or
- * the journal failing fails the exchange. The reply carries what committed
+ * order, as received, and acknowledged once committed, or already
+ * committed. Every hook (`admit`, and the journal's `validate`, `authorize`,
+ * `reduce` and `stamp`) sees its Message upcast to the current version. One
+ * is rejected by its id when its message does not decode, it names another
+ * document, the journal refuses it (`authorize`, `validate`), or it was
+ * written at an older version no step reads (`Unreadable`); the replica drops
+ * it, or keeps an unreadable one in `refused`, rather than send it again. An
+ * entry written at a version newer than this server's fails the exchange
+ * before anything is appended, so its replica waits with its outbox whole; so
+ * do an entry with no id at all, a cursor ahead of the journal's, a
+ * connection `opens` refuses, `admit` or the journal failing, and a stored
+ * operation that will not read (`UnreadableHistoryError`). The reply carries what committed
  * after the replica's cursor, a checkpoint when that history was compacted,
  * and the journal's epoch, so a replica of a reset journal starts again.
  */
@@ -114,15 +173,39 @@ export const journalExchange = <Message, Shared, Principal>(
   const { sync, journal, principal } = options
   const limit = options.limit ?? 500
   const key = JournalDocumentId.make(sync.documentId)
-  const snapshot = sync.journalContract().snapshot
-  const operationOf = Option.liftThrowable((input: unknown) =>
-    sync.codec.operationFrom(input, sync.documentId),
-  )
-  const committedOf = (committed: Committed<Operation>) =>
-    sync.codec.committedFrom(
-      { ...committed.operation, serverSequence: committed.sequence, actorId: committed.actorId },
-      sync.documentId,
-    )
+  const contract = sync.journalContract()
+  const supported = sync.codec.messageVersion
+  /**
+   * An entry as written, with what it means: its Message upcast to the current
+   * version. Older and unread by any step is told apart, as `Unreadable`;
+   * anything else that fails is not an operation this server accepts.
+   */
+  const operationOf = (
+    input: unknown,
+  ): Result.Result<
+    { readonly written: WrittenOperation; readonly operation: Operation },
+    Option.Option<UnreadableMessageError>
+  > => {
+    try {
+      const written = sync.codec.writtenFrom(input, sync.documentId)
+      return Result.succeed({ written, operation: sync.codec.normalizeOperation(written) })
+    } catch (cause) {
+      return Result.fail(
+        cause instanceof UnreadableMessageError ? Option.some(cause) : Option.none(),
+      )
+    }
+  }
+  /** As the replica reads it: written at this server's version, with its order and actor. */
+  const committedOf = (committed: Committed<Operation>) => {
+    const written = {
+      ...contract.operation.encode(committed.operation),
+      serverSequence: committed.sequence,
+      actorId: committed.actorId,
+    }
+    // Checked as the replica will check it: a row of another document is the server's fault.
+    sync.codec.committedFrom(written, sync.documentId)
+    return written
+  }
 
   const exchange = (cursor: number, pending: ReadonlyArray<unknown>, seen?: string) =>
     Effect.gen(function* () {
@@ -139,35 +222,75 @@ export const journalExchange = <Message, Shared, Principal>(
       if (from > at) {
         return yield* Effect.fail(new Error(`Cursor ${cursor} is ahead of the server's ${at}`))
       }
+      // A replica ahead of this server waits, its outbox whole: refused before
+      // anything is appended, since a rejection would lose the edit.
+      for (const input of pending) {
+        const found = Option.flatMapNullishOr(claimedVersion(input), probe => probe.messageVersion)
+        if (Option.isSome(found) && found.value > supported)
+          return yield* Option.match(idOf(input), {
+            onNone: () => Effect.fail(new Error('A pending entry names no operation')),
+            onSome: opId =>
+              Effect.fail(
+                new UnsupportedMessageVersionError({
+                  opId,
+                  found: found.value,
+                  supported,
+                  message: `The replica writes Message version ${found.value}; this server reads up to ${supported}`,
+                }),
+              ),
+          })
+      }
       const rejected: Array<string> = []
+      const refusals: Array<{ readonly opId: string; readonly refusal: unknown }> = []
+      // Deprecated: the words alone, for a replica that reads `reason`.
       const reasons: Array<{ readonly opId: string; readonly reason: string }> = []
-      // Each reason is words for the person whose edit came back: a policy's own,
-      // or a fixed sentence, never an error's message, which may carry internals.
-      const reject = (opId: string, reason: string) => {
+      // Words reach the person whose edit came back: a policy's own, or a fixed
+      // sentence, never an error's message, which may carry internals.
+      const reject = (opId: string, refusal: SyncRefusal, reason: string) => {
         rejected.push(opId)
+        refusals.push({ opId, refusal: encodeRefusal(refusal) })
         reasons.push({ opId, reason })
       }
+      const forbid = (opId: string, reason: string | undefined, otherwise: string) => {
+        const fitted = reason === undefined ? undefined : fitWords(reason)
+        reject(
+          opId,
+          SyncRefusal.Forbidden({ reason: Option.fromUndefinedOr(fitted) }),
+          fitted ?? otherwise,
+        )
+      }
+      const invalid = (opId: string, message: string) => reject(opId, invalidAs(message), message)
       const acknowledged: Array<string> = []
       for (const input of pending) {
         const decoded = operationOf(input)
-        if (Option.isNone(decoded)) {
+        if (Result.isFailure(decoded)) {
           const id = idOf(input)
           if (Option.isNone(id))
             return yield* Effect.fail(new Error('A pending entry names no operation'))
-          reject(id.value, 'Not an operation this server accepts')
+          Option.match(decoded.failure, {
+            onNone: () => invalid(id.value, 'Not an operation this server accepts'),
+            onSome: ({ version }) =>
+              reject(
+                id.value,
+                SyncRefusal.Unreadable({ version }),
+                'Written by a version of the app this server cannot read',
+              ),
+          })
           continue
         }
-        const operation = decoded.value
+        const { written, operation } = decoded.success
         const admitted = options.admit === undefined ? true : options.admit(operation)
         const decision = Effect.isEffect(admitted) ? yield* admitted : admitted
         if (decision !== true) {
-          reject(
+          forbid(
             operation.opId,
-            decision === false ? 'This connection may not make changes' : decision.reason,
+            decision === false ? undefined : decision.reason,
+            'This connection may not make changes',
           )
           continue
         }
-        yield* journal.append(key, operation, principal).pipe(
+        // As received: the journal compares a retransmission by what was sent.
+        yield* journal.append(key, written, principal).pipe(
           Effect.map(appended =>
             acknowledged.push(
               Match.valueTags(appended, {
@@ -181,15 +304,18 @@ export const journalExchange = <Message, Shared, Principal>(
           // `JournalError` may not, so it still fails the exchange.
           Effect.catchTags({
             OperationRejectedError: error =>
-              Effect.sync(() => reject(error.opId, error.reason ?? 'Refused by the server')),
+              Effect.sync(() => forbid(error.opId, error.reason, 'Refused by the server')),
             InvalidOperationError: () =>
-              Effect.sync(() => reject(operation.opId, 'Not a valid operation')),
+              Effect.sync(() => invalid(operation.opId, 'Not a valid operation')),
             IdentityConflictError: () =>
-              Effect.sync(() => reject(operation.opId, 'Its id was already used for another')),
+              Effect.sync(() => invalid(operation.opId, 'Its id was already used for another')),
           }),
         )
       }
       if (options.settle !== undefined) yield* options.settle
+      // Sent only when something was refused: a replica built before `refusals`
+      // decodes the reply strictly and fails on the key, so it fails only then.
+      const refused = refusals.length === 0 ? {} : { refusals }
       // A cursor below the compacted floor is answered with the snapshot; the
       // read decides that itself, so a compaction cannot slip in between.
       const read = yield* journal.read(key, Cursor.make(from), { limit }).pipe(
@@ -198,25 +324,42 @@ export const journalExchange = <Message, Shared, Principal>(
       )
       return yield* Option.match(read, {
         onSome: rows =>
-          Effect.succeed({
-            operations: rows.map(committedOf),
-            rejected,
-            reasons,
-            acknowledged,
-            more: rows.length === limit,
-            epoch,
-          }),
+          Effect.try({
+            try: () => rows.map(committedOf),
+            catch: cause => new Error('Could not read the log', { cause }),
+          }).pipe(
+            Effect.map(operations => ({
+              operations,
+              rejected,
+              ...refused,
+              reasons,
+              acknowledged,
+              more: rows.length === limit,
+              epoch,
+            })),
+          ),
         onNone: () =>
           Effect.map(journal.load(key), loaded => ({
             operations: [],
             rejected,
+            ...refused,
             reasons,
             acknowledged,
-            checkpoint: { cursor: loaded.cursor, model: snapshot.encode(loaded.snapshot) },
+            checkpoint: {
+              cursor: loaded.cursor,
+              model: contract.snapshot.encode(loaded.snapshot),
+            },
             epoch,
           })),
       })
-    })
+    }).pipe(
+      // A stored operation that will not read stops the document, typed for the server's logs.
+      Effect.mapError(error =>
+        error instanceof JournalError
+          ? Option.getOrElse(unreadableHistory(sync.documentId, error.cause), () => error)
+          : error,
+      ),
+    )
 
   return {
     exchange: (cursor, pending, seen) => Effect.runPromise(exchange(cursor, pending, seen)),
@@ -232,7 +375,7 @@ export const journalExchange = <Message, Shared, Principal>(
  */
 export const journalChanges =
   <Shared, Principal>(
-    journal: Journal<Operation, Shared, Principal, Operation>,
+    journal: Journal<Operation, Shared, Principal, WrittenOperation>,
     documentId: string,
     options: {
       /** Where a failure is reported; the default reporter when not given, since this runs outside any context. */
@@ -318,7 +461,7 @@ export interface EditsJournalOptions<Shared, Principal, Change> {
   /** The document whose edits the table reads. */
   readonly documentId: string
   /** The journal the edits commit to. */
-  readonly journal: Journal<Operation, Shared, Principal, Operation>
+  readonly journal: Journal<Operation, Shared, Principal, WrittenOperation>
   /**
    * The cells an operation edits, with the sequence its stamp wrote in; none
    * for an operation that edits nothing. An edit committed without a sequence
@@ -352,9 +495,11 @@ export interface EditsJournalOptions<Shared, Principal, Change> {
   /**
    * The server's operation saying the table holds every edit through
    * `through`, sequenced from `cursor`, the journal's: the replicas drop those
-   * edits on hearing it.
+   * edits on hearing it. Appended as written, so a document with migrations
+   * writes it at its current version
+   * (`sync.journalContract().operation.encode`); one without needs nothing.
    */
-  readonly absorbed: (through: number, cursor: number) => Operation
+  readonly absorbed: (through: number, cursor: number) => WrittenOperation
   /** Who the server commits `absorbed` as; the contract's `authorize` should let only it. */
   readonly server: Principal
 }
@@ -456,7 +601,7 @@ export interface DocumentHostOptions<Message, Shared, Principal, RP = never> {
    * The document's journal, asked on each upgrade a principal passed; keep
    * it open between calls. A rejection answers the upgrade with a 500.
    */
-  readonly journal: () => Promise<Journal<Operation, Shared, Principal, Operation>>
+  readonly journal: () => Promise<Journal<Operation, Shared, Principal, WrittenOperation>>
   /**
    * Who is opening the socket, from the upgrade request. Fails with a
    * `RemoteUnauthenticated` (`RemoteServer.unauthenticated()`) to refuse it:
@@ -483,7 +628,9 @@ export interface DocumentHostOptions<Message, Shared, Principal, RP = never> {
     | undefined
   /** After each exchange's appends, given the journal. See `journalExchange`'s `settle`. */
   readonly settle?:
-    | ((journal: Journal<Operation, Shared, Principal, Operation>) => Effect.Effect<void, unknown>)
+    | ((
+        journal: Journal<Operation, Shared, Principal, WrittenOperation>,
+      ) => Effect.Effect<void, unknown>)
     | undefined
   /** Whether `principal` may open the document. See `journalExchange`'s `opens`. */
   readonly opens?: ((principal: Principal) => Effect.Effect<boolean>) | undefined

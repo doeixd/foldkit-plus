@@ -127,6 +127,7 @@ const modalBackdrop = Style.self({
 const modalPanel = (width: string): ReturnType<typeof Style.self> =>
   Style.self({
     position: 'fixed',
+    // physical: centered by the placement's translate, which is symmetric
     left: '50%',
     zIndex: '20',
     display: 'grid',
@@ -317,8 +318,8 @@ export const autocompleteStyle = (slots: typeof AutocompleteSlots) =>
       list: Style.self({
         position: 'absolute',
         top: 'calc(100% + 4px)',
-        left: '0',
-        right: '0',
+        insetInlineStart: '0',
+        insetInlineEnd: '0',
         zIndex: '10',
         display: 'grid',
         border: `1px solid ${line}`,
@@ -379,8 +380,8 @@ export const commandStyle = (slots: typeof CommandSlots) =>
       list: Style.self({
         position: 'absolute',
         top: 'calc(100% + 4px)',
-        left: '0',
-        right: '0',
+        insetInlineStart: '0',
+        insetInlineEnd: '0',
         zIndex: '10',
         display: 'grid',
         border: `1px solid ${line}`,
@@ -417,7 +418,7 @@ export const hoverCardStyle = (slots: typeof HoverCardSlots) =>
         Style.self({
           position: 'absolute',
           top: 'calc(100% + 4px)',
-          left: '0',
+          insetInlineStart: '0',
           zIndex: '10',
           width: 'max-content',
           maxWidth: 'min(20rem, calc(100vw - 2rem))',
@@ -455,7 +456,7 @@ export const contextMenuStyle = (slots: typeof ContextMenuSlots) =>
         Style.self({
           position: 'absolute',
           top: underTrigger,
-          left: '0',
+          insetInlineStart: '0',
           zIndex: '10',
           display: 'grid',
           minWidth: '10rem',
@@ -502,7 +503,7 @@ export const menubarStyle = (slots: typeof MenubarSlots) =>
         Style.self({
           position: 'absolute',
           top: underTrigger,
-          left: '0',
+          insetInlineStart: '0',
           zIndex: '10',
           display: 'grid',
           minWidth: '12rem',
@@ -540,7 +541,7 @@ export const navigationMenuStyle = (slots: typeof NavigationMenuSlots) =>
         Style.self({
           position: 'absolute',
           top: underTrigger,
-          left: '0',
+          insetInlineStart: '0',
           zIndex: '10',
           display: 'grid',
           minWidth: '12rem',

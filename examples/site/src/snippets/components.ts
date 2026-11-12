@@ -21,6 +21,7 @@ import {
   Tabs as UiTabs,
 } from '@foldkit/ui'
 import * as UiCheckbox from '@foldkit/ui/checkbox'
+import * as UiFileDrop from '@foldkit/ui/fileDrop'
 import * as UiSelect from '@foldkit/ui/select'
 import * as UiSwitch from '@foldkit/ui/switch'
 import * as UiTooltip from '@foldkit/ui/tooltip'
@@ -58,6 +59,8 @@ import {
   CheckboxGroupSlots,
   Command,
   CommandSlots,
+  FileDrop,
+  FileDropSlots,
   type CommandGroup,
   Menubar,
   MenubarSlots,
@@ -2749,6 +2752,49 @@ export const radioGroupHorizontal = <Message>(
 export const RadioGroupCardStyle = forSlots(RadioGroupSlots)(
   Recipes.RadioGroup({ variant: 'card' }),
 )
+// #endregion
+
+// #region file-drop-basic
+export const FileDropStyle = forSlots(FileDropSlots)(Recipes.FileDrop({}))
+
+/** What the zone has taken: names and sizes, since a Model holds no `File`. */
+export interface Attachments {
+  readonly drop: UiFileDrop.Model
+  readonly attached: ReadonlyArray<{ readonly name: string; readonly size: number }>
+}
+
+/** A zone that takes any number of files; `accept` narrows what the picker offers. */
+export const fileDrop = <Message>(
+  style: NamedStyle<typeof FileDropSlots>,
+  state: Attachments,
+  toMessage: (message: UiFileDrop.Message) => Message,
+  h: HtmlBuilder<Message>,
+  accept: ReadonlyArray<string> = [],
+): Html =>
+  h.submodel({
+    slotId: state.drop.id,
+    model: state.drop,
+    view: UiFileDrop.view,
+    viewInputs: {
+      multiple: true,
+      accept,
+      toView: FileDrop.toView<Message>([style.mixin], { h }, ({ root, input }) =>
+        h.label(root, [
+          h.span([], ['Drop files or click to browse']),
+          h.span(
+            [],
+            [
+              state.attached.length === 0
+                ? 'Nothing attached yet.'
+                : `${state.attached.length} attached: ${state.attached.map(file => file.name).join(', ')}`,
+            ],
+          ),
+          h.input(input),
+        ]),
+      ),
+    },
+    toParentMessage: toMessage,
+  })
 // #endregion
 
 // #region slider-basic
@@ -6473,16 +6519,19 @@ export const passwordInputNew = <Message>(
       visible: field.visible,
       onInput: field.onInput,
       onToggle: field.onToggle,
-      strength: {
-        id: 'preview-new-password-strength',
-        label: 'Strength',
-        value: rules.filter(rule => rule.met).length,
-        max: 4,
-        low: 2,
-        high: 3,
-        optimum: 4,
-        style: MeterStyle,
-      },
+      strength: Meter.view(
+        {
+          id: 'preview-new-password-strength',
+          label: 'Strength',
+          value: rules.filter(rule => rule.met).length,
+          max: 4,
+          low: 2,
+          high: 3,
+          optimum: 4,
+          style: MeterStyle,
+        },
+        h,
+      ),
       requirements: rules,
       capsLock: { on: field.capsLock, onKey: field.onCapsLock },
       style,

@@ -5,7 +5,7 @@
  * real deployment would validate a bearer token or session cookie instead.
  */
 import { WebSocketServer, type WebSocket } from 'ws'
-import { Sync, type PresenceHub, type SocketLike } from 'foldkit-sync'
+import { servePresence, type PresenceHub, type SocketLike } from 'foldkit-sync'
 import type { ServerJournal, SyncPrincipal } from './journal.js'
 
 /** Adapts one `ws` socket to the transport's minimal socket. */
@@ -70,7 +70,7 @@ export const startSyncServer = async <Presence = unknown>(options: {
     const stops = [options.journal.serve(socketLike(socket), principal)]
     if (options.presence !== undefined)
       stops.push(
-        Sync.presence.serve(socketLike(socket), options.presence(principal.documentId), {
+        servePresence(socketLike(socket), options.presence(principal.documentId), {
           peerId: principal.actorId,
         }),
       )

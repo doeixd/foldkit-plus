@@ -109,6 +109,16 @@ describe('foldkit-mixins/vite', () => {
     }
   })
 
+  it('emits a file only the sheet names, at the address the sheet gives it', async () => {
+    const output = await built('/', '/withFont.ts')
+    const [asset] = cssOf(output)
+    const named = /url\((\/assets\/face-[\w-]+\.woff2)\)/.exec(
+      asset?.type === 'asset' ? String(asset.source) : '',
+    )?.[1]
+    expect(named).toBeDefined()
+    expect(output.map(file => `/${file.fileName}`)).toContain(named)
+  })
+
   it('writes the sheet completed with the classes its modules compiled', async () => {
     const [asset] = cssOf(await built())
     expect(asset?.type === 'asset' ? String(asset.source) : '').toBe(Style.complete(stylesheet))

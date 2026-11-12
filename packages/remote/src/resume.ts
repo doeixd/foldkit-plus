@@ -13,10 +13,11 @@
  * loading marks, failures, the mutation ledger, optimistic layers, gaps and
  * retention start from their initial values in the browser.
  */
-import { Result, Schema } from 'effect'
-import type { Focus, Metadata } from 'foldkit-surface'
+import { Effect, Result, Schema } from 'effect'
+import { Diagnostics, type Focus, type Metadata } from 'foldkit-surface'
 import type { Boundary, Connection, Segment } from './connection.js'
 import { DEFERRABLE } from './deferrable.js'
+import { readUnmade } from './diagnostics.js'
 import type { LiveState } from './liveState.js'
 import type { RemoteModel } from './model.js'
 import { own, put } from './record.js'
@@ -104,6 +105,52 @@ const liveCovered = (stream: string, entries: ReadonlyMap<string, MutableEntry>)
       .filter(field => field !== '')
     return entry !== undefined && fields.every(field => entry.present.has(field))
   })
+
+/**
+ * What some projections read that the store does not hold: `Entity:id.field`
+ * for a field no read made (one the server settled without a value, or a
+ * row it answered gone, is made), and the identity of a list never read.
+ */
+const unmadeReads = (
+  remote: RemoteModel,
+  projections: ReadonlyArray<{ readonly metadata: Metadata }>,
+): ReadonlyArray<string> => {
+  const unmade = new Set<string>()
+  const walk = (entity: string, id: string, requirement: RelationRequirement): void => {
+    const key = entityKey(entity, id)
+    const stored: EntityEntry | undefined = remote.entities[key]
+    if (stored === undefined) {
+      unmade.add(key)
+      return
+    }
+    if (stored.tombstone) return
+    for (const field of requirement.fields) {
+      if (stored.unavailable.has(field)) continue
+      if (!stored.present.has(field)) {
+        unmade.add(`${key}.${field}`)
+        continue
+      }
+      const nested = requirement.relations?.[field]
+      if (nested === undefined) continue
+      const value = readField(remote.entities, key, field)
+      if (value._tag === 'None') continue
+      for (const ref of targetsOf(value.value, nested)) walk(ref.entity, ref.id, nested)
+    }
+  }
+  const asked = askedOf(projections)
+  for (const requirement of asked.requirements)
+    walk(requirement.entity, requirement.id, requirement)
+  for (const { identity, select } of asked.connections) {
+    const connection = remote.connections[identity]
+    if (connection === undefined) {
+      unmade.add(identity)
+      continue
+    }
+    for (const segment of connection.segments)
+      for (const edge of segment.edges) walk(edge.ref.entity, edge.ref.id, select)
+  }
+  return [...unmade]
+}
 
 /**
  * Captures what some projections read from a store: the fields each
@@ -287,8 +334,12 @@ export const resumePart = <AppModel, Store extends RemoteModel>(
   id: options.id ?? 'remote',
   covers: [RemoteRequirements.name, RemoteConnections.name],
   deferrable: (_key, entry) => typeof entry === 'object' && entry !== null && DEFERRABLE in entry,
-  capture: (model, projections) =>
-    encodeCapture(captureRemote(domain.store.get(model), projections)),
+  capture: (model, projections) => {
+    const remote = domain.store.get(model)
+    const unmade = unmadeReads(remote, projections)
+    if (unmade.length > 0) Effect.runSync(Diagnostics.report(readUnmade(unmade)))
+    return encodeCapture(captureRemote(remote, projections))
+  },
   restore: (model, value) =>
     Result.match(decodeCapture(value), {
       onFailure: error => Result.fail(`Remote's state does not decode: ${error.message}`),

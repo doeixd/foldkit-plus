@@ -80,7 +80,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
-import { DocumentId, Sync } from 'foldkit-sync'
+import { DocumentId, forApplication } from 'foldkit-sync'
 
 const Model = Schema.Struct({
   todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
@@ -119,7 +119,7 @@ const App = Surface.application({ Model, Message, initial, update })
 
 type Principal = { readonly actorId: string; readonly canWrite: boolean }
 
-const TodoSync = Sync.forApplication(App)
+const TodoSync = forApplication(App)
   .withPrincipal<Principal>()
   .make({
     documentId: DocumentId.make('todos'),
@@ -207,7 +207,8 @@ request    cursor, pending operations, the epoch the replica last saw
 answer     operations     committed after the cursor, in order
            acknowledged   ids accepted (also when their payload is not repeated)
            rejected       ids refused
-           reasons?       [{ opId, reason }]: why, in words for a person, for some of rejected
+           refusals?      [{ opId, refusal }]: why, for some of rejected, a typed SyncRefusal each
+           reasons?       [{ opId, reason }]: deprecated, the same in words alone
            checkpoint?    { cursor, model } when the tail was compacted away
            more?          another page follows
            epoch          this server's history
@@ -281,6 +282,121 @@ before the acknowledgement, and
 [`server.ts`](../examples/sync/src/server.ts) beside it binds `serve` to a `ws`
 server with a per-connection token.
 
+## Choosing document boundaries
+
+A **document** is one `documentId`: one contract, one journal key, one outbox
+and cursor on the replica, one order on the server. Everything the server
+decides, it decides inside one document, and that is the whole rule for
+drawing the boundary:
+
+> A rule can be enforced where one document's snapshot is enough to judge it.
+
+The journal runs `validate` and then `authorize` for each operation inside the
+commit, and hands both the same request: the document's `key`, the `principal`,
+the incoming `operation`, the document's authoritative `snapshot`, and (to
+`validate`) its `cursor`. Nothing else is in reach: the request carries no other
+document, table, or service, and both run while the write lock is held, so they
+must stay local to the snapshot (on D1, which has no lock, they see the latest
+committed snapshot and a concurrent commit retries). The order is per document too: each
+key counts its own sequence from `cursor + 1`, so two documents have no order
+between them.
+
+When a rule refuses, the operation is *rejected by its id*: the replica drops
+it, replays what remains, and the field reverts, as in
+[section 4](#4-what-the-user-sees-and-what-waits-for-the-server). Use
+`authorize` for a rule a person should read about, because its `reason`
+reaches the replica as a `Forbidden` refusal's; a `validate` refusal arrives as
+an `Invalid` one whose message is the fixed sentence "Not a valid operation". An operation that names another document is rejected the
+same way before the journal sees it.
+
+### A rule that fits: at most 100 todos
+
+The todo list is one document, so a cap on its length is a function of its
+snapshot. `shared` is the snapshot, and `authorize` sees it:
+
+```ts
+const CappedTodoSync = forApplication(App)
+  .withPrincipal<Principal>()
+  .make({
+    documentId: DocumentId.make('todos-capped'),
+    shared: Projection.pick(App.model.todos),
+    durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
+    authorize: {
+      CreatedTodo: ({ shared }) =>
+        shared.todos.length < 100 ? true : { allowed: false, reason: 'A list holds 100 todos' },
+    },
+  })
+```
+
+Two devices that each add the hundredth todo cannot both succeed: the server
+commits one first, judges the other against the snapshot that now holds it, and
+rejects it with that reason. The rule holds because the count and the write are
+in the same document, committed in one order.
+
+### A rule that does not fit: unique usernames
+
+Suppose each user is a document (`user-ada`, `user-grace`), and a username must
+be unique across users. When Ada's document commits `ChoseUsername('ada')`,
+`validate` and `authorize` see Ada's snapshot only. Grace's document, committing
+the same name at the same moment, is judged against Grace's snapshot. Each
+passes, and nothing in either journal can notice the other. This is not a gap to
+close with a cleverer `validate`: it has no handle on a second document. Give
+the rule an owner that sees every name:
+
+| Choice | Owner of the rule | Use it when |
+| --- | --- | --- |
+| One document holds every username | Sync: `authorize` reads the whole index in one snapshot | the index is small, and every claim may queue behind one order |
+| The server's table decides, through a Remote mutation | [`foldkit-remote`](./remote.md): the server (its database's unique constraint) refuses the write | the usernames are server-owned rows, and a claim need not work offline |
+| One document per name, then a confirm | Sync decides each name in its own document; the application confirms | a claim should be made offline, and the name is taken only once the server has said so |
+
+The first is the smallest change and the cost is plain: every claim goes
+through one journal, and every replica holds the index. The second moves the
+fact out of replication: a username is something the server owns and the client
+can refetch, which is the Remote column of
+[Choose the owner first](#choose-the-owner-first); a refused write comes back
+as a refusal the UI shows, not as a reverted edit.
+
+The third is a **reservation**. The claim document is keyed by the name
+(`username-ada`), so first-claimant-wins is again a rule inside one document:
+its `authorize` refuses a claim when the snapshot already has a different
+owner. The user's own document records the name only after the claim is
+confirmed, which the application waits for on `mounted.committed`, the slice as
+the server confirmed it (see [section 4](#4-what-the-user-sees-and-what-waits-for-the-server)):
+
+```text
+1. claim:    commit Claim({ owner: ada }) in document username-ada
+2. confirm:  wait until username-ada's committed slice names ada
+3. record:   only then commit ChoseUsername('ada') in document user-ada
+```
+
+Nothing makes step 3 atomic with step 1, and the libraries do not try. A
+crash between them leaves a claim with no user: an unreferenced reservation the
+application must be able to release or expire. If the claim never comes, the
+user never recorded the name. Choose this form only when you will own that
+cleanup.
+
+### Picking the boundary
+
+Ask of each rule: what has to be read to judge it?
+
+- **One document's state** (a cap, a unique title inside one list, "only the
+  owner may rename"): keep the facts it reads in one document, and write it in
+  `authorize`.
+- **Facts that change together and are judged together**: one document, so a
+  single order decides them. Splitting them means a rule across the split, and
+  the table above.
+- **Facts that never constrain one another** (two users' notes): separate
+  documents. Each gets its own cursor, its own small snapshot to replay, and
+  its own Durable Object where you serve from one.
+- **A fact across documents or outside replication** (a unique name, a balance
+  across accounts, a row in a table): not a Sync rule. Move it to the owner of
+  that fact, or reserve it as above.
+
+A document grows with everything inside it: every replica holds its whole
+snapshot and every commit to it is ordered against every other, so the
+boundary is a cost as well as a limit on rules. Draw it as small as the rules
+allow.
+
 ## 4. What the user sees, and what waits for the server
 
 The Model shows a durable edit before the server has it. For most UI that is
@@ -288,9 +404,9 @@ the point. Two things need more:
 
 - **A refused edit.** It comes back as a rejection on the next exchange, the
   replica drops it, the mount re-installs the slice, and the field reverts.
-  `replica.status.rejected` names the operation, with the server's reason
-  when it gave one (an `authorize` rule's `{ allowed: false, reason }`), so
-  the UI can say why.
+  `replica.status.rejected` names the operation, with a typed refusal
+  (`Forbidden` with an `authorize` rule's `reason` when it gave one,
+  `Invalid` when the operation failed), so the UI can say why.
   `onPersistenceFailure` does not run for this; the local save succeeded.
 - **Something that must not claim success early.** An agent tool, a "shared
   with the team" confirmation. These wait on `mounted.committed`, the slice as
@@ -353,6 +469,92 @@ the outbox holds and the wire carries. The **committed operation** is the same
 plus the server's sequence and the actor it trusts. Sync adds the envelopes;
 the Message stays the vocabulary.
 
+## Changing a durable Message
+
+An operation outlives the build that wrote it. It sits in a device's outbox
+while the device is offline across a deploy, and in the journal for as long as
+the document's history is kept. So once a durable Message has shipped, its
+Schema is a stored format: rename `RenamedTodo`'s `title` and every stored
+`RenamedTodo` stops reading.
+
+Declare the history instead. Say the first build called the field `text`:
+
+```ts
+import { Match } from 'effect'
+import { migrations } from 'foldkit-sync'
+
+// Version 1, kept while any stored operation may hold it.
+const RenamedTodoV1 = Schema.TaggedStruct('RenamedTodo', {
+  id: Schema.String,
+  text: Schema.String,
+})
+const MessageV1 = Schema.Union([Message.CreatedTodo, RenamedTodoV1])
+
+// Version 2 is the application's Message as it is now.
+const TodoHistory = migrations(MessageV1).next(App.Message, previous =>
+  Match.valueTags(previous, {
+    CreatedTodo: created => created,
+    RenamedTodo: ({ id, text }) => ({ _tag: 'RenamedTodo' as const, id, title: text }),
+  }),
+)
+
+const VersionedTodos = forApplication(App).make({
+  documentId: DocumentId.make('todos'),
+  shared: Projection.pick(App.model.todos),
+  durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
+  migrations: TodoHistory,
+})
+```
+
+The old Schema lists only the durable variants, and reuses the ones that did
+not change. A step takes the version before it, encoded, and returns its own,
+encoded; the types check each against its neighbour. Steps are never edited
+once shipped: the next change is another `next`.
+
+What changes, and what does not:
+
+- **Each operation keeps the version it was written at**, as
+  `messageVersion` on its envelope (absent for version 1, so a document that
+  never declares a history sends what it sent before). The outbox, the wire
+  and `status.rejected[i].operation` hold it as written.
+- **Everything that reads its meaning reads the current version.** `update`
+  in replay, `admit`, `authorize`, `validate`, `stamp` and `reduce` all get
+  the Message upcast. A client claiming version 1 is judged exactly as the
+  current Message would be.
+- **The journal stores the current version** and compares a retransmission
+  by the operation as it was written, so an edit committed by the old build,
+  whose acknowledgement was lost in the deploy, is acknowledged rather than
+  refused.
+
+What will not read:
+
+| Where | Written by a newer build | Older, and no step reads it |
+| --- | --- | --- |
+| A device's outbox | the replica refuses to open, `UnsupportedMessageVersionError`; nothing is removed | moved to `status.refused` with its payload, never sent, until dismissed; the rest sends |
+| An operation a server receives | the exchange fails before anything is appended: the client waits | rejected as `Unreadable { version }`; the replica keeps it in `refused` |
+| The journal's committed history | `UnreadableHistoryError` wherever the row is read: every exchange of a replica whose cursor is before it, a retransmission of its id, and an append or load that rebuilds from a snapshot older than it; a replica past it is served | the same |
+| A committed operation a replica receives | its exchanges fail with `UnsupportedMessageVersionError` until it reloads | `InvalidReplicaHistoryError`: client and server disagree on a step |
+
+So deploy in this order: the Sync release that reads `messageVersion`
+everywhere first; then the application's new version, server first. The
+first step is not optional: a server on an older release rejects an
+operation carrying `messageVersion`, and a replica on an older release drops
+an operation refused as `Unreadable`, and both lose that edit. A client
+still on the old version syncs until an operation of the new version commits,
+then fails its exchanges until it reloads, keeping its outbox. A rollback
+meets versions it lacks and refuses them, typed, deleting nothing; rolling
+forward reads them again. A rollback of the Sync release itself cannot open
+a replica state holding `refused` (`InvalidReplicaHistoryError`): never clear
+storage on that error, since the outbox is in the same state.
+
+A step must be pure and deterministic: the server reads an entry more than
+once, and each read must find the same Message. A server that builds an
+operation itself writes it with `journalContract().operation.encode`; the
+journal's input type, `WrittenOperation`, refuses a decoded `Operation`.
+
+The history covers durable Messages, not the shared slice: a change to the
+slice's own Schema still breaks a stored snapshot or checkpoint.
+
 ## When things go wrong
 
 Each of these is designed for. The ones that change how you build come first.
@@ -370,6 +572,7 @@ Each of these is designed for. The ones that change how you build come first.
 | Local storage was evicted | the replica catches up from the server, but unsent edits are lost: the outbox is user data |
 | Two tabs share one storage name | compare-and-swap fails the stale writer rather than merging histories |
 | Stored state is from another version | opening fails naming both versions; the bytes are kept for a deliberate migration |
+| An operation from another build | read through the Message's history; see [changing a durable Message](#changing-a-durable-message) |
 | The server answers nonsense | a malformed answer, a gap in the order, an ack for an operation never sent, or a checkpoint behind the cursor fails the exchange; local work is untouched |
 | An external effect succeeded before a crash recorded it | the provider call may repeat; use provider idempotency with Durable's effect ledger |
 
@@ -393,7 +596,9 @@ The packages leave deliberate gaps, each a deployment decision:
 - **Effect identities.** A stable key per document, operation, and semantic
   action, chosen before the action runs and handed to the provider.
 - **Migrations.** Sync and Durable version and refuse their own storage and
-  wire formats. Your Message and snapshot payloads are yours to evolve.
+  wire formats, and Sync applies the history you declare for a durable
+  Message. Writing that history, and evolving the shared slice's own Schema,
+  are yours.
 - **Browser storage policy.** IndexedDB can be evicted; what to tell the user
   and when to ask for persistent storage.
 

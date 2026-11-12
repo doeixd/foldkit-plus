@@ -9,12 +9,20 @@
  * by every tab on the same key, and written as a merge so no tab's write
  * overwrites another's.
  */
-import { Context, Duration, Effect, Match, Option, Random, Schema } from 'effect'
+import { Context, Duration, Effect, Option, Random, Schema } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import type { Computation } from 'foldkit-entity'
 import type { OptimisticOperation } from './optimistic.js'
 import { remoteErrorSchema, type RemoteError } from './remoteData.js'
-import { MadeAs, ownerOf, Queued, withDone, type OutboxState, type ReadEntry } from './queue.js'
+import {
+  MadeAs,
+  ownerOf,
+  Queued,
+  sendable,
+  withDone,
+  type OutboxState,
+  type ReadEntry,
+} from './queue.js'
 import { QueryRequest, RelationRequest } from './wire.js'
 
 /**
@@ -249,23 +257,6 @@ export const storedOf = (outbox: OutboxState): StoredOutbox => ({
   done: outbox.done,
   owner: outbox.owner,
 })
-
-/**
- * Whether a write made as `madeAs` may be sent while the page last heard
- * `heard` (#405): anything, before a page has heard; one made for someone
- * only while no one else is signed in; a visitor's, or one made before any
- * answer said who, only while no one is, since `outbox.adopt` stamps it as
- * whoever signs in first and says so.
- */
-export const sendable = (madeAs: MadeAs | undefined, heard: Option.Option<MadeAs>): boolean =>
-  Option.match(heard, {
-    onNone: () => true,
-    onSome: page =>
-      Match.valueTags(page, {
-        Visitor: () => true,
-        Signed: ({ key }) => madeAs?._tag === 'Signed' && madeAs.key === key,
-      }),
-  })
 
 /**
  * The write sent next: the oldest one waiting that the store holds. None

@@ -1,5 +1,5 @@
 import { Slots, Style } from 'foldkit-mixins'
-import { FieldsetSlots } from 'foldkit-mixins-ui'
+import { FieldsetSlots, Recipes } from 'foldkit-mixins-ui'
 
 import { forSlots, t } from '../../style.js'
 import { checkRow, field } from './field.js'
@@ -20,7 +20,6 @@ export const FieldsetPageStyle = forSlots(FieldsetPageSlots)(
       display: 'flex',
       flexDirection: 'column',
       gap: t.space.md,
-      marginTop: t.space.md,
     }),
     field,
     checkField: Style.self({ display: 'flex', flexDirection: 'column', gap: t.space['2xs'] }),
@@ -29,29 +28,10 @@ export const FieldsetPageStyle = forSlots(FieldsetPageSlots)(
   { name: 'FieldsetPageStyle' },
 )
 
-/** `foldkit-mixins-ui` ships no Fieldset recipe; this is upstream's bordered group. */
+/** Upstream's bordered group. */
 export const DemoFieldsetStyle = forSlots(FieldsetSlots)(
+  Recipes.Fieldset({ variant: 'bordered' }),
   {
-    fieldset: Style.self({
-      margin: '0',
-      padding: t.space.lg,
-      border: `${t.border.thin} solid ${t.outline.subtle}`,
-      borderRadius: t.radius.lg,
-    }),
-    legend: Style.self({
-      float: 'left',
-      width: '100%',
-      padding: '0',
-      fontSize: t.size.md,
-      fontWeight: t.weight.semibold,
-      color: t.text.overt,
-    }),
-    description: Style.self({
-      display: 'block',
-      marginTop: t.space['2xs'],
-      fontSize: t.size.sm,
-      color: t.text.muted,
-    }),
+    name: 'DemoFieldsetStyle',
   },
-  { name: 'DemoFieldsetStyle' },
 )

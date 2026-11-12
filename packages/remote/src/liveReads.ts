@@ -10,7 +10,7 @@ import { RemoteClient, remoteError } from './client.js'
 import type { LiveOptions } from './index.js'
 import type { ConnectionSpec } from './query.js'
 import { installLayers } from './layers.js'
-import { applyConnectionEvent, applyEntityEvent, awaitEchoes } from './liveEvents.js'
+import { applyConnectionEvent, applyEntityEvent, awaitEchoes, settleKept } from './liveEvents.js'
 import { liveStreamKey } from './liveState.js'
 import { belongsEncoded } from './matching.js'
 import { entityKey } from './store.js'
@@ -53,7 +53,8 @@ const wallClock = (): number => Date.now()
  */
 const policy: LiveCapability['policy'] = (lists, visible, event, context) => {
   if (event._tag !== 'ConnectionInsert') return undefined
-  return Option.match(lists.queryOf(event.connection), {
+  const query = lists.queryOf(event.connection)
+  return Option.match(query, {
     onNone: () => undefined,
     onSome: ({ descriptor, encoded }) => {
       const declared = (descriptor.Result as Partial<ConnectionSpec> | undefined)?.live
@@ -133,6 +134,7 @@ export const liveReads: LiveCapability = {
   applyEntity: applyEntityEvent,
   applyConnection: applyConnectionEvent,
   awaitEchoes,
+  settleKept,
   policy,
   stream,
 }

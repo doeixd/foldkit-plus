@@ -11,6 +11,7 @@ import * as Subscription from 'foldkit/subscription'
 import * as Update from 'foldkit/update'
 import type { AnyMessage, Link } from './link.js'
 import type { BundleSpec, Helper, ResourceEntries } from './bundle.js'
+import { helpersFor, readsArgs } from './helpers.js'
 import { keptDrawing } from './memo.js'
 
 const PlacedTypeId: unique symbol = Symbol.for('foldkit-bundle/Placed')
@@ -589,12 +590,16 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
     },
     view: viewIn(key),
     viewIn: (slot: string) => viewIn(`${key}#${slot}`),
-    helpers: Record.map(
-      bundle.helpers ?? {},
-      (helper: ErasedHelper) =>
-        (...input: ReadonlyArray<unknown>) =>
-          foldStep(model => helper(model, ...input)),
-    ),
+    // A getter, as for Subscriptions: helpers that read the args take the
+    // ones retained now, and need them resolved, as `update` does.
+    get helpers() {
+      return Record.map(
+        helpersFor(bundle.helpers, readsArgs(bundle.helpers) ? needArgs() : undefined),
+        (helper: ErasedHelper) =>
+          (...input: ReadonlyArray<unknown>) =>
+            foldStep(model => helper(model, ...input)),
+      )
+    },
   }
 }
 

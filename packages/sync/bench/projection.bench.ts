@@ -10,6 +10,7 @@ import {
   sequence as toSequence,
   type CommittedOperation,
   type Operation,
+  type WrittenOperation,
   type Replica,
   type ReplicaState,
   type Storage,
@@ -42,7 +43,10 @@ const Sync = defineSync({
       : { todos: [...shared.todos, { id: message.id, title: message.title }] },
 })
 
-const operation = (local: number, id: string): Operation => ({
+const operation = (local: number, id: string): WrittenOperation =>
+  Sync.journalContract().operation.encode(decoded(local, id))
+
+const decoded = (local: number, id: string): Operation => ({
   protocolVersion: 1,
   schemaVersion: 1,
   documentId: documentId('todos'),

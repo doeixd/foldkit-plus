@@ -37,7 +37,13 @@ export default [
   },
   {
     name: 'a redacted member is omitted instead',
-    edits: [{ file, find: "member.deny._tag === 'Redact'", replace: 'false' }],
+    edits: [
+      {
+        file,
+        find: 'Redact: deny =>',
+        replace: 'Redact: () => Option.none(),\n                Unused: deny =>',
+      },
+    ],
     tests,
   },
   {

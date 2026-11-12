@@ -38,8 +38,8 @@ export default [
     edits: [
       {
         file,
-        find: "decision === false ? 'This connection may not make changes' : decision.reason,",
-        replace: "'This connection may not make changes',",
+        find: 'decision === false ? undefined : decision.reason,',
+        replace: 'undefined,',
       },
     ],
     tests,

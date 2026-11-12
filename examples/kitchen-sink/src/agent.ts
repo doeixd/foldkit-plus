@@ -43,7 +43,21 @@ export const AppAgent = BoardAgent.make({
   context: Projection.pick(App.model.notes, App.model.selectedNoteId),
 
   messages: BoardAgent.expose(Message, {
-    RequestedCreateNote: 'Create a note',
+    RequestedCreateNote: {
+      description: 'Create a note',
+      // The caller names the note's id and `update` adds it at once, so no
+      // fact follows and the state is what to wait for: only a call naming
+      // this id can make it hold. A create whose id the app mints needs a
+      // fact instead (`examples/todo`). `update` drops a create over a taken
+      // id (a replayed durable operation), so the body is checked too: a
+      // dropped create ends at the timeout rather than reading as done.
+      completion: Agent.when({
+        projection: Projection.struct({ notes: App.model.notes }),
+        predicate: ({ notes }, request) =>
+          notes.some(note => note.id === request.id && note.body === request.body),
+        timeout: '1 second',
+      }),
+    },
     RequestedRenameNote: { name: 'rename_note', description: 'Rename an existing note' },
     SelectedNote: 'Select a note, making the capabilities that act on one available',
   }),

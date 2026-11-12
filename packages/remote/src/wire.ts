@@ -61,6 +61,20 @@ export class RemoteUnauthenticated extends Schema.TaggedError<RemoteUnauthentica
   },
 ) {}
 
+declare const RequestFrom: unique symbol
+
+/**
+ * A request as `serveFetch` hands it to its resolver: one the application's
+ * own scripts send. Only a type, so that a resolver which reads a cookie
+ * without asking for a script's headers (a navigation's) cannot be given
+ * there: `foldkit-auth`'s `AuthServer.host` types its resolvers by these. A
+ * resolver taking any `Request` fits both.
+ */
+export type ScriptedRequest = Request & { readonly [RequestFrom]: 'script' }
+
+/** A page the browser navigates to, as `pageReader` hands it to its resolver; see `ScriptedRequest`. */
+export type NavigationRequest = Request & { readonly [RequestFrom]: 'navigation' }
+
 /**
  * A durable write was made for another principal than the one asking (its
  * `principal` names someone else): who is signed in changed since it was

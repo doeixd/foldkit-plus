@@ -164,7 +164,9 @@ const WithCompletion = DeleteAgent.make({
 })
 ```
 
-The result carries `completion: { status: 'completed' | 'failed', message }`.
+The result carries `completion: { status: 'completed' | 'failed', message }`. Dispatched by constructor it is typed by the contract: `completed` holds a success Message, `failed` a failure one (no `failed` branch when none is named), a state contract's outcome has no `message`, and a capability with no contract has `completion: undefined`; read the fact without a `Schema.is`. By name or `dispatchUnknown` it is any Message.
+
+`Agent.variant` returns an `Agent.Variant`. A contract's type keeps only each variant's `name`, `input` and completion outcome (Messages, not constructors), so a project emitting declarations can export a contract with a completion without importing `foldkit/schema`.
 
 To complete on **state** instead, use `Agent.when`. The Model form needs `host.subscribe`:
 

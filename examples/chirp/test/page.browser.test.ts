@@ -14,7 +14,8 @@ import { Style } from 'foldkit-mixins'
 import { RemoteClient } from 'foldkit-remote'
 import { afterEach, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
-import { init, Model, opening, durable, subscriptions, update, type Message } from '../src/app.js'
+import { init, opening, durable, subscriptions, update } from '../src/app.js'
+import { Model, type Message } from '../src/state.js'
 import { sandboxRemote } from '../src/server/connection.js'
 import type { Person } from '../src/server/seed.js'
 import { profileHref } from '../src/site.js'
@@ -133,6 +134,26 @@ it("holds the Chirp button's word in its middle, both ways", async () => {
   // Untrimmed, the line box's ascent above the capitals put them 1px low in Segoe UI.
   expect(Math.abs(x)).toBeLessThanOrEqual(0.5)
   expect(Math.abs(y)).toBeLessThanOrEqual(0.5)
+})
+
+it('dims the compose button while it reads aria-disabled, and keeps hover off it', async () => {
+  await mount('/')
+  const submit = await vi.waitUntil(
+    () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Chirp'),
+    answered,
+  )
+  // The form marks it so while it submits or cannot; set here, since an empty
+  // chirp is a valid form and nothing in the page holds it marked for long.
+  const enabled = getComputedStyle(submit).opacity
+  const resting = getComputedStyle(submit).backgroundColor
+  submit.setAttribute('aria-disabled', 'true')
+  expect(enabled).toBe('1')
+  expect(getComputedStyle(submit).opacity).toBe('0.5')
+  await userEvent.hover(submit)
+  expect(getComputedStyle(submit).backgroundColor).toBe(resting)
+  submit.removeAttribute('aria-disabled')
+  await userEvent.hover(document.body, { position: { x: 1, y: 300 } })
+  expect(getComputedStyle(submit).opacity).toBe('1')
 })
 
 it("cuts a profile's portrait out of the banner in the avatar's shape", async () => {

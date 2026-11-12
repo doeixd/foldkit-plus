@@ -1,3 +1,4 @@
+import { noKept } from '../src/kept.js'
 import { Effect, Layer, Option, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Surface } from 'foldkit-surface'
@@ -66,7 +67,11 @@ const visible = (model: RemoteModel) =>
     item => item.ref.id,
   )
 const body = (model: RemoteModel, id: string) =>
-  readField(visibleStore(model.entities, model.optimistic), entityKey('Comment', id), 'body')
+  readField(
+    visibleStore(model.entities, model.optimistic, noKept),
+    entityKey('Comment', id),
+    'body',
+  )
 
 const start = (model: RemoteModel, requestId: string, tempId: string) =>
   updateRemote(model, {

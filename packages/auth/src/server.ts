@@ -4,9 +4,11 @@
  * application's own `Auth` service; what the session is in the application's
  * terms (the guard set's principal, say) is the application's `principal`.
  */
-import type { Auth, Http } from '@yielded/auth'
-import { Effect, Option, Redacted, type Context } from 'effect'
-import { RemoteUnauthenticated } from 'foldkit-remote'
+import type { Auth, AuthContract, Sessions } from '@yielded/auth'
+import * as Http from '@yielded/auth/Http'
+import { Effect, Layer, Option, Redacted, type Context, type Schema, type Unify } from 'effect'
+import { HttpRouter, HttpServer } from 'effect/http'
+import { RemoteUnauthenticated, type NavigationRequest, type ScriptedRequest } from 'foldkit-remote'
 import { SUBJECT_CHANGED, SUBJECT_HEADER, subjectSaid } from './index.js'
 
 /** The part of a session this package reads; the application's `principal` reads the rest. */
@@ -172,7 +174,145 @@ const resolver = <I, S extends VerifiedSession, User, R = never>(
     })
 }
 
+/**
+ * The Yielded application `Http.make` mounts (`Auth.make(…)`), typed as far
+ * as `AuthServer.host` reads it.
+ */
+export type YieldedAuth<I, S extends Sessions.SessionMetadata, Api, Actions> = Omit<
+  Context.Key<I, Api>,
+  typeof Unify.unifySymbol
+> & {
+  readonly sessions: {
+    readonly moduleId: string
+    readonly Session: Schema.Codec<S, unknown, unknown, unknown>
+  }
+  readonly contract: { readonly basePath?: string; readonly actions: Actions }
+  readonly layer: Layer.Layer<I, unknown, unknown>
+}
+
+/** What `AuthServer.host` takes. */
+export interface HostConfig<
+  I,
+  S extends Sessions.SessionMetadata,
+  Api extends Auth.SessionApi<S, unknown>,
+  Actions extends AuthContract.AuthActions,
+  User,
+  R,
+> {
+  /** The `Auth.make(…)` application: its routes are mounted, its sessions verified. */
+  readonly auth: YieldedAuth<I, S, Api, Actions>
+  /**
+   * The options for `Http.make`, given to Yielded's routes and to both
+   * resolvers, so the cookie the routes set is the one the resolvers read.
+   * No `oauth`: its callbacks need services this does not provide.
+   */
+  readonly http: Omit<Http.AuthHttpOptions, 'oauth'>
+  /**
+   * The built `Auth` service and what it stands on (its store, its hashing),
+   * shared by the routes and the resolvers: build them once per isolate,
+   * as a `ManagedRuntime`'s `context()`, never per request.
+   */
+  readonly services: Context.Context<I>
+  /** The application's principal for a verified session, read per request; it may refuse it. */
+  readonly principal: (session: S) => Effect.Effect<User, RemoteUnauthenticated, R>
+  /** Who the principal is, for the `x-foldkit-subject` check and the answer's header; see `ResolverConfig`. */
+  readonly key?: ((user: User) => string) | undefined
+}
+
+/** A resolver `serveFetch` takes, and no page reader: it asks for a script's CSRF header. */
+export type ScriptedResolver<User, R> = (
+  request: ScriptedRequest,
+) => Effect.Effect<Option.Option<User>, RemoteUnauthenticated, R>
+
+/** A resolver `pageReader` takes, and no `serveFetch`: it reads the cookie of a navigation, which can be sent from any site. */
+export type NavigationResolver<User, R> = (
+  request: NavigationRequest,
+) => Effect.Effect<Option.Option<User>, RemoteUnauthenticated, R>
+
+/** What `AuthServer.host` returns. */
+export interface AuthHost<User, R> {
+  /** Yielded's routes (sign up, sign in, sign out): the handler for its paths, `/auth/…` by default. */
+  readonly routes: (request: Request) => Promise<Response>
+  /**
+   * For `serveFetch`: `serveFetch({ server, layer, ...host.scripted })`. With
+   * `key`, `headers` says whom each answer was for (`AuthServer.answered`).
+   */
+  readonly scripted: {
+    readonly resolvePrincipal: ScriptedResolver<User, R>
+    readonly headers:
+      | ((principal: Option.Option<User>) => Readonly<Record<string, string>>)
+      | undefined
+  }
+  /** For `pageReader`: `pageReader({ server, layer, ...host.navigation })`. */
+  readonly navigation: { readonly resolvePrincipal: NavigationResolver<User, R> }
+  /** Closes the routes' runtime; `services` stays the caller's. */
+  readonly dispose: () => Promise<void>
+}
+
+const host = <
+  I,
+  S extends Sessions.SessionMetadata,
+  Api extends Auth.SessionApi<S, unknown>,
+  Actions extends AuthContract.AuthActions,
+  User,
+  R = never,
+>(
+  config: HostConfig<I, S, Api, Actions, User, R>,
+): AuthHost<User, R> => {
+  if ('oauth' in config.http)
+    throw new Error('AuthServer.host mounts no OAuth callbacks: mount Http.make yourself')
+  const { key } = config
+  const resolving = { auth: config.auth, http: config.http, principal: config.principal, key }
+  const provided =
+    (resolve: Resolver<User, I | R>) =>
+    (request: Request): Effect.Effect<Option.Option<User>, RemoteUnauthenticated, R> =>
+      Effect.provide(resolve(request), config.services)
+  const routes = HttpRouter.toWebHandler(
+    // With no OAuth the routes need the Auth service, which `services` holds,
+    // and the platform's; TypeScript cannot reduce that over these generics.
+    Http.make(config.auth, config.http)
+      .routes()
+      // A Worker has no file system; nothing here serves a file.
+      .pipe(
+        Layer.provide([Layer.succeedContext(config.services), HttpServer.layerServices]),
+        Layer.orDie,
+      ) as unknown as Layer.Layer<never, never, HttpRouter.HttpRouter>,
+    { disableLogger: true },
+  )
+  return {
+    routes: routes.handler,
+    scripted: {
+      resolvePrincipal: provided(resolver({ ...resolving, requests: 'scripted' })),
+      headers: key === undefined ? undefined : AuthServer.answered({ key }),
+    },
+    navigation: {
+      resolvePrincipal: provided(resolver({ ...resolving, requests: 'navigation' })),
+    },
+    dispose: routes.dispose,
+  }
+}
+
 export const AuthServer = {
+  /**
+   * One Yielded application as a host serves it: its routes, and the two
+   * resolvers that read its cookie, typed apart so each fits only its own
+   * consumer. `scripted` is `serveFetch`'s (`/remote`, which writes): it
+   * reads the cookie only from a request that carries a trusted `Origin` and
+   * the CSRF header. `navigation` is `pageReader`'s (a page render, which
+   * only reads): it reads the cookie of a `GET` or `HEAD` the browser
+   * navigates to, which carries neither, and refuses any other method, an
+   * upgrade, and a script's `fetch`. Handing either to the other's consumer
+   * is a type error. Both read the principal per request; `services` is
+   * built once and holds none. Throws when `http` names an origin that is not
+   * one, or carries `oauth`.
+   *
+   * ```ts
+   * const host = AuthServer.host({ auth: AppAuth, http, services, principal, key: Policy.key })
+   * const remote = serveFetch({ server, layer, ...host.scripted })
+   * const read = pageReader({ server, layer, ...host.navigation })
+   * ```
+   */
+  host,
   /**
    * Who a request is, from its Yielded session cookie, for a host's
    * `resolvePrincipal`. No cookie is a visitor (`Option.none()`). A cookie is

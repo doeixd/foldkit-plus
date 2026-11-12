@@ -669,6 +669,63 @@ is those as Sources — `Data.satisfy` over them, with the route set to the
 target's, prepares the Model before a synchronous render. Preparation stays
 caller-composed — there is no `prepare` in any plan.
 
+**A data policy per route.** A node carries no data policy of its own: how
+long a page's reads stay fresh is the Remote domain's `policy`, and
+`Data.wiring` takes it as a function of the Model. Match the route there, with
+the route union's own `match`, so a route added later is a type error until its
+policy is chosen (from Chirp, which reads a profile again sooner than the
+timeline):
+
+<!-- docs-check standalone
+import { Schema, pipe } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { defineRouteUnion, literal, mapTo, root, slash, string } from 'foldkit/route'
+import { Remote, RemotePolicy } from 'foldkit-remote'
+import { Site } from 'foldkit-site'
+import { Surface } from 'foldkit-surface'
+
+const AppRoute = defineRouteUnion({ Home: {}, Profile: { handle: Schema.String } })
+const Model = Schema.Struct({ route: AppRoute, remote: Remote.Model })
+type Model = typeof Model.Type
+const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
+const Data = Remote.make({ model: App.model.remote, entities: [] })
+const Home = App.surface('Home', { model: () => ({}) })
+const Profile = App.surface('Profile', {
+  params: { handle: Schema.String },
+  model: () => ({}),
+})
+const AppSite = Site.make(
+  Site.route(pipe(root, mapTo(AppRoute.Home)), AppRoute.Home, {
+    surface: { surface: Home, params: () => undefined },
+  }),
+  Site.route(pipe(literal('people'), slash(string('handle')), mapTo(AppRoute.Profile)), AppRoute.Profile, {
+    surface: { surface: Profile, params: ({ handle }) => ({ handle }) },
+  }),
+)
+-->
+
+```ts
+const timeline = RemotePolicy.staleWhileRevalidate({ maxAge: 60_000 })
+const profile = RemotePolicy.staleWhileRevalidate({ maxAge: 15_000 })
+
+const wiring = Data.wiring(Site.sources(AppSite, App.owner, App.model.route), {
+  policy: (model: Model) =>
+    AppRoute.match(model.route, {
+      Home: () => timeline,
+      Profile: () => profile,
+    }),
+})
+```
+
+The Surfaces come from the tree (`Site.sources`), each answering its own
+route, and the policy is the one the Model's route picks, so the two vary
+together without either naming the other. Nothing here fetches: `Data.wiring`
+reads the policy when it plans a read. The limit is that one policy covers
+every Surface active on a route; two policies on one route would need a
+Surface-level option the Remote domain does not have. Retention stays the
+store's: a node has no `retain`. See `examples/chirp/src/app.ts` (`policy`)
+and `examples/chirp/test/site.test.ts` for the same wiring checked per route.
+
 **Reading a page ahead on intent.** Give `Site.routing` a `preload`, and a
 link the reader means to follow is read before they follow it, so its page
 draws at once:

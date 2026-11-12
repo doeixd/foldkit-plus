@@ -156,7 +156,16 @@ export const derivedOfWrite = (
     : movedBy(
         write._tag,
         // A link the context sets (whoever asks) moves what it points at as an input's would.
-        contextBound(write, input, write._tag === 'Update' ? keys : undefined, context, store),
+        contextBound(
+          write,
+          input,
+          Match.value(write).pipe(
+            Match.tag('Update', () => keys),
+            Match.orElse(() => undefined),
+          ),
+          context,
+          store,
+        ),
         derived,
         store,
         context,
@@ -199,7 +208,10 @@ const movedBy = (
       if (member.viewer === relation && Option.isSome(viewerKey)) return viewerKey
     }
     // A row not there points nowhere, unless an update or a delete expected one.
-    return kind === 'Insert' ? Option.some(null) : Option.none()
+    return Match.value(kind).pipe(
+      Match.when('Insert', () => Option.some(null)),
+      Match.orElse(() => Option.none()),
+    )
   }
   const patched = patchOfWrite(bound).values
   const after = (relation: string): Option.Option<unknown> =>
@@ -263,9 +275,14 @@ const movedBy = (
             id: refParts(ref).id,
             values,
             ...(Object.keys(moved).length === 0 ? {} : { adds: moved }),
-            ...(kind === 'Insert' && Object.keys(moved).length > 0
-              ? { creates: { entity: bound.entity, id: bound.id } }
-              : {}),
+            ...Match.value(kind).pipe(
+              Match.when('Insert', () =>
+                Object.keys(moved).length > 0
+                  ? { creates: { entity: bound.entity, id: bound.id } }
+                  : {},
+              ),
+              Match.orElse(() => ({})),
+            ),
           },
         ]
   })
@@ -534,9 +551,10 @@ const cascadedBy = (
 const plainRow = (entity: AnyEntity, row: HeldRow): Record<string, unknown> => {
   const plain: Record<string, unknown> = {}
   const relations: Readonly<Record<string, EntityMember>> = entity.relations
-  const links = Object.values(relations).flatMap(member =>
-    member._tag === 'Relation' && member.cardinality === 'one' ? [member.key] : [],
-  )
+  const links = Object.values(relations).flatMap(member => {
+    if (member._tag !== 'Relation' || member.cardinality !== 'one') return []
+    return [member.key]
+  })
   for (const key of [...Object.keys(entity.fields), ...links])
     Held.match(row.field(key), {
       onHeld: value => {
@@ -580,10 +598,17 @@ export const brokenByWrite = (
   )
   const judged = DomainEntity.judge(
     entity,
-    write._tag === 'Insert' || before === undefined ? { after } : { after, before },
+    Match.value(write).pipe(
+      Match.tag('Insert', () => ({ after })),
+      Match.orElse(() => (before === undefined ? { after } : { after, before })),
+    ),
     operators,
   )
-  return judged._tag === 'Invalid' ? Option.fromUndefinedOr(judged.failures[0]) : Option.none()
+  return Match.valueTags(judged, {
+    Invalid: ({ failures }) => Option.fromUndefinedOr(failures[0]),
+    Valid: () => Option.none(),
+    Undecided: () => Option.none(),
+  })
 }
 
 /** Each supplied member of `entity` that says which write its value refuses, by key. */

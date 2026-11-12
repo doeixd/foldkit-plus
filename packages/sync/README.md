@@ -93,7 +93,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
-import { DocumentId, Sync } from 'foldkit-sync'
+import { DocumentId, forApplication } from 'foldkit-sync'
 
 const Model = Schema.Struct({
   todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
@@ -130,7 +130,7 @@ const update = (model: Model, message: Message): Return =>
 
 const App = Surface.application({ Model, Message, initial, update })
 
-const TodoSync = Sync.forApplication(App).make({
+const TodoSync = forApplication(App).make({
   documentId: DocumentId.make('todos'),
   shared: Projection.pick(App.model.todos),
   durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
@@ -296,6 +296,11 @@ the exchange by hand, with an effect policy per committed operation.
 
 A server that is not Durable implements the same [exchange](#the-exchange).
 
+Import what a server calls by name (`forApplication`, `serveJournal`,
+`servePresence`), not through the `Sync` namespace object: a bundler keeps
+every member of an object, so `Sync.forApplication` in a server's bundle also
+carries the client's mount, sockets, presence and IndexedDB code.
+
 ## Serving from a Durable Object
 
 On Cloudflare, one object per document is the single writer the journal
@@ -421,15 +426,18 @@ error names why: `ReplayError` for a Message that cannot be durable,
 
 ```ts
 const status = Effect.runSync(replica.status)
-// { pending: number, cursor: Sequence, lastError: string | undefined, rejected: ReadonlyArray<Rejection> }
+// { pending, cursor, lastError: string | undefined, rejected: ReadonlyArray<Rejection>, refused, epoch }
 ```
 
 `pending` above zero means edits the server has not confirmed; `lastError` is
 the last failed exchange, cleared by the next success; `rejected` lists recent
-edits the server refused, most recent first, each `{ opId, reason, operation }`,
-where `reason` is an `Option` of the server's words for the person and
-`operation` is the refused operation itself, which the replica has dropped
-from the outbox, so a page reads what it changed from here. `replica.statusChanges` is a Stream of the same,
+edits the server refused, most recent first, each `{ opId, refusal, operation, message }`,
+where `refusal` is an `Option` of why (a `SyncRefusal`, below),
+`operation` is the refused operation as it was sent, which the replica has dropped
+from the outbox, and `message` its Message encoded at the current version
+(see [changing a durable Message](#change-a-durable-message)), so a page reads
+what it changed from here. `refused` lists the operations this build cannot
+read at all, kept until `replica.dismiss(opId)`. `replica.statusChanges` is a Stream of the same,
 emitted now and after every submit and exchange (subscribed before its first
 read, so a subscriber slow to take one misses no change); `replica.changes`
 pairs it with the optimistic `shared` value so one subscription sees both.
@@ -438,13 +446,48 @@ pairs it with the optimistic `shared` value so one subscription sees both.
 error. The replica drops it and replays the rest; the mount re-installs the
 shared slice, and the field the user edited reverts. `onPersistenceFailure`
 does not run for this, since the local save succeeded. Watch `rejected` to
-explain the revert: `journalExchange` gives each rejection a reason, the
-`authorize` rule's own when it gave one. Otherwise it gives a fixed sentence:
-"Refused by the server" when `authorize` refused with none (a plain `false`),
-and "Not a valid operation" when the operation failed (`validate` refused or
-threw, `authorize` threw, or the reducer could not apply it). It never sends
-an error's message, which may carry internals, so a rule a person should read
-about belongs in `authorize` with a `reason`, not in `validate`.
+explain the revert. Each rejection's `refusal` is a `SyncRefusal`, in Remote's
+vocabulary for "not saved", so a page that also shows Remote's refusals
+handles both with one function:
+
+- `Forbidden { reason }`: `authorize` or `admit` refused who sent it, or its
+  replica belongs to another actor. `reason` is the rule's own words when it
+  gave some (a plain `false` gives none), cut to 500 characters. Remote's
+  `Denied.Forbidden` has the same shape.
+- `Invalid { message, entity, rule, path }`: the operation failed, with a fixed
+  sentence as `message`. "Not a valid operation" when `validate` refused or
+  threw, `authorize` threw, or the reducer could not apply it; "Not an
+  operation this server accepts" when it did not decode or named another
+  document; "Its id was already used for another" for a reused id.
+  `journalExchange` names no Entity, so `entity`, `rule` and `path` are empty;
+  the shape is Remote's `Refusal.invalid`.
+- `Unreadable { version }`: written at an older Message version that no step
+  of the server's history reads. The replica keeps such an operation in
+  `status.refused` as well, with its payload (see
+  [changing a durable Message](#change-a-durable-message)).
+
+```ts
+import { Option } from 'effect'
+import { SyncRefusal, type Rejection } from 'foldkit-sync'
+
+const said = (rejection: Rejection): string =>
+  Option.match(rejection.refusal, {
+    onNone: () => 'Refused by the server',
+    onSome: SyncRefusal.match({
+      Forbidden: ({ reason }) => Option.getOrElse(reason, () => 'You may not change this'),
+      Invalid: ({ message }) => message,
+      Unreadable: () => 'Made by another version of the app, so not saved',
+    }),
+  })
+```
+
+`refusal` is none when the server named none (an older or a custom server), or
+named one this build cannot read, which the replica reports as
+`UnknownRefusal` and still treats as rejected. The server never sends an
+error's message, which may carry internals, so a rule a person should read
+about belongs in `authorize` with a `reason`, not in `validate`. The
+deprecated `reason` (the words alone, an `Option<string>`) is still filled
+for one release; read `refusal` instead.
 
 **Waiting for the server.** The Model shows an edit before the server has it.
 Something that must not report success until the edit is committed, an agent
@@ -477,7 +520,7 @@ Each feature declares the fields it shares and the Messages that change them;
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
-import { DocumentId, Sync } from 'foldkit-sync'
+import { DocumentId, forApplication } from 'foldkit-sync'
 const Model = Schema.Struct({
   todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
   members: Schema.Array(Schema.String),
@@ -495,7 +538,7 @@ const App = Surface.application({
 })
 -->
 ```ts
-const AppSync = Sync.forApplication(App)
+const AppSync = forApplication(App)
 
 const Todos = AppSync.fragment({
   shared: Projection.pick(App.model.todos),
@@ -523,7 +566,7 @@ Policy belongs on the contract, beside the Messages it governs, and runs on the
 server inside the journal's commit. The client never runs it.
 
 ```ts
-const Authorized = Sync.forApplication(App).withPrincipal<{ readonly role: 'admin' | 'guest' }>()
+const Authorized = forApplication(App).withPrincipal<{ readonly role: 'admin' | 'guest' }>()
 
 const GuardedBoard = Authorized.make({
   documentId: DocumentId.make('board'),
@@ -536,7 +579,8 @@ const GuardedBoard = Authorized.make({
 ```
 
 A rule returns `true`, `false`, or `{ allowed: false, reason }`; the reason
-is sent to the replica whose edit it was, as its rejection's `reason`.
+is sent to the replica whose edit it was, as its rejection's
+`Forbidden` refusal.
 
 `message` is exactly that variant, `shared` is the authoritative snapshot, and
 `principal` is whatever the server's transport established for the connection;
@@ -557,7 +601,7 @@ the journal commits:
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
-import { DocumentId, Sync } from 'foldkit-sync'
+import { DocumentId, forApplication } from 'foldkit-sync'
 const Model = Schema.Struct({
   prices: Schema.Array(Schema.Struct({ id: Schema.String, cents: Schema.Number, at: Schema.Number })),
 })
@@ -575,7 +619,7 @@ const App = Surface.application({
   update: model => ({ model }),
 })
 
-const Prices = Sync.forApplication(App).make({
+const Prices = forApplication(App).make({
   documentId: DocumentId.make('prices'),
   shared: Projection.pick(App.model.prices),
   durable: MessageSet.make(App, [Message.PriceEdited]),
@@ -616,6 +660,141 @@ Replaying the merged Message must equal replaying `last` then `next`. An
 operation is only merged into while no exchange has carried it, so there is no
 timer to tune: keystrokes typed while a request is out become one operation, and
 a lone keystroke goes out as fast as before.
+
+### Change a durable Message
+
+An operation is stored, in the outbox and in the server's journal, as it was
+written, and read later, possibly by a newer build. Renaming a field of a
+durable Message, splitting a variant, or changing what a number means would
+leave what was stored unreadable. So the document declares its Message's
+history, and every reader sees an old operation upcast to the current
+version:
+
+<!-- docs-check standalone
+import { Match, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
+import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { DocumentId, forApplication, migrations } from 'foldkit-sync'
+const Model = Schema.Struct({
+  notes: Schema.Array(Schema.Struct({ id: Schema.String, name: Schema.String })),
+})
+const Message = defineMessageUnion({
+  RenamedNote: { id: Schema.String, name: Schema.String },
+  ClearedNotes: {},
+})
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { notes: [] },
+  update: (model, message) =>
+    Message.match(message, {
+      RenamedNote: ({ id, name }) => ({
+        model: modifyFields(model, { notes: notes => [...notes, { id, name }] }),
+      }),
+      ClearedNotes: () => ({ model: modifyFields(model, { notes: () => [] }) }),
+    }),
+})
+-->
+```ts
+// Version 1, as the first build shipped it: a note had a `title`. Kept as
+// long as a stored operation may hold it; only the changed variant is copied.
+const RenamedNoteV1 = Schema.TaggedStruct('RenamedNote', {
+  id: Schema.String,
+  title: Schema.String,
+})
+const MessageV1 = Schema.Union([RenamedNoteV1, Message.ClearedNotes])
+
+// Version 2 is the application's own Message, where `title` became `name`.
+const NoteHistory = migrations(MessageV1).next(App.Message, previous =>
+  Match.valueTags(previous, {
+    RenamedNote: ({ id, title }) => ({ _tag: 'RenamedNote' as const, id, name: title }),
+    ClearedNotes: cleared => cleared,
+  }),
+)
+
+const Notes = forApplication(App).make({
+  documentId: DocumentId.make('notes'),
+  shared: Projection.pick(App.model.notes),
+  durable: MessageSet.make(App, [Message.RenamedNote, Message.ClearedNotes]),
+  migrations: NoteHistory,
+})
+```
+
+Version 1 is the first Schema; each `next` adds a version with its Schema and
+a function from the version before, encoded, to its own, encoded. Each step's
+input is typed by the step before, so a step that returns the old shape does
+not compile. Steps are written once and never changed: a later change adds a
+step. A step must be pure and deterministic, with no clock and no random id:
+the server reads an entry more than once (`admit`, then the journal), and
+each read must find the same Message. It is given the version before checked
+and normalized by that version's Schema. The history must end at
+`App.Message` itself (`make` throws otherwise), and with no `migrations` the
+Message is version 1, written exactly as before.
+
+What each side does with it:
+
+- **The replica** keeps each operation as it was written, with its
+  `messageVersion` (absent for version 1), in its outbox and on the wire, and
+  replays it upcast. So an outbox written by the old build opens and sends
+  under the new one.
+- **The server** (`journalExchange`) hands every hook, `admit`, `validate`,
+  `authorize`, `reduce` and `stamp`, the Message upcast to the current version,
+  so a client claiming version 1 is judged exactly as the current Message
+  would be. It stores what commits at the current version, and recognizes a
+  retransmission by the operation as it was written, so an edit committed
+  before a deploy, whose acknowledgement was lost, still reads as committed.
+
+When something will not read:
+
+- **An older version no step reads** (its version's Schema refuses it, or a
+  step throws): a pending operation moves to `status.refused`, kept as
+  written with its payload, never sent, until `replica.dismiss(opId)`; the
+  rest of the outbox opens and sends. No Schema of this build reads it, so a
+  page shows it raw (`operation.message`, `operation.messageVersion`) or not at
+  all. The server rejects one it receives as `Unreadable { version }`, and the
+  replica keeps it in `refused` too. A committed one fails what has to read
+  it, with `UnreadableHistoryError` on the server: every exchange of a
+  replica whose cursor is before it (what that replica sends still commits,
+  and is acknowledged once a build reads the row), a retransmission of its
+  id, and, while the row is after the journal's stored snapshot, an append
+  or load that rebuilds the document from that snapshot. A replica past the
+  row is served, and other documents are not affected. Only a build with a
+  step that reads it recovers it. The replica is told only "This server
+  cannot read the history of this document"; the operation's id and
+  version stay on the error, for the server's logs.
+- **A newer version** (a rollback, or an old client): the replica refuses to
+  open on one in its outbox (`UnsupportedMessageVersionError`, nothing
+  removed), and an exchange that receives one fails with it, recorded in
+  `status.lastError` and retried on the backoff; the page reloads the new build
+  when it sees that error (`ExchangeFailed` on `Diagnostics`). A server
+  receiving one fails the exchange before appending anything, so the client
+  waits with its edits rather than losing them.
+
+Deploy order: the release of Sync that reads `messageVersion` goes to every
+server and client first, and skipping that step **loses edits**. A server on
+an older release rejects an operation carrying `messageVersion` as `Invalid`,
+and the replica drops it; a replica on an older release that is sent an
+`Unreadable` refusal drops that operation too, since it keeps no `refused`
+list. Then deploy an application's new version server first. A client on the
+old version keeps syncing until the first operation of the new version
+commits, then fails its exchanges until it reloads; its outbox is kept and
+sent after the reload.
+
+A rollback of the Sync release itself meets a replica state holding
+`refused`, which an older release refuses to open
+(`InvalidReplicaHistoryError`). Do not clear storage on that error: the
+outbox is in the same state, and clearing it loses every unsent edit.
+Roll forward instead.
+
+A server that builds an operation itself and appends it (`editsJournal`'s
+`absorbed`) writes it at the current version:
+`Notes.journalContract().operation.encode(operation)`. The journal takes a
+`WrittenOperation`, which is branded so that only Sync makes one: a decoded
+`Operation` names no version, would read as version 1, and is refused by the
+type. Changing the shared
+slice's own Schema is not covered: a stored snapshot or checkpoint of the old
+shape still needs a migration of your own.
 
 ### The URL, mirrors, and agents
 
@@ -789,8 +968,17 @@ application come first.
   exchange until its storage is cleared.
 - **Stored state is from another version.** Opening fails with
   `UnsupportedReplicaVersionError` naming both versions; the bytes are left for
-  a deliberate migration or reset. Sync versions its own envelope only; your
-  Message and snapshot migrations stay yours.
+  a deliberate migration or reset. That versions Sync's own envelope; a
+  durable Message's versions are the document's history
+  ([change a durable Message](#change-a-durable-message)), and snapshot
+  migrations stay yours.
+- **An operation from another build of the application.** An older version no
+  step reads lands in `status.refused`, kept until dismissed; a newer one
+  refuses to open the replica, or fails the exchange, with
+  `UnsupportedMessageVersionError`, and nothing is removed. Moving an
+  operation to `refused` is the one write an open makes, under the revision
+  it read: if another tab wrote the store meanwhile, the open fails with
+  `StorageError`, and opening again reads both.
 - **The server answers nonsense.** Malformed exchanges, gaps in the committed
   order, acknowledgements or rejections for operations the replica never sent:
   each fails the exchange rather than touch local work.
@@ -860,7 +1048,9 @@ state, so an edit submitted while the request was in flight survives.
 
 The rest of the surface: `committed` (the base alone), `pending`, `cursor`,
 `status`, `statusChanges`, `changes` (status and `shared` from one snapshot),
-`snapshot` (the same plus `nextLocalSequence`), `start`, and `close`.
+`snapshot` (the same plus `nextLocalSequence`), `start`, `dismiss` (forgets a
+`status.refused` operation), and `close`. `pending` and a rejection's
+`operation` are `WrittenOperation`s: as written, with `messageVersion`.
 
 ### The exchange
 
@@ -869,20 +1059,27 @@ carries it.
 
 ```text
 request    cursor
-           pending operations
+           pending operations, as written (messageVersion past 1)
            epoch, once the replica has heard one
 
 answer     operations     committed after the cursor, contiguous
            acknowledged   ids the server accepted without repeating them
            rejected       ids the server refused
-           reasons?       [{ opId, reason }]: why, for some of rejected; at most 500 characters each
+           refusals?      [{ opId, refusal }]: why, for some of rejected, one each; an encoded SyncRefusal
+           reasons?       [{ opId, reason }]: deprecated words, at most 500 characters each
            checkpoint?    { cursor, model } when the history is gone
            more?          true when another page follows
            epoch?         the server's history
 ```
 
 An acknowledged operation leaves the outbox once its committed copy has
-arrived or the last page has been read. A rejected one leaves at once. The
+arrived or the last page has been read. A rejected one leaves at once.
+
+A custom server that reads operations through the codec, or appends them to
+a Durable journal itself, must do what `journalExchange` does with a newer
+`messageVersion` than its own (`codec.messageVersion`): fail the whole
+exchange before appending anything. Durable alone sees such an entry as an
+`InvalidOperationError`, and rejecting it by id loses the edit. The
 replica validates every field; see [when things go wrong](#when-things-go-wrong).
 
 ### Transports
@@ -947,7 +1144,8 @@ const Shared = Schema.Struct({ title: Title.schema })
 
 `Sync.define({ documentId, message, shared, empty, durable, replay })` is the
 protocol primitive `forApplication` compiles to, for a client with no
-application to derive from. Its `replay` is unguarded; the author owns its
+application to derive from. It takes `migrations` (a `Sync.migrations`
+history) in place of `message`, and reads the Message from it. Its `replay` is unguarded; the author owns its
 agreement with whatever applies the Message elsewhere.
 
 ### Joining an assembly
@@ -962,9 +1160,13 @@ Owns the replication contract (shared slice, durable set, replay, codecs,
 `journalContract`), the replica (outbox, base, cursor, optimistic view, status),
 reconciliation, the transport seam, and the optional presence and LWW helpers.
 
+Sync applies a durable Message's history wherever it reads an operation; the
+application owns the history itself (which Schemas it shipped and how each
+becomes the next).
+
 Does not own the rest of the Model, server-derived caches (`foldkit-remote`),
 the authoritative order and storage (`foldkit-durable` or your server),
-peer-to-peer merging, or migration of your own Messages and snapshots.
+peer-to-peer merging, or migration of the shared slice's own Schema.
 
 ## Limits
 

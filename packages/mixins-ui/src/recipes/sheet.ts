@@ -19,7 +19,7 @@
 import { Style, type Declarations, type StyleValue } from 'foldkit-mixins'
 import { DialogSlots } from '../dialog.js'
 import { component, ref, travelled, variant } from './design.js'
-import { Dialog } from './dialog.js'
+import { Dialog, titleAxis } from './dialog.js'
 
 type Side = 'top' | 'right' | 'bottom' | 'left'
 const allSides = ['top', 'right', 'bottom', 'left'] as const
@@ -60,6 +60,7 @@ const travel = 'var(--fk-sheet-offset, calc((1 - var(--fk-sheet-snap, 1)) * 100%
 /** The translate that draws the panel `by` in from its edge. */
 const moved = (side: Side, by: string): string =>
   ({
+    // physical: a sheet's side is the screen edge the application names
     top: `0 calc(-1 * ${by})`,
     right: `${by} 0`,
     bottom: `0 ${by}`,
@@ -81,6 +82,7 @@ const placed = {
 const clear = (side: Side): Declarations => {
   const away = { top: 'bottom', right: 'left', bottom: 'top', left: 'right' }[side]
   const padding = {
+    // physical: a sheet's side is the screen edge the application names
     top: 'paddingTop',
     right: 'paddingRight',
     bottom: 'paddingBottom',
@@ -89,7 +91,7 @@ const clear = (side: Side): Declarations => {
   return Object.fromEntries(
     allSides.map(edge => [
       padding[edge],
-      edge === away ? ref.space.lg : `calc(${ref.space.lg} + env(safe-area-inset-${edge}, 0px))`,
+      edge === away ? ref.space.lg : `calc(${ref.space.lg} + ${ref.safe[edge]})`,
     ]),
   )
 }
@@ -116,6 +118,7 @@ const grabber: Record<Side, Declarations> = {
     position: 'absolute',
     insetBlock: '0',
     marginBlock: 'auto',
+    // physical: the grabber stands on the screen edge the sheet is opened from
     left: ref.space.xs,
     inlineSize: thickness,
     blockSize: length,
@@ -124,6 +127,7 @@ const grabber: Record<Side, Declarations> = {
     position: 'absolute',
     insetBlock: '0',
     marginBlock: 'auto',
+    // physical: the grabber stands on the screen edge the sheet is opened from
     right: ref.space.xs,
     inlineSize: thickness,
     blockSize: length,
@@ -230,8 +234,9 @@ export const Sheet = Style.recipeFor(DialogSlots)({
         handle: variant(Style.self({ display: 'block' })),
       },
     },
+    title: titleAxis,
   },
-  defaults: { size: 'md', handle: 'bar' },
+  defaults: { size: 'md', handle: 'bar', title: 'shown' },
 })
 
 /**

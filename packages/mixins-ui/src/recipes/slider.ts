@@ -211,6 +211,7 @@ export const Slider = Style.recipeFor(SliderSlots)({
       Style.nest(vertical, {
         inlineSize: 'auto',
         blockSize: '0',
+        // physical: a vertical slider's value stands on a screen side
         ...uprightAt({ left: `calc(100% + ${gap})` }),
       }),
     ),
@@ -324,6 +325,7 @@ export const Slider = Style.recipeFor(SliderSlots)({
         ),
         value: variant(
           Style.self({ insetBlockEnd: `calc(100% + ${gap})`, ...role('caption') }),
+          // physical: a vertical slider's value stands on a screen side
           Style.nest(vertical, uprightAt({ right: `calc(100% + ${gap})` })),
         ),
       },
@@ -342,6 +344,7 @@ export const Slider = Style.recipeFor(SliderSlots)({
             color: ref.text.overt,
             ...role('micro'),
           }),
+          // physical: a vertical slider's value stands on a screen side
           Style.nest(vertical, uprightAt({ left: '0', right: '0' })),
         ),
       },

@@ -42,15 +42,5 @@ export const checkUploadOptions = (
 /** A chosen file, held while it is sent. */
 export const FileSchema = Schema.instanceOf(File)
 
-// Upstream's own Message schema types its files as `Schema.Schema<File>`, whose
-// decoding services are unknown, and a Bundle's Message must need none. This is
-// the same four Messages over a `File` codec; the drop's `update` takes them as they are.
-export const DropMessage = Schema.Union([
-  Schema.TaggedStruct('EnteredDragZone', {}),
-  Schema.TaggedStruct('LeftDragZone', {}),
-  Schema.TaggedStruct('DroppedFiles', { files: Schema.NonEmptyArray(FileSchema) }),
-  Schema.TaggedStruct('DroppedNonFiles', {}),
-])
-
 export const percentOf = (loaded: number, total: number) =>
   total === 0 ? 0 : Math.min(100, Math.round((loaded / total) * 100))

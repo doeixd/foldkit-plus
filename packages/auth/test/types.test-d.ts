@@ -1,7 +1,9 @@
 /** What `AuthServer.resolver` accepts and what it says it needs. */
 import { Auth, AuthContract, Password, Sessions } from '@yielded/auth'
-import { Context, Effect, type Layer, Option, Schema } from 'effect'
+import { Context, Effect, Layer, Option, Schema } from 'effect'
 import type { RemoteUnauthenticated } from 'foldkit-remote'
+import { RemoteServer } from 'foldkit-remote-server'
+import { pageReader, serveFetch } from 'foldkit-remote-server/fetch'
 import { AuthServer } from 'foldkit-auth/server'
 import { defineDocumentHost, type DocumentHostConfig } from 'foldkit-sync/do'
 import { describe, expectTypeOf, it } from 'vitest'
@@ -105,5 +107,89 @@ describe('AuthServer.answered', () => {
     const config: { readonly key?: (user: string) => string } = {}
     // @ts-expect-error the answer would name a principal the resolver does not compare by
     AuthServer.answered(config)
+  })
+})
+
+type Reader = { readonly id: string }
+// Yielded's services, built once per isolate: never run here.
+declare const services: Context.Context<Context.Service.Identifier<typeof AppAuth>>
+
+describe('AuthServer.host', () => {
+  const server = RemoteServer.make<Option.Option<Reader>>({ entities: [] })
+  const layer = () => Layer.empty
+  const yielded = AuthServer.host({
+    auth: AppAuth,
+    http,
+    services,
+    principal: session => Effect.succeed<Reader>({ id: session.subjectId }),
+    key: user => user.id,
+  })
+
+  it('pairs a scripted resolver with serveFetch and a navigation resolver with pageReader', () => {
+    serveFetch({ server, layer, ...yielded.scripted })
+    pageReader({ server, layer, ...yielded.navigation })
+  })
+
+  it('provides the Auth service itself: each resolver needs only what `principal` needs', () => {
+    expectTypeOf<
+      Effect.Services<ReturnType<typeof yielded.scripted.resolvePrincipal>>
+    >().toEqualTypeOf<never>()
+    const needing = AuthServer.host({
+      auth: AppAuth,
+      http,
+      services,
+      principal: session => Effect.flatMap(Users, users => users.find(session.subjectId)),
+    })
+    expectTypeOf<
+      Effect.Services<ReturnType<typeof needing.navigation.resolvePrincipal>>
+    >().toEqualTypeOf<Users>()
+  })
+
+  it('refuses a navigation resolver where serveFetch, which writes, asks for one', () => {
+    serveFetch({
+      server,
+      layer,
+      // @ts-expect-error a navigation's resolver reads a cookie no script vouched for
+      resolvePrincipal: yielded.navigation.resolvePrincipal,
+    })
+  })
+
+  it('refuses a scripted resolver where a page reader asks for one', () => {
+    pageReader({
+      server,
+      layer,
+      // @ts-expect-error a navigation carries no CSRF header: every reader would be refused
+      resolvePrincipal: yielded.scripted.resolvePrincipal,
+    })
+  })
+
+  it('refuses either where a socket asks for one, which sends no header and is no navigation', () => {
+    class Base {
+      constructor(_ctx: unknown, _env: unknown) {}
+    }
+    // @ts-expect-error a socket carries no CSRF header
+    defineDocumentHost(Base, { ...host, resolvePrincipal: yielded.scripted.resolvePrincipal })
+    // @ts-expect-error an upgrade is no navigation
+    defineDocumentHost(Base, { ...host, resolvePrincipal: yielded.navigation.resolvePrincipal })
+  })
+
+  it('refuses services without the Auth service', () => {
+    AuthServer.host({
+      auth: AppAuth,
+      http,
+      // @ts-expect-error the resolvers and the routes would find no Auth
+      services: Context.empty() as Context.Context<Users>,
+      principal: () => Effect.succeed('ada'),
+    })
+  })
+
+  it('refuses OAuth options, whose callbacks it does not mount', () => {
+    AuthServer.host({
+      auth: AppAuth,
+      // @ts-expect-error no oauth
+      http: { origin: 'https://app.example', oauth: {} },
+      services,
+      principal: () => Effect.succeed('ada'),
+    })
   })
 })

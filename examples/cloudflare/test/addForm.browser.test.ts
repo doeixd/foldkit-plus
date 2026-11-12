@@ -4,17 +4,15 @@
  * field says nothing, a submit still says what is missing, and the field a
  * successful add empties stays quiet when focus leaves it.
  */
-import { FormView } from 'foldkit-mixins-form'
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import { afterEach, expect, it, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
+import { QuickAddView } from '../src/app.js'
 import { AddTodoForm } from '../src/forms.js'
 
 type Model = typeof AddTodoForm.initial
 type Message = typeof AddTodoForm.Message.Type
-const View = FormView.define(AddTodoForm)
-
 afterEach(() => document.body.replaceChildren())
 
 const mount = async () => {
@@ -40,7 +38,8 @@ const mount = async () => {
       view: (model: Model, h: HtmlBuilder<Message>) =>
         h.div(
           [],
-          [h.h2([h.Tabindex(-1)], ['Todos']), View({ model, errors: [], canSubmit: true }, h)],
+          // The page's own quick-add view, gate included.
+          [h.h2([h.Tabindex(-1)], ['Todos']), QuickAddView(model, {}, h)],
         ),
     }),
   )
@@ -50,6 +49,7 @@ const mount = async () => {
 const field = () => document.getElementById('AddTodo-title') as HTMLInputElement | null
 const error = () => document.getElementById('AddTodo-title-error')
 const summary = () => document.querySelector('form ul')
+const submit = () => document.querySelector('form button[type="submit"]') as HTMLButtonElement
 const heading = () => document.querySelector('h2') as HTMLElement
 
 it('says nothing about the field when focus only passes through it', async () => {
@@ -71,6 +71,8 @@ it('says nothing about the field when focus only passes through it', async () =>
 it('still says what is missing on a submit', async () => {
   const { handle, added } = await mount()
   try {
+    // Never disabled: a disabled default button would stop Enter's submission.
+    expect(submit().disabled).toBe(false)
     await userEvent.click(field()!)
     await userEvent.keyboard('{Enter}')
     await vi.waitFor(() => expect(error()?.textContent).toBe('Required'))

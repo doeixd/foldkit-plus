@@ -253,6 +253,8 @@ const Message = defineMessageUnion({
   TypedEmail: { value: Schema.String },
   TypedTitle: { value: Schema.String },
   TypedReply: { value: Schema.String },
+  TypedPassword: { value: Schema.String },
+  ToggledPassword: {},
   ToggledMark: { mark: Schema.String },
 })
 type Message = typeof Message.Type
@@ -327,6 +329,57 @@ const emailField = (value: string, h: HtmlBuilder<Message>) =>
     },
     h,
   )
+```
+
+A closure is not data, so a page that answers before its script runs
+(`foldkit-ssr`'s [resumable pages](https://github.com/doeixd/foldkit-plus/blob/main/packages/ssr/README.md#resumable-pages-answering-before-the-runtime-boots))
+cannot write it into the server's markup. There, give `onInput` the
+`OnInput` attribute the resumable builder makes from a Message member; the
+view adds it as it would the closure, and `KeepTyped` keeps what is typed
+before the script runs:
+
+```ts
+import { Resume } from 'foldkit-ssr/client'
+
+const resumableEmail = (value: string, h: HtmlBuilder<Message>) => {
+  const rh = Resume.builder(h)
+  return Input.view(
+    {
+      id: 'email',
+      value,
+      onInput: rh.OnInput(Message.TypedEmail),
+      type: 'email',
+      draw: ({ input, label }) =>
+        rh.div([], [rh.label(label, ['Email']), rh.input([...input, rh.KeepTyped()])]),
+    },
+    rh,
+  )
+}
+```
+
+`PasswordInput` draws its own input, so `KeepTyped` goes in its
+`attributes`, which adds to a Slot before the mixins resolve. Give it only
+while the field is enabled: a disabled field sends nothing, and the server
+refuses a kept field with nothing to replay (`UnkeepableField`).
+
+```ts
+import { PasswordInput } from 'foldkit-mixins-ui'
+
+const resumablePassword = (password: string, shown: boolean, h: HtmlBuilder<Message>) => {
+  const rh = Resume.builder(h)
+  return PasswordInput.view(
+    {
+      id: 'password',
+      label: 'Password',
+      value: password,
+      onInput: rh.OnInput(Message.TypedPassword),
+      visible: shown,
+      onToggle: Message.ToggledPassword(),
+      attributes: { input: [rh.KeepTyped()] },
+    },
+    rh,
+  )
+}
 ```
 
 `Input.field` and `Textarea.field` draw a whole field from a
@@ -509,10 +562,10 @@ adapter.
 | Textarea | `textarea`, `label`, `description`, `count`, `frame`, `footer`, `meta` |
 | Select | `select`, `label`, `description`. The native `<select>`; the recipe draws its own chevron and mutes a chosen placeholder. For icons, descriptions, groups or a check in the list, draw a Listbox as a custom select with `Listbox.parts` (below) |
 | Checkbox | `checkbox`, `label`, `description`, `hiddenInput` |
-| Switch | `button`, `label`, `description`, `hiddenInput` |
-| Fieldset | `fieldset`, `legend`, `description` |
-| Disclosure | `button`, `panel` |
-| Dialog | `dialog`, `backdrop`, `panel`, `title`, `description`, `initialFocus`, `closeButton`, and this package's `handle` (the Sheet's grabber, `aria-hidden`), `body`, `scroll`, `scrollBar`, `scrollThumb` and `footer`: draw `scroll` and its bar inside `body` and the answers in `footer`, and a body taller than the screen scrolls under the title while the footer stays (`Dialog.overlayBars` beside the style draws the overlay bar). `Dialog.keyboard` among the mixins of a dialog or sheet that holds a field measures the on-screen keyboard on the panel, and the recipes keep the panel above it (a Dialog shrinks, a bottom Sheet stands on it): iOS Safari and Chrome on Android otherwise leave it under the keys. An alert dialog is this one with `role: 'alertdialog'` in its context (`Dialog.toView(mixins, { h, role: 'alertdialog' }, draw)`), which puts `role="alertdialog"` on the `dialog` bundle; draw no close button, and drop the Messages `Dialog.isDismissal` names (Escape, the backdrop, the close button) in `update`, so only its own buttons, closing with `@foldkit/ui`'s `close`, answer it. `covered: true` in the context marks the panel `data-covered`, for a dialog another was opened from (draw the second inside the first's `dialog`, beside its panel), and the recipe steps it back; `attributes` adds to a bundle before the mixins resolve. Recipe `size`: `sm`, `md` (default), `lg`, `xl`, `full` |
+| Switch | `button`, `label`, `description`, `hiddenInput`. `Switch.draggable(onToggle)` beside the style lets the thumb be dragged: it follows the pointer past 4px, and on release `onToggle` is sent for the side its middle is on (nothing when that is the side it began on); a click after a drag is swallowed, right to left mirrors it, and a disabled or read-only switch does not drag. Pass the `onToggle` the view was given |
+| Fieldset | `fieldset`, `legend`, `description`. The recipe floats the legend into the group, so a box drawn round it holds the legend, and a disabled fieldset dims its legend and description beside the controls the browser disables. Recipe `variant`: `plain` (default, no box), `bordered`, `filled`; a boxed group pads its fields, and a control in it takes a corner concentric with the box's |
+| Disclosure | `button`, `panel`. The recipe draws the button as a row with a chevron of its own (down shut, up once `data-open`) and the panel's box; draw the panel only while open, or through upstream's `animatePanel`, which keeps a shut panel inert and moves its height itself by an inline transition, which the recipe overrides with an important rule so the `motion` knob scales it and reduced motion snaps it. Recipe `variant`: `plain` (default), `bordered` (one box round the button and the panel, whose lower corners square onto the panel while open), `ghost` (filled under the pointer); `indicator`: `chevron` (default), `none` |
+| Dialog | `dialog`, `backdrop`, `panel`, `title`, `description`, `initialFocus`, `closeButton`, and this package's `handle` (the Sheet's grabber, `aria-hidden`), `body`, `scroll`, `scrollBar`, `scrollThumb` and `footer`: draw `scroll` and its bar inside `body` and the answers in `footer`, and a body taller than the screen scrolls under the title while the footer stays (`Dialog.overlayBars` beside the style draws the overlay bar). `Dialog.keyboard` among the mixins of a dialog or sheet that holds a field measures the on-screen keyboard on the panel, and the recipes keep the panel above it (a Dialog shrinks, a bottom Sheet stands on it): iOS Safari and Chrome on Android otherwise leave it under the keys. An alert dialog is this one with `role: 'alertdialog'` in its context (`Dialog.toView(mixins, { h, role: 'alertdialog' }, draw)`), which puts `role="alertdialog"` on the `dialog` bundle; draw no close button, and drop the Messages `Dialog.isDismissal` names (Escape, the backdrop, the close button) in `update`, so only its own buttons, closing with `@foldkit/ui`'s `close`, answer it. `covered: true` in the context marks the panel `data-covered`, for a dialog another was opened from (draw the second inside the first's `dialog`, beside its panel), and the recipe steps it back; `attributes` adds to a bundle before the mixins resolve. Recipe `size`: `sm`, `md` (default), `lg`, `xl`, `full`; `title`: `shown` (default) or `hidden`, which leaves the heading to a screen reader alone (it still names the dialog, as `display: none` would not). The backdrop is the `overlay.scrim` token |
 | Popover | `button`, `panel`, `backdrop`, `arrow`, and this package's `layer`, drawn around the panel to show it in the top layer (see [The top layer](#the-top-layer)); `Popover.anchor(config?)` is the placement. Recipe `arrow`: `shown` (default), `none` |
 | Tooltip | `trigger`, `panel`, `arrow`, and this package's `layer`. `Tooltip.toView(mixins, { h, id }, draw)` takes the Tooltip's id (`model.id`), whose trigger the arrow points at; `Tooltip.anchor(config?)` is the placement, above by default. Recipe `arrow`: `shown` (default), `none` |
 | HoverIntent | `trigger`, `panel`, `arrow` (open and close delays with intent, for a hover card or a menu). `anchored: { id, anchor? }` in the context anchors the panel to the trigger in the top layer (`HoverIntent.anchor()` unless given), the trigger taking `HoverIntent.triggerId(id)` |
@@ -521,11 +574,49 @@ adapter.
 | Anchor | a Mount and a Behavior over `@foldkit/ui/anchor`: `Anchor.behavior(Slots)({ floating, config })` positions a floating slot against a button by id; `Anchor.topLayer(mount)` shows an in-place panel in the top layer around it (see [The top layer](#the-top-layer)) |
 | Calendar | `root`, `header` (the heading's row, this package's own), `grid`, `headerRow`, `previousMonthButton`, `nextMonthButton`, `headingButton`, `previousPageButton`, `nextPageButton`, `columnHeader`, `weekRow`, `dayCell`, `dayButton`, `monthCell`, `monthButton`, `yearCell`, `yearButton`. `Calendar.readingKeys` as Tabs' |
 | Menu | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator`, and this package's `rows`, `highlight`, `scrollBar` and `scrollThumb` (while the panel has a `scroll`), `label`, `sub` and `chevron` (the component's rows) (over the `MenuView` fork; see [Why some components needed a fork](#why-some-components-needed-a-fork)) |
-| FileDrop | `root`, `input` |
+| FileDrop | `root`, `input`. `FileDrop.Message` is `@foldkit/ui/fileDrop`'s four Messages over a `File` codec that needs no decoding services: upstream's own types its files as `Schema<File>`, whose services are `unknown`, so a Message holding it cannot be a `Bundle.parent`'s. `FileDrop.update` of upstream takes it as it is |
 | Toast | `container`, `entry` (over the `ToastView` fork; the dismiss control stays inside the consumer's `entryToView`), and the slots the `Toast` component draws (see the vocabulary below) |
 | Listbox | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator`, and this package's `rows`, `highlight`, `indicator`, `scrollBar`, `scrollThumb`, and an option's and the trigger's parts (`itemIcon`, `itemLabel`, `itemDescription`, `itemCheck`, `value`, `valueText`, `chevron`, …) (over the `ListboxView` fork; single and multi share one transcription). A custom select is a Listbox drawn with `Listbox.parts(mixins, { h })`: `part.option({ label, description?, icon? })` as an item's content and `part.trigger(chosen, placeholder)` as the button's, its value or the placeholder (muted, `data-placeholder`) and a chevron. Recipe axes `width`: `auto` (default) or `trigger`; `check`: `end` (default), `start`, `none`; `trigger`: `outline` (default), `filled`, `ghost`; `size`: `sm`, `md`, `lg` |
 | Combobox | `wrapper`, `inputWrapper`, `input`, `toggleButton`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator`, and this package's `rows`, `highlight`, `indicator`, `scrollBar`, `scrollThumb`, `chips`, `chip`, `chipRemove`, `clearButton`, `empty` and an option's parts (over the `ComboboxView` fork; single and multi share one transcription). The view inputs add `chips: { label?, removeLabel? }` (each chosen value a chip in the field, its remove button choosing it again, which a multiple combobox toggles off: with `ComboboxView.Multi`, a tags field with suggestions), `clearContent` and `clearLabel` (a clear button while the field has text) and `empty` (shown, as a polite status, in the list's place while open with nothing to list; a loading line too). `Combobox.parts(mixins, { h }).option(content, query)` marks the typed text in an option's label. Recipe axis `width`: `trigger` (default) or `auto` |
 | DatePicker | `trigger`, `panel`, `backdrop` (over the `DatePickerView` fork, which keeps upstream's Popover+Calendar composition and seams only the popover assembly). A range or many days in the popover: see [Why some components needed a fork](#why-some-components-needed-a-fork) |
+
+A disclosure with its recipe: the recipe draws the button and the panel's box,
+and `animatePanel` keeps the shut panel inert and moves its height.
+
+<!-- docs-check
+declare const ToggledDetails: (payload: { readonly isOpen: boolean }) => Message
+-->
+
+```ts
+import { Disclosure as UiDisclosure } from '@foldkit/ui'
+import { Style } from 'foldkit-mixins'
+import { Disclosure, DisclosureSlots, Recipes } from 'foldkit-mixins-ui'
+
+const DetailsStyle = Style.forSlots(DisclosureSlots)(Recipes.Disclosure({ variant: 'bordered' }))
+
+const details = (isOpen: boolean, h: HtmlBuilder<Message>) =>
+  UiDisclosure.view(
+    {
+      id: 'details',
+      isOpen,
+      onToggle: isOpen => ToggledDetails({ isOpen }),
+      toView: attributes => {
+        const disclosure = Disclosure.resolve(attributes, [DetailsStyle.mixin], {
+          input: undefined,
+          h,
+        })
+        return h.div(
+          [],
+          [
+            h.button(disclosure.button, ['Shipping details']),
+            disclosure.animatePanel(h.div(disclosure.panel, ['Shipped in two days.'])),
+          ],
+        )
+      },
+    },
+    h,
+  )
+```
 
 ## Views and components of this package
 
@@ -605,7 +696,7 @@ glyph with it, so the recipe's size is the drawing's.
 | `NumberField` | `{ id, label, description?, value, onChange, min?, max?, step?, page?, format?, disabled? }`; `NumberField.settled(value, bounds)` clamps a value onto its step. The APG's editable spinbutton: an input with `role="spinbutton"` that the arrows, PageUp and PageDown, Home and End step, a typed number committing on change, between steppers out of the tab order that disable at their bound. | No axis. Slots `root`, `label`, `group`, `input`, `decrement`, `increment`, `description`. |
 | `OtpField` | `{ label, value, onChange, length?, pattern?, groups?, disabled? }`; `OtpField.kept(text, length, pattern)` filters a code. shadcn's input-otp: one real input (`autocomplete="one-time-code"`, paste and Backspace the browser's) over cells that mirror it, the next cell marked `data-next` for its caret. | No axis. Slots `root`, `input`, `group`, `cell`, `separator`. |
 | `Pagination` | `{ page, pageCount, onPage, label?, siblings?, boundaries?, numbered?, ends?, range? }`. Fewer than two pages draws nothing. `Pagination.itemsOf(page, pageCount, window?)` is the stops; `Pagination.summaryOf(page, { total, perPage, text? })` is `"1–10 of 97"`, drawn before the stops when `range` is given. `range.choose: { sizes, onPerPage, label? }` adds a select of rows per page (labelled `Rows per page` by default) that sends `onPerPage` with the size; the application sets `perPage` and a page that keeps its rows in view. `numbered: false` leaves previous and next alone; `ends` draws first and last. The current stop holds ` / 12` in a `pageCount` span hidden from assistive technology. | `compact`: `narrow` (default, below a 30rem window), `always` or `never`. Compact shows only the current number, with its ` / 12`, and no ellipses. The current stop reads `aria-current`. Slots `root`, `summary`, `perPage`, `perPageSelect`, `first`, `prev`, `next`, `last`, `page`, `pageCount`, `ellipsis`. |
-| `PasswordInput` | `PasswordInput.view({ id, label, value, onInput, visible, onToggle, autocomplete?, toggleLabel?, description?, invalid?, disabled? }, h)`: a password field whose toggle button (`aria-pressed`, `aria-controls`, one fixed name) shows it as text. `autocomplete` is `current-password` (default) or `new-password`; spellcheck and autocorrect stay off. `strength` is a `Meter` view's options, drawn under the field; `requirements` are `{ label, met }[]` (`PasswordRequirement`), listed and each read as met or not (`requirementStates`); `capsLock: { on, onKey }` says Caps Lock is on, politely, `onKey` given `capsLockOf(key, modifiers)` for each key (an `Option`: none for a key that says nothing of it). The app owns the text, the flag and the Caps Lock reading. | `size` (`sm`, `md`, `lg`). Input's pieces in InputGroup's box; the eye is `Icons.glyph` by `aria-pressed`. Slots `root`, `label`, `group`, `input`, `toggle`, `description`, `strength`, `requirements`, `requirement`, `requirementState`, `capsLock`. |
+| `PasswordInput` | `PasswordInput.view({ id, label, value, onInput, visible, onToggle, autocomplete?, toggleLabel?, description?, invalid?, disabled?, attributes? }, h)`: a password field whose toggle button (`aria-pressed`, `aria-controls`, one fixed name) shows it as text. `autocomplete` is `current-password` (default) or `new-password`; spellcheck and autocorrect stay off. `strength` is a gauge the app draws (`Meter.view(…, h)`), placed under the field, so a page with none ships no Meter; `requirements` are `{ label, met }[]` (`PasswordRequirement`), listed and each read as met or not (`requirementStates`); `capsLock: { on, onKey }` says Caps Lock is on, politely, `onKey` given `capsLockOf(key, modifiers)` for each key (an `Option`: none for a key that says nothing of it). The app owns the text, the flag and the Caps Lock reading. `onInput` is a closure or a resumable builder's `OnInput` attribute, and `attributes` adds to any Slot (`{ input: [rh.KeepTyped()] }`), as the resumable examples above show. | `size` (`sm`, `md`, `lg`). Input's pieces in InputGroup's box; the eye is `Icons.glyph` by `aria-pressed`. Slots `root`, `label`, `group`, `input`, `toggle`, `description`, `strength`, `requirements`, `requirement`, `requirementState`, `capsLock`. |
 | `Progress` | `@foldkit/ui`'s Progress: `Progress.view({ id, label, value, min?, max?, valueText?, style? }, h)` draws a `progressbar` named by its label. `value` is an `Option`; none is indeterminate, and the bar's fill sweeps toward the inline end, leftward right to left. The root carries the share done as `--fk-progress`. `showValue` draws the value (`valueText`, else a percentage) at the end of a bar's label line and inside a ring. A `value` given as `ProgressSection`s is one stacked bar of toned parts, read aloud as their sum; `buffer` draws how far the work could go behind the fill; `segments` cuts the track into steps. | `shape`: `bar` (default) or `ring`, Circular Progress; `tone`: `accent`, `neutral`, `success`, `warning`, `error`, `info` (Meter's tokens); `stripes`: `none` (default), `still`, `moving` (travel-aware); `size`: `sm`, `md`, `lg`. Slots `root`, `label`, `track`, `indicator`. |
 | `QrCode` | After Zag's: `QrCode.view({ id, value, label?, level?, quietZone?, overlay?, tooLong?, style? }, h)`, one `img` named `QR code: <value>` (or `label`), every dark module one SVG `path` over a background that carries the quiet zone. `level` is the error correction, `M` by default and `H` under an `overlay` (a logo at the centre). `QrCode.encode(text, level)` gives the matrix, none when no version holds the text, and `pathOf` its path; both are pure. `QrCode.Download({ id, format, filename, pixels })` saves the drawn code as PNG or SVG in the colors it shows; the overlay is not in the file. | `scheme` (`light`, dark on light on any page, or `page`), `size`. Slots `root`, `frame`, `background`, `pattern`, `overlay`, `fallback`. |
 | `Questionnaire` | An assistant's questions answered in the chat. `Questionnaire.init({ id, questions, layout? })` with `Questionnaire.single`, `multiple` and `text` questions (`Question` is a Schema, so a tool's input decodes into it), folded with `Questionnaire.update`, which says what is missing and focuses it, and returns `OutMessage.Answered({ answers })` once every required question is answered; the form then gives way to a summary. `Questionnaire.view({ model, onMessage, title?, style?, radioGroup?, checkboxGroup?, input?, textarea?, button?, submitButton? }, h)`: the controls are the package's RadioGroup, CheckboxGroup, Input and Textarea, each taking its own style. | `variant` (`plain`, `card`), `actions` (`end`, `start`). Slots `root`, `title`, `progress`, `question`, `prompt`, `words`, `field`, `other`, `otherLabel`, `error`, `actions`, `summary`, `asked`, `answer`. |
@@ -614,7 +705,7 @@ glyph with it, so the recipe's size is the drawing's.
 | `ScrollArea` | `{ content }`. The height that makes it scroll is the caller's mixin, on `viewport` or `root`; a width goes on `root`, which the viewport fills and the bars lie over. The viewport is tabbable. A bar per axis is drawn beside the viewport, and `ScrollArea.overlayBars` beside the style lays them over its edge, driven by `ScrollBars` from `foldkit-primitives/dom`: a thumb that rests 4px wide, widens to 6px under the pointer, and fades once scrolling and the pointer rest; a coarse pointer keeps the browser's bar. See [Overlay scroll bars](#overlay-scroll-bars). | `orientation`: `vertical` (default), `horizontal`, `both`; `vertical` and `horizontal` fade the content toward an edge with more past it and draw a hairline there. Slots `root`, `viewport`, `bar`, `thumb`. |
 | `Separator` | `{ orientation?, label?, decorative? }`, horizontal by default. A `label` sits between two drawn rules and is read as text; `decorative` is `role="none"`. The rule and a label's frame carry `data-orientation`, which the recipe reads, so one style draws both orientations. A vertical rule stretches across a flex or grid row, short of it by the inset, and elsewhere (running text) stands as tall as the letters. | `line`: `solid`, `dashed`, `dotted`; `thickness`: `thin`, `thick`; `spacing`: `none`, `sm`, `md`, `lg`; `inset`: `none`, `sm`, `md`. The line is a border in `outline.default`, which a dark page shows. Slots `rule`, `root`, `label`. |
 | `Drawer` | A panel docked to the bottom of the screen that peeks or opens beside the page, not over it: no focus trap, backdrop or scroll lock, so the page under it stays live (a modal one is the `Sheet`). `Drawer.init({ id, open?, swipe? })` (down by default), folded with `Drawer.update`, opened with `Drawer.open` and `Drawer.close`, drawn with `Drawer.view({ model, onMessage, labels: { open, closed }, style?, mixins?, draw }, h)`, `draw` laying out `panel`, `handle`, `body` (the body may sit below what else peeks with the handle) and, optionally, `grip`, more to drag it by (a row of tabs: vertical swipes drag it, sideways ones still scroll). A drag follows the finger and lets go open or down by its speed, then by how far it came. `swipe: { from?, flickSpeed?, closeShare? }` says how it is swiped: a finger drags it from anywhere on the panel (`from: 'panel'`, the default), yielding to content that can still scroll its way, so a long one scrolls back to its top and then goes, and a field or `data-no-swipe` starts no drag; a mouse drags it by the handle, and `from: 'handle'` keeps every pointer there. A release faster than `flickSpeed` (0.4px/ms) is a flick, and a slow one goes once dragged `closeShare` (a quarter) of the panel. A click or Enter on the handle toggles it, and the click a browser sends after a drag does not. The panel's inline style is the drag's: set `--fk-drawer-peek` (default 5rem) and `--fk-drawer-height` (default 70dvh) on an ancestor or in a style. | `Recipes.Drawer`: `dock`: `always` (default), `below-lg` or `below-xl`, above which the panel is the column it sits in, with no handle. The handle's bar bends into a chevron going down, with the finger while dragged. Slots `panel`, `handle`, `body`, `grip`. The handle is a 44px target drawn tight to its bar, and the peek stays above the home indicator. |
-| `Sheet` | A Dialog a finger drags, vaul's Drawer: `Sheet.init({ id, side?, points?, opensAt?, dismissible?, isAnimated?, swipe? })`, folded with `Sheet.update` and opened with `Sheet.open` and `Sheet.close` (each also reporting the Dialog's `Opened` or `Closed`), drawn with `Sheet.view({ model, onMessage, mixins, hasDescription?, covered?, scalesPage?, draw }, h)`, `draw` laying out `DialogSlots`' bundles with `h.div(sheet.handle)` in the panel. The panel stands on `side`'s edge (`data-side`); a drag follows the pointer and settles at the nearest of `points` (the share of the panel shown, ascending; a top or bottom sheet with a point below 1 takes its `size`'s full height, so a short one still shows its start, and below its highest point its content holds still, so a swipe up raises it), or, flicked or dragged far enough past the first, closes it, unless `dismissible: false`. `swipe: { from?, flickSpeed?, closeShare? }` says how it is swiped: a finger drags it from anywhere on the panel (`from: 'panel'`, the default), yielding to content that can still scroll its way, so a long one scrolls back to its top and then goes, and a field or `data-no-swipe` starts no drag; a mouse drags it by the handle, and `from: 'handle'` keeps every pointer there. A release faster than `flickSpeed` (0.4px/ms) is a flick, and a slow one goes once dragged `closeShare` (a quarter) of the panel. The Dialog keeps focus, Escape and scroll lock. `scalesPage` with `Recipes.sheetPage` on the page beside the sheet, never around it, steps the page back while it is open. | `Recipes.Sheet`: `size`: `sm`, `md` (default), `lg`, `full`; `handle`: `bar` (default) or `none`. Slots are `DialogSlots`. |
+| `Sheet` | A Dialog a finger drags, vaul's Drawer: `Sheet.init({ id, side?, points?, opensAt?, dismissible?, isAnimated?, swipe? })`, folded with `Sheet.update` and opened with `Sheet.open` and `Sheet.close` (each also reporting the Dialog's `Opened` or `Closed`), drawn with `Sheet.view({ model, onMessage, mixins, hasDescription?, covered?, scalesPage?, draw }, h)`, `draw` laying out `DialogSlots`' bundles with `h.div(sheet.handle)` in the panel. The panel stands on `side`'s edge (`data-side`); a drag follows the pointer and settles at the nearest of `points` (the share of the panel shown, ascending; a top or bottom sheet with a point below 1 takes its `size`'s full height, so a short one still shows its start, and below its highest point its content holds still, so a swipe up raises it), or, flicked or dragged far enough past the first, closes it, unless `dismissible: false`. `swipe: { from?, flickSpeed?, closeShare? }` says how it is swiped: a finger drags it from anywhere on the panel (`from: 'panel'`, the default), yielding to content that can still scroll its way, so a long one scrolls back to its top and then goes, and a field or `data-no-swipe` starts no drag; a mouse drags it by the handle, and `from: 'handle'` keeps every pointer there. A release faster than `flickSpeed` (0.4px/ms) is a flick, and a slow one goes once dragged `closeShare` (a quarter) of the panel. The Dialog keeps focus, Escape and scroll lock. `scalesPage` with `Recipes.sheetPage` on the page beside the sheet, never around it, steps the page back while it is open. | `Recipes.Sheet`: `size`: `sm`, `md` (default), `lg`, `full`; `handle`: `bar` (default) or `none`; `title`: `shown` (default) or `hidden`. Slots are `DialogSlots`. The panel's padding keeps clear of the safe areas (`Theme.tokens.safe`) on the sides it touches. |
 | `Picker` | A select that is a dropdown on a desktop and a bottom sheet on a phone, with one Model and one set of Messages whatever the width: `Picker.init({ id, sheet? })` (upstream's Listbox Model and a `Sheet`'s), folded with `Picker.update`, which returns `Picker.OutMessage.Chose({ value })` for a choice made either way, drawn with `Picker.view({ model, onMessage, label, options, value, placeholder, anchor?, style?, mixins?, listbox?, sheet? }, h)`. The application keeps the value (`Option`), as with the Listbox; `options` are `{ value, label, description?, icon? }`, `Value` inferred from them. Both halves are drawn and the recipe shows one, so nothing reads the width: the Listbox (its panel kept in place) at or above the breakpoint, and below it an opener whose Sheet lists the options as a listbox, the chosen one (or the first) focused, the arrows, Home and End moving focus, Enter, Space or a tap choosing and closing it. Opening the Sheet closes a Listbox left open. `listbox` takes `Recipes.Listbox`, which also draws the options' and the trigger's content (`Listbox.parts`), and `sheet` takes `Recipes.Sheet`. | `Recipes.Picker`: `sheetBelow`: `sm`, `md` (default) or `lg`, the theme's breakpoint below which the Sheet's half shows; `trigger`: `outline` (default), `filled`, `ghost`, the opener's look, as the Listbox's; `size`: `sm`, `md`, `lg`. Slots `root`, `dropdown`, `opener`, `list`, `option`. |
 | `Sidebar` | shadcn's sidebar with Fluid's collapse, keeping a Model: `Sidebar.init({ id, rows, open?, collapsed?, side?, width? })` (a Tooltip per row id, and the phone's Sheet), folded with `Sidebar.update`, drawn with `Sidebar.view({ model, onMessage, label, groups, header?, footer?, direction?, collapse?, style?, mixins?, tooltip?, sheet? }, h)`. `groups` are `{ id, title?, collapsible?, action?, rows }`, a row a `SidebarLink` (`{ id, label, href, current?, icon?, badge?, action? }`) or a `SidebarBranch` of nested links (`items`). An `action` (`SidebarAction`: `{ label, icon, message }`) is a button at a titled group's heading or beside a link, where it takes the badge's place under the pointer (both show on a touch screen). Groups and branches open like an accordion's, several at once; the current page is `aria-current` and `Sidebar.fluid` glides a marker to it. `collapse: 'offcanvas'` (default) takes the whole column off the page; `'icons'` leaves a rail of icons named in Tooltips (`tooltip`, a Tooltip style). With `sheet` (a Sheet style), an opener shows it in a Sheet on a phone. Shut groups and a collapsed column stay drawn and `inert`. `Sidebar.init({ width: { size?, min?, max? } })` makes the column resizable, its width in the Model: a `resize` handle on its edge drags it, the arrows step it, Enter or a double-click collapses it, and dragged below half `min` it collapses, coming back at the width the drag began at. | `variant`: `sidebar` (flush with the page's edge, the default), `floating` (a card lifted off it), `inset` (no edge, on the surface it stands on, for a page drawn as a card beside it); on a phone with a Sheet the column is its opener alone. Slots `root`, `header`, `footer`, `opener`, `title`, `toggle`, `nav`, `section`, `heading`, `trigger`, `chevron`, `links`, `item`, `branch`, `link`, `icon`, `mark`, `detail`, `label`, `badge`, `action`, `tip`, `indicator`, `highlight`, `resize`. |
 | `SignaturePad` | After Zag's: strokes drawn by one pointer over a dashed line and "Sign here", undo, clear, and a typed name instead. `SignaturePad.init({ id, pen? })` holds the strokes (points with pressure, in the pad's coordinates), folded with `SignaturePad.update`. Drawn with `SignaturePad.view({ model, onMessage, label, fallback?, labels?, disabled?, style? }, h)`. `pathOf(stroke, pen)` and `toSvg(model, { color?, font? })` are pure; `RequestedPng({ scale, background })` returns `ExportPng`, answered by `ExportedPng({ url, width, height })` or `FailedExport`. | `surface` (`plain`, `muted`, `dashed`), `size`. Slots `root`, `label`, `control`, `segments`, `stroke`, `guide`, `placeholder`, `typedName`, `controls`, `undo`, `clear`, `fallback`, `fallbackLabel`, `input`. |
@@ -632,7 +723,7 @@ glyph with it, so the recipe's size is the drawing's.
 | `TreeView` | The APG's and Zag's tree view, a small Model of its own: `TreeView.init({ id, open?, checked? })`, folded with `TreeView.update(nodes, { checkable? })` (curried over the tree, flattened once), drawn with `TreeView.view({ label, model, nodes, onMessage, direction?, style?, mixins? }, h)` over nodes `{ id, label, children?, disabled?, icon?, openIcon? }`. `checkable` (on the view and `update`) gives each row a box: the Model's `checked` holds the leaves, a branch reads checked, mixed or not from them (`TreeView.checksOf`), and Space checks the current row in `update`. One tab stop; Up/Down move through the rows showing, stepping over shut and disabled ones; Right opens or steps in, Left shuts or steps out (swapped under `direction: 'rtl'`, drawn as the root's `dir`); Home/End; a character moves to the next showing row that starts with it; Enter, Space or a click chooses a row and opens or shuts a branch. Keys reach `update`, which decides from its own Model and sends a focus Command. Each item carries `--fk-tree-level`; a shut group stays drawn and `inert`. | `guides`: `none` (default) or `lines`, a guide down each open branch; `data-state` on a branch `item` and its `group`. Slots `root`, `item`, `row`, `chevron`, `checkbox`, `icon`, `label`, `group`. |
 | `Typography` | `{ level, text }`. The level chooses the element (`h1`–`h4`, `lead`, `body`, `small`, `muted`, `quote`, `code`, and the interface roles `display`, `title`, `subtitle`, `caption`, `micro` as paragraphs). | `level`, same set; a role is its size and leading on the size ladder. Defaults to `body`. Slot `text`. |
 | `VirtualList` | `@foldkit/ui`'s virtual list: `VirtualList.view({ model, items, itemToKey, itemToView, onMessage, overscan?, itemToRowHeightPx? \| dynamicRowHeights?, style?, mixins? }, h)` draws only the rows in view. Its Model is upstream's (`@foldkit/ui/virtualList`'s `init`), kept by the application and folded with that module's `update`. A row's mixins may style it, not handle its events, since it is drawn inside the list's submodel. A bar is drawn beside the list, and `VirtualList.overlayBars` lays it over the list's edge: `root` runs `ScrollBars` for upstream's list, which holds a Mount of its own. | No axis. Slots `root` (the box it scrolls within: 18rem tall by default and as wide as its container, offering 20rem where the container takes its width from it, so the rows drawn as it scrolls never resize it), `row`, `bar`, `thumb`. |
-| `WindowList` | A virtual list that scrolls with the window: `WindowList.init({ id, estimatedHeight, unmeasured?, overscan?, viewportHeight?, from? })`, folded with `WindowList.update`, drawn with `WindowList.view({ model, items, itemToKey, itemToView, onMessage, label?, style?, mixins? }, h)`. It draws the rows in view of the document's viewport between spacers as tall as the rest, so the page keeps its own scrolling: the browser restores its offset, a `sticky` header above the list sticks, and Space and End move it. Its one Mount on `root`, `WindowList.Track`, reads where the viewport lies over the list on every scroll, resize and resize of the page (`WindowViewport`), so content above it, or growing above it, counts, and measures each drawn row's border box (`MeasureRows`; space rows with padding: a row is `flow-root`). The rows already drawn when it starts are read at once, so no row leaves before its height is known. A row not yet measured counts `estimatedHeight`, or with `unmeasured: 'mean'` the mean of the rows measured above 0: for rows whose height the window's width decides, which `init` cannot know. A Scene test of a page drawing the list resolves it with `Scene.Mount.resolveAll(WindowList.resolveTrack(onMessage, WindowList.Message.Placed({ top, height })))`, the reading going through the view's own `onMessage`. `WindowList.windowOf(model, keys)` is which rows are drawn, for loading what is in view, and `WindowList.keep(model, keys)` drops the heights of rows that left; a row still drawn is measured again only when it resizes, so keep the keys of the rows drawn. A server's page opens the list at a row with `from` (a page's `?from=`): the window starts at that row, with no overscan above it, and the rows above take no room until `Track` places the list, which gives them their room and scrolls the window by what that moved the first row drawn, so a reader sees the same rows before and after the runtime takes the page over. The first `Placed` sets `from` back to 0, and the list follows the window. For a page without scripts, `WindowList.pageOf(model, keys)` is `{ start, end, previous, next }`: the rows drawn and, as `Option`s, the rows the pages either side open at (`previous` the first whose window reaches this one's start), for links that set `?from=`. Use `VirtualList` for a list in a box of its own. | `Recipes.WindowList`: no look, only the spacers hidden where no script runs (`@media (scripting: none)`), so the rows a server drew lie in the page's flow; `.extend` it with the list's look. Slots `root` (`role="list"`), `spacer` (`data-edge` `start` or `end`, hidden from assistive technology), `row` (`role="listitem"`). |
+| `WindowList` | A virtual list that scrolls with the window: `WindowList.init({ id, estimatedHeight, unmeasured?, overscan?, viewportHeight?, from? })`, folded with `WindowList.update`, drawn with `WindowList.view({ model, items, itemToKey, itemToView, onMessage, label?, style?, mixins? }, h)`. It draws the rows in view of the document's viewport between spacers as tall as the rest, so the page keeps its own scrolling: the browser restores its offset, a `sticky` header above the list sticks, and Space and End move it. Its one Mount on `root`, `WindowList.Track`, reads where the viewport lies over the list on every scroll, resize and resize of the page (`WindowViewport`), so content above it, or growing above it, counts, and measures each drawn row's border box (`MeasureRows`; space rows with padding: a row is `flow-root`). The rows already drawn when it starts are read at once, so no row leaves before its height is known. A row not yet measured counts `estimatedHeight`, or with `unmeasured: 'mean'` the mean of the rows measured above 0: for rows whose height the window's width decides, which `init` cannot know. A Scene test of a page drawing the list resolves it with `Scene.Mount.resolveAll(WindowList.resolveTrack(onMessage, WindowList.Message.Placed({ top, height })))`, the reading going through the view's own `onMessage`. `WindowList.windowOf(model, keys)` is which rows are drawn, for loading what is in view, and `WindowList.keep(model, keys)` drops the heights of rows that left; a row still drawn is measured again only when it resizes, so keep the keys of the rows drawn. A server's page opens the list at a row with `from` (a page's `?from=`): the window starts at that row, with no overscan above it, and the rows above take no room until `Track` places the list, which gives them their room and scrolls the window by what that moved the first row drawn, so a reader sees the same rows before and after the runtime takes the page over. The first `Placed` sets `from` back to 0, and the list follows the window. For a page without scripts, `WindowList.pageOf(model, keys)` is `{ start, end, previous, next }`: the rows drawn and, as `Option`s, the rows the pages either side open at (`previous` the first whose window reaches this one's start), for links that set `?from=`. Use `VirtualList` for a list in a box of its own. | `Recipes.WindowList`: no look, only the spacers hidden where no script runs (`Utilities.scriptedOnly`), so the rows a server drew lie in the page's flow; `.extend` it with the list's look. Slots `root` (`role="list"`), `spacer` (`data-edge` `start` or `end`, hidden from assistive technology), `row` (`role="listitem"`). |
 
 ## Recipes
 
@@ -803,7 +894,7 @@ publishes them:
 const AddressStyle = Style.forSlots(FieldSlots)({
   group: Recipes.InputGroup.group,
   affix: Recipes.InputGroup.affix,
-  text: Style.compose(Recipes.Input({}).input ?? Style.empty, Recipes.InputGroup.control),
+  text: Style.compose(Recipes.Input({}).input, Recipes.InputGroup.control),
 })
 ```
 
@@ -920,8 +1011,8 @@ itself:
 ```ts
 const SegmentedStyle = Style.forSlots(SegmentedSlots)(
   {
-    group: Recipes.Segmented({ tray: 'plain', size: 'sm' }).group ?? Style.empty,
-    option: Recipes.Segmented({ tray: 'plain', size: 'sm' }).option ?? Style.empty,
+    group: Recipes.Segmented({ tray: 'plain', size: 'sm' }).group,
+    option: Recipes.Segmented({ tray: 'plain', size: 'sm' }).option,
   },
   { layer: L.layer('app') },
 )
@@ -1090,6 +1181,37 @@ resolution. Each is transcribed from the pinned `@foldkit/ui` source
 battery draws the fork and upstream's view over the same models; state,
 Messages, update, Commands, and Mounts stay upstream in every case. If
 upstream gains seams, the forks go away.
+
+That seam is what makes a row styleable. Drawn through `@foldkit/ui`'s own
+view, a Menu item or a Listbox or Combobox option takes only a `className`
+(its `itemToConfig`), so no Slot's attributes reach it and no Mixin can land
+on it: the page can style it only from the panel's Slot, with a rule under it
+keyed on the role and the state attributes upstream writes. Drawn through
+the fork, the row is the `item` Slot, styled like any other:
+
+```ts standalone
+import { Capability, Slot, Slots, Style } from 'foldkit-mixins'
+import { Theme } from 'foldkit-mixins/theme'
+import { ListboxSlots } from 'foldkit-mixins-ui'
+
+const t = Theme.ref(Theme.standard(Theme.make({})))
+
+// Through `Listbox.toView`: each option is the `item` Slot.
+const ListboxStyle = Style.forSlots(ListboxSlots)({
+  item: [{ cursor: 'pointer' }, Style.pseudo('[data-active]', { background: t.surface.muted })],
+})
+
+// Through upstream's view: the options are reached from the panel's Slot.
+const PanelSlots = Slots.define({ items: Slot.make({ capability: Capability.Container }) })
+const PanelStyle = Style.forSlots(PanelSlots)({
+  items: Style.nest('[role="option"][data-active]', { background: t.surface.muted }),
+})
+```
+
+The second keeps the rule in the panel's layer and reads only what
+`@foldkit/ui` publishes (`role`, `data-active`, `data-selected`,
+`data-disabled`), but no Behavior or Mount can reach the row that way. Use
+it for a port that keeps upstream's view; draw through the adapter otherwise.
 
 `Listbox`, `Combobox` and `Calendar` draw the standard markup from the
 styled bundles when `toView` is given no `draw`; pass a `draw` to arrange the

@@ -219,8 +219,10 @@ export interface SubmitInputs {
    */
   readonly failure?: { readonly error: string; readonly retry: boolean } | undefined
   /**
-   * The save landed and the form is not edited since: a create's form, started
-   * again blank, keeps the focus its button was given.
+   * The save landed and the form is not edited since.
+   *
+   * @deprecated No effect: the form's submit button is `aria-disabled`, never
+   * `disabled`, so it keeps the focus whatever this says. Removed next release.
    */
   readonly saved?: boolean | undefined
 }
@@ -258,20 +260,12 @@ export interface Choice {
  */
 export type ListColumn<Key extends string = string> = DisplayColumn<Key>
 
-/** What a read holds: its value, or the last one read when a refresh failed. */
-const heldValue = <A>(read: RemoteData<A>): Option.Option<A> =>
-  RemoteData.match(read, {
-    Initial: () => Option.none(),
-    Loading: () => Option.none(),
-    Ready: Option.some,
-    Refreshing: Option.some,
-    Failed: (_, previous) => previous,
-    NotFound: () => Option.none(),
-  })
-
 const columnLabel = (key: string, member: EntityMember): string =>
   Option.getOrElse(
-    member._tag === 'Relation' ? Option.none() : Words.of(member.schema as Schema.Top).title,
+    Match.value(member).pipe(
+      Match.tag('Relation', () => Option.none()),
+      Match.orElse(other => Words.of(other.schema as Schema.Top).title),
+    ),
     () => Form.labelOf(member) ?? key,
   )
 
@@ -289,15 +283,16 @@ const columnsOf = <Members>(
     const member = members[key]!
     const how = selected[key]!
     // A relation read through a Selection shows the target's own members.
-    const nested =
-      how === true || member._tag !== 'Relation'
-        ? undefined
-        : SelectionPageTypeId in how
-          ? { shape: 'page' as const, columns: columnsOf(how.selection) }
-          : {
-              shape: member.cardinality === 'many' ? ('many' as const) : ('one' as const),
-              columns: columnsOf(how),
-            }
+    const nestedOf = () => {
+      if (how === true || member._tag !== 'Relation') return undefined
+      if (SelectionPageTypeId in how)
+        return { shape: 'page' as const, columns: columnsOf(how.selection) }
+      return {
+        shape: member.cardinality === 'many' ? ('many' as const) : ('one' as const),
+        columns: columnsOf(how),
+      }
+    }
+    const nested = nestedOf()
     return {
       key: key as keyof Members & string,
       label: columnLabel(key, member),
@@ -484,21 +479,22 @@ export const Crud = {
           status: (root: Root): RemoverStatus => {
             const { target } = slice.get(root)
             const deleting = outcome(root)
-            return deleting._tag === 'Pending'
-              ? 'Deleting'
-              : deleting._tag === 'Applied'
-                ? 'Deleted'
-                : deleting._tag === 'Failed'
-                  ? 'DeleteFailed'
-                  : target === null
-                    ? 'Idle'
-                    : 'Confirming'
+            return Match.valueTags(deleting, {
+              Pending: () => 'Deleting' as const,
+              Applied: () => 'Deleted' as const,
+              Failed: () => 'DeleteFailed' as const,
+              Unknown: () => (target === null ? ('Idle' as const) : ('Confirming' as const)),
+            })
           },
 
           /** Why the last delete failed, while `status` is `DeleteFailed`. */
           error: (root: Root): RemoteError | undefined => {
-            const deleting = outcome(root)
-            return deleting._tag === 'Failed' ? deleting.error : undefined
+            return Match.valueTags(outcome(root), {
+              Failed: ({ error }): RemoteError | undefined => error,
+              Unknown: () => undefined,
+              Pending: () => undefined,
+              Applied: () => undefined,
+            })
           },
         }
       },
@@ -630,7 +626,7 @@ export const Crud = {
           choices: (root: Root): ReadonlyArray<Choice> => {
             if (choice === undefined)
               throw new Error(`Crud list "${name}": give it a "choice" to use its rows in a picker`)
-            return Option.match(heldValue(page(root)), {
+            return Option.match(RemoteData.held(page(root)), {
               onNone: () => [],
               onSome: ({ items }) =>
                 items.map(row => ({ value: choice.value(row), label: choice.label(row) })),
@@ -640,7 +636,7 @@ export const Crud = {
           /** That row as a choice, once it is read, or as last read when a refresh failed. */
           choiceOf: (root: Root, id: string): Choice | undefined => {
             if (choice === undefined) return undefined
-            return Option.match(heldValue(data.get(selection, id).read(root)), {
+            return Option.match(RemoteData.held(data.get(selection, id).read(root)), {
               onNone: () => undefined,
               onSome: row => ({ value: choice.value(row), label: choice.label(row) }),
             })
@@ -1028,7 +1024,7 @@ export const Crud = {
         /** The value loaded, or the last one known good when a refresh failed. */
         const known = (root: Root): Option.Option<any> => {
           const read = loaded(root)
-          return read === undefined ? Option.none() : heldValue(read)
+          return read === undefined ? Option.none() : RemoteData.held(read)
         }
 
         const filledOf = (root: Root): Root => {
@@ -1146,7 +1142,7 @@ export const Crud = {
         /** Whether the save is in flight: started, and not yet answered. */
         const busy = (root: Root): boolean => saveOf(root)._tag === 'Pending'
 
-        /** Whether the last save landed and the form is not edited since. */
+        /** Whether the last save landed and the form is not edited since. Feeds the deprecated `saved` input. */
         const saved = (root: Root): boolean => {
           const { requestId, settledFor, edited } = slice.get(root)
           return requestId !== null && Option.contains(settledFor, requestId) && !edited
@@ -1282,8 +1278,12 @@ export const Crud = {
 
           /** Why the last save failed, while `status` is `SaveFailed`. */
           saveError: (root: Root): RemoteError | undefined => {
-            const save = saveOf(root)
-            return save._tag === 'Failed' ? save.error : undefined
+            return Match.valueTags(saveOf(root), {
+              Failed: ({ error }): RemoteError | undefined => error,
+              Unknown: () => undefined,
+              Pending: () => undefined,
+              Applied: () => undefined,
+            })
           },
 
           /**
@@ -1323,7 +1323,16 @@ export const Crud = {
                 return moved(root) ? 'Moved' : 'Saved'
               case 'Unknown':
                 if (editor.filled) return moved(root) ? 'Moved' : 'Editing'
-                return read?._tag === 'Failed' ? 'LoadFailed' : 'Loading'
+                return read === undefined
+                  ? 'Loading'
+                  : RemoteData.match(read, {
+                      Failed: () => 'LoadFailed' as const,
+                      Initial: () => 'Loading' as const,
+                      Loading: () => 'Loading' as const,
+                      Ready: () => 'Loading' as const,
+                      Refreshing: () => 'Loading' as const,
+                      NotFound: () => 'Loading' as const,
+                    })
             }
           },
         }

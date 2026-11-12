@@ -2044,8 +2044,11 @@ export const writer = <P = unknown>(
                 }),
               'Database write failed',
             )
-      if (done._tag === 'Reused') return yield* reused(operation, id)
-      return done
+      return yield* Match.valueTags(done, {
+        Reused: () => reused(operation, id),
+        Recorded: recorded => Effect.succeed(recorded),
+        Written: written => Effect.succeed(written),
+      })
     })
 
   /**

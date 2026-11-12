@@ -9,6 +9,7 @@
  */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
 import { Behavior, Behaviors, Capability } from 'foldkit-mixins'
 import { perInput, sameIds } from '../internal.js'
@@ -57,50 +58,62 @@ export const between = (
   return order.slice(Math.min(start, end), Math.max(start, end) + 1)
 }
 
+const update = (model: Model, message: Message, args: Args): Update.Return<Model, Message> =>
+  Message.match<Update.Return<Model, Message>>(message, {
+    Activated: ({ id }) => {
+      if (args.mode === 'none') return { model }
+      const isSelected = model.selected.includes(id)
+      if (args.mode === 'single') {
+        return isSelected
+          ? args.allowEmpty
+            ? { model: { selected: [], anchor: id } }
+            : { model }
+          : { model: { selected: [id], anchor: id } }
+      }
+      return {
+        model: {
+          selected: isSelected ? without(model.selected, id) : [...model.selected, id],
+          anchor: id,
+        },
+      }
+    },
+    Ranged: ({ id, order }) => {
+      if (args.mode !== 'multiple') return { model }
+      const range = between(order, model.anchor, id)
+      const inRange = new Set(range)
+      const selected = [...model.selected.filter(other => !inRange.has(other)), ...range]
+      const anchor = model.anchor ?? id
+      // Shift-clicking the same item twice ranges over what is selected already.
+      return sameIds(selected, model.selected) && anchor === model.anchor
+        ? { model }
+        : { model: { selected, anchor } }
+    },
+    Replaced: ({ ids }) => {
+      const selected = args.mode === 'none' ? [] : [...new Set(ids)]
+      return sameIds(selected, model.selected)
+        ? { model }
+        : { model: { selected, anchor: model.anchor } }
+    },
+    Cleared: () =>
+      model.selected.length === 0 ? { model } : { model: { selected: [], anchor: model.anchor } },
+  })
+
 export const bundle = Bundle.make('Selection', {
   Model,
   Message,
   args: Args,
   init: () => ({ model: { selected: [], anchor: null } }),
-  update: (model, message, args) =>
-    Message.match(message, {
-      Activated: ({ id }) => {
-        if (args.mode === 'none') return { model }
-        const isSelected = model.selected.includes(id)
-        if (args.mode === 'single') {
-          return isSelected
-            ? args.allowEmpty
-              ? { model: { selected: [], anchor: id } }
-              : { model }
-            : { model: { selected: [id], anchor: id } }
-        }
-        return {
-          model: {
-            selected: isSelected ? without(model.selected, id) : [...model.selected, id],
-            anchor: id,
-          },
-        }
-      },
-      Ranged: ({ id, order }) => {
-        if (args.mode !== 'multiple') return { model }
-        const range = between(order, model.anchor, id)
-        const inRange = new Set(range)
-        const selected = [...model.selected.filter(other => !inRange.has(other)), ...range]
-        const anchor = model.anchor ?? id
-        // Shift-clicking the same item twice ranges over what is selected already.
-        return sameIds(selected, model.selected) && anchor === model.anchor
-          ? { model }
-          : { model: { selected, anchor } }
-      },
-      Replaced: ({ ids }) => {
-        const selected = args.mode === 'none' ? [] : [...new Set(ids)]
-        return sameIds(selected, model.selected)
-          ? { model }
-          : { model: { selected, anchor: model.anchor } }
-      },
-      Cleared: () =>
-        model.selected.length === 0 ? { model } : { model: { selected: [], anchor: model.anchor } },
-    }),
+  update,
+  /**
+   * What a parent decides, rather than a press: `placed.helpers.activate(id)`
+   * selects as a click does, `replace(ids)` and `clear()` set the selection.
+   */
+  helpers: args => ({
+    activate: (model: Model, id: string) => update(model, Message.Activated({ id }), args),
+    replace: (model: Model, ids: ReadonlyArray<string>) =>
+      update(model, Message.Replaced({ ids }), args),
+    clear: (model: Model) => update(model, Message.Cleared(), args),
+  }),
 })
 
 export interface BehaviorOptions<Input, Slots> {

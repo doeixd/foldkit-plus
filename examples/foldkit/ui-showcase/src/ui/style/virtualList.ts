@@ -4,8 +4,8 @@ import { forSlots, t } from '../../style.js'
 import { container, demoSlots, demoStyles, primaryLook } from './shared.js'
 
 /**
- * `foldkit-mixins-ui` has no VirtualList adapter; `@foldkit/ui` takes
- * attributes for its scroll container, which is the page's own Slot, and
+ * The port keeps upstream's view on purpose (see the README): `@foldkit/ui`
+ * takes attributes for its scroll container, which is the page's own Slot, and
  * draws the rows it mounts from the page's own markup.
  */
 export const VirtualListPageSlots = Slots.define({
@@ -122,7 +122,7 @@ export const VirtualListPageStyle = forSlots(VirtualListPageSlots)(
     actor: Style.self({ fontWeight: t.weight.semibold, color: t.text.overt }),
     target: Style.self({ fontFamily: t.font.mono, color: t.text.overt }),
     timeAgo: Style.self({
-      textAlign: 'right',
+      textAlign: 'end',
       fontSize: t.size.xs,
       fontVariantNumeric: 'tabular-nums',
       color: t.text.muted,

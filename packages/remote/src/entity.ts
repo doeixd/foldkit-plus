@@ -2,7 +2,7 @@
  * Entities: the descriptor an application declares, refs, ref pages, and
  * patches, with the codecs that carry refs on the wire.
  */
-import { Schema, SchemaGetter } from 'effect'
+import { Match, Schema, SchemaGetter } from 'effect'
 import type * as Domain from 'foldkit-entity'
 import {
   RelationAnnotation,
@@ -207,7 +207,10 @@ export const Entity = {
       put(
         fields,
         key,
-        member._tag === 'Relation' ? relationField(member) : (member.schema as AnySchema),
+        Match.value(member).pipe(
+          Match.tag('Relation', relationField),
+          Match.orElse(other => other.schema as AnySchema),
+        ),
       )
     const descriptor = Entity.make(entity.name, Schema.Struct(fields) as never)
     descriptors.set(entity, descriptor)

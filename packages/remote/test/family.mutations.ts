@@ -47,8 +47,9 @@ export default [
     edits: [
       {
         file: '../src/remote.ts',
-        find: '          for (const { projection } of resolvedOf(entry, current))',
-        replace: '          for (const { projection } of resolvedOf(entry, current).slice(0, 1))',
+        find: 'entries.flatMap(entry => resolvedOf(entry, current).map(({ projection }) => projection)),',
+        replace:
+          'entries.flatMap(entry => resolvedOf(entry, current).slice(0, 1).map(({ projection }) => projection)),',
       },
     ],
     tests,

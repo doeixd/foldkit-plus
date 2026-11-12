@@ -5,33 +5,16 @@
  * real form; nothing here is computed.
  */
 import { Schema } from 'effect'
-import { FieldRecipes, type FieldRecipe } from 'foldkit-form-recipes'
+import { FieldRecipes } from 'foldkit-form-recipes'
 import { image } from 'foldkit-form-recipes/image'
 import { HashedAsset } from 'foldkit-media'
 import { CalendarDate, make } from 'foldkit/calendar'
-
-export interface Entry {
-  /** The page's address and heading. */
-  readonly name: string
-  /** How the recipe is made, as an application writes it. */
-  readonly call: string
-  readonly schema: Schema.Codec<any, any>
-  readonly recipe: FieldRecipe<any>
-  /** What the key holds, decoded. */
-  readonly stored: unknown
-  /** A draft a person might type, and one the recipe refuses; none for a control with no text. */
-  readonly typed?: string | undefined
-  readonly refused?: string | undefined
-  /** For a recipe that follows another key (`slug`): that key, and what it says. */
-  readonly follows?: { readonly key: string; readonly text: string } | undefined
-  /** What it does when things go wrong, in the README's words. */
-  readonly failures: ReadonlyArray<string>
-}
+import { type Entry, entry } from './read.js'
 
 const hash = 'd'.repeat(64)
 
 export const gallery: ReadonlyArray<Entry> = [
-  {
+  entry({
     name: 'date',
     call: 'FieldRecipes.date()',
     schema: CalendarDate,
@@ -40,8 +23,8 @@ export const gallery: ReadonlyArray<Entry> = [
     typed: '2026-02-28',
     refused: '2026-02-30',
     failures: ['A day that does not exist, or a date typed day first, reads "Enter a date".'],
-  },
-  {
+  }),
+  entry({
     name: 'dateTime-local',
     call: "FieldRecipes.dateTime({ stored: 'local' })",
     schema: Schema.String,
@@ -50,8 +33,8 @@ export const gallery: ReadonlyArray<Entry> = [
     typed: '2026-10-27T18:00',
     refused: '2026-10-27',
     failures: ['Kept as typed, in no zone: a clock reading wherever it is read.'],
-  },
-  {
+  }),
+  entry({
     name: 'dateTime-instant',
     call: "FieldRecipes.dateTime({ stored: 'instant', zone: 'Europe/London' })",
     schema: Schema.String,
@@ -64,8 +47,8 @@ export const gallery: ReadonlyArray<Entry> = [
       'A time the clocks repeat reads as the earlier.',
       'An unknown zone throws when the recipe is made.',
     ],
-  },
-  {
+  }),
+  entry({
     name: 'email',
     call: 'FieldRecipes.email()',
     schema: Schema.String,
@@ -74,8 +57,8 @@ export const gallery: ReadonlyArray<Entry> = [
     typed: 'grace@example.org',
     refused: 'grace at example.org',
     failures: ['Well-formed is not known to exist: whether it receives mail is the server’s.'],
-  },
-  {
+  }),
+  entry({
     name: 'url',
     call: 'FieldRecipes.url()',
     schema: Schema.String,
@@ -84,8 +67,8 @@ export const gallery: ReadonlyArray<Entry> = [
     typed: 'http://example.org/a',
     refused: 'javascript:alert(1)',
     failures: ['A scheme outside `protocols` (default https: and http:) is refused.'],
-  },
-  {
+  }),
+  entry({
     name: 'tel',
     call: 'FieldRecipes.tel()',
     schema: Schema.String,
@@ -93,8 +76,8 @@ export const gallery: ReadonlyArray<Entry> = [
     stored: '+44 20 7946 0000',
     typed: '020 7946 0001',
     failures: ['Takes anything: a number is too varied to check without refusing a real one.'],
-  },
-  {
+  }),
+  entry({
     name: 'password',
     call: "FieldRecipes.password({ purpose: 'new' })",
     schema: Schema.String,
@@ -106,8 +89,8 @@ export const gallery: ReadonlyArray<Entry> = [
       'Hidden in a list; no reveal toggle, since whether it shows is state the form does not hold.',
       'Keep it out of a saved draft: that rule is the application’s.',
     ],
-  },
-  {
+  }),
+  entry({
     name: 'slug',
     call: "FieldRecipes.slug('title', { prefix: '/posts/' })",
     schema: Schema.String,
@@ -116,8 +99,8 @@ export const gallery: ReadonlyArray<Entry> = [
     typed: 'engine-notes',
     follows: { key: 'title', text: 'Crème Brûlée, Again' },
     failures: ['A stored slug does not follow its key, so a published address does not move.'],
-  },
-  {
+  }),
+  entry({
     name: 'money-minor',
     call: "FieldRecipes.money({ currency: 'EUR', unit: 'minor', locale: 'de-DE' })",
     schema: Schema.Int,
@@ -130,8 +113,8 @@ export const gallery: ReadonlyArray<Entry> = [
       'More decimals than the currency has are refused, never rounded.',
       'A minor amount past what a JavaScript number holds exactly is refused.',
     ],
-  },
-  {
+  }),
+  entry({
     name: 'money-decimal',
     call: "FieldRecipes.money({ currency: 'JPY', unit: 'decimal', locale: 'ja-JP' })",
     schema: Schema.String,
@@ -140,8 +123,8 @@ export const gallery: ReadonlyArray<Entry> = [
     typed: '2,000',
     refused: '12.5',
     failures: ['The currency sets the decimals: none for JPY, so `12.5` is refused.'],
-  },
-  {
+  }),
+  entry({
     name: 'decimal',
     call: 'FieldRecipes.decimal({ scale: 3 })',
     schema: Schema.Number,
@@ -150,8 +133,8 @@ export const gallery: ReadonlyArray<Entry> = [
     typed: '1,234.125',
     refused: '-1',
     failures: ['A minus is refused unless `negative: true`.'],
-  },
-  {
+  }),
+  entry({
     name: 'percent',
     call: "FieldRecipes.percent({ unit: 'fraction' })",
     schema: Schema.Number,
@@ -162,13 +145,13 @@ export const gallery: ReadonlyArray<Entry> = [
     failures: [
       'More decimals than the scale, or one a JavaScript number would round, are refused.',
     ],
-  },
-  {
+  }),
+  entry({
     name: 'image',
     call: "image({ id: 'cover' })",
     schema: HashedAsset,
     recipe: image({ id: 'cover' }),
-    stored: Schema.decodeUnknownSync(HashedAsset)({
+    stored: Schema.decodeSync(HashedAsset)({
       key: hash,
       width: 1200,
       height: 630,
@@ -181,5 +164,5 @@ export const gallery: ReadonlyArray<Entry> = [
       'Cancel aborts the request and leaves the key empty.',
       'A stored draft holds no File, so a send on its way is dropped from it.',
     ],
-  },
+  }),
 ]

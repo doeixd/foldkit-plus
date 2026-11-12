@@ -227,11 +227,17 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   flipping above its offset parent. A trigger still flips, and `keepWithin` sets
   `data-fk-placed="above"` (`Placing.placedSide`, `Placing.placedAbove`) so a hover bridge can
   overlap that side. `Anchor.behavior` portals and tracks; this places once.
+- **A parent's own decisions are helpers, never the child's Messages:** `Selection`'s
+  `activate(id)`, `replace(ids)`, `clear()`; `TreeNavigation`'s `focus`, `open`, `close`,
+  `toggle(id)`; `focus(id)` on `RovingTabindex`, `ListNavigation`, `GridNavigation`;
+  `Typeahead`'s `clear()`; `LiveAnnounce`'s `announce(text, politeness?)`. Call them on the
+  placement (`Picks.helpers.activate(id)(model)`); a control the parent draws sends a parent
+  Message and `update` calls the helper.
 - **Selected items:** `Selection.bundle` (`{ mode: 'single' | 'multiple' | 'none', allowEmpty }`, slice `{ selected, anchor }`)
   with `Selection.behavior(Declared, args)(Slots)({ container?, item, items, click? })` writing `aria-selected`,
   `aria-multiselectable`, and a click to `Activated`; `Ranged { id, order }` for a Shift range (Shift comes from `Pressed.shiftKey`).
-- **Announce to assistive technology:** place `LiveAnnounce.bundle` once (`{ debounceMs, clearAfterMs }`), return
-  `LiveAnnounce.say(Declared)(text, politeness?)` from `update`, render `LiveAnnounce.view(slice, h)` once and hide it visually.
+- **Announce to assistive technology:** place `LiveAnnounce.bundle` once (`{ debounceMs, clearAfterMs }`), fold
+  the placement's `helpers.announce(text, politeness?)` in `update`, render `LiveAnnounce.view(slice, h)` once and hide it visually.
 
 ## Gotchas
 

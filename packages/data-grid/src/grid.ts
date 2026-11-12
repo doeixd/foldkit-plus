@@ -1,4 +1,4 @@
-import { Equal, Option, Result, Schema } from 'effect'
+import { Equal, Match, Option, Result, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
@@ -13,7 +13,22 @@ import {
   type EditValue,
   type EditableId,
   editorOf,
+  filterKindOf,
 } from './columns.js'
+import {
+  ColumnFilter,
+  type FilterableId,
+  type FilterChange,
+  type FilterOf,
+  type Filters,
+  type FilterValue,
+  FilterForm,
+  emptyForm,
+  filterSchemaOf,
+  formOf,
+  readForm,
+  testOf,
+} from './filter.js'
 import { GridFocus } from './focus.js'
 import { GridProjection } from './projection.js'
 import type { RowModel } from './rows.js'
@@ -47,6 +62,56 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
   const focus = GridFocus.make(options.columns)
   const columnState = ColumnState.make(options.columns)
   const Column = focus.Address.fields.column
+  type FilterId = FilterableId<Specs>
+  // Each filtering column's kind and the schema of its filter, worked out once.
+  const filterKinds = new Map<string, CellEditor>()
+  const filterSchemas = new Map<string, Schema.Codec<ColumnFilter, unknown>>()
+  for (const id of options.columns.ids) {
+    const filter = options.columns.byId[id].filter
+    if (filter === undefined) continue
+    const kind = filter === true ? filterKindOf(options.columns.byId[id].edit?.schema) : filter
+    filterKinds.set(id, kind)
+    filterSchemas.set(id, filterSchemaOf(kind))
+  }
+  // The keys are the ids whose spec has `filter`: `FilterableId` says the same.
+  const filterIds = [...filterKinds.keys()] as unknown as ReadonlyArray<FilterId>
+  /** One filtering column's filter, or none, as the application stores it. */
+  const filterFields = Object.fromEntries(
+    filterIds.map(id => [id, Schema.OptionFromNullOr(filterSchemas.get(id)!)]),
+  )
+  // A struct drops a key it does not name, whatever the decode is given, so
+  // the keys are checked first: a URL or a saved view naming another column is refused.
+  const filterKeys = new Set<string>(filterIds)
+  const OnlyFilterKeys = Schema.Record(Schema.String, Schema.Unknown).check(
+    Schema.makeFilter(stored => Object.keys(stored).every(key => filterKeys.has(key)), {
+      expected: 'only the filtering columns',
+    }),
+  )
+  /**
+   * Every filtering column's filter as stored: each its own variant, never
+   * empty, and no other key.
+   */
+  // Each field is that column's own schema, so the struct holds `Filters<Specs>`.
+  const Filters = OnlyFilterKeys.pipe(
+    Schema.decodeTo(Schema.Struct(filterFields)),
+  ) as unknown as Schema.Codec<Filters<Specs>, unknown>
+  // One case per filtering column, so a change's filter is that column's variant.
+  const changes = filterIds.map(id =>
+    Schema.Struct({
+      column: Schema.Literal(id),
+      filter: Schema.OptionFromNullOr(filterSchemas.get(id)!),
+    }),
+  )
+  const FilterChangeSchema = (changes.length === 0
+    ? Schema.Never
+    : Schema.Union(changes)) as unknown as Schema.Codec<FilterChange<Specs>, unknown>
+  /**
+   * What a stale frame drew: the application's filter, and the form's
+   * generation when that frame was drawn.
+   */
+  const Stale = Schema.OptionFromNullOr(
+    Schema.Struct({ drawn: Schema.OptionFromNullOr(ColumnFilter), generation: Schema.Number }),
+  )
   const CellText = Schema.Struct({ row: Schema.String, column: Column, text: Schema.String })
   const PastedCell = Schema.Struct({ ...CellText.fields, from: Schema.String })
   const Range = Schema.Struct({ anchor: focus.Address, focus: focus.Address })
@@ -89,6 +154,24 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         error: Schema.OptionFromNullOr(Schema.String),
       }),
     ),
+    /**
+     * The column whose filter form is open, the form as typed, and the filter
+     * last reported (or the application's, when the form opened): a change is
+     * reported when the form reads as a valid filter other than this one.
+     */
+    filtering: Schema.OptionFromNullOr(
+      Schema.Struct({
+        column: Column,
+        form: FilterForm,
+        reported: Schema.OptionFromNullOr(ColumnFilter),
+        /**
+         * Counts the form's reports and reseeds: a stale frame's change reseeds
+         * only while it is the one the frame was drawn at, so a second change
+         * from that frame adds to the first.
+         */
+        generation: Schema.Number,
+      }),
+    ),
   })
   const Region = Schema.Literals(['start', 'center', 'end'])
   type Model = typeof Model.Type
@@ -103,6 +186,15 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     Show: { column: Column },
   })
   type MenuItem = typeof MenuItem.Type
+  /**
+   * What toggled a checkbox: a press on its box, or a key on the cell the
+   * frame was drawn focusing, with the focus that frame was drawn from.
+   */
+  const Toggle = defineTaggedUnion({
+    Press: {},
+    Key: { drawn: Schema.OptionFromNullOr(focus.Address) },
+  })
+  const sameFocus = Option.makeEquivalence((a: Address, b: Address) => sameCell(a, b))
   const Message = defineMessageUnion({
     /** The pointer or the browser focused a cell. */
     Focused: { address: focus.Address },
@@ -193,7 +285,21 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
      * test resolves them with a Message the runtime sends too.
      */
     MountStarted: {},
-    /** An edit began on an editable cell, with the text it starts from. */
+    /**
+     * The checkbox in the cell whose DOM id is `cell`, drawn `checked`, was
+     * pressed (`Toggle.Press`), or Space or Enter was pressed on the cell a
+     * frame drew as the tab stop (`Toggle.Key`, with the focus that frame was
+     * drawn from): the column's text for the other value is committed at once
+     * and reported as `Out.Edited`, with no draft. The id comes from the page,
+     * so a cell that is not a checkbox of this grid, or a toggle while an edit
+     * is open, changes nothing; nor does a key whose frame was drawn before
+     * focus moved, which would toggle the cell focus left.
+     */
+    EditToggled: { cell: Schema.String, checked: Schema.Boolean, by: Toggle },
+    /**
+     * An edit began on an editable cell, with the text it starts from. A
+     * checkbox's cell opens none: it is toggled (`EditToggled`).
+     */
     EditStarted: { address: focus.Address, draft: Schema.String },
     /**
      * A key typed on the grid itself, over an editable cell: it starts an
@@ -249,6 +355,31 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     FillDragged: { cell: Schema.String },
     /** The fill handle was let go, or the drag cancelled (`completed` false). */
     FillEnded: { completed: Schema.Boolean },
+    /**
+     * A column's filter form opened, from its button or Alt+ArrowDown on its
+     * header, seeded with the application's filter as the view `drawn` it.
+     * Focus goes to the header, so closing returns there. A column that does
+     * not filter or is hidden, or a `drawn` its column refuses, opens nothing.
+     */
+    FilterOpened: { column: Column, drawn: Schema.OptionFromNullOr(ColumnFilter) },
+    /**
+     * A text field of the open form was typed in. `stale` is set by a frame
+     * drawn after the application's filter changed from outside the form:
+     * the form is seeded again from it first, unless the form has reported
+     * since that frame. A field another kind owns changes nothing.
+     */
+    FilterTyped: {
+      field: Schema.Literals(['text', 'min', 'max', 'from', 'to']),
+      text: Schema.String,
+      stale: Stale,
+    },
+    /** A choice's option was ticked or unticked; one the column does not offer changes nothing. */
+    FilterOptionToggled: { option: Schema.String, stale: Stale },
+    /** A checkbox's filter was set: any value, checked, or not. */
+    FilterChecked: { state: Schema.Literals(['any', 'true', 'false']), stale: Stale },
+    /** The open form was emptied: none is reported if a filter held. */
+    FilterCleared: { stale: Stale },
+    FilterClosed: {},
   })
   type Message = typeof Message.Type
   /**
@@ -258,7 +389,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
    * `RedoRequested` carry nothing, since what to undo is the application's
    * history, read when the request arrives.
    */
-  const Out = defineTaggedUnion({
+  const outCases = {
     Edited: { row: Schema.String, column: Column, text: Schema.String },
     /** The cells their columns accepted, and those they refused, with why. */
     Pasted: {
@@ -278,8 +409,20 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
      * application holds.
      */
     RowsRequested: { from: Schema.String, to: Schema.String },
+  }
+  const Out = defineTaggedUnion({
+    ...outCases,
+    /**
+     * A column's filter changed, or is none: the application's to store
+     * (`setFilter`) and apply (`keeps`, or a query's input).
+     */
+    Filtered: { change: FilterChangeSchema },
   })
   type Out = typeof Out.Type
+  const Unfiltered = defineTaggedUnion(outCases)
+  /** What the grid reports: `Filtered` only when a column filters, so no other grid matches it. */
+  type PublicOut = [FilterId] extends [never] ? typeof Unfiltered : typeof Out
+  type PublicOutType = [FilterId] extends [never] ? typeof Unfiltered.Type : Out
   type Return = Update.ReturnWithOutMessage<Model, Message, Out, never>
 
   const focusTo = (model: Model, address: typeof focus.Address.Type): Model => {
@@ -364,12 +507,22 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
   type Id = keyof Specs & string
   const decoders = new Map<string, (text: string) => Result.Result<unknown, Schema.SchemaError>>()
   const editors = new Map<string, CellEditor>()
+  // A checkbox column's text for a value, from its schema.
+  const toggles = new Map<string, (value: boolean) => Option.Option<string>>()
   for (const id of options.columns.ids) {
     const edit = options.columns.byId[id].edit
     if (edit === undefined) continue
     decoders.set(id, Schema.decodeUnknownResult(edit.schema ?? Schema.String))
-    editors.set(id, editorOf(edit.schema))
+    const editor = editorOf(edit.schema)
+    editors.set(id, editor)
+    if (edit.schema !== undefined && CellEditor.guards.Checkbox(editor)) {
+      const encode = Schema.encodeUnknownResult(edit.schema)
+      toggles.set(id, value => Result.getSuccess(encode(value)))
+    }
   }
+  /** Whether a column's cells open a draft to edit: they edit, and are no checkbox. */
+  const drafts = (column: Id): boolean =>
+    options.columns.byId[column].edit !== undefined && !toggles.has(column)
   /** How a column's cells are edited: as text, a number, or a choice; none when it does not edit. */
   const editorFor = (column: Id): Option.Option<CellEditor> =>
     Option.fromUndefinedOr(editors.get(column))
@@ -446,6 +599,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         Text: () => Option.none(),
         Number: () => Option.none(),
         Date: () => Option.none(),
+        Checkbox: () => Option.none(),
         Choice: ({ options }) => Option.some(options),
       }),
     )
@@ -642,385 +796,555 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         filling: Option.none(),
         selection: { rows: GridSelection.none, anchor: Option.none(), cells: Option.none() },
         editing: Option.none(),
+        filtering: Option.none(),
       },
     }),
-    update: (model: Model, message: Message): Return =>
-      Message.match(message, {
-        // A plain click or key is a single cell again: any range it leaves goes.
-        Focused: ({ address }): Return =>
-          afterEdit(model, settled => ({ model: clearCells(focusTo(settled, address)) })),
-        Moved: ({ address, reveal }): Return => ({
-          model: clearCells(focusTo(model, address)),
+    // A grid that filters nothing never reports `Filtered`, so its Out is typed without it.
+    update: (model: Model, message: Message) =>
+      guarded(model, message) as unknown as Update.ReturnWithOutMessage<
+        Model,
+        Message,
+        PublicOutType,
+        never
+      >,
+  })
+
+  /** A form whose column a write hid (a restored layout): it is closed, as hiding closes it. */
+  const drawnForm = (model: Model): Model =>
+    Option.exists(model.filtering, open => model.columns.hidden.includes(open.column))
+      ? modifyFields(model, { filtering: () => Option.none() })
+      : model
+  const guarded = (given: Model, message: Message): Return => {
+    const model = drawnForm(given)
+    return Option.isNone(model.filtering)
+      ? updated(model, message)
+      : Match.value(message).pipe(
+          // The form has the keyboard and the clipboard: these are not its.
+          Match.tag('Pasted', 'FillRequested', 'UndoRequested', 'RedoRequested', () => ({
+            model,
+          })),
+          // What opens an edit, the menu or a fill, or moves focus, ends the form.
+          Match.tag(
+            'Focused',
+            'Moved',
+            'CellPressed',
+            'EditStarted',
+            'EditTyped',
+            'EditToggled',
+            'MenuOpened',
+            'FillStarted',
+            () => updated(modifyFields(model, { filtering: () => Option.none() }), message),
+          ),
+          Match.orElse(() => updated(model, message)),
+        )
+  }
+
+  type Filtering = Option.Option.Value<Model['filtering']>
+  const filterOf = (filtering: Filtering, stale: typeof Stale.Type): Filtering =>
+    Option.match(stale, {
+      onNone: () => filtering,
+      // Seeded again only at the generation the stale frame was drawn at.
+      onSome: ({ drawn, generation }) =>
+        generation === filtering.generation
+          ? { ...filtering, form: formOf(drawn), reported: drawn, generation: generation + 1 }
+          : filtering,
+    })
+  /**
+   * One field of the open form changed, from what the frame drew: `change`
+   * gives the form, or none when the field is not this kind's. A form that
+   * reads as a valid filter other than the last reported is reported.
+   */
+  const filterEdited = (
+    model: Model,
+    stale: typeof Stale.Type,
+    change: (form: FilterForm, kind: CellEditor) => Option.Option<FilterForm>,
+  ): Return =>
+    Option.match(model.filtering, {
+      onNone: () => ({ model }),
+      onSome: open => {
+        const kind = filterKinds.get(open.column)!
+        const base = filterOf(open, stale)
+        const form = Option.getOrElse(change(base.form, kind), () => base.form)
+        if (base === open && Equal.equals(form, open.form)) return { model }
+        const reading = readForm(kind, form)
+        const reports = reading.invalid.length === 0 && !Equal.equals(reading.filter, base.reported)
+        const next = reports
+          ? { ...base, form, reported: reading.filter, generation: base.generation + 1 }
+          : { ...base, form }
+        return {
+          model: modifyFields(model, { filtering: () => Option.some(next) }),
+          ...(reports
+            ? {
+                outMessage: Out.Filtered({
+                  // The column's own variant: `readForm` reads its kind.
+                  change: { column: open.column, filter: reading.filter } as FilterChange<Specs>,
+                }),
+              }
+            : {}),
+        }
+      },
+    })
+
+  const updated = (model: Model, message: Message): Return =>
+    Message.match(message, {
+      // A plain click or key is a single cell again: any range it leaves goes.
+      Focused: ({ address }): Return =>
+        afterEdit(model, settled => ({ model: clearCells(focusTo(settled, address)) })),
+      Moved: ({ address, reveal }): Return => ({
+        model: clearCells(focusTo(model, address)),
+        commands: Option.match(reveal, {
+          onNone: () => [],
+          onSome: offsets => [GridViewport.scrollTo(options.id, offsets)],
+        }),
+      }),
+      HeaderFocused: ({ column, reveal }): Return => {
+        const next = focus.bundle.update(
+          model.focus,
+          focus.Message.HeaderFocused({ column }),
+          undefined,
+        ).model
+        return {
+          model: next === model.focus ? model : modifyFields(model, { focus: () => next }),
           commands: Option.match(reveal, {
             onNone: () => [],
             onSome: offsets => [GridViewport.scrollTo(options.id, offsets)],
           }),
+        }
+      },
+      Measured: (fields): Return => ({
+        model: viewportBy(model, GridViewport.Message.Measured(fields)),
+      }),
+      Revealed: (fields): Return => ({
+        model: viewportBy(model, GridViewport.Message.Revealed(fields)),
+      }),
+      ColumnResized: ({ column, width }): Return => ({
+        model: columnsBy(model, columnState.resize(model.columns, column, width)),
+      }),
+      // What was on a hidden column goes with it: its edit, its header's focus, its menu.
+      ColumnHidden: ({ column }): Return => {
+        const hidden = columnsBy(model, columnState.hide(model.columns, column))
+        if (hidden === model) return { model }
+        const off = (on: Option.Option<string>) => Option.contains(on, column)
+        return {
+          model: modifyFields(hidden, {
+            editing: editing =>
+              off(Option.map(editing, each => each.address.column)) ? Option.none() : editing,
+            focus: current =>
+              off(current.header) ? { ...current, header: Option.none() } : current,
+            menu: menu => (off(Option.map(menu, each => each.column)) ? Option.none() : menu),
+            filtering: filtering =>
+              off(Option.map(filtering, each => each.column)) ? Option.none() : filtering,
+          }),
+        }
+      },
+      ColumnShown: ({ column }): Return => ({
+        model: columnsBy(model, columnState.show(model.columns, column)),
+      }),
+      ColumnMoved: ({ column, region, index }): Return => ({
+        model: columnsBy(model, columnState.move(model.columns, column, region, index)),
+      }),
+      // Each move is measured from where the drag began, so the width is the
+      // pointer's place now, not a sum of every step on the way.
+      ResizeStarted: ({ header }): Return => ({
+        model: Option.match(
+          Option.filter(
+            columnOf(header),
+            column => options.columns.byId[column].resizable !== false,
+          ),
+          {
+            onNone: () => model,
+            onSome: column =>
+              modifyFields(model, {
+                resizing: () =>
+                  Option.some({ column, from: columnState.widthOf(model.columns)(column) }),
+              }),
+          },
+        ),
+      }),
+      ResizeMoved: ({ delta }): Return => ({
+        model: Option.match(model.resizing, {
+          onNone: () => model,
+          onSome: ({ column, from }) =>
+            columnsBy(model, columnState.resize(model.columns, column, from + delta)),
         }),
-        HeaderFocused: ({ column, reveal }): Return => {
-          const next = focus.bundle.update(
-            model.focus,
-            focus.Message.HeaderFocused({ column }),
-            undefined,
-          ).model
-          return {
-            model: next === model.focus ? model : modifyFields(model, { focus: () => next }),
-            commands: Option.match(reveal, {
-              onNone: () => [],
-              onSome: offsets => [GridViewport.scrollTo(options.id, offsets)],
-            }),
-          }
-        },
-        Measured: (fields): Return => ({
-          model: viewportBy(model, GridViewport.Message.Measured(fields)),
-        }),
-        Revealed: (fields): Return => ({
-          model: viewportBy(model, GridViewport.Message.Revealed(fields)),
-        }),
-        ColumnResized: ({ column, width }): Return => ({
-          model: columnsBy(model, columnState.resize(model.columns, column, width)),
-        }),
-        // What was on a hidden column goes with it: its edit, its header's focus, its menu.
-        ColumnHidden: ({ column }): Return => {
-          const hidden = columnsBy(model, columnState.hide(model.columns, column))
-          if (hidden === model) return { model }
-          const off = (on: Option.Option<string>) => Option.contains(on, column)
-          return {
-            model: modifyFields(hidden, {
-              editing: editing =>
-                off(Option.map(editing, each => each.address.column)) ? Option.none() : editing,
-              focus: current =>
-                off(current.header) ? { ...current, header: Option.none() } : current,
-              menu: menu => (off(Option.map(menu, each => each.column)) ? Option.none() : menu),
-            }),
-          }
-        },
-        ColumnShown: ({ column }): Return => ({
-          model: columnsBy(model, columnState.show(model.columns, column)),
-        }),
-        ColumnMoved: ({ column, region, index }): Return => ({
-          model: columnsBy(model, columnState.move(model.columns, column, region, index)),
-        }),
-        // Each move is measured from where the drag began, so the width is the
-        // pointer's place now, not a sum of every step on the way.
-        ResizeStarted: ({ header }): Return => ({
-          model: Option.match(
-            Option.filter(
-              columnOf(header),
-              column => options.columns.byId[column].resizable !== false,
-            ),
-            {
-              onNone: () => model,
-              onSome: column =>
-                modifyFields(model, {
-                  resizing: () =>
-                    Option.some({ column, from: columnState.widthOf(model.columns)(column) }),
+      }),
+      MenuOpened: ({ column }): Return =>
+        model.columns.hidden.includes(column)
+          ? { model }
+          : afterEdit(model, settled => {
+              const focused = focus.bundle.update(
+                settled.focus,
+                focus.Message.HeaderFocused({ column }),
+                undefined,
+              ).model
+              return {
+                model: modifyFields(settled, {
+                  focus: () => focused,
+                  menu: () => Option.some({ column, active: 0 }),
                 }),
-            },
-          ),
-        }),
-        ResizeMoved: ({ delta }): Return => ({
-          model: Option.match(model.resizing, {
-            onNone: () => model,
-            onSome: ({ column, from }) =>
-              columnsBy(model, columnState.resize(model.columns, column, from + delta)),
-          }),
-        }),
-        MenuOpened: ({ column }): Return =>
-          model.columns.hidden.includes(column)
-            ? { model }
-            : afterEdit(model, settled => {
-                const focused = focus.bundle.update(
-                  settled.focus,
-                  focus.Message.HeaderFocused({ column }),
-                  undefined,
-                ).model
-                return {
-                  model: modifyFields(settled, {
-                    focus: () => focused,
-                    menu: () => Option.some({ column, active: 0 }),
-                  }),
-                }
-              }),
-        MenuMoved: ({ active }): Return => ({
-          model: Option.match(model.menu, {
-            onNone: () => model,
-            onSome: menu => {
-              const last = menuItems(model.columns, menu.column).length - 1
-              const clamped = Math.min(Math.max(0, Math.trunc(active)), Math.max(0, last))
-              return clamped === menu.active
-                ? model
-                : modifyFields(model, { menu: () => Option.some({ ...menu, active: clamped }) })
-            },
-          }),
-        }),
-        MenuChosen: ({ index }): Return =>
-          Option.match(model.menu, {
-            onNone: () => ({ model }),
-            onSome: ({ column }) =>
-              Option.match(Option.fromUndefinedOr(menuItems(model.columns, column)[index]), {
-                onNone: () => ({ model: closeMenu(model) }),
-                onSome: item =>
-                  bundle.update(
-                    closeMenu(model),
-                    messageOf(model.columns, column, item),
-                    undefined,
-                  ),
-              }),
-          }),
-        MenuClosed: (): Return => ({ model: closeMenu(model) }),
-        ColumnDragStarted: ({ header }): Return => ({
-          model: Option.match(
-            Option.filter(columnOf(header), column => !model.columns.hidden.includes(column)),
-            {
-              onNone: () => model,
-              onSome: column =>
-                modifyFields(model, { dragging: () => Option.some({ column, delta: 0 }) }),
-            },
-          ),
-        }),
-        ColumnDragged: ({ delta }): Return => ({
-          model: Option.match(model.dragging, {
-            onNone: () => model,
-            onSome: dragging =>
-              dragging.delta === delta
-                ? model
-                : modifyFields(model, { dragging: () => Option.some({ ...dragging, delta }) }),
-          }),
-        }),
-        // The drop is worked out from the columns as they stand now, not as
-        // they stood when the pointer last moved.
-        ColumnDragEnded: ({ completed }): Return => ({
-          model: Option.match(model.dragging, {
-            onNone: () => model,
-            onSome: ({ column, delta }) => {
-              const dropped = completed
-                ? columnsBy(
-                    model,
-                    columnState.move(
-                      model.columns,
-                      column,
-                      columnState.regionOf(model.columns, column),
-                      columnState.dropAt(model.columns, column, delta),
-                    ),
-                  )
-                : model
-              return modifyFields(dropped, { dragging: () => Option.none() })
-            },
-          }),
-        }),
-        RowSelected: ({ row }): Return => ({
-          model:
-            options.rowSelection === undefined
+              }
+            }),
+      MenuMoved: ({ active }): Return => ({
+        model: Option.match(model.menu, {
+          onNone: () => model,
+          onSome: menu => {
+            const last = menuItems(model.columns, menu.column).length - 1
+            const clamped = Math.min(Math.max(0, Math.trunc(active)), Math.max(0, last))
+            return clamped === menu.active
               ? model
-              : selectionBy(model, choose(model.selection, row)),
+              : modifyFields(model, { menu: () => Option.some({ ...menu, active: clamped }) })
+          },
         }),
-        RowsExtended: ({ rows, to }): Return => {
-          if (options.rowSelection !== 'multiple') return { model }
-          const added = GridSelection.add(model.selection.rows, rows)
-          const anchor = Option.orElse(model.selection.anchor, () => Option.some(to))
-          return {
-            model:
-              added === model.selection.rows && Option.isSome(model.selection.anchor)
-                ? model
-                : selectionBy(model, { ...model.selection, rows: added, anchor }),
-          }
-        },
-        AllRowsSelected: (): Return => ({
+      }),
+      MenuChosen: ({ index }): Return =>
+        Option.match(model.menu, {
+          onNone: () => ({ model }),
+          onSome: ({ column }) =>
+            Option.match(Option.fromUndefinedOr(menuItems(model.columns, column)[index]), {
+              onNone: () => ({ model: closeMenu(model) }),
+              onSome: item => updated(closeMenu(model), messageOf(model.columns, column, item)),
+            }),
+        }),
+      MenuClosed: (): Return => ({ model: closeMenu(model) }),
+      ColumnDragStarted: ({ header }): Return => ({
+        model: Option.match(
+          Option.filter(columnOf(header), column => !model.columns.hidden.includes(column)),
+          {
+            onNone: () => model,
+            onSome: column =>
+              modifyFields(model, { dragging: () => Option.some({ column, delta: 0 }) }),
+          },
+        ),
+      }),
+      ColumnDragged: ({ delta }): Return => ({
+        model: Option.match(model.dragging, {
+          onNone: () => model,
+          onSome: dragging =>
+            dragging.delta === delta
+              ? model
+              : modifyFields(model, { dragging: () => Option.some({ ...dragging, delta }) }),
+        }),
+      }),
+      // The drop is worked out from the columns as they stand now, not as
+      // they stood when the pointer last moved.
+      ColumnDragEnded: ({ completed }): Return => ({
+        model: Option.match(model.dragging, {
+          onNone: () => model,
+          onSome: ({ column, delta }) => {
+            const dropped = completed
+              ? columnsBy(
+                  model,
+                  columnState.move(
+                    model.columns,
+                    column,
+                    columnState.regionOf(model.columns, column),
+                    columnState.dropAt(model.columns, column, delta),
+                  ),
+                )
+              : model
+            return modifyFields(dropped, { dragging: () => Option.none() })
+          },
+        }),
+      }),
+      RowSelected: ({ row }): Return => ({
+        model:
+          options.rowSelection === undefined
+            ? model
+            : selectionBy(model, choose(model.selection, row)),
+      }),
+      RowsExtended: ({ rows, to }): Return => {
+        if (options.rowSelection !== 'multiple') return { model }
+        const added = GridSelection.add(model.selection.rows, rows)
+        const anchor = Option.orElse(model.selection.anchor, () => Option.some(to))
+        return {
           model:
-            options.rowSelection !== 'multiple'
+            added === model.selection.rows && Option.isSome(model.selection.anchor)
+              ? model
+              : selectionBy(model, { ...model.selection, rows: added, anchor }),
+        }
+      },
+      AllRowsSelected: (): Return => ({
+        model:
+          options.rowSelection !== 'multiple'
+            ? model
+            : selectionBy(model, {
+                ...model.selection,
+                rows: RowSelection.AllExcept({ except: [] }),
+              }),
+      }),
+      RowsCleared: (): Return => {
+        const empty = RowSelection.match(model.selection.rows, {
+          Keys: ({ keys }) => keys.length === 0,
+          AllExcept: () => false,
+        })
+        return {
+          model:
+            empty && Option.isNone(model.selection.anchor)
               ? model
               : selectionBy(model, {
                   ...model.selection,
-                  rows: RowSelection.AllExcept({ except: [] }),
+                  rows: GridSelection.none,
+                  anchor: Option.none(),
                 }),
-        }),
-        RowsCleared: (): Return => {
-          const empty = RowSelection.match(model.selection.rows, {
-            Keys: ({ keys }) => keys.length === 0,
-            AllExcept: () => false,
-          })
-          return {
-            model:
-              empty && Option.isNone(model.selection.anchor)
-                ? model
-                : selectionBy(model, {
-                    ...model.selection,
-                    rows: GridSelection.none,
-                    anchor: Option.none(),
-                  }),
-          }
-        },
-        CellsSelected: ({ anchor, focus: far, reveal }): Return =>
-          options.cellSelection === true
-            ? {
-                model: selectionBy(model, {
-                  ...model.selection,
-                  cells: Option.some({ anchor, focus: far }),
-                }),
-                commands: Option.match(reveal, {
-                  onNone: () => [],
-                  onSome: offsets => [GridViewport.scrollTo(options.id, offsets)],
-                }),
-              }
-            : { model },
-        CellPressed: ({ cell, shiftKey, toggleKey }): Return =>
-          Option.match(addressOf(cell), {
-            onNone: () => ({ model }),
-            onSome: address =>
-              Option.exists(model.editing, editing => sameCell(editing.address, address))
-                ? { model }
-                : afterEdit(model, settled => pressed(settled, address, shiftKey, toggleKey)),
-          }),
-        EditStarted: ({ address, draft }): Return =>
-          options.columns.byId[address.column].edit === undefined
-            ? { model }
-            : {
-                model: modifyFields(clearCells(focusTo(model, address)), {
-                  editing: () => Option.some({ address, from: draft, draft, error: Option.none() }),
-                }),
-              },
-        EditTyped: ({ address, text, from }): Return => {
-          if (options.columns.byId[address.column].edit === undefined) return { model }
-          const open = Option.filter(model.editing, editing => sameCell(editing.address, address))
-          // On a choice a key finds an option; elsewhere it is typed.
-          const typed = (draft: string) =>
-            Option.match(optionsOf(address.column), {
-              onNone: () => draft + text,
-              onSome: choices => typedOption(choices, draft, text),
-            })
-          const editing = Option.match(open, {
-            onNone: () => ({
-              address,
-              from,
-              draft: Option.isSome(optionsOf(address.column)) ? typed(from) : text,
-              error: Option.none(),
-            }),
-            onSome: edit => ({ ...edit, draft: typed(edit.draft), error: Option.none() }),
-          })
-          return {
-            model: modifyFields(clearCells(focusTo(model, address)), {
-              editing: () => Option.some(editing),
-            }),
-          }
-        },
-        EditChanged: ({ draft }): Return => ({
-          model: Option.match(model.editing, {
-            onNone: () => model,
-            onSome: editing =>
-              editing.draft === draft && Option.isNone(editing.error)
-                ? model
-                : modifyFields(model, {
-                    editing: () => Option.some({ ...editing, draft, error: Option.none() }),
-                  }),
-          }),
-        }),
-        EditStepped: ({ by }): Return =>
-          Option.match(model.editing, {
-            onNone: () => ({ model }),
-            onSome: editing =>
-              Option.match(optionsOf(editing.address.column), {
-                onNone: () => ({ model }),
-                onSome: choices => {
-                  const draft =
-                    choices[steppedIndex(by, choices.indexOf(editing.draft), choices.length)]
-                  return draft === undefined || draft === editing.draft
-                    ? { model }
-                    : {
-                        model: modifyFields(model, {
-                          editing: () => Option.some({ ...editing, draft, error: Option.none() }),
-                        }),
-                      }
-                },
+        }
+      },
+      CellsSelected: ({ anchor, focus: far, reveal }): Return =>
+        options.cellSelection === true
+          ? {
+              model: selectionBy(model, {
+                ...model.selection,
+                cells: Option.some({ anchor, focus: far }),
               }),
-          }),
-        EditChosen: ({ draft }): Return =>
-          Option.match(model.editing, {
-            onNone: () => ({ model }),
-            onSome: editing =>
-              committed(
-                modifyFields(model, { editing: () => Option.some({ ...editing, draft }) }),
-                Option.none(),
-                Option.none(),
-              ),
-          }),
-        EditCommitted: ({ next, reveal }): Return => committed(model, next, reveal),
-        // An edit in progress has the keyboard and the clipboard: a paste then is the field's.
-        Pasted: ({ cells }): Return => {
-          if (Option.isSome(model.editing) || cells.length === 0) return { model }
-          const { accepted, refused } = judged(cells)
-          return accepted.length === 0 && refused.length === 0
-            ? { model }
-            : { model, outMessage: Out.Pasted({ accepted, refused }) }
-        },
-        FillRequested: (request): Return =>
-          Option.isSome(model.editing)
-            ? { model }
-            : { model, outMessage: Out.Filled({ source: request.source, to: request.to }) },
-        FillStarted: (): Return => {
-          if (Option.isSome(model.editing)) return { model }
-          // The range, or the focused cell as a range of one.
-          const source = Option.orElse(model.selection.cells, () =>
-            Option.map(model.focus.current, address => ({ anchor: address, focus: address })),
-          )
-          return {
-            model: Option.match(source, {
-              onNone: () => model,
-              onSome: range =>
-                modifyFields(model, {
-                  filling: () => Option.some({ source: range, to: range.focus }),
+              commands: Option.match(reveal, {
+                onNone: () => [],
+                onSome: offsets => [GridViewport.scrollTo(options.id, offsets)],
+              }),
+            }
+          : { model },
+      CellPressed: ({ cell, shiftKey, toggleKey }): Return =>
+        Option.match(addressOf(cell), {
+          onNone: () => ({ model }),
+          onSome: address =>
+            Option.exists(model.editing, editing => sameCell(editing.address, address))
+              ? { model }
+              : afterEdit(model, settled => pressed(settled, address, shiftKey, toggleKey)),
+        }),
+      // An open edit keeps the keyboard, and a refused draft the pointer too:
+      // the browser commits it as focus leaves its field, before a press lands.
+      EditToggled: ({ cell, checked, by }): Return =>
+        Option.match(
+          Option.flatMap(
+            Option.filter(
+              addressOf(cell),
+              () =>
+                Option.isNone(model.editing) &&
+                Toggle.match(by, {
+                  Press: () => true,
+                  Key: ({ drawn }) => sameFocus(drawn, model.focus.current),
                 }),
-            }),
-          }
-        },
-        FillDragged: ({ cell }): Return => ({
-          model: Option.match(
-            Option.zipWith(model.filling, addressOf(cell), (filling, to) => ({ filling, to })),
-            {
-              onNone: () => model,
-              onSome: ({ filling, to }) =>
-                sameCell(filling.to, to)
-                  ? model
-                  : modifyFields(model, { filling: () => Option.some({ ...filling, to }) }),
-            },
+            ),
+            address =>
+              Option.flatMap(Option.fromUndefinedOr(toggles.get(address.column)), toggle =>
+                Option.map(toggle(!checked), text => ({ address, text })),
+              ),
           ),
-        }),
-        // Where the fill lands is worked out by `fill` from the rows as they
-        // are when it arrives, not from the frame the pointer was let go over.
-        FillEnded: ({ completed }): Return =>
-          Option.match(model.filling, {
+          {
             onNone: () => ({ model }),
-            onSome: ({ source, to }) => {
-              const ended = modifyFields(model, { filling: () => Option.none() })
-              return completed
-                ? { model: ended, outMessage: Out.Filled({ source, to }) }
-                : { model: ended }
+            onSome: ({ address, text }) => ({
+              model: clearCells(focusTo(model, address)),
+              outMessage: Out.Edited({ row: address.row, column: address.column, text }),
+            }),
+          },
+        ),
+      EditStarted: ({ address, draft }): Return =>
+        !drafts(address.column)
+          ? { model }
+          : {
+              model: modifyFields(clearCells(focusTo(model, address)), {
+                editing: () => Option.some({ address, from: draft, draft, error: Option.none() }),
+              }),
             },
+      EditTyped: ({ address, text, from }): Return => {
+        if (!drafts(address.column)) return { model }
+        const open = Option.filter(model.editing, editing => sameCell(editing.address, address))
+        // On a choice a key finds an option; elsewhere it is typed.
+        const typed = (draft: string) =>
+          Option.match(optionsOf(address.column), {
+            onNone: () => draft + text,
+            onSome: choices => typedOption(choices, draft, text),
+          })
+        const editing = Option.match(open, {
+          onNone: () => ({
+            address,
+            from,
+            draft: Option.isSome(optionsOf(address.column)) ? typed(from) : text,
+            error: Option.none(),
           }),
-        UndoRequested: (): Return =>
-          Option.isSome(model.editing) ? { model } : { model, outMessage: Out.UndoRequested() },
-        RedoRequested: (): Return =>
-          Option.isSome(model.editing) ? { model } : { model, outMessage: Out.RedoRequested() },
-        EditCancelled: (): Return => ({
-          model: Option.isNone(model.editing)
-            ? model
-            : modifyFields(model, { editing: () => Option.none() }),
-        }),
-
-        CellsCleared: (): Return => ({ model: clearCells(model) }),
-        MountStarted: (): Return => ({ model }),
-        ResizeEnded: ({ completed }): Return => ({
-          model: Option.match(model.resizing, {
-            onNone: () => model,
-            onSome: ({ column, from }) => {
-              const settled = completed
-                ? model
-                : columnsBy(model, columnState.resize(model.columns, column, from))
-              return modifyFields(settled, { resizing: () => Option.none() })
-            },
+          onSome: edit => ({ ...edit, draft: typed(edit.draft), error: Option.none() }),
+        })
+        return {
+          model: modifyFields(clearCells(focusTo(model, address)), {
+            editing: () => Option.some(editing),
           }),
+        }
+      },
+      EditChanged: ({ draft }): Return => ({
+        model: Option.match(model.editing, {
+          onNone: () => model,
+          onSome: editing =>
+            editing.draft === draft && Option.isNone(editing.error)
+              ? model
+              : modifyFields(model, {
+                  editing: () => Option.some({ ...editing, draft, error: Option.none() }),
+                }),
         }),
       }),
-  })
+      EditStepped: ({ by }): Return =>
+        Option.match(model.editing, {
+          onNone: () => ({ model }),
+          onSome: editing =>
+            Option.match(optionsOf(editing.address.column), {
+              onNone: () => ({ model }),
+              onSome: choices => {
+                const draft =
+                  choices[steppedIndex(by, choices.indexOf(editing.draft), choices.length)]
+                return draft === undefined || draft === editing.draft
+                  ? { model }
+                  : {
+                      model: modifyFields(model, {
+                        editing: () => Option.some({ ...editing, draft, error: Option.none() }),
+                      }),
+                    }
+              },
+            }),
+        }),
+      EditChosen: ({ draft }): Return =>
+        Option.match(model.editing, {
+          onNone: () => ({ model }),
+          onSome: editing =>
+            committed(
+              modifyFields(model, { editing: () => Option.some({ ...editing, draft }) }),
+              Option.none(),
+              Option.none(),
+            ),
+        }),
+      EditCommitted: ({ next, reveal }): Return => committed(model, next, reveal),
+      // An edit in progress has the keyboard and the clipboard: a paste then is the field's.
+      Pasted: ({ cells }): Return => {
+        if (Option.isSome(model.editing) || cells.length === 0) return { model }
+        const { accepted, refused } = judged(cells)
+        return accepted.length === 0 && refused.length === 0
+          ? { model }
+          : { model, outMessage: Out.Pasted({ accepted, refused }) }
+      },
+      FillRequested: (request): Return =>
+        Option.isSome(model.editing)
+          ? { model }
+          : { model, outMessage: Out.Filled({ source: request.source, to: request.to }) },
+      FillStarted: (): Return => {
+        if (Option.isSome(model.editing)) return { model }
+        // The range, or the focused cell as a range of one.
+        const source = Option.orElse(model.selection.cells, () =>
+          Option.map(model.focus.current, address => ({ anchor: address, focus: address })),
+        )
+        return {
+          model: Option.match(source, {
+            onNone: () => model,
+            onSome: range =>
+              modifyFields(model, {
+                filling: () => Option.some({ source: range, to: range.focus }),
+              }),
+          }),
+        }
+      },
+      FillDragged: ({ cell }): Return => ({
+        model: Option.match(
+          Option.zipWith(model.filling, addressOf(cell), (filling, to) => ({ filling, to })),
+          {
+            onNone: () => model,
+            onSome: ({ filling, to }) =>
+              sameCell(filling.to, to)
+                ? model
+                : modifyFields(model, { filling: () => Option.some({ ...filling, to }) }),
+          },
+        ),
+      }),
+      // Where the fill lands is worked out by `fill` from the rows as they
+      // are when it arrives, not from the frame the pointer was let go over.
+      FillEnded: ({ completed }): Return =>
+        Option.match(model.filling, {
+          onNone: () => ({ model }),
+          onSome: ({ source, to }) => {
+            const ended = modifyFields(model, { filling: () => Option.none() })
+            return completed
+              ? { model: ended, outMessage: Out.Filled({ source, to }) }
+              : { model: ended }
+          },
+        }),
+      UndoRequested: (): Return =>
+        Option.isSome(model.editing) ? { model } : { model, outMessage: Out.UndoRequested() },
+      RedoRequested: (): Return =>
+        Option.isSome(model.editing) ? { model } : { model, outMessage: Out.RedoRequested() },
+      EditCancelled: (): Return => ({
+        model: Option.isNone(model.editing)
+          ? model
+          : modifyFields(model, { editing: () => Option.none() }),
+      }),
+
+      CellsCleared: (): Return => ({ model: clearCells(model) }),
+      MountStarted: (): Return => ({ model }),
+      FilterOpened: ({ column, drawn }): Return => {
+        const kind = filterKinds.get(column)
+        const accepted = Option.match(drawn, {
+          onNone: () => true,
+          onSome: filter => Schema.is(filterSchemas.get(column)!)(filter),
+        })
+        if (kind === undefined || model.columns.hidden.includes(column) || !accepted) {
+          return { model }
+        }
+        return afterEdit(model, settled => ({
+          model: modifyFields(settled, {
+            focus: current =>
+              focus.bundle.update(current, focus.Message.HeaderFocused({ column }), undefined)
+                .model,
+            menu: () => Option.none(),
+            filtering: () =>
+              Option.some({ column, form: formOf(drawn), reported: drawn, generation: 0 }),
+          }),
+        }))
+      },
+      FilterTyped: ({ field, text, stale }): Return =>
+        filterEdited(model, stale, (form, kind) => {
+          const owns = CellEditor.match(kind, {
+            Text: () => field === 'text',
+            Number: () => field === 'min' || field === 'max',
+            Date: () => field === 'from' || field === 'to',
+            Choice: () => false,
+            Checkbox: () => false,
+          })
+          return owns ? Option.some({ ...form, [field]: text }) : Option.none()
+        }),
+      FilterOptionToggled: ({ option, stale }): Return =>
+        filterEdited(model, stale, (form, kind) =>
+          // An option the column does not offer is not among `offered`, so it changes nothing.
+          Option.flatMap(
+            Option.liftPredicate(kind, CellEditor.guards.Choice),
+            ({ options: offered }) => {
+              const ticked = new Set(form.options)
+              const on = !ticked.has(option)
+              // In the column's own order, so equal choices read as equal filters.
+              return Option.some({
+                ...form,
+                options: offered.filter(each => (each === option ? on : ticked.has(each))),
+              })
+            },
+          ),
+        ),
+      FilterChecked: ({ state, stale }): Return =>
+        filterEdited(model, stale, (form, kind) =>
+          CellEditor.guards.Checkbox(kind)
+            ? Option.some({ ...form, checked: state })
+            : Option.none(),
+        ),
+      FilterCleared: ({ stale }): Return =>
+        filterEdited(model, stale, () => Option.some(emptyForm)),
+      FilterClosed: (): Return => ({
+        model: Option.isNone(model.filtering)
+          ? model
+          : modifyFields(model, { filtering: () => Option.none() }),
+      }),
+      ResizeEnded: ({ completed }): Return => ({
+        model: Option.match(model.resizing, {
+          onNone: () => model,
+          onSome: ({ column, from }) => {
+            const settled = completed
+              ? model
+              : columnsBy(model, columnState.resize(model.columns, column, from))
+            return modifyFields(settled, { resizing: () => Option.none() })
+          },
+        }),
+      }),
+    })
 
   // One projection per rows model and column state, so the view and the
   // application's own reads of the same render share it.
@@ -1130,12 +1454,57 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
       ...(input.overscan === undefined ? {} : { overscan: input.overscan }),
     })
 
+  /** A column's filter kind; none for a column that does not filter. */
+  const filterFor = (column: Id): Option.Option<CellEditor> =>
+    Option.fromUndefinedOr(filterKinds.get(column))
+  /** Every filtering column none: the application's starting value. */
+  const noFilters = Object.fromEntries(
+    filterIds.map(id => [id, Option.none()]),
+  ) as unknown as Filters<Specs>
+  /** `filters` with one `Out.Filtered`'s change written in. */
+  const setFilter = (filters: Filters<Specs>, change: FilterChange<Specs>): Filters<Specs> => ({
+    ...filters,
+    [change.column]: change.filter,
+  })
+  /**
+   * A predicate over held rows: a row is kept when every given filter keeps
+   * the value `read` names for its column, the application's own field
+   * (typed by the column's filter), never the text a cell shows. Build it
+   * once per `filters`.
+   */
+  const keeps = (
+    filters: Filters<Specs>,
+    read: {
+      readonly [K in FilterId]: (row: Row) => FilterValue<FilterOf<Specs[K]>>
+    },
+  ): ((row: Row) => boolean) => {
+    const given: Record<string, Option.Option<ColumnFilter>> = filters
+    const reads: Record<string, (row: Row) => unknown> = read
+    const tests = filterIds.flatMap(id =>
+      Option.match(given[id]!, {
+        onNone: () => [],
+        onSome: filter => {
+          const test = testOf(filter)
+          const at = reads[id]!
+          return [(row: Row) => test(at(row))]
+        },
+      }),
+    )
+    return row => tests.every(test => test(row))
+  }
+
   return {
     id: options.id,
+    filterFor,
+    Filters,
+    noFilters,
+    setFilter,
+    keeps,
     matchEdit,
     editorFor,
     MenuItem,
     menuItems,
+    Toggle,
     columns: options.columns,
     rowSelection: options.rowSelection,
     cellSelection: options.cellSelection === true,
@@ -1146,7 +1515,8 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     fill,
     extendRows,
     draftOf,
-    Out,
+    // The union a placement reports: the full one only when a column filters.
+    Out: (filterIds.length === 0 ? Unfiltered : Out) as unknown as PublicOut,
     Model,
     Message,
     bundle,

@@ -8,9 +8,11 @@
  * the current Form API can take it.
  */
 import { Effect, Option, Schema, Stream } from 'effect'
+import * as Command from 'foldkit/command'
 import * as ManagedResource from 'foldkit/managedResource'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
+import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
 
 export const Model = Schema.Struct({
@@ -31,6 +33,13 @@ export const Message = defineMessageUnion({
 })
 export type Message = typeof Message.Type
 
+/** Looks the chosen colour up in the palette; a stand-in that answers at once. */
+const LookUpPalette = Command.define('LookUpPalette', {
+  args: { hex: Schema.String },
+  messages: [Message.Resolved],
+  execute: ({ hex }) => Effect.succeed(Message.Resolved({ hex })),
+})
+
 /** The resource one open picker holds. */
 export const Palette = ManagedResource.tag<string>()('color-palette')
 
@@ -39,30 +48,19 @@ export const ColorPicker = Bundle.make({
   Model,
   Message,
   init: () => ({ model: { open: false, hex: '#000000', recent: [] } }),
-  update: (model, message) => {
-    switch (message._tag) {
-      case 'Opened':
-        return { model: { ...model, open: true } }
-      case 'Closed':
-        return { model: { ...model, open: false } }
-      case 'Chose':
-        return {
-          model: { ...model, open: true, hex: message.hex },
-          commands: [
-            {
-              name: 'palette.lookup',
-              effect: Effect.succeed(Message.Resolved({ hex: message.hex })),
-            },
-          ],
-        }
-      case 'Resolved':
-        return {
-          model: { ...model, hex: message.hex, recent: [message.hex, ...model.recent].slice(0, 5) },
-        }
-      case 'Failed':
-        return { model: { ...model, open: false } }
-    }
-  },
+  update: (model, message): Update.Return<Model, Message> =>
+    Message.match(message, {
+      Opened: () => ({ model: { ...model, open: true } }),
+      Closed: () => ({ model: { ...model, open: false } }),
+      Chose: ({ hex }) => ({
+        model: { ...model, open: true, hex },
+        commands: [LookUpPalette({ hex })],
+      }),
+      Resolved: ({ hex }) => ({
+        model: { ...model, hex, recent: [hex, ...model.recent].slice(0, 5) },
+      }),
+      Failed: () => ({ model: { ...model, open: false } }),
+    }),
   subscriptions: () =>
     Subscription.make<Model, Message>()(entry => ({
       /** While the popover is open, the picker listens for its own keys. */

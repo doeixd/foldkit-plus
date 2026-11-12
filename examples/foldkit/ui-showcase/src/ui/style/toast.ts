@@ -4,10 +4,10 @@ import { forSlots, t } from '../../style.js'
 import { container, demoSlots, demoStyles, icon, triggerLook } from './shared.js'
 
 /**
- * `foldkit-mixins-ui` has no Toast adapter, and `@foldkit/ui` draws each
- * entry's wrapper itself, taking only a class name for it. The entry's own
- * content takes the page's Slots; the wrapper's swipe transitions are styled
- * from the page, by the `data-swipe` phase the component writes.
+ * The port keeps upstream's view on purpose (see the README), so `@foldkit/ui`
+ * draws each entry's wrapper itself, taking only a class name for it. The
+ * entry's own content takes the page's Slots; the wrapper's swipe transitions
+ * are styled from the page, by the `data-swipe` phase the component writes.
  */
 export const ToastPageSlots = Slots.define({
   ...demoSlots,
@@ -87,7 +87,7 @@ export const ToastPageStyle = forSlots(ToastPageSlots)(
       Style.self({
         position: 'absolute',
         top: t.space.xs,
-        right: t.space.xs,
+        insetInlineEnd: t.space.xs,
         display: 'flex',
         padding: '0.25rem',
         border: '0',

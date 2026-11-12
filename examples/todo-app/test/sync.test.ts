@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Effect, Option } from 'effect'
-import { Sync } from 'foldkit-sync'
+import { Sync, SyncRefusal } from 'foldkit-sync'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Message } from '../src/app.js'
 import { openJournal } from '../src/journal.js'
@@ -126,9 +126,19 @@ describe('the sync server', () => {
       await sync(`${server.url}/?token=guest`, replica)
 
       const status = await Effect.runPromise(replica.status)
-      expect(status.rejected.map(({ opId, reason }) => ({ opId, reason }))).toEqual([
-        { opId: 'guest:2', reason: Option.some('Only the list’s owner can rename it') },
-        { opId: 'guest:3', reason: Option.some('That todo is already gone') },
+      expect(status.rejected.map(({ opId, refusal }) => ({ opId, refusal }))).toEqual([
+        {
+          opId: 'guest:2',
+          refusal: Option.some(
+            SyncRefusal.Forbidden({ reason: Option.some('Only the list’s owner can rename it') }),
+          ),
+        },
+        {
+          opId: 'guest:3',
+          refusal: Option.some(
+            SyncRefusal.Forbidden({ reason: Option.some('That todo is already gone') }),
+          ),
+        },
       ])
       expect(Effect.runSync(replica.shared)).toEqual({
         listTitle: 'Todos',

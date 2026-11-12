@@ -1,6 +1,8 @@
 import { foldkit } from '@foldkit/vite-plugin'
 import { foundations } from 'foldkit-mixins/foundations'
 import { defineConfig, type UserConfig } from 'vite'
+// From source, by path: a config runs in Node, past the source condition.
+import { runtimeChunk } from '../../packages/ssr/src/runtimeChunk.js'
 
 /** Where `pnpm dev` serves the page: the origin Yielded trusts a sign-in from. */
 export const DEV_ORIGIN = 'http://127.0.0.1:5176'
@@ -38,6 +40,8 @@ export const configFor = (options: {
     // The theme's foundations in the served page, so its first paint is already styled.
     foundations({ module: '/src/style.ts' }),
     foldkit({ ssr: { serverEntry: '/src/entry.server.ts', origin: options.origin } }),
+    // A build fetches the runtime's chunk as the loader starts, without running it.
+    runtimeChunk({ entry: '/src/client.ts' }),
   ],
 })
 

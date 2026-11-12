@@ -1237,6 +1237,12 @@ only over `Remote.rpcProtocolHttp(url)` in place of
 and loses its status: a durable write would then read as unreachable and be
 sent again for good.
 
+Decide who is asking from the HTTP request, in front of the route, never
+from the `headers` an `RpcMiddleware` or a handler is given. `RpcServer`
+puts the HTTP request's headers before those the request body carries and
+keeps the last of each name, so a body can claim another `cookie`, `origin`
+or CSRF header; over a WebSocket, every frame can.
+
 ## Over fetch (Workers)
 
 `serveFetch` from `foldkit-remote-server/fetch` is that route as a value: a
@@ -1395,8 +1401,11 @@ export default {
 
 The resolver is the page's own: a page `GET` is a navigation, which carries
 no header a script adds, so a resolver that asks for one (Yielded's CSRF
-header) refuses it. With `foldkit-auth`, give
-`AuthServer.resolver({ …, requests: 'navigation' })`. When the reader is
+header) refuses it. With `foldkit-auth`, give `AuthServer.host`'s
+`navigation`. `pageReader` hands its resolver a `NavigationRequest` and
+`serveFetch` a `ScriptedRequest` (types from `foldkit-remote`, nothing at run
+time): a resolver typed for one does not fit the other, while one taking any
+`Request`, as here, fits both. When the reader is
 provided, the principal is resolved and `layer` built, and `layer` closes
 when that Effect ends, so provide it to the pre-read itself
 (`Data.satisfy(…).pipe(Effect.provide(reader))`). A refusal fails it with

@@ -20,4 +20,5 @@ export type {
   CapabilitiesByTag,
 } from './expose.js'
 export type { DefinitionOf } from './make.js'
-export type { AnyCompletion } from './types.js'
+// Top-level so a declaration can write a contract's outcome; the namespace is no path to them.
+export type { AnyCompletion, MessageOutcome, StateOutcome } from './types.js'

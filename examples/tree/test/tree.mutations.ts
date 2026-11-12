@@ -11,20 +11,19 @@ export default [
     edits: [
       {
         file: '../src/app.ts',
-        find: 'Selection.Message.Activated({ id: current })',
-        replace: 'Selection.Message.Cleared()',
+        find: 'SelPlaced.helpers.activate(current)(model)',
+        replace: 'SelPlaced.helpers.clear()(model)',
       },
     ],
     tests,
   },
   {
-    name: 'expanders open what is open',
+    name: 'an expander toggles nothing',
     edits: [
       {
-        file: '../src/view.ts',
-        find: 'TreeNavigation.isOpen(model.nav, navArgs, id)\n      ? TreeNavigation.Message.Closed({ id })',
-        replace:
-          'TreeNavigation.isOpen(model.nav, navArgs, id)\n      ? TreeNavigation.Message.Opened({ id })',
+        file: '../src/app.ts',
+        find: 'ToggledRow: ({ id }) => NavPlaced.helpers.toggle(id)(model),',
+        replace: 'ToggledRow: () => ({ model }),',
       },
     ],
     tests,

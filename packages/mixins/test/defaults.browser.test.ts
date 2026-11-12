@@ -3,6 +3,7 @@
  * native controls in the accent, a rule and a key drawn as lines.
  */
 import { afterEach, expect, test } from 'vitest'
+import { userEvent } from 'vitest/browser'
 import { Layers, Style } from '../src/index.js'
 import { Defaults } from '../src/defaults.js'
 import { Theme } from '../src/theme.js'
@@ -51,4 +52,20 @@ test('a rule is one line, and a key a raised one', () => {
   ])
   const key = getComputedStyle(add('<kbd>K</kbd>'))
   expect([key.borderTopWidth, key.borderBottomWidth]).toEqual(['1px', '2px'])
+})
+
+test('a button that reads aria-disabled is dimmed and does not light under the pointer', async () => {
+  install()
+  const live = add('<button type="button">Live</button>') as HTMLElement
+  const held = add('<button type="button" aria-disabled="true">Held</button>') as HTMLElement
+  const restLive = getComputedStyle(live).backgroundColor
+  const restHeld = getComputedStyle(held).backgroundColor
+  expect(getComputedStyle(held).opacity).toBe('0.5')
+  expect(getComputedStyle(live).opacity).toBe('1')
+
+  // The live button shows the hover fill, so the held one staying put means something.
+  await userEvent.hover(live)
+  expect(getComputedStyle(live).backgroundColor).not.toBe(restLive)
+  await userEvent.hover(held)
+  expect(getComputedStyle(held).backgroundColor).toBe(restHeld)
 })

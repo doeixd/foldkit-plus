@@ -2,7 +2,8 @@
 
 A todo list: add, tick off, edit (click the text), delete, filter by All,
 Active or Completed, mark all, and clear the completed ones. The list survives
-a reload through localStorage, and the page title counts the active todos. It
+a reload through localStorage, the filter lives in the URL (`?filter=Active`),
+and the page title counts the active todos. It
 ports Foldkit's
 [todo example](https://github.com/foldkit/foldkit/tree/main/examples/todo) to
 Foldkit Plus.
@@ -27,6 +28,24 @@ JSON, another version, a malformed todo) loads as an empty list, as upstream's
 did. Writing is last-write-wins with no log: two tabs do not merge their
 lists, as upstream's did not.
 
+## Who owns the filter
+
+The Model owns the filter too; the URL only shows it. The list is this
+device's and the filter belongs to the link, so each has its own mirror and
+neither holds the other's field:
+
+```text
+SelectedFilter -> update -> Model.filter -> FilterMirror subscription -> ?filter=Active (a history entry)
+URL -> Mirror.routing (init, and every ChangedUrl) -> Model.filter
+```
+
+`init` bootstraps only the stored list (`Mirror.bootstrap`), and
+`Mirror.routing` reads the starting URL into the Model it returns, so a
+shared link opens on its filter over the reader's own list, in the first
+frame. Each filter chosen is a history entry, so Back returns to the last
+one. The mirror's own write comes back as a `ChangedUrl`; `Mirror.routing`
+reads it as an echo, and `update` returns the Model it was given.
+
 ## Run it
 
 ```bash
@@ -42,6 +61,7 @@ tests and `npx tsc -b examples/foldkit/todo` type-checks them.
 | --- | --- | --- |
 | The todos, the new-todo text, the filter, the edit in progress | the Model, changed only by `update` | `src/main.ts` |
 | Remembering the list across reloads | `foldkit-mirror` (`Mirror.kv` over `App.model.todos`) | `src/main.ts`, `// MIRROR`, `// SUBSCRIPTION`, `// FLAG` |
+| Showing the filter in the URL, and reading it back | `foldkit-mirror` (`Mirror.url` over `App.model.filter`, wired by `Mirror.routing`) | `src/main.ts`, `// MIRROR`, `// ROUTING` |
 | The field reference the mirror is declared over | `foldkit-surface` (`Surface.application`) | `src/main.ts`, `// MIRROR` |
 | A new todo's id and timestamp | the `GenerateTodo` Command, as upstream | `src/main.ts`, `// COMMAND` |
 | The accessible input, checkbox and buttons | `@foldkit/ui` Input, Checkbox, Button | `src/main.ts` |
@@ -75,6 +95,8 @@ tests and `npx tsc -b examples/foldkit/todo` type-checks them.
   removed; an empty list removes the key rather than storing `[]`.
 - The delete button also shows when it has keyboard focus; upstream's stays
   invisible while focused.
+- The filter is in the URL; upstream keeps it in the Model alone, so a reload
+  shows All.
 - Styling is `foldkit-mixins` instead of Tailwind; the checkbox's tick is the
   recipe's drawn check rather than a `✓` character.
 
@@ -89,6 +111,10 @@ tests and `npx tsc -b examples/foldkit/todo` type-checks them.
   accent, the struck-through completed todo, and every token in the stylesheet.
 - `test/mirror.test.ts`: a written list loads back into the first Model, and
   nothing stored or an unreadable document loads as no todos.
+- `test/routing.test.ts`: `init` takes the list from the store and the filter
+  from the URL, an unknown filter reads as All, back or forward reads the
+  filter, and a URL that leaves it as read keeps the Model's identity.
 - `test/runtime.test.ts` runs the real runtime in jsdom: a todo added before a
-  reload is there after it, written at once, and a store that refuses every
-  write leaves the page working.
+  reload is there after it, written at once, a store that refuses every
+  write leaves the page working, a link's filter opens over the stored list,
+  and a chosen filter is a history entry that Back undoes.

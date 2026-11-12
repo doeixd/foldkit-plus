@@ -8,6 +8,7 @@ import { Site as Sites } from 'foldkit-site'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { SlotView, Style } from 'foldkit-mixins'
 import { Empty, Failure, Loading } from 'foldkit-mixins-crud'
+import { RemoteData } from 'foldkit-remote'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import {
   BLOG_LEDE,
@@ -33,41 +34,46 @@ type Slots = SlotView.SlotBuilders<typeof SiteSlots, Message>
 const siteLink = (reader: Chair, path: string) =>
   reader === 'visitor' ? path : `${path}?as=${reader}`
 
-/** A read with nothing to show: loading, failed, or, once read, missing, with a way home. */
+const loadingView = (slots: Slots, h: HtmlBuilder<Message>): Html =>
+  Loading.view(slots.status, h, 'Loading…')
+
+const failedView = (slots: Slots, h: HtmlBuilder<Message>): Html =>
+  Failure.view(slots.status, h, 'This could not be read.')
+
+/** A route's read with nothing to show: loading, failed, or, once read, missing, with a way home. */
 const nothing = (
   model: Model,
   slots: Slots,
   h: HtmlBuilder<Message>,
-  tag: string,
+  read: Option.Option<{ readonly read: (model: Model) => RemoteData<unknown> }>,
   missing: string,
   /** Where back goes: a post is missed from the blog, a page from the home page. */
   back: { readonly path: '/site' | '/site/blog'; readonly label: string },
-): Html =>
-  tag === 'Ready' || tag === 'NotFound'
-    ? h.p(slots.status.attrs(), [
-        missing,
-        ' ',
-        h.a([h.Href(siteLink(model.reader, back.path))], [back.label]),
-      ])
-    : pending(slots, h, tag)
-
-/** What a read says before it has an answer: failed, or busy while it waits. */
-const pending = (slots: Slots, h: HtmlBuilder<Message>, tag: string): Html =>
-  tag === 'Failed'
-    ? Failure.view(slots.status, h, 'This could not be read.')
-    : Loading.view(slots.status, h, 'Loading…')
-
-/** A route's read as its tag: each view runs on its own route, where its read is. */
-const tagOf = <A extends { readonly _tag: string }>(
-  read: Option.Option<{ readonly read: (model: Model) => A }>,
-  model: Model,
-): string =>
-  Option.match(read, { onNone: () => 'Initial', onSome: shown => shown.read(model)._tag })
+): Html => {
+  const miss = () =>
+    h.p(slots.status.attrs(), [
+      missing,
+      ' ',
+      h.a([h.Href(siteLink(model.reader, back.path))], [back.label]),
+    ])
+  return Option.match(read, {
+    onNone: () => loadingView(slots, h),
+    onSome: shown =>
+      RemoteData.match(shown.read(model), {
+        Initial: () => loadingView(slots, h),
+        Loading: () => loadingView(slots, h),
+        Ready: miss,
+        Refreshing: () => loadingView(slots, h),
+        Failed: () => failedView(slots, h),
+        NotFound: miss,
+      }),
+  })
+}
 
 const page = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> =>
   Option.match(pageDocument(model), {
     onNone: () => [
-      nothing(model, slots, h, tagOf(pageRead(model), model), 'There is no page at this address.', {
+      nothing(model, slots, h, pageRead(model), 'There is no page at this address.', {
         path: '/site',
         label: 'Go to the home page',
       }),
@@ -81,7 +87,7 @@ const post = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArra
   const first = Option.flatMap(postRead(model), read => firstOf(read.read(model)))
   if (Option.isNone(first))
     return [
-      nothing(model, slots, h, tagOf(postRead(model), model), 'There is no post at this address.', {
+      nothing(model, slots, h, postRead(model), 'There is no post at this address.', {
         path: '/site/blog',
         label: 'Go to the blog',
       }),
@@ -103,23 +109,27 @@ const post = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArra
 }
 
 const blog = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
-  const posts = Option.flatMap(blogRead(model), projection => {
-    const read = projection.read(model)
-    return read._tag === 'Ready' || read._tag === 'Refreshing'
-      ? Option.some(read.value.items)
-      : Option.none()
-  })
+  const list = (items: Parameters<typeof postGrid>[1]) =>
+    items.length === 0
+      ? Empty.view(slots.status, h, 'Nothing is published yet.')
+      : postGrid(h, items)
   return [
     h.header(slots.masthead.attrs(), [
       h.h1(slots.heading.attrs(), ['The blog']),
       h.p(slots.lede.attrs(), [BLOG_LEDE]),
     ]),
-    Option.match(posts, {
-      onNone: () => pending(slots, h, tagOf(blogRead(model), model)),
-      onSome: items =>
-        items.length === 0
-          ? Empty.view(slots.status, h, 'Nothing is published yet.')
-          : postGrid(h, items),
+    Option.match(blogRead(model), {
+      onNone: () => loadingView(slots, h),
+      onSome: projection =>
+        RemoteData.match(projection.read(model), {
+          Initial: () => loadingView(slots, h),
+          Loading: () => loadingView(slots, h),
+          Ready: page => list(page.items),
+          Refreshing: page => list(page.items),
+          Failed: () => failedView(slots, h),
+          // A list read is never NotFound (only a read by id is); the match needs the arm.
+          NotFound: () => list([]),
+        }),
     }),
   ]
 }

@@ -83,14 +83,14 @@ export default [
   edit(
     'a null is written where the member holds none',
     write,
-    '} else if (comes.value !== null || holdsNull(member)) {',
-    '} else if (true) {',
+    'if (given !== null || holdsNull(field)) put(values, field.key, given)',
+    'if (true) put(values, field.key, given)',
   ),
   edit(
     'a required relation points nowhere',
     write,
-    'else if (member.optional) put(links, member.key, Option.none())',
-    'else if (true) put(links, member.key, Option.none())',
+    'else if (relation.optional) put(links, relation.key, Option.none())',
+    'else if (true) put(links, relation.key, Option.none())',
   ),
   edit(
     'a missing time is not named',

@@ -2,7 +2,7 @@
  * The transport seam: the `RemoteClient` Effect service, the RPC client it is
  * built from, the wire-to-client reconstructions, and the mutation call.
  */
-import { Context, type Duration, Effect, Schema, Stream } from 'effect'
+import { Context, type Duration, Effect, Match, Schema, Stream } from 'effect'
 import { withCallTimeout } from './deadline.js'
 import type { RelationRequirement, Requirement } from './requirement.js'
 import type { LiveCursor, LiveEvent } from './liveState.js'
@@ -133,9 +133,15 @@ export const connectionChangeOf = (
   change: Schema.Schema.Type<typeof ConnectionChangeSchema>,
 ): ConnectionChange => {
   const edge = { key: change.edge.key, ref: { entity: change.edge.entity, id: change.edge.id } }
-  return change._tag === 'Insert'
-    ? { _tag: 'Insert', connection: change.connection, position: change.position, edge }
-    : { _tag: 'Remove', connection: change.connection, edge }
+  return Match.valueTags(change, {
+    Insert: ({ connection, position }): ConnectionChange => ({
+      _tag: 'Insert',
+      connection,
+      position,
+      edge,
+    }),
+    Remove: ({ connection }): ConnectionChange => ({ _tag: 'Remove', connection, edge }),
+  })
 }
 
 /** Reconstructs the client's `LiveEvent` from the wire's flattened `LiveChange`. */
@@ -186,6 +192,26 @@ export const remoteError = (error: {
   ...(error.refusal === undefined ? {} : { refusal: error.refusal }),
   ...(error.reason === undefined ? {} : { reason: error.reason }),
 })
+
+/**
+ * A client call whose defect (a throw, a `die`) fails with `Defect` instead,
+ * logged with its cause. A defect sends no Message, so the read or write it
+ * belonged to would wait for good. Interruption passes through: an abandoned
+ * read still reports as abandoned.
+ */
+export const defectAsFailure = <A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+): Effect.Effect<A, E | { readonly _tag: 'Defect'; readonly message: string }, R> =>
+  Effect.catchDefect(effect, defect =>
+    Effect.logError('foldkit-remote: a client call died', defect).pipe(
+      Effect.andThen(
+        Effect.fail({
+          _tag: 'Defect' as const,
+          message: defect instanceof Error ? defect.message : String(defect),
+        }),
+      ),
+    ),
+  )
 
 /**
  * A new operation's identity: random, so unique across clients and reloads.

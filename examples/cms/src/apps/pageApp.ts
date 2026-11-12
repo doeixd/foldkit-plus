@@ -13,7 +13,7 @@ import { Entity } from 'foldkit-entity'
 import { BuilderView, type BuilderViewInputs } from 'foldkit-mixins-builder'
 import { Style } from 'foldkit-mixins'
 import { FormView } from 'foldkit-mixins-form'
-import { Remote, type RemoteClient } from 'foldkit-remote'
+import { Remote, RemoteData, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import type { Command } from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -209,7 +209,10 @@ const placed = placements.update((model, message) => {
           {
             name: 'FollowLink',
             effect: Navigation.load(
-              request._tag === 'Internal' ? urlToString(request.url) : request.href,
+              Navigation.UrlRequest.match(request, {
+                Internal: ({ url }) => urlToString(url),
+                External: ({ href }) => href,
+              }),
             ).pipe(Effect.as(Message.Ticked())),
           },
         ],
@@ -369,14 +372,14 @@ export const builderInputs = (model: Model): BuilderViewInputs => {
   return BuilderView.inputs({
     data: actives.blocks.data(model),
     options: {
-      'LatestPages.except':
-        pages._tag === 'Ready' || pages._tag === 'Refreshing'
-          ? pages.value.items.map(page => ({ value: page.id, label: page.label }))
-          : [],
-      'FeaturedPost.post':
-        posts._tag === 'Ready' || posts._tag === 'Refreshing'
-          ? posts.value.items.map(post => ({ value: post.id, label: post.title }))
-          : [],
+      'LatestPages.except': Option.match(RemoteData.held(pages), {
+        onSome: held => held.items.map(page => ({ value: page.id, label: page.label })),
+        onNone: () => [],
+      }),
+      'FeaturedPost.post': Option.match(RemoteData.held(posts), {
+        onSome: held => held.items.map(post => ({ value: post.id, label: post.title })),
+        onNone: () => [],
+      }),
     },
   })
 }

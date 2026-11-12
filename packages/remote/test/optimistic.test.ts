@@ -1,3 +1,4 @@
+import { noKept } from '../src/kept.js'
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
@@ -45,14 +46,14 @@ describe('Optimistic layers', () => {
       deletes: [],
       viewer: Option.none(),
     })
-    expect(name(visibleStore(base, optimistic))).toEqual(Option.some('C'))
+    expect(name(visibleStore(base, optimistic, noKept))).toEqual(Option.some('C'))
 
     const settled = settleSuccess(base, optimistic, emptyMutationState, 'l1', {
       entities: [{ entity: 'User', id: 'u1', values: { name: 'B' } }],
       now: 0,
     })
     expect(name(settled.store)).toEqual(Option.some('B'))
-    expect(name(visibleStore(settled.store, settled.optimistic))).toEqual(Option.some('C'))
+    expect(name(visibleStore(settled.store, settled.optimistic, noKept))).toEqual(Option.some('C'))
   })
 
   it('a failure removes exactly its layer and leaves the base untouched', () => {
@@ -72,7 +73,7 @@ describe('Optimistic layers', () => {
 
     const next = settleFailure(optimistic, 'l1')
     expect(next.layers.map(layer => layer.id)).toEqual(['l2'])
-    expect(name(visibleStore(base, next))).toEqual(Option.some('C'))
+    expect(name(visibleStore(base, next, noKept))).toEqual(Option.some('C'))
     expect(name(base)).toEqual(Option.some('A'))
   })
 
@@ -153,7 +154,7 @@ describe('Optimistic layers', () => {
 
   it('visibleStore is the base with no layers; a success with no entities reverts', () => {
     const base = writeEntity(emptyStore, user, { name: 'A' })
-    expect(visibleStore(base, emptyOptimistic)).toEqual(base)
+    expect(visibleStore(base, emptyOptimistic, noKept)).toEqual(base)
 
     const optimistic = addLayer(emptyOptimistic, {
       id: 'l1',

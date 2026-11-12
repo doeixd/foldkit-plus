@@ -7,7 +7,7 @@ export default [
     name: 'memory implements a defined operator',
     edits: [
       {
-        file: '../src/operators.ts',
+        file: '../src/memoryTable.ts',
         find: '  if (Option.isSome(operator.definedAs)) {',
         replace: '  if (false) {',
       },

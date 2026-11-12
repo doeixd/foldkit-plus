@@ -82,6 +82,7 @@ import {
   serving,
   startingFrom,
   staticRegion,
+  unbound,
   STYLES_MARKER,
   HEAD_END_MARKER,
   HEAD_MARKER,
@@ -166,6 +167,8 @@ const envelopeOf = <Model, Fields extends Schema.Struct.Fields>(
     ...(options.events === undefined || options.events.length === 0
       ? {}
       : { events: options.events }),
+    // For `foldkit-ssr/loader`, which cannot import the plan.
+    ...(resume.start === 'now' ? {} : { start: resume.start }),
   })
 
 /**
@@ -625,6 +628,7 @@ export class ResumeUnsafe extends Schema.TaggedError<ResumeUnsafe>()('ResumeUnsa
     'VoidRootWithStyles',
     'RootRefusesHead',
     'UnkeepableField',
+    'UnkeptField',
   ]),
   message: Schema.String,
 }) {}
@@ -862,6 +866,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     const inStatic: Array<{ region: string; element: string; event: string }> = []
     const unnamed: Array<UnnamedHandler> = []
     const unkeepable: Array<string> = []
+    const unkept: Array<string> = []
     const fallback = fallbackEncoder(plan)
     const capturing = withContext(
       { ...config, init: (...args: ReadonlyArray<unknown>) => (served = config.init(...args)) },
@@ -877,6 +882,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
         inStatic,
         unnamed,
         unkeepable,
+        unkept,
       },
     )
     const full = yield* renderToString(capturing as never, options as never)
@@ -900,6 +906,12 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
       return yield* new ResumeUnsafe({
         reason: 'UnkeepableField',
         message: `the page cannot keep what is typed into these fields before it boots:\n- ${unkeepable.join('\n- ')}`,
+      })
+    }
+    if (plan.start !== 'now' && unkept.length > 0) {
+      return yield* new ResumeUnsafe({
+        reason: 'UnkeptField',
+        message: `the plan starts ${plan.start}, and what is typed into these fields before it boots would be lost at its first render: give each KeepTyped, or start now:\n- ${unkept.join('\n- ')}`,
       })
     }
     const started = served!
@@ -1414,6 +1426,17 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
      */
     readonly status?: ((model: Model, request: Request) => number) | undefined
     /**
+     * Where a `GET` or `HEAD` is sent instead of drawn, from the Model
+     * `prepare` made: `some(path)` answers `303` to it and the page is never
+     * rendered, `none` renders it. The answer carries the `headers` given that
+     * Model, and says `cache-control: private, no-store` over any they set: a
+     * redirect is decided for one reader, and no cache keeps or shares it. The
+     * path must start with one `/` and stay on this origin
+     * (`/sign-in?next=%2Fnotes`); anything else, or a `redirect` that throws,
+     * is answered `500` and reported. A posted form is answered by `answerPost`.
+     */
+    readonly redirect?: ((model: Model, request: Request) => Option.Option<string>) | undefined
+    /**
      * How a posted form is answered. `'page'`, the default, is the page
      * `update` reached, at the address the form posted to, so a reload posts
      * again. `'redirect'` is a `303` to that address, which the browser then
@@ -1451,8 +1474,8 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
      * Keeps rendered `GET` and `HEAD` pages in `store` by build and URL
      * (#428). A page is kept only when every read the render made through
      * `foldkit-remote-server`'s `pageReader` was public, every request
-     * header `flags`, `prepare`, `headers` or `status` read was absent (the
-     * request's `cookie` included), `headers` set no `cookie` or
+     * header `flags`, `prepare`, `redirect`, `headers` or `status` read was
+     * absent (the request's `cookie` included), `headers` set no `cookie` or
      * `cache-control` of its own, and the status is `200`: drawn from the
      * URL alone. It is kept for `maxAge` or its reads' shortest, and serves
      * each later request that also lacks the headers it read; it says
@@ -1576,6 +1599,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     }
     const flagsOf = options.flags
     const statusOf = options.status
+    const redirectOf = options.redirect
     const { prepare } = options
     // The plan's `meta` rides in the root until the host's `SSR.headed` moves it.
     const styled = {
@@ -1608,14 +1632,30 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
           })
           return Responded(extra === undefined ? redirect : merge(redirect, extra))
         }
+        const start = { url: request.url, ...flagged }
+        // Made before the render only when something reads it there.
+        const started =
+          posting || (prepare === undefined && redirectOf === undefined)
+            ? Option.none()
+            : Option.some(yield* preparedStart(request, config, start, prepare))
+        const sentTo = Option.flatMap(started, ({ model }) =>
+          redirectOf === undefined
+            ? Option.none()
+            : Option.map(redirectOf(model, request), path => ({ path, model })),
+        )
+        if (Option.isSome(sentTo)) {
+          const { path, model } = sentTo.value
+          // A path off this origin, or `headers` that throw, is a defect, answered 500.
+          return yield* Effect.sync(() =>
+            Responded(redirected(path, request.url, headersOf(request, Option.some(model)))),
+          )
+        }
         const served = posting
           ? yield* handleServed(request, config, plan, post())
           : yield* renderMatching(
-              prepare === undefined
-                ? config
-                : yield* preparedStart(request, config, { url: request.url, ...flagged }, prepare),
+              Option.match(started, { onNone: () => config, onSome: ({ config }) => config }),
               plan,
-              { buildId: options.buildId, url: request.url, ...flagged, ...styled },
+              { buildId: options.buildId, ...start, ...styled },
               matchOf(request.url),
             )
         // `headers` or `status` that throws is a defect, answered 500 and reported.
@@ -1879,6 +1919,33 @@ const sameAddress = (url: string): string => {
 }
 
 /**
+ * `SSR.entry`'s answer to a page `redirect` sends elsewhere: a `303` to `path`
+ * with the entry's `headers`, said `private, no-store` over theirs, since it
+ * was decided for one reader. Throws for a path that is not one on the
+ * request's own origin: resolved there, it must keep that origin and start
+ * with a single `/`, so `//elsewhere.test`, `/\elsewhere.test` (which a
+ * browser reads as `//`), a scheme, or a path whose dot segments resolve to
+ * `//` are refused. The location written is the path as resolved.
+ */
+const redirected = (path: string, url: string, headers: Headers | undefined): Response => {
+  const origin = new URL(url).origin
+  const resolved = path.startsWith('/') ? new URL(path, origin) : undefined
+  if (resolved === undefined || resolved.origin !== origin || resolved.pathname.startsWith('//')) {
+    throw new Error(
+      `redirect gave ${JSON.stringify(path)}, which is no path on this origin: give one starting with a single /`,
+    )
+  }
+  const response = new Response(null, {
+    status: 303,
+    headers: { location: `${resolved.pathname}${resolved.search}${resolved.hash}` },
+  })
+  headers?.forEach((value, name) => response.headers.append(name, value))
+  // Set over whatever `headers` said: the redirect was decided for this reader.
+  response.headers.set('cache-control', 'private, no-store')
+  return response
+}
+
+/**
  * What `headers` may not set: what frames the response, which the host's
  * server writes, and `location`, which only the entry writes.
  */
@@ -2042,12 +2109,16 @@ const preparedStart = <Model>(
   request: Request,
   config: ResumableConfig<Model>,
   options: { readonly url: string; readonly flags?: unknown },
-  prepare: Prepare<Model>,
-): Effect.Effect<ResumableConfig<Model>, RenderError> =>
+  prepare: Prepare<Model> | undefined,
+): Effect.Effect<{ readonly model: Model; readonly config: ResumableConfig<Model> }, RenderError> =>
   Effect.gen(function* () {
     const started = yield* startOf(config, options)
-    const model = yield* Effect.orDie(prepare(started.model, request))
-    return startingFrom(config, { ...started, model }) as ResumableConfig<Model>
+    const model =
+      prepare === undefined ? started.model : yield* Effect.orDie(prepare(started.model, request))
+    return {
+      model,
+      config: startingFrom(config, { ...started, model }) as ResumableConfig<Model>,
+    }
   })
 
 /**
@@ -2192,6 +2263,7 @@ export const SSR = {
   hydrate: Client.hydrate,
   inspect,
   static: staticRegion,
+  unbound,
   serving,
   generate,
   entry,

@@ -435,6 +435,14 @@ from real queries, not from what SQL can express. `Expr.lt` / `lte` / `gt` /
 a field, since backends order text by different defaults; a date stored as an
 ISO string is text, compared under `binary`.
 
+**Data-last.** `pipe(Post.fields.status, Expr.eq.step('draft'))` builds the node
+`Expr.eq(Post.fields.status, 'draft')` builds; `step` is a member of `eq`, `lt`,
+`lte`, `gt`, `gte`, `contains`, `in` and of every `Expr.operator` (the arguments
+past the first, then the first: `Text.startsWith.step(prefix)`, `trim.step()`),
+with one signature so reads stay exact through `pipe` and `flow`. A comparison's
+step takes `{ collation }`; an operator's takes none. There is no `dual`:
+`Expr.eq(field)` is still an arity error.
+
 **Naming a question.** `Expr.operator('acme.published', { input: [Schema.Unknown],
 output: Schema.Boolean, definedAs: at => Expr.isNotNull(at) })` declares an operator
 by what a call means; `published(Story.fields.publishedAt)` is then a predicate

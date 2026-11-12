@@ -81,7 +81,7 @@ it('types, picks, and submits through the DOM, and hands the parent the decoded 
     await vi.waitFor(() => expect(element('Edit-title')).not.toBeNull())
     const submit = document.querySelector('button') as HTMLButtonElement
     expect(submit.textContent).toBe('Save')
-    expect(submit.disabled).toBe(true)
+    expect(submit.getAttribute('aria-disabled')).toBe('true')
 
     // Emptying a required control says so, in the DOM a screen reader reads.
     // Leaving it untouched says nothing (#192).
@@ -102,7 +102,7 @@ it('types, picks, and submits through the DOM, and hands the parent the decoded 
     )
     databases?.click()
 
-    await vi.waitFor(() => expect(submit.disabled).toBe(false))
+    await vi.waitFor(() => expect(submit.getAttribute('aria-disabled')).toBeNull())
     document.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true }))
 
     await vi.waitFor(() => expect(latest?.saved).toHaveLength(1))
@@ -172,7 +172,7 @@ it('shows a check running under its control, and a submit waiting for it', async
     expect(field()?.dataset['validation']).toBe('Validating')
     expect(element('Join-email').getAttribute('aria-describedby')).toBe('Join-email-checking')
     const submit = document.querySelector('button') as HTMLButtonElement
-    expect(submit.disabled).toBe(false)
+    expect(submit.getAttribute('aria-disabled')).toBeNull()
 
     document.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true }))
     await vi.waitFor(() => expect(submit.textContent).toBe('Joining…'))

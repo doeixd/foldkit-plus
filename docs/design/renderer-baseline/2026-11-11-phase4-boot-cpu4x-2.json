@@ -1,0 +1,771 @@
+{
+  "environment": {
+    "date": "2026-11-11T00:56:04.547Z",
+    "os": "linux 6.18.44-fc-v338",
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz × 4",
+    "memoryGiB": 16,
+    "node": "v22.23.4",
+    "chromium": "153.0.8010.12",
+    "headless": true,
+    "viewport": "1440×900",
+    "cpuThrottle": 4,
+    "reps": 12,
+    "warmups": 3
+  },
+  "summary": {
+    "without": {
+      "takeoverMs": { "n": 12, "median": 799, "min": 758.2, "max": 1028.4 },
+      "blockingMs": { "n": 12, "median": 971.5, "min": 854, "max": 1059 },
+      "longTasks": { "n": 12, "median": 4, "min": 3, "max": 4 },
+      "pressAtLoadMs": { "n": 12, "median": 402, "min": 376, "max": 436 },
+      "pressRunTakeoverMs": { "n": 12, "median": 830.3, "min": 778.4, "max": 909.9 },
+      "rebuilt": [],
+      "problems": [],
+      "bytes": { "htmlBrotli": 6043, "scriptBrotli": 207411 }
+    },
+    "with": {
+      "takeoverMs": { "n": 12, "median": 894.9, "min": 781.9, "max": 1037.5 },
+      "blockingMs": { "n": 12, "median": 1034, "min": 938, "max": 1129 },
+      "longTasks": { "n": 12, "median": 4, "min": 3, "max": 4 },
+      "pressAtLoadMs": { "n": 12, "median": 408.5, "min": 380, "max": 455 },
+      "pressRunTakeoverMs": { "n": 12, "median": 821.9, "min": 768.6, "max": 1012.1 },
+      "rebuilt": [],
+      "problems": [],
+      "bytes": { "htmlBrotli": 6108, "scriptBrotli": 207513 }
+    }
+  },
+  "runs": {
+    "without": {
+      "rest": [
+        {
+          "takeover": 787.6,
+          "blocking": 956,
+          "tasks": 4,
+          "served": 746,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 1028.4,
+          "blocking": 1059,
+          "tasks": 4,
+          "served": 746,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 787.7,
+          "blocking": 949,
+          "tasks": 4,
+          "served": 746,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 758.2,
+          "blocking": 931,
+          "tasks": 4,
+          "served": 746,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 810.3,
+          "blocking": 998,
+          "tasks": 4,
+          "served": 746,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 824.9,
+          "blocking": 1020,
+          "tasks": 4,
+          "served": 746,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 760.9,
+          "blocking": 932,
+          "tasks": 4,
+          "served": 746,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 940,
+          "blocking": 984,
+          "tasks": 4,
+          "served": 746,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 825,
+          "blocking": 1003,
+          "tasks": 4,
+          "served": 746,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 797.6,
+          "blocking": 962,
+          "tasks": 4,
+          "served": 746,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 800.4,
+          "blocking": 981,
+          "tasks": 4,
+          "served": 746,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 763.9,
+          "blocking": 854,
+          "tasks": 3,
+          "served": 746,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        }
+      ],
+      "press": [
+        {
+          "takeover": 835.6,
+          "blocking": 936,
+          "tasks": 3,
+          "served": 746,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 396,
+          "problems": []
+        },
+        {
+          "takeover": 817.8,
+          "blocking": 1000,
+          "tasks": 4,
+          "served": 746,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 436,
+          "problems": []
+        },
+        {
+          "takeover": 778.4,
+          "blocking": 858,
+          "tasks": 2,
+          "served": 746,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 376,
+          "problems": []
+        },
+        {
+          "takeover": 839.4,
+          "blocking": 1009,
+          "tasks": 4,
+          "served": 746,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 414,
+          "problems": []
+        },
+        {
+          "takeover": 909.2,
+          "blocking": 1141,
+          "tasks": 5,
+          "served": 746,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 423,
+          "problems": []
+        },
+        {
+          "takeover": 872,
+          "blocking": 1031,
+          "tasks": 4,
+          "served": 746,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 391,
+          "problems": []
+        },
+        {
+          "takeover": 805.8,
+          "blocking": 964,
+          "tasks": 3,
+          "served": 746,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 408,
+          "problems": []
+        },
+        {
+          "takeover": 818.6,
+          "blocking": 980,
+          "tasks": 4,
+          "served": 746,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 417,
+          "problems": []
+        },
+        {
+          "takeover": 825.1,
+          "blocking": 991,
+          "tasks": 4,
+          "served": 746,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 381,
+          "problems": []
+        },
+        {
+          "takeover": 784.7,
+          "blocking": 982,
+          "tasks": 5,
+          "served": 746,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 378,
+          "problems": []
+        },
+        {
+          "takeover": 909.9,
+          "blocking": 1107,
+          "tasks": 4,
+          "served": 746,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 422,
+          "problems": []
+        },
+        {
+          "takeover": 838.1,
+          "blocking": 977,
+          "tasks": 4,
+          "served": 746,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 394,
+          "problems": []
+        }
+      ]
+    },
+    "with": {
+      "rest": [
+        {
+          "takeover": 816.3,
+          "blocking": 991,
+          "tasks": 3,
+          "served": 749,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 838.3,
+          "blocking": 1017,
+          "tasks": 4,
+          "served": 749,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 877.4,
+          "blocking": 938,
+          "tasks": 4,
+          "served": 749,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 781.9,
+          "blocking": 959,
+          "tasks": 4,
+          "served": 749,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 933,
+          "blocking": 1129,
+          "tasks": 4,
+          "served": 749,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 846.4,
+          "blocking": 959,
+          "tasks": 3,
+          "served": 749,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 914.2,
+          "blocking": 1051,
+          "tasks": 4,
+          "served": 749,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 794.5,
+          "blocking": 996,
+          "tasks": 4,
+          "served": 749,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 1037.5,
+          "blocking": 1055,
+          "tasks": 4,
+          "served": 749,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 957.4,
+          "blocking": 1126,
+          "tasks": 4,
+          "served": 749,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 953,
+          "blocking": 1073,
+          "tasks": 3,
+          "served": 749,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        },
+        {
+          "takeover": 912.4,
+          "blocking": 1051,
+          "tasks": 4,
+          "served": 749,
+          "rebuilt": [],
+          "pressMs": null,
+          "problems": []
+        }
+      ],
+      "press": [
+        {
+          "takeover": 860.8,
+          "blocking": 1040,
+          "tasks": 4,
+          "served": 749,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 412,
+          "problems": []
+        },
+        {
+          "takeover": 812.2,
+          "blocking": 999,
+          "tasks": 4,
+          "served": 749,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 382,
+          "problems": []
+        },
+        {
+          "takeover": 817.1,
+          "blocking": 964,
+          "tasks": 3,
+          "served": 749,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 391,
+          "problems": []
+        },
+        {
+          "takeover": 778.3,
+          "blocking": 967,
+          "tasks": 5,
+          "served": 749,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 398,
+          "problems": []
+        },
+        {
+          "takeover": 844.1,
+          "blocking": 997,
+          "tasks": 4,
+          "served": 749,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 380,
+          "problems": []
+        },
+        {
+          "takeover": 892.3,
+          "blocking": 1091,
+          "tasks": 4,
+          "served": 749,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 449,
+          "problems": []
+        },
+        {
+          "takeover": 768.6,
+          "blocking": 982,
+          "tasks": 4,
+          "served": 749,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 455,
+          "problems": []
+        },
+        {
+          "takeover": 868.4,
+          "blocking": 1048,
+          "tasks": 4,
+          "served": 749,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 405,
+          "problems": []
+        },
+        {
+          "takeover": 826.6,
+          "blocking": 995,
+          "tasks": 4,
+          "served": 749,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 414,
+          "problems": []
+        },
+        {
+          "takeover": 801.5,
+          "blocking": 1041,
+          "tasks": 5,
+          "served": 749,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 433,
+          "problems": []
+        },
+        {
+          "takeover": 769,
+          "blocking": 944,
+          "tasks": 4,
+          "served": 749,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 390,
+          "problems": []
+        },
+        {
+          "takeover": 1012.1,
+          "blocking": 1157,
+          "tasks": 4,
+          "served": 749,
+          "rebuilt": [
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"",
+            "<path d=\"m2.05 2.05l1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\"></path>",
+            "<path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\"></path>",
+            "<circle cx=\"18\" cy=\"20\" r=\"2\"></circle>",
+            "<circle cx=\"8\" cy=\"20\" r=\"2\"></circle>",
+            "<p class=\"empty-cart style-108e5zu\">Your next idea starts with a name. Search for a domain to add it"
+          ],
+          "pressMs": 440,
+          "problems": []
+        }
+      ]
+    }
+  }
+}

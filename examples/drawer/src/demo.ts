@@ -1,4 +1,5 @@
-import { Stack, initial, update, type Model } from './app.js'
+import { type Model, initial, update } from './app.js'
+import { Stack } from './message.js'
 import { DismissLayer } from 'foldkit-primitives/interaction'
 
 const renderText = (model: Model): string =>

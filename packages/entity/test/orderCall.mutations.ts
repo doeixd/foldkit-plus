@@ -88,8 +88,8 @@ export default [
     edits: [
       {
         file: expr,
-        find: 'onNone: () => node<AnyExpr>({ ...scalar, args: scalar.args.map(expandedSide) }),',
-        replace: 'onNone: () => scalar,',
+        find: 'onNone: () => node<AnyExpr>({ ...call, args: call.args.map(expandedSide) }),',
+        replace: 'onNone: () => call,',
       },
     ],
     tests,
@@ -137,8 +137,8 @@ export default [
     edits: [
       {
         file: evaluate,
-        find: 'operators: options.operators ?? Operators.kernel,\n    context: options.context,\n  }\n',
-        replace: 'operators: Operators.kernel,\n    context: options.context,\n  }\n',
+        find: 'operators: options.operators ?? kernelOperators,\n    context: options.context,\n  }\n',
+        replace: 'operators: kernelOperators,\n    context: options.context,\n  }\n',
       },
     ],
     tests,

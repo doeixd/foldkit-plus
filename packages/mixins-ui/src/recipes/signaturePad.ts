@@ -88,8 +88,8 @@ export const SignaturePad = Style.recipeFor(SignaturePadSlots)({
     guide: component(
       Style.self({
         position: 'absolute',
-        left: ref.space.lg,
-        right: ref.space.lg,
+        insetInlineStart: ref.space.lg,
+        insetInlineEnd: ref.space.lg,
         // Its top edge is the line, so the line is at the baseline itself.
         top: `${BASELINE * 100}%`,
         borderTop: `${ref.border.thin} dashed ${ref.outline.default}`,
@@ -99,7 +99,7 @@ export const SignaturePad = Style.recipeFor(SignaturePadSlots)({
     placeholder: component(
       Style.self({
         position: 'absolute',
-        left: ref.space.lg,
+        insetInlineStart: ref.space.lg,
         bottom: `calc(${line} + ${ref.space['2xs']})`,
         color: ref.text.muted,
         ...role('caption'),
@@ -112,6 +112,7 @@ export const SignaturePad = Style.recipeFor(SignaturePadSlots)({
     typedName: component(
       Style.self({
         position: 'absolute',
+        // physical: the exports write the name at the canvas's left
         left: '6%',
         bottom: line,
         // The same size the exports write it at, a share of the pad's height.

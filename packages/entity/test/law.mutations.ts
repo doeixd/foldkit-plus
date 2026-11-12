@@ -26,8 +26,8 @@ export default [
   edit(
     'outcomes are compared as JSON',
     helper,
-    'sameValue(left.value, right.value)',
-    'JSON.stringify(left.value) === JSON.stringify(right.value)',
+    'sameValue(value, other.value)',
+    'JSON.stringify(value) === JSON.stringify(other.value)',
   ),
   edit(
     'a witness is called with no collation',
@@ -143,7 +143,12 @@ export default [
     'Value: ({ value }) => Outcome.Value({ value: foldText(value) }),',
     'Value: ({ value }) => Outcome.Value({ value }),',
   ),
-  edit('every two values are alike', helper, ': sameValue(left.value, right.value)', ': true'),
+  edit(
+    'every two values are alike',
+    helper,
+    'Value: other => sameValue(value, other.value),',
+    'Value: () => true,',
+  ),
   edit('a failed law is not reported', helper, 'if (!plan.holds(left, right)) {', 'if (false) {'),
   {
     name: 'a law no call answered holds',
@@ -153,8 +158,8 @@ export default [
   edit(
     'two refusals count as a case',
     helper,
-    "if (left._tag === 'Value' && right._tag === 'Value') cases += 1",
-    "if (left._tag === 'Value' || right._tag === 'Refused') cases += 1",
+    "if (left._tag === 'Value' && right._tag === 'Value') {",
+    "if (left._tag === 'Value' || right._tag === 'Refused') {",
   ),
 
   // ---- choosing and running cases

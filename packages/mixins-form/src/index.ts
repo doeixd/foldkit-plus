@@ -7,7 +7,7 @@
  * SlotView, and the form stays free of a view dependency.
  */
 // `Option` is this package's own name, a picker's choice: Effect's goes by another here.
-import { Option as Maybe } from 'effect'
+import { Match, Option as Maybe } from 'effect'
 import {
   Input,
   fillWords,
@@ -145,10 +145,10 @@ export interface FormViewInputs<
   readonly failure?: SubmitFailure | undefined
   /**
    * Whether the write the last submit started landed, and the form is not
-   * edited since. A form a save started again blank cannot submit, so its
-   * button would be `disabled`, and the focus a press gave it would drop to
-   * the page; while `saved` it is `aria-disabled` instead. `Crud.editor`
-   * gives it.
+   * edited since.
+   *
+   * @deprecated No effect: the submit button is `aria-disabled`, never
+   * `disabled`, so it keeps the focus whatever this says. Removed next release.
    */
   readonly saved?: boolean | undefined
 }
@@ -230,6 +230,12 @@ export interface FormInput<
 > extends FormViewInputs<Key, ControlKey, PickerKey> {
   readonly model: Model
   readonly errors: ReadonlyArray<string>
+  /**
+   * Whether the submit button is drawn without `aria-disabled`. It only marks
+   * the button: a press or Enter still reaches `update`, which decides from the
+   * Model. Whether a submit made while a check runs is refused is the form's
+   * `submitWaits` option, not this.
+   */
   readonly canSubmit: boolean
   /**
    * Whether the form is submitting: a submit waits for a check, or the
@@ -419,20 +425,24 @@ type FieldView<Key extends string, Message> = SlotView.SlotView<
 >
 
 const errorsOf = (field: FieldValidation.Field<unknown>): ReadonlyArray<string> =>
-  field._tag === 'Invalid' ? field.errors : []
+  Match.valueTags(field, {
+    Invalid: ({ errors }) => errors,
+    NotValidated: () => [],
+    Validating: () => [],
+    Valid: () => [],
+  })
 
 /**
  * The state of a key a control backed by a Bundle edits, as a field is drawn:
  * its validation state, with no draft. The Bundle's Model travels as `bundle`.
  */
 const withoutDraft = (field: FieldValidation.Field<unknown>): FieldValidation.Field<Draft> =>
-  field._tag === 'Invalid'
-    ? FieldValidation.Invalid({ value: '', errors: field.errors })
-    : field._tag === 'Valid'
-      ? FieldValidation.Valid({ value: '' })
-      : field._tag === 'Validating'
-        ? FieldValidation.Validating({ value: '' })
-        : FieldValidation.NotValidated({ value: '' })
+  Match.valueTags(field, {
+    Invalid: ({ errors }) => FieldValidation.Invalid({ value: '', errors }),
+    Valid: () => FieldValidation.Valid({ value: '' }),
+    Validating: () => FieldValidation.Validating({ value: '' }),
+    NotValidated: () => FieldValidation.NotValidated({ value: '' }),
+  })
 
 /** What a renderer draws one control from. */
 export interface RenderContext<Message> {
@@ -1024,7 +1034,6 @@ export const FormView = {
           make: form.Message as unknown as NestedForm['Message'],
         }
         const submitting = input.submitting === true
-        const saved = input.saved === true
         const fields = draw(top, form.bundle.name, '')
         return h.form(
           slots.root.attrs([
@@ -1082,12 +1091,14 @@ export const FormView = {
                   h.button(
                     slots.submit.attrs([
                       h.Type('submit'),
-                      // Disabling it would drop the focus a press gave it: while
-                      // submitting a press reaches a submit that waits or a
-                      // write in flight, which ignores it, and once saved one
-                      // shows what the blank form lacks.
-                      h.Disabled(!input.canSubmit && !saved),
-                      ...(submitting || (saved && !input.canSubmit) ? [h.AriaDisabled(true)] : []),
+                      // Never natively `disabled`: the browser submits through the
+                      // form's default button only if it is enabled, so an Enter sent
+                      // before the frame that enables it was dropped silently, and a
+                      // disabled button also drops the focus a press gave it. It
+                      // reads `aria-disabled` instead, and `update` decides from the
+                      // Model: a submit the form cannot take marks every key and shows
+                      // why, a valid one goes through.
+                      ...(!input.canSubmit || submitting ? [h.AriaDisabled(true)] : []),
                     ]),
                     [
                       submitting
@@ -1252,14 +1263,13 @@ export const FormView = {
     >,
     options: {
       /**
-       * When the submit waits instead of staying disabled. `true` while a
-       * check is running means submitted work waits for it, and the button
-       * stays enabled; `false` keeps the button disabled until every key is
-       * valid. Default `form.canSubmit` (lenient): a submit made mid-check
-       * waits for it. Pass a strict predicate to disable through checks
-       * instead, such as `model => PostForm.engine.value(model.form) !==
-       * undefined`, or `() => true` to never pre-disable and validate wholly
-       * at submit.
+       * When the button reads `aria-disabled`. It marks the button and nothing
+       * more: `update` decides every submit from the Model. Default
+       * `form.canSubmit`, which follows the form's `submitWaits`: with the
+       * default `true` a submit made mid-check waits for the answer and the
+       * button stays enabled; with `false` the form refuses it and the button
+       * reads disabled through the check. Pass `() => true` to never mark it and
+       * validate wholly at submit.
        */
       readonly canSubmit?: (model: Model) => boolean
     } = {},

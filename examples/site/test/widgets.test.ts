@@ -23,6 +23,7 @@ import {
   Menu,
   MessageScroller,
   Sheet,
+  FileDrop,
 } from 'foldkit-mixins-ui'
 import { ClipboardMessage } from 'foldkit-primitives/dom'
 import { describe, expect, it } from 'vitest'
@@ -51,6 +52,31 @@ describe('the previews with state', () => {
       }),
     )
     expect(chosen.widgets.billing).toBe('lifetime')
+  })
+
+  it('list the files the drop zone took, by name and size', () => {
+    const dropped = send(
+      Widgets.Message.GotDrop({
+        message: FileDrop.Message.DroppedFiles({
+          files: [new File(['abc'], 'a.txt'), new File(['de'], 'b.png')],
+        }),
+      }),
+    )
+    expect(dropped.widgets.attachments).toEqual([
+      { name: 'a.txt', size: 3 },
+      { name: 'b.png', size: 2 },
+    ])
+    const more = update(
+      dropped,
+      Message.GotWidget({
+        message: Widgets.Message.GotDrop({
+          message: FileDrop.Message.DroppedFiles({ files: [new File([''], 'c.md')] }),
+        }),
+      }),
+    ).model
+    expect(more.widgets.attachments.map(file => file.name)).toEqual(['a.txt', 'b.png', 'c.md'])
+    const refused = send(Widgets.Message.GotDrop({ message: FileDrop.Message.DroppedNonFiles() }))
+    expect(refused.widgets.attachments).toEqual([])
   })
 
   it('keep the volume and the price range the sliders moved to', () => {

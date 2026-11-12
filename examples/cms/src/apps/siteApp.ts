@@ -89,21 +89,25 @@ export const pageRead = (model: Model) =>
 
 /** The post the address names. */
 export const postRead = (model: Model) =>
-  model.route._tag === 'Post'
-    ? Option.some(
-        Data.query(Cms.bySlug(Posts), { slug: model.route.slug }, { select: PostPage, first: 1 }),
-      )
-    : Option.none()
+  Match.value(model.route).pipe(
+    Match.tag('Post', ({ slug }) =>
+      Option.some(Data.query(Cms.bySlug(Posts), { slug }, { select: PostPage, first: 1 })),
+    ),
+    Match.orElse(() => Option.none()),
+  )
 
 /** The blog's index. */
 export const blogRead = (model: Model) =>
-  model.route._tag === 'Blog'
-    ? Option.some(Data.query(RecentPosts, {}, { select: PostCard, first: 24 }))
-    : Option.none()
+  Match.value(model.route).pipe(
+    Match.tag('Blog', () =>
+      Option.some(Data.query(RecentPosts, {}, { select: PostCard, first: 24 })),
+    ),
+    Match.orElse(() => Option.none()),
+  )
 
 /** The first row a read holds, once it holds any. */
 export const firstOf = <A>(read: RemoteData<RemotePage<A>>): Option.Option<A> =>
-  read._tag === 'Ready' || read._tag === 'Refreshing' ? Arr.head(read.value.items) : Option.none()
+  Option.flatMap(RemoteData.held(read), page => Arr.head(page.items))
 
 /** The page being shown, once it is read. */
 export const pageDocument = (model: Model): Option.Option<Document> =>

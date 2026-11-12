@@ -31,6 +31,7 @@ npx vitest run examples/tree
 
 ## Files
 
-- `src/app.ts` — static nodes, Model/Message, placements, `update`.
+- `src/message.ts` — the two placements' declarations and the Message.
+- `src/app.ts` — static nodes, Model, placements, `update`.
 - `src/view.ts` — `TreeSlots`, the three behaviors, the `Tree` SlotView.
 - `src/demo.ts` — the headless trace `main.ts` prints.

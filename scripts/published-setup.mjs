@@ -17,10 +17,9 @@
  *    module importing every entry point of `foldkit-plus`, so our types meet
  *    the scaffold's compiler options and its Effect; then `typecheck` again
  *    with examples copied in as a reader copies them, their imports rewritten
- *    to `foldkit-plus/…` as an app on the meta package writes them. The
- *    examples are not linted: Foldkit's recommended rules hold an app to
- *    upstream's module layout (a view beside its Message, child update
- *    capabilities), which a demo harness driving an app breaks on purpose.
+ *    to `foldkit-plus/…` as an app on the meta package writes them, and
+ *    `lint` over them too, but for their `demo.ts` files: a demo harness
+ *    stands in for a person, sending a child's input Messages on purpose.
  * 5. With no options, pnpm's pins and install lines also run in a standalone
  *    project and a workspace member, over a stand-in manifest.
  *
@@ -200,6 +199,16 @@ const copyExamples = plusExports => {
   }
 }
 
+/** The scaffold's lint configs, told to skip the examples' demo harnesses. */
+const skipDemos = () => {
+  for (const file of ['.oxlintrc.json', '.oxlintrc.effect.json']) {
+    const path = join(app, file)
+    const config = JSON.parse(readFileSync(path, 'utf8'))
+    config.ignorePatterns = [...(config.ignorePatterns ?? []), 'src/examples/**/demo.ts']
+    writeFileSync(path, JSON.stringify(config, null, 2))
+  }
+}
+
 /** 4. The scaffold's own checks, over what it drew, every entry point of ours, and the examples. */
 const checkScaffold = () => {
   const plus = JSON.parse(
@@ -223,8 +232,9 @@ const checkScaffold = () => {
       fail(`${manager} run ${script} fails in the scaffold:\n${checked.output}`)
     console.log(`published-setup: ${manager} run ${script}, over ${over}`)
   }
-  check('lint', `${entries.length} entry points`)
   copyExamples(plus.exports)
+  skipDemos()
+  check('lint', `${entries.length} entry points and ${EXAMPLES.length} examples`)
   check('typecheck', `${entries.length} entry points and ${EXAMPLES.length} examples`)
 }
 

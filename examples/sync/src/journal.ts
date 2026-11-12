@@ -12,11 +12,15 @@ import {
 import { journalExchange } from 'foldkit-sync/journal'
 import {
   DocumentId as SyncDocumentId,
+  LocalSequence,
+  OpId as SyncOpId,
+  ReplicaId,
+  Sequence as SyncSequence,
   type CommittedOperation as Committed,
   type Operation,
   type TransportClient,
 } from 'foldkit-sync'
-import { decodeMessage, type Message, type Shared } from './app.js'
+import { decodeMessage, encodeMessage, type Message, type Shared } from './app.js'
 import { TodoSync } from './sync.js'
 
 /** Supplied by a trusted transport, never decoded from an operation. */
@@ -113,10 +117,19 @@ export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJou
     }
   })()
 
-  /** The durable record, flattened into the wire shape the protocol exchanges. */
+  /**
+   * The durable record as the protocol reads it. The journal hands back the
+   * operation decoded, so it is written again at the current version first: a
+   * decoded operation names no version, and would read as version 1.
+   */
+  const contract = TodoSync.journalContract()
   const toCommitted = (committed: DurableCommitted<Operation>, documentId: string): Committed =>
     TodoSync.codec.committedFrom(
-      { ...committed.operation, serverSequence: committed.sequence, actorId: committed.actorId },
+      {
+        ...contract.operation.encode(committed.operation),
+        serverSequence: committed.sequence,
+        actorId: committed.actorId,
+      },
       SyncDocumentId.make(documentId),
     )
 
@@ -150,17 +163,18 @@ export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJou
    */
   const appendAsServer = (message: Message, principal: Principal, producer: string): Committed => {
     const baseCursor = snapshot(principal.documentId).cursor
+    // Written as a replica writes, at the current version of the Message.
     return append(
-      {
+      contract.operation.encode({
         protocolVersion: 1,
         schemaVersion: 1,
-        documentId: principal.documentId,
-        replicaId: producer,
-        localSequence: baseCursor + 1,
-        opId: `${producer}:${baseCursor + 1}`,
-        baseCursor,
-        message,
-      },
+        documentId: SyncDocumentId.make(principal.documentId),
+        replicaId: ReplicaId.make(producer),
+        localSequence: LocalSequence.make(baseCursor + 1),
+        opId: SyncOpId.make(`${producer}:${baseCursor + 1}`),
+        baseCursor: SyncSequence.make(baseCursor),
+        message: encodeMessage(message),
+      }),
       principal,
     )
   }

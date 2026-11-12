@@ -1,4 +1,6 @@
+import { Option } from 'effect'
 import { modifyFields } from 'foldkit/struct'
+import { type Url, fromString } from 'foldkit/url'
 
 import { EditingState, type Model, initialModel } from '../src/main.js'
 
@@ -13,3 +15,6 @@ export const modelWithTodos: Model = modifyFields(initialModel, {
 export const editingModel: Model = modifyFields(modelWithTodos, {
   editing: () => EditingState.Editing({ id: 'abc', text: 'Buy oat milk' }),
 })
+
+export const urlOrThrow = (raw: string): Url =>
+  Option.getOrThrowWith(fromString(raw), () => new Error(`Failed to parse url: ${raw}`))

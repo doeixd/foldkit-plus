@@ -74,6 +74,7 @@ export const Checkbox = Style.recipeFor(CheckboxSlots)({
         content: '""',
         position: 'absolute',
         top: `calc(10.7% + ${ref.border.glyph} * 0.354)`,
+        // physical: a drawn check mark
         left: '34%',
         inlineSize: '32%',
         blockSize: '56%',
@@ -93,6 +94,7 @@ export const Checkbox = Style.recipeFor(CheckboxSlots)({
         // The check's stroke, on the middle: a share of the box was 1.4px at
         // 16px, thinner than the check and blurred off its pixel rows.
         top: `calc(50% - ${ref.border.glyph} / 2)`,
+        // physical: a drawn check mark
         right: '22%',
         left: '22%',
         inlineSize: 'auto',
@@ -165,6 +167,12 @@ export const Switch = Style.recipeFor(SwitchSlots)({
       // right to left it starts on the right and moves left.
       Style.nest(`&${checked}:dir(rtl)::before`, {
         translate: `calc(-1 * (${rail} * 0.7 - ${stretch})) 0`,
+      }),
+      // Dragged (`Switch.draggable`), the thumb follows the pointer at once,
+      // from the drag's own place, whichever side it began on or the direction.
+      Style.nest('&[data-dragging]:is(:dir(ltr), :dir(rtl))::before', {
+        translate: 'var(--_fk-switch-drag, 0px) 0',
+        transitionDuration: '0s',
       }),
       focusRing,
       disabled,

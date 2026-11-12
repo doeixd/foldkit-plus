@@ -6,6 +6,7 @@
 import { Style } from 'foldkit-plus/mixins'
 import { AppStyle } from 'foldkit-plus/mixins/app'
 import { Layout } from 'foldkit-plus/mixins/layout'
+import { Utilities as U } from 'foldkit-plus/mixins/utilities'
 import { FieldSlots, FormSlots } from 'foldkit-plus/mixins-form'
 import { Field, Form } from 'foldkit-plus/mixins-form/recipes'
 import {
@@ -49,7 +50,8 @@ export const Page = slots(
     heading: Style.self({ margin: '0', fontSize: t.size['2xl'], color: t.text.overt }),
     nav: L.in('layouts', Layout.cluster({ gap: t.space.md, align: 'center' })),
     link: Style.self({ color: t.text.link, fontWeight: t.weight.medium }),
-    status: Style.self({ margin: '0', color: t.text.muted }),
+    // A wait (`aria-busy`) is said only once it is noticeable.
+    status: Style.compose(Style.self({ margin: '0', color: t.text.muted }), U.busyReveal),
     form: L.in('layouts', Layout.stack({ gap: t.space.md })),
     field: L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
     label: Style.self({ fontSize: t.size.sm, fontWeight: t.weight.medium, color: t.text.overt }),

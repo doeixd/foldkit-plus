@@ -1,3 +1,4 @@
+import { noKept } from '../src/kept.js'
 import { Effect, Layer, Option, Schema, Stream } from 'effect'
 import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
@@ -51,7 +52,7 @@ describe('Remote.update', () => {
     })
     expect(
       readField(
-        visibleStore(withLayer.entities, withLayer.optimistic),
+        visibleStore(withLayer.entities, withLayer.optimistic, noKept),
         entityKey('User', 'u1'),
         'name',
       ),

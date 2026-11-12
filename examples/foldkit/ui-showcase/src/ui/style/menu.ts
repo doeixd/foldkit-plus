@@ -13,11 +13,12 @@ import {
 } from './shared.js'
 
 /**
- * `foldkit-mixins-ui` has no Menu adapter: `@foldkit/ui` draws the menu's
- * elements itself and takes only attributes for its button, items, backdrop
+ * Drawn through `@foldkit/ui`'s own view, not `foldkit-mixins-ui`'s Menu
+ * adapter: upstream takes only attributes for its button, items, backdrop
  * and wrapper, so those are the page's own Slots. Each item takes only a
  * class name, so the items are styled from their container, by the role and
- * the `data-active` and `data-disabled` the component writes.
+ * the `data-active` and `data-disabled` the component writes; the adapter's
+ * `item` Slot is the way to style one as a Slot.
  */
 export const MenuPageSlots = Slots.define({
   ...demoSlots,

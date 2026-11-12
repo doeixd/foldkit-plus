@@ -2,6 +2,7 @@
  * Property-style checks over generated inputs. A seeded generator keeps every
  * run reproducible; each property is checked over a few hundred cases.
  */
+import { noKept } from '../src/kept.js'
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
@@ -246,7 +247,7 @@ describe('optimistic convergence', () => {
         ])
       }
       // While pending, the latest layer wins per field and every edge shows once.
-      const pendingVisible = visibleStore(base, optimistic)
+      const pendingVisible = visibleStore(base, optimistic, noKept)
       for (const field of ['v', 'w']) {
         const last = [...requests].reverse().find(request => request.field === field)
         expect(readField(pendingVisible, key, field)).toEqual(
@@ -280,7 +281,7 @@ describe('optimistic convergence', () => {
         confirmed.push(`${request.id}-real`)
       }
       expect(optimistic.layers).toEqual([])
-      const finalVisible = visibleStore(store, optimistic)
+      const finalVisible = visibleStore(store, optimistic, noKept)
       expect(readField(finalVisible, key, 'v')).toEqual(Option.some(expectedValues.v))
       expect(readField(finalVisible, key, 'w')).toEqual(Option.some(expectedValues.w))
       expect(finalVisible).toEqual(store)

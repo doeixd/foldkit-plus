@@ -44,7 +44,8 @@ Data.reduce(model, message)     the only way the cache changes
 
 The read entry diffs requirements against the store and fetches only missing or
 stale fields. An inactive Surface creates no work. `RemoteData` is a closed union
-(`RemoteData.match` is exhaustive; `RemoteData.answered(data)` is whether it has an answer yet):
+(`RemoteData.match` is exhaustive; `RemoteData.answered(data)` is whether it has an answer yet;
+`RemoteData.held(data)` is the value it holds, an `Option`, kept through `Refreshing` and a failed refresh):
 
 - `Initial`: absent, **nothing is fetching it** (often a wiring bug: not observed).
   `why(Data, model, projection, { surfaces })` says which: its first reason is
@@ -257,7 +258,9 @@ A transport failure becomes the call's Remote error, not a defect.
   resolvePrincipal })(request, env)` is the request's `Layer<RemoteClient,
   RemoteUnauthenticated>` over `serveFetch`'s server and limits, with no HTTP.
   Provide it to the pre-read (`Data.satisfy`); it only reads. A page GET
-  carries no CSRF header: with `foldkit-auth`, use `requests: 'navigation'`.
+  carries no CSRF header: with `foldkit-auth`, give it `AuthServer.host`'s
+  `navigation`, typed by `NavigationRequest` so `serveFetch` (which takes a
+  `ScriptedRequest` resolver) refuses it at compile time.
 - Keeping public reads (#428): `serveFetch({ ..., cache: { store, visitor,
   check? } })`. Freshness is declared, publicness proved: an Entity says
   `Entity.annotate(EdgeCache.of({ maxAge: '60 seconds' }))`, a Query
@@ -475,7 +478,8 @@ keeps no cursors.
 A render that fetches nothing needs everything the page's active Surfaces
 read, and one read can decide what another asks for (a page's Blocks once its
 document is read). `Data.satisfy` takes the record `Data.wiring` takes and
-prefetches, cache-first, pass after pass until nothing is missing; past its
+prefetches, cache-first, pass after pass until nothing is missing, one read a
+pass for every Surface (what one reveals waits for the next pass); past its
 bound (8 passes, `{ passes }`) it fails with `RemoteUnsatisfied`, naming the
 Surfaces still reading. A `Surface.each` family is one record entry: its
 parent's requirements join its instances', and a still-reading instance is
@@ -812,10 +816,27 @@ so a second send is answered from its record. Past `clockSkew`, the server
 writes its own time. `Trace.run(Data, { …, outbox })` runs the outbox as one
 tab, so a traced durable write is sent.
 
+**What is being saved: `writing`.** `writing(Data, model, filter?)`, from
+`foldkit-remote`'s root (a function, not a method of `Data`, so a page that
+never calls it keeps none of it), is one derived read of the ledger and the
+outbox, right after a reload and in a second tab: `Writing.None`, `Sending`,
+`Unanswered`, `WaitingForSignIn`, `Unreadable` or `Failed`, matched with
+`Writing.match`. The worst state of the matching writes wins (`Failed`, then `Unreadable`,
+`WaitingForSignIn`, `Unanswered`, `Sending`), and `requestIds` lists the writes in it (request
+ids: a durable write's operation id is its request id). `Sending` is every
+write's first state, so a "waiting to send" line reads `Unanswered` (a durable
+write sent with no answer; its `error` is the last send's), never `Sending`.
+The filter is `{ mutation }`, the Mutation itself (a string is a type error;
+one the domain does not register throws), and `{ row }`, an `EntityRef`
+(`Remote.ref(Item, id)`): the writes whose pending layer patches or deletes
+that row, so a refused write is in no row. Built from `outboxStatus`'s own
+reading, which stays the list of durable writes. Do not keep a "saving" flag
+in the Model: it is wrong after a reload and in a second tab.
+
 **Diagnostics.** `remote.diagnostics` (`Data.inspect(model).diagnostics`) holds,
 typed and oldest first (the newest 256), what Remote met and kept going past:
 `PredictionMismatch`, `WriteUnheard`, `LiveRefused`, `OutboxUnreadable` and
-`OutboxUnsaved`, each with `source`, `level` and `message`. The reducer only records; the wiring's route and `Remote.fold`
+`OutboxUnsaved`, each with `source`, `level` and `message` (`ReadUnmade` is only reported: `Remote.resume`'s capture finds a field or list the page's Surfaces read that no `Data.satisfy` read made). The reducer only records; the wiring's route and `Remote.fold`
 report each new one through the `Diagnostics.Reporter` in the Effect context
 (`foldkit-surface`'s, re-exported by `foldkit-remote`), by default Effect's log
 (an `error` diagnostic with `console.error`, a `warning` with `console.log`),
@@ -1462,6 +1483,11 @@ Met in applications on this stack: what failed, and what to do instead.
   write on workerd (`Stack.start`, [greenfield.md](greenfield.md)), and a
   race against `stack.env().DB` from Node: requests sent through the stack's
   HTTP origin did not interleave, so the race test passed with the handling removed.
+- **sql.js leaves SQLite's foreign keys off; Node's `node:sqlite` turns them
+  on.** An `on delete cascade` held in every Node test and would have left
+  rows behind in a browser database. Run `pragma foreign_keys = on` yourself
+  ([examples/chirp](https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp)'s
+  `src/server/server.ts`).
 - **One `drizzle-orm` per install.** The Drizzle adapters peer on it; a second
   copy, resolved with other optional peers, makes the application's tables
   fail to type-check against the adapter. Count the copies in the lockfile.

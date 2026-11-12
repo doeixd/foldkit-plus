@@ -81,14 +81,14 @@ Each lands with its test in the same change, as the 0.12 slices did.
   checked; `entry.ts` and the runtime test share it.
 - **Todo agent learns completion.** `examples/todo/src/agent.ts:30-60`,
   the onboarding path, teaches fire-and-forget; `todo-app` next door
-  models intent→fact with `correlate` and `requestId`. **Blocked on a
-  tooling quirk:** the port (a `CreateTodo` Command + a `SubmittedTodo`
-  fact carrying `requestId`) hits `TS2742` — `completion.success:
-  Message.SubmittedTodo` makes `AppAgent`'s inferred type reference
-  `foldkit/dist/schema/index.js`, unnameable in that example's declaration
-  emit (`todo-app` is exempt for a reason not yet found). Annotating widens
-  the Message universe and breaks host `dispatch` typing, so it is not a
-  cast-away. The README's false completion claim was corrected meanwhile.
+  models intent→fact with `correlate` and `requestId`. **Built:** the port
+  (a `SaveTodo` Command and a `SubmittedTodo` fact carrying `requestId`)
+  first hit TS2742, because the contract's type carried the whole variants
+  object and named `foldkit/schema`'s `CallableTaggedStruct`, which the
+  example never imports (`todo-app` was exempt only because foldkit-remote's
+  declarations bring that module in). `foldkit-agent` now keeps only each
+  variant's name and input in a contract's type (0768491), and the example
+  completes on its fact (2e347c4).
 - **`Input.view` / `Textarea.view` get their first app callers.**
   `examples/foldkit/websocket-chat/src/main.ts` (`Input.view`
   composer) and
@@ -107,9 +107,13 @@ Each lands with its test in the same change, as the 0.12 slices did.
   `Data.meta(...).stale/.loading` read, not just
   `.updatedAt` (`examples/foldkit/api-cache/src/main.ts:207`) — **built**
   (the detail footnote says "Refreshing…"/"May be out of date") ;
-  `Mirror.bootstrap` meeting `Mirror.routing` in one app
-  (`examples/foldkit/query-sync`); `correlate` in kitchen-sink's agent;
-  a `FormView.submodel(…, { canSubmit: () => true })` adopter.
+  `Mirror.bootstrap` meeting `Mirror.routing` in one app — **built** in
+  `examples/foldkit/todo` instead (the stored list bootstraps from Flags,
+  the filter is a URL mirror read by routing), since query-sync holds
+  nothing a device keeps; kitchen-sink's agent completion — **built** on
+  state, not `correlate` (the caller names the id, and no fact follows); a
+  `FormView.submodel(…, { canSubmit: () => true })` adopter — **built**
+  (cloudflare's quick add, whose disabled button stopped an empty Enter).
 - **Staleness gate stays designed, not bolted on.** No plan sets
   `version`, no hydrate passes `fresh` — because nobody has defined what
   the data version *is* (a Remote cursor? a revision?). Define it first;
@@ -142,9 +146,9 @@ Only after wave 0; polish on top of a lie is paint.
 - **Studio smalls.** Pages visitor screen missing the `Go to the site`
   link posts has (`pagesView.ts:185-194` vs `view.ts:354-357`) — **built**
   (wave 0); the schedule input needs its own slot plus an invalid-date hint
-  plus clear-on-scheduled (`view.ts:292-312`) — **partly built** (own slot,
-  hint; `clear-on-scheduled` needs the rule chosen first, see the TODO: every
-  way of deciding when to clear surprises someone); `aria-busy` on the refreshing pages list — **built** (the pages
+  plus clear-on-scheduled (`view.ts:292-312`) — **built** (own slot,
+  hint, and `clear-on-scheduled`: the box empties at the answer that takes
+  its schedule, while it still names the time asked); `aria-busy` on the refreshing pages list — **built** (the pages
   list adopts `RowListView`); touch-target width for tabs and toolbar
   buttons — **built** (`Touch.target` on `tab`, `button` and `danger`, with
   `test/touch.test.ts` covering the 44px floor both ways round).

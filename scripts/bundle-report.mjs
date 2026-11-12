@@ -4,6 +4,7 @@
  * it, and attributes its bytes to packages (#421).
  *
  *   node scripts/bundle-report.mjs examples/foldkit/domains-plus [--json out.json] [--rebuild]
+ *     [--landing home --route home=src/view.ts --route editor=src/editor.ts]
  *
  * "As an installed application would": workspace packages resolve to their
  * published `dist` (the `foldkit-plus:source` condition is dropped), and
@@ -15,6 +16,12 @@
  * the chunk's minified bytes (from the source map) is scaled to the chunk's
  * real brotli size, so the figures add up to the real total and the split
  * between packages is an estimate.
+ *
+ * Per route (`--route`): a route is a module the application names. Its first
+ * load is the entry's graph, plus the route's own chunk and that chunk's
+ * static imports when the route is split off; "only this" is the brotli of the
+ * modules that route's root alone reaches by static import (#438, decision 6).
+ * An application that does not split routes has every route in the entry.
  */
 import {
   cpSync,
@@ -137,7 +144,10 @@ const buildPinned = async (exampleDirectory, { rebuild = false, server = false }
   }
   const plugins = [loaded.config.plugins ?? []]
     .flat(Infinity)
+    // `staticSite` prerenders pages after the build, from a server build this
+    // report does not make; it adds nothing to the client's bytes.
     .filter(plugin => plugin && plugin.name !== BRANDING_PLUGIN)
+    .filter(plugin => server || plugin.name !== 'foldkit-ssr')
   const config = {
     ...loaded.config,
     root: exampleDir,
@@ -150,6 +160,20 @@ const buildPinned = async (exampleDirectory, { rebuild = false, server = false }
     },
     plugins: [
       ...plugins,
+      {
+        name: 'bundle-report-graph',
+        // The static import graph of the client build, for the per-route figures.
+        generateBundle() {
+          if (this.environment?.name !== 'client') return
+          const graph = {}
+          for (const id of this.getModuleIds()) {
+            const info = this.getModuleInfo(id)
+            if (info === null) continue
+            graph[id] = { imports: info.importedIds, entry: info.isEntry }
+          }
+          writeFileSync(join(dir, 'graph.json'), JSON.stringify(graph))
+        },
+      },
       {
         name: 'bundle-report',
         // After the Foldkit plugin has set its own output folders.
@@ -375,8 +399,125 @@ const attribute = (code, map) => {
   return bySource
 }
 
+// A module's identity across its `dist` and `src` spellings.
+const moduleKey = id => {
+  const { name, file } = packageOf(id)
+  return `${name}/${file}`.replace(/\.(?:m|c)?[jt]sx?$/, '')
+}
+
+/** Each module's share of a chunk's bytes, by `moduleKey`, from its source map. */
+const shares = (file, code) => {
+  const mapFile = `${file}.map`
+  const map = existsSync(mapFile) ? readJson(mapFile) : null
+  const bySource = map === null ? new Map() : attribute(code, map)
+  const sum = [...bySource.values()].reduce((a, b) => a + b, 0)
+  const found = new Map()
+  for (const [source, chars] of bySource) {
+    if (source === '(unmapped)') continue
+    const key = moduleKey(resolve(dirname(file), source))
+    found.set(key, (found.get(key) ?? 0) + chars / sum)
+  }
+  return found
+}
+
+const normalize = id => id.replaceAll(String.fromCharCode(92), '/').replace(/[?#].*$/, '')
+
+/**
+ * The modules that exactly one route root reaches by static imports. Reached
+ * from the entry without passing a route root, or from two roots, a module is
+ * shared and belongs to no route. `graph` maps a module id to its `imports`.
+ */
+export const exclusiveModules = (graph, entries, roots) => {
+  const reach = (starts, barriers) => {
+    const seen = new Set()
+    const visit = id => {
+      if (seen.has(id) || barriers.has(id)) return
+      seen.add(id)
+      for (const next of graph[id]?.imports ?? []) visit(next)
+    }
+    for (const start of starts) visit(start)
+    return seen
+  }
+  const all = new Set([...roots.values()].flat())
+  const base = reach(entries, all)
+  const by = new Map(
+    [...roots].map(([name, own]) => [
+      name,
+      reach(own, new Set([...all].filter(id => !own.includes(id)))),
+    ]),
+  )
+  const result = new Map()
+  for (const [name, reached] of by) {
+    const own = [...reached].filter(
+      id => !base.has(id) && [...by].every(([other, set]) => other === name || !set.has(id)),
+    )
+    result.set(name, own)
+  }
+  return result
+}
+
+const routeFigures = (client, routes, chunks, loaded, entryBrotli) => {
+  const graphPath = join(client, '..', 'graph.json')
+  if (!existsSync(graphPath))
+    throw new Error('no module graph beside the build; build it with measure')
+  const graph = Object.fromEntries(
+    Object.entries(readJson(graphPath)).map(([id, edges]) => [
+      normalize(id),
+      { imports: edges.imports.map(normalize), entry: edges.entry },
+    ]),
+  )
+  const ids = Object.keys(graph)
+  const rootOf = new Map(
+    routes.map(route => {
+      const found = route.module.split(',').map(suffix => {
+        const hits = ids.filter(id => id.endsWith(`/${suffix}`) || id === suffix)
+        if (hits.length !== 1)
+          throw new Error(`route ${route.name}: ${hits.length} modules end with ${suffix}`)
+        return hits[0]
+      })
+      return [route.name, found]
+    }),
+  )
+  const entries = ids.filter(id => graph[id].entry)
+  const own = exclusiveModules(graph, entries, rootOf)
+  const manifestPath = join(client, '.vite', 'manifest.json')
+  const manifestByKey = existsSync(manifestPath) ? readJson(manifestPath) : {}
+  const manifestByFile = new Map(Object.values(manifestByKey).map(chunk => [chunk.file, chunk]))
+  return routes.map(route => {
+    const rootKeys = rootOf.get(route.name).map(moduleKey)
+    const holder = [...chunks].find(([, chunk]) => rootKeys.some(key => chunk.modules.has(key)))
+    if (holder === undefined) throw new Error(`route ${route.name}: ${route.module} is in no chunk`)
+    const split = loaded !== null && !loaded.has(holder[0])
+    // A route in its own chunk also pays for that chunk's static imports not already loaded.
+    const extra = new Set()
+    if (split) {
+      const visit = file => {
+        if (file === undefined || loaded.has(file) || extra.has(file)) return
+        extra.add(file)
+        const entry = manifestByFile.get(file)
+        for (const next of entry?.imports ?? []) visit(manifestByKey[next]?.file)
+      }
+      visit(holder[0])
+    }
+    const keys = new Set(own.get(route.name).map(moduleKey))
+    let alone = 0
+    for (const [, chunk] of chunks)
+      for (const [key, share] of chunk.modules) if (keys.has(key)) alone += chunk.brotli * share
+    return {
+      name: route.name,
+      module: route.module,
+      landing: route.landing === true,
+      split,
+      firstLoadBrotli:
+        entryBrotli + [...extra].reduce((sum, file) => sum + chunks.get(file).brotli, 0),
+      aloneBrotli: Math.round(alone),
+      aloneModules: [...keys].sort(),
+    }
+  })
+}
+
 /** The figures: one row per group, brotli estimated from each module's share of its chunk. */
-export const reportFor = (client, exampleDir) => {
+export const reportFor = (client, exampleDir, routes = []) => {
   const loaded = entryGraph(client)
   const groups = new Map()
   const total = { minified: 0, brotli: 0, chunks: 0, lazyBrotli: 0, lazyChunks: 0 }
@@ -386,10 +527,13 @@ export const reportFor = (client, exampleDir) => {
     return entry
   }
   const modulesOf = new Map()
+  // Every chunk's brotli and modules, lazy or not, for the per-route figures.
+  const chunks = new Map()
   for (const file of jsFiles(client)) {
     const name = relative(client, file).replaceAll('\\', '/')
     const code = readFileSync(file, 'utf8')
     const brotli = brotliSize(code)
+    if (routes.length > 0) chunks.set(name, { brotli, modules: shares(file, code) })
     if (loaded !== null && !loaded.has(name)) {
       total.lazyBrotli += brotli
       total.lazyChunks++
@@ -435,6 +579,9 @@ export const reportFor = (client, exampleDir) => {
     /** Every module loaded at start, by name, however small: what a test asks is in it. */
     included: modules.map(entry => entry.module),
     styleSystemBrotli: style,
+    ...(routes.length > 0
+      ? { routes: routeFigures(client, routes, chunks, loaded, total.brotli) }
+      : {}),
   }
 }
 
@@ -464,11 +611,35 @@ export const formatReport = report => {
   ].join('\n')
 }
 
+/** Decision 6's bar: brotli that one non-landing route alone imports. */
+export const SPLIT_THRESHOLD = 20_000
+
+/** The per-route table, and decision 6's number: the largest `aloneBrotli` of a non-landing route. */
+export const formatRoutes = report => {
+  const routes = report.routes ?? []
+  const width = Math.max(...routes.map(route => route.name.length), 5)
+  const largest = routes
+    .filter(route => !route.landing)
+    .reduce((best, route) => (route.aloneBrotli > best.aloneBrotli ? route : best), {
+      name: '(none)',
+      aloneBrotli: 0,
+    })
+  return [
+    `${'route'.padEnd(width)}  ${'first load'.padStart(11)}  ${'only this'.padStart(10)}  chunk`,
+    ...routes.map(
+      route =>
+        `${(route.name + (route.landing ? '*' : '')).padEnd(width)}  ${kb(route.firstLoadBrotli).padStart(11)}  ${kb(route.aloneBrotli).padStart(10)}  ${route.split ? 'its own' : 'in the entry'}`,
+    ),
+    '* landing route. "only this": brotli~ of modules that this route root alone reaches by static imports (shared modules and the entry\'s own are in none).',
+    `decision 6: largest non-landing ${kb(largest.aloneBrotli)} (${largest.name}), bar ${kb(SPLIT_THRESHOLD)}: ${largest.aloneBrotli >= SPLIT_THRESHOLD ? 'C1 to C3 due' : 'below the bar'}`,
+  ].join('\n')
+}
+
 /** Builds the example's client and reports it; the test and the CLI share this. */
 export const measure = async (exampleDirectory, options) => {
   const built = await buildClient(exampleDirectory, options)
   try {
-    return reportFor(built.client, resolve(exampleDirectory))
+    return reportFor(built.client, resolve(exampleDirectory), options?.routes)
   } finally {
     built.cleanup()
   }
@@ -509,6 +680,7 @@ export const reportServerFile = (file, label) => {
     gzip: gzipSync(code, { level: 9 }).length,
     rows: ranked(groups),
     modules: ranked(modules).slice(0, 80),
+    files: [...modules.keys()],
   }
 }
 
@@ -588,7 +760,8 @@ if (
   const jsonPath = jsonAt === -1 ? undefined : args[jsonAt + 1]
   const target = args.find(
     (arg, index) =>
-      !arg.startsWith('--') && args[index - 1] !== '--json' && args[index - 1] !== '--worker',
+      !arg.startsWith('--') &&
+      !['--json', '--worker', '--route', '--landing'].includes(args[index - 1]),
   )
   if (target === undefined) {
     console.error('usage: node scripts/bundle-report.mjs <example dir> [--json <file>] [--rebuild]')
@@ -603,8 +776,16 @@ if (
     console.log(formatServerReport(report))
     process.exit(0)
   }
-  const report = await measure(target, { rebuild: flag('--rebuild') !== -1 })
+  // `--route name=path/suffix.ts` per route root; `--landing name` marks the landing route.
+  const landing = args[flag('--landing') + 1]
+  const routes = args.flatMap((arg, index) => {
+    if (args[index - 1] !== '--route') return []
+    const [name, module] = arg.split('=')
+    return [{ name, module, landing: name === landing }]
+  })
+  const report = await measure(target, { rebuild: flag('--rebuild') !== -1, routes })
   console.log(formatReport(report))
+  if (routes.length > 0) console.log(`\n${formatRoutes(report)}`)
   if (jsonPath !== undefined) {
     mkdirSync(resolve(jsonPath, '..'), { recursive: true })
     writeFileSync(jsonPath, `${JSON.stringify(report, null, 2)}\n`)

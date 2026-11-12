@@ -20,6 +20,7 @@
       "foldkit-mixins/vite": ["../../../packages/mixins/src/vite.ts"],
       "foldkit-ssr": ["../../../packages/ssr/src/index.ts"],
       "foldkit-ssr/client": ["../../../packages/ssr/src/client.ts"],
+      "foldkit-ssr/loader": ["../../../packages/ssr/src/loader.ts"],
       "foldkit-ssr/vite": ["../../../packages/ssr/src/vite.ts"],
       "foldkit-surface": ["../../../packages/surface/src/index.ts"]
     }

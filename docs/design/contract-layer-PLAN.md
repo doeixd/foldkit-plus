@@ -11,7 +11,8 @@
 
 | Phase | Ships | Evidence |
 | --- | --- | --- |
-| 0 to 7 | — | not started |
+| 0 | Items 1 to 3 (the canary spike) done 2026-11-11; items 4 to 7 not started | §8 |
+| 1 to 7 | — | not started |
 
 ## 1. Why now
 
@@ -119,8 +120,11 @@ breaks one is wrong even when every test passes.
    devices, or produced by an agent names its target by placement and domain
    key. Foldkit's per-runtime `generation` never leaves the runtime that made it.
 7. **Durable Messages stay readable.** Every stored durable Message decodes
-   under the current build, through declared upcasters, or the journal and the
-   replica refuse to open with a typed error. Nothing is dropped silently.
+   under the current build, through declared upcasters. Committed history no
+   upcaster reads, and an operation from a newer build, make the journal and
+   the replica refuse to open with a typed error; an unreadable pending
+   operation is refused by its id into a persisted list, so it neither blocks
+   the outbox nor is lost. Nothing is dropped silently.
 8. **Server-only Messages cannot originate from a client.** Constructing one
    for submission is a type error on the client, and the journal refuses one by
    tag before `validate` and `authorize` run.
@@ -225,11 +229,21 @@ Gate: none. Starts now.
    decision already taken in
    [remote-improvement-plan.md](./remote-improvement-plan.md) (§15 decision
    12, "a Sync rejection reads as a `Refusal`") with Remote's `Refusal`
-   vocabulary (§5.2 there), not a new one.
-6. A design note for upcasting durable Messages (invariant 7).
+   vocabulary (§5.2 there), not a new one. It needs one case that vocabulary
+   lacks: an operation no upcaster reads (`Unreadable { version }`, from
+   [190-upcasting-DESIGN.md](./190-upcasting-DESIGN.md) §9).
+   **Built** (2026-11-11), per
+   [190-sync-refusals-DESIGN.md](./190-sync-refusals-DESIGN.md), reviewed in
+   three rounds: `SyncRefusal` (`Forbidden`, `Invalid`, `Unreadable`) on
+   `Rejection.refusal` and the reply's `refusals`; `reason` and `reasons`
+   deprecated for one release. `Unreadable` is declared and decoded; its
+   producer, `journalExchange`, landed with Phase 5 item 6.
+6. A design note for upcasting durable Messages (invariant 7). **Written and
+   reviewed** (2026-11-11): [190-upcasting-DESIGN.md](./190-upcasting-DESIGN.md).
 7. A section in `docs/replication.md` on choosing document boundaries: a Sync
    key is the unit inside which `validate` may enforce a rule; a rule across
    keys gets its own key (a username claim) or a reserve-then-confirm flow.
+   **Done**: its "Choosing document boundaries" section (71855f3f).
 
 Done when: the measurements and probe answers are in §8, items 4 and 5 are
 merged with tests and mutations, and items 6 and 7 are written.
@@ -356,8 +370,17 @@ Gate: Phase 0 item 5. Independent of Phases 1 to 4.
    Remote `Mutation` does; `validate` returns one; the replica's rejected
    operation carries it decoded, so a cell shows the reason the same way
    whether Remote or Sync refused the change.
-6. **Upcasters.** `Sync.migrations([...])` from Phase 0 item 6, applied
-   wherever an operation is decoded (journal load, replica outbox, exchange).
+6. **Upcasters.** The history from Phase 0 item 6
+   ([190-upcasting-DESIGN.md](./190-upcasting-DESIGN.md)): a chain,
+   `Sync.migrations(V1).next(V2, up)`, in place of a list, so each step's input
+   is typed by the step before it. It is applied in Sync's operation codec, so
+   every hook (`admit`, `validate`, `authorize`, `reduce`, `stamp`) sees the
+   current Message while the outbox and the payload hash keep the version
+   written. It covers `foldkit-durable`'s optional `compared` form and a
+   stored row that will not decode reported as a `JournalError`. **Built
+   2026-11-11** on the branch, with the five named tests
+   (`packages/sync/test/upcasting.test.ts`); the decisions the note left open
+   are its §11. Jev did not run (`TYPESAFE_API_KEY` unset).
 7. **Deadlines and processes: deferred until a Sync application needs one.**
    Reactions alone cannot express "if nobody accepts the invite within seven
    days, expire it", or Phase 0 item 7's reserve-then-confirm flow with a
@@ -379,7 +402,12 @@ Done when: an example records a payment confirmation from a webhook as a
 server-only Message, a reaction sends a notice once per commit across a
 restart, a guest replica never receives the owner-only part of a document, a
 rejection reaches the UI typed, and a renamed durable Message replays from an
-old journal.
+old journal. For item 6 also: an outbox written by the old build opens under
+the new one; an acknowledgement lost across a deploy reads as already
+committed; a client ahead of its server waits rather than losing the edit; an
+unreadable pending operation lands in `refused` while the rest of the outbox
+is sent; and a client claiming an old version is refused by `admit` and
+`authorize` exactly as the current Message would be.
 
 ### 6.6 Phase 6: authorities we do not own (M)
 
@@ -456,8 +484,90 @@ one trace spans browser and server.
 
 ## 8. Phase 0 findings
 
-Empty until Phase 0 runs. Each probe in §6.0 gets a line: the question, the
-answer, the file or command that showed it.
+Run on 2026-11-11, items 1 to 3 of §6.0. Items 4 to 7 (the fixes that do not wait for upstream) are not started. The port's code is in the branch `worktree-agent-a0ac35c861ac32891` (commit `e0d850e7`, a worktree of this repository). It was never pushed or merged and is not shipped; it is evidence, not a migration.
+
+### 8.1 The canary
+
+- **Used:** `foldkit@0.170.0-canary.54f8bcd443b4` (npm dist-tag `foldkit-canary-upload-54f8bcd443b4`, the newest), with `@foldkit/ui@0.170.0-canary.54f8bcd443b4`. It is newer than the plan's `0.169.0-canary.1f6776fa7ece` and than the repository's `examples/foldkit/domains` pin (`0.169.0-canary.90746b32d2ca`). Stable `0.170.0` (`a471adb24d75`) has no Blocks.
+- **It carries the Block API, but a later shape than §2 and §9.1 were written from.** `foldkit/block` (`Block.make`, `makeNamespace`, `makeDefinition`, `assemble`), `foldkit/binding`, `Program.make` and `makeElement`, `makeCommand` and `prepareBlock` (both still present). No `block.md` ships. What the examples need:
+  - `Block.make(id, { key: Symbol, InitArgs, view, Model, Message, OutMessage?, operations?, effects? })`, then `makeComposition({ bindings })`, `makeInit`, `makeUpdate`, `makeView` and `makeLayer({ init, update, view, subscriptions?, EffectsLayer? })`. A host takes the pair `{ block, layer }`.
+  - `init`, `update` and `view` are **passive plans, not functions** (`init()` throws "is not a function"). A test builds the graph with `withBlock` or `story` from `foldkit/story`.
+  - `@foldkit/ui` ships Blocks: `Tabs.makeBlock()` and `Tabs.layer`.
+- **Effect:** the canary peers on `effect ~4.1.0` and `@effect/platform-browser ~4.1.0`; the workspace's 4.1.1 satisfies both. `@foldkit/ui`'s canary peers on the exact canary `foldkit`.
+- **What changed to install it (worktree only):** one line in `pnpm-workspace.yaml` (`overrides: foldkit: 0.170.0-canary.54f8bcd443b4`; Foldkit is pinned per package, there is no catalog) and `@foldkit/ui` in `examples/bundle/package.json`, since overriding `@foldkit/ui` would orphan the domains example's patch. `pnpm install` took 11 s. Packages that pin `foldkit: 0.170.0` or `^0.170.0` get a peer warning: a prerelease does not satisfy them.
+
+### 8.2 What the canary removes or renames
+
+The unported workspace does not compile against it. `tsc -b examples/remote` reports 586 errors: `mixins-ui` 347, `primitives` 214, `bundle` 17, `remote` 4, `mixins` 1, the example 3. Causes:
+
+- `foldkit/submodel` is gone (`h.submodel`, `Submodel.defineView`). By grep, 19 packages and 19 examples use it.
+- `Update.combine` is now `combineSteps` (6 packages, 13 examples; `primitives` alone has 17 files).
+- `Subscription.persistentEntry` is gone, and `Subscription.make<Model, Message, R>()(() => entries)` is now `Subscription.make<Model, Message>()(entry => ({ key: entry(name, fields, { messages, modelToDependencies, handler }) }))`, with a handler Layer per entry and a `dependenciesSchema`.
+- Mount registration types changed (TS2322 in `mixins-ui`).
+- Remote's own four errors are type-only: `outbox.ts:650`, `persistence.ts:858` and `remote.ts:975` (the `Subscription.make` arity), and `remoteData.ts:218` (a `CallableTaggedStruct` is not callable). The port ran with them unfixed.
+
+So Phase 1 is not "swap the version": every `@foldkit/ui`-based package (`primitives`, `mixins-ui`, and what builds on them) needs the ui canary and a Subscription and Update migration first. Count that in Phase 1's size.
+
+### 8.3 The ports
+
+- **`examples/bundle`: ported.** MediaQuery (a Subscription child, placed twice), Upload (a Record Binding with an OutMessage fold and an operation, `restart`) and Tabs (the ui Block) are Blocks under one `SettingsPage` root, plus a root Subscription (`autosave`). `tsc -p` is clean and 8 tests pass; a mutation of the Upload fold (`>= 100` to `> 100`) fails one. What did not carry over: `Surface.application`, `BundleSurface.parent` and the `Module.validate` ownership table, because `foldkit-bundle-surface` imports `foldkit-bundle`, which does not compile; the graph (§5.1) replaces it in Phase 3. Authoring notes:
+  - A Record Binding needs the parent's `init` to supply `uploads: {}`.
+  - A child's Subscription key is placement-prefixed (`dark/changes`), and the root's is `autosave`.
+  - A child's Message reaches the parent as an envelope with no constructor (`PrivateDelivery`), so a test sends it with `messageIn(Binding, key, message)`.
+  - A Story fails on a Command with no resolver (`Command.resolve(Tabs.test.FocusTab, ...)`).
+  - Exporting an inferred `init`, a Command or a Layer from a `composite` project fails declaration emit (TS2883, TS2527: the types name `AnyBindingInitRecipe` and a `unique symbol`). The port keeps those unexported. Expect this in every package that publishes `.d.ts`.
+- **`examples/remote`: not portable as is.** Its render path is `foldkit-mixins-surface` over `mixins-ui` and `primitives` (561 of the 586 errors). Instead `examples/remote/src/blocks.ts` hosts the demo's Remote cache in a Block: the demo's Model, one handler per `Remote.messages` tag calling `Data.reduce`, and the Surface-derived `page.read` entry registered as a Block Subscription. Two costs: the update table for the spread Remote messages is built with `Object.fromEntries` and an `as never` cast, and the handler needs `effects: { services: [RemoteClient] }` in `Block.make`, or `makeLayer` fails with an unreadable "not assignable to `never`". Two tests pass (`test/blocks.test.ts`). It runs Remote's old-style entries inside the new Subscription shape with a `Schema.Array(Schema.Unknown)` dependencies schema; a real port needs Remote's requirement schema.
+
+### 8.4 Measurements
+
+TypeScript 7.0.2, `tsc -p <project> --noEmit --incremental false --extendedDiagnostics`, three runs each (the tree maps workspace packages to source, so the numbers include them). Median shown; instantiation and type counts were identical across runs.
+
+| Project | Instantiations | Types | Check | Total |
+| --- | --- | --- | --- | --- |
+| `examples/bundle`, before (stable 0.170.0, placements) | 466,598 | 96,393 | 0.278 s | 0.587 s |
+| `examples/bundle`, after (canary, Blocks, Tabs Block, Story tests, probes) | 1,442,982 | 183,272 | 0.637 s | 0.991 s |
+| `examples/kitchen-sink`, today (stable) | 723,532 | 131,204 | 0.745 s | 1.895 s |
+| Marginal Block, from generated files of 10 and 40 identical small Blocks (Model, three Messages, composition, init, update, view, `makeLayer`) | about 18,200 | about 1,870 | about 16 ms | |
+
+Instantiations for the generated files: 0 Blocks 196, 1 Block 42,700, 10 Blocks 206,248, 40 Blocks 751,408 (total time 0.27, 0.31, 0.44 and 0.94 s).
+
+- **Cost per Block is linear and small.** About 18k instantiations each. `examples/bundle` grew by 976k, far more than its four Blocks explain (about 73k): the rest is the `@foldkit/ui` Tabs Block's types and `foldkit/story`'s test types, which are heavy. Measure them separately before Phase 1 rather than assuming a Block costs what the 40-Block file suggests.
+- **Estimate for `examples/kitchen-sink`:** it uses one placement today (Remote cache, Sync mount, Agent, Mirror, Surface integrations); about 12 Blocks and Bindings after Phase 1. That adds 0.22M at the measured slope, so 0.95M instantiations; if its ui and test types cost what the bundle example's did, about 2.0M. So 1.0 to 2.0M instantiations, 1.0 to 1.6 s check, 2.2 to 3.5 s total. Not run: it cannot compile until `mixins-ui` and `primitives` are migrated (§8.2).
+- **Editor latency was not measured** (no editor or `tsserver` session here). Measure it in Phase 1 on the real kitchen-sink: a `quickinfo` on a Binding and on `makeUpdate`'s argument.
+
+### 8.5 The type budget (invariant 12, Q8)
+
+Measured as above, `tsc -p examples/kitchen-sink --noEmit --incremental false` on the machine and TypeScript version of CI's `typecheck`:
+
+- instantiations at most 2.0M (2.8 times today's);
+- check time at most 1.6 s (twice today's) and total at most 4.0 s;
+- memory at most 1 GB;
+- any one Block's marginal cost at most 25k instantiations (measured 18k);
+- an editor `quickinfo` on a Binding or `makeUpdate` argument at most 1 s (to be measured in Phase 1).
+
+Enforce the first four in a `typecheck:budget` script that prints the diagnostics and fails above the numbers, run in CI beside `typecheck`. Over budget, the rule in invariant 12 applies: the check moves to `Module.validate` and a test.
+
+### 8.6 The probes
+
+| Question | Answer | Evidence |
+| --- | --- | --- |
+| Does `makeCommand` accept a whole Message union in `messages`? | **Yes.** | `examples/bundle/src/probes.ts:10-16` (`messages: [UploadMessage]`) compiles; the stand-in update returns `LoadBody({ message })` for any member. |
+| Does `prepareBlock` accept a stand-in `update`/`view` whose type is declared rather than inferred? | **Partly.** `makeLayer` takes a stand-in made through the same Composition and it runs (the test gets `Upload/LoadBody`). But the stand-in's type is not the real one's: a plan's type carries its Commands' handler requirement, so `const lazy: typeof real = standIn` fails. `Lazy.block` must declare `LoadBody` in the Block's contract (`effects`), or accept two plan types. Not tried: the `effects` route. `prepareBlock` and `Block.assemble` still exist, but the ui and the new examples use `makeLayer`. | `probes.ts:33-34` (`@ts-expect-error`) and `:36-41`; `test/probes.test.ts` P2. |
+| Is a Command result discarded after its occurrence is removed? | **Yes, by source; not run live.** Removal sets `isActive` false; the Command is forked in the occurrence's scope (interrupted when it closes), skipped if not current when started, and a queued Message from a non-current occurrence is dropped. Input from outside (a Port) is admitted only for an active child whose `generation` equals the Message's. Story and Scene do not simulate admission (`messageIn`'s doc says so). | canary `dist/runtime/compositionRuntime.js:133-135, 336-337`; `runtime.js:213-216, 307, 322`; `messageQueue.js:115-116`; `childOrigin.js:84-116`. |
+| Can a root Subscription computed from the whole Model sit beside a Block-owned Remote cache without restarting on every child change? | **Yes, run.** A root entry with dependencies `{ section, finished count }` stays equivalent when a child changes and changes when `section` does. The runtime restarts an entry only when `Schema.toEquivalence(dependenciesSchema)` (or `keepAliveEquivalence`) says the dependencies differ. In `examples/remote/src/blocks.ts` the Remote read entry's dependencies are equivalent when derived twice and after an unrelated Message. Not run: a real Remote state change restarting the stream in a live runtime. | `test/probes.test.ts` P4; `examples/remote/test/blocks.test.ts`; `dist/runtime/subscriptionFibers.js:13-14` (`Stream.changesWith`, `switchMap`). |
+| Does wrapping the authored root update callback give Sync everything its `afterUpdate` relies on? | **No: there is nothing to wrap.** `update` is a passive plan (`init()` is not callable), `Program.make` takes no update hook (grep of `dist` finds none outside devtools and test code), and the runtime calls the acquired function directly. Wrapping every authored handler would miss child Messages, which route through the Binding, not the parent's handlers. Q2 needs an upstream hook, or Sync reads the dev-tools store (not a contract). | `dist/runtime/runtime.js:334`; `dist/runtime/programPublic.d.ts`; `Program.make`'s config. |
+| Can two Mounts share an element under Blocks? | **No, but loudly now.** A second `OnMount` on an element throws "An element can have only one OnMount attribute ... Combine both behaviors in one Mount", where the old runtime dropped the first silently. The resolver still has to compose Mounts (the Traps entry stands). Read from source; not run. | `dist/html/index.js:964-968`. |
+| Do generated envelopes survive a Sync replay on another replica? | **No.** An envelope is `{ _tag: 'GotDarkMessage', placement, generation, key?, message }`; `generation` comes from a counter shared by all occurrences in one runtime, starting at 0, taken as each occurrence is created, and external input is admitted only on equality. Another replica, or the same one after a restart, numbers occurrences by its own creation order. Types make this explicit: the envelope is an opaque `PrivateDelivery`, so a test must cast. `update` itself applies an envelope of any generation (the P7 test passes with 99), so the guard is the runtime's, not the reducer's. Q4: Sync refuses generated envelopes and requires exposed operations. | `dist/runtime/childOrigin.js:19-31` (the shape); `dist/runtime/compositionRuntime.js:13, 69`; `childOrigin.js:107-113`; `test/probes.test.ts` P7. |
+
+Also read, not probed (Q3): a child Subscription is gated by `subscriptionWhen(parentModel, key, name)` and sees no parent context (`compositionRuntime.js:152-158`), as §11 recorded for `1f6776fa`.
+
+### 8.7 What this changes in the plan
+
+- **Phase 1's gate and size.** The upgrade breaks `foldkit/submodel`, `Update.combine` and the Subscription constructors across 19 packages (§8.2): size L stays, but only after a dependency order is set (ui canary, then `primitives` and `mixins-ui`, then the rest). Keep "Port only after #1655 merges" (§10).
+- **Phase 2.** Q4 is answered: envelopes are not portable, so durable Messages and agent tools reach a child only through exposed operations. The canary's `operations: { name: (...) => Tuple.make(Message) }` and the Binding's generated method (`UploadsBinding.restart(id)(model)`) are the seam to build on; whether it is addressable from outside the runtime is still Q1.
+- **Phase 1 item 4 (Sync wraps the root update).** Q2 is answered "no": it waits on an upstream hook.
+- **Phase 0 item 4 (Bundle `helpers` through the child's update)** matches what the canary does (an `operations` entry becomes a Message the child handles), which is evidence for invariant 2.
+- **Declaration emit.** Every published package that exports a Block's `init`, a Command or a Layer will need an explicit type or a portability fix upstream (§8.3). Add this to Phase 1's definition of done, and to invariant 12's risk.
 
 ## 9. Notes
 
@@ -549,4 +659,4 @@ On 2026-10-26:
   Effect's MCP server); `packages/remote-server/src` (uses `effect/rpc`);
   `skills/foldkit-plus` (SKILL.md, bundle.md, surface.md, agent.md, sync.md,
   guard.md, composition.md).
-- Not checked: any of this against a running canary. That is Phase 0.
+- Not checked, as of 2026-10-26: any of this against a running canary. Phase 0's spike did that on 2026-11-11 (§8), against a later canary than `1f6776fa`.

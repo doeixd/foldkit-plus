@@ -12,6 +12,7 @@ const index = '../src/index.ts'
 const model = '../src/model.ts'
 const outbox = '../src/outbox.ts'
 const store = '../src/outboxStore.ts'
+const status = '../src/outboxStatus.ts'
 
 export default [
   // #284: a write made as one principal is never sent as another.
@@ -170,7 +171,7 @@ export default [
   ),
   edit(
     'a write waiting for a sign-in is shown as waiting its turn',
-    outbox,
+    status,
     'WaitingForSignIn: ({ error }) => OutboxItemState.WaitingForSignIn({ error }),',
     'WaitingForSignIn: () => OutboxItemState.Waiting({ attempt, error: delayed }),',
   ),

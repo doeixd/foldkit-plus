@@ -1,4 +1,4 @@
-import { Match, Option } from 'effect'
+import { Equal, Match, Option } from 'effect'
 import type { Attribute, Html, HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import * as Mount from 'foldkit/mount'
 import type { Scene } from 'foldkit/test'
@@ -10,8 +10,13 @@ import {
   Clipboard,
   Columns,
   Fill,
+  type ColumnFilter,
   type ColumnSpec,
   type ColumnState,
+  type FilterableId,
+  type FilterForm,
+  type Filters,
+  formOf,
   type DataGridOf,
   type GridProjection,
   type Direction,
@@ -27,10 +32,11 @@ import {
 } from 'foldkit-data-grid'
 import { SlotView } from 'foldkit-mixins'
 import { fillHandleAttribute } from './fillDrag.js'
+import { type FilterWords, filterForm } from './filterForm.js'
 import { HoldFocus } from './holdFocus.js'
 import { KeepFocus } from './keepFocus.js'
 import { HeaderPress } from './headerPress.js'
-import { CellPress } from './press.js'
+import { CellPress, checkboxAttribute } from './press.js'
 import { GridSlots } from './slots.js'
 
 export interface GridWords {
@@ -52,6 +58,8 @@ export interface GridWords {
   readonly unpin?: string
   readonly hide?: string
   readonly show?: string
+  /** The words of the columns' filters. */
+  readonly filters?: FilterWords
 }
 
 /** How a column is sorted, and the Message that sorts it next: `foldkit-crud`'s `Sort` gives these. */
@@ -100,6 +108,12 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
       readonly source: { readonly anchor: CellAddress<Id>; readonly focus: CellAddress<Id> }
       readonly to: CellAddress<Id>
     }>
+    readonly filtering: Option.Option<{
+      readonly column: Id
+      readonly form: FilterForm
+      readonly reported: Option.Option<ColumnFilter>
+      readonly generation: number
+    }>
   }
   /** The application's rows, in its order; the view draws them through `state.columns`. */
   readonly rows: RowModel<Row>
@@ -111,7 +125,10 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
   readonly headerHeight: number
   readonly overscan?: { readonly rows?: number; readonly columns?: number }
   readonly direction?: Direction
-  /** Draws one cell; by default the column's value, as text. */
+  /**
+   * Draws one cell; by default the column's value, as text. A checkbox
+   * column's cell is its checkbox, and is not asked.
+   */
   readonly cell?: (column: Id, row: Row, h: HtmlBuilder<Message>) => Html | string
   /** A cell's mark, if it has one; asked only for the cells drawn. */
   readonly marks?: (address: CellAddress<Id>) => Option.Option<CellMark>
@@ -138,14 +155,29 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
   /**
    * A menu button on each header, opening the column's menu: pin it to the
    * start or the end or unpin it, hide it, or show a hidden column. On a
-   * focused header Alt+ArrowDown, Shift+F10 or the menu key opens it.
+   * focused header Shift+F10 or the menu key opens it, and Alt+ArrowDown on a
+   * column that does not filter (on one that does, it opens the filter).
    */
   readonly columnMenu?: boolean
   /** The columns that sort, each with its direction and its Message. */
   readonly sort?: { readonly [K in Id]?: ColumnSort<Message> }
 }
 
+/**
+ * The application's filter of each column that filters (`ColumnSpec.filter`),
+ * none where it filters nothing: given exactly when a column filters. Each
+ * such header draws a button opening the column's filter form (Alt+ArrowDown
+ * on the header, too), whose changes the grid reports as `Out.Filtered`.
+ */
+export type FiltersInput<Specs> = [FilterableId<Specs>] extends [never]
+  ? { readonly filters?: never }
+  : { readonly filters: Filters<Specs> }
+
 const px = (value: number): string => `${value}px`
+
+/** The DOM id of the checkbox in a checkbox column's cell: its cell's, with `:checkbox`. */
+const checkboxId = (gridId: string, address: CellAddress<string>): string =>
+  `${GridFocus.cellId(gridId, address)}:checkbox`
 
 // Spacers hold the width of the columns not drawn; nothing to see or style.
 const spacer = <Message>(h: HtmlBuilder<Message>, size: number): ReadonlyArray<Html> =>
@@ -256,7 +288,7 @@ const view = <Message>() => ({
     grid: DataGridOf<Row, Specs>,
   ): SlotView.SlotView<
     typeof GridSlots,
-    GridInput<Row, keyof Specs & string, typeof grid.Message.Type, Message>,
+    GridInput<Row, keyof Specs & string, typeof grid.Message.Type, Message> & FiltersInput<Specs>,
     Message
   > => {
     type Id = keyof Specs & string
@@ -265,6 +297,9 @@ const view = <Message>() => ({
     const editable = (column: Id) => grid.columns.byId[column].edit !== undefined
     // In a grid where some columns edit, the others say they do not.
     const readOnly = (column: Id) => editsAny && !editable(column)
+    const checkboxes = new Set<Id>(
+      grid.columns.ids.filter(id => Option.exists(grid.editorFor(id), CellEditor.guards.Checkbox)),
+    )
 
     /**
      * One body row, from its arguments alone: a row is drawn again only when
@@ -309,8 +344,9 @@ const view = <Message>() => ({
               onNone: () => [],
               onSome: side => [h.DataAttribute('pinned-edge', side)],
             }),
-            // Editable: double-clicking edits, as Enter does.
-            ...(editable(id)
+            // Editable: double-clicking edits, as Enter does. A checkbox has no
+            // text to edit, so neither the mark (a text cursor) nor the gesture.
+            ...(editable(id) && !checkboxes.has(id)
               ? [
                   h.DataAttribute('editable', 'true'),
                   h.OnDoubleClick(
@@ -337,7 +373,18 @@ const view = <Message>() => ({
           ]),
           Option.match(edited, {
             onNone: () => [
-              args.cell?.(id, row, h) ?? textOf(grid.columns.byId[id].value(row)),
+              checkboxes.has(id)
+                ? h.span(
+                    slots.checkbox.attrs([
+                      h.Attribute(checkboxAttribute, ''),
+                      h.Id(checkboxId(grid.id, address)),
+                      h.Role('checkbox'),
+                      h.AriaChecked(grid.columns.byId[id].value(row) === true),
+                      h.AriaLabel(grid.columns.byId[id].header),
+                    ]),
+                    [],
+                  )
+                : (args.cell?.(id, row, h) ?? textOf(grid.columns.byId[id].value(row))),
               // Its drag is the body's listener's, which outlives the handle's cell.
               ...(handled
                 ? [
@@ -384,7 +431,11 @@ const view = <Message>() => ({
 
     return SlotView.forMessages<Message>().define(
       GridSlots,
-      (input: GridInput<Row, Id, typeof grid.Message.Type, Message>, slots, h): Html => {
+      (
+        input: GridInput<Row, Id, typeof grid.Message.Type, Message> & FiltersInput<Specs>,
+        slots,
+        h,
+      ): Html => {
         const { rowHeight, headerHeight, state } = input
         const projection = grid.project(input.rows, state.columns)
         const width = grid.columnState.widthOf(state.columns)
@@ -396,6 +447,22 @@ const view = <Message>() => ({
         const started = input.wrap(grid.Message.MountStarted())
         const holdFocus = Mount.mapMessage(HoldFocus(), () => started)
         const keepFocus = Mount.mapMessage(KeepFocus(), () => started)
+        // `FiltersInput` gives a `Filters` of the filtering columns, or nothing.
+        const filters = (
+          input as { readonly filters?: { readonly [K in Id]?: Option.Option<ColumnFilter> } }
+        ).filters
+        // The open filter form, unless a write hid its column: then it is drawn
+        // nowhere, and the update closes it on the next Message.
+        const filtering = Option.filter(
+          state.filtering,
+          open => !state.columns.hidden.includes(open.column),
+        )
+        // A column's filter kind, when it filters and the application gives `filters`.
+        const filterOf = (column: Id): Option.Option<CellEditor> =>
+          Option.filter(grid.filterFor(column), () => filters !== undefined)
+        /** The application's filter of a column, as this frame draws it. */
+        const drawnFilter = (column: Id): Option.Option<ColumnFilter> =>
+          filters?.[column] ?? Option.none()
 
         // Display order across the regions; a column's index is its aria-colindex less one.
         const drawn = [...shown.start, ...shown.centerColumns, ...shown.end]
@@ -466,14 +533,25 @@ const view = <Message>() => ({
         const isRowShown = (address: CellAddress<Id>) =>
           Option.isSome(projection.positionOf(address))
         const onHeader = state.focus.header
-        // The header row's cells are drawn whenever their column is.
+        // The value a cell is drawn from, when its row is loaded.
+        const valueAt = (address: CellAddress<Id>): Option.Option<unknown> =>
+          Option.map(
+            Option.flatMap(projection.rowIndex(address.row), index => projection.rows.rowAt(index)),
+            row => grid.columns.byId[address.column].value(row),
+          )
+        // The header row's cells are drawn whenever their column is. On a
+        // checkbox it points at the box, a widget in the cell, so assistive
+        // technology says its state: the cell itself has none to say.
+        const cellTarget = (address: CellAddress<Id>): string =>
+          checkboxes.has(address.column) && Option.isSome(valueAt(address))
+            ? checkboxId(grid.id, address)
+            : GridFocus.cellId(grid.id, address)
         const activeDescendant: Option.Option<string> = Option.match(onHeader, {
           onSome: column =>
             drawn.includes(column)
               ? Option.some(GridFocus.headerId(grid.id, column))
               : Option.none(),
-          onNone: () =>
-            Option.map(Option.filter(stop, isDrawn), address => GridFocus.cellId(grid.id, address)),
+          onNone: () => Option.map(Option.filter(stop, isDrawn), cellTarget),
         })
 
         const revealOf = (address: CellAddress<Id>) =>
@@ -591,6 +669,10 @@ const view = <Message>() => ({
             (key === 'ArrowDown' && modifiers.altKey) ||
             (key === 'F10' && modifiers.shiftKey) ||
             key === 'ContextMenu'
+          // Alt+ArrowDown opens a filtering column's filter, as Excel's does.
+          if (key === 'ArrowDown' && modifiers.altKey && Option.isSome(filterOf(column))) {
+            return Option.some(grid.Message.FilterOpened({ column, drawn: drawnFilter(column) }))
+          }
           if (input.columnMenu === true && opensMenu) {
             return Option.some(grid.Message.MenuOpened({ column }))
           }
@@ -648,6 +730,26 @@ const view = <Message>() => ({
                   Option.exists(projection.positionOf(current), ({ row }) => row === 0),
                 ),
                 current => Option.some(headerTo(current.column)),
+              )
+            : Option.none()
+
+        // Space or Enter on a checkbox toggles it, ahead of Space's row selection.
+        const checkboxKey = (
+          key: string,
+          modifiers: KeyboardModifiers,
+        ): Option.Option<typeof grid.Message.Type> =>
+          (key === ' ' || key === 'Enter') && plainKey(modifiers)
+            ? Option.flatMap(
+                Option.filter(stop, address => checkboxes.has(address.column)),
+                address =>
+                  Option.map(valueAt(address), value =>
+                    grid.Message.EditToggled({
+                      cell: GridFocus.cellId(grid.id, address),
+                      checked: value === true,
+                      // The focus this frame was drawn from, which `stop` came from.
+                      by: grid.Toggle.Key({ drawn: state.focus.current }),
+                    }),
+                  ),
               )
             : Option.none()
 
@@ -858,6 +960,8 @@ const view = <Message>() => ({
               Text: () => [field(Option.none())],
               Number: () => [field(Option.some('decimal'))],
               Date: () => [field(Option.none(), 'date')],
+              // The grid opens no edit on a checkbox, which toggles in place.
+              Checkbox: () => [field(Option.none())],
               Choice: ({ options }): ReadonlyArray<Html> =>
                 input.choiceEditor === 'native'
                   ? [
@@ -886,19 +990,22 @@ const view = <Message>() => ({
         }
 
         // The clipboard works on the range, or the focused cell when there is none.
-        // While a cell is edited, the field has the clipboard to itself.
+        // While a cell is edited or a filter is open, the field has the
+        // clipboard to itself: a cut there would otherwise clear cells.
         const clipboardBox = Option.filter(
           Option.orElse(range, () =>
             Option.flatMap(stop, address => projection.box(address, address)),
           ),
-          () => Option.isNone(editing),
+          () => Option.isNone(editing) && Option.isNone(filtering),
         )
         const cornerOf = (box: CellBox<Id>) =>
           Option.map(projection.rows.keyAt(box.rows.start), row => ({
             row,
             column: box.columns[0]!,
           }))
-        // A box's editable cells laid with empty text: what a cut or Delete clears.
+        // A box's editable cells laid with empty text: what a cut or Delete
+        // clears. A checkbox has no empty value, so it is left as it is.
+        const clearable = (column: Id) => editable(column) && !checkboxes.has(column)
         const clearedOf = (box: CellBox<Id>) =>
           Option.match(cornerOf(box), {
             onNone: () => [],
@@ -909,23 +1016,13 @@ const view = <Message>() => ({
                 Array.from({ length: box.rows.end - box.rows.start }, () =>
                   box.columns.map(() => ''),
                 ),
-                { editable, from: draftOf },
+                { editable: clearable, from: draftOf },
               ),
           })
         const clipboard = (box: CellBox<Id>) => {
           const text = remembered(projection, JSON.stringify(box), () =>
             Clipboard.copy(projection, box, address =>
-              textOf(
-                Option.match(
-                  Option.flatMap(projection.rowIndex(address.row), index =>
-                    projection.rows.rowAt(index),
-                  ),
-                  {
-                    onNone: () => '',
-                    onSome: row => grid.columns.byId[address.column].value(row),
-                  },
-                ),
-              ),
+              textOf(Option.getOrElse(valueAt(address), () => '')),
             ),
           )
           const corner = cornerOf(box)
@@ -1025,6 +1122,10 @@ const view = <Message>() => ({
         // Escape while a header or a fill is dragged lets it go back; the
         // pointer's own release after that finds no drag.
         const onKey = (key: string, modifiers: KeyboardModifiers): Option.Option<Message> => {
+          // First: a filter opened by a key the grid still has, before its field took focus.
+          if (key === 'Escape' && Option.isSome(filtering)) {
+            return Option.some(input.wrap(grid.Message.FilterClosed()))
+          }
           if (key === 'Escape' && Option.isSome(state.dragging)) {
             return Option.some(input.wrap(grid.Message.ColumnDragEnded({ completed: false })))
           }
@@ -1054,6 +1155,7 @@ const view = <Message>() => ({
           historyKey,
           fillKey,
           clearKey,
+          checkboxKey,
           selectionKey,
           editKey,
           upToHeader,
@@ -1081,6 +1183,8 @@ const view = <Message>() => ({
               CellsListening: () => grid.Message.MountStarted(),
               CellClicked: ({ cell, shiftKey, toggleKey }) =>
                 grid.Message.CellPressed({ cell, shiftKey, toggleKey }),
+              CheckboxClicked: ({ cell, checked }) =>
+                grid.Message.EditToggled({ cell, checked, by: grid.Toggle.Press() }),
               FillDragStarted: () => grid.Message.FillStarted(),
               FillDraggedOver: ({ cell }) => grid.Message.FillDragged({ cell }),
               FillDragEnded: ({ completed }) => grid.Message.FillEnded({ completed }),
@@ -1099,12 +1203,27 @@ const view = <Message>() => ({
           ),
         )
 
-        const rowCount = RowCount.match(projection.rowCount, {
-          // The header row is the first row ARIA counts.
-          Known: ({ total }) => total + 1,
-          // ARIA's own spelling of a count not known yet.
-          Unknown: () => -1,
-        })
+        // No rows while the source is loading, or failed with nothing kept, is
+        // no answer yet: a count of 0 would tell a screen reader the grid is empty.
+        const empty = addressableRows(projection.rowCount) === 0
+        const status = input.status ?? RowStatus.Ready()
+        const unanswered =
+          empty &&
+          RowStatus.match(status, {
+            Ready: () => false,
+            Refreshing: () => false,
+            Loading: () => true,
+            Failed: () => true,
+          })
+        // ARIA's own spelling of a count not known yet.
+        const unknownCount = -1
+        const rowCount = unanswered
+          ? unknownCount
+          : RowCount.match(projection.rowCount, {
+              // The header row is the first row ARIA counts.
+              Known: ({ total }) => total + 1,
+              Unknown: () => unknownCount,
+            })
 
         // The end edge is the side the text runs toward, so a drag that way widens.
         const toward = input.direction === 'rtl' ? -1 : 1
@@ -1304,11 +1423,100 @@ const view = <Message>() => ({
           })
         }
 
+        // Four parts, so a filter's ids are never a cell's (three) or a header's (two).
+        const filterPart = (column: Id, part: string): string =>
+          [grid.id, column, 'filter', part].map(encodeURIComponent).join(':')
+        const filterWords = input.words?.filters ?? {}
+        /** A filtering column's button, and its form while open. */
+        const columnFilter = (id: Id): ReadonlyArray<Html> =>
+          Option.match(filterOf(id), {
+            onNone: () => [],
+            onSome: kind => {
+              const drawn = drawnFilter(id)
+              const open = Option.filter(filtering, each => each.column === id)
+              const button = h.button(
+                slots.filterButton.attrs([
+                  h.Type('button'),
+                  h.Tabindex(-1),
+                  h.AriaHasPopup('dialog'),
+                  h.AriaExpanded(Option.isSome(open)),
+                  h.AriaLabel(say(filterWords.filter ?? 'Filter {column}', id)),
+                  ...(Option.isSome(drawn) ? [h.DataAttribute('filtered', 'true')] : []),
+                  h.OnClick(
+                    input.wrap(
+                      Option.isSome(open)
+                        ? grid.Message.FilterClosed()
+                        : grid.Message.FilterOpened({ column: id, drawn }),
+                    ),
+                  ),
+                ]),
+                // A funnel's outline, for a page with no style; GridStyle draws its own.
+                [String.fromCharCode(0x25bd)],
+              )
+              return Option.match(open, {
+                onNone: () => [button],
+                onSome: ({ form, reported, generation }) => {
+                  // The application writes each report in the update that makes it,
+                  // so its filter differs from the last reported only after a write
+                  // from outside the form: a change from this frame starts from it.
+                  const stale = Equal.equals(drawn, reported)
+                    ? Option.none()
+                    : Option.some({ drawn, generation })
+                  return [
+                    button,
+                    filterForm<Message>({
+                      h,
+                      slots,
+                      idOf: part => filterPart(id, part),
+                      header: grid.columns.byId[id].header,
+                      kind,
+                      // A stale frame shows what the application wrote, which the next key starts from.
+                      form: Option.isSome(stale) ? formOf(drawn) : form,
+                      filtered: Option.isSome(drawn),
+                      words: filterWords,
+                      hold: h.OnMount(holdFocus),
+                      typed: (field, text) =>
+                        input.wrap(grid.Message.FilterTyped({ field, text, stale })),
+                      toggled: option =>
+                        input.wrap(grid.Message.FilterOptionToggled({ option, stale })),
+                      checked: checked =>
+                        input.wrap(grid.Message.FilterChecked({ state: checked, stale })),
+                      cleared: input.wrap(grid.Message.FilterCleared({ stale })),
+                      closed: input.wrap(grid.Message.FilterClosed()),
+                    }),
+                  ]
+                },
+              })
+            },
+          })
+
         const headerCell = (id: Id): Html => {
           const dragged = Option.filter(state.dragging, dragging => dragging.column === id)
+          const filterable = Option.isSome(filterOf(id))
+          const filtered = filterable && Option.isSome(drawnFilter(id))
           return h.div(
             slots.headerCell.attrs([
               h.Role('columnheader'),
+              // Named by its own words: the buttons and an open form inside are not its name.
+              h.AriaLabel(grid.columns.byId[id].header),
+              ...(filterable ? [h.AriaKeyshortcuts('Alt+ArrowDown')] : []),
+              // A description replaces the one the title gives, so it says both.
+              ...(filtered
+                ? [
+                    h.DataAttribute('filtered', 'true'),
+                    h.AriaDescription(
+                      [
+                        ...(readOnly(id) ? ['Read-only'] : []),
+                        filterWords.filtered ?? 'Filtered',
+                      ].join(', '),
+                    ),
+                  ]
+                : []),
+              // Focus leaving the header, not the form, closes the form: a press
+              // on its own button stays inside, and toggles it.
+              ...(Option.exists(filtering, open => open.column === id)
+                ? [h.OnFocusLeave(input.wrap(grid.Message.FilterClosed()))]
+                : []),
               h.Id(GridFocus.headerId(grid.id, id)),
               ...(Option.contains(onHeader, id) ? [h.DataAttribute('focused', 'true')] : []),
               h.AriaColindex(indexOf.get(id)! + 1),
@@ -1318,6 +1526,7 @@ const view = <Message>() => ({
                 ...(Option.isNone(pinned(id)) ? { position: 'relative' } : {}),
                 ...Option.match(dragged, {
                   onNone: () => ({}),
+                  // physical: a pointer delta, in screen pixels
                   onSome: ({ delta }) => ({ transform: `translateX(${px(delta * toward)})` }),
                 }),
               }),
@@ -1358,6 +1567,7 @@ const view = <Message>() => ({
                     [grid.columns.byId[id].header],
                   ),
               }),
+              ...columnFilter(id),
               ...columnMenu(id),
               ...resizeHandle(id),
             ],
@@ -1432,9 +1642,7 @@ const view = <Message>() => ({
         const bodyRows = Array.from({ length: shown.rows.end - shown.rows.start }, (_, offset) =>
           rowAt(shown.rows.start + offset),
         )
-        const empty = addressableRows(projection.rowCount) === 0
 
-        const status = input.status ?? RowStatus.Ready()
         const busy = isBusy(status)
         const words = input.words ?? {}
         const failure = (message: string): ReadonlyArray<Html> => [
@@ -1588,8 +1796,8 @@ const view = <Message>() => ({
   /**
    * The Mounts the grid starts as it opens something over itself, resolved
    * with the `MountStarted` the runtime sends: `'editor'` is a cell's field
-   * (a native select included) and `'menu'` a column's menu, each holding
-   * focus; `'choice'` is a choice's combobox and the list beside it, which
+   * (a native select included), `'menu'` a column's menu and `'filter'` its
+   * filter form, each holding focus; `'choice'` is a choice's combobox and the list beside it, which
    * keeps a press on an option from taking that focus. Resolve them once it
    * is drawn, and acknowledge them once it closes:
    * `Scene.Mount.expectEnded(...opened.map(([mount]) => mount))`.
@@ -1599,7 +1807,7 @@ const view = <Message>() => ({
     options: {
       /** The view's `wrap`. */
       readonly wrap: (message: typeof grid.Message.Type) => Message
-      readonly opened: 'editor' | 'choice' | 'menu'
+      readonly opened: 'editor' | 'choice' | 'menu' | 'filter'
     },
   ): ReadonlyArray<Scene.MountResolver<Message>> => {
     const started = options.wrap(grid.Message.MountStarted())

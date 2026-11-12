@@ -26,12 +26,15 @@ import {
   WorklistList,
   history,
   postPage,
+  scheduleInstant,
+  scheduleText,
   type Model,
 } from '../apps/app.js'
 import { PostForm, type PostPreview } from '../content/domain.js'
 import { icon } from './icons.js'
 import {
   chair,
+  conventions,
   editorBar,
   failed,
   guideInput,
@@ -145,8 +148,9 @@ const previewing = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =
     h.div(slots.preview.attrs(), [Preview(post, h)])
   const nothing = () =>
     h.p(slots.muted.attrs(), ['There is nothing to preview yet: write a title.'])
+  // `Initial` is a read nothing has asked yet, not an answer that there is nothing.
   return RemoteData.match(data, {
-    Initial: nothing,
+    Initial: () => Loading.view(slots.muted, h, 'Loading…'),
     Loading: () => Loading.view(slots.muted, h, 'Loading…'),
     Ready: preview,
     Refreshing: preview,
@@ -174,15 +178,14 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
   // Publishing submits the form, so while its checks fail the bar's Publish is
   // disabled rather than refusing after the click; the submit stays the enforcer.
   const submittable = PostForm.canSubmit(model.editor.form)
-  const at = new Date(model.scheduleAt)
+  const draft = scheduleText(model)
+  const at = new Date(draft)
   const action = (id: string, label: string, message: Message, enabled = true): Html =>
     h.button(slots.button.attrs([h.Id(id), h.OnClick(message), h.Disabled(!enabled)]), [label])
   // Where the post is read once it is on the site.
   const address = Option.flatMap(PostEditor.pageId(model), id => {
     const read = postPage(id).read(model)
-    return read._tag === 'Ready' || read._tag === 'Refreshing'
-      ? Option.some(read.value.slug)
-      : Option.none()
+    return Option.map(RemoteData.held(read), held => held.slug)
   })
 
   const bar = editorBar(slots, h, {
@@ -316,9 +319,15 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
             {
               onNone: () => [],
               onSome: ({ at: when, overdue, error }) => {
-                const time = new Date(when).toLocaleString(undefined, {
-                  dateStyle: 'medium',
-                  timeStyle: 'short',
+                // The box above takes the reader's own clock, so the zone is named.
+                const time = new Date(when).toLocaleString(conventions.locale, {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  timeZoneName: 'short',
+                  timeZone: conventions.timeZone,
                 })
                 return [
                   h.p(
@@ -343,7 +352,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
                     slots.search.attrs([
                       h.Id('at'),
                       h.Type('datetime-local'),
-                      h.Value(model.scheduleAt),
+                      h.Value(draft),
                       h.OnInput(text => Message.TypedSchedule({ text })),
                       h.Style({ paddingInlineStart: '0.7rem' }),
                     ]),
@@ -351,17 +360,13 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
                   action(
                     'schedule',
                     'Schedule',
-                    ask(
-                      Editor.Message.ScheduleAsked({
-                        at: Number.isNaN(at.getTime()) ? '' : at.toISOString(),
-                      }),
-                    ),
+                    ask(Editor.Message.ScheduleAsked({ at: scheduleInstant(draft) })),
                     !Number.isNaN(at.getTime()),
                   ),
                 ]),
                 // An invalid date is said, not just a disabled button: the box
                 // holds text the schedule cannot use.
-                ...(model.scheduleAt !== '' && Number.isNaN(at.getTime())
+                ...(draft !== '' && Number.isNaN(at.getTime())
                   ? [h.p(slots.muted.attrs(), ['Enter a date and time to schedule it.'])]
                   : []),
               ]
@@ -374,6 +379,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
           state,
           restore: revision => ask(Editor.Message.RestoreAsked({ revision })),
           authorName: publisherOf,
+          ...conventions,
           // A history that failed to read is asked for again the same way a
           // failed entry is: `ReloadAsked` refreshes every active read.
           onRetry: ask(Editor.Message.ReloadAsked()),

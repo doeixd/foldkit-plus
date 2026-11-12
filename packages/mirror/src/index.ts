@@ -854,9 +854,12 @@ const withPrefix = (prefix: '?' | '#', part: string): string =>
 const hrefOf = (url: Url | string): string =>
   typeof url === 'string'
     ? url
-    : `${url.pathname}${withPrefix('?', url.search._tag === 'Some' ? url.search.value : '')}${withPrefix(
+    : `${url.pathname}${withPrefix(
+        '?',
+        Option.getOrElse(url.search, () => ''),
+      )}${withPrefix(
         '#',
-        url.hash._tag === 'Some' ? url.hash.value : '',
+        Option.getOrElse(url.hash, () => ''),
       )}`
 
 const make = <S extends Slice, R, Name extends string>(
@@ -1383,10 +1386,11 @@ export const Mirror = {
         handles: ['MirrorRestored'],
         shared: ['MirrorRestored'],
         // Another mirror's restore is not this one's: `None` lets the next mirror take it.
-        route: (model, message) =>
-          message._tag === 'MirrorRestored' && message.name === mirror.name
-            ? Option.some({ model: reduce(model, message) })
-            : Option.none(),
+        route: (model, message) => {
+          if (message._tag !== 'MirrorRestored' || message.name !== mirror.name)
+            return Option.none()
+          return Option.some({ model: reduce(model, message) })
+        },
         init: model => ({ model, commands: [mirror.restore] }),
         subscriptions: brandEntries(mirror.subscriptions),
         contract: mirror.contract,

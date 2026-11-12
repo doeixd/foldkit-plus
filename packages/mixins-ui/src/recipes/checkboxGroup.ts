@@ -80,12 +80,12 @@ export const CheckboxGroup = Style.recipeFor(CheckboxGroupSlots)({
     ),
     // In the label's row only, so a description under it does not pull the box down.
     checkbox: Style.compose(
-      box.checkbox ?? Style.empty,
+      box.checkbox,
       component(Style.self({ gridRow: '1', alignSelf: 'center' })),
     ),
     // A disabled option's words dim with its box.
     label: Style.compose(
-      box.label ?? Style.empty,
+      box.label,
       component(Style.nest(dimmed, { opacity: ref.knob['state-disabled'] })),
     ),
     description: component(

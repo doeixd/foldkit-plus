@@ -56,6 +56,20 @@ const facts = (
       `rows ${(shown.rows.start + 1).toLocaleString()} to ${shown.rows.end.toLocaleString()} drawn`,
     ].join(' · '),
     search: model.search === '' ? 'Every product' : `Descriptions holding “${model.search}”`,
+    filters: [
+      Option.match(model.filters.status, {
+        onNone: () => 'Every status',
+        onSome: ({ options }) => options.join(' or '),
+      }),
+      Option.match(model.filters.cents, {
+        onNone: () => 'any price',
+        onSome: ({ min, max }) =>
+          [
+            ...Option.match(min, { onNone: () => [], onSome: low => [`at least ${low}`] }),
+            ...Option.match(max, { onNone: () => [], onSome: high => [`at most ${high}`] }),
+          ].join(' and '),
+      }),
+    ].join(' · '),
     sort:
       model.sort === null
         ? 'In the server’s own order'

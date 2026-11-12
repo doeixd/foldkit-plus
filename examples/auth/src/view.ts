@@ -11,6 +11,7 @@ import { Alert, AppShell, Badge, Button, Card, Input, PasswordInput } from 'fold
 import { May } from 'foldkit-guard'
 import { Denied, RemoteData, type RemoteError } from 'foldkit-remote'
 import { Access, Site } from 'foldkit-site'
+import { Resume, type ResumableBuilder } from 'foldkit-ssr/client'
 import { Surface } from 'foldkit-surface'
 import {
   AppRoute,
@@ -48,17 +49,21 @@ const failure = (error: RemoteError): string =>
     }),
   })
 
-const signInForm = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =>
+const signInForm = (model: Model, slots: Slots, h: ResumableBuilder<Message>): Html =>
   h.form(slots.form.attrs([h.Id('sign-in'), h.OnSubmit(Message.SubmittedSignIn())]), [
     Input.view(
       {
         id: 'email',
         type: 'email',
         value: model.email,
-        onInput: value => Message.ChangedEmail({ value }),
+        // A member, not a closure: the server names it, so typing before boot is answered.
+        onInput: h.OnInput(Message.ChangedEmail),
         style: FieldStyle,
-        draw: (resolved, h) =>
-          h.div(slots.field.attrs(), [h.label(resolved.label, ['Email']), h.input(resolved.input)]),
+        draw: resolved =>
+          h.div(slots.field.attrs(), [
+            h.label(resolved.label, ['Email']),
+            h.input([...resolved.input, h.KeepTyped()]),
+          ]),
       },
       h,
     ),
@@ -67,10 +72,10 @@ const signInForm = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =
         id: 'password',
         label: 'Password',
         value: model.password,
-        onInput: value => Message.ChangedPassword({ value }),
+        onInput: h.OnInput(Message.ChangedPassword),
         visible: model.passwordShown,
         onToggle: Message.ToggledPassword(),
-        autocomplete: 'current-password',
+        attributes: { input: [h.KeepTyped()] },
         style: PasswordStyle,
       },
       h,
@@ -90,7 +95,7 @@ const who = (
 const unknown = (slots: Slots, h: HtmlBuilder<Message>, text: string) =>
   h.p(slots.who.attrs([h.Id('who'), h.Role('alert'), h.DataAttribute('failed', '')]), [text])
 
-const session = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> =>
+const session = (model: Model, slots: Slots, h: ResumableBuilder<Message>): ReadonlyArray<Html> =>
   RemoteData.render(Surface.read(Session, model).me, {
     loading: () => [who(slots, h, 'Checking who you are…')],
     notFound: () => [who(slots, h, 'The server did not say who you are.')],
@@ -114,9 +119,13 @@ const session = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyA
       }),
   })
 
+/** A wait: busy, so the status Slot says it only once it is noticeable. */
+const waiting = (slots: Slots, h: HtmlBuilder<Message>, text: string): Html =>
+  h.p(slots.status.attrs([h.Role('status'), h.AriaBusy(true)]), [text])
+
 const noteList = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> =>
   RemoteData.render(Surface.read(NoteList, model).notes, {
-    loading: () => [h.p(slots.status.attrs([h.Role('status')]), ['Loading…'])],
+    loading: () => [waiting(slots, h, 'Loading…')],
     notFound: () => [h.p(slots.status.attrs(), ['No list.'])],
     // A refusal is announced once, by the session line above.
     failed: error =>
@@ -148,9 +157,9 @@ const notes = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =>
         Access.match(accessOf(model), {
           Allowed: () => noteList(model, slots, h),
           // `Me` is still loading: no sign-in page flashed at someone signed in.
-          Pending: () => [h.p(slots.status.attrs([h.Role('status')]), ['Loading…'])],
+          Pending: () => [waiting(slots, h, 'Loading…')],
           // `update` is replacing the address.
-          Denied: () => [h.p(slots.status.attrs(), ['Taking you to sign in…'])],
+          Denied: () => [waiting(slots, h, 'Taking you to sign in…')],
         }),
       ),
       style: CardStyle,
@@ -167,7 +176,10 @@ const page = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArra
     ],
   })
 
-export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
+export const view = (model: Model, base: HtmlBuilder<Message>): Document => {
+  // The server writes each press and keystroke's Message into its markup, so
+  // one made before the runtime starts is answered when it does.
+  const h = Resume.builder(base)
   const slots = SlotView.buildersFor(Page.slots, [Page.style.mixin], { input: undefined, h })
   return {
     title: Site.titleOf(AppSite, model.route) ?? 'Not found',

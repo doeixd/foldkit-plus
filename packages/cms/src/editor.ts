@@ -11,7 +11,7 @@
  * saves have got. What the server holds is read from Remote, never copied: the
  * draft's `updatedAt` a save is based on, and the entry's `revision` a publish is.
  */
-import { Duration, Effect, Option, Predicate, Schema } from 'effect'
+import { Duration, Effect, Match, Option, Predicate, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity, type AnyEntity } from 'foldkit-entity'
 import type { Submitted } from 'foldkit-form'
@@ -206,9 +206,6 @@ export interface EditorContent<FormModel, FormMessage, Value, Resources = {}, Se
     | ((value: Partial<Value>, id: string) => ReadonlyArray<OptimisticOperation>)
     | undefined
 }
-
-const held = <A>(read: RemoteData<A> | undefined): A | undefined =>
-  read?._tag === 'Ready' || read?._tag === 'Refreshing' ? read.value : undefined
 
 /** Read, and not being read again: what the server said last, not what it said before. */
 const fresh = (read: RemoteData<unknown> | undefined): boolean =>
@@ -585,18 +582,19 @@ export const makeEditor =
             Option.map(Option.fromUndefinedOr(entryOf(root)), entry => data.get(EntryState, entry)),
           draft: (root: Root) =>
             Option.map(Option.fromUndefinedOr(entryOf(root)), entry => data.get(DraftRead, entry)),
-          row: (root: Root) =>
-            Option.map(
-              Option.fromNullishOr(
-                held<{ readonly targetId: string | null }>(read(root, 'entry'))?.targetId,
-              ),
-              target => data.get(RowRead, target),
-            ),
+          row: (root: Root) => Option.map(targetOf(root), target => data.get(RowRead, target)),
         }
-        // The editor's own reasoning reads these as plain values, with `held`.
         const read = (root: Root, part: keyof typeof projections): RemoteData<any> | undefined =>
           Option.getOrUndefined(
             Option.map(projections[part](root), projection => projection.read(root)),
+          )
+        /** What `part`'s read holds, by `RemoteData.held`; none while there is none to read. */
+        const heldIn = <A>(root: Root, part: keyof typeof projections): Option.Option<A> =>
+          Option.flatMap(Option.fromUndefinedOr(read(root, part)), r => RemoteData.held<A>(r))
+        /** The published row the open entry points at, once the entry is read. */
+        const targetOf = (root: Root): Option.Option<string> =>
+          Option.flatMap(heldIn<{ readonly targetId: string | null }>(root, 'entry'), entry =>
+            Option.fromNullOr(entry.targetId),
           )
         /**
          * Read and asked for nothing more. A draft known absent still reads
@@ -633,10 +631,10 @@ export const makeEditor =
             editor.settling === 'reload'
               ? fresh
               : (r: RemoteData<unknown> | undefined) =>
-                  held(r) !== undefined || r?._tag === 'NotFound'
+                  r !== undefined && (Option.isSome(RemoteData.held(r)) || r._tag === 'NotFound')
           if (!arrived(entry) || !arrived(draft)) return root
-          const entryValue = held<{ readonly targetId: string | null }>(entry)
-          if (entryValue === undefined) return root
+          const entryValue = heldIn<{ readonly targetId: string | null }>(root, 'entry')
+          if (Option.isNone(entryValue)) return root
           const shown = (resumed: Resumed, next: FormModel): Root =>
             slice.set(root, {
               ...closed,
@@ -649,34 +647,35 @@ export const makeEditor =
               otherId: editor.otherId,
             })
 
-          const saved = held<{
+          const saved = heldIn<{
             readonly values: unknown
             readonly model: unknown
             readonly form: string
-          }>(draft)
-          if (saved !== undefined) {
-            const model = saved.form === formTag ? decodeModel(saved.model) : Option.none()
+          }>(root, 'draft')
+          if (Option.isSome(saved)) {
+            const model =
+              saved.value.form === formTag ? decodeModel(saved.value.model) : Option.none()
             // A check that was running when it was saved will never answer.
             if (Option.isSome(model)) return shown('Model', form.settled(model.value))
-            const values = fitting(saved.values)
+            const values = fitting(saved.value.values)
             if (Object.keys(values).length > 0)
               return shown('Values', form.fill(form.initial, values).model)
           }
-          const lost: Resumed = saved === undefined ? 'Published' : 'Lost'
-          if (entryValue.targetId === null)
-            return shown(saved === undefined ? 'Blank' : 'Lost', form.initial)
-          const row = read(root, 'row')
-          if (!arrived(row)) return root
-          const rowValue = held<Readonly<Record<string, unknown>>>(row)
-          return rowValue === undefined
-            ? shown(lost, form.initial)
-            : shown(
+          const lost: Resumed = Option.isNone(saved) ? 'Published' : 'Lost'
+          if (entryValue.value.targetId === null)
+            return shown(Option.isNone(saved) ? 'Blank' : 'Lost', form.initial)
+          if (!arrived(read(root, 'row'))) return root
+          return Option.match(heldIn<Readonly<Record<string, unknown>>>(root, 'row'), {
+            onNone: () => shown(lost, form.initial),
+            onSome: rowValue =>
+              shown(
                 lost,
                 form.fill(
                   form.initial,
                   Entity.valuesFor(form.input as never, rowValue as never) as Partial<Value>,
                 ).model,
-              )
+              ),
+          })
         }
 
         const startSave: Step = root => {
@@ -686,8 +685,10 @@ export const makeEditor =
           const typed =
             labelKey === undefined ? '' : form.field(editor.form, labelKey as never).value
           const label = typeof typed === 'string' ? typed.trim() : ''
-          const basedOn =
-            held<{ readonly updatedAt: string }>(read(root, 'draft'))?.updatedAt ?? null
+          const basedOn = Option.match(heldIn<{ readonly updatedAt: string }>(root, 'draft'), {
+            onNone: () => null,
+            onSome: draft => draft.updatedAt,
+          })
           const started = data.mutate(root, cms.Operations.SaveDraft, {
             entry: editor.entry,
             type: content.name,
@@ -741,8 +742,7 @@ export const makeEditor =
           // Something new that was never saved is only here.
           if (editor.mode === 'new' && editor.saveId === null)
             return { model: slice.set(root, closed) }
-          const unpublished =
-            held<{ readonly targetId: string | null }>(read(root, 'entry'))?.targetId == null
+          const unpublished = Option.isNone(targetOf(root))
           const started = data.mutate(root, cms.Operations.DiscardDraft, { entry: editor.entry })
           return {
             model: slice.set(
@@ -798,9 +798,8 @@ export const makeEditor =
           if (!editor.previewing || content.preview === undefined || editor.entry === null)
             return lift(data, root, overlayId)
           // Something new is shown under its entry's id until publishing gives it a row.
-          const id =
-            held<{ readonly targetId: string | null }>(read(root, 'entry'))?.targetId ??
-            editor.entry
+          const entry = editor.entry
+          const id = Option.getOrElse(targetOf(root), () => entry)
           const as = `${editor.edits}:${id}`
           if (editor.previewedAs === as) return root
           const shown = overlay(
@@ -852,8 +851,8 @@ export const makeEditor =
          */
         const about = (root: Root): Root => {
           const editor = slice.get(root)
-          const target = held<{ readonly targetId: string | null }>(read(root, 'entry'))?.targetId
-          const subject = target === null || target === undefined ? {} : { id: target }
+          const target = Option.getOrUndefined(targetOf(root))
+          const subject = target === undefined ? {} : { id: target }
           if (form.subject(editor.form).id === subject.id) return root
           return slice.set(root, {
             ...editor,
@@ -883,17 +882,25 @@ export const makeEditor =
           if (editor().publishWanted && !saving() && editor().settling === null) {
             const save = statusOf(root, editor().saveId)
             const resumedDraft = editor().resumed === 'Model' || editor().resumed === 'Values'
+            const { applied, failed } = Match.valueTags(save, {
+              Applied: () => ({ applied: true, failed: false }),
+              Failed: () => ({ applied: false, failed: true }),
+              Pending: () => ({ applied: false, failed: false }),
+              Unknown: () => ({ applied: false, failed: false }),
+            })
             const saved =
               editor().edits === editor().savedEdit &&
-              (editor().saveId === null ? resumedDraft : save._tag === 'Applied')
-            if (save._tag === 'Failed' && editor().edits === editor().savedEdit) {
+              (editor().saveId === null ? resumedDraft : applied)
+            if (failed && editor().edits === editor().savedEdit) {
               // The draft could not be saved, so there is nothing to publish; the save says why.
               root = slice.set(root, { ...editor(), publishWanted: false })
             } else if (!saved) {
               run(startSave)
             } else {
-              const basedOn =
-                held<{ readonly revision: number | null }>(read(root, 'entry'))?.revision ?? null
+              const basedOn = Option.match(
+                heldIn<{ readonly revision: number | null }>(root, 'entry'),
+                { onNone: () => null, onSome: entry => entry.revision },
+              )
               const at = editor().scheduleAt
               const started =
                 at === null
@@ -1032,10 +1039,7 @@ export const makeEditor =
            * the entry's while there is no row. It is what a preview is shown under.
            */
           pageId: (root: Root): Option.Option<string> =>
-            Option.fromNullishOr(
-              held<{ readonly targetId: string | null }>(read(root, 'entry'))?.targetId ??
-                slice.get(root).entry,
-            ),
+            Option.orElse(targetOf(root), () => Option.fromNullOr(slice.get(root).entry)),
           /** The entry being edited; none while closed. */
           entry: (root: Root): Option.Option<string> => Option.fromNullOr(slice.get(root).entry),
           /**
@@ -1048,7 +1052,10 @@ export const makeEditor =
             Option.fromNullOr(slice.get(root).resumed),
           /** The entry's lifecycle state, as the server last derived it; none until it is read. */
           state: (root: Root): Option.Option<State> =>
-            Option.fromUndefinedOr(held<{ readonly state: State }>(read(root, 'state'))?.state),
+            Option.map(
+              heldIn<{ readonly state: State }>(root, 'state'),
+              entryState => entryState.state,
+            ),
           /**
            * Whether the signed-in principal may ask this transition of the open
            * entry, by the server's `allow`, as the server said with the entry: false
@@ -1056,9 +1063,10 @@ export const makeEditor =
            * say. For hiding what would be refused; the server still decides.
            */
           may: (root: Root, transition: Transition): boolean =>
-            held<{ readonly may: ReadonlyArray<Transition> }>(read(root, 'state'))?.may.includes(
-              transition,
-            ) === true,
+            Option.exists(
+              heldIn<{ readonly may: ReadonlyArray<Transition> }>(root, 'state'),
+              entryState => entryState.may.includes(transition),
+            ),
           /** Why the last publish, save, discard or unpublish failed. */
           error: failure,
 
@@ -1067,21 +1075,18 @@ export const makeEditor =
             if (editor.mode === 'closed') return 'Closed'
             // An entry opened from the server is loading until its state is read
             // too, so what the state draws (the badge, the history, Publish)
-            // arrives with the form instead of a moment after it.
+            // arrives with the form instead of a moment after it. A state whose
+            // read failed holds nothing either: the badge would say New.
+            const stateRead = read(root, 'state')
             const stateUnread =
               editor.mode === 'edit' &&
-              !Option.match(Option.fromUndefinedOr(read(root, 'state')), {
-                onNone: () => false,
-                onSome: RemoteData.answered,
-              })
+              (stateRead === undefined ||
+                (stateRead._tag !== 'NotFound' && Option.isNone(RemoteData.held(stateRead))))
             if (!editor.filled || stateUnread) {
               const entry = read(root, 'entry')
               if (entry?._tag === 'NotFound') return 'NotFound'
-              return [entry, read(root, 'draft'), read(root, 'row')].some(
-                part => part?._tag === 'Failed',
-              )
-                ? 'LoadFailed'
-                : 'Loading'
+              const parts = [entry, read(root, 'draft'), read(root, 'row'), stateRead]
+              return parts.some(part => part?._tag === 'Failed') ? 'LoadFailed' : 'Loading'
             }
             const publish = statusOf(root, editor.publishId)
             const save = statusOf(root, editor.saveId)
@@ -1113,14 +1118,15 @@ export const makeEditor =
                     return later ? 'ScheduleFailed' : 'PublishFailed'
                   case 'Applied':
                     return later ? 'Scheduled' : 'Published'
-                  case 'Unknown':
+                  case 'Unknown': {
                     // Nothing pending and nothing entered: the form is as it was found. A
                     // draft it was filled from is on the server already; anything else is not.
-                    return save._tag === 'Applied' ||
+                    const onServer =
+                      save._tag === 'Applied' ||
                       editor.resumed === 'Model' ||
                       editor.resumed === 'Values'
-                      ? 'Saved'
-                      : 'Opened'
+                    return onServer ? 'Saved' : 'Opened'
+                  }
                 }
             }
           },

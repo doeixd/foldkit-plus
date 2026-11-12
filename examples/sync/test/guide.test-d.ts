@@ -16,6 +16,7 @@ import {
   ReplicaId,
   Sync,
   type Operation,
+  type WrittenOperation,
   type SocketLike,
 } from 'foldkit-sync'
 
@@ -116,7 +117,7 @@ const server = Effect.gen(function* () {
   const exchange = (
     principal: Principal,
     cursor: number,
-    pending: ReadonlyArray<Operation>,
+    pending: ReadonlyArray<WrittenOperation>,
     seen?: string,
   ) =>
     Effect.gen(function* () {

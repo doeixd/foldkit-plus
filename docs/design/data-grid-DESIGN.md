@@ -261,7 +261,12 @@ full seed, and checked by hand in Chromium.
 - **Search and filter (§17) are the query's.** The grid holds no filter
   state: `examples/registry` puts a search in the Model, passes it as
   `ProductsQuery`'s input, and the query's body (`Expr.contains`) is compiled
-  by the server. A filter control drawn by the grid, per column, is not built.
+  by the server. A filter control drawn by the grid, per column, is built
+  (2026-11-11, #144's leftovers, [144-grid-filters-DESIGN.md](./144-grid-filters-DESIGN.md)):
+  a column with `filter` draws a form on its header, the grid holds only the
+  open form, and the value stays the application's, reported as
+  `Out.Filtered`; `examples/data-grid` filters its held rows by it and
+  `examples/registry` passes statuses and a price range as the query's input.
 - **Not built from §22:** custom columns and bulk edits beyond a paste and a
   fill.
 
@@ -290,7 +295,10 @@ and the copy, cut and paste handlers in the view. Where it departs from §14:
   dates and custom strategies are not built. A drag held at or past the
   grid's edge scrolls it; the drag lives on the cells' container, not the
   handle, so it outlasts the handle's cell scrolling away.
-- **Not built:** HTML clipboard data, multi-range copy.
+- **Not built:** HTML clipboard data, multi-range copy. Weighed with date and
+  custom fill series in [144-grid-leftovers-DESIGN.md](./144-grid-leftovers-DESIGN.md)
+  (2026-11-11): each waits for an adopter, and HTML paste and multi-range
+  copy are recommended against.
 
 ## Phase 6 as built (2026-10-03)
 
@@ -321,6 +329,39 @@ departs from §11:
   their text format from the AST would be a guess.
 - **A pointer leaving an edit commits it,** as a spreadsheet does; a refused
   draft keeps the edit and the click waits.
+- **A checkbox is read from the schema too (2026-11-11, #144's leftovers).**
+  A schema that decodes to a boolean is `CellEditor.Checkbox`, checked before
+  the choice since `Columns.checkbox`'s text is the literals `true` and
+  `false`. Three shapes were weighed. A draft editor (open, toggle, commit)
+  makes a click a three-step session and Escape meaningful where nothing
+  was typed; a spreadsheet toggles in place. A real `<input
+  type="checkbox">` in the cell takes focus on a press, and the grid's focus
+  model is one tab stop pointing at cells with `aria-activedescendant`, so
+  it would pull focus off the grid; with `tabindex="-1"` it still takes it.
+  So the cell draws a `role="checkbox"` span with `aria-checked` (the
+  `checkbox` Slot), and one Message, `EditToggled({ cell, checked, by })`,
+  commits the encoded opposite of the value as drawn through the same
+  `Out.Edited` a draft's commit reports: paste, fill, `matchEdit` and the
+  application's history need nothing new. The value it is drawn from must be
+  a boolean, so `Columns.define` checks it at the type level; a `GridCrud`
+  member's value is text, so it takes no checkbox. A press carries the cell's
+  DOM id and the drawn state, read from the page by `CellPress` (a Mount's
+  arguments are its first render's), and only the grid's own box (marked
+  `data-grid-checkbox`) is one, so a `role="checkbox"` an application draws
+  in a cell stays the cell's to press. A key acts on the tab stop the frame
+  drew, as every other key does, and carries the focus that frame was drawn
+  from (`Toggle.Key({ drawn })`): before anything is focused the tab stop is
+  the first cell, and `update` refuses only a key whose `drawn` is no longer
+  the Model's focus, rather than toggling the cell focus left. A first cut
+  that required a focused cell in the Model refused Space for a keyboard user
+  who had only tabbed in. While a checkbox's cell is the focused one,
+  `aria-activedescendant` names the box: Chrome's tree showed the gridcell
+  with no checked state, and a widget in a cell is what the grid pattern
+  points at. Every toggle sends the opposite of the value drawn, so until
+  the application's write is drawn (a server's answer, for a Remote row)
+  each further toggle asks for the same value; holding a pending toggle in
+  the Model to count them would be a second copy of the value, which is the
+  application's. A cut or Delete leaves a checkbox alone: it has no empty value.
 
 ## Phase 5 as built so far (2026-10-03)
 
@@ -1608,7 +1649,7 @@ Acceptance:
 - [ ] Enter/Tab commit-and-move
 - [ ] `Editor.text`
 - [ ] `Editor.number`
-- [ ] checkbox editor
+- [x] checkbox editor (a toggle in place; see Phase 6 as built)
 - [ ] generic custom editor
 - [ ] validation/error hooks
 - [ ] reuse `EditableText` where appropriate

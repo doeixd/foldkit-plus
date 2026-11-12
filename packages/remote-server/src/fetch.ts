@@ -43,11 +43,13 @@ import {
   type CachePolicy,
   type Diagnostic,
   type RemoteClient,
+  type NavigationRequest,
   type RemoteJsonAnswer,
   type RemoteRpcClient,
   type RemoteUnauthenticated,
+  type ScriptedRequest,
 } from 'foldkit-remote'
-import { declaresTooLarge, readJson, tooLargeAnswer } from './body.js'
+import { declaresTooLarge, discardBody, readJson, tooLargeAnswer } from './body.js'
 import { cachedReadDiffers, serverDefect } from './diagnostics.js'
 import {
   cacheKey,
@@ -69,9 +71,11 @@ export interface FetchConfig<P, R, Env, RP = never> {
    * Who this request is, from the request and the environment. Fails with
    * `RemoteServer.unauthenticated(reason?)` to refuse the caller: a 401.
    * What it needs (a session store, an auth service) comes from `layer`.
+   * A resolver taking any `Request` fits; one typed for a navigation
+   * (`NavigationRequest`) does not, since `/remote` writes.
    */
   readonly resolvePrincipal: (
-    request: Request,
+    request: ScriptedRequest,
     env: Env,
   ) => Effect.Effect<P, RemoteUnauthenticated, RP>
   /**
@@ -392,6 +396,11 @@ export const serveFetch = <P, R, Env, RP = never>(
     !Duration.isGreaterThan(Duration.fromInputUnsafe(config.revalidate.every), Duration.zero)
   )
     throw new Error('serveFetch: revalidate.every must be longer than zero')
+  // Every request answered here is a `ScriptedRequest`: the brand is only what keeps a navigation's resolver out.
+  const resolvePrincipal = config.resolvePrincipal as (
+    request: Request,
+    env: Env,
+  ) => Effect.Effect<P, RemoteUnauthenticated, RP>
   /** `effect` reporting to `config.diagnostics` with `request`, when it is given. */
   const reportingFor =
     (request: Request) =>
@@ -412,7 +421,7 @@ export const serveFetch = <P, R, Env, RP = never>(
     const { revalidate } = config
     if (revalidate === undefined) return Stream.empty
     return Stream.fromSchedule(Schedule.spaced(revalidate.every)).pipe(
-      Stream.mapEffect(() => config.resolvePrincipal(request, env)),
+      Stream.mapEffect(() => resolvePrincipal(request, env)),
       Stream.mapEffect(now =>
         revalidate.key === undefined || revalidate.key(opened) === revalidate.key(now)
           ? Effect.void
@@ -480,7 +489,7 @@ export const serveFetch = <P, R, Env, RP = never>(
     scope: Scope.Closeable,
   ): Effect.Effect<{ readonly response: Response; readonly live: boolean }, never, R | RP> =>
     Effect.gen(function* () {
-      const principal = yield* config.resolvePrincipal(request, env)
+      const principal = yield* resolvePrincipal(request, env)
       const headers = config.headers?.(principal) ?? {}
       const body = yield* Effect.result(readJson(request, maxBodyBytes))
       if (Result.isFailure(body)) {
@@ -569,6 +578,7 @@ export const serveFetch = <P, R, Env, RP = never>(
   // keep it for another. A `cache-control` of the application's own (`headers`) stands.
   return async (request, env) => {
     const response = await served(request, env)
+    await discardBody(request, maxBodyBytes)
     if (!response.headers.has('cache-control')) {
       response.headers.set('cache-control', 'private, no-store')
     }
@@ -618,8 +628,19 @@ export const checkCache = async <P, R, Env, RP = never>(
  */
 export type PageReaderConfig<P, R, Env, RP = never> = Pick<
   FetchConfig<P, R, Env, RP>,
-  'server' | 'resolvePrincipal' | 'layer' | 'maxIdsPerEntity' | 'maxDepth' | 'cache'
->
+  'server' | 'layer' | 'maxIdsPerEntity' | 'maxDepth' | 'cache'
+> & {
+  /**
+   * Who a page request is. A resolver taking any `Request` fits; one typed
+   * for a script's request (`ScriptedRequest`) does not, since a navigation
+   * carries no header a script adds and that resolver would refuse every
+   * signed-in reader.
+   */
+  readonly resolvePrincipal: (
+    request: NavigationRequest,
+    env: Env,
+  ) => Effect.Effect<P, RemoteUnauthenticated, RP>
+}
 
 /**
  * The reader a page render reads through, in the same process: the request's
@@ -646,9 +667,14 @@ export const pageReader = <P, R, Env, RP = never>(config: PageReaderConfig<P, R,
   const visitor = Option.map(Option.fromUndefinedOr(config.cache), cache =>
     RemoteServer.handlers(config.server, cache.visitor, limits),
   )
+  // Every request read for is a page's: the brand is only what keeps a script's resolver out.
+  const resolvePrincipal = config.resolvePrincipal as (
+    request: Request,
+    env: Env,
+  ) => Effect.Effect<P, RemoteUnauthenticated, RP>
   return (request: Request, env: Env): Layer.Layer<RemoteClient, RemoteUnauthenticated> =>
     Layer.unwrap(
-      Effect.map(config.resolvePrincipal(request, env), principal => {
+      Effect.map(resolvePrincipal(request, env), principal => {
         const handlers = notingHandlers(
           config.server,
           RemoteServer.handlers(config.server, principal, limits),

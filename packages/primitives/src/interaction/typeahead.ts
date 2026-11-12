@@ -40,30 +40,35 @@ export const Args = Schema.Struct({
 })
 export type Args = typeof Args.Type
 
+const update = (model: Model, message: Message, args: Args): Update.Return<Model, Message> =>
+  Message.match<Update.Return<Model, Message>>(message, {
+    Typed: ({ char }) => {
+      const generation = model.generation + 1
+      return {
+        model: { query: model.query + char, generation },
+        commands: [
+          {
+            name: 'Typeahead.expire',
+            args: { generation },
+            effect: Effect.as(Effect.sleep(args.timeoutMs), Message.Expired({ generation })),
+          },
+        ],
+      }
+    },
+    Expired: ({ generation }) => (generation === model.generation ? clearQuery(model) : { model }),
+    Cleared: () => clearQuery(model),
+  })
+
 export const bundle = Bundle.make('Typeahead', {
   Model,
   Message,
   args: Args,
   init: () => ({ model: { query: '', generation: 0 } }),
-  update: (model, message, args) =>
-    Message.match<Update.Return<Model, Message>>(message, {
-      Typed: ({ char }) => {
-        const generation = model.generation + 1
-        return {
-          model: { query: model.query + char, generation },
-          commands: [
-            {
-              name: 'Typeahead.expire',
-              args: { generation },
-              effect: Effect.as(Effect.sleep(args.timeoutMs), Message.Expired({ generation })),
-            },
-          ],
-        }
-      },
-      Expired: ({ generation }) =>
-        generation === model.generation ? clearQuery(model) : { model },
-      Cleared: () => clearQuery(model),
-    }),
+  update,
+  /** What a parent decides: `placed.helpers.clear()` drops the query, after a blur or a choice. */
+  helpers: args => ({
+    clear: (model: Model) => update(model, Message.Cleared(), args),
+  }),
 })
 
 const normalize = (text: string): string => text.trimStart().toLocaleLowerCase()

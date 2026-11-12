@@ -101,6 +101,7 @@ export const ColorPicker = Style.recipeFor(ColorPickerSlots)({
     areaThumb: component(
       Style.self({
         position: 'absolute',
+        // physical: saturation runs left to right in either direction
         left: 'calc(var(--fk-color-x) * 100%)',
         top: 'calc(var(--fk-color-y) * 100%)',
         boxSizing: 'border-box',

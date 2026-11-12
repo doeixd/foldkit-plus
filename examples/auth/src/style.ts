@@ -63,7 +63,8 @@ export const Page = demoStyle.slots(
       Style.nest('&[data-failed]', { color: t.error.default, fontWeight: t.weight.medium }),
     ],
     account: L.in('layouts', Layout.cluster({ gap: t.space.sm, align: 'center' })),
-    status: [U.m('0'), U.color('text.muted')],
+    // A wait (`aria-busy`) is said only once it is noticeable.
+    status: [U.m('0'), U.color('text.muted'), U.busyReveal],
     notes: [
       U.m('0'),
       { paddingInlineStart: t.space.lg },

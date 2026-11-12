@@ -95,16 +95,17 @@ const tableOver = (journal: ReturnType<typeof openJournal>, revision = 0) => {
     tableRevision: Effect.sync(() => highest),
     holdsThrough: (snapshot, through) =>
       snapshot.prices.some(price => price.at !== undefined && price.at <= through),
-    absorbed: (through, cursor) => ({
-      protocolVersion: 1,
-      schemaVersion: 1,
-      documentId: documentId('prices'),
-      replicaId: replicaId('server'),
-      localSequence: localSequence(cursor + 1),
-      opId: opId(`server:${cursor + 1}`),
-      baseCursor: sequence(cursor),
-      message: encode(Message.Absorbed({ through })),
-    }),
+    absorbed: (through, cursor) =>
+      Prices.journalContract().operation.encode({
+        protocolVersion: 1,
+        schemaVersion: 1,
+        documentId: documentId('prices'),
+        replicaId: replicaId('server'),
+        localSequence: localSequence(cursor + 1),
+        opId: opId(`server:${cursor + 1}`),
+        baseCursor: sequence(cursor),
+        message: encode(Message.Absorbed({ through })),
+      }),
     server: 'server',
   })
   return { writes, edits }

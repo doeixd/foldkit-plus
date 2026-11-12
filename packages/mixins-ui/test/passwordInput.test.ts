@@ -10,7 +10,14 @@ import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
 import { A11y, Style, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { MeterSlots, PasswordInput, PasswordInputSlots, Patterns, Recipes } from '../src/index.js'
+import {
+  Meter,
+  MeterSlots,
+  PasswordInput,
+  PasswordInputSlots,
+  Patterns,
+  Recipes,
+} from '../src/index.js'
 import { h, message, sends, type TestMessage } from './fixture.js'
 
 const Edited = defineMessageUnion({ Typed: { text: Schema.String }, Toggled: {} })
@@ -126,6 +133,57 @@ describe('PasswordInput.view', () => {
     expect(shut.input?.data?.on?.['input']).toBeUndefined()
   })
 
+  const bound = (h: HtmlBuilder<Edited>, disabled: boolean) =>
+    PasswordInput.view(
+      {
+        id: 'sign-in',
+        label: 'Password',
+        value: '',
+        onInput: h.OnInput(text => Edited.Typed({ text })),
+        visible: false,
+        onToggle: Edited.Toggled(),
+        disabled,
+      },
+      h,
+    )
+
+  it("sends the text through the builder's own OnInput, given as an attribute", () => {
+    sends(
+      (h: HtmlBuilder<Edited>) => bound(h, false),
+      Scene.type(Scene.label('Password'), 'hunter2'),
+      Scene.expectOutMessage(Edited.Typed({ text: 'hunter2' })),
+    )
+  })
+
+  it('leaves out the OnInput attribute given once disabled', () => {
+    const [input] = Inert.byTag(bound(SlotView.inertBuilder<Edited>(), true), 'input')
+    expect(input?.data?.on?.['input']).toBeUndefined()
+  })
+
+  it("adds each Slot's attributes given beside its own", () => {
+    const tree = PasswordInput.view(
+      {
+        id: 'sign-in',
+        label: 'Password',
+        value: '',
+        onInput: () => message('Other'),
+        visible: false,
+        onToggle: message('Clicked'),
+        attributes: {
+          input: [h.DataAttribute('kept', '')],
+          toggle: [h.DataAttribute('extra', 'toggle')],
+        },
+      },
+      h,
+    )
+    const [input] = Inert.byTag(tree, 'input')
+    const [toggle] = Inert.byTag(tree, 'button')
+    expect(Inert.value(input, 'data-kept')).toBe('')
+    expect(Inert.value(input, 'id')).toBe('sign-in-input')
+    expect(Inert.value(toggle, 'data-extra')).toBe('toggle')
+    expect(Inert.value(toggle, 'data-kept')).toBeUndefined()
+  })
+
   it('draws the eye by the toggle state, struck through while the password shows', () => {
     const sheet = style.css
     // The theme's icons, so a pack the application gives draws them too.
@@ -191,14 +249,37 @@ describe('PasswordInput.view', () => {
     expect(Inert.byTag(aided({ requirements: [] }), 'ul')).toEqual([])
   })
 
-  it('draws the strength Meter given, with its own label', () => {
+  it('draws the strength gauge given in its Slot, and no Slot without one', () => {
     const meter = Style.forSlots(MeterSlots)(Recipes.Meter({}))
-    const tree = aided({
-      strength: { id: 'new-strength', label: 'Strength', value: 1, max: 4, style: meter },
-    })
-    const [gauge] = Inert.byRole(tree, 'meter')
+    const Drawn = SlotView.forMessages<TestMessage>().define(
+      PasswordInputSlots,
+      (withGauge: boolean, __, h) =>
+        PasswordInput.view(
+          {
+            id: 'new',
+            label: 'Password',
+            value: '',
+            onInput: () => message('Other'),
+            visible: false,
+            onToggle: message('Clicked'),
+            ...(withGauge
+              ? {
+                  strength: Meter.view(
+                    { id: 'new-strength', label: 'Strength', value: 1, max: 4, style: meter },
+                    h,
+                  ),
+                }
+              : {}),
+          },
+          h,
+        ),
+    )
+    const [slot, ...more] = Inert.bySlot(Inert.draw(Drawn, true), 'strength')
+    expect(more).toEqual([])
+    const [gauge] = Inert.byRole(slot, 'meter')
     expect(Inert.value(gauge, 'aria-valuenow')).toBe('1')
     expect(Inert.value(gauge, 'aria-valuemax')).toBe('4')
+    expect(Inert.bySlot(Inert.draw(Drawn, false), 'strength')).toEqual([])
   })
 
   it.each([

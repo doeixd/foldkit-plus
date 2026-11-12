@@ -35,6 +35,11 @@
       "types": "./dist/client.d.ts",
       "import": "./dist/client.js"
     },
+    "./loader": {
+      "foldkit-plus:source": "./src/loader.ts",
+      "types": "./dist/loader.d.ts",
+      "import": "./dist/loader.js"
+    },
     "./vite": {
       "foldkit-plus:source": "./src/vite.ts",
       "types": "./dist/vite.d.ts",

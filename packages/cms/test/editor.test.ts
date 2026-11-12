@@ -53,9 +53,12 @@ type Root = { readonly editor: ReturnType<typeof Editor.bundle.init>['model'] }
 /**
  * The entry, its draft and its row as the editor reads them, and one publish,
  * refused with `refused` when it is some; the entry's state read waiting when
- * `stateLoading`.
+ * `stateLoading`, or failed when `stateFailed`.
  */
-const world = (refused: Option.Option<unknown>, { stateLoading = false } = {}) => {
+const world = (
+  refused: Option.Option<unknown>,
+  { stateLoading = false, stateFailed = false } = {},
+) => {
   const ready = (value: unknown) => ({ _tag: 'Ready' as const, value })
   const held: Readonly<Record<string, unknown>> = {
     CmsEntry: { id: 'e1', type: 'posts', targetId: 'p1', revision: 1, archivedAt: null },
@@ -69,9 +72,11 @@ const world = (refused: Option.Option<unknown>, { stateLoading = false } = {}) =
     }) => ({
       read: () =>
         'state' in selection.members
-          ? stateLoading
-            ? { _tag: 'Loading' as const }
-            : ready({ state: 'Published', may: [] })
+          ? stateFailed
+            ? { _tag: 'Failed' as const, error: { _tag: 'Network', message: 'down' } }
+            : stateLoading
+              ? { _tag: 'Loading' as const }
+              : ready({ state: 'Published', may: [] })
           : held[selection.entity.name] === undefined
             ? { _tag: 'NotFound' as const }
             : ready(held[selection.entity.name]),
@@ -122,6 +127,11 @@ describe('opening an entry', () => {
     expect(waiting.placed.status(waiting.opened)).toBe('Loading')
     const read = world(Option.none())
     expect(read.placed.status(read.opened)).toBe('Opened')
+  })
+
+  it('is not opened while the entry’s state read has failed, which would badge it New', () => {
+    const failed = world(Option.none(), { stateFailed: true })
+    expect(failed.placed.status(failed.opened)).toBe('LoadFailed')
   })
 
   it('waits for no state for something new, which the server does not hold yet', () => {
@@ -511,5 +521,96 @@ describe('a saved draft', () => {
     placed.onOut({ _tag: 'Save' })({ editor: typed })
     const stored = Schema.decodeUnknownSync(CheckedForm.bundle.Model)(sent[0]?.model)
     expect(CheckedForm.field(stored, 'slug')).toEqual({ _tag: 'NotValidated', value: 'looking' })
+  })
+})
+
+describe('a save or publish after a refresh failed', () => {
+  const failed = (previous: unknown) => ({
+    _tag: 'Failed' as const,
+    error: { _tag: 'RemoteMutationError', message: 'offline' },
+    previous,
+  })
+  const kept = {
+    entry: { id: 'e1', type: 'posts', targetId: 'p1', revision: 7, archivedAt: null },
+    draft: { updatedAt: '2026-01-01T00:00:00.000Z', values: {}, model: {}, form: 'PostForm' },
+  }
+
+  /** What each Operation was sent, given the entry's and the draft's reads. */
+  const sentWith = (reads: { readonly entry: unknown; readonly draft: unknown }) => {
+    const sent: Array<{ readonly name: string; readonly input: Record<string, unknown> }> = []
+    const data = {
+      get: (selection: {
+        readonly entity: { readonly name: string }
+        readonly members: Readonly<Record<string, unknown>>
+      }) => ({
+        read: () =>
+          'state' in selection.members
+            ? { _tag: 'Ready' as const, value: { state: 'Draft', may: [] } }
+            : selection.entity.name === 'CmsEntry'
+              ? reads.entry
+              : selection.entity.name === 'CmsDraft'
+                ? reads.draft
+                : { _tag: 'NotFound' as const },
+      }),
+      mutation: (): MutationStatus => ({ _tag: 'Unknown' }),
+      mutate: (
+        model: Root,
+        mutation: { readonly name: string },
+        input: Record<string, unknown>,
+      ) => {
+        sent.push({ name: mutation.name, input })
+        return { model, requestId: 'r1', command: { name: 'send', args: {}, effect: Effect.never } }
+      },
+      refresh: (model: Root) => model,
+      [Capability]: { domain: 'stub', layers: Option.none() },
+      store: { get: () => Remote.initial },
+      reduce: (model: Root) => model,
+      active: (name: string, projectionOf: unknown) => ({
+        name,
+        owner: {},
+        messages: [],
+        projectionOf,
+      }),
+    }
+    const slice = ModelRef.fromOptic(
+      Editor.bundle.Model,
+      Optic.makeLens<Root, Root['editor']>(
+        root => root.editor,
+        (editor, root) => ({ ...root, editor }),
+      ),
+      ['editor'],
+    )
+    const placed = Editor.at<Root>({ data: data as never, model: slice })
+    const opened = placed.sync({
+      editor: { ...Editor.bundle.init(undefined).model, mode: 'edit' as const, entry: 'e1' },
+    }).model
+    return { placed, opened, sent }
+  }
+
+  it.each([
+    { held: 'kept by a failed refresh', draft: failed(kept.draft), based: kept.draft.updatedAt },
+    { held: 'there', draft: { _tag: 'Ready', value: kept.draft }, based: kept.draft.updatedAt },
+    { held: 'known absent', draft: { _tag: 'NotFound' }, based: null },
+  ])('bases a save on the draft $held', ({ draft, based }) => {
+    const { placed, opened, sent } = sentWith({
+      entry: { _tag: 'Ready', value: kept.entry },
+      draft,
+    })
+    placed.onOut({ _tag: 'Save' })(opened)
+    expect(sent.map(s => s.name)).toEqual(['CmsSaveDraft'])
+    expect(sent[0]?.input.basedOn).toBe(based)
+  })
+
+  it.each([
+    { held: 'kept by a failed refresh', entry: failed(kept.entry), based: 7 },
+    { held: 'there', entry: { _tag: 'Ready', value: kept.entry }, based: 7 },
+    { held: 'known absent', entry: { _tag: 'NotFound' }, based: null },
+  ])('bases a publish on the entry $held', ({ entry, based }) => {
+    const { placed, opened, sent } = sentWith({ entry, draft: failed(kept.draft) })
+    // The open draft is the saved one, so the publish goes out without a save first.
+    const saved = { editor: { ...opened.editor, resumed: 'Model' as const, filled: true } }
+    placed.onOut({ _tag: 'Publish' })(saved)
+    expect(sent.map(s => s.name)).toEqual(['CmsPublish'])
+    expect(sent[0]?.input.basedOn).toBe(based)
   })
 })

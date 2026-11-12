@@ -18,8 +18,10 @@ import {
   reportingTo,
   type SsrDiagnostic,
 } from './diagnostics.js'
+import { claim, type HeldEvent } from './handoff.js'
+import { UNTIL_LIMIT_MS } from './marks.js'
 import { hold, keptFields, restore, typedMessages, type Held, type KeptField } from './keep.js'
-import { listen, type DecodedBinding } from './listen.js'
+import { listen, listening, type DecodedBinding } from './listen.js'
 import {
   BINDING_ATTRIBUTE,
   FALLBACK_DEPTH_FIELD,
@@ -46,6 +48,7 @@ import {
   serving,
   startingFrom,
   staticRegion,
+  unbound,
   type Loadable,
   type ResumableConfig,
   type ResumePlan,
@@ -80,6 +83,10 @@ const BUILD_ATTRIBUTE = 'data-foldkit-build'
  * by Foldkit's own refusal, and the reason is reported (`options.diagnostics`). A server page is never
  * rendered again on the client. A page with no server render at all, no
  * stamped root, is rendered on the client as usual.
+ *
+ * Run by `foldkit-ssr/loader`, it starts now, whatever the plan's `start`
+ * (the loader followed it), and answers each event the loader held from the
+ * markers, once. A page that does not resume releases them to the browser.
  */
 const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   config: ResumableConfig<Model, Message>,
@@ -139,6 +146,10 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   const report = (diagnostic: SsrDiagnostic): void => {
     Effect.runFork(reportingTo(options.diagnostics)(Diagnostics.report(diagnostic)))
   }
+  const loader = Option.fromNullishOr(claim())
+  // Every path below that does not resume the page lets the browser have what
+  // the loader held: a held submission posts.
+  const release = (): void => Option.match(loader, { onNone: () => {}, onSome: it => it.release() })
   const planMeta = plan.meta
   if (planMeta !== undefined) {
     config = {
@@ -157,6 +168,7 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   const declined = options.when !== undefined && !options.when(document)
   const stale = options.fresh !== undefined && !options.fresh(plan.version)
   if (root === null) {
+    release()
     run(makeApplication(config as never))
     return
   }
@@ -166,6 +178,7 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   // with an empty build id, with nothing copied here.
   const contain = () => adopt(program({ model: plan.baseline }), { buildId: '' })
   if (declined || stale) {
+    release()
     if (options.otherwise !== 'render') contain()
     else if (options.until === undefined)
       run(makeApplication({ ...config, container: root } as never))
@@ -177,18 +190,21 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   // compiled id, which matches the page, so the baseline was adopted in silence.
   if (typeof options.buildId !== 'string') {
     report(noBuildId)
+    release()
     contain()
     return
   }
   const served = root.getAttribute(BUILD_ATTRIBUTE)
   if (served !== options.buildId) {
     report(otherBuild(Option.fromNullOr(served), options.buildId))
+    release()
     adopt(program({ model: plan.baseline }), { buildId: options.buildId })
     return
   }
   const resumed = resume(plan, document, { route: routeOf(window.location.href) })
   if (Result.isFailure(resumed)) {
     report(pageContained(resumed.failure.reason, resumed.failure.message))
+    release()
     contain()
     return
   }
@@ -262,35 +278,41 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       )
     }
     const pending = (config.lazy ?? []).filter(bundle => !bundle.isLoaded())
-    const start = Option.isSome(arrived) ? 'now' : plan.start
+    // A loader ran this chunk when the plan's `start` said to.
+    const start = Option.isSome(arrived) || Option.isSome(loader) ? 'now' : plan.start
     const eager = start === 'now' && pending.length === 0
-    if (eager && root.querySelector(`[${KEEP_ATTRIBUTE}]`) === null) {
+    // With a loader, the page reads its bindings first: the loader may hold
+    // events for them.
+    if (eager && Option.isNone(loader) && root.querySelector(`[${KEEP_ATTRIBUTE}]`) === null) {
       boot()
       return
     }
     const decoded = bindingsAndEvents(plan, document, root, model)
     if (Result.isFailure(decoded)) {
       report(pageContained(decoded.failure.reason, decoded.failure.message))
+      release()
       contain()
       return
     }
     const kept = keptFields(root, decoded.success.bindings)
     if (Result.isFailure(kept)) {
       report(pageContained('Invalid', kept.failure))
+      release()
       contain()
       return
     }
     // What was typed before this script ran, first in the queue: everything the
     // page answers from here on happened after it.
     answered.push(...typedMessages(kept.success))
-    if (eager && answered.length === 0) {
+    const held = Option.match(loader, { onNone: () => [], onSome: it => it.take() })
+    if (eager && answered.length === 0 && held.length === 0) {
       boot()
       return
     }
     // Typing is an interaction, whenever it happened: a page that waits for
     // one starts now, so what was typed is answered as soon as the script runs.
     const typed = answered.length > 0 ? 'now' : start
-    deferBoot(root, decoded.success, typed, { boot, answered }, pending, report, kept.success)
+    deferBoot(root, decoded.success, typed, { boot, answered }, pending, report, kept.success, held)
   }
   const prepare = options.prepare
   let startingModel: Model
@@ -298,6 +320,7 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     startingModel = plan.restore === undefined ? resumed.success : plan.restore(resumed.success)
   } catch (error) {
     report(pageContained('Invalid', error instanceof Error ? error.message : String(error)))
+    release()
     contain()
     return
   }
@@ -366,7 +389,7 @@ const keepStyles = (root: Element): void => {
 }
 
 /** The longest a served page stays in view while a fresh application waits for `until`. */
-export const UNTIL_LIMIT_MS = 3000
+export { UNTIL_LIMIT_MS }
 
 /**
  * Runs the application afresh out of view, beside the served page, and puts
@@ -444,6 +467,7 @@ const deferBoot = (
   pending: ReadonlyArray<Loadable>,
   report: (diagnostic: SsrDiagnostic) => void,
   kept: ReadonlyArray<KeptField>,
+  loaded: ReadonlyArray<HeldEvent>,
 ): void => {
   // Events only the live page can answer, met before it listened.
   const unanswered: Array<{ readonly event: Event; readonly element: Element }> = []
@@ -452,7 +476,7 @@ const deferBoot = (
   let phase: 'waiting' | 'loading' | 'starting' | 'live' = 'waiting'
   // The kept fields as the person left them, which the first render resets.
   let held: ReadonlyArray<Held> = []
-  const stop = listen(root, {
+  const { stop, answer } = listening(root, {
     bindings: decoded.bindings,
     ...(decoded.events === undefined ? {} : { events: decoded.events }),
     onAnswer: ({ event, messages, unnamed }) => {
@@ -525,6 +549,8 @@ const deferBoot = (
       commit()
     })
   }
+  // What the loader held, answered as if the page had listened then.
+  for (const { event, path } of loaded) answer(event, path)
   if (start === 'now') startNow()
   else if (start === 'idle') {
     if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(startNow)
@@ -536,7 +562,7 @@ const deferBoot = (
 export const Resume = { builder, view, bindings, listen }
 
 /** The browser's part of `SSR`: the same functions, without the server's. */
-export const SSR = { plan, resume, hydrate, static: staticRegion, serving }
+export const SSR = { plan, resume, hydrate, static: staticRegion, unbound, serving }
 
 export {
   META_ATTRIBUTE,

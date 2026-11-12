@@ -32,8 +32,11 @@ const main = async () => {
   }
   if (values.watch) {
     watch(options, event => {
-      if (event._tag === 'Failed') console.error(message(event.error))
-      else report(event.result)
+      if (event._tag === 'Failed') {
+        console.error(message(event.error))
+        return
+      }
+      report(event.result)
     })
     return new Promise<number>(() => {})
   }

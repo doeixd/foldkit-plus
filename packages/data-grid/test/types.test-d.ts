@@ -2,6 +2,10 @@ import { Option, Schema } from 'effect'
 import { expectTypeOf } from 'vitest'
 import {
   type CellAddress,
+  CellEditor,
+  ColumnFilter,
+  type OneOf,
+  type FilterForm,
   type ColumnId,
   ColumnLayout,
   Columns,
@@ -160,6 +164,12 @@ expectTypeOf<typeof Grid.Model.Type>().toEqualTypeOf<{
     readonly draft: string
     readonly error: Option.Option<string>
   }>
+  readonly filtering: Option.Option<{
+    readonly column: 'sku' | 'price'
+    readonly form: FilterForm
+    readonly reported: Option.Option<ColumnFilter>
+    readonly generation: number
+  }>
 }>()
 
 // @ts-expect-error row selection is single or multiple
@@ -232,3 +242,78 @@ Columns.define<{ readonly n: number }>()({
     edit: { schema: Schema.Number },
   },
 })
+
+// A schema that decodes to a boolean makes a checkbox, drawn from the
+// column's value, so the value must be a boolean too; `matchEdit` hands it back.
+interface Task {
+  readonly id: string
+  readonly done: boolean
+  readonly count: number
+}
+const Checked = DataGrid.make({
+  id: 'checked',
+  columns: Columns.define<Task>()({
+    done: { header: 'Done', value: task => task.done, edit: { schema: Columns.checkbox } },
+  }),
+})
+Checked.matchEdit(
+  { row: 'r', column: 'done', text: 'true' },
+  { done: ({ value }) => expectTypeOf(value).toEqualTypeOf<boolean>() },
+)
+Columns.define<Task>()({
+  count: {
+    header: 'Count',
+    // @ts-expect-error a checkbox column reads a boolean from its row
+    value: task => task.count,
+    edit: { schema: Columns.checkbox },
+  },
+})
+
+// Filters: each column's own variant, read from the field it names.
+{
+  type Row = { readonly title: string; readonly status: 'Open' | 'Done'; readonly hours: number }
+  const filtering = Columns.define<Row>()({
+    title: { header: 'Title', value: row => row.title, filter: true },
+    status: {
+      header: 'Status',
+      value: row => row.status,
+      edit: { schema: Schema.Literals(['Open', 'Done']) },
+      filter: true,
+    },
+    hours: { header: 'Hours', value: row => row.hours.toFixed(1), filter: CellEditor.Number() },
+    upc: {
+      header: 'UPC',
+      value: () => '',
+      edit: { schema: Schema.String.pipe(Schema.brand('Upc')) },
+      filter: true,
+    },
+  })
+  const Filtering = DataGrid.make({ id: 'filtering', columns: filtering })
+  expectTypeOf(Filtering.noFilters.status).toEqualTypeOf<Option.Option<OneOf<'Open' | 'Done'>>>()
+  // A branded text is text, as the run time reads it, not a choice.
+  expectTypeOf(Filtering.noFilters.upc).toEqualTypeOf<
+    Option.Option<{ readonly _tag: 'Contains'; readonly text: string }>
+  >()
+  const read = {
+    title: (row: Row) => row.title,
+    status: (row: Row) => row.status,
+    hours: (row: Row) => row.hours,
+    upc: () => '',
+  }
+  Filtering.keeps(Filtering.noFilters, read)
+  // @ts-expect-error a range reads a number, not the text its cell shows
+  Filtering.keeps(Filtering.noFilters, { ...read, hours: (row: Row) => row.hours.toFixed(1) })
+  // @ts-expect-error a status is read as a status, not any text
+  Filtering.keeps(Filtering.noFilters, { ...read, status: (row: Row) => row.title })
+  // @ts-expect-error every filtering column is read
+  Filtering.keeps(Filtering.noFilters, { title: read.title })
+  // @ts-expect-error a range is no status filter
+  Filtering.setFilter(Filtering.noFilters, {
+    column: 'status',
+    filter: Option.some(ColumnFilter.Range({ min: Option.none(), max: Option.none() })),
+  })
+  // @ts-expect-error a column that does not filter has no filter
+  Filtering.setFilter(Filtering.noFilters, { column: 'nope', filter: Option.none() })
+  // @ts-expect-error a filter is true or a kind
+  Columns.define<Row>()({ title: { header: 'T', value: row => row.title, filter: 'text' } })
+}

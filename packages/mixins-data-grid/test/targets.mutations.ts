@@ -10,8 +10,8 @@ export default [
     edits: [
       {
         file,
-        find: "        minBlockSize: '1.5rem',\n        minInlineSize: '1.5rem',\n",
-        replace: '',
+        find: "        marginInlineStart: 'auto',\n        // A finger's target, however small the glyph.\n        minBlockSize: '1.5rem',\n        minInlineSize: '1.5rem',\n",
+        replace: "        marginInlineStart: 'auto',\n",
       },
     ],
     tests,

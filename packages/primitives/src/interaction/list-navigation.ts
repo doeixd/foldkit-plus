@@ -6,7 +6,7 @@
  * The resolver allows one owner per event on a slot, so a host that needs
  * both arrows and typeahead takes this, not `RovingTabindex` plus `Typeahead`.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Match, Option, Schema } from 'effect'
 import type { HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
@@ -47,33 +47,37 @@ export const Args = Schema.Struct({
 })
 export type Args = typeof Args.Type
 
+const update = (model: Model, message: Message, args: Args): Update.Return<Model, Message> =>
+  Message.match<Update.Return<Model, Message>>(message, {
+    // Moving focus by key dispatches `Focused`, and the item's `OnFocus` reports it again.
+    Focused: ({ id }) => (model.current === id ? { model } : { model: { ...model, current: id } }),
+    Typed: ({ char, match }) => {
+      const generation = model.generation + 1
+      return {
+        model: { current: match ?? model.current, query: model.query + char, generation },
+        commands: [
+          {
+            name: 'ListNavigation.expire',
+            args: { generation },
+            effect: Effect.as(Effect.sleep(args.timeoutMs), Message.Expired({ generation })),
+          },
+        ],
+      }
+    },
+    Expired: ({ generation }) => (generation === model.generation ? clearQuery(model) : { model }),
+    Cleared: () => clearQuery(model),
+  })
+
 export const bundle = Bundle.make('ListNavigation', {
   Model,
   Message,
   args: Args,
   init: () => ({ model: { current: null, query: '', generation: 0 } }),
-  update: (model, message, args) =>
-    Message.match<Update.Return<Model, Message>>(message, {
-      // Moving focus by key dispatches `Focused`, and the item's `OnFocus` reports it again.
-      Focused: ({ id }) =>
-        model.current === id ? { model } : { model: { ...model, current: id } },
-      Typed: ({ char, match }) => {
-        const generation = model.generation + 1
-        return {
-          model: { current: match ?? model.current, query: model.query + char, generation },
-          commands: [
-            {
-              name: 'ListNavigation.expire',
-              args: { generation },
-              effect: Effect.as(Effect.sleep(args.timeoutMs), Message.Expired({ generation })),
-            },
-          ],
-        }
-      },
-      Expired: ({ generation }) =>
-        generation === model.generation ? clearQuery(model) : { model },
-      Cleared: () => clearQuery(model),
-    }),
+  update,
+  /** What a parent decides: `placed.helpers.focus(id)` makes an item current. */
+  helpers: args => ({
+    focus: (model: Model, id: string) => update(model, Message.Focused({ id }), args),
+  }),
 })
 
 export interface BehaviorOptions<Input, Slots, ParentMessage> {
@@ -142,9 +146,12 @@ export const behavior =
     const slice = (input: Input): Model => input[declared.field]
     const itemsOf = perInput(options.items)
     const outcomeMessage = (outcome: KeyOutcome): ParentMessage =>
-      outcome._tag === 'Navigate'
-        ? focused(outcome.id)
-        : wrap(Message.Typed({ char: outcome.char, match: outcome.match }))
+      wrap(
+        Match.valueTags(outcome, {
+          Navigate: ({ id }): Message => Message.Focused({ id }),
+          Type: ({ char, match }): Message => Message.Typed({ char, match }),
+        }),
+      )
     return Behavior.forSlots(slots)<Input, ParentMessage>(
       {
         [options.container]: Behavior.slot({
@@ -206,7 +213,8 @@ export const behavior =
             }
             const messageOf = (decision: Decision): ParentMessage => {
               if (decision._tag === 'Commit') return decision.message
-              return outcomeMessage(decision.outcome)
+              const { outcome } = decision
+              return outcomeMessage(outcome)
             }
             const stop = RovingTabindex.tabStop(items, state.current)
             const stopId = stop === -1 ? undefined : items.ids[stop]
@@ -228,8 +236,10 @@ export const behavior =
                     }
                   }
                   const result = decision.outcome
-                  const target =
-                    result._tag === 'Navigate' ? result.id : (result.match ?? state.current)
+                  const target = Match.valueTags(result, {
+                    Navigate: ({ id }) => id,
+                    Type: ({ match }) => match ?? state.current,
+                  })
                   return {
                     // `:not(*)` matches nothing: a typed key with no match and
                     // nothing current moves no focus but is still recorded.

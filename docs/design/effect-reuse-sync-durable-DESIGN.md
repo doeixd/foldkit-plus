@@ -1,6 +1,6 @@
 # Foldkit Plus: Reusing Effect Infrastructure in Sync and Durable
 
-> **Implementation status, checked 2026-09-27:** The decision holds and `foldkit-durable` uses Effect SQL; the prototypes are unbuilt and the four upstream PRs were never submitted. See the
+> **Implementation status, checked 2026-11-11:** The decision holds and `foldkit-durable` uses Effect SQL. All three prototypes of §14 are built and confirm it: keep SQL (§14.1), keep Sync's own IndexedDB storage (§14.2), keep Sync's own socket transport rather than Effect RPC (§14.3). The four upstream PRs were never submitted. See the
 > [design index](./README.md#where-each-design-stands).
 
 **Status:** design review / upstream integration plan  
@@ -8,8 +8,8 @@
 **Target packages:** \`foldkit-sync\`, \`foldkit-durable\`  
 **Effect areas reviewed:** \`effect/unstable/eventlog\`, \`effect/unstable/persistence\`, \`effect/unstable/rpc\`, \`effect/unstable/socket\`, \`effect/unstable/workflow\`, Effect SQL
 
-> **Status: the decision is landed; the prototypes and the PRs are not, and
-> they are gated on different things.** Audited against the code.
+> **Status: the decision is landed and all three of its prototypes confirm it;
+> the PRs are not done.** Audited against the code.
 >
 > **§1's decision holds and is visible.** No `EventLog` or `EventJournal`
 > appears anywhere in `packages/`. `foldkit-durable` sits directly on Effect SQL
@@ -18,12 +18,20 @@
 > but `foldkit-surface`. So the executive decision is not a plan — it is a
 > description of the repository.
 >
-> **§6.3, §10, §11 and §14's prototypes are unbuilt.** Sync has its own socket
-> transport (`transport.ts`) rather than Effect RPC, and its own IndexedDB
-> storage (`indexedDb.ts`) rather than Effect's `KeyValueStore`. Both work.
-> §14's acceptance criteria are already written, so the gate here is effort and
-> priority rather than missing evidence — which makes this the one part of the
-> document that is genuinely waiting on someone to do it.
+> **§14.1's Durable prototype is built** and keeps the SQL implementation: compaction
+> and D1 need invasive workarounds over EventLog's `Storage` (§14.1's status).
+>
+> **§14.2's Sync storage prototype is built** and keeps `indexedDb.ts`: a
+> `KeyValueStore` lets two writers from one revision both succeed, and the typed
+> IndexedDB of `@effect/platform-browser` meets every criterion but gains too
+> little to adopt (§14.2's status).
+>
+> **§14.3's Sync transport prototype is built** (§6.3 and §11's shape) and keeps
+> `transport.ts`: an `RpcGroup` meets every criterion, natively or through a
+> small adapter, but costs about 11 kB gzipped on the client, gives up resending
+> a lost reply's frame on reconnect, and leaves presence without the socket it
+> shares; and RPC lets a request's headers override the upgrade's, so who is
+> asking must still be decided on the upgrade (§14.3's status).
 >
 > **§7's four PRs are gated on a queue this repository does not control.** They
 > are proposals with rationale, not submitted work, and nothing here can move
@@ -37,7 +45,10 @@
 > `readwrite` transaction with `durability: 'strict'` — because Sync needed
 > compare-and-swap and the generic implementation could not give it. That is a
 > working reference implementation of the proposal, written for an independent
-> reason, which is the strongest case any of the four has.
+> reason, which is the strongest case any of the four has. Sync itself no longer
+> needs it: §14.2 found that `@effect/platform-browser`'s typed IndexedDB already
+> runs several queries in one transaction, and that an atomic `modify` alone would
+> not make the `KeyValueStore` route pass.
 
 ## 1. Executive decision
 
@@ -1273,6 +1284,55 @@ effect ledger
 
 If any of these require invasive EventLog workarounds, keep the existing Durable SQL implementation.
 
+### Status, 2026-11-11: built against Effect 4.1.1; keep the SQL implementation
+
+The prototype is `packages/durable/test/prototype/eventLogJournal.ts`: the
+append path over `SqlEventLogServerUnencrypted.makeStorage()` (from
+`effect/eventlog`) on the journal's own `SqlClient`, with Foldkit's snapshot
+and cursor in a table beside Effect's. `criteria.test.ts` beside it runs the
+eight criteria against the current journal and the prototype alike, so each
+one is shown to hold for the journal too; `criteria.mutations.ts` breaks each
+in both (14 mutations, all killed). The prototype is kept as that evidence and
+is not exported.
+
+Effect's API, as installed (paths under `node_modules/effect/dist/eventlog/`):
+`Storage` is `EventLogServerUnencrypted.d.ts:191-218` (`entriesAfter`, `write`,
+`changes`, `withTransaction`); the SQL backend is
+`SqlEventLogServerUnencrypted.js`.
+
+| Criterion | Verdict | What it took |
+|---|---|---|
+| same opId + same payload/actor => acknowledgement | small adapter | No point lookup, but `entriesAfter(store, probe, [probe])` returns the entries sharing the probe's id (`SqlEventLogServerUnencrypted.js:296-331`), which is how Effect's own server acknowledges duplicates (`EventLogServerUnencrypted.js:79`). The opId becomes an `EntryId` as the first 16 bytes of its SHA-256 (`EntryId` accepts any bytes, `EventJournal.js:119`) and rides in the entry's `primaryKey`; the payload is a JSON envelope of actor, canonical hash and input. |
+| same opId + different payload/actor => conflict | small adapter | Foldkit compares the envelope's actor and hash, as §4.1 expected. Storage has no say. |
+| concurrent appends => gap-free sequence | native | `write` locks the store row and allocates `next_sequence` (`:248-272`, `:360-397`). Foldkit's cursor, kept in its own table, must equal what `write` returned, which holds inside one transaction. On a pooled dialect, caller-owned transactions can publish out of order (`:42`); every Durable driver is SQLite, so this does not bite today. |
+| append => snapshot + cursor in one transaction | small adapter on SQLite; **invasive on D1** | `withTransaction` joins a caller's transaction (`:222`), so lookup, `write` and the snapshot upsert share one, and a rollback drops the entry and its `afterCommit` publish (`:395`). The memory `Storage` cannot do this: it publishes inside `write` (`EventLogServerUnencrypted.js:525`) and its transaction is a semaphore with no rollback (`:572`). On D1, which Durable supports (`d1: true`), every `write` runs in a transaction and `@effect/sql-d1` dies on one (`D1Client.js:181`), so Storage cannot write at all. |
+| restart => snapshot/history kept | native | Both tables persist; a retry after reopening is still acknowledged. |
+| changes => committed operations in order | native, plus a floor check | `changes` subscribes before it reads the backlog (`:398-414`), which is tighter than the journal's key wake-ups plus `read`. Storage has no bounded read by sequence (`entriesAfter` without a batch orders by entry id, `:332-337`), so the prototype's `read` takes `cursor - after` items from the endless `changes` stream. |
+| compaction => checkpoint semantics | **invasive** | Storage cannot rewrite or delete an entry. The prototype rewrites payloads in `effect_events`, Effect's own table, behind the interface's back; that schema is not a contract. EventLog's compactors (`EventLogServerUnencrypted.d.ts:240-274`) rewrite a backlog as it is served, a different notion. `reset` has the same gap: no store can be dropped. |
+| effect ledger unaffected | native | The ledger is its own table; the test runs the journal's ledger and EventLog's tables in one file across a restart. |
+
+Failures are a further mismatch. Storage turns every `SqlError` into a defect
+(`SqlEventLogServerUnencrypted.js:359`, `:397`, `:414`, `:415`), where the
+journal reports a `JournalError` a caller retries. Adopting it would mean
+catching defects and guessing which were the database's.
+
+Throughput is no argument either way: 2,000 sequential appends to a SQLite
+file, three rounds, ran at 1,164-1,550 per second through the journal and
+918-1,351 through the prototype (one extra lookup and the store-row update
+per append).
+
+**Decision: keep the SQL implementation.** Compaction and D1 need invasive
+workarounds, and §14.1 says to stop there. None of §7's four PRs would change
+that. PR 1 is no longer needed: the batch hint to `entriesAfter` is already
+a lookup in both backends, and a backend that ignores it still returns the entry. PR 2 is not needed: a digest of the opId gives a retry the same
+`EntryId`, though no public string-to-`EntryId` codec exists yet
+(`EventJournal.js:24` imports `internal/uuid.js`). PRs 3 and 4 concern Sync.
+Adoption would take three different upstream changes: a Storage operation that
+redacts an entry's payload by sequence and one that drops a store, typed
+storage errors, and a write path that needs no transaction for D1. Only the
+first is general enough to propose, and it can wait until another user asks
+for it.
+
 ## 14.2 Sync-over-Effect-storage prototype
 
 Must preserve:
@@ -1289,6 +1349,87 @@ checkpoint adoption unchanged
 
 If atomic revision protection cannot be represented cleanly, keep the bespoke IndexedDB implementation.
 
+### Status, 2026-11-11: built against Effect 4.1.1; keep the bespoke IndexedDB storage
+
+The prototypes are `packages/sync/test/prototype/effectStorage.ts`, behind
+Sync's `Storage` seam (`load`, `save` under compare-and-swap on the revision,
+and the optional `append`):
+
+- `keyValueStorage` is §10's shape: the encoded replica as JSON under one key
+  of `BrowserKeyValueStore.layerIndexedDb`, compare-and-swap through `modify`.
+- `transactionalStorage` uses `@effect/platform-browser`'s typed IndexedDB
+  (`IndexedDbDatabase`, `IndexedDbTable`) with `indexedDb.ts`'s layout (state,
+  revision, outbox), reading the revision and writing inside one
+  `withTransaction`.
+
+`criteria.browser.test.ts` runs the seven criteria in Chromium against
+`indexedDb` and both prototypes (24 tests, about five seconds). The writer
+criterion is two tests: a second tab opened on a revision the first has since
+moved, and two connections saving from one revision at once, both at creation
+and at update. `criteria.mutations.ts` breaks each criterion in each storage
+(10 mutations, all killed), including running each query of the typed write in
+its own transaction, which only the race catches. The prototypes are kept as
+that evidence and are not exported.
+
+Paths are under `node_modules/effect/dist/` (`persistence/`, `eventlog/`) and
+`node_modules/@effect/platform-browser/dist/`.
+
+| Criterion | `KeyValueStore` | Typed IndexedDB transaction |
+|---|---|---|
+| offline submit persists | native | native; keeps `append`, so a submit writes the operation, not the document |
+| optimistic replay unchanged | native | native |
+| reload reconstructs same state | native (a JSON round trip of the encoded state) | native |
+| two tabs cannot share writer revision | **fails under a race.** A tab on an old revision is refused, but two writers from one revision both succeed, at creation and at update: the generic `modify` is a `get` then a `set` (`persistence/KeyValueStore.js:83-89`), `BrowserKeyValueStore` overrides neither (`BrowserKeyValueStore.js:67-139`), and each write is a transaction of its own with no durability option (`:190-191`). | small adapter. The revision read and the writes share one `IDBTransaction` (`IndexedDbQueryBuilder.d.ts:87-91`), which a failed effect aborts and `PreventSchedulerYield` keeps from committing between queries (`IndexedDbQueryBuilder.js:914-921`); durability is an option, `strict` as in `indexedDb.ts`. |
+| server rejection drops operation and rebases | native | native |
+| lost acknowledgement retries same operation | native | native |
+| checkpoint adoption unchanged | native | native |
+
+Rejection, retry, checkpoint and replay are Sync's protocol; a storage only
+has to keep what the replica saves, so those rows say nothing for or against
+Effect's storage. The writer row decides.
+
+What the two upstream asks would change:
+
+- **PR 3, atomic IndexedDB `modify`, is not needed by Sync, and would not be
+  enough for the `KeyValueStore` route.** It would close the update race, but
+  `modify` "updates the value of the specified key if it exists"
+  (`persistence/KeyValueStore.d.ts:66-69`), so a first `save(state, null)` must
+  still check with `has` and write with `set`, and two tabs creating a replica
+  still both succeed. One key also cannot carry an outbox beside the state, so
+  every submit rewrites the whole document. The typed IndexedDB route needs no
+  change at all.
+- **PR 4, manual settlement for `PersistedQueue`, is not needed.** There is no
+  browser `PersistedQueueStore` (memory, Redis and SQL only,
+  `persistence/PersistedQueue.d.ts:322`, `:387`, `:426`), and the typed
+  prototype keeps the outbox beside the state in one transaction, which is the
+  atomicity §7.4 feared a separate queue would lose.
+
+`EventJournal.makeIndexedDb` (`eventlog/EventJournal.js:577`) is no candidate
+either: it never deletes an entry, only the whole database (`:816`), so a
+rejected operation cannot be dropped or a base replaced by a checkpoint;
+`writeMany` runs the caller's effect before it writes, in a transaction of its
+own (`:652-664`); and tabs share one journal under a Web Lock (`:845-858`),
+where Sync refuses a second writer.
+
+The typed IndexedDB has two gaps `indexedDb.ts` closes. It sets no
+`onversionchange`, so an open connection blocks another tab's upgrade until it
+closes; an adapter can set it on `query.database.current`. And an open that is
+reported blocked fails (`IndexedDbDatabase.js:148-153`) but still stores the
+connection when it later succeeds (`:232-241`), after the layer's finalizer has
+run (`:243`), so nothing closes it: the leak `indexedDb.ts`'s blocked-upgrade
+test covers, which only an upstream change can fix.
+
+**Decision: keep the bespoke IndexedDB storage.** Atomic revision protection
+can be represented cleanly, through the typed IndexedDB's `withTransaction`
+rather than through `KeyValueStore`, so §14.2's stop condition is not what
+decides. Adoption would replace about 150 lines of `indexedDb.ts` with about 95,
+and in exchange make `@effect/platform-browser`'s unstable modules a peer of
+`foldkit-sync`, require a migration that rewrites every stored row (the typed
+table stores `{ value }` rows where `indexedDb.ts` stores raw values), bring
+back the blocked-open leak, and add about 7 kB gzipped to a bundle (esbuild,
+an upper bound). Revisit if `foldkit-sync` takes that package for another
+reason. Neither PR 3 nor PR 4 is needed by Sync.
+
 ## 14.3 Sync-over-Effect-RPC prototype
 
 Must preserve:
@@ -1300,6 +1441,93 @@ disconnect/retry does not duplicate semantic operations
 browser/node transports remain possible
 tests can use in-memory/loopback transport
 ~~~
+
+### Status, 2026-11-11: built against Effect 4.1.1; keep the socket transport
+
+The prototype is `packages/sync/test/prototype/effectRpc.ts`: an `RpcGroup`
+of two procedures behind Sync's `Transport` seam. `Exchange` carries the
+frame `layerSocket` writes (`cursor`, `pending`, `epoch`; the RPC request id
+stands for the frame's `id`) and fails with Sync's own `TransportError`, a
+`Schema.TaggedError` that serves as the error schema unchanged. `Changes` is
+a `stream: true` procedure in place of the notice frame. `layerRpc` is the
+client, a `Layer<Transport, never, RpcClient.Protocol>`; `serveRpcSocket`
+serves one accepted socket, as `serveSocket` does, over the same
+`journalExchange` and `journalChanges`.
+
+`rpcCriteria.test.ts` beside it runs the criteria against five subjects: the
+loopback, the socket transport over a socket pair, and the prototype through
+`RpcTest.makeClient`, in process; and the socket transport and the prototype
+over real WebSockets on localhost (Node's global `WebSocket`, the browser's
+API, against a `ws` server), where reconnects and frames are real (25 tests
+and one skipped, since the loopback carries no notices; about 1.5 seconds). `rpcCriteria.mutations.ts` breaks each criterion in the
+prototype, the socket transport and the journal (13 mutations, all killed).
+The prototype is kept as that evidence and is not exported.
+
+The wire was diffed: every frame the socket transport writes, less its `id`,
+decodes under `ExchangePayload` with excess keys refused and comes back
+equal. Two fields have to stay as
+loose as the socket protocol keeps them. `pending` is an array of unknown
+entries, because `journalExchange` refuses a bad operation by its id; typed,
+one tampered operation fails the whole call and blocks the outbox (a
+mutation shows it). The reply is `Schema.Unknown`, because the replica's
+`decodeExchange` is its strict check, and RPC decodes with default parse
+options unless an RPC is annotated (`rpc/RpcClient.js:495`,
+`rpc/RpcServer.js:380`); the payload carries `Rpc.ParseOptions` with
+`onExcessProperty: 'error'`.
+
+Paths are under `node_modules/effect/dist/`.
+
+| Criterion | Verdict | What it took |
+|---|---|---|
+| Transport remains replaceable | native for the exchange; **presence needs RPCs of its own** | `layerRpc` is one more Layer of the seam, and the same replica converges through all five subjects. `TransportSocket`, the socket the exchange shares with presence (`examples/registry`, `examples/pages`), has no counterpart: neither the RPC client nor its socket protocol lets another protocol read or write raw frames (a probe found the client ignores a frame that is not RPC), so presence would move to an RPC stream and a send. |
+| exchange semantics unchanged | small adapter | Refusal by id, the server's words on a refused connection, the epoch sent back once seen and not before, and a notice after another replica's commit hold in every subject that carries them. Differences in place: a malformed frame (a negative cursor) is refused by the client as it builds the request, a defect, where the socket server answers an error frame; and the notice a (re)connection owes moves from the client, which published one on open, to the server, which sends one as each subscription starts. |
+| disconnect/retry does not duplicate semantic operations | native, by Sync's protocol | A reply lost to a dropped socket commits once in both, through the journal's opId check (mutating it fails both). The socket transport sends an unanswered frame again with its id on the next connection, so one `synchronize` outlasts the drop. RPC fails every call in flight on a socket error (`rpc/RpcClient.js:889`) and fails a new one at once until a socket is back (`:902`), so the retry is the replica's next exchange, after `start`'s backoff (from 0.5 s). |
+| browser/node transports remain possible | native, with a small server adapter | Both run on Node's global `WebSocket` (`Socket.layerWebSocketConstructorGlobal`), which sends no header of the page's. The server side is one RPC server per accepted socket, through `makeProtocolSocketServer` and a `SocketServer` that yields that one socket (about ten lines), so its handlers close over the principal the upgrade resolved, as `documentHost` does. Not run on workerd. `portSocket` and `workerSocket` would need `Socket` adapters of their own; neither was built. |
+| tests can use in-memory/loopback transport | native | `RpcTest.makeClient` with the group's handlers, and `layerLoopback` unchanged. `RpcTest` uses no serialization (`rpc/RpcTest.js`), so a fault only a JSON encoding shows appears on a wire alone; the client still checks each payload. |
+
+**Authorization and CSRF.** RPC does not lift the WebSocket header trap; it
+moves headers into frames. `RpcClient.withHeaders` writes them into each
+request, which a browser can do, and the server concatenates the
+connection's headers before the request's (`rpc/RpcServer.js:875` for HTTP,
+`:1153` for a WebSocket upgrade), keeping the last of each name
+(`http/Headers.js:116-118`). So a request's own `origin`, `cookie` or CSRF
+header overrides the upgrade's, and a cross-site page that opened the socket
+with the victim's cookie can claim any `Origin` to a check that reads a
+handler's or middleware's `headers` (a test pins this; reversing the
+concatenation by hand turned it red). Who is asking, and from where, must be
+decided on the upgrade request before an RPC server runs, as
+`documentHost`'s `resolvePrincipal(request)` decides today. The prototype
+keeps that shape: a server per socket, whose protocol passes no upgrade
+headers at all (`rpc/RpcServer.js:743`). `toHttpEffectWebsocket`, one server
+for every socket, invites the unsafe shape. On Workers the HTTP protocol is
+no option for `Changes` either: one request's commit cannot wake another
+request's stream, so RPC would run on the Durable Object's sockets, as
+`foldkit-sync/do` does now.
+
+**Bundle.** A replica over `indexedDb` running `start`, minified and gzipped:
+48.6 kB with no transport, 49.9 kB with `layerSocket`, and 60.8 kB with
+`layerRpc` over `RpcClient.layerProtocolSocket`, `Socket.layerWebSocket` and
+`RpcSerialization.layerJson`, built with rolldown, which Vite 8 uses. RPC
+costs about 11 kB more than the socket transport. esbuild keeps more (155.8,
+158.4 and 197.0 kB): it keeps `encoding/SchemaBinary.js`, 59 kB minified,
+which `rpc/RpcSerialization.js:15` imports for a serialization the client
+never uses.
+
+**Decision: keep the socket transport.** §14.3's criteria hold, natively or
+through a small adapter, so nothing stops adoption; it gains too little. The
+client and server prototype is about 90 lines of code against about 300 in
+`transport.ts` (`layerSocket`, `serveSocket`, `nativeSocket`), but adopting
+it adds about 11 kB gzipped to every client, recovers a lost reply only on
+the replica's backoff instead of at once, moves presence to RPCs of its own,
+and puts `effect/rpc` and `effect/socket`, both marked unstable, on the
+client's path. §8.1 holds: no Sync RPC primitive is needed upstream, and none
+of the RPC route's costs is Sync-specific. Two upstream changes would lower
+them and are general enough to propose: a request's headers that do not
+override the connection's (or arrive apart from them), which any RPC server
+authorizing on an upgrade needs; and a JSON serialization that does not keep
+`SchemaBinary` in a bundle. Revisit when Sync wants a second procedure
+(presence, or a pushed stream richer than a notice), or when the applications
+it serves already ship `effect/rpc`, which would make the bundle cost nil.
 
 ---
 

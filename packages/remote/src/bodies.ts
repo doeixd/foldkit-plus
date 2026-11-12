@@ -26,9 +26,10 @@ import { wholeListsOf } from './whole.js'
 
 const placedFields: BodyCapability['placedFields'] = (body, encoded, given) => {
   const operators = tableOf(given)
-  return Relational.placement(body, encoded, { operators })._tag === 'Placeable'
-    ? Relational.dependencies(body).fields.map(field => field.key)
-    : []
+  const placement = Relational.placement(body, encoded, { operators })
+  if (placement._tag !== 'Placeable') return []
+  const { fields } = Relational.dependencies(body)
+  return fields.map(field => field.key)
 }
 
 /**

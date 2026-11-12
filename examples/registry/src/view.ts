@@ -178,6 +178,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>, manifest: ModuleMani
         // toggle twice, from the Model as it is, not the order last drawn.
         sort: ProductSort.inputs(model.sort, (_, column) => Message.SortedProducts({ column })),
         columnMenu: true,
+        filters: model.filters,
         marks: marksOf(model),
       },
       h,

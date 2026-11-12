@@ -2,7 +2,7 @@ import { Agent } from 'foldkit-agent'
 import { Effect, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { AppAgent, bindAgent } from '../src/agent.js'
-import { Message, resetIds } from '../src/app.js'
+import { Message } from '../src/app.js'
 import { runDemo } from '../src/demo.js'
 import { makeStore } from '../src/store.js'
 
@@ -12,6 +12,11 @@ describe('the demo', () => {
 
     // A human and an agent drive the same state machine.
     expect(transcript).toContain('todos: Write the proposal, Ship the adapter')
+
+    // A create is a request; the todo arrives with its fact, and the agent's
+    // call waits for that fact.
+    expect(transcript).toContain('asked, before the save: 0 todos')
+    expect(transcript).toContain('completed by SubmittedTodo: todo-2 "Ship the adapter"')
 
     // Availability follows the Model.
     expect(transcript).toMatch(/no selection: (?!.*delete_selected_todo)/)
@@ -47,6 +52,7 @@ describe('the example contract', () => {
 
   it('keeps the internal Messages internal', () => {
     const tags = Agent.messages(AppAgent).map(capability => capability.tag)
+    expect(tags).not.toContain('SubmittedTodo')
     expect(tags).not.toContain('ReceivedTodos')
     expect(tags).not.toContain('FailedToLoadTodos')
   })
@@ -57,7 +63,6 @@ describe('the example contract', () => {
   })
 
   it('drives update through the host, whichever surface originates the Message', async () => {
-    resetIds()
     const store = makeStore()
     const agent = bindAgent({
       definition: AppAgent,
@@ -72,6 +77,36 @@ describe('the example contract', () => {
     expect(store.model().todos.map(todo => todo.title)).toEqual(['From the UI', 'From the agent'])
   })
 
+  it('resolves each create with its own fact, once the todo is in the list', async () => {
+    const store = makeStore()
+    const agent = bindAgent({
+      definition: AppAgent,
+      host: { ...store.host, principal: () => ({ canDelete: true }) },
+    })
+    const create = agent.messages.dispatch(Message.RequestedCreateTodo, { title: 'Twice' })
+    const listed = (id: string | undefined) =>
+      store
+        .model()
+        .todos.map(todo => todo.id)
+        .includes(id ?? '')
+
+    // Two calls for one title in flight at once: each must finish on its own
+    // todo, not on whichever fact lands first.
+    const results = await Effect.runPromise(
+      Effect.all([create, create], { concurrency: 'unbounded' }).pipe(
+        Effect.map(calls =>
+          calls.map(call => {
+            const id = call.completion?.message.id
+            return { id, listedThen: listed(id) }
+          }),
+        ),
+      ),
+    )
+
+    expect(results.map(result => result.id)).toEqual(['todo-1', 'todo-2'])
+    expect(results.every(result => result.listedThen)).toBe(true)
+  })
+
   it('reads a resource off the live Model', async () => {
     const store = makeStore()
     const agent = bindAgent({
@@ -80,6 +115,7 @@ describe('the example contract', () => {
     })
 
     store.dispatch(Message.RequestedCreateTodo({ title: 'Read me' }))
+    await store.settled()
 
     expect(await Effect.runPromise(agent.resources.read('todos'))).toMatchObject([
       { title: 'Read me' },
@@ -87,7 +123,6 @@ describe('the example contract', () => {
   })
 
   it('deletes the selected todo, preserves the others, and clears the selection', async () => {
-    resetIds()
     const store = makeStore()
     const agent = bindAgent({
       definition: AppAgent,
@@ -96,6 +131,7 @@ describe('the example contract', () => {
 
     store.dispatch(Message.RequestedCreateTodo({ title: 'Keep me' }))
     store.dispatch(Message.RequestedCreateTodo({ title: 'Doomed' }))
+    await store.settled()
     await Effect.runPromise(agent.messages.dispatch(Message.SelectedTodo, { id: 'todo-2' }))
     await Effect.runPromise(agent.messages.dispatch(Message.RequestedDeleteTodo, {}))
 

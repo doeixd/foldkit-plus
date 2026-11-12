@@ -1,9 +1,10 @@
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { Mutation } from 'foldkit-remote'
 import { expectTypeOf } from 'vitest'
-import { Cms } from '../src/index.js'
+import type { HtmlBuilder } from 'foldkit/html'
+import { Cms, type HistoryCardSlots } from '../src/index.js'
 
 const PostId = Schema.String.pipe(Schema.brand('PostId'))
 const BasePost = Entity.define(
@@ -51,3 +52,22 @@ Cms.content('posts', {
   },
   words,
 })
+
+// The History's dates are written in a locale and zone the caller gives, each required.
+declare const historySlots: HistoryCardSlots<'restore'>
+declare const historyH: HtmlBuilder<'restore'>
+const historyEntry = { state: Option.none(), restore: () => 'restore' as const, authorName: String }
+Cms.historyCard(
+  historySlots,
+  historyH,
+  { _tag: 'Loading' },
+  {
+    ...historyEntry,
+    locale: 'en',
+    timeZone: 'UTC',
+  },
+)
+// @ts-expect-error no `locale`: the runtime's would differ between a server and a browser
+Cms.historyCard(historySlots, historyH, { _tag: 'Loading' }, { ...historyEntry, timeZone: 'UTC' })
+// @ts-expect-error no `timeZone`: the runtime's would differ between a server and a browser
+Cms.historyCard(historySlots, historyH, { _tag: 'Loading' }, { ...historyEntry, locale: 'en' })

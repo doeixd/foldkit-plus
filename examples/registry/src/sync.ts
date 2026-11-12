@@ -11,11 +11,15 @@ import { BundleSurface } from 'foldkit-bundle-surface'
 import { type Contract, MessageSet, Module, Projection } from 'foldkit-surface'
 import {
   DocumentId,
-  Sync,
+  forApplication,
+  mount,
   type Mounted,
   type Operation,
+  type WrittenOperation,
   type PolicyJournalContract,
+  type Rejection,
   type Replica,
+  SyncRefusal,
   type Sync as SyncContract,
   Transport,
   TransportError,
@@ -45,7 +49,7 @@ export const everyone: Principal = { actorId: 'registry' }
 /** The server itself, which alone records what the table has absorbed. */
 export const server: Principal = { actorId: 'registry-server' }
 
-const definition = Sync.forApplication(App)
+const definition = forApplication(App)
   .withPrincipal<Principal>()
   .make({
     // Versioned with the shape of `edits`: a replica stored under the last one
@@ -87,6 +91,17 @@ export const journalContract = (): PolicyJournalContract<Operation, Shared, Prin
 
 const decodeMessage = Schema.decodeUnknownOption(Message)
 
+/** What a refused cell says: the server's own words where it gave some. */
+const said = (rejection: Rejection): string =>
+  Option.match(rejection.refusal, {
+    onNone: () => 'Refused by the server',
+    onSome: SyncRefusal.match({
+      Forbidden: ({ reason }) => Option.getOrElse(reason, () => 'You may not change this'),
+      Invalid: ({ message }) => message,
+      Unreadable: () => 'Made by another version of the page, so not saved',
+    }),
+  })
+
 /** The cells an operation's edit changes: each product's fields it holds. */
 const changedCells = (operation: Operation): ReadonlyArray<Pick<Refusal, 'id' | 'column'>> =>
   Option.match(decodeMessage(operation.message), {
@@ -117,7 +132,7 @@ export const pausable = <Out, E>(
       const shape = yield* Transport
       return {
         ...shape,
-        exchange: (cursor: number, pending: ReadonlyArray<Operation>, epoch?: string) =>
+        exchange: (cursor: number, pending: ReadonlyArray<WrittenOperation>, epoch?: string) =>
           paused()
             ? Effect.fail(new TransportError({ message: 'working offline' }))
             : shape.exchange(cursor, pending, epoch),
@@ -141,7 +156,7 @@ export const mountRegistry = (
     readonly device: string
   },
 ): { readonly mounted: Mounted<Model, Message>; readonly dispose: () => Promise<void> } => {
-  const mounted = Sync.mount(App, definition, {
+  const mounted = mount(App, definition, {
     replica,
     container: options.container,
     view: (model, h) => view(model, h, manifest),
@@ -172,13 +187,13 @@ export const mountRegistry = (
   const status = Effect.runFork(
     Stream.runForEach(replica.statusChanges, ({ pending, lastError, rejected }) =>
       Effect.sync(() => {
-        const refusals = rejected.flatMap(({ opId, reason, operation }) =>
-          reported.has(opId)
+        const refusals = rejected.flatMap(rejection =>
+          reported.has(rejection.opId)
             ? []
-            : changedCells(operation).map(cell => ({
-                opId,
+            : changedCells(rejection.operation).map(cell => ({
+                opId: rejection.opId,
                 ...cell,
-                reason: Option.getOrElse(reason, () => 'Refused by the server'),
+                reason: said(rejection),
               })),
         )
         reported = new Set(rejected.map(({ opId }) => opId))

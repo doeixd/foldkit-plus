@@ -154,7 +154,7 @@ export const JobPage = slots(
       {
         position: 'fixed',
         top: t.space.md,
-        right: t.space.md,
+        insetInlineEnd: t.space.md,
         zIndex: '20',
       },
       hiddenFrom(wider),

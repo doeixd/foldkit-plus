@@ -132,8 +132,8 @@ export default [
     edits: [
       {
         file: '../src/layers.ts',
-        find: 'memoRead([pages, layers, entities, connections, operators], `placed:${identity}`',
-        replace: 'memoRead([pages, layers, entities, connections], `placed:${identity}`',
+        find: '[pages, layers, kept, entities, connections, operators],\n    `placed:${identity}`',
+        replace: '[pages, layers, kept, entities, connections],\n    `placed:${identity}`',
       },
     ],
     tests,

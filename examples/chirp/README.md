@@ -15,10 +15,10 @@ browser, so nothing you post leaves it.
 | What a user and a post are, that a body holds at most 280 characters, and what a handle may be | the domain, declared once; the tables' `CHECK`s are compiled from it | `domain.ts` (`foldkit-entity`), `server/server.ts` (`checkConstraints`) |
 | Who may write a post: its author, or an admin | the domain declares it; the server decides | `guard.ts`, `server/server.ts` (`foldkit-guard`) |
 | The posts and the likes | the server's database | `server/server.ts` (`foldkit-remote-server`, `foldkit-remote-drizzle`) |
-| The posts the page shows, cached in the Model | Remote, inside the Model | `app.ts` (`foldkit-remote`) |
+| The posts the page shows, cached in the Model | Remote, inside the Model | `state.ts`, `app.ts` (`foldkit-remote`) |
 | A chirp posted and not yet answered | Remote's outbox, in the Model and copied to `localStorage` | `app.ts` (`outbox(Data, …)`), `client.ts` |
 | The draft in the compose box and the editor | the forms, inside the Model | `compose.ts`, `editor.ts` (`foldkit-form`, `foldkit-crud`) |
-| Which page you are on, its address and title | the site's tree; the route is in the Model | `site.ts` (`foldkit-site`) |
+| Which page you are on, its address and title | the site's tree; the route is in the Model | `route.ts`, `site.ts` (`foldkit-site`) |
 | How it looks | one theme, the slots, the shipped recipes | `style.ts`, `view.ts` (`foldkit-mixins`, `foldkit-mixins-ui`) |
 | Who you are | the page's address (`?as=ada`) | `client.ts` |
 
@@ -110,9 +110,10 @@ it names or points at: the page sends what its Surfaces read with each write,
 and the server reads those fields after the write, so a new chirp lands with
 its author's count, and a like with its post's count and `liked`.
 
-**The client** (`app.ts`). `Remote.make` registers the domain; each page
-declares what it reads with a Surface (`Home`, `Profile`, `Status`), and is
-active while its route is the page's. A Surface does no I/O: Remote reads what
+**The client** (`state.ts`, `app.ts`). `Remote.make` registers the domain; each page
+declares what it reads with a Surface (`Home`, `Profile`, `Status`), which its
+node in `site.ts` owns, so it is active while its route is the page's
+(`Site.sources`). A Surface does no I/O: Remote reads what
 the active ones are missing and reduces the answers into the Model. Told who
 reads (`viewer`), Remote shows a like at once from the declarations alone: the
 count moves, the heart fills, and nothing in `update` computes either. A new
@@ -167,7 +168,8 @@ icons are Lucide's, imported by name through `foldkit-media/vite`
   server rendering.
 - The timeline is read, not followed: a chirp posted in another tab shows
   here once the list is read again (a reload, or a minute after it was read:
-  every read is fresh for a minute, `freshness` in `src/app.ts`, so going
+  every read is fresh for a minute, `freshness` in `src/app.ts`, a profile's
+  for 15 seconds (`policy` matches the route), so going
   back to a page within it asks nothing), though both tabs share one server.
   A list read live (`liveQuery(Data, …)` over a live source) would
   follow it; `examples/reference` shows one.

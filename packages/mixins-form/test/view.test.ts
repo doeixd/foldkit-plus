@@ -190,9 +190,9 @@ describe('FormView markup', () => {
     })
   })
 
-  it('disables the submit until the form would submit, and takes its label', () => {
+  it('marks the submit aria-disabled until the form would submit, and takes its label', () => {
     const button = (root: Html) => Inert.all(root).find(node => node.sel === 'button')
-    expect(button(render())?.data?.props?.disabled).toBe(true)
+    expect(button(render())?.data?.attrs?.['aria-disabled']).toBe('true')
     expect(Inert.text(button(render()))).toBe('Submit')
 
     const ready = send(
@@ -203,7 +203,7 @@ describe('FormView markup', () => {
       { model: ready, errors: [], canSubmit: Edit.canSubmit(ready), words: { submit: 'Save' } },
       SlotView.inertBuilder(),
     )
-    expect(button(saved)?.data?.props?.disabled).toBe(false)
+    expect(button(saved)?.data?.attrs?.['aria-disabled']).toBeUndefined()
     expect(Inert.text(button(saved))).toBe('Save')
   })
 
@@ -223,7 +223,7 @@ describe('FormView markup', () => {
     expect(sending?.data?.attrs).toMatchObject({ 'aria-busy': 'true' })
     expect(sending?.data?.attrs).toMatchObject({ 'data-submitting': '' })
     // Still focusable, so the focus a press gave it stays; a press reaches a busy guard.
-    expect(button(sending)?.data?.props?.disabled).toBe(false)
+    expect(button(sending)?.data?.props?.disabled ?? false).toBe(false)
     expect(button(sending)?.data?.attrs?.['aria-disabled']).toBe('true')
     expect(Inert.text(button(sending))).toBe('Submitting…')
     expect(Inert.text(button(draw(true, { submitting: 'Saving…' })))).toBe('Saving…')
@@ -231,24 +231,25 @@ describe('FormView markup', () => {
     const idle = draw(false)
     expect(idle?.data?.attrs?.['aria-busy']).toBeUndefined()
     expect(idle?.data?.attrs?.['data-submitting']).toBeUndefined()
-    expect(button(idle)?.data?.props?.disabled).toBe(false)
+    expect(button(idle)?.data?.props?.disabled ?? false).toBe(false)
     expect(button(idle)?.data?.attrs?.['aria-disabled']).toBeUndefined()
     expect(Inert.text(button(idle))).toBe('Submit')
   })
 
-  it('keeps a saved form’s button focusable while it cannot submit, and only then', () => {
-    // [canSubmit, saved] -> [disabled, aria-disabled]
-    const drawn = (canSubmit: boolean, saved: boolean) => {
+  it('never draws the submit natively disabled, so Enter always reaches the form', () => {
+    // [canSubmit, submitting] -> [disabled, aria-disabled]
+    const drawn = (canSubmit: boolean, submitting: boolean) => {
       const root = FormView.define(Edit)(
-        { model: initial, errors: [], canSubmit, saved },
+        { model: initial, errors: [], canSubmit, submitting },
         SlotView.inertBuilder(),
       )
       const button = Inert.all(root).find(node => node.sel === 'button')
-      return [button?.data?.props?.disabled, button?.data?.attrs?.['aria-disabled']]
+      return [button?.data?.props?.disabled ?? false, button?.data?.attrs?.['aria-disabled']]
     }
+    expect(drawn(false, false)).toEqual([false, 'true'])
+    expect(drawn(true, true)).toEqual([false, 'true'])
     expect(drawn(false, true)).toEqual([false, 'true'])
-    expect(drawn(true, true)).toEqual([false, undefined])
-    expect(drawn(false, false)).toEqual([true, undefined])
+    expect(drawn(true, false)).toEqual([false, undefined])
   })
 
   it('says why its write did not land, and offers the same write again only for a failure', () => {
@@ -683,15 +684,15 @@ describe('FormView.submodel submit gating', () => {
 
   it('lets a submit made mid-check wait by default', () => {
     const root = drawn(FormView.submodel(Edit, FormView.define(Edit)), ready)
-    expect(button(root)?.data?.props?.disabled).toBe(false)
+    expect(button(root)?.data?.attrs?.['aria-disabled']).toBeUndefined()
   })
 
-  it('takes a strict predicate that disables through checks', () => {
+  it('takes a predicate that marks the button aria-disabled, and only marks it', () => {
     const root = drawn(
       FormView.submodel(Edit, FormView.define(Edit), { canSubmit: () => false }),
       ready,
     )
-    expect(button(root)?.data?.props?.disabled).toBe(true)
+    expect(button(root)?.data?.attrs?.['aria-disabled']).toBe('true')
   })
 
   it('takes never pre-disabling that validates wholly at submit', () => {
@@ -699,6 +700,6 @@ describe('FormView.submodel submit gating', () => {
       FormView.submodel(Edit, FormView.define(Edit), { canSubmit: () => true }),
       initial,
     )
-    expect(button(root)?.data?.props?.disabled).toBe(false)
+    expect(button(root)?.data?.attrs?.['aria-disabled']).toBeUndefined()
   })
 })

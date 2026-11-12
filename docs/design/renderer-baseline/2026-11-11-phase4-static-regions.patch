@@ -1,0 +1,155 @@
+diff --git a/examples/foldkit/domains-plus/src/client/appStyle.ts b/examples/foldkit/domains-plus/src/client/appStyle.ts
+index f605470..09de4b9 100644
+--- a/examples/foldkit/domains-plus/src/client/appStyle.ts
++++ b/examples/foldkit/domains-plus/src/client/appStyle.ts
+@@ -55,6 +55,8 @@ export const app = AppStyle.make({
+   font-weight: 100 900;
+   src: url(${geistLatinUrl}) format('woff2-variations');
+ }`),
++    // A static region's wrapper adds no box: the footer stays the page column's child.
++    Style.global(`[data-foldkit-plus-static] { display: contents }`),
+     Style.global(`@keyframes domains-skeleton-pulse { from { opacity: 0.45 } to { opacity: 1 } }`),
+   ],
+ })
+diff --git a/examples/foldkit/domains-plus/src/client/view.ts b/examples/foldkit/domains-plus/src/client/view.ts
+index 1f64b56..cd78152 100644
+--- a/examples/foldkit/domains-plus/src/client/view.ts
++++ b/examples/foldkit/domains-plus/src/client/view.ts
+@@ -9,7 +9,7 @@ import type { Document, Html, HtmlBuilder } from 'foldkit/html'
+ import { Icon, type IconData } from 'foldkit-media'
+ import { Behavior, SlotView, type SlotBuilders } from 'foldkit-mixins'
+ import { WindowList, WindowListSlots } from 'foldkit-mixins-ui'
+-import { Resume } from 'foldkit-ssr/client'
++import { Resume, SSR } from 'foldkit-ssr/client'
+ import { Projection } from 'foldkit-surface'
+ import {
+   type AvailableDomain,
+@@ -53,6 +53,20 @@ import { Page, ResultsListStyle } from './style.js'
+ type H = HtmlBuilder<Message>
+ type Slots = SlotBuilders<typeof Page.slots, Message>
+ 
++// #432's spike: with the build flag, a display region (no handler, nothing
++// the browser changes) is served and adopted, not drawn by the browser.
++const staticBuild = import.meta.env?.DOMAINS_PLUS_STATIC === '1'
++// `SSR.static` hands its region the Message-free inert builder, but a Slot's
++// attributes are typed with the page's Message, so the region is drawn as `H`:
++// a handler in it is refused at run time (`BindingInStaticRegion`).
++const display = (
++  id: string,
++  draw: (slots: Slots, h: H) => ReadonlyArray<Html>,
++  slots: Slots,
++  h: H,
++): ReadonlyArray<Html> =>
++  staticBuild ? [SSR.static(id, ih => draw(slots, ih as unknown as H))] : draw(slots, h)
++
+ /** How many pending rows stand in for All Results before its first answer, as upstream. */
+ const PREVIEW_RESULT_COUNT = 36
+ 
+@@ -152,22 +166,26 @@ const searchForm = (model: Model, slots: Slots, h: H): Html => {
+   )
+ }
+ 
++const heroCopy = (slots: Slots, h: H): ReadonlyArray<Html> => [
++  h.h1(slots.heroTitle.attrs(), [
++    'Find a domain for',
++    h.br([]),
++    h.span(slots.heroAccent.attrs(), ['the next viral idea.']),
++  ]),
++  h.p(slots.heroLine.attrs(), [
++    'Sample data. ',
++    h.a(slots.heroLink.attrs([h.Href('https://vercel.com/domains/pricing')]), ['Vercel pricing']),
++  ]),
++]
++
+ const hero = (model: Model, slots: Slots, h: H): Html =>
+   h.section(slots.hero.attrs([h.AriaLabel('Find your domain')]), [
+-    h.h1(slots.heroTitle.attrs(), [
+-      'Find a domain for',
+-      h.br([]),
+-      h.span(slots.heroAccent.attrs(), ['the next viral idea.']),
+-    ]),
+-    h.p(slots.heroLine.attrs(), [
+-      'Sample data. ',
+-      h.a(slots.heroLink.attrs([h.Href('https://vercel.com/domains/pricing')]), ['Vercel pricing']),
+-    ]),
++    ...display('hero-copy', heroCopy, slots, h),
+     searchForm(model, slots, h),
+     h.div(slots.heroSpace.attrs(), []),
+   ])
+ 
+-const beginSearch = (slots: Slots, h: H): Html =>
++const beginSearch = (slots: Slots, h: H): ReadonlyArray<Html> => [
+   h.section(slots.beginSearch.attrs([h.AriaLabel('Begin your search')]), [
+     h.div(slots.beginCopy.attrs(), [
+       h.div(slots.beginIcon.attrs(), [icon(icons.search, h, '20px')]),
+@@ -176,7 +194,8 @@ const beginSearch = (slots: Slots, h: H): Html =>
+         'Enter a domain name to explore sample prices and availability.',
+       ]),
+     ]),
+-  ])
++  ]),
++]
+ 
+ /** A name with its label apart from its extension, as upstream draws it. */
+ const domainName = (domain: DomainName, h: H): ReadonlyArray<Html | string> => [
+@@ -537,7 +556,7 @@ const results = (model: Model, slots: Slots, h: H): Html => {
+   ])
+ }
+ 
+-const footer = (slots: Slots, h: H): Html =>
++const footer = (slots: Slots, h: H): ReadonlyArray<Html> => [
+   h.footer(slots.footer.attrs(), [
+     h.span([], ['A Foldkit demo · Not affiliated with Vercel']),
+     h.span([], ['Sample data · Demo cart']),
+@@ -545,7 +564,8 @@ const footer = (slots: Slots, h: H): Html =>
+       'View source',
+       icon(icons.arrowUpRight, h, '12px'),
+     ]),
+-  ])
++  ]),
++]
+ 
+ // Drawn again only when what they read changed: a price arriving, a scroll or
+ // a keystroke leaves the header, the filters and the cart as they were.
+@@ -612,11 +632,11 @@ const searchPage = (model: Model, slots: Slots, h: H): Html =>
+       h.main(slots.main.attrs([h.Id('main'), h.Tabindex(-1)]), [
+         h.h1(slots.pageHeading.attrs(), ['Domain search']),
+         hero(model, slots, h),
+-        beginSearch(slots, h),
++        ...display('begin-search', beginSearch, slots, h),
+         results(model, slots, h),
+         PlainCart(model, slots, h),
+       ]),
+-      footer(slots, h),
++      ...display('footer', footer, slots, h),
+       CartPanel(model, slots, h),
+     ],
+   )
+@@ -658,7 +678,7 @@ const tldsPage = (model: Model, slots: Slots, h: H): Html => {
+       ]),
+       PlainCart(model, slots, h),
+     ]),
+-    footer(slots, h),
++    ...display('footer', footer, slots, h),
+     CartPanel(model, slots, h),
+   ])
+ }
+diff --git a/examples/foldkit/domains-plus/vite.config.ts b/examples/foldkit/domains-plus/vite.config.ts
+index 2ee0e98..5567cac 100644
+--- a/examples/foldkit/domains-plus/vite.config.ts
++++ b/examples/foldkit/domains-plus/vite.config.ts
+@@ -12,8 +12,13 @@ export default defineConfig(({ command }) => {
+   // idle. Not the default until its first press, Total Blocking Time and
+   // total script are measured against today's entry.
+   const loader = process.env.DOMAINS_PLUS_LOADER === '1'
++  // Opt-in (#432): the footer and the hero's copy are `SSR.static` regions.
++  const adoptStatic = process.env.DOMAINS_PLUS_STATIC === '1'
+   return {
+-    define: { 'import.meta.env.DOMAINS_PLUS_LOADER': JSON.stringify(loader ? '1' : '') },
++    define: {
++      'import.meta.env.DOMAINS_PLUS_LOADER': JSON.stringify(loader ? '1' : ''),
++      'import.meta.env.DOMAINS_PLUS_STATIC': JSON.stringify(adoptStatic ? '1' : ''),
++    },
+     // Workspace packages resolve to their source, so an edit shows without a build.
+     resolve: { conditions: ['foldkit-plus:source'] },
+     ssr: { resolve: { conditions: ['foldkit-plus:source'] } },

@@ -61,4 +61,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a pick selects nothing',
+    edits: [
+      {
+        file: '../src/context-menu/app.ts',
+        find: 'SelPlaced.helpers.activate(actionId(message.action))(',
+        replace: 'SelPlaced.helpers.clear()(',
+      },
+    ],
+    tests,
+  },
 ]

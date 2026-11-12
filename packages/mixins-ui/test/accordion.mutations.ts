@@ -9,6 +9,17 @@ const recipe = '../src/recipes/accordion.ts'
 
 export default [
   {
+    name: 'the panel row ignores the travel knob, so reduced motion still slides it',
+    edits: [
+      {
+        file: recipe,
+        find: 'transitionDuration: `${travelled(duration)}, ${duration}`,',
+        replace: 'transitionDuration: `${duration}, ${duration}`,',
+      },
+    ],
+    tests: browser,
+  },
+  {
     name: 'a single accordion keeps the others open',
     edits: [
       {

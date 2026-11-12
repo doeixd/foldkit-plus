@@ -5,6 +5,7 @@
 const tests = ['packages/entity/test/describe.test.ts']
 const expr = '../src/expr.ts'
 const operators = '../src/operators.ts'
+const memoryTable = '../src/memoryTable.ts'
 const evaluate = '../src/evaluate.ts'
 const jsonSchema = '../src/jsonSchema.ts'
 const edit = (name: string, file: string, find: string, replace: string, only = tests) => ({
@@ -18,7 +19,7 @@ export default [
   edit('the versions held are never named', expr, '  return held.length === 0', '  return true'),
   edit(
     'a memory table holds no version of anything',
-    operators,
+    memoryTable,
     '.filter(({ operator }) => operator.id === id)',
     '.filter(() => false)',
   ),

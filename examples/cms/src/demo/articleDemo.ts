@@ -19,7 +19,7 @@ import { FieldRecipes } from 'foldkit-form-recipes'
 import { Display } from 'foldkit-crud'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
-import { Mutation, Remote, RemoteClient, RemotePolicy } from 'foldkit-remote'
+import { Mutation, Remote, RemoteClient, RemoteData, RemotePolicy } from 'foldkit-remote'
 import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import { bind, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -244,9 +244,10 @@ export const runArticleDemo = async (): Promise<ReadonlyArray<string>> => {
           ),
         )
         const read = projection.read(harness.model())
-        return read._tag === 'Ready' || read._tag === 'Refreshing'
-          ? html(read.value.body)
-          : read._tag
+        return Option.match(RemoteData.held(read), {
+          onSome: held => html(held.body),
+          onNone: () => read._tag,
+        })
       },
       /** The site's page for an address, as a visitor's browser gets it. */
       visit: (slug: string) =>

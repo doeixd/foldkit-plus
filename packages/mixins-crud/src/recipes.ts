@@ -5,8 +5,9 @@
  */
 import { Layers, Style, type StyleValue } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
+import { Utilities } from 'foldkit-mixins/utilities'
 import { ConfirmSlots, EditorSlots, ToolbarSlots } from './editor.js'
-import { ListSlots, Loading, RowListSlots } from './index.js'
+import { ListSlots, RowListSlots } from './index.js'
 
 const ref = Theme.ref(Theme.standard())
 const component = (...pieces: ReadonlyArray<StyleValue>): StyleValue =>
@@ -51,7 +52,7 @@ const listStatus = component(
   }),
   // A wait is not an empty list: no box around it.
   Style.nest('&[aria-busy="true"]', { borderColor: 'transparent' }),
-  Loading.shown,
+  Utilities.busyReveal,
 )
 const listMore = component(quiet, Style.self({ marginBlockStart: ref.space.sm }))
 const listRetry = component(quiet, Style.self({ marginInlineStart: ref.space.sm }))
@@ -63,7 +64,7 @@ const listRetry = component(quiet, Style.self({ marginInlineStart: ref.space.sm 
  * the row's highlight promises; `open: 'link'` keeps it to its words, drawn as a
  * link, for a row whose other cells hold controls of their own. A list with
  * nothing in it says so in a dashed box; one still loading says so plainly,
- * and only once the wait is noticeable (`Loading.shown`).
+ * and only once the wait is noticeable (`Utilities.busyReveal`).
  */
 export const List = Style.recipeFor(ListSlots)({
   base: {
@@ -208,7 +209,7 @@ const danger = Style.compose(
 const said = component(
   Style.self({ margin: '0', color: ref.text.muted, fontSize: ref.size.sm }),
   Style.nest('&[role="alert"]', { color: ref.error.ink, fontWeight: ref.weight.medium }),
-  Loading.shown,
+  Utilities.busyReveal,
 )
 
 const actions = component(

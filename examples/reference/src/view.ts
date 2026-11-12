@@ -58,6 +58,10 @@ const failure = (error: RemoteError): string =>
 const status = (slots: Slots, h: H, text: string): Html =>
   h.p(slots.status.attrs([h.Role('status')]), [text])
 
+/** A wait: busy, so the status Slot says it only once it is noticeable. */
+const waiting = (slots: Slots, h: H, text: string): Html =>
+  h.p(slots.status.attrs([h.Role('status'), h.AriaBusy(true)]), [text])
+
 const notice = (h: H, title: string): Html =>
   Alert.view({ layout: 'inline', title, assertive: true, style: NoticeStyle }, h)
 
@@ -233,7 +237,7 @@ const notebook = (model: Model, viewer: string, slots: Slots, h: H): ReadonlyArr
     h.section(
       [h.Id('notes'), h.AriaLabel('Notes')],
       RemoteData.render(notes, {
-        loading: () => [status(slots, h, 'Loading…')],
+        loading: () => [waiting(slots, h, 'Loading…')],
         notFound: () => [status(slots, h, 'No notebook.')],
         failed: error => [notice(h, failure(error))],
         data: page =>
@@ -257,7 +261,7 @@ const notebook = (model: Model, viewer: string, slots: Slots, h: H): ReadonlyArr
 
 const notePage = (model: Model, id: string, slots: Slots, h: H): ReadonlyArray<Html> =>
   RemoteData.render(Surface.read(NotePage, model, { id }).note, {
-    loading: () => [status(slots, h, 'Loading…')],
+    loading: () => [waiting(slots, h, 'Loading…')],
     notFound: () => [status(slots, h, 'This note does not exist, or was deleted.')],
     failed: error => [notice(h, failure(error))],
     data: note => {
@@ -312,9 +316,9 @@ const page = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
     Access.match(accessOf(model), {
       Allowed: draw,
       // `Me` is still loading: no sign-in form flashed at someone signed in.
-      Pending: () => [status(slots, h, 'Loading…')],
+      Pending: () => [waiting(slots, h, 'Loading…')],
       // `update` is loading the sign-in page.
-      Denied: () => [status(slots, h, 'Taking you to sign in…')],
+      Denied: () => [waiting(slots, h, 'Taking you to sign in…')],
     })
   return AppRoute.match(model.route, {
     SignIn: () => [signIn(model, slots, h)],

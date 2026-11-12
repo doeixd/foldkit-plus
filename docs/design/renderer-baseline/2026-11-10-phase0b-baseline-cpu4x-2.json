@@ -1,0 +1,2925 @@
+{
+  "environment": {
+    "date": "2026-11-10T21:51:38.427Z",
+    "os": "linux 6.18.44-fc-v338",
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz × 4",
+    "memoryGiB": 16,
+    "node": "v22.23.4",
+    "chromium": "153.0.8010.12",
+    "headless": true,
+    "viewport": "1440×900",
+    "cpuThrottle": 4,
+    "reps": 30,
+    "warmups": 3
+  },
+  "results": {
+    "grid": [
+      {
+        "name": "select a cell",
+        "runs": [
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 37.4, "patch": 8.8 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.8 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 31, "patch": 2.3 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 1.7 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 8.9, "patch": 0.4 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.2 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 13.3, "patch": 1.8 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 12.1, "patch": 1.3 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.9 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 9.9, "patch": 2.2 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.7 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 10.8, "patch": 1.7 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 9.4, "patch": 1.8 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 8.3, "patch": 1.7 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.6 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 12.1, "patch": 0.4 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.9 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 16.9, "patch": 3.8 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 8.9, "patch": 2.1 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.6 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 13.2, "patch": 1.8 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.5 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 1.6, "patch": 4.1 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 9, "patch": 1.2 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 7.9, "patch": 1.2 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.8 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 12.3, "patch": 1.9 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.6 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 11.1, "patch": 2.6 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 12.9, "patch": 2.1 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 8.9, "patch": 2.2 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 9.2, "patch": 1.2 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 9.9, "patch": 2.3 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 9.6, "patch": 2.1 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.5 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 6.3, "patch": 2.7 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 10.4, "patch": 1.8 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.3 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 16, "patch": 5.6 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.8 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 10.1, "patch": 1.8 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 27, "patch": 2 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 10.6, "patch": 0.6 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/CellPressed", "view": 11.2, "patch": 2.1 }],
+            "updates": [{ "tag": "GotGridMessage/CellPressed", "ms": 0.5 }]
+          }
+        ]
+      },
+      {
+        "name": "scroll a page",
+        "runs": [
+          {
+            "frames": [
+              { "tag": "GotGridMessage/Measured", "view": 20.3, "patch": 14.4 },
+              { "tag": "GotGridMessage/Measured", "view": 21.5, "patch": 12.5 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/Measured", "ms": 0.4 },
+              { "tag": "GotGridMessage/Measured", "ms": 0.9 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 18.3, "patch": 9 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0.8 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 24.3, "patch": 3.1 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0.8 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 13, "patch": 10.3 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 5.1, "patch": 3.7 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 9.4, "patch": 9.6 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0.5 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 44.8, "patch": 59.7 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0.1 }]
+          },
+          { "frames": [], "updates": [] },
+          { "frames": [], "updates": [] },
+          { "frames": [], "updates": [] },
+          { "frames": [], "updates": [] },
+          { "frames": [], "updates": [] },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/Measured", "view": 8.6, "patch": 7.5 },
+              { "tag": "GotGridMessage/Measured", "view": 24.4, "patch": 13.2 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/Measured", "ms": 8.3 },
+              { "tag": "GotGridMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 1.3, "patch": 1.9 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 13.1, "patch": 8.9 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 1.5 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 6.1, "patch": 5.3 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 22.7, "patch": 9.6 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 8.5, "patch": 15.2 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0.8 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 8.6, "patch": 11.5 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 1.8, "patch": 2.9 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 61.2, "patch": 22.6 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 12.4, "patch": 10.6 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 29.8, "patch": 8.5 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0.8 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 11, "patch": 4.6 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 3.8 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 23.4, "patch": 10.5 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 6.2, "patch": 8.5 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 20.8, "patch": 10.4 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0.1 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 5.7, "patch": 8.7 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 68.9, "patch": 10.4 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 0 }]
+          },
+          {
+            "frames": [{ "tag": "GotGridMessage/Measured", "view": 6.3, "patch": 8.7 }],
+            "updates": [{ "tag": "GotGridMessage/Measured", "ms": 5.1 }]
+          }
+        ]
+      },
+      {
+        "name": "edit a cell",
+        "runs": [
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 11.5, "patch": 2.1 },
+              { "tag": "GotGridMessage/EditStarted", "view": 12.4, "patch": 12 },
+              { "tag": "GotGridMessage/EditChanged", "view": 7.7, "patch": 1.1 },
+              { "tag": "GotGridMessage/EditChanged", "view": 7.6, "patch": 0.9 },
+              { "tag": "GotGridMessage/EditChanged", "view": 1.2, "patch": 0.3 },
+              { "tag": "GotGridMessage/EditChanged", "view": 5.4, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 59.5, "patch": 10.2 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.2 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.9 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.9 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.7 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 33.7 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0.7 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 8, "patch": 1.5 },
+              { "tag": "GotGridMessage/EditStarted", "view": 5.4, "patch": 1.5 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6.7, "patch": 2.4 },
+              { "tag": "GotGridMessage/EditChanged", "view": 7.2, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditChanged", "view": 1.4, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 107.6, "patch": 8.5 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.9 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.6 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 32.1 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 2.4 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 6.5, "patch": 5.1 },
+              { "tag": "GotGridMessage/EditStarted", "view": 3.7, "patch": 8.6 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6.7, "patch": 0.8 },
+              { "tag": "GotGridMessage/EditChanged", "view": 7, "patch": 1 },
+              { "tag": "GotGridMessage/EditChanged", "view": 8.4, "patch": 1.1 },
+              { "tag": "GotGridMessage/EditChanged", "view": 9.4, "patch": 1.2 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 59.7, "patch": 9.3 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 1 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.4 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.6 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.8 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 32.7 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 8.4, "patch": 0.3 },
+              { "tag": "GotGridMessage/EditStarted", "view": 8.4, "patch": 6.8 },
+              { "tag": "GotGridMessage/EditChanged", "view": 9.9, "patch": 1.8 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 48.9, "patch": 17.1 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.9 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 49.4 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 13.4, "patch": 1.3 },
+              { "tag": "GotGridMessage/EditStarted", "view": 7.5, "patch": 7.8 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6.7, "patch": 0.8 },
+              { "tag": "GotGridMessage/EditChanged", "view": 5.5, "patch": 1 },
+              { "tag": "GotGridMessage/EditChanged", "view": 7.4, "patch": 0.8 },
+              { "tag": "GotGridMessage/EditChanged", "view": 8.6, "patch": 0.4 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 56, "patch": 13.1 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.2 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.2 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 33.2 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 1.3, "patch": 0.3 },
+              { "tag": "GotGridMessage/EditStarted", "view": 13.8, "patch": 9.5 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6.5, "patch": 1.4 },
+              { "tag": "GotGridMessage/EditChanged", "view": 7.2, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditChanged", "view": 2.2, "patch": 3.2 },
+              { "tag": "GotGridMessage/EditChanged", "view": 10.5, "patch": 1 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 43.4, "patch": 10.2 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.9 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 34.7 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 11.5, "patch": 1.6 },
+              { "tag": "GotGridMessage/EditStarted", "view": 13.4, "patch": 7.7 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6.5, "patch": 1.3 },
+              { "tag": "GotGridMessage/EditChanged", "view": 5.7, "patch": 1.1 },
+              { "tag": "GotGridMessage/EditChanged", "view": 1, "patch": 0.3 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6.2, "patch": 1 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 71, "patch": 12.9 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.2 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.9 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 33.9 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0.8 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 9.1, "patch": 3 },
+              { "tag": "GotGridMessage/EditStarted", "view": 6, "patch": 7.5 },
+              { "tag": "GotGridMessage/EditChanged", "view": 2, "patch": 0.4 },
+              { "tag": "GotGridMessage/EditChanged", "view": 9.4, "patch": 1.6 },
+              { "tag": "GotGridMessage/EditChanged", "view": 13.3, "patch": 1.3 },
+              { "tag": "GotGridMessage/EditChanged", "view": 10, "patch": 5.3 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 61.8, "patch": 6.2 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.9 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.8 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 1 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 27.4 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 8.8, "patch": 2 },
+              { "tag": "GotGridMessage/EditStarted", "view": 1.8, "patch": 1.4 },
+              { "tag": "GotGridMessage/EditChanged", "view": 2.4, "patch": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "view": 5.6, "patch": 0.3 },
+              { "tag": "GotGridMessage/EditChanged", "view": 2.5, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 59.1, "patch": 12 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.6 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 31.4 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 7, "patch": 1.9 },
+              { "tag": "GotGridMessage/EditStarted", "view": 5.3, "patch": 6.3 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6, "patch": 0.9 },
+              { "tag": "GotGridMessage/EditChanged", "view": 4.5, "patch": 2.2 },
+              { "tag": "GotGridMessage/EditChanged", "view": 1.5, "patch": 4 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 66.8, "patch": 10 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.8 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.5 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 1.7 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 32.1 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 1.3, "patch": 0.4 },
+              { "tag": "GotGridMessage/EditStarted", "view": 5.4, "patch": 6.3 },
+              { "tag": "GotGridMessage/EditChanged", "view": 5.9, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 42.3, "patch": 20.2 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.9 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.2 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 3.5 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 17.3 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 6.5, "patch": 1.9 },
+              { "tag": "GotGridMessage/EditStarted", "view": 5.2, "patch": 7.9 },
+              { "tag": "GotGridMessage/EditChanged", "view": 4.7, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditChanged", "view": 5.7, "patch": 1.1 },
+              { "tag": "GotGridMessage/EditChanged", "view": 5.7, "patch": 0.8 },
+              { "tag": "GotGridMessage/EditChanged", "view": 3.4, "patch": 0.1 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 64, "patch": 9.8 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 23.4 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 5.6, "patch": 1.8 },
+              { "tag": "GotGridMessage/EditStarted", "view": 4.8, "patch": 4.4 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6.8, "patch": 0.7 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6.9, "patch": 0.7 },
+              { "tag": "GotGridMessage/EditChanged", "view": 5.5, "patch": 1.3 },
+              { "tag": "GotGridMessage/EditChanged", "view": 5.3, "patch": 1.6 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6.4, "patch": 2.2 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 47.4, "patch": 9.9 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.2 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.7 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.8 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 30.2 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 5.4, "patch": 0.9 },
+              { "tag": "GotGridMessage/EditStarted", "view": 8.1, "patch": 6 },
+              { "tag": "GotGridMessage/EditChanged", "view": 5.4, "patch": 1.1 },
+              { "tag": "GotGridMessage/EditChanged", "view": 7.6, "patch": 0.9 },
+              { "tag": "GotGridMessage/EditChanged", "view": 5.4, "patch": 0.6 },
+              { "tag": "GotGridMessage/EditChanged", "view": 4.9, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 57, "patch": 6.6 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.2 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.2 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 2.4 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 22.6 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 5.7, "patch": 1.4 },
+              { "tag": "GotGridMessage/EditStarted", "view": 7.2, "patch": 6.5 },
+              { "tag": "GotGridMessage/EditChanged", "view": 4.6, "patch": 1.1 },
+              { "tag": "GotGridMessage/EditChanged", "view": 9.5, "patch": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "view": 4, "patch": 0.1 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 59.6, "patch": 9.1 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.5 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 34.6 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 10.8, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditStarted", "view": 5.2, "patch": 8.1 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6.4, "patch": 1 },
+              { "tag": "GotGridMessage/EditChanged", "view": 8.2, "patch": 0.5 },
+              { "tag": "GotGridMessage/EditChanged", "view": 4.1, "patch": 1.4 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 86.5, "patch": 12.5 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 1.5 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 2.5 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 23.8 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 13, "patch": 1 },
+              { "tag": "GotGridMessage/EditStarted", "view": 6.9, "patch": 6.9 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6.9, "patch": 1.2 },
+              { "tag": "GotGridMessage/EditChanged", "view": 4.3, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditChanged", "view": 7.5, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditChanged", "view": 5.7, "patch": 1.4 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 55.8, "patch": 10.5 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.5 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.4 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 24.6 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 1.8, "patch": 0.4 },
+              { "tag": "GotGridMessage/EditStarted", "view": 25.4, "patch": 11.5 },
+              { "tag": "GotGridMessage/EditChanged", "view": 4.1, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditChanged", "view": 1.8, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditChanged", "view": 15.9, "patch": 2.3 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 120.5, "patch": 14.6 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0.6 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 1 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 33.1 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 11.8, "patch": 0.5 },
+              { "tag": "GotGridMessage/EditStarted", "view": 1.3, "patch": 6 },
+              { "tag": "GotGridMessage/EditChanged", "view": 10, "patch": 0.8 },
+              { "tag": "GotGridMessage/EditChanged", "view": 9.7, "patch": 0.8 },
+              { "tag": "GotGridMessage/EditChanged", "view": 7.4, "patch": 0.8 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 124.3, "patch": 13.6 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.5 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 40.5 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0.6 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 6.5, "patch": 1.1 },
+              { "tag": "GotGridMessage/EditStarted", "view": 7.1, "patch": 7.4 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6.1, "patch": 0.5 },
+              { "tag": "GotGridMessage/EditChanged", "view": 15.9, "patch": 1.2 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6.5, "patch": 0.7 },
+              { "tag": "GotGridMessage/EditChanged", "view": 2.1, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 61.5, "patch": 13.6 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.8 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.2 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0.4 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.3 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.5 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.5 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 29 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 1.2, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditStarted", "view": 5.5, "patch": 7.2 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6.2, "patch": 0.9 },
+              { "tag": "GotGridMessage/EditChanged", "view": 4.6, "patch": 0.8 },
+              { "tag": "GotGridMessage/EditChanged", "view": 4.9, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 57.2, "patch": 9.8 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.2 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 22.7 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 6.2, "patch": 1.1 },
+              { "tag": "GotGridMessage/EditStarted", "view": 1.1, "patch": 1.3 },
+              { "tag": "GotGridMessage/EditChanged", "view": 8.2, "patch": 0.9 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6.3, "patch": 0.1 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 59.2, "patch": 9.7 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.2 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0.2 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.4 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 25.8 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 12.8, "patch": 8.1 },
+              { "tag": "GotGridMessage/EditStarted", "view": 6.9, "patch": 8 },
+              { "tag": "GotGridMessage/EditChanged", "view": 1.6, "patch": 0.3 },
+              { "tag": "GotGridMessage/EditChanged", "view": 13.5, "patch": 6.8 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 73.5, "patch": 10.9 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.9 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 27.9 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0.5 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 6.9, "patch": 1.7 },
+              { "tag": "GotGridMessage/EditStarted", "view": 1.3, "patch": 7.6 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6.3, "patch": 1.1 },
+              { "tag": "GotGridMessage/EditChanged", "view": 5.9, "patch": 0.3 },
+              { "tag": "GotGridMessage/EditChanged", "view": 5.2, "patch": 0.5 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 56, "patch": 7.8 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 1.1 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.8 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.8 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 24.5 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0.8 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 9.8, "patch": 1.2 },
+              { "tag": "GotGridMessage/EditStarted", "view": 11.7, "patch": 7.6 },
+              { "tag": "GotGridMessage/EditChanged", "view": 9, "patch": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "view": 5.5, "patch": 0.3 },
+              { "tag": "GotGridMessage/EditChanged", "view": 5.9, "patch": 1.3 },
+              { "tag": "GotGridMessage/EditChanged", "view": 3.6, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 75.9, "patch": 9.1 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 1.1 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 17 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 18.6, "patch": 9.7 },
+              { "tag": "GotGridMessage/EditStarted", "view": 5.1, "patch": 5.3 },
+              { "tag": "GotGridMessage/EditChanged", "view": 12.1, "patch": 1.5 },
+              { "tag": "GotGridMessage/EditChanged", "view": 5.8, "patch": 0.8 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 54.7, "patch": 1.9 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 10.3 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 6.2, "patch": 1.4 },
+              { "tag": "GotGridMessage/EditStarted", "view": 5.3, "patch": 7.2 },
+              { "tag": "GotGridMessage/EditChanged", "view": 9.2, "patch": 2.2 },
+              { "tag": "GotGridMessage/EditChanged", "view": 9.2, "patch": 1.7 },
+              { "tag": "GotGridMessage/EditChanged", "view": 8.3, "patch": 2.6 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 74.9, "patch": 11.8 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.8 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.5 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 22.3 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 4, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditStarted", "view": 13.4, "patch": 8.3 },
+              { "tag": "GotGridMessage/EditChanged", "view": 12.8, "patch": 0.6 },
+              { "tag": "GotGridMessage/EditChanged", "view": 9.6, "patch": 0.9 },
+              { "tag": "GotGridMessage/EditChanged", "view": 8.5, "patch": 0.6 },
+              { "tag": "GotGridMessage/EditChanged", "view": 18.3, "patch": 1.1 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 30.2, "patch": 5.6 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.6 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.7 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 21.4 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 19.6, "patch": 1.3 },
+              { "tag": "GotGridMessage/EditStarted", "view": 17.5, "patch": 13 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6.1, "patch": 0.9 },
+              { "tag": "GotGridMessage/EditChanged", "view": 3.6, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 66.9, "patch": 13.7 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0.5 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.5 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.4 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.8 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 11.2 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "GotGridMessage/CellPressed", "view": 10.5, "patch": 4 },
+              { "tag": "GotGridMessage/EditStarted", "view": 1.2, "patch": 7.6 },
+              { "tag": "GotGridMessage/EditChanged", "view": 7.2, "patch": 1.1 },
+              { "tag": "GotGridMessage/EditChanged", "view": 6.8, "patch": 0.9 },
+              { "tag": "GotGridMessage/EditChanged", "view": 4.3, "patch": 0.2 },
+              { "tag": "GotGridMessage/EditChanged", "view": 5, "patch": 0.5 },
+              { "tag": "GotGridMessage/EditCommitted", "view": 69.5, "patch": 14.7 }
+            ],
+            "updates": [
+              { "tag": "GotGridMessage/CellPressed", "ms": 0 },
+              { "tag": "GotGridMessage/EditStarted", "ms": 0.1 },
+              { "tag": "GotGridMessage/MountStarted", "ms": 0.6 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditChanged", "ms": 0.1 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 23.6 },
+              { "tag": "GotGridMessage/EditCommitted", "ms": 0 }
+            ]
+          }
+        ]
+      }
+    ],
+    "domains": [
+      {
+        "name": "type in search",
+        "runs": [
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 45.3, "patch": 43.1 },
+              { "tag": "GotResultsListMessage/Measured", "view": 34, "patch": 3.9 },
+              { "tag": "ReadStarted", "view": 20.9, "patch": 1.9 },
+              { "tag": "ReadAbandoned", "view": 58.7, "patch": 21.8 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.8 },
+              { "tag": "ChangedUrl", "ms": 1.6 },
+              { "tag": "UpdatedSearch", "ms": 0.7 },
+              { "tag": "UpdatedSearch", "ms": 0.9 },
+              { "tag": "UpdatedSearch", "ms": 5.8 },
+              { "tag": "ChangedUrl", "ms": 2.2 },
+              { "tag": "ChangedUrl", "ms": 1.3 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 1.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 1.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 3 },
+              { "tag": "ReadStarted", "ms": 0.7 },
+              { "tag": "ReadStarted", "ms": 4.9 },
+              { "tag": "ReadReceived", "ms": 1.3 },
+              { "tag": "ReadReceived", "ms": 3.3 },
+              { "tag": "ReadAbandoned", "ms": 0.6 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 26, "patch": 16.1 },
+              { "tag": "GotResultsListMessage/Measured", "view": 15.3, "patch": 4 },
+              { "tag": "ReadStarted", "view": 15.5, "patch": 2 },
+              { "tag": "ReadAbandoned", "view": 32.7, "patch": 19.5 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 1.1 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "UpdatedSearch", "ms": 0.8 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.8 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.2 },
+              { "tag": "ReadStarted", "ms": 0.5 },
+              { "tag": "ReadStarted", "ms": 1.7 },
+              { "tag": "ReadReceived", "ms": 2 },
+              { "tag": "ReadReceived", "ms": 4.3 },
+              { "tag": "ReadAbandoned", "ms": 1.5 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 17.6, "patch": 15 },
+              { "tag": "GotResultsListMessage/Measured", "view": 26.9, "patch": 4.5 },
+              { "tag": "ReadStarted", "view": 21.6, "patch": 1.9 },
+              { "tag": "ReadAbandoned", "view": 26.8, "patch": 18.1 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 1 },
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0.8 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 3.5 },
+              { "tag": "ReadStarted", "ms": 0.1 },
+              { "tag": "ReadStarted", "ms": 1.7 },
+              { "tag": "ReadReceived", "ms": 3.5 },
+              { "tag": "ReadReceived", "ms": 4.9 },
+              { "tag": "ReadAbandoned", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 25.3, "patch": 10.3 },
+              { "tag": "GotResultsListMessage/Measured", "view": 16.6, "patch": 2.9 },
+              { "tag": "ReadStarted", "view": 16.7, "patch": 1.9 },
+              { "tag": "ReadAbandoned", "view": 37.9, "patch": 21.5 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 1.3 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.8 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2 },
+              { "tag": "ReadStarted", "ms": 1.4 },
+              { "tag": "ReadStarted", "ms": 1.8 },
+              { "tag": "ReadReceived", "ms": 1.9 },
+              { "tag": "ReadReceived", "ms": 0.9 },
+              { "tag": "ReadAbandoned", "ms": 3.4 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 13.9, "patch": 10.8 },
+              { "tag": "GotResultsListMessage/Measured", "view": 27.5, "patch": 0.5 },
+              { "tag": "UpdatedSearch", "view": 16.2, "patch": 17.9 },
+              { "tag": "GotResultsListMessage/Measured", "view": 14.1, "patch": 5 },
+              { "tag": "ReadStarted", "view": 11.5, "patch": 2 },
+              { "tag": "ReadAbandoned", "view": 44.4, "patch": 39.7 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0.3 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 3.3 },
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.8 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.3 },
+              { "tag": "ReadStarted", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 2.1 },
+              { "tag": "ReadReceived", "ms": 0.3 },
+              { "tag": "ReadReceived", "ms": 3.3 },
+              { "tag": "ReadAbandoned", "ms": 1.4 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 29.8, "patch": 33.8 },
+              { "tag": "GotResultsListMessage/Measured", "view": 26.5, "patch": 5.1 },
+              { "tag": "UpdatedSearch", "view": 43.1, "patch": 66.9 },
+              { "tag": "GotResultsListMessage/Measured", "view": 47.6, "patch": 24.9 },
+              { "tag": "ReadStarted", "view": 27.8, "patch": 2.2 },
+              { "tag": "ReadAbandoned", "view": 73.6, "patch": 52.2 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 1.8 },
+              { "tag": "ChangedUrl", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 1 },
+              { "tag": "ChangedUrl", "ms": 1.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.8 },
+              { "tag": "ChangedUrl", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.9 },
+              { "tag": "ReadStarted", "ms": 0.8 },
+              { "tag": "ReadStarted", "ms": 3 },
+              { "tag": "ReadReceived", "ms": 3 },
+              { "tag": "ReadReceived", "ms": 9.4 },
+              { "tag": "ReadAbandoned", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 40.8, "patch": 33.3 },
+              { "tag": "GotResultsListMessage/Measured", "view": 29.7, "patch": 1.1 },
+              { "tag": "ReadStarted", "view": 11.3, "patch": 1.7 },
+              { "tag": "ReadAbandoned", "view": 136.2, "patch": 24.2 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.7 },
+              { "tag": "ChangedUrl", "ms": 0.8 },
+              { "tag": "UpdatedSearch", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 1 },
+              { "tag": "ChangedUrl", "ms": 1.1 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.9 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.7 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 6.2 },
+              { "tag": "ReadStarted", "ms": 0.7 },
+              { "tag": "ReadStarted", "ms": 2.5 },
+              { "tag": "ReadReceived", "ms": 4.6 },
+              { "tag": "ReadReceived", "ms": 5.4 },
+              { "tag": "ReadAbandoned", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 36.3, "patch": 32.5 },
+              { "tag": "UpdatedSearch", "view": 39.6, "patch": 33.6 },
+              { "tag": "GotResultsListMessage/Measured", "view": 46.9, "patch": 5.2 },
+              { "tag": "UpdatedSearch", "view": 25.8, "patch": 16.3 },
+              { "tag": "GotResultsListMessage/Measured", "view": 17.4, "patch": 4.1 },
+              { "tag": "ReadStarted", "view": 9, "patch": 5.9 },
+              { "tag": "ReadAbandoned", "view": 22.3, "patch": 19 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 2 },
+              { "tag": "ChangedUrl", "ms": 3.7 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.3 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 1.8 },
+              { "tag": "ChangedUrl", "ms": 3.9 },
+              { "tag": "UpdatedSearch", "ms": 0.9 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 2.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 4.8 },
+              { "tag": "ReadStarted", "ms": 0.1 },
+              { "tag": "ReadStarted", "ms": 3.4 },
+              { "tag": "ReadReceived", "ms": 6.9 },
+              { "tag": "ReadReceived", "ms": 9.4 },
+              { "tag": "ReadAbandoned", "ms": 0.9 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 56.4, "patch": 50.4 },
+              { "tag": "GotResultsListMessage/Measured", "view": 24.9, "patch": 1.1 },
+              { "tag": "ReadStarted", "view": 23.7, "patch": 2.5 },
+              { "tag": "ReadAbandoned", "view": 37.4, "patch": 36.1 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 1.1 },
+              { "tag": "ChangedUrl", "ms": 1.6 },
+              { "tag": "UpdatedSearch", "ms": 0.8 },
+              { "tag": "UpdatedSearch", "ms": 1.2 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 4.8 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 1.9 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.8 },
+              { "tag": "ReadStarted", "ms": 5 },
+              { "tag": "ReadStarted", "ms": 7.6 },
+              { "tag": "ReadReceived", "ms": 7.3 },
+              { "tag": "ReadReceived", "ms": 8.8 },
+              { "tag": "ReadAbandoned", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 11.6, "patch": 10.5 },
+              { "tag": "GotResultsListMessage/Measured", "view": 7.4, "patch": 2.6 },
+              { "tag": "UpdatedSearch", "view": 67.5, "patch": 36.3 },
+              { "tag": "ReadStarted", "view": 11.5, "patch": 0.7 },
+              { "tag": "ReadAbandoned", "view": 28, "patch": 20.1 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 1.3 },
+              { "tag": "ChangedUrl", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 9 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 3.2 },
+              { "tag": "ChangedUrl", "ms": 2.5 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 2.5 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.7 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.8 },
+              { "tag": "ReadStarted", "ms": 2.1 },
+              { "tag": "ReadStarted", "ms": 3.6 },
+              { "tag": "ReadReceived", "ms": 5 },
+              { "tag": "ReadReceived", "ms": 8.1 },
+              { "tag": "ReadAbandoned", "ms": 1.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 17.6, "patch": 19.1 },
+              { "tag": "GotResultsListMessage/Measured", "view": 6.9, "patch": 4.4 },
+              { "tag": "ReadStarted", "view": 30.4, "patch": 2.1 },
+              { "tag": "ReadAbandoned", "view": 54.7, "patch": 54.4 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 3.5 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 1.5 },
+              { "tag": "ReadStarted", "ms": 0.6 },
+              { "tag": "ReadStarted", "ms": 1.2 },
+              { "tag": "ReadReceived", "ms": 3.7 },
+              { "tag": "ReadReceived", "ms": 6.1 },
+              { "tag": "ReadAbandoned", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 19.9, "patch": 17.8 },
+              { "tag": "GotResultsListMessage/Measured", "view": 17.6, "patch": 2.9 },
+              { "tag": "ReadStarted", "view": 13.3, "patch": 1.2 },
+              { "tag": "ReadAbandoned", "view": 15.4, "patch": 22 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.8 },
+              { "tag": "ChangedUrl", "ms": 1.1 },
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "UpdatedSearch", "ms": 0.9 },
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.9 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.6 },
+              { "tag": "ReadStarted", "ms": 0.1 },
+              { "tag": "ReadStarted", "ms": 0.2 },
+              { "tag": "ReadReceived", "ms": 2.4 },
+              { "tag": "ReadReceived", "ms": 4.8 },
+              { "tag": "ReadAbandoned", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 76.2, "patch": 39.5 },
+              { "tag": "GotResultsListMessage/Measured", "view": 58, "patch": 7 },
+              { "tag": "ReadStarted", "view": 32.3, "patch": 1.4 },
+              { "tag": "ReadAbandoned", "view": 27.2, "patch": 38 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.8 },
+              { "tag": "ChangedUrl", "ms": 1 },
+              { "tag": "UpdatedSearch", "ms": 0.8 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.5 },
+              { "tag": "ChangedUrl", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.9 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.8 },
+              { "tag": "ReadStarted", "ms": 0.3 },
+              { "tag": "ReadStarted", "ms": 2.6 },
+              { "tag": "ReadReceived", "ms": 6.6 },
+              { "tag": "ReadReceived", "ms": 20.4 },
+              { "tag": "ReadAbandoned", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 42.8, "patch": 26.8 },
+              { "tag": "GotResultsListMessage/Measured", "view": 35.6, "patch": 4.3 },
+              { "tag": "UpdatedSearch", "view": 34.9, "patch": 30 },
+              { "tag": "GotResultsListMessage/Measured", "view": 27, "patch": 10.9 },
+              { "tag": "UpdatedSearch", "view": 29.2, "patch": 14.1 },
+              { "tag": "GotResultsListMessage/Measured", "view": 23.7, "patch": 5.9 },
+              { "tag": "ReadStarted", "view": 11.7, "patch": 0.3 },
+              { "tag": "ReadAbandoned", "view": 29.1, "patch": 41.3 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 1.9 },
+              { "tag": "ChangedUrl", "ms": 2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.9 },
+              { "tag": "UpdatedSearch", "ms": 1.4 },
+              { "tag": "ChangedUrl", "ms": 3.7 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 1 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 4.3 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 6.1 },
+              { "tag": "ReadStarted", "ms": 4.2 },
+              { "tag": "ReadStarted", "ms": 4.7 },
+              { "tag": "ReadReceived", "ms": 15.6 },
+              { "tag": "ReadReceived", "ms": 24.1 },
+              { "tag": "ReadAbandoned", "ms": 1.2 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 28, "patch": 23.2 },
+              { "tag": "GotResultsListMessage/Measured", "view": 22.5, "patch": 0.9 },
+              { "tag": "UpdatedSearch", "view": 28.3, "patch": 23 },
+              { "tag": "GotResultsListMessage/Measured", "view": 9.7, "patch": 6.7 },
+              { "tag": "ReadStarted", "view": 16.5, "patch": 4.6 },
+              { "tag": "ReadAbandoned", "view": 18.6, "patch": 50.1 },
+              { "tag": "UpdatedSearch", "view": 7.6, "patch": 11.6 },
+              { "tag": "GotResultsListMessage/Measured", "view": 73.6, "patch": 38.4 },
+              { "tag": "ReadStarted", "view": 30.1, "patch": 2.1 },
+              { "tag": "ReadAbandoned", "view": 50.4, "patch": 36.8 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 2.8 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.9 },
+              { "tag": "UpdatedSearch", "ms": 1 },
+              { "tag": "ChangedUrl", "ms": 2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.8 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.7 },
+              { "tag": "ReadStarted", "ms": 1.7 },
+              { "tag": "ReadStarted", "ms": 2.6 },
+              { "tag": "ReadReceived", "ms": 0.8 },
+              { "tag": "ReadReceived", "ms": 2.3 },
+              { "tag": "ReadAbandoned", "ms": 1 },
+              { "tag": "UpdatedSearch", "ms": 0.6 },
+              { "tag": "ChangedUrl", "ms": 0.3 },
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0.3 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.8 },
+              { "tag": "GotSearchMessage/Settled", "ms": 5.6 },
+              { "tag": "ReadStarted", "ms": 0.8 },
+              { "tag": "ReadStarted", "ms": 2.5 },
+              { "tag": "ReadReceived", "ms": 3.5 },
+              { "tag": "ReadReceived", "ms": 9.6 },
+              { "tag": "ReadAbandoned", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 30.3, "patch": 41.6 },
+              { "tag": "GotResultsListMessage/Measured", "view": 42.9, "patch": 7.4 },
+              { "tag": "UpdatedSearch", "view": 49.1, "patch": 69.6 },
+              { "tag": "UpdatedSearch", "view": 16.8, "patch": 46.1 },
+              { "tag": "UpdatedSearch", "view": 49.7, "patch": 31.7 },
+              { "tag": "GotResultsListMessage/Measured", "view": 19, "patch": 3.2 },
+              { "tag": "ReadStarted", "view": 13.1, "patch": 1.8 },
+              { "tag": "ReadAbandoned", "view": 41, "patch": 34.4 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 1.1 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.8 },
+              { "tag": "UpdatedSearch", "ms": 1.1 },
+              { "tag": "ChangedUrl", "ms": 2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 4.4 },
+              { "tag": "UpdatedSearch", "ms": 2.6 },
+              { "tag": "ChangedUrl", "ms": 3.3 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 1.2 },
+              { "tag": "UpdatedSearch", "ms": 0.5 },
+              { "tag": "ChangedUrl", "ms": 2.4 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.1 },
+              { "tag": "ReadStarted", "ms": 0.7 },
+              { "tag": "ReadStarted", "ms": 1.4 },
+              { "tag": "ReadReceived", "ms": 0.6 },
+              { "tag": "ReadReceived", "ms": 6 },
+              { "tag": "ReadAbandoned", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 18.2, "patch": 15.8 },
+              { "tag": "UpdatedSearch", "view": 19.2, "patch": 20 },
+              { "tag": "GotResultsListMessage/Measured", "view": 14.5, "patch": 3.1 },
+              { "tag": "UpdatedSearch", "view": 15.8, "patch": 20.3 },
+              { "tag": "UpdatedSearch", "view": 16.9, "patch": 21.1 },
+              { "tag": "GotResultsListMessage/Measured", "view": 17, "patch": 3.7 },
+              { "tag": "ReadStarted", "view": 12.1, "patch": 1.5 },
+              { "tag": "ReadAbandoned", "view": 34.3, "patch": 25.9 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.9 },
+              { "tag": "ChangedUrl", "ms": 0.6 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 1.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0.5 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "UpdatedSearch", "ms": 0.7 },
+              { "tag": "ChangedUrl", "ms": 1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 1.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.3 },
+              { "tag": "ReadStarted", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 1.6 },
+              { "tag": "ReadReceived", "ms": 3.2 },
+              { "tag": "ReadReceived", "ms": 3.3 },
+              { "tag": "ReadAbandoned", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 30, "patch": 28.5 },
+              { "tag": "UpdatedSearch", "view": 5.8, "patch": 29.1 },
+              { "tag": "GotResultsListMessage/Measured", "view": 6, "patch": 5.4 },
+              { "tag": "UpdatedSearch", "view": 22.5, "patch": 23.7 },
+              { "tag": "GotResultsListMessage/Measured", "view": 15.9, "patch": 3 },
+              { "tag": "ReadStarted", "view": 6.4, "patch": 0.3 },
+              { "tag": "ReadAbandoned", "view": 22.7, "patch": 32 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 1.2 },
+              { "tag": "ChangedUrl", "ms": 0.7 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 1.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 2.8 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0.8 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 1.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.5 },
+              { "tag": "ReadStarted", "ms": 0.1 },
+              { "tag": "ReadStarted", "ms": 0.3 },
+              { "tag": "ReadReceived", "ms": 4.2 },
+              { "tag": "ReadReceived", "ms": 4.4 },
+              { "tag": "ReadAbandoned", "ms": 0.8 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 17.7, "patch": 21 },
+              { "tag": "GotResultsListMessage/Measured", "view": 7.3, "patch": 0.7 },
+              { "tag": "ReadStarted", "view": 19.7, "patch": 2.5 },
+              { "tag": "ReadAbandoned", "view": 28.4, "patch": 25.8 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.8 },
+              { "tag": "ChangedUrl", "ms": 0.9 },
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0.9 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.6 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.7 },
+              { "tag": "ReadStarted", "ms": 0.1 },
+              { "tag": "ReadStarted", "ms": 1.7 },
+              { "tag": "ReadReceived", "ms": 4.6 },
+              { "tag": "ReadReceived", "ms": 6 },
+              { "tag": "ReadAbandoned", "ms": 1.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 12.5, "patch": 16.7 },
+              { "tag": "GotResultsListMessage/Measured", "view": 19, "patch": 5.9 },
+              { "tag": "UpdatedSearch", "view": 25.3, "patch": 22.4 },
+              { "tag": "GotResultsListMessage/Measured", "view": 22.8, "patch": 7.2 },
+              { "tag": "UpdatedSearch", "view": 15.2, "patch": 10.9 },
+              { "tag": "GotResultsListMessage/Measured", "view": 17.4, "patch": 8.8 },
+              { "tag": "ReadStarted", "view": 7.4, "patch": 0.6 },
+              { "tag": "ReadAbandoned", "view": 47.5, "patch": 10.9 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.9 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 1.3 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 1.2 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.5 },
+              { "tag": "ReadStarted", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 0.2 },
+              { "tag": "ReadReceived", "ms": 2.4 },
+              { "tag": "ReadReceived", "ms": 2.6 },
+              { "tag": "ReadAbandoned", "ms": 0.7 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 26.9, "patch": 18.4 },
+              { "tag": "UpdatedSearch", "view": 25.3, "patch": 19.1 },
+              { "tag": "GotResultsListMessage/Measured", "view": 31.9, "patch": 5 },
+              { "tag": "ReadStarted", "view": 22.3, "patch": 2 },
+              { "tag": "ReadAbandoned", "view": 52.4, "patch": 32.1 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.6 },
+              { "tag": "ChangedUrl", "ms": 0.8 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 1 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 2.1 },
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 1.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 4.7 },
+              { "tag": "ReadStarted", "ms": 1 },
+              { "tag": "ReadStarted", "ms": 3.1 },
+              { "tag": "ReadReceived", "ms": 4.6 },
+              { "tag": "ReadReceived", "ms": 8.2 },
+              { "tag": "ReadAbandoned", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 15.1, "patch": 6.5 },
+              { "tag": "GotResultsListMessage/Measured", "view": 18.1, "patch": 2.6 },
+              { "tag": "UpdatedSearch", "view": 30.7, "patch": 15 },
+              { "tag": "UpdatedSearch", "view": 9.4, "patch": 15.1 },
+              { "tag": "UpdatedSearch", "view": 10.3, "patch": 15.5 },
+              { "tag": "GotResultsListMessage/Measured", "view": 28.1, "patch": 2.3 },
+              { "tag": "ReadStarted", "view": 16.6, "patch": 1.5 },
+              { "tag": "ReadAbandoned", "view": 30.8, "patch": 20.1 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.8 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 1.5 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 1.3 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0.6 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.1 },
+              { "tag": "ReadStarted", "ms": 0.1 },
+              { "tag": "ReadStarted", "ms": 0.4 },
+              { "tag": "ReadReceived", "ms": 3.1 },
+              { "tag": "ReadReceived", "ms": 2.4 },
+              { "tag": "ReadAbandoned", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 22.4, "patch": 10.4 },
+              { "tag": "GotResultsListMessage/Measured", "view": 12, "patch": 3.1 },
+              { "tag": "ReadStarted", "view": 4.5, "patch": 0.2 },
+              { "tag": "ReadAbandoned", "view": 17.6, "patch": 22.2 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.6 },
+              { "tag": "ChangedUrl", "ms": 0.8 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 7.3 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.2 },
+              { "tag": "ReadStarted", "ms": 0 },
+              { "tag": "ReadStarted", "ms": 0.3 },
+              { "tag": "ReadReceived", "ms": 0.5 },
+              { "tag": "ReadReceived", "ms": 4.3 },
+              { "tag": "ReadAbandoned", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 11.2, "patch": 18.9 },
+              { "tag": "UpdatedSearch", "view": 5.4, "patch": 14.8 },
+              { "tag": "UpdatedSearch", "view": 17.7, "patch": 10 },
+              { "tag": "UpdatedSearch", "view": 72.6, "patch": 37.2 },
+              { "tag": "GotResultsListMessage/Measured", "view": 13.8, "patch": 3.9 },
+              { "tag": "ReadStarted", "view": 2, "patch": 0.3 },
+              { "tag": "ReadAbandoned", "view": 22.2, "patch": 36.1 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.9 },
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0.8 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "UpdatedSearch", "ms": 3.1 },
+              { "tag": "ChangedUrl", "ms": 3.9 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 1.4 },
+              { "tag": "ReadStarted", "ms": 0 },
+              { "tag": "ReadStarted", "ms": 0.4 },
+              { "tag": "ReadReceived", "ms": 2.2 },
+              { "tag": "ReadReceived", "ms": 3.5 },
+              { "tag": "ReadAbandoned", "ms": 0.4 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 14, "patch": 22.1 },
+              { "tag": "GotResultsListMessage/Measured", "view": 18.6, "patch": 3.9 },
+              { "tag": "UpdatedSearch", "view": 30.7, "patch": 20.6 },
+              { "tag": "UpdatedSearch", "view": 17.1, "patch": 5.5 },
+              { "tag": "GotResultsListMessage/Measured", "view": 25, "patch": 0.8 },
+              { "tag": "ReadStarted", "view": 17, "patch": 0.9 },
+              { "tag": "ReadAbandoned", "view": 79.5, "patch": 22.9 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0.8 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 },
+              { "tag": "UpdatedSearch", "ms": 0.8 },
+              { "tag": "ChangedUrl", "ms": 1.6 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.8 },
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 1.6 },
+              { "tag": "UpdatedSearch", "ms": 0.8 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 1.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 8.4 },
+              { "tag": "ReadStarted", "ms": 0 },
+              { "tag": "ReadStarted", "ms": 0.2 },
+              { "tag": "ReadReceived", "ms": 1 },
+              { "tag": "ReadReceived", "ms": 5.5 },
+              { "tag": "ReadAbandoned", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 14.6, "patch": 19.9 },
+              { "tag": "UpdatedSearch", "view": 15.7, "patch": 19.1 },
+              { "tag": "UpdatedSearch", "view": 15.8, "patch": 20.6 },
+              { "tag": "GotResultsListMessage/Measured", "view": 3.1, "patch": 0.6 },
+              { "tag": "ReadStarted", "view": 14.7, "patch": 2.1 },
+              { "tag": "ReadAbandoned", "view": 19.9, "patch": 15.2 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.8 },
+              { "tag": "ChangedUrl", "ms": 1.3 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.8 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.9 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.5 },
+              { "tag": "UpdatedSearch", "ms": 0.9 },
+              { "tag": "ChangedUrl", "ms": 1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 13.9 },
+              { "tag": "ReadStarted", "ms": 0.8 },
+              { "tag": "ReadStarted", "ms": 1.1 },
+              { "tag": "ReadReceived", "ms": 6.4 },
+              { "tag": "ReadReceived", "ms": 4.5 },
+              { "tag": "ReadAbandoned", "ms": 1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 13.6, "patch": 9.4 },
+              { "tag": "GotResultsListMessage/Measured", "view": 15.9, "patch": 2.5 },
+              { "tag": "UpdatedSearch", "view": 16.9, "patch": 11.8 },
+              { "tag": "GotResultsListMessage/Measured", "view": 12.1, "patch": 0.6 },
+              { "tag": "ReadStarted", "view": 5.4, "patch": 0.3 },
+              { "tag": "ReadAbandoned", "view": 26.1, "patch": 19.1 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.6 },
+              { "tag": "ChangedUrl", "ms": 1.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0.9 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 3.2 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 2.2 },
+              { "tag": "ReadStarted", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 2.3 },
+              { "tag": "ReadReceived", "ms": 2.2 },
+              { "tag": "ReadReceived", "ms": 3.7 },
+              { "tag": "ReadAbandoned", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 17.6, "patch": 17.7 },
+              { "tag": "GotResultsListMessage/Measured", "view": 25.1, "patch": 3.3 },
+              { "tag": "UpdatedSearch", "view": 17.1, "patch": 31.3 },
+              { "tag": "GotResultsListMessage/Measured", "view": 18.5, "patch": 3.9 },
+              { "tag": "ReadStarted", "view": 10.4, "patch": 1.7 },
+              { "tag": "ReadAbandoned", "view": 13.5, "patch": 16.3 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.7 },
+              { "tag": "ChangedUrl", "ms": 0.7 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.7 },
+              { "tag": "UpdatedSearch", "ms": 0.9 },
+              { "tag": "ChangedUrl", "ms": 2.7 },
+              { "tag": "UpdatedSearch", "ms": 0.4 },
+              { "tag": "UpdatedSearch", "ms": 0.5 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 1.4 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.6 },
+              { "tag": "ReadStarted", "ms": 0 },
+              { "tag": "ReadStarted", "ms": 1 },
+              { "tag": "ReadReceived", "ms": 3.7 },
+              { "tag": "ReadReceived", "ms": 0.8 },
+              { "tag": "ReadAbandoned", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 21, "patch": 9.5 },
+              { "tag": "GotResultsListMessage/Measured", "view": 30.3, "patch": 4.5 },
+              { "tag": "ReadStarted", "view": 59.9, "patch": 4.8 },
+              { "tag": "ReadAbandoned", "view": 36, "patch": 26.8 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.9 },
+              { "tag": "UpdatedSearch", "ms": 1.1 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.9 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.7 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 7.7 },
+              { "tag": "ReadStarted", "ms": 0.1 },
+              { "tag": "ReadStarted", "ms": 5.4 },
+              { "tag": "ReadReceived", "ms": 9.7 },
+              { "tag": "ReadReceived", "ms": 16.1 },
+              { "tag": "ReadAbandoned", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "UpdatedSearch", "view": 19.5, "patch": 23.8 },
+              { "tag": "GotResultsListMessage/Measured", "view": 24.7, "patch": 3.5 },
+              { "tag": "UpdatedSearch", "view": 23.2, "patch": 17.4 },
+              { "tag": "GotResultsListMessage/Measured", "view": 45.8, "patch": 4.5 },
+              { "tag": "ReadStarted", "view": 18.1, "patch": 1.9 },
+              { "tag": "ReadAbandoned", "view": 21.9, "patch": 22.2 }
+            ],
+            "updates": [
+              { "tag": "UpdatedSearch", "ms": 0.9 },
+              { "tag": "ChangedUrl", "ms": 1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "UpdatedSearch", "ms": 0.7 },
+              { "tag": "ChangedUrl", "ms": 1.1 },
+              { "tag": "UpdatedSearch", "ms": 0 },
+              { "tag": "UpdatedSearch", "ms": 0.1 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0.6 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.9 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 0 },
+              { "tag": "GotSearchMessage/Settled", "ms": 3.3 },
+              { "tag": "ReadStarted", "ms": 0.5 },
+              { "tag": "ReadStarted", "ms": 1.1 },
+              { "tag": "ReadReceived", "ms": 3.9 },
+              { "tag": "ReadReceived", "ms": 4 },
+              { "tag": "ReadAbandoned", "ms": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "scroll a page",
+        "runs": [
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 7.3, "patch": 38 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 27.7, "patch": 12.9 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "ReadStarted", "view": 25.6, "patch": 26.7 },
+              { "tag": "ReadStarted", "view": 15.9, "patch": 14.7 },
+              { "tag": "ReadStarted", "view": 23, "patch": 16.9 },
+              { "tag": "ReadAbandoned", "view": 4.6, "patch": 19.3 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadStarted", "ms": 5.4 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadAbandoned", "ms": 0.1 },
+              { "tag": "ReadStarted", "ms": 1.6 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "ReadAbandoned", "ms": 0.4 },
+              { "tag": "ReadStarted", "ms": 0.4 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadAbandoned", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 11.7, "patch": 16.6 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.7 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "ReadStarted", "view": 13.3, "patch": 14.2 },
+              { "tag": "ReadStarted", "view": 19, "patch": 10.8 },
+              { "tag": "ReadAbandoned", "view": 13, "patch": 18.9 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadStarted", "ms": 1.9 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.4 },
+              { "tag": "ReadAbandoned", "ms": 0.3 },
+              { "tag": "ReadStarted", "ms": 2.8 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "ReadAbandoned", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 38.1, "patch": 38.6 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 1.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "ReadStarted", "view": 26.2, "patch": 42.1 },
+              { "tag": "ReadStarted", "view": 26.6, "patch": 20.6 },
+              { "tag": "ReadStarted", "view": 29.7, "patch": 19.4 },
+              { "tag": "ReadStarted", "view": 11.4, "patch": 13.1 },
+              { "tag": "ReadStarted", "view": 15.6, "patch": 13 },
+              { "tag": "ReadAbandoned", "view": 12.1, "patch": 19.7 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadStarted", "ms": 1.6 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.9 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadAbandoned", "ms": 0.7 },
+              { "tag": "ReadStarted", "ms": 3.6 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadAbandoned", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 0.7 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.6 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "ReadAbandoned", "ms": 0.1 },
+              { "tag": "ReadStarted", "ms": 3.8 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.5 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.6 },
+              { "tag": "ReadAbandoned", "ms": 2.8 },
+              { "tag": "ReadStarted", "ms": 0.5 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadAbandoned", "ms": 3.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 17.3, "patch": 23.5 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "ReadStarted", "view": 4.8, "patch": 15.4 },
+              { "tag": "ReadStarted", "view": 17.4, "patch": 15.3 },
+              { "tag": "ReadAbandoned", "view": 16.1, "patch": 22 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "ReadStarted", "ms": 3.8 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.8 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadAbandoned", "ms": 1.7 },
+              { "tag": "ReadStarted", "ms": 1.9 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.6 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadAbandoned", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 34.7, "patch": 54.8 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 24.6, "patch": 21.7 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 13.9, "patch": 10.2 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.3 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "ReadStarted", "view": 22.6, "patch": 17.9 },
+              { "tag": "ReadStarted", "view": 13, "patch": 11.9 },
+              { "tag": "ReadStarted", "view": 14.5, "patch": 13.5 },
+              { "tag": "ReadAbandoned", "view": 57.6, "patch": 53.6 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "ReadStarted", "ms": 0.9 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.5 },
+              { "tag": "ReadAbandoned", "ms": 0.3 },
+              { "tag": "ReadStarted", "ms": 0.4 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.9 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadAbandoned", "ms": 1.4 },
+              { "tag": "ReadStarted", "ms": 3.8 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadAbandoned", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 24.2, "patch": 45.5 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "ReadStarted", "view": 17.7, "patch": 21 },
+              { "tag": "ReadStarted", "view": 23.2, "patch": 24.9 },
+              { "tag": "ReadAbandoned", "view": 3.7, "patch": 25.9 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadStarted", "ms": 2.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadAbandoned", "ms": 0.1 },
+              { "tag": "ReadStarted", "ms": 1.6 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "ReadAbandoned", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 31.4, "patch": 16.5 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "ReadStarted", "view": 34.2, "patch": 32.7 },
+              { "tag": "ReadStarted", "view": 22.6, "patch": 16.3 },
+              { "tag": "ReadStarted", "view": 14.3, "patch": 18.1 },
+              { "tag": "ReadStarted", "view": 14.1, "patch": 13.5 },
+              { "tag": "ReadStarted", "view": 29, "patch": 22.4 },
+              { "tag": "GotResultsListMessage/Placed", "view": 26.6, "patch": 17.3 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "ReadStarted", "ms": 5.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 1 },
+              { "tag": "ReadAbandoned", "ms": 2.1 },
+              { "tag": "ReadStarted", "ms": 2.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.4 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadAbandoned", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 2.4 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "ReadReceived", "ms": 1.3 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "ReadStarted", "ms": 1.4 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.8 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadAbandoned", "ms": 3.2 },
+              { "tag": "ReadStarted", "ms": 1.3 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.2 },
+              { "tag": "ReadReceived", "ms": 5.6 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.6 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 31.7, "patch": 28.8 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "ReadStarted", "view": 20.6, "patch": 19 },
+              { "tag": "ReadStarted", "view": 35.2, "patch": 20.2 },
+              { "tag": "ReadAbandoned", "view": 19.1, "patch": 21.6 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.7 },
+              { "tag": "ReadStarted", "ms": 2.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadAbandoned", "ms": 0 },
+              { "tag": "ReadStarted", "ms": 4.3 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadAbandoned", "ms": 0.9 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 24, "patch": 21.6 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 28, "patch": 17.2 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 17.6, "patch": 10.7 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "ReadStarted", "view": 25.1, "patch": 34.8 },
+              { "tag": "ReadStarted", "view": 35, "patch": 32.6 },
+              { "tag": "ReadStarted", "view": 28.8, "patch": 17.2 },
+              { "tag": "ReadAbandoned", "view": 27.5, "patch": 25.5 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.7 },
+              { "tag": "ReadStarted", "ms": 5.8 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadAbandoned", "ms": 0.1 },
+              { "tag": "ReadStarted", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadAbandoned", "ms": 0 },
+              { "tag": "ReadStarted", "ms": 0.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadAbandoned", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 24.1, "patch": 24.7 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "ReadStarted", "view": 22, "patch": 13.6 },
+              { "tag": "ReadStarted", "view": 25.5, "patch": 39.7 },
+              { "tag": "ReadAbandoned", "view": 36.5, "patch": 37.2 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "ReadStarted", "ms": 0.9 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "ReadAbandoned", "ms": 0.2 },
+              { "tag": "ReadStarted", "ms": 0.7 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "ReadAbandoned", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.8 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 46.7, "patch": 53.2 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.5 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "ReadStarted", "view": 22.9, "patch": 25.3 },
+              { "tag": "ReadStarted", "view": 17.8, "patch": 23.9 },
+              { "tag": "ReadAbandoned", "view": 23.8, "patch": 35.6 },
+              { "tag": "ReadStarted", "view": 10.6, "patch": 23.8 },
+              { "tag": "ReadAbandoned", "view": 24.5, "patch": 60.6 },
+              { "tag": "GotResultsListMessage/Placed", "view": 12.8, "patch": 41.3 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "ReadStarted", "ms": 2.6 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "ReadAbandoned", "ms": 8.2 },
+              { "tag": "ReadStarted", "ms": 2.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.1 },
+              { "tag": "ReadAbandoned", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.9 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "ReadStarted", "ms": 0.4 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.6 },
+              { "tag": "ReadAbandoned", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 22.3, "patch": 20 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              { "tag": "ReadStarted", "view": 7.5, "patch": 16.3 },
+              { "tag": "ReadStarted", "view": 26.6, "patch": 22.4 },
+              { "tag": "ReadAbandoned", "view": 26.8, "patch": 27.8 }
+            ],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0 },
+              { "tag": "ReadStarted", "ms": 0.5 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 2.3 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 2 },
+              { "tag": "ReadAbandoned", "ms": 0.5 },
+              { "tag": "ReadStarted", "ms": 5.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0.1 },
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.6 },
+              { "tag": "ReadAbandoned", "ms": 1.2 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [{ "tag": "GotResultsListMessage/Placed", "view": 21.4, "patch": 29.7 }],
+            "updates": [
+              { "tag": "GotResultsListMessage/Placed", "ms": 0.8 },
+              { "tag": "GotResultsListMessage/Measured", "ms": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "toggle a filter",
+        "runs": [
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 29.5,
+                "patch": 15.4
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 22.3, "patch": 12.6 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.7 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 21.9,
+                "patch": 13.8
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 41.6, "patch": 15.9 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 1.5 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 26.2,
+                "patch": 13.4
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 25.7, "patch": 17.6 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 1 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.6 },
+              { "tag": "ChangedUrl", "ms": 3 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 28.3,
+                "patch": 18.5
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 37.8, "patch": 16.3 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 1.1 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.4 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.7 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.5 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 25.2,
+                "patch": 13.4
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 27.6, "patch": 11.4 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.9 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.4 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 31.7,
+                "patch": 18
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 30.8, "patch": 13.2 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 1 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.6 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.3 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 32.2,
+                "patch": 26
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 26.8, "patch": 10 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.6 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0.5 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0.5 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 20.6,
+                "patch": 9.4
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 5.4, "patch": 2 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.5 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 14.6,
+                "patch": 3.1
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 8.6, "patch": 2.3 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.5 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 1.1 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.7 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 104.1,
+                "patch": 22.6
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 7.8, "patch": 10.4 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 1.1 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.5 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 1 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 29.5,
+                "patch": 14
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 24.4, "patch": 9.3 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.8 },
+              { "tag": "ChangedUrl", "ms": 0.8 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 2.4 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 21.4,
+                "patch": 15
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 25.9, "patch": 18 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.6 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 21.5,
+                "patch": 11.7
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 26.1, "patch": 11.5 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.6 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.4 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 44,
+                "patch": 52.6
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 24.8, "patch": 10.2 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0.8 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.5 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.9 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 9.1,
+                "patch": 7.1
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 22.1, "patch": 11.3 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.5 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 1.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 24,
+                "patch": 13.8
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 8.1, "patch": 2.3 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 21.2,
+                "patch": 29.8
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 27.4, "patch": 11.6 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.6 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.6 },
+              { "tag": "ChangedUrl", "ms": 1.5 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.2 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 7.9,
+                "patch": 20
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 54.3, "patch": 9.2 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.5 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.6 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.5 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 18.5,
+                "patch": 24.6
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 48.8, "patch": 22.5 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.7 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 5.6 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 34.4,
+                "patch": 13.9
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 15.5, "patch": 2.2 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 9.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.8 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.4 },
+              { "tag": "ChangedUrl", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 40.4,
+                "patch": 25.5
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 56.6, "patch": 20.3 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.9 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.9 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 26.5,
+                "patch": 20.7
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 33.3, "patch": 40.6 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.6 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.4 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.6 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 2.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 26.1,
+                "patch": 18
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 46.1, "patch": 12 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.7 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.8 },
+              { "tag": "ChangedUrl", "ms": 1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 11.2,
+                "patch": 8.8
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 48, "patch": 8 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 35.4,
+                "patch": 20.5
+              },
+              {
+                "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem",
+                "view": 26.1,
+                "patch": 2.2
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 32.9, "patch": 11 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 1.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0.1 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 58.3,
+                "patch": 10.4
+              },
+              {
+                "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem",
+                "view": 21.4,
+                "patch": 2.1
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 5.3, "patch": 2.5 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0 },
+              { "tag": "ChangedUrl", "ms": 0.4 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 22.4,
+                "patch": 25.5
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 34.9, "patch": 24.7 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.6 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 2.2 },
+              { "tag": "ChangedUrl", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 25.2,
+                "patch": 8
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 20.1, "patch": 12.2 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.5 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.2 },
+              { "tag": "ChangedUrl", "ms": 1.3 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 19.9,
+                "patch": 13.7
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 57.2, "patch": 11.5 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0.1 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.2 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.1 },
+              { "tag": "ChangedUrl", "ms": 5.8 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          },
+          {
+            "frames": [
+              {
+                "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton",
+                "view": 42.2,
+                "patch": 15.3
+              },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "view": 29, "patch": 10.8 }
+            ],
+            "updates": [
+              { "tag": "GotAvailabilityListboxMessage/PressedPointerOnButton", "ms": 0.5 },
+              { "tag": "GotAvailabilityListboxMessage/Opened", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedPortalListboxBackdrop", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedAnchorListbox", "ms": 0 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusItems", "ms": 0.5 },
+              { "tag": "GotAvailabilityListboxMessage/MovedPointerOverItem", "ms": 0.3 },
+              { "tag": "GotAvailabilityListboxMessage/SelectedItem", "ms": 0.7 },
+              { "tag": "ChangedUrl", "ms": 1.2 },
+              { "tag": "GotAvailabilityListboxMessage/CompletedFocusButton", "ms": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

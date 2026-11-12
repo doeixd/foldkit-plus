@@ -261,6 +261,11 @@ export const tokens = define({
     pressed: 'var(--fk-knob-relief-pressed)',
     field: 'var(--fk-knob-relief-field)',
   },
+  // What an overlay draws over the page it covers. A dialog's backdrop reads
+  // `scrim`: the page's own base, mostly transparent, so it dims in either scheme.
+  overlay: {
+    scrim: 'color-mix(in oklch, var(--fk-surface-bedrock) 45%, transparent)',
+  },
   breakpoint: {
     sm: '(min-width: 40rem)',
     md: '(min-width: 48rem)',
@@ -272,6 +277,7 @@ export const tokens = define({
   // `viewport-fit=cover`. Physical, as the screen is; a fixed bar pads the edge it touches.
   safe: {
     top: 'env(safe-area-inset-top, 0px)',
+    // physical: the screen's insets are named by screen side
     right: 'env(safe-area-inset-right, 0px)',
     bottom: 'env(safe-area-inset-bottom, 0px)',
     left: 'env(safe-area-inset-left, 0px)',

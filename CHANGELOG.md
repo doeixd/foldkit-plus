@@ -9,6 +9,105 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`Expr.whenGiven` over `Expr.in` keeps every row when its list is null**
+  (`foldkit-entity`, `foldkit-remote-drizzle`). `evaluate` and the Drizzle
+  compiler refused a null list as "not a list" even inside `whenGiven`, since
+  every operand of an `or` is asked, so the guarded filter failed instead of
+  matching everything. A null list is now unknown, as `x in null` is in SQL and
+  as a comparison with null already was; the shared conformance suite pins it on
+  `evaluate`, SQLite and Postgres. `gte`, `lte`, `contains` and `eq` already
+  agreed. The registry example passes no statuses, instead of every status, when
+  its column is unfiltered.
+
+- **The grid's date editor no longer loses focus** (`foldkit-mixins-data-grid`).
+  Opening a date cell drew an input whose `setSelectionRange` throws (a date
+  input has no selection), which failed the focus Mount: nothing took focus and
+  none was handed back, so after Enter the keyboard left the grid for the page.
+  The caret is placed only where the input has a selection.
+
+- **A Slot's protected attributes can no longer be set through a generic builder**
+  (`foldkit-mixins`, `foldkit-mixins-data-grid`). The resolver compared the
+  builder's tag with the protected list, so `h.AriaLabel` was refused but
+  `h.Attribute('aria-label', …)`, `h.DataAttribute('grid-checkbox', …)` and a
+  `Prop` of `ariaLabel` were not. It now compares the HTML attribute the
+  contribution sets, normalized the same way as the Slot's list. The data
+  grid's `checkbox` Slot also protects `data-grid-checkbox`, which routes its
+  presses.
+  `OnCustomEvent` named its event by argument and so bypassed `protected.events`
+  and event-conflict detection; it now counts as the DOM event it names, so
+  `OnCustomEvent('click')` is refused where `OnClick` is, and two owners of
+  one event conflict as `mixins:event-conflict` (two custom events of one
+  name used to report `mixins:attribute-conflict`).
+
+- **A CMS editor whose entry-state read failed no longer opens badged New**
+  (`foldkit-cms`). `status` counted a failed state read as answered, so the
+  form opened with no state, and `stateBadge` says New for none. It reports
+  `LoadFailed` until the state is held.
+
+- **A loading data grid no longer tells assistive technology it is empty**
+  (`foldkit-mixins-data-grid`). With no rows and no answer yet (`Loading`, or
+  `Failed` with nothing kept, as `GridCrud.rows` and `GridCrud.status` give
+  for an unanswered Remote page), the grid wrote `aria-rowcount="1"`, the
+  header alone: a known count of no rows. It writes `-1` there, ARIA's count
+  not known, until the source answers.
+
+- **A Disclosure's `animatePanel` follows the `motion` knob and reduced motion**
+  (`foldkit-mixins-ui`). Upstream writes the panel's height transition inline
+  (`grid-template-rows 200ms ease-out`), which no recipe rule beats, so the
+  panel kept sliding for a user who asked for reduced motion. `Recipes.Disclosure`
+  now draws an important rule for that grid with a travelled duration.
+- **An agent contract with a completion can be exported from a project that
+  emits declarations** (`foldkit-agent`). Its inferred type carried the whole
+  variants object, so a completion's `success` constructor was written as
+  `CallableTaggedStruct`, which only `foldkit/schema` exports; a project that
+  never imported it failed with TS2883 (`examples/todo`). A contract's type now
+  keeps each variant's `name`, `input` and completion outcome alone.
+- **`serveFetch` reads a refused POST's body before answering**
+  (`foldkit-remote-server`). A call refused early (no principal, another
+  path, a body over `maxBodyBytes`, a failed layer) answered with its body
+  unread, and on workerd the next request on that keep-alive connection failed
+  with a 500 about one run in four. The unread body is now read, up to
+  `maxBodyBytes`, and cancelled past it; the answers are unchanged.
+- **`styles()` writes the files its sheet names** (`foldkit-mixins/vite`, #420).
+  The sheet is built apart and a server build emits no assets, so a font
+  reached only through the sheet (`?url`) was named in the CSS and written
+  nowhere once the style module left the browser bundle; the browser 404ed and
+  fell back to a system font. The browser build now emits it under the same
+  hashed name.
+- **A write's own live echo is not counted twice while it is pending**
+  (`foldkit-remote`, #498). A relative layer (`adds`, `computes`) resolved over
+  a base the stream had already moved, so a like showed one too many until its
+  answer. Remote's Model now keeps what a field held before the first live
+  patch that landed during a write, and the layer resolves over that.
+  `Data.confirmed` still reads the stream's value.
+- **An answer that disagrees with a newer live patch is read again**
+  (`foldkit-remote`, #499). An answer delivered after a stream patch to the
+  same field overwrote it with nothing asking again. The answer is still
+  written, and the field is read again, since only a read says whether the
+  stream is behind the write or past it. No wire field is added.
+- **A lazy page is drawn when its bodies arrive over `while`** (`foldkit-bundle`,
+  #501). A first Message whose `update` returned the Model it was given left
+  the `while` view showing after the bodies loaded, since Foldkit redraws only
+  for a new Model. The first update of a Model `while` drew now returns an
+  equal copy if the bodies returned the given one; a bare `load()` is drawn at
+  the bundle's next Message.
+- **A lazy bundle's failed load is no crash** (`foldkit-bundle`, #502). The
+  load Command was an `Effect.promise`, so a rejected import became a defect
+  and Foldkit showed its crash view. The failure is logged, `while` stays, and
+  the next Message or `load()` tries again, as the README said.
+
+- **A client call that dies settles its read, list or write as failed**
+  (`foldkit-remote`). A read, query or mutation whose client threw or died
+  sent no Message, so the read stayed `Loading` for good and the write
+  pending, durable ones included. Each now fails with `{ _tag: 'Defect',
+  message }`, logged with its cause; interruption still abandons a read.
+
+- **An earlier pending edit no longer shows over a later confirmed one**
+  (`foldkit-remote`, #482). With two writes to one field pending, an answer
+  to the later one arriving first left the earlier write's layer on top, so
+  the field read the older edit until its answer came. A later answer now
+  takes the fields it wrote out of earlier layers, as it already took a row
+  it deleted.
 - **A class an upstream component passes as a child attribute keeps the
   recipe's** (`foldkit-mixins`). The resolver merged a slot's plain `Class`
   but passed a child attribute through, so a popup's `itemsScrollClassName`
@@ -42,6 +141,255 @@ version changed; `pnpm` skips versions already in the registry.
   it.
 
 ### Added
+
+- **`submitWaits: false` on a form** (`foldkit-form`). A submit made while a
+  check runs is refused from the Model instead of waiting for the answer, and
+  `canSubmit` is false until the checks answer; the default (`true`) is the
+  waiting behaviour as before. It is how a page gets a strict submit now that
+  the generated button is never natively `disabled`. A checked key that has
+  never been checked (a form filled from an existing record) cannot submit at
+  rest then: the first submit starts its check and is refused, and the reader
+  submits again after the answer.
+
+- **Grid columns filter from their headers** (`foldkit-data-grid`,
+  `foldkit-mixins-data-grid`, #144). A column with `filter: true` (its kind
+  read from `edit.schema`'s decoded side by `filterKindOf`: text, a number
+  range, a choice of literals or a text enum, a checkbox, a range of days)
+  or a `CellEditor` draws a button on its header; it, or Alt+ArrowDown on the
+  header, opens a non-modal `role="dialog"` of native fields that applies as
+  it is typed. The value is the application's: the grid holds only the open
+  form and reports each change as `Out.Filtered({ change })`, typed per
+  column (`ColumnFilter`, `FilterOf`, `FilterChange`), which `Grid.setFilter`
+  writes into the application's `Grid.Filters` (start from
+  `Grid.noFilters`; the schema refuses an empty filter, a stale option, a
+  bound that is not finite and a key no filtering column has).
+  `Grid.keeps(filters, read)` filters held rows through each row's own
+  field, folding ASCII case as `Expr.contains` does; over Remote, map the
+  filters onto the query's input. The view takes `filters` exactly when a
+  column filters (`FiltersInput`), and `resolveOpened` takes `'filter'`.
+  `examples/data-grid` filters its products, and `examples/registry` passes
+  the status and price filters to the server as the query's input, its
+  price bounds rounded inward to whole cents.
+
+- **Durable Messages upcast through a declared history** (`foldkit-sync`,
+  `foldkit-durable`, #190). `Sync.migrations(V1).next(V2, up)` declares the
+  Schemas a document's durable Messages were stored in and how each becomes
+  the next; `Sync.define` takes it in place of `message`, and
+  `Sync.forApplication(App).make({ …, migrations })` takes one ending at
+  `App.Message` itself. An operation keeps the version it was written at
+  (`messageVersion` on its envelope, absent for version 1, so a document with
+  no migrations writes what it wrote before) in the outbox and on the wire,
+  and every reader (`admit`, `validate`, `authorize`, `reduce`, `stamp`,
+  replay) sees it upcast to the current version; the journal stores the
+  current version and still recognizes a retransmission committed before the
+  deploy. An older operation no step reads moves from the outbox to
+  `status.refused`, kept with its payload until `replica.dismiss(opId)`, and
+  `journalExchange` rejects one as `Unreadable`; a committed one no step
+  reads fails, with `UnreadableHistoryError`, what reads it: exchanges from a
+  cursor before it, a retransmission of it, a rebuild from an older snapshot
+  (a replica past it is served). A newer
+  version refuses to open the replica or fails the exchange with
+  `UnsupportedMessageVersionError`, and `journalExchange` refuses a replica
+  ahead of it before appending anything, so nothing is lost. A step must be
+  pure. Deploy this release to every server and client before an
+  application's first `next`, or edits are lost: an older server rejects an
+  operation carrying `messageVersion`, and an older replica drops one refused
+  as `Unreadable`. Rolling this release back meets a replica state holding
+  `refused` as `InvalidReplicaHistoryError`; do not clear storage on it.
+  `foldkit-durable`'s function-pair codec gains an optional `compared`, the
+  form a retransmission is compared by. New exports: `migrations`,
+  `Migrations`, `WrittenOperation`, `MessageHistory`, `SyncDefinitionOptions`,
+  `HistoryOption`, `UnsupportedMessageVersionError`, `UnreadableMessageError`,
+  `UnreadableHistoryError`; `codec.messageVersion` and `codec.writtenFrom`.
+
+- **A boolean data grid column is a checkbox** (`foldkit-data-grid`,
+  `foldkit-mixins-data-grid`). A column whose `edit.schema` decodes to a
+  boolean (`Columns.checkbox`, the text `true` and `false`) is
+  `CellEditor.Checkbox`: the view draws a `role="checkbox"` in the new
+  `checkbox` Slot, and a press on it, or Space or Enter on its cell, sends
+  `EditToggled`, which commits the other value as `Out.Edited` with no
+  draft. While its cell is focused the grid's `aria-activedescendant` names
+  the box, so its state is said. `Columns.define` refuses such a column
+  whose `value` is not a boolean, and `GridCrud.columns` refuses one
+  outright.
+
+- **`Input.view` and `PasswordInput.view` can be drawn resumably**
+  (`foldkit-mixins-ui`). Their `onInput` also takes the `OnInput` attribute
+  the view's builder makes, so `foldkit-ssr`'s resumable builder can name a
+  Message member there (`onInput: rh.OnInput(Message.ChangedEmail)`), which a
+  closure cannot be. `PasswordInput.view` takes `attributes` per Slot, added
+  before the mixins resolve, for `{ input: [rh.KeepTyped()] }`; `Input.view`
+  keeps a field in its `draw`.
+
+- **`RemoteData.held`** (`foldkit-remote`): the value a read holds, as an
+  `Option`: `Ready`'s, `Refreshing`'s, or a failed refresh's `previous`.
+  `foldkit-cms`'s editor reads through it, so it now also takes a failed
+  refresh's kept value where its own copy took none: it fills the form from
+  it, and sends its `updatedAt` and `revision` as a save's and a publish's
+  `basedOn`, instead of `null`.
+
+- **`Utilities.busyReveal`** (`foldkit-mixins/utilities`): the delayed reveal
+  of a busy status, moved from `foldkit-mixins-crud` so any package or page
+  can use it. On an element marked `aria-busy="true"` it fades the text in
+  after 0.6s, holding its space from the start, so a read answered sooner
+  never flashes a "Loading…"; without `aria-busy` it does nothing. The fade
+  now follows the `motion` knob (`--fk-motion-moderate`); the delay does not,
+  so a still theme snaps the line in without bringing the flash back.
+
+- **`Recipes.Disclosure` and `Recipes.Fieldset`** (`foldkit-mixins-ui`). The
+  Disclosure recipe draws the button as a row with its own chevron (an
+  `::after`, down shut, up once `data-open`) and the panel's box: `variant`
+  `plain`, `bordered` (one box, the button's lower corners squaring onto the
+  panel while open) or `ghost`, and `indicator` `chevron` or `none`. The
+  panel's height stays upstream's `animatePanel`. The Fieldset recipe floats
+  the legend into the group, so a box holds it, and dims the legend and
+  description of a disabled fieldset: `variant` `plain`, `bordered` or
+  `filled`. The ui-showcase's hand-written styles moved onto them.
+- **`Agent.Variant`: what `Agent.variant` returns** (`foldkit-agent`). A named
+  type with the completion erased to `AnyCompletion`, where the return type
+  was `Omit<typeof config, …>`, which spelled out the completion's
+  constructors in every declaration that wrote it.
+- **`SSR.unbound(attributes)`: a Slot's attributes in a static region**
+  (`foldkit-ssr`, #432). `SSR.static`'s `ih` is `HtmlBuilder<never>`, and a
+  Slot's attributes are typed with the page's Message, so styling a region
+  through a Slot needed a cast. `SSR.unbound` types a bundle as binding no
+  Message and throws when it is drawn on a handler or a Submodel's attribute
+  in it; a handler written in the region still does not compile.
+- **`Switch.draggable(onToggle)`: drag the thumb** (`foldkit-mixins-ui`). A
+  mixin beside the style: press the switch, move past 4px, and the thumb
+  follows the pointer; let go with its middle past the middle of the track and
+  `onToggle` is sent for that side, where a drag that ends on the side it began
+  on sends nothing. A plain click still toggles once, the click after a drag
+  is swallowed, right to left mirrors it, and a disabled or read-only switch
+  does not drag. Opt-in, as its Mount sends a Message that a Scene test must
+  resolve.
+- **`foldkit-host`, re-exported as `foldkit-plus/host`: the parts of a
+  server's `fetch`** (#235). `Host.isolate(key, build)` builds a value once
+  per binding, keyed weakly so a reloaded binding builds again, and forgets
+  a build that fails. `Host.template(binding)` reads the built `index.html`
+  once per assets binding with the build id `Host.buildTag` writes into it
+  from the Vite build. `Host.routes({ origin, assets, routes, otherwise })`
+  answers assets first, then answers `500` naming the origin variable while
+  it is unset, then tries the application's routes in the order written (a
+  path ending in `/` is a prefix), then its fallback. `Host.node(handler, {
+  env, origin })` serves the same handler on Node's `http` server, refusing
+  a request target off the configured origin. The host keeps no cache, page
+  table or principal. `examples/reference`'s Worker is ported onto it.
+
+- **`AuthServer.host`: Yielded's routes and a resolver per consumer, typed
+  apart** (`foldkit-auth`, `foldkit-remote`, `foldkit-remote-server`, #235).
+  `AuthServer.host({ auth, http, services, principal, key? })` mounts
+  Yielded's routes over the application's built `Auth` and returns `scripted`,
+  for `serveFetch` (a trusted `Origin` and the CSRF header), and `navigation`,
+  for `pageReader` (a `GET` or `HEAD` navigation; any other method, an upgrade
+  and a script's `fetch` are refused). Each provides `Auth` itself and asks
+  the principal per request; `http` takes no `oauth`. `serveFetch` now hands
+  its resolver a `ScriptedRequest` and `pageReader` a `NavigationRequest`
+  (types `foldkit-remote` exports), so a navigation resolver given to
+  `serveFetch`, or a scripted one to `pageReader` or a socket's host, is a
+  type error; a resolver taking any `Request` fits both as before.
+  `examples/reference` and `examples/auth` serve through it.
+
+- **`foldkit-ssr/loader`: the runtime's chunk on intent** (`foldkit-ssr`,
+  #472). An entry script that imports nothing of `effect`, Foldkit or the
+  application (about 2 KB brotli): `load({ runtime: () => import('./entry.js')
+  })`. It follows the plan's `start`, which the server now writes into the
+  envelope: `'now'` runs the chunk at once, `'idle'` fetches it when idle after
+  load and runs it when idle again, `'on-interaction'` runs it on a pointer
+  over or down, focus or key on a marked element, or a scroll. Until
+  `SSR.hydrate` takes over it holds each event a marker names (a submission
+  prevented), and `SSR.hydrate` answers each from the markers once. A held
+  event not taken 3 s after it happened is released (a submission through
+  `requestSubmit`, anything else dropped), and at once when the chunk fails to
+  load or the page does not resume. `runtimeChunk({ entry })` from
+  `foldkit-ssr/vite` writes the chunk's address into the loader, which fetches
+  it with `<link rel="modulepreload">` without running it. `KeepTyped` also
+  takes a checkbox or radio: its `checked` is compared with the served one and
+  replayed as its named `OnChange`, `OnInput` or `OnClick` Message.
+  domains-plus builds with it under `DOMAINS_PLUS_LOADER=1`; it is not yet its
+  default.
+
+- **`FileDrop.Message`** (`foldkit-mixins-ui`). The drop zone's four Messages
+  over a `File` codec that needs no decoding services. Upstream's
+  `@foldkit/ui/fileDrop` types its files as `Schema<File>`, whose services are
+  `unknown`, so a Message holding its union could not be a `Bundle.parent`'s;
+  upstream's `update` takes this one as it is. The File drop gallery page
+  uses it, and `foldkit-form-recipes`' file and image controls now share it.
+- **A hidden title, a scrim token and the no-script pair** (`foldkit-mixins`,
+  `foldkit-mixins-ui`, #424). `Recipes.Dialog` and `Recipes.Sheet` take
+  `title: 'hidden'`, which leaves the heading to a screen reader and still
+  names the dialog. `Theme.tokens.overlay.scrim` is what a modal's backdrop
+  draws over the page; an application overrides it in its own tokens instead
+  of restyling `backdrop`. `Utilities.scriptedOnly` and `Utilities.plainOnly`
+  hide a control only a script drives, and show its stand-in, in a browser
+  running no scripts.
+
+- **`writing`: one derived read of what is being saved** (`foldkit-remote`,
+  #377). `writing(Data, model, { mutation, row })`, from the root, is
+  `Writing.None`, `Sending`, `Unanswered`, `WaitingForSignIn`, `Unreadable` or
+  `Failed`: the worst state among the matching writes, derived from the ledger
+  and the outbox, so it is right after a reload and in a second tab where a
+  flag the application writes is not. `Unanswered` is a durable write sent
+  with no answer yet, the state a "waiting to send" line reads; `Sending`
+  is every write's first state. `mutation` takes the Mutation, not its name,
+  and `row` an `EntityRef`. It is built from `outboxStatus`'s reading, so the
+  two agree; a page that never calls it keeps none of it, and none of the
+  outbox if it does.
+
+- **`SSR.entry`'s `redirect`** (`foldkit-ssr`, #235). `redirect: (model,
+  request) => Option<string>` answers a `GET` or `HEAD` with a `303` to the
+  path, decided from the Model `prepare` made and before anything is
+  rendered, so a page that sends a reader elsewhere is one entry made once.
+  The answer carries the entry's `headers`, says `cache-control: private,
+  no-store` over theirs, and is never kept by `cache`. A path that does not
+  start with a single `/` or leaves the request's origin is a reported `500`.
+  `examples/reference` and `examples/auth` make their entry once with it.
+
+- **Style modules shipped as data** (`foldkit-mixins`, #420).
+  `styles({ sheet, modules })` from `foldkit-mixins/vite` evaluates each listed
+  style module with the sheet, and the production browser build ships it as
+  each Style's name and a Mixin of the classes it compiled to, so the page
+  loads no style compiler. An export that is not a Style, a `Style.slots`
+  declaration or strings, or a Style using `Style.whenInput` or
+  `Style.perItem`, fails the build naming it; so does a frozen class with no
+  rule in the sheet. With a module listed, that build's Slots inject no CSS.
+  Development is unchanged. domains-plus's page fell from 217.5 KB to 191.6
+  KB brotli.
+- **`step`, the data-last form of every operator and comparison**
+  (`foldkit-entity`, #478). `pipe(Post.fields.status, Expr.eq.step('draft'))`
+  builds the node `Expr.eq(Post.fields.status, 'draft')` builds. `step` is a
+  member of `Expr.eq`, `lt`, `lte`, `gt`, `gte`, `contains`, `in` and of every
+  `Expr.operator` (`Text.startsWith.step(prefix)`, `trim.step()`), with one
+  signature so reads stay exact through `pipe` and `flow`, and a value that
+  does not fit its subject is refused at the step. A comparison's step takes
+  `{ collation }`; an operator's takes none. The data-first calls and their
+  errors are unchanged.
+
+- **Child update capabilities for the interaction primitives**
+  (`foldkit-primitives`, #495). A parent applies its own decisions through
+  helpers on the placement, never by building the child's Messages:
+  `Selection.activate`, `replace` and `clear`; `TreeNavigation.focus`, `open`,
+  `close` and `toggle`, which reads open or shut from the tree's state;
+  `focus` on `RovingTabindex`, `ListNavigation` and `GridNavigation`;
+  `Typeahead.clear`; and `LiveAnnounce.announce`. Each runs the Bundle's own
+  `update` with the placement's args, so `@foldkit/oxlint-plugin`'s
+  `no-child-message-construction-in-root` is satisfied.
+
+- **The Builder's layer rows speak its own Messages** (`foldkit-builder`,
+  `foldkit-mixins-builder`, #495). A pressed row sends `RowPressed({ id })`
+  and its expander `RowToggled({ id })`, which `update` applies through the
+  layers' `focus` and `toggle`; before, the view sent the tree's `Focused`,
+  `Opened` and `Closed` itself. The keys still move the tree as before.
+
+- **Helpers that read their placement's args** (`foldkit-bundle`). `helpers`
+  may be a function of the args, `helpers: ({ limit }) => ({ fill })`, as
+  `subscriptions` and `resources` are; each placement and collection calls it
+  with the args it holds, and a preset binds them. Before, a helper had no
+  way to the args, though the README said they were retained for helpers.
+  `Bundle.helpersOf(bundle, args)` reads a bundle's helpers in either form,
+  for a parent that folds the child itself. A bundle's own `helpers` is now
+  typed as the record or the function it was given; read it through a
+  placement or `helpersOf`.
 
 - **`Button.view`'s `attributes`** (`foldkit-mixins-ui`): what another
   component hands the `button` or `icon` slot, after the button's own, such
@@ -176,7 +524,186 @@ version changed; `pnpm` skips versions already in the registry.
   `maxAge` (`foldkit-ssr`'s `cache` only; the browser reads its stale reads
   again), so a page renders once in `keep` instead of once a minute.
 
+### Deprecated
+
+- **`FormViewInputs.saved` and `SubmitInputs.saved`** (`foldkit-mixins-form`,
+  `foldkit-crud`). They have no effect: the submit button is `aria-disabled`,
+  never `disabled`, whatever they say. Delete the field; they are removed in the
+  next release.
+
 ### Changed
+
+- **The form's submit button is `aria-disabled`, never `disabled`**
+  (`foldkit-mixins-form`, `foldkit-crud`). A natively disabled default button
+  makes the browser drop Enter, so an Enter sent in the frame of the edit that
+  made the form valid (a paste or an autofill) submitted nothing and said
+  nothing. The button now reads `aria-disabled` whenever the form cannot submit
+  or is submitting, and `update` decides from the Model: a submit it cannot take
+  marks every key and shows why, one it can goes through. The recipes already
+  style `[aria-disabled="true"]` as disabled and Chrome reads the button disabled.
+  **A style of your own on the form's `submit` Slot must match
+  `[aria-disabled="true"]` as well as `:disabled`**, and exclude it from its
+  hover and press rules; `Defaults.controls` (`foldkit-mixins`) now dims such a button and keeps
+  it out of its hover rule.
+  A page that passed a strict `canSubmit` predicate to `FormView.submodel` must
+  now make its form with `submitWaits: false`, or it submits while a check
+  runs.
+  `FormView.submodel`'s `canSubmit` option only marks the button; to refuse a
+  submit while a check runs, make the form with `submitWaits: false` (see Added).
+  Moving focus to the first missing key stays the page's, as the waitlist's
+  `FocusField` does.
+
+- **Grid behaviour that column filters changed** (`foldkit-data-grid`,
+  `foldkit-mixins-data-grid`, #144).
+  - `Grid.Out` has a `Filtered` arm on a grid with a filtering column, so
+    its `Grid.Out.match` needs one; a grid that filters nothing has none.
+  - `editorOf` now shares the filter's classifier: a single text literal
+    edits as a one-option choice, number literals as a number, boolean
+    literals as a checkbox, and a text enum as a choice of its values (a
+    number enum as a number).
+  - Every column header is named by its own words (`aria-label`), so its
+    buttons and an open form are no longer part of its name; a filtered
+    read-only header's description is "Read-only, Filtered".
+  - Alt+ArrowDown on a filtering column's header opens its filter, not the
+    column menu; Shift+F10 and the menu key still open the menu, and
+    Alt+ArrowDown does on a column that does not filter.
+  - `MoreOnScroll` is generic over any view input with `status` and
+    `onMore` (`<Input, Message>`), not over `GridInput`'s four parameters.
+
+- **What a replica holds as written is typed `WrittenOperation`**
+  (`foldkit-sync`, #190): `Replica.pending`, `ReplicaState.pending`,
+  `Transport`'s and `TransportClient`'s `pending`, and `Rejection.operation`,
+  which may carry `messageVersion`. It is branded, so a decoded `Operation`
+  no longer type-checks where one is required: a server that appends an
+  operation it built writes it with `journalContract().operation.encode`, and
+  a journal typed `Journal<Operation, S, P, Operation>` is now
+  `Journal<Operation, S, P, WrittenOperation>`. `Rejection` gains `message`, the Message
+  encoded at the current version, to read it by; `ReplicaStatus` gains
+  `refused`; `SyncDefinition` is a type taking `message` or `migrations`;
+  `editsJournal`'s `absorbed` returns a `WrittenOperation`, and a document
+  with migrations writes it with `journalContract().operation.encode`.
+
+- **A stored operation that no longer decodes is a `JournalError`**
+  (`foldkit-durable`, #190), carrying the codec's error as its `cause`, where a
+  retransmission of a committed id read it back; it was an
+  `InvalidOperationError`, which `journalExchange` rejected as the sender's
+  fault though the edit had committed.
+
+- **Sync rejections carry a typed refusal** (`foldkit-sync`, #190). Each
+  `status.rejected` entry has `refusal: Option<SyncRefusal>`, in Remote's
+  vocabulary for "not saved": `Forbidden { reason }` when `authorize` or
+  `admit` refused (Remote's `Denied.Forbidden`), `Invalid { message, entity,
+  rule, path }` when the operation failed, with `journalExchange`'s fixed
+  sentence (Remote's `Refusal.invalid`), and `Unreadable { version }`, for an
+  operation written at an older Message version no step of the document's
+  history reads (see the upcasting entry under Added). Read it through
+  `SyncRefusal.match`.
+  The exchange reply gains `refusals: [{ opId, refusal }]` (an encoded
+  `SyncRefusal` each, at most one per operation), which `journalExchange`
+  sends only when it refused something; a refusal the replica cannot read
+  leaves the rejection standing with no refusal and is reported as
+  `UnknownRefusal`. A rule's reason longer than 500 characters is now cut
+  with an ellipsis instead of failing every exchange at the replica. **Breaking
+  for a client of an earlier release:** it decodes the reply strictly, so
+  once the server refuses one of its operations its exchanges fail until it
+  runs the new build, and every commit anyone makes to the document wakes
+  it to fail again. Nothing is lost; the refused operation is rejected
+  again then. A custom server sends `refusals`, each
+  `Schema.encodeSync(SyncRefusal)(SyncRefusal.Forbidden({ reason }))` or
+  another case, instead of `reasons`.
+
+- **Breaking: PasswordInput's `strength` takes a drawn gauge**
+  (`foldkit-mixins-ui`). It is `Html`, placed in the `strength` Slot, where it
+  was a Meter's options that PasswordInput drew itself; so PasswordInput no
+  longer imports Meter, and a page with no gauge ships none (the auth
+  example's client fell 0.9 kB brotli). Migrate by drawing the Meter:
+  `strength: Meter.view({ id, label, value, max, style }, h)`.
+
+- **A slot recipe's selection types its base slots as present**
+  (`foldkit-mixins`). `Style.recipeFor(Slots)(def)` returns
+  `selection => RecipePieces<Slots, Known>` (exported), where `Known` is the
+  slots `def.base` sets, and `.extend` adds its patch's; a variant's or a
+  compound's slot stays optional, since `null` can unset its axis. Reusing a
+  shipped recipe's look on another element no longer needs `?? Style.empty`
+  (`Recipes.Button(selection).button`). A base given as a `StylePieces`
+  value names no slot as present.
+
+- **The data grid says it is loading only once the wait is noticeable**
+  (`foldkit-mixins-data-grid`). `GridStyle`'s `status` slot takes
+  `Utilities.busyReveal`, so a page answered within 0.6s never flashes
+  "Loading…"; "No rows." and a failure still show at once.
+
+- **`Loading.shown` is deprecated** (`foldkit-mixins-crud`). It is now
+  `Utilities.busyReveal` from `foldkit-mixins/utilities` under its old name,
+  and the `List` and `Editor` recipes use that; import it from there.
+
+- **`Cms.historyCard` takes `locale` and `timeZone`, both required**
+  (`foldkit-cms`). It wrote each revision's date and time in the runtime's
+  default locale and zone, so a server and a browser (or two servers) wrote
+  different text for one revision, which a hydrating page then meets.
+  Pass the ones the page is written in (`locale: 'en', timeZone: 'UTC'` until
+  the Model holds a locale). The CMS and Chirp examples name theirs too.
+- **A completion's outcome is typed by its contract** (`foldkit-agent`).
+  `dispatch` by Message constructor returned `completion.message` as any
+  Message, so `examples/todo` narrowed its fact with `Schema.is`. Now a
+  `completed` outcome carries the contract's success Message, a `failed` one
+  its failure Message (no `failed` branch when it names none), a state
+  contract's outcome has no `message`, and a capability without a contract has
+  `completion: undefined`; the result's `message` is the dispatched Message.
+  `DispatchResult` and `Agent.Variant` take an `Outcome` parameter, and
+  `MessageOutcome` and `StateOutcome` are exported. Narrower types can break a
+  caller: one that compared a no-failure contract's status with `'failed'`, or
+  read `completion` of a capability without a contract. Inside
+  `Agent.variant`, an `Agent.when` whose `request` annotation disagrees with
+  `input` is now reported at `completion`. Dispatch by name and
+  `dispatchUnknown` keep the wide type.
+
+- **The signature pad's "Sign here" and line follow the reading direction**
+  (`foldkit-mixins-ui`). They were placed from the left; under `dir="rtl"` the
+  words now start at the right. `Style.compose`'s inline-shorthand check also
+  covers `borderInlineStart`/`borderInlineEnd` and `borderBlockStart`/
+  `borderBlockEnd`, as it did `borderLeft`. `pnpm rtl:check` keeps an unmarked
+  physical `left`/`right`, margin, padding, border side, `textAlign` or `float`
+  out of every `src`; a side that is the screen's says so with `// physical:`.
+- **`foldkit-ssr/loader` fetches the runtime's chunk as it starts** (#472), with
+  `<link rel="modulepreload">` before `load`, not when idle, and still runs it
+  as the plan's `start` says. A press at `load` still waits for the chunk's
+  evaluation, so domains-plus keeps today's entry as its default.
+
+- **`Data.satisfy` reads a pass's Surfaces in one round trip** (`foldkit-remote`,
+  #435). A pass used to await each Surface's read before planning the next, so
+  a domains-plus search made two client calls; it now plans every Surface over
+  the Model the pass began with and sends one read, cut to the client's limits
+  as any read is. This changes a documented behaviour: a Surface revealed by
+  one earlier in `active` was read in the same pass, and is now read in the
+  next, so a `passes` of 1 that sufficed for such a chain no longer does. The
+  default of 8 passes covers a chain shorter than 8, and a family still takes
+  two passes (its parent, then its instances, which are one read).
+- **A server render reports a read no read made** (`foldkit-remote`, #435).
+  `Remote.resume`'s capture finds, in what the plan's Surfaces read, a field or
+  list the store lacks and reports a `ReadUnmade` diagnostic naming it through
+  `Diagnostics`: the browser would ask for it and show it `Loading` after the
+  first frame. A row the server answered gone, or a field it settled without a
+  value, is made.
+- **Breaking: a deferred plan refuses a named field without `KeepTyped`**
+  (`foldkit-ssr`, #472). On a plan whose `start` is not `'now'`, a field whose
+  binding names its typing (a hole-form `OnInput` or `OnChange`; on a checkbox
+  or radio any named `OnChange`, `OnInput` or `OnClick`) and has no
+  `rh.KeepTyped()` is refused with `ResumeUnsafe` reason `UnkeptField`, naming
+  each: its typing before boot was lost at the first render. Add
+  `rh.KeepTyped()`, or start `'now'`. `UNTIL_LIMIT_MS` is unchanged, now read
+  from a module with no imports.
+
+- **A client that evaluates an Expr no longer holds JSON Schema** (`foldkit-entity`).
+  `Law.describe` and `Operators.describe` sat in the objects `evaluate` and the
+  Expr builders import, so every such client kept `toJsonSchemaDocument` (about
+  1.5 kB brotli in Chirp). Evaluation now reads the law variants and the kernel
+  table from modules that never reach it. No API change.
+
+- **The Sheet's padding reads the theme's `safe` tokens** (`foldkit-mixins-ui`,
+  #424). It wrote `env(safe-area-inset-*)` itself, so a page that sets
+  `--fk-safe-*` (as the browser tests do) moved a Dialog and not a Sheet's
+  padding. The value on a phone is the same.
 
 - **Two form mistakes are type errors** (`foldkit-form`, `foldkit-mixins-form`).
   `Input.bundle` with `busy` and no `settled` no longer compiles (#491); it
@@ -249,6 +776,26 @@ version changed; `pnpm` skips versions already in the registry.
   it to `serveFetch`'s `cache.store` is a type error: a read's answer carries
   no age, and one served past its `maxAge` would read as fresh. `memory`,
   `workers` and `kv` without `keep` are accepted by both.
+
+### Deprecated
+
+- **`Rejection.reason` and the exchange reply's `reasons`** (`foldkit-sync`,
+  #190), removed in the next release. Read `rejection.refusal` (a
+  `SyncRefusal`) instead of `rejection.reason`; a custom server sends
+  `refusals` instead of `reasons`. Both are still filled with today's words
+  for this release, and the replica keeps accepting `reasons` on a reply after
+  that, since a server a release behind sends it on every reply. The two can
+  differ: a plain `false` from `admit` or `authorize` still reads "This
+  connection may not make changes" or "Refused by the server" in `reason`,
+  where `refusal` is `Forbidden` with no reason, for the page to word.
+
+### Removed
+
+- **`LiveAnnounce.say`** (`foldkit-primitives`, #495). It built the
+  placement's `Announced` for a parent, cast to the parent's Message; a parent
+  now folds the placement's `helpers.announce(text, politeness?)` in `update`.
+  The Builder, its one user, announces that way, and a copy that reaches the
+  clipboard answers with the Builder's own `Copied({ said })`.
 
 ### Fixed
 

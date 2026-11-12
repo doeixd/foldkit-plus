@@ -49,7 +49,13 @@ import {
   writer,
 } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
-import { Sync, documentId, type Operation, type Sync as SyncContract } from 'foldkit-sync'
+import {
+  forApplication,
+  documentId,
+  type Operation,
+  type Sync as SyncContract,
+  type WrittenOperation,
+} from 'foldkit-sync'
 import { Domain } from './domain.js'
 import { AllTodos, CreateTodo, DeleteTodo, RenameTodo, ToggleTodo } from './operations.js'
 
@@ -114,7 +120,7 @@ const update = (model: Model, message: Message): Update.Return<Model, Message> =
     }),
   })
 const App = Surface.application({ Model, Message, initial: { todos: [] }, update })
-export const Todos: SyncContract<Message, Model> = Sync.forApplication(App).make({
+export const Todos: SyncContract<Message, Model> = forApplication(App).make({
   documentId: documentId('todos'),
   shared: Projection.pick(App.model.todos),
   durable: MessageSet.make(App, [
@@ -125,8 +131,8 @@ export const Todos: SyncContract<Message, Model> = Sync.forApplication(App).make
   ]),
 })
 
-export type Shared = typeof Todos extends Sync<Message, infer S> ? S : never
-export type TodoJournal = JournalShape<Operation, Shared, string, Operation>
+export type Shared = typeof Todos extends SyncContract<Message, infer S> ? S : never
+export type TodoJournal = JournalShape<Operation, Shared, string, WrittenOperation>
 
 const TODOS_KEY = 'todos'
 const SETTLED_KEY = 'todos-settled'

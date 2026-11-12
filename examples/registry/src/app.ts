@@ -24,12 +24,12 @@ import { Equal, Match, Option, Schema, SchemaGetter } from 'effect'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { Crud } from 'foldkit-crud'
-import { type CellAddress, DataGrid, RowModel } from 'foldkit-data-grid'
+import { type CellAddress, CellEditor, DataGrid, RowModel } from 'foldkit-data-grid'
 import { GridCrud } from 'foldkit-data-grid/crud'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { persistence, RemotePersistence } from 'foldkit-remote/persistence'
 import { Projection, Surface } from 'foldkit-surface'
-import { Sync } from 'foldkit-sync'
+import { fact } from 'foldkit-sync'
 import { RemoteEdits } from 'foldkit-sync/remote'
 import {
   EditedColumn,
@@ -93,9 +93,11 @@ export const columns = GridCrud.columns(ProductList, {
     line: { width: 100, edit: { schema: LineName } },
     // One of the Product's own statuses: edited as a choice of them, wide
     // enough for the longest in its select.
-    status: { width: 130, edit: { schema: Product.fields.status.schema } },
+    status: { width: 130, edit: { schema: Product.fields.status.schema }, filter: true },
     cents: {
       width: 90,
+      // A range typed in dollars, as the cells show prices; `Products` turns it into cents.
+      filter: CellEditor.Number(),
       edit: { schema: Dollars, draft: row => Schema.encodeSync(Dollars)(row.cents) },
     },
   },
@@ -173,6 +175,8 @@ const Base = Bundle.compose({
   sort: ProductSort.Schema,
   /** The text descriptions are searched for: the query's input too, so the server filters. */
   search: Schema.String,
+  /** What the status and price columns are filtered by: the query's input too. */
+  filters: Grid.Filters,
   /**
    * Every cell edited, the latest per cell, and when each committed. The
    * replicated slice: the journal's, not this device's.
@@ -281,9 +285,50 @@ const cache = persistence(Data, {
     RemotePersistence.snapshotOf(remote, { connections: Object.keys(remote.connections), maxAge }),
 })
 
+/**
+ * A price range typed in dollars, as the query's bounds in cents, null where
+ * none is given. The bounds round inward, so the server keeps what the range
+ * says: a lowest price of 1.234 keeps 1.24 and up, not 1.23. A price typed
+ * past any the table could hold is held at the largest whole number of cents
+ * a query's `Int` takes, which no price reaches.
+ */
+export const centsOf = (
+  range: Option.Option<{
+    readonly min: Option.Option<number>
+    readonly max: Option.Option<number>
+  }>,
+) => {
+  const cents = (dollars: Option.Option<number>, inward: (cents: number) => number) =>
+    Option.getOrNull(
+      Option.map(dollars, given => {
+        const exact = given * 100
+        // 1.23 * 100 is 122.99999999999999: a whole number of cents is not rounded away.
+        const whole = Math.round(exact)
+        const rounded = Math.abs(exact - whole) < 1e-6 ? whole : inward(exact)
+        return Math.max(-Number.MAX_SAFE_INTEGER, Math.min(Number.MAX_SAFE_INTEGER, rounded))
+      }),
+    )
+  return Option.match(range, {
+    onNone: () => ({ minCents: null, maxCents: null }),
+    onSome: ({ min, max }) => ({
+      minCents: cents(min, Math.ceil),
+      maxCents: cents(max, Math.floor),
+    }),
+  })
+}
+
 export const Products = ProductList.at({
   data: Data,
-  input: (model: Model) => Option.some({ sort: model.sort, search: model.search }),
+  input: (model: Model) =>
+    Option.some({
+      sort: model.sort,
+      search: model.search,
+      statuses: Option.match(model.filters.status, {
+        onNone: () => null,
+        onSome: ({ options }) => options,
+      }),
+      ...centsOf(model.filters.cents),
+    }),
 })
 
 type Cell = {
@@ -310,7 +355,7 @@ const changeOf = (cell: Cell): ProductChange => {
   })
 }
 
-// The grid reports text; the fact it becomes is durable. `Sync.fact` applies
+// The grid reports text; the fact it becomes is durable. `fact` applies
 // it within this transition, so no later Message sees the Model without it.
 // A paste the columns refused all of writes nothing. The grid reports no
 // cell left as it began, so an unchanged one never reaches here.
@@ -331,7 +376,7 @@ const edited = (model: Model, cells: ReadonlyArray<Cell>) => {
       redo: () => [],
       heldBack: () => Option.none(),
     }),
-    commands: [Sync.fact(Message.EditedProducts({ changes }))],
+    commands: [fact(Message.EditedProducts({ changes }))],
   }
 }
 
@@ -377,7 +422,7 @@ const replay = (model: Model, by: 'undo' | 'redo') => {
     commands:
       taken.length === 0
         ? []
-        : [Sync.fact(Message.EditedProducts({ changes: taken.map(cell => cell.before) }))],
+        : [fact(Message.EditedProducts({ changes: taken.map(cell => cell.before) }))],
   }
 }
 
@@ -435,6 +480,10 @@ const Page = Base.pipe(
           model: modifyFields(model, {
             grid: () => Grid.extendRows(rowsOf(model), model.grid, request),
           }),
+        }),
+        // The query's input: the server filters, over every product.
+        Filtered: ({ change }) => ({
+          model: modifyFields(model, { filters: filters => Grid.setFilter(filters, change) }),
         }),
       }),
   }),
@@ -514,6 +563,7 @@ export const initial = (): Model =>
     remote: Remote.initial,
     sort: ProductSort.none,
     search: '',
+    filters: Grid.noFilters,
     edits: [],
     exchange: { pending: 0, error: Option.none() },
     refused: [],

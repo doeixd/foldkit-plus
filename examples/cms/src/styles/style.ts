@@ -38,7 +38,7 @@ export const phone = '(max-width: 52rem)'
 
 /** A button as the mixins-ui recipe draws it, for a slot of our own. */
 export const button = (selection: Parameters<typeof Recipes.Button>[0]) =>
-  Recipes.Button(selection).button ?? Style.empty
+  Recipes.Button(selection).button
 
 /**
  * What a text box looks like, in a form and in the Builder's inspector.

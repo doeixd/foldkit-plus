@@ -254,4 +254,48 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'a hidden title is still drawn',
+    edits: [
+      {
+        file: '../src/recipes/dialog.ts',
+        find: 'hidden: { title: variant(Utilities.srOnly) },',
+        replace: 'hidden: {},',
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: 'every sheet hides its title',
+    edits: [
+      {
+        file: '../src/recipes/sheet.ts',
+        find: "handle: 'bar', title: 'shown'",
+        replace: "handle: 'bar', title: 'hidden'",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the backdrop ignores the scrim token',
+    edits: [
+      {
+        file: '../src/recipes/dialog.ts',
+        find: 'background: ref.overlay.scrim,',
+        replace: "background: 'transparent',",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the panel pads no safe area',
+    edits: [
+      {
+        file: '../src/recipes/sheet.ts',
+        find: 'calc(${ref.space.lg} + ${ref.safe[edge]})',
+        replace: '${ref.space.lg}',
+      },
+    ],
+    tests: [browser],
+  },
 ]

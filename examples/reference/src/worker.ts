@@ -1,5 +1,6 @@
 /**
- * The Worker: one fetch handler for the whole application.
+ * The Worker: one fetch handler for the whole application, in `Host.routes`'
+ * order.
  *
  * - `/assets/…` is the page's build, from the assets binding.
  * - `/auth/…` is Yielded's routes: sign up, sign in, sign out.
@@ -8,42 +9,32 @@
  * - Every other request is a page, rendered here as that reader into the
  *   build's `index.html`, read in this process (`pageReader`).
  *
- * Auth's services are built once per isolate: a D1 binding is not I/O a
- * request owns, and built per request Yielded's first-use setup races
- * itself. Every request is checked against one configured origin
+ * Auth's services are built once per isolate (`Host.isolate`): a D1 binding
+ * is not I/O a request owns, and built per request Yielded's first-use setup
+ * races itself. Every request is checked against one configured origin
  * (`ORIGIN`), not the host it arrived at: a Worker reachable at a second
  * host (`workers.dev` beside a domain) trusts only the one it is told.
  */
 import type { D1Database } from '@cloudflare/workers-types'
 import * as D1Client from '@effect/sql-d1/D1Client'
-import { Http } from '@yielded/auth'
 import * as WorkerdServices from '@yielded/auth-platform-workerd'
 import { drizzle } from 'drizzle-orm/d1'
-import { Duration, Effect, Layer, ManagedRuntime, Option, type Context } from 'effect'
-import { HttpRouter, HttpServer } from 'effect/http'
+import { Duration, Effect, Layer, ManagedRuntime } from 'effect'
 import { handleRequest, injectIntoTemplate } from 'foldkit/experimental/server'
 import { AuthServer } from 'foldkit-plus/auth/server'
+import { Host } from 'foldkit-plus/host'
 import { databaseLayer } from 'foldkit-plus/remote-drizzle'
 import { RemoteServer } from 'foldkit-plus/remote-server'
 import { pageReader, serveFetch } from 'foldkit-plus/remote-server/fetch'
 import { SSR } from 'foldkit-plus/ssr'
 import { App, AppServices } from './auth.js'
-import { buildIdOf } from './build.js'
 import type { Principal } from './guard.js'
 import { PageContext, makeRenderPage } from './page.js'
 import { Policy, server } from './server.js'
 
-/**
- * The assets binding, as the Worker calls it. `@cloudflare/workers-types`'
- * own `Fetcher` takes its `Request`, not the one this module's handlers make.
- */
-export interface Assets {
-  readonly fetch: (request: Request | string) => Promise<Response>
-}
-
 export interface WorkerEnv {
   readonly DB: D1Database
-  readonly ASSETS: Assets
+  readonly ASSETS: Host.Assets
   /**
    * Where the application is served; a scripted call's `Origin` must name it.
    * A deploy sets it in `[vars]`; the local stack gives its own.
@@ -51,30 +42,8 @@ export interface WorkerEnv {
   readonly ORIGIN?: string
 }
 
-/** Remembers what `make` built for a key; a build that failed is forgotten, so the next asks again. */
-const memo = <K, A>(make: (key: K) => Promise<A>) => {
-  const built = new Map<K, Promise<A>>()
-  return (key: K): Promise<A> => {
-    const held = built.get(key)
-    if (held !== undefined) return held
-    const building = make(key)
-    built.set(key, building)
-    building.catch(() => built.delete(key))
-    return building
-  }
-}
-
-/** Yielded's services over this isolate's database. Kept for the isolate's life, so never disposed. */
-const authServices = memo(async (db: D1Database) => {
-  const runtime = ManagedRuntime.make(
-    AppServices.pipe(
-      Layer.provideMerge(WorkerdServices.layer),
-      Layer.provide(D1Client.layer({ db })),
-      Layer.orDie,
-    ),
-  )
-  return runtime.context()
-})
+/** `WorkerEnv` once `Host.routes` has checked `ORIGIN` is set. */
+type Served = Host.Configured<WorkerEnv, 'ORIGIN'>
 
 /**
  * Who a session is: a member, read fresh per request. Yielded has already
@@ -91,84 +60,72 @@ const principalOf = (db: D1Database) => (session: { readonly subjectId: string }
     ),
   )
 
-type AuthServices =
-  Awaited<ReturnType<typeof authServices>> extends Context.Context<infer S> ? S : never
-
-/** Everything that answers for the origin: Yielded's routes, Remote, and a page's reader. */
-const hostFor = (services: Context.Context<AuthServices>, db: D1Database, origin: string) => {
-  const shared = Layer.succeedContext(services)
-  const http = { origin } as const
-  const routes = HttpRouter.toWebHandler(
-    Http.make(App, http)
-      .routes()
-      // A Worker has no file system; nothing here serves a file.
-      .pipe(Layer.provide([shared, HttpServer.layerServices]), Layer.orDie),
-    { disableLogger: true },
-  )
-  // `key` names the principal as `Me` does, for the answer's header and the check of it.
-  const resolving = { auth: App, http, principal: principalOf(db), key: Policy.key }
-  const remote = {
-    server,
-    resolvePrincipal: AuthServer.resolver(resolving),
-    headers: AuthServer.answered(resolving),
-    layer: (env: WorkerEnv) => Layer.merge(shared, databaseLayer(drizzle(env.DB))),
-    // A live stream asks again who it serves: a sign-out in another tab ends it.
-    revalidate: { every: Duration.seconds(5), key: Policy.keyOf },
-  }
-  return {
-    auth: routes.handler,
-    remote: serveFetch(remote),
-    // A page request is a navigation, which carries no CSRF header; its reader cannot write.
-    read: pageReader({
-      ...remote,
-      resolvePrincipal: AuthServer.resolver({ ...resolving, requests: 'navigation' }),
-    }),
-  }
+const remote = {
+  server,
+  layer: (env: WorkerEnv) => databaseLayer(drizzle(env.DB)),
+  // A live stream asks again who it serves: a sign-out in another tab ends it.
+  revalidate: { every: Duration.seconds(5), key: Policy.keyOf },
 }
 
-type Host = ReturnType<typeof hostFor>
+/**
+ * Everything that answers for the origin, over this isolate's database:
+ * Yielded's routes, Remote, and a page's reader. Yielded's services are kept
+ * for the isolate's life, so never disposed; the principal is read per request.
+ * `ORIGIN` comes with the bindings (a reload replaces both), so it is read here.
+ */
+const hostOf = Host.isolate(
+  (env: Served) => env.DB,
+  async env => {
+    const services = await ManagedRuntime.make(
+      AppServices.pipe(
+        Layer.provideMerge(WorkerdServices.layer),
+        Layer.provide(D1Client.layer({ db: env.DB })),
+        Layer.orDie,
+      ),
+    ).context()
+    const auth = AuthServer.host({
+      auth: App,
+      http: { origin: env.ORIGIN },
+      services,
+      principal: principalOf(env.DB),
+      // Names the principal as `Me` does, for the answer's header and the check of it.
+      key: Policy.key,
+    })
+    return {
+      auth: auth.routes,
+      remote: serveFetch({ ...remote, ...auth.scripted }),
+      // A page request is a navigation, which carries no CSRF header; its reader cannot write.
+      read: pageReader({ ...remote, ...auth.navigation }),
+    }
+  },
+)
 
-const hosts = new Map<string, Host>()
+const template = Host.template((env: WorkerEnv) => env.ASSETS)
 
-const hostOf = async (env: WorkerEnv, origin: string): Promise<Host> => {
-  const held = hosts.get(origin)
-  if (held !== undefined) return held
-  const host = hostFor(await authServices(env.DB), env.DB, origin)
-  hosts.set(origin, host)
-  return host
-}
-
-/** The build's `index.html`, and the id it carries; read once per isolate. */
-const templateOf = memo(async (assets: Assets) => {
-  const response = await assets.fetch('https://assets.invalid/index.html')
-  if (!response.ok)
-    throw new Error(`The assets hold no index.html (${response.status}): run vite build`)
-  const html = await response.text()
-  const buildId = Option.getOrThrowWith(
-    buildIdOf(html),
-    () => new Error('index.html carries no build id: build it with this vite.config.ts'),
-  )
-  return { html, renderPage: makeRenderPage(buildId) }
-})
-
-const answerPage = async (request: Request, env: WorkerEnv, host: Host): Promise<Response> => {
-  const { html, renderPage } = await templateOf(env.ASSETS)
-  return handleRequest(PageContext.attach(request, { reader: host.read(request, env) }), {
-    renderPage,
-    // The page's `meta` rides in its root; `SSR.headed` moves it into the head.
-    renderDocument: SSR.headed(application => injectIntoTemplate(html, application)),
-  })
-}
+/** The build's template and the entry for its build id, once per isolate. */
+const pagesOf = Host.isolate(
+  (env: WorkerEnv) => env.ASSETS,
+  async env => {
+    const { html, buildId } = await template(env)
+    return { html, renderPage: makeRenderPage(buildId) }
+  },
+)
 
 export default {
-  fetch: async (request: Request, env: WorkerEnv): Promise<Response> => {
-    const url = new URL(request.url)
-    if (url.pathname.startsWith('/assets/')) return env.ASSETS.fetch(request)
-    if (env.ORIGIN === undefined)
-      return new Response('Set ORIGIN to where this Worker is served.', { status: 500 })
-    const host = await hostOf(env, env.ORIGIN)
-    if (url.pathname.startsWith('/auth/')) return host.auth(request)
-    if (url.pathname === '/remote') return host.remote(request, env)
-    return answerPage(request, env, host)
-  },
+  fetch: Host.routes({
+    origin: 'ORIGIN',
+    assets: { at: '/assets/', binding: (env: WorkerEnv) => env.ASSETS },
+    routes: {
+      '/auth/': async (request, env) => (await hostOf(env)).auth(request),
+      '/remote': async (request, env) => (await hostOf(env)).remote(request, env),
+    },
+    otherwise: async (request, env) => {
+      const [host, { html, renderPage }] = await Promise.all([hostOf(env), pagesOf(env)])
+      return handleRequest(PageContext.attach(request, { reader: host.read(request, env) }), {
+        renderPage,
+        // The page's `meta` rides in its root; `SSR.headed` moves it into the head.
+        renderDocument: SSR.headed(application => injectIntoTemplate(html, application)),
+      })
+    },
+  }),
 }

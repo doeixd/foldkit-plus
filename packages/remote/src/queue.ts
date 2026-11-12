@@ -40,14 +40,40 @@ export const signedOwner = (owner: Option.Option<MadeAs>): boolean =>
   Option.exists(owner, made => made._tag === 'Signed')
 
 /**
+ * Whether a write made as `madeAs` may be sent while the page last heard
+ * `heard` (#405): anything, before a page has heard; one made for someone
+ * only while no one else is signed in; a visitor's, or one made before any
+ * answer said who, only while no one is, since `outbox.adopt` stamps it as
+ * whoever signs in first and says so.
+ */
+export const sendable = (madeAs: MadeAs | undefined, heard: Option.Option<MadeAs>): boolean =>
+  Option.match(heard, {
+    onNone: () => true,
+    onSome: page =>
+      Match.valueTags(page, {
+        Visitor: () => true,
+        Signed: ({ key }) => madeAs?._tag === 'Signed' && madeAs.key === key,
+      }),
+  })
+
+/** The key a write made for someone is sent with; none for a visitor's, or one queued before any answer said. */
+export const signedKey = (madeAs: MadeAs | undefined): Option.Option<string> =>
+  madeAs === undefined
+    ? Option.none()
+    : Match.valueTags(madeAs, {
+        Visitor: () => Option.none(),
+        Signed: ({ key }) => Option.some(key),
+      })
+
+/**
  * Who owns a scope's queue once `heard` is heard (#405): the first person
  * signed in heard under it, for good; a visitor only while no one has been.
  * A cookie dropped, or another's, under Ada's scope leaves it Ada's.
  */
-export const ownerAfter = (owner: Option.Option<MadeAs>, heard: MadeAs): Option.Option<MadeAs> =>
-  signedOwner(owner) || (Option.isSome(owner) && heard._tag === 'Visitor')
-    ? owner
-    : Option.some(heard)
+export const ownerAfter = (owner: Option.Option<MadeAs>, heard: MadeAs): Option.Option<MadeAs> => {
+  if (signedOwner(owner) || (Option.isSome(owner) && heard._tag === 'Visitor')) return owner
+  return Option.some(heard)
+}
 
 /** Two copies' owners as one: a signed-in owner over a visitor or none, the first if both. */
 export const ownerOf = (

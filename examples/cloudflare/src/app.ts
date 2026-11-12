@@ -41,7 +41,15 @@ const RenameView = FormView.define(RenameTodoForm, {
   field: FormView.field(RenameTodoForm).pipe(field),
 }).pipe(form)
 
-const AddBundle = AddTodoForm.bundle.pipe(Bundle.withView(FormView.submodel(AddTodoForm, AddView)))
+/**
+ * The quick add never marks its button `aria-disabled`: its one key is empty at
+ * rest, so the default (`AddTodoForm.canSubmit`) would dim it then. Enter and a
+ * press reach `update` either way, which refuses an empty title and says it is
+ * required; this only keeps the button looking pressable at rest.
+ */
+export const QuickAddView = FormView.submodel(AddTodoForm, AddView, { canSubmit: () => true })
+
+const AddBundle = AddTodoForm.bundle.pipe(Bundle.withView(QuickAddView))
 
 const Editor = Crud.editor('TodoEditor', { form: RenameTodoForm, mutation: RenameTodo })
 const EditorBundle = Editor.bundle.pipe(

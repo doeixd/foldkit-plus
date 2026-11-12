@@ -48,14 +48,18 @@ Any email with the password `password` signs in.
 
 ### What is not used, and why
 
-- **`foldkit-bundle` placements.** A placement is a field of a parent struct,
-  started by its Bundle's `init` from fixed `args`. Here the root Model *is*
-  the union: each side replaces the whole Model, and is started by a
-  transition with values only known then (the parsed route, the session from
-  Flags or from the login). A Bundle would need an `init` that nothing calls.
-  The Login page and its form are each placed once, so they are wired by
-  `Update.foldChild` as upstream wires every Submodel, rather than two ways in
-  one app. The form itself is a Bundle (`LoginForm.bundle`), folded that way.
+- **`foldkit-bundle` placements.** A placement's `initial` writes a child into
+  a field of a parent struct from fixed `args`. Here the root Model *is* the
+  union: each side replaces the whole Model, and is started by a transition
+  with values only known then (the parsed route, the session from Flags or
+  from the login), so a Bundle's `init` would never be called. The Login page
+  and its form are each placed once, so they are wired by `Update.foldChild`
+  as upstream wires every Submodel, rather than two ways in one app. The same
+  fold can take a branch Link (`Link.make` with a `read` that is empty on the
+  other side), documented in
+  [`foldkit-bundle`](../../../packages/bundle/README.md#a-union-model-a-link-per-branch);
+  this port keeps the hand-written `read` and `write`. The form itself is a
+  Bundle (`LoginForm.bundle`), folded that way.
 - **`foldkit-mirror`.** A mirror keeps a top-level field of a struct Model in
   a store and writes it back into that field; it cannot run a transition. The
   session is not a field: restoring it chooses the side of the union and the

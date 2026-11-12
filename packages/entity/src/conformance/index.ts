@@ -104,6 +104,8 @@ const labels = Expr.input('labels', Schema.Array(Schema.String))
 const at = Expr.input('at', Timestamp)
 /** An optional filter's input: none chosen is null. */
 const maybeTag = Expr.input('maybeTag', Schema.NullOr(Schema.String))
+/** An optional membership filter's input: none chosen is null. */
+const maybeLabels = Expr.input('maybeLabels', Schema.NullOr(Schema.Array(Schema.String)))
 const below = Expr.input('below', Schema.Number)
 const from_ = Expr.input('from', Timestamp)
 const until = Expr.input('until', Timestamp)
@@ -405,6 +407,24 @@ export const cases: ReadonlyArray<ConformanceCase> = [
     ),
     input: { maybeTag: 'x' },
     expected: ['b', 'd'],
+  },
+  {
+    what: 'an optional membership filter with no list chosen matches every row',
+    body: from.pipe(
+      Query.where(Expr.whenGiven(maybeLabels, given => Expr.in(Subject.fields.label, given))),
+      byId,
+    ),
+    input: { maybeLabels: null },
+    expected: ['a', 'b', 'c', 'd', 'e'],
+  },
+  {
+    what: 'an optional membership filter with a list chosen is that filter',
+    body: from.pipe(
+      Query.where(Expr.whenGiven(maybeLabels, given => Expr.in(Subject.fields.label, given))),
+      byId,
+    ),
+    input: { maybeLabels: ['Other', 'snake_case'] },
+    expected: ['c', 'e'],
   },
   {
     what: 'an operand decided by the input alone settles an or either way',

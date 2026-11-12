@@ -12,7 +12,7 @@ const App = Surface.application({
   Model,
   Message,
   initial: initialModel,
-  update: (model, message) => ({ model: update(model, message) }),
+  update,
 })
 
 const TodoAgent = Agent.forApplication(App).withPrincipal<Principal>()
@@ -28,8 +28,23 @@ export const AppAgent = TodoAgent.make({
   context: Projection.pick(App.model.todos, App.model.selectedTodoId),
 
   messages: TodoAgent.expose(Message, {
+    // Creating waits for its fact. `update` only asks for the todo; it is in
+    // the list once `SubmittedTodo` lands, so the call is done then, and its
+    // result carries the fact, with the id the todo was given.
+    RequestedCreateTodo: Agent.variant({
+      description: 'Create a new todo',
+      // The agent supplies a title; the invocation goes onto the request.
+      input: Schema.Struct({ title: Schema.String }),
+      toMessage: ({ title }, { invocation }) => ({ title, requestId: invocation.id }),
+      completion: {
+        success: Message.SubmittedTodo,
+        // Two creates can be in flight, even for one title: this call's fact is
+        // the one carrying its invocation.
+        correlate: (_, result, { invocation }) => result.requestId === invocation.id,
+      },
+    }),
+
     // Most capabilities need nothing but a description.
-    RequestedCreateTodo: 'Create a new todo',
     RequestedToggleTodo: 'Mark a todo complete, or undo that',
     SelectedTodo: 'Select a todo, making the capabilities that act on one available',
     ClearedSelection: 'Clear the current selection',

@@ -40,4 +40,26 @@ export default [
     ],
     tests: gate,
   },
+  {
+    name: 'the Message takes an empty drop',
+    edits: [
+      {
+        file: '../src/fileDrop.ts',
+        find: 'Schema.NonEmptyArray(Schema.instanceOf(File))',
+        replace: 'Schema.Array(Schema.instanceOf(File))',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the Message takes anything as a file',
+    edits: [
+      {
+        file: '../src/fileDrop.ts',
+        find: 'Schema.NonEmptyArray(Schema.instanceOf(File))',
+        replace: 'Schema.NonEmptyArray(Schema.Any)',
+      },
+    ],
+    tests,
+  },
 ]

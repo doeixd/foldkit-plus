@@ -14,9 +14,11 @@ import {
   ReplicaId,
   Sync,
   type Operation,
+  type Rejection,
   type Replica,
   type SocketLike,
   type Storage,
+  SyncRefusal,
   TransportSocket,
   type TransportClient,
 } from '../src/index.js'
@@ -135,9 +137,23 @@ const status = Effect.runSync(replica.status)
 const _status: {
   pending: number
   lastError: string | undefined
-  rejected: ReadonlyArray<{ readonly opId: string; readonly reason: Option.Option<string> }>
+  rejected: ReadonlyArray<{
+    readonly opId: string
+    readonly refusal: Option.Option<SyncRefusal>
+    readonly operation: Operation
+  }>
 } = status
 void _status
+const said = (rejection: Rejection): string =>
+  Option.match(rejection.refusal, {
+    onNone: () => 'Refused by the server',
+    onSome: SyncRefusal.match({
+      Forbidden: ({ reason }) => Option.getOrElse(reason, () => 'You may not change this'),
+      Invalid: ({ message }) => message,
+      Unreadable: () => 'Made by another version of the app, so not saved',
+    }),
+  })
+void said
 mounted.committed.get()
 
 // Compose a document from features: a wider application than the quick

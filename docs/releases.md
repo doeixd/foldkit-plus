@@ -42,6 +42,7 @@ declaration; `npm view <name> version` says what the registry serves.
 | [`foldkit-mixins`](../packages/mixins) | 0.23.0 | Published | Typed slot contracts and inside-out Style/Behavior attachments for Foldkit views. |
 | [`foldkit-mixins-surface`](../packages/mixins-surface) | 0.9.0 | Published | Bridges a Surface projection and Message subset to a `SlotView`. |
 | [`foldkit-ssr`](../packages/ssr) | 0.11.0 | Published | Server rendering that hands the Model over instead of rerunning `init`, with resumable pages, forms that work without scripts, and lazy bundles. Early: [its plan](./design/ssr-PLAN.md). |
+| [`foldkit-host`](../packages/host) | 0.1.0 | Not yet published | The parts of a server's fetch handler: a value built once per isolate, the built page template and its build id, an ordered route table behind one configured origin, and a Node adapter for the same handler. Early. |
 | [`foldkit-richtext`](../packages/richtext) | 0.8.0 | Published | Pure semantic documents and editing transactions for Foldkit. Early. |
 | [`foldkit-richtext-dom`](../packages/richtext-dom) | 0.9.0 | Published | The DOM interpreter for a `foldkit-richtext` editable subtree. Early. |
 | [`foldkit-mixins-richtext`](../packages/mixins-richtext) | 0.8.0 | Published | The rich-text editor's chrome, drawn through Mixins slots. Early. |

@@ -25,11 +25,41 @@ export interface BundleReport {
   /** Every module loaded at start, by name, however small. */
   readonly included: ReadonlyArray<string>
   readonly styleSystemBrotli: number
+  /** Present when `routes` were given. */
+  readonly routes?: ReadonlyArray<RouteFigures>
 }
+
+export interface RouteSpec {
+  readonly name: string
+  /** Path suffixes of the route's root modules, comma-separated. */
+  readonly module: string
+  readonly landing?: boolean
+}
+
+export interface RouteFigures {
+  readonly name: string
+  readonly module: string
+  readonly landing: boolean
+  /** Whether the route's root is in a chunk the entry does not load at start. */
+  readonly split: boolean
+  readonly firstLoadBrotli: number
+  /** Brotli (estimated) of the modules this route root alone reaches by static imports. */
+  readonly aloneBrotli: number
+  readonly aloneModules: ReadonlyArray<string>
+}
+
+export declare const SPLIT_THRESHOLD: number
+export declare const formatRoutes: (report: BundleReport) => string
+/** The modules exactly one root reaches; the entry's own and shared ones belong to none. */
+export declare const exclusiveModules: (
+  graph: Record<string, { readonly imports: ReadonlyArray<string> }>,
+  entries: ReadonlyArray<string>,
+  roots: ReadonlyMap<string, ReadonlyArray<string>>,
+) => Map<string, string[]>
 
 export declare const measure: (
   exampleDirectory: string,
-  options?: { readonly rebuild?: boolean },
+  options?: { readonly rebuild?: boolean; readonly routes?: ReadonlyArray<RouteSpec> },
 ) => Promise<BundleReport>
 export declare const formatReport: (report: BundleReport) => string
 
@@ -39,6 +69,8 @@ export interface ServerReport {
   readonly gzip: number
   readonly rows: ReadonlyArray<{ readonly name: string; readonly bytes: number }>
   readonly modules: ReadonlyArray<{ readonly name: string; readonly bytes: number }>
+  /** Every module in the bundle, not only the largest. */
+  readonly files: ReadonlyArray<string>
 }
 
 export declare const measureServer: (

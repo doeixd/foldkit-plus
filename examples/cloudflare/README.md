@@ -179,8 +179,13 @@ editor in `foldkit-mixins-crud/recipes`' looks, and the forms in
 
 - `Todo` is `Entity.define`. `done` is the integer `0 | 1` the column stores.
 - `AddTodoForm` and `RenameTodoForm` are `Form.make` over `Entity.input`.
+  The quick add's button is never disabled (`FormView.submodel`'s
+  `canSubmit: () => true`): its one key is empty at rest, so the default gate
+  would disable it, and a disabled default button stops Enter's submission,
+  so an empty Enter said nothing. The submit refuses instead and says the
+  title is required (`test/addForm.browser.test.ts`).
 - `Crud.list` joins the `AllTodos` query to that selection. Its status line
-  is there from the first paint; `Loading.shown` says "Loading…" only once
+  is there from the first paint; `Utilities.busyReveal` says "Loading…" only once
   the wait has lasted, and a later refresh keeps the rows.
 - Add, rename, toggle, and delete call `Data.mutate` with a declared write,
   so Remote works out the paint from the write itself: a new row joins the

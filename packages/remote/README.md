@@ -714,6 +714,9 @@ When a read sits at `Initial` and you expected data, ask the Model why with
 `RemoteData.match` is exhaustive, so adding or omitting a state is visible at
 compile time. `RemoteData.answered(data)` is whether a read has an answer yet:
 `Ready`, `Refreshing`, `Failed` or `NotFound`, not `Initial` or `Loading`.
+`RemoteData.held(data)` is the value it holds, as an `Option`: `Ready`'s,
+`Refreshing`'s, or the last value a failed refresh kept; none in every other
+state.
 
 ### Drawing one: `RemoteData.render`
 
@@ -772,6 +775,37 @@ spinner that never ends or an error nobody can act on.
 
 Reach for `match` instead when the six states really do draw differently — it
 stays the exhaustive fold, and `render` does not replace it.
+
+### Transforming a read before drawing it
+
+Keep the read whole in the Surface: the Projection `Data.get` returns carries
+what Remote fetches, and a Surface or `Projection.struct` that holds it keeps
+that. Transform the value it gives instead, with `RemoteData.map`: it changes
+the value of `Ready`, `Refreshing` and a failed read's held value, and leaves
+the state and its error as they were. `map` takes the value first, so in a
+`pipe` it is called from a lambda:
+
+<!-- docs-check import { pipe } from 'effect' -->
+
+```ts
+const title = pipe(
+  project,
+  data => RemoteData.map(data, ({ name }) => name),
+  name => RemoteData.map(name, text => text.toUpperCase()),
+)
+```
+
+`title` is a `RemoteData<string>`, so the view still folds every state with
+`render` or `match`. What TypeScript refuses here: a missing case in `match`,
+`render` or `Freshness.match` (the error names it), a case the union lacks,
+`.value` before narrowing to `Ready` or `Refreshing`, a failed read's held
+value used as if it were always there, and a read of another application's
+Model in this one's Surface. What it cannot see: a ternary over `_tag` (`pnpm
+tags:check` refuses it in a package's or example's `src`), a cast, a Model
+that structurally contains another application's, and which of two bindings
+over one Model made a read. A combinator that joins two reads into one is not
+offered: draw each with its own fold, since which of `NotFound` and `Failed`
+should win is the view's decision.
 
 ## When it does not do what you expect
 
@@ -1243,7 +1277,10 @@ Projection itself.
 A render that fetches nothing (SSR, a prerender) needs everything a page's
 active Surfaces read, and one read can decide what another asks for: a page's
 Blocks are known once its document is. `Data.satisfy` prefetches every active
-Surface, cache-first, pass after pass until a pass plans nothing:
+Surface, cache-first, pass after pass until a pass plans nothing. A pass sends
+what every Surface plans as one read, so a page of several Surfaces makes one
+client call a pass; a Surface that another's read reveals is read in the next
+pass, wherever it comes in `actives`:
 
 <!-- docs-check
 const actives = { project: projectPage }
@@ -2762,8 +2799,8 @@ const signedIn = (model: Model) => ({ model: Data.signedIn(model) })
 
 `waiting` counts a write on its way too, so a line drawn whenever it is above
 zero shows for a frame or two on every write, pushing the page below it down
-and back. Draw it once a send went unanswered: an item whose `state` is
-`Waiting` with `attempt` above zero.
+and back. Draw it once a send went unanswered: that is `writing`'s `Unanswered`
+([below](#what-is-being-saved-writing)).
 
 `durable.restore(model)` is `cache.restore`'s twin: resolve it as the
 runtime's `flags` and start `init` from it. It reads back what a reload left and
@@ -2894,6 +2931,56 @@ server page  → durable.session (prepare) → the served page adopted → outbo
   scope's waiting writes is not written over, so a `key` shared by
   principals reports `OutboxUnsaved` rather than losing them.
 
+### What is being saved: `writing`
+
+A view that dims a row or says "waiting to send" asks one question: is
+something I wrote still unanswered, and how badly? The ledger and the outbox
+already hold the answer, so `writing` derives it, and nothing in the
+application's Model copies it (a flag the application writes would be wrong
+after a reload, which restores a write no click made, and in a second tab):
+
+```ts
+import { Writing, writing } from 'foldkit-remote'
+
+const savingLine = (model: Model): string =>
+  Writing.match(writing(Data, model, { mutation: PostChirp }), {
+    None: () => '',
+    // Every write passes through here: a line for it would flash on each one.
+    Sending: () => '',
+    Unanswered: ({ requestIds }) => `${requestIds.length} waiting to send`,
+    WaitingForSignIn: () => 'Sign in to send your changes',
+    Unreadable: () => 'Some changes cannot be sent from this version',
+    Failed: () => 'Some changes were refused',
+  })
+```
+
+`writing(Data, model)` reads every write of the domain; the filter narrows it
+to `{ mutation }`, the Mutation as `Data.mutate` was given it (not its name;
+one the domain does not register throws), and `{ row }`, an `EntityRef`
+(`Remote.ref(Post, id)`), the writes whose pending layer patches or deletes
+that row. A refused write shows no layer, so it is `Failed` for the domain
+and for a `mutation`, and in no row. It is a pure read: it sends and writes
+nothing, and a page that never calls it keeps none of it.
+
+The worst state among the matching writes is the answer, in this order, and
+`requestIds` lists the writes in that state alone:
+
+| State | A write that is | Do |
+| --- | --- | --- |
+| `Failed` | refused by the server | `Data.retry` or `Data.dismiss` it |
+| `Unreadable` | stored by a version this one cannot read | `Data.dismiss` it |
+| `WaitingForSignIn` | held until `Data.signedIn` hears a sign-in | ask for one |
+| `Unanswered` | durable, sent, and no answer yet, so the server may have it; `error` is why the last send failed | a "waiting to send" line |
+| `Sending` | on its way for the first time, or a plain write awaiting its answer | nothing |
+
+`Sending` is every write's first state, which is why a "waiting to send" line
+reads `Unanswered`. It is built from the same reading as
+`outboxStatus`, which stays the list of durable writes, with each one's error;
+`writing` is the one state a view matches on. Its ids are request ids, the
+ones `Data.mutate` returned and `Data.mutation` and `Data.dismiss` take: a
+durable write's operation id is its request id. Plain writes come in the order
+they started, then durable ones in the order the outbox sends them.
+
 ### Remote mutation vs Sync operation
 
 A durable Remote write is still Remote's: the server decides it once, a
@@ -2980,6 +3067,38 @@ the fields the answer wrote: other fields of the same patch apply. A later
 answer to the row, a live delete and `forget` end it too. `Data.confirmed`
 keeps the answer as well, since the patch never reaches the store. A domain
 that reads nothing live waits for nothing.
+
+### A live patch while a write is pending
+
+While a write is pending, a stream's patch writes the base as always, so
+`Data.confirmed` follows the server. What the read shows depends on the
+layer. An absolute patch (`values`) shows over it. A relative one (`adds`,
+`computes`) is worked out over the value the field held before the first
+patch that landed during the write, not over the patch: the patch may be the
+write's own echo, which the client cannot tell from another person's, and
+adding the amount to it would show one too many until the answer.
+
+```text
+likes 10, a pending like (adds 1)      -> shows 11, confirmed 10
+stream patches likes: 11 (its echo)    -> shows 11, confirmed 11
+the answer lands                       -> shows 11, confirmed 11
+```
+
+Another person's like that arrives meanwhile shows when the answer lands; the
+count is never too high. Remote's Model keeps the earlier value
+(`RemoteModel.kept`) for each field a patch wrote, until an answer writes the
+field, no write is pending, a live delete removes the row, `forget` runs, or a
+minute has passed since the patch. A write that fails drops its layer and the
+base, which already holds the stream's value, shows through.
+
+The same record settles an answer that disagrees with a stream. The client
+cannot tell whether a stream that patched the field during the write is behind
+the write or past it (a cursor counts per subscription, and a stream that
+coalesces may never send the write), so when the base as the stream left it
+differs from the answer's value, the answer is written, as above, and the field
+is read again (`Refreshing` meanwhile); the read's answer is what stays. An
+answer that agrees with the stream, or for a write started after the patch,
+reads nothing again. No protocol field is involved.
 
 ### When a stream breaks
 

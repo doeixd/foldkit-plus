@@ -7,7 +7,7 @@
 import { Array, Option, Schema, String, pipe } from 'effect'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { Icon, type IconData } from 'foldkit-media'
-import { Behavior, SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
+import { Behavior, SlotView, type SlotBuilders } from 'foldkit-mixins'
 import { WindowList, WindowListSlots } from 'foldkit-mixins-ui'
 import { Resume } from 'foldkit-ssr/client'
 import { Projection } from 'foldkit-surface'
@@ -678,7 +678,9 @@ const PageView = SlotView.forMessages<Message>()
       NotFound: ({ path }) => notFound(path, slots, h),
     }),
   )
-  .pipe(Style.attach(Page.style))
+  // `SlotView.attach`, not `Style.attach`: importing `Style` would bring the
+  // compiler back into the page that `style.ts`'s freezing kept out (#420).
+  .pipe(SlotView.attach(Page.style.mixin))
 
 export const view = (model: Model, h: H): Document => ({
   title: titleOf(model.route, model.query),

@@ -26,9 +26,10 @@ export default [
     name: 'a failed read holds nothing',
     edits: [
       {
-        file: crud,
-        find: '    Failed: (_, previous) => previous,',
-        replace: '    Failed: () => Option.none(),',
+        // A picker reads what its page holds through RemoteData.held.
+        file: '../../remote/src/remoteData.ts',
+        find: 'Failed: (_, previous) => previous,',
+        replace: 'Failed: () => Option.none(),',
       },
     ],
     tests,

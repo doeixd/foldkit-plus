@@ -282,3 +282,16 @@ Guards.declare(
   }),
   { key: user => user.id, unguarded: 'allow', viewer: Owned.Member },
 )
+
+// A plain predicate beside a marked one adds no name, so the marked one is still refused.
+// Hand mutation (2026-11-10): ReadsOf's last `: never` changed to `: string` leaves
+// this directive unused (TS2578).
+Guards.declare(
+  'Mixed',
+  User,
+  guard => ({
+    // @ts-expect-error a rule over Post reads Note's field, though a plain predicate sits beside it
+    mixed: guard.row(Owned.Post, p => Expr.and(Expr.eq(Note.fields.authorId, p.id), loose)),
+  }),
+  { key: user => user.id, unguarded: 'allow', viewer: Owned.Member },
+)

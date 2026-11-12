@@ -223,7 +223,7 @@ Read current state before deciding whether to retry an effectful operation.
 | `MessageSet.make(App, [constructors])` / `MessageSet.union(...)` | A typed Message subset, and the union of several disjoint subsets. |
 | `Agent.expose(Message, variants)` | The capability boundary: what an agent may do. |
 | `Agent.exposeSubset(subset, variants)` | The same, restricted to a `MessageSet.make` subset. |
-| `Agent.variant(config)` | A mapped variant whose callbacks are inferred from its `input`. |
+| `Agent.variant(config)` | A mapped variant whose callbacks are inferred from its `input`; returns an `Agent.Variant`. |
 | `Agent.action(action, { available?, authorize? })` | A `foldkit-surface` Action as a variant: its name, description, input and Message. |
 | `Agent.resource(name, options)` | A named read-only projection of Model state. |
 | `Agent.make({ context, messages, resources })` | The protocol-neutral contract; `context` is a `Projection`, a `Projection.pick`, or a feature Surface. |
@@ -285,6 +285,12 @@ RequestedDeleteTodo: Agent.variant({
 
 Reach for it when a completion contract's `correlate` should be checked against
 the Messages it names. Otherwise write the variant inline.
+
+Either way, a contract's type keeps a variant's `name`, its `input`, and its
+completion's outcome, and drops the completion's constructors (`Agent.variant`
+returns an `Agent.Variant`), so a project that emits declarations can export a
+contract without importing `foldkit/schema`, where a constructor's type is
+declared.
 
 A capability already declared as a `foldkit-surface` Action, because a page
 Block's button causes it too, is exposed with `Agent.action` under the tag of
@@ -468,6 +474,19 @@ RequestedDeleteTodo: {
 `dispatch` then waits, and the result carries
 `completion: { status: 'completed' | 'failed', message }`. Without a contract,
 validated dispatch remains the boundary and the field is absent.
+
+Dispatched by its Message constructor, the outcome is typed by the contract:
+`completed` carries a success Message (`DeletedTodo` above), `failed` a failure
+one, and a contract naming no failure has no `failed` branch. A state contract's
+outcome has no `message`, and a capability without a contract has
+`completion: undefined`. So the fact needs no runtime check:
+
+```ts sketch
+const result = yield* agent.messages.dispatch(Message.RequestedDeleteTodo, { id })
+if (result.completion?.status === 'failed') return result.completion.message.reason
+```
+
+Dispatched by name, or through `dispatchUnknown`, it is any Message.
 
 This needs a host that can see Messages, not only receive them:
 

@@ -4,8 +4,8 @@
  * those rows again while a refetch is in flight. A write's "Saving…" is
  * Remote's pending mutations.
  *
- * Every indicator keeps its line from the first paint. `Loading.shown` leaves
- * the words invisible until the wait has lasted, so a fast answer never
+ * Every indicator keeps its line from the first paint. `Utilities.busyReveal`
+ * leaves the words invisible until the wait has lasted, so a fast answer never
  * flashes and nothing below moves when the words appear.
  */
 import { Option } from 'effect'

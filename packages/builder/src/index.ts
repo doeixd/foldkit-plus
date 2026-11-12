@@ -14,7 +14,7 @@
  * selection or an open panel is not an edit. Placed alone, with
  * `Bundle.withChild`, its parent owns the Model instead.
  */
-import { Effect, Option, Result, Schema } from 'effect'
+import { Effect, Match, Option, Result, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import {
   Block,
@@ -200,6 +200,10 @@ export const Message = defineMessageUnion({
   Selected: { id: NodeId },
   /** Nothing is selected. */
   Deselected: {},
+  /** A layers row pressed: it becomes current, as the keys make one, and so selected. */
+  RowPressed: { id: NodeId },
+  /** A layers row's expander pressed: the row opens if shut and shuts if open. */
+  RowToggled: { id: NodeId },
   Hovered: { id: NodeId },
   /** The pointer left every node. */
   Unhovered: {},
@@ -217,6 +221,8 @@ export const Message = defineMessageUnion({
   CutAsked: { id: NodeId },
   /** A paste: the system clipboard is read, and what it holds goes in by the selection. */
   PasteAsked: {},
+  /** A copy or cut reached the system clipboard: `said` tells assistive technology. */
+  Copied: { said: Schema.String },
   /** What the system clipboard held for a paste; none when it could not be read. */
   ClipboardRead: { text: Schema.OptionFromNullOr(Schema.String) },
   /**
@@ -281,10 +287,23 @@ export type Message = typeof Message.Type
 
 const Parent = Bundle.parent({ Model, Message })
 /** The layers' tree and the announcer, placed in the Builder's own Model. */
-const placements = Parent.assemble(
-  Parent.at(Layers, { args: layersArgs }),
-  Parent.at(Announcer, { args: announcerArgs }),
-)
+const LayersPlaced = Parent.at(Layers, { args: layersArgs })
+const AnnouncerPlaced = Parent.at(Announcer, { args: announcerArgs })
+const placements = Parent.assemble(LayersPlaced, AnnouncerPlaced)
+
+/** The row a Message makes current in the layers: one the keys moved to, or one pressed. */
+const focusedBy = (message: Message): Option.Option<string> =>
+  Match.value(message).pipe(
+    Match.tag('RowPressed', ({ id }) => Option.some<string>(id)),
+    Match.orElse(() =>
+      Option.flatMap(Layers.wrapper.fromParentMessage(message), child =>
+        Match.value(child).pipe(
+          Match.tag('Focused', ({ id }) => Option.some(id)),
+          Match.orElse(() => Option.none()),
+        ),
+      ),
+    ),
+  )
 
 /** Props as a Document stores them, read from what a Block's Schema encoded. */
 const storedProps = Schema.decodeUnknownResult(Composition.Node.fields.props)
@@ -458,9 +477,10 @@ const landingBy = (
   const stays = (at: Position) =>
     current !== undefined &&
     at.index === current.index &&
-    (at._tag === 'Root'
-      ? current.parent === undefined
-      : at.parent === current.parent && at.region === current.region)
+    Match.valueTags(at, {
+      Root: () => current.parent === undefined,
+      Region: ({ parent, region }) => parent === current.parent && region === current.region,
+    })
   const candidates: ReadonlyArray<{
     readonly at: Option.Option<Position>
     readonly zone: DropZone
@@ -493,7 +513,10 @@ const documentOf = (model: Pick<Model, 'page'>): Document => model.page.present
  * alone, which `History.push` takes as a `null` group.
  */
 const groupOf = (op: Operation): string | null =>
-  op._tag === 'SetProp' ? `SetProp:${op.id}:${op.prop}` : null
+  Match.value(op).pipe(
+    Match.tag('SetProp', ({ id, prop }) => `SetProp:${id}:${prop}`),
+    Match.orElse(() => null),
+  )
 
 /** The position right after a node, among its siblings. */
 const after = (document: Document, id: NodeId): Option.Option<Position> => {
@@ -677,15 +700,13 @@ const landing = (
 
 /** The node an Operation that creates nodes creates first, to select it. */
 const created = (catalog: Catalog, op: Operation): Option.Option<NodeId> =>
-  op._tag === 'Insert'
-    ? Option.some(op.id)
-    : op._tag === 'InsertTree'
-      ? Option.some(op.tree.root)
-      : op._tag === 'Duplicate'
-        ? Option.fromUndefinedOr(op.ids[op.id])
-        : op._tag === 'UsePattern'
-          ? patternRoot(catalog, op)
-          : Option.none()
+  Match.value(op).pipe(
+    Match.tag('Insert', ({ id }) => Option.some(id)),
+    Match.tag('InsertTree', ({ tree }) => Option.some(tree.root)),
+    Match.tag('Duplicate', ({ id, ids }) => Option.fromUndefinedOr(ids[id])),
+    Match.tag('UsePattern', pattern => patternRoot(catalog, pattern)),
+    Match.orElse(() => Option.none()),
+  )
 
 /**
  * A key that runs a command, named as `KeyboardEvent.key` names it. `mod` is
@@ -776,13 +797,12 @@ export const Builder = {
       editing: Option.none(),
     }).model
 
-    /** Says `text` to assistive technology, once the Builder's transition is done. */
-    const announce = (text: string, politeness: LiveAnnounce.Politeness = 'polite'): Commands => [
-      {
-        name: `${name}.announce`,
-        effect: Effect.succeed(LiveAnnounce.say(Announcer)<Message>(text, politeness)),
-      },
-    ]
+    /** `model`, with `text` said to assistive technology through the announcer. */
+    const announced = (
+      model: Model,
+      text: string,
+      politeness: LiveAnnounce.Politeness = 'polite',
+    ) => AnnouncerPlaced.helpers.announce(text, politeness)(model)
 
     const refuse = (
       model: Model,
@@ -793,10 +813,7 @@ export const Builder = {
             readonly code: 'builder:nothing-to-paste' | 'builder:no-place'
             readonly message: string
           },
-    ): { readonly model: Model; readonly commands: Commands } => ({
-      model: { ...model, refused: Option.some(refusal) },
-      commands: announce(refusal.message, 'assertive'),
-    })
+    ) => announced({ ...model, refused: Option.some(refusal) }, refusal.message, 'assertive')
 
     const applyOp = (
       model: Model,
@@ -814,18 +831,16 @@ export const Builder = {
         })
       const { document, removed } = result.success
       const kept = Option.filter(model.selected, id => !removed.includes(id))
-      return {
-        model: {
-          ...model,
-          page: History.push(model.page, document, { capacity, group }),
-          selected: Option.orElse(created(catalog, op), () => kept),
-          refused: Option.none(),
-        },
-        ...Option.match(describeEdit(catalog, words, documentOf(model), document, op), {
-          onNone: () => ({}),
-          onSome: said => ({ commands: announce(said) }),
-        }),
+      const applied = {
+        ...model,
+        page: History.push(model.page, document, { capacity, group }),
+        selected: Option.orElse(created(catalog, op), () => kept),
+        refused: Option.none(),
       }
+      return Option.match(describeEdit(catalog, words, documentOf(model), document, op), {
+        onNone: () => ({ model: applied }),
+        onSome: said => announced(applied, said),
+      })
     }
 
     /** A Block's starting props, encoded as the Document stores them; none for a Block with none. */
@@ -843,9 +858,10 @@ export const Builder = {
      * a node on the page, which is moved only onto another.
      */
     const onPage = (document: Document, source: DragSource): Option.Option<Position> =>
-      source._tag === 'New'
-        ? placeFor(catalog, document, Option.none(), source.block)
-        : Option.none()
+      Match.valueTags(source, {
+        New: ({ block }) => placeFor(catalog, document, Option.none(), block),
+        Existing: () => Option.none(),
+      })
 
     /** What a drag carries, as `landing` weighs it; none for a node gone or a Block not offered. */
     const draggedOf = (document: Document, source: DragSource): Option.Option<Dragged> => {
@@ -907,10 +923,7 @@ export const Builder = {
     const copy = (tree: Tree, said: string): Commands => [
       {
         name: `${name}.copy`,
-        effect: Effect.as(
-          copyText(clipText(tree)).effect,
-          LiveAnnounce.say(Announcer)<Message>(said, 'polite'),
-        ),
+        effect: Effect.as(copyText(clipText(tree)).effect, Message.Copied({ said })),
       },
     ]
 
@@ -925,7 +938,7 @@ export const Builder = {
 
     /** What is said when a drag ends with nothing done. */
     const unmoved = (source: DragSource): string =>
-      source._tag === 'Existing' ? words.notMoved : words.notAdded
+      Match.valueTags(source, { Existing: () => words.notMoved, New: () => words.notAdded })
 
     /** Asks for `count` new ids; the request goes through once they arrive. */
     const mint = (count: number, request: typeof Request.Type): Commands => [
@@ -1192,6 +1205,10 @@ export const Builder = {
             : { model: { ...model, selected: Option.some(message.id), panel: 'properties' } }
         case 'Deselected':
           return { model: { ...model, selected: Option.none() } }
+        case 'RowPressed':
+          return LayersPlaced.helpers.focus(message.id)(model)
+        case 'RowToggled':
+          return LayersPlaced.helpers.toggle(message.id)(model)
         case 'Hovered':
           return { model: { ...model, hovered: Option.some(message.id) } }
         case 'Unhovered':
@@ -1257,12 +1274,17 @@ export const Builder = {
                 name: `${name}.paste`,
                 effect: Effect.map(readText().effect, read =>
                   Message.ClipboardRead({
-                    text: read._tag === 'Read' ? Option.some(read.text) : Option.none(),
+                    text: Match.value(read).pipe(
+                      Match.tag('Read', ({ text }) => Option.some(text)),
+                      Match.orElse(() => Option.none()),
+                    ),
                   }),
                 ),
               },
             ],
           }
+        case 'Copied':
+          return announced(model, message.said)
         case 'ClipboardRead': {
           // Text read wins, so a copy made in another tab pastes here; the
           // Builder's own copy is for a browser that would not let it be read.
@@ -1358,7 +1380,10 @@ export const Builder = {
           return Option.match(editingOf(model, message.field), {
             onNone: () => ({ model }),
             onSome: editing => {
-              const kept = message._tag === 'EditingCommitted' ? message.text : editing.initial
+              const kept = Match.valueTags(message, {
+                EditingCommitted: ({ text }) => text,
+                EditingCancelled: () => editing.initial,
+              })
               // Nothing typed and nothing new: the field only showed the text, so another
               // edit that came between is not overwritten with what it showed.
               if (!editing.typed && kept === editing.initial)
@@ -1442,10 +1467,14 @@ export const Builder = {
         }
         case 'Undid':
         case 'Redid': {
-          const page = (message._tag === 'Undid' ? History.undo : History.redo)(model.page)
+          const step = Match.valueTags(message, {
+            Undid: () => History.undo,
+            Redid: () => History.redo,
+          })
+          const page = step(model.page)
           if (page === model.page) return { model }
-          return {
-            model: {
+          return announced(
+            {
               ...model,
               page,
               selected: keptIn(page.present, model.selected),
@@ -1453,8 +1482,8 @@ export const Builder = {
               // The page changed under the field being edited: it is drawn from the page again.
               editing: Option.none(),
             },
-            commands: announce(message._tag === 'Undid' ? words.undone : words.redone),
-          }
+            Match.valueTags(message, { Undid: () => words.undone, Redid: () => words.redone }),
+          )
         }
         case 'DragStarted':
           // A node gone, or a Block with nothing to start from, starts no drag.
@@ -1469,10 +1498,10 @@ export const Builder = {
                     at: Option.none(),
                   }),
                   // A node dragged is the one worked on; a new one is selected once it is added.
-                  selected:
-                    message.source._tag === 'Existing'
-                      ? Option.some(message.source.id)
-                      : model.selected,
+                  selected: Match.valueTags(message.source, {
+                    Existing: ({ id }) => Option.some(id),
+                    New: () => model.selected,
+                  }),
                 },
               }
         case 'DraggedOver':
@@ -1523,21 +1552,22 @@ export const Builder = {
               ),
           })
           return Option.match(landed, {
-            onNone: () => ({ model: ended, commands: announce(unmoved(source)) }),
+            onNone: () => announced(ended, unmoved(source)),
             onSome: ({ at }) =>
-              source._tag === 'Existing'
-                ? applyOp(ended, Composition.Op.move(source.id, at))
-                : // A new node needs an id: the same request a press on the palette makes.
-                  { model: ended, commands: mint(1, { _tag: 'Insert', block: source.block, at }) },
+              Match.valueTags(source, {
+                Existing: ({ id }) => applyOp(ended, Composition.Op.move(id, at)),
+                // A new node needs an id: the same request a press on the palette makes.
+                New: ({ block }) => ({
+                  model: ended,
+                  commands: mint(1, { _tag: 'Insert', block, at }),
+                }),
+              }),
           })
         }
         case 'DragCancelled':
           return Option.isNone(model.drag)
             ? { model }
-            : {
-                model: { ...model, drag: Option.none() },
-                commands: announce(unmoved(model.drag.value.source)),
-              }
+            : announced({ ...model, drag: Option.none() }, unmoved(model.drag.value.source))
         case 'PreviewChosen':
           return {
             model: { ...model, preview: { ...model.preview, [message.key]: message.value } },
@@ -1600,12 +1630,16 @@ export const Builder = {
       const next = {
         ...moved,
         model: stillEditing(
-          message._tag === 'Inspected' ? moved.model : reconciled(model, moved.model),
+          Match.value(message).pipe(
+            Match.tag('Inspected', () => moved.model),
+            Match.orElse(() => reconciled(model, moved.model)),
+          ),
         ),
       }
-      // Moving focus in the layers moves the selection with it.
-      if (message._tag === Layers.wrapper.tag && message.message._tag === 'Focused') {
-        const id = NodeId.make(message.message.id)
+      // Moving focus in the layers, by key or by a pressed row, moves the selection with it.
+      const focused = focusedBy(message)
+      if (Option.isSome(focused)) {
+        const id = NodeId.make(focused.value)
         return Composition.nodeAt(documentOf(next.model), id) === undefined
           ? next
           : { ...next, model: { ...next.model, selected: Option.some(id) } }

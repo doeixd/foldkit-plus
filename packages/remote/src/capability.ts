@@ -20,7 +20,13 @@ import type {
   MutationStarted,
   QueryRequirement,
 } from './index.js'
-import type { applyConnectionEvent, applyEntityEvent, awaitEchoes } from './liveEvents.js'
+import type {
+  applyConnectionEvent,
+  applyEntityEvent,
+  awaitEchoes,
+  settleKept,
+} from './liveEvents.js'
+import type { Kept } from './kept.js'
 import type { LiveEvent } from './liveState.js'
 import type { MutationDescriptor } from './mutationDescriptor.js'
 import type { MutationAnswer, MutationState, NormalizedPatch } from './ledger.js'
@@ -82,6 +88,7 @@ export interface LayerCapability {
   readonly visible: (
     entities: EntityStore,
     optimistic: OptimisticState,
+    kept: Kept,
     operators: Option.Option<MemoryOperators>,
   ) => EntityStore
   /** The store a read plans over (`plannedStore`). */
@@ -112,6 +119,7 @@ export interface LayerCapability {
     lists: Lists,
     entities: EntityStore,
     optimistic: OptimisticState,
+    kept: Kept,
     connections: Readonly<Record<string, Connection>>,
     identity: string,
     connection: Connection,
@@ -190,6 +198,8 @@ export interface LiveCapability {
   readonly applyConnection: typeof applyConnectionEvent
   /** What a write's answer leaves the streams to send back (#485). */
   readonly awaitEchoes: typeof awaitEchoes
+  /** What an answer does to the values kept from before a stream's patches (#498, #499). */
+  readonly settleKept: typeof settleKept
   /**
    * What to do with a row a live event inserts into a list: none for the
    * position the event names, `ignore` where the list's body says the row
@@ -294,17 +304,18 @@ const committed = (entities: EntityStore, connection: Connection): ReadonlyArray
 interface Layered {
   readonly entities: EntityStore
   readonly optimistic: OptimisticState
+  readonly kept: Kept
 }
 
 /** The store reads see. */
 export const visibleOf = (
   capabilities: Capabilities,
-  { entities, optimistic }: Layered,
+  { entities, optimistic, kept }: Layered,
   operators: Option.Option<MemoryOperators>,
 ): EntityStore =>
   optimistic.layers.length === 0
     ? entities
-    : layersIn(capabilities).visible(entities, optimistic, operators)
+    : layersIn(capabilities).visible(entities, optimistic, kept, operators)
 
 /** The store a read plans over, from the one it sees. */
 export const plannedOf = (
@@ -350,11 +361,20 @@ export const shownEdgesOf = (
   {
     entities,
     optimistic,
+    kept,
     connections,
   }: Layered & { readonly connections: Readonly<Record<string, Connection>> },
   identity: string,
   connection: Connection,
 ): ReadonlyArray<Edge> =>
   pending(optimistic)
-    ? layersIn(capabilities).shown(lists, entities, optimistic, connections, identity, connection)
+    ? layersIn(capabilities).shown(
+        lists,
+        entities,
+        optimistic,
+        kept,
+        connections,
+        identity,
+        connection,
+      )
     : committed(entities, connection)

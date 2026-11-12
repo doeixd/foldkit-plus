@@ -1,16 +1,12 @@
-import { Slots, Style, type StyleValue } from 'foldkit-mixins'
-import { DisclosureSlots } from 'foldkit-mixins-ui'
+import { Slots, Style } from 'foldkit-mixins'
+import { DisclosureSlots, Recipes } from 'foldkit-mixins-ui'
 
 import { forSlots, t } from '../../style.js'
-import { container, demoSlots, demoStyles, icon, shadow } from './shared.js'
+import { container, demoSlots, demoStyles, shadow } from './shared.js'
 
 export const DisclosurePageSlots = Slots.define({
   ...demoSlots,
   demo: container,
-  buttonContent: container,
-  buttonLabel: container,
-  chevron: container,
-  chevronIcon: container,
   panelText: container,
   animatedFrame: container,
   article: container,
@@ -27,19 +23,7 @@ const border = `${t.border.thin} solid ${t.outline.default}`
 export const DisclosurePageStyle = forSlots(DisclosurePageSlots)(
   {
     ...demoStyles,
-    buttonContent: Style.self({
-      display: 'flex',
-      width: '100%',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    }),
-    // `@foldkit/ui` marks the open button `data-open`.
-    chevron: Style.compose(
-      Style.self({ display: 'flex', color: t.text.muted }),
-      Style.nest('[data-open] &', { rotate: '180deg' }),
-    ),
-    chevronIcon: icon('1rem'),
-    panelText: Style.self({ margin: '0', color: t.text.default }),
+    panelText: Style.self({ margin: '0' }),
     animatedFrame: Style.self({ border, borderRadius: t.radius.lg, overflow: 'hidden' }),
     article: Style.self({
       position: 'relative',
@@ -84,56 +68,15 @@ export const DisclosurePageStyle = forSlots(DisclosurePageSlots)(
   { name: 'DisclosurePageStyle' },
 )
 
-const toggle: StyleValue = Style.compose(
-  Style.self({
-    display: 'flex',
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: `${t.space.sm} ${t.space.md}`,
-    border: '0',
-    background: 'transparent',
-    font: 'inherit',
-    textAlign: 'left',
-    color: t.text.overt,
-    cursor: 'pointer',
-    userSelect: 'none',
-    transition: `background-color ${t.motion.fast} ${t.motion.ease}`,
-  }),
-  Style.pseudo(':hover', { background: t.surface.muted }),
-  Style.pseudo('[data-disabled]', { opacity: '0.5', cursor: 'not-allowed' }),
-)
-
-/** A bordered toggle that squares its lower corners onto the panel below it while open. */
+/** A bordered button that squares its lower corners onto the panel below it while open. */
 export const BasicDisclosureStyle = forSlots(DisclosureSlots)(
-  {
-    button: Style.compose(
-      toggle,
-      Style.self({ border, borderRadius: t.radius.lg }),
-      Style.pseudo('[data-open]', { borderBottomLeftRadius: '0', borderBottomRightRadius: '0' }),
-    ),
-    panel: Style.self({
-      padding: `${t.space.sm} ${t.space.md}`,
-      border,
-      borderTop: '0',
-      borderRadius: `0 0 ${t.radius.lg} ${t.radius.lg}`,
-    }),
-  },
+  Recipes.Disclosure({ variant: 'bordered' }),
   { name: 'BasicDisclosureStyle' },
 )
 
 /** Inside a bordered frame; `animatePanel` slides the panel's height. */
 export const AnimatedDisclosureStyle = forSlots(DisclosureSlots)(
-  {
-    button: Style.compose(
-      toggle,
-      Style.pseudo(':focus-visible', {
-        outline: `${t.border.thick} solid ${t.accent.default}`,
-        outlineOffset: '-2px',
-      }),
-    ),
-    panel: Style.self({ padding: `${t.space.sm} ${t.space.md}`, borderTop: border }),
-  },
+  Recipes.Disclosure({ variant: 'ghost' }),
   { name: 'AnimatedDisclosureStyle' },
 )
 

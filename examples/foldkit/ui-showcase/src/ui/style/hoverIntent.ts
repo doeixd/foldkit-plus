@@ -47,7 +47,7 @@ export const DemoHoverIntentStyle = forSlots(HoverIntentSlots)(
       Style.self({
         position: 'absolute',
         top: '100%',
-        left: '0',
+        insetInlineStart: '0',
         width: '18rem',
         marginTop: t.space.xs,
         padding: t.space.md,

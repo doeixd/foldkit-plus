@@ -20,19 +20,23 @@ const reportDiagnostics = (
 })
 
 /** The failed write `message` settles, when it was pending: one the application did not hear. */
-const unheardOf = (before: RemoteModel, message: RemoteMessage): ReadonlyArray<RemoteDiagnostic> =>
-  message._tag === 'MutationFailed' && before.mutations.pending.has(message.requestId)
-    ? [
-        writeUnheard({
-          requestId: message.requestId,
-          mutation: Option.map(
-            Option.fromUndefinedOr(before.mutations.writes.get(message.requestId)),
-            write => write.mutation,
-          ),
-          error: message.error,
-        }),
-      ]
-    : []
+const unheardOf = (
+  before: RemoteModel,
+  message: RemoteMessage,
+): ReadonlyArray<RemoteDiagnostic> => {
+  if (message._tag !== 'MutationFailed' || !before.mutations.pending.has(message.requestId))
+    return []
+  return [
+    writeUnheard({
+      requestId: message.requestId,
+      mutation: Option.map(
+        Option.fromUndefinedOr(before.mutations.writes.get(message.requestId)),
+        write => write.mutation,
+      ),
+      error: message.error,
+    }),
+  ]
+}
 
 /**
  * `reduce`, and the Command reporting each diagnostic it recorded. `heard`

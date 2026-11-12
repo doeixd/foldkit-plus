@@ -23,6 +23,7 @@ import {
   type Edge,
   type Segment,
 } from './connection.js'
+import { noKept, type Kept } from './kept.js'
 import { emptyOptimistic, layersIn, liveIn, type Capabilities } from './capability.js'
 import { isPatch } from './shown.js'
 import type { ConnectionChange, OptimisticState, OptimisticOperation } from './optimistic.js'
@@ -230,6 +231,15 @@ export interface RemoteModel {
    * answer, a later answer, a delete or `forget` ends the wait.
    */
   readonly echoes: Readonly<Record<EntityKey, AwaitedEcho>>
+  /**
+   * What each row's fields held before the first live patch that landed while
+   * a write was pending (#498, #499). A relative layer resolves over these
+   * values, so its own echo is not counted twice, and an answer learns which
+   * fields a stream wrote since its request started. A field's entry ends when
+   * an answer writes it; all end when no write is pending, on `forget`, when a
+   * live event deletes the row, and `echoKept` after the patch.
+   */
+  readonly kept: Kept
 }
 
 /** What the budget evicted, by list identity and by the row a read reads. */
@@ -382,6 +392,7 @@ export const initialRemoteModel: RemoteModel = {
   evicted: noEvicted,
   history: noNavigationHistory,
   echoes: {},
+  kept: noKept,
 }
 
 /** The entity store and the mutation ledger are runtime values, not wire shapes. */
@@ -393,6 +404,7 @@ const runtimeSchema = Schema.Unknown
  * than refusing the whole Model.
  */
 const addedRecord = Schema.Unknown.pipe(Schema.withDecodingDefaultKey(Effect.succeed({})))
+const addedKept = Schema.Unknown.pipe(Schema.withDecodingDefaultKey(Effect.succeed(noKept)))
 
 export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
   // The runtime fields decode as `unknown`; their types come from `RemoteModel`.
@@ -421,6 +433,7 @@ export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
     evicted: runtimeSchema,
     history: runtimeSchema,
     echoes: addedRecord,
+    kept: addedKept,
   }) as unknown as Schema.Codec<RemoteModel, unknown>
 
 /** The submodel's Messages; each reduces to `RemoteModel` through `updateRemote`. */
@@ -1528,10 +1541,8 @@ const withQueued = (
   const at = outbox.queue.findIndex(queued => operationOf(queued) === operation)
   const queued = outbox.queue[at]
   if (queued?._tag !== 'Readable') return outbox
-  return {
-    ...outbox,
-    queue: outbox.queue.map((each, index) => (index === at ? change(queued) : each)),
-  }
+  const queue = outbox.queue.map((each, index) => (index === at ? change(queued) : each))
+  return { ...outbox, queue }
 }
 
 /** The outbox with `operation` settled: out of the queue, and remembered as done. */
@@ -1549,21 +1560,24 @@ const storedAs = (queued: Queued, stored: boolean): Queued =>
 
 /** A stored entry as the queue holds it: in the store, as read. */
 const queuedOf = (entry: ReadEntry): Queued =>
-  entry._tag === 'Readable'
-    ? Queued.Readable({ write: entry.write, stored: true, attempt: 0, delayed: Option.none() })
-    : Queued.Unreadable({
-        operation: entry.operation,
-        revision: entry.revision,
-        raw: entry.raw,
-        reason: entry.reason,
-        stored: true,
-      })
+  Match.valueTags(entry, {
+    Readable: ({ write }) =>
+      Queued.Readable({ write, stored: true, attempt: 0, delayed: Option.none() }),
+    Unreadable: ({ operation, revision, raw, reason }) =>
+      Queued.Unreadable({ operation, revision, raw, reason, stored: true }),
+  })
 
 const entryOperation = (entry: ReadEntry): string =>
-  entry._tag === 'Readable' ? entry.write.operation : entry.operation
+  Match.valueTags(entry, {
+    Readable: ({ write }) => write.operation,
+    Unreadable: ({ operation }) => operation,
+  })
 
 const entryRevision = (entry: ReadEntry): number =>
-  entry._tag === 'Readable' ? entry.write.revision : entry.revision
+  Match.valueTags(entry, {
+    Readable: ({ write }) => write.revision,
+    Unreadable: ({ revision }) => revision,
+  })
 
 /** Whether a stored write's state keeps it in the ledger in flight, its layer shown. */
 const waitingIn = (state: StoredWrite['state']): boolean =>
@@ -1596,6 +1610,7 @@ const releasedFrom = (
   order.delete(operation)
   return {
     ...model,
+    kept: pending.size === 0 ? noKept : model.kept,
     mutations: { ...model.mutations, pending, writes, order },
     optimistic: layersIn(capabilities).settleFailure(model.optimistic, operation),
   }
@@ -2170,13 +2185,31 @@ const reduceRemote = (
                 message.now,
               ),
           })
-      return {
+      // What a stream wrote while this was pending ends here; one that disagrees with
+      // the answer is read again, as only a read says which is the newer (#499).
+      const answered = [...message.entities, ...(read?.result.entities ?? [])]
+      const { kept, again } = model.mutations.applied.has(message.requestId)
+        ? { kept: model.kept, again: [] }
+        : Option.match(capabilities.live, {
+            onNone: () => ({ kept: model.kept, again: [] }),
+            onSome: live =>
+              live.settleKept(
+                model.kept,
+                model.entities,
+                message.requestId,
+                answered,
+                settled.state.pending,
+                message.now,
+              ),
+          })
+      const next: RemoteModel = {
         ...model,
         entities:
           read === undefined
             ? settled.store
             : writeRead(settled.store, read.requests, read.result, message.now),
         echoes,
+        kept,
         mutations: settled.state,
         outbox: heardAs(
           model,
@@ -2195,6 +2228,7 @@ const reduceRemote = (
           ),
         ]),
       }
+      return askedAgain(capabilities, next, again)
     }
     case 'MutationQueued':
     case 'OutboxMoved':
@@ -2236,9 +2270,16 @@ const reduceRemote = (
         ? model
         : { ...model, optimistic }
     }
-    case 'MutationFailed':
+    case 'MutationFailed': {
+      const mutations = failMutation(
+        model.mutations,
+        message.requestId,
+        message.error,
+        message.operation,
+      )
       return {
         ...model,
+        kept: mutations.pending.size === 0 ? noKept : model.kept,
         // Only a write in flight fails: a repeated failure moves nothing on.
         outbox: !model.mutations.pending.has(message.requestId)
           ? model.outbox
@@ -2254,14 +2295,10 @@ const reduceRemote = (
                 delayed: Option.none(),
               }),
             ),
-        mutations: failMutation(
-          model.mutations,
-          message.requestId,
-          message.error,
-          message.operation,
-        ),
+        mutations,
         optimistic: layersIn(capabilities).settleFailure(model.optimistic, message.requestId),
       }
+    }
     case 'LiveReceived': {
       if (askedBeforeForget(model, message.generation)) return model
       const state = model.live[message.stream] ?? emptyLiveState
@@ -2271,21 +2308,28 @@ const reduceRemote = (
           now: message.now,
           stream: message.stream,
           echoes: model.echoes,
+          kept: model.kept,
+          pending: model.mutations.pending,
         })
         if (applied.outcome === 'gap') return broke(model, message.stream, Option.none())
         // A value the server sent is newer than any failure to fetch it.
         const settled =
           applied.outcome !== 'applied'
             ? []
-            : event._tag === 'EntityPatched'
-              ? [...patchedMarks([{ ...event.ref, values: applied.written }])]
-              : entityFailureMarks(model.failures, entityKey(event.ref.entity, event.ref.id))
+            : Match.valueTags(event, {
+                EntityPatched: patched => [
+                  ...patchedMarks([{ ...patched.ref, values: applied.written }]),
+                ],
+                EntityDeleted: deleted =>
+                  entityFailureMarks(model.failures, entityKey(deleted.ref.entity, deleted.ref.id)),
+              })
         const next = {
           ...model,
           entities: applied.store,
           live: withLiveState(model.live, message.stream, applied.state),
           failures: withoutFieldFailures(model.failures, settled),
           echoes: applied.echoes,
+          kept: applied.kept,
         }
         if (applied.outcome !== 'applied') return next
         // What it contradicted is read again: a read asked now says which is

@@ -105,7 +105,7 @@ export const RoutePage = slots(
       L.in('layouts', Layout.stack({ gap: t.space.xs })),
       U.m('0'),
       U.color('text.muted'),
-      { paddingLeft: t.space.lg },
+      { paddingInlineStart: t.space.lg },
     ],
     tip: { listStyle: 'disc' },
     loading: [

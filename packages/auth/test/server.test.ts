@@ -11,16 +11,27 @@ import { AuthContract, Auth, Http, Password, Sessions } from '@yielded/auth'
 import * as PasswordScrypt from '@yielded/auth/PasswordScrypt'
 import * as Testing from '@yielded/auth-persistence/Testing'
 import { NodeHttpServer } from '@effect/platform-node'
-import { Context, Effect, Exit, Layer, Option, Redacted, Schema, Scope } from 'effect'
+import {
+  Context,
+  Effect,
+  Exit,
+  Layer,
+  ManagedRuntime,
+  Option,
+  Redacted,
+  Schema,
+  Scope,
+} from 'effect'
 import { Digest, Kdf, SecureRandom } from 'effect/crypto'
 import { HttpRouter } from 'effect/http'
 import { Entity } from 'foldkit-entity'
-import { REMOTE_PROTOCOL_VERSION, RemoteUnauthenticated } from 'foldkit-remote'
+import { REMOTE_PROTOCOL_VERSION, RemoteClient, RemoteUnauthenticated } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
-import { serveFetch } from 'foldkit-remote-server/fetch'
+import { pageReader, serveFetch } from 'foldkit-remote-server/fetch'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   AuthServer,
+  type AuthHost,
   type HttpOptions,
   type SessionVerifier,
   type VerifiedSession,
@@ -31,12 +42,12 @@ const AuthApi = AuthContract.make('test/Auth', {
   claims: Schema.Struct({ displayName: Schema.String }),
   actions: sessions => ({ signIn: AuthContract.passwordSignIn(sessions) }),
 })
+
 const App = Auth.make(AuthApi, {
   sessions: Sessions.stateful({ idleTimeout: '10 minutes', maxAge: '1 hour' }),
   strategies: { password: Password.make() },
   defaultStrategy: 'password',
 })
-const http = { origin: 'https://app.test' } as const
 
 /** Who a request was answered as: the Source reads its principal back. */
 const Whoami = Entity.define('Whoami', Schema.Struct({ id: Schema.String, who: Schema.String }))
@@ -56,8 +67,20 @@ const server = RemoteServer.make<Option.Option<{ readonly id: string }>>({
   ],
 })
 
-/** Who may sign in, and the store sessions live in: one, built once, shared below. */
-// Yielded's `Testing.services` hashes with Argon2id, which Node has only from 24.7.
+/** A Remote read of who is asking, as the page's script sends it. */
+const askWho = {
+  operation: 'read',
+  payload: {
+    version: REMOTE_PROTOCOL_VERSION,
+    requests: [{ entity: 'Whoami', id: 'me', fields: ['who'] }],
+  },
+} as const
+
+const accounts = {
+  ada: { email: 'ada@example.invalid', password: 'pw pw pw' },
+  grace: { email: 'grace@example.invalid', password: 'grace pw pw' },
+} as const
+
 const hashing = Password.PasswordHashing.layer(Password.defaultScryptPasswordHashingConfig).pipe(
   Layer.provide(
     Layer.mergeAll(PasswordScrypt.layer, Password.KdfAdmission.layer(), Kdf.layerWebCrypto),
@@ -65,14 +88,17 @@ const hashing = Password.PasswordHashing.layer(Password.defaultScryptPasswordHas
   Layer.provideMerge(Layer.merge(SecureRandom.layerWebCrypto, Digest.layerWebCrypto)),
 )
 
+/** What `App.layer` stands on: who may sign in, and the store sessions live in. */
 const dependencies = Layer.mergeAll(
   Layer.succeed(App.strategies.password.SessionClaims, {
     resolve: () => Effect.succeed({ displayName: 'Ada' }),
   }),
   Testing.layer(App, {
-    subjects: [
-      { subjectId: 'ada', email: 'ada@example.invalid', password: Redacted.make('pw pw pw') },
-    ],
+    subjects: Object.entries(accounts).map(([subjectId, { email, password }]) => ({
+      subjectId,
+      email,
+      password: Redacted.make(password),
+    })),
     requirement: Sessions.AuthenticationRequirement.make({
       alternatives: [
         {
@@ -86,6 +112,8 @@ const dependencies = Layer.mergeAll(
     }),
   }),
 ).pipe(Layer.provideMerge(hashing), Layer.orDie)
+
+const http = { origin: 'https://app.test' } as const
 
 let services: Context.Context<Layer.Success<typeof dependencies>>
 let scope: Scope.Closeable
@@ -124,7 +152,7 @@ const signIn = async (): Promise<string> => {
         'x-effect-auth-csrf': '1',
         'content-type': 'application/json',
       },
-      body: JSON.stringify({ payload: { email: 'ada@example.invalid', password: 'pw pw pw' } }),
+      body: JSON.stringify({ payload: accounts.ada }),
     }),
   )
   expect(response.status).toBe(200)
@@ -155,13 +183,7 @@ const whoami = async (headers: Record<string, string>) => {
     new Request('https://app.test/remote', {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...headers },
-      body: JSON.stringify({
-        operation: 'read',
-        payload: {
-          version: REMOTE_PROTOCOL_VERSION,
-          requests: [{ entity: 'Whoami', id: 'me', fields: ['who'] }],
-        },
-      }),
+      body: JSON.stringify(askWho),
     }),
     undefined,
   )
@@ -524,13 +546,7 @@ describe('AuthServer.answered and believing, end to end', () => {
           ...fromApplication,
           ...Option.match(cookie, { onNone: () => ({}), onSome: cookie => ({ cookie }) }),
         },
-        body: JSON.stringify({
-          operation: 'read',
-          payload: {
-            version: REMOTE_PROTOCOL_VERSION,
-            requests: [{ entity: 'Whoami', id: 'me', fields: ['who'] }],
-          },
-        }),
+        body: JSON.stringify(askWho),
       })
       .then(async response => ({
         status: response.status,
@@ -675,5 +691,232 @@ describe('believing', () => {
       new Request('https://app.test/remote', { headers: { 'x-effect-auth-csrf': '1' } }),
     )
     expect(seen).toEqual(['1'])
+  })
+})
+
+/**
+ * `AuthServer.host`: one Yielded application's routes and the two resolvers
+ * that read its cookie. A reader signs in through the routes; `/remote`
+ * (`serveFetch` with `scripted`) reads the cookie only from the page's own
+ * script, and a page render (`pageReader` with `navigation`) reads it from a
+ * navigation, from anywhere, and never writes. Both ask who the session is
+ * on every request. Requests are built here, never sent: Node's `fetch`,
+ * which overwrites `Sec-Fetch-Mode`, is not involved.
+ */
+describe('AuthServer.host', () => {
+  const origin = 'https://app.test'
+  // A cookie of its own name: the routes must set the one the resolvers read.
+  const http = { origin, cookie: { prefix: '__Host-notes-' } } as const
+  const fromThePage = { origin, 'x-effect-auth-csrf': '1' }
+
+  type Reader = { readonly id: string }
+
+  /** Whose sessions the principal was asked for, in order. */
+  const asked: Array<string> = []
+
+  const runtime = ManagedRuntime.make(App.layer.pipe(Layer.provideMerge(dependencies)))
+  let host: AuthHost<Reader, never>
+  let remote: (request: Request, env: unknown) => Promise<Response>
+  let read: ReturnType<typeof pageReader<Option.Option<Reader>, never, unknown>>
+
+  beforeAll(async () => {
+    host = AuthServer.host({
+      auth: App,
+      http,
+      services: await runtime.context(),
+      principal: session =>
+        Effect.sync((): Reader => {
+          asked.push(session.subjectId)
+          return { id: session.subjectId }
+        }),
+      // Not the subject id, so a check by the subject id instead would refuse.
+      key: user => `reader:${user.id}`,
+    })
+    remote = serveFetch({ server, layer: () => Layer.empty, ...host.scripted })
+    read = pageReader({ server, layer: () => Layer.empty, ...host.navigation })
+  })
+
+  afterAll(async () => {
+    await host.dispose()
+    await runtime.dispose()
+  })
+
+  const authPost = (path: string, cookie?: string, body: unknown = {}) =>
+    host.routes(
+      new Request(`${origin}/auth/${path}`, {
+        method: 'POST',
+        headers: {
+          ...fromThePage,
+          'content-type': 'application/json',
+          ...(cookie === undefined ? {} : { cookie }),
+        },
+        body: JSON.stringify(body),
+      }),
+    )
+
+  /**
+   * Signs in through the host's routes; the session cookie they set, `name=value`,
+   * whatever its name, which a test of its own checks.
+   */
+  const signIn = async (who: keyof typeof accounts): Promise<string> => {
+    const response = await authPost('signIn', undefined, { payload: accounts[who] })
+    expect(response.status).toBe(200)
+    const cookie = response.headers.getSetCookie().find(each => each.includes('-session='))
+    if (cookie === undefined) throw new Error(`${who} signed in with no session cookie`)
+    return cookie.split(';')[0]!
+  }
+
+  let ada: string
+  let grace: string
+  beforeAll(async () => {
+    ada = await signIn('ada')
+    grace = await signIn('grace')
+  })
+
+  /** `/remote` asked who is asking, as `headers` say. */
+  const whoami = async (headers: Record<string, string>) => {
+    const response = await remote(
+      new Request(`${origin}/remote`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...headers },
+        body: JSON.stringify(askWho),
+      }),
+      undefined,
+    )
+    const body = (await response.json()) as {
+      readonly result?: {
+        readonly entities: ReadonlyArray<{ readonly values: { readonly who: string } }>
+      }
+      readonly unauthenticated?: { readonly reason?: string }
+    }
+    return response.status === 200
+      ? {
+          status: 200,
+          who: body.result!.entities[0]!.values.who,
+          said: response.headers.get(SUBJECT_HEADER),
+        }
+      : { status: response.status, reason: body.unauthenticated?.reason }
+  }
+
+  /** A page render's read of who is asking, through the reader of a request with `headers`. */
+  const pageWho = (headers: Record<string, string>, method = 'GET') =>
+    Effect.runPromise(
+      Effect.flatMap(RemoteClient, client => client.read(askWho.payload)).pipe(
+        Effect.map(answer => ({ who: answer.entities[0]?.values['who'] })),
+        Effect.provide(read(new Request(`${origin}/notes`, { method, headers }), undefined)),
+        Effect.catchTag('Unauthenticated', refusal => Effect.succeed({ refused: refusal.reason })),
+      ),
+    )
+
+  /** What a browser sends navigating to a page from a link on another site: no Origin, no header of a script's. */
+  const navigation = { 'sec-fetch-mode': 'navigate', 'sec-fetch-site': 'cross-site' }
+
+  const notFromHere = 'The request did not show it came from this application.'
+
+  describe('/remote, with scripted', () => {
+    it('signs in through its routes with the cookie its `http` names', () => {
+      expect(ada.startsWith('__Host-notes-session=')).toBe(true)
+    })
+
+    it('reads the cookie its routes set as each reader, asking per request', async () => {
+      asked.length = 0
+      expect(await whoami({ ...fromThePage, cookie: ada })).toMatchObject({
+        status: 200,
+        who: 'ada',
+      })
+      expect(await whoami({ ...fromThePage, cookie: grace })).toMatchObject({
+        status: 200,
+        who: 'grace',
+      })
+      expect(await whoami({ ...fromThePage, cookie: ada })).toMatchObject({
+        status: 200,
+        who: 'ada',
+      })
+      expect(asked).toEqual(['ada', 'grace', 'ada'])
+    })
+
+    it('says whom it answered, and compares what the client believes, by the key', async () => {
+      const said = subjectSaid(Option.some('reader:ada'))
+      expect(await whoami({ ...fromThePage, cookie: ada })).toMatchObject({ said })
+      expect(await whoami({ ...fromThePage, cookie: ada, [SUBJECT_HEADER]: said })).toMatchObject({
+        who: 'ada',
+      })
+    })
+
+    it.each([
+      ['no CSRF header', { origin }],
+      ['an Origin it does not trust', { ...fromThePage, origin: 'https://elsewhere.test' }],
+      ['no Origin, from another site', { ...navigation, 'x-effect-auth-csrf': '1' }],
+    ])('refuses the cookie of a request with %s', async (_, headers) => {
+      expect(await whoami({ ...headers, cookie: ada })).toEqual({
+        status: 401,
+        reason: notFromHere,
+      })
+    })
+  })
+
+  describe('a page render, with navigation', () => {
+    it('reads the cookie of a navigation from another site as the reader', async () => {
+      expect(await pageWho({ ...navigation, cookie: ada })).toEqual({ who: 'ada' })
+      expect(await pageWho({ ...navigation, cookie: grace })).toEqual({ who: 'grace' })
+    })
+
+    it.each([
+      ['a POST, even from the page itself', 'POST', fromThePage],
+      ['a script’s fetch', 'GET', { ...fromThePage, 'sec-fetch-mode': 'cors' }],
+      ['a WebSocket upgrade', 'GET', { origin, upgrade: 'websocket' }],
+    ])('refuses the cookie of %s', async (_, method, headers) => {
+      expect(await pageWho({ ...headers, cookie: ada }, method)).toEqual({ refused: notFromHere })
+    })
+
+    it('writes nothing, as the reader it names', async () => {
+      const write = Effect.flatMap(RemoteClient, client =>
+        client.mutate({ requestId: 'page:1', mutation: 'Anything', input: {} }),
+      )
+      const refused = await Effect.runPromise(
+        Effect.flip(
+          write.pipe(
+            Effect.provide(
+              read(
+                new Request(`${origin}/notes`, { headers: { ...navigation, cookie: ada } }),
+                undefined,
+              ),
+            ),
+          ),
+        ),
+      )
+      expect(refused).toMatchObject({
+        _tag: 'RemoteMutationError',
+        message: 'A page render reads; it does not write',
+      })
+    })
+  })
+
+  describe('both', () => {
+    it('refuses a session its routes signed out, on /remote and on a page', async () => {
+      const leaving = await signIn('grace')
+      expect(await whoami({ ...fromThePage, cookie: leaving })).toMatchObject({ who: 'grace' })
+      expect((await authPost('signOut', leaving)).status).toBe(200)
+      expect(await whoami({ ...fromThePage, cookie: leaving })).toEqual({
+        status: 401,
+        reason: 'Your session ended.',
+      })
+      expect(await pageWho({ ...navigation, cookie: leaving })).toEqual({
+        refused: 'Your session ended.',
+      })
+    })
+
+    it('throws for OAuth options, whose callbacks it does not mount', async () => {
+      const services = await runtime.context()
+      const oauth = { ...http, oauth: { providers: {} } }
+      expect(() =>
+        AuthServer.host({
+          auth: App,
+          http: oauth,
+          services,
+          principal: () => Effect.succeed('ada'),
+        }),
+      ).toThrow('mounts no OAuth callbacks')
+    })
   })
 })

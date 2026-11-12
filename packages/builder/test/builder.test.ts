@@ -139,7 +139,10 @@ describe('the Builder, headless', () => {
     expect(typed.page.present.nodes[heading]?.props).toEqual({ text: 'Hey' })
     const undone = send(typed, Message.Undid())
     expect(undone.page.present).toBe(withHeading.page.present)
-    expect(send(undone, Message.Redid()).page.present).toBe(typed.page.present)
+    expect(undone.announcer.pending?.message).toBe('Undone')
+    const redone = send(undone, Message.Redid())
+    expect(redone.page.present).toBe(typed.page.present)
+    expect(redone.announcer.pending?.message).toBe('Redone')
   })
 
   it('reorders, duplicates and deletes the selected node', () => {
@@ -441,6 +444,17 @@ describe('the keyboard, the layers and the announcer', () => {
     expect(focused.selected).toEqual(Option.some(first))
     expect(focused.layers.current).toBe(first)
     const stray = send(model, Layers.wrapper.make(TreeNavigation.Message.Focused({ id: 'gone' })))
+    expect(stray.selected).toEqual(model.selected)
+  })
+
+  it('makes a pressed row current and selected, keeping the panel, and ignores a stray one', () => {
+    const { model, first } = twoSections()
+    const layers = { ...model, panel: 'layers' as const }
+    const pressed = send(layers, Message.RowPressed({ id: first }))
+    expect(pressed.selected).toEqual(Option.some(first))
+    expect(pressed.layers.current).toBe(first)
+    expect(pressed.panel).toBe('layers')
+    const stray = send(layers, Message.RowPressed({ id: NodeId.make('gone') }))
     expect(stray.selected).toEqual(model.selected)
   })
 
@@ -793,6 +807,12 @@ describe('dragging a node', () => {
     expect(dropped.announcer.pending?.message).toBe('Not moved')
   })
 
+  it('shuts an open row when its expander is pressed, and opens it again', () => {
+    const shut = send(page, Message.RowToggled({ id: id('s1') }))
+    expect(shut.layers.toggled).toEqual([id('s1')])
+    expect(send(shut, Message.RowToggled({ id: id('s1') })).layers.toggled).toEqual([])
+  })
+
   it('opens the rows above a node selected from elsewhere, so the tree shows it', () => {
     const closed = send(page, Layers.wrapper.make(TreeNavigation.Message.Closed({ id: id('s1') })))
     expect(closed.layers.toggled).toEqual([id('s1')])
@@ -976,8 +996,12 @@ describe('copy, cut and paste', () => {
         ),
       }),
     )
-    // The refusal is said, and nothing is minted.
-    expect((result.commands ?? []).map(command => command.name)).toEqual(['PageBuilder.announce'])
+    // The refusal is said, assertively, and nothing is minted: the one Command is the announcer's.
+    expect(result.model.announcer.pending).toEqual({
+      message: 'There is no place on this page for a Heading',
+      politeness: 'assertive',
+    })
+    expect((result.commands ?? []).map(command => command.name)).toEqual(['LiveAnnounce.read'])
     expect(some(result.model.refused, 'a refusal')).toEqual({
       code: 'builder:no-place',
       message: 'There is no place on this page for a Heading',

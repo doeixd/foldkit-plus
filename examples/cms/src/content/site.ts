@@ -17,12 +17,14 @@ import { PAGE_CONTAINER, Renderer } from 'foldkit-composition/foldkit'
 import { QueryBlock } from 'foldkit-composition/remote'
 import { Entity, type Selected } from 'foldkit-entity'
 import { Input } from 'foldkit-form'
+import { RemoteData } from 'foldkit-remote'
 import { ImageAsset, Layout as MediaLayout } from 'foldkit-media'
 import { Capability, Layers, Slot, SlotView, Slots, Style } from 'foldkit-mixins'
 import { Empty, Failure, Loading } from 'foldkit-mixins-crud'
 import { BuilderView } from 'foldkit-mixins-builder'
 import { Layout } from 'foldkit-mixins/layout'
 import { Theme } from 'foldkit-mixins/theme'
+import { Utilities } from 'foldkit-mixins/utilities'
 import { Prose } from 'foldkit-mixins/prose'
 import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -640,7 +642,7 @@ const PostsLook = Appearance.make(PostsSlots, {
       root: Layout.stack({ gap: t.space.md }),
       heading: Style.self({ fontFamily: t.font.heading, fontSize: t.size.xl, margin: '0' }),
       // Said as a status, never as busy-forever: a failed read is an alert.
-      status: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Loading.shown),
+      status: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Utilities.busyReveal),
       list: Style.self({
         display: 'grid',
         gap: t.space.lg,
@@ -808,7 +810,7 @@ const FeaturedLook = Appearance.make(FeaturedSlots, {
       excerpt: Style.self({ color: t.text.muted, margin: '0' }),
       link: Style.self({ color: t.accent.ink, fontWeight: t.weight.semibold }),
       // Said as a status, never as busy-forever: a failed read is an alert.
-      status: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Loading.shown),
+      status: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Utilities.busyReveal),
     },
   }),
 })
@@ -845,7 +847,7 @@ const LatestPagesLook = Appearance.make(LatestPagesSlots, {
   recipe: Style.recipeFor(LatestPagesSlots)({
     base: {
       // Said as a status, never as busy-forever: a failed read is an alert.
-      status: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Loading.shown),
+      status: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Utilities.busyReveal),
     },
   }),
 })
@@ -981,15 +983,21 @@ export const SiteRenderer = Renderer.make(Site, {
   PostList: ({ props, data, appearance, h }) => {
     const drawn = PostsLook.draw({ appearance, h })
     const rows = PostList.rows(data)
+    const listed = (page: { readonly items: ReadonlyArray<PostCard> }) =>
+      page.items.length === 0
+        ? [Empty.view(drawn.status, h, 'Nothing is published yet.')]
+        : [postCards(h, drawn, page.items)]
+    const loading = () => [Loading.view(drawn.status, h, 'Loading posts…')]
     return h.section(drawn.root.attrs(), [
       ...(props.heading === '' ? [] : [h.h2(drawn.heading.attrs(), [props.heading])]),
-      ...(rows._tag === 'Ready' || rows._tag === 'Refreshing'
-        ? rows.value.items.length === 0
-          ? [Empty.view(drawn.status, h, 'Nothing is published yet.')]
-          : [postCards(h, drawn, rows.value.items)]
-        : rows._tag === 'Failed'
-          ? [Failure.view(drawn.status, h, 'The posts could not be read.')]
-          : [Loading.view(drawn.status, h, 'Loading posts…')]),
+      ...RemoteData.match(rows, {
+        Ready: listed,
+        Refreshing: listed,
+        Failed: () => [Failure.view(drawn.status, h, 'The posts could not be read.')],
+        Initial: loading,
+        Loading: loading,
+        NotFound: loading,
+      }),
     ])
   },
   FeaturedPost: ({ props, data, appearance, h }) => {
@@ -997,8 +1005,8 @@ export const SiteRenderer = Renderer.make(Site, {
     const rows = FeaturedPost.rows(data)
     // No post chosen is nothing to show, not something still arriving.
     if (Option.isNone(props.post)) return Empty.view(drawn.status, h, 'Choose a post to feature.')
-    if (rows._tag === 'Ready' || rows._tag === 'Refreshing') {
-      const found = Arr.head(rows.value.items)
+    const featured = (page: { readonly items: ReadonlyArray<PostCard> }) => {
+      const found = Arr.head(page.items)
       if (Option.isNone(found)) return Empty.view(drawn.status, h, 'That post is not published.')
       const post = found.value
       return h.article(drawn.root.attrs(), [
@@ -1011,31 +1019,46 @@ export const SiteRenderer = Renderer.make(Site, {
         ]),
       ])
     }
-    // A failed read is an alert, never busy-forever.
-    return rows._tag === 'Failed'
-      ? Failure.view(drawn.status, h, 'The featured post could not be read.')
-      : Loading.view(drawn.status, h, 'Loading the post…')
+    const loading = () => Loading.view(drawn.status, h, 'Loading the post…')
+    return RemoteData.match(rows, {
+      Ready: featured,
+      Refreshing: featured,
+      // A failed read is an alert, never busy-forever.
+      Failed: () => Failure.view(drawn.status, h, 'The featured post could not be read.'),
+      Initial: loading,
+      Loading: loading,
+      NotFound: loading,
+    })
   },
   LatestPages: ({ props, data, appearance, h }) => {
     const drawn = LatestPagesLook.draw({ appearance, h })
     const rows = LatestPages.rows(data)
-    if (rows._tag !== 'Ready' && rows._tag !== 'Refreshing')
+    const listed = (page: {
+      readonly items: ReadonlyArray<{ readonly id: string; readonly label: string }>
+    }) => {
+      const items = page.items
+        .filter(item => !Option.contains(props.except, item.id))
+        .slice(0, props.count)
+      // Nothing to leave out of is empty; a list left with nothing by `except`
+      // draws nothing, as it did: every page that carries this list leaves out
+      // the page it is on.
+      if (items.length === 0 && page.items.length === 0)
+        return Empty.view(drawn.status, h, 'Nothing yet.')
+      return h.ul(
+        [],
+        items.map(item => h.li([], [item.label])),
+      )
+    }
+    const loading = () => Loading.view(drawn.status, h, 'Loading pages…')
+    return RemoteData.match(rows, {
+      Ready: listed,
+      Refreshing: listed,
       // A failed read is an alert, never busy-forever.
-      return rows._tag === 'Failed'
-        ? Failure.view(drawn.status, h, 'The pages could not be read.')
-        : Loading.view(drawn.status, h, 'Loading pages…')
-    const items = rows.value.items
-      .filter(item => !Option.contains(props.except, item.id))
-      .slice(0, props.count)
-    // Nothing to leave out of is empty; a list left with nothing by `except`
-    // draws nothing, as it did: every page that carries this list leaves out
-    // the page it is on.
-    if (items.length === 0 && rows.value.items.length === 0)
-      return Empty.view(drawn.status, h, 'Nothing yet.')
-    return h.ul(
-      [],
-      items.map(item => h.li([], [item.label])),
-    )
+      Failed: () => Failure.view(drawn.status, h, 'The pages could not be read.'),
+      Initial: loading,
+      Loading: loading,
+      NotFound: loading,
+    })
   },
 })
 

@@ -164,6 +164,7 @@ export const transition = (properties: string): Declarations => ({
  * left landed a quarter off (a shut row's chevron pointed up).
  */
 export const cornerSides = (width: string, color: string): Declarations => ({
+  // physical: a drawn mark, see above
   borderRight: `${width} solid ${color}`,
   borderBottom: `${width} solid ${color}`,
 })
@@ -223,11 +224,13 @@ export const turningChevron = (open: string, size: string): StyleValue =>
  * points, so the chevron moves the other way by as much and the tip stays on
  * the words' line. Down and up are the same right to left. It never shrinks:
  * a phone's row squeezed one to its borders alone, which the turn drew as a
- * slanted tick.
+ * slanted tick. With `part` (`'::after'`), the chevron is that pseudo-element
+ * of `&`, for a trigger with no element of its own to hold it.
  */
-export const triggerChevron = (open: string, size: string): StyleValue =>
+export const triggerChevron = (open: string, size: string, part = ''): StyleValue =>
   Style.compose(
-    Style.self({
+    Style.nest(`&${part}`, {
+      ...(part === '' ? {} : { content: '""' }),
       flex: 'none',
       inlineSize: size,
       blockSize: size,
@@ -238,7 +241,7 @@ export const triggerChevron = (open: string, size: string): StyleValue =>
       transitionDuration: travelled(ref.motion.fast),
       transitionTimingFunction: ref.motion.settle,
     }),
-    Style.nest(open, { rotate: '225deg', marginBlockStart: '0.2em' }),
+    Style.nest(`${open}${part}`, { rotate: '225deg', marginBlockStart: '0.2em' }),
   )
 
 /**

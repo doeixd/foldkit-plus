@@ -305,8 +305,13 @@ const given = (value: unknown): Option.Option<unknown> => {
 const fieldAt = (input: EntityInput<AnyEntity, any, any>, key: string, role: string): AnyField => {
   const member = own(membersOf(input), key)
   if (member === undefined) return fail(input, `${role} "${key}" is not a key of the input`)
-  if (member._tag !== 'Field') return fail(input, `${role} "${key}" is not mapped to a field`)
-  return member
+  const unmapped = () => fail(input, `${role} "${key}" is not mapped to a field`)
+  return Match.valueTags(member, {
+    Field: field => field,
+    Unmapped: unmapped,
+    RelationInput: unmapped,
+    NestedInput: unmapped,
+  })
 }
 
 /**
@@ -479,7 +484,10 @@ const walked = <E, R>(
           }
         }
         const end = yield* read(at, path.field.key)
-        return end._tag === 'Unheld' ? end : Held.of(end.value ?? null)
+        return Held.match(end, {
+          onHeld: value => Held.of(value ?? null),
+          onUnheld: () => end,
+        })
       }),
   })
 
@@ -652,7 +660,9 @@ const computationOf = (
     // `Next` is refused where an assignment is declared.
     case 'Field':
     case 'Next':
-      return Computation.Field({ key: expr._tag === 'Field' ? expr.key : expr.field.key })
+      return Computation.Field({
+        key: Match.valueTags(expr, { Field: ({ key }) => key, Next: ({ field }) => field.key }),
+      })
     case 'Literal':
       return Computation.Value({ value: expr.value })
     case 'Input':
@@ -872,26 +882,38 @@ export const Write = {
       const links: Record<string, Option.Option<EntityRef>> = {}
       const unfilled: Array<string> = []
       for (const { member, value } of write.context) {
-        const comes: Option.Option<unknown> =
-          value._tag === 'ViewerPath'
-            ? Held.match(yield* walked(value, by, read), {
-                onHeld: held => Option.some(held),
+        const comes: Option.Option<unknown> = yield* Match.value(value).pipe(
+          Match.tag('ViewerPath', path =>
+            Effect.map(walked(path, by, read), held =>
+              Held.match(held, {
+                onHeld: some => Option.some(some),
                 onUnheld: () => Option.none(),
-              })
-            : contextValue(value, by)
+              }),
+            ),
+          ),
+          Match.orElse(other => Effect.succeed(contextValue(other, by))),
+        )
         if (Option.isNone(comes)) {
           unfilled.push(member.key)
-        } else if (member._tag === 'Relation') {
-          // `Entity.sets` points a relation only at the viewer of its target.
-          const id = comes.value
-          if (id !== null)
-            put(links, member.key, Option.some({ entity: member.target().name, id: String(id) }))
-          else if (member.optional) put(links, member.key, Option.none())
-          else unfilled.push(member.key)
-        } else if (comes.value !== null || holdsNull(member)) {
-          put(values, member.key, comes.value)
         } else {
-          unfilled.push(member.key)
+          const given = comes.value
+          Match.valueTags(member, {
+            // `Entity.sets` points a relation only at the viewer of its target.
+            Relation: relation => {
+              if (given !== null)
+                put(
+                  links,
+                  relation.key,
+                  Option.some({ entity: relation.target().name, id: String(given) }),
+                )
+              else if (relation.optional) put(links, relation.key, Option.none())
+              else unfilled.push(relation.key)
+            },
+            Field: field => {
+              if (given !== null || holdsNull(field)) put(values, field.key, given)
+              else unfilled.push(field.key)
+            },
+          })
         }
       }
       return { values, links, unfilled }
@@ -900,11 +922,11 @@ export const Write = {
   /** The Entities a write's paths from the viewer read, by name: what a server must have a source of. */
   contextReads: (write: AnyWrite): ReadonlyArray<string> => [
     ...new Set(
-      write.context.flatMap(({ value }) =>
-        value._tag === 'ViewerPath'
-          ? [value.viewer.entity.name, ...value.via.map(relation => relation.target().name)]
-          : [],
-      ),
+      write.context.flatMap(({ value }) => {
+        if (value._tag !== 'ViewerPath') return []
+        const { viewer, via } = value
+        return [viewer.entity.name, ...via.map(relation => relation.target().name)]
+      }),
     ),
   ],
 

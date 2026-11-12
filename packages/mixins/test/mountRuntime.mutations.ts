@@ -27,8 +27,8 @@ export default [
       },
       {
         file,
-        find: "import { Cause, Option, Stream } from 'effect'",
-        replace: "import { Cause, Effect, Option, Stream } from 'effect'",
+        find: "import { Cause, Match, Option, Stream } from 'effect'",
+        replace: "import { Cause, Effect, Match, Option, Stream } from 'effect'",
       },
     ],
     tests,

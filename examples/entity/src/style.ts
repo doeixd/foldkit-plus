@@ -45,7 +45,7 @@ export const Page = demoStyle.slots(
     hint: Style.self({ margin: '0', color: t.text.muted }),
     side: L.in('layouts', Layout.stack({ gap: t.space.sm })),
     // The shipped button's look, on an element of the page's own that keeps its id.
-    remove: Recipes.Button({ tone: 'danger', variant: 'outline' }).button ?? Style.empty,
+    remove: Recipes.Button({ tone: 'danger', variant: 'outline' }).button,
   },
   { name: 'Page' },
 )

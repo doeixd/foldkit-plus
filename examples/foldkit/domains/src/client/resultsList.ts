@@ -1,4 +1,4 @@
-import { Array, Option, Record, Schema, pipe } from 'effect'
+import { Array, Match, Option, Record, Schema, pipe } from 'effect'
 
 import { VirtualList } from '@foldkit/ui'
 
@@ -105,10 +105,10 @@ export const findFirstPendingListingInViewport = (
     offsetPx,
   }))
 
-  const viewportHeightPx =
-    resultsList.measurement._tag === 'Measured'
-      ? resultsList.measurement.containerHeight
-      : RESULTS_GROUP_HEIGHT_PX
+  const viewportHeightPx = Match.value(resultsList.measurement).pipe(
+    Match.tag('Measured', ({ containerHeight }) => containerHeight),
+    Match.orElse(() => RESULTS_GROUP_HEIGHT_PX),
+  )
   const overscanHeightPx =
     estimateResultGroupHeightPx(resultsList) * RESULTS_OVERSCAN_GROUPS
   const viewportStartPx = resultsList.scrollTop - overscanHeightPx

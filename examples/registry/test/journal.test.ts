@@ -4,7 +4,14 @@
  * table keeps the value it had.
  */
 import { Effect } from 'effect'
-import { DocumentId, ReplicaId, Sequence, Sync, type Operation, type Storage } from 'foldkit-sync'
+import {
+  DocumentId,
+  ReplicaId,
+  Sequence,
+  Sync,
+  type Storage,
+  type WrittenOperation,
+} from 'foldkit-sync'
 import { expect, test } from 'vitest'
 import { Message } from '../src/app.js'
 import { type ProductChange, ProductId } from '../src/domain.js'
@@ -36,7 +43,7 @@ test('an operation whose price breaks the Product’s rules is refused, and noth
     ),
   )
   // The operation as the replica sends it, held back.
-  let sent: ReadonlyArray<Operation> = []
+  let sent: ReadonlyArray<WrittenOperation> = []
   await Effect.runPromise(
     replica.synchronize.pipe(
       Effect.provide(

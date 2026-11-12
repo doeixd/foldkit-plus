@@ -47,6 +47,8 @@ import {
   ComboboxSlots,
   DatePickerSlots,
   DialogSlots,
+  DisclosureSlots,
+  FieldsetSlots,
   FileDropSlots,
   InputSlots,
   ListboxSlots,
@@ -219,6 +221,8 @@ const allPieces = [
   ...selections(Recipes.Checkbox.def.variants).map(selection => Recipes.Checkbox(selection)),
   ...selections(Recipes.Switch.def.variants).map(selection => Recipes.Switch(selection)),
   ...selections(Recipes.Dialog.def.variants).map(selection => Recipes.Dialog(selection)),
+  ...selections(Recipes.Disclosure.def.variants).map(selection => Recipes.Disclosure(selection)),
+  ...selections(Recipes.Fieldset.def.variants).map(selection => Recipes.Fieldset(selection)),
   ...selections(Recipes.Tabs.def.variants).map(selection => Recipes.Tabs(selection)),
   ...selections(Recipes.Segmented.def.variants).map(selection => Recipes.Segmented(selection)),
   ...selections(Recipes.Menu.def.variants).map(selection => Recipes.Menu(selection)),
@@ -379,6 +383,12 @@ const compiled = {
   ),
   Toast: selections(Recipes.Toast.def.variants).map(
     selection => Style.forSlots(ToastSlots)(Recipes.Toast(selection)).css,
+  ),
+  Disclosure: selections(Recipes.Disclosure.def.variants).map(
+    selection => Style.forSlots(DisclosureSlots)(Recipes.Disclosure(selection)).css,
+  ),
+  Fieldset: selections(Recipes.Fieldset.def.variants).map(
+    selection => Style.forSlots(FieldsetSlots)(Recipes.Fieldset(selection)).css,
   ),
   FileDrop: selections(Recipes.FileDrop.def.variants).map(
     selection => Style.forSlots(FileDropSlots)(Recipes.FileDrop(selection)).css,

@@ -7,6 +7,18 @@ kernel, Layers, Theme, Layout, Recipes) and
 one question: how much of `foldkit-mixins` means something off the web, and
 what would it take to make that part real without weakening the web path.
 
+> **Update 2026-11-10.** §4's Option A (codegen hosts: React Native through
+> `foldkit-react-codegen`) is an interop route for an application that
+> already has a React Native host. It is not this repository's portability
+> architecture: it keeps a JavaScript runtime, and its tag mapping (`div`
+> to `View`) is what #148 and
+> [foldkit-renderer-independence-PLAN.md](./foldkit-renderer-independence-PLAN.md)
+> refuse for a portable view. Native targets, GPUI (#149) included, are
+> parked: see
+> [376-433-148-149-renderer-DESIGN.md](./376-433-148-149-renderer-DESIGN.md),
+> decisions 6 to 8. The sections before §4, on which parts of Style and
+> Behavior mean something off the web, stand.
+
 ## The claim, and its limit
 
 The idea that makes Mixins work is a portable one. A view publishes typed

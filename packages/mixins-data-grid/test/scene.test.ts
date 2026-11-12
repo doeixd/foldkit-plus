@@ -2,7 +2,7 @@
  * A page holding the grid, in Scene: the grid starts three Mounts, each
  * answering when it starts, and `resolveMounts` resolves them with what the
  * runtime sends; a resize handle holds no Mount of its own. An editor, a
- * choice's list and a column's menu each start Mounts as they open, which
+ * choice's list, a column's menu and its filter form each start Mounts as they open, which
  * `resolveOpened` resolves. The conformance suite
  * (`packages/plus/test/conformance.test.ts`) holds Scene's drawing to the
  * runtime's.
@@ -168,4 +168,78 @@ test('a column menu opens in Scene and closes with Escape', () => {
     closed('menu'),
   )
   expect(seen.slice(3)).toEqual(['MenuOpened', 'MountStarted', 'MenuClosed'])
+})
+
+test('a filter form opens in Scene from its header, its focus resolved as the runtime answers it', () => {
+  const filtering = Columns.define<Item>()({
+    name: { header: 'Name', value: item => item.name, width: 100, filter: true },
+  })
+  const Filtered = DataGrid.make({ id: 'filtered', columns: filtering })
+  const Placed = Bundle.declare(Filtered.bundle, 'grid')
+  const PageModel = Schema.Struct({ ...Placed.fields, filters: Filtered.Filters })
+  type PageModel = typeof PageModel.Type
+  const PageMessage = defineMessageUnion({ ...Placed.cases })
+  type PageMessage = typeof PageMessage.Type
+  const filteredApplication = Bundle.assemble<PageModel, PageMessage>()([
+    Bundle.parent({ Model: PageModel, Message: PageMessage }).at(Placed, {
+      onOut: out => model => ({
+        model: Filtered.Out.match(out, {
+          Filtered: ({ change }) => ({
+            ...model,
+            filters: Filtered.setFilter(model.filters, change),
+          }),
+          Edited: () => model,
+          Pasted: () => model,
+          UndoRequested: () => model,
+          RedoRequested: () => model,
+          Filled: () => model,
+          RowsRequested: () => model,
+        }),
+      }),
+    }),
+  ])
+  const filteredUpdate = filteredApplication.update()
+  const placedWrap = (message: typeof Filtered.Message.Type) => Placed.wrapper.make(message)
+  const FilteredView = DataGridView<PageMessage>().define(Filtered)
+  const field = Scene.role('textbox')
+  Scene.scene(
+    {
+      update: filteredUpdate,
+      view: (model: PageModel, h: HtmlBuilder<PageMessage>) =>
+        FilteredView(
+          {
+            state: model.grid,
+            rows,
+            wrap: placedWrap,
+            label: 'Items',
+            rowHeight: 20,
+            headerHeight: 20,
+            filters: model.filters,
+          },
+          h,
+        ),
+    },
+    Scene.given(filteredApplication.initial({ filters: Filtered.noFilters }).model),
+    Scene.Mount.resolveAll(
+      ...DataGridView<PageMessage>().resolveMounts(Filtered, {
+        wrap: placedWrap,
+        viewport: { top: 0, left: 0, width: 400, height: 100 },
+      }),
+    ),
+    Scene.keydown(Scene.role('grid'), 'ArrowUp'),
+    Scene.keydown(Scene.role('grid'), 'ArrowDown', { altKey: true }),
+    Scene.Mount.expectExact({ name: 'DataGridHoldFocus' }),
+    Scene.Mount.resolveAll(
+      ...DataGridView<PageMessage>().resolveOpened(Filtered, {
+        wrap: placedWrap,
+        opened: 'filter',
+      }),
+    ),
+    Scene.type(field, 'bolt'),
+    Scene.expect(Scene.role('dialog', { name: 'Filter Name' })).toExist(),
+    // The form's own Escape: a key in a field bubbles to it.
+    Scene.keydown(Scene.role('dialog'), 'Escape'),
+    Scene.expect(Scene.role('dialog')).toBeAbsent(),
+    Scene.Mount.expectEnded({ name: 'DataGridHoldFocus' }),
+  )
 })

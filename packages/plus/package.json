@@ -228,6 +228,11 @@
       "types": "./dist/guard/media.d.mts",
       "import": "./dist/guard/media.mjs"
     },
+    "./host": {
+      "foldkit-plus:source": "./src/host.ts",
+      "types": "./dist/host.d.mts",
+      "import": "./dist/host.mjs"
+    },
     "./media": {
       "foldkit-plus:source": "./src/media.ts",
       "types": "./dist/media.d.mts",
@@ -598,6 +603,11 @@
       "types": "./dist/ssr/client.d.mts",
       "import": "./dist/ssr/client.mjs"
     },
+    "./ssr/loader": {
+      "foldkit-plus:source": "./src/ssr/loader.ts",
+      "types": "./dist/ssr/loader.d.mts",
+      "import": "./dist/ssr/loader.mjs"
+    },
     "./ssr/vite": {
       "foldkit-plus:source": "./src/ssr/vite.ts",
       "types": "./dist/ssr/vite.d.mts",
@@ -661,6 +671,7 @@
     "foldkit-form": "workspace:*",
     "foldkit-form-recipes": "workspace:*",
     "foldkit-guard": "workspace:*",
+    "foldkit-host": "workspace:*",
     "foldkit-media": "workspace:*",
     "foldkit-metadata": "workspace:*",
     "foldkit-mirror": "workspace:*",

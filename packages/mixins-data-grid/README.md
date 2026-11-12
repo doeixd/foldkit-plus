@@ -177,6 +177,20 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   screen, its list open at once where the browser allows (`showPicker`).
   One that decodes to a number is a text field with a decimal keypad on
   touch; anything else is text (`editor`).
+- **A checkbox**, for a column whose schema decodes to a boolean
+  (`Columns.checkbox`): the cell holds a `role="checkbox"` (the `checkbox`
+  slot) whose `aria-checked` is the column's value and whose name is the
+  column's header, in place of the cell's text (and of `cell`). A plain press
+  on the box, or Space or Enter on the focused cell, sends `EditToggled`, and
+  no field opens; Space toggles here rather than selecting the row. A press
+  with Shift, Ctrl, Meta or Alt is the cell's, as on any cell, and so is a
+  press on a `role="checkbox"` an application draws with `cell`: only the
+  grid's own box toggles. Focus stays on the grid, so the box is never a tab
+  stop; while its cell is the focused one, `aria-activedescendant` names the
+  box rather than the cell, since the cell has no checked state to say. A
+  checkbox cell has no `data-editable` (no text cursor) and no double-click
+  edit. `GridStyle` draws a box the size of the text, filled with the accent
+  and ticked when checked.
 - **Editing**, for a column with `edit`: Enter, F2 or a double-click opens a
   text field in the cell on its text, and a printable key opens it on that
   character (`EditTyped`); keys typed before the field is drawn add to it,
@@ -205,7 +219,11 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
 - **Where the rows stand**, from `status` (`GridCrud.status` for a Remote
   page): the grid is `aria-busy` while loading or refreshing; with no rows
   it says loading, or the failure with a retry when `onRetry` is given; with
-  rows, a failure is said in the `footer`, below them. `onMore` puts a More
+  rows, a failure is said in the `footer`, below them. `GridStyle` shows the
+  loading line only once the wait is noticeable (`Utilities.busyReveal` from
+  `foldkit-mixins/utilities`), its space held. While there are no rows and no
+  answer (loading, or failed with nothing kept), `aria-rowcount` is `-1`, the
+  count not known, rather than an empty grid's. `onMore` puts a More
   button in the footer while the count is not known. Attach `MoreOnScroll`
   (`DataGridView<Message>().define(Grid).pipe(MoreOnScroll)`) and the button
   also sends it when it comes within 200px of the grid's visible box, and
@@ -215,8 +233,9 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
 - **The column menu**, with `columnMenu: true`: each header has a button
   (`menuButton`, `aria-haspopup="menu"`) that opens a `role="menu"` below
   it, listing `Grid.menuItems`: pin to the start or the end or unpin, hide,
-  and show each hidden column. On a focused header Alt+ArrowDown, Shift+F10
-  or the menu key opens it. The menu takes focus and points at its active
+  and show each hidden column. On a focused header Shift+F10 or the menu key
+  opens it, and Alt+ArrowDown on a column that does not filter (on one that
+  does, Alt+ArrowDown opens its filter). The menu takes focus and points at its active
   item with `aria-activedescendant`; the arrows, Home and End walk it, Enter
   or Space or a click runs an item, and Escape, a choice, or focus leaving
   closes it, focus going back to the grid unless the user sent it
@@ -244,6 +263,34 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   unsorted, so sorting moves nothing, and a header label never wraps. Enter
   on the focused header sends it too. `GridStyle` parts columns with a faint
   line, which on a header is the resize handle, darker under the pointer.
+- **Filters** are the application's, as sorting is: a column with
+  `filter` (`foldkit-data-grid`) needs `filters`, the application's
+  `Grid.Filters` value, and a grid with none refuses it (`FiltersInput`).
+  Each such header draws a `filterButton` (`aria-haspopup="dialog"`, named
+  "Filter {column}", out of the tab order), and Alt+ArrowDown on the focused
+  header opens the same form, advertised as the header's
+  `aria-keyshortcuts`. The form is a `filter` Slot, a non-modal
+  `role="dialog"` in the header cell, holding native fields for the column's
+  kind: a text field ("Contains"), two bounds ("At least", "At most", typed
+  with a decimal keypad), a choice's checkboxes in a `role="group"`, a
+  checkbox column's radios (Any, Checked, Unchecked) in a
+  `role="radiogroup"`, or two days ("From", "To"). Its first field takes
+  focus; it applies as it is typed, with no Apply button; a bound that is no
+  number, or an upper bound below the lower, is `aria-invalid` and described
+  by a `filterError`; `filterClear` empties it while a filter holds. Escape
+  closes it, focus going back to the grid on its header, and so does focus
+  leaving the header; a press on the filter button while it is open stays
+  inside and closes it. While a column is filtered its header and button
+  carry `data-filtered`, and the header says "Filtered" as its
+  `aria-description` ("Read-only, Filtered" on a column that does not edit,
+  whose title's description it replaces). Every header is named by its own words
+  (`aria-label`), so neither its buttons nor an open form join its name.
+  While the form is open the grid's clipboard handlers are off, so copy, cut
+  and paste in its fields are the fields' own. The words are `words.filters`; the Slots are
+  `filterButton`, `filter`, `filterLabel`, `filterField`, `filterGroup`,
+  `filterCheck`, `filterError` and `filterClear`, styled by `GridStyle`.
+  Like the menu, the form is drawn inside the grid's scroll box, so a grid
+  too short to hold it clips it.
 - **Pinned columns** stick to their edge with `position: sticky` and carry
   `data-pinned="start"` or `"end"`; the pinned column next to the scrolling
   ones also carries `data-pinned-edge`, header and cells, where `GridStyle`

@@ -661,6 +661,11 @@ Foldkit's own behaviour that we work around is listed in
   upstream does. Test such a key by its `defaultPrevented` and poll where the
   page lands: reading the offset straight after the press failed on CI, where
   the Command ran frames later.
+- **A press on server-drawn markup before hydration is lost.** The auth
+  e2e saw "Signed in as grace", which the server draws, pressed Sign out once,
+  and the click did nothing while the entry still loaded (one run in six). Draw
+  such controls with `Resume.builder`, `KeepTyped` on fields, and an entry that
+  is `foldkit-ssr/loader`, which holds the press for `SSR.hydrate` (`examples/auth`).
 - **Foldkit warns of a hydration mismatch only in development.** Its
   warning is gated on `import.meta.hot`, which a Vite build strips, so a
   production e2e that listens for "server DOM did not match" passes whatever
@@ -892,6 +897,12 @@ Foldkit's own behaviour that we work around is listed in
   behind `Resource.lazy`, since the entry imported `domain.ts` for `Me`. Move
   what only a lazy chunk and the server need into a module of its own, and
   check which modules a chunk holds (`split.test.ts`), not only its size.
+- **A namespace object (`Sync.forApplication`) keeps every member's module.**
+  The cloudflare Worker read `Sync.forApplication` and carried Sync's client
+  mount, sockets, presence and IndexedDB, 492 kB raw, until it imported
+  `forApplication` by name. A server imports the one function it calls, and a
+  budget that creeps up should be compared module by module in fresh builds
+  of both commits before its ceiling is raised.
 - **A constant from `foldkit/experimental/server` brings the server along.**
   `client.ts` imported `FOLDKIT_APP_ATTRIBUTE` from it, and the browser bundle
   grew by the server renderer and its HTML parser (700 KB to 880 KB); so does
@@ -1015,6 +1026,13 @@ Foldkit's own behaviour that we work around is listed in
   test simulating a browser navigation with it is refused by a navigation
   resolver. Send such requests through `node:http`, as
   `examples/reference/test/worker.test.ts` does.
+- **An Effect RPC request's headers override its connection's.** `RpcServer`
+  puts the connection's headers before each request's (`rpc/RpcServer.js:875`
+  over HTTP, `:1153` over a WebSocket) and `Headers.fromInput` keeps the
+  last, so a request body or frame can claim another `origin`, `cookie` or
+  CSRF header. Decide the principal from the real request in front of the
+  route, never from an `RpcMiddleware`'s `headers` (Sync's §14.3 prototype
+  pins it; no shipped server here reads them, ac62e3d3).
 - **A browser `WebSocket` sends no header of yours.** Its constructor takes
   a URL and subprotocols only, so a CSRF header (`x-effect-auth-csrf`) that
   every Remote POST carries never reaches a Sync upgrade; a resolver asking
@@ -1349,6 +1367,12 @@ of its own named a form field "fits the Catalog". Read words with
 - **`tsc -p` in a project with references reads the stale `.d.ts`.** It checks
   one project against whatever the referenced packages last emitted, so it
   passes code that the change it depends on broke. Use `tsc -b`.
+
+- **A check keyed by a builder's tag misses the generic builders.** The
+  resolver refused a protected `aria-label` given as `h.AriaLabel`, but
+  compared tags, so `h.Attribute('aria-label', …)`, `DataAttribute` and `Prop`
+  passed, and `OnCustomEvent('click')` slipped past a protected `click`
+  (c00a90c1, 5442e938). Compare the name a contribution actually sets.
 
 - **Capability names can be object prototype keys.** `__proto__` passes name
   validation but assigning it to `{}` loses the registry entry. Use a `Map` or
@@ -1712,6 +1736,17 @@ of its own named a form field "fits the Catalog". Read words with
   longer restored the text, a commit made an empty undo step, and a second
   ask restarted the session. For state held across transitions, test each
   transition that can land in the middle.
+- **Enter submits through a button the last frame drew enabled.** A natively
+  `disabled` default button made the browser drop Enter, so the crud editor
+  test, pressing it right after `fill` and before the frame that enables the
+  submit button, saw no submit and timed out waiting for `aria-busy` (once in
+  a full run); a user who pastes and presses Enter does the same. The form's
+  button is now `aria-disabled`, never `disabled`, and `update` decides from the
+  Model, so such an Enter is accepted once the Model is valid and refused
+  visibly (every key marked) when not. Hold `requestAnimationFrame` across the
+  fill to test it (`submitKeys.browser.test.ts`); a button of your own with
+  `h.Disabled` still drops the key. Playwright refuses to click an
+  `aria-disabled` element: press it with `focus()` and `click()`.
 - **Keys faster than a frame meet the last frame's view.** Typing on the grid
   opened an editor, but keys sent before it was drawn and focused reached
   the grid, whose drawn state still said "not editing", so each restarted the
@@ -2287,6 +2322,10 @@ of its own named a form field "fits the Catalog". Read words with
   capture `OLD=$(git rev-parse HEAD)` once, build from `read-tree "$OLD"`, and
   pass the same `$OLD` to `update-ref`; then check `git diff --stat $OLD
   <new>` names only your files.
+- **`git commit-tree` does not sign unless told to.** `commit.gpgsign` applies
+  to `git commit` only, so every temporary-index commit went out unsigned and
+  GitHub shows it Unverified (5fce21a5, 8a46cd79, 4675986b and more). Pass
+  `-S`: `git commit-tree -S -p "$OLD" -m … "$TREE"`.
 - **A new file committed through a temporary index needs `--add` in the real
   one.** `git update-index --cacheinfo` refuses a path the real index lacks;
   without `--add` it shows the file as a staged deletion plus an untracked

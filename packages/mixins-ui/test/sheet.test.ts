@@ -8,6 +8,7 @@ import { Option } from 'effect'
 import { Style } from 'foldkit-mixins'
 import { describe, expect, it } from 'vitest'
 import { DialogSlots } from '../src/dialog.js'
+import { Dialog as DialogRecipe } from '../src/recipes/dialog.js'
 import { Sheet as SheetRecipe } from '../src/recipes/sheet.js'
 import * as Sheet from '../src/sheet.js'
 import * as Animation from '@foldkit/ui/animation'
@@ -204,6 +205,20 @@ describe('dragged', () => {
 })
 
 describe('the recipe', () => {
+  const titleRules = (
+    recipe: typeof SheetRecipe | typeof DialogRecipe,
+    title: 'shown' | 'hidden',
+  ) =>
+    Style.forSlots(DialogSlots)(recipe({ title })).css.match(/@layer variants\{[^}]*clip:[^}]*\}/g)
+
+  it.each([
+    ['Sheet', SheetRecipe],
+    ['Dialog', DialogRecipe],
+  ])('%s hides its title for a screen reader alone, in the variants layer', (_, recipe) => {
+    expect(titleRules(recipe, 'hidden')).toHaveLength(1)
+    expect(titleRules(recipe, 'shown')).toBeNull()
+  })
+
   it('writes no shorthand that the sorted rule would put after its longhands', () => {
     expect(css).not.toMatch(/@layer variants\{[^}]*(border-width|border-radius):/)
   })

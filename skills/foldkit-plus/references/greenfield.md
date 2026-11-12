@@ -17,8 +17,9 @@ so a later session (or another agent) picks up where this one stopped.
 
 Two whole applications show where the phases lead; read them before phase 5.
 [`examples/chirp`](https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp)
-is a small Twitter clone with one file per package: the domain in
-`src/domain.ts`, the guards in `src/guard.ts`, the server in
+is a small Twitter clone with one file per package: a post's Entity in
+`src/domain.ts`, its guard in `src/guard.ts` and its writes in
+`src/operations.ts`, the server in
 `src/server/server.ts`, Remote and the outbox in `src/app.ts`, the forms in
 `src/compose.ts` and `src/editor.ts`, the routes in `src/site.ts`, the look
 in `src/style.ts`. [`examples/reference`](https://github.com/doeixd/foldkit-plus/tree/main/examples/reference)
@@ -322,7 +323,8 @@ error model and one Schema reach from `alchemy.run.ts` to the browser.
   provide the database (`foldkit-remote-drizzle`'s Effect SQL) and `Auth`,
   built from the Worker's `env` (its bindings and secrets), with typed
   failures and `Schema` at every boundary. The Worker entry is one composed
-  `fetch` (`src/worker.ts`), not a set of ad-hoc handlers.
+  `fetch` (`src/worker.ts`, ordered by `foldkit-host`'s `Host.routes`), not a
+  set of ad-hoc handlers.
 - **Yielded Auth handles sign-in.** `AuthContract`, `Auth.make` and
   `Http.layer` give the account routes and the session cookie.
   `foldkit-auth`'s `AuthServer.resolver` turns that session into the
@@ -409,8 +411,9 @@ migrations_dir = "migrations"
   The scripts: `"build": "vite build && tsx src/bundle.ts"` (a file that
   awaits `writeDeployBundle()`) and `"dev": "tsx src/dev.ts"` (starts the
   stack and `stack.watch(…)`s it).
-- **Migrations.** Numbered SQL files in `migrations/`, written from the code
-  rather than by hand: the tables' `checkConstraints`, a `revisionTrigger`
+- **Migrations.** Numbered SQL files in `migrations/`, one statement per line
+  (Wrangler splits statements itself; the line is what the test below compares),
+  written from the code rather than by hand: the tables' `checkConstraints`, a `revisionTrigger`
   where a guarded writer pins a revision, `rowChangeLog` for `pollLive`, the
   writer's ledger table, and Yielded's tables from its storage schema. A test
   holds each file to what the code returns (`examples/reference`'s

@@ -14,7 +14,7 @@
  *   `/me` answers who the request's session cookie is: both over D1, for the
  *   page at `AUTH_ORIGIN` (`auth.ts`, `authRoutes.ts`).
  */
-import { Effect, Layer, Option } from 'effect'
+import { Effect, Layer } from 'effect'
 import { DurableObject } from 'cloudflare:workers'
 import type {
   D1Database,
@@ -34,6 +34,7 @@ import {
 import { serveFetch, uploadPolicyBearer } from 'foldkit-media/server'
 import { defineDocumentHost } from 'foldkit-sync/do'
 import { serveFetch as serveRemote } from 'foldkit-remote-server/fetch'
+import { Host } from 'foldkit-plus/host'
 import { authOf } from './authRoutes.js'
 import { databaseFrom, makeServer, openTodosJournal, settleTodos, Todos } from './schema.js'
 
@@ -87,26 +88,18 @@ export class SyncHost extends defineDocumentHost(DurableObject, {
 
 /**
  * Auth, built on the first request that asks for it and kept for the
- * isolate's life. A build that failed is forgotten, so the next request
- * tries again rather than failing for good.
+ * isolate's life, per D1 binding: a reload hands the Worker a new one.
  */
-let auth: Option.Option<ReturnType<typeof authOf>> = Option.none()
-
-const authFor = (db: D1Database, origin: string) =>
-  Option.getOrElse(auth, () => {
-    const building = authOf(db, origin)
-    auth = Option.some(building)
-    building.catch(() => {
-      auth = Option.none()
-    })
-    return building
-  })
+const authFor = Host.isolate(
+  (env: { readonly DB: D1Database; readonly AUTH_ORIGIN: string }) => env.DB,
+  env => authOf(env.DB, env.AUTH_ORIGIN),
+)
 
 /** Yielded's routes and `/me`, or a 404 where no page origin is set. */
 const answerAuth = async (request: Request, env: WorkerEnv, pathname: string) => {
   if (env.AUTH_ORIGIN === undefined)
     return new Response('Auth is off: set AUTH_ORIGIN.', { status: 404 })
-  const routes = await authFor(env.DB, env.AUTH_ORIGIN)
+  const routes = await authFor({ DB: env.DB, AUTH_ORIGIN: env.AUTH_ORIGIN })
   return pathname === '/me' ? routes.me(request) : routes.auth(request)
 }
 

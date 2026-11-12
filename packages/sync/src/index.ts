@@ -13,6 +13,7 @@
 import { indexedDb, tabStorage } from './indexedDb.js'
 import { lwwRegister, openLwwClock } from './lww.js'
 import { forApplication } from './make.js'
+import { migrations } from './migrations.js'
 import { fact, mount } from './mount.js'
 import {
   createPresence,
@@ -48,6 +49,8 @@ export const Sync = {
   forApplication,
   /** The protocol primitive, for a client with no Foldkit application to derive from. */
   define: defineSync,
+  /** Starts a document's Message history: `Sync.migrations(V1).next(V2, up)`. */
+  migrations,
   /** Runs a Foldkit application over an open replica with one reducer. */
   mount,
   /** A Command whose Message the mount applies within the transition that returned it. */
@@ -106,7 +109,9 @@ export type {
   ListenerFailed,
   ListenerSite,
   SyncDiagnostic,
+  UnknownRefusal,
 } from './diagnostics.js'
+export { SyncRefusal } from './refusal.js'
 export {
   indexedDb,
   tabStorage,
@@ -131,6 +136,7 @@ export {
   type AuthorizeRequest,
   type DefinedSync,
   type FragmentMessages,
+  type HistoryOption,
   type MakeOptions,
   type MsgOf,
   type PolicyJournalContract,
@@ -160,11 +166,15 @@ export {
   ReplayError,
   ReplicaClosedError,
   StorageError,
+  UnreadableHistoryError,
+  UnreadableMessageError,
   UnsupportedClockVersionError,
+  UnsupportedMessageVersionError,
   UnsupportedReplicaVersionError,
   WrongReplicaStorageError,
   type ReplicaError,
 } from './errors.js'
+export { migrations, type Migrations } from './migrations.js'
 export { lwwRegister, openLwwClock, type LwwClock, type LwwClockState } from './lww.js'
 export {
   createPresence,
@@ -206,6 +216,7 @@ export {
   type CommittedOperation,
   type Exchange,
   type JournalContract,
+  type MessageHistory,
   type OpenReplicaOptions,
   type Operation,
   type Rejection,
@@ -214,5 +225,7 @@ export {
   type ReplicaState,
   type ReplicaStatus,
   type SyncDefinition,
+  type SyncDefinitionOptions,
   type TransportClient,
+  type WrittenOperation,
 } from './sync.js'

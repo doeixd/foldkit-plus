@@ -34,9 +34,8 @@ export default [
     edits: [
       {
         file,
-        find: 'Effect.map(config.resolvePrincipal(request, env), principal => {',
-        replace:
-          'Effect.map(config.resolvePrincipal(new Request(request.url), env), principal => {',
+        find: 'Effect.map(resolvePrincipal(request, env), principal => {',
+        replace: 'Effect.map(resolvePrincipal(new Request(request.url), env), principal => {',
       },
     ],
     tests,
@@ -46,8 +45,8 @@ export default [
     edits: [
       {
         file,
-        find: '          maxIdsPerEntity: config.maxIdsPerEntity,\n          maxDepth: config.maxDepth,\n',
-        replace: '',
+        find: 'const limits = { maxIdsPerEntity: config.maxIdsPerEntity, maxDepth: config.maxDepth }',
+        replace: 'const limits = {}',
       },
     ],
     tests,

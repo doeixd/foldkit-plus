@@ -8,7 +8,7 @@
  * identity tells whether the read can change. A render reads every row in
  * view after every Message; most of them changed nothing a row reaches.
  */
-import { Option, Result, Schema } from 'effect'
+import { Match, Option, Result, Schema } from 'effect'
 import { sameData } from './data.js'
 import { recent, type Recent } from './recent.js'
 import { own } from './record.js'
@@ -117,14 +117,28 @@ const unchanged = (store: EntityStore, memo: RowMemo): boolean => {
 
 const sameRead = (left: RowRead<unknown>, right: RowRead<unknown>): boolean => {
   if (left === undefined || right === undefined) return left === right
-  if (left._tag === 'Failed' || right._tag === 'Failed') {
-    if (left._tag !== 'Failed' || right._tag !== 'Failed') return false
-    return (
-      // tag-check: open, a RemoteError's tag is whatever failure a transport reports
-      left.error._tag === right.error._tag && left.error.message === right.error.message
-    )
-  }
-  return left._tag === right._tag && left.value === right.value
+  return Match.valueTags(left, {
+    Failed: failed =>
+      Match.valueTags(right, {
+        Failed: other =>
+          // tag-check: open, a RemoteError's tag is whatever failure a transport reports
+          failed.error._tag === other.error._tag && failed.error.message === other.error.message,
+        Ready: () => false,
+        Refreshing: () => false,
+      }),
+    Ready: ready =>
+      Match.valueTags(right, {
+        Ready: other => ready.value === other.value,
+        Refreshing: () => false,
+        Failed: () => false,
+      }),
+    Refreshing: refreshing =>
+      Match.valueTags(right, {
+        Refreshing: other => refreshing.value === other.value,
+        Ready: () => false,
+        Failed: () => false,
+      }),
+  })
 }
 
 /** `known` when it was decoded from data equal to `values`. */

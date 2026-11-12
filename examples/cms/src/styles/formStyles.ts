@@ -192,7 +192,7 @@ export const PageFormStyle = Style.forSlots(FormSlots)(
       }),
       Style.media('(max-width: 52rem)', { gridTemplateColumns: 'minmax(0, 1fr)' }),
     ),
-    errors: Style.compose(form.errors ?? Style.empty, Style.self({ gridColumn: '1 / -1' })),
+    errors: Style.compose(form.errors, Style.self({ gridColumn: '1 / -1' })),
   },
   { name: 'PageFormStyle', layer: app },
 )

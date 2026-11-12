@@ -119,6 +119,20 @@ export const RemoteData = {
       NotFound: () => true,
     }),
 
+  /**
+   * The value the read holds, if any: `Ready`'s, `Refreshing`'s, or the last
+   * one a failed refresh kept (`Failed`'s `previous`).
+   */
+  held: <A>(data: RemoteData<A>): Option.Option<A> =>
+    RemoteData.match(data, {
+      Initial: Option.none,
+      Loading: Option.none,
+      Ready: Option.some,
+      Refreshing: Option.some,
+      Failed: (_, previous) => previous,
+      NotFound: Option.none,
+    }),
+
   /** Exhaustive: omitting a state is a compile error. */
   match: <A, R>(
     data: RemoteData<A>,

@@ -5,6 +5,7 @@ import { Entity } from 'foldkit-entity'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
+import { Utilities } from 'foldkit-mixins/utilities'
 import { Query, Remote } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { expectTypeOf } from 'vitest'
@@ -110,7 +111,7 @@ export const statuses = (slots: StatusSlots, h: HtmlBuilder<Message>): Html => {
   const loading = Loading.view(slots.status, h, 'Loading…')
   const empty = Empty.view(slots.status, h, 'Nothing yet.')
   const failure = Failure.view(slots.status, h, 'The pages could not be read.')
-  const styled = Style.forSlots(StatusSlots)({ status: Loading.shown })
+  const styled = Style.forSlots(StatusSlots)({ status: Utilities.busyReveal })
   void styled
   return h.div([], [loading, empty, failure])
 }

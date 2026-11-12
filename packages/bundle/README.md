@@ -426,6 +426,58 @@ const ClicksPlaced = CounterPage.at(Clicks, {
 ClicksPlaced.helpers.reset(0) // an Update.Step of the parent
 ```
 
+A helper that needs the args, as `update` does, is given in a function of
+them. Each placement calls that function with the args it holds, so two
+placements of one bundle fill to their own limits:
+
+```ts
+const Filling = Bundle.make('Filling', {
+  Model: CounterModel,
+  Message: CounterMessage,
+  args: Schema.Struct({ limit: Schema.Number }),
+  init: () => ({ model: { count: 0 } }),
+  update: model => ({ model }),
+  helpers: ({ limit }) => ({
+    fill: (model: CounterModel) => ({ model: { ...model, count: limit } }),
+  }),
+})
+
+// A parent folding the child itself, with no placement, reads either form:
+Bundle.helpersOf(Filling, { limit: 3 }).fill({ count: 0 }) // { model: { count: 3 } }
+```
+
+A placement reads them through the args it retains, so its derived args must
+be resolved first, as for `update`. A preset (`with`) binds them.
+
+### A parent's decision is its own Message and a helper
+
+A parent's view sends the parent's own Message, saying what happened in its
+terms; its `update` applies the decision through the child's helper. It does
+not build the child's Message (`wrapper.make(Child.Message.X(...))`) in the
+view: the fact is the parent's, and a helper such as a tree's `toggle` reads
+what it needs from the child's own state, which the view would have to guess
+from a drawing. `@foldkit/oxlint-plugin`'s `no-child-message-construction-in-root`
+reports the other shape.
+
+```ts
+const ResetMessage = defineMessageUnion({ ...Clicks.cases, ClickedReset: {} })
+const ResetPage = Bundle.parent({
+  Model: Schema.Struct({ ...Clicks.fields }),
+  Message: ResetMessage,
+})
+const ResetClicks = ResetPage.at(Clicks, { args: { limit: 10 }, onOut: Bundle.ignore })
+const resetting = ResetPage.assemble(ResetClicks)
+
+// The view sends ResetMessage.ClickedReset(); its only own Message lands here.
+const updateResetting = resetting.update((model, _clickedReset) => ResetClicks.helpers.reset(0)(model))
+```
+
+The child's own Messages still reach it through the wrapper, from the view the
+child draws and the Behaviors it attaches; a test or a demo that stands in for
+a person may send them too. `follow`, below, is the exception: the Messages it
+replays are the owner's answer to its own ask, built at the one boundary that
+knows both.
+
 - **`args`** is required when the bundle takes them, and checked against the
   args Schema when placed (or when a preset is made with `with`); a value that
   bypassed the types throws naming the placement.
@@ -953,8 +1005,14 @@ and returns one Command, which loads them and yields the same Message again,
 so nothing is lost and the Model ends where an eager bundle's would; the view
 renders `while`, or nothing. `Upload.load()` loads them ahead of time, once,
 and `Upload.isLoaded()` says whether they have. A load that fails is
-forgotten, so the next Message or `load()` tries again. Placed, extended or
-preset with `with`, the bundle stays lazy.
+forgotten, so the next Message or `load()` tries again: on the Message path
+the failure is logged, no crash view appears, and the page keeps showing
+`while` until a later Message starts the load again. A body that arrives while
+`while` is drawn is drawn at that Message: if the bodies' `update` returns the
+Model it was given, the bundle hands back an equal copy once, since Foldkit
+redraws only for a new Model. A `load()` that finishes with no Message at all
+(a prefetch) draws at the bundle's next Message. Placed, extended or preset
+with `with`, the bundle stays lazy.
 
 A Message that arrives before the bodies load passes through `update` twice:
 once as the no-op that starts the load, and again when the load re-yields it.
@@ -1206,6 +1264,88 @@ The scope is sugar over these, which remain for code that composes by hand:
 | `placements.route(model, message)` | `update`'s routing, as an `Option` |
 | `placements.init` | every single placement's init, then each wiring's, as one `Update.Step` |
 | `declared.at<Model>()(config)`, `declaredEach.each<Model>()(config)` | a declaration placed without a scope |
+
+## A union Model: a Link per branch
+
+A Link is a lens, and a lens need not be a struct field. When the parent Model
+is itself a union (`LoggedOut | LoggedIn`), each branch is a child that is
+present only while the Model is on it. Write one `Link.make` per branch whose
+`read` answers `Option.none()` on the other branches:
+
+```ts standalone
+import { Match, Option, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { taggedStruct } from 'foldkit/schema'
+import * as Update from 'foldkit/update'
+import { Link } from 'foldkit-bundle'
+
+const LoggedOut = taggedStruct('LoggedOut', { route: Schema.Literals(['Home', 'Login']) })
+const LoggedIn = taggedStruct('LoggedIn', { session: Schema.String, draftName: Schema.String })
+const Model = Schema.Union([LoggedOut, LoggedIn])
+type Model = typeof Model.Type
+
+const LoggedInMessage = defineMessageUnion({ ChangedName: { name: Schema.String } })
+type LoggedInMessage = typeof LoggedInMessage.Type
+
+const Message = defineMessageUnion({
+  SucceededLogin: { session: Schema.String },
+  RequestedLogout: {},
+  GotLoggedInMessage: { message: LoggedInMessage },
+})
+type Message = typeof Message.Type
+
+const loggedIn = Link.make({
+  read: (model: Model) =>
+    Match.value(model).pipe(
+      Match.tagsExhaustive({
+        LoggedOut: () => Option.none(),
+        LoggedIn: branch => Option.some(branch),
+      }),
+    ),
+  write: (_model: Model, branch: typeof LoggedIn.Type): Model => branch,
+  wrapper: Link.wrapper(Message.GotLoggedInMessage),
+  path: [],
+})
+
+const foldLoggedIn = Update.foldChild({
+  ...loggedIn,
+  update: (branch: typeof LoggedIn.Type, message: LoggedInMessage) =>
+    LoggedInMessage.match<Update.Return<typeof LoggedIn.Type, LoggedInMessage>>(message, {
+      ChangedName: ({ name }) => ({ model: { ...branch, draftName: name } }),
+    }),
+})
+
+export const update = (model: Model, message: Message) =>
+  Message.match<Update.Return<Model, Message>>(message, {
+    SucceededLogin: ({ session }) => ({ model: LoggedIn({ session, draftName: '' }) }),
+    RequestedLogout: () => ({ model: LoggedOut({ route: 'Home' }) }),
+    GotLoggedInMessage: ({ message }) => foldLoggedIn(model, message),
+  })
+```
+
+- **Reading and writing happen only while the branch is active.** A
+  `GotLoggedInMessage` that arrives on `LoggedOut` finds `read` empty, and
+  `foldChild` returns the Model it was given, so a late Message from a signed-out
+  page redraws nothing. `write` replaces the whole Model with the branch.
+- **The transition initializes the branch, not the Link.** Login builds the
+  `LoggedIn` Model from values only known then (here the session), and logout
+  returns a fresh `LoggedOut`, which drops the signed-in Model and everything
+  in it. `Link.foldInit` and `placements.initial(rest)` write a child into a
+  field of a struct parent, so they have nothing to do here.
+- **Lifecycle follows the branch.** The Link ignores Messages for an inactive
+  branch; a Subscription that branch needs is declared on the parent and reads
+  the same `Match` over the Model, so it stops when the Model leaves the
+  branch. A `Link.make` whose `path` is empty names no top-level field.
+- **Branch on the union through its match.** `Match.tagsExhaustive` (or the
+  union's own `match`) makes a new variant a type error here; a
+  `model._tag === 'LoggedIn'` ternary would not.
+
+Nothing in this is a helper: it is the same `read`, `write` and
+`toParentMessage` that `Update.foldChild` takes everywhere. The Foldkit
+[auth port](../../examples/foldkit/auth) is this shape in full, with each
+branch's OutMessages folding the login and logout transitions; a helper that
+writes the `read` and `write` is worth adding only once a second adopter
+repeats them.
 
 ## Limits
 

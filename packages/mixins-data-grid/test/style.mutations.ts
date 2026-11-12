@@ -9,4 +9,9 @@ export default [
     edits: [{ file: '../src/style.ts', find: '${ref.icon.lock}', replace: '${ref.icon.info}' }],
     tests: ['packages/mixins-data-grid/test/style.test.ts'],
   },
+  {
+    name: 'the busy status shows at once',
+    edits: [{ file: '../src/style.ts', find: '      Utilities.busyReveal,\n', replace: '' }],
+    tests: ['packages/mixins-data-grid/test/style.test.ts'],
+  },
 ]

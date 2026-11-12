@@ -26,7 +26,9 @@ records and domain mutations.**
 | which cells exist and where they stand | `GridProjection`, derived from the three above |
 
 The grid never sorts, filters or fetches. A sorted result is the order the
-application hands it.
+application hands it. A column can draw a filter control
+([Filtering from a column](#filtering-from-a-column)), but the value it sets is
+the application's, and so is applying it.
 
 Use this package for an interactive grid: keyboard movement between cells,
 ranges, editing. A readable, sortable list of records is
@@ -367,6 +369,57 @@ const repriced = (cell: Extract<Out, { _tag: 'Edited' }>) =>
 - **A click on another cell commits first;** a refused draft keeps the edit
   and the click waits. Hiding the edited column ends the edit.
 
+### Checkboxes
+
+A column whose `schema` decodes to a boolean is `CellEditor.Checkbox`: its
+cells are checkboxes drawn from the column's value, toggled in place, and no
+draft opens. `Columns.checkbox` is that schema for the text `true` and
+`false`, which is what a boolean shows as; any schema from text to a boolean
+works the same way.
+
+```ts
+interface Task {
+  readonly id: string
+  readonly title: string
+  readonly done: boolean
+}
+const tasks = Columns.define<Task>()({
+  title: { header: 'Title', value: task => task.title },
+  done: { header: 'Done', value: task => task.done, edit: { schema: Columns.checkbox } },
+})
+const Tasks = DataGrid.make({ id: 'tasks', columns: tasks })
+
+// In `onOut`, as any edit: the text read back as a boolean.
+const checked = (cell: Extract<typeof Tasks.Out.Type, { _tag: 'Edited' }>) =>
+  Tasks.matchEdit(cell, { done: ({ row, value }) => ({ row, done: value }) })
+```
+
+- **`EditToggled({ cell, checked, by })`** commits the column's text for the
+  other value at once and reports `Out.Edited`, as a commit does; the
+  application writes the row. `cell` is the cell's DOM id and `checked` the
+  value as drawn. The view sends it for a press on the box
+  (`by: Grid.Toggle.Press()`) and for Space or Enter on the cell holding the
+  grid's tab stop (`by: Grid.Toggle.Key({ drawn })`, `drawn` the focus that
+  frame was drawn from). Before anything is focused the tab stop is the
+  first cell, so a keyboard user who tabs in can toggle it at once.
+- **`update` refuses it,** changing nothing, on a cell whose column does not
+  edit or is no checkbox, while an edit is open, and for a key whose `drawn`
+  is no longer the Model's focus: the key's frame was drawn before focus
+  moved, and it would toggle the cell focus left. `EditStarted` and
+  `EditTyped` on a checkbox change nothing.
+- **The value must be a boolean.** The checkbox is drawn from it, so
+  `Columns.define` refuses a column with `Columns.checkbox` whose `value`
+  returns anything else, at the `value`. `GridCrud.columns` refuses a
+  checkbox outright: a listed member's value is its text.
+- **Paste and fill** judge its text by the schema, as on any column: `true`
+  and `false` pass. A cut or Delete leaves a checkbox as it is, since it has
+  no empty value, and clears the other cells in its range.
+- **Every toggle sends the opposite of the value drawn,** so until the
+  application's write of the last one is drawn, each further press or key
+  sends the same value again. Where the row changes only when a server
+  answers, every toggle before the answer asks for the same value, and a
+  second press does not take the first one back.
+
 ## The clipboard
 
 Copy and paste speak the tab-separated text spreadsheets do. `Clipboard` is
@@ -546,8 +599,127 @@ A projection built from a hand-written layout is lenient too: a column the
 layout omits joins the center, an unknown id is dropped, and an id named
 twice keeps its first place.
 
+## Filtering from a column
+
+A column with `filter` draws a filter form on its header
+(`foldkit-mixins-data-grid`). The grid holds only the form while it is open;
+the filter value is the application's, as a sort or a search is, and the
+grid reports each change for the application to store and apply.
+
+```text
+header form (grid) -> Out.Filtered({ change }) -> application Model (filters)
+                                                   -> held rows: Grid.keeps
+                                                   -> Remote: the query's input
+```
+
+```ts
+import { Schema } from 'effect'
+import { CellEditor } from 'foldkit-data-grid'
+
+interface Job {
+  readonly id: string
+  readonly title: string
+  readonly status: 'Open' | 'Done'
+  readonly hours: number
+}
+const Status = Schema.Literals(['Open', 'Done'])
+const jobColumns = Columns.define<Job>()({
+  title: { header: 'Title', value: job => job.title, filter: true },
+  status: { header: 'Status', value: job => job.status, edit: { schema: Status }, filter: true },
+  // Shown as text, filtered as a number: a range.
+  hours: { header: 'Hours', value: job => job.hours.toFixed(1), filter: CellEditor.Number() },
+})
+const JobGrid = DataGrid.make({ id: 'jobs', columns: jobColumns })
+
+// The application's value, stored as `JobGrid.Filters` (`JobGrid.noFilters` to start).
+type JobFilters = typeof JobGrid.Filters.Type
+// In `onOut`: one column's change written in.
+const filtered = (filters: JobFilters, out: typeof JobGrid.Out.Type) =>
+  JobGrid.Out.match(out, {
+    Filtered: ({ change }) => JobGrid.setFilter(filters, change),
+    Edited: () => filters,
+    Pasted: () => filters,
+    UndoRequested: () => filters,
+    RedoRequested: () => filters,
+    Filled: () => filters,
+    RowsRequested: () => filters,
+  })
+// Held rows: what the filters keep, read from each row's own field.
+const shown = (all: ReadonlyArray<Job>, filters: JobFilters) =>
+  all.filter(
+    JobGrid.keeps(filters, {
+      title: job => job.title,
+      status: job => job.status,
+      hours: job => job.hours,
+    }),
+  )
+```
+
+- **`filter: true`** reads the kind from `edit.schema`'s decoded side
+  (`filterKindOf`): a boolean is a checkbox, a `Date` a range of days, a
+  number a range, text literals or a text enum a choice of them, a number
+  enum a number, anything else text (a branded text, a template literal, a
+  mixed enum). A column with no schema filters text; a `CellEditor` names the
+  kind for one that does not edit.
+- **`ColumnFilter`** is the value, one variant per kind: `Contains`,
+  `Range`, `OneOf`, `Is`, `Between`. A filter that keeps every row (empty
+  text, no bound, nothing ticked, any) is reported as none, never an empty
+  variant. Each column's is typed by its spec (`FilterOf`), so
+  `JobGrid.Filters.Type['status']` is `Option<OneOf<'Open' | 'Done'>>`.
+- **`Out.Filtered({ change })`** carries one column's new filter or none;
+  `setFilter` writes it in. Only a grid with a filtering column has this arm,
+  so a grid that filters nothing matches no `Filtered`.
+- **`keeps(filters, read)`** is a predicate over held rows. `read` names
+  each filtering column's own field, typed by its variant, never the text a
+  cell shows: `hours: job => job.hours.toFixed(1)` does not compile.
+  `Contains` folds ASCII case only, as `Expr.contains` does on every backend;
+  a `Between` compares a `Date` by its local day, so a server applying the
+  same filter must store or compare local days too to agree with it. Build it
+  once per filters value: the predicate is a function of the filters alone.
+- **`Filters`** is the stored form: `null` for none, and each column only
+  its own variant, never empty, a choice only of its literals each once,
+  bounds finite numbers or `YYYY-MM-DD` days. A key no filtering column has
+  is refused whatever the decode is given, so a URL or a saved view naming a
+  removed column fails to decode rather than being dropped silently.
+- **Over a Remote list,** the application maps its filters onto the
+  query's input, and the query's body filters what is given
+  (`Expr.whenGiven(input.statuses, statuses => Expr.in(fields.status,
+  statuses))`, `Expr.whenGiven(input.min, min => Expr.gte(fields.cents,
+  min))`), with null for a column not filtered. `examples/registry` filters
+  statuses and prices that way, its prices typed in dollars and rounded inward
+  to cents so the server keeps what the range says.
+
+The form's update:
+
+- **`FilterOpened({ column, drawn })`** opens the form seeded with the
+  application's filter as the view drew it; it is refused for a column that
+  does not filter or is hidden, or a `drawn` its column refuses. Opening
+  focuses the header and closes the menu, as `MenuOpened` does.
+- **A field's change** (`FilterTyped`, `FilterOptionToggled`,
+  `FilterChecked`) is applied to the form as it is now, so keys faster than a
+  frame add up. It is reported when the form reads as a valid filter other
+  than the last reported. A bound that is no number (`1x`, `0x10`, or 309
+  digits, past every finite number) is not reported, so the rows stay
+  filtered by the last filter that held; crossed bounds are reported, and keep
+  nothing.
+- **A filter the application wrote while the form was open** (from a URL, a
+  saved view): the view draws that frame stale, showing the written filter,
+  and every change it sends (Clear included) carries the form's generation
+  when it was drawn. The first such change seeds the form from the written
+  filter before it applies; the reseed and each report move the generation
+  on, so the frame's later changes add to the first rather than seeding
+  again.
+- **While the form is open,** a paste, a fill, an undo and a redo are
+  refused, as during an edit; whatever focuses a cell or opens an edit, the
+  menu or a fill closes the form, and so does hiding its column (a column
+  hidden by a write to the Model closes it on the next Message).
+
 ## Limits
 
 - Not built: a drag across regions to pin a column (the view's column
   menu pins), and more than one cell range.
 - Every row is one height.
+- Filters: one condition per column, all columns joined by "and"; no
+  operators beyond the five (`Contains`, `Range`, `OneOf`, `Is`, `Between`);
+  options are a choice's literals, not read from the data. A hidden column
+  still filters, and its header cannot say so.

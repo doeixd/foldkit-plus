@@ -122,6 +122,10 @@ export const lazy = <
   const { while: placeholder, ...declaration } = spec
   let body: Body<Model, Message, Args, OutMessage, RBody, ViewInputs> | undefined
   let loading: Promise<void> | undefined
+  // Foldkit redraws only for a new Model, so a body that arrives while the
+  // placeholder is drawn must put one in the next update's result. These are
+  // the Models the placeholder drew, per item when a collection shares the bundle.
+  const drawnPlaceholder = new WeakSet<object>()
   // A load that fails is forgotten, so the next Message or `load()` tries again
   // rather than awaiting the same rejection for the rest of the session.
   const start = () =>
@@ -137,11 +141,23 @@ export const lazy = <
   const view = Submodel.defineView<Model, Message, ViewInputs>(((
     ...args: ReadonlyArray<unknown>
   ) => {
+    if (body === undefined && typeof args[0] === 'object' && args[0] !== null) {
+      drawnPlaceholder.add(args[0])
+    }
     const current = (body?.view ?? placeholder) as
       | ((...args: ReadonlyArray<unknown>) => ReturnType<Submodel.View<Model, Message, void>>)
       | undefined
     return current === undefined ? null : current(...args)
   }) as never)
+  // The first update of a Model the placeholder drew, once the body is loaded: if it
+  // returned the Model it was given, hand back an equal copy once, so the
+  // arrival is drawn. Every later no-op returns the Model it was given.
+  const redraw = <Step extends { readonly model: Model }>(step: Step, given: Model): Step => {
+    if (typeof given !== 'object' || given === null || !drawnPlaceholder.delete(given)) return step
+    if (step.model !== given) return step
+    const copy = (Array.isArray(given) ? [...given] : { ...given }) as Model
+    return { ...step, model: copy }
+  }
   const bundle = make({
     ...declaration,
     update: (model, message, args) =>
@@ -151,11 +167,21 @@ export const lazy = <
             commands: [
               {
                 name: `Load${spec.name}`,
-                effect: Effect.promise(start).pipe(Effect.map(() => message)),
+                // A failed load is no crash: Foldkit crashes on any failed
+                // Command, so it is logged and the Command stays pending, with
+                // the Model on `while`; the next Message starts the load again.
+                effect: Effect.tryPromise(start).pipe(
+                  Effect.map(() => message),
+                  Effect.catch(error =>
+                    Effect.logError(`Loading ${spec.name} failed`, error).pipe(
+                      Effect.andThen(Effect.never),
+                    ),
+                  ),
+                ),
               },
             ],
           }
-        : body.update(model, message, args),
+        : redraw(body.update(model, message, args), model),
     view,
   } as MakeSpec<Name, Args, Model, Message, OutMessage, R, R, S, ViewInputs, Resources, Helpers>)
   return { ...bundle, load: start, isLoaded: () => body !== undefined }

@@ -3,12 +3,18 @@
  * across a reload and sent in order by one tab (#247). An entry of its own
  * (#378), so a page with no outbox keeps none of its store, locks or sending.
  */
-import { Clock, Data, Effect, Match, Option, Queue, Result, Schema, Stream } from 'effect'
+import { Clock, Effect, Match, Option, Queue, Result, Schema, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import * as Subscription from 'foldkit/subscription'
 import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
 import type { Wiring } from 'foldkit-surface'
-import { mintOperation, mutateRemote, remoteError, type RemoteClient } from './client.js'
+import {
+  defectAsFailure,
+  mintOperation,
+  mutateRemote,
+  remoteError,
+  type RemoteClient,
+} from './client.js'
 import { remoteMessageSchema, type RemoteMessage, type RemoteModel } from './model.js'
 import type { MutationDescriptor } from './mutationDescriptor.js'
 import {
@@ -30,16 +36,20 @@ import {
   storedChange,
   StoredWrite,
   emptyStoredOutbox,
-  sendable,
   withLock,
   type RetryOptions,
   type StoredOutbox,
 } from './outboxStore.js'
-import { madeAsOf, Queued, signedOwner, type MadeAs, type OutboxState } from './queue.js'
-import { RemotePrincipalChanged } from './wire.js'
-import type { RemoteError } from './remoteData.js'
+import { madeAsOf, Queued, signedKey, type MadeAs, type OutboxState } from './queue.js'
+import { heldFrom } from './outboxStatus.js'
 
 export type { RetryOptions } from './outboxStore.js'
+export {
+  OutboxItemState,
+  outboxStatus,
+  type OutboxItem,
+  type OutboxStatus,
+} from './outboxStatus.js'
 
 /** What `outbox` and `outboxStatus` use of a domain: `Remote.make`'s value is one. */
 export interface OutboxDomain<AppModel> {
@@ -327,14 +337,16 @@ export const outbox = <AppModel>(
           const input = Schema.decodeUnknownSync(mutation.Input)(write.input)
           for (let attempt = 1; ; attempt++) {
             const result = yield* Effect.result(
-              mutateRemote(mutation, input, operation, {
-                keys: write.keys,
-                operation,
-                shown: write.shown,
-                lists: write.lists,
-                now: write.now,
-                principal: expectedOf(write.madeAs),
-              }),
+              defectAsFailure(
+                mutateRemote(mutation, input, operation, {
+                  keys: write.keys,
+                  operation,
+                  shown: write.shown,
+                  lists: write.lists,
+                  now: write.now,
+                  principal: expectedOf(write.madeAs),
+                }),
+              ),
             )
             if (Result.isSuccess(result)) {
               const outcome = result.success
@@ -683,8 +695,10 @@ const operationsIn = (
 ): ReadonlyArray<string> =>
   outbox.queue.flatMap(
     Queued.$match({
-      Readable: ({ write, stored }) =>
-        write.state._tag !== 'Failed' && pick(write, stored) ? [write.operation] : [],
+      Readable: ({ write, stored }) => {
+        if (write.state._tag === 'Failed' || !pick(write, stored)) return []
+        return [write.operation]
+      },
       Unreadable: () => [],
     }),
   )
@@ -697,20 +711,6 @@ const unclaimedIn = (outbox: OutboxState): ReadonlyArray<string> =>
 const heldIn = (outbox: OutboxState): ReadonlyArray<string> =>
   operationsIn(outbox, write => heldFrom(write, outbox))
 
-/**
- * Whether `write` was made for someone other than whom the page heard last:
- * held, not sent, until they are heard again. So is a visitor's or an
- * unstamped one in a queue someone else signed in owns; elsewhere such a
- * write is not held but claimed (`outbox.adopt`).
- */
-const heldFrom = (write: StoredWrite, outbox: OutboxState): boolean =>
-  !sendable(write.madeAs, outbox.principal) &&
-  (write.madeAs?._tag === 'Signed' ||
-    (signedOwner(outbox.owner) &&
-      !Option.exists(Option.flatMap(outbox.principal, signedKey), heard =>
-        Option.contains(Option.flatMap(outbox.owner, signedKey), heard),
-      )))
-
 /** What a write sends as whom it was made for: a key, `null` a visitor, nothing before any answer said. */
 const expectedOf = (madeAs: MadeAs | undefined): string | null | undefined =>
   madeAs === undefined
@@ -718,15 +718,6 @@ const expectedOf = (madeAs: MadeAs | undefined): string | null | undefined =>
     : Match.valueTags(madeAs, {
         Visitor: () => null,
         Signed: ({ key }) => key,
-      })
-
-/** The key a write made for someone is sent with; none for a visitor's, or one queued before any answer said. */
-const signedKey = (madeAs: MadeAs | undefined): Option.Option<string> =>
-  madeAs === undefined
-    ? Option.none()
-    : Match.valueTags(madeAs, {
-        Visitor: () => Option.none(),
-        Signed: ({ key }) => Option.some(key),
       })
 
 /** The outbox's own answers, as another tab announced them: a settled write, and nothing else. */
@@ -738,91 +729,3 @@ const outcomeOf = (data: unknown): Option.Option<RemoteMessage> =>
     ),
     outcome => outcome._tag === 'MutationSucceeded' || outcome._tag === 'MutationFailed',
   )
-
-/** One item of `outboxStatus`. */
-export interface OutboxItem {
-  readonly requestId: string
-  /** The Mutation it names; none where the stored entry names none this version can read. */
-  readonly mutation: Option.Option<string>
-  readonly state: OutboxItemState
-}
-
-export type OutboxItemState = Data.TaggedEnum<{
-  /** Not answered yet: `attempt` sends nothing answered so far, `error` the last one's. */
-  Waiting: { readonly attempt: number; readonly error: Option.Option<RemoteError> }
-  /** The server answered no: `Data.retry` or `Data.dismiss` it. */
-  Failed: { readonly error: RemoteError }
-  /**
-   * The server could not tell who sent it (`Unauthenticated`), or it was made
-   * for someone other than who is signed in now (`PrincipalChanged`, #405):
-   * kept, and the writes after it held, until `Data.signedIn` reports a
-   * sign-in. `error` says which.
-   */
-  WaitingForSignIn: { readonly error: RemoteError }
-  /** Stored by a version of the app this one cannot read: `Data.dismiss` it. */
-  Unreadable: { readonly reason: string }
-}>
-export const OutboxItemState = Data.taggedEnum<OutboxItemState>()
-
-/** What the outbox holds, for a view: "3 changes waiting". */
-export interface OutboxStatus {
-  readonly waiting: number
-  readonly failed: number
-  /** Writes waiting for a sign-in; the `waiting` ones after them are held behind them. */
-  readonly waitingForSignIn: number
-  /** Every durable write not yet settled, in the order they are sent. */
-  readonly items: ReadonlyArray<OutboxItem>
-}
-
-const MutationName = Schema.Struct({ mutation: Schema.String })
-
-/**
- * The durable writes a domain has not yet settled, every tab's, in the order
- * the outbox sends them: how many wait, how many the server refused, and each
- * one's state, for a "3 changes waiting" line.
- */
-export const outboxStatus = <AppModel>(
-  domain: { readonly store: { get(model: AppModel): RemoteModel } },
-  model: AppModel,
-): OutboxStatus => statusOf(domain.store.get(model).outbox)
-
-/** Why a write made for someone else than whom the page heard last waits. */
-const heldFor = remoteError(
-  new RemotePrincipalChanged({
-    message: 'It was made for someone other than who is signed in now',
-  }),
-)
-
-const statusOf = (outbox: OutboxState): OutboxStatus => {
-  const items = outbox.queue.map(
-    Queued.$match({
-      Readable: ({ write, attempt, delayed }): OutboxItem => ({
-        requestId: write.operation,
-        mutation: Option.some(write.mutation),
-        state: Match.valueTags(write.state, {
-          // Held for whom it was made for, as a refusal from the server would leave it.
-          Waiting: () =>
-            heldFrom(write, outbox)
-              ? OutboxItemState.WaitingForSignIn({ error: heldFor })
-              : OutboxItemState.Waiting({ attempt, error: delayed }),
-          Failed: ({ error }) => OutboxItemState.Failed({ error }),
-          WaitingForSignIn: ({ error }) => OutboxItemState.WaitingForSignIn({ error }),
-        }),
-      }),
-      Unreadable: ({ operation, raw, reason }): OutboxItem => ({
-        requestId: operation,
-        mutation: Option.map(
-          Schema.decodeUnknownOption(MutationName)(raw),
-          ({ mutation }) => mutation,
-        ),
-        state: OutboxItemState.Unreadable({ reason }),
-      }),
-    }),
-  )
-  return {
-    waiting: items.filter(item => item.state._tag === 'Waiting').length,
-    failed: items.filter(item => item.state._tag === 'Failed').length,
-    waitingForSignIn: items.filter(item => item.state._tag === 'WaitingForSignIn').length,
-    items,
-  }
-}

@@ -1,6 +1,7 @@
 /**
  * What Sync meets and keeps going past. A replica whose exchange failed (also
- * in `status.lastError`), or whose server's history changed under it; a
+ * in `status.lastError`), whose server's history changed under it, or whose
+ * server refused an operation with a refusal it cannot read; a
  * document host that answered an upgrade "Internal error" or closed a socket
  * as one, whose cause neither the replica nor the response carries; and a
  * listener the application gave that threw. Each is reported through
@@ -30,6 +31,20 @@ export interface HistoryRebuilt extends Diagnostic {
   readonly _tag: 'HistoryRebuilt'
   readonly documentId: string
   readonly replicaId: string
+}
+
+/**
+ * The server rejected an operation with a refusal this build cannot read: a
+ * newer server's case, or one that does not decode. The rejection stands, and
+ * reads with no refusal.
+ */
+export interface UnknownRefusal extends Diagnostic {
+  readonly _tag: 'UnknownRefusal'
+  readonly documentId: string
+  readonly replicaId: string
+  readonly opId: string
+  /** Why it did not decode, cut to 500 characters: the value is the server's, of any size. */
+  readonly issue: string
 }
 
 /** Where a document host broke. */
@@ -78,7 +93,12 @@ export interface ListenerFailed extends Diagnostic {
 }
 
 /** Every diagnostic Sync reports. */
-export type SyncDiagnostic = ExchangeFailed | HistoryRebuilt | HostDefect | ListenerFailed
+export type SyncDiagnostic =
+  | ExchangeFailed
+  | HistoryRebuilt
+  | HostDefect
+  | ListenerFailed
+  | UnknownRefusal
 
 export const exchangeFailed = (
   documentId: string,
@@ -101,6 +121,22 @@ export const historyRebuilt = (documentId: string, replicaId: string): HistoryRe
   message: `${documentId} (replica ${replicaId}): the server's history changed (another epoch), so the committed state was rebuilt from it; unsent edits were kept.`,
   documentId,
   replicaId,
+})
+
+export const unknownRefusal = (
+  documentId: string,
+  replicaId: string,
+  opId: string,
+  issue: string,
+): UnknownRefusal => ({
+  _tag: 'UnknownRefusal',
+  source,
+  level: 'warning',
+  message: `${documentId} (replica ${replicaId}): the server rejected ${opId} with a refusal this build cannot read (${issue}); it reads with none.`,
+  documentId,
+  replicaId,
+  opId,
+  issue,
 })
 
 const stageText: Record<HostStage, string> = {

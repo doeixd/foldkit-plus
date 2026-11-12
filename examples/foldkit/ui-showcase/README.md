@@ -19,10 +19,12 @@ Model holds each component's Submodel and the value it edits (a checkbox's
                                    foldkit-mixins-ui: the bundles as Slots   foldkit-mixins: Recipes + page Styles
 ```
 
-A component with no adapter takes the page's own Slots instead, through
-`childAttributes(slots.x.attrs())`. Where `@foldkit/ui` takes only a class name
-(a menu item, a listbox option, a toast entry), the element is styled from its
-container's Slot by the role and data attributes the component writes.
+A component drawn through `@foldkit/ui`'s own view takes the page's own Slots
+instead, through `childAttributes(slots.x.attrs())`. Where `@foldkit/ui` takes
+only a class name (a menu item, a listbox option, a toast entry), the element
+is styled from its container's Slot by the role and data attributes the
+component writes; drawn through the `foldkit-mixins-ui` adapter, it is a Slot
+of its own (the `item` Slot).
 
 ## Run it
 
@@ -67,6 +69,9 @@ pnpm --filter foldkit-example-foldkit-ui-showcase dev
   Date Picker pages, which upstream draws twice.
 - **Dialog widths** are the recipe's `sm` (24rem) and `md` (32rem), where
   upstream uses 24, 28 and 32rem.
+- **A dialog closes from its action buttons.** They carry `dialog.closeButton`
+  with the page's button looks, so each Dialog selection leaves out the
+  recipe's corner placement for that slot by destructuring it.
 - **A `ChangedUrl` for the page shown, with the menu closed, returns the Model
   unchanged.** Upstream closes the menu on every URL change, and closing a
   closed dialog copies its Model, which redrew the page.
@@ -75,18 +80,16 @@ pnpm --filter foldkit-example-foldkit-ui-showcase dev
 
 ## Foldkit Plus gaps met
 
-- No `foldkit-mixins-ui` adapter for Menu, Listbox, Combobox, Date Picker or
-  Toast (no `toView` seam), nor for File Drop, Nav, Drag and Drop, Animation,
-  Virtual List, Meter and Progress, which do hand out attribute bundles.
+- No `foldkit-mixins-ui` adapter for Drag and Drop or Animation. Menu,
+  Listbox, Combobox, Date Picker, Toast, File Drop, Nav, Virtual List, Meter
+  and Progress have one now; this port still draws them through upstream's
+  views with the page's Slots.
   The Slider is no longer adapted either: `foldkit-mixins-ui` draws its own,
   for one number or a range, over native range inputs, so upstream's
   Submodel takes the page's Slots here.
 - No recipe for Select, Fieldset, Disclosure, Popover, Tooltip, Hover Intent,
   Radio Group or Calendar; `Recipes.Slider` styles `foldkit-mixins-ui`'s own
   slider, not upstream's markup.
-- A recipe's pieces are optional per slot, so reusing `Recipes.Button`'s look
-  on a plain `h.button` needs `?? Style.empty`; and `extend` cannot drop a
-  slot's piece, so the Dialog recipe's corner close button is destructured out.
 
 ## Tests
 

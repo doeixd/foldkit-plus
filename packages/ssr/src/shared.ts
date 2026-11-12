@@ -5,7 +5,13 @@
  */
 import { Effect, Option, Result, Schema, Stream, type Layer } from 'effect'
 import type { Runtime } from 'foldkit'
-import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
+import {
+  inertHtml,
+  type Attribute,
+  type ChildAttribute,
+  type Html,
+  type HtmlBuilder,
+} from 'foldkit/html'
 import type { Ports } from 'foldkit/port'
 import { fromString } from 'foldkit/url'
 import {
@@ -19,20 +25,9 @@ import {
 import { current, type Region } from './context.js'
 import { staticRegionMissing } from './diagnostics.js'
 import { decodeBindings, readBindings, type DecodedBinding } from './listen.js'
+import { FOLDKIT_APP_ATTRIBUTE, RESUME_ATTRIBUTE } from './marks.js'
 
-/**
- * The attribute Foldkit's server stamps on an application's root, as
- * `foldkit/experimental/server` exports it. Written out here so a page can
- * find its root without that module; a test pins the two together.
- */
-export const FOLDKIT_APP_ATTRIBUTE = 'data-foldkit-app'
-
-/**
- * The attribute on the stamped root that carries a page's resume envelope.
- * Foldkit pairs its own handoff the same way: the build id rides on the root
- * beside the app stamp, and the client reads it before adopting anything.
- */
-export const RESUME_ATTRIBUTE = 'data-foldkit-plus-resume'
+export { FOLDKIT_APP_ATTRIBUTE, RESUME_ATTRIBUTE } from './marks.js'
 
 /** The envelope format this package writes and reads. */
 export const PROTOCOL = 1
@@ -623,6 +618,28 @@ export const staticRegion = (id: string, render: (ih: HtmlBuilder<never>) => Reg
     now.region = outer
   }
 }
+
+/**
+ * A bundle of attributes, such as a Slot's, typed as binding no Message, for a
+ * static region's `ih` or any builder. A Slot's attributes are typed with the
+ * page's Message whatever its Mixins add, so the type cannot tell a Style from
+ * a handler; this checks when it is called instead, and throws on any handler
+ * (an `On…` attribute) or a Submodel's attribute, neither of which a static
+ * region could run.
+ */
+export const unbound = <Message>(
+  attributes: ReadonlyArray<Attribute<Message> | ChildAttribute>,
+): ReadonlyArray<Attribute<never>> =>
+  attributes.map(attribute => {
+    if (!('_tag' in attribute)) {
+      throw new Error("SSR.unbound was given a Submodel's attribute, which dispatches a Message")
+    }
+    if (attribute._tag.startsWith('On')) {
+      throw new Error(`SSR.unbound was given ${attribute._tag}, which binds a Message`)
+    }
+    // Every variant without the `On` prefix holds no Message, so it is one of `Attribute<never>`'s.
+    return attribute as Attribute<never>
+  })
 
 /**
  * Whether the view call in progress is the server rendering a page, rather than the browser: true

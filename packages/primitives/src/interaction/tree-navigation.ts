@@ -13,9 +13,10 @@
  * What a key does is a pure function of those rows and the Model; the Behavior
  * wires it to the slots and writes the tree's ARIA attributes.
  */
-import { Option, Schema } from 'effect'
+import { Match, Option, Schema } from 'effect'
 import type { HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
+import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
 import type { Declared } from 'foldkit-bundle'
 import { Behavior, Capability, type SlotItem } from 'foldkit-mixins'
@@ -59,24 +60,36 @@ const setOpen = (model: Model, args: Args, id: string, open: boolean): Model =>
           : [...model.toggled, id],
       }
 
+const update = (model: Model, message: Message, args: Args): Update.Return<Model, Message> =>
+  Message.match<Update.Return<Model, Message>>(message, {
+    // Moving focus by key dispatches `Focused`, and the row's `OnFocus` reports it again.
+    Focused: ({ id }) => (model.current === id ? { model } : { model: { ...model, current: id } }),
+    Opened: ({ id }) => ({ model: setOpen(model, args, id, true) }),
+    Closed: ({ id }) => ({ model: setOpen(model, args, id, false) }),
+  })
+
 export const bundle = Bundle.make('TreeNavigation', {
   Model,
   Message,
   args: Args,
   init: () => ({ model: { current: null, toggled: [] } }),
-  update: (model, message, args) => {
-    switch (message._tag) {
-      // Moving focus by key dispatches `Focused`, and the row's `OnFocus` reports it again.
-      case 'Focused':
-        return model.current === message.id
-          ? { model }
-          : { model: { ...model, current: message.id } }
-      case 'Opened':
-        return { model: setOpen(model, args, message.id, true) }
-      case 'Closed':
-        return { model: setOpen(model, args, message.id, false) }
-    }
-  },
+  update,
+  /**
+   * What a parent decides: `placed.helpers.toggle(id)` opens a shut row and
+   * shuts an open one, reading which from the tree's own state; `open`,
+   * `close` and `focus` (make a row current) do one thing each.
+   */
+  helpers: args => ({
+    focus: (model: Model, id: string) => update(model, Message.Focused({ id }), args),
+    open: (model: Model, id: string) => update(model, Message.Opened({ id }), args),
+    close: (model: Model, id: string) => update(model, Message.Closed({ id }), args),
+    toggle: (model: Model, id: string) =>
+      update(
+        model,
+        isOpen(model, args, id) ? Message.Closed({ id }) : Message.Opened({ id }),
+        args,
+      ),
+  }),
 })
 
 /** One row of the tree, in tree order: a parent comes before its children. */
@@ -264,12 +277,11 @@ export const behavior =
                 const action = move(rows, model.current, key, modifiers, model, args, direction)
                 if (action === undefined) return Option.none()
                 // Opening or closing keeps focus on the row it acted on.
-                const message =
-                  action._tag === 'Focus'
-                    ? Message.Focused({ id: action.id })
-                    : action._tag === 'Open'
-                      ? Message.Opened({ id: action.id })
-                      : Message.Closed({ id: action.id })
+                const message = Match.valueTags(action, {
+                  Focus: ({ id }) => Message.Focused({ id }),
+                  Open: ({ id }) => Message.Opened({ id }),
+                  Close: ({ id }) => Message.Closed({ id }),
+                })
                 return Option.some({
                   focusSelector: idSelector(domId(action.id)),
                   message: wrap(message),

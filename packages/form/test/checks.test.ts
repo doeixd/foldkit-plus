@@ -141,6 +141,35 @@ describe('Form checks', () => {
     expect(sent.model.submitPending).toBe(false)
   })
 
+  it('refuses a submit made while a check runs when the form does not wait', async () => {
+    const Strict = Form.make('StrictForm', Entity.input(Post, PostInput), {
+      debounce: 0,
+      submitWaits: false,
+      checks: { slug: slug => Effect.succeed(slug === 'hello' ? 'Taken' : undefined) },
+    })
+    const run = (model: typeof Strict.initial, message: typeof Strict.Message.Type) =>
+      Strict.bundle.update(model, message, undefined)
+    const fill = (model: typeof Strict.initial, key: 'id' | 'rank', value: string) =>
+      run(model, Strict.Message.Changed({ key, value })).model
+    const ready = fill(fill(Strict.initial, 'id', 'p9'), 'rank', '5')
+    const asking = run(ready, Strict.Message.Changed({ key: 'slug', value: 'fresh' }))
+
+    // A check is running: nothing is handed out, nothing waits, and it cannot submit.
+    const refused = run(asking.model, Strict.Message.Submitted())
+    expect(refused.outMessage).toBeUndefined()
+    expect(refused.model.submitPending).toBe(false)
+    expect(Strict.canSubmit(asking.model)).toBe(false)
+
+    // The answer lands and does not send what was refused; a new submit does.
+    const answered = run(refused.model, await Effect.runPromise(asking.commands![0]!.effect))
+    expect(answered.outMessage).toBeUndefined()
+    expect(Strict.canSubmit(answered.model)).toBe(true)
+    expect(run(answered.model, Strict.Message.Submitted()).outMessage).toEqual({
+      _tag: 'Submitted',
+      value: { id: 'p9', slug: 'fresh', rank: 5 },
+    })
+  })
+
   it('sends nothing when the check a submit waited for fails', async () => {
     const ready = (
       await settle((await settle(PostForm.initial, change('id', 'p9'))).model, change('rank', '5'))

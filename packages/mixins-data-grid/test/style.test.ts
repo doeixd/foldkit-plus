@@ -10,3 +10,7 @@ test('a column that does not edit is marked with the theme’s lock', () => {
   expect(at).toBeGreaterThan(-1)
   expect(GridStyle.css.slice(at, GridStyle.css.indexOf('}', at))).toContain('var(--fk-icon-lock)')
 })
+
+test('the busy status is revealed only once the wait is noticeable', () => {
+  expect(GridStyle.css).toMatch(/\[aria-busy="true"\]\{animation:[^}]* 0\.6s both/)
+})

@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: index,
-        find: '              prepare === undefined\n                ? config\n',
-        replace: '              true\n                ? config\n',
+        find: 'Option.match(started, { onNone: () => config, onSome: ({ config }) => config })',
+        replace: 'config',
       },
     ],
     tests,
@@ -22,8 +22,8 @@ export default [
     edits: [
       {
         file: index,
-        find: 'prepare === undefined ? started.model : yield* Effect.orDie(prepare(started.model, request))',
-        replace: 'started.model',
+        find: 'const start =\n        prepare === undefined ? started.model : yield* Effect.orDie(prepare(started.model, request))',
+        replace: 'const start = started.model',
       },
     ],
     tests,

@@ -13,12 +13,12 @@
  * In the browser the builder marks nothing: it is the application's `h`, with
  * the hole forms turned into the closures Foldkit expects.
  */
-import { Schema, SchemaAST } from 'effect'
+import { Match, Schema, SchemaAST } from 'effect'
 import type { Attribute, ChildAttribute, HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { current, type Binding } from './context.js'
+import { BINDING_ATTRIBUTE, KEEP_ATTRIBUTE } from './marks.js'
 
-/** The attribute prefix of an element's binding marker. */
-export const BINDING_ATTRIBUTE = 'data-foldkit-plus-on-'
+export { BINDING_ATTRIBUTE, KEEP_ATTRIBUTE } from './marks.js'
 
 /**
  * The DOM event each of Foldkit's event attributes listens to, read from
@@ -131,22 +131,14 @@ export const FALLBACK_FIELD = 'foldkit-plus-message'
 /** The posted field that says how many placement wrappers the form's fields sit under. */
 export const FALLBACK_DEPTH_FIELD = 'foldkit-plus-depth'
 
-/**
- * The attribute on a field whose typing before boot is kept (`KeepTyped`),
- * naming the binding whose Message replays it.
- */
-export const KEEP_ATTRIBUTE = 'data-foldkit-plus-keep'
-
 /** The value of a `KeepTyped` marker no resumable element took, while the server renders. */
 export const UNPLACED_KEEP = '?'
 
 /**
- * The `input` types whose value is not something typed, so `KeepTyped` has
- * nothing to keep on them.
+ * The `input` types that hold nothing a person types or ticks, so
+ * `KeepTyped` has nothing to keep on them.
  */
 const UNTYPED_INPUTS: ReadonlySet<string> = new Set([
-  'checkbox',
-  'radio',
   'file',
   'hidden',
   'button',
@@ -257,7 +249,11 @@ export type ResumableBuilder<Message> = Omit<
    * Keeps what is typed into this field before the runtime starts: the
    * browser replays it as the field's `OnInput` Message (else its
    * `OnChange`), given in the hole form, and keeps the caret. The field must
-   * be an `input` that takes text, a `textarea` or a `select`.
+   * be an `input` that takes text, a `textarea` or a `select`; or a
+   * checkbox or radio, whose ticking replays its `OnChange` (else `OnInput`,
+   * else `OnClick`) Message, in either form. On a plan whose `start` is not
+   * `'now'`, a field with such a binding and no `KeepTyped` is refused
+   * (`UnkeptField`).
    */
   readonly KeepTyped: () => Tagged<Message, 'Attribute'>
 }
@@ -301,6 +297,12 @@ type Item = Attribute<unknown> | ChildAttribute
 
 const isAttribute = (item: Item): item is Attribute<unknown> => '_tag' in item
 
+// Built once: a matcher made in `mark` would be rebuilt for every attribute of every element.
+const eventOf = Match.type<Attribute<unknown>>().pipe(
+  Match.tag('OnCustomEvent', custom => custom.name),
+  Match.orElse((other): string | undefined => EVENT_OF[other._tag]),
+)
+
 const builders = new WeakMap<object, unknown>()
 
 /** Each attribute `KeepTyped` made: a request to the element it is given, never written as it is. */
@@ -341,11 +343,16 @@ export const builder = <Builder extends AnyBuilder>(
     // Foldkit chains every handler of an event, in the order the attributes
     // come, so a marker lists every binding of its event in that order.
     const tokens = new Map<string, Array<string>>()
-    // The ordinal of the element's hole-form `OnInput` and `OnChange`, which `KeepTyped` replays.
+    // The ordinal of the element's hole-form `OnInput` and `OnChange`, which
+    // `KeepTyped` replays for a typed value, and of each attribute's first
+    // binding: a checkbox or radio replays its `OnChange`, `OnInput` or
+    // `OnClick` in either form, since what it holds is `checked`, which no
+    // hole carries.
     const typed = new Map<string, number>()
+    const named = new Map<string, number>()
     for (const item of attributes) {
       if (!isAttribute(item)) continue
-      const event = item._tag === 'OnCustomEvent' ? item.name : EVENT_OF[item._tag]
+      const event = eventOf(item)
       if (event === undefined) continue
       // Recorded for the refusal; the render does not survive it.
       if (now.mode === 'collect' && now.region !== undefined) {
@@ -385,6 +392,7 @@ export const builder = <Builder extends AnyBuilder>(
         if (binding.hole !== undefined && !typed.has(binding.attribute)) {
           typed.set(binding.attribute, now.bindings.length)
         }
+        if (!named.has(binding.attribute)) named.set(binding.attribute, now.bindings.length)
         list.push(String(now.bindings.length))
         now.bindings.push(binding)
       }
@@ -392,29 +400,38 @@ export const builder = <Builder extends AnyBuilder>(
     const markers = [...tokens].map(([event, list]) =>
       attribute(`${BINDING_ATTRIBUTE}${event}`, list.join(' ')),
     )
-    if (kept) {
-      const ordinal = typed.get('OnInput') ?? typed.get('OnChange')
-      const type = attributes.find(
+    const type = attributes
+      .find(
         (item): item is Extract<Attribute<unknown>, { readonly _tag: 'Type' }> =>
           isAttribute(item) && item._tag === 'Type',
-      )?.value
-      const field =
-        tag === 'textarea' ||
-        tag === 'select' ||
-        (tag === 'input' && (type === undefined || !UNTYPED_INPUTS.has(type.toLowerCase())))
+      )
+      ?.value.toLowerCase()
+    const checkable = tag === 'input' && (type === 'checkbox' || type === 'radio')
+    const field =
+      tag === 'textarea' ||
+      tag === 'select' ||
+      (tag === 'input' && (type === undefined || !UNTYPED_INPUTS.has(type)))
+    const ordinal = checkable
+      ? (named.get('OnChange') ?? named.get('OnInput') ?? named.get('OnClick'))
+      : (typed.get('OnInput') ?? typed.get('OnChange'))
+    if (kept) {
       if (!field) {
         if (now.mode === 'collect') {
           now.unkeepable.push(
-            `KeepTyped on ${type === undefined ? element : `${element} of type ${type}`}, which holds no typed value: keep an input that takes text, a textarea or a select`,
+            `KeepTyped on ${type === undefined ? element : `${element} of type ${type}`}, which holds nothing typed or ticked: keep an input that takes text, a checkbox, a radio, a textarea or a select`,
           )
         }
       } else if (ordinal === undefined) {
         if (now.mode === 'collect') {
           now.unkeepable.push(
-            `KeepTyped on ${element}, which has no OnInput or OnChange given a Message member, so nothing names the Message its typing replays as`,
+            `KeepTyped on ${element}, which has no ${checkable ? 'OnChange, OnInput or OnClick naming a Message' : 'OnInput or OnChange given a Message member'}, so nothing names the Message its typing replays as`,
           )
         }
       } else markers.push(attribute(KEEP_ATTRIBUTE, String(ordinal)))
+    } else if (field && ordinal !== undefined && now.mode === 'collect') {
+      // Refused by the server for a plan that does not start now: what is
+      // typed before such a page boots would be lost at its first render.
+      now.unkept.push(element)
     }
     return markers.length === 0 ? attributes : [...attributes, ...markers]
   }

@@ -23,6 +23,16 @@ const room = {
   inline: `100% - 2rem - ${ref.safe.left} - ${ref.safe.right}`,
 }
 
+/**
+ * The `title` axis of a dialog and a sheet. Hidden, the heading is read by a
+ * screen reader and shown to no one: it still names the dialog, which
+ * `display: none` or a removed heading would not.
+ */
+export const titleAxis = {
+  shown: {},
+  hidden: { title: variant(Utilities.srOnly) },
+}
+
 const width = (max: string) =>
   variant(
     Style.self({
@@ -55,7 +65,7 @@ export const Dialog = Style.recipeFor(DialogSlots)({
       Style.self({
         position: 'fixed',
         inset: '0',
-        background: `color-mix(in oklch, ${ref.surface.bedrock} 45%, transparent)`,
+        background: ref.overlay.scrim,
       }),
       // The veil fades with its panel.
       presence('slow', {}),
@@ -76,7 +86,8 @@ export const Dialog = Style.recipeFor(DialogSlots)({
         // Scrolled to its end, a swipe stays in it rather than moving the page behind.
         overscrollBehavior: 'contain',
         // Held off each screen edge by what it takes there, and centered by the dialog's
-        // grid in what is left. Physical, as the screen's insets are.
+        // grid in what is left.
+        // physical: the screen's safe-area insets are named by screen side
         marginTop: ref.safe.top,
         marginRight: ref.safe.right,
         marginBottom: `calc(${ref.safe.bottom} + var(--fk-keyboard-inset, 0px))`,
@@ -168,6 +179,7 @@ export const Dialog = Style.recipeFor(DialogSlots)({
         ),
       },
     },
+    title: titleAxis,
   },
-  defaults: { size: 'md' },
+  defaults: { size: 'md', title: 'shown' },
 })

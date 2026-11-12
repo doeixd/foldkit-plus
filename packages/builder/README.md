@@ -104,10 +104,11 @@ const PageForm = Form.make('PageForm', PageInput, {
 | `InsertAsked({ block, at })` | a new node with the Block's starting props, once an id is minted |
 | `DuplicateAsked({ id, at })` | a copy of a node and what it holds, once ids are minted |
 | `PatternAsked({ pattern, at })` | one of the Catalog's patterns, once ids are minted for its nodes |
-| `CopyAsked({ id })`, `CutAsked({ id })`, `PasteAsked()`, `ClipboardRead({ text })` | the clipboard: see below |
+| `CopyAsked({ id })`, `CutAsked({ id })`, `Copied({ said })`, `PasteAsked()`, `ClipboardRead({ text })` | the clipboard: see below |
 | `EditingAsked({ field })`, `FieldTyped({ field, text })`, `EditingCommitted({ field, text })`, `EditingCancelled({ field })` | text edited in place: see below |
 | `Minted({ ids, request })` | the ids a request waited for, answered by a Command |
 | `Selected({ id })`, `Deselected()`, `Hovered({ id })`, `Unhovered()` | what the inspector and the node actions work on |
+| `RowPressed({ id })`, `RowToggled({ id })` | a layers row pressed (made current, so selected, keeping the panel) and its expander (opened or shut by the tree's state) |
 | `Undid()`, `Redid()` | a step of the page's undo history |
 | `PanelChosen({ panel })`, `ViewportChosen({ viewport })` | the editor's own choices |
 | `DragStarted({ source })`, `DraggedOver({ id, zone })`, `DraggedOverRegion({ id, region })`, `DraggedOff()`, `DraggedOverPage()`, `DragDropped()`, `DragCancelled()` | a pointer drag: see below |

@@ -16,7 +16,7 @@ import { Layers, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
-import { userEvent } from 'vitest/browser'
+import { cdp, userEvent } from 'vitest/browser'
 import { Accordion, AccordionSlots, Recipes } from '../src/index.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
@@ -32,7 +32,7 @@ afterEach(async () => {
   document.body.replaceChildren()
 })
 
-const mount = (selection: Selection = {}) => {
+const mount = (selection: Selection = {}, still = true) => {
   const style = Style.forSlots(AccordionSlots)(Recipes.Accordion(selection))
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
@@ -44,7 +44,7 @@ const mount = (selection: Selection = {}) => {
     ) +
     style.css +
     // Still, so a size is read where it ends rather than mid-flight.
-    ':root{--fk-knob-motion:0}'
+    (still ? ':root{--fk-knob-motion:0}' : '')
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'accordion-browser'
@@ -272,6 +272,31 @@ test.each([
     await vi.waitFor(() => expect(css(tinted('Team')).backgroundColor).not.toBe(clear))
     expect(css(tinted('Billing')).backgroundColor).toBe(clear)
   } finally {
+    handle.dispose()
+  }
+})
+
+const preferReducedMotion = (value: 'reduce' | 'no-preference') =>
+  cdp().send('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-reduced-motion', value }],
+  })
+
+// The first duration is the row's travel; the second is the fade, which stays.
+test.each([
+  ['reduced motion', 'reduce', false, '0s'],
+  ['a still theme', 'no-preference', true, '0s'],
+  ['the default motion', 'no-preference', false, null],
+] as const)('the panel row slides under %s', async (_name, preference, still, expected) => {
+  const handle = mount({}, still)
+  try {
+    await vi.waitFor(() => expect(trigger('Team')).toBeDefined())
+    await userEvent.hover(document.body, { position: { x: 1, y: 1 } })
+    await preferReducedMotion(preference)
+    const travel = () => getComputedStyle(panelOf('Team')).transitionDuration.split(', ')[0]!
+    if (expected === null) expect(parseFloat(travel())).toBeGreaterThan(0)
+    else await vi.waitFor(() => expect(travel()).toBe(expected))
+  } finally {
+    await preferReducedMotion('no-preference')
     handle.dispose()
   }
 })

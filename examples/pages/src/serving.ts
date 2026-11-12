@@ -12,10 +12,22 @@ import {
   type Journal,
   type JournalStoreOptions,
 } from 'foldkit-durable/core'
-import type { Operation, SocketLike, TransportClient } from 'foldkit-sync'
+import {
+  DocumentId as SyncDocumentId,
+  LocalSequence,
+  OpId as SyncOpId,
+  ReplicaId,
+  Sequence,
+  type Operation,
+  type SocketLike,
+  type TransportClient,
+  type WrittenOperation,
+} from 'foldkit-sync'
 import { journalExchange, serveJournal } from 'foldkit-sync/journal'
 import { Message, type Shared } from './app.js'
 import { PagesSync } from './contract.js'
+
+const encodeMessage = Schema.encodeSync(Message)
 
 /** Who exchanges: a tab, or the server committing its own operations. */
 export interface Principal {
@@ -70,7 +82,7 @@ export const journalOptions = (): JournalStoreOptions<Operation, Shared, Princip
  * `update` the replicas run, and read back by the others after their cursor.
  */
 export const servingOn = (
-  journal: Journal<Operation, Shared, Principal>,
+  journal: Journal<Operation, Shared, Principal, WrittenOperation>,
   options: { readonly limit?: number | undefined } = {},
 ) => {
   const exchangeAs = (actorId: string) => ({
@@ -95,15 +107,17 @@ export const servingOn = (
       for (const page of (yield* journal.load(pages)).snapshot.pages) {
         if (!collectable(page)) continue
         const cursor = yield* journal.cursor(pages)
-        const operation = PagesSync.codec.normalizeOperation({
+        // Written as a replica writes, at the current version of the Message: an
+        // operation the server builds is appended as written, like any other.
+        const operation = PagesSync.journalContract().operation.encode({
           protocolVersion: 1,
           schemaVersion: 1,
-          documentId: 'pages',
-          replicaId: SERVER,
-          localSequence: cursor + 1,
-          opId: `${SERVER}:${cursor + 1}`,
-          baseCursor: cursor,
-          message: { _tag: 'EditedPage', id: page.id, ops: [{ type: 'Collect' }] },
+          documentId: SyncDocumentId.make('pages'),
+          replicaId: ReplicaId.make(SERVER),
+          localSequence: LocalSequence.make(cursor + 1),
+          opId: SyncOpId.make(`${SERVER}:${cursor + 1}`),
+          baseCursor: Sequence.make(cursor),
+          message: encodeMessage(Message.EditedPage({ id: page.id, ops: [{ type: 'Collect' }] })),
         })
         yield* journal.append(pages, operation, { actorId: SERVER })
       }

@@ -1,7 +1,16 @@
 /**
  * Compile-time Style contract. Type-checked, not executed.
  */
-import { Capability, Layers, Slot, Slots, Style, Theme } from '../src/index.js'
+import {
+  Capability,
+  Layers,
+  Slot,
+  Slots,
+  Style,
+  Theme,
+  type StylePieces,
+  type StyleValue,
+} from '../src/index.js'
 import { FieldSlots } from './fixture.js'
 
 const _ok = Style.forSlots(FieldSlots)({ root: Style.class('x') })
@@ -131,3 +140,36 @@ const PlainBase = Style.recipe({ base: Style.class('b') })
 PlainBase({})
 // @ts-expect-error a recipe with no variants takes no selection.
 PlainBase({ tone: 'quiet' })
+
+// A selection's base slots are present; a variant's or a compound's may not be.
+const Pair = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  label: Slot.make({ capability: Capability.Container }),
+})
+const Framed = Style.recipeFor(Pair)({
+  base: { root: Style.class('r') },
+  variants: { tone: { quiet: { label: Style.class('q') } } },
+  defaults: { tone: 'quiet' },
+})
+const framed: StyleValue = Framed().root
+void framed
+// @ts-expect-error a variant's slot: `tone: null` leaves it out.
+const framedLabel: StyleValue = Framed().label
+void framedLabel
+// `extend` adds its base's slots to those known.
+const Labelled = Framed.extend({ base: { label: Style.class('l') } })
+const labelled: readonly [StyleValue, StyleValue] = [Labelled().root, Labelled().label]
+void labelled
+// A partial result still fills a whole-contract style.
+Style.forSlots(Pair)(Framed({ tone: null }))
+// @ts-expect-error a base slot the contract lacks.
+Style.recipeFor(Pair)({ base: { missing: Style.class('m') } })
+// @ts-expect-error an extended base slot the contract lacks.
+Framed.extend({ base: { missing: Style.class('m') } })
+// @ts-expect-error a hidden slot is not styleable in a base either.
+Style.recipeFor(FieldSlots)({ base: { internals: Style.class('i') } })
+// A base given as a `StylePieces` value names no slot it surely holds.
+const loose: StylePieces<typeof Pair> = { root: Style.class('r') }
+// @ts-expect-error `loose.root` may be absent.
+const looseRoot: StyleValue = Style.recipeFor(Pair)({ base: loose })().root
+void looseRoot

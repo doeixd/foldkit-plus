@@ -4,12 +4,13 @@ import { forSlots, t } from '../../style.js'
 import { backdrop, container, demoSlots, demoStyles, floatingPanel, icon } from './shared.js'
 
 /**
- * The city combobox, which the Dialog page draws too. `foldkit-mixins-ui` has
- * no Combobox adapter: `@foldkit/ui` draws the combobox's elements itself and
- * takes only attributes for its input, button, items, backdrop and wrappers,
- * so those are the page's own Slots. Each option takes only a class name, so
- * the options are styled from their container, by the role and the
- * `data-active`, `data-selected` and `data-disabled` the component writes.
+ * The city combobox, which the Dialog page draws too, through `@foldkit/ui`'s
+ * own view, not `foldkit-mixins-ui`'s Combobox adapter: upstream takes only
+ * attributes for its input, button, items, backdrop and wrappers, so those
+ * are the page's own Slots. Each option takes only a class name, so the
+ * options are styled from their container, by the role and the
+ * `data-active`, `data-selected` and `data-disabled` the component writes;
+ * the adapter's `item` Slot is the way to style one as a Slot.
  */
 export const comboboxSlots = {
   combobox: container,
@@ -46,7 +47,7 @@ export const comboboxStyles = {
     Style.self({
       position: 'absolute',
       insetBlock: '0',
-      right: '0',
+      insetInlineEnd: '0',
       display: 'flex',
       alignItems: 'center',
       paddingInline: t.space.md,

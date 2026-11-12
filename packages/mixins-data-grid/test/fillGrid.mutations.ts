@@ -30,7 +30,7 @@ export default [
   one(
     'a cancelled fill fills',
     grid,
-    '              return completed\n',
+    '            return completed\n',
     '              return true\n',
   ),
   one(

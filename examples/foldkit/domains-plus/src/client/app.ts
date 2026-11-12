@@ -667,6 +667,13 @@ export const CartControls = App.surface('CartControls', {
 })
 
 /**
+ * Whether this build's page loads `foldkit-ssr/loader` (`vite.config.ts`, with
+ * `DOMAINS_PLUS_LOADER=1`). Read with `?.`: a module tsx runs has no
+ * `import.meta.env`.
+ */
+const loaderBuild = import.meta.env?.DOMAINS_PLUS_LOADER === '1'
+
+/**
  * What crosses from the server's render to the browser, which starts from it
  * instead of running `init`. The debounce starts empty in the browser. The
  * server reads every price the page shows before it renders
@@ -709,6 +716,13 @@ export const plan = SSR.plan(
     parts: [Remote.resume(Data)],
     // A cart form posts its Message to the page when no script runs.
     fallback: 'server',
+    // Under the loader the runtime starts when the browser is idle or a
+    // person is about to press. The mirrors may start then: the page arrives
+    // at the address and cookie its Model shows, and before the runtime runs
+    // the browser alone navigates or posts.
+    ...(loaderBuild
+      ? { start: 'idle' as const, deferrable: ['search.mirror', 'cart.mirror'] }
+      : {}),
   },
 )
 

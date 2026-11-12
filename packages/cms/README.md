@@ -344,7 +344,10 @@ is, so one tone rule styles both),
 `Cms.revisionsOf` for the open entry's published revisions, `Cms.historyCard`
 for the timeline, `Cms.moreCard` for the rest of what can happen to it. They
 draw on your own slot builders, so you keep your slots and styles; who
-published and the archive button's icon are yours to name:
+published, the archive button's icon, and the locale and time zone the
+History writes its dates in are yours to name. Both are required: the
+runtime's own differ between a server and a browser, which would then write
+different text for one revision:
 
 <!-- docs-check standalone
 import { Option, Schema } from 'effect'
@@ -392,6 +395,8 @@ Cms.historyCard(slots, h, Cms.revisionsOf(model, history), {
   state,
   restore: revision => Message.RestoreAsked({ revision }),
   authorName: name => directoryName(name),
+  locale: 'en',
+  timeZone: 'UTC',
 })
 ```
 

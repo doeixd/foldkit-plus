@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Scene } from 'foldkit/test'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -157,5 +158,24 @@ describe('FileDrop adapter', () => {
     expect(() => runDrop(model, [Steal.mixin], () => {}, drawDefault)).toThrow(
       Diagnostics.DiagnosticError,
     )
+  })
+
+  describe('Message', () => {
+    const decode = Schema.decodeUnknownSync(FileDropAdapter.Message)
+    const file = new File(['x'], 'a.txt')
+
+    it('decodes a drop of files to the Message upstream updates on', () => {
+      const message = decode({ _tag: 'DroppedFiles', files: [file] })
+      const next = FileDrop.update(model, message)
+      expect(next.outMessage).toEqual({ _tag: 'ReceivedFiles', files: [file] })
+    })
+
+    it.each([
+      ['an empty drop', { _tag: 'DroppedFiles', files: [] }],
+      ['a value that is no File', { _tag: 'DroppedFiles', files: [{ name: 'a.txt' }] }],
+      ['a tag the zone lacks', { _tag: 'DroppedFolders' }],
+    ])('refuses %s', (_name, input) => {
+      expect(() => decode(input)).toThrow()
+    })
   })
 })

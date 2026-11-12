@@ -61,7 +61,7 @@ export default [
     edits: [
       {
         file: '../src/editor-bundle.ts',
-        find: "const answering = message._tag === 'Selected' ? [] : [answer(model.hostId)]",
+        find: 'const answering = caretMoved ? [] : [answer(model.hostId)]',
         replace: 'const answering: Array<never> = []',
       },
     ],

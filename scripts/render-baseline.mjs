@@ -11,6 +11,10 @@
  * summarized by the Message that triggered them.
  *
  * Usage: node scripts/render-baseline.mjs [--app grid|domains] [--reps 30]
+ *   [--boot] (instead: how long domains-plus takes to boot, built with and
+ *   without `DOMAINS_PLUS_STATIC=1`, on two local Workers, runs alternated,
+ *   a fresh context each; `--reps` is the count per build, `--env NAME=1`
+ *   names the variable the second build sets)
  *   [--throttle 4] (Chromium's CPU slowed, as for a phone)
  *   [--out <file.json>] (every sample, with the environment)
  *
@@ -37,6 +41,7 @@ const only = option('app', undefined)
 const out = option('out', undefined)
 /** Chromium's CPU slowed by this factor (`Emulation.setCPUThrottlingRate`), as for a phone. */
 const throttle = Number(option('throttle', '1'))
+const boot = process.argv.includes('--boot')
 
 /**
  * Adds `slow` to the runtime config the app's entry passes, by text: the
@@ -188,7 +193,7 @@ const writeTo = outDir => ({
 /** A shell's child keeps workerd alive: end the whole tree. */
 const stop = child => {
   if (platform() === 'win32') spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'])
-  else child.kill('SIGTERM')
+  else process.kill(-child.pid, 'SIGTERM')
 }
 
 const scrollerTop = (page, selector, top) =>
@@ -249,8 +254,7 @@ const apps = {
       probe('/examples/foldkit/domains-plus/src/client/entry.ts', '    container,\n'),
       writeTo(outDir),
     ],
-    serve: async (appRoot, outDir) => {
-      const port = 5197
+    serve: async (appRoot, outDir, port = 5197) => {
       const config = join(outDir, 'wrangler.jsonc')
       writeFileSync(
         config,
@@ -270,7 +274,7 @@ const apps = {
       const log = openSync(logFile, 'w')
       const child = spawn(
         `pnpm exec wrangler dev --local --config "${config}" --ip 127.0.0.1 --port ${port}`,
-        { cwd: appRoot, shell: true, stdio: ['ignore', log, log] },
+        { cwd: appRoot, shell: true, detached: platform() !== 'win32', stdio: ['ignore', log, log] },
       )
       const origin = `http://127.0.0.1:${port}`
       for (let attempt = 0; ; attempt++) {
@@ -336,7 +340,161 @@ const environment = browser => ({
   warmups,
 })
 
+/** Zero-based median and range, whole milliseconds. */
+const range = values => {
+  const { median, p10: _p10, max, n } = spread(values)
+  const min = Math.min(...values.filter(Number.isFinite))
+  return { n, median, min, max }
+}
+
+/** Installed before the page's scripts: what a boot leaves for the run to read. */
+const bootProbe = () => {
+  window.__long = []
+  new PerformanceObserver(list => {
+    for (const entry of list.getEntries()) window.__long.push(entry.duration)
+  }).observe({ type: 'longtask', buffered: true })
+  document.addEventListener('readystatechange', () => {
+    if (document.readyState !== 'interactive') return
+    const root = document.querySelector('[data-foldkit-app]')
+    window.__served = root === null ? [] : [root, ...root.querySelectorAll('*')]
+  })
+  const check = () => {
+    if (window.__takeover !== undefined || document.readyState === 'loading') return
+    if (document.querySelector('[data-foldkit-plus-resume]') === null) window.__takeover = performance.now()
+  }
+  new MutationObserver(check).observe(document, { subtree: true, childList: true, attributes: true })
+  document.addEventListener('readystatechange', check)
+}
+
+/**
+ * One boot of `origin`: with no press (the runtime taken over, from navigation
+ * start; every long task; the served elements still in the document) or with
+ * the first press at `load` (to the cart showing the domain).
+ */
+const bootOnce = async (browser, origin, press) => {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const page = await context.newPage()
+  try {
+    await page.addInitScript(bootProbe)
+    const problems = []
+    page.on('pageerror', error => problems.push(String(error)))
+    page.on('console', message => message.type() === 'error' && problems.push(message.text()))
+    await (await context.newCDPSession(page)).send('Emulation.setCPUThrottlingRate', { rate: throttle })
+    await page.goto(`${origin}/?q=acme`, { waitUntil: 'load' })
+    let pressMs = Number.NaN
+    if (press) {
+      const button = page.locator('.domain-card').first().getByRole('button', { name: /^Add .* to cart$/ })
+      const at = Date.now()
+      await button.click()
+      await page.getByRole('button', { name: 'Cart, 1 domains' }).waitFor({ timeout: 60_000 })
+      pressMs = Date.now() - at
+    }
+    await page.waitForFunction(() => window.__takeover !== undefined, undefined, { timeout: 60_000 })
+    // Nothing else long may follow the takeover before it is read.
+    await page.waitForTimeout(1500)
+    const read = await page.evaluate(() => ({
+      takeover: window.__takeover,
+      blocking: window.__long.reduce((sum, ms) => sum + ms, 0),
+      tasks: window.__long.length,
+      served: window.__served.length,
+      rebuilt: window.__served
+        .filter(
+          element =>
+            !element.isConnected && element.tagName !== 'STYLE' && element.getAttribute('name') !== 'foldkit-plus-message',
+        )
+        .map(element => element.outerHTML.slice(0, 100)),
+    }))
+    return { ...read, pressMs, problems }
+  } finally {
+    await context.close()
+  }
+}
+
+/** The page's and its script's brotli size, as the Worker serves them. */
+const bootBytes = async origin => {
+  const { brotliCompressSync } = await import('node:zlib')
+  const html = await (await fetch(`${origin}/?q=acme`)).text()
+  const brotli = text => brotliCompressSync(Buffer.from(text)).length
+  const scripts = [...html.matchAll(/<script[^>]*\ssrc="([^"]+)"/g)].map(match => match[1])
+  let script = 0
+  for (const src of scripts) script += brotli(await (await fetch(new URL(src, origin))).text())
+  return { htmlBrotli: brotli(html), scriptBrotli: script }
+}
+
+const bootMain = async () => {
+  const app = apps.domains
+  const variable = option('env', 'DOMAINS_PLUS_STATIC=1').split('=')
+  const builds = [
+    { name: 'without', env: {}, port: 5197 },
+    { name: 'with', env: { [variable[0]]: variable[1] }, port: 5198 },
+  ]
+  const browser = await chromium.launch()
+  const servers = []
+  try {
+    for (const build of builds) {
+      const outDir = join(app.root, 'node_modules', `.render-baseline-boot-${build.name}`)
+      rmSync(outDir, { recursive: true, force: true })
+      mkdirSync(outDir, { recursive: true })
+      const config = {
+        root: app.root,
+        configFile: join(app.root, 'vite.config.ts'),
+        plugins: [writeTo(outDir)],
+        build: { outDir, emptyOutDir: true },
+        logLevel: 'warn',
+      }
+      // The config reads the variable when it loads.
+      const saved = { ...process.env }
+      Object.assign(process.env, build.env)
+      try {
+        await (await createBuilder(config)).buildApp()
+      } finally {
+        for (const key of Object.keys(build.env)) {
+          if (saved[key] === undefined) delete process.env[key]
+          else process.env[key] = saved[key]
+        }
+      }
+      servers.push({ ...build, server: await app.serve(app.root, outDir, build.port) })
+      // The page is kept before the first run, so no render is in any figure.
+      await fetch(`${servers.at(-1).server.origin}/?q=acme`)
+    }
+    const runs = Object.fromEntries(servers.map(build => [build.name, { rest: [], press: [] }]))
+    const bytes = {}
+    for (const build of servers) bytes[build.name] = await bootBytes(build.server.origin)
+    for (let rep = -warmups; rep < reps; rep++) {
+      // Alternated, and which build goes first alternates too.
+      const order = rep % 2 === 0 ? servers : [...servers].reverse()
+      for (const build of order) {
+        for (const kind of ['rest', 'press']) {
+          const run = await bootOnce(browser, build.server.origin, kind === 'press')
+          if (rep >= 0) runs[build.name][kind].push(run)
+        }
+      }
+    }
+    const summary = {}
+    for (const [name, kinds] of Object.entries(runs)) {
+      summary[name] = {
+        takeoverMs: range(kinds.rest.map(run => run.takeover)),
+        blockingMs: range(kinds.rest.map(run => run.blocking)),
+        longTasks: range(kinds.rest.map(run => run.tasks)),
+        pressAtLoadMs: range(kinds.press.map(run => run.pressMs)),
+        pressRunTakeoverMs: range(kinds.press.map(run => run.takeover)),
+        rebuilt: kinds.rest.flatMap(run => run.rebuilt),
+        problems: [...kinds.rest, ...kinds.press].flatMap(run => run.problems),
+        bytes: bytes[name],
+      }
+    }
+    const env = environment(browser)
+    console.log(JSON.stringify({ environment: env, summary }, null, 2))
+    if (out !== undefined)
+      writeFileSync(out, `${JSON.stringify({ environment: env, summary, runs }, (_, value) => (typeof value === 'number' ? Math.round(value * 10) / 10 : value))}\n`)
+  } finally {
+    await browser.close()
+    for (const { server } of servers) await server.close()
+  }
+}
+
 const main = async () => {
+  if (boot) return bootMain()
   const browser = await chromium.launch()
   const results = {}
   const rows = []

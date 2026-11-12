@@ -62,6 +62,9 @@ const action = (color: string, ...more: ReadonlyArray<Piece>) =>
     ...more,
   )
 
+/** A line said in place of posts: none yet, or still on their way. */
+const said = { padding: t.space['2xl'], textAlign: 'center', color: t.text.muted } as const
+
 export const ChirpPage = slots(
   {
     page: [U.bg('surface.base'), U.color('text.default'), { minHeight: '100dvh' }],
@@ -168,7 +171,7 @@ export const ChirpPage = slots(
     ],
     headerLogo: [
       { display: 'none', color: t.accent.default, fontSize: '1.75rem' },
-      Style.media(NARROW, { display: 'inline-flex', marginLeft: 'auto' }),
+      Style.media(NARROW, { display: 'inline-flex', marginInlineStart: 'auto' }),
     ],
     title: [{ margin: '0', fontSize: '1.25rem', fontWeight: '700', color: t.text.overt }],
     back: focusable(
@@ -259,7 +262,7 @@ export const ChirpPage = slots(
         alignItems: 'center',
         gap: t.space['2xl'],
         marginTop: t.space['2xs'],
-        marginLeft: `calc(-1 * ${t.space.xs})`,
+        marginInlineStart: `calc(-1 * ${t.space.xs})`,
       },
     ],
     // The like: filled and pink while liked.
@@ -282,7 +285,8 @@ export const ChirpPage = slots(
       },
     ],
     editing: [{ display: 'flex', flexDirection: 'column', gap: t.space.xs }],
-    note: [{ margin: '0', fontSize: '0.875rem', color: t.text.muted }],
+    // Says "Loading…" only once the wait is noticeable, marked `aria-busy`.
+    note: [{ margin: '0', fontSize: '0.875rem', color: t.text.muted }, U.busyReveal],
     done: focusable(
       {
         ...pill,
@@ -295,7 +299,9 @@ export const ChirpPage = slots(
       },
       Style.pseudo(':hover', { background: wash }),
     ),
-    empty: [{ padding: t.space['2xl'], textAlign: 'center', color: t.text.muted }],
+    empty: [said],
+    // A read not answered yet: not empty, and said only once the wait is noticeable.
+    loading: [said, U.busyReveal],
 
     // A profile's head.
     banner: [
@@ -463,8 +469,12 @@ export const FormStyle = forSlots(FormSlots)(
         background: t.accent.default,
         color: t.accent['on-fill'],
       },
-      Style.pseudo(':hover', { background: t.accent.hover }),
-      Style.pseudo(':disabled', { opacity: '0.5', cursor: 'default' }),
+      // The form draws its submit `aria-disabled` while it cannot submit, so
+      // the dim and the missing hover answer to that as well as to `:disabled`.
+      Style.pseudo(':hover:not(:is([aria-disabled="true"], :disabled))', {
+        background: t.accent.hover,
+      }),
+      Style.pseudo(':is([aria-disabled="true"], :disabled)', { opacity: '0.5', cursor: 'default' }),
     ],
   },
   { name: 'ChirpForm' },

@@ -297,6 +297,7 @@ in a line.
 | Join a form, a Remote mutation or query, and their Entity into an edit screen or a list | `foldkit-crud` (+ `foldkit-mixins-crud` to draw lists and details) | [package README](./packages/crud) |
 | Edit an interactive grid over rows the application owns: keyboard focus, ranges, typed editors, copy and paste, fill, 100,000 rows virtualized | `foldkit-data-grid` (+ `foldkit-mixins-data-grid` to draw it; experimental) | [package README](./packages/data-grid) |
 | Render on the server and hand the Model over, rather than rerunning `init`: resumable pages, forms without scripts | `foldkit-ssr` | [package README](./packages/ssr) |
+| One server `fetch` from parts: assets, the configured origin, routes in order, values built once per isolate, the page template, the same handler on Node | `foldkit-host` (early) | [package README](./packages/host) |
 | Give content drafts, revisions, a schedule, and a published/unpublished boundary, without a status column | `foldkit-cms` + `foldkit-cms-drizzle` (the editor's state and the server) | [package README](./packages/cms) |
 | Edit rich text: a semantic document in the Model, an editor on the page, Markdown in and out | `foldkit-richtext` + `foldkit-richtext-dom` (+ `-markdown`, `-code` or `-code-shiki` for highlighted code, and `foldkit-mixins-richtext` to draw the chrome) | [package README](./packages/richtext-dom) |
 | Store a page as Blocks in Regions, checked against a Catalog of what may exist | `foldkit-composition` (experimental) | [package README](./packages/composition) |

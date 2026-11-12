@@ -39,6 +39,7 @@ const READ = [
   '/components',
   '/components/button',
   '/components/radio-group',
+  '/components/file-drop',
   '/components/alert',
   '/components/badge',
   '/components/checkbox',
@@ -356,6 +357,7 @@ describe('the generated site', () => {
           ['cards', 'Cards', "Recipes.RadioGroup({ variant: 'card' })"],
         ],
       ],
+      ['file-drop', [['basic', 'Dropped files', 'fileDrop']]],
       [
         'button',
         [
@@ -483,6 +485,14 @@ describe('the generated site', () => {
     const combo = page('/components/kbd').getElementById('combo')?.closest('section')
     const keys = Array.from(combo?.querySelectorAll('[data-size="page"] kbd > kbd') ?? [])
     expect(keys.map(key => key.textContent)).toEqual(['⌘', 'K'])
+  })
+
+  test('the file drop is a label around its hidden file input', () => {
+    const zone = page('/components/file-drop').querySelector(
+      'main [data-size="page"] label:has(> input[type="file"][multiple])',
+    )
+    expect(zone?.textContent).toContain('Drop files or click to browse')
+    expect(zone?.hasAttribute('data-drag-over')).toBe(false)
   })
 
   test("a press on a radio option's words presses its radio", () => {

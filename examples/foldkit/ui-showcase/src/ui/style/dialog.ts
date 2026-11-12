@@ -1,4 +1,4 @@
-import { type Declarations, Slots, Style, type StylePieces, type StyleValue } from 'foldkit-mixins'
+import { type Declarations, Slots, Style, type StyleValue, type StyleValues } from 'foldkit-mixins'
 import { DialogSlots, Recipes } from 'foldkit-mixins-ui'
 
 import { forSlots, t } from '../../style.js'
@@ -66,13 +66,12 @@ const animated = centered.extend({
 })
 
 /**
- * Every dialog here closes from its action buttons, which take the page's
- * button looks, so the recipe's corner close button is left out.
+ * Every dialog here closes from its action buttons, which carry
+ * `dialog.closeButton` and take the page's button looks, so the recipe's
+ * corner placement for that slot is left out of each selection.
  */
-const withoutCornerClose = ({
-  closeButton: _cornerCloseButton,
-  ...pieces
-}: StylePieces<typeof DialogSlots>): StylePieces<typeof DialogSlots> => pieces
+const withoutCornerClose = ({ closeButton: _corner, ...pieces }: StyleValues<typeof DialogSlots>) =>
+  pieces
 
 export const DemoDialogStyle = forSlots(DialogSlots)(withoutCornerClose(centered({ size: 'md' })), {
   name: 'DemoDialogStyle',

@@ -88,6 +88,7 @@ export const thumb: StyleValue = component(
     transitionTimingFunction: ref.motion.ease,
   }),
   Style.nest(':where([data-scroll-bar="inline"]) > &', {
+    // physical: the thumb's offset is pixels from the bar's left, see above
     left: '0',
     insetBlockEnd: inset,
     blockSize: rest,

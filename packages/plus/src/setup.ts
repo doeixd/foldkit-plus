@@ -145,7 +145,11 @@ export const jobs: ReadonlyArray<{
     ],
     guide: 'richtext',
   },
-  { job: 'Server rendering that hands the Model over', imports: ['ssr'], guide: 'ssr' },
+  {
+    job: 'Server rendering that hands the Model over, and the server handler around it',
+    imports: ['ssr', 'host'],
+    guide: 'ssr',
+  },
   {
     job: 'Responsive images, their variants and placeholders, and icons as data',
     imports: ['media'],

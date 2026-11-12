@@ -21,7 +21,8 @@
 import { Effect, Match, Option, Schema } from 'effect'
 import { ActorId, OpId, type Journal, type JournalStoreOptions } from 'foldkit-durable/core'
 import {
-  Sync,
+  createPresenceHub,
+  servePresence,
   localSequence,
   opId,
   replicaId,
@@ -149,17 +150,19 @@ export const openJournal = (
     tableRevision: Effect.try(() => table.revision()),
     holdsThrough: (snapshot, through) => ProductEdits.holdsThrough(snapshot.edits, through),
     // The server writes as a producer of its own, sequenced from the
-    // authoritative cursor, which only advances and keeps each id unique.
-    absorbed: (through, cursor) => ({
-      protocolVersion: 1,
-      schemaVersion: 1,
-      documentId: RegistrySync.documentId,
-      replicaId: replicaId(server.actorId),
-      localSequence: localSequence(cursor + 1),
-      opId: opId(`${server.actorId}:${cursor + 1}`),
-      baseCursor: sequence(cursor),
-      message: encodeMessage(Message.AbsorbedEdits({ through })),
-    }),
+    // authoritative cursor, which only advances and keeps each id unique,
+    // and written as a replica writes, at the document's current version.
+    absorbed: (through, cursor) =>
+      journalContract().operation.encode({
+        protocolVersion: 1,
+        schemaVersion: 1,
+        documentId: RegistrySync.documentId,
+        replicaId: replicaId(server.actorId),
+        localSequence: localSequence(cursor + 1),
+        opId: opId(`${server.actorId}:${cursor + 1}`),
+        baseCursor: sequence(cursor),
+        message: encodeMessage(Message.AbsorbedEdits({ through })),
+      }),
     server,
   })
 
@@ -178,7 +181,7 @@ export const openJournal = (
     }),
   })
   // Presence fans out to every device; each validates what it receives.
-  const presence = Sync.presence.hub<unknown>()
+  const presence = createPresenceHub<unknown>()
   return {
     transport: journalExchange(exchangeAs(everyone)),
     transportAs: principal => journalExchange(exchangeAs(principal)),
@@ -187,7 +190,7 @@ export const openJournal = (
         serveJournal(socket, exchangeAs(principal)),
         // On the same socket: where each device is, under the name it connected as.
         // Only to who may open the document, as its exchanges are.
-        Sync.presence.serve(socket, presence, {
+        servePresence(socket, presence, {
           peerId: principal.actorId,
           opens: GuardSync.opens(Policy, ProductDocument, Option.some(principal)),
         }),

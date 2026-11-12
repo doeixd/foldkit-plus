@@ -1,13 +1,14 @@
 /**
  * What the client may read from the server: the products whose description
- * holds the search, or whose UPC begins with it, in the order the list's sort
+ * holds the search, or whose UPC begins with it, of the statuses and within
+ * the prices the grid's column filters chose, in the order the list's sort
  * names. Edits do not go this way; they are the Sync document's.
  */
 import { Schema } from 'effect'
 import { Sort } from 'foldkit-crud'
 import { Expr, Order, Text } from 'foldkit-entity'
 import { Query } from 'foldkit-remote'
-import { Registry } from './domain.js'
+import { Registry, Status } from './domain.js'
 
 /** The orders the registry offers, by name; the query's body says what each one means. */
 export const ProductSort = Sort.make(['upc', 'description', 'line', 'status', 'cents'])
@@ -25,7 +26,17 @@ const { fields } = Registry.Product
  */
 export const ProductsQuery = Query.define(
   'Products',
-  { sort: ProductSort.Schema, search: Schema.String },
+  {
+    sort: ProductSort.Schema,
+    search: Schema.String,
+    // The statuses kept, or null for every one: `whenGiven` filters only by what is given.
+    statuses: Schema.NullOr(
+      Schema.Array(Status).check(Schema.isMinLength(1), Schema.isMaxLength(3), Schema.isUnique()),
+    ),
+    // A price bound given, or null: `whenGiven` filters only by what is given.
+    minCents: Schema.NullOr(Schema.Int),
+    maxCents: Schema.NullOr(Schema.Int),
+  },
   ({ input }) =>
     Query.from(Registry.Product).pipe(
       Query.where(
@@ -33,6 +44,9 @@ export const ProductsQuery = Query.define(
           Expr.contains(fields.description, input.search),
           Text.startsWith(fields.upc, input.search),
         ),
+        Expr.whenGiven(input.statuses, statuses => Expr.in(fields.status, statuses)),
+        Expr.whenGiven(input.minCents, min => Expr.gte(fields.cents, min)),
+        Expr.whenGiven(input.maxCents, max => Expr.lte(fields.cents, max)),
       ),
       Query.orderBy(
         Order.chosen(input.sort, {

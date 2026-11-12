@@ -890,7 +890,7 @@ const MeSource = GuardServer.me(Me, Policy)
 | A visitor's write refused | `Unauthenticated`, a 401 over JSON | `Failed` with `_tag: 'Unauthenticated'`; a durable write waits for a sign-in |
 | A write moved a row out of its writer's sight | answered in `deleted` | tombstoned; it leaves every list |
 | A delete of a row its writer cannot see | nothing deleted; answered gone | tombstoned |
-| A Sync edit refused | rejected by its id, with its reason | the replica drops it, with the reason |
+| A Sync edit refused | rejected by its id, with a `Forbidden` refusal carrying its reason | the replica drops it; `status.rejected` holds the refusal |
 | An agent's capability refused | — | `AgentAuthorizationError` before dispatch, its message an `explain`'s; not offered while `available` says no |
 | A Source left unguarded | `GuardServer.validate` throws at startup | — |
 

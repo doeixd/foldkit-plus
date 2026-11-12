@@ -26,6 +26,7 @@ const angle = 'var(--fk-angle)'
 /** A box of edge `edge` centered on the ring at `degrees`. */
 const onRing = (degrees: string, edge: string, inward = '0px') => ({
   position: 'absolute',
+  // physical: a point on a dial, which does not flip
   left: `calc(50% + sin(${degrees}) * (${radius} - ${inward}) - ${edge} / 2)`,
   top: `calc(50% - cos(${degrees}) * (${radius} - ${inward}) - ${edge} / 2)`,
   inlineSize: edge,
@@ -89,6 +90,7 @@ export const AngleSlider = Style.recipeFor(AngleSliderSlots)({
     needle: component(
       Style.self({
         position: 'absolute',
+        // physical: a point on a dial, which does not flip
         left: `calc(50% - ${ref.border.thick} / 2)`,
         top: `calc(50% - ${radius})`,
         inlineSize: ref.border.thick,
@@ -131,6 +133,7 @@ export const AngleSlider = Style.recipeFor(AngleSliderSlots)({
     markerLabel: component(
       Style.self({
         position: 'absolute',
+        // physical: a point on a dial, which does not flip
         left: `calc(50% + sin(var(--fk-angle-marker)) * ${ring} * -2)`,
         top: `calc(50% - cos(var(--fk-angle-marker)) * ${ring} * -2)`,
         translate: '-50% -50%',
