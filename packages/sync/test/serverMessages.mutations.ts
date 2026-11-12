@@ -157,6 +157,51 @@ export default [
     tests,
   },
   {
+    name: 'a reply is named by its trigger’s place in the order',
+    edits: [
+      {
+        file: server,
+        find: '              envelope(`${replyOf}/${index}`, 1, sequence, message, recorded.messageVersion),',
+        replace:
+          '              envelope(`${SERVER_REPLICA_PREFIX}r/${reaction.name}/${index}`, sequence, sequence, message, recorded.messageVersion),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a key the journal refused stays used',
+    edits: [
+      {
+        file: server,
+        find: "        Effect.tapErrorTag('InvalidOperationError', () => forget(fact)),",
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a pass that breaks takes react down',
+    edits: [
+      {
+        file: server,
+        find: '          Cause.hasInterruptsOnly(cause)\n            ? Effect.failCause(cause)',
+        replace: '          true\n            ? Effect.failCause(cause)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the first reaction takes the whole budget',
+    edits: [
+      {
+        file: server,
+        find: '      const share = Math.ceil(budget / (order.length - at))',
+        replace: '      const share = budget',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'the finished record names no epoch',
     edits: [
       {
@@ -328,8 +373,8 @@ export default [
     edits: [
       {
         file: host,
-        find: '          yield* Effect.promise(() => arm(ALARM_AFTER_COMMIT))',
-        replace: '',
+        find: '            arm(ALARM_AFTER_COMMIT).then(',
+        replace: '            Promise.resolve().then(',
       },
     ],
     tests: hosts,
@@ -347,6 +392,56 @@ export default [
     tests: hosts,
   },
   {
+    name: 'two passes run at once',
+    edits: [
+      {
+        file: host,
+        find: '      const pass = (): Promise<void> => (passing = passing.then(runPass))',
+        replace: '      const pass = (): Promise<void> => runPass()',
+      },
+    ],
+    tests: hosts,
+  },
+  {
+    name: 'an alarm being run counts as one set',
+    edits: [
+      {
+        file: host,
+        find: 'if (current === null || current <= Date.now() || current > at)',
+        replace: 'if (current === null || current > at)',
+      },
+    ],
+    tests: hosts,
+  },
+  {
+    name: 'a failed setAlarm counts the commit as armed',
+    edits: [{ file: host, find: '          if (armed) seen = at', replace: '          seen = at' }],
+    tests: hosts,
+  },
+  {
+    name: 'the base class’s alarm is overridden',
+    edits: [
+      {
+        file: host,
+        find: "      if (typeof baseAlarm === 'function') await (baseAlarm as () => Promise<void>).call(this)",
+        replace: '',
+      },
+    ],
+    tests: hosts,
+  },
+  {
+    name: 'a reaction of another contract is found at the first upgrade',
+    edits: [
+      { file: host, find: '        if (each.sync !== config.sync)', replace: '        if (false)' },
+    ],
+    tests: hosts,
+  },
+  {
+    name: 'the alarm opens the journal without reactions',
+    edits: [{ file: host, find: '        if (server === undefined) return\n', replace: '' }],
+    tests: hosts,
+  },
+  {
     name: 'the host’s alarm runs nothing',
     edits: [{ file: host, find: '      await this.react()', replace: '' }],
     tests: hosts,
@@ -356,7 +451,7 @@ export default [
     edits: [
       {
         file: host,
-        find: '        if (current === null || current > at) await storage.setAlarm(at)',
+        find: '        if (current === null || current <= Date.now() || current > at) await storage.setAlarm(at)',
         replace: '        await storage.setAlarm(at)',
       },
     ],

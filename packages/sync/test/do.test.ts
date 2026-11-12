@@ -9,7 +9,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ActorId, Cursor, DocumentId as JournalDocumentId, Journal, OpId } from 'foldkit-durable'
-import { Context, Effect, Layer, Result, Schema, Scope, type Duration } from 'effect'
+import { Context, Effect, Layer, Option, Result, Schema, Scope, type Duration } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
@@ -739,7 +739,7 @@ describe('defineDocumentHost with reactions', () => {
     run: (trigger: {
       readonly key: string
       readonly message: { readonly id: string }
-    }) => Effect.Effect<void>,
+    }) => Effect.Effect<void, unknown>,
     reported: Array<Diagnostic> = [],
   ) => {
     const pairs: Array<readonly [FakeWebSocket, FakeWebSocket]> = []
@@ -844,7 +844,8 @@ describe('defineDocumentHost with reactions', () => {
   it('brings an alarm earlier, never later', async () => {
     const file = notesFile()
     const storage = alarmStorage()
-    storage.state.alarm = Date.now() + 100
+    // Sooner than the second the host would set after a commit.
+    storage.state.alarm = Date.now() + 800
     const { Host, pairs } = hostOf(file, () => Effect.void)
     const served = new Host({ storage }, undefined)
     const { client } = await upgrade(served.fetch.bind(served), pairs, 'ada')
@@ -878,6 +879,153 @@ describe('defineDocumentHost with reactions', () => {
     const reply = await roundTrip(client, { id: '1', cursor: 0, pending: await wrote('a') })
     expect(reply.error).toBeDefined()
     expect(storage.state.alarm).not.toBeNull()
+  })
+
+  it('runs one pass at a time, so a failure is counted once', async () => {
+    const file = notesFile()
+    let calls = 0
+    const { Host } = hostOf(file, () =>
+      Effect.suspend(() => {
+        calls += 1
+        return Effect.fail(new Error('down'))
+      }),
+    )
+    const journal = openNotes(file)
+    const writer = await Effect.runPromise(
+      Notes.openReplica(memoryStorage(), { replicaId: replicaId('tab') }),
+    )
+    await Effect.runPromise(writer.submit(NoteMessage.Wrote({ id: 'a' })))
+    const served = new Host({ storage: alarmStorage() }, undefined)
+    // Registered by the first alarm's open, then the commit, then two alarms at once.
+    await served.alarm()
+    const [pending] = await Effect.runPromise(writer.pending)
+    await Effect.runPromise(journal.append(JournalDocumentId.make('notes'), pending!, 'ada'))
+    await Promise.all([served.alarm(), served.alarm()])
+    expect(calls).toBe(1)
+    const tracked = Effect.runSync(
+      openNotes(file).cursors.settled(JournalDocumentId.make('notes'), 'react/notice'),
+    )
+    expect(Option.map(tracked, at => at.attempts)).toEqual(Option.some(1))
+  })
+
+  it('re-arms from inside alarm() though the runtime still answers the alarm being run', async () => {
+    const file = notesFile()
+    let calls = 0
+    const { Host } = hostOf(file, () =>
+      Effect.suspend(() => {
+        calls += 1
+        return calls === 1 ? Effect.fail(new Error('down')) : Effect.void
+      }),
+    )
+    const storage = alarmStorage()
+    const served = new Host({ storage }, undefined)
+    await served.alarm()
+    const writer = await Effect.runPromise(
+      Notes.openReplica(memoryStorage(), { replicaId: replicaId('tab') }),
+    )
+    await Effect.runPromise(writer.submit(NoteMessage.Wrote({ id: 'a' })))
+    const [pending] = await Effect.runPromise(writer.pending)
+    await Effect.runPromise(
+      openNotes(file).append(JournalDocumentId.make('notes'), pending!, 'ada'),
+    )
+    // The alarm being run, as workerd may still report it.
+    storage.state.alarm = Date.now() - 1
+    await served.alarm()
+    expect(calls).toBe(1)
+    expect(storage.state.alarm).toBeGreaterThan(Date.now())
+  })
+
+  it('reports a failed setAlarm after a commit, still settles, and arms on the next exchange', async () => {
+    const file = notesFile()
+    const reported: Array<Diagnostic> = []
+    const storage = alarmStorage()
+    let broken = true
+    const failing = {
+      ...storage,
+      setAlarm: async (at: number) => {
+        if (broken) throw new Error('storage is down')
+        return storage.setAlarm(at)
+      },
+    }
+    let settled = 0
+    const pairs: Array<readonly [FakeWebSocket, FakeWebSocket]> = []
+    const Host = defineDocumentHost(FakeBase, {
+      sync: Notes,
+      openJournal: async () => openNotes(file),
+      resolvePrincipal: () => Effect.succeed('ada'),
+      settle: () => Effect.sync(() => void (settled += 1)),
+      server: {
+        principal: 'notes-server',
+        reactions: () => [reaction(Notes, { name: 'notice', on: Wrote, run: () => Effect.void })],
+      },
+      diagnostics: diagnostic => Effect.sync(() => void reported.push(diagnostic)),
+      pair: () => {
+        const pair = FakeWebSocket.linked({ lingering: false })
+        pairs.push(pair)
+        return pair as unknown as readonly [WebSocket, AcceptingWebSocket]
+      },
+    })
+    const served = new Host({ storage: failing }, undefined)
+    const { client } = await upgrade(served.fetch.bind(served), pairs, 'ada')
+    resultOf(await roundTrip(client, { id: '1', cursor: 0, pending: await wrote('a') }))
+    expect(settled).toBe(1)
+    expect(reported).toContainEqual(expect.objectContaining({ _tag: 'HostDefect', stage: 'Alarm' }))
+    broken = false
+    resultOf(await roundTrip(client, { id: '2', cursor: 1, pending: [] }))
+    expect(storage.state.alarm).not.toBeNull()
+  })
+
+  it('runs the base class’s own alarm after the reactions, and opens nothing without `server`', async () => {
+    const order: Array<string> = []
+    class AlarmedBase extends FakeBase {
+      async alarm(): Promise<void> {
+        order.push('base')
+      }
+    }
+    let opens = 0
+    const Plain = defineDocumentHost(AlarmedBase, {
+      sync: Notes,
+      openJournal: async () => {
+        opens += 1
+        return openNotes(notesFile())
+      },
+      resolvePrincipal: () => Effect.succeed('ada'),
+    })
+    await new Plain({}, undefined).alarm()
+    expect(order).toEqual(['base'])
+    expect(opens).toBe(0)
+  })
+
+  it('never throws from alarm() when the reporter fails too', async () => {
+    const Host = defineDocumentHost(FakeBase, {
+      sync: Notes,
+      openJournal: async () => {
+        throw new Error('D1 is down')
+      },
+      resolvePrincipal: () => Effect.succeed('ada'),
+      server: { principal: 'notes-server', reactions: () => [] },
+      diagnostics: () => Effect.die(new Error('the reporter broke')),
+    })
+    await expect(new Host({ storage: alarmStorage() }, undefined).alarm()).resolves.toBeUndefined()
+  })
+
+  it('refuses a reaction of another contract when the class is made', () => {
+    const Twin = Sync.forApplication(NotesApp).make({
+      documentId: documentId('notes'),
+      shared: Projection.pick(NotesApp.model.notes),
+      durable: Wrote,
+      serverOnly: Noticed,
+    })
+    const Host = defineDocumentHost(FakeBase, {
+      sync: Notes,
+      openJournal: async () => openNotes(notesFile()),
+      resolvePrincipal: () => Effect.succeed('ada'),
+      server: {
+        principal: 'notes-server',
+        reactions: () => [reaction(Twin, { name: 'twin', on: Wrote, run: () => Effect.void })],
+      },
+    })
+    expect(() => new Host({ storage: alarmStorage() }, undefined)).toThrow('another contract')
   })
 
   it('refuses `server` without the object’s alarm', () => {

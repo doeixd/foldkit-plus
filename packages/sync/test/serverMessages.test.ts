@@ -403,6 +403,31 @@ describe('appendAsServer', () => {
     })
   })
 
+  it('frees a key the journal refused, so a Message its rules take can use it', async () => {
+    const journal = openJournal(':memory:', {
+      validate: operation => {
+        if ((operation.message as { readonly charge?: string }).charge === 'refused')
+          throw new Error('not that charge')
+      },
+    })
+    const server = await run(serverJournal({ sync: Orders, journal, server: SERVER }))
+    const refused = await run(
+      Effect.flip(
+        server.appendAsServer(Message.ConfirmedPayment({ id: 'o1', charge: 'refused' }), {
+          key: 'evt_1',
+        }),
+      ),
+    )
+    expect(refused._tag).toBe('InvalidOperationError')
+    expect(
+      await run(
+        server.appendAsServer(Message.ConfirmedPayment({ id: 'o1', charge: 'ch_1' }), {
+          key: 'evt_1',
+        }),
+      ),
+    ).toMatchObject({ _tag: 'Committed' })
+  })
+
   it('is still once after a deploy adds a migration step', async () => {
     const at = file()
     const paid = Message.ConfirmedPayment({ id: 'o1', charge: 'c' })
@@ -537,10 +562,12 @@ describe('a reaction', () => {
     expect(handler.keys[0]).toMatch(/^[0-9a-f]{64}$/)
     expect(await tags(journal)).toEqual(['ConfirmedPayment', 'SentReceipt'])
     const rows = await run(journal.read(key, Cursor.make(0)))
+    // Named by its trigger's id, never by its place in the order.
+    const reply = `server/r/receipt/${sha256(rows[0]!.opId)}/0`
     expect(rows[1]!.operation).toMatchObject({
-      replicaId: 'server/r/receipt/0',
+      replicaId: reply,
       localSequence: 1,
-      opId: 'server/r/receipt/0:1',
+      opId: `${reply}:1`,
       baseCursor: 1,
     })
     // The page was read before its own append, which the next pass passes over.
@@ -629,6 +656,31 @@ describe('a reaction', () => {
     expect(await reactAt(server)).toEqual(Option.none())
     expect(await cursorOf(journal)).toEqual(Option.some({ cursor: 150, attempts: 0 }))
     expect(handler.keys).toHaveLength(150)
+  })
+
+  it('shares runsPerPass between reactions, so a busy one starves none', async () => {
+    const journal = openJournal()
+    const receipts = counting()
+    const audits: Array<string> = []
+    const audit = reaction(Orders, {
+      name: 'audit',
+      on: Placed,
+      run: ({ key: runKey }) => Effect.sync(() => void audits.push(runKey)),
+    })
+    const server = await run(
+      serverJournal({
+        sync: Orders,
+        journal,
+        server: SERVER,
+        reactions: [receiptOf(receipts.quiet), audit],
+        runsPerPass: 2,
+      }),
+    )
+    for (const id of ['a', 'b', 'c']) await pay(server, id)
+    await exchange(journal, [entry(Message.PlacedOrder({ id: 'p', cents: 1 }))])
+    await reactAt(server)
+    expect(audits).toHaveLength(1)
+    expect(receipts.keys).toHaveLength(1)
   })
 
   it('follows the journal: runs after each commit it hears of, until interrupted', async () => {
@@ -857,6 +909,38 @@ describe('a reaction after a reset', () => {
     expect(await tags(journal)).toEqual(['ConfirmedPayment', 'SentReceipt'])
   })
 
+  it('runs a reaction on another reaction’s append again for a new trigger at a reused sequence', async () => {
+    const journal = openJournal()
+    const handler = counting()
+    const receipts: Array<string> = []
+    const audit = reaction(Orders, {
+      name: 'audit',
+      on: Receipted,
+      run: ({ message, key: runKey }) =>
+        Effect.sync(() => void receipts.push(`${message.id}:${runKey}`)),
+    })
+    const server = await run(
+      serverJournal({
+        sync: Orders,
+        journal,
+        server: SERVER,
+        reactions: [receiptOf(handler.run), audit],
+      }),
+    )
+    await pay(server, 'o1')
+    for (const _ of [1, 2, 3]) await reactAt(server)
+    await run(journal.reset(key))
+    // Another order's payment at the same sequence, and its receipt at the same place.
+    await pay(server, 'o2')
+    for (const _ of [1, 2, 3]) await reactAt(server)
+    expect(receipts.map(entry => entry.split(':')[0])).toEqual(['o1', 'o2'])
+    expect(new Set(receipts.map(entry => entry.split(':')[1])).size).toBe(2)
+    expect(await tags(journal)).toEqual(['ConfirmedPayment', 'SentReceipt'])
+    expect((await run(journal.read(key, Cursor.make(0))))[1]!.operation.message).toEqual(
+      Message.SentReceipt({ id: 'o2' }),
+    )
+  })
+
   it('shows a run parked before it as stale, refuses to retry it, and leaves the new history alone', async () => {
     const journal = openJournal()
     let refuse = true
@@ -963,7 +1047,7 @@ describe('a run that can never succeed', () => {
     expect(await tags(journal)).toEqual(['ConfirmedPayment'])
   })
 
-  it('parks after the server’s actor changes, as its reply ids are bound to the first', async () => {
+  it('commits as the new actor once the server’s actor changes, its reply ids being new', async () => {
     const journal = openJournal()
     const handler = counting()
     const first = await run(
@@ -981,8 +1065,13 @@ describe('a run that can never succeed', () => {
     )
     await pay(renamed, 'o2')
     await reactAt(renamed)
-    expect(await run(renamed.parked)).toEqual([
-      expect.objectContaining({ sequence: 3, error: expect.stringContaining('another actor') }),
+    expect(await run(renamed.parked)).toEqual([])
+    const rows = await run(journal.read(key, Cursor.make(0)))
+    expect(rows.map(row => [row.operation.message, String(row.actorId)])).toEqual([
+      [Message.ConfirmedPayment({ id: 'o1', charge: 'ch_o1' }), SERVER],
+      [Message.SentReceipt({ id: 'o1' }), SERVER],
+      [Message.ConfirmedPayment({ id: 'o2', charge: 'ch_o2' }), 'other-server'],
+      [Message.SentReceipt({ id: 'o2' }), 'other-server'],
     ])
   })
 })
@@ -1008,7 +1097,8 @@ describe('a crash', () => {
       serverJournal({ sync: Orders, journal, server: SERVER, reactions: [parking] }),
     )
     await pay(server, 'o1')
-    expect(Exit.isFailure(await Effect.runPromiseExit(server.react))).toBe(true)
+    // Reported, not thrown: `react` never fails.
+    expect(await run(server.react)).toEqual(Option.some(expect.anything()))
     expect(await run(server.parked)).toHaveLength(1)
     expect(await cursorOf(real)).toEqual(Option.some({ cursor: 0, attempts: 0 }))
     crash = false
@@ -1032,7 +1122,8 @@ describe('a crash', () => {
       serverJournal({ sync: Orders, journal, server: SERVER, reactions: [receiptOf(handler.run)] }),
     )
     await pay(server, 'o1')
-    expect(Exit.isFailure(await Effect.runPromiseExit(server.react))).toBe(true)
+    // Reported, not thrown: `react` never fails.
+    expect(await run(server.react)).toEqual(Option.some(expect.anything()))
     expect(await tags(real)).toEqual(['ConfirmedPayment'])
     crash = false
     await reactAt(server)

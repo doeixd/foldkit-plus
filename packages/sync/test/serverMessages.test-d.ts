@@ -167,3 +167,26 @@ reaction(Orders, {
   appends: Placed,
   run: () => Effect.void,
 })
+
+// A contract from `Sync.define` has the predicate and the strict readers, not a server journal.
+const Defined = Sync.define({
+  documentId: DocumentId.make('defined'),
+  message: App.Message,
+  shared: Schema.Struct({ n: Schema.Number }),
+  empty: { n: 0 },
+  durable: message => message._tag === 'PlacedOrder',
+  serverOnly: message => message._tag === 'ConfirmedPayment',
+  replay: state => state,
+})
+declare const definedJournal: Journal<
+  Operation,
+  { readonly n: number },
+  { readonly actorId: string },
+  WrittenOperation
+>
+void serverJournal({
+  // @ts-expect-error `serverJournal` takes a contract from `forApplication(App).make`
+  sync: Defined,
+  journal: definedJournal,
+  server: { actorId: 's' },
+})

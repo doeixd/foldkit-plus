@@ -7,7 +7,10 @@
  * A reaction's cursor and its parked runs live in `foldkit-durable`
  * (`journal.cursors`), beside the effect ledger, which records each run's
  * answer and whether its appends finished. The cursor is a lower bound over
- * the ledger, so losing it costs ledger reads, never a second external call.
+ * the ledger: set back (to the floor, say), it costs ledger reads, never a
+ * second external call. A cursor row that is lost altogether is not that:
+ * `react` reports it and does nothing until `serverJournal` registers the
+ * reaction again, at the journal's cursor then, skipping what came between.
  * An external call still runs at least once, never exactly once: a crash
  * between the call and the ledger's write runs it again, with the same key.
  */
@@ -278,8 +281,9 @@ export interface ServerJournalOptions<Document, Principal, Shared, Reactions> {
   /**
    * Who the server commits as. Never resolved from a request, and never
    * changed: the journal binds each `server/` replica id to the first actor
-   * that commits from it, so another `actorId` later has every server append
-   * refused.
+   * that commits from it, so after a change of `actorId` every reaction's
+   * append is refused (and parks), and a redelivered `appendAsServer` key is
+   * an `IdentityConflictError`; a new key commits as the new actor.
    */
   readonly server: Principal
   readonly reactions?: Reactions
@@ -482,8 +486,16 @@ export const serverJournal = <
         try: () => writtenEnvelope(recorded),
         catch: cause => new JournalError({ message: 'Could not read a recorded operation', cause }),
       })
-      return yield* journal.append(key, kept, server)
+      return yield* journal.append(key, kept, server).pipe(
+        // Refused, nothing committed: the key is free again for a Message the
+        // rules take. A conflict keeps it, since the id is taken.
+        Effect.tapErrorTag('OperationRejectedError', () => forget(fact)),
+        Effect.tapErrorTag('InvalidOperationError', () => forget(fact)),
+      )
     })
+
+  const forget = (fact: string) =>
+    journal.clearEffect(canonical(['server', documentId, fact])).pipe(Effect.ignore)
 
   /** The run of one reaction on one committed operation: its answer, then its appends. */
   const runOnce = (
@@ -551,6 +563,10 @@ export const serverJournal = <
           }),
         ),
       )
+      // Named by the trigger's id, never its place: sequences start again
+      // after a reset, and a reaction running on this one's append keys its
+      // answer by that append's id.
+      const replyOf = `${SERVER_REPLICA_PREFIX}r/${reaction.name}/${yield* sha256(opId)}`
       const appendAll = Effect.gen(function* () {
         const recorded = yield* journal
           .runEffect(canonical(['react', documentId, reaction.name, opId, 'answer']), answer)
@@ -559,13 +575,7 @@ export const serverJournal = <
           yield* journal
             .append(
               key,
-              envelope(
-                `${SERVER_REPLICA_PREFIX}r/${reaction.name}/${index}`,
-                sequence,
-                sequence,
-                message,
-                recorded.messageVersion,
-              ),
+              envelope(`${replyOf}/${index}`, 1, sequence, message, recorded.messageVersion),
               server,
             )
             .pipe(
@@ -720,16 +730,35 @@ export const serverJournal = <
   ): Option.Option<Duration.Duration> =>
     Option.isNone(a) ? b : Option.isNone(b) ? a : Option.some(Duration.min(a.value, b.value))
 
+  // Which reaction a pass starts with, turning each pass, so a share's
+  // rounding favours no reaction for good.
+  let first = 0
   const react = Effect.gen(function* () {
     let budget = runsPerPass
     let next = Option.none<Duration.Duration>()
-    for (const each of reactions) {
-      if (budget <= 0) return Option.some(Duration.zero)
-      const pass = yield* passOf(each, budget).pipe(
-        Effect.catch(error =>
-          report(reactionFailed(documentId, each.name, Option.none(), cut(error.message))).pipe(
-            Effect.as({ runs: 0, next: Option.some(JOURNAL_RETRY) }),
-          ),
+    const order = reactions.map((_, at) => reactions[(first + at) % reactions.length]!)
+    first = reactions.length === 0 ? 0 : (first + 1) % reactions.length
+    for (const [at, each] of order.entries()) {
+      // A fair share of what is left, so a busy reaction cannot starve the rest.
+      const share = Math.ceil(budget / (order.length - at))
+      if (share <= 0) return Option.some(Duration.zero)
+      const pass = yield* passOf(each, share).pipe(
+        Effect.catchCause(cause =>
+          Cause.hasInterruptsOnly(cause)
+            ? Effect.failCause(cause)
+            : report(
+                reactionFailed(
+                  documentId,
+                  each.name,
+                  Option.none(),
+                  cut(
+                    Option.match(Cause.findErrorOption(cause), {
+                      onSome: error => error.message,
+                      onNone: () => Cause.pretty(cause).split('\n')[0] ?? 'The pass broke',
+                    }),
+                  ),
+                ),
+              ).pipe(Effect.as({ runs: 0, next: Option.some(JOURNAL_RETRY) })),
         ),
       )
       budget -= pass.runs

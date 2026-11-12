@@ -238,6 +238,8 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
   env: Env,
 ) => { fetch(request: Request): Promise<Response>; alarm(): Promise<void> } => {
   checkRevalidate(config.revalidate, 'defineDocumentHost')
+  // The application's own alarm, if its base has one: run after the reactions'.
+  const baseAlarm = (Base.prototype as { readonly alarm?: unknown }).alarm
   return class extends Base {
     private readonly host: (request: Request) => Promise<Result.Result<Accepted, Response>>
     private readonly react: () => Promise<void>
@@ -253,7 +255,16 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
       const alarms = Option.flatMap(Option.fromUndefinedOr(server), () => alarmsOf(ctx.storage))
       if (server !== undefined && Option.isNone(alarms))
         throw new Error('defineDocumentHost: `server` needs the object’s storage alarm')
-      const report = (stage: 'Alarm', cause: Cause.Cause<unknown>) =>
+      // Made now, so one declared for another contract fails here and not at
+      // the first upgrade; `serverJournal` checks the rest when it opens.
+      const reactions = server === undefined ? [] : server.reactions(env)
+      for (const each of reactions)
+        if (each.sync !== config.sync)
+          throw new Error(
+            `defineDocumentHost: reaction ${each.name} was declared for another contract`,
+          )
+      /** Reports a pass that broke; a reporter that fails itself is not let out of `alarm()`. */
+      const report = (stage: 'Alarm', cause: Cause.Cause<unknown>): Promise<void> =>
         Effect.runPromise(
           reportTo(
             config.diagnostics === undefined
@@ -262,13 +273,15 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
                   config.diagnostics!(diagnostic, new Request('https://durable-object/alarm')),
             hostDefect(stage, cause),
           ),
-        )
+        ).catch(() => undefined)
       /** Brings the alarm to `after` from now unless it is already sooner. */
       const arm = async (after: Duration.Duration): Promise<void> => {
         const storage = Option.getOrThrow(alarms)
         const at = Date.now() + Duration.toMillis(after)
         const current = await storage.getAlarm()
-        if (current === null || current > at) await storage.setAlarm(at)
+        // Inside `alarm()` the runtime may still answer the alarm being run:
+        // one in the past is no alarm.
+        if (current === null || current <= Date.now() || current > at) await storage.setAlarm(at)
       }
       // The journal and the reactions' registration in one, once per object:
       // registered before any socket is served, so no commit is missed.
@@ -286,7 +299,7 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
                       sync: config.sync,
                       journal,
                       server: server.principal,
-                      reactions: server.reactions(env),
+                      reactions,
                       runsPerPass: server.runsPerPass,
                     } as never) as Effect.Effect<ServerJournal<unknown, never>>,
                   ),
@@ -300,7 +313,8 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
        * broke (the journal would not open, a reaction was never registered)
        * is reported and brings the alarm back later.
        */
-      const pass = async (): Promise<void> => {
+      const runPass = async (): Promise<void> => {
+        if (server === undefined) return
         const exit = await Effect.runPromiseExit(
           Effect.gen(function* () {
             const { server: running } = yield* Effect.promise(open)
@@ -313,6 +327,10 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
         await report('Alarm', exit.cause)
         await arm(ALARM_AFTER_DEFECT).catch(() => undefined)
       }
+      // One pass at a time per object: two at once would count each failure
+      // twice and reach the attempts bound in half the failures.
+      let passing: Promise<void> = Promise.resolve()
+      const pass = (): Promise<void> => (passing = passing.then(runPass))
       this.react = pass
       // What the host knows was committed, so only an exchange that moved it arms the alarm.
       let seen = -1
@@ -320,9 +338,18 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
         Effect.gen(function* () {
           const at = yield* journal.cursor(JournalDocumentId.make(config.sync.documentId))
           if (at === seen) return
-          seen = at
-          // Before the reply, so a run cut off by eviction is resumed.
-          yield* Effect.promise(() => arm(ALARM_AFTER_COMMIT))
+          // Before the reply, so a run cut off by eviction is resumed. One that
+          // fails is reported, and `seen` stays, so the next exchange arms again.
+          const armed = yield* Effect.promise(() =>
+            arm(ALARM_AFTER_COMMIT).then(
+              () => true,
+              async (error: unknown) => {
+                await report('Alarm', Cause.die(error))
+                return false
+              },
+            ),
+          )
+          if (armed) seen = at
           // Not awaited: the reply does not wait on a provider.
           void pass()
         })
@@ -353,11 +380,13 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
 
     /**
      * The object's alarm: runs the reactions and sets the alarm again from
-     * what they answer. Never throws, so the runtime's few retries of a
+     * what they answer, then the base class's own `alarm()`, if it has one.
+     * The reactions' part never throws, so the runtime's few retries of a
      * throwing alarm are never what a run depends on.
      */
     async alarm(): Promise<void> {
       await this.react()
+      if (typeof baseAlarm === 'function') await (baseAlarm as () => Promise<void>).call(this)
     }
 
     async fetch(request: Request): Promise<Response> {
