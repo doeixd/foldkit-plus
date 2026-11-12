@@ -6,7 +6,7 @@
  * renders as the new reader, so nothing here forgets a principal in place.
  */
 import type * as Client from '@yielded/auth/Client'
-import { Clock, Context, Effect, Match, Option, Redacted, Schema, pipe } from 'effect'
+import { Clock, Context, Effect, Match, Option, Redacted, Schema, Stream, pipe } from 'effect'
 import type { KeyValueStore } from 'effect/persistence'
 import * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
@@ -18,7 +18,7 @@ import { Url } from 'foldkit/url'
 import { Bundle, Resource } from 'foldkit-plus/bundle'
 import { Entity } from 'foldkit-plus/entity'
 import { ME } from 'foldkit-plus/guard'
-import { pointedLinks } from 'foldkit-plus/primitives/dom'
+import { pointedLinks, visibleLinks } from 'foldkit-plus/primitives/dom'
 import { Remote, RemoteData, type RemoteClient } from 'foldkit-plus/remote'
 import { liveQuery } from 'foldkit-plus/remote/live'
 import { outbox } from 'foldkit-plus/remote/outbox'
@@ -261,9 +261,10 @@ const Routing = Site.routing<Model, Message, AppRoute, Services>({
   parse: routeOf,
   tags: { clicked: 'ClickedLink', changed: 'ChangedUrl' },
   completed: Message.CompletedNavigation,
-  // A note's page is read while the reader is still pointing at its link.
+  // A note's page is read while the reader is still pointing at its link, and
+  // for the first few links the page draws, before anyone points.
   preload: {
-    links: pointedLinks(),
+    links: Stream.merge(pointedLinks(), visibleLinks({ atMost: 8 })),
     intended: Message.PointedAtLink,
     read: there => Data.preload(there, actives),
   },
