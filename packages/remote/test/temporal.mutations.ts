@@ -78,20 +78,32 @@ export default [
   edit(
     'a relative layer resolves over the base its own echo moved',
     '../src/optimistic.ts',
-    'overKept(base[key]?.values ?? {}, kept.get(key))',
+    'overKept(base[key]?.values ?? {}, kept.get(key), layer.id)',
     'base[key]?.values ?? {}',
+  ),
+  edit(
+    'a layer resolves over a value kept for another request (#513)',
+    '../src/kept.ts',
+    '    const before = by.get(id)\n    if (before === undefined) continue\n',
+    '    const before = by.get(id) ?? [...by.values()][0]\n    if (before === undefined) continue\n',
+  ),
+  edit(
+    'a request new to a patched field is kept over the first patch (#513)',
+    '../src/liveEvents.ts',
+    'by: new Map([...(held?.by ?? []), ...fresh.map(id => [id, before] as const)]),',
+    'by: new Map([...(held?.by ?? []), ...fresh.map(id => [id, held?.by.values().next().value ?? before] as const)]),',
   ),
   edit(
     'a later patch replaces the value kept from before the first',
     '../src/liveEvents.ts',
-    '    if (held === undefined)\n',
-    '    if (true)\n',
+    'const fresh = [...pending].filter(id => held === undefined || !held.by.has(id))',
+    'const fresh = [...pending]',
   ),
   edit(
     'a patch is kept with no write pending',
     '../src/liveEvents.ts',
-    'if (pending.size === 0 || fields.length === 0) return kept',
-    'if (fields.length === 0) return kept',
+    'const fresh = [...pending].filter(id => held === undefined || !held.by.has(id))',
+    "const fresh = [...(pending.size === 0 ? ['x'] : pending)]",
   ),
   edit(
     'a kept value outlives the bound',

@@ -53,6 +53,13 @@ const DRAG_SLOP = 4
 /** How long, in milliseconds, after a drag's release its click is still swallowed. */
 const CLICK_AFTER_DRAG = 100
 
+/**
+ * How long, in milliseconds, the thumb is held where it was let go for the
+ * Model's answer. An `update` that refuses the toggle never changes
+ * `aria-checked`, so nothing else would end the hold.
+ */
+const HOLD_FOR_ANSWER = 300
+
 const Dragged = Schema.TaggedStruct('SwitchDragged', { isChecked: Schema.Boolean })
 
 type Capturing = Element & { setPointerCapture?: (id: number) => void }
@@ -82,10 +89,16 @@ const Drag = Mount.defineStream('SwitchDrag', {
           const styled = element as HTMLElement
           // The press being followed, with what ends it; only a press has listeners beyond `pointerdown`.
           let press = Option.none<{ readonly pointerId: number; readonly stop: () => void }>()
-          let settle = Option.none<MutationObserver>()
+          let settle = Option.none<{
+            readonly observer: MutationObserver
+            readonly timer: number
+          }>()
           let releasedAt = Number.NEGATIVE_INFINITY
           const rest = () => {
-            if (Option.isSome(settle)) settle.value.disconnect()
+            if (Option.isSome(settle)) {
+              settle.value.observer.disconnect()
+              clearTimeout(settle.value.timer)
+            }
             settle = Option.none()
             element.removeAttribute('data-dragging')
             styled.style.removeProperty('--_fk-switch-drag')
@@ -138,10 +151,11 @@ const Drag = Mount.defineStream('SwitchDrag', {
                 return
               }
               // Held where it was let go until the Model's answer redraws the
-              // switch, so the thumb does not slide back and forth.
+              // switch, so the thumb does not slide back and forth; the timer
+              // lets go of it when the answer leaves the switch as it was.
               const observer = new MutationObserver(rest)
               observer.observe(element, { attributes: true, attributeFilter: ['aria-checked'] })
-              settle = Option.some(observer)
+              settle = Option.some({ observer, timer: window.setTimeout(rest, HOLD_FOR_ANSWER) })
               Queue.offerUnsafe(queue, Dragged.make({ isChecked }))
             }
             const during = [

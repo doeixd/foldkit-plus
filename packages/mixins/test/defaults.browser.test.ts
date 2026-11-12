@@ -7,6 +7,7 @@ import { userEvent } from 'vitest/browser'
 import { Layers, Style } from '../src/index.js'
 import { Defaults } from '../src/defaults.js'
 import { Theme } from '../src/theme.js'
+import { force, nodeOf } from './pseudoState.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const L = Layers.standard
@@ -68,4 +69,31 @@ test('a button that reads aria-disabled is dimmed and does not light under the p
   expect(getComputedStyle(live).backgroundColor).not.toBe(restLive)
   await userEvent.hover(held)
   expect(getComputedStyle(held).backgroundColor).toBe(restHeld)
+})
+
+test('a pressed button that reads aria-disabled keeps its resting fill (#530)', async () => {
+  install()
+  const live = add(
+    '<button type="button" id="live" style="transition:none">Live</button>',
+  ) as HTMLElement
+  const restLive = getComputedStyle(live).backgroundColor
+  const liveNode = await nodeOf('#live')
+  await force(liveNode, ['active'])
+  // The live button shows the pressed fill, so the held ones staying put means something.
+  expect(getComputedStyle(live).backgroundColor).not.toBe(restLive)
+  await force(liveNode, [])
+
+  for (const html of [
+    '<button type="submit" id="held" aria-disabled="true" style="transition:none">Held</button>',
+    '<input type="submit" id="held" aria-disabled="true" value="Held" style="transition:none">',
+  ]) {
+    const held = add(html) as HTMLElement
+    const rest = getComputedStyle(held).backgroundColor
+    expect(getComputedStyle(held).opacity).toBe('0.5')
+    const node = await nodeOf('#held')
+    await force(node, ['active'])
+    expect(getComputedStyle(held).backgroundColor).toBe(rest)
+    await force(node, [])
+    held.parentElement?.remove()
+  }
 })

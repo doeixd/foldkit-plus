@@ -25,6 +25,7 @@ export {
   type KindOfValue,
   type OneOf,
   formOf,
+  isEcho,
   readForm,
 } from './filter.js'
 export { GridFocus, type Direction, type KeyOptions } from './focus.js'

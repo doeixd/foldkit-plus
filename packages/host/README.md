@@ -218,7 +218,10 @@ Foldkit's `resolveRequestUrl` and answers `400` for one that leaves it,
 before the handler runs. The handler gets a `Request` with the method,
 headers and body, and a signal that aborts when the client goes; a streamed
 answer (a live read) is cancelled then. A handler that throws is logged and
-answered `500` with fixed text, never the error.
+answered `500` with fixed text, never the error. The request body is read
+whole before the handler runs, so the adapter refuses one past
+`maxBodyBytes` (32 MiB by default) with `413`; it is for development and
+tests, not a front for the open internet.
 
 ## Failure and recovery
 

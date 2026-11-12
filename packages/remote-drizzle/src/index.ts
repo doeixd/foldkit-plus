@@ -1459,8 +1459,9 @@ export const writer = <P = unknown>(
   /**
    * For each relation that restricts deleting a row of this Entity (#467):
    * whether a row points at `id` through it. The delete's own statement holds
-   * `not exists` of each, so a row pointed at is never removed, and no row
-   * can arrive between a check and the delete.
+   * `not exists` of each, so a row pointed at is never removed, and no check
+   * runs apart from the delete. On Postgres a link committed while the
+   * delete runs is not seen (#521): only a foreign key holds against it.
    */
   const pointedAt = (id: string) =>
     (binding.restricts ?? []).map(edge => ({
@@ -1473,6 +1474,10 @@ export const writer = <P = unknown>(
     (binding.cascades ?? []).length === 0 ? Option.none() : Option.some(cascadePlan(binding))
 
   const clears = binding.clears ?? []
+  // Each Entity whose links a delete clears and that holds invariants, with each such relation of its.
+  const judgedClears = Object.values(Arr.groupBy(clears, edge => edge.entity)).filter(
+    ([{ owner }]) => owner.invariants.length > 0,
+  )
   /** Each cleared link's column by its key in its table, which `update().set` names. */
   const clearedKey = (edge: PointerEdge): string =>
     Object.entries(getTableColumns(edge.owner.table)).find(
@@ -1482,11 +1487,12 @@ export const writer = <P = unknown>(
   /**
    * The row deleted, every row declared to go with it, and every link to it
    * declared cleared, in one transaction, or on D1 in one batch: first what
-   * each Entity's removal will take, as the principal may see it (`visible`),
-   * then each link cleared, then the rest, leaves first, each only while the
-   * row named is still there and holds what the delete asks, then the row
-   * itself, so a delete that missed changes nothing. What was taken and
-   * cleared is answered only when the row went.
+   * each Entity's removal will take and each row whose link it clears, as the
+   * principal may see them (`visible`), then each link cleared, then the
+   * rest, leaves first, each only while the row named is still there and
+   * holds what the delete asks, then the row itself, so a delete that missed
+   * changes nothing. What was taken and cleared is answered only when the
+   * row went.
    */
   const withCascade = (
     plan: Option.Option<CascadePlan>,
@@ -1541,13 +1547,21 @@ export const writer = <P = unknown>(
             .from(step.binding.table)
             .where(sql`${idColumn(step.binding)} in (${removedBy(step)})`),
         ),
-        // Cleared before anything goes, while the row named is still there to gate them.
+        // Whether the principal may see each row to be cleared, judged before
+        // its link is cleared, since `visible` may read that link (#518).
         ...clearing.map(({ edge, visible }) =>
+          db
+            .select({ id: idColumn(edge.owner), seen: seenFlag(visible) })
+            .from(edge.owner.table)
+            .where(sql`${edge.column} = ${id}`),
+        ),
+        // Cleared before anything goes, while the row named is still there to gate them.
+        ...clearing.map(({ edge }) =>
           db
             .update(edge.owner.table)
             .set({ [clearedKey(edge)]: null })
             .where(sql`${edge.column} = ${id} and ${taken}`)
-            .returning({ id: idColumn(edge.owner), seen: seenFlag(visible) }),
+            .returning({ id: idColumn(edge.owner) }),
         ),
         // Each row the cascade takes is judged before anything is removed: one
         // refused, and no row is taken, so the row named stays too. The leaves
@@ -1589,7 +1603,7 @@ export const writer = <P = unknown>(
                 }),
               failed,
             )
-      const deleted = (results[seen.length + clearing.length + steps.length] ?? []).length > 0
+      const deleted = (results[seen.length + 2 * clearing.length + steps.length] ?? []).length > 0
       if (!deleted) return { deleted, cascaded: [], cleared: [] }
       const cascaded = seen.flatMap(({ step }, at) =>
         (results[at] ?? [])
@@ -1608,11 +1622,18 @@ export const writer = <P = unknown>(
             ),
           })),
       )
-      const cleared = clearing.flatMap(({ edge }, at): ReadonlyArray<EntityRef> =>
-        (results[seen.length + at] ?? [])
-          .filter(row => Number(row['seen']) === 1)
-          .map(row => ({ entity: edge.entity, id: String(row['id']) })),
-      )
+      // What was cleared, as far as the principal saw it before.
+      const cleared = clearing.flatMap(({ edge }, at): ReadonlyArray<EntityRef> => {
+        const shown = new Set(
+          (results[seen.length + at] ?? [])
+            .filter(row => Number(row['seen']) === 1)
+            .map(row => String(row['id'])),
+        )
+        return (results[seen.length + clearing.length + at] ?? [])
+          .map(row => String(row['id']))
+          .filter(cleared => shown.has(cleared))
+          .map(cleared => ({ entity: edge.entity, id: cleared }))
+      })
       return { deleted, cascaded, cleared }
     })
 
@@ -1806,6 +1827,50 @@ export const writer = <P = unknown>(
           would: `clear the link of a ${entity} you may not change`,
         }
       }),
+    )
+
+  /**
+   * Each relation whose links a delete clears, as the rows pointing at `id`
+   * through it that would break one of their Entity's invariants once cleared
+   * (#516): a link through each relation of theirs that clears reads null
+   * where it points at `id`, and as it is elsewhere. A rule unknown for a row
+   * refuses it, as in an update. Such a row keeps the row it points at, as a
+   * restriction does, and the refusal names the relation alone: the rows and
+   * the invariant may read what the deleter may not see.
+   */
+  const clearBreaks = (
+    id: string,
+  ): Effect.Effect<
+    ReadonlyArray<{ readonly edge: PointerEdge; readonly refused: SQL }>,
+    RemoteServerError
+  > =>
+    Effect.map(
+      Effect.forEach(judgedClears, edges =>
+        compileFor(() => {
+          const [{ owner, entity }] = edges
+          const next: Record<string, SQL> = Object.create(null)
+          for (const edge of edges)
+            next[edge.relation] =
+              sql`(case when ${edge.column} = ${id} then null else ${edge.column} end)`
+          const target = {
+            table: owner.table,
+            columns: owner.columns,
+            relations: owner.relations,
+            next,
+            operators: owner.operators,
+          }
+          const holds = and(
+            ...owner.invariants.flatMap(held =>
+              compilePredicates([held.predicate], target, {}, `${entity}'s invariant "${held.id}"`),
+            ),
+          )
+          return edges.map(edge => ({
+            edge,
+            refused: sql`select ${idColumn(owner)} from ${owner.table} where ${edge.column} = ${id} and (${holds}) is not true`,
+          }))
+        }),
+      ),
+      Arr.flatten,
     )
 
   /** Each assignment as its compiled computation, in the statement that writes. */
@@ -2402,10 +2467,12 @@ export const writer = <P = unknown>(
         const at = yield* rowOf(id, expect, when)
         const required = yield* requiredOf(requires)
         const restricted = pointedAt(id)
+        const breaking = yield* clearBreaks(id)
         const where = and(
           at.where,
           ...required,
           ...restricted.map(({ exists }) => sql`not ${exists}`),
+          ...breaking.map(({ refused }) => sql`not exists (${refused})`),
         )
         const refusing = [
           ...(yield* cascadeRefusals(plan, id, cascading)),
@@ -2434,7 +2501,8 @@ export const writer = <P = unknown>(
           Option.isNone(when) &&
           requires === undefined &&
           refusing.length === 0 &&
-          restricted.length === 0
+          restricted.length === 0 &&
+          breaking.length === 0
         )
           return DeleteOutcome.Absent()
         // The delete missed: gone is gone (a retry of this delete, or another's);
@@ -2484,6 +2552,16 @@ export const writer = <P = unknown>(
             binding.table,
             { id: idColumn(binding) },
             { where: and(eq(idColumn(binding), id), exists) },
+          )
+          if (found.length > 0)
+            return DeleteOutcome.Referenced({ entity: edge.entity, relation: edge.relation })
+        }
+        for (const { edge, refused } of breaking) {
+          const found = yield* selectRows(
+            yield* DrizzleDatabase,
+            edge.owner.table,
+            { id: idColumn(edge.owner) },
+            { where: sql`${idColumn(edge.owner)} in (${refused})` },
           )
           if (found.length > 0)
             return DeleteOutcome.Referenced({ entity: edge.entity, relation: edge.relation })

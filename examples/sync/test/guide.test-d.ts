@@ -16,7 +16,6 @@ import {
   ReplicaId,
   Sync,
   type Operation,
-  type WrittenOperation,
   type SocketLike,
 } from 'foldkit-sync'
 
@@ -117,7 +116,7 @@ const server = Effect.gen(function* () {
   const exchange = (
     principal: Principal,
     cursor: number,
-    pending: ReadonlyArray<WrittenOperation>,
+    pending: ReadonlyArray<unknown>,
     seen?: string,
   ) =>
     Effect.gen(function* () {
@@ -129,7 +128,9 @@ const server = Effect.gen(function* () {
 
       const acknowledged: Array<string> = []
       const rejected: Array<string> = []
-      for (const operation of pending) {
+      for (const entry of pending) {
+        // Read as a sent entry: the server-only checks are in this reader, not the journal.
+        const operation = TodoSync.codec.writtenFrom(entry, TodoSync.documentId)
         if (!principal.canWrite) {
           rejected.push(operation.opId)
           continue

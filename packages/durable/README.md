@@ -240,7 +240,8 @@ form) gives `compared(input)`: the form a payload is compared by. A codec that
 reads several versions of its payload gives the payload normalized at the
 version it was written at, so an operation committed before the codec changed,
 and sent again after it, is still the same operation. What is stored stays the
-decoded operation, encoded. Sync's `journalContract()` supplies it.
+decoded operation, encoded. `compared` returns `unknown`: it is only hashed,
+never appended. Sync's `journalContract()` supplies it.
 
 **A commit stamp** writes what only the commit decides into the operation:
 

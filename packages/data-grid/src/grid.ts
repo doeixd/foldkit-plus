@@ -26,6 +26,7 @@ import {
   emptyForm,
   filterSchemaOf,
   formOf,
+  isEcho,
   readForm,
   testOf,
 } from './filter.js'
@@ -164,6 +165,12 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         column: Column,
         form: FilterForm,
         reported: Schema.OptionFromNullOr(ColumnFilter),
+        /**
+         * Every filter the form opened with or reported since it was last
+         * seeded: the application's filter is the form's own echo while it is
+         * one of these (see `isEcho`), whenever and however cleaned it lands.
+         */
+        sent: Schema.Array(Schema.OptionFromNullOr(ColumnFilter)),
         /**
          * Counts the form's reports and reseeds: a stale frame's change reseeds
          * only while it is the one the frame was drawn at, so a second change
@@ -364,9 +371,9 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     FilterOpened: { column: Column, drawn: Schema.OptionFromNullOr(ColumnFilter) },
     /**
      * A text field of the open form was typed in. `stale` is set by a frame
-     * drawn after the application's filter changed from outside the form:
-     * the form is seeded again from it first, unless the form has reported
-     * since that frame. A field another kind owns changes nothing.
+     * drawn after the application's filter changed to one the form never sent
+     * (a saved view, say): the form is seeded again from it first, unless the
+     * form has reported since that frame. A field another kind owns changes nothing.
      */
     FilterTyped: {
       field: Schema.Literals(['text', 'min', 'max', 'from', 'to']),
@@ -846,7 +853,13 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
       // Seeded again only at the generation the stale frame was drawn at.
       onSome: ({ drawn, generation }) =>
         generation === filtering.generation
-          ? { ...filtering, form: formOf(drawn), reported: drawn, generation: generation + 1 }
+          ? {
+              ...filtering,
+              form: formOf(drawn),
+              reported: drawn,
+              sent: [drawn],
+              generation: generation + 1,
+            }
           : filtering,
     })
   /**
@@ -869,7 +882,13 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         const reading = readForm(kind, form)
         const reports = reading.invalid.length === 0 && !Equal.equals(reading.filter, base.reported)
         const next = reports
-          ? { ...base, form, reported: reading.filter, generation: base.generation + 1 }
+          ? {
+              ...base,
+              form,
+              reported: reading.filter,
+              sent: [...base.sent, reading.filter],
+              generation: base.generation + 1,
+            }
           : { ...base, form }
         return {
           model: modifyFields(model, { filtering: () => Option.some(next) }),
@@ -1289,7 +1308,13 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
                 .model,
             menu: () => Option.none(),
             filtering: () =>
-              Option.some({ column, form: formOf(drawn), reported: drawn, generation: 0 }),
+              Option.some({
+                column,
+                form: formOf(drawn),
+                reported: drawn,
+                sent: [drawn],
+                generation: 0,
+              }),
           }),
         }))
       },

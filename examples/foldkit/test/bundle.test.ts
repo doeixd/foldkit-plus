@@ -5,13 +5,8 @@
  * application gets it (`scripts/bundle-report.mjs`, which prints the table by
  * package). One table, since the ports share their build.
  */
-import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
-import { describe, expect, test } from 'vitest'
-import { formatReport } from '../../../scripts/bundle-report.mjs'
-import { record } from '../../../scripts/perf-report.mjs'
+import { resolve } from 'node:path'
+import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 
 // Brotli bytes, measured on 2026-11-11 (the reading is the comment); each ceiling is that
 // plus about 2%, rounded up to the next 500 bytes. Never raise one without saying here what
@@ -38,40 +33,11 @@ const CEILINGS: ReadonlyArray<readonly [port: string, ceiling: number]> = [
   ['websocket-chat', 128_500], // 125,779 bytes
 ]
 
-// The build runs in a process of its own: these configs import `foldkit-ssr/vite`, which Vite loads
-// with Node, and inside Vitest Node resolved it to its TypeScript source and could not load it.
-const measure = (example: string) => {
-  const dir = mkdtempSync(join(tmpdir(), 'foldkit-bundle-'))
-  const json = join(dir, 'report.json')
-  try {
-    execFileSync(
-      process.execPath,
-      [resolve(import.meta.dirname, '../../../scripts/bundle-report.mjs'), example, '--json', json],
-      { stdio: 'pipe' },
-    )
-    return JSON.parse(readFileSync(json, 'utf8'))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-}
-
-describe.each(CEILINGS)('the foldkit/%s client', (port, ceiling) => {
-  test('loads at most the budgeted brotli JavaScript', () => {
-    const dir = resolve(import.meta.dirname, '..', port)
-    const report = measure(dir)
-    expect(report.total.chunks).toBeGreaterThan(0)
-    // One source, one reading: a random build id moved it by up to 0.2 kB (#490).
-    const again = measure(dir)
-    expect(again.total.brotli).toBe(report.total.brotli)
-    record({
-      kind: 'size',
-      name: `foldkit/${port} client JS, brotli`,
-      value: report.total.brotli,
-      budget: ceiling,
-    })
-    const message = `${formatReport(report)}\n\nbudget: ${ceiling} bytes`
-    expect(report.total.brotli, message).toBeLessThanOrEqual(ceiling)
-    // A drop of more than 10% means the ceiling is stale: lower it.
-    expect(report.total.brotli, message).toBeGreaterThan(ceiling * 0.9)
-  }, 300_000)
-})
+// Each build runs in a process of its own: these configs import `foldkit-ssr/vite`.
+for (const [port, ceiling] of CEILINGS)
+  clientBudget({
+    name: `foldkit/${port}`,
+    dir: resolve(import.meta.dirname, '..', port),
+    ceiling,
+    childProcess: true,
+  })

@@ -507,16 +507,16 @@ chose between are kept below, under "Options considered".
    a `match` over the route union is checked when a route is added, where an
    annotation with a default is not. Retention stays the store's alone. The
    limit named in section 3 (one policy covers every Surface active on a
-   route) gets no issue until an application needs two policies on one
-   route; none does today (`examples/chirp/src/app.ts:258`, `:263` is one
-   policy for all).
+   route) is lifted by [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md) (A3): `Data.wiring`
+   takes `policies`, keyed by the active record's keys.
 2. **`SSR.plan({ site })`: (b), closed as met by composition.**
    `foldkit-site` depends on `foldkit-ssr` (`site/package.json:46`), so
    building it means turning a dependency round to save
    `Object.values(actives)`. Chirp is ported (D1) because it still writes its
    three routes twice (`site.ts:24-30`, `app.ts:226-229`).
 3. **`'visible'` preloading: (c), not yet, and (a) is the shape if it is
-   built.** Intent already covers a pointer and a finger
+   built.** (Built since, as an opt-in stream with a cap: C1 of
+   [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md).) Intent already covers a pointer and a finger
    (`pointedLinks`), and nothing measured says it arrives too late; a visible
    stream multiplies reads made as the signed-in reader for links never
    followed. Rule: in an e2e on a touch profile under Phase 0's throttled
@@ -538,6 +538,8 @@ chose between are kept below, under "Options considered".
    tests of C2, because they are wrong in `foldkit-bundle` with no Site in
    the picture and contradict its README.
 6. **Is #438 worth building: gate C1, C2 and C3 together on Phase 0.**
+   (Revised 2026-11-12 by [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md): C1 and C2 are built with a
+   lazy page in `examples/auth`; C3 on the CMS stays declined at 2.0 KB.)
    The note recommended C1 and C2 regardless; that is not taken. No example
    has a `Bundle.lazy` page, so "SSR stops loading every lazy body" changes
    nothing anyone runs, and by the rule section 3 cites an API lands when it

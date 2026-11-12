@@ -58,13 +58,17 @@ const physical = [
 
 const stripped = line => line.replace(/^\s*(?:\/\/|\*|\/\*\*?).*$/, '')
 
+// A marker must say why (`// physical: <why>`); a bare `// physical` explains nothing.
+const withReason = /\/\/\s*physical\b[\s:,;\u2014\u2013-]*[^\s:,;\u2014\u2013-]/i
+
 const marked = (lines, index) => {
-  if (/\/\/\s*physical\b/i.test(lines[index])) return true
+  if (withReason.test(lines[index])) return true
   for (let up = index - 1; up >= 0 && index - up <= 12; up--) {
     const line = lines[up]
     const trimmed = line.trim()
     if (trimmed === '') return false
-    if (trimmed.startsWith('//')) return /^\/\/\s*physical\b/i.test(trimmed)
+    if (trimmed.startsWith('//'))
+      return /^\/\/\s*physical\b/i.test(trimmed) && withReason.test(trimmed)
     // A multi-line comment's lines are the same comment.
     if (trimmed.startsWith('*') || trimmed.startsWith('/*')) continue
     if (/^[}\])]/.test(trimmed) || /[{[(]$/.test(trimmed)) return false

@@ -1,6 +1,6 @@
 # foldkit-sync + foldkit-durable
 
-Checked against `foldkit-sync` 0.16.0 and `foldkit-durable` 0.13.0.
+Checked against `foldkit-sync` 0.17.0 and `foldkit-durable` 0.14.0.
 
 Local-first replication of part of a Foldkit Model. `foldkit-sync` is the client
 replica, and `foldkit-durable` is the optional SQLite server journal that owns
@@ -499,7 +499,13 @@ const serving = Effect.gen(function* () {
   (`codec.writtenFrom`, `normalizeOperation`, `operationFrom`) refuses one
   after upcasting (`ServerOnlyMessageError`), and `journalExchange` rejects it
   as `Forbidden` and reports `ServerOnlySubmitted`. Replica ids under
-  `server/` and past 128 characters are refused (`Invalid`).
+  `server/` and past 128 characters are refused (`Invalid`). What an exchange
+  receives (`Sync.transport.serve`'s `exchange`, a `TransportClient`, a
+  `loopback` handler) is `ReadonlyArray<unknown>`: a custom server reaches
+  `append` only through `codec.writtenFrom`, which makes these checks.
+  `journalContract().operation.decode` takes only a `WrittenOperation`, and
+  `operation.encode` refuses what `codec.committedFrom` returns, so nothing
+  read as history is written again.
   `journalContract().operation.decode` reads history, server-only included:
   a hand-made journal's `decode` must be it, not `normalizeOperation`.
 - `appendAsServer(message, { key })` takes server-only Messages, a key of at

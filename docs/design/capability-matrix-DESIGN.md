@@ -67,12 +67,13 @@ not the rows: one capability unlocks a family.
    presence stays CSS. Proved by `examples/drawer`. (ui-DESIGN §5.)
 2. **Collection drag-reorder.** `Move`/`PointerDrag` report movement; nothing
    turns a drag across described items into a reorder. Consumer: Tree
-   (optional) — and only Tree so far. Deferred until a second consumer or
-   the Tree slice demands it.
+   (optional) — and only Tree so far. Built as `Reorder` (E1 of
+   [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md)): the grid's columns and the rich text handle are
+   consumers too.
 3. **Virtualization Behavior.** `state/virtual` computes windows; nothing
    binds a window to Slots (ids, `aria-setsize` beyond the rendered slice,
    scroll anchoring). Consumer: Tree (optional), Command (long lists).
-   Deferred like (2): build it inside the first widget that needs it.
+   Built: `windowList.ts` and `virtualList.ts` in `foldkit-mixins-ui`.
 
 ## 4. Deliberately not built
 
@@ -90,8 +91,8 @@ not the rows: one capability unlocks a family.
 
 ## 5. Order of work
 
-Gap 1 landed first, proved by the Drawer slice. Gaps 2–3 wait inside the
-Tree slice if it demands them, not before. Then Phase 6's five-widget
+Gap 1 landed first, proved by the Drawer slice. Gap 2 is built by E1 of
+[decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md); gap 3 is built. Then Phase 6's five-widget
 proof, then the Phase 7 matrix in waves. The living list is
 [ui-INVENTORY.md](./ui-INVENTORY.md): the design's waves and the changelog's
 waves are different lists, and both changelog waves have landed.

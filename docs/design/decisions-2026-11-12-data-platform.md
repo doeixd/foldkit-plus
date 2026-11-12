@@ -19,7 +19,7 @@ and UI (#424, #430).
 
 | Issue | Decision | GitHub state |
 | --- | --- | --- |
-| #439 which lists a write reaches | Close. Neither half has a consumer, and both of R1's named triggers have passed without asking for it. The reopening conditions are restated below. | Close as not planned |
+| #439 which lists a write reaches | Superseded by [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md): R1 is built (A1), since its tests and `explain` are a consumer; R2 stays unbuilt on its measurement. The text below is the earlier decision. | Reopen, per that note's section 5 |
 | #480 async guarantees | Narrow to one browser test, then close. The audit and all five tracks are done. | Stay open until the test merges, then close as completed |
 | #190 the contract layer | Build the Phase 5 follow-ups in the order below. Items 3, 4 and 8 of Phase 5 are not started. Phases 1 to 4 still wait on foldkit/foldkit#1655. | Stay open |
 | #231 Twitter-clone tracker | Close. Every issue it lists is closed as completed. | Close as completed |
@@ -78,6 +78,9 @@ open?
 
 ### Decision
 
+**Superseded for R1 by [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md) (A1); R2 stands.** What follows is the
+earlier decision.
+
 **Close as not planned.** The 2026-11-10 decision kept the issue open
 because each half had a trigger someone could meet. One of R1's two
 triggers had already passed when it was written, and R1's remaining
@@ -87,7 +90,8 @@ factor of ten. An open issue is the wrong place to keep two conditions:
 the performance plan already keeps them, beside the benchmark that tests
 one.
 
-What reopens each half, as a new issue that names its consumer:
+What reopens each half, as a new issue that names its consumer (R1 is now
+built under A1; R2's condition stands):
 
 - **R1:** a second caller needs the answer `candidate` gives. That is
   either `explain` gaining a "which declared writes reach this list" line
@@ -101,9 +105,10 @@ What reopens each half, as a new issue that names its consumer:
 
 ### Next step
 
-None. The inferred write-set map stays dropped (decision 3).
+R1 is built by A1 of [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md). The inferred write-set map stays dropped
+(decision 3).
 
-GitHub: close #439 as not planned.
+GitHub: not closed as not planned; that note's section 5 reopens #439.
 
 ## #480: Solid 2.0 async guarantees as a typed DSL
 
@@ -154,10 +159,9 @@ file has every fixture it needs.
 
 Two things are decided against, so they do not keep the issue open:
 
-- **The row revision.** It is a wire change with no server able to fill
-  it. It reopens as its own issue when a Source can send a revision per
-  row (`foldkit-remote-drizzle` reading a revision column would be the
-  first).
+- **The row revision.** Decided against here, and since reversed by
+  [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md) (A4): it is built, with `foldkit-remote-drizzle`
+  as the first Source to send a revision per row.
 - **"A complete example uses only declarative `pipe`/`flow` authoring."**
   No example pipes an `Expr` today, and rewriting one to do so proves
   nothing #478's own tests do not. Examples take the piped form when they
@@ -259,11 +263,10 @@ is next after them?
 
    This is identity code: the most capable model builds it, with an
    independent review, and a Jev review of the changed `replicaId`
-   option when a key is available. **Not in scope:** `prune(through)` for
-   ledger rows. Its cost (a reaction running again after a later `reset`)
-   is the application's to accept, and no application has a ledger large
-   enough to ask. It is built when a deployed document's ledger is
-   reported as a cost.
+   option when a key is available. `prune(through)` for ledger rows is no
+   longer out of scope: [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md) (D1) builds it, and
+   its doc comment says a pruned reaction runs again after a later
+   `reset`.
 
 3. **`settleTodos` onto `journal.cursors`.** Track a named cursor from
    the floor, `advance` it after `recover`, and delete the `durable_meta`
@@ -304,14 +307,11 @@ is next after them?
    `asServer`. Last, because it must not land before 0.39.0 is on npm:
    a deprecation nobody could install is a removal without notice.
 
-**After those, Phase 5 stops until something asks.** Items 3
-(server-only state) and 4 (reader slices) change what a replica holds,
-and Q13 (whether an `update` over a partial snapshot can be checked) is
-open. They start when an application needs a part of a document that one
-reader must not receive; none in the tree does. Item 8 (journal Stories)
-is not built: `serverMessages.test.ts` already states those cases, and a
-Story format with no second author is a wrapper. Item 7 stays deferred,
-as the plan says.
+**After those, Phase 5 continues.** [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md) builds items 3
+(server-only state), 4 (reader slices) and 8 (journal Stories), as D2 to
+D4, and answers Q13: the slice is checked at commit by replaying with
+each part withheld. Item 7 stays deferred, as the plan says: the
+application's own process runtime owns it.
 
 Phases 1 to 4, 6 and 7 are not decided here.
 
@@ -411,7 +411,7 @@ Reported for the coordinator to apply; this note edits no other file.
 - **`TODO.md`, Parked, #190's follow-ups.** Replace the unordered list
   with the order above: the guide off the deprecated options; bind
   nothing under `server/` (with a schema step deleting such rows;
-  `prune(through)` not built); `settleTodos` onto `journal.cursors`; the
+  `prune(through)` joins it, D1 of the build-deferred note); `settleTodos` onto `journal.cursors`; the
   sync example's effects as a reaction together with the plan's "done
   when" example, less its guest-slice clause.
 - **`docs/design/TODO.md`, "Remote data plane".** "Phases 3 and 4 … wait

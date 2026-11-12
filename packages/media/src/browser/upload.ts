@@ -154,21 +154,28 @@ export const upload = (
  * claim on save. The body goes as `application/octet-stream`, which no page
  * can send to another site without a preflight, and the file's name and type
  * in headers of their own; a file the browser gives no type is declared
- * `application/octet-stream`. A refusal fails it with `UploadFailed`.
+ * `application/octet-stream`. A refusal fails it with `UploadFailed`, as does a
+ * file name that cannot be sent (`Malformed`, status `0`).
  */
 export const uploadFile = (
   file: File,
   options: UploadOptions = {},
 ): Stream.Stream<FileUploadEvent, UploadFailed> =>
-  sent(
-    file,
-    options.url ?? '/_media/files',
-    {
-      ...options.headers,
-      'content-type': 'application/octet-stream',
-      'x-foldkit-file-name': encodeURIComponent(file.name),
-      'x-foldkit-file-type': file.type === '' ? 'application/octet-stream' : file.type,
-    },
-    fileFactsOf,
-    asset => FileUploaded.make({ asset }),
-  )
+  // A name `encodeURIComponent` refuses (a lone surrogate) is a failure of the stream, not a throw here.
+  Stream.suspend(() => {
+    const name = Option.liftThrowable(encodeURIComponent)(file.name)
+    return Option.isNone(name)
+      ? Stream.fail(new UploadFailed({ reason: 'Malformed', status: 0 }))
+      : sent(
+          file,
+          options.url ?? '/_media/files',
+          {
+            ...options.headers,
+            'content-type': 'application/octet-stream',
+            'x-foldkit-file-name': name.value,
+            'x-foldkit-file-type': file.type === '' ? 'application/octet-stream' : file.type,
+          },
+          fileFactsOf,
+          asset => FileUploaded.make({ asset }),
+        )
+  })

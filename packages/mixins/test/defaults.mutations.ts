@@ -34,7 +34,35 @@ export default [
   },
   {
     name: 'an aria-disabled button is not dimmed',
-    edits: [{ file, find: ',button[aria-disabled=true]){opacity:0.5', replace: '){opacity:0.5' }],
+    edits: [
+      {
+        file,
+        find: ',:is(button,[type=button],[type=submit],[type=reset])[aria-disabled=true]){opacity:0.5',
+        replace: '){opacity:0.5',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an aria-disabled submit input is not dimmed',
+    edits: [
+      {
+        file,
+        find: ',:is(button,[type=button],[type=submit],[type=reset])[aria-disabled=true]){opacity:0.5',
+        replace: ',button[aria-disabled=true]){opacity:0.5',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an aria-disabled button shows the pressed fill',
+    edits: [
+      {
+        file,
+        find: '[type=reset]):active:not([aria-disabled=true]){background:',
+        replace: '[type=reset]):active{background:',
+      },
+    ],
     tests,
   },
 ]

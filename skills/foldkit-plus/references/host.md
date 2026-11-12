@@ -1,6 +1,6 @@
 # foldkit-host
 
-Checked against `foldkit-host` 0.1.0, `foldkit` 0.170.0.
+Checked against `foldkit-host` 0.2.0, `foldkit` 0.170.0.
 
 The parts of a server's `fetch` handler: `Host.isolate` (a value built once
 per binding), `Host.template` (the built `index.html` and its build id),
@@ -75,6 +75,8 @@ inside `Host.isolate` over D1, `serveFetch` with `auth.scripted` at
   no header of the application's. Check `Origin` alone.
 - `Host.node(handler, { env, origin: 'ORIGIN' })` answers `400` for a target
   naming another origin and aborts the request's signal when the client goes.
+  `maxBodyBytes` (32 MiB by default) answers `413` for a larger body before the
+  handler runs.
 
 ## See also
 

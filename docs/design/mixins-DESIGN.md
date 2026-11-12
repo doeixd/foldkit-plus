@@ -166,11 +166,37 @@ override even when a later attachment would otherwise win.
 - Attributes are classified by `_tag`. `On*` (except `OnMount`) are events,
   `OnMount` contributes a MountAction, `Class`/`Style` are decomposed into the
   canonical class/style merge, and `Key`/`InnerHTML` are structural.
-- Ownership is by tag, except `Prop`, `Attribute`, `DataAttribute`
-  (tag + `key`) and `OnCustomEvent` (tag + `name`), so distinct keys do not
-  falsely conflict.
-- Event tags normalize to token names by stripping `On` and lowercasing:
-  `OnKeyDown` -> `keydown`, matching `Event.KeyDown`.
+- Ownership and protection compare what an attribute really sets on the
+  element, read from Foldkit's handler table (`src/foldkitNames.ts`), never its
+  tag's spelling. An event handler owns the DOM event it registers
+  (`OnKeyDownPreventDefault` -> `keydown`, `OnDoubleClick` -> `dblclick`,
+  `OnFocusEnter` -> `focusin`, `AllowDrop` -> `dragover`); `OnCustomEvent` owns
+  the event it names. An attribute owns the HTML attribute it writes, so
+  `AriaLabel`, `Attribute('aria-label')` and `Prop('ariaLabel')` share one
+  owner, as do `For`, `Attribute('for')` and `Prop('htmlFor')`. A test draws
+  every Foldkit handler and compares the events on its vnode with the table; a
+  handler tag the table lacks is refused (`mixins:unsupported-event`) rather
+  than guessed (#523, #524).
+- A Mixin's `ChildAttribute` meets the same checks as its own attributes; a
+  child `Class` joins the slot's one class. A raw `class` or `style` from a
+  Mixin (`Attribute`, `Prop`, a child `Style`) is an `attribute-conflict` with
+  the resolver's canonical merge, and a `Prop` that replaces the children
+  (`innerHTML`, `textContent`, ...) is structural. An `Attribute` or `Prop`
+  named `on…` is an inline handler, outside every event owner, and refused
+  from a Mixin (`mixins:unsupported-event`). A `Prop` that writes another
+  attribute is read as it: `classList`, `relList`, `defaultValue`, the
+  `aria…Elements` properties; `Attribute('xlink:href')` is `href`.
+- A style property is the declaration Foldkit writes (`src/styleNames.ts`,
+  Foldkit's own `cssDeclarationName`), so `insetInlineEnd` and
+  `inset-inline-end` are one owner and drawn once. Protection and Behavior
+  ownership also cover what overlaps it: a shorthand that sets it (`inset`,
+  `insetInline`, `margin`), the physical side it can be in either direction
+  (`right` and `left` for `insetInlineEnd`; sides are read for a horizontal
+  writing mode), and `translate`/`rotate`/`scale` beside `transform`. A name
+  that only extends another (`overflowWrap`, `transformOrigin`,
+  `positionAnchor`) stands apart. Refusing an overlap a Behavior could have
+  meant is the safer error: it reads loudly at render, where a missed one
+  moves a protected element silently.
 - Protected names normalize punctuation, so `AriaLabel` and `aria-label` agree.
 - Canonical emit order: one `Class`, one `Style`, preserved base attributes,
   Mixin-added attributes, one composed `OnMount`. Determinism comes from input
@@ -213,16 +239,6 @@ override even when a later attachment would otherwise win.
   by the authoring helper, so `mapInput` has no honest type here; nothing needs
   `forSlot`; and `SurfaceView.inspect` covers view-level introspection. Add them
   with a concrete caller rather than speculatively.
-- Event ownership normalizes a tag by stripping `On` and lowercasing, so
-  `OnKeyDownPreventDefault` owns `keydownpreventdefault`, not `keydown`. A slot
-  whose base installs a prevent-default handler therefore does not advertise
-  `Event.KeyDown`, and a Behavior adding `OnKeyDown` beside it would not be
-  flagged. No adapter currently declares `Event.KeyDown`, so this is latent;
-  unifying the two would need a suffix-aware normalization in the resolver.
-  Foldkit 0.159 widened the family: `OnKeyDownSelf`,
-  `OnKeyDownSelfPreventDefault`, `OnBeforeInput`, `OnBeforeInputPreventDefault`
-  and `OnCancelPreventDefault` each own their own token the same way. A
-  resolver test pins the first two apart from `OnKeyDown` and `OnInput`.
 - Mount composition is runtime-tested. A composed `f` merges every inner stream
   with `Stream.mergeAll` (unbounded); a failing inner stream fails the merge
   rather than being swallowed; and `foldkit/test`'s `Scene` observes two

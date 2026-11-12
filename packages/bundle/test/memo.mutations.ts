@@ -83,4 +83,10 @@ export default [
     survives:
       'Only memory: a kept drawing of a removed item is the right drawing of the same Model, so nothing a test can read shows it.',
   },
+  edit(
+    'a collection lists its entries again for every item it draws',
+    '../src/collection.ts',
+    'if (listed !== undefined && listed.parent === parent) return listed.entries',
+    '',
+  ),
 ]

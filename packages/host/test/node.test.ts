@@ -182,6 +182,44 @@ describe('Host.node', () => {
     await ended
   })
 
+  it('cancels a streamed answer built after the client already left', async () => {
+    let cancelled!: () => void
+    const ended = new Promise<void>(done => (cancelled = done))
+    const port = await serve(async request => {
+      await new Promise<void>(gone => request.signal.addEventListener('abort', () => gone()))
+      return new Response(new ReadableStream({ start: () => {}, cancel: () => cancelled() }))
+    })
+    const sent = ask({ host: '127.0.0.1', port, path: '/remote' })
+    sent.on('error', () => {})
+    sent.end()
+    // Let the server take the request before the client goes.
+    await new Promise(wait => setTimeout(wait, 50))
+    sent.destroy()
+    await ended
+  })
+
+  it('refuses a body past maxBodyBytes with 413 before the handler, and takes one at the limit', async () => {
+    let reached = 0
+    const env: { ORIGIN?: string } = {}
+    const server = createServer(
+      Host.node(
+        async request => {
+          reached++
+          return new Response(String((await request.text()).length))
+        },
+        { env, origin: 'ORIGIN', maxBodyBytes: 8 },
+      ),
+    )
+    servers.push(server)
+    await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
+    const { port } = server.address() as AddressInfo
+    env.ORIGIN = `http://127.0.0.1:${port}`
+    const post = (body: string) => send(port, '/', { method: 'POST', body })
+    expect(await post('12345678')).toMatchObject({ status: 200, body: '8' })
+    expect(await post('123456789')).toMatchObject({ status: 413 })
+    expect(reached).toBe(1)
+  })
+
   it('serves a Host.routes handler', async () => {
     const handler = Host.routes<Env, 'ORIGIN'>({
       origin: 'ORIGIN',

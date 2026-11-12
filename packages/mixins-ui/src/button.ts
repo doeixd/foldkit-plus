@@ -78,9 +78,10 @@ export interface ButtonView<Message> {
    */
   readonly pressed?: boolean | undefined
   /**
-   * Attributes another component hands this button, after its own: a Dialog's
-   * `initialFocus`, so the dialog opens on it. A class among them replaces the
-   * button's, as a later attribute list does.
+   * Attributes another component hands this button, added to its Slot before
+   * the mixins resolve, as `PasswordInput.view`'s are: a Dialog's
+   * `initialFocus`, so the dialog opens on it. A class among them joins the
+   * recipe's, and an owned event or attribute among them is a conflict.
    */
   readonly attributes?: { readonly [K in keyof typeof ButtonSlots]?: SlotAttributes<Message> }
 }
@@ -91,27 +92,27 @@ export const view = <Message>(options: ButtonView<Message>, h: HtmlBuilder<Messa
       ...(options.type === undefined ? {} : { type: options.type }),
       ...(options.disabled === undefined ? {} : { isDisabled: options.disabled }),
       ...(options.onClick === undefined ? {} : { onClick: options.onClick }),
-      toView: toView(
-        [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
-        { input: options.input, h },
-        ({ button, icon }) =>
-          h.button(
-            [
-              ...button,
-              ...(options.pressed === undefined ? [] : [h.AriaPressed(String(options.pressed))]),
-              ...(options.attributes?.button ?? []),
-            ],
-            options.icon === undefined
-              ? [options.label]
-              : [
-                  h.span(
-                    [...icon, h.AriaHidden(true), ...(options.attributes?.icon ?? [])],
-                    [options.icon],
-                  ),
-                  options.label,
-                ],
-          ),
-      ),
+      toView: attributes => {
+        const base: SlotAttributes<Message> = [
+          ...attributes.button,
+          ...(options.pressed === undefined ? [] : [h.AriaPressed(String(options.pressed))]),
+          ...(options.attributes?.button ?? []),
+        ]
+        const { button, icon } = resolveFor(
+          ButtonSlots,
+          [
+            ...(options.style === undefined ? [] : [options.style.mixin]),
+            ...(options.mixins ?? []),
+          ],
+          { input: options.input, h },
+        )({ ...attributes, button: base, icon: options.attributes?.icon ?? [] })
+        return h.button(
+          button,
+          options.icon === undefined
+            ? [options.label]
+            : [h.span([...icon, h.AriaHidden(true)], [options.icon]), options.label],
+        )
+      },
     },
     h,
   )

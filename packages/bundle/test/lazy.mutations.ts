@@ -30,4 +30,14 @@ export default [
     'loading = undefined\n        throw error',
     'throw error',
   ),
+  edit(
+    'a kept drawing ignores that the bodies arrived',
+    'drawEpochs.set(view, () => body !== undefined)',
+    'void view',
+  ),
+  edit(
+    'the arrival copy of an instance Model is a plain object',
+    'Object.create(Object.getPrototypeOf(given), Object.getOwnPropertyDescriptors(given))',
+    '{ ...given }',
+  ),
 ]

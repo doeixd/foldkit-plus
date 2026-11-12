@@ -34,6 +34,8 @@ interface Placing {
   readonly dir?: 'rtl'
   readonly disabled?: boolean
   readonly on?: boolean
+  /** An `update` that answers every toggle by leaving the switch as it was. */
+  readonly refuse?: boolean
 }
 
 const mount = (options: Placing = {}) => {
@@ -82,7 +84,7 @@ const mount = (options: Placing = {}) => {
       container,
       init: () => ({ model: { on: options.on === true, toggles: 0 } }),
       update: (model: Model, message: Toggled) =>
-        message.isChecked === model.on
+        options.refuse === true || message.isChecked === model.on
           ? { model }
           : { model: { on: message.isChecked, toggles: model.toggles + 1 } },
       view,
@@ -143,6 +145,19 @@ test('a drag that ends on the side it began on changes nothing, and is no click'
     expect([checked(), toggles()]).toEqual(['false', '0'])
     // And it rests where it began.
     expect(control().hasAttribute('data-dragging')).toBe(false)
+    expect(thumbAt()).toBeLessThan(0.4)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a drag the update refuses lets the thumb go back to where the switch is', async () => {
+  const handle = mount({ refuse: true })
+  try {
+    await drawn()
+    await drag(0.25, 0.95)
+    await vi.waitFor(() => expect(control().hasAttribute('data-dragging')).toBe(false))
+    expect([checked(), toggles()]).toEqual(['false', '0'])
     expect(thumbAt()).toBeLessThan(0.4)
   } finally {
     handle.dispose()

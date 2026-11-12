@@ -16,14 +16,14 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-const mount = () => {
+const mount = (options?: Parameters<typeof mountTasks>[0]) => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
     setTimeout(() => callback(performance.now()), 0),
   )
   vi.stubGlobal('cancelAnimationFrame', clearTimeout)
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(300)
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(400)
-  return mountTasks()
+  return mountTasks(options)
 }
 const click = (target: Element) => target.dispatchEvent(new MouseEvent('click', { bubbles: true }))
 const type = (input: HTMLInputElement, text: string) => {
@@ -193,6 +193,49 @@ test('Clear empties a filter written from outside while the form is open', async
     click(form()!.querySelector('button')!)
     await vi.waitFor(() => expect(shownRows()).toEqual(['t0', 't1', 't2']))
     expect(mounted.latest().log).toEqual(['title=-'])
+  } finally {
+    mounted.dispose()
+  }
+})
+
+test('a store that lands after the next key keeps what was typed', async () => {
+  const mounted = mount({ store: 'late' })
+  try {
+    await vi.waitFor(() => expect(shownRows()).toHaveLength(3))
+    click(buttonOf('title'))
+    await vi.waitFor(() => expect(form()).not.toBeNull())
+    type(field('title:filter:text'), 'a')
+    await vi.waitFor(() =>
+      expect(mounted.latest().log).toEqual(['title={"_tag":"Contains","text":"a"}']),
+    )
+    // The application has stored nothing: the form still holds the draft.
+    expect(field('title:filter:text').value).toBe('a')
+    type(field('title:filter:text'), 'ab')
+    await vi.waitFor(() => expect(mounted.latest().log).toHaveLength(2))
+    click(document.getElementById('flush')!)
+    await vi.waitFor(() => expect(shownRows()).toEqual([]))
+    expect(field('title:filter:text').value).toBe('ab')
+    type(field('title:filter:text'), 'abc')
+    await vi.waitFor(() =>
+      expect(mounted.latest().log.at(-1)).toBe('title={"_tag":"Contains","text":"abc"}'),
+    )
+  } finally {
+    mounted.dispose()
+  }
+})
+
+test('a store that trims the text lets a space be typed in the middle', async () => {
+  const mounted = mount({ store: 'trimmed' })
+  try {
+    await vi.waitFor(() => expect(shownRows()).toHaveLength(3))
+    click(buttonOf('title'))
+    await vi.waitFor(() => expect(form()).not.toBeNull())
+    type(field('title:filter:text'), 'the ')
+    await vi.waitFor(() => expect(mounted.latest().log).toHaveLength(1))
+    expect(field('title:filter:text').value).toBe('the ')
+    type(field('title:filter:text'), 'the d')
+    await vi.waitFor(() => expect(shownRows()).toEqual(['t2']))
+    expect(field('title:filter:text').value).toBe('the d')
   } finally {
     mounted.dispose()
   }

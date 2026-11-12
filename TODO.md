@@ -213,18 +213,27 @@ In the same change:
       go-ahead. #185, #64, #483 and #440 closed; the narrowed issues retitled
       and commented; park comments on #376, #433, #148, #149 and a comment on
       #474; the two Bundle.lazy bugs filed as #501 and #502.
-- [ ] **Release 0.39.0: tagged, but its Release run failed** (#504, with
-      #505's server-only Messages and reactions folded in by #506): 44 packages
-      one minor up, `foldkit-host` first published at 0.1.0. `v0.39.0` was
-      tagged at 3672017b, and Release run 43218652067 failed in `pnpm test`
-      (the domains-plus look test timed out). #509 fixed that. The maintainer
-      moves the tag to ec970799 and re-runs the release: `release.yml` publishes
-      when `NPM_TOKEN` is set and makes the GitHub release from `## 0.39.0`. A
-      cloud session can neither push a tag (the git proxy answers 403) nor
-      dispatch `release.yml` (403 for the GitHub integration). Afterwards mark
-      `foldkit-host` Published in `docs/releases.md`. The release after removes
-      `saved`, `Rejection.reason`, the server's `reasons`, and `editsJournal`'s
-      `absorbed` and `server` options.
+- [ ] **Release 0.40.0 is prepared, not tagged** (db24769e, 58aa1412, b5e1d029):
+      35 packages one minor up, `foldkit-host` at 0.2.0 and marked Published in
+      `docs/releases.md`. Once it is on `main`: `git tag v0.40.0 b5e1d0290 &&
+      git push origin v0.40.0` runs `release.yml`, which publishes when
+      `NPM_TOKEN` is set and makes the GitHub release from `## 0.40.0`. Still
+      deprecated and not removed, though 0.39.0's notes said the next release
+      would: `editsJournal`'s `absorbed` and `server`, and the `saved` inputs
+      of `foldkit-mixins-form` and `foldkit-crud`.
+- [x] **Decisions on the laws and Alchemy notes, made 2026-11-12 by
+      delegation:** raise the workspace's Effect to 4.1.4 (A-WP1 does it, and
+      the lockfile, the skill's "tested on" line and `packages/plus/src/setup.ts`
+      with it); ship `foldkit-remote-domain` as Early while Domain is a beta.
+- [ ] **Upstream reports to file at alchemy-run/alchemy** (a cloud session may
+      not post them; §10 of `docs/design/544-547-alchemy-DESIGN.md` has the
+      detail):
+  - a `commandId` reused by another principal returns the first caller's
+    receipt and skips `decide`, which discloses one caller's reply to another
+    who can address the same aggregate;
+  - an `atLeast` read through the Api has no timeout;
+  - a snapshot carries no stream version, so a client cannot compare it with a
+    receipt.
 - [ ] **`TYPESAFE_API_KEY`**, so the Jev review can run. It is owed on:
   - #497's public API: `SSR.headed`, `RootRefusesHead`, the exported SSR
     diagnostic types, `Button.view`'s `attributes`, the resolver's class
@@ -290,9 +299,77 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
    What remains waits on upstream, a deploy, a release or the owner.
 2. **The UI polish leftovers** in `docs/design/TODO.md`: all wait on
    `@foldkit/ui` (foldkit/foldkit#1686 to #1689).
+3. **Build what was deferred for want of a consumer** (`AGENTS.md`, "Scope:
+   build the feature"). Thirty items are un-deferred and not yet built, #439's `reaches` and
+   #438's route code among them, in work packages with disjoint files;
+   what stays deferred has a measured, upstream, unsound or ownership
+   reason beside it. First, in parallel: A1, A2, B1, B2, C1, E2, F2, H1.
+   [decisions-2026-11-12-build-deferred.md](./docs/design/decisions-2026-11-12-build-deferred.md)
+4. **Laws on every state owner** (#541 and its parts #533 to #540, #542,
+   #543), fifteen work packages. Status of every one: not started. "After"
+   names the packages that land first; models are the note's.
+   [541-laws-DESIGN.md](./docs/design/541-laws-DESIGN.md) §9
+   - WP1 descriptors: invariants on the identity, a bare guarded descriptor
+     refused (#539). Default. After: none.
+   - WP2 refinements, the enumerator, `Laws.check`, `Footprint` (#535, #536,
+     #543.4). Default. After: 1.
+   - WP3 `Data.can` (#533). Sonnet. After: 1.
+   - WP4 `Walk.run`, `Walk.states` (#538, #543.2). Sonnet. After: 1; its
+     example half after 2.
+   - WP5 `Closure`, and the closure check in `Sync.mount` (#543.1). Sonnet.
+     After: the sessions now in `packages/sync`.
+   - WP6 a document's laws (#534). Default. After: 5, and the session now in
+     `packages/durable`.
+   - WP7 a form over the held row (#542, #543.3). Default. After: 2, 3.
+   - WP8 the guide (#540). Sonnet. After: 8a any time, 8b last.
+   - WP9 Agent `applies`, `Data.capability`, `Data.available` (#533).
+     Default. After: 3.
+   - WP10 `becomes` enforced where the write commits (#535). Default. After:
+     2, 3, A-WP2a.
+   - WP11 `Evidence` and its three producers (#537). Default. After: 2, 4.
+   - WP12 `Scenario`, shared with item 5 (#538). Sonnet. After: 2, 4, 11.
+   - WP13 a closed Surface (#543.5). Sonnet. After: 5.
+   - WP14 the graph: facts, `Module.graph`, the three rules, the renderers
+     (#537). Default. After: 6, 11, 13.
+   - WP15 `foldkit-plus laws` (#536). Sonnet. After: 2.
+5. **`@alchemy.run/domain` as a second authority** (#544 to #547), work
+   packages A-WP1 to A-WP11. Status of every one: not started. A-WP6 repeats
+   in small after each of A-WP7 to A-WP11.
+   [544-547-alchemy-DESIGN.md](./docs/design/544-547-alchemy-DESIGN.md) §8
+   - A-WP1 the package skeleton, Domain installed, the probe as a test
+     (groundwork for #544 to #547; raises the workspace's Effect to 4.1.4).
+     Sonnet. After: none; it alone holds the lockfile.
+   - A-WP2a `RemoteServer.memoryWriter` (#545). Default. After: A-WP1.
+   - A-WP2b lower `ReserveStock` (#545). Default. After: A-WP1, A-WP2a.
+   - A-WP3 the receipt-aware adapter (#544). Default. After: A-WP1.
+   - A-WP4 one scenario through three backends (#546). Sonnet. After: A-WP2b,
+     A-WP3.
+   - A-WP5 describe what was imported (#547). Sonnet. After: A-WP3; A-WP2b for
+     the `Derived` case.
+   - A-WP6 README, skill, changelog. Sonnet. After: A-WP2a to A-WP5.
+   - A-WP7 row revisions and read-after tokens on Remote's wire (#544, #480's
+     open item). Default. After: A-WP4, and laws WP3 and WP4.
+   - A-WP8 lists and relations. Default design step. After: A-WP7.
+   - A-WP9 first paint from a server render. Default. After: A-WP7.
+   - A-WP10 a Domain model as a client-test fixture. Sonnet. After: A-WP3.
+   - A-WP11 one trace, and the HTTP protocol. Sonnet. After: A-WP3.
+
+   **File order across items 4 and 5.** Both notes require it; the laws note's
+   §9 and the Alchemy note's §8 hold the detail.
+   - `packages/remote-server/src/index.ts` and
+     `packages/remote-drizzle/src/index.ts`: A-WP2a, then laws WP10, then
+     A-WP7. `packages/remote-server/src/memoryWriter.ts` is A-WP2a's; WP10
+     adds `postconditions` to it after A-WP2a lands.
+   - `examples/writes/package.json` is A-WP1's. No laws package edits it.
+   - `packages/remote/src`: A-WP7 owns `wire.ts`, `model.ts`, `client.ts`,
+     `store.ts`, `plan.ts`, `inspect.ts` and `whyReasons.ts`; laws WP3, WP4,
+     WP9 to WP12 and WP14 edit other files.
+   - `Scenario`: laws WP12 owns the type. If A-WP4 is ready first it ships its
+     local `WriteScenario` in D25's shape, and WP12 deletes it. `Footprint`:
+     laws WP2 owns the type, and A-WP5 uses it.
 
 Waiting on the owner: the upstream posts (foldkit#1657, #1872, the Workers `fetch` signature, the
-identity markers, floating-ui), and the Jev reviews (no key here).
+identity markers, floating-ui), the three alchemy-run/alchemy reports, and the Jev reviews (no key here).
 
 ## Parked
 
@@ -323,3 +400,7 @@ identity markers, floating-ui), and the Jev reviews (no key here).
   4. the sync example's effects as a reaction, with the plan's "done when"
      example;
   5. remove the deprecated options in the release after 0.39.0.
+
+  Phase 5 does not stop after these: `prune(through)` joins step 2, and
+  items 3 (server-only state), 4 (reader slices) and 8 (Journal Stories)
+  follow (decisions-2026-11-12-build-deferred.md, group D).

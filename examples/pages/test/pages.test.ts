@@ -519,7 +519,7 @@ describe('two people on one page', () => {
     }
     await expect(
       journal.transport('alice').exchange(Sequence.make(0), [
-        // @ts-expect-error a client that does not speak the schema: ops that are not an array
+        // A client that does not speak the schema: ops that are not an array.
         malformed,
         valid!,
       ]),

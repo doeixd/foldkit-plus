@@ -1,6 +1,6 @@
 # foldkit-media
 
-Checked against `foldkit-media` 0.7.0.
+Checked against `foldkit-media` 0.8.0.
 
 Responsive images as URLs to write. Given an image's facts, a provider that
 knows a host's URL scheme, and how wide the image is drawn, it derives every
@@ -163,7 +163,8 @@ any); the route mints a 128-bit key and answers a `FileAsset { key, name, type, 
 it keeps the file the row holds, or claims the key once, for its uploader, within a day
 (`FileUnclaimed` otherwise), with the server's facts. From a browser, `uploadFile(file)`
 streams `Progressed` then `FileUploaded { asset }`; `UploadFailed` adds `TooSlow`,
-`RateLimited` and `Busy`.
+`RateLimited` and `Busy`; a file name that cannot be URI-encoded fails the
+stream with `Malformed` instead of throwing.
 
 See also: [packages/media/README.md](https://github.com/doeixd/foldkit-plus/blob/main/packages/media/README.md),
 [docs/design/media-DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/media-DESIGN.md).

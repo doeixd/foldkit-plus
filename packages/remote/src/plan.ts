@@ -13,7 +13,7 @@
 import { stableStringify } from './query.js'
 import { targetsOf } from './relation.js'
 import { Requirement, type RelationRequirement } from './requirement.js'
-import { entityKey, missingFields, readField, type EntityStore } from './store.js'
+import { entityKey, missingFields, oldestOf, readField, type EntityStore } from './store.js'
 
 type Window = NonNullable<Requirement['windows']>[string]
 
@@ -78,12 +78,12 @@ export const deadlineOf = (
     const key = entityKey(group.entity, group.id)
     const entry = store[key]
     if (entry === undefined || entry.tombstone) return
-    const fresh = group.fields.some(
+    const freshFields = group.fields.filter(
       field =>
         (entry.present.has(field) && !entry.stale.has(field)) || entry.unavailable.has(field),
     )
-    if (fresh) {
-      const expires = entry.oldestAt + freshness.freshness
+    if (freshFields.length > 0) {
+      const expires = oldestOf(entry, freshFields) + freshness.freshness
       // An entity dated `Infinity` never ages (see `visibleStore`): no deadline.
       // At `expires` itself `plan` does not yet fetch it, so it is still awaited.
       if (expires >= freshness.now && Number.isFinite(expires)) {
@@ -103,14 +103,19 @@ export const deadlineOf = (
   return at === undefined ? undefined : { at, due: Requirement.merge(due) }
 }
 
-/** Whether a held entity's oldest field is older than `freshness` allows, so it is read again whole. */
-const isExpired = (store: EntityStore, key: string, freshness: PlanFreshness | undefined) => {
+/** Whether the oldest of the `fields` a read asks of a held entity is older than `freshness` allows. */
+const isExpired = (
+  store: EntityStore,
+  key: string,
+  fields: ReadonlyArray<string>,
+  freshness: PlanFreshness | undefined,
+) => {
   const entry = store[key]
   return (
     freshness !== undefined &&
     entry !== undefined &&
     !entry.tombstone &&
-    freshness.now - entry.oldestAt > freshness.freshness
+    freshness.now - oldestOf(entry, fields) > freshness.freshness
   )
 }
 
@@ -126,7 +131,7 @@ export const plan = (
 
   for (const group of Requirement.merge(requirements)) {
     const key = entityKey(group.entity, group.id)
-    const expired = isExpired(store, key, freshness)
+    const expired = isExpired(store, key, group.fields, freshness)
     const windowKeys = Object.fromEntries(
       Object.entries(group.windows ?? {}).map(([field, window]) => [field, windowKey(window)]),
     )
@@ -180,7 +185,7 @@ export const refreshedOf = (
   if (options.force === true) return planned
   return planned.flatMap(requirement => {
     const key = entityKey(requirement.entity, requirement.id)
-    if (isExpired(store, key, options.freshness)) return [requirement]
+    if (isExpired(store, key, requirement.fields, options.freshness)) return [requirement]
     const held = store[key]?.windows ?? {}
     const fields = requirement.fields.filter(field => {
       const window = requirement.windows?.[field]

@@ -1,6 +1,6 @@
 # The data grid's last leftovers: HTML clipboard, multi-range copy, fill series (#144)
 
-Status: decided 2026-11-11 and revised after review the same day; nothing built. The three items are the rest of
+Status: decided 2026-11-11 and revised after review the same day; nothing built then, and the three "when an adopter asks" verdicts of §1 are built since. The three items are the rest of
 #144's leftovers ([data-grid-DESIGN.md](./data-grid-DESIGN.md), "Phase 8 as
 built so far": "Not built: HTML clipboard data, multi-range copy", and "dates
 and custom strategies are not built"). Nobody has asked for any of them, so
@@ -14,11 +14,11 @@ where) or *recalled* (from memory, not verified).
 
 | Item | Verdict | Why |
 | --- | --- | --- |
-| Copy as `text/html` | When an adopter asks | Spreadsheets already read today's TSV. HTML only helps when pasting into a document or an email. Foldkit's builders write `text/plain` alone, but a second listener in the same copy event can add the HTML (probed in Chromium, §5.1). |
+| Copy as `text/html` | Built (E2 of [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md)); was "when an adopter asks" | Spreadsheets already read today's TSV. HTML only helps when pasting into a document or an email. Foldkit's builders write `text/plain` alone, but a second listener in the same copy event can add the HTML (probed in Chromium, §5.1). |
 | Paste `text/html` | Not at all, unless a source that writes no `text/plain` is shown | Every source in §3 that writes HTML also writes TSV beside it: checked for Glide, recalled for Excel and Sheets. Parsing untrusted markup is risk with no gain. |
 | Multi-range copy | Not at all for now | The grid has no multi-range selection. Building one collides with Ctrl+click's row toggle, and the copy itself has three incompatible precedents. |
-| Date fill series | When an adopter asks; first in line | Small, and contained in `fill.ts`. A Date column's fill text is already an ISO day. |
-| Custom fill series | When an adopter asks | One optional column field. It has no design question, only no caller. |
+| Date fill series | Built (E2 of the same note); was "when an adopter asks; first in line" | Small, and contained in `fill.ts`. A Date column's fill text is already an ISO day. |
+| Custom fill series | Built (E2 of the same note); was "when an adopter asks" | One optional column field. It has no design question, only no caller. |
 
 ## 2. What exists today
 

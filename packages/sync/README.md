@@ -781,7 +781,10 @@ const serving = Effect.gen(function* () {
 - A server that hands `foldkit-durable`'s `append` input it did not first read
   with a `codec` reader gets no server-only check: the journal knows no
   Message's tag. Read every sent entry with `codec.writtenFrom` before
-  appending it, as `journalExchange` does.
+  appending it, as `journalExchange` does. The types hold you to it: what an
+  exchange receives (`Sync.transport.serve`'s `exchange`, a `TransportClient`,
+  a `loopback` handler) is `ReadonlyArray<unknown>`, and `append` takes only
+  a `WrittenOperation`.
 
 ### Work after a commit: reactions
 
@@ -1031,7 +1034,10 @@ A server that builds an operation itself and appends it (`editsJournal`'s
 `Notes.journalContract().operation.encode(operation)`. The journal takes a
 `WrittenOperation`, which is branded so that only Sync makes one: a decoded
 `Operation` names no version, would read as version 1, and is refused by the
-type. Changing the shared
+type. An entry from a wire is `unknown` until `codec.writtenFrom` reads it.
+Nothing read as history writes again: `operation.decode` takes only a
+`WrittenOperation`, and `encode` refuses what `codec.committedFrom` returns,
+stripped of its commit or not. Changing the shared
 slice's own Schema is not covered: a stored snapshot or checkpoint of the old
 shape still needs a migration of your own.
 
@@ -1164,7 +1170,9 @@ const inMemory = Effect.gen(function* () {
   Effect.provide(
     Sync.transport.loopback((_cursor, pending) => ({
       operations: [],
-      acknowledged: pending.map(operation => operation.opId),
+      acknowledged: pending.map(
+        entry => TodoSync.codec.writtenFrom(entry, TodoSync.documentId).opId,
+      ),
       rejected: [],
     })),
   ),

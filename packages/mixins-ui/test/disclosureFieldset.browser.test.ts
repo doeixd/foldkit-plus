@@ -159,6 +159,22 @@ test('the panel height still slides at the default motion', async () => {
   }
 })
 
+test("the height rule leaves an application's own grid alone (#530)", async () => {
+  // Still, so the rule, were it to match, would read 0s.
+  const handle = mountDisclosure({})
+  try {
+    await vi.waitFor(() => expect(button()).not.toBeNull())
+    const holder = document.createElement('div')
+    holder.innerHTML =
+      '<div id="own-grid" style="display:grid;grid-template-rows:1fr;transition:grid-template-rows 300ms"><div><div id="tabs-panel">Tab</div></div></div>'
+    document.body.append(holder)
+    expect(heightDuration()).toBe('0s')
+    expect(getComputedStyle(document.getElementById('own-grid')!).transitionDuration).toBe('0.3s')
+  } finally {
+    handle.dispose()
+  }
+})
+
 test('a bordered button squares its lower corners onto the panel only while open', async () => {
   const handle = mountDisclosure({ variant: 'bordered' })
   try {

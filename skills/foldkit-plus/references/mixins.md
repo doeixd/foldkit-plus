@@ -1,6 +1,6 @@
 # Mixins: `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui`
 
-Checked against `foldkit-mixins` 0.24.0, `foldkit-mixins-surface` 0.10.0 and `foldkit-mixins-ui` 0.25.0.
+Checked against `foldkit-mixins` 0.25.0, `foldkit-mixins-surface` 0.11.0 and `foldkit-mixins-ui` 0.26.0.
 
 ## 1. Purpose
 
@@ -71,14 +71,22 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   selections in `variants`, the page's own rules in `app` (always last).
 - `protected: { events, attributes, style }` forbids attachments from supplying those. An
   attribute is compared by the HTML attribute a contribution sets, so `h.Attribute('aria-label', …)`,
-  `h.DataAttribute` and a `Prop` are refused where `h.AriaLabel` is; `OnCustomEvent` counts as the
-  DOM event it names.
+  `h.DataAttribute` and a `Prop` are refused where `h.AriaLabel` is. An event is compared by the
+  DOM event Foldkit registers: `OnKeyDownPreventDefault`, `OnKeyDownSelf` and `OnKeyDownFocus`
+  are `keydown`, `OnDoubleClick` is `dblclick`, `OnFocusEnter` is `focusin`, and
+  `OnCustomEvent` is the event it names.
 - **Resolver rules:** classes additive + deduped into one `Class`; Style pieces' inline style
   merged per property (later wins) over the base, but a property a Behavior sets via `h.Style`
   has one owner (`mixins:style-property-conflict` otherwise); each event / scalar attribute has
   exactly one owner (base or one mixin);
-  `ChildAttribute` preserved by identity and reserves its event; `Key`/`InnerHTML` cannot come
-  from a mixin; all mounts compose into one `OnMount`. A composed Mount that fails ends alone
+  the same holds across builders (`AriaLabel` and `Attribute('aria-label')` are one owner);
+  `ChildAttribute` preserved by identity and reserves its event, and a mixin's child meets the
+  same checks (its `Class` joins the one class); a mixin's raw `class`/`style` (`Attribute`,
+  `Prop`, child `Style`) is `mixins:attribute-conflict`, an inline `on…` handler is
+  `mixins:unsupported-event`; a style property is the declaration it writes, and a protected or
+  Behavior-owned one is also guarded from its shorthands (`inset`), physical sides (`right` for
+  `insetInlineEnd`) and `translate`/`rotate`/`scale` beside `transform`; `Key`/`InnerHTML`, or a `Prop` that
+  replaces the children, cannot come from a mixin; all mounts compose into one `OnMount`. A composed Mount that fails ends alone
   and is reported as a `MountFailed` diagnostic (`{ mount, slot: Option, cause }`) through
   `foldkit-surface`'s `Diagnostics.Reporter`; an interrupted one is not. Foldkit runs Mounts
   outside the runtime's `resources`, so the resolver dispatches it at the Mount's element
@@ -450,7 +458,7 @@ value-to-tone map (`Badge({ attribute: 'data-state', tones: { Published: 'succes
 because one style serves badges in every state and every tone is present at once.
 `Recipes.InputGroup` (`group`, `affix`, `control`) draws a prefixed or suffixed field as one
 box; a `Segmented` pressed option is the accent's flat tint (`Segmented.fluid`, with its `indicator` and `highlight`
-slots drawn first in the group, slides it as a pill; `Segmented.view` and `Segmented.toggled(pressed, value, { multiple, optional })` draw and step it, `multiple` being a toggle group; `Button.view({ icon })` draws an icon (an `svg`, `aria-hidden`) in its `icon` slot before the label, which the `icon` variant hides so the icon stands alone, the label still its name (`shape: 'square'` does so for any variant, an outlined icon button); `Button.view({ attributes: { button: dialog.initialFocus } })` adds another component's attributes after its own; `Button.view({ disabled })` writes only `aria-disabled`, so a `type: 'submit'` one still submits on Enter or a press, and `update` refuses what it should not send; a toggle button is `Button.view({ pressed })`, which rests on its tone's fill, keeps its text on it hovered and held, and deepens held); a held button scales to 98% (by `travel`), a solid or primary one also deepening to its `active` fill and clearing its 1px border, so it stands 1px in. That fill is clipped to the padding box: override it with `backgroundColor` in every state, since a `background` shorthand resets the clip. An unfilled button's
+slots drawn first in the group, slides it as a pill; `Segmented.view` and `Segmented.toggled(pressed, value, { multiple, optional })` draw and step it, `multiple` being a toggle group; `Button.view({ icon })` draws an icon (an `svg`, `aria-hidden`) in its `icon` slot before the label, which the `icon` variant hides so the icon stands alone, the label still its name (`shape: 'square'` does so for any variant, an outlined icon button); `Button.view({ attributes: { button: dialog.initialFocus } })` adds another component's attributes to the slot before the mixins resolve, so a class joins the style's; `Button.view({ disabled })` writes only `aria-disabled`, so a `type: 'submit'` one still submits on Enter or a press, and `update` refuses what it should not send; a toggle button is `Button.view({ pressed })`, which rests on its tone's fill, keeps its text on it hovered and held, and deepens held); a held button scales to 98% (by `travel`), a solid or primary one also deepening to its `active` fill and clearing its 1px border, so it stands 1px in. That fill is clipped to the padding box: override it with `backgroundColor` in every state, since a `background` shorthand resets the clip. An unfilled button's
 hover (outline, ghost, icon) is a faint film of the state ink, so it reads on a colored band. The
 body defaults color scrollbars with `outline.overt`. `Touch`
 (`target`, `targets`) and `Icons` (`glyph(size)`, `byAttribute(attribute, icons)`) are style
@@ -743,7 +751,8 @@ export const stylesheet: string = Style.stylesheet(
   `Style.slots` declaration's `slots` and `style`, strings and token objects), so the page loads
   no style compiler. Any other export, or a `Style.whenInput`/`Style.perItem`, fails the build
   naming it: leave such a module off the list. With a module listed the build injects nothing
-  (the sheet holds every class; a frozen class with no rule fails the build); dev is unchanged.
+  (the sheet holds every class; a frozen class with no rule fails the build, and so does a page
+  that still compiles a Style from a module off the list); dev is unchanged.
   Attach a frozen style with `SlotView.attach(style.mixin)`: importing `Style` keeps the compiler.
 
 ## 8. Known traps

@@ -29,8 +29,8 @@ export default [
   edit(
     'an earlier layer is not added to',
     '../src/optimistic.ts',
-    'Object.entries({ ...overKept(base[key]?.values ?? {}, kept.get(key)), ...earlier })',
-    'Object.entries({ ...overKept(base[key]?.values ?? {}, kept.get(key)) })',
+    '          ...earlier,\n        }).filter(',
+    '        }).filter(',
   ),
   edit(
     'a list places the amount, not the sum',
@@ -43,8 +43,8 @@ export default [
     edits: [
       {
         file: '../src/optimistic.ts',
-        find: '([field]) => !unknown.has(field),',
-        replace: '() => true,',
+        find: '}).filter(([field]) => !unknown.has(field)),',
+        replace: '}).filter(() => true),',
       },
     ],
     tests: ['packages/remote/test/operators.test.ts'],

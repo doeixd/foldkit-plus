@@ -1345,8 +1345,8 @@ writer removes its own rows, so the foreign key must agree).
 **A delete refuses a row the domain says must stay.** A row pointed at
 through a relation declared `Relation.one(Topic, { onDelete: 'restrict' })`
 is not deleted: the delete statement itself holds `not exists` of a row
-pointing there, so no row can arrive between a check and the delete, on D1
-too. A miss then reads whether such a row is there, and answers
+pointing there, so no check runs apart from the delete (but see below for
+Postgres). A miss then reads whether such a row is there, and answers
 `DeleteOutcome.Referenced`, which `RemoteServer.write` sends as
 `Refusal.referenced` (its `entity` and `relation`), a 409. It names the relation and
 none of the rows, which the deleter may not see; a guard judges the
@@ -1361,16 +1361,36 @@ pointing at the deleted one through `Relation.one(Folder, { optional: true,
 onDelete: 'setNull' })` stays, with its link set to null, in the transaction
 (or D1 batch) that deletes, and only while the row named is still there and
 holds what the delete asks, so a delete that missed clears nothing. The
-writer answers the cleared rows the principal may see as
-`DeleteOutcome.Deleted({ cleared })`, and `RemoteServer.write` reads them
+writer answers the cleared rows the principal could see before the clear
+(their `visible` may read the link) as `DeleteOutcome.Deleted({ cleared })`, and `RemoteServer.write` reads them
 again for the answer, so a page holding one sees its link gone. `delete`
 takes `clearing`, each Entity's rules for unlinking such a row as a
 `CascadeRequirement`: Guard's `GuardServer.writer` hands over the row's
 `Update` rule and the relation's `Unlink` rule, given the Entity in
 `children`, and the writer refuses the whole delete as `Forbidden` where a
 row it would clear does not hold them (unknown counts as not), naming the
-Entity and none of the rows. A cascade into an Entity whose links something
-clears is refused where the writer is made.
+Entity and none of the rows. A clear is held to the cleared row's
+invariants too, judged with each cleared link null: where one would break
+(unknown counts as broken), the row keeps the one it points at, and the
+delete is refused as `DeleteOutcome.Referenced` for that relation, as a
+restriction is, naming neither the rows nor the invariant. A cascade into an
+Entity whose links something clears is refused where the writer is made.
+`bind` refuses a foreign key that sets null (or a default) on a relation that
+does not declare `setNull`, since the store would clear links no client
+foresaw. One that refuses the delete (`restrict`, `no action`, or no
+`onDelete`, the default) is let through on a relation that declares nothing:
+the delete then fails as a database error, not `Referenced`, so declare
+`onDelete: 'restrict'` to have it answered.
+
+**On Postgres, keep the foreign key.** A cascade, a restriction or a clear
+the writer holds alone sees what had committed when its statements ran. On
+SQLite and D1, which write one transaction at a time, that is everything. On
+Postgres a transaction that links a row to the one being deleted, committed
+while the delete runs, is not seen, and the link outlives its target; under
+`serializable` too, since the link's write reads nothing the delete writes.
+Only a foreign key holds there: `on delete cascade`, `restrict` (or `no
+action`) or `set null`, as the relation declares, which `bind` checks
+against it.
 
 **A cascade takes no row its deleter may not delete.** `delete` takes
 `cascading`, each Entity's `Delete` rule as a `CascadeRequirement` (Guard's

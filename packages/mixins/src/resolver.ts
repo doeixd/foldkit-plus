@@ -18,9 +18,17 @@ import {
 } from './attribute.js'
 import type { StaticContribution } from './contribution.js'
 import { DiagnosticError, type Diagnostic, type DiagnosticCode } from './diagnostics.js'
+import {
+  attributeNameOf,
+  eventNameOf,
+  isInlineHandler,
+  isUnknownHandler,
+  normalizeName,
+} from './foldkitNames.js'
 import { DRAWN_CLASSES } from './inject.js'
 import * as MetadataToken from './metadataToken.js'
 import { mountFailed } from './mountFailed.js'
+import { declarationName, overlaps } from './styleNames.js'
 import type { SlotProtection } from './slot.js'
 
 export type SlotAttributes<Message> = ReadonlyArray<Attribute<Message> | ChildAttribute>
@@ -38,13 +46,6 @@ export interface ResolveOptions {
   readonly protected?: SlotProtection
 }
 
-/** `AriaLabel` -> `arialabel`, `aria-label` -> `arialabel`; tags and tokens agree. */
-const normalizeName = (name: string): string => name.replace(/[^a-z0-9]/gi, '').toLowerCase()
-
-/** Attribute tags are PascalCase (`OnKeyDown`); event tokens are lowercase. */
-const eventNameOfTag = (tag: string): string =>
-  normalizeName(tag.startsWith('On') ? tag.slice(2) : tag)
-
 /** A Foldkit `Class` attribute, read inside a child attribute another package built. */
 const isClass = (value: unknown): value is { readonly _tag: 'Class'; readonly value: string } =>
   isTagged(value) &&
@@ -55,65 +56,13 @@ const isClass = (value: unknown): value is { readonly _tag: 'Class'; readonly va
 const splitClasses = (value: string): ReadonlyArray<string> =>
   value.split(/\s+/).filter(token => token.length > 0)
 
-/** The field that keys an attribute that is owned individually, not by its tag. */
-const OWNERSHIP_FIELD: ReadonlyMap<string, 'key'> = new Map([
-  ['Prop', 'key'],
-  ['Attribute', 'key'],
-  ['DataAttribute', 'key'],
-])
+/** The resolver emits the slot's one `class` and `style`; a raw write of either would replace it. */
+const RESOLVER_OWNED: ReadonlySet<string> = new Set(['class', 'style'])
 
-// The tag may come from a child attribute another package built, so it is
-// text, not a union we hold.
-const ownershipKey = (tag: string, value: unknown): string => {
-  if (!OWNERSHIP_FIELD.has(tag) || typeof value !== 'object' || value === null) return tag
-  return `${tag}:${String((value as { readonly key?: unknown }).key)}`
-}
-
-/**
- * The HTML attribute a contribution sets, normalized to compare with a protected one:
- * `AriaLabel`, `Attribute('aria-label')` and `Prop({ key: 'ariaLabel' })` all read
- * `arialabel`, and `DataAttribute('x')` reads as `data-x`.
- */
-const attributeNameOf = (tag: string, value: unknown): string => {
-  const key =
-    typeof value === 'object' && value !== null
-      ? (value as { readonly key?: unknown }).key
-      : undefined
-  if (typeof key !== 'string') return normalizeName(tag)
-  return normalizeName(Option.getOrElse(namedByKey(tag, key), () => tag))
-}
-
-/** The builders that name their attribute by argument, and the name each sets. */
-const KEYED_BUILDERS: ReadonlyMap<string, (key: string) => string> = new Map([
-  ['DataAttribute', (key: string) => `data-${key}`],
-  ['Attribute', (key: string) => key],
-  ['Prop', (key: string) => key],
-])
-
-// The tag is open: it may be a child attribute's, from another package.
-const namedByKey = (tag: string, key: string): Option.Option<string> =>
-  Option.map(Option.fromNullishOr(KEYED_BUILDERS.get(tag)), name => name(key))
-
-/** `OnCustomEvent` names its event by argument and `OnMount` is composed, not one native event. */
-const NOT_NATIVE_EVENT: ReadonlySet<string> = new Set(['OnMount', 'OnCustomEvent'])
-
-// tag-check: open — any `On…` tag is a native handler by prefix, and a child attribute's tag is another package's.
-const isNativeEvent = (tag: string): boolean => tag.startsWith('On') && !NOT_NATIVE_EVENT.has(tag)
-
-/**
- * The DOM event a contribution listens to, normalized like a protected event:
- * `OnClick` and `OnCustomEvent('click')` both read `click`. Undefined for a non-event.
- */
-const eventNameOf = (tag: string, value: unknown): string | undefined => {
-  if (isNativeEvent(tag)) return eventNameOfTag(tag)
-  // tag-check: open — the tag may be a child attribute's, from another package.
-  if (tag !== 'OnCustomEvent') return undefined
-  const name =
-    typeof value === 'object' && value !== null
-      ? (value as { readonly name?: unknown }).name
-      : undefined
-  return typeof name === 'string' ? normalizeName(name) : undefined
-}
+/** Properties that replace the element's children, as `InnerHTML` does. */
+const REPLACES_CHILDREN: ReadonlySet<string> = new Set(
+  ['innerHTML', 'outerHTML', 'textContent', 'innerText'].map(normalizeName),
+)
 
 const toDiagnostic = (
   code: DiagnosticCode,
@@ -142,14 +91,17 @@ export const resolve = <Message>(
   const protectedAttributes = new Set(
     (protection?.attributes ?? []).map(attr => normalizeName(MetadataToken.nameOf(attr))),
   )
-  const protectedStyle = new Set(protection?.style ?? [])
+  const protectedStyle = protection?.style ?? []
 
   const classes: Array<string> = []
   const classSeen = new Set<string>()
-  const style = new Map<string, string>()
-  // Who wrote each inline style property. Style pieces layer over the base and
-  // over each other (that is restyling); a Behavior's property has one owner,
-  // and a Style piece may not overwrite what a Behavior set.
+  // By the declaration Foldkit writes, so two spellings of one are one entry;
+  // drawn under the spelling written last.
+  const style = new Map<string, { readonly property: string; readonly value: string }>()
+  // Who wrote each inline style declaration. Style pieces layer over the base
+  // and over each other (that is restyling); a Behavior's property has one
+  // owner, shorthands and sides included, and a Style piece may not overwrite
+  // what a Behavior set.
   const styleOwners = new Map<string, 'base' | 'style' | 'behavior'>()
   const mounts: Array<MountAction<Message, any>> = []
   const mountNames = new Map<string, number>()
@@ -180,26 +132,31 @@ export const resolve = <Message>(
     value: string,
     writer: 'base' | 'style' | 'behavior',
   ): void => {
-    if (writer !== 'base' && protectedStyle.has(property)) {
+    const shielded = protectedStyle.find(name => overlaps(property, name))
+    if (writer !== 'base' && shielded !== undefined) {
       fail(
         'mixins:protected-style-property',
-        `slot "${slot ?? '?'}" protects style property "${property}"`,
-        { property },
+        `slot "${slot ?? '?'}" protects style property "${shielded}", which "${property}" writes`,
+        { property, protected: shielded },
       )
     }
-    const owner = styleOwners.get(property)
-    if (
-      (writer === 'behavior' && owner !== undefined) ||
-      (writer === 'style' && owner === 'behavior')
-    ) {
-      fail(
-        'mixins:style-property-conflict',
-        `two owners for style property "${property}": ${owner === 'base' ? 'the view' : owner === 'style' ? 'a Style' : 'a Behavior'} already sets it`,
-        { property, owner, writer },
-      )
+    const declaration = declarationName(property)
+    for (const [written, owner] of styleOwners) {
+      if (
+        (writer === 'behavior' || (writer === 'style' && owner === 'behavior')) &&
+        overlaps(declaration, written)
+      ) {
+        fail(
+          'mixins:style-property-conflict',
+          `two owners for style property "${property}": ${owner === 'base' ? 'the view' : owner === 'style' ? 'a Style' : 'a Behavior'} already sets "${written}"`,
+          { property, owner, writer },
+        )
+      }
     }
-    if (owner === undefined || writer === 'behavior') styleOwners.set(property, writer)
-    style.set(property, value)
+    if (!styleOwners.has(declaration) || writer === 'behavior') {
+      styleOwners.set(declaration, writer)
+    }
+    style.set(declaration, { property, value })
   }
 
   const addMount = (action: MountAction<Message, any>): void => {
@@ -213,15 +170,21 @@ export const resolve = <Message>(
     mounts.push(action)
   }
 
+  const failUnknownHandler = (tag: string): never =>
+    fail(
+      'mixins:unsupported-event',
+      `"${tag}" is no Foldkit handler the resolver knows, so it cannot tell which event it owns`,
+      { tag },
+    )
+
   const reserve = (tag: string, value: unknown): void => {
     // tag-check: open — the tag may be a child attribute's, from another package.
     if (tag === 'OnMount') return
-    const eventName = eventNameOf(tag, value)
-    if (eventName !== undefined) {
-      ownedEvents.set(eventName, tag)
-      return
-    }
-    ownedAttributes.set(ownershipKey(tag, value), tag)
+    if (isUnknownHandler(tag)) failUnknownHandler(tag)
+    Option.match(eventNameOf(tag, value), {
+      onSome: eventName => ownedEvents.set(eventName, tag),
+      onNone: () => ownedAttributes.set(attributeNameOf(tag, value), tag),
+    })
   }
 
   const addBase = (attribute: Attribute<Message> | ChildAttribute): void => {
@@ -263,50 +226,74 @@ export const resolve = <Message>(
       { tag },
     )
 
-  // A contribution's tag that is not one of the above: a native handler or an attribute.
+  // What a Mixin adds, by the event or attribute it really sets: its own
+  // attributes, and the attribute inside each child attribute it adds.
   const claim = (tag: string, attribute: unknown): void => {
-    const eventName = eventNameOf(tag, attribute)
-    if (eventName !== undefined) {
-      if (protectedEvents.has(eventName)) {
-        fail('mixins:protected-event', `slot "${slot ?? '?'}" protects event "${eventName}"`, {
-          tag,
-          event: eventName,
-        })
-      }
-      const owner = ownedEvents.get(eventName)
-      if (owner !== undefined) {
-        fail(
-          'mixins:event-conflict',
-          `two owners for event "${eventName}": "${owner}" already owns it`,
-          { tag, event: eventName, owner },
-        )
-      }
-      ownedEvents.set(eventName, tag)
-      return
+    // tag-check: open — the tag may be a child attribute's, from another package.
+    if (tag === 'Key' || tag === 'InnerHTML') failStructural(tag)
+    if (isUnknownHandler(tag)) failUnknownHandler(tag)
+    if (isInlineHandler(tag, attribute)) {
+      fail(
+        'mixins:unsupported-event',
+        `a Mixin may not set an inline handler through ${tag}; contribute a Foldkit handler (h.On…) instead`,
+        { tag },
+      )
     }
-    const key = ownershipKey(tag, attribute)
+    const eventName = eventNameOf(tag, attribute)
+    if (Option.isSome(eventName)) return claimEvent(tag, eventName.value)
     const attributeName = attributeNameOf(tag, attribute)
+    if (REPLACES_CHILDREN.has(attributeName)) failStructural(tag)
+    if (RESOLVER_OWNED.has(attributeName)) {
+      fail(
+        'mixins:attribute-conflict',
+        `a Mixin may not set "${attributeName}" through ${tag}: the resolver writes the slot's one ${attributeName}; contribute classes or style instead`,
+        { tag, attribute: attributeName, owner: 'resolver' },
+      )
+    }
     if (protectedAttributes.has(attributeName)) {
       fail('mixins:protected-attribute', `slot "${slot ?? '?'}" protects attribute "${tag}"`, {
         tag,
         attribute: attributeName,
       })
     }
-    const owner = ownedAttributes.get(key)
+    const owner = ownedAttributes.get(attributeName)
     if (owner !== undefined) {
       fail(
         'mixins:attribute-conflict',
-        `two owners for "${key}": a ${owner} attribute already occupies it`,
-        { tag, key, owner },
+        `two owners for "${owner}": ${tag} sets the same attribute (${attributeName})`,
+        { tag, attribute: attributeName, owner },
       )
     }
-    ownedAttributes.set(key, tag)
+    ownedAttributes.set(attributeName, tag)
+  }
+
+  const claimEvent = (tag: string, eventName: string): void => {
+    if (protectedEvents.has(eventName)) {
+      fail('mixins:protected-event', `slot "${slot ?? '?'}" protects event "${eventName}"`, {
+        tag,
+        event: eventName,
+      })
+    }
+    const owner = ownedEvents.get(eventName)
+    if (owner !== undefined) {
+      fail(
+        'mixins:event-conflict',
+        `two owners for event "${eventName}": "${owner}" already owns it`,
+        { tag, event: eventName, owner },
+      )
+    }
+    ownedEvents.set(eventName, tag)
   }
 
   const applyMixinAttribute = (attribute: Attribute<Message> | ChildAttribute): void => {
     if (isChildAttribute(attribute)) {
       const inner = (attribute as { readonly attribute?: unknown }).attribute
-      if (isTagged(inner)) reserve(inner._tag, inner)
+      // As in the view's own: kept apart, Foldkit would draw one of two `Class` lists.
+      if (isClass(inner)) {
+        for (const token of splitClasses(inner.value)) addClass(token)
+        return
+      }
+      if (isTagged(inner)) claim(inner._tag, inner)
       added.push(attribute)
       return
     }
@@ -322,8 +309,6 @@ export const resolve = <Message>(
           }
         },
         OnMount: ({ action }) => addMount(action),
-        Key: ({ _tag: tag }) => failStructural(tag),
-        InnerHTML: ({ _tag: tag }) => failStructural(tag),
       }),
       Match.orElse(other => {
         claim(other._tag, other)
@@ -345,7 +330,11 @@ export const resolve = <Message>(
 
   const emitted: Array<Attribute<Message> | ChildAttribute> = []
   if (classes.length > 0) emitted.push(classAttribute(classes.join(' ')))
-  if (style.size > 0) emitted.push(styleAttribute(Object.fromEntries(style)))
+  if (style.size > 0) {
+    emitted.push(
+      styleAttribute(Object.fromEntries(Array.from(style.values(), e => [e.property, e.value]))),
+    )
+  }
   emitted.push(...preserved, ...added)
   const composed = composeMounts(mounts, slot)
   if (composed !== undefined) emitted.push(composed)

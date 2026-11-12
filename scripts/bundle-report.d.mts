@@ -100,3 +100,4 @@ export declare const measureWorker: (
   entry: string,
 ) => Promise<ServerReport>
 export declare const formatServerReport: (report: ServerReport) => string
+export declare const lockDist: (lock?: string) => Promise<() => void>

@@ -143,6 +143,7 @@ describe('EntityStore', () => {
         updatedAt: 2,
         // The email is still the first write's: the row is as fresh as it.
         oldestAt: 1,
+        fieldAt: { name: 2 },
         windows: {},
       }),
     )

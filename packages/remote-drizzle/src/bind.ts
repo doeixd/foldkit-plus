@@ -273,9 +273,12 @@ const onDeleteOf = (table: DrizzleTable, column: AnyColumn): Option.Option<strin
 
 /**
  * Refuses a `one` relation whose table's foreign key says otherwise than the
- * Entity on delete: a cascade the domain does not declare goes unforeseen by
- * the client, and one it declares and the table refuses leaves the writer's
- * removal and the table's rule at odds.
+ * Entity on delete: a cascade or a clear the domain does not declare goes
+ * unforeseen by the client, and one it declares and the table refuses leaves
+ * the writer's removal and the table's rule at odds. A foreign key that
+ * refuses (`restrict`, `no action`, the default) where the domain declares
+ * nothing is let through: it keeps every link pointing somewhere, and the
+ * delete fails as a database error rather than `Referenced`.
  */
 const agreesOnDelete = (
   table: DrizzleTable,
@@ -295,11 +298,15 @@ const agreesOnDelete = (
       // A table that refuses the delete itself agrees with a restriction, which then never reaches it.
       if (declared === 'restrict' && action !== 'restrict' && action !== 'no action')
         fail(
-          `relation "${field}" on entity "${name}" is declared onDelete: 'restrict', but the foreign key on "${column.name}" says on delete ${action}; make it on delete restrict, or drop the foreign key and let the writer refuse the delete`,
+          `relation "${field}" on entity "${name}" is declared onDelete: 'restrict', but the foreign key on "${column.name}" says on delete ${action}; make it on delete restrict, or drop the foreign key and let the writer refuse the delete (on SQLite or D1: on Postgres only the foreign key holds against a link written concurrently)`,
         )
       if (declared === 'cascade' && action !== 'cascade')
         fail(
           `relation "${field}" on entity "${name}" is declared onDelete: 'cascade', but the foreign key on "${column.name}" says on delete ${action}; make it on delete cascade, or drop the foreign key and let the writer remove the rows`,
+        )
+      if ((action === 'set null' || action === 'set default') && declared !== 'setNull')
+        fail(
+          `relation "${field}" on entity "${name}" is stored on "${column.name}", whose foreign key says on delete ${action}; declare it Relation.one(${relation.target().name}, { optional: true, onDelete: 'setNull' }), so a client foresees it and the writer reports it`,
         )
     },
   })

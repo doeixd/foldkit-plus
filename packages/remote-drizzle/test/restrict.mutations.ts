@@ -25,8 +25,8 @@ export default [
   edit(
     'a pointed-at miss reads as moved',
     index,
-    'if (found.length > 0)\n            return DeleteOutcome.Referenced',
-    'if (false)\n            return DeleteOutcome.Referenced',
+    '{ where: and(eq(idColumn(binding), id), exists) },\n          )\n          if (found.length > 0)',
+    '{ where: and(eq(idColumn(binding), id), exists) },\n          )\n          if (false)',
   ),
   edit(
     'a restricted miss reads as gone',

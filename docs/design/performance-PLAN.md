@@ -422,7 +422,7 @@ parallel.
 - #427: streaming SSR, with #435 starting every read at route match.
 
 Then, from the declared-optimization note:
-- #439: the invalidation map, after #431. Narrowed 2026-11-10 to a static write-against-query function and per-Entity versions, each with a trigger. Not planned since #439 closed 2026-11-12: #437 shipped without the static function, and the largest page costs 0.1 ms per write. Each reopens as a new issue naming its consumer: [377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md).
+- #439: the invalidation map, after #431. Narrowed 2026-11-10 to a static write-against-query function and per-Entity versions, each with a trigger. #437 shipped without the static function, and the largest page costs 0.1 ms per write. #439 is reopened for R1, which decisions-2026-11-12-build-deferred.md (A1) builds; R2 stays unbuilt on that measurement. The earlier decision: [377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md).
 - #437: index checks.
 - #438: route splitting.
 - #440: selection codecs, if #421 shows Schema is a real share. Decided closed 2026-11-10 on the measurement (Schema is 7.0% and 8.9% of the two clients; at most 0.76 kB could go): [377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md).

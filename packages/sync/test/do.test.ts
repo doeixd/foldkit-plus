@@ -801,6 +801,8 @@ describe('defineDocumentHost with reactions', () => {
     expect(await tagsIn(file)).toEqual(['Wrote'])
     release()
     await vi.waitFor(async () => expect(await tagsIn(file)).toEqual(['Wrote', 'Noticed']))
+    // The pass is still finishing (reading the log, arming): end it before the folder goes.
+    await served.alarm()
   })
 
   it('resumes from the alarm what an evicted object left, with the same key', async () => {
@@ -853,6 +855,7 @@ describe('defineDocumentHost with reactions', () => {
     resultOf(await roundTrip(client, { id: '1', cursor: 0, pending: await wrote('a') }))
     await vi.waitFor(async () => expect(await tagsIn(file)).toEqual(['Wrote', 'Noticed']))
     expect(storage.state.alarm).toBe(soon)
+    await served.alarm()
   })
 
   it('arms the alarm for what committed even when settle fails', async () => {
@@ -879,6 +882,7 @@ describe('defineDocumentHost with reactions', () => {
     const reply = await roundTrip(client, { id: '1', cursor: 0, pending: await wrote('a') })
     expect(reply.error).toBeDefined()
     expect(storage.state.alarm).not.toBeNull()
+    await served.alarm()
   })
 
   it('runs one pass at a time, so a failure is counted once', async () => {
@@ -973,6 +977,7 @@ describe('defineDocumentHost with reactions', () => {
     broken = false
     resultOf(await roundTrip(client, { id: '2', cursor: 1, pending: [] }))
     expect(storage.state.alarm).not.toBeNull()
+    await served.alarm()
   })
 
   it('runs the base class’s own alarm after the reactions, and opens nothing without `server`', async () => {

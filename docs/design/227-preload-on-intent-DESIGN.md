@@ -164,13 +164,15 @@ response.
 ## Deferred
 
 - **`'visible'` preloading** through an `IntersectionObserver` (#236's open
-  question). The same `links` slot takes such a stream when one exists.
+  question). The same `links` slot takes such a stream when one exists. Built since,
+  opt-in: C1 of [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md).
 - **A per-link opt-out** (`data-preload="none"`). No application has needed
-  one; every same-origin link the tree holds is preloaded.
+  one; every same-origin link the tree holds is preloaded. Built since: C1 of
+  [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md).
 - **Skipping a destination the reader may not see** (`Site.accessOf` says
   `Denied`). The server guards the reads, so such a preload fails and is
   dropped; the routing does not know the reader to decide earlier.
-- **A configurable wait.** 50 ms is fixed until an application needs another.
+- **A configurable wait.** 50 ms is fixed here; [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md) (C1) makes it an option.
 - **Per-node data policy** (#236's `data: { preload, retain, revalidate }`).
   This option is the preload half's mechanism; a node-level policy can
   compile to it later.

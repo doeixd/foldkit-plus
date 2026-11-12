@@ -340,9 +340,10 @@ export const resolvedPatches = (
       // A field a live patch wrote while this was pending is worked out over what it held
       // before, since the patch may be this write's own echo (#498).
       const row = Object.fromEntries(
-        Object.entries({ ...overKept(base[key]?.values ?? {}, kept.get(key)), ...earlier }).filter(
-          ([field]) => !unknown.has(field),
-        ),
+        Object.entries({
+          ...overKept(base[key]?.values ?? {}, kept.get(key), layer.id),
+          ...earlier,
+        }).filter(([field]) => !unknown.has(field)),
       )
       const moved = { values: {}, increments: adds ?? {}, assignments: computes ?? {} }
       const predicted = predicting(() => Write.apply(row, moved, { operators }))

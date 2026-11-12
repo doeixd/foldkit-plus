@@ -6,6 +6,17 @@ const tests = ['packages/mixins/test/viteFreeze.test.ts']
 
 export default [
   {
+    name: 'a compiler left in a freezing build is not refused',
+    edits: [
+      {
+        file: '../src/vite.ts',
+        find: 'if (compiler.length === 0) return',
+        replace: 'return',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a Style.whenInput in a listed module is written as data',
     edits: [
       {

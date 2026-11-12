@@ -1,6 +1,6 @@
 # foldkit-crud
 
-Checked against `foldkit-crud` 0.15.0 and `foldkit-mixins-crud` 0.13.0.
+Checked against `foldkit-crud` 0.16.0 and `foldkit-mixins-crud` 0.14.0.
 
 Management screens assembled from parts the application already has. An
 **editor** joins a `foldkit-form` form, the Remote mutation its value feeds, and

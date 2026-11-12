@@ -11,6 +11,13 @@ const guard = '../../guard/src/server.ts'
 const entity = '../../entity/src/index.ts'
 const client = '../../remote/src/mutation.ts'
 const lawTests = [...writerTests, ...guardTests]
+const selectCleared = `        ...clearing.map(({ edge, visible }) =>
+          db
+            .select({ id: idColumn(edge.owner), seen: seenFlag(visible) })
+            .from(edge.owner.table)
+            .where(sql\`\${edge.column} = \${id}\`),
+        ),
+`
 const edit = (
   name: string,
   file: string,
@@ -35,9 +42,33 @@ export default [
   edit(
     'a cleared row hidden from its asker is named',
     index,
-    '.returning({ id: idColumn(edge.owner), seen: seenFlag(visible) })',
-    '.returning({ id: idColumn(edge.owner), seen: seenFlag(undefined) })',
+    '.select({ id: idColumn(edge.owner), seen: seenFlag(visible) })',
+    '.select({ id: idColumn(edge.owner), seen: seenFlag(undefined) })',
   ),
+  {
+    // The old order: each cleared row judged once its link is cleared (every
+    // doc here starts in a folder, so the null links are the cleared ones).
+    name: 'a cleared row is judged visible after its link is cleared',
+    edits: [
+      { file: index, find: selectCleared, replace: '' },
+      {
+        file: index,
+        find: '        // Each row the cascade takes is judged before anything is removed: one',
+        replace: `${selectCleared.replace('${edge.column} = ${id}', '${edge.column} is null')}        // Each row the cascade takes is judged before anything is removed: one`,
+      },
+      {
+        file: index,
+        find: '(results[seen.length + at] ?? [])\n            .filter',
+        replace: '(results[seen.length + clearing.length + at] ?? [])\n            .filter',
+      },
+      {
+        file: index,
+        find: 'return (results[seen.length + clearing.length + at] ?? [])',
+        replace: 'return (results[seen.length + at] ?? [])',
+      },
+    ],
+    tests: writerTests,
+  },
   edit(
     'a cleared row is not held to its rule',
     index,
@@ -56,7 +87,43 @@ export default [
     'Option.isNone(plan) && clears.length === 0',
     'Option.isNone(plan)',
   ),
+  edit(
+    "a clear is not held to its row's invariants",
+    index,
+    '...breaking.map(({ refused }) => sql`not exists (${refused})`),',
+    '',
+  ),
+  edit(
+    'an invariant reads a cleared link as it was',
+    index,
+    '(case when ${edge.column} = ${id} then null else ${edge.column} end)',
+    '${edge.column}',
+  ),
+  edit(
+    'an invariant unknown for a cleared row lets it through',
+    index,
+    'where ${edge.column} = ${id} and (${holds}) is not true',
+    'where ${edge.column} = ${id} and (${holds}) = false',
+  ),
+  edit(
+    'a clear that breaks an invariant is answered as moved',
+    index,
+    '          if (found.length > 0)\n            return DeleteOutcome.Referenced({ entity: edge.entity, relation: edge.relation })\n        }\n        if (Option.isNone(when))',
+    '        }\n        if (Option.isNone(when))',
+  ),
+  edit(
+    'a refused clear is answered as absent',
+    index,
+    'restricted.length === 0 &&\n          breaking.length === 0',
+    'restricted.length === 0',
+  ),
   edit('bind clears nothing', bind, '      clears,\n', '      clears: [],\n'),
+  edit(
+    'a foreign key that sets null binds where the domain clears nothing',
+    bind,
+    "(action === 'set null' || action === 'set default') && declared !== 'setNull'",
+    'false',
+  ),
   edit(
     'the writer is never asked to clear',
     server,

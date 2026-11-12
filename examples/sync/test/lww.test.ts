@@ -93,7 +93,8 @@ const openJournal = () => {
     exchange: async (cursor, pending) => {
       const acknowledged: string[] = []
       const rejected: string[] = []
-      for (const operation of pending) {
+      for (const entry of pending) {
+        const operation = TitlesSync.codec.writtenFrom(entry, TitlesSync.documentId)
         try {
           journal.append('titles', operation, { actorId: 'owner', canWrite })
           acknowledged.push(operation.opId)

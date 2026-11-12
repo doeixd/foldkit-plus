@@ -338,3 +338,11 @@ export const page = (model: number) => nothing(model, tagOf(pageRead(model), mod
     'tag held as string',
   ])
 })
+
+test.each([
+  ['a bare mark', '// tag-check: open\n'],
+  ['a mark with only a separator', '// tag-check: open —\n'],
+  ['the mark inside a string', "const note = 'tag-check: open, because'\n"],
+])('%s does not excuse a branch on an open tag', (_name, lead) => {
+  expect(findingsOf(`${lead}export const a = loose._tag === "Ready" ? 1 : 2`)).not.toEqual([])
+})

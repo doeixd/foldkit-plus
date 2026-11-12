@@ -39,17 +39,20 @@ phase ships alone and records its number; the gates below are the notes' own.
   2026-11-11): the most that one non-landing route alone imports is 2.0 KB
   brotli (the CMS pages route; Chirp and the reference have no route
   modules), under the 20 KB bar, so C1 to C3 are not built and #438 closes
-  (numbers in [performance-PLAN.md](./performance-PLAN.md)). H4 only if 30
-  lines or more of glue stay shared after H2; `visibleLinks` (D2) only if
-  decision 3's rule is met. Close #236 when the branch merges.
+  (numbers in [performance-PLAN.md](./performance-PLAN.md)). H4 is not
+  built (3 to 5 shared lines against 30). Since 2026-11-12 `visibleLinks`
+  (D2), the `pointedLinks` options, C1 and C2 with a lazy page in
+  `examples/auth` (#438 reopens), and a policy per active Surface are
+  to be built: [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md), C1, C2 and A3.
   [235-236-438-site-host-DESIGN.md](./235-236-438-site-host-DESIGN.md)
 - [ ] **Remote data plane** (#377, #439, #440). Phase 1 built: #498 and #499
   (3c7aacb, d8e4402, e932171). Phase 2 built: `writing`
   (e35fbc3..323d1a1). Chirp's `waiting` stays on `outboxStatus` (it asks a
-  per-state question; see the note). Phases 3 and
-  4 are not planned (#439 closed 2026-11-12): #437 shipped without the static
-  function, and the largest page costs 0.1 ms per write. Each reopens as a new
-  issue naming its consumer.
+  per-state question; see the note). Phase 3
+  (`reaches`, and `explain` naming the writes that reach a list) is to be
+  built: #439 reopens for it ([decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md), A1). Phase 4, a version per Entity, stays
+  not built on its measurement: the largest page costs 0.1 ms per write
+  against a 1 ms bar, which A1 adds to `read.bench.ts`.
   [377-439-440-remote-data-plane-DESIGN.md](./377-439-440-remote-data-plane-DESIGN.md)
 - [ ] **Styling platform** (#420, #424, #429, #430). #420 phase 1 built:
   domains-plus's start-up script 217.5 to 191.6 kB brotli (39a003c..775f0bc),
@@ -57,7 +60,9 @@ phase ships alone and records its number; the gates below are the notes' own.
   (359d739..6ad14c8): the block went from 124 to 108 lines, and 75 is out of
   reach within the decided scope; #424 closed at 108 lines, the target
   withdrawn (decisions-2026-11-12-ui.md). #420 closed as completed; #429
-  closed as not planned; #430 waits on upstream alone, its trace taken and
+  closed as not planned. The motion axis, a sheet duration token and
+  `whenInput` in a build-evaluated module are to be built, as new issues
+  ([decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md), B1 and B2); #430 waits on upstream alone, its trace taken and
   that condition retired (decisions-2026-11-12-ssr-styling.md,
   decisions-2026-11-12-ui.md); the upstream request
   (floating-ui) can now be posted with the measured figure.
@@ -191,8 +196,9 @@ orders the slices; step 0 and slices 1–10 are built.
   read's `Unauthenticated`, stops a stream. §5.3, §7
 - [ ] **Left from §6.2's sketch, undecided:** a 415 for a body that is not
   `application/json`; `Auth.ssr`, a render's principal; Presence's `peerId`
-  as the principal's key; §5.1's Context-key option for `serveFetch`. Each
-  waits for a consumer.
+  as the principal's key; §5.1's Context-key option for `serveFetch`. The
+  415 and `peerId` are to be built, and the other two checked against
+  `AuthServer.host` first: [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md), G2.
 
 ## CMS
 
@@ -205,7 +211,8 @@ Each item says how it would attach; none is started.
 - [ ] Shareable preview through a signed-token principal.
 - [ ] Slug history, with `bySlug` answering a redirect.
 - [ ] Localization: one draft and one revision log per locale.
-- [ ] Workflows with more states (a review state). Design these from a real case.
+- [ ] Workflows with more states (a review state), designed in
+  `examples/cms`, which is the case: [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md), I2.
 
 ## Wiring and Bundle
 
@@ -213,8 +220,8 @@ Each item says how it would attach; none is started.
   [wiring-DESIGN.md](./wiring-DESIGN.md) Open questions
 - [ ] Re-rooted Surfaces per placement, so an agent can expose a placement's
   Messages one by one. [bundle-DESIGN.md](./bundle-DESIGN.md) Deferred
-- [ ] Derive the whole parent Model and Message from an assembly, once real
-  applications ask for it. [bundle-DESIGN.md](./bundle-DESIGN.md) Deferred
+- [ ] Derive the whole parent Model and Message from an assembly.
+  [bundle-DESIGN.md](./bundle-DESIGN.md) Deferred; [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md), E3.
 - [x] A size budget in CI for each example's entry chunk (#229). Built for
   every example with a client build: chirp, todo-app, domains-plus, auth, cms,
   cloudflare, reference, registry, data-grid, design-system, entity,
@@ -248,9 +255,9 @@ explicit code it replaces stays clearer; elimination (§34.5) is the test.
   with alternates, and data sources that take the locale. §33.11
 - [ ] **Genuine nested route nodes:** layout, child routes, child models and
   route-local subscriptions/effects per node, not a flat match arm over a
-  nested URL. §34.2. Last: flat routes plus section tags scale further than
-  assumed (the merged studio proves it); build the tree for a real nested
-  layout, not before one.
+  nested URL. §34.2. Flat routes plus section tags scale further than
+  assumed (the merged studio proves it). To be built with a nested layout in
+  the CMS studio as its consumer: [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md), C3.
 - [ ] **`foldkit-site` itself, thin:** stable nodes, hierarchy, targets and
   hrefs — whatever the slices above leave unowned — and the rest of §31's
   sequence.
@@ -272,8 +279,8 @@ and server/SSR sequences.
   browser entry (client boundary + import walk), S5 takeover decision
   (`when`/`otherwise`/`fresh`), S6 determinism check, S7 build step
   (`staticSite` plugin + `foundations`, example script deleted), and S8. S9
-  waits for a second language; §19.5–19.8 wait for a real
-  deployment (see Server).
+  is to be built once the CMS example has a second language, and §19.7's
+  policy on `examples/reference` ([decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md), I1 and G3).
 
 ## Example showcase hardening
 
@@ -352,9 +359,10 @@ asked of a server graph. [server-DESIGN.md](./server-DESIGN.md) §19
   §19.7
 - [ ] **Caching by whether a page depends on the principal.** §19.8
 
-The three items above wait for a real deployment: the static demo serves no
-cookie-authenticated mutations, no per-request pages, and no principal-aware
-cache keys. Build them against the first host that does, not speculatively.
+`examples/reference` and `examples/auth` are hosts with cookie-authenticated
+mutations and per-request pages, so these no longer wait. The principal and
+CSRF checks are `AuthServer.host`'s; the policy is G3 of
+[decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md); check §19.8 against `SSR.entry`'s page cache before building it.
 
 ## Internationalization
 
@@ -415,7 +423,7 @@ both.
 - [ ] **Phase 12:** the Style compiler's remaining constructs: `@font-face`
   sugar and animation orchestration. The rule registry is built (`inject.ts`'s
   `register` and `usedIn`), and extraction is the `foldkit-mixins/vite` sheet
-  (checked 2026-11-09). Waits until a real view needs them. [mixins-DESIGN.md](./mixins-DESIGN.md)
+  (checked 2026-11-09). To be built with domains-plus's `appStyle.ts` as the view: [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md), B3. [mixins-DESIGN.md](./mixins-DESIGN.md)
 - [ ] **Phase 13:** DevTools and agent metadata beyond
   `SurfaceView.describe`/`toMarkdown`. [mixins-DESIGN.md](./mixins-DESIGN.md)
 - [ ] **Portable Style and Behavior:** the target type, accessibility intents,
@@ -515,7 +523,7 @@ its README the details.
 - [x] **Bundle: union-branch linkage and transition-time initialization.**
   Documented in foldkit-bundle's README, "A union Model: a Link per branch"
   (eecf3e04): a custom `Link.make` over the union, the next branch built in
-  the login/logout transition. No helper until a second adopter.
+  the login/logout transition. A helper is to be built: [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md), E3.
 - [x] **Mixins: styling a row upstream's own Listbox/Menu draws.** Decided in
   design review §6 (657e73b8): no change. The mixins-ui forks draw each row
   as the `item` Slot; a port keeping upstream's view styles rows by a rule
@@ -524,8 +532,8 @@ its README the details.
 - [x] **Mixins: recipe omission and result-key typing.** Decided in design
   review §8: a recipe's base slots are typed present in every selection, so
   the `?? Style.empty` fallbacks are gone (4c39b095..fffa3ec0); omission is
-  destructuring, not a method, and Dialog gains no optional-piece axis until a
-  second app asks.
+  destructuring, not a method. Dialog's optional-piece axis is to be built
+  with its motion axis: [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md), B1.
 - [ ] **Mixins-UI: adapters still missing.** DragAndDrop and Animation still
   hand out attributes with no adapter. Menu, Listbox, Combobox, DatePicker,
   Toast, FileDrop, Calendar, Nav and VirtualList have adapters (checked
@@ -557,7 +565,8 @@ then the lifecycle and host-integration design work.
   generation with the static path. Verify request-specific metadata, first
   response head styles, escaping/deduplication, hydration and no cross-request
   leakage. Keep refusal until the host supports the contract.
-- [ ] **Medium, adopter-led: higher-level interaction integration (§11).**
+- [ ] **Medium: higher-level interaction integration (§11).** A `Reorder`
+  Behavior is to be built, not adopter-led: [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md), E1.
   Prefer a Slot adapter around upstream DragAndDrop for sortable collections.
   Evaluate a distinct delegated pointer-stroke Mount for Pixel Art's painting,
   including touch/pen position hit-testing, cancellation and skipped cells.

@@ -80,7 +80,8 @@ its arms instead (`:251`).
 
 No combinator joins two `RemoteData` values. Which of `NotFound`, `Failed` and
 `Loading` wins for a pair is a view decision, and nested folds keep each one
-exhaustive. Add one when an application asks, with that precedence stated.
+exhaustive. [decisions-2026-11-12-build-deferred.md](./decisions-2026-11-12-build-deferred.md) (A2) builds `RemoteData.all`, with that
+precedence stated.
 
 ## Outside the proof
 
