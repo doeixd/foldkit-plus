@@ -298,6 +298,12 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
    What remains waits on upstream, a deploy, a release or the owner.
 2. **The UI polish leftovers** in `docs/design/TODO.md`: all wait on
    `@foldkit/ui` (foldkit/foldkit#1686 to #1689).
+3. **Build what was deferred for want of a consumer** (`AGENTS.md`, "Scope:
+   build the feature"). Thirty items are un-deferred and not yet built, #439's `reaches` and
+   #438's route code among them, in work packages with disjoint files;
+   what stays deferred has a measured, upstream, unsound or ownership
+   reason beside it. First, in parallel: A1, A2, B1, B2, C1, E2, F2, H1.
+   [decisions-2026-11-12-build-deferred.md](./docs/design/decisions-2026-11-12-build-deferred.md)
 
 Waiting on the owner: the upstream posts (foldkit#1657, #1872, the Workers `fetch` signature, the
 identity markers, floating-ui), and the Jev reviews (no key here).
@@ -331,3 +337,7 @@ identity markers, floating-ui), and the Jev reviews (no key here).
   4. the sync example's effects as a reaction, with the plan's "done when"
      example;
   5. remove the deprecated options in the release after 0.39.0.
+
+  Phase 5 does not stop after these: `prune(through)` joins step 2, and
+  items 3 (server-only state), 4 (reader slices) and 8 (Journal Stories)
+  follow (decisions-2026-11-12-build-deferred.md, group D).
