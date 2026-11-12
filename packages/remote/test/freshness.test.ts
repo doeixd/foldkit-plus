@@ -193,6 +193,41 @@ describe('a value ageing out under staleWhileRevalidate', () => {
   })
 })
 
+describe('a row another screen read more of than this page reads (#512)', () => {
+  let clock = 1_200
+  const entry = Data.subscriptions(
+    { page: Page },
+    { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 1_000 }), now: () => clock },
+  )['page.read']
+  /** A detail page read `name` and `owner` at 0; this page asks `name` alone. */
+  const held: Model = {
+    ...initial,
+    remote: {
+      ...initial.remote,
+      entities: writeEntity(emptyStore, p1, { name: 'Apollo', owner: 'u1' }, 0),
+    },
+  }
+
+  it('is planned once the name is old, and has a deadline again once the name is read', () => {
+    expect(entry.modelToDependencies(held).requirements).toEqual([request])
+    const landed = Data.reduce(held, {
+      _tag: 'ReadReceived',
+      requests: [request],
+      result: {
+        settled: [],
+        entities: [{ entity: 'Project', id: 'p1', values: { name: 'Apollo' } }],
+      },
+      now: 1_200,
+    })
+    expect(entry.modelToDependencies(landed)).toMatchObject({
+      requirements: [],
+      expires: { at: 2_200, due: [request] },
+    })
+    clock = 1_500
+    expect(entry.modelToDependencies(landed).requirements).toEqual([])
+  })
+})
+
 describe('the default clock', () => {
   it('is read at each use, so fake timers installed after the entry was made move it', () => {
     const entry = Data.subscriptions(

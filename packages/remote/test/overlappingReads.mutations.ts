@@ -18,7 +18,7 @@ export default [
     edits: [
       {
         file: '../src/plan.ts',
-        find: '    if (isExpired(store, key, options.freshness)) return [requirement]',
+        find: '    if (isExpired(store, key, requirement.fields, options.freshness)) return [requirement]',
         replace: '    return [requirement]',
       },
     ],
@@ -29,7 +29,7 @@ export default [
     edits: [
       {
         file: '../src/plan.ts',
-        find: '    if (isExpired(store, key, options.freshness)) return [requirement]',
+        find: '    if (isExpired(store, key, requirement.fields, options.freshness)) return [requirement]',
         replace: '',
       },
     ],

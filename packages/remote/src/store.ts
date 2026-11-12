@@ -35,11 +35,18 @@ export interface EntityEntry {
    */
   readonly updatedAt: number
   /**
-   * No later than the oldest held field's write, which freshness reads. A
-   * write of every held field sets it; a write of some leaves it, so a row is
-   * read again early by at most the gap between its writes, never late.
+   * No later than the oldest held field's write: the date of any field `fieldAt`
+   * does not name. A write of every held field sets it; a write of some leaves
+   * it, so a field is read again early at most, never late.
    */
   readonly oldestAt: number
+  /**
+   * The write date of each field written since the row was last written whole.
+   * Freshness reads the fields a read asks, so a re-read of those dates them
+   * though the row holds others. Not persisted or resumed: a restored row reads
+   * every field as `oldestAt`.
+   */
+  readonly fieldAt?: Readonly<Record<string, number>> | undefined
   /**
    * The canonical window each present field was fetched with (`""` for none).
    * A later request with a *known, different* window is planned as missing.
@@ -103,6 +110,14 @@ const written = (
   // Every held field written again (a whole-row read, as expiry plans, or a first
   // write, a tombstone holding none) dates the row anew.
   const whole = [...previous.present].every(field => Object.hasOwn(values, field))
+  // An overlay keeps the dates of the row under it, a whole write drops them (every
+  // field is `oldestAt`), and a partial write dates the fields it wrote.
+  let fieldAt = kept === undefined ? undefined : previous.fieldAt
+  if (kept === undefined && !whole) {
+    const dated: Record<string, number> = { ...previous.fieldAt }
+    for (const field of Object.keys(values)) put(dated, field, now)
+    fieldAt = dated
+  }
   return {
     // Equal data keeps the object it was, so what is derived from it by
     // identity (a read's decoded row) survives a refetch that changed nothing.
@@ -119,8 +134,18 @@ const written = (
     tombstone: false,
     updatedAt: now,
     oldestAt: kept ?? (whole ? now : Math.min(previous.oldestAt, now)),
+    fieldAt,
     windows: nextWindows,
   }
+}
+
+/** The date of the oldest of `fields` the entry holds, or of its oldest field when it holds none of them. */
+export const oldestOf = (entry: EntityEntry, fields: Iterable<string>): number => {
+  let oldest = Infinity
+  for (const field of fields)
+    if (entry.present.has(field) || entry.unavailable.has(field))
+      oldest = Math.min(oldest, own(entry.fieldAt, field) ?? entry.oldestAt)
+  return oldest === Infinity ? entry.oldestAt : oldest
 }
 
 export interface EntityWrite {

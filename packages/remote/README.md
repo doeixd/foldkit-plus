@@ -927,9 +927,11 @@ server said last time. To see change:
 
 A list's age is the page that last answered it whole: its first page, or the
 one that replaced it after it went stale. A later page from "load more" does
-not date it. A row's age is its oldest field's: a mutation's answer or a
+not date it. A row's age is that of the oldest field a read asks: a mutation's answer or a
 narrower read that writes one field leaves the others as old as they were, so
-the row is read again, whole, when they are due. See [Reading, policies, and prefetch](#reading-policies-and-prefetch).
+a read of those is planned again when they are due, and a read of the new field
+alone dates only it. A row restored from storage or a server page carries one
+date for every field, so it is read again early at most. See [Reading, policies, and prefetch](#reading-policies-and-prefetch).
 
 ### Why did my change disappear?
 

@@ -10,8 +10,9 @@ live patch, a read of a narrower projection) therefore dates the whole row, so
 a field written an hour ago looks as fresh as the one written now. Under
 stale-while-revalidate it is read again up to one freshness period late.
 
-An expired row is read again whole (`isExpired` in `packages/remote/src/plan.ts`),
-so the defect is only the date that decides when, not what is read.
+An expired row was believed to be read again whole; it is not (#512): `plan`
+asks only the fields the requirement names, so a row holding more than a page
+reads never became whole again, and its date never moved.
 
 ## Two meanings in one date
 
@@ -43,13 +44,24 @@ gains `oldestAt`, which freshness reads:
 read again early, by at most the gap between its partial writes, and never
 late. The read it plans is whole, so it ends the gap.
 
+## Amendment (#512): the fields asked date the row
+
+Expiry plans the fields a read asks, not the row, so a whole-row write cannot
+be what dates it. The entry also keeps `fieldAt`, the write date of each field
+written since the row was last written whole (in memory only), and freshness
+reads the oldest of the fields asked: `oldestOf` in `store.ts`, used by
+`isExpired` and `deadlineOf`. A field `fieldAt` does not name has `oldestAt`,
+which is never later than its true date, so the bound holds: a field is read
+early, never late. A pending write keeps the dates of the row under it.
+`oldestAt` stays row-level for persistence, which keeps a row until its oldest
+field's age runs out.
+
 ## Considered and rejected
 
-- **A `writtenAt` per field**, as the backlog proposed. It is exact, but
-  exactness buys nothing while expiry reads the row whole, and it costs a
-  record per row in the Model, in persisted entries and in the resume payload
-  a server writes into every page. If expiry ever plans single fields, this is
-  the step after; `oldestAt` is the conservative bound it would replace.
+- **A persisted `writtenAt` per field.** It costs a record per row in
+  persisted entries and in the resume payload a server writes into every page.
+  The in-memory `fieldAt` below gives freshness the same answer where it is
+  read; a restored row falls back to `oldestAt`.
 - **`Data.fetchedAt(model, projection)`**, also proposed, is a reader with no
   caller yet. Left out until one asks.
 

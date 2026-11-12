@@ -57,6 +57,47 @@ describe('plan and deadlineOf', () => {
   })
 })
 
+/** What a page reads of a row another screen read more of (#512). */
+describe('a row held with more fields than a read asks', () => {
+  const title: Requirement = { entity: 'Post', id: 'p1', fields: ['title'] }
+  const due = { now: 120, freshness: FRESHNESS }
+  /** Both fields read at 0; the page reading `title` alone read it again at 120. */
+  const reread = (): EntityStore => writeEntity(partly0(), key, { title: 'Hi' }, 120)
+  const partly0 = (): EntityStore => writeEntity({}, key, { title: 'Hi', likes: 1 }, 0)
+
+  it('is read again for the fields asked, which then date it for that read', () => {
+    expect(plan(partly0(), [title], { freshness: due })).toEqual([title])
+    expect(plan(reread(), [title], { freshness: { now: 130, freshness: FRESHNESS } })).toEqual([])
+    expect(deadlineOf(reread(), [title], { now: 130, freshness: FRESHNESS })?.at).toBe(220)
+  })
+
+  it('stays due for a field nothing has read again', () => {
+    expect(plan(reread(), [read], { freshness: { now: 130, freshness: FRESHNESS } })).toEqual([
+      read,
+    ])
+    expect(reread()[key]).toMatchObject({ updatedAt: 120, oldestAt: 0 })
+  })
+
+  it('keeps each field its own date through a field written later', () => {
+    const later = writeEntity(reread(), key, { likes: 2 }, 150)
+    // `title` is 40 old, `likes` 0: neither is due, and the next deadline is the title's.
+    expect(plan(later, [read], { freshness: { now: 160, freshness: FRESHNESS } })).toEqual([])
+    expect(deadlineOf(later, [read], { now: 160, freshness: FRESHNESS })?.at).toBe(220)
+  })
+
+  it('reads a field named like an Object.prototype key by its own date', () => {
+    const odd: Requirement = { entity: 'Post', id: 'p1', fields: ['constructor'] }
+    const held = writeEntity(
+      writeEntity({}, key, { title: 'Hi' }, 0),
+      key,
+      { constructor: 'c' },
+      90,
+    )
+    expect(plan(held, [odd], { freshness: due })).toEqual([])
+    expect(plan(held, [title], { freshness: due })).toEqual([title])
+  })
+})
+
 describe('a pending write', () => {
   it('leaves the row as fresh as the server last made it, though it covers every field', () => {
     const visible = visibleStore(
@@ -76,6 +117,26 @@ describe('a pending write', () => {
     )
     expect(visible[key]).toMatchObject({ values: { title: 'Ho', likes: 9 }, oldestAt: 0 })
     expect(plan(visible, [read], { freshness: { now: 120, freshness: FRESHNESS } })).toEqual([read])
+  })
+  it('keeps the date of each field under it', () => {
+    const visible = visibleStore(
+      partly(),
+      {
+        layers: [
+          {
+            id: 'm1',
+            patches: [{ entity: 'Post', id: 'p1', values: { likes: 9 } }],
+            deletes: [],
+            viewer: Option.none(),
+          },
+        ],
+        overlays: [],
+      },
+      noKept,
+    )
+    // `likes` was read at 50, so at 120 it is fresh though the row's oldest field is not.
+    const likes: Requirement = { entity: 'Post', id: 'p1', fields: ['likes'] }
+    expect(plan(visible, [likes], { freshness: { now: 120, freshness: FRESHNESS } })).toEqual([])
   })
 })
 
