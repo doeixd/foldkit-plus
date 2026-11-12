@@ -25,6 +25,7 @@ For Entities the law and the move are already one expression language (`Expr`) w
 - [#538](./538-walks-and-scenarios-DESIGN.md): walks and scenarios as the evidence a law takes
 - [#539](./539-bare-descriptor-DESIGN.md): a descriptor made before its invariants judges none of them
 - [#540](./540-law-first-guide-DESIGN.md): one law-first guide and skill reference
+- [#542](./542-form-judges-held-row-DESIGN.md): a form judges an invariant over the held row, not just the fields it sets
 
 **Order.** The descriptor bug comes first: it is a fault today, and refinements add a third kind of descriptor on top of it. The `can` hint and the Sync laws are small and each has a consumer in the tree. Refinements come next, then the check, which reads them and produces the evidence the graph rule asks for. The guide can start now with the rows that already exist. Only the Message half of the graph issue waits on foldkit/foldkit#1655.
 
