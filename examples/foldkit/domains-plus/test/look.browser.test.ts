@@ -22,6 +22,11 @@ import { view } from '../src/client/view.js'
 import { serveRemote } from '../src/server/remote.js'
 
 const answered = { timeout: 20_000 }
+// A test outlasts its waits: each waits up to `answered` for the page's reads,
+// and the prune comparison reads every property of every element twice. The
+// release job runs every file in one unsharded run, where the default 15 s ran
+// out (run 43218652067).
+vi.setConfig({ testTimeout: 60_000 })
 
 let dispose = () => {}
 afterEach(() => {
