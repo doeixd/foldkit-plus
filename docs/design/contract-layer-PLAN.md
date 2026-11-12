@@ -126,8 +126,13 @@ breaks one is wrong even when every test passes.
    operation is refused by its id into a persisted list, so it neither blocks
    the outbox nor is lost. Nothing is dropped silently.
 8. **Server-only Messages cannot originate from a client.** Constructing one
-   for submission is a type error on the client, and the journal refuses one by
-   tag before `validate` and `authorize` run.
+   for submission is a type error on the client, and Sync refuses one by tag
+   wherever it reads a sent entry, before `validate` and `authorize` run.
+   Reworded 2026-11-12, and weaker than "the journal refuses one": a server
+   that hands `foldkit-durable`'s `append` input no Sync reader saw gets no
+   check, because Durable knows no tag
+   ([190-sync-server-messages-DESIGN.md](./190-sync-server-messages-DESIGN.md)
+   §3.1).
 9. **Reactions run at least once and are keyed deterministically.** A
    post-commit reaction is identified by `opId` plus the reaction's name, so a
    retry is recognised. The docs say "at least once", never "exactly once".

@@ -1,7 +1,7 @@
 # Server-only Messages and reactions for Sync (#190, Phase 5 items 1 and 2)
 
-Status: designed 2026-11-12, not built. Revised the same day after one
-review round (five blocking findings; what each changed is §12). Phase 5
+Status: designed 2026-11-12, not built. Revised the same day after two
+review rounds (six blocking findings; what each changed is §12). Phase 5
 items 1 and 2 of [contract-layer-PLAN.md](./contract-layer-PLAN.md), for its
 invariants 8 ("server-only Messages cannot originate from a client") and 9
 ("reactions run at least once and are keyed deterministically"). It follows
@@ -152,11 +152,20 @@ server-only rows, loudly, with a `JournalError`, the first time it declares
 before `validate` and `authorize` run"), it holds for `journalExchange` and
 for any server that reads a sent entry with any `codec` reader before it
 appends. It does not hold for `foldkit-durable`'s `append` given raw client
-input that no Sync reader saw: Durable knows no tag (option C). The
-invariant's wording should say "Sync refuses one, wherever it reads a sent
-entry" (to record in the plan with the build); the README's exchange section
-says a custom server reads an entry with `codec.writtenFrom` before it
-appends, as it must already scan versions.
+input that no Sync reader saw: Durable knows no tag (option C). So the
+invariant is reworded in the plan to "Sync refuses one by tag wherever it
+reads a sent entry". **That is a weakening of the plan, decided here and
+recorded there**: the guarantee no longer covers a server that bypasses
+Sync's readers. The README's exchange section says a custom server reads an
+entry with `codec.writtenFrom` before it appends, as it must already scan
+versions.
+
+**For the build:** `journalExchange`'s `operationOf` turns every error but
+`UnreadableMessageError` into "not an operation this server accepts"
+(`sync/src/journal.ts:192-196`, `:270-271`), which is `Invalid`. It needs a
+third outcome: `ServerOnlyMessageError` kept apart in the `catch`, and
+mapped to `forbid` in the loop. Without it the check works and answers the
+wrong refusal.
 
 An old entry is judged by what it becomes: a version-1 entry whose step
 yields a server-only variant is refused; an old server-only variant a step
@@ -220,11 +229,14 @@ answers and before the host serves an exchange (§4.3). A reaction sees every
 commit made after it was registered; deploying a mailer does not mail three
 years of history.
 
-**After a reset.** The row carries the journal's epoch. A row of another
+**After a reset.** `reset` deletes none of this design's rows; each is
+tagged with the journal's epoch and read by it. A cursor row of another
 epoch reads as 0, and a write naming another epoch is ignored, so after
-`reset` every reaction starts at the new history's beginning with no row
-deleted and no window in which one is missing, and a runner still holding
-the old epoch's cursor cannot write it over the new one.
+`reset` every reaction starts at the new history's beginning with no window
+in which a row is missing, and a runner still holding the old epoch's
+cursor cannot write it over the new one. A parked row of another epoch reads
+as stale (§3.6). The ledger's `finished` record names its epoch and its
+`answer` record does not (§4.3).
 
 ### 3.4 At least once, or effectively once
 
@@ -275,8 +287,9 @@ field the server's own append fails `validate` on.
 happen and nothing says so.
 
 **C. Chosen: park it.** A run that fails for a reason no retry changes, or
-more than `attempts` times (*Sketch*: 8), is moved to a stored list with its
-trigger as written and its error, the reaction's cursor moves past it, and
+that has failed `attempts` times (*Sketch*: 8) *and* for longer than
+`parkAfter` (*Sketch*: one hour), is moved to a stored list with its trigger
+as written and its error, the reaction's cursor moves past it, and
 `ReactionParked` is reported. A person reads the list (`parked`), runs one
 again out of order (`retry`) or gives it up (`dismiss`). The promise
 becomes: in journal order, except a parked run, which is set aside loudly.
@@ -286,8 +299,30 @@ own copy of the trigger so `retry` works after the log is compacted.
 What parks at once, because the same call fails the same way: the server's
 append refused by `validate` or `authorize`; an answer with a Message
 outside `appends` or more than 16 of them; an answer that will not encode.
-Everything else (the handler failing, a timeout, a defect, the journal
-failing) is retried with a backoff and parks at `attempts`.
+Everything else is retried with a backoff. **An outage must not park.**
+Eight attempts under a backoff capped at 30 s are about a minute and a
+half, so a provider down for five minutes would park every trigger and
+leave each to a person. Hence both bounds: the count, and the time since
+the run first failed, so a run parks only after failing for an hour. The
+journal itself failing (`JournalError`: D1 unreachable) counts toward
+neither and never parks; the store being down is not the run's fault.
+
+**Park, then advance.** D1 has no transaction, so the order is fixed: the
+parked row is written first (`INSERT OR IGNORE` on `(key, name, op_id)`),
+then the cursor is advanced. A crash between the two runs the operation
+once more; it fails the same way or reaches the same bounds, the insert is
+ignored, and the cursor moves. The other order could advance past a run
+recorded nowhere.
+
+**A parked row names its epoch.** After a `reset` its sequence belongs to a
+history that is gone. Run again, it would append under
+`server/r/<reaction>/<index>:<sequence>`, the id of whatever the new history
+commits at that sequence: an `IdentityConflictError` if the bytes differ,
+and a false "already committed" if they are equal. So `parked` shows a row
+of another epoch as `stale`, `retry` refuses it, and `dismiss` removes it.
+Nothing is lost by that: if its operation is sent again it commits in the
+new history and its reaction runs there in order, reusing the recorded
+answer.
 
 ## 4. The chosen shape
 
@@ -391,8 +426,10 @@ declare const reaction: <
     readonly appends?: MessageSet<AppModel, Message, Appends, any>
     /** How long one run may take before it counts as failed. */
     readonly timeout?: Duration.Input
-    /** How many failed runs of one operation before it is parked. */
+    /** A failing run is parked once it has failed this many times, and for at least `parkAfter`. */
     readonly attempts?: number
+    /** How long a run must have been failing before it may be parked, so an outage parks nothing. */
+    readonly parkAfter?: Duration.Input
     /** One external call, or none, and the Messages to append. It may run again. */
     readonly run: (
       trigger: Trigger<On>,
@@ -415,6 +452,8 @@ interface Parked {
   readonly opId: string
   readonly sequence: number
   readonly error: string
+  /** Parked in a history since reset: it can be dismissed, not run again. */
+  readonly stale: boolean
 }
 
 interface ServerJournal<ServerOnly, R> {
@@ -437,7 +476,7 @@ interface ServerJournal<ServerOnly, R> {
   readonly settledThrough: Effect.Effect<Cursor, JournalError>
   /** The runs set aside, for a person to look at. */
   readonly parked: Effect.Effect<ReadonlyArray<Parked>, JournalError>
-  /** Runs a parked run again, out of order; it leaves the list when it succeeds. */
+  /** Runs a parked run again, out of order; it leaves the list when it succeeds. A stale one is refused. */
   readonly retry: (parked: Parked) => Effect.Effect<void, unknown, R>
   /** Forgets a parked run: its reaction never happens. */
   readonly dismiss: (parked: Parked) => Effect.Effect<void, JournalError>
@@ -699,6 +738,16 @@ given once in server code and never resolved from a request.
   (`durable/src/journal.ts:144-151`), so without the reservation a client
   could claim an id first and have the server's own append refused. Every
   strict reader refuses a sent entry whose replica id begins `server/`.
+- **The server's actor never changes.** Durable binds every `server/`
+  replica id to the actor that first committed from it, so a deployment
+  that changes the configured server principal's `actorId` has every later
+  server append refused (`OperationRejectedError`), reactions' included,
+  which then park. It is part of the document's stored identity, like the
+  document id; the README says so where `server` is documented. The
+  refusal cannot be told from an `authorize` refusal by its type
+  (refusals note §2, source 4), so nothing here detects the mistake
+  earlier. §10's plan to bind nothing for `server/` ids would remove the
+  constraint.
 - **A sent replica id is bounded.** `ReplicaId` is any non-empty string
   today (`packages/sync/src/ids.ts:8`). The strict readers refuse one longer
   than 128 characters (*Sketch*), as `Invalid`; the lenient ones do not, so
@@ -733,9 +782,16 @@ has elapsed: read the next page of committed operations after its cursor
    checked against `appends` and the count against 16 here, at run time,
    whatever the types said, since the cycle refusal and the bound rest on
    it.
-2. **The appends**, under `[react, documentId, reaction, opId, finished]`:
-   the run reads step 1's answer (a recorded success is reused, so the
-   handler does not run again) and appends each Message as the server.
+2. **The appends**, under `[react, documentId, reaction, opId, finished,
+   epoch]`: the run reads step 1's answer (a recorded success is reused, so
+   the handler does not run again) and appends each Message as the server.
+   The epoch is in this key and not in the answer's. The ledger outlives
+   `reset` (`durable/src/journal.ts:1429-1431`) and `runEffect` returns a
+   recorded success without running (`:1494-1498`), so a `finished` record
+   without the epoch would make the pass skip the appends for an operation
+   sent again after a reset, and move the cursor past it. With it, the new
+   history has no `finished` record, the appends run, and the answer, which
+   has no epoch, is still found, so the external call is not made again.
 3. The cursor is stored after each page, with the epoch it was read in.
 
 Two keys, because `recover` moves past any intent whose record succeeded
@@ -784,9 +840,9 @@ shared database; Durable's older tables are not prefixed, which this does
 not fix.
 
 - `foldkit_durable_cursors` (`key`, `name`, `epoch`, `cursor`, `attempts`,
-  `failed_at`; primary key `(key, name)`).
-- `foldkit_durable_parked` (`key`, `name`, `op_id`, `sequence`, `input`,
-  `error`; primary key `(key, name, op_id)`).
+  `first_failed_at`, `failed_at`; primary key `(key, name)`).
+- `foldkit_durable_parked` (`key`, `name`, `op_id`, `epoch`, `sequence`,
+  `input`, `error`; primary key `(key, name, op_id)`).
 
 And, as a *Sketch* of the methods (their names are the build's to settle):
 
@@ -797,9 +853,11 @@ And, as a *Sketch* of the methods (their names are the build's to settle):
 - `advance(key, name, epoch, cursor)`: a monotone write
   (`MAX(cursor, excluded.cursor)`) that does nothing for another epoch, and
   clears `attempts`.
-- `stalled(key, name, epoch, at)`: counts a failed run and when, for the
-  backoff and the `attempts` bound, so both survive a restart.
-- `park`, `parked`, `unpark`.
+- `stalled(key, name, epoch, at)`: counts a failed run, when it first
+  failed and when it last did, for the backoff and the two parking bounds,
+  so all survive a restart.
+- `park` (insert-or-ignore, with the epoch), `parked` (each row with its
+  epoch, so a caller can tell a stale one), `unpark`.
 
 Nothing else: the ledger, `runEffect`, `read` and `append` are used as they
 are, and `recover` is untouched.
@@ -829,8 +887,10 @@ failed, that reaction stops at that operation, and the others go on.
 words cut to 500 characters) and answers how long to wait: a backoff per
 reaction from 0.5 s doubling to 30 s, computed from the stored `attempts`
 and `failed_at`, so it holds across a restart and on a host with no memory
-between requests. At `attempts` the run is parked (§3.6), reported as
-`ReactionParked`, and the reaction goes on.
+between requests. Once it has failed `attempts` times and for `parkAfter`
+the run is parked (§3.6), reported as `ReactionParked`, and the reaction
+goes on. A pass that fails because the journal did (`JournalError`) is
+reported and retried, and counts toward neither.
 
 **A run that cannot succeed** (the server's append refused by `validate` or
 `authorize`, an answer outside `appends` or past 16 Messages, an answer
@@ -861,7 +921,7 @@ landed. It is retried with the same key.
   reads version N, then `retry`, recovers it. Nothing is dropped.
 - A rollback meets an answer recorded at a newer version:
   `UnsupportedMessageVersionError`. That is not parked at once: rolling
-  forward fixes it, so it is retried and parks only at `attempts`.
+  forward fixes it, so it is retried and parks only at both bounds.
 - Once committed it is a row like any other: unreadable later, it is the
   upcasting note's `UnreadableHistoryError`.
 
@@ -881,9 +941,11 @@ flight (`durable/src/journal.ts:1463-1531`). Across instances (two isolates
 over one D1) both run the handler: a duplicate with no crash. See §7.
 
 **After `reset`.** Every reaction reads cursor 0 in the new epoch (§3.3). A
-replica that sends an operation again commits it again under its old id;
-the ledger still holds that run's answer, so no external call repeats, and
-the answer is appended into the new history at the trigger's new sequence.
+replica that sends an operation again commits it again under its old id.
+The ledger still holds that run's `answer`, which names no epoch, so no
+external call repeats; it holds no `finished` record for the new epoch, so
+the appends run, at the trigger's new sequence (§4.3). Parked rows of the
+old history read as stale (§3.6).
 
 ## 6. Security
 
@@ -1023,7 +1085,17 @@ Each with a mutation beside it (`packages/sync/test/serverMessages.mutations.ts`
   application key spelled like a reaction's slot does not take it.
 - A reaction registered, then a commit, then the first `react`: the handler
   runs. (The lost-trigger case; with the registration removed it goes red.)
-  The same after `reset`.
+- After `reset`, an operation sent again under its old id: the handler is
+  not called again, and its answer is appended in the new history. (With
+  the epoch dropped from the `finished` key it goes red.)
+- A parked run, then `reset`: `parked` shows it stale, `retry` refuses it,
+  and the new history's operation at that sequence is untouched.
+- A handler failing eight times within a minute is not parked; the same
+  with the clock moved past `parkAfter` is. A journal that fails for a
+  while parks nothing.
+- A crash injected between the parked row and the cursor write: one parked
+  row, and the cursor past it after the next pass.
+- A server principal whose `actorId` changed has its appends refused.
 - A reaction runs once per commit across a restart (a new journal over the
   same file), with the handler counting calls and the cursor read back.
 - A crash injected after the handler's answer is recorded and before the
@@ -1034,8 +1106,7 @@ Each with a mutation beside it (`packages/sync/test/serverMessages.mutations.ts`
   defect and a timeout the same.
 - A run whose append `validate` refuses is parked at once, its reaction
   runs the next operation, `settledThrough` moves, and `retry` under a
-  changed rule appends without calling the handler. A run failing
-  `attempts` times parks.
+  changed rule appends without calling the handler.
 - A handler returning a Message outside `appends`, through a cast, parks;
   so does a seventeenth Message.
 - Two reactions in a cycle throw when the journal is made; so does a
@@ -1101,7 +1172,8 @@ Each with a mutation beside it (`packages/sync/test/serverMessages.mutations.ts`
   Messages, one upcast. A step that is not a function of its input alone
   would make a true repeat read as a reuse; steps must already be pure
   (upcasting note §11). Not probed.
-- **The defaults**: a 10 s timeout, 16 Messages, 8 attempts, pages of 100,
+- **The defaults**: a 10 s timeout, 16 Messages, 8 attempts and an hour
+  before parking, pages of 100,
   the backoff, a 200-character key, a 128-character replica id.
 - **Durable's method names** for the cursor and the parked list (§4.4), and
   whether they are one object rather than seven methods on `Journal`.
@@ -1133,7 +1205,21 @@ source first.
    error**, and application and reaction keys shared a namespace. The
    recorded Message is compared, and the prefixes are apart (§4.2).
 
-Advisory, each taken: `recover` is not used, and the runner keeps two
+Round 2, the same day, one blocking finding.
+
+6. **After a reset a reaction's answer was never appended**: the `finished`
+   ledger record had no epoch and the ledger outlives `reset`, so the pass
+   skipped the appends and moved on. The epoch is in the `finished` key and
+   not in the `answer` key (§4.3).
+
+Round 2's advisory points, each taken: the parked row is written before the
+cursor advances, and names its epoch, so a stale one is refused by `retry`
+(§3.6); a run parks only after failing for `parkAfter` as well as
+`attempts` times, and never for a `JournalError`; the server's actor is
+stated as fixed (§4.2); `operationOf`'s missing branch is named (§3.1); and
+invariant 8 is reworded in the plan, recorded there as a weakening.
+
+Round 1's advisory points, each taken: `recover` is not used, and the runner keeps two
 ledger keys with the handler wrapped (§4.3); `appends` and the bound are
 checked at run time; ledger keys are structured; the stateless Worker's
 memory, time limit and missing notices are stated (§7); the log is read in
