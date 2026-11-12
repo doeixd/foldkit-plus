@@ -140,18 +140,49 @@ const ATTRIBUTE_OF_TAG: ReadonlyMap<string, string> = new Map<FoldkitTag, string
   ['ContentAttr', 'content'],
 ])
 
-/** DOM properties whose attribute has another name; the rest normalize alike (`readOnly`, `tabIndex`). */
+/**
+ * DOM properties that write an attribute of another name; the rest normalize
+ * alike (`readOnly`, `tabIndex`). `classList` and `relList` forward an
+ * assignment to their attribute, and a `default…` property is the attribute
+ * its control starts from.
+ */
 const ATTRIBUTE_OF_PROPERTY: ReadonlyMap<string, string> = new Map([
   ['className', 'class'],
+  ['classList', 'class'],
   ['htmlFor', 'for'],
+  ['relList', 'rel'],
+  ['defaultValue', 'value'],
+  ['defaultChecked', 'checked'],
+  ['defaultSelected', 'selected'],
 ])
+
+/** `ariaControlsElements` and `ariaActiveDescendantElement` reflect `aria-controls` and `aria-activedescendant`. */
+const ARIA_ELEMENTS = /^(aria[A-Z][A-Za-z]*?)Elements?$/
+
+const attributeOfProperty = (key: string): string =>
+  ATTRIBUTE_OF_PROPERTY.get(key) ?? key.replace(ARIA_ELEMENTS, '$1')
 
 /** The builders that name their attribute by argument, and the name each sets. */
 const KEYED_BUILDERS: ReadonlyMap<string, (key: string) => string> = new Map([
   ['DataAttribute', (key: string) => `data-${key}`],
-  ['Attribute', (key: string) => key],
-  ['Prop', (key: string) => ATTRIBUTE_OF_PROPERTY.get(key) ?? key],
+  // `xlink:href` is the `href` an SVG link reads where it has no plain one.
+  ['Attribute', (key: string) => key.replace(/^xlink:/i, '')],
+  ['Prop', attributeOfProperty],
 ])
+
+/**
+ * An `Attribute` or `Prop` named like `onclick`: an inline handler, which
+ * listens to its event outside every owner and protection the resolver keeps.
+ */
+export const isInlineHandler = (tag: string, value: unknown): boolean => {
+  // tag-check: open — the tag may be a child attribute's, from another package.
+  if (tag !== 'Attribute' && tag !== 'Prop') return false
+  const key =
+    typeof value === 'object' && value !== null
+      ? (value as { readonly key?: unknown }).key
+      : undefined
+  return typeof key === 'string' && key.toLowerCase().startsWith('on')
+}
 
 /**
  * The HTML attribute a contribution sets, normalized to compare with a protected one:

@@ -207,7 +207,11 @@ Attachments are not concatenated and left to renderer order. The resolver applie
   meets the same ownership and protection checks as its own attributes, and a child `Class` joins
   the one `Class`;
 - the resolver writes the one `class` and `style`, so a Mixin may not set either through
-  `h.Attribute`, a `Prop` or a child `Style`;
+  `h.Attribute`, a `Prop` or a child `Style`, nor an inline handler (`h.Attribute('onclick', …)`);
+- a style property is the declaration it writes, so `insetInlineEnd` and `'inset-inline-end'` are
+  one property. A protected property, or one a Behavior owns, is also guarded against what writes
+  over it: a shorthand (`inset`, `margin`), its physical side (`right` or `left` for
+  `insetInlineEnd`), and `translate`, `rotate` or `scale` beside `transform`;
 - `Key`, `InnerHTML` and a `Prop` that replaces the children are structural and cannot be
   overridden;
 - multiple mount contributions compose into exactly one `OnMount`.

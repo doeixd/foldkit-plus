@@ -82,7 +82,10 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   the same holds across builders (`AriaLabel` and `Attribute('aria-label')` are one owner);
   `ChildAttribute` preserved by identity and reserves its event, and a mixin's child meets the
   same checks (its `Class` joins the one class); a mixin's raw `class`/`style` (`Attribute`,
-  `Prop`, child `Style`) is `mixins:attribute-conflict`; `Key`/`InnerHTML`, or a `Prop` that
+  `Prop`, child `Style`) is `mixins:attribute-conflict`, an inline `on…` handler is
+  `mixins:unsupported-event`; a style property is the declaration it writes, and a protected or
+  Behavior-owned one is also guarded from its shorthands (`inset`), physical sides (`right` for
+  `insetInlineEnd`) and `translate`/`rotate`/`scale` beside `transform`; `Key`/`InnerHTML`, or a `Prop` that
   replaces the children, cannot come from a mixin; all mounts compose into one `OnMount`. A composed Mount that fails ends alone
   and is reported as a `MountFailed` diagnostic (`{ mount, slot: Option, cause }`) through
   `foldkit-surface`'s `Diagnostics.Reporter`; an interrupted one is not. Foldkit runs Mounts

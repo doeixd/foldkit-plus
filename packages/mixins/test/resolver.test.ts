@@ -243,10 +243,124 @@ describe('Resolver.resolve', () => {
   it.each([
     ['Attribute', () => h.Attribute('class', 'x')],
     ['Prop', () => prop('className', 'x')],
+    ['Prop classList', () => prop('classList', 'x')],
   ])('refuses a class list set through %s, which would replace the slot class', (_name, make) => {
     expect(codeOf(() => Resolver.resolve([], [{ attributes: [make()] }]))).toBe(
       'mixins:attribute-conflict',
     )
+  })
+
+  describe('an inline handler is an event, not an attribute (review of #523)', () => {
+    it.each([
+      ['Attribute', () => h.Attribute('onclick', 'event.stopImmediatePropagation()')],
+      ['Attribute, another case', () => h.Attribute('OnClick', 'x')],
+      ['Prop', () => prop('onclick', () => {})],
+      ['a child Attribute', () => fakeChild(h.Attribute('onkeydown', 'x'))],
+    ])('refuses one set through %s', (_name, make) => {
+      const protection = Slot.make({
+        protected: { events: [Event.Click], attributes: [], style: [] },
+      }).protected
+      for (const options of [{}, { slot: 'root', protected: protection }]) {
+        expect(codeOf(() => Resolver.resolve([], [{ attributes: [make()] }], options))).toBe(
+          'mixins:unsupported-event',
+        )
+      }
+    })
+
+    it('leaves a data attribute whose name starts with on alone', () => {
+      expect(() =>
+        Resolver.resolve([], [{ attributes: [h.DataAttribute('onclick', 'x')] }]),
+      ).not.toThrow()
+    })
+  })
+
+  describe('a style property is the declaration Foldkit writes (review of #523)', () => {
+    const protecting = (style: ReadonlyArray<string>) => ({
+      slot: 'pinned',
+      protected: Slot.make({ protected: { events: [], attributes: [], style } }).protected,
+    })
+
+    it.each([
+      ['a Style piece', { style: { 'inset-inline-end': '0' } }],
+      ['a Behavior', { attributes: [h.Style({ 'inset-inline-end': '0' })] }],
+      ['a shorthand', { style: { inset: '0' } }],
+      ['an inline shorthand', { style: { insetInline: '0' } }],
+      ['its physical side', { style: { right: '0' } }],
+      ['its physical side, from a Behavior', { attributes: [h.Style({ left: '0' })] }],
+    ])('refuses a protected insetInlineEnd written through %s', (_name, contribution) => {
+      expect(
+        codeOf(() =>
+          Resolver.resolve([], [contribution], protecting(['position', 'insetInlineEnd'])),
+        ),
+      ).toBe('mixins:protected-style-property')
+    })
+
+    it.each([
+      ['the other inline side', { insetInlineStart: '0' }],
+      ['a block side', { top: '0' }],
+      ['a property that only extends its name', { overflowWrap: 'anywhere' }],
+      ['a property beside position', { positionAnchor: '--a' }],
+      ['a property beside transform', { transformOrigin: 'center' }],
+    ])('leaves %s alone', (_name, style) => {
+      expect(() =>
+        Resolver.resolve(
+          [],
+          [{ style }],
+          protecting(['insetInlineEnd', 'overflow', 'position', 'transform', 'bottom']),
+        ),
+      ).not.toThrow()
+    })
+
+    it.each([
+      ['translate', { translate: '1px' }],
+      ['rotate', { rotate: '1deg' }],
+      ['scale', { scale: '2' }],
+    ])('refuses %s beside a protected transform', (_name, style) => {
+      expect(codeOf(() => Resolver.resolve([], [{ style }], protecting(['transform'])))).toBe(
+        'mixins:protected-style-property',
+      )
+    })
+
+    it('refuses a margin longhand under a protected shorthand, and the reverse', () => {
+      expect(
+        codeOf(() => Resolver.resolve([], [{ style: { marginTop: '0' } }], protecting(['margin']))),
+      ).toBe('mixins:protected-style-property')
+      expect(
+        codeOf(() =>
+          Resolver.resolve([], [{ style: { margin: '0' } }], protecting(['marginBlockStart'])),
+        ),
+      ).toBe('mixins:protected-style-property')
+    })
+
+    it('finds a Behavior and a Style owning one declaration under two spellings', () => {
+      expect(
+        codeOf(() =>
+          Resolver.resolve(
+            [],
+            [
+              { attributes: [h.Style({ insetInlineEnd: '0' })] },
+              { style: { 'inset-inline-end': '1px' } },
+            ],
+          ),
+        ),
+      ).toBe('mixins:style-property-conflict')
+      expect(
+        codeOf(() =>
+          Resolver.resolve(
+            [],
+            [{ attributes: [h.Style({ top: '0' })] }, { style: { inset: '1px' } }],
+          ),
+        ),
+      ).toBe('mixins:style-property-conflict')
+    })
+
+    it('draws one declaration once, under the spelling written last', () => {
+      const out = Resolver.resolve(
+        [h.Style({ insetInlineEnd: '0' })],
+        [{ style: { 'inset-inline-end': '1px' } }],
+      )
+      expect(styleOf(out)).toEqual({ 'inset-inline-end': '1px' })
+    })
   })
 
   it.each([['innerHTML'], ['outerHTML'], ['textContent'], ['innerText']])(
@@ -266,6 +380,28 @@ describe('Resolver.resolve', () => {
     ['For', 'Attribute', () => h.For('a'), () => h.Attribute('for', 'b')],
     ['For', 'Prop', () => h.For('a'), () => prop('htmlFor', 'b')],
     ['CiteAttr', 'Attribute', () => h.CiteAttr('a'), () => h.Attribute('cite', 'b')],
+    ['Rel', 'Prop relList', () => h.Rel('a'), () => prop('relList', 'b')],
+    ['Value', 'Prop defaultValue', () => h.Value('a'), () => prop('defaultValue', 'b')],
+    ['Checked', 'Prop defaultChecked', () => h.Checked(true), () => prop('defaultChecked', true)],
+    [
+      'Selected',
+      'Prop defaultSelected',
+      () => h.Selected(true),
+      () => prop('defaultSelected', true),
+    ],
+    [
+      'AriaControls',
+      'Prop ariaControlsElements',
+      () => h.AriaControls('a'),
+      () => prop('ariaControlsElements', []),
+    ],
+    [
+      'AriaActiveDescendant',
+      'Prop ariaActiveDescendantElement',
+      () => h.AriaActiveDescendant('a'),
+      () => prop('ariaActiveDescendantElement', null),
+    ],
+    ['Href', 'namespaced Attribute', () => h.Href('a'), () => h.Attribute('xlink:href', 'b')],
     [
       'DataAttribute',
       'Attribute',

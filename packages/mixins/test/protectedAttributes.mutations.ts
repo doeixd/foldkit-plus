@@ -10,18 +10,18 @@ const tests = ['packages/mixins/test/resolver.test.ts', 'packages/mixins/test/fo
 export default [
   {
     name: 'a generic Attribute is compared by its tag, not its key',
-    edits: [{ file: names, find: "  ['Attribute', (key: string) => key],\n", replace: '' }],
+    edits: [
+      {
+        file: names,
+        find: "  ['Attribute', (key: string) => key.replace(/^xlink:/i, '')],\n",
+        replace: '',
+      },
+    ],
     tests,
   },
   {
     name: 'a Prop is compared by its tag, not its key',
-    edits: [
-      {
-        file: names,
-        find: "  ['Prop', (key: string) => ATTRIBUTE_OF_PROPERTY.get(key) ?? key],\n",
-        replace: '',
-      },
-    ],
+    edits: [{ file: names, find: "  ['Prop', attributeOfProperty],\n", replace: '' }],
     tests,
   },
   {
@@ -29,8 +29,8 @@ export default [
     edits: [
       {
         file: names,
-        find: '(key: string) => ATTRIBUTE_OF_PROPERTY.get(key) ?? key',
-        replace: '(key: string) => key',
+        find: 'ATTRIBUTE_OF_PROPERTY.get(key) ?? key.replace(ARIA_ELEMENTS',
+        replace: 'key.replace(ARIA_ELEMENTS',
       },
     ],
     tests,
@@ -106,8 +106,8 @@ export default [
     edits: [
       {
         file: resolver,
-        find: '    if (isUnknownHandler(tag)) failUnknownHandler(tag)\n    const eventName',
-        replace: '    const eventName',
+        find: '    if (isUnknownHandler(tag)) failUnknownHandler(tag)\n    if (isInlineHandler',
+        replace: '    if (isInlineHandler',
       },
     ],
     tests,
@@ -174,6 +174,54 @@ export default [
         file: resolver,
         find: '    if (REPLACES_CHILDREN.has(attributeName)) failStructural(tag)\n',
         replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a Mixin may set an inline handler',
+    edits: [
+      {
+        file: resolver,
+        find: '    if (isInlineHandler(tag, attribute)) {',
+        replace: '    if (false as boolean) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'classList is compared as its own attribute',
+    edits: [{ file: names, find: "  ['classList', 'class'],\n", replace: '' }],
+    tests,
+  },
+  {
+    name: 'relList is compared as its own attribute',
+    edits: [{ file: names, find: "  ['relList', 'rel'],\n", replace: '' }],
+    tests,
+  },
+  {
+    name: 'defaultValue is compared as its own attribute',
+    edits: [{ file: names, find: "  ['defaultValue', 'value'],\n", replace: '' }],
+    tests,
+  },
+  {
+    name: 'an aria element property is compared by its own name',
+    edits: [
+      {
+        file: names,
+        find: "ATTRIBUTE_OF_PROPERTY.get(key) ?? key.replace(ARIA_ELEMENTS, '$1')",
+        replace: 'ATTRIBUTE_OF_PROPERTY.get(key) ?? key',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a namespaced attribute keeps its namespace',
+    edits: [
+      {
+        file: names,
+        find: "['Attribute', (key: string) => key.replace(/^xlink:/i, '')]",
+        replace: "['Attribute', (key: string) => key]",
       },
     ],
     tests,

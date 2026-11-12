@@ -181,7 +181,22 @@ override even when a later attachment would otherwise win.
   child `Class` joins the slot's one class. A raw `class` or `style` from a
   Mixin (`Attribute`, `Prop`, a child `Style`) is an `attribute-conflict` with
   the resolver's canonical merge, and a `Prop` that replaces the children
-  (`innerHTML`, `textContent`, ...) is structural.
+  (`innerHTML`, `textContent`, ...) is structural. An `Attribute` or `Prop`
+  named `on…` is an inline handler, outside every event owner, and refused
+  from a Mixin (`mixins:unsupported-event`). A `Prop` that writes another
+  attribute is read as it: `classList`, `relList`, `defaultValue`, the
+  `aria…Elements` properties; `Attribute('xlink:href')` is `href`.
+- A style property is the declaration Foldkit writes (`src/styleNames.ts`,
+  Foldkit's own `cssDeclarationName`), so `insetInlineEnd` and
+  `inset-inline-end` are one owner and drawn once. Protection and Behavior
+  ownership also cover what overlaps it: a shorthand that sets it (`inset`,
+  `insetInline`, `margin`), the physical side it can be in either direction
+  (`right` and `left` for `insetInlineEnd`; sides are read for a horizontal
+  writing mode), and `translate`/`rotate`/`scale` beside `transform`. A name
+  that only extends another (`overflowWrap`, `transformOrigin`,
+  `positionAnchor`) stands apart. Refusing an overlap a Behavior could have
+  meant is the safer error: it reads loudly at render, where a missed one
+  moves a protected element silently.
 - Protected names normalize punctuation, so `AriaLabel` and `aria-label` agree.
 - Canonical emit order: one `Class`, one `Style`, preserved base attributes,
   Mixin-added attributes, one composed `OnMount`. Determinism comes from input

@@ -18,10 +18,17 @@ import {
 } from './attribute.js'
 import type { StaticContribution } from './contribution.js'
 import { DiagnosticError, type Diagnostic, type DiagnosticCode } from './diagnostics.js'
-import { attributeNameOf, eventNameOf, isUnknownHandler, normalizeName } from './foldkitNames.js'
+import {
+  attributeNameOf,
+  eventNameOf,
+  isInlineHandler,
+  isUnknownHandler,
+  normalizeName,
+} from './foldkitNames.js'
 import { DRAWN_CLASSES } from './inject.js'
 import * as MetadataToken from './metadataToken.js'
 import { mountFailed } from './mountFailed.js'
+import { declarationName, overlaps } from './styleNames.js'
 import type { SlotProtection } from './slot.js'
 
 export type SlotAttributes<Message> = ReadonlyArray<Attribute<Message> | ChildAttribute>
@@ -84,14 +91,17 @@ export const resolve = <Message>(
   const protectedAttributes = new Set(
     (protection?.attributes ?? []).map(attr => normalizeName(MetadataToken.nameOf(attr))),
   )
-  const protectedStyle = new Set(protection?.style ?? [])
+  const protectedStyle = protection?.style ?? []
 
   const classes: Array<string> = []
   const classSeen = new Set<string>()
-  const style = new Map<string, string>()
-  // Who wrote each inline style property. Style pieces layer over the base and
-  // over each other (that is restyling); a Behavior's property has one owner,
-  // and a Style piece may not overwrite what a Behavior set.
+  // By the declaration Foldkit writes, so two spellings of one are one entry;
+  // drawn under the spelling written last.
+  const style = new Map<string, { readonly property: string; readonly value: string }>()
+  // Who wrote each inline style declaration. Style pieces layer over the base
+  // and over each other (that is restyling); a Behavior's property has one
+  // owner, shorthands and sides included, and a Style piece may not overwrite
+  // what a Behavior set.
   const styleOwners = new Map<string, 'base' | 'style' | 'behavior'>()
   const mounts: Array<MountAction<Message, any>> = []
   const mountNames = new Map<string, number>()
@@ -122,26 +132,31 @@ export const resolve = <Message>(
     value: string,
     writer: 'base' | 'style' | 'behavior',
   ): void => {
-    if (writer !== 'base' && protectedStyle.has(property)) {
+    const shielded = protectedStyle.find(name => overlaps(property, name))
+    if (writer !== 'base' && shielded !== undefined) {
       fail(
         'mixins:protected-style-property',
-        `slot "${slot ?? '?'}" protects style property "${property}"`,
-        { property },
+        `slot "${slot ?? '?'}" protects style property "${shielded}", which "${property}" writes`,
+        { property, protected: shielded },
       )
     }
-    const owner = styleOwners.get(property)
-    if (
-      (writer === 'behavior' && owner !== undefined) ||
-      (writer === 'style' && owner === 'behavior')
-    ) {
-      fail(
-        'mixins:style-property-conflict',
-        `two owners for style property "${property}": ${owner === 'base' ? 'the view' : owner === 'style' ? 'a Style' : 'a Behavior'} already sets it`,
-        { property, owner, writer },
-      )
+    const declaration = declarationName(property)
+    for (const [written, owner] of styleOwners) {
+      if (
+        (writer === 'behavior' || (writer === 'style' && owner === 'behavior')) &&
+        overlaps(declaration, written)
+      ) {
+        fail(
+          'mixins:style-property-conflict',
+          `two owners for style property "${property}": ${owner === 'base' ? 'the view' : owner === 'style' ? 'a Style' : 'a Behavior'} already sets "${written}"`,
+          { property, owner, writer },
+        )
+      }
     }
-    if (owner === undefined || writer === 'behavior') styleOwners.set(property, writer)
-    style.set(property, value)
+    if (!styleOwners.has(declaration) || writer === 'behavior') {
+      styleOwners.set(declaration, writer)
+    }
+    style.set(declaration, { property, value })
   }
 
   const addMount = (action: MountAction<Message, any>): void => {
@@ -217,6 +232,13 @@ export const resolve = <Message>(
     // tag-check: open — the tag may be a child attribute's, from another package.
     if (tag === 'Key' || tag === 'InnerHTML') failStructural(tag)
     if (isUnknownHandler(tag)) failUnknownHandler(tag)
+    if (isInlineHandler(tag, attribute)) {
+      fail(
+        'mixins:unsupported-event',
+        `a Mixin may not set an inline handler through ${tag}; contribute a Foldkit handler (h.On…) instead`,
+        { tag },
+      )
+    }
     const eventName = eventNameOf(tag, attribute)
     if (Option.isSome(eventName)) return claimEvent(tag, eventName.value)
     const attributeName = attributeNameOf(tag, attribute)
@@ -308,7 +330,11 @@ export const resolve = <Message>(
 
   const emitted: Array<Attribute<Message> | ChildAttribute> = []
   if (classes.length > 0) emitted.push(classAttribute(classes.join(' ')))
-  if (style.size > 0) emitted.push(styleAttribute(Object.fromEntries(style)))
+  if (style.size > 0) {
+    emitted.push(
+      styleAttribute(Object.fromEntries(Array.from(style.values(), e => [e.property, e.value]))),
+    )
+  }
   emitted.push(...preserved, ...added)
   const composed = composeMounts(mounts, slot)
   if (composed !== undefined) emitted.push(composed)
