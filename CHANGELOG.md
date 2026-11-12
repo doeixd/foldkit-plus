@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins/vite`: a `Style.whenInput` in a style module listed in
+  `styles({ modules })` is shipped as data, its predicate kept as the import
+  it was (a named import from a module that is not listed). The condition's
+  classes are compiled at build and the page keeps only the choice, so it still
+  loads no style compiler. A predicate written in place, or imported from a
+  listed module, fails the build and the message says to move it; `perItem`
+  stays refused. `examples/design-system` lists its style module.
 - `foldkit-primitives/dom`: `visibleLinks({ atMost, margin })`, an opt-in
   stream of same-origin links scrolled into view for `Site.routing`'s
   `preload.links`. Each address is read once per page and at most `atMost`
