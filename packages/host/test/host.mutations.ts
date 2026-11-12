@@ -236,7 +236,7 @@ export default [
     edits: [
       {
         file: '../src/node.ts',
-        find: '...(hasBody ? { body: await bodyOf(request) } : {}),',
+        find: '...(body === undefined ? {} : { body }),',
         replace: '',
       },
     ],
@@ -258,10 +258,26 @@ export default [
     edits: [
       {
         file: '../src/node.ts',
-        find: "closed.addEventListener('abort', () => void reader.cancel().catch(() => {}))",
+        find: "else closed.addEventListener('abort', cancel)",
         replace: '',
       },
     ],
+    tests: node,
+  },
+  {
+    name: 'Node ignores a client that left before the handler answered',
+    edits: [
+      {
+        file: '../src/node.ts',
+        find: 'if (closed.aborted) cancel()',
+        replace: 'if (false) cancel()',
+      },
+    ],
+    tests: node,
+  },
+  {
+    name: 'Node reads a body of any size',
+    edits: [{ file: '../src/node.ts', find: 'if (read > limit)', replace: 'if (false)' }],
     tests: node,
   },
   {
