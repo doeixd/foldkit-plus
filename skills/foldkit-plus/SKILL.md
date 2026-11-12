@@ -27,7 +27,7 @@ Targets Foldkit `0.170.x` and Effect 4.1, tested on `effect@4.1.1`. APIs are
 | --- | --- | --- | --- |
 | What a feature may observe and which Messages it may cause | the application | `foldkit-surface` | [surface.md](references/surface.md) |
 | Facts a server owns: entities, queries, live rows and lists, writes (queued across reloads with `durable`) | the server | `foldkit-remote` (+ `-server`, `-drizzle`; live reads, the outbox and persistence from entries of their own, which install what they need on the domain) | [remote.md](references/remote.md) |
-| Client-authored edits that must survive offline and converge across devices | the durable log | `foldkit-sync` + `foldkit-durable` | [sync.md](references/sync.md) |
+| Client-authored edits that must survive offline and converge across devices; facts only the server records (`serverOnly`) and work after a commit (reactions, at least once) | the durable log; a reaction's cursor beside its effect ledger | `foldkit-sync` + `foldkit-durable` | [sync.md](references/sync.md) |
 | A filter in the URL, a draft or preference remembered on a device, a cart a server renders from a cookie | the local Model | `foldkit-mirror` | [mirror.md](references/mirror.md) |
 | Where the application is: route nodes in a hierarchy, typed targets, titles, history intent | the tree, as data; the route value stays in the local Model | `foldkit-site` (early) | [site.md](references/site.md) |
 | What an AI agent may see and do, over MCP, WebMCP, A2A, or Agent Native | the application | `foldkit-agent` + one adapter | [agent.md](references/agent.md) |

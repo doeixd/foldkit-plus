@@ -7,6 +7,67 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- **Server-only Messages** (`foldkit-sync`, #190).
+  `Sync.forApplication(App).make({ serverOnly })` takes the Messages only the
+  server appends, a `MessageSet` disjoint from `durable` (a Message in both
+  is a type error and a throw); `Sync.define` takes a `serverOnly`
+  predicate, and a Message both predicates accept is refused wherever it is
+  read (`AmbiguousMessageError`). Replicas store and replay them and cannot
+  submit them. Every reader of a sent entry refuses one after upcasting
+  (`ServerOnlyMessageError`), and `journalExchange` rejects it by its id as
+  `Forbidden` with a `ServerOnlySubmitted` diagnostic, before `admit`,
+  `validate` and `authorize` run. `authorize` and `stamp` rules may name
+  one; `contract.messages` lists both sets; `codec.message` is the current
+  Message Schema.
+- **`serverJournal`** (`foldkit-sync/journal`, #190): `appendAsServer(message,
+  { key })` appends a server-only Message as the server under a key naming
+  the fact (`ServerKeyReusedError` for the same key with another Message),
+  and declared `reaction(sync, { name, on, appends?, timeout?, attempts?,
+  parkAfter?, run })` values run after each commit in journal order, at
+  least once, from a cursor the journal stores: `react` (one pass,
+  answering how long to wait), `follow` (a long-lived process's loop),
+  `settledThrough`, and `parked`, `retry` and `dismiss` for runs set aside.
+  New diagnostics `ReactionFailed`, `ReactionParked` and `ReactionSkipped`;
+  new errors `StaleParkedRunError`.
+- **Reactions on a Durable Object** (`foldkit-sync/do`, #190):
+  `defineDocumentHost({ server: { principal, reactions } })` registers them
+  when the journal opens, sets the object's alarm before replying to an
+  exchange that committed, runs them after the reply, and gives the class an
+  `alarm()` that runs them and sets the alarm again from their answer. A
+  pass that broke is a `HostDefect` with stage `Alarm`.
+- **Named cursors and parked runs** (`foldkit-durable`, #190): schema 7 adds
+  `foldkit_durable_cursors` and `foldkit_durable_parked`, and
+  `journal.cursors` (`track`, `settled`, `advance`, `stalled`, `park`,
+  `parked`, `unpark`), each row tagged with the document's epoch.
+
+### Changed
+
+- **Every reader of a sent entry is strict** (`foldkit-sync`, #190).
+  `codec.writtenFrom` now reads the Message, so it throws for a local-only or
+  undecodable one where it returned the envelope; it, `normalizeOperation`
+  and `operationFrom` refuse a replica id under `server/` or longer than 128
+  characters. `journalContract().operation.decode` is now a lenient history
+  reader that takes server-only Messages: a journal built by hand that
+  decodes its rows with `codec.normalizeOperation` should use it instead.
+  A document with no `serverOnly` answers an exchange and stores its rows
+  byte for byte as before.
+- **`editsJournal` stores its cursor** (`foldkit-sync/journal`, #190) in the
+  journal (`journal.cursors`, name `edits`, started at the floor), so a
+  restarted server no longer walks the log again, and takes `asServer`:
+  the server journal and the server-only Message that records what the
+  table holds, compacting no further than `settledThrough`.
+- **`foldkit-durable`'s schema moves to 7.** A build before it refuses to
+  open a migrated database (`UnsupportedJournalVersionError`).
+- `examples/registry`: `AbsorbedEdits` is server-only, appended through
+  `serverJournal`; its hand-written `authorize` rule and envelope are gone.
+
+### Deprecated
+
+- `editsJournal`'s `absorbed` and `server` (`foldkit-sync/journal`): declare
+  the Message `serverOnly` and pass `asServer`. Removed in the next release.
+
 ## 0.39.0
 
 Sync rejections carry a typed refusal and durable Messages can be upcast

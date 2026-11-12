@@ -352,13 +352,20 @@ Gate: Phase 0 item 5. Independent of Phases 1 to 4.
 
 1. **Server-only Messages.** A `serverOnly` MessageSet on the Sync contract.
    Clients replay them and cannot submit them (invariant 8);
-   `journal.appendAsServer` appends them with the server's actor.
+   `journal.appendAsServer` appends them with the server's actor. **Built
+   2026-11-12** on the branch as `serverOnly` and `serverJournal`'s
+   `appendAsServer`
+   ([190-sync-server-messages-DESIGN.md](./190-sync-server-messages-DESIGN.md),
+   decisions in its §13). Jev did not run (`TYPESAFE_API_KEY` unset).
 2. **Reactions.** `journal.react(set, handler)` (*Sketch*) runs after commit in
    journal order, resumes from a stored cursor, keys each run by
    `opId:reaction` (invariant 9), and appends server-only Messages or calls an
    external system. Nothing more: a reaction holds no state of its own, waits
    for nothing, and starts no process. Anything longer belongs to item 7's
-   answer.
+   answer. **Built 2026-11-12** on the branch as declared `reaction` values
+   run by `serverJournal`'s `react` (Node: `follow`; a Durable Object: its
+   alarm), with cursors and parked runs in `foldkit-durable` schema 7 (the
+   same note). The example the "done when" names is not written yet.
 3. **Server-only state.** A part of the snapshot the journal keeps and never
    sends. Only server-only Messages may change it, so the client's `update`
    never needs it.

@@ -472,11 +472,56 @@ the same key. Route execution to one owner. Process-crash tests in
 [`test/effectRecovery.test.ts`](./test/effectRecovery.test.ts) show both the
 idempotent recovery and the duplicate that remains possible without it.
 
+**Named cursors and parked runs.** Where a piece of work has reached can be
+stored beside the ledger it summarizes, instead of in memory or a table of
+your own. `journal.cursors` keeps one cursor per document and name, and the
+runs set aside behind it; `foldkit-sync`'s reactions are built on it:
+
+<!-- docs-check
+import type { Committed } from 'foldkit-durable'
+declare const orders: Orders
+declare const order: Committed<Order>
+-->
+
+```ts
+const mailer = Effect.gen(function* () {
+  const key = DocumentId.make('orders')
+  // Once, before serving: starts at the document's cursor (or `from: 'floor'`).
+  yield* orders.cursors.track(key, 'mailer')
+  const tracked = yield* orders.cursors.settled(key, 'mailer')
+  return Option.map(tracked, ({ epoch, cursor, attempts }) => ({ epoch, cursor, attempts }))
+})
+
+// After a run of `order` finished, or was set aside:
+const advanced = (epoch: string) =>
+  orders.cursors.advance(DocumentId.make('orders'), 'mailer', epoch, Cursor.make(order.sequence))
+```
+
+- **A lower bound, not a second record.** The cursor says every commit at or
+  before it was handled; the ledger says which run finished. Set back, it
+  costs ledger reads and no second call. `advance` only moves forward, and
+  clears the failure count only when it moves.
+- **`stalled(key, name, epoch, at)`** counts a failed run with when it first
+  and last failed, so a backoff and a "failed for an hour" bound hold across
+  a restart and on a host with no memory between requests.
+- **`park`, `parked`, `unpark`** keep a run set aside with what is needed to
+  run it again (`input`, any JSON, kept when the log is compacted) and its
+  error.
+- **Epochs.** `reset` deletes none of this. Every row names the epoch it was
+  written in: a cursor of another epoch reads as 0, a write naming another
+  epoch does nothing (a runner still holding the old history cannot write
+  over the new one), and a parked row of another epoch is the caller's to
+  call stale. Each write is one statement, so D1 keeps the same guarantees.
+- The tables are `foldkit_durable_cursors` and `foldkit_durable_parked`,
+  added by schema 7. A build before it refuses to open a migrated database
+  (`UnsupportedJournalVersionError`).
+
 ## Retention
 
-Two kinds of row grow for the life of the database and are never collected:
+Kinds of row grow for the life of the database and are never collected:
 one identity row per distinct `opId`, kept after compaction so an old retry is
-recognized, and one record per effect key. Growth follows the number of distinct
+recognized, one record per effect key, and one parked run until it is
+unparked. Growth follows the number of distinct
 operations and effects, not only retained payload size.
 
 Compaction empties payloads but SQLite keeps their pages. `vacuum()` rebuilds
