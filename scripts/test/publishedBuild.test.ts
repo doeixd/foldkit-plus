@@ -36,7 +36,9 @@ const keptFrom = async (
  * published build writes the same code a little differently (about 30 bytes
  * a page), so it may keep 5% more than the source; linked, every one kept
  * more (the mutation spec relinks each). A page under about 600 bytes is
- * within those 30 bytes of failing, so each reads more.
+ * within those 30 bytes of failing, so each reads more, or is allowed them
+ * (`Math.max` below): `remote-domain` exports one small Schema, whose 30 bytes
+ * are a quarter of it.
  */
 const cases: ReadonlyArray<readonly [name: string, page: string]> = [
   ['mixins', `import { Behaviors } from 'pkg'\nexport const used = Behaviors.Disclosure`],
@@ -81,7 +83,7 @@ test.each(cases)(
     )
     const published = await keptFrom(root, page, imported, join(root, 'dist'))
     expect(source).toBeGreaterThan(0)
-    expect(published).toBeLessThanOrEqual(source * 1.05)
+    expect(published).toBeLessThanOrEqual(Math.max(source * 1.05, source + 30))
   },
   120_000,
 )
