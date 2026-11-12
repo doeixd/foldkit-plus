@@ -213,8 +213,11 @@ In the same change:
       go-ahead. #185, #64, #483 and #440 closed; the narrowed issues retitled
       and commented; park comments on #376, #433, #148, #149 and a comment on
       #474; the two Bundle.lazy bugs filed as #501 and #502.
-- [ ] **Release 0.39.0 is on `main`, not tagged** (#504, edde3b68): 44 packages
-      one minor up, `foldkit-host` first published at 0.1.0. To publish: `git tag v0.39.0 && git push origin v0.39.0` runs
+- [ ] **Release 0.39.0 is on `main`, not tagged** (#504, with #505's server-only
+      Messages and reactions folded in by #506): 44 packages one minor up,
+      `foldkit-host` first published at 0.1.0. A cloud session can neither push
+      the tag (the git proxy answers 403) nor dispatch `release.yml` (403 for the
+      GitHub integration), so the maintainer runs it. To publish: `git tag v0.39.0 && git push origin v0.39.0` on `main` runs
       `release.yml`, which publishes when `NPM_TOKEN` is set and makes the GitHub
       release from `## 0.39.0`. Afterwards mark `foldkit-host` Published in
       `docs/releases.md`. The release after removes `saved`, `Rejection.reason`
