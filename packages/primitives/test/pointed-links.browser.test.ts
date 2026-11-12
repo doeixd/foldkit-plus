@@ -89,3 +89,19 @@ it('reads the link Tab stops on, not the ones it passes', async () => {
     await stop()
   }
 })
+
+it('reads a link a mouse rests on only when it is not marked data-preload="none"', async () => {
+  const { links, empty } = page('/off', '/on')
+  links[0]!.dataset['preload'] = 'none'
+  await userEvent.hover(empty)
+  const { read, stop } = reading()
+  try {
+    await userEvent.hover(links[0]!.querySelector('span')!)
+    await rested()
+    expect(read).toEqual([])
+    await userEvent.hover(links[1]!)
+    await expect.poll(() => read).toEqual([at('/on')])
+  } finally {
+    await stop()
+  }
+})

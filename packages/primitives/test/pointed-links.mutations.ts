@@ -14,12 +14,18 @@ const file = '../src/dom/pointed-links.ts'
 export default [
   {
     name: 'a link to another origin is read',
-    edits: [{ file, find: ' && link.origin === window.location.origin', replace: '' }],
+    edits: [
+      {
+        file: '../src/dom/preload-link.ts',
+        find: ' &&\n    link.origin === window.location.origin',
+        replace: '',
+      },
+    ],
     tests: unit,
   },
   {
     name: 'only the element itself counts, not the link around it',
-    edits: [{ file, find: ".closest('a[href]')", replace: '' }],
+    edits: [{ file: '../src/dom/preload-link.ts', find: ".closest('a[href]')", replace: '' }],
     tests,
   },
   {
@@ -61,7 +67,7 @@ export default [
     edits: [
       {
         file,
-        find: 'setTimeout(() => Queue.offerUnsafe(queue, url.value), REST)',
+        find: 'setTimeout(() => Queue.offerUnsafe(queue, url.value), rest)',
         replace: 'Queue.offerUnsafe(queue, url.value)',
       },
     ],
@@ -82,5 +88,10 @@ export default [
       },
     ],
     tests,
+  },
+  {
+    name: 'the rest option is ignored',
+    edits: [{ file, find: 'url.value), rest)', replace: 'url.value), 50)' }],
+    tests: unit,
   },
 ]
