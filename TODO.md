@@ -241,14 +241,11 @@ In the same change:
     the form option `submitWaits: false` to refuse a submit mid-check, and
     `saved` deprecated (9513fd20..689d7a28; independent review passed in two
     rounds).
-- [ ] **The branch's PR.** Unmerged since #497 (merged 2026-11-10): about a
-      hundred commits, never through CI, since CI runs on pull requests. The
-      whole CI sequence passed locally on 4a3ff6a2 (2026-11-11, perf and
-      scaffold jobs included; only postgres-locale skipped, no server here). Issues done on it, to close
-      when it merges: #495, #481, #482, #230 (its stamps wait for the next
-      release), #236, #500, #479, #478, #498, #499, #501, #502, #435, #432
-      (phase 4 recorded), #438 (Phase 0 below the bar), #235 (closed on the
-      parts). domains-plus's client JS has 1.0 kB of headroom (192.5 of
+- [x] **The branch's PR:** #503 merged on 2026-11-12 (485d44bb) with every CI job
+      green; its first run caught one CI-only fault, fixed in cafb5fc6. It closed
+      #495, #481, #482, #230, #236, #500, #479, #478, #498, #499, #501, #502,
+      #435, #432, #438 and #235. #230's version stamps still wait for the next
+      release. domains-plus's client JS has 1.0 kB of headroom (192.5 of
       193.5 kB).
 
 ## The queue
