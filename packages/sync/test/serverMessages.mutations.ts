@@ -395,9 +395,9 @@ export default [
     name: 'two passes run at once',
     edits: [
       {
-        file: host,
-        find: '      const pass = (): Promise<void> => (passing = passing.then(runPass))',
-        replace: '      const pass = (): Promise<void> => runPass()',
+        file: server,
+        find: '  }).pipe(passes.withPermits(1)) as Effect.Effect<Option.Option<Duration.Duration>, never, R>',
+        replace: '  }) as Effect.Effect<Option.Option<Duration.Duration>, never, R>',
       },
     ],
     tests: hosts,
@@ -423,8 +423,8 @@ export default [
     edits: [
       {
         file: host,
-        find: "      if (typeof baseAlarm === 'function') await (baseAlarm as () => Promise<void>).call(this)",
-        replace: '',
+        find: '        await (baseAlarm as (...info: Array<unknown>) => Promise<void>).apply(this, info)',
+        replace: '        void 0',
       },
     ],
     tests: hosts,
@@ -451,8 +451,8 @@ export default [
     edits: [
       {
         file: host,
-        find: '        if (current === null || current <= Date.now() || current > at) await storage.setAlarm(at)',
-        replace: '        await storage.setAlarm(at)',
+        find: '  if (current === null || current <= Date.now() || current > at) await storage.setAlarm(at)',
+        replace: '  await storage.setAlarm(at)',
       },
     ],
     tests: hosts,

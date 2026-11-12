@@ -47,9 +47,21 @@ const ALARM_AFTER_COMMIT = Duration.seconds(1)
 const ALARM_AFTER_DEFECT = Duration.seconds(30)
 
 /** The alarm a Durable Object's storage keeps: one per object. */
-interface AlarmStorage {
+export interface AlarmStorage {
   getAlarm(): Promise<number | null>
   setAlarm(scheduledTime: number): Promise<void>
+}
+
+/**
+ * Brings a Durable Object's alarm to `at` (ms since the Unix epoch) unless it
+ * is already sooner: what an application's own `alarm()` uses beside the
+ * host's, which shares the object's one alarm. Inside `alarm()` the runtime
+ * may still answer the alarm being run, so a time already past counts as no
+ * alarm.
+ */
+export const armAlarm = async (storage: AlarmStorage, at: number): Promise<void> => {
+  const current = await storage.getAlarm()
+  if (current === null || current <= Date.now() || current > at) await storage.setAlarm(at)
 }
 
 const alarmsOf = (storage: unknown): Option.Option<AlarmStorage> =>
@@ -236,7 +248,10 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
 ): new (
   ctx: DocumentHostContext,
   env: Env,
-) => { fetch(request: Request): Promise<Response>; alarm(): Promise<void> } => {
+) => {
+  fetch(request: Request): Promise<Response>
+  alarm(...info: Array<unknown>): Promise<void>
+} => {
   checkRevalidate(config.revalidate, 'defineDocumentHost')
   // The application's own alarm, if its base has one: run after the reactions'.
   const baseAlarm = (Base.prototype as { readonly alarm?: unknown }).alarm
@@ -274,15 +289,8 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
             hostDefect(stage, cause),
           ),
         ).catch(() => undefined)
-      /** Brings the alarm to `after` from now unless it is already sooner. */
-      const arm = async (after: Duration.Duration): Promise<void> => {
-        const storage = Option.getOrThrow(alarms)
-        const at = Date.now() + Duration.toMillis(after)
-        const current = await storage.getAlarm()
-        // Inside `alarm()` the runtime may still answer the alarm being run:
-        // one in the past is no alarm.
-        if (current === null || current <= Date.now() || current > at) await storage.setAlarm(at)
-      }
+      const arm = (after: Duration.Duration): Promise<void> =>
+        armAlarm(Option.getOrThrow(alarms), Date.now() + Duration.toMillis(after))
       // The journal and the reactions' registration in one, once per object:
       // registered before any socket is served, so no commit is missed.
       const open = (): Promise<Opened> =>
@@ -327,10 +335,8 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
         await report('Alarm', exit.cause)
         await arm(ALARM_AFTER_DEFECT).catch(() => undefined)
       }
-      // One pass at a time per object: two at once would count each failure
-      // twice and reach the attempts bound in half the failures.
-      let passing: Promise<void> = Promise.resolve()
-      const pass = (): Promise<void> => (passing = passing.then(runPass))
+      // `serverJournal` runs one pass at a time itself.
+      const pass = runPass
       this.react = pass
       // What the host knows was committed, so only an exchange that moved it arms the alarm.
       let seen = -1
@@ -380,13 +386,18 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
 
     /**
      * The object's alarm: runs the reactions and sets the alarm again from
-     * what they answer, then the base class's own `alarm()`, if it has one.
-     * The reactions' part never throws, so the runtime's few retries of a
-     * throwing alarm are never what a run depends on.
+     * what they answer, then the base class's own `alarm()`, if it has one,
+     * with what the runtime passed. The reactions' part never throws, so the
+     * runtime's few retries of a throwing alarm are never what a run depends
+     * on. The object has one alarm, shared: the base runs on every wake, so
+     * it decides itself what is due, and sets its next with `armAlarm`, which
+     * only brings the alarm earlier. A subclass that overrides `alarm()` calls
+     * `super.alarm()`, or the reactions stop being resumed.
      */
-    async alarm(): Promise<void> {
+    async alarm(...info: Array<unknown>): Promise<void> {
       await this.react()
-      if (typeof baseAlarm === 'function') await (baseAlarm as () => Promise<void>).call(this)
+      if (typeof baseAlarm === 'function')
+        await (baseAlarm as (...info: Array<unknown>) => Promise<void>).apply(this, info)
     }
 
     async fetch(request: Request): Promise<Response> {

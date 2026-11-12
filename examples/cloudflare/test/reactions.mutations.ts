@@ -35,4 +35,15 @@ export default [
     survives:
       'local workerd answers getAlarm() with null inside alarm(), so nothing here shows the guard; it is for a runtime that still reports the alarm being run, which do.test.ts fakes and kills',
   },
+  {
+    name: 'a pass sets no alarm from its answer, so a failing run waits for a commit',
+    edits: [
+      {
+        file: host,
+        find: '            if (Option.isSome(next)) yield* Effect.promise(() => arm(next.value))',
+        replace: '',
+      },
+    ],
+    tests,
+  },
 ]

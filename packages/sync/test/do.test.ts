@@ -17,7 +17,7 @@ import { RemoteUnauthenticated } from 'foldkit-remote'
 import type { Diagnostic } from 'foldkit-surface'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Sync, documentId, replicaId, type Operation } from '../src/index.js'
-import { defineDocumentHost, type AcceptingWebSocket } from '../src/do.js'
+import { armAlarm, defineDocumentHost, type AcceptingWebSocket } from '../src/do.js'
 import { documentHost, reaction } from '../src/journal.js'
 import { memoryStorage } from './memoryStorage.js'
 import { workerSocket } from '../src/transport.js'
@@ -978,8 +978,8 @@ describe('defineDocumentHost with reactions', () => {
   it('runs the base class’s own alarm after the reactions, and opens nothing without `server`', async () => {
     const order: Array<string> = []
     class AlarmedBase extends FakeBase {
-      async alarm(): Promise<void> {
-        order.push('base')
+      async alarm(info?: { readonly retryCount: number }): Promise<void> {
+        order.push(`base ${info?.retryCount}`)
       }
     }
     let opens = 0
@@ -991,8 +991,8 @@ describe('defineDocumentHost with reactions', () => {
       },
       resolvePrincipal: () => Effect.succeed('ada'),
     })
-    await new Plain({}, undefined).alarm()
-    expect(order).toEqual(['base'])
+    await new Plain({}, undefined).alarm({ retryCount: 2 })
+    expect(order).toEqual(['base 2'])
     expect(opens).toBe(0)
   })
 
@@ -1026,6 +1026,19 @@ describe('defineDocumentHost with reactions', () => {
       },
     })
     expect(() => new Host({ storage: alarmStorage() }, undefined)).toThrow('another contract')
+  })
+
+  it('armAlarm only brings the alarm earlier, and takes a past one for none', async () => {
+    const storage = alarmStorage()
+    const now = Date.now()
+    await armAlarm(storage, now + 5_000)
+    await armAlarm(storage, now + 9_000)
+    expect(storage.state.alarm).toBe(now + 5_000)
+    await armAlarm(storage, now + 1_000)
+    expect(storage.state.alarm).toBe(now + 1_000)
+    storage.state.alarm = now - 1
+    await armAlarm(storage, now + 9_000)
+    expect(storage.state.alarm).toBe(now + 9_000)
   })
 
   it('refuses `server` without the object’s alarm', () => {

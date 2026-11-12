@@ -24,6 +24,7 @@ import {
   Queue,
   Result,
   Schema,
+  Semaphore,
   Stream,
 } from 'effect'
 import {
@@ -242,7 +243,9 @@ export interface ServerJournal<ServerOnly, R> {
    * Runs every reaction from its stored cursor, a page at a time. Never
    * fails: a failed run is reported, and the answer is how long to wait
    * before running again; none when every reaction has caught up. Safe to
-   * call at any time, from anywhere.
+   * call at any time, from anywhere in this process: passes of one
+   * `serverJournal` run one at a time. Two instances over one store (two
+   * isolates over one D1) do not wait for each other.
    */
   readonly react: Effect.Effect<Option.Option<Duration.Duration>, never, R>
   /**
@@ -279,11 +282,12 @@ export interface ServerJournalOptions<Document, Principal, Shared, Reactions> {
   readonly sync: Document
   readonly journal: Journal<Operation, Shared, Principal, WrittenOperation>
   /**
-   * Who the server commits as. Never resolved from a request, and never
+   * Who the server commits as. Never resolved from a request, and best never
    * changed: the journal binds each `server/` replica id to the first actor
-   * that commits from it, so after a change of `actorId` every reaction's
-   * append is refused (and parks), and a redelivered `appendAsServer` key is
-   * an `IdentityConflictError`; a new key commits as the new actor.
+   * that commits from it. After a change of `actorId`, a reaction's append for
+   * a new trigger and a new `appendAsServer` key commit as the new actor; a
+   * redelivered key is an `IdentityConflictError`, and a run retried after
+   * its first append committed under the old actor parks.
    */
   readonly server: Principal
   readonly reactions?: Reactions
@@ -733,6 +737,9 @@ export const serverJournal = <
   // Which reaction a pass starts with, turning each pass, so a share's
   // rounding favours no reaction for good.
   let first = 0
+  // One pass at a time: two at once would count each failure twice and reach
+  // the attempts bound in half the failures.
+  const passes = Semaphore.makeUnsafe(1)
   const react = Effect.gen(function* () {
     let budget = runsPerPass
     let next = Option.none<Duration.Duration>()
@@ -765,7 +772,7 @@ export const serverJournal = <
       next = earliest(next, pass.next)
     }
     return next
-  }) as Effect.Effect<Option.Option<Duration.Duration>, never, R>
+  }).pipe(passes.withPermits(1)) as Effect.Effect<Option.Option<Duration.Duration>, never, R>
 
   const follow = Effect.gen(function* () {
     // One pending wake-up is enough: a pass reads everything after the cursor.
