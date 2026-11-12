@@ -213,6 +213,13 @@ In the same change:
       go-ahead. #185, #64, #483 and #440 closed; the narrowed issues retitled
       and commented; park comments on #376, #433, #148, #149 and a comment on
       #474; the two Bundle.lazy bugs filed as #501 and #502.
+- [ ] **Release 0.39.0 is prepared, not tagged** (62efffb8, bcf97e98, 92bb2548):
+      44 packages one minor up, `foldkit-host` first published at 0.1.0. Once it
+      is on `main`: `git tag v0.39.0 && git push origin v0.39.0` runs
+      `release.yml`, which publishes when `NPM_TOKEN` is set and makes the GitHub
+      release from `## 0.39.0`. Afterwards mark `foldkit-host` Published in
+      `docs/releases.md`. The release after removes `saved`, `Rejection.reason`
+      and the server's `reasons`.
 - [ ] **`TYPESAFE_API_KEY`**, so the Jev review can run. It is owed on:
   - #497's public API: `SSR.headed`, `RootRefusesHead`, the exported SSR
     diagnostic types, `Button.view`'s `attributes`, the resolver's class
