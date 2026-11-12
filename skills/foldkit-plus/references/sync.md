@@ -503,6 +503,9 @@ const serving = Effect.gen(function* () {
   receives (`Sync.transport.serve`'s `exchange`, a `TransportClient`, a
   `loopback` handler) is `ReadonlyArray<unknown>`: a custom server reaches
   `append` only through `codec.writtenFrom`, which makes these checks.
+  `journalContract().operation.decode` takes only a `WrittenOperation`, and
+  `operation.encode` refuses what `codec.committedFrom` returns, so nothing
+  read as history is written again.
   `journalContract().operation.decode` reads history, server-only included:
   a hand-made journal's `decode` must be it, not `normalizeOperation`.
 - `appendAsServer(message, { key })` takes server-only Messages, a key of at

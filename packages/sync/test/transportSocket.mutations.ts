@@ -4,7 +4,9 @@
  * transport receives is unread (#517) is held by `written.test-d.ts`, which
  * `pnpm mutate` does not run: typing `serveSocket`'s `pending` as
  * `WrittenOperation` again leaves its `@ts-expect-error` unused, as does
- * branding what `journalContract().operation.compared` returns.
+ * branding what `journalContract().operation.compared` returns, letting
+ * `operation.decode` read `unknown`, leaving `codec.committedFrom` unmarked, or
+ * letting `operation.encode` take any `Operation`.
  */
 const file = '../src/transport.ts'
 const tests = ['packages/sync/test/transport.test.ts', 'packages/sync/test/diagnostics.test.ts']

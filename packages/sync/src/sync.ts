@@ -105,6 +105,14 @@ const committedFields = {
 const CommittedSchema = Schema.Struct({ ...OperationSchema.fields, ...committedFields })
 /** Named to avoid colliding with `foldkit-durable`'s `Committed`. */
 export type CommittedOperation = typeof CommittedSchema.Type
+/**
+ * A type-only mark on what `codec.committedFrom` returns. It reads its input as
+ * history, so it skips the checks of a sent entry, and
+ * `journalContract().operation.encode` refuses it, stripped of its commit or not.
+ */
+export interface ReadAsHistory {
+  readonly '~foldkit-sync/history': true
+}
 /** A committed operation as the server sends it: written at the server's current version. */
 const CommittedWrittenSchema = Schema.Struct({
   ...WrittenFields.fields,
@@ -428,7 +436,10 @@ export interface Sync<Message, Shared, Durable = Message> {
      * be read as version 1. Write one with `journalContract().operation.encode`.
      */
     readonly writtenFrom: (input: unknown, documentId: DocumentId) => WrittenOperation
-    readonly committedFrom: (input: unknown, documentId: DocumentId) => CommittedOperation
+    readonly committedFrom: (
+      input: unknown,
+      documentId: DocumentId,
+    ) => CommittedOperation & ReadAsHistory
     readonly decodeExchange: (input: unknown) => Exchange<Shared>
   }
   /** The codecs and pure reducer `foldkit-durable`'s `makeJournal` consumes. */
@@ -462,13 +473,15 @@ export interface JournalContract<Operation, Shared> {
   readonly legacyReplicaId: (opId: string) => string
   readonly operation: {
     /** Written at the current version: what the journal stores. */
-    readonly encode: (operation: Operation) => WrittenOperation
+    readonly encode: (
+      operation: Operation & { readonly '~foldkit-sync/history'?: never },
+    ) => WrittenOperation
     /**
      * Read from any version the history has, upcast to the current one: stored
      * history, so the server's own Messages read too. Never the reader of an
      * entry someone sent (`codec.writtenFrom`).
      */
-    readonly decode: (input: unknown) => Operation
+    readonly decode: (input: WrittenOperation) => Operation
     /**
      * What a retransmission is compared by: the operation normalized at the
      * version it was written at, as the build that wrote it normalized it, so
@@ -686,8 +699,8 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
     const message = messageOf(written, 'history')
     return { committed: { ...envelopeOf(written), message: encodeMessage(message) }, message }
   }
-  const committedFrom = (input: unknown, key: DocumentId): CommittedOperation =>
-    decodeCommittedOperation(input, key).committed
+  const committedFrom = (input: unknown, key: DocumentId): CommittedOperation & ReadAsHistory =>
+    decodeCommittedOperation(input, key).committed as CommittedOperation & ReadAsHistory
   /**
    * Normalized at the version it was written at, with no upcast: what the
    * build that wrote it hashed. An explicit `messageVersion: 1` is dropped,

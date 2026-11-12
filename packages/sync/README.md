@@ -1034,7 +1034,10 @@ A server that builds an operation itself and appends it (`editsJournal`'s
 `Notes.journalContract().operation.encode(operation)`. The journal takes a
 `WrittenOperation`, which is branded so that only Sync makes one: a decoded
 `Operation` names no version, would read as version 1, and is refused by the
-type. An entry from a wire is `unknown` until `codec.writtenFrom` reads it. Changing the shared
+type. An entry from a wire is `unknown` until `codec.writtenFrom` reads it.
+Nothing read as history writes again: `operation.decode` takes only a
+`WrittenOperation`, and `encode` refuses what `codec.committedFrom` returns,
+stripped of its commit or not. Changing the shared
 slice's own Schema is not covered: a stored snapshot or checkpoint of the old
 shape still needs a migration of your own.
 

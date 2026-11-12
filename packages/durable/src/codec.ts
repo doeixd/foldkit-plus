@@ -10,7 +10,12 @@ import { Schema } from 'effect'
  */
 export interface Codec<Value, Encoded = unknown> {
   readonly encode: (value: Value) => Encoded
-  readonly decode: (value: Encoded) => Value
+  /**
+   * A method, so its parameter is checked both ways: a codec may name the
+   * narrower input it reads (Sync's reads only what was written) while the
+   * journal, holding what it stored, calls it with `Encoded`.
+   */
+  decode(value: Encoded): Value
   /**
    * Optional, for operations: the form a payload is compared by when its id
    * is sent again, hashed in place of `encode(decode(input))`. A codec that

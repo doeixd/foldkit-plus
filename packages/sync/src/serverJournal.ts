@@ -848,7 +848,8 @@ export const serverJournal = <
     Effect.gen(function* () {
       const input = yield* decodeParkedInput(row.input)
       const operation = yield* Effect.try({
-        try: () => contract.operation.decode(input.operation),
+        // The server parked these bytes itself, written by `encode`.
+        try: () => contract.operation.decode(writtenEnvelope(input.operation)),
         catch: cause => new JournalError({ message: 'Could not read a parked run', cause }),
       })
       return {

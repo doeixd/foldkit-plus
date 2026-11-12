@@ -70,3 +70,19 @@ export const loopback = Sync.transport.loopback((_cursor, pending) =>
 declare const sent: unknown
 // @ts-expect-error `compared` reads an entry for its hash, not for appending
 journal.append(key, Todos.journalContract().operation.compared(sent), 'server')
+// Nor does anything read as history: it skips the same checks.
+const contract = Todos.journalContract()
+// @ts-expect-error the journal's own decoder reads only what was written
+journal.append(key, contract.operation.encode(contract.operation.decode(sent)), 'server')
+const committed = Todos.codec.committedFrom(sent, Todos.documentId)
+// @ts-expect-error a committed operation, as a replica reads one, is not written again
+contract.operation.encode(committed)
+const { serverSequence: _sequence, actorId: _actor, ...stripped } = committed
+// @ts-expect-error nor is one stripped of its commit
+contract.operation.encode(stripped)
+// What the journal wrote reads back and writes again.
+journal.append(
+  key,
+  contract.operation.encode(contract.operation.decode(contract.operation.encode(decoded))),
+  'server',
+)
