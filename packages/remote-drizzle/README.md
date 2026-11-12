@@ -1345,8 +1345,8 @@ writer removes its own rows, so the foreign key must agree).
 **A delete refuses a row the domain says must stay.** A row pointed at
 through a relation declared `Relation.one(Topic, { onDelete: 'restrict' })`
 is not deleted: the delete statement itself holds `not exists` of a row
-pointing there, so no row can arrive between a check and the delete, on D1
-too. A miss then reads whether such a row is there, and answers
+pointing there, so no check runs apart from the delete (but see below for
+Postgres). A miss then reads whether such a row is there, and answers
 `DeleteOutcome.Referenced`, which `RemoteServer.write` sends as
 `Refusal.referenced` (its `entity` and `relation`), a 409. It names the relation and
 none of the rows, which the deleter may not see; a guard judges the
@@ -1381,6 +1381,16 @@ foresaw. One that refuses the delete (`restrict`, `no action`, or no
 `onDelete`, the default) is let through on a relation that declares nothing:
 the delete then fails as a database error, not `Referenced`, so declare
 `onDelete: 'restrict'` to have it answered.
+
+**On Postgres, keep the foreign key.** A cascade, a restriction or a clear
+the writer holds alone sees what had committed when its statements ran. On
+SQLite and D1, which write one transaction at a time, that is everything. On
+Postgres a transaction that links a row to the one being deleted, committed
+while the delete runs, is not seen, and the link outlives its target; under
+`serializable` too, since the link's write reads nothing the delete writes.
+Only a foreign key holds there: `on delete cascade`, `restrict` (or `no
+action`) or `set null`, as the relation declares, which `bind` checks
+against it.
 
 **A cascade takes no row its deleter may not delete.** `delete` takes
 `cascading`, each Entity's `Delete` rule as a `CascadeRequirement` (Guard's

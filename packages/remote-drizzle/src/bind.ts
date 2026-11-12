@@ -298,7 +298,7 @@ const agreesOnDelete = (
       // A table that refuses the delete itself agrees with a restriction, which then never reaches it.
       if (declared === 'restrict' && action !== 'restrict' && action !== 'no action')
         fail(
-          `relation "${field}" on entity "${name}" is declared onDelete: 'restrict', but the foreign key on "${column.name}" says on delete ${action}; make it on delete restrict, or drop the foreign key and let the writer refuse the delete`,
+          `relation "${field}" on entity "${name}" is declared onDelete: 'restrict', but the foreign key on "${column.name}" says on delete ${action}; make it on delete restrict, or drop the foreign key and let the writer refuse the delete (on SQLite or D1: on Postgres only the foreign key holds against a link written concurrently)`,
         )
       if (declared === 'cascade' && action !== 'cascade')
         fail(

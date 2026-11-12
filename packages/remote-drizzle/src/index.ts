@@ -1459,8 +1459,9 @@ export const writer = <P = unknown>(
   /**
    * For each relation that restricts deleting a row of this Entity (#467):
    * whether a row points at `id` through it. The delete's own statement holds
-   * `not exists` of each, so a row pointed at is never removed, and no row
-   * can arrive between a check and the delete.
+   * `not exists` of each, so a row pointed at is never removed, and no check
+   * runs apart from the delete. On Postgres a link committed while the
+   * delete runs is not seen (#521): only a foreign key holds against it.
    */
   const pointedAt = (id: string) =>
     (binding.restricts ?? []).map(edge => ({
