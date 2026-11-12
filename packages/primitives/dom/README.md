@@ -25,7 +25,8 @@ wraps.
 | `ScrollLock`, `HideOutside` | Mounts | nothing | |
 | `PointerPosition({ focus? })` | Mount | `PointerPressed`, `PointerMoved`, `PointerReleased` | `focus`: a selector |
 | `keepScroll(options?)` | entry | nothing | |
-| `pointedLinks()` | stream | `Url` | |
+| `pointedLinks(options?)` | stream | `Url` | `rest`: how long a hover or focus rests, default 50 ms |
+| `visibleLinks(options?)` | stream | `Url` | `atMost` (8), `margin` |
 | `applyMask(value, pattern)` | function | `{ value, raw }` | |
 
 ## Start with one: copy to the clipboard
@@ -382,6 +383,29 @@ Message and lift it with `Subscription.persistentEntry`; the Message's branch in
 `update` is where a `Data.preload` reads the page there ahead. The CMS site
 and studio do (`examples/cms/src/content/siteConfig.ts`,
 `examples/cms/src/apps/studioApp.ts`).
+
+`pointedLinks({ rest })` waits `rest` (a `Duration` input, default 50 ms)
+before a hover or focus counts; a finger still counts at once. A link marked
+`data-preload="none"` is never read, by this stream or by `visibleLinks`; the
+mark goes on the `a` itself.
+
+## `visibleLinks`: reading what is on screen
+
+Opt-in: nothing preloads by visibility unless the application merges this
+stream into `Site.routing`'s `preload.links`. It emits the address of each
+same-origin link that scrolls into view, once per page, and at most `atMost`
+(default 8) addresses per page, so a page of 50 links starts at most that many
+reads. A page is the pathname and query the document shows when a link is
+read, so a same-document navigation counts the cap again. `margin` is an
+`IntersectionObserver` `rootMargin` (`'200px'` reads links a little before they
+show). It reads nothing under Save-Data, on a 2g connection or while the tab
+is hidden, and a link that came into view then is not read later unless it
+leaves and returns. Without a document or an `IntersectionObserver` it is
+empty. Intent is not held back by Save-Data: the reader asked for that page.
+
+```ts sketch
+links: Stream.merge(pointedLinks({ rest: '100 millis' }), visibleLinks({ atMost: 8 })),
+```
 
 ## Failure
 

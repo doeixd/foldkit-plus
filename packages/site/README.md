@@ -756,6 +756,17 @@ cancelled. What it read is kept until retention next changes. There is no
 "intended route" field in the Model and no extra Surface for it: the page's
 own Surfaces say what it reads.
 
+Two options and a second stream tune what counts. `pointedLinks({ rest })`
+changes the 50 ms wait (`rest: '100 millis'`). A link marked
+`data-preload="none"` is never read by either stream. To also read what is on
+screen, merge `visibleLinks({ atMost })` in: it is opt-in, emits each address
+once per page, at most `atMost` (8) per page, and nothing under Save-Data, on
+a 2g connection or in a hidden tab.
+
+```ts sketch
+links: Stream.merge(pointedLinks(), visibleLinks({ atMost: 8 })),
+```
+
 ## Limits / when not to use it
 
 - A single-screen application has one node; the tree buys nothing.
