@@ -643,11 +643,15 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
    * pass and those refused, with why. A cell on a column that does not edit,
    * or one its text leaves unchanged, is dropped.
    */
-  const judged = (cells: ReadonlyArray<typeof PastedCell.Type>) => {
+  const judged = (cells: ReadonlyArray<typeof PastedCell.Type & { readonly refusal?: string }>) => {
     const accepted: Array<typeof CellText.Type> = []
     const refused: Array<typeof CellText.Type & { readonly error: string }> = []
-    for (const { from, ...cell } of cells) {
+    for (const { from, refusal, ...cell } of cells) {
       if (options.columns.byId[cell.column].edit === undefined) continue
+      if (refusal !== undefined) {
+        refused.push({ ...cell, error: refusal })
+        continue
+      }
       if (unchanged(cell.column, from, cell.text)) continue
       Option.match(errorOf(cell.column, cell.text), {
         onNone: () => accepted.push(cell),
@@ -1424,6 +1428,8 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
           Fill.cells(projection, plan, {
             editable: column => options.columns.byId[column].edit !== undefined,
             from: address => draftOf(projection, address),
+            custom: (column, lane) =>
+              options.columns.byId[column].edit?.fill?.(lane) ?? Option.none(),
           }),
         ),
     })
