@@ -19,7 +19,7 @@
 import { createHash } from 'node:crypto'
 import type { Plugin, ResolvedConfig, Rollup, ViteDevServer } from 'vite'
 import { prune } from './theme/prune.js'
-import { assertRules, freeze, type FrozenModule } from './viteFreeze.js'
+import { assertRules, freeze, importsRecorded, type FrozenModule } from './viteFreeze.js'
 
 const VIRTUAL = 'virtual:foldkit-styles'
 const SHEET = 'virtual:foldkit-styles-sheet'
@@ -44,9 +44,11 @@ export interface StylesOptions {
    * build replaces with what they evaluate to: each Style's name and the
    * classes and inline declarations its Slots draw, so the page loads no
    * style compiler. Each export must be a Style, a `Style.slots` declaration,
-   * a string or an object of strings (`t`); a Style using `Style.whenInput` or
-   * `Style.perItem` fails the build, and a module that needs one stays off the
-   * list. With any module listed, the build's Slots inject no CSS: the sheet
+   * a string or an object of strings (`t`). A `Style.whenInput` is kept when
+   * its predicate is a named import from a module that is not listed (the
+   * page imports it as written); a predicate written in place, or imported
+   * from a listed module, fails the build, and so does `Style.perItem`, which
+   * a module that needs one avoids by staying off the list. With any module listed, the build's Slots inject no CSS: the sheet
    * holds every class, and the build fails if a frozen class has no rule in it
    * or if the page still compiles a Style (a module off the list).
    * Development is unchanged.
@@ -104,7 +106,7 @@ const buildSheet = async (
       noExternal: true,
       resolve: { conditions: config.ssr.resolve?.conditions ?? config.resolve.conditions },
     },
-    plugins: [sheetModule(sheet, modules)],
+    plugins: [sheetModule(sheet, modules), importsRecorded(modules)],
     build: {
       ssr: true,
       // Compiling a Style registers its class as a side effect, and a module

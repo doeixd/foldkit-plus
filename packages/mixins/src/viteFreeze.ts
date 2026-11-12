@@ -6,16 +6,90 @@
  * browser imports `Mixin` and `Slots` and none of the compiler. What cannot be
  * written as data fails the build here, naming the export.
  *
+ * A `Style.whenInput` is written as data too, its predicate kept as the import
+ * it was (`importsRecorded`). The condition's classes are compiled here, so
+ * only the choice among them is made in the page.
+ *
  * Values are recognized by shape and by registered symbols, never by
  * `instanceof`: the module was evaluated in a bundle of its own, with its
  * own copy of this package.
  */
+
+import type { Plugin } from 'vite'
+import * as Rules from './styleRules.js'
+import type { StyleRule } from './styleRules.js'
 
 /** A compiled class: what the emitted sheet must hold a rule for. */
 const COMPILED = /^style-[0-9a-z]+$/
 
 const SLOT = Symbol.for('foldkit-mixins/Slot')
 const TOKEN = Symbol.for('foldkit-mixins/MetadataToken')
+const IMPORTS = Symbol.for('foldkit-mixins/FrozenImports')
+
+/** Where a function a listed module imported came from, as the module wrote it. */
+interface ImportedFrom {
+  readonly from: string
+  readonly name: string
+  /** The imported module is itself in `modules`, so its exports are data and the predicate is not kept. */
+  readonly listed: boolean
+}
+
+const imported = (value: unknown): ImportedFrom | undefined =>
+  ((globalThis as { [IMPORTS]?: WeakMap<object, ImportedFrom> })[IMPORTS] ?? new WeakMap()).get(
+    value as object,
+  )
+
+const quote = (value: unknown): string => JSON.stringify(value)
+
+/**
+ * The sheet build's hook on each listed module: after its code, every named
+ * import that is a function is recorded by identity with the specifier it came
+ * from. A `whenInput` predicate is a function value by the time the module is
+ * evaluated, and this is the only way back to the import that made it.
+ */
+export const importsRecorded = (modules: ReadonlyArray<string>): Plugin => {
+  const listed = new Set<string>()
+  return {
+    name: 'foldkit-mixins:record-imports',
+    enforce: 'post',
+    async buildStart() {
+      listed.clear()
+      for (const id of modules) {
+        const resolved = await this.resolve(id)
+        if (resolved !== null) listed.add(resolved.id)
+      }
+    },
+    async transform(code, id) {
+      if (!listed.has(id)) return undefined
+      const records: Array<string> = []
+      for (const node of this.parse(code).body) {
+        if (node.type !== 'ImportDeclaration') continue
+        const from = String(node.source.value)
+        const target = await this.resolve(from, id)
+        const inModules = target !== null && listed.has(target.id)
+        for (const specifier of node.specifiers) {
+          if (specifier.type !== 'ImportSpecifier') continue
+          const name =
+            'name' in specifier.imported ? specifier.imported.name : specifier.imported.value
+          records.push(
+            `[${specifier.local.name}, ${quote({ from, name: String(name), listed: inModules })}]`,
+          )
+        }
+      }
+      if (records.length === 0) return undefined
+      return {
+        code: `${code}
+;(() => {
+  const key = Symbol.for(${quote('foldkit-mixins/FrozenImports')})
+  const known = (globalThis[key] ??= new WeakMap())
+  for (const [value, from] of [${records.join(', ')}]) if (typeof value === 'function') known.set(value, from)
+})()
+`,
+        map: null,
+      }
+    },
+  }
+}
 
 /** The properties of a `NamedStyle` a frozen one no longer has: they hold the compiler's output. */
 const DROPPED = ['pieces', 'css', 'globalCss', 'rules', 'globalRules'] as const
@@ -48,9 +122,24 @@ interface Token {
 const isToken = (value: unknown): value is Token =>
   typeof value === 'object' && value !== null && Object.hasOwn(value, TOKEN)
 
+/** A Style's piece for one Slot, as it was placed and before its rules were compiled to classes. */
+interface PieceShape {
+  readonly classes: ReadonlyArray<string>
+  readonly style: Readonly<Record<string, string>>
+  readonly rules?: ReadonlyArray<StyleRule>
+  readonly conditions?: ReadonlyArray<{
+    readonly predicate: (input: unknown) => boolean
+    readonly piece: PieceShape
+  }>
+  readonly items?: ReadonlyArray<unknown>
+}
+
+const hasItems = (piece: PieceShape): boolean =>
+  (piece.items ?? []).length > 0 || (piece.conditions ?? []).some(c => hasItems(c.piece))
+
 interface NamedStyleShape {
   readonly name?: string
-  readonly pieces: Record<string, { readonly conditions?: unknown[]; readonly items?: unknown[] }>
+  readonly pieces: Record<string, PieceShape | undefined>
   readonly mixin: { readonly name: string; readonly contributions: Record<string, unknown> }
 }
 
@@ -89,6 +178,9 @@ const exportName = (name: string): string => (IDENTIFIER.test(name) ? name : lit
 class Writer {
   readonly lines: Array<string> = []
   readonly classes = new Set<string>()
+  /** The predicates a module imported, written as the imports they were. */
+  readonly imports: Array<string> = []
+  private readonly predicates = new Map<string, string>()
   private readonly named = new Map<string, string>()
 
   constructor(readonly id: string) {}
@@ -147,15 +239,56 @@ class Writer {
     return `Slots.define({ ${entries.join(', ')} })`
   }
 
+  /** A predicate as the import it was; anything else cannot cross to the page. */
+  private predicate(
+    exported: string,
+    slot: string,
+    predicate: (input: unknown) => boolean,
+  ): string {
+    const found = imported(predicate)
+    const where = `its export "${exported}" styles slot "${slot}" with`
+    if (found === undefined)
+      return fail(
+        this.id,
+        `${where} Style.whenInput and a predicate that is not imported. Move the predicate to a module of its own that is not listed, and import it.`,
+      )
+    if (found.listed)
+      return fail(
+        this.id,
+        `${where} a predicate imported from ${quote(found.from)}, which is itself in \`modules\`, so its exports are data. Move the predicate to a module that is not listed.`,
+      )
+    const key = quote([found.from, found.name])
+    const known = this.predicates.get(key)
+    if (known !== undefined) return known
+    const local = `$predicate${this.predicates.size}`
+    this.predicates.set(key, local)
+    this.imports.push(`import { ${found.name} as ${local} } from ${quote(found.from)}`)
+    return local
+  }
+
+  /** A piece as `{ classes, style, conditions }`, its rules already the classes the sheet holds. */
+  private piece(exported: string, slot: string, piece: PieceShape): string {
+    const rules = piece.rules ?? []
+    const generated = rules.length === 0 ? undefined : Rules.className(rules)
+    const classes = generated === undefined ? piece.classes : [...piece.classes, generated]
+    for (const name of classes) if (COMPILED.test(name)) this.classes.add(name)
+    const conditions = (piece.conditions ?? []).map(
+      condition =>
+        `{ when: ${this.predicate(exported, slot, condition.predicate)}, piece: ${this.piece(exported, slot, condition.piece)} }`,
+    )
+    return `{ classes: ${quote(classes)}, style: ${quote(piece.style)}, conditions: [${conditions.join(', ')}] }`
+  }
+
   style(exported: string, style: NamedStyleShape): string {
     const contributions = Object.entries(style.mixin.contributions).map(([slot, contribution]) => {
       if (typeof contribution === 'function') {
         const piece = style.pieces[slot]
-        const which = (piece?.items ?? []).length > 0 ? 'Style.perItem' : 'Style.whenInput'
-        return fail(
-          this.id,
-          `its export "${exported}" styles slot "${slot}" with ${which}, which chooses classes at run time. Leave the module off \`modules\` to keep it on the run-time path.`,
-        )
+        if (piece === undefined || hasItems(piece))
+          return fail(
+            this.id,
+            `its export "${exported}" styles slot "${slot}" with Style.perItem, which chooses classes for each item as it is drawn, so it needs the compiler in the page. Leave the module off \`modules\` to keep it on the run-time path.`,
+          )
+        return `${quote(slot)}: conditional(${this.piece(exported, slot, piece)})`
       }
       const { classes, style: inline } = (contribution ?? {}) as {
         readonly classes?: ReadonlyArray<string>
@@ -173,6 +306,11 @@ class Writer {
 const HEADER = `import { Capability, MetadataToken, Mixin, Slots } from 'foldkit-mixins'
 const none = Object.freeze(Object.create(null))
 const frozen = (classes, style) => Object.freeze({ classes: Object.freeze(classes), style: style === undefined ? none : Object.freeze(Object.assign(Object.create(null), style)) })
+const resolved = (piece, input) => {
+  const active = piece.conditions.filter(condition => condition.when(input)).map(condition => resolved(condition.piece, input))
+  return { classes: [...piece.classes, ...active.flatMap(next => next.classes)], style: Object.assign(Object.create(null), piece.style, ...active.map(next => next.style)) }
+}
+const conditional = piece => context => { const drawn = resolved(piece, context.input); return frozen(drawn.classes, drawn.style) }
 const named = (exported, name, mixinName, contributions) => {
   const style = { mixin: Mixin.dynamic(mixinName, contributions) }
   if (name !== null) style.name = name
@@ -183,8 +321,9 @@ const named = (exported, name, mixinName, contributions) => {
 /**
  * `namespace`, the module `id` evaluated, as source: each export a
  * `NamedStyle`, a `Style.slots` declaration, a string, or an object of strings
- * (a token reference object). Anything else, and any Style that chooses its
- * classes at run time (`whenInput`, `perItem`), fails the build.
+ * (a token reference object). Anything else fails the build, as does a
+ * `whenInput` whose predicate is not an import from a module off the list, and
+ * any `perItem`.
  */
 export const freeze = (id: string, namespace: Readonly<Record<string, unknown>>): FrozenModule => {
   const writer = new Writer(id)
@@ -205,7 +344,13 @@ export const freeze = (id: string, namespace: Readonly<Record<string, unknown>>)
     exports.push(`${local} as ${exportName(name)}`)
   }
   return {
-    source: [HEADER, ...writer.lines, `export { ${exports.join(', ')} }`, ''].join('\n'),
+    source: [
+      HEADER,
+      ...writer.imports,
+      ...writer.lines,
+      `export { ${exports.join(', ')} }`,
+      '',
+    ].join('\n'),
     classes: writer.classes,
   }
 }
