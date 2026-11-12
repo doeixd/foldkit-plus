@@ -22,6 +22,7 @@ import {
   Sync,
   SyncRefusal,
   documentId,
+  localSequence,
   opId,
   replicaId,
   sequence,
@@ -304,6 +305,7 @@ const previous = JSON.parse(
 ) as {
   readonly state: string
   readonly row: { readonly input: string; readonly payloadHash: string }
+  readonly exchange: string
 }
 
 /** Durable's canonical form: keys sorted, at every depth. */
@@ -337,6 +339,40 @@ describe('the release before', () => {
     const row = database.prepare('SELECT input, payload_hash FROM operations').get()
     database.close()
     expect(row).toEqual({ input: previous.row.input, payload_hash: previous.row.payloadHash })
+  })
+
+  it('answers an exchange as it answered, byte for byte, for a document with no serverOnly', async () => {
+    const Local = Schema.TaggedStruct('Local', {})
+    const WithLocal = Sync.define({
+      documentId: key,
+      message: Schema.Union([RenamedV1, Cleared, Local]),
+      ...shared,
+      durable: message => message._tag !== 'Local',
+      replay: state => state,
+    })
+    const scope = Effect.runSync(Scope.make())
+    scopes.push(scope)
+    const journal = Effect.runSync(
+      Journal.make<Operation, typeof Shared.Type, string>({
+        ...WithLocal.journalContract(),
+        file: ':memory:',
+        opId: operation => OpId.make(operation.opId),
+        actorId: principal => ActorId.make(principal),
+      }).pipe(Effect.provideService(Scope.Scope, scope)),
+    )
+    const [sent] = JSON.parse(previous.state).pending as ReadonlyArray<WrittenOperation>
+    const local = WithLocal.journalContract().operation.encode({
+      ...WithLocal.codec.normalizeOperation(sent),
+      localSequence: localSequence(2),
+      opId: opId('a:2'),
+      message: { _tag: 'Local' },
+    })
+    const { epoch: _, ...reply } = (await journalExchange({
+      sync: WithLocal,
+      journal,
+      principal: 'ada',
+    }).exchange(sequence(0), [sent!, local])) as Record<string, unknown>
+    expect(JSON.stringify(reply)).toBe(previous.exchange)
   })
 
   it('hashes a version-1 operation the new history compares as the old build hashed it', () => {

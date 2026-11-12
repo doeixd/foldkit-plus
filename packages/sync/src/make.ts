@@ -57,6 +57,14 @@ export interface HistoryOption<Message, Encoded> {
   readonly migrations?: Migrations<Message, Encoded> | undefined
 }
 
+/**
+ * The Messages of the server-only constructors: none for `[]`, which
+ * `MsgOf` reads as `unknown` (`never` matches its `infer`).
+ */
+export type ServerMsgOf<SMs extends readonly unknown[]> = [SMs[number]] extends [never]
+  ? never
+  : MsgOf<SMs>
+
 /** Reads the tag off a Foldkit Message constructor without constructing one. */
 const messageTag = (constructor: unknown): string | undefined => {
   const literal = (constructor as { fields?: { _tag?: { ast?: { literal?: unknown } } } }).fields
@@ -140,24 +148,28 @@ interface BaseOptions<
   Principal,
   Fields extends Schema.Struct.Fields,
   Ms extends readonly unknown[],
+  SMs extends readonly unknown[] = [],
 > {
   readonly documentId: DocumentId
   /** Name for the generated `surface`; defaults to the document id. */
   readonly name?: string
   /**
    * Replaces the replay derived from the application's `update`. It is a pure
-   * reducer over the shared subset; only durable Messages reach it, and it runs
-   * during admission, replay, and optimistic projection. It is not guarded: the
-   * author owns its agreement with `update`.
+   * reducer over the shared subset; only durable and server-only Messages reach
+   * it, and it runs during admission, replay, and optimistic projection. It is
+   * not guarded: the author owns its agreement with `update`.
    */
   readonly replay?: (
     shared: Schema.Struct.Type<NoInfer<Fields>>,
-    message: MsgOf<NoInfer<Ms>>,
+    message: MsgOf<NoInfer<Ms>> | ServerMsgOf<NoInfer<SMs>>,
   ) => Schema.Struct.Type<NoInfer<Fields>>
-  /** Authorization the server journal applies before committing; see `AuthorizePolicy`. */
-  readonly authorize?: AuthorizePolicy<Principal, NoInfer<Fields>, NoInfer<Ms>>
-  /** What the server's commit writes into a durable Message; see `StampPolicy`. */
-  readonly stamp?: StampPolicy<NoInfer<Ms>>
+  /**
+   * Authorization the server journal applies before committing, keyed by
+   * durable or server-only tag; see `AuthorizePolicy`.
+   */
+  readonly authorize?: AuthorizePolicy<Principal, NoInfer<Fields>, NoInfer<[...Ms, ...SMs]>>
+  /** What the server's commit writes into a stored Message; see `StampPolicy`. */
+  readonly stamp?: StampPolicy<NoInfer<[...Ms, ...SMs]>>
   /**
    * Merges a durable Message into the one submitted before it while that one is unsent,
    * so a burst of edits is one operation. Replaying the result must equal replaying
@@ -175,11 +187,19 @@ export interface MakeOptions<
   Subset,
   Ms extends readonly MessageConstructor<any>[],
   Principal = unknown,
-> extends BaseOptions<Principal, Fields, Ms> {
+  ServerSubset = never,
+  SMs extends readonly MessageConstructor<any>[] = [],
+> extends BaseOptions<Principal, Fields, Ms, SMs> {
   /** The writable projection of the shared fields. */
   readonly shared: WritableProjection<AppModel, Fields>
-  /** The Message subset the replica durably records and replays. */
+  /** The Message subset a replica submits, records and replays. */
   readonly durable: MessageSet<AppModel, any, Subset, Ms>
+  /**
+   * The Messages only the server appends (`foldkit-sync/journal`'s
+   * `serverJournal`): stored and replayed like durable ones, refused from a
+   * replica. A Message in both sets is a type error, and a throw here.
+   */
+  readonly serverOnly?: MessageSet<AppModel, any, ServerSubset, SMs> | undefined
 }
 
 /**
@@ -229,6 +249,8 @@ export interface DefinedSync<
   Principal = unknown,
   /** `true` when `make` was given `authorize`, so the contract's `authorize` is present. */
   Authorized extends boolean = false,
+  /** The server-only constructors, `[]` when `make` was given none. */
+  SMs extends readonly unknown[] = [],
 > extends Sync<Message, Schema.Struct.Type<Fields>, MsgOf<Ms>> {
   readonly surface: Surface<AppModel, Schema.Struct.Type<Fields>, MsgOf<Ms>, void>
   readonly projection: WritableProjection<AppModel, Fields>
@@ -237,8 +259,11 @@ export interface DefinedSync<
     shared: Schema.Struct.Type<Fields>,
     message: Message,
   ) => Schema.Struct.Type<Fields>
+  /** The durable constructors: what a replica submits. */
   readonly messages: Ms
-  /** For `Module`: this contract owns the shared projection's paths and records the durable tags. */
+  /** The server-only constructors: what only the server appends. */
+  readonly serverOnlyMessages: SMs
+  /** For `Module`: this contract owns the shared projection's paths and records the durable and server-only tags. */
   readonly contract: Contract
   /**
    * How this contract joins an assembly: contract-only, so the Module sees it.
@@ -290,20 +315,30 @@ export interface ApplicationSync<
       Fields extends Schema.Struct.Fields,
       Subset,
       Ms extends readonly MessageConstructor<AppMessage<AppModel, F, Cases>>[],
+      ServerSubset = never,
+      // A server-only constructor makes a Message no durable one does, so a
+      // variant in both sets fails here, at `serverOnly`.
+      SMs extends readonly MessageConstructor<
+        Exclude<AppMessage<AppModel, F, Cases>, MsgOf<Ms>>
+      >[] = [],
     >(
-      options: MakeOptions<AppModel, Fields, Subset, Ms, Principal> &
+      options: MakeOptions<AppModel, Fields, Subset, Ms, Principal, ServerSubset, SMs> &
         HistoryOption<AppMessage<AppModel, F, Cases>, AppMessageEncoded<AppModel, F, Cases>> & {
-          readonly authorize: AuthorizePolicy<Principal, NoInfer<Fields>, NoInfer<Ms>>
+          readonly authorize: AuthorizePolicy<Principal, NoInfer<Fields>, NoInfer<[...Ms, ...SMs]>>
         },
-    ): DefinedSync<AppModel, Fields, AppMessage<AppModel, F, Cases>, Ms, Principal, true>
+    ): DefinedSync<AppModel, Fields, AppMessage<AppModel, F, Cases>, Ms, Principal, true, SMs>
     <
       Fields extends Schema.Struct.Fields,
       Subset,
       Ms extends readonly MessageConstructor<AppMessage<AppModel, F, Cases>>[],
+      ServerSubset = never,
+      SMs extends readonly MessageConstructor<
+        Exclude<AppMessage<AppModel, F, Cases>, MsgOf<Ms>>
+      >[] = [],
     >(
-      options: MakeOptions<AppModel, Fields, Subset, Ms, Principal> &
+      options: MakeOptions<AppModel, Fields, Subset, Ms, Principal, ServerSubset, SMs> &
         HistoryOption<AppMessage<AppModel, F, Cases>, AppMessageEncoded<AppModel, F, Cases>>,
-    ): DefinedSync<AppModel, Fields, AppMessage<AppModel, F, Cases>, Ms, Principal>
+    ): DefinedSync<AppModel, Fields, AppMessage<AppModel, F, Cases>, Ms, Principal, false, SMs>
   }
 }
 
@@ -410,10 +445,11 @@ const build = <
   )
 
   const make = (
-    options: MakeOptions<AppModel, any, any, any, Principal> & HistoryOption<Message, unknown>,
-  ): DefinedSync<AppModel, any, Message, any, Principal, boolean> => {
+    options: MakeOptions<AppModel, any, any, any, Principal, any, any> &
+      HistoryOption<Message, unknown>,
+  ): DefinedSync<AppModel, any, Message, any, Principal, boolean, any> => {
     type Shared = Record<string, unknown>
-    const { shared, durable, migrations } = options
+    const { shared, durable, migrations, serverOnly } = options
     // A Schema of an older version can equal the current one structurally, so
     // the types cannot tell a history that stops short; identity can.
     if (migrations !== undefined && (migrations.current as unknown) !== app.Message)
@@ -423,17 +459,22 @@ const build = <
     // types cannot separate them; the owner token can.
     if (durable.owner !== app.owner)
       throw new Error('Sync.make: the durable subset belongs to a different application')
+    if (serverOnly !== undefined && serverOnly.owner !== app.owner)
+      throw new Error('Sync.make: the server-only subset belongs to a different application')
 
     const replay: (value: Shared, message: Message) => Shared =
       options.replay === undefined
         ? derivedReplay(app, shared)
         : // `durable` has already rejected anything outside the declared subset.
           (value, message) => options.replay!(value, message as never)
-    const durableTags = new Set(
-      (durable.constructors as readonly unknown[])
-        .map(messageTag)
-        .filter((tag): tag is string => tag !== undefined),
-    )
+    const tagsOf = (constructors: readonly unknown[]): ReadonlySet<string> =>
+      new Set(constructors.map(messageTag).filter((tag): tag is string => tag !== undefined))
+    const durableTags = tagsOf(durable.constructors)
+    const serverTags = tagsOf(serverOnly?.constructors ?? [])
+    // The types refuse this too; a set built by `MessageSet.union` at run time may not be typed.
+    for (const tag of serverTags)
+      if (durableTags.has(tag))
+        throw new Error(`Sync.make: "${tag}" is both durable and server-only`)
     // `AppScope` does not constrain its schemas' services; a Foldkit Message union
     // and a Struct are pure, so the low-level contract's `never` is satisfied.
     const sharedCodec = shared.schema as unknown as Schema.Codec<Shared, unknown>
@@ -448,6 +489,7 @@ const build = <
       shared: sharedCodec,
       empty: shared.get(app.initial),
       durable: message => Option.exists(tagOf(message), tag => durableTags.has(tag)),
+      serverOnly: message => Option.exists(tagOf(message), tag => serverTags.has(tag)),
       replay,
       // `durable` has already rejected anything outside the declared subset.
       coalesce: options.coalesce as
@@ -506,7 +548,7 @@ const build = <
       owner: app.owner,
       owns: shared.dependencies,
       observes: shared.dependencies,
-      messages: [...durable.tags],
+      messages: [...durable.tags, ...serverTags],
       metadata: [],
     }
     return {
@@ -516,6 +558,7 @@ const build = <
       projection: shared,
       replay,
       messages: durable.constructors,
+      serverOnlyMessages: serverOnly?.constructors ?? [],
       contract,
       wiring: () => ({ key: `sync:${contract.name}`, handles: [], contract }),
     }

@@ -12,6 +12,7 @@ import {
   SynchronizedRef,
 } from 'effect'
 import {
+  AmbiguousMessageError,
   CheckpointRegressionError,
   CommittedOrderError,
   ForeignAcknowledgementError,
@@ -21,6 +22,7 @@ import {
   InvalidReplicaHistoryError,
   ReplayError,
   ReplicaClosedError,
+  ServerOnlyMessageError,
   UnreadableMessageError,
   UnsupportedMessageVersionError,
   UnsupportedReplicaVersionError,
@@ -46,6 +48,15 @@ import { fitWords, SyncRefusal } from './refusal.js'
 /** Wire and persisted-format versions. A bump must handle the older value explicitly. */
 const PROTOCOL_VERSION = 1
 const SCHEMA_VERSION = 1
+
+/**
+ * Replica ids the server's own operations use (`foldkit-sync/journal`'s
+ * `serverJournal`): a sent entry may not claim one, or it could bind the id to
+ * its actor first and have the server's append refused.
+ */
+export const SERVER_REPLICA_PREFIX = 'server/'
+/** The longest replica id a sent entry may name. A stored one is read whatever its length. */
+const MAX_SENT_REPLICA_ID = 128
 
 /**
  * A client-authored operation envelope. `message` is the application's
@@ -103,6 +114,12 @@ const CommittedWrittenSchema = Schema.Struct({
 const decodeWritten = Schema.decodeUnknownSync(WrittenOperationSchema, {
   onExcessProperty: 'error',
 })
+/**
+ * An envelope as written, checked for its shape and nothing else: for the
+ * server's own operations (`serverJournal`), whose bytes it wrote or recorded.
+ * Never for an entry someone sent.
+ */
+export const writtenEnvelope = (input: unknown): WrittenOperation => decodeWritten(input)
 const decodeCommittedWritten = Schema.decodeUnknownSync(CommittedWrittenSchema, {
   onExcessProperty: 'error',
 })
@@ -334,6 +351,12 @@ export interface SyncDefinitionOptions<Message, Shared, SharedEncoded> {
   readonly shared: Schema.Codec<Shared, SharedEncoded, never, never>
   readonly empty: Shared
   readonly durable: (message: Message) => boolean
+  /**
+   * Optional. The Messages only the server appends: stored and replayed like
+   * durable ones, never accepted from a replica. A Message both predicates
+   * accept is refused wherever it is read.
+   */
+  readonly serverOnly?: ((message: Message) => boolean) | undefined
   readonly replay: (shared: Shared, message: Message) => Shared
   /**
    * Optional. Merges a durable Message into the one submitted before it, while that one
@@ -369,6 +392,8 @@ export interface Sync<Message, Shared, Durable = Message> {
   readonly documentId: DocumentId
   /** Whether a Message is one the replica records and replays. */
   readonly durable: (message: Message) => boolean
+  /** Whether a Message is one only the server appends: replicas replay it and never submit it. */
+  readonly serverOnly: (message: Message) => boolean
   /**
    * Low-level wire codecs for adapters and the transport. Most applications use
    * `journalContract` and `openReplica`; these are exposed for a custom
@@ -377,17 +402,26 @@ export interface Sync<Message, Shared, Durable = Message> {
   readonly codec: {
     /** The current version of the document's Message history: 1 with no migrations. */
     readonly messageVersion: number
+    /** The document's Message at its current version: what every hook decodes. */
+    readonly message: Schema.Codec<Message, unknown, never, never>
     /**
-     * An operation as written, read: its Message upcast to the current version.
-     * Throws `UnsupportedMessageVersionError` for a newer version, and
-     * `UnreadableMessageError` for an older one no step reads.
+     * An entry someone sent, read: its Message upcast to the current version.
+     * Throws `UnsupportedMessageVersionError` for a newer version,
+     * `UnreadableMessageError` for an older one no step reads, and
+     * `ServerOnlyMessageError` for a Message only the server appends; it
+     * refuses a replica id under `server/` or past 128 characters. Read
+     * stored history with `journalContract().operation.decode`, which takes
+     * the server's Messages too.
      */
     readonly normalizeOperation: (input: unknown) => Operation
+    /** `normalizeOperation`, of this document only. */
     readonly operationFrom: (input: unknown, documentId: DocumentId) => Operation
     /**
-     * An entry as received, checked as an envelope of this document, its Message unread.
-     * Never pass it an `Operation`: that Message is already current and would be read
-     * as version 1. Write one with `journalContract().operation.encode`.
+     * An entry as received, checked as an envelope of this document and read
+     * as `normalizeOperation` reads it, and returned as written: what a server
+     * appends. A custom server reads every entry with it before appending.
+     * Never pass it an `Operation`: that Message is already current and would
+     * be read as version 1. Write one with `journalContract().operation.encode`.
      */
     readonly writtenFrom: (input: unknown, documentId: DocumentId) => WrittenOperation
     readonly committedFrom: (input: unknown, documentId: DocumentId) => CommittedOperation
@@ -425,7 +459,11 @@ export interface JournalContract<Operation, Shared> {
   readonly operation: {
     /** Written at the current version: what the journal stores. */
     readonly encode: (operation: Operation) => WrittenOperation
-    /** Read from any version the history has, upcast to the current one. */
+    /**
+     * Read from any version the history has, upcast to the current one: stored
+     * history, so the server's own Messages read too. Never the reader of an
+     * entry someone sent (`codec.writtenFrom`).
+     */
     readonly decode: (input: unknown) => Operation
     /**
      * What a retransmission is compared by: the operation normalized at the
@@ -553,7 +591,12 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
       supported: current,
       message: `Operation ${opId} was written at Message version ${version}; this build reads up to ${current}`,
     })
-  const messageOf = (operation: WrittenShape): Message => {
+  const serverOnly = definition.serverOnly ?? (() => false)
+  /**
+   * `sent` is an entry someone sent, which may carry only what a replica
+   * submits; `history` is what the journal stored, the server's Messages too.
+   */
+  const messageOf = (operation: WrittenShape, kind: 'sent' | 'history'): Message => {
     const version = versionOf(operation)
     if (version > current) throw newer(operation.opId, version)
     let decoded: Message
@@ -569,7 +612,19 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
           cause,
         })
       }
-    if (!definition.durable(decoded)) throw new Error('Message is local-only')
+    const durable = definition.durable(decoded)
+    const server = serverOnly(decoded)
+    if (durable && server)
+      throw new AmbiguousMessageError({
+        opId: operation.opId,
+        message: `Operation ${operation.opId} carries a Message both durable and server-only`,
+      })
+    if (server && kind === 'sent')
+      throw new ServerOnlyMessageError({
+        opId: operation.opId,
+        message: `Operation ${operation.opId} carries a Message only the server appends`,
+      })
+    if (!durable && !server) throw new Error('Message is local-only')
     return decoded
   }
   /** The envelope alone: the decoded side holds no version, only the current Message. */
@@ -586,18 +641,32 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
     if (operation.documentId !== key) throw new Error('Wrong document')
     return operation
   }
-  const read = (written: WrittenShape): Operation => {
-    checkIdentity(written)
-    return { ...envelopeOf(written), message: encodeMessage(messageOf(written)) }
+  /** What a sent entry may not name: the server's replica ids, or one past the bound. */
+  const checkSentReplica = (operation: WrittenShape): void => {
+    if (operation.replicaId.startsWith(SERVER_REPLICA_PREFIX))
+      throw new Error('The replica id is reserved for the server')
+    if (operation.replicaId.length > MAX_SENT_REPLICA_ID)
+      throw new Error('The replica id is too long')
   }
-  const normalizeOperation = (input: unknown): Operation => read(decodeWritten(input))
+  const read = (written: WrittenShape, kind: 'sent' | 'history'): Operation => {
+    checkIdentity(written)
+    if (kind === 'sent') checkSentReplica(written)
+    return { ...envelopeOf(written), message: encodeMessage(messageOf(written, kind)) }
+  }
+  const normalizeOperation = (input: unknown): Operation => read(decodeWritten(input), 'sent')
   const operationFrom = (input: unknown, key: DocumentId): Operation =>
-    read(assertDocument(decodeWritten(input), key))
+    read(assertDocument(decodeWritten(input), key), 'sent')
   const writtenFrom = (input: unknown, key: DocumentId): WrittenOperation => {
     const written = assertDocument(decodeWritten(input), key)
-    checkIdentity(written)
+    // Read for its checks and discarded: what is appended is what was sent.
+    read(written, 'sent')
     return written
   }
+  /** Stored history: the server's Messages read, and a stored replica id of any length. */
+  const readStored = (input: unknown): Operation => read(decodeWritten(input), 'history')
+  /** An outbox entry this replica wrote: history, since it may predate a deploy that moved its variant. */
+  const storedFrom = (input: unknown, key: DocumentId): Operation =>
+    read(assertDocument(decodeWritten(input), key), 'history')
   /**
    * A committed operation arrives with its message already encoded, so decode it
    * once for the contract check and hand it to `replay` instead of decoding and
@@ -609,7 +678,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
   ): { readonly committed: CommittedOperation; readonly message: Message } => {
     const written = assertDocument(decodeCommittedWritten(input), key)
     checkIdentity(written)
-    const message = messageOf(written)
+    const message = messageOf(written, 'history')
     return { committed: { ...envelopeOf(written), message: encodeMessage(message) }, message }
   }
   const committedFrom = (input: unknown, key: DocumentId): CommittedOperation =>
@@ -635,7 +704,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
     replicaId: operation => operation.replicaId,
     legacyReplicaId: opId => opId.slice(0, opId.lastIndexOf(':')),
     // Stored written at the current version; read from any version the history has.
-    operation: { encode: write, decode: normalizeOperation, compared },
+    operation: { encode: write, decode: readStored, compared },
     snapshot: { encode: encodeShared, decode: decodeShared },
     empty: () => definition.empty,
     reduce: (snapshot, operation) => definition.replay(snapshot, decodeMessage(operation.message)),
@@ -665,7 +734,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
 
   const optimistic = (state: ReplicaState<Shared>): Shared =>
     state.pending.reduce(
-      (model, operation) => definition.replay(model, messageOf(operation)),
+      (model, operation) => definition.replay(model, messageOf(operation, 'history')),
       state.committed,
     )
 
@@ -724,7 +793,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
           return yield* new InvalidOutboxError({ message: 'Invalid outbox' })
         pendingIds.add(pending.opId)
         try {
-          operationFrom(pending, documentId)
+          storedFrom(pending, documentId)
         } catch (cause) {
           // A newer build wrote it: nothing is removed, and that build reads it.
           if (cause instanceof UnsupportedMessageVersionError) return yield* cause
@@ -831,6 +900,10 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
           Effect.gen(function* () {
             if (yield* Ref.get(closed))
               return yield* new ReplicaClosedError({ message: 'Replica is closed' })
+            if (serverOnly(message))
+              return yield* new InvalidOutboxError({
+                message: 'Message is one only the server appends',
+              })
             if (!definition.durable(message))
               return yield* new InvalidOutboxError({ message: 'Message is local-only' })
             const last = current.pending[current.pending.length - 1]
@@ -838,17 +911,21 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
               last !== undefined &&
               definition.coalesce !== undefined &&
               (yield* Ref.get(unsent)).has(last.opId)
-                ? definition.coalesce(messageOf(last), message)
+                ? definition.coalesce(messageOf(last, 'history'), message)
                 : undefined
             if (merged !== undefined && !definition.durable(merged))
               return yield* new InvalidOutboxError({
                 message: 'coalesce returned a local-only Message',
               })
+            if (merged !== undefined && serverOnly(merged))
+              return yield* new InvalidOutboxError({
+                message: 'coalesce returned a Message only the server appends',
+              })
             // A merged Message takes the place of the last operation, under its identity.
             const operation = yield* Effect.try({
               try: () =>
                 write(
-                  operationFrom(
+                  storedFrom(
                     write(
                       merged === undefined
                         ? {
@@ -1143,7 +1220,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
               refusal: Option.fromUndefinedOr(refusalOf.get(opId)),
               reason: Option.fromUndefinedOr(reasonOf.get(opId)),
               operation,
-              message: encodeMessage(messageOf(operation)),
+              message: encodeMessage(messageOf(operation, 'history')),
             }
           })
           yield* Ref.update(rejectedOps, previous => [...refused, ...previous].slice(0, 32))
@@ -1254,8 +1331,10 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
   return {
     documentId,
     durable: definition.durable,
+    serverOnly,
     codec: {
       messageVersion: current,
+      message: messages.current as Schema.Codec<Message, unknown, never, never>,
       normalizeOperation,
       operationFrom,
       writtenFrom,

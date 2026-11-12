@@ -7,7 +7,7 @@
  * listener the application gave that threw. Each is reported through
  * `Diagnostics.report`.
  */
-import { Cause, Effect } from 'effect'
+import { Cause, Effect, Option } from 'effect'
 import { Diagnostics, type Diagnostic, type ReportDiagnostic } from 'foldkit-surface'
 import type { ReplicaError } from './errors.js'
 import type { TransportError } from './transport.js'
@@ -63,6 +63,8 @@ export type HostStage =
   | 'Notice'
   /** The journal's stream of commits, which broke: the connection hears of no more commits. */
   | 'Changes'
+  /** A Durable Object's pass of reactions, after an exchange or in `alarm()`, which broke: the alarm comes back later. */
+  | 'Alarm'
 
 /**
  * A document host broke on its own side: the upgrade was answered 500
@@ -92,12 +94,68 @@ export interface ListenerFailed extends Diagnostic {
   readonly thrown: unknown
 }
 
+/**
+ * A replica sent a Message only the server appends: rejected as `Forbidden`.
+ * No honest client sends one, so it is worth a look. It names the operation and
+ * the replica it claims, never the payload.
+ */
+export interface ServerOnlySubmitted extends Diagnostic {
+  readonly _tag: 'ServerOnlySubmitted'
+  readonly documentId: string
+  readonly opId: string
+  /** The replica id the entry claims: what the sender wrote, not proof of who it is. */
+  readonly replicaId: string
+}
+
+/**
+ * A reaction's run failed, threw or timed out: that reaction waits at the
+ * operation, on a backoff, and the others go on.
+ */
+export interface ReactionFailed extends Diagnostic {
+  readonly _tag: 'ReactionFailed'
+  readonly documentId: string
+  readonly reaction: string
+  /** None when the commit itself would not read, so no operation can be named. */
+  readonly opId: Option.Option<string>
+  readonly sequence: Option.Option<number>
+  /** Why, cut to 500 characters. */
+  readonly cause: string
+}
+
+/** A reaction's run was set aside, for a person (`parked`); the reaction went on without it. */
+export interface ReactionParked extends Diagnostic {
+  readonly _tag: 'ReactionParked'
+  readonly documentId: string
+  readonly reaction: string
+  readonly opId: string
+  readonly sequence: number
+  /** Why, cut to 500 characters. */
+  readonly cause: string
+}
+
+/**
+ * The log was compacted past a reaction's cursor, against `settledThrough`:
+ * the commits between were never reacted to, and the reaction resumes at the
+ * floor.
+ */
+export interface ReactionSkipped extends Diagnostic {
+  readonly _tag: 'ReactionSkipped'
+  readonly documentId: string
+  readonly reaction: string
+  readonly from: number
+  readonly to: number
+}
+
 /** Every diagnostic Sync reports. */
 export type SyncDiagnostic =
   | ExchangeFailed
   | HistoryRebuilt
   | HostDefect
   | ListenerFailed
+  | ReactionFailed
+  | ReactionParked
+  | ReactionSkipped
+  | ServerOnlySubmitted
   | UnknownRefusal
 
 export const exchangeFailed = (
@@ -139,6 +197,74 @@ export const unknownRefusal = (
   issue,
 })
 
+export const serverOnlySubmitted = (
+  documentId: string,
+  opId: string,
+  replicaId: string,
+): ServerOnlySubmitted => ({
+  _tag: 'ServerOnlySubmitted',
+  source,
+  level: 'warning',
+  message: `${documentId}: ${opId}, sent as replica ${replicaId}, carries a Message only the server appends; it was rejected as Forbidden.`,
+  documentId,
+  opId,
+  replicaId,
+})
+
+export const reactionFailed = (
+  documentId: string,
+  reaction: string,
+  at: Option.Option<{ readonly opId: string; readonly sequence: number }>,
+  cause: string,
+): ReactionFailed => ({
+  _tag: 'ReactionFailed',
+  source,
+  level: 'warning',
+  message: `${documentId}: reaction ${reaction} failed${Option.match(at, {
+    onNone: () => ' reading the log',
+    onSome: ({ opId, sequence }) => ` at ${opId} (${sequence})`,
+  })} (${cause}); it waits there on a backoff.`,
+  documentId,
+  reaction,
+  opId: Option.map(at, ({ opId }) => opId),
+  sequence: Option.map(at, ({ sequence }) => sequence),
+  cause,
+})
+
+export const reactionParked = (
+  documentId: string,
+  reaction: string,
+  opId: string,
+  sequence: number,
+  cause: string,
+): ReactionParked => ({
+  _tag: 'ReactionParked',
+  source,
+  level: 'error',
+  message: `${documentId}: reaction ${reaction} set ${opId} (${sequence}) aside (${cause}); it is in parked, and the reaction went on.`,
+  documentId,
+  reaction,
+  opId,
+  sequence,
+  cause,
+})
+
+export const reactionSkipped = (
+  documentId: string,
+  reaction: string,
+  from: number,
+  to: number,
+): ReactionSkipped => ({
+  _tag: 'ReactionSkipped',
+  source,
+  level: 'error',
+  message: `${documentId}: the log was compacted past reaction ${reaction}; commits ${from + 1} to ${to} were never reacted to.`,
+  documentId,
+  reaction,
+  from,
+  to,
+})
+
 const stageText: Record<HostStage, string> = {
   Upgrade: 'making or accepting the socket broke, and the upgrade was answered "Internal error"',
   Resolve:
@@ -148,6 +274,7 @@ const stageText: Record<HostStage, string> = {
   Revalidate: 'asking the resolver again broke, and the socket was closed with 1011',
   Notice: 'asking opens before a commit notice failed, and the notice was not sent',
   Changes: "the journal's stream of commits broke, and this connection hears of no more commits",
+  Alarm: 'running the reactions broke, and the alarm was set to run them again later',
 }
 
 export const hostDefect = (stage: HostStage, cause: Cause.Cause<unknown>): HostDefect => ({

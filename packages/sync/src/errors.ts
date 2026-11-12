@@ -147,6 +147,60 @@ export class UnreadableMessageError extends Schema.TaggedError<UnreadableMessage
 ) {}
 
 /**
+ * A sent entry carries a Message only the server appends (`serverOnly`),
+ * judged after upcasting. Thrown by every reader of an entry someone sent
+ * (`codec.writtenFrom`, `normalizeOperation`, `operationFrom`);
+ * `journalExchange` rejects it as `Forbidden`. History reads it.
+ */
+export class ServerOnlyMessageError extends Schema.TaggedError<ServerOnlyMessageError>()(
+  'ServerOnlyMessageError',
+  {
+    opId: Schema.String,
+    message: Schema.String,
+  },
+) {}
+
+/**
+ * A Message both `durable` and `serverOnly` accept: `Sync.define`'s two
+ * predicates overlap, which cannot be told when they are given. It is refused
+ * wherever it is read, never treated as either.
+ */
+export class AmbiguousMessageError extends Schema.TaggedError<AmbiguousMessageError>()(
+  'AmbiguousMessageError',
+  {
+    opId: Schema.String,
+    message: Schema.String,
+  },
+) {}
+
+/**
+ * `appendAsServer` was given a key already used for another Message: the
+ * first fact stands, and nothing was appended.
+ */
+export class ServerKeyReusedError extends Schema.TaggedError<ServerKeyReusedError>()(
+  'SyncServerKeyReusedError',
+  { key: Schema.String },
+) {
+  override get message(): string {
+    return `The server key "${this.key}" was already used for another Message`
+  }
+}
+
+/**
+ * `retry` was given a run parked in a history since reset: its sequence names
+ * whatever the new history committed there. Dismiss it; if its operation is
+ * sent again, it commits and is reacted to in the new history.
+ */
+export class StaleParkedRunError extends Schema.TaggedError<StaleParkedRunError>()(
+  'SyncStaleParkedRunError',
+  { reaction: Schema.String, opId: Schema.String },
+) {
+  override get message(): string {
+    return `The run of ${this.reaction} at ${this.opId} was parked before the document was reset`
+  }
+}
+
+/**
  * A committed operation of the document will not read: written at a version
  * this server's history lacks, or at one no step reads. The journal reads a
  * stored row only when it needs it, so this fails what needs that row: an
