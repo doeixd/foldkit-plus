@@ -355,9 +355,13 @@ Sync.transport.socket({ url: 'wss://example.com/sync' })
   object its [reactions](#work-after-a-commit-reactions): registered when the
   journal opens, before any socket is served; the alarm set before the reply
   to an exchange that committed, a pass run after it, and `alarm()` running
-  them and setting the alarm from what they answer. It never throws from
-  `alarm()`, so the runtime's few retries of a throwing alarm are never what
-  a run depends on, and it only ever brings the object's one alarm earlier.
+  them and setting the alarm from what they answer, then calling the base
+  class's own `alarm()` if it has one. The reactions' part never throws, so
+  the runtime's few retries of a throwing alarm are never what a run depends
+  on; it runs one pass at a time, and only ever brings the object's one alarm
+  earlier. A reaction declared for another contract is refused when the
+  object is made. A `setAlarm` that fails after a commit is reported, the
+  application's `settle` still runs, and the next exchange arms again.
   A pass that broke is a `HostDefect` (`Alarm`), and the alarm comes back in
   30 seconds.
 - `settle: (env, journal) => Effect` runs after each exchange's appends, before
@@ -756,8 +760,13 @@ const serving = Effect.gen(function* () {
   judge it like any operation.
 - **Keep the server's `actorId`.** The journal binds each replica id to the
   first actor that commits from it, so after a change of `actorId` a
-  redelivered key is an `IdentityConflictError` and every reaction's append
-  is refused.
+  redelivered key is an `IdentityConflictError`: that fact was the first
+  actor's. A new key, and a reaction's append for a new commit, commit as the
+  new actor.
+- **A refused append frees its key.** The key is recorded before the append,
+  so a redelivery after a deploy appends the bytes first written; when the
+  journal refuses the append (`validate`, `authorize`), nothing committed and
+  the record is cleared, so the key can name a Message the rules take.
 - A server that hands `foldkit-durable`'s `append` input it did not first read
   with a `codec` reader gets no server-only check: the journal knows no
   Message's tag. Read every sent entry with `codec.writtenFrom` before
@@ -807,8 +816,9 @@ commit -> react: read after the stored cursor -> run (answer recorded)
   record runs the call again. `key` is the same on every run of one
   reaction on one commit (64 hex characters); give it to the provider as its
   idempotency key, and the provider decides whether a repeat is a no-op. The
-  appends are once: their ids come from the reaction and its trigger's place
-  in the order, and the journal answers a repeat from history.
+  appends are once: their ids come from the reaction and its trigger's id
+  (never its place in the order, which a `reset` reuses), and the journal
+  answers a repeat from history.
 - **The cursor is stored** beside the journal (`foldkit-durable`'s schema 7),
   one per reaction, so a restart neither walks the log again nor misses what
   committed while it was down. A reaction starts where the journal was when

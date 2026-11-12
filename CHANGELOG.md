@@ -51,6 +51,10 @@ version changed; `pnpm` skips versions already in the registry.
   characters. `journalContract().operation.decode` is now a lenient history
   reader that takes server-only Messages: a journal built by hand that
   decodes its rows with `codec.normalizeOperation` should use it instead.
+  So the journal's own `append`, given an entry no Sync reader saw, now
+  accepts a server-only Message and a `server/` replica id: a server that
+  appends what a client sent reads it with `codec.writtenFrom` first, as
+  `journalExchange` does (`examples/sync` and `examples/todo-app` now do).
   A document with no `serverOnly` answers an exchange and stores its rows
   byte for byte as before.
 - **`editsJournal` stores its cursor** (`foldkit-sync/journal`, #190) in the

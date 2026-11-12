@@ -1345,10 +1345,11 @@ exchange reply), Durable's `journal.test.ts` and `d1.test.ts` (with
 
 - **§4.2, the server's actor.** "A deployment that changes the configured
   server principal's `actorId` has every later server append refused": only
-  reactions' appends (their replica ids are fixed) and a repeated
-  `appendAsServer` key (`IdentityConflictError`, the operation is the first
-  actor's) are. A new key is a new replica id, which the journal binds to
-  the new actor, and commits. The constraint still stands; the README says
+  a repeated `appendAsServer` key (`IdentityConflictError`, the operation is
+  the first actor's) is, and, as first built, reactions' appends, whose
+  replica ids were fixed. A new key is a new replica id, which the journal
+  binds to the new actor, and commits; since the review below, so is a
+  reaction's append for a new commit. The constraint still stands; the README says
   what happens.
 - **§3.6, `INSERT OR IGNORE` on the parked row.** After a `reset`, a run of
   the same `opId` parked again in the new history was ignored beside the
@@ -1370,4 +1371,70 @@ example) is covered by `serverMessages.test.ts`, not by an example;
 `examples/cloudflare`'s `settleTodos` still keeps its cursor in
 `durable_meta` (it could use `journal.cursors`); pages' `Collect`, the
 examples' agent `appendAsServer` and pruning stay out, as §8 and §10 say.
+
+**What the code review of the build changed** (2026-11-12, two blocking
+findings and twelve advisories, each checked against the source first).
+
+- **B1. A reaction's append is named by its trigger's id**, not its place:
+  `server/r/<reaction>/<sha256 of the trigger's opId>/<index>`, local
+  sequence 1, `baseCursor` the trigger's sequence. Named by the sequence,
+  as §4.3 had it, after a `reset` a reaction running on another's append
+  met the same id for another trigger, found the first one's recorded
+  answer, never ran for the second, and gave the provider the first one's
+  key. The cost is §4.3's "replica ids as many as reactions times 16": each
+  append is a binding row of its own now, one per trigger and index, the
+  growth §10's plan (bind nothing under `server/`) answers. A consequence:
+  after the server's `actorId` changes, a reaction's append for a new
+  commit binds to the new actor and commits; only a redelivered
+  `appendAsServer` key conflicts. The README, the options doc and §13's
+  correction of §4.2 above say so. A chain across a reset is tested.
+- **B2. `park` writes only in the document's current epoch**, through
+  `INSERT … SELECT … WHERE ? = (SELECT epoch FROM epochs …)`, like `advance`
+  and `stalled`. Before, a pass still in its handler during a `reset` parked
+  with the old epoch over the new history's row.
+- **1.** The options doc's actor claim is corrected.
+- **2.** The module header says what a lost cursor row costs: `react`
+  reports it (it is a defect, now caught, below) until the reaction is
+  registered again, at the journal's cursor then, which skips what came
+  between. Re-tracking from the floor was rejected: on a long log it would
+  run every reaction over all of history, which registration exists to
+  prevent.
+- **3.** The changelog says that Durable's own `append` now takes a
+  server-only Message and a `server/` id from input no Sync reader saw.
+  `examples/sync` and `examples/todo-app` read with `codec.writtenFrom`
+  before appending.
+- **4.** The DO's `alarm()` calls the base class's own `alarm()` after the
+  reactions' pass (composing rather than refusing, so an application that
+  had one can still take `server`); opens nothing without `server`; never
+  throws when the reporter fails; and treats an alarm time already past as
+  no alarm, since a runtime may still report the alarm being run inside
+  `alarm()`. Local workerd answers `null` there (the mutation removing the
+  guard survives the workerd test, and says so); production was not
+  measured, so the guard stays, killed by a faked storage in `do.test.ts`. A workerd test fails a reaction twice and sees the alarm
+  re-armed from inside `alarm()` until the run succeeds.
+- **5.** A `setAlarm` that fails after a commit is reported, the
+  application's `settle` still runs, and the host's `seen` cursor does not
+  move, so the next exchange arms again.
+- **6.** Passes run one at a time per object (a promise chain), so a failure
+  is counted once.
+- **7.** `react` catches a defect of a reaction's pass (a trigger that will
+  not decode, a cursor row that is gone) and reports it as `ReactionFailed`,
+  answering 5 s; an interruption still ends it, so `follow` stops when asked.
+- **8.** `runsPerPass` is shared: each reaction gets its share of what is
+  left, and the reaction a pass starts with turns each pass.
+- **9.** `appendAsServer` keeps recording before appending (a redelivery
+  after a deploy must append the bytes first written), and clears the
+  record when the journal refuses the append (`OperationRejectedError`,
+  `InvalidOperationError`): nothing committed, so the key is free again. A
+  conflict keeps it.
+- **10.** `defineDocumentHost` makes the reactions when the object is
+  constructed and refuses one declared for another contract there.
+- **11.** A negative type test: `serverJournal` refuses a `Sync.define`
+  contract.
+- **12.** The workerd eviction test asserts every run carried one key, that
+  it ran more than once (so the eviction cut one off), and polls long enough
+  for the runtime's alarm retry when the reset lands on the alarm itself;
+  the handler sleeps three seconds, so the reset lands mid-call.
+
+Jev did not run for this round either (`TYPESAFE_API_KEY` unset).
 

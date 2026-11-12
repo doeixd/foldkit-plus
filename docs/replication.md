@@ -304,8 +304,7 @@ Two promises, stated narrowly:
   provider's idempotency; whether a repeat is then harmless is the
   provider's guarantee, not Sync's. Nothing here is exactly once.
 - **What a reaction appends commits once**: its ids come from the reaction
-  and its trigger's place in the order, and the journal answers a repeat
-  from history.
+  and its trigger's id, and the journal answers a repeat from history.
 
 A run that fails waits on a stored backoff, blocking only its own reaction. A
 run that can never succeed (the journal refuses its append, or its answer is
