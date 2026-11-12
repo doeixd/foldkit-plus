@@ -64,6 +64,23 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-surface`: `Closure.reads(app, projection, model, message)` names the
   top-level Model fields outside a projection that its value after `message`
   depends on, by running `update` again with them reset to `initial` (#543).
+- `foldkit-entity` (breaking): an invariant is the Entity's, as its relations
+  are. `Entity.invariant` adds it to the Entity and returns the descriptor it
+  was given, so every descriptor judges it: a form, a write's pre-send check, a
+  Drizzle writer and `checkConstraints` over the descriptor declared before the
+  invariant now hold it, where before #539 a binding of that descriptor stored
+  an invalid row. Applying a declaration to its Entity again adds nothing;
+  `Entity.invariant` no longer makes a new descriptor, and the
+  `foldkit-entity/invariants` metadata key is gone. A test that pipes different
+  invariants onto one shared base now gives each its own Entity.
+- `foldkit-guard` (breaking, security): every seam that enforces guards
+  (`GuardServer.writer`, `filter`, `memory` and `mutation`,
+  `GuardDrizzle.visible`, `GuardSync.document` and `opens`) throws where it is
+  built when given a descriptor without guards of an Entity another descriptor
+  of which carries them: `Todo carries guards on another descriptor of it;
+  pass the one Guards.attach returned`. Before, such a descriptor was served
+  as unguarded, and with `unguarded: 'allow'` a writer built from it let
+  anyone write (#539). The client's hints (`may`, placement) are unchanged.
 
 ### Fixed
 
