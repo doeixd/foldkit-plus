@@ -24,8 +24,11 @@ interface Shape {
   readonly relations: Record<string, EntityMember>
   readonly derived: Record<string, EntityMember>
   readonly sets: Record<string, EntitySet>
-  /** In the order they were declared. */
-  readonly invariants: Array<Invariant>
+  /**
+   * In the order they were declared. Replaced, never changed, so a reader that
+   * kept it (a binding compiling its checks) keeps what it compiled.
+   */
+  invariants: ReadonlyArray<Invariant>
   /** Moves with every addition, so a descriptor knows when its view is stale. */
   revision: number
 }
@@ -147,7 +150,8 @@ export const extend = (
     put(shape.relations, key, member)
   for (const [key, member] of Object.entries(added.derived ?? {})) put(shape.derived, key, member)
   for (const [key, set] of Object.entries(added.sets ?? {})) put(shape.sets, key, set)
-  shape.invariants.push(...(added.invariants ?? []))
+  if (added.invariants !== undefined)
+    shape.invariants = Object.freeze([...shape.invariants, ...added.invariants])
   shape.revision += 1
 }
 
