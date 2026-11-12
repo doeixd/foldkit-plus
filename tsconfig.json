@@ -31,6 +31,7 @@
     { "path": "./packages/remote" },
     { "path": "./packages/remote-server" },
     { "path": "./packages/remote-drizzle" },
+    { "path": "./packages/remote-domain" },
     { "path": "./packages/mirror" },
     { "path": "./packages/site" },
     { "path": "./packages/host" },

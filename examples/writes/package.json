@@ -3,6 +3,14 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./domain": {
+      "foldkit-plus:source": "./src/domain.ts"
+    },
+    "./server": {
+      "foldkit-plus:source": "./src/server.ts"
+    }
+  },
   "scripts": {
     "demo": "tsx src/main.ts",
     "typecheck": "tsc -b"

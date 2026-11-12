@@ -59,6 +59,7 @@ const cases: ReadonlyArray<readonly [name: string, page: string]> = [
   ['mixins-richtext', `import { blockStyleMenu } from 'pkg'\nexport const used = blockStyleMenu`],
   ['mixins-surface', `import { SurfaceView } from 'pkg'\nexport const used = SurfaceView`],
   ['react', `import { FoldkitComponent } from 'pkg'\nexport const used = FoldkitComponent`],
+  ['remote-domain', `import { Receipt } from 'pkg'\nexport const used = Receipt`],
   ['remote-drizzle', `import { compileCall } from 'pkg'\nexport const used = compileCall`],
   ['richtext', `import { decodeDocument } from 'pkg'\nexport const used = decodeDocument`],
   ['richtext-markdown', `import { parse } from 'pkg'\nexport const used = parse`],

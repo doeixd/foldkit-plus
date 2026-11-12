@@ -498,6 +498,11 @@
       "types": "./dist/remote/why.d.mts",
       "import": "./dist/remote/why.mjs"
     },
+    "./remote-domain": {
+      "foldkit-plus:source": "./src/remote-domain.ts",
+      "types": "./dist/remote-domain.d.mts",
+      "import": "./dist/remote-domain.mjs"
+    },
     "./remote-drizzle": {
       "foldkit-plus:source": "./src/remote-drizzle.ts",
       "types": "./dist/remote-drizzle.d.mts",
@@ -703,6 +708,7 @@
     "foldkit-mixins-ui": "workspace:^",
     "foldkit-react": "workspace:^",
     "foldkit-react-codegen": "workspace:^",
+    "foldkit-remote-domain": "workspace:^",
     "foldkit-remote-drizzle": "workspace:^",
     "foldkit-richtext-code-shiki": "workspace:^",
     "@foldkit/vite-plugin": "^0.29.0",
@@ -727,6 +733,9 @@
       "optional": true
     },
     "foldkit-react-codegen": {
+      "optional": true
+    },
+    "foldkit-remote-domain": {
       "optional": true
     },
     "foldkit-remote-drizzle": {
@@ -766,6 +775,7 @@
     "foldkit-mixins-ui": "workspace:*",
     "foldkit-react": "workspace:*",
     "foldkit-react-codegen": "workspace:*",
+    "foldkit-remote-domain": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-richtext-code-shiki": "workspace:*"
   },

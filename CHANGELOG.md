@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-remote-domain` (new, Early: it tracks a beta): the start of the
+  bridge from an Alchemy Domain Api to Remote. It exports `Receipt`, the
+  `{ stream, version }` a Domain command answers with, and its tests pin the
+  Domain behaviour the adapter will rely on, against `@alchemy.run/domain` and
+  `alchemy` `2.0.0-beta.86`.
 - `foldkit-remote`: `reaches(write, query)` says which queries a declared write
   can change, from declarations alone: `Reach.Reads`, `Unaffected`, or
   `Unknown({ why: 'NoBody' | 'Handler' })`. It compares members by their
