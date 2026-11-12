@@ -150,8 +150,9 @@ Build, in `foldkit-guard`:
   `GuardServer.filter` and `mutation` where they are built (`memory` builds
   a `filter` per Entity), `drizzle.ts`'s Read rules, and `sync.ts`'s
   `document` and `opens`. (As built: the first version listed only the
-  `attached` lines, which left `filter`, `memory` and `mutation` reading the
-  Entity's rules through the Policy unchecked.) The hint readers
+  `attached` lines, which left `filter` and `memory` reading the Entity's
+  rules through the Policy unchecked, and `mutation` refusing with a message
+  about its Source.) The hint readers
   (`may.ts`, `condition.ts`, `placed.ts`) keep `attached`: a rule declared
   with `guard.row(ProductFields, …)` is how every guard set starts.
 
