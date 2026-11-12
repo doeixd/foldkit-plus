@@ -204,6 +204,9 @@ const followTags = (checker, source) => {
   return { held }
 }
 
+// A mark must say why (`// tag-check: open, <why>`): a bare one explains nothing to the next reader.
+const openWithReason = /\/\/\s*tag-check:\s*open\b[\s,:;\u2014\u2013-]*[^\s,:;\u2014\u2013-]/
+
 export const check = (program, files, found = findings) => {
   const checker = program.getTypeChecker()
   for (const file of files) {
@@ -214,7 +217,7 @@ export const check = (program, files, found = findings) => {
     const lines = text.split('\n')
     const markedAt = node => {
       const line = lineOf(node)
-      return [lines[line], lines[line - 1]].some(l => l?.includes('tag-check: open'))
+      return [lines[line], lines[line - 1]].some(l => openWithReason.test(l ?? ''))
     }
     // A mark covers the statement under it, so one stands over a condition that spans lines.
     const marked = node => {

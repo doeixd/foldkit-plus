@@ -92,3 +92,11 @@ test('a comment that names a property is not a declaration', () => {
 test('a file that is no style file is not read', () => {
   expect(physicalFindings("const a = { left: '0', marginLeft: '1px' }\n")).toEqual([])
 })
+
+test.each([['// physical'], ['// physical:'], ['// physical —']])(
+  'a bare marker %s gives no reason and covers nothing',
+  marker => {
+    expect(physicalFindings(style(`${marker}\nconst a = { left: '0' }`))).toHaveLength(1)
+    expect(physicalFindings(style(`const a = { left: '0' } ${marker}`))).toHaveLength(1)
+  },
+)

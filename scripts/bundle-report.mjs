@@ -126,18 +126,40 @@ const ensureDist = async (dirs, rebuild) => {
 }
 
 const LOCK = join(tmpdir(), 'foldkit-plus-dist.lock')
+// Only for a holder that never wrote its pid (killed between `mkdir` and the write).
 const LOCK_STALE_MS = 10 * 60_000
 
-const lockDist = async () => {
+const isAlive = pid => {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return error?.code === 'EPERM'
+  }
+}
+
+const isAbandoned = lock => {
+  let pid
+  try {
+    pid = Number(readFileSync(join(lock, 'pid'), 'utf8'))
+  } catch {
+    return (
+      Date.now() - (statSync(lock, { throwIfNoEntry: false })?.mtimeMs ?? Infinity) > LOCK_STALE_MS
+    )
+  }
+  return !isAlive(pid)
+}
+
+/** Takes the lock on `lock`, waiting for a live holder; a holder that died is replaced at once. */
+export const lockDist = async (lock = LOCK) => {
   for (;;) {
     try {
-      mkdirSync(LOCK)
-      return () => rmSync(LOCK, { recursive: true, force: true })
+      mkdirSync(lock)
+      writeFileSync(join(lock, 'pid'), String(process.pid))
+      return () => rmSync(lock, { recursive: true, force: true })
     } catch (error) {
       if (error?.code !== 'EEXIST') throw error
-      // A killed holder leaves its folder; a build never takes this long.
-      if (Date.now() - statSync(LOCK, { throwIfNoEntry: false })?.mtimeMs > LOCK_STALE_MS)
-        rmSync(LOCK, { recursive: true, force: true })
+      if (isAbandoned(lock)) rmSync(lock, { recursive: true, force: true })
       await new Promise(done => setTimeout(done, 200))
     }
   }
@@ -862,43 +884,49 @@ if (
 ) {
   const args = process.argv.slice(2)
   const flag = name => args.indexOf(name)
-  const jsonAt = flag('--json')
-  const jsonPath = jsonAt === -1 ? undefined : args[jsonAt + 1]
+  const valueOf = name => (flag(name) === -1 ? undefined : args[flag(name) + 1])
+  const jsonPath = valueOf('--json')
   const target = args.find(
     (arg, index) =>
       !arg.startsWith('--') &&
       !['--json', '--worker', '--route', '--landing', '--dump'].includes(args[index - 1]),
   )
   if (target === undefined) {
-    console.error('usage: node scripts/bundle-report.mjs <example dir> [--json <file>] [--rebuild]')
+    console.error(
+      'usage: node scripts/bundle-report.mjs <example dir> [--json <file>] [--rebuild] [--dump <dir>]\n' +
+        '  [--route name=path/suffix.ts ... [--landing name]] [--server | --worker <entry>]',
+    )
     process.exit(2)
   }
-  const workerAt = flag('--worker')
-  if (flag('--server') !== -1 || workerAt !== -1) {
+  const writeJson = report => {
+    if (jsonPath === undefined) return
+    mkdirSync(resolve(jsonPath, '..'), { recursive: true })
+    writeFileSync(jsonPath, `${JSON.stringify(report, null, 2)}\n`)
+  }
+  const workerEntry = valueOf('--worker')
+  if (flag('--server') !== -1 || workerEntry !== undefined) {
     const report =
-      workerAt === -1
+      workerEntry === undefined
         ? await measureServer(target, { rebuild: flag('--rebuild') !== -1 })
-        : await measureWorker(target, args[workerAt + 1])
+        : await measureWorker(target, workerEntry)
     console.log(formatServerReport(report))
+    writeJson(report)
     process.exit(0)
   }
   // `--route name=path/suffix.ts` per route root; `--landing name` marks the landing route.
-  const landing = args[flag('--landing') + 1]
+  const landing = valueOf('--landing')
   const routes = args.flatMap((arg, index) => {
     if (args[index - 1] !== '--route') return []
     const [name, module] = arg.split('=')
     return [{ name, module, landing: name === landing }]
   })
-  const dumpAt = flag('--dump')
+  const dump = valueOf('--dump')
   const report = await measure(target, {
     rebuild: flag('--rebuild') !== -1,
     routes,
-    dump: dumpAt === -1 ? undefined : resolve(args[dumpAt + 1]),
+    dump: dump === undefined ? undefined : resolve(dump),
   })
   console.log(formatReport(report))
   if (routes.length > 0) console.log(`\n${formatRoutes(report)}`)
-  if (jsonPath !== undefined) {
-    mkdirSync(resolve(jsonPath, '..'), { recursive: true })
-    writeFileSync(jsonPath, `${JSON.stringify(report, null, 2)}\n`)
-  }
+  writeJson(report)
 }

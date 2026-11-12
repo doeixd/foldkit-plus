@@ -34,6 +34,17 @@ export default [
     tests,
   },
   {
+    name: 'a marker with no reason covers a line',
+    edits: [
+      {
+        file,
+        find: String.raw`[\s:,;\u2014\u2013-]*[^\s:,;\u2014\u2013-]/i`,
+        replace: String.raw`[\s:,;\u2014\u2013-]*/i`,
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a marker covers the object after its own',
     edits: [
       {
@@ -54,7 +65,7 @@ export default [
     edits: [
       {
         file,
-        find: String.raw`if (/\/\/\s*physical\b/i.test(lines[index])) return true`,
+        find: 'if (withReason.test(lines[index])) return true',
         replace: '',
       },
     ],

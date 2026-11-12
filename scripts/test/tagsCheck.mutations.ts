@@ -158,6 +158,17 @@ export default [
     tests,
   },
   {
+    name: 'a mark with no reason excuses a branch',
+    edits: [
+      {
+        file,
+        find: String.raw`[\s,:;\u2014\u2013-]*[^\s,:;\u2014\u2013-]/`,
+        replace: String.raw`[\s,:;\u2014\u2013-]*/`,
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a _tag holding an object is a tag',
     edits: [
       {

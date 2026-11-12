@@ -15,11 +15,12 @@
  *    With pnpm, the pins and the install line, as in 5.
  * 4. The scaffold's own `lint` and `typecheck` scripts over what it drew and a
  *    module importing every entry point of `foldkit-plus`, so our types meet
- *    the scaffold's compiler options and its Effect; then `typecheck` again
- *    with examples copied in as a reader copies them, their imports rewritten
- *    to `foldkit-plus/…` as an app on the meta package writes them, and
- *    `lint` over them too, but for their `demo.ts` files: a demo harness
- *    stands in for a person, sending a child's input Messages on purpose.
+ *    the scaffold's compiler options and its Effect; the examples are copied
+ *    in first, as a reader copies them, their imports rewritten to
+ *    `foldkit-plus/…` as an app on the meta package writes them, so one
+ *    `typecheck` and one `lint` cover them too, but for their `demo.ts` files:
+ *    a demo harness stands in for a person, sending a child's input Messages
+ *    on purpose.
  * 5. With no options, pnpm's pins and install lines also run in a standalone
  *    project and a workspace member, over a stand-in manifest.
  *
