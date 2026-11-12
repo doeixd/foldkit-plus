@@ -23,6 +23,24 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-primitives/dom`: `pointedLinks({ rest })` sets how long a hover or
   focus rests before it counts (default 50 ms), and a link marked
   `data-preload="none"` is skipped by both streams.
+- `foldkit-data-grid`, `foldkit-mixins-data-grid`: a copy also puts the range
+  on the clipboard as an HTML table (`text/html`, cells escaped, line breaks as
+  `<br>`) beside the tab-separated text; `Clipboard.toHtml(rows)` writes it.
+  Paste still reads `text/plain` only.
+- `foldkit-data-grid`: a column's `edit: { fill }` supplies its own series for
+  a fill down or up, called once per lane with `{ source, count, toward }`
+  (`FillLane`). `Option.none()` keeps `Fill.series`; of a longer answer the
+  first `count` are taken, and each cell past a shorter one is reported in
+  `refused` ("The column's series gave no text here"), not padded.
+
+### Changed
+
+- `foldkit-data-grid`: `Fill.series` continues `YYYY-MM-DD` days: by months
+  when they share a day of the month a constant number of months apart (a 31st
+  clamps to a shorter month and comes back), else by days when a constant number
+  of days apart; months win when both fit. It reads text, not the column, so a
+  text column holding ISO days now steps where it repeated. `Fill.cells` returns
+  `FilledCell`, a `PastedCell` that may carry a `refusal`.
 
 ## 0.40.0
 
