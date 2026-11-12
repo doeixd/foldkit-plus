@@ -1,6 +1,6 @@
 # Remote: server-owned data cached in the Model
 
-Checked against `foldkit-remote` 0.25.0, `foldkit-remote-server` 0.22.0, `foldkit-remote-drizzle` 0.19.0 and `foldkit-plus` 0.21.0.
+Checked against `foldkit-remote` 0.26.0, `foldkit-remote-server` 0.23.0, `foldkit-remote-drizzle` 0.20.0 and `foldkit-plus` 0.22.0.
 
 `foldkit-remote` keeps a **normalized, disposable cache of server-owned facts
 inside the Foldkit Model**. Features declare which entity fields they need;
@@ -1299,7 +1299,8 @@ may not read them yet, which `writer` refuses where it is built. A required `one
 over a nullable column throws: declare it `{ optional: true }`. So does a column
 that plainly cannot hold its field (text under a number, a nullable column under
 a field that admits no `null`); transforming schemas and custom columns pass
-unchecked.
+unchecked. A foreign key that sets null or a default on delete needs the
+relation to declare `onDelete: 'setNull'`, or `bind` refuses it.
 
 **Rows by principal.** `bind(..., { Post: { table, visible: (principal, self) => SQL | undefined | Effect<SQL | undefined> } })`
 (or `entity(name, table, { visible })`) hides rows from a principal on every path

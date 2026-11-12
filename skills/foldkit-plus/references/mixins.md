@@ -1,6 +1,6 @@
 # Mixins: `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui`
 
-Checked against `foldkit-mixins` 0.24.0, `foldkit-mixins-surface` 0.10.0 and `foldkit-mixins-ui` 0.25.0.
+Checked against `foldkit-mixins` 0.25.0, `foldkit-mixins-surface` 0.11.0 and `foldkit-mixins-ui` 0.26.0.
 
 ## 1. Purpose
 

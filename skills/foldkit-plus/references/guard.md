@@ -1,6 +1,6 @@
 # foldkit-guard
 
-Checked against `foldkit-guard` 0.10.0.
+Checked against `foldkit-guard` 0.11.0.
 
 A guard set is declared once, implemented on the server, attached to
 Entities, and enforced by each seam through a subpath: reads and writes
