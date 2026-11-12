@@ -501,7 +501,8 @@ tertiary and feedback families, derived from the theme's knobs. Only the `knob` 
 expression over other tokens (`oklch(from …)`, `color-mix()`, `light-dark()`), so the browser does
 the derivation and one knob override recolors everything below it. Each family (`accent`,
 `secondary`, `tertiary`, `success`, `warning`, `error`, `info`) is one shape: a fill, `default`,
-lighter in a dark scheme; `hover` and `active`; `subtle`, a tint of it on the base; `outline`, a
+lighter in a dark scheme; `hover` and `active` (darker, and `active` more vivid by 0.05 of chroma, at most
+twice its own, so a grey fill stays grey when pressed); `subtle`, a tint of it on the base; `outline`, a
 line in it that stands off the base; and two text colors named for where they go: `on-fill` is
 text on that fill (near white on a mid accent), and `ink` is text in the family's color on the
 base surface, dark enough to read in a light scheme and light enough in a dark one. Colored text

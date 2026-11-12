@@ -67,6 +67,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins`: a family's pressed fill (`active`) no longer turns a grey
+  red. It added 0.05 of chroma at the fill's hue, which a grey does not have:
+  shadcn's black accent pressed its secondary as a dark red, and a fill set to
+  a named grey (`white`, `#808080`) took Chromium's hue of about 24. The press
+  now adds 0.05 but at most doubles the chroma, so a grey stays grey and a fill
+  with 0.05 or more presses as before.
+
 - `foldkit-sync`: `Sync.mount` refuses a durable Message whose slice depends on a
   local Model field. Replay runs over the slice alone, so such a Message showed one
   slice on the page and was stored as another; it is now neither applied nor

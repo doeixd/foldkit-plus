@@ -14,6 +14,7 @@ const L = Layers.standard
 afterEach(() => {
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
   document.body.replaceChildren()
+  document.documentElement.style.cssText = ''
 })
 
 type Values = KnobValues<Standard>
@@ -146,8 +147,8 @@ test('a raw override of a hue knob still leaves its colors inside sRGB', () => {
 
 const canvas = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!
 
-/** A token's hue on the OKLCH wheel, as the browser paints it. */
-const paintedHue = (token: string) => {
+/** A token's chroma and hue on the OKLCH wheel, as the browser paints it. */
+const painted = (token: string) => {
   const swatch = document.createElement('div')
   swatch.style.color = `var(--fk-${token})`
   document.body.append(swatch)
@@ -162,8 +163,10 @@ const paintedHue = (token: string) => {
   const short = Math.cbrt(0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue)
   const a = 1.9779984951 * long - 2.428592205 * medium + 0.4505937099 * short
   const b = 0.0259040371 * long + 0.7827717662 * medium - 0.808675766 * short
-  return ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360
+  return { chroma: Math.hypot(a, b), hue: ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360 }
 }
+
+const paintedHue = (token: string) => painted(token).hue
 
 const turn = (from: number, to: number) => Math.abs(((to - from + 540) % 360) - 180)
 
@@ -179,6 +182,37 @@ test.each(['light', 'dark'] as const)(
     }
   },
 )
+
+const families = ['accent', 'secondary', 'tertiary'] as const
+
+/** How much more chroma each family's pressed fill paints with than its fill. */
+const deepening = () =>
+  families.map(
+    family =>
+      [family, painted(`${family}-active`).chroma - painted(`${family}-default`).chroma] as const,
+  )
+
+test.each(['light', 'dark'] as const)(
+  'in a %s scheme, a grey family stays grey when pressed',
+  scheme => {
+    // A black accent like shadcn's, with no chroma in either scheme: its
+    // secondary, turned to 346, painted a dark red when pressed.
+    install({ accent: { hue: 286, chroma: { light: 0, dark: 0 }, lightness: 21 } }, scheme)
+    for (const [family, more] of deepening()) expect(more, family).toBeLessThan(0.005)
+    // A fill named as a grey: its hue is powerless, and Chromium reads it as about 24.
+    for (const grey of ['white', '#808080', 'black']) {
+      for (const family of families)
+        document.documentElement.style.setProperty(`--fk-${family}-default`, grey)
+      for (const [family, more] of deepening())
+        expect(more, `${family} ${grey}`).toBeLessThan(0.005)
+    }
+  },
+)
+
+test('a colored accent still deepens when pressed', () => {
+  install({ accent: { hue: 145, chroma: 0.1, lightness: 55 } }, 'light')
+  expect(painted('accent-active').chroma - painted('accent-default').chroma).toBeGreaterThan(0.02)
+})
 
 test('a color reads each hue’s boundary as a number, worked out once at the root', () => {
   install({}, 'light')
