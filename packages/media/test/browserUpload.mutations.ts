@@ -34,10 +34,14 @@ export default [
   one('progress says it is done at once', 'loaded: event.loaded,', 'loaded: body.size,'),
   one(
     'a file is sent typed by itself',
-    "'content-type': 'application/octet-stream',\n      'x-foldkit",
+    "'content-type': 'application/octet-stream',\n            'x-foldkit",
     "'x-foldkit",
   ),
-  one('a name is sent unencoded', 'encodeURIComponent(file.name)', 'file.name'),
+  one(
+    'a name is sent unencoded',
+    'Option.liftThrowable(encodeURIComponent)(file.name)',
+    'Option.some(file.name)',
+  ),
   one(
     'a file with no type declares none',
     "file.type === '' ? 'application/octet-stream' : file.type",
@@ -52,4 +56,15 @@ export default [
   one('a slow body is unexpected', "  408: 'TooSlow',\n", ''),
   one('a busy route is unexpected', "  503: 'Busy',\n", ''),
   one('a rate limit is unexpected', "  429: 'RateLimited',\n", ''),
+  {
+    name: 'a file name encodeURIComponent refuses throws instead of failing the stream',
+    edits: [
+      {
+        file,
+        find: 'Option.liftThrowable(encodeURIComponent)(file.name)',
+        replace: 'Option.some(encodeURIComponent(file.name))',
+      },
+    ],
+    tests: ['packages/media/test/uploadName.test.ts'],
+  },
 ]
