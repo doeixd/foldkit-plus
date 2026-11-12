@@ -10,7 +10,11 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // Brotli bytes. Never raise it without saying here what the growth bought.
 // 236.2 kB (236,202 bytes) measured on 2026-11-10; the ceiling is that plus about 1%,
 // rounded up to the next 500 bytes.
-const CEILING = 239_000
+// 239.1 kB (239,065 bytes) on CI on 2026-11-12, 65 bytes over: the review
+// fixes added the resolver's table of the DOM event each Foldkit handler
+// registers (#523) and Remote's per-field read dates (#512). Ceiling that
+// plus about 0.5%, rounded up to the next 500 bytes.
+const CEILING = 240_500
 
 clientBudget({
   name: 'chirp',
