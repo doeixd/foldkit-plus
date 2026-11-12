@@ -106,6 +106,38 @@ export const isStale = packageDir =>
  */
 const ensureDist = async (dirs, rebuild) => {
   const { build } = await import('tsdown')
+  // Bundle budgets run as parallel processes (CI shards, a wide local run), each finding `dist`
+  // missing. A build empties `dist` first, so a second build rewrote the one a reading process was
+  // bundling, and tsdown orders a module's imports by which resolved first, so two builds of the
+  // same source differ and so did the bundles built from them (351,342 against 351,485 bytes).
+  // One build at a time; the rest find it done.
+  const release = await lockDist()
+  try {
+    await buildMissing(dirs, rebuild, build)
+  } finally {
+    release()
+  }
+}
+
+const LOCK = join(tmpdir(), 'foldkit-plus-dist.lock')
+const LOCK_STALE_MS = 10 * 60_000
+
+const lockDist = async () => {
+  for (;;) {
+    try {
+      mkdirSync(LOCK)
+      return () => rmSync(LOCK, { recursive: true, force: true })
+    } catch (error) {
+      if (error?.code !== 'EEXIST') throw error
+      // A killed holder leaves its folder; a build never takes this long.
+      if (Date.now() - statSync(LOCK, { throwIfNoEntry: false })?.mtimeMs > LOCK_STALE_MS)
+        rmSync(LOCK, { recursive: true, force: true })
+      await new Promise(done => setTimeout(done, 200))
+    }
+  }
+}
+
+const buildMissing = async (dirs, rebuild, build) => {
   for (const dir of dirs) {
     const packageDir = join(repo, 'packages', dir)
     const manifest = readJson(join(packageDir, 'package.json'))
