@@ -65,6 +65,7 @@ Link and Placement to Connection and Segment, are in the
 | Follow Entity, Query and Write declarations through Remote reads and UI regions | [From declarations to the screen](./declared-data-to-ui.md) | `foldkit-entity`, `foldkit-remote`, `foldkit-surface`, `foldkit-mixins` |
 | Put server-owned entities in the Model without per-view fetch/cache logic | [Server-derived state](./remote.md) | `foldkit-remote`, `foldkit-remote-server`, optional `foldkit-remote-drizzle` |
 | Work offline and reconcile several devices/tabs against a server order | [Replicated state](./replication.md) | `foldkit-sync` + `foldkit-durable` |
+| Understand what a Message guarantees once admitted, and where correctness is decided | [Events, folds and gates](./events-folds-and-gates.md) | `foldkit-surface`, `foldkit-sync`, `foldkit-remote` |
 | Deploy Remote reads, Remote mutations, and Sync writes on a Cloudflare Worker | [Cloudflare example](../examples/cloudflare/README.md) | `foldkit-remote-server/fetch`, `foldkit-sync/do`, `foldkit-durable`, `foldkit-entity`, `foldkit-form`, `foldkit-crud` |
 | Let users edit rows a server holds, offline, without replicating the table | [Editing server data through a journal](./editing-server-data.md) | `foldkit-sync/entity`, `foldkit-sync/journal`, `foldkit-remote`, `foldkit-durable` |
 | Keep local Model state in the URL or a device store without making that store authoritative | [Mirrored state](./mirror.md) | `foldkit-mirror` |
