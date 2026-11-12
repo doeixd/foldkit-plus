@@ -1285,6 +1285,12 @@ exchange reply), Durable's `journal.test.ts` and `d1.test.ts` (with
   runtime's retries, sets the next one.
 - **`react` in `settle`** stays the application's own composition; no
   option was added.
+- **The host arms the alarm before the application's `settle`**, so a
+  `settle` that fails the exchange still leaves what committed to be
+  reacted to.
+- **The client pays 0.4 kB brotli.** `examples/todo-app`'s bundle grew from
+  158,189 to 158,655 bytes, all of it `foldkit-sync` (its readers, the
+  `serverOnly` set, two error classes); its ceiling moved to 160,500.
 
 **Other decisions.**
 
