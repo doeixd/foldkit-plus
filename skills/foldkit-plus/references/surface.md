@@ -102,6 +102,14 @@ To attach a renderer, use `Surface.view(TodoList, render)` or
 
 ## Common tasks
 
+**Check that a projection is closed.** `Closure.reads(app, projection, model,
+message)` runs `update` on the Model and on the Model with every top-level field
+the projection does not depend on reset to `initial`, and returns the fields
+whose reset changes the projection after `message` (compared with its codec);
+`[]` means closed for that step. It takes a `Projection` or a
+`WritableProjection`; `app` needs only `initial` and `update`. `Sync.mount` uses
+it for every durable dispatch.
+
 **A Surface with params, made active by the Model.** Give `params` as the fields
 of a `Schema.Struct`, or as a schema. A ref's string keys are only the Model's
 fields (any name works, `index` and `at` included); its own members are its

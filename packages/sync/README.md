@@ -403,6 +403,20 @@ from `update` and refuses a durable Message whose transition:
 A refused Message fails `submit` with `ReplayError` and writes nothing, so a
 mistake shows on the first edit instead of as diverging replicas later.
 
+Replay also reads nothing but the slice. A durable Message whose `update` reads
+a local field (a `filter` that decides which todos to clear) shows one slice on
+this page and replays to another everywhere else, the server included.
+`Sync.mount` catches it as the Message is dispatched: it runs `update` again
+with every local field that is not at its `initial` value reset, and when the
+two slices differ it does not apply the Message and does not submit it. The
+failure reaches `onPersistenceFailure` as a `ReplayError` that names the
+fields: `durable "ClearedShown" reads Model fields outside the shared
+projection: filter`. A Message that reads a local field and still produces an
+equal slice is accepted, and so is one over a slice that holds pending edits.
+The check costs one more `update` per durable dispatch, and none while every
+local field is still at its `initial` value. `replica.submit` has no Model and
+cannot make it; a replica used without `mount` is not checked.
+
 The consequence is a pattern you will use everywhere: **an intent mints, a fact
 records**.
 
