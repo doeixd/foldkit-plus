@@ -636,6 +636,32 @@ describe('a live patch of a field a pending write moves by an amount', () => {
     expect(count(Posts.reduce(echoed, likesAnswered(11)))).toBe(12)
   })
 
+  // A write started after a patch cannot be that patch's echo (#513), and one
+  // that does not move the field has nothing to double count.
+  it('resolves a like started after a patch over the patch, though another write was pending', () => {
+    const other = Posts.mutate(
+      read,
+      Like,
+      { id: 'p1' },
+      { requestId: 'other', optimistic: [{ entity: 'Post', id: 'p1', values: {} }] },
+    ).model
+    const patched = Posts.reduce(other, likesPatched(11, 1))
+    expect(count(patched)).toBe(11)
+    const later = Posts.mutate(
+      patched,
+      Like,
+      { id: 'p1' },
+      {
+        requestId: 'b',
+        optimistic: [{ entity: 'Post', id: 'p1', values: {}, adds: { likes: 1 } }],
+      },
+    ).model
+    expect(count(later)).toBe(12)
+    // The server's answer to it is 12, and the echo that follows is not counted twice.
+    const echoed = Posts.reduce(later, likesPatched(12, 2))
+    expect(count(echoed)).toBe(12)
+  })
+
   describe('what is kept of the base', () => {
     const keptOf = (model: Model) => model.remote.kept.get('Post:p1')?.has('likes') ?? false
     const deleted: RemoteMessage = {

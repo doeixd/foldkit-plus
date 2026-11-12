@@ -108,23 +108,25 @@ const keptBefore = (
   pending: ReadonlySet<string>,
   now: number,
 ): Kept => {
-  if (pending.size === 0 || fields.length === 0) return kept
   const row = new Map(kept.get(key))
+  let changed = false
   for (const field of fields) {
     const held = row.get(field)
-    if (held === undefined)
-      row.set(field, {
-        before:
-          under !== undefined && !under.tombstone && under.present.has(field)
-            ? Option.some(own(under.values, field))
-            : Option.none(),
-        since: now,
-        by: new Set(pending),
-      })
-    else if ([...pending].some(id => !held.by.has(id)))
-      row.set(field, { ...held, by: new Set([...held.by, ...pending]) })
+    const before =
+      under !== undefined && !under.tombstone && under.present.has(field)
+        ? Option.some(own(under.values, field))
+        : Option.none()
+    // A request new to the field began after the patches it already has, so it is
+    // worked out over what the base held before this one.
+    const fresh = [...pending].filter(id => held === undefined || !held.by.has(id))
+    if (fresh.length === 0) continue
+    changed = true
+    row.set(field, {
+      since: held?.since ?? now,
+      by: new Map([...(held?.by ?? []), ...fresh.map(id => [id, before] as const)]),
+    })
   }
-  return new Map(kept).set(key, row)
+  return changed ? new Map(kept).set(key, row) : kept
 }
 
 /**

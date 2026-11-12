@@ -11,26 +11,32 @@ import { put } from './record.js'
 import type { EntityKey } from './store.js'
 
 export interface KeptField {
-  /** The base's value before the first patch: none when the row did not hold the field. */
-  readonly before: Option.Option<unknown>
-  /** When that patch was heard: a kept value older than the bound is dropped. */
+  /**
+   * The requests pending when a patch wrote the field, each with the base's
+   * value from before the newest patch it was pending beside (none when the
+   * row did not hold the field): a request started after one patch cannot be
+   * echoed by it. Their answers are compared with what the stream wrote.
+   */
+  readonly by: ReadonlyMap<string, Option.Option<unknown>>
+  /** When the first patch was heard: a kept value older than the bound is dropped. */
   readonly since: number
-  /** The requests pending when a patch wrote the field, whose answers are compared with it. */
-  readonly by: ReadonlySet<string>
 }
 
 export type Kept = ReadonlyMap<EntityKey, ReadonlyMap<string, KeptField>>
 
 export const noKept: Kept = new Map()
 
-/** `values` with each kept field as it was before the stream wrote it. */
+/** `values` with each field `id` was pending beside a patch of, as it was before that patch. */
 export const overKept = (
   values: Readonly<Record<string, unknown>>,
   kept: ReadonlyMap<string, KeptField> | undefined,
+  id: string,
 ): Readonly<Record<string, unknown>> => {
   if (kept === undefined) return values
   const next: Record<string, unknown> = { ...values }
-  for (const [field, { before }] of kept) {
+  for (const [field, { by }] of kept) {
+    const before = by.get(id)
+    if (before === undefined) continue
     if (Option.isSome(before)) put(next, field, before.value)
     else delete next[field]
   }
