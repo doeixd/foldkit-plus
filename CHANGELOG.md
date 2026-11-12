@@ -7,6 +7,38 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+## 0.39.0
+
+Sync takes server-only Messages, appended once per key, and reactions that
+run after each commit from a stored cursor. Sync rejections carry a typed
+refusal and durable Messages can be upcast through a declared history. The data grid filters from its headers and edits a
+boolean as a checkbox. A form's submit button stays focusable, so Enter is
+never dropped, and a form can refuse a submit while a check runs. `foldkit-host`
+gives a server's `fetch` its parts, Yielded's routes mount through
+`AuthServer.host`, the SSR runtime's chunk loads on intent, and any file can be
+uploaded and served back. A cascading delete can clear or be restricted by the
+rows that point at it, and fixes land across Remote, Mixins and the Drizzle
+compilers.
+
+Versions: every package but `foldkit-metadata` and `foldkit-react-codegen` is
+a new minor, as each depends on one that changed; `foldkit-host` is new, at
+0.1.0. Breaking: `foldkit-sync` (the exchange reply, `WrittenOperation`, and
+strict readers of a sent entry), `foldkit-durable` (schema 7, which an older
+build refuses to open),
+`foldkit-surface` (`CachedRead.Private` carries `read`), `foldkit-remote`
+(a persisted cache from before is dropped, and `Data.satisfy` reads a pass's
+Surfaces in one round trip),
+`foldkit-remote-drizzle` (`postgres()` from `/pg`, CHECKs for `isInt` and the
+text rules), `foldkit-ssr` (a deferred plan refuses an unkept field),
+`foldkit-mixins-ui` (PasswordInput's `strength`), `foldkit-primitives`
+(`LiveAnnounce.say` removed), `foldkit-cms` (`historyCard`'s `locale` and
+`timeZone`) and `foldkit-data-grid` (`Out.Filtered`, the editor classifier).
+Visible without a code change: the form's `aria-disabled` submit
+(`foldkit-mixins-form`, `foldkit-crud`: a style of your own must match it),
+`foldkit-mixins`' protected attributes, which a generic builder can no longer
+set, and `Expr.in` over a null list, which is now unknown rather than refused
+(`foldkit-entity`, `foldkit-remote-drizzle`).
+
 ### Added
 
 - **Server-only Messages** (`foldkit-sync`, #190).
@@ -43,68 +75,6 @@ version changed; `pnpm` skips versions already in the registry.
   `foldkit_durable_cursors` and `foldkit_durable_parked`, and
   `journal.cursors` (`track`, `settled`, `advance`, `stalled`, `park`,
   `parked`, `unpark`), each row tagged with the document's epoch.
-
-### Changed
-
-- **Every reader of a sent entry is strict** (`foldkit-sync`, #190).
-  `codec.writtenFrom` now reads the Message, so it throws for a local-only or
-  undecodable one where it returned the envelope; it, `normalizeOperation`
-  and `operationFrom` refuse a replica id under `server/` or longer than 128
-  characters. `journalContract().operation.decode` is now a lenient history
-  reader that takes server-only Messages: a journal built by hand that
-  decodes its rows with `codec.normalizeOperation` should use it instead.
-  So the journal's own `append`, given an entry no Sync reader saw, now
-  accepts a server-only Message and a `server/` replica id: a server that
-  appends what a client sent reads it with `codec.writtenFrom` first, as
-  `journalExchange` does (`examples/sync` and `examples/todo-app` now do).
-  A document with no `serverOnly` answers an exchange and stores its rows
-  byte for byte as before.
-- **`editsJournal` stores its cursor** (`foldkit-sync/journal`, #190) in the
-  journal (`journal.cursors`, name `edits`, started at the floor), so a
-  restarted server no longer walks the log again, and takes `asServer`:
-  the server journal and the server-only Message that records what the
-  table holds, compacting no further than `settledThrough`.
-- **`foldkit-durable`'s schema moves to 7.** A build before it refuses to
-  open a migrated database (`UnsupportedJournalVersionError`).
-- `examples/registry`: `AbsorbedEdits` is server-only, appended through
-  `serverJournal`; its hand-written `authorize` rule and envelope are gone.
-
-### Deprecated
-
-- `editsJournal`'s `absorbed` and `server` (`foldkit-sync/journal`): declare
-  the Message `serverOnly` and pass `asServer`. Removed in the next release.
-
-## 0.39.0
-
-Sync rejections carry a typed refusal and durable Messages can be upcast
-through a declared history. The data grid filters from its headers and edits a
-boolean as a checkbox. A form's submit button stays focusable, so Enter is
-never dropped, and a form can refuse a submit while a check runs. `foldkit-host`
-gives a server's `fetch` its parts, Yielded's routes mount through
-`AuthServer.host`, the SSR runtime's chunk loads on intent, and any file can be
-uploaded and served back. A cascading delete can clear or be restricted by the
-rows that point at it, and fixes land across Remote, Mixins and the Drizzle
-compilers.
-
-Versions: every package but `foldkit-metadata` and `foldkit-react-codegen` is
-a new minor, as each depends on one that changed; `foldkit-host` is new, at
-0.1.0. Breaking: `foldkit-sync` (the exchange reply and `WrittenOperation`),
-`foldkit-surface` (`CachedRead.Private` carries `read`), `foldkit-remote`
-(a persisted cache from before is dropped, and `Data.satisfy` reads a pass's
-Surfaces in one round trip),
-`foldkit-remote-drizzle` (`postgres()` from `/pg`, CHECKs for `isInt` and the
-text rules), `foldkit-ssr` (a deferred plan refuses an unkept field),
-`foldkit-mixins-ui` (PasswordInput's `strength`), `foldkit-primitives`
-(`LiveAnnounce.say` removed), `foldkit-cms` (`historyCard`'s `locale` and
-`timeZone`) and `foldkit-data-grid` (`Out.Filtered`, the editor classifier).
-Visible without a code change: the form's `aria-disabled` submit
-(`foldkit-mixins-form`, `foldkit-crud`: a style of your own must match it),
-`foldkit-mixins`' protected attributes, which a generic builder can no longer
-set, and `Expr.in` over a null list, which is now unknown rather than refused
-(`foldkit-entity`, `foldkit-remote-drizzle`).
-
-### Added
-
 - **`submitWaits: false` on a form** (`foldkit-form`). A submit made while a
   check runs is refused from the Model instead of waiting for the answer, and
   `canSubmit` is false until the checks answer; the default (`true`) is the
@@ -505,6 +475,28 @@ set, and `Expr.in` over a null list, which is now unknown rather than refused
 
 ### Changed
 
+- **Every reader of a sent entry is strict** (`foldkit-sync`, #190).
+  `codec.writtenFrom` now reads the Message, so it throws for a local-only or
+  undecodable one where it returned the envelope; it, `normalizeOperation`
+  and `operationFrom` refuse a replica id under `server/` or longer than 128
+  characters. `journalContract().operation.decode` is now a lenient history
+  reader that takes server-only Messages: a journal built by hand that
+  decodes its rows with `codec.normalizeOperation` should use it instead.
+  So the journal's own `append`, given an entry no Sync reader saw, now
+  accepts a server-only Message and a `server/` replica id: a server that
+  appends what a client sent reads it with `codec.writtenFrom` first, as
+  `journalExchange` does (`examples/sync` and `examples/todo-app` now do).
+  A document with no `serverOnly` answers an exchange and stores its rows
+  byte for byte as before.
+- **`editsJournal` stores its cursor** (`foldkit-sync/journal`, #190) in the
+  journal (`journal.cursors`, name `edits`, started at the floor), so a
+  restarted server no longer walks the log again, and takes `asServer`:
+  the server journal and the server-only Message that records what the
+  table holds, compacting no further than `settledThrough`.
+- **`foldkit-durable`'s schema moves to 7.** A build before it refuses to
+  open a migrated database (`UnsupportedJournalVersionError`).
+- `examples/registry`: `AbsorbedEdits` is server-only, appended through
+  `serverJournal`; its hand-written `authorize` rule and envelope are gone.
 - **The form's submit button is `aria-disabled`, never `disabled`**
   (`foldkit-mixins-form`, `foldkit-crud`). A natively disabled default button
   makes the browser drop Enter, so an Enter sent in the frame of the edit that
@@ -750,6 +742,8 @@ set, and `Expr.in` over a null list, which is now unknown rather than refused
 
 ### Deprecated
 
+- `editsJournal`'s `absorbed` and `server` (`foldkit-sync/journal`): declare
+  the Message `serverOnly` and pass `asServer`. Removed in the next release.
 - **`FormViewInputs.saved` and `SubmitInputs.saved`** (`foldkit-mixins-form`,
   `foldkit-crud`). They have no effect: the submit button is `aria-disabled`,
   never `disabled`, whatever they say. Delete the field; they will be
