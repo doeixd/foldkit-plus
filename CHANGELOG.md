@@ -7,6 +7,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- `foldkit-primitives/dom`: `visibleLinks({ atMost, margin })`, an opt-in
+  stream of same-origin links scrolled into view for `Site.routing`'s
+  `preload.links`. Each address is read once per page and at most `atMost`
+  (8) per page; nothing under Save-Data, on a 2g connection or in a hidden tab.
+- `foldkit-primitives/dom`: `pointedLinks({ rest })` sets how long a hover or
+  focus rests before it counts (default 50 ms), and a link marked
+  `data-preload="none"` is skipped by both streams.
+
 ## 0.40.0
 
 Fixes from a review of everything 0.39.0 changed (#511 to #530). A Sync
