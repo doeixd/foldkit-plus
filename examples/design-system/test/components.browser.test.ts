@@ -9,7 +9,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { page } from 'vitest/browser'
 
 import { initModel, update, view, Message, Model } from '../src/main.js'
-import { stylesheet } from '../src/style.js'
+import { stylesheet } from '../src/appStyle.js'
 import { subscriptions } from '../src/subscriptions.js'
 
 afterEach(() => {

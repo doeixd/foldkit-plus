@@ -32,7 +32,7 @@ import * as UiFieldset from '@foldkit/ui/fieldset'
 import * as UiSelect from '@foldkit/ui/select'
 import * as UiSwitch from '@foldkit/ui/switch'
 import * as UiTooltip from '@foldkit/ui/tooltip'
-import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
+import { SlotView, type SlotBuilders } from 'foldkit-mixins'
 import {
   Alert,
   Anchor,
@@ -88,17 +88,15 @@ import {
   AvatarLgStyle,
   AvatarMdStyle,
   AvatarSmStyle,
-  BadgeSlots,
   BreadcrumbStyle,
   ButtonGroupStyle,
   CalendarStyle,
+  CardPressedStyle,
   CardStyle,
   CheckStyle,
   ComboBoxStyle,
-  DateChromeSlots,
   DateChromeStyle,
   DestructiveButtonStyle,
-  DialogActionsSlots,
   DialogActionsStyle,
   DialogPreviewStyle,
   DisclosureStyle,
@@ -107,13 +105,10 @@ import {
   FieldsetStyle,
   FilledFieldStyle,
   FileDropStyle,
-  FileTextSlots,
   FileTextStyle,
   GhostButtonStyle,
   HoverCardStyle,
-  IconSlots,
   IconStyle,
-  InputGroupSlots,
   InputGroupStyle,
   ItemStyle,
   KbdStyle,
@@ -121,17 +116,14 @@ import {
   LineTabsStyle,
   ListboxStyle,
   MenuStyle,
-  NoticeListSlots,
   NoticeListStyle,
   OutlineButtonStyle,
-  PageSlots,
   PageStyle,
   PaginationStyle,
   PillTabsStyle,
   PlanStyle,
   PopoverStyle,
   PrimaryButtonStyle,
-  RadioRowSlots,
   RadioRowStyle,
   RadioStyle,
   ScrollAreaStyle,
@@ -145,7 +137,6 @@ import {
   SpinnerStyle,
   StatusStyle,
   TableStyle,
-  ToastEntrySlots,
   ToastEntryStyle,
   ToastStyle,
   ToggleStyle,
@@ -154,6 +145,18 @@ import {
   SidebarStyle,
   SidebarSheetStyle,
 } from './style.js'
+import {
+  BadgeSlots,
+  DateChromeSlots,
+  DialogActionsSlots,
+  FileTextSlots,
+  IconSlots,
+  InputGroupSlots,
+  NoticeListSlots,
+  PageSlots,
+  RadioRowSlots,
+  ToastEntrySlots,
+} from './slots.js'
 
 // --- model -------------------------------------------------------------------
 
@@ -739,7 +742,7 @@ const PlanView = SlotView.forMessages<Message>()
       ),
     ]),
   )
-  .pipe(Style.attach(PlanStyle))
+  .pipe(SlotView.attach(PlanStyle.mixin))
 
 const BadgesView = SlotView.forMessages<Message>()
   .define(BadgeSlots, (_input: unknown, slots, h) =>
@@ -757,7 +760,7 @@ const BadgesView = SlotView.forMessages<Message>()
       ),
     ]),
   )
-  .pipe(Style.attach(StatusStyle.style))
+  .pipe(SlotView.attach(StatusStyle.style.mixin))
 
 /**
  * The delete confirmation, live: a real modal with focus trap, Escape to
@@ -835,7 +838,7 @@ const CardView = SlotView.forMessages<Message>()
       ]),
     ]),
   )
-  .pipe(Style.attach(CardStyle))
+  .pipe(SlotView.attach(CardStyle.mixin), SlotView.attach(CardPressedStyle.mixin))
 
 const countries: ReadonlyArray<readonly [value: string, label: string]> = [
   ['us', 'United States'],
@@ -1219,7 +1222,7 @@ const CalendarPreview = SlotView.forMessages<Message>()
       ]),
     ])
   })
-  .pipe(Style.attach(CalendarStyle))
+  .pipe(SlotView.attach(CalendarStyle.mixin))
 
 /**
  * A live details popover: anchored against its trigger, dismissed on escape
@@ -1352,7 +1355,7 @@ const InputGroupDemo = SlotView.forMessages<Message>()
       ],
     ),
   )
-  .pipe(Style.attach(InputGroupStyle.style))
+  .pipe(SlotView.attach(InputGroupStyle.style.mixin))
 
 const IconsDemo = SlotView.forMessages<Message>()
   .define(IconSlots, (_input: unknown, slots, h) =>
@@ -1361,7 +1364,7 @@ const IconsDemo = SlotView.forMessages<Message>()
       h.span(slots.chip.attrs([h.DataAttribute('icon', 'star')]), ['Featured']),
     ]),
   )
-  .pipe(Style.attach(IconStyle.style))
+  .pipe(SlotView.attach(IconStyle.style.mixin))
 
 /**
  * The `:root` override the view renders from the Model. The hue and shadow

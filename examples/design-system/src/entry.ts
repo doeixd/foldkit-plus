@@ -1,14 +1,17 @@
 import { Effect } from 'effect'
 import { Calendar, Runtime } from 'foldkit'
-import { Style } from 'foldkit-mixins'
+import { href } from 'virtual:foldkit-styles'
 
 import { Message, Model, initModel, update, view } from './main.js'
-import { stylesheet } from './style.js'
 import { subscriptions } from './subscriptions.js'
 
-// Page tokens, palette, reset, and body defaults; every recipe injects its own
-// classes when its SlotView first draws them.
-Style.install(stylesheet)
+// Page tokens, palette, reset, body defaults and every class the Styles compile
+// to, as one hashed file (`foldkit-mixins/vite`). The page loads no style
+// compiler: `style.ts` ships as data.
+const sheet = document.createElement('link')
+sheet.rel = 'stylesheet'
+sheet.href = href
+document.head.append(sheet)
 
 const container = document.getElementById('root')
 if (container === null) throw new Error('#root is missing from index.html')
