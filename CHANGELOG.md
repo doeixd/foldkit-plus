@@ -22,8 +22,12 @@ Fixes from a review of everything 0.39.0 changed (#511 to #530).
   and `ExchangeFrame.pending` now take `ReadonlyArray<unknown>`, not the
   branded `WrittenOperation`; `journalContract().operation.compared` returns an
   unbranded value, and `foldkit-durable`'s `Codec.compared` returns `unknown`,
-  since it is only hashed. Before, a custom server could append a socket's
-  entries, or `compared`'s output, straight to the journal and skip the
+  since it is only hashed. `journalContract().operation.decode` takes only a
+  `WrittenOperation`, `operation.encode` refuses what `codec.committedFrom`
+  returns (marked `ReadAsHistory`), and durable's `Codec.decode` is a method,
+  so such a codec still fits a journal typed with `Encoded = unknown`. Before,
+  a custom server could append a socket's entries, `compared`'s output or
+  `encode(decode(raw))` straight to the journal and skip the
   server-only and `server/` replica checks; now only `codec.writtenFrom` makes
   an entry `append` accepts. A handler that annotated `pending` as
   `WrittenOperation` reads each entry with `codec.writtenFrom`.
@@ -45,6 +49,17 @@ Fixes from a review of everything 0.39.0 changed (#511 to #530).
   - a Mixin may not set `class` or `style` through `Attribute`, `Prop` or a
     child `Style`, and a `Prop` that replaces the children (`innerHTML`,
     `textContent`, …) is `mixins:structural-override`.
+  - a Mixin may not set an inline handler (`h.Attribute('onclick', …)` or a
+    `Prop` named `on…`), which listens outside every owner
+    (`mixins:unsupported-event`);
+  - a style property is the declaration Foldkit writes, so `insetInlineEnd`
+    and `'inset-inline-end'` are one owner and one protection, and a protected
+    or Behavior-owned property is also guarded against a shorthand that sets
+    it (`inset`, `margin`), the physical side it can be (`right` or `left` for
+    `insetInlineEnd`) and `translate`, `rotate` or `scale` beside `transform`;
+  - `classList`, `relList`, `defaultValue`, `defaultChecked`,
+    `defaultSelected` and the `aria…Elements` properties are compared as the
+    attributes they write, and `xlink:href` as `href`.
 - `Button.view`'s `attributes` join the Slot before the mixins resolve, as
   `PasswordInput.view`'s do, so a class joins the recipe's instead of
   replacing it and an event a mixin owns is a conflict (`foldkit-mixins-ui`,
