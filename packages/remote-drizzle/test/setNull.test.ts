@@ -9,7 +9,7 @@
 import { postgres } from '../src/pg.js'
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNotNull } from 'drizzle-orm'
 import { drizzle as drizzleD1 } from 'drizzle-orm/d1'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { pgTable, text as pgText } from 'drizzle-orm/pg-core'
@@ -68,8 +68,14 @@ const bindOn = ({ users, folders, docs }: Tables, ownDocs = false) =>
     Doc: {
       table: docs,
       relations: { folder: { field: docs.folderId }, owner: { field: docs.ownerId } },
-      // Where asked: each reader sees only their own docs.
-      ...(ownDocs ? { visible: (principal: unknown) => eq(docs.ownerId, String(principal)) } : {}),
+      // Where asked: each reader sees only their own filed docs. The rule reads
+      // the link a delete clears, so a cleared doc is judged as it was (#518).
+      ...(ownDocs
+        ? {
+            visible: (principal: unknown) =>
+              and(isNotNull(docs.folderId), eq(docs.ownerId, String(principal))),
+          }
+        : {}),
     },
   } as const)
 
@@ -220,7 +226,7 @@ describe.each(backends)('A cleared link, on %s', (_, open) => {
     ])
   })
 
-  it('names only the docs its asker may see, and clears the rest unnamed', async () => {
+  it('names only the docs its asker saw before the clear, and clears the rest unnamed', async () => {
     const backend = await open()
     const answer = await deleting(backend, 'f1', { Db: backend.Own })
     const cleared =

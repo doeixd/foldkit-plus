@@ -1361,8 +1361,8 @@ pointing at the deleted one through `Relation.one(Folder, { optional: true,
 onDelete: 'setNull' })` stays, with its link set to null, in the transaction
 (or D1 batch) that deletes, and only while the row named is still there and
 holds what the delete asks, so a delete that missed clears nothing. The
-writer answers the cleared rows the principal may see as
-`DeleteOutcome.Deleted({ cleared })`, and `RemoteServer.write` reads them
+writer answers the cleared rows the principal could see before the clear
+(their `visible` may read the link) as `DeleteOutcome.Deleted({ cleared })`, and `RemoteServer.write` reads them
 again for the answer, so a page holding one sees its link gone. `delete`
 takes `clearing`, each Entity's rules for unlinking such a row as a
 `CascadeRequirement`: Guard's `GuardServer.writer` hands over the row's

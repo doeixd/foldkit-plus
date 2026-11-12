@@ -1482,11 +1482,12 @@ export const writer = <P = unknown>(
   /**
    * The row deleted, every row declared to go with it, and every link to it
    * declared cleared, in one transaction, or on D1 in one batch: first what
-   * each Entity's removal will take, as the principal may see it (`visible`),
-   * then each link cleared, then the rest, leaves first, each only while the
-   * row named is still there and holds what the delete asks, then the row
-   * itself, so a delete that missed changes nothing. What was taken and
-   * cleared is answered only when the row went.
+   * each Entity's removal will take and each row whose link it clears, as the
+   * principal may see them (`visible`), then each link cleared, then the
+   * rest, leaves first, each only while the row named is still there and
+   * holds what the delete asks, then the row itself, so a delete that missed
+   * changes nothing. What was taken and cleared is answered only when the
+   * row went.
    */
   const withCascade = (
     plan: Option.Option<CascadePlan>,
@@ -1541,13 +1542,21 @@ export const writer = <P = unknown>(
             .from(step.binding.table)
             .where(sql`${idColumn(step.binding)} in (${removedBy(step)})`),
         ),
-        // Cleared before anything goes, while the row named is still there to gate them.
+        // Whether the principal may see each row to be cleared, judged before
+        // its link is cleared, since `visible` may read that link (#518).
         ...clearing.map(({ edge, visible }) =>
+          db
+            .select({ id: idColumn(edge.owner), seen: seenFlag(visible) })
+            .from(edge.owner.table)
+            .where(sql`${edge.column} = ${id}`),
+        ),
+        // Cleared before anything goes, while the row named is still there to gate them.
+        ...clearing.map(({ edge }) =>
           db
             .update(edge.owner.table)
             .set({ [clearedKey(edge)]: null })
             .where(sql`${edge.column} = ${id} and ${taken}`)
-            .returning({ id: idColumn(edge.owner), seen: seenFlag(visible) }),
+            .returning({ id: idColumn(edge.owner) }),
         ),
         // Each row the cascade takes is judged before anything is removed: one
         // refused, and no row is taken, so the row named stays too. The leaves
@@ -1589,7 +1598,7 @@ export const writer = <P = unknown>(
                 }),
               failed,
             )
-      const deleted = (results[seen.length + clearing.length + steps.length] ?? []).length > 0
+      const deleted = (results[seen.length + 2 * clearing.length + steps.length] ?? []).length > 0
       if (!deleted) return { deleted, cascaded: [], cleared: [] }
       const cascaded = seen.flatMap(({ step }, at) =>
         (results[at] ?? [])
@@ -1608,11 +1617,18 @@ export const writer = <P = unknown>(
             ),
           })),
       )
-      const cleared = clearing.flatMap(({ edge }, at): ReadonlyArray<EntityRef> =>
-        (results[seen.length + at] ?? [])
-          .filter(row => Number(row['seen']) === 1)
-          .map(row => ({ entity: edge.entity, id: String(row['id']) })),
-      )
+      // What was cleared, as far as the principal saw it before.
+      const cleared = clearing.flatMap(({ edge }, at): ReadonlyArray<EntityRef> => {
+        const shown = new Set(
+          (results[seen.length + at] ?? [])
+            .filter(row => Number(row['seen']) === 1)
+            .map(row => String(row['id'])),
+        )
+        return (results[seen.length + clearing.length + at] ?? [])
+          .map(row => String(row['id']))
+          .filter(cleared => shown.has(cleared))
+          .map(cleared => ({ entity: edge.entity, id: cleared }))
+      })
       return { deleted, cascaded, cleared }
     })
 

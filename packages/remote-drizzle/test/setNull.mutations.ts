@@ -11,6 +11,13 @@ const guard = '../../guard/src/server.ts'
 const entity = '../../entity/src/index.ts'
 const client = '../../remote/src/mutation.ts'
 const lawTests = [...writerTests, ...guardTests]
+const selectCleared = `        ...clearing.map(({ edge, visible }) =>
+          db
+            .select({ id: idColumn(edge.owner), seen: seenFlag(visible) })
+            .from(edge.owner.table)
+            .where(sql\`\${edge.column} = \${id}\`),
+        ),
+`
 const edit = (
   name: string,
   file: string,
@@ -35,9 +42,33 @@ export default [
   edit(
     'a cleared row hidden from its asker is named',
     index,
-    '.returning({ id: idColumn(edge.owner), seen: seenFlag(visible) })',
-    '.returning({ id: idColumn(edge.owner), seen: seenFlag(undefined) })',
+    '.select({ id: idColumn(edge.owner), seen: seenFlag(visible) })',
+    '.select({ id: idColumn(edge.owner), seen: seenFlag(undefined) })',
   ),
+  {
+    // The old order: each cleared row judged once its link is cleared (every
+    // doc here starts in a folder, so the null links are the cleared ones).
+    name: 'a cleared row is judged visible after its link is cleared',
+    edits: [
+      { file: index, find: selectCleared, replace: '' },
+      {
+        file: index,
+        find: '        // Each row the cascade takes is judged before anything is removed: one',
+        replace: `${selectCleared.replace('${edge.column} = ${id}', '${edge.column} is null')}        // Each row the cascade takes is judged before anything is removed: one`,
+      },
+      {
+        file: index,
+        find: '(results[seen.length + at] ?? [])\n            .filter',
+        replace: '(results[seen.length + clearing.length + at] ?? [])\n            .filter',
+      },
+      {
+        file: index,
+        find: 'return (results[seen.length + clearing.length + at] ?? [])',
+        replace: 'return (results[seen.length + at] ?? [])',
+      },
+    ],
+    tests: writerTests,
+  },
   edit(
     'a cleared row is not held to its rule',
     index,
