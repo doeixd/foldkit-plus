@@ -1,6 +1,6 @@
 # foldkit-cms
 
-Checked against `foldkit-cms` 0.10.0 and `foldkit-cms-drizzle` 0.8.0.
+Checked against `foldkit-cms` 0.12.0 and `foldkit-cms-drizzle` 0.10.0.
 
 What a CMS adds to a domain that is already declared: **audience** (a visitor
 sees what is published, an author sees everything), **time** (drafts, revisions,

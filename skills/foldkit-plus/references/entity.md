@@ -1,6 +1,6 @@
 # foldkit-entity
 
-Checked against `foldkit-entity` 0.15.0.
+Checked against `foldkit-entity` 0.17.0.
 
 A domain entity declared once as a typed value: intrinsic fields, relations to
 other entities, and derived members. It **describes only**. It fetches, stores,
@@ -423,7 +423,7 @@ a predicate as a tree.
 
 `Expr.isNull` / `Expr.isNotNull` (one node, the answer to absence flipped),
 `Expr.contains` and `Expr.in(field, list | input)` (SQL's `in`; an empty list
-matches nothing) exist too, and the connectives `Expr.and`, `Expr.or` and
+matches nothing, a null list is unknown, as a null compared is) exist too, and the connectives `Expr.and`, `Expr.or` and
 `Expr.not`, three-valued as SQL's: `not` of an unknown (a null compared) stays
 unknown, so a null matches neither a comparison nor its `not`. A `Query`'s list
 of predicates is already the conjunction; `and` is for one inside an `or`.

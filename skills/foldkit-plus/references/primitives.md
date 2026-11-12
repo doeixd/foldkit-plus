@@ -1,6 +1,6 @@
 # foldkit-primitives
 
-Checked against `foldkit-primitives` 0.17.0.
+Checked against `foldkit-primitives` 0.19.0.
 
 Ready-made [`foldkit-bundle`](https://github.com/doeixd/foldkit-plus/blob/main/packages/bundle)
 primitives: media queries, breakpoints, visibility, presence, timers,

@@ -1,6 +1,6 @@
 # foldkit-ssr
 
-Checked against `foldkit-ssr` 0.11.0, `foldkit` 0.170.0.
+Checked against `foldkit-ssr` 0.12.0, `foldkit` 0.170.0.
 
 Server rendering that hands the browser **the Model the server reached**, not
 the inputs to rebuild it: `init` runs once, on the server, and the browser
