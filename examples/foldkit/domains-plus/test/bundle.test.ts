@@ -20,7 +20,10 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // when it left `Theme`), #431 +117, smaller fixes the rest. Now 216.9 kB.
 // #420 froze `style.ts` into its classes: 217,518 bytes to 191,556 on
 // 2026-11-10, measured one after the other in one tree.
-const CEILING = 193_500
+// 193,520 bytes on CI on 2026-11-12, 20 over: the review fixes added the
+// resolver's tables of each Foldkit handler's DOM event (#523) and of the CSS
+// declarations a style key writes, its shorthands included.
+const CEILING = 194_500
 
 test('the search page loads at most the budgeted brotli JavaScript', async () => {
   const report = await measure(resolve(import.meta.dirname, '..'))
