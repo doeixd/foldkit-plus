@@ -33,6 +33,7 @@ declaration; `npm view <name> version` says what the registry serves.
 | [`foldkit-remote`](../packages/remote) | 0.26.0 | Published | Normalized server state as a Foldkit Submodel: entities, selections, queries, connections, mutations, and live changes. |
 | [`foldkit-remote-server`](../packages/remote-server) | 0.23.0 | Published | Server sources and handler compilation for Remote: entities, queries, mutations, live, and selection authorization. |
 | [`foldkit-remote-drizzle`](../packages/remote-drizzle) | 0.20.0 | Published | Compiles Remote selections and queries to Drizzle's typed query graph, and lands declared writes in one statement that checks their revision, precondition and the Entity's invariants, with an optional ledger for retries. |
+| [`foldkit-remote-domain`](../packages/remote-domain) | 0.1.0 | Published | An Alchemy Domain Api beside Remote: so far the `Receipt` a command answers with, and tests that pin the Domain behaviour the adapter will rely on. Early; experimental: it tracks a beta and pins the exact `@alchemy.run/domain` and `alchemy` releases. |
 | [`foldkit-mirror`](../packages/mirror) | 0.10.0 | Published | A Model slice mirrored into the URL or a key-value store, restored on load. |
 | [`foldkit-bundle`](../packages/bundle) | 0.13.0 | Published | A Submodel packaged once and placed through a Link: routing, init, Subscriptions, resources, and view lifted into the parent. |
 | [`foldkit-bundle-surface`](../packages/bundle-surface) | 0.9.0 | Published | Placements as Module contracts that own their Model path. |
@@ -192,13 +193,15 @@ Optional peers, needed only by the subpath or feature that names them:
   `/unpic` subpaths);
 - `foldkit-plus` → `foldkit-agent-native`, `foldkit-auth`,
   `foldkit-cms-drizzle`, `foldkit-mixins-ui`, `foldkit-react`,
-  `foldkit-react-codegen`, `foldkit-remote-drizzle` and
+  `foldkit-react-codegen`, `foldkit-remote-domain`, `foldkit-remote-drizzle` and
   `foldkit-richtext-code-shiki`, which bring a library of their own, and
   `esbuild`, `playwright` and `wrangler` for its `testing/*` subpaths.
 
 Libraries outside the workspace: `foldkit-remote-drizzle` and
 `foldkit-cms-drizzle` peer-depend on `drizzle-orm@1.0.0-rc.5`, so the
 application's Drizzle is the one their tables type-check against;
+`foldkit-remote-domain` on `@alchemy.run/domain@2.0.0-beta.86` and
+`alchemy@2.0.0-beta.86`, each the exact beta its tests pin;
 `foldkit-react` on `react@^19.0.0` and `react-dom@^19.0.0`;
 `foldkit-agent-native` on `@agent-native/core@0.214.0`; `foldkit-mixins-ui`
 on `@foldkit/ui@^0.170.0`; `foldkit-richtext-code-shiki` on `shiki@^4.4.3`.

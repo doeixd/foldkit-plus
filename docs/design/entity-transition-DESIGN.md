@@ -29,11 +29,15 @@ which every update must hold.
 The table of kinds, what each reads, how it is declared and what it is refused as lives in
 [the laws guide](../laws.md#where-does-a-rule-go).
 
-A write lands only when all four hold:
+As first built, a write landed only when all four held:
 
 ```text
 authorization AND precondition AND transitions AND invariants
 ```
+
+Today transitions are invariants that read `before`, so the guide writes the
+same condition with three terms: `authorization AND precondition AND
+invariants (state and transition)`.
 
 Authorization keeps its alternatives inside its own category. Transitions and
 invariants are never alternatives of anything, so an administrator cannot skip

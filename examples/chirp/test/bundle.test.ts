@@ -14,7 +14,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // fixes added the resolver's table of the DOM event each Foldkit handler
 // registers (#523) and Remote's per-field read dates (#512). Ceiling that
 // plus about 0.5%, rounded up to the next 500 bytes.
-const CEILING = 240_500
+// 240,509 bytes on 2026-11-12, from 239,065: the workspace's Effect moved from
+// 4.1.1 to 4.1.4, and `effect` is the package that grew (67.3 kB brotli~ in
+// the report). Ceiling that plus about 0.5%, rounded up to the next 500 bytes.
+const CEILING = 242_000
 
 clientBudget({
   name: 'chirp',

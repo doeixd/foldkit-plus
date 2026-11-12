@@ -162,6 +162,7 @@
       "foldkit-plus/react": ["./src/react.ts"],
       "foldkit-plus/react-codegen": ["./src/react-codegen.ts"],
       "foldkit-plus/remote": ["./src/remote.ts"],
+      "foldkit-plus/remote-domain": ["./src/remote-domain.ts"],
       "foldkit-plus/remote-drizzle": ["./src/remote-drizzle.ts"],
       "foldkit-plus/remote-drizzle/pg": ["./src/remote-drizzle/pg.ts"],
       "foldkit-plus/remote-server": ["./src/remote-server.ts"],
@@ -215,6 +216,7 @@
       "foldkit-react": ["../react/src/index.ts"],
       "foldkit-react-codegen": ["../react-codegen/src/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
+      "foldkit-remote-domain": ["../remote-domain/src/index.ts"],
       "foldkit-remote-drizzle": ["../remote-drizzle/src/index.ts"],
       "foldkit-remote-drizzle/pg": ["../remote-drizzle/src/pg.ts"],
       "foldkit-remote-server": ["../remote-server/src/index.ts"],
@@ -360,6 +362,9 @@
     },
     {
       "path": "../remote/tsconfig.build.json"
+    },
+    {
+      "path": "../remote-domain/tsconfig.build.json"
     },
     {
       "path": "../remote-drizzle/tsconfig.build.json"

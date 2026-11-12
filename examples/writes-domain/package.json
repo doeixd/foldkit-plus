@@ -1,0 +1,23 @@
+{
+  "name": "foldkit-example-writes-domain",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@alchemy.run/domain": "2.0.0-beta.86",
+    "alchemy": "2.0.0-beta.86",
+    "foldkit-entity": "workspace:*",
+    "foldkit-example-writes": "workspace:*",
+    "foldkit-remote": "workspace:*",
+    "foldkit-remote-domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261112.1",
+    "effect": "4.1.4",
+    "foldkit-surface": "workspace:*",
+    "typescript": "7.0.2"
+  }
+}

@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-remote-domain` (new, Early: it tracks a beta): the start of the
+  bridge from an Alchemy Domain Api to Remote. It exports `Receipt`, the
+  `{ stream, version }` a Domain command answers with, and its tests pin the
+  Domain behaviour the adapter will rely on, against `@alchemy.run/domain` and
+  `alchemy` `2.0.0-beta.86`.
 - `foldkit-remote`: `reaches(write, query)` says which queries a declared write
   can change, from declarations alone: `Reach.Reads`, `Unaffected`, or
   `Unknown({ why: 'NoBody' | 'Handler' })`. It compares members by their
@@ -55,6 +60,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- The workspace's Effect is `4.1.4` (was `4.1.1`), and `foldkit-plus setup`
+  pins it and `@effect/*` at that release. Published packages still peer on
+  `^4.1.0`. Since 4.1.4 `Headers.fromInput` joins a repeated header with
+  `", "` instead of keeping the last one.
 - `foldkit-data-grid`: `Fill.series` continues `YYYY-MM-DD` days: by months
   when they share a day of the month a constant number of months apart (a 31st
   clamps to a shorter month and comes back), else by days when a constant number

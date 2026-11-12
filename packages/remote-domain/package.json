@@ -1,0 +1,58 @@
+{
+  "name": "foldkit-remote-domain",
+  "version": "0.1.0",
+  "description": "Experimental bridge from an Alchemy Domain Api to Remote: receipts, a lowered write, and the imported graph. Tracks a beta.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "alchemy",
+    "domain",
+    "event-sourcing",
+    "server-state"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/remote-domain"
+  },
+  "homepage": "https://foldkit-plus.pages.dev/remote/guides/remote-domain",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "foldkit-plus:source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node ../../scripts/declarations.mjs . && tsdown && node ../../scripts/declared-any.mjs .",
+    "typecheck": "tsc -b"
+  },
+  "peerDependencies": {
+    "@alchemy.run/domain": "2.0.0-beta.86",
+    "alchemy": "2.0.0-beta.86",
+    "effect": "^4.1.0"
+  },
+  "devDependencies": {
+    "@alchemy.run/domain": "2.0.0-beta.86",
+    "@cloudflare/workers-types": "5.20261112.1",
+    "alchemy": "2.0.0-beta.86",
+    "effect": "4.1.4",
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
+  }
+}

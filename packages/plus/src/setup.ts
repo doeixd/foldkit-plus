@@ -89,7 +89,7 @@ export const jobs: ReadonlyArray<{
   },
   {
     job: 'Server-owned data in the Model: queries, mutations, live updates',
-    imports: ['remote', 'remote-server', 'remote-drizzle'],
+    imports: ['remote', 'remote-server', 'remote-drizzle', 'remote-domain'],
     guide: 'remote',
   },
   {
@@ -209,6 +209,11 @@ export const adapters: ReadonlyArray<{
     name: 'foldkit-react-codegen',
     libraries: ['typescript@>=5.7.2 <7'],
     when: 'compiling Foldkit views to React TSX (a dev dependency)',
+  },
+  {
+    name: 'foldkit-remote-domain',
+    libraries: ['@alchemy.run/domain@2.0.0-beta.86', 'alchemy@2.0.0-beta.86'],
+    when: 'an Alchemy Domain Api as a second authority for Remote (experimental)',
   },
   {
     name: 'foldkit-remote-drizzle',
