@@ -472,9 +472,10 @@ export interface JournalContract<Operation, Shared> {
     /**
      * What a retransmission is compared by: the operation normalized at the
      * version it was written at, as the build that wrote it normalized it, so
-     * an edit committed before a deploy is still recognized after it.
+     * an edit committed before a deploy is still recognized after it. Only
+     * hashed: never an entry to append.
      */
-    readonly compared: (input: unknown) => WrittenOperation
+    readonly compared: (input: unknown) => unknown
   }
   readonly snapshot: {
     readonly encode: (snapshot: Shared) => unknown
@@ -690,18 +691,19 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
   /**
    * Normalized at the version it was written at, with no upcast: what the
    * build that wrote it hashed. An explicit `messageVersion: 1` is dropped,
-   * so it and an absent one compare alike.
+   * so it and an absent one compare alike. Not branded: it skips the checks
+   * of a sent entry, so it must never reach `append`.
    */
-  const compared = (input: unknown): WrittenOperation => {
+  const compared = (input: unknown): WrittenShape => {
     const written = decodeWritten(input)
     const version = versionOf(written)
     if (version > current) throw newer(written.opId, version)
     const envelope = envelopeOf(written)
-    return vouched({
+    return {
       ...envelope,
       ...(version === 1 ? {} : { messageVersion: version }),
       message: history.normalize(version, written.message),
-    })
+    }
   }
 
   const journalContract = (): JournalContract<Operation, Shared> => ({

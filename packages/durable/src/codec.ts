@@ -17,9 +17,10 @@ export interface Codec<Value, Encoded = unknown> {
    * reads several versions of its payload gives the payload normalized at
    * the version it was written at, so an operation committed before the
    * codec changed is still recognized after it. What is stored stays
-   * `encode` of the decoded value.
+   * `encode` of the decoded value. Its result is only hashed, never stored
+   * or appended, so it need not be an `Encoded`.
    */
-  readonly compared?: ((value: Encoded) => Encoded) | undefined
+  readonly compared?: ((value: Encoded) => unknown) | undefined
 }
 
 /**

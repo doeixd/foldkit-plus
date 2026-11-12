@@ -66,3 +66,7 @@ export const loopback = Sync.transport.loopback((_cursor, pending) =>
   // @ts-expect-error so is an in-process handler's
   Effect.runPromise(journal.append(key, pending[0]!, 'server')),
 )
+// What a retransmission is compared by is no entry the journal takes: it skips the sent checks.
+declare const sent: unknown
+// @ts-expect-error `compared` reads an entry for its hash, not for appending
+journal.append(key, Todos.journalContract().operation.compared(sent), 'server')
