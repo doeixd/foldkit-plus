@@ -4,10 +4,11 @@
 
 - **Commit often.** Prefer small, coherent commits over one large one. Commit as
   soon as a unit of work stands on its own (a module, a config, a test file).
-- **After every commit, double check the code.** Re-read the diff that was just
-  committed, re-run the relevant checks (`pnpm typecheck`, `pnpm test`,
-  `pnpm build`), and fix what the check surfaces in a follow-up commit rather
-  than letting it accumulate.
+- **Review and verify with judgment.** Review the changes and choose checks
+  appropriate to their scope and risk. Run focused checks when they provide
+  useful evidence; a documentation-only change does not normally need the
+  full test suite or build. Re-run checks when further changes warrant it, and
+  address findings without letting them accumulate.
 
 ## Scope: build the feature
 
@@ -53,9 +54,9 @@ Run subagents in parallel only on disjoint files, and say in each brief what
 the others are editing. Never let two of them run Wrangler (or anything
 that refreshes the Cloudflare login) at once.
 
-## Reviewing a commit
+## Reviewing changes
 
-When re-reading a commit, check each of these deliberately:
+When reviewing changes, consider these areas where relevant:
 
 - **Logic and correctness.** Does it do what the message claims? Trace the real
   control flow, not the intended one.
@@ -76,9 +77,7 @@ When re-reading a commit, check each of these deliberately:
 - **Performance.** Work done once at definition time rather than per call;
   no accidental O(n) lookups or repeated derivation in a hot path.
 
-Fix what the review finds in a follow-up commit rather than letting it sit.
-
-AFTER EVERTY BOUT OF WORK/COMMIT, DOUBLE CHECK AND REVIEW!!!
+Address findings from the review before they accumulate.
 
 ## Jev preference review
 
