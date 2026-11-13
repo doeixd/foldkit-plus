@@ -79,6 +79,8 @@ import {
   type PendingDelete,
 } from './ledger.js'
 import type { MutationDescriptor } from './mutationDescriptor.js'
+import { canOf } from './can.js'
+import { tableOf } from './table.js'
 import { plan as planRequirements, type PlanOptions } from './plan.js'
 import { RemotePolicy } from './policy.js'
 import { IDENTITY_SEPARATOR, queryIdentity, stableStringify } from './query.js'
@@ -1876,6 +1878,20 @@ const bindDomain = <
       return shownEdges(remote, identity, remote.connections[identity] ?? emptyConnection)
     },
     ...writes,
+    can: (model, mutation, input) => {
+      assertRegistered(bound, 'Mutation', definition.registry.mutations, mutation.name)
+      if (mutation.write === undefined)
+        throw new Error(
+          `[foldkit-remote] Data.can(${mutation.name}): the mutation was not declared as a Write, so the client cannot tell what it would refuse`,
+        )
+      return canOf(
+        mutation.write,
+        input,
+        contextOf(model),
+        visibleOf(capabilities, store.get(model), operators),
+        tableOf(operators),
+      )
+    },
     mutation: (model, requestId) => mutationStatus(store.get(model).mutations, requestId),
     refusal: (model, requestId, mutation) => {
       const status = mutationStatus(store.get(model).mutations, requestId)

@@ -21,6 +21,11 @@ version changed; `pnpm` skips versions already in the registry.
   own starts. `Walk.states(schema, { count, seed })` derives starts from a
   Schema, decoded through it, deterministic per seed, and throws by kind and
   path for a kind it cannot build.
+- `foldkit-remote`: `Data.can(model, mutation, input)` tells, from what the Model
+  holds, whether a declared write would be refused: `Can.No` with `Forbidden`,
+  `Unmet` or `Invalid` in the server's order, `Can.Undecided` with its reasons
+  where the row, a field or an input key is missing, else `Can.Yes`. A hint:
+  `Data.mutate` still asks the server.
 - `foldkit-surface`: `closed: true` on `Surface.make` and `App.surface` declares a
   Surface closed, and `Closure.violations(app, surfaces)` is the step check a
   walk calls: a Message in the Surface's set that reads outside it is named by

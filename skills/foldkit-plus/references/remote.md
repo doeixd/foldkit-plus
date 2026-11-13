@@ -719,6 +719,12 @@ seconds, `0` never) of its Effect clock, else its own clock, reporting `ClockSke
 same `requestId`, which a ledgered writer answers from its record. Declaring them, and
 invariants: [entity.md](entity.md).
 
+`Data.can(model, M, partialInput)` reads what the Model holds and answers `Can.Yes`,
+`Can.No({ refusal })` (`Forbidden { reason }`, `Unmet`, `Invalid { entity, rule, message, path }`,
+the server's order) or `Can.Undecided({ reasons })` (row, field or input key missing; an
+increment or computed field not worked out). A hint: `Data.mutate` still asks the server.
+Throws for a mutation not declared with `Mutation.write`. Match with `Can.match`.
+
 **Refusals.** `Mutation.make(name, { Input, Output, Refusal })` declares what
 the server may refuse with (`Refusal.field(key, reason)`, `Refusal.conflict`,
 or any codec); a `Mutation.write` whose write has a `when` may also be refused

@@ -4,6 +4,10 @@ import { runDemo } from '../src/demo.js'
 describe('foldkit-example-writes', () => {
   it('answers a guarded rename, a conditional transition, increments retried with and without a ledger, a state invariant and a transition invariant', async () => {
     expect(await runDemo()).toEqual([
+      'can publish the draft: Yes',
+      'can publish a published product: No(Unmet)',
+      'can publish an archived product: No(Unmet)',
+      'can put the published product back to draft: No(Invalid publishedStaysPublished)',
       'rename by its owner: written {"id":"p1","name":"Bolt, M6","revision":2}',
       'rename by another: Forbidden',
       'publish the draft: written {"id":"p1","status":"published","revision":3}',

@@ -4,11 +4,13 @@
  */
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
-import { Effect, Match, Option, Schema } from 'effect'
+import { Effect, Match, Option, Optic, Schema } from 'effect'
 import { databaseLayer } from 'foldkit-remote-drizzle'
-import { Refusal } from 'foldkit-remote'
+import { Can, Refusal, Remote } from 'foldkit-remote'
+import { ModelRef } from 'foldkit-surface'
 import { RemoteServer } from 'foldkit-remote-server'
 import {
+  Product,
   Publish,
   publishedStaysPublished,
   Rename,
@@ -21,6 +23,55 @@ import {
 import { schema, server } from './server.js'
 
 const invariants = [reservedWithinStock, publishedStaysPublished]
+
+/** What a client holds of the products, to ask `Data.can` before sending anything. */
+const ClientModel = Schema.Struct({ remote: Remote.Model })
+const Data = Remote.make({
+  model: ModelRef.fromOptic(Remote.Model, Optic.id<typeof ClientModel.Type>().key('remote'), [
+    'remote',
+  ]),
+  entities: [Product],
+  mutations: [Publish, Revert],
+})
+const held = Data.reduce(
+  { remote: Remote.initial },
+  {
+    _tag: 'ReadReceived',
+    requests: ['p1', 'p2', 'p3'].map(id => ({
+      entity: 'Product',
+      id,
+      fields: [...Object.keys(Product.fields)],
+    })),
+    result: {
+      settled: [],
+      entities: [
+        ['p1', 'draft'],
+        ['p2', 'archived'],
+        ['p3', 'published'],
+      ].map(([id, status]) => ({
+        entity: 'Product',
+        id: id!,
+        values: { id, ownerId: 'ada', name: id, status, stock: 10, reserved: 2, revision: 1 },
+      })),
+    },
+    now: 0,
+  },
+)
+
+/** What `Data.can` says, as a line: the answer, and the invariant or rule behind a refusal. */
+const said = (answer: Can): string =>
+  Can.match(answer, {
+    Yes: () => 'Yes',
+    No: ({ refusal }) =>
+      Match.value(refusal).pipe(
+        Match.tagsExhaustive({
+          Forbidden: () => 'No(Forbidden)',
+          Unmet: () => 'No(Unmet)',
+          Invalid: ({ rule }) => `No(Invalid ${rule})`,
+        }),
+      ),
+    Undecided: ({ reasons }) => `Undecided(${reasons.join('; ')})`,
+  })
 
 export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const sqlite = new DatabaseSync(':memory:')
@@ -81,6 +132,10 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const restock = { id: 'p1', revision: 3, quantity: 5 }
 
   return [
+    `can publish the draft: ${said(Data.can(held, Publish, { id: 'p1', status: 'published' }))}`,
+    `can publish a published product: ${said(Data.can(held, Publish, { id: 'p3', status: 'published' }))}`,
+    `can publish an archived product: ${said(Data.can(held, Publish, { id: 'p2', status: 'published' }))}`,
+    `can put the published product back to draft: ${said(Data.can(held, Revert, { id: 'p3', status: 'draft' }))}`,
     `rename by its owner: ${await send(ada, Rename, { id: 'p1', name: 'Bolt, M6' })}`,
     `rename by another: ${await send(grace, Rename, { id: 'p1', name: 'Taken' })}`,
     `publish the draft: ${await send(ada, Publish, { id: 'p1', status: 'published' })}`,
