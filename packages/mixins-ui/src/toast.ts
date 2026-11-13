@@ -554,8 +554,10 @@ export const update = (model: Model, message: Message): Return =>
         }),
       PressedAction: ({ id }) =>
         Option.match(
-          Option.flatMap(entryOf(model, id), entry =>
-            Option.map(entry.action, action => ({ entry, action })),
+          // A leaving toast has acted already, or been dismissed: its button may still be drawn.
+          Option.flatMap(
+            Option.filter(entryOf(model, id), entry => !isLeaving(entry)),
+            entry => Option.map(entry.action, action => ({ entry, action })),
           ),
           {
             onNone: () => ({ model }),

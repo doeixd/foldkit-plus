@@ -100,6 +100,20 @@ describe('Toast.update', () => {
     expect(acted.outMessage).toEqual(Toast.OutMessage.Acted({ id: withAction.id, value: 'undo' }))
     expect(entry(acted.model, withAction.id).animation.transitionState).toBe('LeaveStart')
   })
+
+  it('an action pressed again while the toast leaves acts once, and changes nothing', () => {
+    const withAction = Toast.show(empty, {
+      title: 'Archived',
+      action: { label: 'Undo', value: 'undo' },
+    })
+    const press = Toast.Message.PressedAction({ id: withAction.id })
+    const acted = Toast.update(withAction.model, press)
+    const again = Toast.update(acted.model, press)
+    expect(again.outMessage).toBeUndefined()
+    expect(again.model).toBe(acted.model)
+    const dismissed = Toast.update(withAction.model, Toast.Message.Dismissed({ id: withAction.id }))
+    expect(Toast.update(dismissed.model, press).outMessage).toBeUndefined()
+  })
 })
 
 describe('a swipe toward the edge', () => {

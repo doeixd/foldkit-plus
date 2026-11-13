@@ -209,4 +209,15 @@ export default [
     edits: [{ file, find: '? travel : travel * RESISTANCE', replace: '? travel : travel' }],
     tests: unit,
   },
+  {
+    name: 'an action acts on a toast already leaving',
+    edits: [
+      {
+        file,
+        find: 'Option.filter(entryOf(model, id), entry => !isLeaving(entry)),\n            entry => Option.map(entry.action',
+        replace: 'entryOf(model, id),\n            entry => Option.map(entry.action',
+      },
+    ],
+    tests: unit,
+  },
 ]
