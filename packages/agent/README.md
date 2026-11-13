@@ -238,7 +238,7 @@ Read current state before deciding whether to retry an effectful operation.
 | `Agent.auditLog(options)` | A bounded record of decisions, refusals included. |
 | `Agent.summarize(result)` | One outcome summary, so the adapters map results to their protocols the same way. |
 | `Agent.newInvocationId()` | The default invocation id generator, for an adapter supplying its own. |
-| `Agent.Ui.catalog` / `discover` / `invoke` | Binds part ids and labels to exposed capabilities. Discovery uses availability and the encoded context. Invoke dispatches that capability. |
+| `Agent.Ui.catalog(definition, parts)` / `discover` / `invoke` | A typed alias table from a control's id and label to an exposed capability; see [Parts](#parts). |
 
 ### Variant configuration
 
@@ -660,34 +660,106 @@ needs it, and adding it early would fix semantics nothing has asked for.
 
 ## Parts
 
-A part names a control a person can point at and the capability `Agent.expose` already published for it. The catalog is the binding. A button, a label, or a method named `set` or `toggle` does not create one, and discovery does not read the DOM.
+`Agent.Ui` is a typed alias table: it maps a control's application id and its
+accessible label to a capability `Agent.expose` already published. It lets an
+agent find the control a person means ("press Delete on the second row") and
+calls that capability through the dispatch every adapter uses.
 
-```ts sketch
-const parts = Agent.Ui.catalog([
-  { id: 'search', label: 'Search', capability: 'set_query', fields: ['query'] },
-  { id: 'draft.save', label: 'Save', capability: 'save_draft', fields: ['draft'] },
+It does not grant anything. A part names an exposed capability; a button, a
+label, a mounted rendering, or a method named `set` or `toggle` makes nothing
+callable. It does not read the DOM: the host says which renderings are
+mounted, so a headless host works the same. It keeps no state and is not a
+second action catalog.
+
+<!-- docs-check
+declare const h: HtmlBuilder<Message>
+-->
+```ts
+const parts = Agent.Ui.catalog(AppAgent, [
+  { id: 'todo.create', label: 'New todo', capability: Message.RequestedCreateTodo },
+  {
+    id: 'todo.delete',
+    label: 'Delete',
+    capability: Message.RequestedDeleteTodo,
+    fields: ['selectedTodoId'],
+  },
 ])
 
-// Two mounted search fields share the label, so neither is chosen.
+// The view names the control from the same value the agent hears.
+h.button([h.AriaLabel(parts.part('todo.delete').label)], ['Delete'])
+
+// With a todo selected, delete is available; two rows each draw a Delete
+// button, so asking by label chooses neither.
 const found = await Effect.runPromise(
-  Agent.Ui.discover(runtime, parts, {
-    label: 'Search',
-    mounted: [
-      { part: 'search', id: 'first' },
-      { part: 'search', id: 'second' },
-    ],
-  }),
+  Agent.Ui.discover(agentRuntime, parts, Agent.UiQuery.Label({ label: 'Delete' }), [
+    { part: 'todo.delete', id: 'row-1' },
+    { part: 'todo.delete', id: 'row-2' },
+  ]),
 )
 
 // The same dispatch as any other caller, completion contract included.
 await Effect.runPromise(
-  Agent.Ui.invoke(runtime, parts, 'draft.save', { requestId: 'one', title: 'Note' }),
+  Agent.Ui.invoke(agentRuntime, parts, 'todo.create', { title: 'Read the guide' }),
 )
 ```
 
-`id` is the application identity and stays across a remount. An occurrence id names one mount. A lookup for an occurrence that is not in `mounted` is `None` and does not select another row. A part with no mount is off the page: discovery still returns it, and `invoke` does not ask whether it is mounted.
+`Ui.catalog` reads the definition, not a list of names. `capability` is the
+exposed Message's constructor, so a Message the definition does not expose is
+a type error, and `fields` are keys of the context, so a misspelt field is one
+too. Where the checker cannot see the names (a definition typed with the
+default capability maps, or a context whose encoded keys differ from its
+type's), `catalog` throws instead: an id bound twice, an empty label, a
+capability not exposed, or a field the encoded context lacks. Nothing is left
+to fail quietly at discovery, where a typo would read as "unavailable". Part
+ids are the declared literals, so `parts.part('todo.delete')` is checked and
+`parts.part('todo.remove')` is not code.
 
-A label shared by two renderings is `Ambiguous`. The matches are ids and occurrence ids, not field values. An unavailable capability is left out, not described as unauthorized. Discovery does not call `authorize`. `invoke` resolves the part and calls `messages.dispatchUnknown`, so availability, decoding, authorization, and completion run on that path before a Message exists. `fields` are copied from the encoded context when it has them. The Model is not read, so a value the projection omits cannot appear, and a field the part does not name is not copied.
+`discover` reads `messages.available` and the encoded context. It does not call
+`authorize` and does not dispatch. It answers with an `Agent.UiDiscovery`:
+
+- `Match`: one rendering, with the part's id, label, protocol capability name,
+  its occurrence (`None` when it is not mounted), and `projection`, a copy of
+  the fields the part lists from the encoded context. A field the part does
+  not list is not copied, and the Model is never read, so a value the context
+  omits cannot appear.
+- `Ambiguous`: several renderings, as part ids and occurrence ids only, never
+  field values.
+- `None`: nothing available matches. An unavailable capability is `None`, as an
+  unknown part is, so discovery does not say a capability exists that this
+  Model does not offer.
+
+`invoke` resolves the part and calls `messages.dispatchUnknown` with its
+capability, so availability, decoding, authorization, and completion run as
+for any caller. Its part id is a string, since it comes from the agent; an id
+the catalog does not bind fails with `AgentUnknownPartError` before anything is
+dispatched, even when a capability of that name exists. A runtime bound to a
+definition other than the catalog's is a defect: the catalog's names belong to
+its own definition.
+
+**Identity rules.**
+
+- The part id is the application's identity for a control. It stays across a
+  remount and does not depend on what is on the page.
+- An occurrence id names one mount, chosen by the host; a remount gets a new
+  one. `UiQuery.Occurrence` for one that is no longer mounted is `None`, and
+  does not fall through to another row.
+- A label is descriptive, never an identifier. Two renderings that share one
+  are `Ambiguous`, whether they are two parts or one part mounted twice.
+- A repeated entity row is one part with an occurrence per row. Which entity
+  the call acts on travels in the capability's input (`{ id }`), where
+  `authorize` sees it, not in the part.
+- A part with no mount is off the page, not gone: `UiQuery.Part` still finds
+  it, and `invoke` does not ask whether it is mounted. Mounting is not
+  authority.
+
+A query arrives from an agent as JSON. `Agent.UiQuery` is its Schema, so an
+adapter decodes it at the boundary; `discover` and `invoke` never throw and
+never die on anything an agent can send.
+
+```ts
+const decodeQuery = (json: unknown) =>
+  Schema.decodeUnknownEffect(Agent.UiQuery)(json, { onExcessProperty: 'error' })
+```
 
 ## Why the API looks like this
 
