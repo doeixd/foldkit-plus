@@ -385,6 +385,52 @@ describe('durable over D1', () => {
     ])
   }, 30_000)
 
+  it('judges a commit that lost a race against the snapshot it lands on', async () => {
+    // At most two notes. The other writer's commit lands after this append was
+    // judged over one note and before it writes: the retry must reduce and
+    // judge again over the two it then lands on, and refuse.
+    const options = {
+      operation: Note,
+      snapshot: Schema.Array(Note),
+      empty: () => [],
+      reduce: (state: ReadonlyArray<Note>, value: Note) => [...state, value],
+      opId: (value: Note) => opId(value.opId),
+      actorId: (principal: string) => actorId(principal),
+      judge: ({ after }: { readonly after: ReadonlyArray<Note> }) =>
+        after.length <= 2 || { rule: 'atMostTwo', message: 'Two notes at most', path: [] },
+      d1: true as const,
+    }
+    const open = (name: string, client: Layer.Layer<SqlClient.SqlClient, unknown>) => {
+      const Defined = Journal.define<Note, ReadonlyArray<Note>, string>(name)
+      return Effect.runPromise(
+        Effect.gen(function* () {
+          return yield* Defined.tag
+        }).pipe(Effect.provide(Defined.layer(options).pipe(Layer.provide(client)))),
+      )
+    }
+    const other = await open('test/NotesD1JudgeB', D1Client.layer({ db }))
+    let armed = false
+    const instrumented = Layer.effect(
+      SqlClient.SqlClient,
+      Effect.map(SqlClient.SqlClient, real =>
+        interceptOnce(
+          real,
+          'INSERT INTO operations',
+          () => armed,
+          () => Effect.runPromise(other.append(key, note(2), 'grace')),
+        ),
+      ),
+    ).pipe(Layer.provide(D1Client.layer({ db })))
+    const journal = await open('test/NotesD1JudgeA', instrumented)
+    await Effect.runPromise(journal.append(key, note(1), 'ada'))
+    armed = true
+    const refused = await Effect.runPromise(Effect.flip(journal.append(key, note(3), 'ada')))
+    expect(refused).toMatchObject({ _tag: 'OperationRejectedError', rule: 'atMostTwo' })
+    const { snapshot, cursor: at } = await Effect.runPromise(journal.load(key))
+    expect(snapshot).toEqual([note(1), note(2)])
+    expect(at).toBe(cursor(2))
+  }, 30_000)
+
   it('refuses d1 over a file: it is for a D1 SqlClient through core', async () => {
     const refused = await Effect.runPromise(
       Effect.scoped(

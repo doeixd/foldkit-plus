@@ -50,6 +50,8 @@ export {
   type EffectStatus,
   type JournalOptions,
   type JournalStoreOptions,
+  type JudgeDecision,
+  type JudgeRequest,
   type ParkedRun,
   type RecoveryIntent,
   type RecoveryOptions,

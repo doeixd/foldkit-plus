@@ -42,6 +42,8 @@ export {
   type EffectRecord,
   type EffectStatus,
   type JournalStoreOptions,
+  type JudgeDecision,
+  type JudgeRequest,
   type ParkedRun,
   type RecoveryIntent,
   type RecoveryOptions,
