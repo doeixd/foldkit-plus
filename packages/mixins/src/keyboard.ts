@@ -4,7 +4,7 @@
  * and lets the event propagate. Repeated keys follow the same routes.
  */
 import { Option } from 'effect'
-import type { KeyboardModifiers } from 'foldkit/html'
+import type { HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import * as Behavior from './behavior.js'
 import * as Capability from './capability.js'
 import { DiagnosticError } from './diagnostics.js'
@@ -27,11 +27,17 @@ const mask = (modifiers: Modifiers): number =>
   (modifiers.altKey ? 4 : 0) |
   (modifiers.metaKey ? 8 : 0)
 
-/** Attach one keydown owner for a set of disjoint, named gestures. */
+/**
+ * Attach one keydown owner for a set of disjoint, named gestures. Routes
+ * compose inside one behavior; a second keydown owner on the same slot is a
+ * conflict in the resolver, whatever its name. `name` labels this owner in a
+ * diagnostic or a description.
+ */
 export const behavior =
   <Slots>(slots: Slots) =>
   <Input, Message>(options: {
     readonly target: keyof Slots & string
+    readonly name?: string
     readonly routes: ReadonlyArray<Route<Input, Message>>
   }): Behavior.NamedBehavior<Slots, Input, Message> => {
     const byKey = new Map<string, Map<number, Route<Input, Message>>>()
@@ -69,7 +75,7 @@ export const behavior =
             h,
           }: {
             readonly input: Input
-            readonly h: import('foldkit/html').HtmlBuilder<Message>
+            readonly h: HtmlBuilder<Message>
           }) => [
             h.OnKeyDownPreventDefault(
               (key, modifiers) =>
@@ -79,6 +85,6 @@ export const behavior =
         }),
         // Keyed by the caller's chosen slot; `forSlots` checks the key exists.
       } as unknown as Behavior.BehaviorSpec<Slots, Input, Message>,
-      { name: 'Keyboard' },
+      { name: options.name ?? 'Keyboard' },
     )
   }

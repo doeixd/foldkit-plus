@@ -11,8 +11,36 @@ export default [
     edits: [
       {
         file,
-        find: 'contributors: [owner, contributor]',
-        replace: 'contributors: [contributor, owner]',
+        find: 'contributors: [owner.name, contributor.name]',
+        replace: 'contributors: [contributor.name, owner.name]',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an owner is told by name, not by attachment',
+    edits: [
+      {
+        file,
+        find: '    conflicts.push({\n      code,',
+        replace:
+          '    if (owner.name === contributor.name) return\n    conflicts.push({\n      code,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a listed behavior supplies though the view does not attach it',
+    edits: [{ file, find: 'if (view === undefined) return listed', replace: 'return listed' }],
+    tests,
+  },
+  {
+    name: 'an attached behavior supplies nothing',
+    edits: [
+      {
+        file,
+        find: 'return listed.filter(behavior => attached.includes(behavior.mixin))',
+        replace: 'return listed.filter(behavior => !attached.includes(behavior.mixin))',
       },
     ],
     tests,
@@ -149,7 +177,7 @@ export default [
     edits: [
       {
         file,
-        find: "      for (const attribute of slot.attributes) {\n        claim('mixins:attribute-conflict', slot.slot, attribute, attachment.name)\n      }",
+        find: "      for (const attribute of slot.attributes) {\n        claim('mixins:attribute-conflict', slot.slot, attribute, attachment)\n      }",
         replace: '',
       },
     ],
@@ -160,7 +188,7 @@ export default [
     edits: [
       {
         file,
-        find: 'source.pattern === undefined\n        ? []\n        : A11y.validate(\n            source.pattern.pattern,\n            patternSlots,\n            (source.behaviors ?? []).flatMap(behavior => A11y.suppliedBy(behavior)),\n          ),',
+        find: 'source.pattern === undefined\n        ? []\n        : A11y.validate(\n            source.pattern.pattern,\n            patternSlots,\n            suppliers(source).flatMap(behavior => A11y.suppliedBy(behavior)),\n          ),',
         replace: '[],',
       },
     ],
@@ -171,7 +199,7 @@ export default [
     edits: [
       {
         file,
-        find: '(source.behaviors ?? []).flatMap(behavior => A11y.suppliedBy(behavior)),',
+        find: 'suppliers(source).flatMap(behavior => A11y.suppliedBy(behavior)),',
         replace: '[],',
       },
     ],

@@ -73,6 +73,8 @@ export interface ContributionConflict {
   readonly slot: string
   /** The DOM event or the normalized attribute name. */
   readonly name: string
+  /** Names alone cannot tell two attachments apart: these are their `Attachment.order`s. */
+  readonly orders: readonly [number, number]
   readonly contributors: readonly [string, string]
 }
 
@@ -130,6 +132,7 @@ const claimsFrom = (
     if (!isTagged(value)) return
     const tag = value._tag
     // Class, style, and mounts are not event or attribute owners.
+    // tag-check: open — the tag may be a child attribute's, from another package.
     if (tag === 'Class' || tag === 'Style' || tag === 'OnMount' || tag === 'OnUnmount') return
     if (isUnknownHandler(tag)) return
     const event = eventNameOf(tag, value)
@@ -270,13 +273,13 @@ const attachmentsOf = (source: AssemblySource): ReadonlyArray<Attachment> => {
 const conflictsOf = (
   attachments: ReadonlyArray<Attachment>,
 ): ReadonlyArray<ContributionConflict> => {
-  const owners = new Map<string, string>()
+  const owners = new Map<string, Attachment>()
   const conflicts: Array<ContributionConflict> = []
   const claim = (
     code: ContributionConflict['code'],
     slot: string,
     name: string,
-    contributor: string,
+    contributor: Attachment,
   ): void => {
     const key = `${code}\0${slot}\0${name}`
     const owner = owners.get(key)
@@ -284,16 +287,20 @@ const conflictsOf = (
       owners.set(key, contributor)
       return
     }
-    if (owner === contributor) return
-    conflicts.push({ code, slot, name, contributors: [owner, contributor] })
+    conflicts.push({
+      code,
+      slot,
+      name,
+      orders: [owner.order, contributor.order],
+      contributors: [owner.name, contributor.name],
+    })
   }
   for (const attachment of attachments) {
     for (const slot of attachment.slots) {
       if (slot.events === 'unknown' || slot.attributes === 'unknown') continue
-      for (const event of slot.events)
-        claim('mixins:event-conflict', slot.slot, event, attachment.name)
+      for (const event of slot.events) claim('mixins:event-conflict', slot.slot, event, attachment)
       for (const attribute of slot.attributes) {
-        claim('mixins:attribute-conflict', slot.slot, attribute, attachment.name)
+        claim('mixins:attribute-conflict', slot.slot, attribute, attachment)
       }
     }
   }
@@ -350,6 +357,15 @@ const publicSlots = (slots: {
   return info
 }
 
+/** With a view, only a behavior it attaches supplies an obligation: a listed one is not drawn. */
+const suppliers = (source: AssemblySource): ReadonlyArray<NamedBehavior<any, any, any>> => {
+  const listed = source.behaviors ?? []
+  const view = source.view
+  if (view === undefined) return listed
+  const attached: ReadonlyArray<unknown> = view.mixins
+  return listed.filter(behavior => attached.includes(behavior.mixin))
+}
+
 export const describe = (source: AssemblySource): Description => {
   const slots = slotsOf(source)
   const attachments = attachmentsOf(source)
@@ -370,7 +386,7 @@ export const describe = (source: AssemblySource): Description => {
         : A11y.validate(
             source.pattern.pattern,
             patternSlots,
-            (source.behaviors ?? []).flatMap(behavior => A11y.suppliedBy(behavior)),
+            suppliers(source).flatMap(behavior => A11y.suppliedBy(behavior)),
           ),
     links: (source.links ?? []).map(linkOf),
     conflicts: conflictsOf(attachments),
@@ -399,7 +415,7 @@ const linesOf = (description: Description, indent: string): Array<string> => {
   }
   for (const conflict of description.conflicts) {
     lines.push(
-      `${indent}conflict ${conflict.slot} ${conflict.name} ${conflict.contributors[0]} ${conflict.contributors[1]}`,
+      `${indent}conflict ${conflict.slot} ${conflict.name} ${conflict.contributors[0]}#${conflict.orders[0]} ${conflict.contributors[1]}#${conflict.orders[1]}`,
     )
   }
   for (const diagnostic of description.patternDiagnostics) {

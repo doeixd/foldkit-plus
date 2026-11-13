@@ -80,10 +80,11 @@ test('a second click owner is named beside the first in the description the view
       code: 'mixins:event-conflict',
       slot: 'clear',
       name: 'click',
+      orders: [0, 1],
       contributors: ['Once', 'Twice'],
     },
   ])
   expect(JSON.stringify(searchInspectionView(description, h))).toContain(
-    'conflict clear click Once Twice',
+    'conflict clear click Once#0 Twice#1',
   )
 })

@@ -84,4 +84,23 @@ describe('Keyboard', () => {
       }).input.attrs(),
     ).toThrow(DiagnosticError)
   })
+
+  it('names the owner, and two owners on one slot still conflict', () => {
+    const plain = Behaviors.Keyboard.behavior(Fields)<Input, TestMessage>({
+      target: 'input',
+      routes,
+    })
+    const named = Behaviors.Keyboard.behavior(Fields)<Input, TestMessage>({
+      target: 'input',
+      name: 'Search keys',
+      routes,
+    })
+    expect([plain.name, named.name]).toEqual(['Keyboard', 'Search keys'])
+    expect(() =>
+      SlotView.buildersFor(Fields, [plain.mixin, named.mixin], {
+        input: { enabled: true },
+        h,
+      }).input.attrs(),
+    ).toThrow(DiagnosticError)
+  })
 })

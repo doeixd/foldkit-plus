@@ -17,4 +17,9 @@ export default [
     edits: [{ file, find: 'if (owner !== undefined) {', replace: 'if (false) {' }],
     tests,
   },
+  {
+    name: 'a keyboard owner ignores its name',
+    edits: [{ file, find: "name: options.name ?? 'Keyboard'", replace: "name: 'Keyboard'" }],
+    tests,
+  },
 ]

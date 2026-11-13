@@ -113,20 +113,22 @@ describe('Assembly', () => {
         code: 'mixins:event-conflict',
         slot: 'button',
         name: 'click',
+        orders: [0, 2],
         contributors: ['First', 'Second'],
       },
       {
         code: 'mixins:attribute-conflict',
         slot: 'button',
         name: 'arialabel',
+        orders: [0, 2],
         contributors: ['First', 'Second'],
       },
     ])
     expect(described.attachments[0]?.slots[0]?.events).toEqual(['click'])
     expect(described.attachments[0]?.slots[0]?.attributes).toEqual(['arialabel'])
     const text = Assembly.textOf(described)
-    expect(text).toContain('conflict button click First Second')
-    expect(text).toContain('conflict button arialabel First Second')
+    expect(text).toContain('conflict button click First#0 Second#2')
+    expect(text).toContain('conflict button arialabel First#0 Second#2')
     expect(text).not.toContain('SECRET-LABEL')
     expect(text).not.toContain('SECRET-OTHER')
     expect(JSON.stringify(described)).not.toContain('SECRET-LABEL')
@@ -229,14 +231,82 @@ describe('Assembly', () => {
     const view = SlotView.forMessages<TestMessage>().define(Options, () => {
       throw new Error('drawn')
     })
-    const held = Assembly.describe({ name: 'List', view, behaviors: [both], pattern })
+    const held = Assembly.describe({
+      name: 'List',
+      view: view.pipe(Behavior.attach(both)),
+      behaviors: [both],
+      pattern,
+    })
     expect(held.patternDiagnostics).toEqual([])
     expect(Assembly.textOf(held)).toContain('obligation list item focus')
-    const replaced = Assembly.describe({ name: 'List', view, behaviors: [arrows], pattern })
+    const replaced = Assembly.describe({
+      name: 'List',
+      view: view.pipe(Behavior.attach(arrows)),
+      behaviors: [arrows],
+      pattern,
+    })
     expect(replaced.patternDiagnostics.map(item => item.code)).toEqual([
       'a11y:unsatisfied-obligation',
     ])
     expect(replaced.patternDiagnostics[0]?.slot).toBe('item')
+  })
+
+  it('does not attribute an obligation to a behavior the view does not attach', () => {
+    const Options = Slots.define({
+      items: Slot.make({ capability: Capability.Container }),
+    })
+    const pattern = {
+      name: 'list',
+      pattern: A11y.pattern({ items: { obligations: ['navigation'] } }),
+    }
+    const Arrows = Behavior.forSlots(Options)<unknown, TestMessage>(
+      { items: Behavior.slot({ supplies: ['navigation'] }) },
+      { name: 'Arrows' },
+    )
+    const bare = SlotView.forMessages<TestMessage>().define(Options, () => {
+      throw new Error('drawn')
+    })
+    const listed = Assembly.describe({ name: 'List', view: bare, behaviors: [Arrows], pattern })
+    expect(listed.patternDiagnostics.map(item => item.code)).toEqual([
+      'a11y:unsatisfied-obligation',
+    ])
+    const attached = Assembly.describe({
+      name: 'List',
+      view: bare.pipe(Behavior.attach(Arrows)),
+      behaviors: [Arrows],
+      pattern,
+    })
+    expect(attached.patternDiagnostics).toEqual([])
+    const noView = Assembly.describe({
+      name: 'List',
+      slots: Options,
+      behaviors: [Arrows],
+      pattern,
+    })
+    expect(noView.patternDiagnostics).toEqual([])
+  })
+
+  it('tells two same-named attachments apart', () => {
+    const Twin = () =>
+      Behavior.forSlots(Fields)<Input, TestMessage>(
+        { button: Behavior.slot({ attributes: ({ h }) => [h.OnClick(clicked())] }) },
+        { name: 'Twin' },
+      )
+    const one = Twin()
+    const two = Twin()
+    const both = SlotView.forMessages<TestMessage>()
+      .define(Fields, (_input: Input, slots, h) => h.button(slots.button.attrs(), ['Go']))
+      .pipe(Behavior.attach(one), Behavior.attach(two))
+    const described = Assembly.describe({
+      name: 'Go',
+      view: both,
+      behaviors: [one, two],
+      input: { label: 'x' },
+    })
+    expect(described.conflicts.map(item => [item.name, item.orders, item.contributors])).toEqual([
+      ['click', [0, 1], ['Twin', 'Twin']],
+    ])
+    expect(Assembly.textOf(described)).toContain('conflict button click Twin#0 Twin#1')
   })
 
   it('orders a part style before its behavior when there is no view', () => {
