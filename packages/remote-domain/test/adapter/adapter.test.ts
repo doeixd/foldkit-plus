@@ -311,6 +311,29 @@ describe('rows of one key', () => {
     ])
   })
 
+  it('answers a late read with what its own principal was let read, never another’s row', async () => {
+    const late = await run(world =>
+      Effect.gen(function* () {
+        const client = yield* ShopApi.Client
+        yield* client.Transfer('p1', { ownerId: 'grace' })
+        yield* world.control.drain
+        yield* Ref.set(world.actor, Option.some('grace'))
+        const release = world.holdReply('ProductRow.snapshot')
+        const graces = yield* Effect.forkChild(readP1)
+        yield* Effect.sleep('20 millis')
+        yield* client.Transfer('p1', { ownerId: 'ada' })
+        yield* client.Touch('p1', { note: 'ada’s now' })
+        yield* world.control.drain
+        yield* Ref.set(world.actor, Option.some('ada'))
+        yield* readP1
+        yield* Ref.set(world.actor, Option.some('grace'))
+        yield* release
+        return yield* Fiber.join(graces)
+      }),
+    )
+    expect(late.entities[0]?.values).toMatchObject({ ownerId: 'grace', note: '', revision: 2 })
+  })
+
   it('reads a row validate hides as absent', async () => {
     const result = await run(world =>
       Effect.gen(function* () {

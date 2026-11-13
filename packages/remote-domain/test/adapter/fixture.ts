@@ -27,6 +27,10 @@ export class Touched extends Domain.Event('Touched', {
   note: Schema.String,
   revision: Schema.Int,
 }) {}
+export class Transferred extends Domain.Event('Transferred', {
+  ownerId: Schema.String,
+  revision: Schema.Int,
+}) {}
 export class ReservedChanged extends Domain.Event('ReservedChanged', {
   reserved: Schema.Int,
 }) {}
@@ -76,6 +80,13 @@ export class Touch extends Domain.Command('Touch', {
   events: [Touched],
 }) {}
 
+/** Gives the product to another owner, who alone reads it from then on. */
+export class Transfer extends Domain.Command('Transfer', {
+  target: Schema.String,
+  input: { ownerId: Schema.String },
+  events: [Transferred],
+}) {}
+
 export class Product extends Domain.Aggregate('Product', {
   id: Schema.String,
   state: Schema.Struct({
@@ -86,7 +97,7 @@ export class Product extends Domain.Aggregate('Product', {
     revision: Schema.Int,
   }),
   initial: { ownerId: '', stock: 0, reserved: 0, note: '', revision: 0 },
-  commands: [Seed, ReserveStock, Touch],
+  commands: [Seed, ReserveStock, Touch, Transfer],
   decide: {
     Seed: (_, command) => [new Seeded({ ownerId: command.ownerId, stock: command.stock })],
     ReserveStock: Effect.fn(function* (state, command) {
@@ -104,6 +115,9 @@ export class Product extends Domain.Aggregate('Product', {
       ]
     }),
     Touch: (state, command) => [new Touched({ note: command.note, revision: state.revision + 1 })],
+    Transfer: (state, command) => [
+      new Transferred({ ownerId: command.ownerId, revision: state.revision + 1 }),
+    ],
   },
   evolve: {
     Seeded: (state, event) => ({
@@ -118,6 +132,7 @@ export class Product extends Domain.Aggregate('Product', {
       revision: event.revision,
     }),
     Touched: (state, event) => ({ ...state, note: event.note, revision: event.revision }),
+    Transferred: (state, event) => ({ ...state, ownerId: event.ownerId, revision: event.revision }),
   },
   reply: { ReserveStock: state => ({ reserved: state.reserved, revision: state.revision }) },
 }) {}
@@ -144,6 +159,7 @@ export class ProductRow extends Domain.View('ProductRow', {
       revision: event.revision,
     }),
     Touched: (row, event) => ({ ...row, note: event.note, revision: event.revision }),
+    Transferred: (row, event) => ({ ...row, ownerId: event.ownerId, revision: event.revision }),
   },
   emit: {
     StockReserved: event => new ReservedChanged({ reserved: event.reservedAfter }),
@@ -167,7 +183,7 @@ export class Shop extends Domain.Model('Shop', {
 
 export class ShopApi extends Domain.Api('ShopApi', {
   model: Shop,
-  commands: ['Seed', 'ReserveStock', 'Touch'],
+  commands: ['Seed', 'ReserveStock', 'Touch', 'Transfer'],
   views: ['ProductRow'],
 }) {}
 

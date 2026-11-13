@@ -79,9 +79,9 @@ export default [
     edits: [
       {
         file,
-        find: 'onSome: view => confirm(view, target, floor),',
+        find: 'onSome: view => confirm(view, target, floor, asking),',
         replace:
-          "onSome: view => Effect.flatMap(confirm(view, target, floor), Option.match({ onNone: () => Effect.fail(new RemoteUnreachable({ message: 'behind' })), onSome: Effect.succeedSome })),",
+          "onSome: view => Effect.flatMap(confirm(view, target, floor, asking), Option.match({ onNone: () => Effect.fail(new RemoteUnreachable({ message: 'behind' })), onSome: Effect.succeedSome })),",
       },
     ],
     tests,
@@ -135,6 +135,17 @@ export default [
         file: '../../src/adapter/binding.ts',
         find: 'if (given.written !== undefined) checkWritten(entity, mutation.name)',
         replace: 'if (false) checkWritten(entity, mutation.name)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'rows let through are shared between principals',
+    edits: [
+      {
+        file,
+        find: 'const key = JSON.stringify([asking, binding.entity.name, id])',
+        replace: 'const key = JSON.stringify([binding.entity.name, id])',
       },
     ],
     tests,

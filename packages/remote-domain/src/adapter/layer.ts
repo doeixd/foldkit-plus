@@ -29,7 +29,14 @@ import {
   type LiveEvent,
 } from 'foldkit-remote'
 import type { Receipt } from '../index.js'
-import type { AnyApi, CommandBinding, Outcome, ViewBinding, ViewsOf } from './binding.js'
+import {
+  fail,
+  type AnyApi,
+  type CommandBinding,
+  type Outcome,
+  type ViewBinding,
+  type ViewsOf,
+} from './binding.js'
 
 /** A write that committed whose View read is not yet confirmed. */
 export interface PendingRead {
@@ -113,6 +120,12 @@ const failureOf =
 
 const keyOf = (entity: string, id: string) => `${entity}:${id}`
 
+/** How many commands' receipts the adapter keeps to answer a retry without sending it. */
+const MAX_COMMITTED = 1024
+
+/** Who asks, as results name them: their key, `null` for a visitor. */
+type Principal = string | null
+
 /** A codec as the adapter runs it: the mutation's and the Entity's need no services. */
 type Codec = Schema.Codec<unknown, unknown>
 
@@ -179,9 +192,11 @@ export const layer = <A extends AnyApi>(
        * A deleted row carries no revision: it is let through, and the
        * revision it was deleted at still orders what comes after.
        */
-      const admit = (binding: ViewBinding, id: string, snapshot: Snapshot) =>
+      const admit = (binding: ViewBinding, id: string, snapshot: Snapshot, asking: Principal) =>
         Effect.gen(function* () {
-          const key = keyOf(binding.entity.name, id)
+          // Per principal: a row one caller was let through is no answer to another, whom
+          // the View may no longer let read it.
+          const key = JSON.stringify([asking, binding.entity.name, id])
           const held = Option.fromUndefinedOr(accepted.get(key))
           if (snapshot.state === null) {
             const revision = Option.match(held, {
@@ -218,13 +233,13 @@ export const layer = <A extends AnyApi>(
        * Reads the key at its floor, admits what answers and clears the floor.
        * None when the View has not caught up, or the read failed.
        */
-      const confirm = (binding: ViewBinding, id: string, floor: PendingRead) =>
+      const confirm = (binding: ViewBinding, id: string, floor: PendingRead, asking: Principal) =>
         snapshotAt(binding, id, Option.some(floor.receipt)).pipe(
           Effect.flatMap(
             Option.match({
               onNone: () => Effect.succeedNone,
               onSome: snapshot =>
-                Effect.map(admit(binding, id, snapshot), admission => {
+                Effect.map(admit(binding, id, snapshot, asking), admission => {
                   confirmed(binding, id, floor.receipt)
                   return Option.some(admission)
                 }),
@@ -279,6 +294,7 @@ export const layer = <A extends AnyApi>(
               expected: REMOTE_PROTOCOL_VERSION,
               received: batch.version,
             })
+          const asking = yield* principalKey
           const answers = yield* Effect.forEach(
             batch.requests,
             request =>
@@ -316,8 +332,8 @@ export const layer = <A extends AnyApi>(
                   onSome: Effect.succeed,
                 })
                 if (snapshot.state === null) return Option.none()
-                const { row } = yield* admit(binding, request.id, snapshot)
-                Option.map(floor, ({ receipt }) => confirmed(binding, request.id, receipt))
+                const { row } = yield* admit(binding, request.id, snapshot, asking)
+                if (Option.isSome(floor)) confirmed(binding, request.id, floor.value.receipt)
                 if (row === null) return Option.none()
                 return Option.some(
                   Object.assign(yield* encodeRow(binding.entity, request.id, row, request.fields), {
@@ -341,7 +357,7 @@ export const layer = <A extends AnyApi>(
                 id: request.id,
                 fields: lacking,
               })),
-            principal: yield* principalKey,
+            principal: asking,
           }
         })
 
@@ -356,9 +372,7 @@ export const layer = <A extends AnyApi>(
       const outcomeError = (binding: CommandBinding, rejection: { readonly _tag: string }) => {
         const mapped = binding.refusals.get(rejection._tag)
         const outcome: Outcome<unknown> =
-          mapped === undefined
-            ? { _tag: 'Fail', message: `${binding.command} refused it` }
-            : mapped(rejection)
+          mapped === undefined ? fail(`${binding.command} refused it`) : mapped(rejection)
         return Match.valueTags(outcome, {
           Refuse: ({ refusal }) =>
             Schema.encodeUnknownEffect(binding.mutation.Refusal as Codec)(refusal).pipe(
@@ -401,6 +415,8 @@ export const layer = <A extends AnyApi>(
               Effect.map(({ reply, stream, version }) => {
                 const record = { receipt: { stream, version }, reply }
                 committed.set(commandId, record)
+                // The oldest goes first: Domain answers a resent commandId from its own record (P7).
+                if (committed.size > MAX_COMMITTED) committed.delete(committed.keys().next().value!)
                 return record
               }),
             ),
@@ -469,7 +485,7 @@ export const layer = <A extends AnyApi>(
           const bound = Option.fromUndefinedOr(views.get(binding.entity.name))
           const confirmation = yield* Option.match(bound, {
             onNone: () => Effect.succeedNone,
-            onSome: view => confirm(view, target, floor),
+            onSome: view => confirm(view, target, floor, asking),
           })
           const entity = binding.entity
           // The write committed and its View is behind: what it wrote is what the reply says (D6).
@@ -521,6 +537,7 @@ export const layer = <A extends AnyApi>(
               return yield* new RemoteLiveError({
                 message: 'A Domain Api serves no live lists yet',
               })
+            const asking = yield* principalKey
             const watched = yield* Effect.forEach(request.requirements, requirement =>
               Effect.gen(function* () {
                 const binding = yield* viewOf(requirement.entity).pipe(
@@ -582,8 +599,8 @@ export const layer = <A extends AnyApi>(
                         // While a write is unconfirmed a frame is only a signal: read at its floor.
                         const admission =
                           floor === undefined
-                            ? Option.some(yield* admit(binding, requirement.id, snapshot))
-                            : yield* confirm(binding, requirement.id, floor)
+                            ? Option.some(yield* admit(binding, requirement.id, snapshot, asking))
+                            : yield* confirm(binding, requirement.id, floor, asking)
                         return yield* Option.match(admission, {
                           onNone: () => Effect.succeedNone,
                           onSome: admitted =>
@@ -627,7 +644,7 @@ export const layer = <A extends AnyApi>(
             if (floor === undefined) return true
             const binding = views.get(entity.name)
             if (binding === undefined) return false
-            return Option.isSome(yield* confirm(binding, id, floor))
+            return Option.isSome(yield* confirm(binding, id, floor, yield* principalKey))
           }),
       })
 
