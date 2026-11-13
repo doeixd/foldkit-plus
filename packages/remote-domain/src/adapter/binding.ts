@@ -1,11 +1,13 @@
 /**
  * The bindings that tie a Domain Api to Remote's declarations: a View to the
- * Entity it serves, a command to the mutation it lands. Only types: every name
- * and key is checked against the Api's and the Entity's own.
+ * Entity it serves, a command to the mutation it lands. Every name and key is
+ * checked against the Api's and the Entity's own, by type where it is written
+ * and again where the binding is made.
  */
 import type * as Domain from '@alchemy.run/domain'
-import type { Option, Schema } from 'effect'
+import { Option, Schema, SchemaAST } from 'effect'
 import type { AnyEntity, AnyWrite } from 'foldkit-entity'
+import { Guards, type AnyRule } from 'foldkit-guard'
 import type { MutationDescriptor } from 'foldkit-remote'
 
 /** Any Domain Api, by the parts the adapter reads. */
@@ -99,6 +101,8 @@ export interface ViewBinding<E extends AnyEntity = AnyEntity, A extends AnyApi =
   readonly view: ViewNameOf<A>
   /** The field every event moves: the order of two snapshots of one key. */
   readonly revision: RevisionKey<E>
+  /** What the View's `validate` refuses a read with: the row is absent to who asks. */
+  readonly rejections: ReadonlyArray<Domain.Rejection.Any>
 }
 
 /** What `DomainRemote.view` takes besides the Entity, the Api and the View's name. */
@@ -156,7 +160,8 @@ export interface CommandBinding<M extends AnyMutation = AnyMutation, A extends A
   readonly entity: AnyEntity
   readonly target: (input: unknown) => string
   readonly input: (input: unknown) => unknown
-  /** Each Rejection the command declares, by tag. */
+  /** Each Rejection the command declares, and how it reaches Remote, by tag. */
+  readonly rejections: ReadonlyArray<Domain.Rejection.Any>
   readonly refusals: ReadonlyMap<string, (rejection: unknown) => Outcome<unknown>>
   readonly written: Option.Option<
     (reply: unknown, input: unknown) => Readonly<Record<string, unknown>>
@@ -169,3 +174,140 @@ export type EntityOfMutation<M extends AnyMutation, Given extends AnyEntity> = [
 ] extends [never]
   ? Given
   : WrittenEntity<M>
+
+// ---------------------------------------------------------------- constructors
+
+const fail_ = (message: string): never => {
+  throw new Error(`[foldkit-remote-domain] ${message}`)
+}
+
+/** The Entity's own id field, which a View keys rather than holds. */
+const ID = 'id'
+
+/** The fields a View's state declares, or none when its state is no struct. */
+const stateFieldsOf = (view: Domain.View.Any): Option.Option<Readonly<Record<string, unknown>>> => {
+  const state = view.definition.state
+  return state !== undefined && SchemaAST.isObjects(state.ast)
+    ? Option.some(Object.fromEntries(state.ast.propertySignatures.map(each => [each.name, true])))
+    : Option.none()
+}
+
+/**
+ * Binds a View to the Entity whose rows it serves. Throws, naming it, for a
+ * View the Api does not serve, an Entity field its state lacks, or a
+ * `revision` the Entity does not store as a number.
+ */
+export const view = <E extends AnyEntity, A extends AnyApi, const Name extends ViewNameOf<A>>(
+  entity: E,
+  api: A,
+  name: Name,
+  config: ViewConfig<E>,
+): ViewBinding<E, A> => {
+  const served = api.serves.find(
+    (each): each is Domain.View.Any => each.kind === 'View' && each.viewName === name,
+  )
+  if (served === undefined) return fail_(`${api.apiName} serves no View named ${name}`)
+  const state = Option.getOrElse(stateFieldsOf(served), () =>
+    fail_(`${name} has no state of fields to read ${entity.name} from`),
+  )
+  for (const field of Object.keys(entity.fields)) {
+    if (field !== ID && !Object.hasOwn(state, field))
+      fail_(`${name}'s state has no field ${field}, which ${entity.name} declares`)
+  }
+  const revision = config.revision as string
+  const field: { readonly schema: Schema.Top } | undefined = Object.hasOwn(entity.fields, revision)
+    ? entity.fields[revision]
+    : undefined
+  const stored = field === undefined ? undefined : Schema.toEncoded(field.schema).ast
+  if (stored === undefined || !SchemaAST.isNumber(stored))
+    fail_(`${entity.name}'s revision ${revision} is not a field stored as a number`)
+  return Object.freeze({
+    entity,
+    api,
+    view: name,
+    revision: config.revision,
+    rejections: served.definition.rejects ?? [],
+  })
+}
+
+/** The rules a surface of the row carries, where they restrict who passes. */
+const rowRules = (entity: AnyEntity, interaction: string): Option.Option<ReadonlyArray<AnyRule>> =>
+  Option.flatMap(Guards.attached(entity), attachment =>
+    Option.filter(
+      Option.fromUndefinedOr(attachment.row[interaction]?.rules),
+      rules => !rules.some(rule => rule._tag === 'All' && rule.rules.length === 0),
+    ),
+  )
+
+/**
+ * Refuses `written` where a reply could show who may write a row what they
+ * may not read: a Read rule of the row the Update rules do not imply (each
+ * Update rule is one of the Read rules), or a Read rule on a member.
+ */
+const checkWritten = (entity: AnyEntity, mutation: string): void => {
+  const refuse = (why: string) =>
+    fail_(`${mutation} cannot answer with its reply: ${why}. Read ${entity.name} through its View`)
+  Option.map(rowRules(entity, 'Read'), read => {
+    const update = Option.getOrElse(rowRules(entity, 'Update'), () => [])
+    if (update.length === 0 || !update.every(rule => read.includes(rule)))
+      refuse(`${entity.name} has a Read rule its Update rules do not imply`)
+  })
+  Option.map(Guards.attached(entity), attachment => {
+    for (const [member, surfaces] of Object.entries(attachment.members)) {
+      if (surfaces['Read'] !== undefined) refuse(`${entity.name}.${member} has a Read rule`)
+    }
+  })
+}
+
+/**
+ * Binds a command to the mutation it lands. Throws, naming it, for a command
+ * the Api does not serve, and for `written` on an Entity whose reader may not
+ * be every writer.
+ */
+export const command = <
+  M extends AnyMutation,
+  A extends AnyApi,
+  const Name extends CommandNameOf<A>,
+  Given extends AnyEntity = never,
+>(
+  mutation: M,
+  api: A,
+  name: Name,
+  config: CommandConfig<M, CommandOf<A, Name>, EntityOfMutation<M, Given>>,
+): CommandBinding<M, A> => {
+  const served = api.commands.find(each => each.tag === name)
+  if (served === undefined) return fail_(`${api.apiName} serves no command named ${name}`)
+  const given = config as {
+    readonly entity?: AnyEntity
+    readonly refusals?: Readonly<Record<string, (rejection: unknown) => Outcome<unknown>>>
+    readonly written?: (reply: unknown, input: unknown) => Readonly<Record<string, unknown>>
+  }
+  const entity =
+    mutation.write?.input.entity ??
+    given.entity ??
+    fail_(`${mutation.name} is no declared write, so its binding names the Entity it writes`)
+  if (given.written !== undefined) checkWritten(entity, mutation.name)
+  return Object.freeze({
+    mutation,
+    api,
+    command: name,
+    entity,
+    target: config.target as (input: unknown) => string,
+    input: config.input as (input: unknown) => unknown,
+    rejections: served.rejects,
+    refusals: new Map(Object.entries(given.refusals ?? {})),
+    written: Option.fromUndefinedOr(given.written),
+  })
+}
+
+/** Answers a Rejection as the mutation's own `Refusal`. */
+export const refuse = <const R>(refusal: R): Refuse<R> => ({ _tag: 'Refuse', refusal })
+
+/** Answers a Rejection as `RemoteForbidden`, with words for who asked when given. */
+export const forbid = (reason?: string): Forbid => ({
+  _tag: 'Forbid',
+  reason: Option.fromUndefinedOr(reason),
+})
+
+/** Answers a Rejection as a `RemoteMutationError` with no refusal to match on. */
+export const fail = (message: string): Fail => ({ _tag: 'Fail', message })
