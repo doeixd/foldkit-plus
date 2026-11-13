@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-remote-server`: `RemoteServer.memoryWriter(store, entity, { operators? })`,
+  the `EntityWriter` for a memory backend's rows: a declared write lands over them
+  as `foldkit-remote-drizzle`'s writer lands it over a table (revision, `when`,
+  increments, computed fields, invariants, a taken id), each refusal the
+  mutation's own. It holds no ledger and judges no rule reading another row.
 - `foldkit-remote/testing`: `Walk.run` runs seeded random walks of Messages over
   a list of named starts and checks a law after every step (it may be
   asynchronous, so a walk can go through a writer); `Walk.cases` requires a

@@ -1146,6 +1146,12 @@ const inProcess = Remote.clientLayer(handlers)            // tests/SSR/worker
 // No server yet: RemoteServer.memory({ domain: Data, rows: { Project: [...] } }).layer.
 // Rows in wire shape (a relation is 'User:u1'); Query.define bodies run over them;
 // mutations: store => [...] write through store.write. No live.
+// A declared write over the rows: mutations: store => [RemoteServer.write(Reserve,
+//   RemoteServer.memoryWriter(store, Stock, { operators }))] decides what the Drizzle writer
+// decides (expect, when, increments, computed fields over the row before, invariants, a
+// taken id), refused as Conflict, Unmet, Invalid or Taken. It holds no ledger and judges no
+// rule reading another row, nor cascades, restricts or clears: RemoteServer.write and
+// GuardServer.writer refuse, by name, what needs one where it is served.
 // authorize: { Project: (principal: Principal, fields) => ... } plus principal: the layer's.
 // filter: { Project: (principal, fields) => Effect<{ fields, apply }> } decides per record;
 // readable: (principal, row) => Effect<(entity, values) => boolean> hides rows from reads,
