@@ -10,6 +10,7 @@ import * as Submodel from 'foldkit/submodel'
 import type { HtmlBuilder } from 'foldkit/html'
 import { Bundle } from 'foldkit-bundle'
 import {
+  Assembly,
   Attr,
   Behavior,
   Behaviors,
@@ -20,7 +21,7 @@ import {
   SlotView,
   Style,
 } from 'foldkit-mixins'
-import { Input, InputSlots, Recipes } from 'foldkit-mixins-ui'
+import { Input, InputSlots, Patterns, Recipes } from 'foldkit-mixins-ui'
 
 export const SearchModel = Schema.Struct({
   id: Schema.String,
@@ -46,7 +47,7 @@ export const SearchSlots = Slots.define({
 
 // The input's shipped recipe is extended, not copied; the child owns its slots.
 const SearchInputRecipe = Recipes.Input.extend({ base: { input: Style.class('search-input') } })
-const SearchInputStyle = Style.forSlots(InputSlots)(SearchInputRecipe({}))
+const SearchInputStyle = Style.forSlots(InputSlots)(SearchInputRecipe({}), { name: 'SearchInput' })
 const ClearLabel = Behavior.forSlots(SearchSlots)<SearchModel, SearchMessage>(
   {
     clear: Behavior.slot({
@@ -144,3 +145,27 @@ export const view = (model: Model, h: HtmlBuilder<Message>) =>
       h.section([h.Id('second')], [second.view(model, h)]),
     ],
   )
+
+/** The search field's slots, recipe, behaviors, and input pattern. One value for a document and a diagnostic. */
+export const searchInspection = (input?: SearchModel): Assembly.Description =>
+  Assembly.describe({
+    name: 'Search',
+    view: SearchView,
+    behaviors: [ClearLabel],
+    links: [{ kind: 'bundle', name: 'Search' }],
+    parts: [
+      {
+        name: 'Input',
+        slots: InputSlots,
+        styles: [SearchInputStyle],
+        behaviors: [SearchKeys],
+        pattern: { name: 'input', pattern: Patterns.Input },
+        ...(input === undefined ? {} : { input }),
+      },
+    ],
+    ...(input === undefined ? {} : { input }),
+  })
+
+/** Draws a description. It does not walk the widget again. */
+export const searchInspectionView = (description: Assembly.Description, h: HtmlBuilder<Message>) =>
+  h.pre([h.Id('search-inspection')], [Assembly.textOf(description)])
