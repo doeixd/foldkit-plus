@@ -4,8 +4,9 @@
  * choice is that one property on the root element: `'system'` leaves the
  * stylesheet's `light dark`, and the browser follows the operating system.
  */
-import { Effect } from 'effect'
+import { Effect, Option, Stream } from 'effect'
 import { scriptLiteral } from './scriptLiteral.js'
+import { storageChanges } from './storageChanges.js'
 
 /** What a reader may choose: a scheme, or the operating system's. */
 export type Scheme = 'light' | 'dark' | 'system'
@@ -13,7 +14,7 @@ export type Scheme = 'light' | 'dark' | 'system'
 /** The storage key a chosen scheme is kept under, unless one is given. */
 export const SCHEME_KEY = 'foldkit:color-scheme'
 
-const stored = (value: string | null): value is 'light' | 'dark' =>
+const stored = (value: string | null | undefined): value is 'light' | 'dark' =>
   value === 'light' || value === 'dark'
 
 /**
@@ -49,3 +50,37 @@ export const chooseScheme = (scheme: Scheme, key: string = SCHEME_KEY): Effect.E
       // Storage refused (a private window, a full quota): this visit keeps it.
     }
   })
+
+/**
+ * The scheme another tab chose, each time it does: what its `chooseScheme`
+ * kept under `key`, with a removed key or anything else read as `'system'`,
+ * as `schemeScript` reads it. For a Subscription whose Message the
+ * application's `update` stores and answers with `chooseScheme`: this tab's
+ * Model owns the choice, so the stream applies nothing itself.
+ */
+export const schemeChanges = (key: string = SCHEME_KEY): Stream.Stream<Scheme> =>
+  storageChanges(key).pipe(Stream.map(value => (stored(value) ? value : 'system')))
+
+/**
+ * The response headers that make a browser send `Sec-CH-Prefers-Color-Scheme`
+ * from its first request: `Accept-CH` opts in, `Critical-CH` has the browser
+ * retry the first request with the hint, and `Vary` keeps a cache from serving
+ * one scheme's page to the other.
+ */
+export const COLOR_SCHEME_HINT_HEADERS = {
+  'Accept-CH': 'Sec-CH-Prefers-Color-Scheme',
+  'Critical-CH': 'Sec-CH-Prefers-Color-Scheme',
+  Vary: 'Sec-CH-Prefers-Color-Scheme',
+} as const
+
+/**
+ * The scheme a `Sec-CH-Prefers-Color-Scheme` request header reports, for a
+ * server that builds the Model per request, or none for an absent or unknown
+ * value. The hint is a quoted string (`"dark"`); an unquoted one is read too.
+ */
+export const schemeOfHint = (
+  header: string | null | undefined,
+): Option.Option<'light' | 'dark'> => {
+  const value = header?.trim().replace(/^"(.*)"$/, '$1')
+  return stored(value) ? Option.some(value) : Option.none()
+}
