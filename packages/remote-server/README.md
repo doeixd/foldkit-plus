@@ -1150,7 +1150,7 @@ import { Entity, Expr, Write } from 'foldkit-entity'
 import { Mutation, Remote } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 
-const Stock = Entity.make(
+const Stock = Entity.define(
   'Stock',
   Schema.Struct({
     id: Schema.String,
@@ -1207,6 +1207,15 @@ delete takes, keeps or clears with it. `RemoteServer.write` refuses, by name,
 a write that needs one (an increment with no `expect` needs a ledger), and so
 does `GuardServer.writer` for a rule reading another row, where each is
 served, rather than landing what the database would refuse.
+
+<!-- docs-check standalone
+import { Effect } from 'effect'
+import { RemoteServer, type ServerDefinition } from 'foldkit-remote-server'
+
+type Principal = { readonly isAdmin: boolean }
+declare const Server: ServerDefinition<Principal>
+const handlers = RemoteServer.handlers(Server, { isAdmin: false })
+-->
 
 ## Over a MessagePort
 
