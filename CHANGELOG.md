@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-sync`: a document's laws. `forApplication(...).make({ laws })` takes
+  `{ holds({ before, after }), message, path? }` per id, typed over the shared
+  fields alone; the journal judges each operation's resulting snapshot and
+  refuses one that breaks a law as `SyncRefusal.Invalid` with the law's id as
+  `rule`, which `Sync.isInvalidBy(refusal, contract.laws.id)` matches.
+  `appendAsServer` and reactions are judged too (a reaction's refused append
+  parks at once), and `replica.submit` fails with `LawBrokenError` before the
+  outbox. The contract gives back `laws` and `judge(before, after)`, an audit
+  of stored snapshots. `foldkit-durable`: `JournalOptions.judge`, run after
+  `reduce`; a broken law is an `OperationRejectedError` with `rule` and `path`.
 - `foldkit-remote-server`: `RemoteServer.memoryWriter(store, entity, { operators? })`,
   the `EntityWriter` for a memory backend's rows: a declared write lands over them
   as `foldkit-remote-drizzle`'s writer lands it over a table (revision, `when`,

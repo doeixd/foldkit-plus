@@ -341,25 +341,33 @@ drawing the boundary:
 The journal runs `validate` and then `authorize` for each operation inside the
 commit, and hands both the same request: the document's `key`, the `principal`,
 the incoming `operation`, the document's authoritative `snapshot`, and (to
-`validate`) its `cursor`. Nothing else is in reach: the request carries no other
-document, table, or service, and both run while the write lock is held, so they
-must stay local to the snapshot (on D1, which has no lock, they see the latest
-committed snapshot and a concurrent commit retries). The order is per document too: each
-key counts its own sequence from `cursor + 1`, so two documents have no order
-between them.
+`validate`) its `cursor`. After `reduce` it runs the contract's **laws** over
+the snapshot the operation leaves. Nothing else is in reach: no request carries
+another document, table, or service, and all three run while the write lock is
+held, so they must stay local to the snapshot (on D1, which has no lock, they
+see the latest committed snapshot, and a commit that loses a race reads,
+reduces and judges again over the one it lands on). The order is per document
+too: each key counts its own sequence from `cursor + 1`, so two documents have
+no order between them.
 
 When a rule refuses, the operation is *rejected by its id*: the replica drops
 it, replays what remains, and the field reverts, as in
-[section 4](#4-what-the-user-sees-and-what-waits-for-the-server). Use
-`authorize` for a rule a person should read about, because its `reason`
-reaches the replica as a `Forbidden` refusal's; a `validate` refusal arrives as
-an `Invalid` one whose message is the fixed sentence "Not a valid operation". An operation that names another document is rejected the
-same way before the journal sees it.
+[section 4](#4-what-the-user-sees-and-what-waits-for-the-server). Which hook a
+rule belongs in follows from what it is about:
+
+| A rule about | Hook | Arrives as |
+| --- | --- | --- |
+| what the document must always be (a cap, an order, a total) | a law, in `laws` | `Invalid`, with the law's id as `rule` and its `message` |
+| who may make the change | `authorize` | `Forbidden`, with the rule's `reason` |
+| the operation's own shape | `validate` | `Invalid`, with the fixed sentence "Not a valid operation" |
+
+An operation that names another document is rejected the same way before the
+journal sees it.
 
 ### A rule that fits: at most 100 todos
 
 The todo list is one document, so a cap on its length is a function of its
-snapshot. `shared` is the snapshot, and `authorize` sees it:
+snapshot: a law over `shared`.
 
 ```ts
 const CappedTodoSync = forApplication(App)
@@ -368,26 +376,52 @@ const CappedTodoSync = forApplication(App)
     documentId: DocumentId.make('todos-capped'),
     shared: Projection.pick(App.model.todos),
     durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
-    authorize: {
-      CreatedTodo: ({ shared }) =>
-        shared.todos.length < 100 ? true : { allowed: false, reason: 'A list holds 100 todos' },
+    laws: {
+      atMost100Todos: {
+        holds: ({ after }) => after.todos.length <= 100,
+        message: 'A list holds 100 todos',
+        path: ['todos'],
+      },
     },
   })
 ```
 
+A law judges what an operation leaves, not which Message made it: a
+`DuplicatedTodo` added to `durable` later is refused at 100 as `CreatedTodo`
+is, with no rule of its own, where an `authorize` rule per Message would have
+to be written again for each new way to grow the list. `holds` is typed over the shared fields, so a law
+that reads a local one does not compile.
+
 Two devices that each add the hundredth todo cannot both succeed: the server
 commits one first, judges the other against the snapshot that now holds it, and
-rejects it with that reason. The rule holds because the count and the write are
-in the same document, committed in one order.
+rejects it as `Invalid`, which `Sync.isInvalidBy(refusal,
+CappedTodoSync.laws.atMost100Todos)` matches. The rule holds because the count
+and the write are in the same document, committed in one order. Each device's
+`submit` judges its own edit too, over what it holds, and fails with
+`LawBrokenError` before the outbox when the edit already breaks the law there;
+that is a hint, since what it holds may include edits the server refuses.
+
+A law is strict: it judges the snapshot an operation leaves, whatever the one
+before held. Adding one to documents that already break it refuses every
+operation that leaves them broken, a removal that stops at 101 included, until
+one repairs it. To let such a document shrink toward the cap, write the law
+over `before` as well:
+
+```ts sketch
+holds: ({ before, after }) => after.todos.length <= Math.max(100, before.todos.length)
+```
+
+and before the deploy, run `CappedTodoSync.judge(snapshot, snapshot)` over the
+stored snapshots to find the documents it would refuse.
 
 ### A rule that does not fit: unique usernames
 
 Suppose each user is a document (`user-ada`, `user-grace`), and a username must
 be unique across users. When Ada's document commits `ChoseUsername('ada')`,
-`validate` and `authorize` see Ada's snapshot only. Grace's document, committing
+`validate`, `authorize` and the laws see Ada's snapshot only. Grace's document, committing
 the same name at the same moment, is judged against Grace's snapshot. Each
 passes, and nothing in either journal can notice the other. This is not a gap to
-close with a cleverer `validate`: it has no handle on a second document. Give
+close with a cleverer `validate` or law: neither has a handle on a second document. Give
 the rule an owner that sees every name:
 
 | Choice | Owner of the rule | Use it when |
@@ -427,8 +461,9 @@ cleanup.
 Ask of each rule: what has to be read to judge it?
 
 - **One document's state** (a cap, a unique title inside one list, "only the
-  owner may rename"): keep the facts it reads in one document, and write it in
-  `authorize`.
+  owner may rename"): keep the facts it reads in one document, and write it as
+  a law when it is about what the document is (the cap, the unique title), or
+  in `authorize` when it is about who may change it (the owner).
 - **Facts that change together and are judged together**: one document, so a
   single order decides them. Splitting them means a rule across the split, and
   the table above.
