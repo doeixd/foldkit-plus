@@ -124,4 +124,17 @@ Ideas for the catalog once the fixes above land:
 
 | Finding | Status |
 | --- | --- |
-| F1 to F8, D1 to D7, P1 to P6 | open |
+| F1, F2, F3 (`Assembly.describe`, tag check) | fixed: `a2d183480`, `5b65c31d0` |
+| F4 (`Selection.Replaced` throws) | fixed: `611dbea23` |
+| F5, F6, D3 (`Agent.Ui`) | fixed: `139ea314f`, `de2d69b7a` |
+| F7 (`MessageScroller` guards) | fixed: `3c9481896` |
+| F8 (`Leaving` release) | fixed: `0083634f7` |
+| D2 (one obligation entry point), D7 (keyboard name) | fixed: `9d6923eb7`, `a2d183480` |
+| D1 (obligations read by nothing shipped) | in progress: catalog support lists and gate |
+| D4 (`Leaving` has no shipped consumer) | open. The overlay audit (`ff38a9027`) found no shipped widget exits through `Presence`; the Dialog gets its own fix |
+| D5, D6 (fixtures) | in progress |
+| P1 (deferrals) | in progress. Built so far: file-manager ranges (`611dbea23`), `GridNavigation` paging (`c4fbf89df`), pinch guard (`312813a9e`), cross-tab themes and the scheme hint (`5442a9741`), tree checked values (`b95e94e73`) |
+| P2, P3 | in progress: `docs/design/ui-catalog-review-FINDINGS.md` |
+| P4 (changelog) | fixed: `8bb31bd6d` |
+| P5 (issue hygiene) | open until the work lands |
+| P6 | partly fixed: `139ea314f` (the test cast) |
