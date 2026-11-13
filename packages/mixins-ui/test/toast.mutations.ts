@@ -220,4 +220,20 @@ export default [
     ],
     tests: unit,
   },
+  {
+    name: 'the entries are not focus recovery parts',
+    edits: [{ file, find: '...FocusRecovery.part(h),', replace: '' }],
+    tests: browser,
+  },
+  {
+    name: 'keepFocus mounts nothing',
+    edits: [
+      {
+        file,
+        find: "FocusRecovery.behavior(ToastSlots)<unknown, never>({ container: 'container' }).mixin,",
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
 ]

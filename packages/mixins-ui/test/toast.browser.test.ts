@@ -22,7 +22,7 @@ import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { cdp, userEvent } from 'vitest/browser'
-import { Recipes, Toast, ToastSlots } from '../src/index.js'
+import { Recipes, Toast, ToastSlots, type MixinList } from '../src/index.js'
 import { unitKnobs } from './fixture.js'
 
 // At unit knobs: what is measured here is the scale's nominal size or time.
@@ -55,7 +55,11 @@ afterEach(async () => {
  * The stack, and a button for each Message of `script` by its name, which
  * `send` presses: a test speaks to the runtime as a page does.
  */
-const mount = (options: Toast.InitOptions, script: Readonly<Record<string, Message>>) => {
+const mount = (
+  options: Toast.InitOptions,
+  script: Readonly<Record<string, Message>>,
+  mixins: MixinList<Message> = [],
+) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -99,7 +103,7 @@ const mount = (options: Toast.InitOptions, script: Readonly<Record<string, Messa
             ...Object.entries(script).map(([name, message]) =>
               h.button([h.Id(name), h.Type('button'), h.OnClick(message)], [name]),
             ),
-            Toast.view({ model: model.toasts, onMessage: got, style }, h),
+            Toast.view({ model: model.toasts, onMessage: got, style, mixins }, h),
           ],
         ),
     }),
@@ -395,6 +399,42 @@ test('Escape inside a toast and its close button dismiss it; its action sends Ac
     card(0)!.querySelector<HTMLElement>('[aria-label="Dismiss"]')!.focus()
     await userEvent.keyboard('{Escape}')
     await vi.waitFor(() => expect(card(0)).toBeNull())
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('dismissing the toast that holds focus moves focus to a neighbour, and the last one leaves it nowhere', async () => {
+  const { handle, send } = mount(
+    { duration: 60_000 },
+    { s0: show('One'), s1: show('Two'), s2: show('Three') },
+    Toast.keepFocus,
+  )
+  const close = (n: number) => card(n)!.querySelector<HTMLElement>('[aria-label="Dismiss"]')!
+  try {
+    await away()
+    await send('s0')
+    await send('s1')
+    await send('s2')
+    await vi.waitFor(() => expect(card(2)).not.toBeNull())
+    await settled()
+    // Newest in front: the order is Three, Two, One, so Two's neighbour behind it is One.
+    close(1).focus()
+    close(1).click()
+    await vi.waitFor(() => expect(card(1)).toBeNull())
+    await vi.waitFor(() => expect(card(0)!.contains(document.activeElement)).toBe(true))
+    expect(document.activeElement).toBe(card(0)!.querySelector('button'))
+    // One is last in the order: the toast before it, Three, takes focus.
+    close(0).focus()
+    close(0).click()
+    await vi.waitFor(() => expect(card(0)).toBeNull())
+    await vi.waitFor(() => expect(card(2)!.contains(document.activeElement)).toBe(true))
+    // The only toast left: nothing to move to, and recovery does not guess.
+    close(2).focus()
+    close(2).click()
+    await vi.waitFor(() => expect(card(2)).toBeNull())
+    await frame()
+    expect(document.activeElement).toBe(document.body)
   } finally {
     handle.dispose()
   }

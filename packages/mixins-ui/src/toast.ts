@@ -43,6 +43,7 @@ import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
 import type { ReturnWithOutMessage } from 'foldkit/update'
 import { Move, MoveEnded, MoveStarted, Moved } from 'foldkit-primitives/dom'
+import { FocusRecovery } from 'foldkit-primitives/interaction'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 import type { ToastEntryRender, ToastRenderInfo } from './toastView.js'
 
@@ -665,6 +666,17 @@ export const update = (model: Model, message: Message): Return =>
     }),
   )
 
+/**
+ * Dismissing the toast that holds focus (its close button, its action) hands
+ * focus to the toast behind it, else the one in front. It is a mixin beside
+ * the style, not on by default: it sends no Message, which a Scene test of a
+ * page drawing the stack could not resolve. With no toast left, focus is not
+ * moved: recovery never guesses a place outside the stack.
+ */
+export const keepFocus = [
+  FocusRecovery.behavior(ToastSlots)<unknown, never>({ container: 'container' }).mixin,
+]
+
 /** How soon after a finger's press a focus coming into the stack is that press's own. */
 const TAP_FOCUS_MS = 1000
 
@@ -864,6 +876,7 @@ export const view = <ParentMessage>(
       entry.id,
       builders.entry.attrs([
         h.Id(entry.id),
+        ...FocusRecovery.part(h),
         h.DataAttribute('type', entry.type),
         h.Style({
           '--fk-toast-index': String(place),
