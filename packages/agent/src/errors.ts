@@ -171,6 +171,27 @@ export class CompletionTimeoutError extends Schema.TaggedError<CompletionTimeout
   }
 }
 
+/**
+ * The id is not in the part catalog.
+ *
+ * A control, a label, or a capability of the same name does not make it a
+ * part. Nothing is dispatched.
+ */
+export class UnknownPartError extends Schema.TaggedError<UnknownPartError>()(
+  'AgentUnknownPartError',
+  {
+    part: Schema.String,
+    message: Schema.String,
+  },
+) {
+  static of(part: string): UnknownPartError {
+    return new UnknownPartError({
+      part,
+      message: `No such part: ${part}`,
+    })
+  }
+}
+
 /** A named resource does not exist or cannot be read. */
 export class ResourceError extends Schema.TaggedError<ResourceError>()('AgentResourceError', {
   resource: Schema.String,

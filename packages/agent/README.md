@@ -238,6 +238,7 @@ Read current state before deciding whether to retry an effectful operation.
 | `Agent.auditLog(options)` | A bounded record of decisions, refusals included. |
 | `Agent.summarize(result)` | One outcome summary, so the adapters map results to their protocols the same way. |
 | `Agent.newInvocationId()` | The default invocation id generator, for an adapter supplying its own. |
+| `Agent.Ui.catalog` / `discover` / `invoke` | Binds part ids and labels to exposed capabilities. Discovery uses availability and the encoded context. Invoke dispatches that capability. |
 
 ### Variant configuration
 
@@ -656,6 +657,37 @@ Optimistic concurrency -- a version on the snapshot, and an adapter opting into
 failing the stale invocation -- is deliberately not provided, on the same footing
 as the second availability predicate above: it can be added when a real case
 needs it, and adding it early would fix semantics nothing has asked for.
+
+## Parts
+
+A part names a control a person can point at and the capability `Agent.expose` already published for it. The catalog is the binding. A button, a label, or a method named `set` or `toggle` does not create one, and discovery does not read the DOM.
+
+```ts sketch
+const parts = Agent.Ui.catalog([
+  { id: 'search', label: 'Search', capability: 'set_query', fields: ['query'] },
+  { id: 'draft.save', label: 'Save', capability: 'save_draft', fields: ['draft'] },
+])
+
+// Two mounted search fields share the label, so neither is chosen.
+const found = await Effect.runPromise(
+  Agent.Ui.discover(runtime, parts, {
+    label: 'Search',
+    mounted: [
+      { part: 'search', id: 'first' },
+      { part: 'search', id: 'second' },
+    ],
+  }),
+)
+
+// The same dispatch as any other caller, completion contract included.
+await Effect.runPromise(
+  Agent.Ui.invoke(runtime, parts, 'draft.save', { requestId: 'one', title: 'Note' }),
+)
+```
+
+`id` is the application identity and stays across a remount. An occurrence id names one mount. A lookup for an occurrence that is not in `mounted` is `None` and does not select another row. A part with no mount is off the page: discovery still returns it, and `invoke` does not ask whether it is mounted.
+
+A label shared by two renderings is `Ambiguous`. The matches are ids and occurrence ids, not field values. An unavailable capability is left out, not described as unauthorized. Discovery does not call `authorize`. `invoke` resolves the part and calls `messages.dispatchUnknown`, so availability, decoding, authorization, and completion run on that path before a Message exists. `fields` are copied from the encoded context when it has them. The Model is not read, so a value the projection omits cannot appear, and a field the part does not name is not copied.
 
 ## Why the API looks like this
 

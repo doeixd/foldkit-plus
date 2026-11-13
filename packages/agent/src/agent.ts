@@ -8,7 +8,17 @@ export {
   InvalidInputError,
   ResourceError,
   UnknownCapabilityError,
+  UnknownPartError,
 } from './errors.js'
+export {
+  Ui,
+  UiDiscovery,
+  type UiCatalog,
+  type UiOccurrence,
+  type UiPart,
+  type UiQuery,
+  type UiRuntime,
+} from './parts.js'
 export {
   action,
   expose,

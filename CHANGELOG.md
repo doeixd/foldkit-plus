@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-agent`: `Agent.Ui` binds a part id and a descriptive label to a
+  capability `Agent.expose` already published. `discover` reads
+  `messages.available` and the encoded context. A shared label is ambiguous, a
+  stale occurrence matches nothing, and a part with no mount stays invocable.
+  `invoke` dispatches that capability, so a control or a `set`/`toggle` name
+  does not. Named fields are copied from the encoded context only (#557).
 - `foldkit-mixins`: `Assembly.describe` returns a serializable description of an
   assembled widget's public slots, attachment order, pattern obligations, and
   contribution conflicts (both contributors, the slot, and the event or

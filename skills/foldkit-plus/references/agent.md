@@ -275,6 +275,7 @@ registerPackageActions(AgentNative.actions({
 
 ## 6. Security and gotchas
 
+- **A part is a binding, not a second action.** `Agent.Ui.catalog` maps an application id and a descriptive label onto a capability `expose` already published. `discover` reads `messages.available` and the encoded context; it does not read the DOM, call `authorize`, or dispatch. A shared label is `Ambiguous`. An occurrence that is not mounted is `None` and does not select another row. A part with no mount stays invocable: mounting is not authority. `invoke` calls `dispatchUnknown` for that capability, so a button or a name like `toggle` does nothing unless the catalog binds it. `fields` copy only named fields of the encoded context.
 - **Agent authorization improves the interface. The server still owns trust.** Apply the same predicate at the authoritative boundary too, for example the Sync/Durable journal: `examples/todo-app` uses `isOwner` in both places.
 - `authorize` answers `true`, `false`, `{ allowed: false, reason }` (the reason becomes the `AgentAuthorizationError` message), or an `Effect` of one.
 - `available` runs **before** `authorize`. An unavailable capability is hidden and refused by name (`AgentCapabilityUnavailableError`), so an authorization result for something that does not exist cannot leak. Knowing a tool name does not bypass the check.
