@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-surface`: `closed: true` on `Surface.make` and `App.surface` declares a
+  Surface closed, and `Closure.violations(app, surfaces)` is the step check a
+  walk calls: a Message in the Surface's set that reads outside it is named by
+  field, and any other Message that changes its projection is reported. A
+  Surface not declared closed is never tested. `Surface.contract` carries the
+  flag.
 - `foldkit-remote-domain` (new, Early: it tracks a beta): the start of the
   bridge from an Alchemy Domain Api to Remote. It exports `Receipt`, the
   `{ stream, version }` a Domain command answers with, and its tests pin the

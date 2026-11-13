@@ -110,6 +110,15 @@ whose reset changes the projection after `message` (compared with its codec);
 `WritableProjection`; `app` needs only `initial` and `update`. `Sync.mount` uses
 it for every durable dispatch.
 
+**Declare a Surface closed.** `closed: true` in `Surface.make` / `App.surface`
+says its projection after a Message in `messages` depends only on the projection
+before and the Message, and that no other Message changes it. Nothing enforces
+it at run time: `Closure.violations(app, surfaces)` returns `(before, message,
+after) => violations` for a walk, testing only closed Surfaces
+(`{ surface, kind: 'reads', fields }` or `{ surface, kind: 'outside' }`); a
+closed Surface with params is refused. `Surface.contract` carries `closed`.
+`examples/kitchen-sink` declares its agent context closed and walks it.
+
 **A Surface with params, made active by the Model.** Give `params` as the fields
 of a `Schema.Struct`, or as a schema. A ref's string keys are only the Model's
 fields (any name works, `index` and `at` included); its own members are its
