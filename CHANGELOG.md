@@ -12,29 +12,42 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-mixins`: an accessibility obligation (`navigation`, `focus`, `activation`,
   or `checked`) is satisfied only by a named provider. A Behavior declares `supplies`
   on the slot it contributes to; `A11y.native` names the element; `A11y.delegated`
-  names another provider. `A11y.validate` reads that list only when one is passed,
-  so a structural check stays structural. `A11y.bound` rejects a literal list that
-  misses an obligation. `Patterns.Listbox` asks `items` for navigation and `item`
-  for focus; `Patterns.Checkbox` asks `checkbox` for checked and activation.
-  `ListNavigation` and `RovingTabindex` declare the navigation and focus they
-  implement, and `ListNavigation` declares activation when a commit is given.
-  `Behaviors.ToggleState` declares `checked` only for `aria-checked`. A published
-  attribute is not a provider, and none of this is a WCAG claim (#552).
-- `foldkit-agent`: `Agent.Ui` binds a part id and a descriptive label to a
-  capability `Agent.expose` already published. `discover` reads
-  `messages.available` and the encoded context. A shared label is ambiguous, a
-  stale occurrence matches nothing, and a part with no mount stays invocable.
-  `invoke` dispatches that capability, so a control or a `set`/`toggle` name
-  does not. Named fields are copied from the encoded context only (#557).
+  names another provider. `A11y.validate(pattern, slots)` stays structural, and
+  `A11y.validate(pattern, slots, support)` also judges obligations: a literal list
+  that misses one a literal pattern asks is a type error, and a wide one is judged
+  when it runs. A support entry naming a slot the pattern lacks, or an obligation
+  that slot does not ask, is `a11y:unknown-support`. `Patterns.Listbox` asks `items`
+  for navigation and `item` for focus; `Patterns.Checkbox` asks `checkbox` for
+  checked and activation. `ListNavigation` and `RovingTabindex` declare the
+  navigation and focus they implement, and `ListNavigation` declares activation
+  when a commit is given. `Behaviors.ToggleState` declares `checked` only for
+  `aria-checked`. A published attribute is not a provider, and none of this is a
+  WCAG claim (#552).
+- `foldkit-agent`: `Agent.Ui.catalog(definition, parts)` binds a part id and a
+  descriptive label to a capability `Agent.expose` already published. A part's
+  `capability` is the exposed Message's constructor and its `fields` are keys of
+  the context, so a capability the definition does not expose, a field the context
+  lacks or an undeclared part id is a type error, and where the names are not
+  literal `catalog` throws at definition. Only `catalog` makes a catalog, and
+  `catalog.part(id).label` gives a view the label an agent hears.
+  `Agent.Ui.discover(runtime, catalog, query, mounted)` takes an `Agent.UiQuery`
+  (`Part`, `Occurrence` or `Label`, also the Schema an adapter decodes an agent's
+  query with) and reads `messages.available` and the encoded context: a shared
+  label is ambiguous, a stale occurrence matches nothing, an unavailable
+  capability is absent, and only a part's named fields are copied.
+  `Agent.Ui.invoke` dispatches the bound capability through the runtime's own
+  checks, so a control, a mount or a `set`/`toggle` name grants nothing, and an
+  unknown part id is an `UnknownPartError` (#557).
 - `foldkit-mixins`: `Assembly.describe` returns a serializable description of an
   assembled widget's public slots, attachment order, pattern obligations, and
-  contribution conflicts (both contributors, the slot, and the event or
-  attribute). Omit `input` and a Behavior's claims stay unknown; pass it and
-  only the claim names are resolved. Closure reads stay unknown. A Surface
-  contract or an Action contributes its kind and name. `Assembly.textOf` is
-  that description as text, so a document and a diagnostic share one value.
-  Inspection does not draw the view, call a Mount, or dispatch a Message.
-  The widgets search field is the first consumer (#556).
+  contribution conflicts (both contributors by name and attachment order, the
+  slot, and the event or attribute). Omit `input` and a Behavior's claims stay
+  unknown; pass it and only the claim names are resolved. Closure reads stay
+  unknown. With a view, only a behavior the view attaches supplies an obligation.
+  A Surface contract or an Action contributes its kind and name.
+  `Assembly.textOf` is that description as text, so a document and a diagnostic
+  share one value. Inspection does not draw the view, call a Mount, or dispatch
+  a Message (#556).
 - `foldkit-primitives`: `Leaving` (a Mount in `foldkit-primitives/dom`,
   `Leaving.behavior` and `leaving(h)` in `foldkit-primitives/interaction`) moves
   focus out of a part that stays drawn but is marked leaving, by the same
@@ -53,11 +66,25 @@ version changed; `pnpm` skips versions already in the registry.
   otherwise nowhere. Focus the reader moved elsewhere, a part that moved rather
   than went, and teardown leave focus alone, and nested containers own only
   their own parts; an id that matches two elements names none (#553).
-- `foldkit-mixins`: `Behaviors.Keyboard.behavior(Slots)({ target, routes })`
+- `foldkit-mixins`: `Behaviors.Keyboard.behavior(Slots)({ target, routes, name? })`
   composes named exact key/modifier gestures under one keydown owner, reports
-  overlapping routes by contributor and leaves native editing keys alone. The
-  widget search-field fixture uses it for Escape-to-clear and
-  ArrowDown-to-open-results (#554).
+  overlapping routes by contributor and leaves native editing keys alone.
+  `InputSlots.input` publishes `keydown`, so a search field can route
+  Escape-to-clear and ArrowDown-to-open-results (#554).
+- `foldkit-mixins`: `Themes.changes(themes)` and `Theme.schemeChanges()` stream
+  the theme or scheme another tab chose (a `storage` event, decoded as the head
+  scripts decode it), for a Subscription whose Message `update` answers with
+  `Themes.apply` or `Theme.chooseScheme`. `schemeOfHint` reads a
+  `Sec-CH-Prefers-Color-Scheme` request header into `Option<'light' | 'dark'>`,
+  and `COLOR_SCHEME_HINT_HEADERS` names the response headers that make a browser
+  send it (#558).
+- `foldkit-primitives`: `GridNavigation` takes an optional `page` (rows). PageUp
+  and PageDown move that many rows down the column, stop at the first or last
+  row, and skip disabled cells in the direction of travel. Without it the keys
+  stay native (#558).
+- `foldkit-mixins-ui`: `TreeView.checkedAs(nodes, checked, 'leaf' | 'branch' |
+  'trunk')` and `TreeView.leavesOf(nodes, value)` convert the Model's checked
+  leaves to and from the branch and trunk shapes (#558).
 - `foldkit-remote-domain` (new, Early: it tracks a beta): the start of the
   bridge from an Alchemy Domain Api to Remote. It exports `Receipt`, the
   `{ stream, version }` a Domain command answers with, and its tests pin the
@@ -109,6 +136,19 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Breaking:** `foldkit-primitives`: `Selection`'s Model gains `ranged`, the ids
+  the last range added. A Shift range from the same anchor takes those back
+  before adding its own span, so a shorter second range shrinks as in a file
+  manager. Ids picked before the range stay, and activating, `Replaced` and
+  `Cleared` forget it. Select all is `Replaced({ ids })` (#558).
+- `foldkit-primitives`: `Selection.Replaced` in single mode with more than one
+  distinct id returns the Model it was given; it used to select them all.
+- `foldkit-primitives`: `keyboardInset` reads the visual viewport's `scale` and
+  reports 0 while the page is pinch-zoomed in, so `KeyboardInset` writes no
+  inset after a pinch (#558).
+- `foldkit-mixins`: a Slot that would draw a child's `OnMount` beside another
+  Mount is refused with `mixins:attribute-conflict`. Foldkit keeps one `OnMount`
+  per element, so one of the two used to be dropped silently (#531).
 - The workspace's Effect is `4.1.4` (was `4.1.1`), and `foldkit-plus setup`
   pins it and `@effect/*` at that release. Published packages still peer on
   `^4.1.0`. Since 4.1.4 `Headers.fromInput` joins a repeated header with
@@ -144,10 +184,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 - `foldkit-mixins-ui`: `MessageScroller` stops following on an upward wheel, or
   on ArrowUp, PageUp, or Home, when that input arrives, before the scroll
-  position moves. A message that lands in between stays below the reader.
-  While following, a shorter viewport scrolls to the end. The scroll position
-  remains the browser's (#558).
-
+  position moves. A message that lands in between stays below the reader. A
+  Ctrl wheel, a wheel over a nested element that can still scroll up, and a key
+  that was prevented, has Ctrl, Meta or Alt down, or goes to an editable field
+  do not count. While following, a shorter viewport scrolls to the end. The
+  scroll position remains the browser's (#558).
 - `foldkit-mixins`: a family's pressed fill (`active`) no longer turns a grey
   red. It added 0.05 of chroma at the fill's hue, which a grey does not have:
   shadcn's black accent pressed its secondary as a dark red, and a fill set to
