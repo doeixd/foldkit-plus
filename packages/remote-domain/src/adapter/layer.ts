@@ -223,7 +223,7 @@ export const layer = <A extends AnyApi>(
 
       /** A row's values for `fields`, encoded as the Entity stores them, and the fields it lacks. */
       const encodeRow = (
-        binding: ViewBinding,
+        entity: AnyEntity,
         id: string,
         state: Readonly<Record<string, unknown>>,
         fields: ReadonlyArray<string>,
@@ -233,10 +233,10 @@ export const layer = <A extends AnyApi>(
           const lacking: Array<string> = []
           for (const field of fields) {
             const member: { readonly schema: Codec } | undefined = Object.hasOwn(
-              binding.entity.fields,
+              entity.fields,
               field,
             )
-              ? binding.entity.fields[field]
+              ? entity.fields[field]
               : undefined
             if (field === 'id') values[field] = id
             else if (member === undefined || !Object.hasOwn(state, field)) lacking.push(field)
@@ -245,7 +245,7 @@ export const layer = <A extends AnyApi>(
                 Effect.mapError(
                   () =>
                     new RemoteReadError({
-                      message: `${binding.view}'s ${field} of ${id} is not a ${binding.entity.name} ${field}`,
+                      message: `${field} of ${entity.name} ${id} does not encode as ${entity.name} declares it`,
                     }),
                 ),
               )
@@ -308,7 +308,7 @@ export const layer = <A extends AnyApi>(
                 Option.map(floor, ({ receipt }) => confirmed(binding, request.id, receipt))
                 if (row === null) return Option.none()
                 return Option.some(
-                  Object.assign(yield* encodeRow(binding, request.id, row, request.fields), {
+                  Object.assign(yield* encodeRow(binding.entity, request.id, row, request.fields), {
                     request,
                   }),
                 )
@@ -454,22 +454,39 @@ export const layer = <A extends AnyApi>(
           if (raised === undefined || raised.receipt.version < receipt.version)
             floors.set(key, floor)
 
-          const reads = Option.fromUndefinedOr(views.get(binding.entity.name))
-          const confirmation = yield* Option.match(reads, {
+          const bound = Option.fromUndefinedOr(views.get(binding.entity.name))
+          const confirmation = yield* Option.match(bound, {
             onNone: () => Effect.succeedNone,
             onSome: view => confirm(view, target, floor),
           })
-          const row: Option.Option<Readonly<Record<string, unknown>>> = Option.match(confirmation, {
-            onSome: ({ row }) => Option.fromNullOr(row),
-            // The write committed and its View is behind: what it wrote is what the reply says (D6).
-            onNone: () => Option.map(binding.written, written => written(reply, input)),
+          const entity = binding.entity
+          // The write committed and its View is behind: what it wrote is what the reply says (D6).
+          const row = Option.match(confirmation, {
+            onSome: ({ row }) =>
+              Option.map(Option.fromNullOr(row), state => ({
+                state,
+                fields: Object.keys(entity.fields).filter(field => field !== 'id'),
+              })),
+            onNone: () =>
+              Option.map(binding.written, written => {
+                const state = written(reply, input)
+                return { state, fields: Object.keys(state) }
+              }),
           })
-          const entities = yield* Option.match(Option.all({ row, view: reads }), {
+          const entities = yield* Option.match(row, {
             onNone: () => Effect.succeed([]),
-            onSome: ({ row, view }) =>
-              encodeRow(view, target, row, Object.keys(row)).pipe(
-                Effect.map(({ values }) => [{ entity: binding.entity.name, id: target, values }]),
+            onSome: ({ state, fields }) =>
+              encodeRow(entity, target, state, fields).pipe(
                 Effect.mapError(({ message }) => new RemoteMutationError({ message })),
+                Effect.flatMap(({ values, lacking }) =>
+                  lacking.length === 0
+                    ? Effect.succeed([{ entity: entity.name, id: target, values }])
+                    : Effect.die(
+                        new Error(
+                          `[foldkit-remote-domain] ${binding.command} wrote ${lacking.join(', ')}, which ${entity.name} does not declare`,
+                        ),
+                      ),
+                ),
               ),
           })
           const output = yield* Schema.encodeUnknownEffect(binding.mutation.Output as Codec)(
@@ -522,7 +539,7 @@ export const layer = <A extends AnyApi>(
                   if (Option.isNone(admission.before)) return Option.none<LiveEvent>()
                   return Option.some<LiveEvent>({ _tag: 'EntityDeleted', ref, cursor: yield* next })
                 }
-                const { values } = yield* encodeRow(binding, id, admission.row, fields)
+                const { values } = yield* encodeRow(binding.entity, id, admission.row, fields)
                 const before = Option.flatMap(admission.before, ({ snapshot }) =>
                   Option.fromNullOr(snapshot.state),
                 )
