@@ -29,7 +29,7 @@ Part of [#558](https://github.com/doeixd/foldkit-plus/issues/558). Baseline: Fol
 ## Selection and grid clipboard
 
 - [Selection](../packages/primitives/src/interaction/selection.ts) implements item selection and an anchor; the [grid](../packages/data-grid/src/selection.ts) separately handles rectangular selection and unloaded select-all, with [clipboard parsing](../packages/data-grid/src/clipboard.ts). No grid clipboard parity defect was established in this review.
-- **Confirmed inconsistency:** `Replaced` in single mode accepts more than one distinct ID although the module says single selection keeps one. Explicit `clear` and empty replacement are separate parent decisions; `allowEmpty` controls activation. A targeted correction must preserve those semantics, reject invalid replacement explicitly, and cover duplicate IDs and no-op identity. Implementation and verification are in progress.
+- **Confirmed inconsistency:** `Replaced` in single mode accepts more than one distinct ID although the module says single selection keeps one. Explicit `clear` and empty replacement are separate parent decisions; `allowEmpty` controls activation. The selection update now rejects multiple distinct IDs in single mode without truncation; duplicate IDs, explicit empty replacement and clear remain supported. Focused selection tests passed, the guard mutation was killed, and the scoped API preference review approved the change.
 
 ## Trees, reorder and spatial selection
 
