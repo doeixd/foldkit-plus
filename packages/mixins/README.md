@@ -214,7 +214,9 @@ Attachments are not concatenated and left to renderer order. The resolver applie
   `insetInlineEnd`), and `translate`, `rotate` or `scale` beside `transform`;
 - `Key`, `InnerHTML` and a `Prop` that replaces the children are structural and cannot be
   overridden;
-- multiple mount contributions compose into exactly one `OnMount`.
+- ordinary Mount contributions compose into one `OnMount`. A child `OnMount` keeps its
+  Submodel dispatch boundary, so it is preserved on its own; alongside another Mount the
+  resolver throws `mixins:attribute-conflict` instead of silently dropping one.
 
 Conflicts throw `Diagnostics.DiagnosticError` with stable codes such as
 `mixins:event-conflict`, `mixins:style-property-conflict` and `mixins:protected-attribute`, so tests,

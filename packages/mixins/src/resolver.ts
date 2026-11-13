@@ -105,6 +105,7 @@ export const resolve = <Message>(
   const styleOwners = new Map<string, 'base' | 'style' | 'behavior'>()
   const mounts: Array<MountAction<Message, any>> = []
   const mountNames = new Map<string, number>()
+  let childMounts = 0
   const preserved: Array<Attribute<Message> | ChildAttribute> = []
   const added: Array<Attribute<Message> | ChildAttribute> = []
   const ownedEvents = new Map<string, string>()
@@ -187,6 +188,13 @@ export const resolve = <Message>(
     })
   }
 
+  const countChildMount = (tag: string): boolean => {
+    // tag-check: open - a child attribute's tag comes from Foldkit.
+    if (tag !== 'OnMount') return false
+    childMounts++
+    return true
+  }
+
   const addBase = (attribute: Attribute<Message> | ChildAttribute): void => {
     if (isChildAttribute(attribute)) {
       const inner = (attribute as { readonly attribute?: unknown }).attribute
@@ -196,7 +204,9 @@ export const resolve = <Message>(
         for (const token of splitClasses(inner.value)) addClass(token)
         return
       }
-      if (isTagged(inner)) reserve(inner._tag, inner)
+      if (isTagged(inner)) {
+        if (!countChildMount(inner._tag)) reserve(inner._tag, inner)
+      }
       preserved.push(attribute)
       return
     }
@@ -293,7 +303,9 @@ export const resolve = <Message>(
         for (const token of splitClasses(inner.value)) addClass(token)
         return
       }
-      if (isTagged(inner)) claim(inner._tag, inner)
+      if (isTagged(inner)) {
+        if (!countChildMount(inner._tag)) claim(inner._tag, inner)
+      }
       added.push(attribute)
       return
     }
@@ -326,6 +338,16 @@ export const resolve = <Message>(
     }
     for (const attribute of contribution.attributes ?? []) applyMixinAttribute(attribute)
     for (const mount of contribution.mounts ?? []) addMount(mount)
+  }
+
+  // A child's Mount dispatches through its own boundary. Flattening it into
+  // the parent's Mount would misroute messages; Foldkit otherwise drops one.
+  if (childMounts > 0 && childMounts + mounts.length > 1) {
+    fail(
+      'mixins:attribute-conflict',
+      `slot "${slot ?? '?'}" cannot combine a child OnMount with another Mount`,
+      { attribute: 'OnMount', childMounts, mounts: mounts.map(mount => mount.name) },
+    )
   }
 
   const emitted: Array<Attribute<Message> | ChildAttribute> = []

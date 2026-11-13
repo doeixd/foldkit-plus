@@ -516,6 +516,19 @@ describe('Resolver.resolve', () => {
     ).toBe('mixins:event-conflict')
   })
 
+  it('refuses a child Mount beside another Mount and preserves it on its own', () => {
+    const child = fakeChild(h.OnMount(mount('Child')))
+    expect(Resolver.resolve([child], [])).toEqual([child])
+    expect(Resolver.resolve([], [{ attributes: [child] }])).toEqual([child])
+    const cases = [
+      () => Resolver.resolve([child], [{ mounts: [mount('Other')] }]),
+      () => Resolver.resolve([h.OnMount(mount('Other'))], [{ attributes: [child] }]),
+      () => Resolver.resolve([child, fakeChild(h.OnMount(mount('Other')))], []),
+      () => Resolver.resolve([], [{ attributes: [child, h.OnMount(mount('Other'))] }]),
+    ]
+    for (const resolve of cases) expect(codeOf(resolve)).toBe('mixins:attribute-conflict')
+  })
+
   it('composes every Mount into exactly one OnMount', () => {
     const out = Resolver.resolve([h.OnMount(mount('A'))], [{ mounts: [mount('B'), mount('C')] }])
     expect(mountNames(out)).toEqual(['Mixins[slot](A,B,C)'])

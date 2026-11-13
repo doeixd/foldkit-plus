@@ -86,7 +86,9 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   `mixins:unsupported-event`; a style property is the declaration it writes, and a protected or
   Behavior-owned one is also guarded from its shorthands (`inset`), physical sides (`right` for
   `insetInlineEnd`) and `translate`/`rotate`/`scale` beside `transform`; `Key`/`InnerHTML`, or a `Prop` that
-  replaces the children, cannot come from a mixin; all mounts compose into one `OnMount`. A composed Mount that fails ends alone
+  replaces the children, cannot come from a mixin; ordinary Mounts compose into one `OnMount`.
+  A child `OnMount` keeps its dispatch boundary and is preserved alone; beside another Mount the
+  resolver throws `mixins:attribute-conflict` instead of dropping one. A composed Mount that fails ends alone
   and is reported as a `MountFailed` diagnostic (`{ mount, slot: Option, cause }`) through
   `foldkit-surface`'s `Diagnostics.Reporter`; an interrupted one is not. Foldkit runs Mounts
   outside the runtime's `resources`, so the resolver dispatches it at the Mount's element

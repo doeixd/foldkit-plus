@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest'
-import { Cause, Effect, Exit, Fiber, Layer, Option, Scope, Stream } from 'effect'
+import { describe, expect, it, vi } from 'vitest'
+import { Cause, Effect, Exit, Fiber, Layer, Option, Schema, Scope, Stream } from 'effect'
 import { Diagnostics as Reported } from 'foldkit-surface'
-import type { HtmlBuilder } from 'foldkit/html'
+import { childAttributes, type HtmlBuilder } from 'foldkit/html'
+import * as Runtime from 'foldkit/runtime'
 import { Scene } from 'foldkit/test'
 import { liveViewStateChanges, type MountAction } from 'foldkit/mount'
 import { Attributes, Behavior, Capability, Resolver, Slot, SlotView, Slots } from '../src/index.js'
+import { DiagnosticError } from '../src/diagnostics.js'
 
 type TestMessage = { readonly _tag: 'GotA' } | { readonly _tag: 'GotB' }
 
@@ -127,6 +129,57 @@ describe('Mount composition at runtime', () => {
       emitted: [{ _tag: 'GotA' }],
       reported: [],
     })
+  })
+
+  it('refuses a real child Mount beside a second one and runs a lone child with cleanup', async () => {
+    const events: Array<string> = []
+    const childMount: MountAction<TestMessage> = {
+      name: 'Child',
+      f: () =>
+        Stream.callback<TestMessage>(() =>
+          Effect.acquireRelease(
+            Effect.sync(() => {
+              events.push('mounted')
+            }),
+            () =>
+              Effect.sync(() => {
+                events.push('unmounted')
+              }),
+          ),
+        ),
+    }
+    let failure: unknown
+    const container = document.body.appendChild(document.createElement('div'))
+    container.id = 'child-mount-runtime'
+    const runtime = Runtime.embed(
+      Runtime.makeElement({
+        Model: Schema.Struct({}),
+        container,
+        init: () => ({ model: {} }),
+        update: model => ({ model }),
+        view: (_model, h: HtmlBuilder<TestMessage>) => {
+          const [child] = childAttributes([h.OnMount(childMount)])
+          try {
+            Resolver.resolve<TestMessage>([child!], [{ mounts: [emitA] }], { slot: 'root' })
+          } catch (error) {
+            failure = error
+          }
+          return h.div(Resolver.resolve<TestMessage>([child!], []), [])
+        },
+      }),
+    )
+    try {
+      await vi.waitFor(() => expect(events).toEqual(['mounted']))
+      expect(failure).toBeInstanceOf(DiagnosticError)
+      expect((failure as DiagnosticError).diagnostic).toMatchObject({
+        code: 'mixins:attribute-conflict',
+        slot: 'root',
+      })
+    } finally {
+      runtime.dispose()
+      container.remove()
+    }
+    await vi.waitFor(() => expect(events).toEqual(['mounted', 'unmounted']))
   })
 
   it('is observed by Scene as exactly one Mount', () => {
