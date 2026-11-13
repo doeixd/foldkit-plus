@@ -79,8 +79,20 @@ export default [
     edits: [
       {
         file,
-        find: 'if (!held.has(node) || (node !== root && isLeaving(node))) continue',
-        replace: 'if (!held.has(node)) continue',
+        find: 'if (node !== root && isLeaving(node)) continue',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'unmarking walks the whole subtree instead of the claims held',
+    edits: [
+      {
+        file,
+        find: 'for (const node of held) {',
+        replace:
+          "for (const node of [root, ...root.querySelectorAll('*')]) { if (!held.has(node)) continue",
       },
     ],
     tests,

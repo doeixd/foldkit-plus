@@ -54,10 +54,13 @@ export const Leaving = Mount.defineStream('Leaving', {
           let disposed = false
 
           const release = (root: Element) => {
-            for (const node of [root, ...root.querySelectorAll('*')]) {
-              // Another container's part stays its own claim, and a descendant
-              // that is still leaving keeps the inert this container gave it.
-              if (!held.has(node) || (node !== root && isLeaving(node))) continue
+            // Walk the claims, not the subtree: a record for a marker toggled on a big
+            // tree costs the claims held. Another container's part is never in `held`,
+            // and one of ours that is no longer leaving is released whichever record
+            // reaches it first.
+            for (const node of held) {
+              // A descendant that is still leaving keeps the inert this container gave it.
+              if (node !== root && isLeaving(node)) continue
               const claim = claims.get(node)
               claims.delete(node)
               held.delete(node)

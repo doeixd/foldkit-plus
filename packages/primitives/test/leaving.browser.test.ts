@@ -184,6 +184,41 @@ it('leaves a descendant that is still leaving inert when its parent is shown', a
   }
 })
 
+it('unmarking a part leaves the other parts inert, without walking its subtree', async () => {
+  const shown = document.createElement('div')
+  const inside = button('inside')
+  const staying = document.createElement('div')
+  shown.append(inside)
+  document.body.append(shown, staying)
+  const fiber = start(document.body)
+  const walked: Array<string> = []
+  const real = Element.prototype.querySelectorAll
+  try {
+    await settled()
+    mark(shown)
+    mark(inside)
+    mark(staying)
+    await settled()
+    Element.prototype.querySelectorAll = function (selectors: string) {
+      walked.push(selectors)
+      return real.call(this, selectors)
+    } as typeof real
+    shown.removeAttribute(LEAVING)
+    await settled()
+    expect(shown.inert).toBe(false)
+    expect(inside.inert).toBe(true)
+    expect(staying.inert).toBe(true)
+    inside.removeAttribute(LEAVING)
+    await settled()
+    expect(inside.inert).toBe(false)
+    expect(staying.inert).toBe(true)
+    expect(walked).toEqual([])
+  } finally {
+    Element.prototype.querySelectorAll = real
+    await Effect.runPromise(Fiber.interrupt(fiber))
+  }
+})
+
 it('keeps a nested container to its own fallback', async () => {
   const outer = document.createElement('div')
   const inner = document.createElement('div')
