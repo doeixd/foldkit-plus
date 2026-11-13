@@ -42,6 +42,11 @@
     "build": "node ../../scripts/declarations.mjs . && tsdown && node ../../scripts/declared-any.mjs .",
     "typecheck": "tsc -b"
   },
+  "dependencies": {
+    "foldkit-entity": "workspace:*",
+    "foldkit-guard": "workspace:*",
+    "foldkit-remote": "workspace:*"
+  },
   "peerDependencies": {
     "@alchemy.run/domain": "2.0.0-beta.86",
     "alchemy": "2.0.0-beta.86",
@@ -52,6 +57,7 @@
     "@cloudflare/workers-types": "5.20261112.1",
     "alchemy": "2.0.0-beta.86",
     "effect": "4.1.4",
+    "foldkit-surface": "workspace:*",
     "tsdown": "^0.23.1",
     "typescript": "7.0.2"
   }
