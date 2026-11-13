@@ -9,7 +9,7 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
 import { Entity, Expr, Operators, Relation, Write } from 'foldkit-entity'
-import { Mutation, Remote } from 'foldkit-remote'
+import { Mutation, Remote, refParts } from 'foldkit-remote'
 import { RemoteServer, type EntityWriter, type MemoryStore } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { DrizzleOperators, bind, databaseLayer, writer } from '../src/index.js'
@@ -46,6 +46,14 @@ const Stock = Related.Stock.pipe(
     'reservedWithinQuantity',
     ({ after }) => Expr.lte(after.reserved, after.quantity),
     { message: 'Reserved stock cannot exceed the quantity', path: ['reserved'] },
+  ),
+  // Reads a link, which an invariant reads as the id it points at.
+  Entity.invariant(
+    'ownerInGoodStanding',
+    ({ after }) => Expr.not(Expr.eq(after.owner, 'blocked')),
+    {
+      message: 'That owner may not hold stock',
+    },
   ),
 )
 
@@ -171,7 +179,11 @@ const row = (id: string, status: string, quantity: number, reserved: number): St
   revision: 1,
   owner: 'Owner:o1',
 })
-const seed = [row('s1', 'published', 10, 5), row('s2', 'draft', 10, 0)]
+const seed = [
+  row('s1', 'published', 10, 5),
+  row('s2', 'draft', 10, 0),
+  { ...row('s4', 'draft', 10, 0), owner: 'Owner:blocked' },
+]
 
 /** Sends each write in turn, and answers each outcome and the rows it left. */
 type Run = (
@@ -202,7 +214,10 @@ const sendAll = async (
 const inMemory: Run = async sends => {
   const backend = RemoteServer.memory({
     domain: Remote.define({ entities: [Owner, Stock], mutations }),
-    rows: { Owner: [{ id: 'o1' }], Stock: seed.map(each => ({ ...each, id: String(each.id) })) },
+    rows: {
+      Owner: [{ id: 'o1' }, { id: 'blocked' }],
+      Stock: seed.map(each => ({ ...each, id: String(each.id) })),
+    },
     operators: memory,
     mutations: (store: MemoryStore) =>
       writes(RemoteServer.memoryWriter(store, Stock, { operators: memory })),
@@ -222,7 +237,7 @@ const overSqlite: Run = async sends => {
     create table stock (id text primary key, name text not null, label text not null,
       status text not null, quantity integer not null, reserved integer not null,
       revision integer not null, owner_id text not null references owners(id));
-    insert into owners values ('o1');
+    insert into owners values ('o1'), ('blocked');
   `)
   const insert = database.prepare('insert into stock values (?, ?, ?, ?, ?, ?, ?, ?)')
   for (const each of seed)
@@ -234,7 +249,7 @@ const overSqlite: Run = async sends => {
       Number(each['quantity']),
       Number(each['reserved']),
       Number(each['revision']),
-      'o1',
+      refParts(String(each['owner'])).id,
     )
   const server = RemoteServer.make({
     entities: [],
@@ -270,6 +285,8 @@ const cases: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string, unk
   ['a row it would leave invalid', [['Reserve', { id: 's1', revision: 1, quantity: 6 }]]],
   ['a set leaving a row invalid', [['Restock', { id: 's1', quantity: 4 }]]],
   ['an insert leaving a row invalid', [['List', { ...listed, reserved: 5 }]]],
+  ['a row whose link breaks an invariant', [['Restock', { id: 's4', quantity: 12 }]]],
+  ['an insert whose link breaks an invariant', [['List', { ...listed, ownerId: 'blocked' }]]],
   ['an id already taken', [['List', { ...listed, id: 's1' }]]],
   ['a delete at a stale revision', [['Withdraw', { id: 's2', revision: 7 }]]],
   ['a delete of a row not a draft', [['Withdraw', { id: 's1', revision: 1 }]]],

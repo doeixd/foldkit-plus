@@ -1136,6 +1136,78 @@ const asVisitor = RemoteServer.handlers(server, { isAdmin: false })
 that does not admit `undefined`), the backend has no `layer`, only its store
 and `server`, so nothing can read the rows as nobody.
 
+### Declared writes over the rows: `memoryWriter`
+
+A [declared write](#declared-writes-no-handler) needs no handler over the
+rows either. `RemoteServer.memoryWriter(store, entity, { operators? })` is the
+`EntityWriter` for one Entity's rows in a backend's store, and it decides what
+`foldkit-remote-drizzle`'s writer decides in its statement, so a write lands
+here as it would over a database:
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Entity, Expr, Write } from 'foldkit-entity'
+import { Mutation, Remote } from 'foldkit-remote'
+import { RemoteServer } from 'foldkit-remote-server'
+
+const Stock = Entity.make(
+  'Stock',
+  Schema.Struct({
+    id: Schema.String,
+    status: Schema.String,
+    quantity: Schema.Int,
+    reserved: Schema.Int,
+    revision: Schema.Int,
+  }),
+).pipe(
+  Entity.invariant('reservedWithinStock', ({ after }) => Expr.lte(after.reserved, after.quantity), {
+    message: 'Reserved stock cannot exceed the quantity',
+  }),
+)
+-->
+
+```ts
+const Reserve = Mutation.write(
+  'Reserve',
+  Write.update(
+    Entity.input(
+      Stock,
+      Schema.Struct({ id: Schema.String, revision: Schema.Int, quantity: Schema.Int }),
+      { quantity: Entity.unmapped },
+    ),
+    {
+      id: 'id',
+      expect: 'revision',
+      when: () => Expr.eq(Stock.fields.status, 'published'),
+      increment: { reserved: 'quantity' },
+    },
+  ),
+)
+
+const shop = RemoteServer.memory({
+  domain: Remote.define({ entities: [Stock], mutations: [Reserve] }),
+  rows: { Stock: [{ id: 's1', status: 'published', quantity: 10, reserved: 5, revision: 1 }] },
+  mutations: store => [RemoteServer.write(Reserve, RemoteServer.memoryWriter(store, Stock))],
+})
+```
+
+An update lands only while the row is at the revision it `expect`s, holds its
+`when`, and the row it would leave keeps every invariant; amounts and computed
+fields read the row as it was before the write, and the revision moves on by
+one. An insert lands while its id is free and its row keeps the invariants; a
+revision and holds its `when`. Each refusal reaches the client as the
+mutation's own: `Conflict`, `Unmet`, `Invalid` naming the invariant, `Taken`.
+`operators` runs the `when`, computed fields and invariants, as a memory
+backend's `operators` runs its query bodies.
+
+The rows are one process's, read and written in one step, so a write cannot
+interleave with another. What a database writer holds beyond that it does
+not: no ledger of operations, no rule that reads another row, nothing a
+delete takes, keeps or clears with it. `RemoteServer.write` refuses, by name,
+a write that needs one (an increment with no `expect` needs a ledger), and so
+does `GuardServer.writer` for a rule reading another row, where each is
+served, rather than landing what the database would refuse.
+
 ## Over a MessagePort
 
 `servePort(handlers, port)` from `foldkit-remote-server/port` answers

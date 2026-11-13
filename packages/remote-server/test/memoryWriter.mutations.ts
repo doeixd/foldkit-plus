@@ -44,6 +44,11 @@ export default [
     'false\n            ? answer(row)',
   ),
   edit(
+    'an invariant reads a stored link as its ref',
+    "if (typeof ref === 'string') read[key] = refParts(ref).id",
+    '',
+  ),
+  edit(
     'an insert over a taken id overwrites it',
     'if (Option.isSome(stored(id))) {',
     'if (false) {',

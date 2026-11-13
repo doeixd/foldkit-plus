@@ -8,19 +8,19 @@ import { Effect, Match, Option } from 'effect'
 import {
   Entity,
   Expr,
-  Held,
   Operators,
   Query,
   Write,
   evaluate,
   supported,
   type AnyEntity,
+  type EntityMember,
   type EntityRef,
   type MemoryOperators,
   type Operation,
   type Row,
 } from 'foldkit-entity'
-import { entityKey } from 'foldkit-remote'
+import { entityKey, refParts } from 'foldkit-remote'
 import {
   DeleteOutcome,
   RemoteInvalid,
@@ -122,8 +122,18 @@ export const memoryWriter = <P>(
     )
   }
   // The rows keep a link as its ref key; a body and an invariant read the id it points at.
-  const whole = Query.from(entity)
-  const judged = (row: Readonly<Record<string, unknown>>): Row => Held.fromRefs(whole, row) as Row
+  const relations: Readonly<Record<string, EntityMember>> = entity.relations
+  const links = Object.entries(relations).flatMap(([key, member]) =>
+    member._tag === 'Relation' && member.cardinality === 'one' ? [key] : [],
+  )
+  const judged = (row: Readonly<Record<string, unknown>>): Row => {
+    const read: Record<string, unknown> = { ...row }
+    for (const key of links) {
+      const ref = Object.hasOwn(row, key) ? row[key] : undefined
+      if (typeof ref === 'string') read[key] = refParts(ref).id
+    }
+    return read
+  }
   const clocked = new Set(
     Object.entries(entity.sets)
       .filter(([, set]) => set.value._tag === 'Now')
