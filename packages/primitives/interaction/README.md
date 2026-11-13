@@ -34,7 +34,7 @@ the handler dispatches    →  update moves the fact; the view redraws from it
 | `FocusVisible` | `InputModality`'s `{ modality }` | a focus ring for keyboard users only |
 | `DismissLayer` | `{ layers }`; out `Dismiss { ids }` | close overlays on Escape or an outside press |
 | `Layers` | nothing (Mounts) | scroll lock and inert-outside for an overlay |
-| `Selection` | `{ selected, anchor }` | selected items with `aria-selected` and Shift ranges |
+| `Selection` | `{ selected, anchor, ranged }` | selected items with `aria-selected` and Shift ranges |
 | `LiveAnnounce` | the live regions' text | speak to assistive technology |
 
 The pure rule behind each (`move`, `match`, `between`, `toDismiss`,
@@ -667,12 +667,32 @@ Behavior.attach(Placing.keepWithin(WidgetSlots)({ panel: 'popup' })),
 **`Selection`** is which items are selected, with `mode` `'single'` (a click
 replaces; `allowEmpty` says whether clicking the selected item deselects it),
 `'multiple'` (a click toggles), or `'none'`, and the `anchor` a range extends
-from. The Model slice is `{ selected, anchor }`. A range needs the items'
-order, which the view knows and the Bundle does not, so `Ranged { id, order }`
-carries it; `Selection.between(order, from, to)` is the pure span. A parent
-may replace or clear the selection explicitly, including with `allowEmpty: false`.
-In single mode `replace(ids)` and `Replaced` reject more than one distinct id
-with an error; duplicates of one id are accepted. The Behavior, `Selection.behavior(Declared, args)(Slots)<Model, Message>({ container?, item, items, click? })`,
+from. The Model slice is `{ selected, anchor, ranged }`. A range needs the
+items' order, which the view knows and the Bundle does not, so `Ranged { id,
+order }` carries it; `Selection.between(order, from, to)` is the pure span.
+`ranged` is the ids the last range added: the next `Ranged` from the same
+anchor takes those back before adding its own span, so a shorter second
+Shift-click shrinks the range as a file manager does, while an id picked before
+the range began stays. Activating, `Replaced` and `Cleared` forget the range,
+and a range only acts in `'multiple'` mode. A parent may replace or clear the
+selection explicitly, including with `allowEmpty: false`. In single mode
+`replace(ids)` and `Replaced` refuse more than one distinct id by returning the
+Model they were given; duplicates of one id are accepted. Select all needs no
+Message of its own: it is `Replaced` with every id.
+
+<!-- docs-check standalone
+declare const model: Selection.Model
+-->
+
+```ts
+import { Selection } from 'foldkit-primitives/interaction'
+
+const args = { mode: 'multiple', allowEmpty: true } as const
+const order = ['a', 'b', 'c', 'd']
+const everything = Selection.bundle.update(model, Selection.Message.Replaced({ ids: order }), args)
+```
+
+The Behavior, `Selection.behavior(Declared, args)(Slots)<Model, Message>({ container?, item, items, click? })`,
 writes `aria-selected` on each item and `aria-multiselectable` on the
 container, and wires a plain click on each enabled item to `Activated`; pass
 `click: false` when `Press` or the view owns the click. For a Shift range,

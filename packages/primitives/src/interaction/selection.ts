@@ -23,13 +23,17 @@ export const Model = Schema.Struct({
   selected: Schema.Array(Schema.String),
   /** Where the last plain selection happened; a range extends from it. */
   anchor: Schema.NullOr(Schema.String),
+  /** The ids the last range added, which the next range from the same anchor
+   *  takes back before adding its own; any other transition clears it. */
+  ranged: Schema.Array(Schema.String),
 })
 export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
   /** A plain activation: replaces in single mode, toggles in multiple mode. */
   Activated: { id: Schema.String },
-  /** A Shift activation: selects everything between the anchor and `id` in `order`. */
+  /** A Shift activation: selects everything between the anchor and `id` in
+   *  `order`, taking back what the previous range added. */
   Ranged: { id: Schema.String, order: Schema.Array(Schema.String) },
   Replaced: { ids: Schema.Array(Schema.String) },
   Cleared: {},
@@ -66,46 +70,51 @@ const update = (model: Model, message: Message, args: Args): Update.Return<Model
       if (args.mode === 'single') {
         return isSelected
           ? args.allowEmpty
-            ? { model: { selected: [], anchor: id } }
+            ? { model: { selected: [], anchor: id, ranged: [] } }
             : { model }
-          : { model: { selected: [id], anchor: id } }
+          : { model: { selected: [id], anchor: id, ranged: [] } }
       }
       return {
         model: {
           selected: isSelected ? without(model.selected, id) : [...model.selected, id],
           anchor: id,
+          ranged: [],
         },
       }
     },
     Ranged: ({ id, order }) => {
       if (args.mode !== 'multiple') return { model }
-      const range = between(order, model.anchor, id)
-      const inRange = new Set(range)
-      const selected = [...model.selected.filter(other => !inRange.has(other)), ...range]
+      const before = new Set(model.ranged)
+      const kept = model.selected.filter(other => !before.has(other))
+      const keptSet = new Set(kept)
+      const added = between(order, model.anchor, id).filter(other => !keptSet.has(other))
+      const selected = [...kept, ...added]
       const anchor = model.anchor ?? id
       // Shift-clicking the same item twice ranges over what is selected already.
-      return sameIds(selected, model.selected) && anchor === model.anchor
+      return sameIds(selected, model.selected) &&
+        sameIds(added, model.ranged) &&
+        anchor === model.anchor
         ? { model }
-        : { model: { selected, anchor } }
+        : { model: { selected, anchor, ranged: added } }
     },
     Replaced: ({ ids }) => {
       const selected = args.mode === 'none' ? [] : [...new Set(ids)]
-      if (args.mode === 'single' && selected.length > 1) {
-        throw new Error('Selection.Replaced: single mode accepts at most one distinct id')
-      }
-      return sameIds(selected, model.selected)
+      if (args.mode === 'single' && selected.length > 1) return { model }
+      return sameIds(selected, model.selected) && model.ranged.length === 0
         ? { model }
-        : { model: { selected, anchor: model.anchor } }
+        : { model: { selected, anchor: model.anchor, ranged: [] } }
     },
     Cleared: () =>
-      model.selected.length === 0 ? { model } : { model: { selected: [], anchor: model.anchor } },
+      model.selected.length === 0 && model.ranged.length === 0
+        ? { model }
+        : { model: { selected: [], anchor: model.anchor, ranged: [] } },
   })
 
 export const bundle = Bundle.make('Selection', {
   Model,
   Message,
   args: Args,
-  init: () => ({ model: { selected: [], anchor: null } }),
+  init: () => ({ model: { selected: [], anchor: null, ranged: [] } }),
   update,
   /**
    * What a parent decides, rather than a press: `placed.helpers.activate(id)`

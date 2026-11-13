@@ -25,7 +25,7 @@ const shape = (result: {
 })
 
 const selectionArgs = { mode: 'multiple', allowEmpty: true } as const
-const selection = { selected: ['a'], anchor: 'a' }
+const selection = { selected: ['a'], anchor: 'a', ranged: [] }
 const treeArgs = { openByDefault: false }
 const tree = { current: null, toggled: ['open'] }
 const listArgs = {

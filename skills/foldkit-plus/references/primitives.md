@@ -248,10 +248,12 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   `Typeahead`'s `clear()`; `LiveAnnounce`'s `announce(text, politeness?)`. Call them on the
   placement (`Picks.helpers.activate(id)(model)`); a control the parent draws sends a parent
   Message and `update` calls the helper.
-- **Selected items:** `Selection.bundle` (`{ mode: 'single' | 'multiple' | 'none', allowEmpty }`, slice `{ selected, anchor }`)
+- **Selected items:** `Selection.bundle` (`{ mode: 'single' | 'multiple' | 'none', allowEmpty }`, slice `{ selected, anchor, ranged }`)
   with `Selection.behavior(Declared, args)(Slots)({ container?, item, items, click? })` writing `aria-selected`,
-  `aria-multiselectable`, and a click to `Activated`; `Ranged { id, order }` for a Shift range (Shift comes from `Pressed.shiftKey`).
-  In single mode `replace(ids)` / `Replaced` rejects more than one distinct id; explicit empty replacement or `clear()` remains allowed.
+  `aria-multiselectable`, and a click to `Activated`; `Ranged { id, order }` for a Shift range (Shift comes from `Pressed.shiftKey`):
+  a later range from the same anchor first takes back what the last one added (`ranged`), keeping ids picked
+  before it; activating, `Replaced` and `Cleared` forget it. Select all is `Replaced` with every id.
+  In single mode `replace(ids)` / `Replaced` with more than one distinct id returns the Model unchanged; explicit empty replacement or `clear()` remains allowed.
 - **Announce to assistive technology:** place `LiveAnnounce.bundle` once (`{ debounceMs, clearAfterMs }`), fold
   the placement's `helpers.announce(text, politeness?)` in `update`, render `LiveAnnounce.view(slice, h)` once and hide it visually.
 

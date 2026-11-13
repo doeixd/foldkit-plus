@@ -97,7 +97,7 @@ const listNav = {
   timeoutMs: 500,
   page: 5,
 }
-const picked = { selected: ['b', 'c'], anchor: 'b' }
+const picked = { selected: ['b', 'c'], anchor: 'b', ranged: [] }
 const multiple = { mode: 'multiple' as const, allowEmpty: true }
 const layers = [{ id: 'menu', outside: true, escape: true }]
 
@@ -335,7 +335,7 @@ describe('a Message that changes nothing keeps the Model', () => {
     ],
     [
       'Selection Cleared when empty',
-      keeps({ selected: [], anchor: 'b' }, m =>
+      keeps({ selected: [], anchor: 'b', ranged: [] }, m =>
         Selection.bundle.update(m, Selection.Message.Cleared(), multiple),
       ),
     ],
