@@ -56,6 +56,22 @@ describe('Selection placement', () => {
     )
   })
 
+  it('rejects replacing a single selection with more than one distinct id', () => {
+    const args = { mode: 'single', allowEmpty: false } as const
+    const initial = { selected: ['a'], anchor: 'a' }
+    const replace = Bundle.helpersOf(Selection.bundle, args).replace
+    const error = 'Selection.Replaced: single mode accepts at most one distinct id'
+
+    expect(() => Selection.bundle.update(initial, M.Replaced({ ids: ['a', 'b'] }), args)).toThrow(
+      error,
+    )
+    expect(() => replace(initial, ['a', 'b'])).toThrow(error)
+    expect(initial).toEqual({ selected: ['a'], anchor: 'a' })
+    expect(replace(initial, ['a', 'a']).model).toBe(initial)
+    expect(replace(initial, []).model).toEqual({ selected: [], anchor: 'a' })
+    expect(Selection.bundle.update(initial, M.Cleared(), args).model.selected).toEqual([])
+  })
+
   it('multiple mode toggles and ranges from the anchor, keeping other picks', () => {
     const multi = { mode: 'multiple', allowEmpty: true } as const
     expect(run(multi, fresh, M.Activated({ id: 'a' }), M.Activated({ id: 'c' })).selected).toEqual([

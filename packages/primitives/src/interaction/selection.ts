@@ -90,6 +90,9 @@ const update = (model: Model, message: Message, args: Args): Update.Return<Model
     },
     Replaced: ({ ids }) => {
       const selected = args.mode === 'none' ? [] : [...new Set(ids)]
+      if (args.mode === 'single' && selected.length > 1) {
+        throw new Error('Selection.Replaced: single mode accepts at most one distinct id')
+      }
       return sameIds(selected, model.selected)
         ? { model }
         : { model: { selected, anchor: model.anchor } }

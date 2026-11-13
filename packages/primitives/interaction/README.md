@@ -643,8 +643,10 @@ replaces; `allowEmpty` says whether clicking the selected item deselects it),
 `'multiple'` (a click toggles), or `'none'`, and the `anchor` a range extends
 from. The Model slice is `{ selected, anchor }`. A range needs the items'
 order, which the view knows and the Bundle does not, so `Ranged { id, order }`
-carries it; `Selection.between(order, from, to)` is the pure span. The
-Behavior, `Selection.behavior(Declared, args)(Slots)<Model, Message>({ container?, item, items, click? })`,
+carries it; `Selection.between(order, from, to)` is the pure span. A parent
+may replace or clear the selection explicitly, including with `allowEmpty: false`.
+In single mode `replace(ids)` and `Replaced` reject more than one distinct id
+with an error; duplicates of one id are accepted. The Behavior, `Selection.behavior(Declared, args)(Slots)<Model, Message>({ container?, item, items, click? })`,
 writes `aria-selected` on each item and `aria-multiselectable` on the
 container, and wires a plain click on each enabled item to `Activated`; pass
 `click: false` when `Press` or the view owns the click. For a Shift range,
