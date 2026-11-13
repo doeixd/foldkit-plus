@@ -99,4 +99,91 @@ export default [
     edits: [{ file: view, find: 'observer.observe(scroller)', replace: '' }],
     tests: browser,
   },
+  {
+    name: 'a Ctrl wheel stops following',
+    edits: [
+      {
+        file: view,
+        find: 'event.deltaY < 0 && !event.ctrlKey && !consumesWheel(event.target)',
+        replace: 'event.deltaY < 0 && !consumesWheel(event.target)',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a wheel over a nested scroller stops following',
+    edits: [
+      {
+        file: view,
+        find: 'event.deltaY < 0 && !event.ctrlKey && !consumesWheel(event.target)',
+        replace: 'event.deltaY < 0 && !event.ctrlKey',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a nested element at its top consumes the wheel',
+    edits: [
+      { file: view, find: 'if (each.scrollTop > 0 && /auto|scroll/', replace: 'if (/auto|scroll/' },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a nested element that does not scroll consumes the wheel',
+    edits: [
+      {
+        file: view,
+        find: 'each.scrollTop > 0 && /auto|scroll/.test(getComputedStyle(each).overflowY)',
+        replace: 'each.scrollTop > 0',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a prevented key stops following',
+    edits: [{ file: view, find: '!event.defaultPrevented &&\n', replace: '' }],
+    tests: browser,
+  },
+  {
+    name: 'Ctrl+ArrowUp stops following',
+    edits: [
+      {
+        file: view,
+        find: '!event.ctrlKey &&\n              !event.metaKey',
+        replace: '!event.metaKey',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'Meta+ArrowUp stops following',
+    edits: [{ file: view, find: '!event.metaKey &&\n', replace: '' }],
+    tests: browser,
+  },
+  {
+    name: 'Alt+ArrowUp stops following',
+    edits: [{ file: view, find: '!event.altKey &&\n', replace: '' }],
+    tests: browser,
+  },
+  {
+    name: 'a key typed into a field stops following',
+    edits: [{ file: view, find: '!editing(event.target) &&\n', replace: '' }],
+    tests: browser,
+  },
+  {
+    name: 'a key typed into an editable element stops following',
+    edits: [
+      {
+        file: view,
+        find: '(target.isContentEditable || target.matches',
+        replace: '(target.matches',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a key typed into a select stops following',
+    edits: [{ file: view, find: "'input, textarea, select'", replace: "'input, textarea'" }],
+    tests: browser,
+  },
 ]

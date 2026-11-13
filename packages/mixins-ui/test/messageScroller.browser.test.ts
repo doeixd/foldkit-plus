@@ -345,6 +345,110 @@ test('ArrowUp stops following before the scroll, and ArrowDown does not', async 
   }
 })
 
+/** Leaving attempts that scroll nothing: following must go on, so a message still lands in view. */
+const ignored: ReadonlyArray<readonly [string, (scroller: HTMLElement) => void]> = [
+  [
+    'a Ctrl wheel',
+    scroller =>
+      scroller.dispatchEvent(
+        new WheelEvent('wheel', { deltaY: -80, ctrlKey: true, bubbles: true, cancelable: true }),
+      ),
+  ],
+  [
+    'a wheel over a nested element that scrolls up itself',
+    scroller => {
+      const inner = document.createElement('div')
+      inner.style.cssText = 'height: 40px; overflow-y: auto'
+      const tall = document.createElement('div')
+      tall.style.height = '200px'
+      inner.append(tall)
+      element('#m-29').append(inner)
+      inner.scrollTop = 50
+      inner.dispatchEvent(new WheelEvent('wheel', { deltaY: -80, bubbles: true, cancelable: true }))
+      expect(scroller.contains(inner)).toBe(true)
+    },
+  ],
+  ...(['ctrlKey', 'metaKey', 'altKey'] as const).map(
+    (modifier): readonly [string, (scroller: HTMLElement) => void] => [
+      `ArrowUp with ${modifier}`,
+      scroller =>
+        scroller.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'ArrowUp', [modifier]: true, bubbles: true }),
+        ),
+    ],
+  ),
+  [
+    'a key a child handler prevented',
+    scroller => {
+      const child = element('#m-29')
+      child.addEventListener('keydown', event => event.preventDefault(), { once: true })
+      child.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }),
+      )
+      expect(scroller.contains(child)).toBe(true)
+    },
+  ],
+  ...(['input', 'textarea', 'select'] as const).map(
+    (tag): readonly [string, (scroller: HTMLElement) => void] => [
+      `ArrowUp typed into a ${tag}`,
+      () => {
+        const field = document.createElement(tag)
+        element('#m-29').append(field)
+        field.focus({ preventScroll: true })
+        field.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }))
+      },
+    ],
+  ),
+  [
+    'Home typed into an editable element',
+    () => {
+      const editable = document.createElement('div')
+      editable.contentEditable = 'true'
+      editable.textContent = 'draft'
+      element('#m-29').append(editable)
+      editable.focus({ preventScroll: true })
+      editable.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
+    },
+  ],
+]
+
+test.each(ignored)('%s does not stop following', async (_name, leave) => {
+  const handle = mount(30)
+  try {
+    await vi.waitFor(() => expect(fromEnd()).toBeLessThan(1))
+    leave(viewport())
+    button('Appended').click()
+    await vi.waitFor(() => element('#m-n30'))
+    await vi.waitFor(() => expect(fromEnd()).toBeLessThan(1))
+    expect(jump()).toBeNull()
+  } finally {
+    handle.dispose()
+  }
+})
+
+// A nested element that cannot take the wheel up leaves it to the log, which then does scroll.
+test.each([
+  ['a nested scroller already at its top', 'overflow-y: auto', 0],
+  ['a nested element that scrolls only by script', 'overflow-y: hidden', 50],
+])('a wheel over %s stops following', async (_name, overflow, scrollTop) => {
+  const handle = mount(30)
+  try {
+    await vi.waitFor(() => expect(fromEnd()).toBeLessThan(1))
+    const inner = document.createElement('div')
+    inner.style.cssText = `height: 40px; ${overflow}`
+    const tall = document.createElement('div')
+    tall.style.height = '200px'
+    inner.append(tall)
+    element('#m-29').append(inner)
+    inner.scrollTop = scrollTop
+    inner.dispatchEvent(new WheelEvent('wheel', { deltaY: -80, bubbles: true, cancelable: true }))
+    button('Appended').click()
+    await vi.waitFor(() => expect(jump()).not.toBeNull())
+  } finally {
+    handle.dispose()
+  }
+})
+
 test('a shorter viewport stays at the end while following', async () => {
   const handle = mount(30)
   try {

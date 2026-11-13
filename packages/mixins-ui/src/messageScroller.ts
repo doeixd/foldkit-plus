@@ -127,7 +127,11 @@ export const ScrollToEnd = Command.define('MessageScroller.ScrollToEnd', {
  * one that reaches within `NEAR` of the end starts again. An upward wheel,
  * or ArrowUp, PageUp, or Home, stops following when the key or wheel
  * arrives, before that scroll, so a message landing in between does not
- * pull the end back. While following, any growth (a message, a streamed
+ * pull the end back. Not every such event scrolls the log, so these are
+ * ignored: a Ctrl wheel (zoom), a wheel over a nested element that can scroll
+ * up itself, and a key that another handler prevented, that has Ctrl, Meta or
+ * Alt down, or that goes to an input, textarea, select or editable element.
+ * While following, any growth (a message, a streamed
  * word, a picture loading) and a shorter viewport scroll to the end;
  * otherwise the first message in view is held where it was, so a page of
  * older messages lands above it unseen. It turns the browser's own scroll
@@ -206,16 +210,39 @@ export const FollowEnd = Mount.defineStream('MessageScroller.FollowEnd', {
             else if (scroller.scrollTop < lastTop) report(false)
             remember()
           }
+          // An element between the wheel's target and the scroller that can still scroll up takes the wheel.
+          const consumesWheel = (target: EventTarget | null): boolean => {
+            for (
+              let each = target instanceof Element ? target : null;
+              each !== null && each !== scroller;
+              each = each.parentElement
+            ) {
+              if (each.scrollTop > 0 && /auto|scroll/.test(getComputedStyle(each).overflowY)) {
+                return true
+              }
+            }
+            return false
+          }
+          const editing = (target: EventTarget | null): boolean =>
+            target instanceof HTMLElement &&
+            (target.isContentEditable || target.matches('input, textarea, select'))
           // Before the scroll event. A message that arrives in that gap would
-          // otherwise follow the end and undo the reader's move.
+          // otherwise follow the end and undo the reader's move. Each guard
+          // is a case where no scroll follows, which would leave the reader
+          // at the end, not following, with nothing to resume it.
           const leaving = (event: Event) => {
             if (scroller.scrollHeight <= scroller.clientHeight) return
             if (event instanceof WheelEvent) {
-              if (event.deltaY < 0) report(false)
+              if (event.deltaY < 0 && !event.ctrlKey && !consumesWheel(event.target)) report(false)
               return
             }
             if (
               event instanceof KeyboardEvent &&
+              !event.defaultPrevented &&
+              !event.ctrlKey &&
+              !event.metaKey &&
+              !event.altKey &&
+              !editing(event.target) &&
               (event.key === 'ArrowUp' || event.key === 'PageUp' || event.key === 'Home')
             ) {
               report(false)
