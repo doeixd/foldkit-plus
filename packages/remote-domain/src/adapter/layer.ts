@@ -168,18 +168,30 @@ export const layer = <A extends AnyApi>(
           )
           .pipe(Effect.timeoutOption(confirmWithin))
 
-      const orderOf = (binding: ViewBinding, snapshot: Snapshot) =>
-        snapshot.state === null ? -Infinity : (snapshot.state[binding.revision] as number)
+      const orderOf = (
+        binding: ViewBinding,
+        snapshot: { readonly state: Readonly<Record<string, unknown>>; readonly cursor: number },
+      ) => snapshot.state[binding.revision] as number
 
       /**
        * Lets a snapshot through if its revision is at least the accepted
        * one's, and answers what the key holds then with what it held before.
+       * A deleted row carries no revision: it is let through, and the
+       * revision it was deleted at still orders what comes after.
        */
       const admit = (binding: ViewBinding, id: string, snapshot: Snapshot) =>
         Effect.gen(function* () {
           const key = keyOf(binding.entity.name, id)
           const held = Option.fromUndefinedOr(accepted.get(key))
-          const order = orderOf(binding, snapshot)
+          if (snapshot.state === null) {
+            const revision = Option.match(held, {
+              onNone: () => -Infinity,
+              onSome: ({ revision }) => revision,
+            })
+            accepted.set(key, { revision, snapshot })
+            return { admitted: true, row: null, before: held }
+          }
+          const order = orderOf(binding, { state: snapshot.state, cursor: snapshot.cursor })
           if (Option.isSome(held)) {
             if (order < held.value.revision)
               return { admitted: false, row: held.value.snapshot.state, before: held }
