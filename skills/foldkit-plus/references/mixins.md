@@ -112,7 +112,8 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
 - `Assembly.describe({ name, view, behaviors, styles, pattern: { name, pattern }, links, parts, input })`
   returns one serializable description of the public slots, the attachments in order, the pattern
   obligations and diagnostics, and any contribution conflict (`mixins:event-conflict` or
-  `mixins:attribute-conflict`, naming both contributors, the slot, and the event or attribute).
+  `mixins:attribute-conflict`, naming both contributors and their attachment `orders`, the slot,
+  and the event or attribute). With a `view`, only a behavior it attaches supplies an obligation.
   Omit `input` and a Behavior's events and attributes stay `unknown`; pass it and only those
   names are filled in. What a closure reads stays `unknown`. A Surface contract or an Action
   keeps its kind and name. `Assembly.textOf(description)` is that value as text, so a document
@@ -206,7 +207,8 @@ content, open, id })` (`aria-expanded`, `aria-controls`, `hidden`);
 required? })` deriving `<id>-label`/`-description`/`-error` and the `aria-*` links;
 `Behaviors.SpinValue.behavior(Slots)({ control, value, onChange, min?, max?, step?, page? })` for
 the spinbutton role, values, and arrow/Page/Home/End stepping.
-`Behaviors.Keyboard.behavior(Slots)({ target, routes })` puts named exact
+`Behaviors.Keyboard.behavior(Slots)({ target, routes, name? })` (name defaults to `Keyboard`; two
+keydown owners on one slot still conflict in the resolver) puts named exact
 key/modifier routes under one `OnKeyDownPreventDefault` owner, refusing a
 duplicate chord with both contributors' names. Omitted modifiers must be up;
 `Option.some(message)` dispatches and prevents default, `Option.none()` keeps
@@ -758,11 +760,13 @@ export const stylesheet: string = Style.stylesheet(
 - `foldkit-mixins-ui` exports `Patterns`: an `A11y.pattern` per adapter plus `Patterns.catalog`
   (`{ name, pattern, slots, tier, roles, floor }`), and adapters for `HoverIntent` and `Anchor`
   (`Anchor.behavior(Slots)({ floating, config })`; `Anchor.topLayer(mount)` for an in-place panel, above).
-  `A11y.validate(pattern, slots)` stays a structural contract check. Pass a support list, or call
-  `A11y.bound`, when a present slot must have a provider for `navigation`, `focus`, `activation`,
-  or `checked`: a Behavior's `supplies`, `A11y.native` (the element), or `A11y.delegated` (a
-  named provider). A published attribute is not a provider, an absent optional slot is skipped,
-  and neither check is WCAG conformance. `Patterns.Listbox` asks its `items` slot for navigation
+  `A11y.validate(pattern, slots)` stays a structural contract check. Pass a support list as the
+  third argument when a present slot must have a provider for `navigation`, `focus`,
+  `activation`, or `checked`: a Behavior's `supplies`, `A11y.native` (the element), or
+  `A11y.delegated` (a named provider). A literal list that misses a literal pattern's
+  `slot/obligation` is a type error; a wide one is judged at run time, where an entry naming a
+  slot or obligation the pattern lacks is `a11y:unknown-support`. A published attribute is not a
+  provider, an absent optional slot is skipped, and neither check is WCAG conformance. `Patterns.Listbox` asks its `items` slot for navigation
   and its `item` slot for focus; `Patterns.Checkbox` asks `checkbox` for checked and activation.
 - `Style.attach`/`Behavior.attach` return new views; the original is untouched.
 - Rule-based CSS is data, and arrives with what draws it: in a browser, a class a Slot draws is

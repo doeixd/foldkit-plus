@@ -302,9 +302,13 @@ Message.
 
 Pass the behaviors and styles you still hold. A behavior records only its mixin on the view, so
 the description names an attachment by the `NamedBehavior` or `NamedStyle` whose mixin is that
-one. Omit `input` and a behavior's events and attributes stay `'unknown'`. Pass `input` and the
+one. With a `view`, only a behavior whose mixin the view attaches supplies a pattern obligation: a
+behavior listed in `behaviors` but not attached supplies nothing. Without a view (`slots`,
+`behaviors`, `styles`), every listed behavior counts. Omit `input` and a behavior's events and attributes stay `'unknown'`. Pass `input` and the
 description records the event and attribute names, so a conflict names both contributors, the
-slot, and the event or attribute, in attachment order. What a closure reads stays `'unknown'`.
+slot, and the event or attribute, in attachment order. A conflict also carries the two
+attachments' `order`s (`orders`, printed as `Name#order` by `textOf`), since two attachments may
+share a name, as two `Keyboard` behaviors do. One attachment never conflicts with itself. What a closure reads stays `'unknown'`.
 Classes, attribute values, and mount actions are not copied. A Surface contract or an Action
 contributes its kind and name. A part the render closure builds, such as a nested input, is a
 `parts` entry: describe does not call the view to find it. Replacing an attachment is a new
@@ -1042,12 +1046,14 @@ has a section of its own below.
 
 ### Keyboard routes: one owner, several gestures
 
-`Behaviors.Keyboard.behavior(Slots)({ target, routes })` composes exact key and
+`Behaviors.Keyboard.behavior(Slots)({ target, routes, name? })` composes exact key and
 modifier gestures into one `OnKeyDownPreventDefault` owner. A route is
 `{ name, key, modifiers?, toMessage }`; the slot must publish `Event.KeyDown`.
 Omitted modifiers must be up. Two routes for the same chord are refused at
 definition with a `mixins:event-conflict` naming both contributors, the slot,
-the event and the key.
+the event and the key. Routes compose inside one behavior; a second keydown owner on the same
+slot still conflicts in the resolver, whatever it is named. `name` (default `'Keyboard'`) is how
+the behavior is named in a description or diagnostic.
 
 `toMessage(input)` returns `Option.some(message)` to dispatch and cancel the
 native default, or `Option.none()` to leave it alone. Foldkit skips IME
@@ -1234,13 +1240,17 @@ A11y.validate(DialogPattern, DialogSlots)
 for missing or hidden slots, capability mismatches, and unpublished events or attributes. An
 optional requirement tolerates an absent slot but still checks a present one.
 
-Obligations are a second check, and only when a support list is passed. A present slot may
-require `navigation`, `focus`, `activation`, or `checked`. A Behavior declares what it supplies;
-`A11y.native` names the element (such as `input`); `A11y.delegated` names another provider. An
-empty provider is refused. Publishing an attribute does not supply an obligation. `A11y.bound`
-is that check for a literal list: a missing obligation is a type error. A list typed only as
-`ObligationSupport[]`, including what `A11y.suppliedBy` reads off a Behavior, is judged when
-the call runs. Neither check certifies WCAG conformance.
+Obligations are a second check, and only when a support list is the third argument of the same
+call: `A11y.validate(pattern, slots, support)`. A present slot may require `navigation`, `focus`,
+`activation`, or `checked`. A Behavior declares what it supplies; `A11y.native` names the
+element (such as `input`); `A11y.delegated` names another provider. Both refuse an empty
+provider, and an entry whose provider is empty (built by hand) does not satisfy. Publishing an
+attribute does not supply an obligation. When the pattern and the support list are literals, a
+list that misses a required `slot/obligation` is a type error. A wide `Pattern`, or a list typed
+only as `ObligationSupport[]` (including what `A11y.suppliedBy` reads off a Behavior), is judged
+when the call runs. `slot` in a support entry is a `string`, so the call also reports
+`a11y:unknown-support` for an entry that names a slot the pattern does not list, or an
+obligation that slot does not require. Neither check certifies WCAG conformance.
 
 ```ts
 const ListPattern = A11y.pattern({
@@ -1254,7 +1264,7 @@ const ListNavigation = Behavior.forSlots(ListSlots)<FieldInput, Message>(
   },
   { name: 'ListNavigation' },
 )
-A11y.bound(ListPattern, ListSlots, A11y.suppliedBy(ListNavigation))
+A11y.validate(ListPattern, ListSlots, A11y.suppliedBy(ListNavigation))
 ```
 
 ## Introspection
