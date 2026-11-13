@@ -68,6 +68,6 @@ export const Footprint = {
     return footprint as DeclaredFootprint<OwnerOf<F>>
   },
   /** Nothing is known of what it writes, so every member: never kept. */
-  unknown: Footprints.Unknown() as Footprint,
+  unknown: Footprints.Unknown() as Extract<Footprint, { readonly _tag: 'Unknown' }>,
   $match: Footprints.$match,
 }

@@ -276,7 +276,7 @@ const arrowsOf = (
  * never a fault: what it finds is a report.
  */
 const check = <const W extends ReadonlyArray<LawEntry>>(options: {
-  readonly writes: { readonly [K in keyof W]: Checked<W[K]> }
+  readonly writes: W & { readonly [K in keyof W]: Checked<W[K]> }
   readonly operators?: MemoryOperators | undefined
 }): LawReport => {
   const operators = options.operators ?? kernelOperators

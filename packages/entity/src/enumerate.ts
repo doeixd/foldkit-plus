@@ -138,15 +138,20 @@ export const steps = (
   const fields = entity.fields as Readonly<Record<string, AnyField>>
   const insert = write._tag === 'Insert'
   const changes = new Map<string, Change>()
+  // How the write changes a member says more than that the member is not finite, so it is asked first.
   for (const key of members) {
-    const field = own(fields, key)
-    if (field === undefined) return Steps.Undecided({ reason: `${key} is a link, not a field` })
+    if (own(fields, key) === undefined)
+      return Steps.Undecided({ reason: `${key} is a link, not a field` })
     const change = changeOf(write, key)
     if (change._tag === 'Other') return Steps.Undecided({ reason: change.reason })
-    if (!insert && Option.isNone(finiteValues(field.schema as unknown as Schema.Top)))
-      return Steps.Undecided({ reason: `${key} is not finite` })
     changes.set(key, change)
   }
+  const infinite = insert
+    ? undefined
+    : members.find(key =>
+        Option.isNone(finiteValues(own(fields, key)!.schema as unknown as Schema.Top)),
+      )
+  if (infinite !== undefined) return Steps.Undecided({ reason: `${infinite} is not finite` })
   // What the `when` reads joins the rows when it is finite, so a row it refuses is dropped.
   const condition = Option.filter(write.when, () => !insert)
   const read = Option.map(condition, body => Query.dependencies(body))
