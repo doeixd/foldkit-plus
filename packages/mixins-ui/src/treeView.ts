@@ -255,6 +255,55 @@ export const checksOf = (
   return states
 }
 
+/** Which rows a checked value lists: see `checkedAs`. */
+export type CheckedValue = 'leaf' | 'branch' | 'trunk'
+
+/**
+ * The Model's `checked` (the checked rows holding no rows) as the value an
+ * application stores or sends, in tree order:
+ * - `'leaf'`: the checked rows holding no rows, which is what `checked` holds.
+ * - `'branch'`: every fully checked row, rows holding rows and not.
+ * - `'trunk'`: the outermost fully checked rows, so a checked folder stands for
+ *   everything in it.
+ *
+ * A row holding rows is fully checked as `checksOf` reads it: every row it
+ * holds that holds none is checked, a disabled one included, so a folder with
+ * an unchecked disabled file is not listed and its checked files are. Ids the
+ * tree does not hold are left out. `leavesOf` is the way back, so the Model
+ * stays the one owner of what is checked.
+ */
+export const checkedAs = (
+  nodes: ReadonlyArray<TreeNode>,
+  checked: ReadonlyArray<string>,
+  as: CheckedValue,
+): ReadonlyArray<string> => {
+  const { rows } = flatOf(nodes)
+  const on = new Set(checked)
+  if (as === 'leaf') return rows.flatMap(row => (!row.branch && on.has(row.id) ? [row.id] : []))
+  const full = new Set<string>()
+  for (const [id, state] of checksOf(nodes, checked)) if (state === true) full.add(id)
+  return rows.flatMap(row =>
+    full.has(row.id) && (as === 'branch' || row.parent === null || !full.has(row.parent))
+      ? [row.id]
+      : [],
+  )
+}
+
+/**
+ * The checked rows holding no rows that a value stands for, in tree order,
+ * to seed or write the Model's `checked`: an id of a row holding rows stands
+ * for every such row beneath it, whichever value the application keeps
+ * (`checkedAs`), and ids the tree does not hold are ignored.
+ */
+export const leavesOf = (
+  nodes: ReadonlyArray<TreeNode>,
+  value: ReadonlyArray<string>,
+): ReadonlyArray<string> => {
+  const flat = flatOf(nodes)
+  const on = new Set(value.flatMap(id => flat.leaves.get(id) ?? []))
+  return flat.rows.flatMap(row => (!row.branch && on.has(row.id) ? [row.id] : []))
+}
+
 /**
  * The tree's `update` over `nodes`, the tree the view draws; the same Model
  * when nothing changes. Pass the same `nodes` the view gets, built once, and

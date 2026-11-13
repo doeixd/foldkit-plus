@@ -178,4 +178,53 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'a trunk lists every fully checked row',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: "as === 'branch' || row.parent === null || !full.has(row.parent)",
+        replace: 'true',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a branch value lists only the outermost rows',
+    edits: [{ file: '../src/treeView.ts', find: "as === 'branch' ||", replace: 'false ||' }],
+    tests: [unit],
+  },
+  {
+    name: 'a partly checked row is listed as fully checked',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: 'if (state === true) full.add(id)',
+        replace: 'if (state !== false) full.add(id)',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the leaf value lists rows holding rows',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: '(!row.branch && on.has(row.id) ? [row.id] : []))\n  const full',
+        replace: '(on.has(row.id) ? [row.id] : []))\n  const full',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a branch id expands to nothing',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: 'value.flatMap(id => flat.leaves.get(id) ?? [])',
+        replace: 'value.flatMap(id => (flat.leaves.get(id) ?? []).slice(0, 1))',
+      },
+    ],
+    tests: [unit],
+  },
 ]

@@ -396,3 +396,73 @@ describe('TreeView icons', () => {
     ).toEqual([])
   })
 })
+
+describe('TreeView checked values', () => {
+  // src > components > button, tree; src > index, lock (disabled); readme.
+  const table: ReadonlyArray<
+    readonly [
+      string,
+      ReadonlyArray<string>,
+      { readonly branch: ReadonlyArray<string>; readonly trunk: ReadonlyArray<string> },
+    ]
+  > = [
+    ['nothing', [], { branch: [], trunk: [] }],
+    [
+      'one folder of the two',
+      ['button', 'tree'],
+      { branch: ['components', 'button', 'tree'], trunk: ['components'] },
+    ],
+    [
+      'a folder and a loose file',
+      ['button', 'tree', 'readme'],
+      { branch: ['components', 'button', 'tree', 'readme'], trunk: ['components', 'readme'] },
+    ],
+    [
+      'a folder missing its disabled file',
+      ['button', 'tree', 'index'],
+      { branch: ['components', 'button', 'tree', 'index'], trunk: ['components', 'index'] },
+    ],
+    [
+      'everything, the disabled file too',
+      ['button', 'tree', 'index', 'lock', 'readme'],
+      {
+        branch: ['src', 'components', 'button', 'tree', 'index', 'lock', 'readme'],
+        trunk: ['src', 'readme'],
+      },
+    ],
+  ]
+
+  it.each(table)('%s, as each value', (_name, leaves, expected) => {
+    expect(TreeView.checkedAs(CHECKED, leaves, 'leaf')).toEqual(
+      ['button', 'tree', 'index', 'lock', 'readme'].filter(id => leaves.includes(id)),
+    )
+    expect(TreeView.checkedAs(CHECKED, leaves, 'branch')).toEqual(expected.branch)
+    expect(TreeView.checkedAs(CHECKED, leaves, 'trunk')).toEqual(expected.trunk)
+  })
+
+  it.each(table)('%s, round trips through every value', (_name, leaves) => {
+    for (const as of ['leaf', 'branch', 'trunk'] as const) {
+      expect(TreeView.leavesOf(CHECKED, TreeView.checkedAs(CHECKED, leaves, as))).toEqual(
+        ['button', 'tree', 'index', 'lock', 'readme'].filter(id => leaves.includes(id)),
+      )
+    }
+  })
+
+  it('leaves out ids the tree does not hold, and expands a branch id to the rows under it', () => {
+    expect(TreeView.checkedAs(CHECKED, ['ghost', 'readme'], 'leaf')).toEqual(['readme'])
+    expect(TreeView.checkedAs(CHECKED, ['src', 'readme'], 'leaf')).toEqual(['readme'])
+    expect(TreeView.leavesOf(CHECKED, ['ghost', 'src', 'components'])).toEqual([
+      'button',
+      'tree',
+      'index',
+      'lock',
+    ])
+    expect(TreeView.leavesOf(CHECKED, [])).toEqual([])
+  })
+
+  it('a trunk value seeds a Model that reads and checks as one', () => {
+    const model = init({ id: 'files', checked: TreeView.leavesOf(CHECKED, ['components']) })
+    expect(TreeView.checksOf(CHECKED, model.checked).get('components')).toBe(true)
+    expect(TreeView.checkedAs(CHECKED, model.checked, 'trunk')).toEqual(['components'])
+  })
+})
