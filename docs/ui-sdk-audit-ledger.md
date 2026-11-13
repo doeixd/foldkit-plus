@@ -82,6 +82,19 @@ Compared at UI SDK `d6996097` (`createRovingFocus`, `createGridFocus`) and this 
 
 Focusing a disabled item, and Page Up on `GridNavigation`, stay deferred until a toolbar or a calendar needs them. A virtual row is revealed by the grid that owns it.
 
+## Typeahead and list navigation
+
+**Disposition: verified overlap, with a justified deferral.** A printable key already builds a query and moves to the item whose text starts with it. Filtering a list by what a field holds stays with the parent. Nothing in this pass adds a second query or a filter mode.
+
+Compared at UI SDK `d6996097` (`createTypeahead`, `isTypeaheadKey`, `createListbox`) and this tree:
+
+- **The query.** [Typeahead](../packages/primitives/src/interaction/typeahead.ts) keeps `query` and `generation` in the Model. Each printable key schedules `Typeahead.expire` on Effect's clock, and an `Expired` for an older generation changes nothing. `Cleared` drops the query. UI SDK's `createTypeahead` keeps that buffer in a closure and clears it with `setTimeout` (500 ms unless the caller passes another). [ListNavigation](../packages/primitives/src/interaction/list-navigation.ts) keeps the current id and the query in one Model, so one keydown owner moves the pointer and extends the query in the same transition. `typeahead: false` leaves letters to a text field, and arrows still move.
+- **What matches.** `match` ignores case (`toLocaleLowerCase`) and leading whitespace, and matches a prefix. A one-character query, or one character repeated, starts after the current enabled item and wraps, so repeated presses cycle. A longer query starts at the current item. Items left out of `enabled` are skipped. A space with an empty query stays with the host, which activates. UI SDK folds case and accents through `Intl.Collator` at base sensitivity, trims both ends, and for a repeated character tries the whole string first, so `ll` can land on `Llama`, before cycling on the character. `isTypeaheadKey` is one character without ctrl, alt, or meta.
+- **Per widget.** Menu and listbox keep `searchQuery` on the widget Model and match with [resolveTypeaheadMatch](../packages/mixins-ui/src/menuUtils.ts): a lowercased prefix, a later character includes the current item, a fresh character starts after it, and a disabled item is skipped. The rows stay. The tree calls `match` with that one key, so each letter starts a new search. A combobox and the command palette filter the items the parent passes, and the field owns the letters. UI SDK's listbox engine does both jobs: a query hides rows (`contains` by default, or `startsWith`, `fuzzy`, or a function, and an item's keywords count), and typeahead still highlights inside what remains. An empty query shows every row.
+- **IME.** Neither typeahead path reads `isComposing`. A composition key whose `key` is longer than one character is not a typeahead key. Composition on a field is [EditableText](../packages/primitives/src/dom/editable-text.ts) and the combobox input. UI SDK's `isComposing` is what its text field, inline edit, and input history read.
+
+Accent folding, the `Llama` repeated-character preference, a typeahead buffer on the tree, and filter modes on the highlight query stay deferred until a list highlights or hides the wrong row.
+
 ## Trees and checked branches
 
 **Disposition: verified overlap, with a justified deferral.** A checkable tree already stores the checked leaves and derives each branch. The other three ways of writing that value stay out: they would change what `checked` means, and no tree asks for them.
