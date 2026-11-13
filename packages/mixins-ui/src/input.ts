@@ -9,7 +9,7 @@ import { resolveFor, type MixinList, type ResolveContext, type Resolved } from '
 export const InputSlots = Slots.define({
   input: Slot.make({
     capability: Capability.TextInput,
-    events: [Event.Input, Event.Focus, Event.Blur],
+    events: [Event.Input, Event.Focus, Event.Blur, Event.KeyDown],
     attributes: [Attr.AriaLabel, Attr.AriaInvalid, Attr.Disabled, Attr.Value],
   }),
   label: Slot.make({ capability: Capability.Container }),

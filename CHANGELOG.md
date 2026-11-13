@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`: `Behaviors.Keyboard.behavior(Slots)({ target, routes })`
+  composes named exact key/modifier gestures under one keydown owner, reports
+  overlapping routes by contributor and leaves native editing keys alone. The
+  widget search-field fixture uses it for Escape-to-clear and
+  ArrowDown-to-open-results (#554).
 - `foldkit-remote-domain` (new, Early: it tracks a beta): the start of the
   bridge from an Alchemy Domain Api to Remote. It exports `Receipt`, the
   `{ stream, version }` a Domain command answers with, and its tests pin the

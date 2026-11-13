@@ -934,7 +934,8 @@ roving tab stop or a press, live in `foldkit-primitives` as a Bundle plus its Be
 
 Four more stateless Behaviors say a parent's state in ARIA, so a custom view
 gets it right without hand-writing it. Each takes slot names and functions of
-the view's input; none owns anything.
+the view's input; none owns anything. A fifth, Keyboard, routes gestures, and
+has a section of its own below.
 
 - `Behaviors.Disclosure.behavior(Slots)<Input, Message>({ trigger, content, open, id })`
   writes `aria-expanded` and `aria-controls` on the trigger, `id` and `hidden`
@@ -956,6 +957,28 @@ the view's input; none owns anything.
   press-and-hold repeat and the wheel are not handled: Foldkit's wheel
   attribute carries no delta, and a repeat is a timer the Model would own.
 
+### Keyboard routes: one owner, several gestures
+
+`Behaviors.Keyboard.behavior(Slots)({ target, routes })` composes exact key and
+modifier gestures into one `OnKeyDownPreventDefault` owner. A route is
+`{ name, key, modifiers?, toMessage }`; the slot must publish `Event.KeyDown`.
+Omitted modifiers must be up. Two routes for the same chord are refused at
+definition with a `mixins:event-conflict` naming both contributors, the slot,
+the event and the key.
+
+`toMessage(input)` returns `Option.some(message)` to dispatch and cancel the
+native default, or `Option.none()` to leave it alone. Foldkit skips IME
+composition. Repeated keys take the same route, and handled events continue to
+propagate; this callback has no repeat filter or propagation control. The base
+view's key handler, `ChildAttribute` routing and protected events keep their
+usual single-owner checks: a router never replaces them implicitly.
+
+Observation, routing and replacement are separate choices. Use an ordinary
+base `OnKeyDown` to observe every non-IME key without cancelling its default;
+use Keyboard to choose Messages per gesture; replace a base keydown by removing
+it before attaching a Behavior, not by attaching a second owner. The runnable
+[`examples/widgets/src/ui-sdk-search-field.ts`](../../examples/widgets/src/ui-sdk-search-field.ts)
+composes Escape-to-clear with ArrowDown-to-open-results.
 
 ## SlotView
 

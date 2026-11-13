@@ -3,20 +3,35 @@
  * sends Messages through its placement and its update changes only its slice.
  * The same child view, recipe and Behavior are used by both placements.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import * as Submodel from 'foldkit/submodel'
 import type { HtmlBuilder } from 'foldkit/html'
 import { Bundle } from 'foldkit-bundle'
-import { Attr, Behavior, Capability, Event, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
+import {
+  Attr,
+  Behavior,
+  Behaviors,
+  Capability,
+  Event,
+  Slot,
+  Slots,
+  SlotView,
+  Style,
+} from 'foldkit-mixins'
 import { Input, InputSlots, Recipes } from 'foldkit-mixins-ui'
 
-export const SearchModel = Schema.Struct({ id: Schema.String, value: Schema.String })
+export const SearchModel = Schema.Struct({
+  id: Schema.String,
+  value: Schema.String,
+  resultsOpen: Schema.Boolean,
+})
 export type SearchModel = typeof SearchModel.Type
 export const SearchMessage = defineMessageUnion({
   Typed: { value: Schema.String },
   Cleared: {},
+  OpenedResults: {},
 })
 export type SearchMessage = typeof SearchMessage.Type
 
@@ -40,6 +55,22 @@ const ClearLabel = Behavior.forSlots(SearchSlots)<SearchModel, SearchMessage>(
   },
   { name: 'ClearLabel' },
 )
+const SearchKeys = Behaviors.Keyboard.behavior(InputSlots)<SearchModel, SearchMessage>({
+  target: 'input',
+  routes: [
+    {
+      name: 'Clear',
+      key: 'Escape',
+      toMessage: model =>
+        model.value === '' ? Option.none() : Option.some(SearchMessage.Cleared()),
+    },
+    {
+      name: 'Open results',
+      key: 'ArrowDown',
+      toMessage: () => Option.some(SearchMessage.OpenedResults()),
+    },
+  ],
+})
 
 export const SearchView = SlotView.forMessages<SearchMessage>()
   .define(SearchSlots, (model: SearchModel, slots, h) =>
@@ -51,6 +82,8 @@ export const SearchView = SlotView.forMessages<SearchMessage>()
           onInput: value => SearchMessage.Typed({ value }),
           type: 'search',
           style: SearchInputStyle,
+          mixins: [SearchKeys.mixin],
+          input: model,
           draw: ({ input }, h) => h.input([...input, h.AriaLabel('Search')]),
         },
         h,
@@ -58,6 +91,14 @@ export const SearchView = SlotView.forMessages<SearchMessage>()
       h.button(slots.clear.attrs([h.Type('button'), h.OnClick(SearchMessage.Cleared())]), [
         'Clear',
       ]),
+      ...(model.resultsOpen
+        ? [
+            h.div(
+              [h.Id(`${model.id}-results`), h.Role('region'), h.AriaLabel('Search results')],
+              [`Results for ${model.value}`],
+            ),
+          ]
+        : []),
     ]),
   )
   .pipe(Behavior.attach(ClearLabel))
@@ -66,13 +107,19 @@ export const Search = Bundle.make('Search', {
   Model: SearchModel,
   Message: SearchMessage,
   args: Schema.Struct({ id: Schema.String }),
-  init: ({ id }) => ({ model: { id, value: '' } }),
+  init: ({ id }) => ({ model: { id, value: '', resultsOpen: false } }),
   update: (model, message) =>
     SearchMessage.match(message, {
       Typed: ({ value }) =>
         value === model.value ? { model } : { model: modifyFields(model, { value: () => value }) },
       Cleared: () =>
-        model.value === '' ? { model } : { model: modifyFields(model, { value: () => '' }) },
+        model.value === '' && !model.resultsOpen
+          ? { model }
+          : {
+              model: modifyFields(model, { value: () => '', resultsOpen: () => false }),
+            },
+      OpenedResults: () =>
+        model.resultsOpen ? { model } : { model: modifyFields(model, { resultsOpen: () => true }) },
     }),
   view: Submodel.defineView<SearchModel, SearchMessage>(SearchView),
 })

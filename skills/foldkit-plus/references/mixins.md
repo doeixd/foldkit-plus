@@ -180,8 +180,15 @@ content, open, id })` (`aria-expanded`, `aria-controls`, `hidden`);
 `Behaviors.FieldAssociation.behavior(Slots)({ control, label, description?, error?, id, invalid?,
 required? })` deriving `<id>-label`/`-description`/`-error` and the `aria-*` links;
 `Behaviors.SpinValue.behavior(Slots)({ control, value, onChange, min?, max?, step?, page? })` for
-the spinbutton role, values, and arrow/Page/Home/End stepping. Stateful Behaviors (roving
-tabindex, press, dismiss layers) are Bundles in `foldkit-primitives/interaction`.
+the spinbutton role, values, and arrow/Page/Home/End stepping.
+`Behaviors.Keyboard.behavior(Slots)({ target, routes })` puts named exact
+key/modifier routes under one `OnKeyDownPreventDefault` owner, refusing a
+duplicate chord with both contributors' names. Omitted modifiers must be up;
+`Option.some(message)` dispatches and prevents default, `Option.none()` keeps
+the native action. IME composition is skipped, repeats route normally and
+propagation continues. Base, child and protected event ownership is unchanged.
+Stateful Behaviors (roving tabindex, press, dismiss layers) are Bundles in
+`foldkit-primitives/interaction`.
 
 ### 3b. An application's own look
 
