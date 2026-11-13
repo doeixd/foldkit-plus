@@ -305,3 +305,57 @@ test('older messages loaded above leave the message in view where it was', async
     handle.dispose()
   }
 })
+
+test('an upward wheel stops following before the scroll, so a message in between stays below', async () => {
+  const handle = mount(30)
+  try {
+    await vi.waitFor(() => expect(fromEnd()).toBeLessThan(1))
+    const scroller = viewport()
+    const top = scroller.scrollTop
+    scroller.dispatchEvent(
+      new WheelEvent('wheel', { deltaY: -80, bubbles: true, cancelable: true }),
+    )
+    button('Appended').click()
+    await vi.waitFor(() => expect(jump()).not.toBeNull())
+    expect(Math.abs(scroller.scrollTop - top)).toBeLessThan(1)
+    expect(fromEnd()).toBeGreaterThan(16)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('ArrowUp stops following before the scroll, and ArrowDown does not', async () => {
+  const handle = mount(30)
+  try {
+    await vi.waitFor(() => expect(fromEnd()).toBeLessThan(1))
+    const scroller = viewport()
+    scroller.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+    button('Appended').click()
+    await vi.waitFor(() => element('#m-n30'))
+    await vi.waitFor(() => expect(fromEnd()).toBeLessThan(1))
+    expect(jump()).toBeNull()
+    const top = scroller.scrollTop
+    scroller.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }))
+    button('Appended').click()
+    await vi.waitFor(() => expect(jump()).not.toBeNull())
+    expect(Math.abs(scroller.scrollTop - top)).toBeLessThan(1)
+    expect(fromEnd()).toBeGreaterThan(16)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a shorter viewport stays at the end while following', async () => {
+  const handle = mount(30)
+  try {
+    await vi.waitFor(() => expect(fromEnd()).toBeLessThan(1))
+    const scroller = viewport()
+    const before = scroller.clientHeight
+    element('#frame').style.height = '140px'
+    await vi.waitFor(() => expect(scroller.clientHeight).toBeLessThan(before - 40))
+    await vi.waitFor(() => expect(fromEnd()).toBeLessThan(1))
+    expect(jump()).toBeNull()
+  } finally {
+    handle.dispose()
+  }
+})

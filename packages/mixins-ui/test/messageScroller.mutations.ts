@@ -78,4 +78,25 @@ export default [
     edits: [{ file: recipe, find: "marginInline: 'auto',", replace: '' }],
     tests: browser,
   },
+  {
+    name: 'an upward wheel keeps following',
+    edits: [
+      {
+        file: view,
+        find: "scroller.addEventListener('wheel', leaving, { passive: true })",
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'ArrowUp keeps following',
+    edits: [{ file: view, find: "scroller.addEventListener('keydown', leaving)", replace: '' }],
+    tests: browser,
+  },
+  {
+    name: 'a shorter viewport leaves the end',
+    edits: [{ file: view, find: 'observer.observe(scroller)', replace: '' }],
+    tests: browser,
+  },
 ]

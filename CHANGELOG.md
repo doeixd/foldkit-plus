@@ -142,6 +142,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: `MessageScroller` stops following on an upward wheel, or
+  on ArrowUp, PageUp, or Home, when that input arrives, before the scroll
+  position moves. A message that lands in between stays below the reader.
+  While following, a shorter viewport scrolls to the end. The scroll position
+  remains the browser's (#558).
+
 - `foldkit-mixins`: a family's pressed fill (`active`) no longer turns a grey
   red. It added 0.05 of chroma at the fill's hue, which a grey does not have:
   shadcn's black accent pressed its secondary as a dark red, and a fill set to

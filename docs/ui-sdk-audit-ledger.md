@@ -18,9 +18,16 @@ A virtualized roving widget should scroll the focused index into the window, as 
 
 ## Following new messages
 
-- Foldkit [MessageScroller](../packages/mixins-ui/src/messageScroller.ts) follows content while at the end, records unseen messages and preserves the reader's position on prepend. Its [browser tests](../packages/mixins-ui/test/messageScroller.browser.test.ts) exercise streaming, scrolling away, jumping and prepend.
-- UI SDK's experimental [stick-to-bottom](https://github.com/vercel-labs/ui/blob/d6996097b9f8dbe5fe98c3f04210b9daa969a06c/packages/core/src/foundation/lists/stick-to-bottom.ts) additionally listens for upward wheel, touch and keyboard intent before scroll; Foldkit observes the scroll.
-- **Next:** test content arriving between upward intent and the scroll, programmatic smooth scrolling and viewport resizing. Fix a demonstrated race in the existing scroller rather than adding another owner; no race has yet been reproduced.
+**Disposition: implemented gap.** The follow, the unseen count, and holding a prepended page in place already overlapped. Two edges did not, and both are fixed in `FollowEnd`. No second owner.
+
+Compared at UI SDK `d6996097` (`createStickToBottom`, experimental) and [MessageScroller](../packages/mixins-ui/src/messageScroller.ts):
+
+- **Follow and stop.** Both follow growth while at the end and stop once the reader has moved up past a threshold (24px there, `NEAR` of 16px here). The virtualizer instance also stores `atBottom` apart from `following`, ignores its own `scrollTop` (`ours`), and can start not following or `release()`. The scroller's Model is `following` and `unseen`; the browser holds the scroll. `ScrollToEnd` already scrolls smooth unless `motion`, `travel`, or reduced motion is still, and the jump test waits until that scroll reaches the end.
+- **Intent before the scroll.** A wheel upward, or ArrowUp, PageUp, or Home, sets the virtualizer's `following` false before a frame. The scroller used to wait until `scrollTop` decreased, so growth in that gap called `toEnd()` and put the reader back at the end. `FollowEnd` now stops on those inputs when they arrive. A touch does not: the virtualizer's `touchmove` only clears `ours`, and the scroll position still decides. [Browser tests](../packages/mixins-ui/test/messageScroller.browser.test.ts) dispatch the wheel and ArrowUp, append in that turn, and read the same `scrollTop` with the new row below. ArrowDown still follows.
+- **Viewport.** The virtualizer observes the scroller, so a shorter viewport while following runs `toEnd`. The scroller observed only the log, whose box does not change when the viewport does. It now observes the viewport too. The same browser file shrinks the frame and expects the end to stay in view.
+- **Prepend and unseen.** `prepend()` saves the distance from the end for the next growth. The scroller holds the first element in view by its layout position, so the application does not call anything when it loads older rows, and the browser test checks that spot a frame later. Unseen there is a boolean. Here `Appended({ count })` adds a count, and only the application can tell a new row from an older one.
+
+The three mutations (wheel listener, key listener, observing the viewport) are killed by those browser tests.
 
 ## Preferences and theme
 
