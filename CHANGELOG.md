@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-remote/testing`: `Walk.run` runs seeded random walks of Messages over
+  a list of named starts and checks a law after every step (it may be
+  asynchronous, so a walk can go through a writer); `Walk.cases` requires a
+  generator for every Message variant, and `regressions` run first from their
+  own starts. `Walk.states(schema, { count, seed })` derives starts from a
+  Schema, decoded through it, deterministic per seed, and throws by kind and
+  path for a kind it cannot build.
 - `foldkit-surface`: `closed: true` on `Surface.make` and `App.surface` declares a
   Surface closed, and `Closure.violations(app, surfaces)` is the step check a
   walk calls: a Message in the Surface's set that reads outside it is named by
