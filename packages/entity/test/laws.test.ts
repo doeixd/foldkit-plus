@@ -190,6 +190,37 @@ describe('Laws.check: an operator the table lacks', () => {
   })
 })
 
+describe('Laws.check: a write expecting a revision', () => {
+  const Doc = Entity.define(
+    'Doc',
+    Schema.Struct({ id: Schema.String, name: Schema.String, revision: Schema.Number }),
+  ).pipe(
+    Entity.invariant('fewRevisions', ({ after }) => Expr.lt(after.revision, 100), {
+      message: 'few',
+    }),
+  )
+  const Edit = {
+    name: 'Edit',
+    write: Write.update(
+      Entity.input(
+        Doc,
+        Schema.Struct({ id: Schema.String, name: Schema.String, revision: Schema.Number }),
+      ),
+      { id: 'id', expect: 'revision' },
+    ),
+  }
+
+  it('moves the revision on, so an invariant over it is not kept by disjointness', () => {
+    expect(verdict(Laws.check({ writes: [Edit] }), 'Edit', 'fewRevisions')).toEqual({
+      _tag: 'Undecided',
+      reason: 'revision is the revision it expects, moved on where it lands',
+    })
+    expect(Write.footprint(Edit.write)).toEqual(
+      Footprint.Derived({ reads: ['revision'], writes: ['name', 'revision'] }),
+    )
+  })
+})
+
 describe('Laws.check: an insert', () => {
   const Toggle = Entity.define(
     'Toggle',

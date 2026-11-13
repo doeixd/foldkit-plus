@@ -98,6 +98,8 @@ const changeOf = (write: AnyWrite, key: string): Change => {
     return Change.Other({ reason: `${key} is linked to another row` })
   if (write.context.some(each => each.member.key === key))
     return Change.Other({ reason: `${key} is set by the write's context` })
+  if (write.expect?.field.key === key)
+    return Change.Other({ reason: `${key} is the revision it expects, moved on where it lands` })
   return Match.value(write).pipe(
     Match.tag('Insert', () =>
       Change.Other({ reason: `${key} is not written by the insert, so the store decides it` }),

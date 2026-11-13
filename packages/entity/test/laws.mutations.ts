@@ -90,6 +90,17 @@ export default [
     tests: [laws],
   },
   {
+    name: 'the revision a write expects read as unwritten',
+    edits: [
+      {
+        file: '../src/write.ts',
+        find: '...(write.expect === undefined ? [] : [write.expect.field.key]),',
+        replace: '',
+      },
+    ],
+    tests: [laws],
+  },
+  {
     name: 'a declared footprint over another Entity accepted',
     edits: [
       {

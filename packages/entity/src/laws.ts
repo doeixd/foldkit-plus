@@ -15,7 +15,7 @@ import { own } from './record.js'
 import { inState, states, type AnyRefinement } from './refine.js'
 
 type AnyField = EntityField<string, string, Schema.Constraint>
-import { Write, type AnyWrite } from './write.js'
+import { Write, writtenKeys, type AnyWrite } from './write.js'
 
 /** A declared write, as `Mutation.write` returns one. */
 export interface WriteEntry {
@@ -134,14 +134,7 @@ const judgeWrite = (write: AnyWrite, held: Invariant, operators: MemoryOperators
   if (write._tag === 'Insert' && transition) return LawVerdict.Kept({ by: 'create', rows: 0 })
   const reads = readOf(held)
   // Disjointness decides a state invariant only: a transition invariant can be broken by a write leaving it alone.
-  if (
-    write._tag === 'Update' &&
-    !transition &&
-    disjoint(
-      Write.writes(write).map(member => member.key),
-      reads,
-    )
-  )
+  if (write._tag === 'Update' && !transition && disjoint(writtenKeys(write), reads))
     return LawVerdict.Kept({ by: 'disjointness', rows: 0 })
   return Steps.$match(steps(write, reads, { operators }), {
     Undecided: ({ reason }) => LawVerdict.Undecided({ reason }),
@@ -214,7 +207,7 @@ const arrowsOf = (
     undecided: new Set<string>(),
   }
   if (write._tag === 'Delete') return none
-  const written = Write.writes(write).map(member => member.key)
+  const written = writtenKeys(write)
   const moved = local.filter(state => state.reads.some(key => written.includes(key)))
   // A state over a field that is not finite (`InStock`, over a number) is never enumerated,
   // so it costs the others nothing: a write moving a row into or out of it is undecided there.

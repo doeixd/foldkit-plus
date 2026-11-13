@@ -883,6 +883,12 @@ const settingSomething = <
     ? fail(write.input, 'it sets no field')
     : write
 
+/** Every member a write may change, by key: `Write.writes`, and the revision it expects, which it moves on. */
+export const writtenKeys = (write: AnyWrite): ReadonlyArray<string> => [
+  ...Write.writes(write).map(member => member.key),
+  ...(write.expect === undefined ? [] : [write.expect.field.key]),
+]
+
 export const Write = {
   /**
    * Sets, on the row whose id is the input's `id` key, every field the input
@@ -1041,12 +1047,13 @@ export const Write = {
 
   /**
    * What a write reads and writes of its row, by field key (`Write.reads`,
-   * `Write.writes`): what `Laws.check` judges it by.
+   * and `Write.writes` with the revision it expects, which it moves on): what
+   * `Laws.check` judges it by.
    */
   footprint: (write: AnyWrite): Footprint =>
     Footprint.Derived({
       reads: Write.reads(write).map(field => field.key),
-      writes: Write.writes(write).map(member => member.key),
+      writes: writtenKeys(write),
     }),
 
   /**
