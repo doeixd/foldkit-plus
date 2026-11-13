@@ -1,5 +1,6 @@
-import { Schema } from 'effect'
-import type { DependencyTree } from './index.js'
+import { Predicate, Schema } from 'effect'
+import type { DependencyTree, Surface } from './index.js'
+import { messageTags } from './messageTags.js'
 
 /** A read-only `Projection` or a `WritableProjection`: `Closure` needs only the codec, the paths and the read. */
 export type ClosureProjection<Root, Value> =
@@ -25,6 +26,13 @@ const owned = (dependencies: DependencyTree): ReadonlySet<string> => {
   }
   return fields
 }
+
+const partsOf = <Root, Value>(
+  projection: ClosureProjection<Root, Value>,
+): { readonly codec: Schema.Schema<Value>; readonly read: (root: Root) => Value } =>
+  'schema' in projection
+    ? { codec: projection.schema, read: projection.get }
+    : { codec: projection.Model, read: projection.read }
 
 const equivalence = <Value>(codec: Schema.Schema<Value>): ((a: Value, b: Value) => boolean) => {
   let equal = equivalenceOf.get(codec)
@@ -61,8 +69,7 @@ const reads = <Root, Value, Message>(
   )
   if (outside.length === 0) return []
 
-  const codec = 'schema' in projection ? projection.schema : projection.Model
-  const read = 'get' in projection ? projection.get : projection.read
+  const { codec, read } = partsOf(projection)
   const equal = equivalence(codec)
   const after = read(app.update(model, message).model)
   const differs = (fields: ReadonlyArray<string>): boolean => {
@@ -79,5 +86,46 @@ const reads = <Root, Value, Message>(
   return named.length === 0 ? outside : named
 }
 
+/** A closed Surface a step broke: what it read outside itself, or that a Message outside its set moved it. */
+export type ClosureViolation =
+  | { readonly surface: string; readonly kind: 'reads'; readonly fields: ReadonlyArray<string> }
+  | { readonly surface: string; readonly kind: 'outside' }
+
+/**
+ * A step check over the Surfaces declared `closed: true`, for a walk. For a Message in a
+ * Surface's `messages`, `Closure.reads` must be empty; for any other Message the projection
+ * must not change from `before` to `after`. A Surface not declared closed is never tested.
+ * A Surface with params is refused here: it has no one projection to test.
+ */
+const violations = <Root, Message>(
+  app: {
+    readonly initial: Root
+    readonly update: (model: Root, message: Message) => { readonly model: Root }
+  },
+  surfaces: ReadonlyArray<Surface<Root, any, any, any>>,
+): ((before: Root, message: Message, after: Root) => ReadonlyArray<ClosureViolation>) => {
+  const closed = surfaces
+    .filter(surface => surface.closed)
+    .map(surface => {
+      if (surface.Params !== undefined) {
+        throw new Error(`Closure.violations: Surface "${surface.name}" declares params`)
+      }
+      const projection = surface.projection(undefined) as ClosureProjection<Root, unknown>
+      return { name: surface.name, projection, tags: new Set(messageTags(surface)) }
+    })
+  return (before, message, after) =>
+    closed.flatMap(({ name, projection, tags }): ReadonlyArray<ClosureViolation> => {
+      if (Predicate.hasProperty(message, '_tag') && tags.has(message._tag as string)) {
+        const fields = reads(app, projection, before, message)
+        return fields.length === 0 ? [] : [{ surface: name, kind: 'reads', fields }]
+      }
+      const { codec, read } = partsOf(projection)
+      const [was, now] = [read(before), read(after)]
+      return Object.is(was, now) || equivalence(codec)(was, now)
+        ? []
+        : [{ surface: name, kind: 'outside' }]
+    })
+}
+
 /** Checks that a projection is closed under `update`: `Closure.reads` names what it still depends on. */
-export const Closure = { reads }
+export const Closure = { reads, violations }

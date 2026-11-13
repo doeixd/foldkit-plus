@@ -1,11 +1,14 @@
 /**
- * `Closure.reads`: `pnpm mutate packages/surface/test/closure.mutations.ts`.
+ * `Closure.reads` and `Closure.violations`: `pnpm mutate packages/surface/test/closure.mutations.ts`.
  */
-const tests = ['packages/surface/test/closure.test.ts']
+const tests = [
+  'packages/surface/test/closure.test.ts',
+  'packages/surface/test/closureViolations.test.ts',
+]
 
-const edit = (name: string, find: string, replace: string) => ({
+const edit = (name: string, find: string, replace: string, file = '../src/closure.ts') => ({
   name,
-  edits: [{ file: '../src/closure.ts', find, replace }],
+  edits: [{ file, find, replace }],
   tests,
 })
 
@@ -31,5 +34,34 @@ export default [
     'every candidate is named without resetting one at a time',
     'outside.filter(key => differs([key]))',
     'outside',
+  ),
+  edit(
+    'a Message outside the set is not compared',
+    '      const { codec, read } = partsOf(projection)\n      const [was, now] = [read(before), read(after)]\n      return Object.is(was, now) || equivalence(codec)(was, now)\n',
+    '      return []\n      const { codec, read } = partsOf(projection)\n      const [was, now] = [read(before), read(after)]\n      return Object.is(was, now) || equivalence(codec)(was, now)\n',
+  ),
+  edit(
+    'a Message in the set is not checked for reads',
+    'const fields = reads(app, projection, before, message)',
+    'const fields: ReadonlyArray<string> = []',
+  ),
+  edit('closed is ignored: every Surface is tested', '.filter(surface => surface.closed)', ''),
+  edit(
+    'closed is ignored: the flag is always false',
+    'closed: config.closed ?? false,',
+    'closed: false,',
+    '../src/index.ts',
+  ),
+  edit(
+    'the application drops the closed flag',
+    '      closed: surfaceConfig.closed,\n',
+    '',
+    '../src/index.ts',
+  ),
+  edit(
+    'the contract omits the closed flag',
+    '...(surface.closed ? { closed: true as const } : {})',
+    '...{}',
+    '../src/index.ts',
   ),
 ]
