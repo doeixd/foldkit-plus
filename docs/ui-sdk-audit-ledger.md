@@ -100,7 +100,15 @@ A lasso and a geometric move stay deferred until a board of freely placed items 
 
 ## In-place editing
 
-- [EditableText](../packages/primitives/src/dom/editable-text.ts) already handles commit, cancel, multiline, IME and plaintext paste; the data grid has its own cell-edit lifecycle. UI SDK's experimental [inline edit](https://github.com/vercel-labs/ui/blob/d6996097b9f8dbe5fe98c3f04210b9daa969a06c/packages/core/src/foundation/lists/inline-edit.ts) additionally coordinates input-backed editing, refusal and focus fallback. Compare against the grid's existing owner before extracting shared behavior.
+**Disposition: verified overlap, with a justified deferral.** A label edited in place and a cell edited in an input already have owners. A third helper would sit between them.
+
+Compared at UI SDK `d6996097` (`createInlineEdit`) and this tree:
+
+- **Where the text is typed.** `createInlineEdit` renders an input for the id being edited. [EditableText](../packages/primitives/src/dom/editable-text.ts) listens on a container and reads a marked `contenteditable` field: `TextEdited`, `TextCommitted`, `TextCancelled`, and `EditAsked` on a double-click before the field is editable. It reads `innerText`, ignores a composition until it ends, turns a paste into text, and commits on Enter or on leaving the field. Escape puts the text from when editing began back into the DOM. A multiline field is `aria-multiline="true"`; Shift+Enter breaks a line there. The Builder uses it for a node's label. The rich-text editor is a document, not one of these fields.
+- **A cell.** The [grid](../packages/data-grid/src/grid.ts) holds the draft. Enter or F2 starts from the cell's text. A printable key starts over with that character, and a key that arrives before the editor has focus is added to the draft. Double-click starts the same way. Enter commits and moves down. Tab commits and moves across. Escape cancels. A draft the column's schema refuses stays open with the error. An unchanged value commits nothing. The parent hears `Edited` for text the column accepted.
+- **Refusal and focus.** `commit` returning false keeps the input open and focuses it again, except on blur. Tab tells the caller it saved so the caller can move. When editing ends, focus returns to where it started, or to the focusable element around the input, only if nothing else has taken it. The grid's `EditCommitted` carries the next cell. The editor is drawn while that cell is on screen, and an edit scrolled away waits. EditableText sends focus back to the container when the field stops being editable.
+
+The spreadsheet keys, the schema check, and the contenteditable field stay where they are. A shared input editor stays deferred until a third surface edits a value in place and has neither.
 
 ## Keyboard routing and event ownership
 
