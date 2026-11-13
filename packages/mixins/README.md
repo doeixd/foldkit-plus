@@ -93,6 +93,41 @@ transition is `update`; a network call is Message → Command; an element-scoped
 `Mount`. A Behavior that "needs state" is a signal to reach for a Submodel, not to hide an atom
 inside the mixin.
 
+### Using, customizing, assembling, authoring
+
+These are four jobs.
+
+- **Use** a shipped control. `Input.view` from `foldkit-mixins-ui` draws a field. The caller
+  passes its value and the Message an edit sends.
+- **Customize** that control where it is drawn. `Recipes.Input.extend` replaces one class,
+  `Style.forSlots` binds the recipe to the input's slots, and a `mixins` entry or
+  `Behavior.attach` adds element behavior. The shipped recipe and the original view stay.
+- **Assemble** a widget from those pieces and place it. A `Schema` Model, a Message union, and
+  `Bundle.make` define the child once. `Bundle.declare`, `Bundle.parent`, and `Parent.at` place
+  it. Two placements are two slices of the parent Model; each child's `update` writes only its
+  own. The parent view draws `placed.view` and does not construct the child's Message.
+- **Author a primitive** when the same element behavior belongs on more than one widget.
+  `Behaviors.Keyboard` and `FocusRecovery` take a slot contract and return a Behavior. They hold
+  no Model.
+
+The runnable pair is in `examples/widgets`.
+[`ui-sdk-search-field.ts`](../../examples/widgets/src/ui-sdk-search-field.ts) is the assembly:
+shipped `Input.view`, an extended `Recipes.Input`, `Behaviors.Keyboard` and a clear-label
+Behavior, and two `Bundle` placements. [`ui-sdk-dismissible-list.ts`](../../examples/widgets/src/ui-sdk-dismissible-list.ts)
+is the edit-and-remove widget on the same path: one `update`, `SlotView.forMessages`, and
+`FocusRecovery` attached. A popup that commits a selection is the autocomplete widget, not a
+third assembly API.
+
+What the callbacks do not mention still has to be written down. `SlotView.forMessages<Message>()`
+names the universe, because the render callback does not annotate `h`. The `(model: Model)`
+parameter is how the view's input is inferred. `Behavior.forSlots(slots)<Model, Message>` is
+required when the slot callback mentions neither type, and on `Behaviors.Keyboard` when a route
+reads the model: without those arguments the model is `unknown` and `Behavior.attach` does not
+match the view. `Submodel.defineView<Model, Message>(view)` keeps the placed view at
+`(model, h)`. Leaving the arguments off typechecks the call and infers a view-input parameter,
+so the placement then expects a third argument. `Bundle.make` takes the Schemas as values, which
+is the declaration. A wrapper that only moved the same pair would restate it.
+
 ## Install
 
 ```bash

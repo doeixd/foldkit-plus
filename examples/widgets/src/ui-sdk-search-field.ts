@@ -47,7 +47,7 @@ export const SearchSlots = Slots.define({
 
 // The input's shipped recipe is extended, not copied; the child owns its slots.
 const SearchInputRecipe = Recipes.Input.extend({ base: { input: Style.class('search-input') } })
-const SearchInputStyle = Style.forSlots(InputSlots)(SearchInputRecipe({}), { name: 'SearchInput' })
+const SearchInputStyle = Style.forSlots(InputSlots)(SearchInputRecipe(), { name: 'SearchInput' })
 const ClearLabel = Behavior.forSlots(SearchSlots)<SearchModel, SearchMessage>(
   {
     clear: Behavior.slot({

@@ -22,6 +22,21 @@ styling of a feature view, tooltips, analytics, ARIA decoration, focus/resize Mo
 state" means you need a Submodel. For a one-off component with no external customizers, plain
 attributes are simpler.
 
+Using a shipped control, customizing it, assembling a widget, and authoring a primitive are
+different jobs. `Input.view` is use. `Recipes.Input.extend`, `Style.forSlots`, and
+`Behavior.attach` are customization; the original view stays. `Bundle.make` with `declare` /
+`parent` / `at` assembles one child and places it, twice if the parent draws two. A primitive
+(`Behaviors.Keyboard`, `FocusRecovery`) returns a Behavior and holds no Model. The widgets
+search field is that assembly, and the dismissible list is the edit-and-remove widget on the
+same path:
+https://github.com/doeixd/foldkit-plus/blob/main/examples/widgets/src/ui-sdk-search-field.ts
+and
+https://github.com/doeixd/foldkit-plus/blob/main/examples/widgets/src/ui-sdk-dismissible-list.ts.
+`forMessages<Message>()`, a `(model: Model)` parameter, `<Model, Message>` on a Behavior whose
+callback does not mention those types, and `Submodel.defineView<Model, Message>(view)` are the
+annotations inference does not pin. Omitting `defineView`'s arguments infers a view-input
+parameter and the placement stops being `(model, h)`. Do not add a wrapper that only moves them.
+
 ## 2. Mental model
 
 ```text

@@ -19,6 +19,27 @@ pnpm --filter foldkit-example-widgets typecheck
 npx vitest run examples/widgets
 ```
 
+## Authoring fixtures
+
+These files are not islands on the demo page. They are the small composition examples, on the
+shipped APIs, kept beside the showcase.
+
+- `src/ui-sdk-search-field.ts` — **use** `Input.view`, **customize** it with
+  `Recipes.Input.extend` and an attached clear label plus `Behaviors.Keyboard`, and
+  **assemble** that child with `Bundle.make`. The parent places it twice (`first`, `second`).
+  Typing in one leaves the other alone. The parent view draws each placement and does not
+  construct the child's Message.
+- `src/ui-sdk-dismissible-list.ts` — the edit-and-remove widget on the same path: one
+  `update`, `SlotView.forMessages`, keyed rows, and `FocusRecovery` attached. One instance.
+- `src/autocomplete/` — a field with a popup that commits a selection. That widget is the
+  popup fixture.
+
+Authoring a primitive is a Behavior or a `foldkit-primitives` module that several widgets
+attach (`Behaviors.Keyboard`, `FocusRecovery`). It does not own the Model. The annotations
+the callbacks never mention stay written out: `forMessages<Message>()`, `(model: Model)`,
+`<Model, Message>` on a Behavior, and `Submodel.defineView<Model, Message>(view)` so the
+placed view stays `(model, h)`.
+
 ## Widgets
 
 - `src/toolbar/` — formatting toolbar: `RovingTabindex` + Collection +
