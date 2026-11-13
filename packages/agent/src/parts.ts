@@ -1,27 +1,30 @@
 /**
- * Binds named UI parts to capabilities the application already exposed.
+ * A typed alias table from a control's id and label to a capability
+ * `Agent.expose` already published.
  *
- * A part is an application id, a descriptive label, and the capability name
- * `Agent.expose` published. Discovery reads `messages.available` and the
- * encoded context; it does not read the DOM, run `authorize`, or dispatch.
- * Invocation resolves the part, then calls `messages.dispatchUnknown`, so
- * availability, decoding, authorization, and completion stay on that path.
+ * Discovery reads `messages.available` and the encoded context; it does not
+ * read the DOM, run `authorize`, or dispatch. Invocation resolves the part,
+ * then calls `messages.dispatchUnknown`, so availability, decoding,
+ * authorization, and completion stay on that path.
  *
  * The label is not an identifier. Two renderings that share one are
  * `Ambiguous`. An occurrence id names one mount; a stale one matches nothing
  * and does not fall through to another row. A part with no mount is still
  * discoverable and invocable: mounting is not authority.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Option, Schema, SchemaAST } from 'effect'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { type DispatchError, UnknownPartError } from './errors.js'
+import type { Definition } from './make.js'
 import type { DispatchResult, Invocation, MessageDescriptor } from './types.js'
 
 /**
  * The runtime seams a part lookup uses. A full `AgentRuntime` satisfies this.
- * The functions do not read `model` or any other host field.
+ * `definition` is compared with the catalog's, so a catalog cannot resolve
+ * its names against another application's capabilities.
  */
 export interface UiRuntime {
+  readonly definition: unknown
   readonly context: Effect.Effect<unknown>
   readonly messages: {
     readonly available: Effect.Effect<ReadonlyArray<Pick<MessageDescriptor, 'name'>>>
@@ -33,196 +36,228 @@ export interface UiRuntime {
   }
 }
 
-/** One control the application chose to offer an agent. */
-export interface UiPart {
+/** One control the application offers an agent, as `Ui.catalog` declares it. */
+export interface UiPartSpec<Tag extends string, Field extends string> {
   /** Stable application identity. A remount does not change it. */
   readonly id: string
   /** Accessible name, for a person to say. Not an authorization id. */
   readonly label: string
-  /** Protocol name of a capability `Agent.expose` already published. */
+  /** The exposed Message's constructor. */
+  readonly capability: (...args: never) => { readonly _tag: Tag }
+  /** Fields of the encoded context this part shows. */
+  readonly fields?: ReadonlyArray<Field> | undefined
+}
+
+/** A declared part with its capability resolved to the protocol name. */
+export interface UiPart<Id extends string = string> {
+  readonly id: Id
+  readonly label: string
   readonly capability: string
-  /**
-   * Fields of the encoded context this part shows. A name the context does
-   * not have is omitted. Names the part does not list are omitted too.
-   */
-  readonly fields?: readonly string[] | undefined
+  readonly fields: ReadonlyArray<string>
 }
 
 /** One mounted rendering of a part. A new mount uses a new id. */
-export interface UiOccurrence {
+export interface UiOccurrence<Id extends string = string> {
   /** `UiPart.id` this rendering belongs to. */
-  readonly part: string
+  readonly part: Id
   /** Identity of this mount. Not an authorization id. */
   readonly id: string
 }
 
-/** The parts an application bound. Built with `Ui.catalog`. */
-export interface UiCatalog {
-  readonly parts: readonly UiPart[]
-}
+// Set by the class's static block: only this module makes or reads a catalog.
+let makeCatalog: <Id extends string>(
+  parts: ReadonlyMap<string, UiPart<Id>>,
+  definition: unknown,
+) => UiCatalog<Id>
+let partsOf: (catalog: UiCatalog) => ReadonlyMap<string, UiPart>
+let definitionOf: (catalog: UiCatalog) => unknown
 
-/** What a lookup is asking for. `mounted` is the renderings that exist now. */
-export interface UiQuery {
-  readonly mounted?: readonly UiOccurrence[] | undefined
-  readonly id?: string | undefined
-  readonly label?: string | undefined
-  readonly occurrence?: string | undefined
-}
+/** The parts an application bound. Only `Ui.catalog` makes one. */
+class UiCatalog<Id extends string = string> {
+  readonly #parts: ReadonlyMap<string, UiPart<Id>>
+  readonly #definition: unknown
 
-const MatchFields = {
-  id: Schema.String,
-  label: Schema.String,
-  capability: Schema.String,
-  occurrence: Schema.Option(Schema.String),
-  projection: Schema.Record(Schema.String, Schema.Unknown),
-}
+  static {
+    makeCatalog = (parts, definition) => new UiCatalog(parts, definition)
+    partsOf = catalog => catalog.#parts
+    definitionOf = catalog => catalog.#definition
+  }
 
-const MatchId = Schema.Struct({
-  id: Schema.String,
-  occurrence: Schema.Option(Schema.String),
+  private constructor(parts: ReadonlyMap<string, UiPart<Id>>, definition: unknown) {
+    this.#parts = parts
+    this.#definition = definition
+  }
+
+  /**
+   * The declared part, so a view draws the label an agent hears. Throws for
+   * an undeclared id, which literal ids rule out at compile time.
+   */
+  part(id: Id): UiPart<Id> {
+    const found = this.#parts.get(id)
+    if (found === undefined) throw new Error(`No such part: ${id}`)
+    return found
+  }
+}
+export type { UiCatalog }
+
+/**
+ * What an agent asks for: a part by id, one mounted rendering of a part, or
+ * every part a label names. Decode an agent's JSON with this Schema.
+ */
+export const UiQuery = defineTaggedUnion({
+  Part: { id: Schema.String },
+  Occurrence: { part: Schema.String, id: Schema.String },
+  Label: { label: Schema.String },
 })
+export type UiQuery = typeof UiQuery.Type
 
 /** A lookup: one rendering, several that share a label or a part, or nothing. */
 export const UiDiscovery = defineTaggedUnion({
-  Match: MatchFields,
+  Match: {
+    id: Schema.String,
+    label: Schema.String,
+    capability: Schema.String,
+    occurrence: Schema.OptionFromNullOr(Schema.String),
+    projection: Schema.Record(Schema.String, Schema.Unknown),
+  },
   Ambiguous: {
     label: Schema.String,
-    matches: Schema.Array(MatchId),
+    matches: Schema.Array(
+      Schema.Struct({ id: Schema.String, occurrence: Schema.OptionFromNullOr(Schema.String) }),
+    ),
   },
   None: {},
 })
 export type UiDiscovery = typeof UiDiscovery.Type
 
-const indexes = new WeakMap<UiCatalog, ReadonlyMap<string, UiPart>>()
+/** The encoded context's field names, or none when it is not a struct. */
+const contextFields = (definition: Pick<Definition, 'context'>): ReadonlySet<string> => {
+  if (definition.context === undefined) return new Set()
+  const encoded = SchemaAST.toEncoded(definition.context.Model.ast)
+  if (!SchemaAST.isObjects(encoded)) return new Set()
+  return new Set(encoded.propertySignatures.map(signature => String(signature.name)))
+}
 
-const reservedField = (field: string): boolean =>
-  field === '__proto__' || field === 'constructor' || field === 'prototype'
-
-/** Copies the parts an application declared. Extra properties are not kept. */
-export const catalog = (parts: readonly UiPart[]): UiCatalog => {
-  const index = new Map<string, UiPart>()
-  const copied: UiPart[] = []
-  for (const part of parts) {
-    if (part.id === '' || part.capability === '') {
-      throw new Error('A part needs an id and a capability')
-    }
-    if (index.has(part.id)) throw new Error(`A part id is already bound: ${part.id}`)
-    const reserved = part.fields?.find(reservedField)
-    if (reserved !== undefined) throw new Error(`A part field name is reserved: ${reserved}`)
-    const fields = part.fields === undefined ? undefined : [...part.fields]
-    const next: UiPart = {
-      id: part.id,
-      label: part.label,
-      capability: part.capability,
-      ...(fields === undefined ? {} : { fields }),
-    }
-    index.set(part.id, next)
-    copied.push(next)
+/**
+ * Resolves each part against `definition`. An id bound twice, an empty label,
+ * a capability the definition does not expose, or a field its encoded context
+ * lacks throws here, never at discovery.
+ */
+export const catalog = <
+  Context_,
+  ByTag,
+  const Parts extends ReadonlyArray<UiPartSpec<keyof ByTag & string, keyof Context_ & string>>,
+>(
+  definition: Definition<any, Context_, any, any, ByTag>,
+  parts: Parts,
+): UiCatalog<Parts[number]['id']> => {
+  const names = new Map<unknown, string>()
+  for (const variant of definition.messages.variants) {
+    names.set(variant.messageConstructor, variant.name)
   }
-  const built: UiCatalog = { parts: copied }
-  indexes.set(built, index)
-  return built
+  const fields = contextFields(definition)
+  const index = new Map<string, UiPart<Parts[number]['id']>>()
+  for (const part of parts) {
+    if (part.id === '') throw new Error('A part needs an id')
+    if (part.label === '') throw new Error(`Part ${part.id} needs a label`)
+    if (index.has(part.id)) throw new Error(`A part id is already bound: ${part.id}`)
+    const capability = names.get(part.capability)
+    if (capability === undefined) {
+      throw new Error(`Part ${part.id} names a capability this definition does not expose`)
+    }
+    const shown = [...(part.fields ?? [])]
+    const missing = shown.find(field => !fields.has(field))
+    if (missing !== undefined) {
+      throw new Error(`Part ${part.id} shows ${missing}, which the encoded context lacks`)
+    }
+    index.set(part.id, { id: part.id, label: part.label, capability, fields: shown })
+  }
+  return makeCatalog(index, definition)
 }
 
-const indexOf = (catalog: UiCatalog): ReadonlyMap<string, UiPart> => {
-  const index = indexes.get(catalog)
-  if (index === undefined) throw new Error('Build a part catalog with Ui.catalog')
-  return index
-}
+/** Refuses a runtime bound to another definition: a wiring mistake, so a defect. */
+const sameDefinition = (runtime: UiRuntime, catalog: UiCatalog): Effect.Effect<void> =>
+  runtime.definition === definitionOf(catalog)
+    ? Effect.void
+    : Effect.die(new Error('This part catalog was built for another definition'))
 
 interface Rendering {
   readonly part: UiPart
   readonly occurrence: Option.Option<string>
 }
 
-/**
- * Renderings of one part. A requested occurrence that is not mounted is
- * `undefined`: the caller asked for a rendering that is gone, and another
- * row must not answer for it.
- */
-const renderingsOf = (
-  part: UiPart,
-  mounted: readonly UiOccurrence[],
-  occurrence: string | undefined,
-): readonly Rendering[] | undefined => {
-  const hits: Rendering[] = []
-  for (const item of mounted) {
-    if (item.part !== part.id) continue
-    if (occurrence !== undefined && item.id !== occurrence) continue
-    hits.push({ part, occurrence: Option.some(item.id) })
-  }
-  if (occurrence !== undefined) return hits.length === 0 ? undefined : hits
-  if (hits.length === 0) return [{ part, occurrence: Option.none() }]
-  return hits
+/** Every mount of `part`, or the part off the page when none is mounted. */
+const renderingsOf = (part: UiPart, mounted: ReadonlyArray<UiOccurrence>): Rendering[] => {
+  const hits = mounted
+    .filter(item => item.part === part.id)
+    .map(item => ({ part, occurrence: Option.some(item.id) }))
+  return hits.length === 0 ? [{ part, occurrence: Option.none() }] : hits
 }
 
 const projectionOf = (part: UiPart, encoded: unknown): Record<string, unknown> => {
-  const out: Record<string, unknown> = {}
-  const fields = part.fields
-  if (
-    fields === undefined ||
-    encoded === null ||
-    typeof encoded !== 'object' ||
-    Array.isArray(encoded)
-  ) {
-    return out
-  }
-  for (const field of fields) {
-    if (Object.hasOwn(encoded, field)) out[field] = (encoded as Record<string, unknown>)[field]
-  }
-  return out
+  if (encoded === null || typeof encoded !== 'object') return {}
+  // `fromEntries` defines own properties, so no field name reaches a prototype.
+  return Object.fromEntries(
+    part.fields.flatMap(field =>
+      Object.hasOwn(encoded, field) ? [[field, Reflect.get(encoded, field)]] : [],
+    ),
+  )
 }
 
-/** Finds the rendering a person named. Does not dispatch and does not read the DOM. */
-export const discover = (
+/**
+ * Finds the rendering an agent named among the parts whose capability is
+ * available now. `mounted` comes from the host, never from the agent. Does
+ * not dispatch and does not read the DOM.
+ */
+export const discover = <Id extends string>(
   runtime: UiRuntime,
-  catalog: UiCatalog,
+  catalog: UiCatalog<Id>,
   query: UiQuery,
+  mounted: ReadonlyArray<UiOccurrence<NoInfer<Id>>> = [],
 ): Effect.Effect<UiDiscovery> =>
   Effect.gen(function* () {
-    if (query.id === undefined && query.label === undefined) {
-      return yield* Effect.die(new Error('Discovery names a part id or a label'))
+    yield* sameDefinition(runtime, catalog)
+    const offered = new Set((yield* runtime.messages.available).map(item => item.name))
+    const parts = partsOf(catalog)
+    const availablePart = (id: string): UiPart[] => {
+      const part = parts.get(id)
+      return part !== undefined && offered.has(part.capability) ? [part] : []
     }
-    if (query.occurrence !== undefined && query.id === undefined) {
-      return yield* Effect.die(new Error('Discovery addresses an occurrence by its part id'))
-    }
-    indexOf(catalog)
-    const encoded = yield* runtime.context
-    const offered = yield* runtime.messages.available
-    const names = new Set<string>()
-    for (const descriptor of offered) names.add(descriptor.name)
-    const mounted = query.mounted ?? []
-    const candidates: Rendering[] = []
-    for (const part of catalog.parts) {
-      if (!names.has(part.capability)) continue
-      if (query.id !== undefined && part.id !== query.id) continue
-      if (query.label !== undefined && part.label !== query.label) continue
-      const found = renderingsOf(part, mounted, query.occurrence)
-      if (found === undefined) continue
-      for (const rendering of found) candidates.push(rendering)
-    }
-    if (candidates.length === 0) return UiDiscovery.None()
-    if (candidates.length > 1) {
+    const candidates: ReadonlyArray<Rendering> = UiQuery.match(query, {
+      Part: ({ id }) => availablePart(id).flatMap(part => renderingsOf(part, mounted)),
+      Occurrence: ({ part: id, id: occurrence }) =>
+        availablePart(id).flatMap(part =>
+          mounted
+            .filter(item => item.part === id && item.id === occurrence)
+            .map(item => ({ part, occurrence: Option.some(item.id) })),
+        ),
+      Label: ({ label }) =>
+        [...parts.values()]
+          .filter(part => part.label === label && offered.has(part.capability))
+          .flatMap(part => renderingsOf(part, mounted)),
+    })
+    const [only, ...rest] = candidates
+    if (only === undefined) return UiDiscovery.None()
+    if (rest.length > 0) {
       return UiDiscovery.Ambiguous({
-        label: query.label ?? candidates[0]!.part.label,
+        label: only.part.label,
         matches: candidates.map(rendering => ({
           id: rendering.part.id,
           occurrence: rendering.occurrence,
         })),
       })
     }
-    const only = candidates[0]!
     return UiDiscovery.Match({
       id: only.part.id,
       label: only.part.label,
       capability: only.part.capability,
       occurrence: only.occurrence,
-      projection: projectionOf(only.part, encoded),
+      projection: projectionOf(only.part, yield* runtime.context),
     })
   })
 
 /**
- * Dispatches the capability bound to `id`.
+ * Dispatches the capability bound to part `id`.
  *
  * An id the catalog does not bind fails before dispatch, including when a
  * capability of that name exists. `dispatchUnknown` then applies the same
@@ -231,14 +266,19 @@ export const discover = (
 export const invoke = (
   runtime: UiRuntime,
   catalog: UiCatalog,
+  // A string: the id comes from an agent, so an unknown one is a typed failure.
   id: string,
   input: unknown,
   invocation?: Partial<Invocation>,
-): Effect.Effect<DispatchResult, DispatchError | UnknownPartError> => {
-  const part = indexOf(catalog).get(id)
-  if (part === undefined) return Effect.fail(UnknownPartError.of(id))
-  return runtime.messages.dispatchUnknown(part.capability, input, invocation)
-}
+): Effect.Effect<DispatchResult, DispatchError | UnknownPartError> =>
+  Effect.flatMap(
+    sameDefinition(runtime, catalog),
+    (): Effect.Effect<DispatchResult, DispatchError | UnknownPartError> => {
+      const part = partsOf(catalog).get(id)
+      if (part === undefined) return Effect.fail(UnknownPartError.of(id))
+      return runtime.messages.dispatchUnknown(part.capability, input, invocation)
+    },
+  )
 
 /** The part catalog, its lookup, and its dispatch. */
 export const Ui = { catalog, discover, invoke }

@@ -65,17 +65,28 @@ const boot = () => {
 it('saves from the button and from the agent with the same outcomes', async () => {
   const { draft, runtime, driver } = boot()
   await vi.waitFor(() => expect(document.getElementById('save')).not.toBeNull())
-  expect(document.querySelectorAll('[aria-label="Search"]')).toHaveLength(2)
+
+  const search = partCatalog.part('search')
+  const named = document.querySelectorAll(`[aria-label="${search.label}"]`)
+  expect([...named].map(element => element.id)).toEqual(['search-first', 'search-second'])
+  expect(document.getElementById('save')?.getAttribute('aria-label')).toBe(
+    partCatalog.part('draft.save').label,
+  )
 
   const mounted = [
     { part: 'search', id: 'first' },
     { part: 'search', id: 'second' },
-  ]
+  ] as const
   const byLabel = await Effect.runPromise(
-    Agent.Ui.discover(runtime, partCatalog, { label: 'Search', mounted }),
+    Agent.Ui.discover(runtime, partCatalog, Agent.UiQuery.Label({ label: search.label }), mounted),
   )
   const oneRow = await Effect.runPromise(
-    Agent.Ui.discover(runtime, partCatalog, { id: 'search', occurrence: 'first', mounted }),
+    Agent.Ui.discover(
+      runtime,
+      partCatalog,
+      Agent.UiQuery.Occurrence({ part: 'search', id: 'first' }),
+      mounted,
+    ),
   )
   expectSearchIdentity(byLabel, oneRow)
 
@@ -93,10 +104,9 @@ it('saves from the button and from the agent with the same outcomes', async () =
     expect(draft.messages.filter(tag => tag === 'Toggled')).toEqual(['Toggled']),
   )
   const toggled = await Effect.runPromise(
-    Effect.result(Agent.Ui.invoke(runtime, partCatalog, 'toggle', {})),
+    Effect.flip(Agent.Ui.invoke(runtime, partCatalog, 'toggle', {})),
   )
-  expect(toggled._tag).toBe('Failure')
-  if (toggled._tag === 'Failure') expect(toggled.failure._tag).toBe('AgentUnknownPartError')
+  expect(toggled).toEqual(Agent.UnknownPartError.of('toggle'))
   expect(draft.messages.filter(tag => tag === 'Toggled')).toEqual(['Toggled'])
 
   await exerciseOperations(driver)

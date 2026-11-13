@@ -102,25 +102,10 @@ export const definition = DraftAgent.make({
   }),
 })
 
-export const partCatalog = Agent.Ui.catalog([
-  {
-    id: 'search',
-    label: 'Search',
-    capability: 'set_query',
-    fields: ['query'],
-  },
-  {
-    id: 'search.clear',
-    label: 'Clear search',
-    capability: 'clear_search',
-    fields: ['query'],
-  },
-  {
-    id: 'draft.save',
-    label: 'Save',
-    capability: 'save_draft',
-    fields: ['draft'],
-  },
+export const partCatalog = Agent.Ui.catalog(definition, [
+  { id: 'search', label: 'Search', capability: Message.Typed, fields: ['query'] },
+  { id: 'search.clear', label: 'Clear search', capability: Message.Cleared, fields: ['query'] },
+  { id: 'draft.save', label: 'Save', capability: Message.RequestedSave, fields: ['draft'] },
 ])
 
 export const initial = (role: 'viewer' | 'editor' = 'editor'): Model => ({

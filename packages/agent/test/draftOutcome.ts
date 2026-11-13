@@ -36,25 +36,33 @@ export const expectNoToken = (value: unknown): void => {
   expect(JSON.stringify(value)).not.toContain('sekret-token')
 }
 
+/** The single rendering a lookup found; anything else fails the test. */
+export const matchOf = (found: Agent.UiDiscovery) =>
+  Agent.UiDiscovery.match(found, {
+    Match: match => match,
+    Ambiguous: () => expect.fail('Expected one rendering, got several'),
+    None: () => expect.fail('Expected one rendering, got none'),
+  })
+
 /** Two Search mounts are ambiguous, and the match for one row shows only its fields. */
 export const expectSearchIdentity = (
   byLabel: Agent.UiDiscovery,
   oneRow: Agent.UiDiscovery,
 ): void => {
-  expect(byLabel._tag).toBe('Ambiguous')
-  if (byLabel._tag !== 'Ambiguous') return
-  expect(byLabel.matches.map(match => Option.getOrThrow(match.occurrence))).toEqual([
-    'first',
-    'second',
-  ])
-  expectNoToken(byLabel)
-  expect(JSON.stringify(byLabel)).not.toContain('draft-secret')
-  expect(oneRow._tag).toBe('Match')
-  if (oneRow._tag !== 'Match') return
-  expect(Option.getOrThrow(oneRow.occurrence)).toBe('first')
-  expect(oneRow.projection).toEqual({ query: 'q-value' })
-  expectNoToken(oneRow)
-  expect(JSON.stringify(oneRow.projection)).not.toContain('draft-secret')
+  expect(byLabel).toEqual(
+    Agent.UiDiscovery.Ambiguous({
+      label: 'Search',
+      matches: [
+        { id: 'search', occurrence: Option.some('first') },
+        { id: 'search', occurrence: Option.some('second') },
+      ],
+    }),
+  )
+  const match = matchOf(oneRow)
+  expect(match.occurrence).toEqual(Option.some('first'))
+  expect(match.projection).toEqual({ query: 'q-value' })
+  expectNoToken(match)
+  expect(JSON.stringify(match.projection)).not.toContain('draft-secret')
 }
 
 export interface OperationDriver {

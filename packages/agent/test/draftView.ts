@@ -1,6 +1,11 @@
-/** The draft application's view. The bridge never reads it. */
+/**
+ * The draft application's view. The bridge never reads it; the view reads the
+ * part catalog, so a control's accessible name is the label an agent hears.
+ */
 import type { HtmlBuilder } from 'foldkit/html'
-import { type Message, Message as MessageUnion, type Model } from './draftApp.js'
+import { type Message, Message as MessageUnion, type Model, partCatalog } from './draftApp.js'
+
+const search = partCatalog.part('search').label
 
 export const view = (model: Model, h: HtmlBuilder<Message>) =>
   h.main(
@@ -8,14 +13,14 @@ export const view = (model: Model, h: HtmlBuilder<Message>) =>
     [
       h.input([
         h.Id('search-first'),
-        h.AriaLabel('Search'),
+        h.AriaLabel(search),
         h.Type('search'),
         h.Value(model.query),
         h.OnInput(value => MessageUnion.Typed({ value })),
       ]),
       h.input([
         h.Id('search-second'),
-        h.AriaLabel('Search'),
+        h.AriaLabel(search),
         h.Type('search'),
         h.Value(model.query),
         h.OnInput(value => MessageUnion.Typed({ value })),
@@ -24,7 +29,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>) =>
         [
           h.Id('clear-search'),
           h.Type('button'),
-          h.AriaLabel('Clear search'),
+          h.AriaLabel(partCatalog.part('search.clear').label),
           h.OnClick(MessageUnion.Cleared()),
         ],
         ['Clear'],
@@ -39,7 +44,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>) =>
         [
           h.Id('save'),
           h.Type('button'),
-          h.AriaLabel('Save'),
+          h.AriaLabel(partCatalog.part('draft.save').label),
           h.OnClick(MessageUnion.RequestedSave({ requestId: 'user-1', title: model.draft })),
         ],
         ['Save'],

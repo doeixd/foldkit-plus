@@ -4,70 +4,91 @@
 const file = '../src/parts.ts'
 const tests = ['packages/agent/test/parts.test.ts']
 
+const swap = (name: string, find: string, replace: string) => ({
+  name,
+  edits: [{ file, find, replace }],
+  tests,
+})
+
 export default [
-  {
-    name: 'unavailable capabilities stay listed',
-    edits: [
-      {
-        file,
-        find: 'const offered = yield* runtime.messages.available',
-        replace: 'const offered = yield* runtime.messages.list',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a shared label selects the first rendering',
-    edits: [
-      { file, find: 'if (candidates.length > 1) {', replace: 'if (candidates.length > 100) {' },
-    ],
-    tests,
-  },
-  {
-    name: 'a part shows every encoded field',
-    edits: [
-      {
-        file,
-        find: '  for (const field of fields) {\n    if (Object.hasOwn(encoded, field)) out[field] = (encoded as Record<string, unknown>)[field]\n  }',
-        replace:
-          '  for (const field of Object.getOwnPropertyNames(encoded)) {\n    out[field] = (encoded as Record<string, unknown>)[field]\n  }',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'an unknown part id dispatches that name',
-    edits: [
-      {
-        file,
-        find: 'if (part === undefined) return Effect.fail(UnknownPartError.of(id))',
-        replace:
-          'if (part === undefined) return runtime.messages.dispatchUnknown(id, input, invocation)',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a stale occurrence matches the part off-page',
-    edits: [
-      {
-        file,
-        find: 'if (occurrence !== undefined) return hits.length === 0 ? undefined : hits',
-        replace:
-          'if (occurrence !== undefined) return hits.length === 0 ? [{ part, occurrence: Option.none() }] : hits',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a lookup with no name succeeds',
-    edits: [
-      {
-        file,
-        find: "return yield* Effect.die(new Error('Discovery names a part id or a label'))",
-        replace: 'return UiDiscovery.None()',
-      },
-    ],
-    tests,
-  },
+  swap(
+    'unavailable capabilities stay listed',
+    'new Set((yield* runtime.messages.available)',
+    'new Set((yield* runtime.messages.list)',
+  ),
+  swap(
+    'a part by id ignores availability',
+    'return part !== undefined && offered.has(part.capability) ? [part] : []',
+    'return part !== undefined ? [part] : []',
+  ),
+  swap(
+    'a label ignores availability',
+    '.filter(part => part.label === label && offered.has(part.capability))',
+    '.filter(part => part.label === label)',
+  ),
+  swap(
+    'a shared label selects the first rendering',
+    'if (rest.length > 0) {',
+    'if (rest.length > 100) {',
+  ),
+  swap(
+    'a part shows every encoded field',
+    'part.fields.flatMap(field =>',
+    'Object.keys(encoded).flatMap(field =>',
+  ),
+  swap(
+    'an unknown part id dispatches that name',
+    'if (part === undefined) return Effect.fail(UnknownPartError.of(id))',
+    'if (part === undefined) return runtime.messages.dispatchUnknown(id, input, invocation)',
+  ),
+  swap(
+    'a stale occurrence selects another row',
+    '.filter(item => item.part === id && item.id === occurrence)',
+    '.filter(item => item.part === id)',
+  ),
+  swap(
+    "an occurrence answers for another part's rendering",
+    '.filter(item => item.part === id && item.id === occurrence)',
+    '.filter(item => item.id === occurrence)',
+  ),
+  swap(
+    'an unmounted part is not discoverable',
+    'return hits.length === 0 ? [{ part, occurrence: Option.none() }] : hits',
+    'return hits',
+  ),
+  swap(
+    'a runtime of another definition is accepted',
+    'runtime.definition === definitionOf(catalog)',
+    'true || runtime.definition === definitionOf(catalog)',
+  ),
+  swap(
+    'an id may be bound twice',
+    'if (index.has(part.id)) throw',
+    'if (index.has(part.id) && false) throw',
+  ),
+  swap(
+    'a label may be empty',
+    "if (part.label === '') throw",
+    "if (part.label === '' && false) throw",
+  ),
+  swap(
+    'an unexposed capability is accepted',
+    'if (capability === undefined) {',
+    'if (capability === undefined && false) {',
+  ),
+  swap(
+    'a field the context lacks is accepted',
+    'const missing = shown.find(field => !fields.has(field))',
+    'const missing = shown.find(field => !fields.has(field) && false)',
+  ),
+  swap(
+    'fields are checked against the decoded context',
+    'SchemaAST.toEncoded(definition.context.Model.ast)',
+    'definition.context.Model.ast',
+  ),
+  swap(
+    'the caller keeps the fields array',
+    'const shown = [...(part.fields ?? [])]',
+    'const shown = part.fields ?? []',
+  ),
 ]

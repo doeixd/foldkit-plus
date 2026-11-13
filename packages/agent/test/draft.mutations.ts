@@ -34,4 +34,15 @@ export default [
     ],
     tests: parts,
   },
+  {
+    name: 'the save button names itself apart from its part',
+    edits: [
+      {
+        file: './draftView.ts',
+        find: "h.AriaLabel(partCatalog.part('draft.save').label)",
+        replace: "h.AriaLabel('Save draft')",
+      },
+    ],
+    tests: ['packages/agent/test/draft.browser.test.ts'],
+  },
 ]

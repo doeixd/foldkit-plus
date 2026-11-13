@@ -16,7 +16,8 @@ export {
   type UiCatalog,
   type UiOccurrence,
   type UiPart,
-  type UiQuery,
+  type UiPartSpec,
+  UiQuery,
   type UiRuntime,
 } from './parts.js'
 export {
