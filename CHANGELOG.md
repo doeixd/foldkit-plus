@@ -24,6 +24,16 @@ version changed; `pnpm` skips versions already in the registry.
   as `foldkit-remote-drizzle`'s writer lands it over a table (revision, `when`,
   increments, computed fields, invariants, a taken id), each refusal the
   mutation's own. It holds no ledger and judges no rule reading another row.
+- `foldkit-remote-domain`: `DomainRemote`, a `RemoteClient` over an Alchemy
+  Domain Api (#544). `view` binds a View to an Entity by a numeric revision
+  field, `command` binds a command to a mutation with one `refuse`, `forbid`
+  or `fail` per declared Rejection, and `layer` answers reads and live reads
+  from the Views and writes from the commands. A write is sent under a
+  `commandId` of its operation and a digest of who asks, the target, the keys
+  and the input; its receipt holds the row's floor until a read at it answers,
+  and a write whose View is behind answers with the row its reply says it
+  wrote. Rows are ordered by revision, never by the View's cursor.
+  `DomainReads` lists the pending reads and confirms one.
 - `foldkit-remote/testing`: `Walk.run` runs seeded random walks of Messages over
   a list of named starts and checks a law after every step (it may be
   asynchronous, so a walk can go through a writer); `Walk.cases` requires a
