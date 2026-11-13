@@ -20,9 +20,17 @@ const keyboard = (covered: number) => {
   viewport.dispatchEvent(new Event('resize'))
 }
 
+/** Pinch zoom, which shortens the visual viewport as a keyboard does. */
+const pinch = (scale: number, height: number) => {
+  Object.defineProperty(viewport, 'scale', { configurable: true, get: () => scale })
+  Object.defineProperty(viewport, 'height', { configurable: true, get: () => height })
+  viewport.dispatchEvent(new Event('resize'))
+}
+
 afterEach(() => {
-  // Back to the prototype's own getter.
+  // Back to the prototype's own getters.
   Reflect.deleteProperty(viewport, 'height')
+  Reflect.deleteProperty(viewport, 'scale')
   document.body.replaceChildren()
 })
 
@@ -34,6 +42,8 @@ it('writes what the keyboard covers, follows it, and clears it when it ends', as
   await vi.waitFor(() => expect(written()).toBe('0px'))
   keyboard(300)
   expect(written()).toBe('300px')
+  pinch(2, window.innerHeight / 2)
+  expect(written()).toBe('0px')
   keyboard(0)
   expect(written()).toBe('0px')
   await Effect.runPromise(Fiber.interrupt(fiber))

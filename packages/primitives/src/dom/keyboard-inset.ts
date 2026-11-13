@@ -8,15 +8,24 @@ import * as Mount from 'foldkit/mount'
  */
 export const KEYBOARD_INSET = '--fk-keyboard-inset'
 
+/** Pinch zoom reports a scale a little off 1 at rest on some browsers. */
+const ZOOM_EPSILON = 0.01
+
 /**
  * The part of the layout viewport's height below the visual viewport: what the on-screen
- * keyboard covers. Rounded down, since a fraction of a pixel of zoom is no keyboard.
+ * keyboard covers. Rounded down, since a fraction of a pixel of zoom is no keyboard. While
+ * the page is pinch-zoomed in (`scale` above 1) the visual viewport is short because it
+ * shows less of the page, not because something covers it, so nothing is reported.
  */
 export const keyboardInset = (view: {
   readonly innerHeight: number
-  readonly visualViewport: { readonly height: number; readonly offsetTop: number } | null
+  readonly visualViewport: {
+    readonly height: number
+    readonly offsetTop: number
+    readonly scale: number
+  } | null
 }): number =>
-  view.visualViewport === null
+  view.visualViewport === null || view.visualViewport.scale > 1 + ZOOM_EPSILON
     ? 0
     : Math.max(
         0,
@@ -30,7 +39,7 @@ export const keyboardInset = (view: {
  * screen keeps its height and its bottom under the keys. This writes `KEYBOARD_INSET` on
  * the element, from the visual viewport's size and scroll, for a style to pad or shrink by
  * (`var(--fk-keyboard-inset, 0px)`), and removes it when the element goes. Where there is
- * no visual viewport it writes nothing.
+ * no visual viewport it writes nothing, and while the page is pinch-zoomed in it writes `0px`.
  */
 export const KeyboardInset = Mount.defineStream('KeyboardInset', {
   messages: [Schema.Never],
