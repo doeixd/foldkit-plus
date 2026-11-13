@@ -750,8 +750,8 @@ const nodes: ReadonlyArray<TreeNode> = [
 TreeView.checkedAs(nodes, ['button', 'tree', 'readme'], 'branch') // ['src', 'button', 'tree', 'readme']
 TreeView.checkedAs(nodes, ['button', 'tree', 'readme'], 'trunk') // ['src', 'readme']
 
-const model = TreeView.init({ id: 'files', checked: TreeView.leavesOf(nodes, ['src']) })
-// model.checked is ['button', 'tree']
+const seeded = TreeView.init({ id: 'files', checked: TreeView.leavesOf(nodes, ['src']) })
+// seeded.checked is ['button', 'tree']
 ```
 
 A row holding rows is listed once every row it holds that holds none is

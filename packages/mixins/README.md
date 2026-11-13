@@ -583,6 +583,50 @@ is declared, so knobs set below the root change nothing derived from them there:
 `tokens` an application's own groups beside the shipped ones. The design is in
 `docs/theme-knobs.md`.
 
+### Following another tab
+
+`Themes.choose` and `Theme.chooseScheme` write this tab's `localStorage`, and another tab hears
+that as a `storage` event. `Themes.changes(themes)` and `Theme.schemeChanges()` are Streams of
+what another tab chose, decoded as the head scripts decode it: a name no theme has, a removed key
+and anything else read as the initial theme or `'system'`. The writing tab hears nothing. They
+apply nothing, because the Model owns the choice: map each to a Message, and let `update` store
+it and answer with the Command that shows it.
+
+```ts
+import { Schema, Stream } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Subscription from 'foldkit/subscription'
+import { Theme, Themes } from 'foldkit-mixins/theme'
+
+const Followed = defineMessageUnion({
+  ThemeFollowed: { name: themes.Name },
+  SchemeFollowed: { scheme: Schema.Literals(['system', 'light', 'dark']) },
+})
+type Shown = { readonly theme: typeof themes.Name.Type }
+
+export const followed = Subscription.make<Shown, typeof Followed.Type>()(() => ({
+  theme: Subscription.persistentEntry(
+    Themes.changes(themes).pipe(Stream.map(name => Followed.ThemeFollowed({ name }))),
+  ),
+  scheme: Subscription.persistentEntry(
+    Theme.schemeChanges().pipe(Stream.map(scheme => Followed.SchemeFollowed({ scheme }))),
+  ),
+}))
+```
+
+On `ThemeFollowed`, `update` sets the Model's field and returns `Themes.apply(themes, name)`; on
+`SchemeFollowed` it returns `Theme.chooseScheme(scheme)`. Kept knobs have no stream:
+`Theme.chooseKnobs` stores CSS variable declarations, which do not map back to a theme's knobs.
+
+### The server's first render of the scheme
+
+A server that builds the Model per request reads the browser's hint with
+`schemeOfHint(request.headers.get('sec-ch-prefers-color-scheme'))`, which is
+`Option.some('light' | 'dark')` or `Option.none()`. A browser sends the hint only after a
+response asks for it, so send `COLOR_SCHEME_HINT_HEADERS` on pages: `Accept-CH` opts in,
+`Critical-CH` has the browser retry the first request with the hint, and `Vary` keeps a cache
+from serving one scheme's page to the other. Both are exported from `foldkit-mixins/theme`.
+
 ### What the palette derives
 
 `Theme.standard(theme)` holds typed tokens for surfaces, text, outlines, and the accent, secondary,
