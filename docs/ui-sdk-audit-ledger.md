@@ -74,10 +74,29 @@ Compared at UI SDK `d6996097` (`createTreeCollection`, `treeCheckedStates`, `tog
 
 `"trunk"`, `"branch"`, `"independent"`, and a branch id that expands when children arrive stay deferred until a tree stores its checks that way.
 
-## Reorder and spatial selection
+## Pointer drag and reorder
 
-- The [Builder](../packages/builder/src/index.ts) has keyboard reorder, indent and outdent shortcuts; [PointerDrag](../packages/primitives/src/interaction/pointer-drag.ts) supports pointer/touch drop zones. UI SDK's [reorder](https://github.com/vercel-labs/ui/blob/d6996097b9f8dbe5fe98c3f04210b9daa969a06c/packages/core/src/foundation/drag-and-drop/reorder.ts) and [transfer](https://github.com/vercel-labs/ui/blob/d6996097b9f8dbe5fe98c3f04210b9daa969a06c/packages/core/src/foundation/drag-and-drop/transfer.ts) provide pick-up/move/drop/cancel drafts and announcements. Investigate a reusable Model-owned operation, keeping drop validation with the application and resolving the target against current state on drop.
-- No general shared lasso or geometric navigation counterpart was established in this audit. UI SDK's [lasso](https://github.com/vercel-labs/ui/blob/d6996097b9f8dbe5fe98c3f04210b9daa969a06c/packages/core/src/foundation/selection/lasso.ts) and [spatial focus](https://github.com/vercel-labs/ui/blob/d6996097b9f8dbe5fe98c3f04210b9daa969a06c/packages/core/src/foundation/focus/spatial.ts) are starting points; a design must address layout/scroll invalidation and a keyboard-accessible alternative.
+**Disposition: verified overlap, with a justified deferral.** The pointer reports a place. The parent decides what a drop means. A generic pickup draft would be a second reorder beside the ones that already commit.
+
+Compared at UI SDK `d6996097` (`createReorder`, `createTreeReorder`, `createTransfer`) and this tree:
+
+- **Pointer facts.** [PointerDrag](../packages/primitives/src/dom/pointer-drag.ts) sends `DragStarted`, `DraggedOver`, `DragDropped`, and `DragCancelled`. A place is `before`, `inside`, or `after`, from the target's box at the moment the pointer moves. A press becomes a drag after 4px. A finger becomes one after it is held still for 400ms within 8px, so a list still scrolls. Escape or a cancelled pointer drops nothing. It writes no roles and handles no keys. Geometry is not kept.
+- **A document.** The [Builder](../packages/builder/src/index.ts) keeps the drag in its Model and places a node against the document it has then. A node that cannot start, or a drop the catalog refuses, changes nothing and is said through `LiveAnnounce`. Alt+ArrowUp and Alt+ArrowDown move the selected node among its siblings. Alt+ArrowLeft and Alt+ArrowRight indent and outdent. Each commits a Composition operation at the key, so undo is the page's history. There is no pickup that waits for a second key to commit.
+- **Across lists.** `createTransfer` keeps every list's order in a draft, moves with the arrows, scrolls near an edge, and announces each step. The kanban board already does that with `@foldkit/ui` DragAndDrop: Space picks a card up, arrows move it, Tab changes column, Space drops, Escape cancels, and an auto-scroll subscription runs while the pointer drags. Its README records why `PointerDrag` was left unused there: no keyboard drag, no ghost, no auto-scroll. The announcement is a Model string written in the same transition as the step.
+- **What the generic helpers add.** `createReorder` drafts an order until drop, moves a group as one block, and can reject through `set`. `preview` floats a copy and `createAutoScroll` scrolls a scroller the pointer nears. `createTreeReorder` moves a row and the rows under it, and changes depth. Screen readers hear grab, move, drop, and cancel. The sortable consumers in this comparison are the Builder and the kanban board, and each already has a keyboard path and a place to say what happened.
+
+A shared pickup draft, a drag preview, and edge auto-scroll stay deferred until a list has no keyboard reorder of its own.
+
+## Lasso and spatial focus
+
+**Disposition: justified deferral.** Nothing in this tree selects by a drawn rectangle, or moves focus to the nearest box on screen. Grid and list navigation already cover rows, columns, and a line.
+
+Compared at UI SDK `d6996097` (`createLasso`, `spatialMove`, `nearestInDirection`):
+
+- **Lasso.** `createLasso` keeps a rectangle draft while the pointer is down on the surface itself, selects every item the rectangle touches, adds to the selection when Shift is held, commits when the pointer lifts, and cancels on Escape. It announces how many were selected. [Grid selection](../packages/data-grid/src/selection.ts) is a rectangle of cells from an anchor, by keys, not a pointer rectangle. The pixel-art canvas paints the cells the pointer enters. Neither draws a selection rectangle over freely placed items.
+- **Spatial.** `nearestInDirection` picks the box whose center lies ahead in a 45° cone, and counts distance off to the side twice, so a box straight ahead beats a nearer one beside the ray. `spatialMove` sends the arrows there. Directions are physical in either reading direction. Home and End stay in document order. [GridNavigation](../packages/primitives/src/interaction/grid-navigation.ts) steps by a column count, with an optional wrap, and can point with `aria-activedescendant`. The Builder's "nearest" is the nearest node that can hold a block, not a box on screen.
+
+A lasso and a geometric move stay deferred until a board of freely placed items has no keyboard way to reach one. A design for them has to say which layout the rectangle and the arrows read, and what happens when that layout scrolls.
 
 ## In-place editing
 
