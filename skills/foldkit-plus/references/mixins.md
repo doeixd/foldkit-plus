@@ -743,6 +743,12 @@ export const stylesheet: string = Style.stylesheet(
 - `foldkit-mixins-ui` exports `Patterns`: an `A11y.pattern` per adapter plus `Patterns.catalog`
   (`{ name, pattern, slots, tier, roles, floor }`), and adapters for `HoverIntent` and `Anchor`
   (`Anchor.behavior(Slots)({ floating, config })`; `Anchor.topLayer(mount)` for an in-place panel, above).
+  `A11y.validate(pattern, slots)` stays a structural contract check. Pass a support list, or call
+  `A11y.bound`, when a present slot must have a provider for `navigation`, `focus`, `activation`,
+  or `checked`: a Behavior's `supplies`, `A11y.native` (the element), or `A11y.delegated` (a
+  named provider). A published attribute is not a provider, an absent optional slot is skipped,
+  and neither check is WCAG conformance. `Patterns.Listbox` asks its `items` slot for navigation
+  and its `item` slot for focus; `Patterns.Checkbox` asks `checkbox` for checked and activation.
 - `Style.attach`/`Behavior.attach` return new views; the original is untouched.
 - Rule-based CSS is data, and arrives with what draws it: in a browser, a class a Slot draws is
   appended once to a `<style data-foldkit-styles>` (made only when needed; it declares the

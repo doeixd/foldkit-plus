@@ -1195,9 +1195,32 @@ const DialogPattern = A11y.pattern({
 A11y.validate(DialogPattern, DialogSlots)
 ```
 
-`A11y.validate` is pure and DOM-independent. It checks the declared contract for missing or hidden
-slots, capability mismatches and unpublished events or attributes. An optional requirement
-tolerates an absent slot but still checks a present one. It does **not** certify WCAG compliance.
+`A11y.validate` with two arguments is pure and DOM-independent. It checks the declared contract
+for missing or hidden slots, capability mismatches, and unpublished events or attributes. An
+optional requirement tolerates an absent slot but still checks a present one.
+
+Obligations are a second check, and only when a support list is passed. A present slot may
+require `navigation`, `focus`, `activation`, or `checked`. A Behavior declares what it supplies;
+`A11y.native` names the element (such as `input`); `A11y.delegated` names another provider. An
+empty provider is refused. Publishing an attribute does not supply an obligation. `A11y.bound`
+is that check for a literal list: a missing obligation is a type error. A list typed only as
+`ObligationSupport[]`, including what `A11y.suppliedBy` reads off a Behavior, is judged when
+the call runs. Neither check certifies WCAG conformance.
+
+```ts
+const ListPattern = A11y.pattern({
+  list: { obligations: ['navigation'] },
+  row: { obligations: ['focus'] },
+})
+const ListNavigation = Behavior.forSlots(ListSlots)<FieldInput, Message>(
+  {
+    list: Behavior.slot({ supplies: ['navigation'] }),
+    row: Behavior.slot({ supplies: ['focus'] }),
+  },
+  { name: 'ListNavigation' },
+)
+A11y.bound(ListPattern, ListSlots, A11y.suppliedBy(ListNavigation))
+```
 
 ## Introspection
 

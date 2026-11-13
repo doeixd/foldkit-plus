@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`: an accessibility obligation (`navigation`, `focus`, `activation`,
+  or `checked`) is satisfied only by a named provider. A Behavior declares `supplies`
+  on the slot it contributes to; `A11y.native` names the element; `A11y.delegated`
+  names another provider. `A11y.validate` reads that list only when one is passed,
+  so a structural check stays structural. `A11y.bound` rejects a literal list that
+  misses an obligation. `Patterns.Listbox` asks `items` for navigation and `item`
+  for focus; `Patterns.Checkbox` asks `checkbox` for checked and activation.
+  `ListNavigation` and `RovingTabindex` declare the navigation and focus they
+  implement, and `ListNavigation` declares activation when a commit is given.
+  `Behaviors.ToggleState` declares `checked` only for `aria-checked`. A published
+  attribute is not a provider, and none of this is a WCAG claim (#552).
 - `foldkit-agent`: `Agent.Ui` binds a part id and a descriptive label to a
   capability `Agent.expose` already published. `discover` reads
   `messages.available` and the encoded context. A shared label is ambiguous, a

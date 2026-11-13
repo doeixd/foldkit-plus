@@ -64,6 +64,7 @@ export interface Obligation {
   readonly capability?: string
   readonly events: ReadonlyArray<string>
   readonly attributes: ReadonlyArray<string>
+  readonly obligations: ReadonlyArray<string>
   readonly optional: boolean
 }
 
@@ -313,6 +314,7 @@ const obligationsOf = (pattern: PatternRef | undefined): ReadonlyArray<Obligatio
         : { capability: MetadataToken.nameOf(requirement.capability) }),
       events: (requirement.events ?? []).map(event => MetadataToken.nameOf(event)),
       attributes: (requirement.attributes ?? []).map(attribute => MetadataToken.nameOf(attribute)),
+      obligations: [...(requirement.obligations ?? [])],
       optional: requirement.optional === true,
     })
   }
@@ -363,7 +365,13 @@ export const describe = (source: AssemblySource): Description => {
     attachments,
     obligations: obligationsOf(source.pattern),
     patternDiagnostics:
-      source.pattern === undefined ? [] : A11y.validate(source.pattern.pattern, patternSlots),
+      source.pattern === undefined
+        ? []
+        : A11y.validate(
+            source.pattern.pattern,
+            patternSlots,
+            (source.behaviors ?? []).flatMap(behavior => A11y.suppliedBy(behavior)),
+          ),
     links: (source.links ?? []).map(linkOf),
     conflicts: conflictsOf(attachments),
     parts: (source.parts ?? []).map(part => describe(part)),
@@ -383,7 +391,8 @@ const linesOf = (description: Description, indent: string): Array<string> => {
     }
   }
   for (const obligation of description.obligations) {
-    lines.push(`${indent}obligation ${obligation.pattern} ${obligation.slot}`)
+    const names = obligation.obligations.length === 0 ? '' : ` ${obligation.obligations.join(',')}`
+    lines.push(`${indent}obligation ${obligation.pattern} ${obligation.slot}${names}`)
   }
   for (const link of description.links) {
     lines.push(`${indent}link ${link.kind} ${link.name}`)

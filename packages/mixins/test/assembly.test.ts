@@ -203,6 +203,42 @@ describe('Assembly', () => {
     expect(text).toContain('diagnostic a11y:missing-slot missing')
   })
 
+  it('revalidates a focus obligation when its behavior is replaced', () => {
+    const Options = Slots.define({
+      items: Slot.make({ capability: Capability.Container }),
+      item: Slot.make({ capability: Capability.Interactive }),
+    })
+    const pattern = {
+      name: 'list',
+      pattern: A11y.pattern({
+        items: { obligations: ['navigation'] },
+        item: { obligations: ['focus'] },
+      }),
+    }
+    const both = Behavior.forSlots(Options)<unknown, TestMessage>(
+      {
+        items: Behavior.slot({ supplies: ['navigation'] }),
+        item: Behavior.slot({ supplies: ['focus'] }),
+      },
+      { name: 'ListNavigation' },
+    )
+    const arrows = Behavior.forSlots(Options)<unknown, TestMessage>(
+      { items: Behavior.slot({ supplies: ['navigation'] }) },
+      { name: 'Arrows' },
+    )
+    const view = SlotView.forMessages<TestMessage>().define(Options, () => {
+      throw new Error('drawn')
+    })
+    const held = Assembly.describe({ name: 'List', view, behaviors: [both], pattern })
+    expect(held.patternDiagnostics).toEqual([])
+    expect(Assembly.textOf(held)).toContain('obligation list item focus')
+    const replaced = Assembly.describe({ name: 'List', view, behaviors: [arrows], pattern })
+    expect(replaced.patternDiagnostics.map(item => item.code)).toEqual([
+      'a11y:unsatisfied-obligation',
+    ])
+    expect(replaced.patternDiagnostics[0]?.slot).toBe('item')
+  })
+
   it('orders a part style before its behavior when there is no view', () => {
     const Look = Style.forSlots(Fields)({ button: Style.class('go') }, { name: 'Look' })
     const described = Assembly.describe({

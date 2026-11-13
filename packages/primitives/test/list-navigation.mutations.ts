@@ -39,4 +39,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a commit does not declare activation',
+    edits: [
+      {
+        file: '../src/interaction/list-navigation.ts',
+        find: "supplies: options.commit === undefined ? ['navigation'] : ['navigation', 'activation'],",
+        replace: "supplies: ['navigation'],",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an item does not declare focus',
+    edits: [
+      {
+        file: '../src/interaction/list-navigation.ts',
+        find: "supplies: ['focus'],",
+        replace: 'requires: { capability: Capability.Focusable },',
+      },
+    ],
+    tests,
+  },
 ]

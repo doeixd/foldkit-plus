@@ -8,7 +8,7 @@ import { Option, Schema } from 'effect'
 import type { HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
-import { Attributes, Behaviors, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { A11y, Attributes, Behaviors, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import { describe, expect, it } from 'vitest'
 import { RovingTabindex } from '../src/interaction/index.js'
 
@@ -139,6 +139,20 @@ const keyHandler = (input: ToolbarInput, options: RovingTabindexArgs = args) => 
   if (attribute === undefined) throw new Error('no OnKeyDownFocus on the container')
   return attribute.f
 }
+
+describe('obligation declaration', () => {
+  it('supplies navigation on the container and focus on the item', () => {
+    const pattern = A11y.pattern({
+      root: { obligations: ['navigation'] },
+      tool: { obligations: ['focus'] },
+    })
+    expect(A11y.validate(pattern, ToolbarSlots, A11y.suppliedBy(wire(args)))).toEqual([])
+    expect(A11y.validate(pattern, ToolbarSlots, []).map(item => item.slot)).toEqual([
+      'root',
+      'tool',
+    ])
+  })
+})
 
 describe('RovingTabindex behavior', () => {
   const input: ToolbarInput = { toolbarFocus: { current: 'paste' }, tools }

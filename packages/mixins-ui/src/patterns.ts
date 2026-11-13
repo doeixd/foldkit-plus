@@ -120,7 +120,12 @@ export const Select = A11y.pattern({
 })
 
 export const Checkbox = A11y.pattern({
-  checkbox: { capability: Capability.Interactive, events: [Event.Click], attributes: [Attr.Role] },
+  checkbox: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.Role],
+    obligations: ['checked', 'activation'],
+  },
   label: { capability: Capability.Container },
   hiddenInput: { capability: Capability.Base, attributes: [Attr.Value], optional: true },
 })
@@ -477,11 +482,17 @@ export const Listbox = A11y.pattern({
     attributes: [Attr.AriaExpanded],
   },
   backdrop: { capability: Capability.Container, optional: true },
-  items: { capability: Capability.Container, attributes: [Attr.Role], optional: true },
+  items: {
+    capability: Capability.Container,
+    attributes: [Attr.Role],
+    obligations: ['navigation'],
+    optional: true,
+  },
   item: {
     capability: Capability.Interactive,
     events: [Event.Click],
     attributes: [Attr.Role, Attr.AriaSelected],
+    obligations: ['focus'],
   },
 })
 

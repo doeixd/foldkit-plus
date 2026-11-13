@@ -13,6 +13,7 @@ import { DiagnosticError, type DiagnosticCode } from './diagnostics.js'
 import * as MetadataToken from './metadataToken.js'
 import * as Mixin from './mixin.js'
 import type { Mixin as MixinValue } from './mixin.js'
+import { isObligation, type ObligationName } from './a11y.js'
 import type { Any as AnySlot, AttributeName, EventName, HiddenOf, SlotCapability } from './slot.js'
 import * as SlotView from './slotView.js'
 
@@ -24,6 +25,8 @@ export interface SlotRequirements {
 
 export interface BehaviorSlotOptions<Input, Message> {
   readonly requires?: SlotRequirements
+  /** Obligations this contribution declares. The declaration is not the handler. */
+  readonly supplies?: readonly ObligationName[]
   /**
    * Attributes for one resolution of the slot. `item` is present when the view
    * passed one to `slots.x.attrs(base, item)`, that is, when the slot is
@@ -131,6 +134,8 @@ export const forSlots =
       if (slotOptions?.requires !== undefined) {
         validateRequirements(name, target, slotOptions.requires)
       }
+      const unknown = slotOptions?.supplies?.find(name => !isObligation(name))
+      if (unknown !== undefined) throw new Error(`Unknown obligation: ${unknown}`)
       const attributes = slotOptions?.attributes
       const mount = slotOptions?.mount
       if (attributes === undefined && mount === undefined) continue

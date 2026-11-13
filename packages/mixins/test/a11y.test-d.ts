@@ -38,3 +38,21 @@ void _mixinsCode
 
 // @ts-expect-error only A11y.pattern produces a branded pattern.
 A11y.validate({ requirements: {} }, FieldSlots)
+
+const OptionPattern = A11y.pattern({
+  items: { obligations: ['navigation'] },
+  item: { obligations: ['focus'] },
+})
+
+A11y.bound(OptionPattern, FieldSlots, [
+  A11y.delegated({ slot: 'items', obligation: 'navigation', provider: 'ListNavigation' }),
+  A11y.delegated({ slot: 'item', obligation: 'focus', provider: 'ListNavigation' }),
+])
+
+// @ts-expect-error item/focus has no provider in this literal list.
+A11y.bound(OptionPattern, FieldSlots, [
+  A11y.delegated({ slot: 'items', obligation: 'navigation', provider: 'ListNavigation' }),
+])
+
+const dynamic: ReadonlyArray<A11y.ObligationSupport> = []
+A11y.bound(OptionPattern, FieldSlots, dynamic)

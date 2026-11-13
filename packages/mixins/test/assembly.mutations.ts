@@ -160,8 +160,30 @@ export default [
     edits: [
       {
         file,
-        find: 'source.pattern === undefined ? [] : A11y.validate(source.pattern.pattern, patternSlots),',
+        find: 'source.pattern === undefined\n        ? []\n        : A11y.validate(\n            source.pattern.pattern,\n            patternSlots,\n            (source.behaviors ?? []).flatMap(behavior => A11y.suppliedBy(behavior)),\n          ),',
         replace: '[],',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a supplying behavior is not consulted',
+    edits: [
+      {
+        file,
+        find: '(source.behaviors ?? []).flatMap(behavior => A11y.suppliedBy(behavior)),',
+        replace: '[],',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the text drops obligation names',
+    edits: [
+      {
+        file,
+        find: "const names = obligation.obligations.length === 0 ? '' : ` ${obligation.obligations.join(',')}`",
+        replace: "const names = ''",
       },
     ],
     tests,

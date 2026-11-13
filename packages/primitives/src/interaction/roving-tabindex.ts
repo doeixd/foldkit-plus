@@ -179,6 +179,7 @@ export const behavior =
       {
         [options.container]: Behavior.slot({
           requires: { capability: Capability.Interactive },
+          supplies: ['navigation'],
           attributes: ({
             input,
             h,
@@ -217,6 +218,7 @@ export const behavior =
         }),
         [options.item]: Behavior.slot({
           requires: { capability: Capability.Focusable },
+          supplies: ['focus'],
           attributes: ({
             input,
             h,

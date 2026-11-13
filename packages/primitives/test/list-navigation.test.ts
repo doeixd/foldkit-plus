@@ -8,7 +8,7 @@ import { Option, Schema } from 'effect'
 import type { KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
-import { Attributes, Behaviors, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { A11y, Attributes, Behaviors, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import { describe, expect, it } from 'vitest'
 import { ListNavigation, RovingTabindex, Typeahead } from '../src/interaction/index.js'
 
@@ -233,6 +233,22 @@ describe('ListNavigation behavior', () => {
     const f = Attributes.find(b.list.attrs(), 'OnKeyDownPreventDefault')?.f
     if (f === undefined) throw new Error('no OnKeyDownPreventDefault')
     expect(Option.isNone(f('Enter', plain))).toBe(true)
+  })
+})
+
+describe('obligation declaration', () => {
+  const pattern = A11y.pattern({
+    list: { obligations: ['navigation', 'activation'] },
+    option: { obligations: ['focus'] },
+  })
+  const obligation = (support: ReadonlyArray<A11y.ObligationSupport>) =>
+    A11y.validate(pattern, ListSlots, support).map(item => String(item.details?.['obligation']))
+
+  it('supplies navigation and focus, and activation only when a commit is given', () => {
+    expect(obligation(A11y.suppliedBy(wire()))).toEqual(['activation'])
+    const chosen = (id: string): Message => Nav.wrapper.make(ListNavigation.Message.Focused({ id }))
+    expect(obligation(A11y.suppliedBy(wireCommit(chosen)))).toEqual([])
+    expect(obligation([])).toEqual(['navigation', 'activation', 'focus'])
   })
 })
 

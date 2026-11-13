@@ -25,6 +25,7 @@ export const behavior =
       {
         [options.control]: Behavior.slot({
           requires: { capability: Capability.Interactive },
+          ...(options.as === 'checked' ? { supplies: ['checked'] as const } : {}),
           attributes: ({
             input,
             h,

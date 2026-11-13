@@ -38,4 +38,21 @@ describe('Patterns.catalog', () => {
       'a11y:capability-mismatch',
     )
   })
+
+  it('asks a listbox and a checkbox for providers, not for published attributes', () => {
+    const listbox = Patterns.catalog.find(entry => entry.name === 'listbox')
+    const checkbox = Patterns.catalog.find(entry => entry.name === 'checkbox')
+    if (listbox === undefined || checkbox === undefined) throw new Error('missing pattern')
+    expect(A11y.validate(listbox.pattern, listbox.slots as never)).toEqual([])
+    expect(
+      A11y.validate(listbox.pattern, listbox.slots as never, []).map(
+        item => `${item.slot} ${item.details?.['obligation']}`,
+      ),
+    ).toEqual(['items navigation', 'item focus'])
+    expect(
+      A11y.validate(checkbox.pattern, checkbox.slots as never, []).map(
+        item => `${item.slot} ${item.details?.['obligation']}`,
+      ),
+    ).toEqual(['checkbox checked', 'checkbox activation'])
+  })
 })

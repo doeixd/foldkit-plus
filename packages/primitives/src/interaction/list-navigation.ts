@@ -156,6 +156,7 @@ export const behavior =
       {
         [options.container]: Behavior.slot({
           requires: { capability: Capability.Interactive },
+          supplies: options.commit === undefined ? ['navigation'] : ['navigation', 'activation'],
           attributes: ({
             input,
             h,
@@ -253,6 +254,7 @@ export const behavior =
         }),
         [options.item]: Behavior.slot({
           requires: { capability: Capability.Focusable },
+          supplies: ['focus'],
           attributes: ({
             input,
             h,
