@@ -39,7 +39,7 @@ export default [
                       ? Option.none()`,
       },
     ],
-    tests,
+    tests: [...tests, 'packages/sync/test/mount.test.ts'],
   },
   {
     name: 'the laws never reach the journal or the replica',

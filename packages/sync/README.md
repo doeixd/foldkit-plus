@@ -664,7 +664,8 @@ operation -> validate -> authorize -> reduce -> laws(before, after) -> written
   refusal from any other.
 - **On the replica.** `submit` judges the Message's optimistic result before
   writing the outbox, and fails with `LawBrokenError` (`rule`, `message`,
-  `path`) when it breaks a law, so nothing is shown or sent. It is a hint: the
+  `path`) when it breaks a law, so nothing is sent; `Sync.mount` reverts the
+  edit it showed and hands the error to `onPersistenceFailure`. It is a hint: the
   optimistic snapshot holds pending edits the server may still refuse, and the
   server judges again where it commits.
 - **Strict.** A law judges `after`, whatever `before` held. A document that
