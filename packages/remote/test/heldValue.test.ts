@@ -13,7 +13,7 @@
  * - the budget evicted the read's root, left longest ago, and nothing else
  *   that held what it shows (another root, a pending write) holds it now.
  *
- * Every Message variant has generators (`messages` is checked against the
+ * Every Message variant has generators (`Walk.cases` checks the table against the
  * union, so a new variant does not compile until it has one). Each is applied
  * to a realistic loaded Model, then a seeded walk of them runs from it,
  * checking every step. The cases that once broke it, from Models of their
@@ -42,7 +42,6 @@ import {
   writeEntities,
   type RemoteData,
   type RemoteMessage,
-  type RemoteMessageTag,
   type Requirement,
   windowGrowthKey,
   type OptimisticOperation,
