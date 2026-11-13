@@ -9,6 +9,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-entity`: states and the law check (#535, #536). `Entity.refine(entity,
+  name, { field: value } or ({ row }) => predicate)` declares a named state of a
+  row on the Entity (`Entity.states`, `Entity.inState`, a narrowing `is`);
+  `Query.from(state)` queries it, and `Expr.show` prints it by name. A write takes
+  `from: state`, joined to its `when`, and `becomes: state`, proved where the
+  write is declared by enumerating the rows it can start from (one that cannot
+  be decided throws until writers enforce it); a state reaching another row is
+  neither. `Laws.check({ writes })` judges each write, or a `{ name, entity,
+  footprint }` entry (`Footprint.declared`, `Footprint.unknown`), against each
+  invariant of its Entity by enumeration over finite fields, and reports the
+  arrows between states; `Laws.show` prints it, `Write.footprint` is a
+  write's own. `Write` gains `from` and `becomes`.
 - `foldkit-sync`: a document's laws. `forApplication(...).make({ laws })` takes
   `{ holds({ before, after }), message, path? }` per id, typed over the shared
   fields alone; the journal judges each operation's resulting snapshot and

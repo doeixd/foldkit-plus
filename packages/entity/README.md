@@ -1353,7 +1353,7 @@ Refusal.isInvalidBy(refusal, reservedWithinQuantity)
   | Write | Not |
   | --- | --- |
   | `Expr.gte(after.quantity, before.quantity)` | `Expr.gte(after.quantity, Expr.field(before.quantity))` |
-- It is declared once, on the Entity's metadata, and attaching more adds to it;
+- It is declared once, on the Entity itself, and attaching more adds to it;
   the Entity stays the same (`Entity.same`). Its interpreters read it from there.
 - It reads stored rows only: one over another Entity, or reading an input, is
   refused where it is declared, as is an id declared twice or a `path` naming
@@ -1374,6 +1374,182 @@ Text compares only under a declared collation, here too: a date stored as text
 needs `{ collation: Collation.binary }` on its comparison. An interpreter that
 judges stored rows alone refuses `after`'s nodes as the operation `next`;
 `Expr.substituteNext` reads the ones a write sets as their values.
+
+## States of a row, and what every write does to them
+
+An invariant says what every row holds. A row also passes through states a
+reader names (a draft, a published product), and a write makes sense from some
+and leads to others. `Entity.refine` names one, as a value: a predicate over
+the row, declared once on the Entity (every descriptor of it lists it, as it
+judges its invariants). It is not another descriptor: a store, a compiler or a
+guard given `Draft` where it wants `Product` would read every product.
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Entity, Expr, Query, Write } from 'foldkit-entity'
+-->
+
+```ts
+const Product = Entity.define(
+  'Product',
+  Schema.Struct({
+    id: Schema.String,
+    status: Schema.Literals(['draft', 'published', 'archived']),
+    stock: Schema.Number,
+  }),
+)
+
+const Draft = Entity.refine(Product, 'Draft', { status: 'draft' }) // a value per field
+const Published = Entity.refine(Product, 'Published', { status: 'published' })
+const InStock = Entity.refine(Product, 'InStock', ({ row }) => Expr.gt(row.stock, 0)) // any predicate
+
+const drafts = Query.from(Draft) // every product in the state: its predicate in `where`
+Expr.show(Draft.predicate) // 'Product.Draft'
+Entity.inState(Draft, { status: 'draft' }) // Option.some(true); none for a row without `status`
+```
+
+- The literal form is one `Expr.eq` per key, each typed by what its field
+  stores: a key that is no field, or a value the field cannot hold, does not
+  compile. Its `is(row)` is a type guard narrowing the fields it names
+  (`row.status` is `'draft'` inside `if (Draft.is(row))`); the predicate form's
+  narrows nothing. A Selection is never narrowed by state: a held row is
+  updated in place, and goes on being read after it left the state.
+- `build` is given `row` alone, so a state cannot read the past: "was ever
+  published" is a field.
+- A state may reach another row (`Expr.path`, `Expr.exists`). It is queried
+  as any predicate is, but it is not `local`: `inState` and `is` cannot judge
+  it from one row, and it is no write's `from` or `becomes`, since a writer
+  judges the row it writes alone.
+
+A write says which state it starts from and which it leaves:
+
+```ts
+const Publish = Write.update(
+  Entity.input(Product, Schema.Struct({ id: Schema.String, status: Schema.Literal('published') })),
+  { id: 'id', from: Draft, becomes: Published },
+)
+```
+
+- `from: Draft` joins the state's predicate to the write's `when`, so a row in
+  another state is refused as unmet, as any `when` refuses, and the write is a
+  `ConditionedWrite`.
+- `becomes: Published` claims every row the write can start from is published
+  once it lands. It is decided where the write is declared, by enumerating
+  those rows: a claim the patch cannot keep throws there, naming a row it
+  breaks. A claim enumeration cannot decide (a sale `becomes: InStock` moves a
+  number) throws too, saying it needs a writer that enforces it; enforcing such
+  a claim where the write commits is not built yet.
+
+### Checking every write: `Laws.check`
+
+`Laws.check` judges each write against each invariant of its Entity, and
+reports the arrows the writes make between its states. It is pure, needs no
+database, and reads declarations only:
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Entity, Footprint, Laws, Write } from 'foldkit-entity'
+
+const Product = Entity.define(
+  'Product',
+  Schema.Struct({
+    id: Schema.String,
+    name: Schema.String,
+    status: Schema.Literals(['draft', 'published', 'archived']),
+    stock: Schema.Number,
+  }),
+)
+const Draft = Entity.refine(Product, 'Draft', { status: 'draft' })
+const Published = Entity.refine(Product, 'Published', { status: 'published' })
+const ToPublished = Entity.input(
+  Product,
+  Schema.Struct({ id: Schema.String, status: Schema.Literal('published') }),
+)
+const ToDraft = Entity.input(
+  Product,
+  Schema.Struct({ id: Schema.String, status: Schema.Literal('draft') }),
+)
+const Rename = {
+  name: 'Rename',
+  write: Write.update(
+    Entity.input(Product, Schema.Struct({ id: Schema.String, name: Schema.String })),
+    { id: 'id' },
+  ),
+}
+const Publish = {
+  name: 'Publish',
+  write: Write.update(ToPublished, { id: 'id', from: Draft, becomes: Published }),
+}
+const Revert = { name: 'Revert', write: Write.update(ToDraft, { id: 'id' }) }
+const Sell = {
+  name: 'Sell',
+  write: Write.update(
+    Entity.input(Product, Schema.Struct({ id: Schema.String, quantity: Schema.Int }), {
+      quantity: Entity.unmapped,
+    }),
+    { id: 'id', increment: { stock: 'quantity' } },
+  ),
+}
+-->
+
+```ts
+const report = Laws.check({ writes: [Rename, Publish, Revert, Sell] })
+Laws.show(report)
+```
+
+
+For the writes example, with a `reservedWithinStock` state invariant and a
+`publishedStaysPublished` transition invariant, it prints
+([`examples/writes/LAWS.md`](https://github.com/doeixd/foldkit-plus/blob/main/examples/writes/LAWS.md)
+keeps it, so a write added changes a checked-in file):
+
+```text
+Product
+  Draft -> Published   Publish   holds
+  Published -> Draft   Revert    refused by publishedStaysPublished
+  Archived -> Draft    Revert    undeclared
+  Archived                       unreached
+
+Rename    x reservedWithinStock       kept: writes no member it reads
+Revert    x publishedStaysPublished   refused: from {"status":"published"} it leaves {"status":"draft"}
+Sell      x reservedWithinStock       undecided: stock is incremented
+```
+
+One write against one invariant comes to one of three verdicts:
+
+| Case | Verdict |
+| --- | --- |
+| A state invariant, and the write writes no member it reads | `Kept`, by disjointness |
+| Every member it reads is finite (a literal, a union of literals, a boolean, with or without null), and the write changes each only by setting it | Enumerated: `Kept`, or `Refused` with the rows that break it |
+| Anything else: a number, free text, an increment, a computed field, a link, an operator the table lacks, more than 4,096 rows | `Undecided`, with the reason |
+
+A transition invariant is never kept by disjointness: `after.count >
+before.count` is broken by every write that leaves `count` alone. Rows are not
+filtered by the invariants before enumeration, since a row may be invalid
+before a write; a row the write's `when` (and `from`) definitely refuses is
+dropped, and one it cannot judge stays.
+
+The findings (`holds`, `undeclared`, `refused`, `unreached`, `terminal`) are
+reports, never faults: a write an invariant can refuse is legitimate.
+
+A transition that is no declared write (another package's command, an
+import) is an entry with a `Footprint`: what its author says it writes, or
+`Footprint.unknown`, which writes every member and is `Undecided` against
+every invariant:
+
+```ts
+Laws.check({
+  writes: [
+    { name: 'Touch', entity: Product, footprint: Footprint.declared({ writes: [Product.fields.name], by: 'the import' }) },
+    { name: 'Import', entity: Product, footprint: Footprint.unknown },
+  ],
+})
+```
+
+A declared footprint names fields by reference, so one of another Entity is a
+type error where the entry names its Entity. It keeps a state invariant only
+by disjointness, and decides no transition invariant. `Write.footprint(write)`
+is a declared write's own.
 
 ## Naming a question: operators
 
@@ -1634,8 +1810,14 @@ server on different deploys see which side is behind.
 | `Entity.select(entity, { key: true or Selection })` | A Selection: what was selected (`members`) and the `schema` of the result; a tagged union of cases for a variant Entity whose `_tag` is selected. |
 | `Entity.page(selection, { first, after } or { last, before })` | In a Selection, a `many` relation read as a page: `items`, `hasNext`, `hasPrevious`. |
 | `Entity.fields(entity, ...keys)` | The schemas of those fields, by key, to spread into an input's struct. |
-| `Write.update(input, { id, expect?, when?, increment? })` | A declared update of one row: every key the input maps to a field, but the id and the expected revision; `when`, what the row must hold for it to land; `increment`, the number fields it moves by an input amount. |
-| `Write.insert(input, { id })` / `Write.delete(input, { id, expect?, when? })` | A declared insert under an id the client chose; a declared delete of one row, which sets nothing. |
+| `Write.update(input, { id, expect?, when?, from?, becomes?, increment? })` | A declared update of one row: every key the input maps to a field, but the id and the expected revision; `when`, what the row must hold for it to land; `from`, a state whose predicate joins the `when`; `becomes`, the state every row it starts from is in once it lands, proved where declared; `increment`, the number fields it moves by an input amount. |
+| `Write.insert(input, { id, becomes? })` / `Write.delete(input, { id, expect?, when?, from? })` | A declared insert under an id the client chose; a declared delete of one row, which sets nothing. |
+| `Write.footprint(write)` | What a write reads and writes of its row, by field key, as a `Footprint.Derived`. |
+| `Entity.refine(entity, name, { field: value } or ({ row }) => predicate)` | A named state of the row, declared on the Entity: `predicate`, `after`, `local`, `reads`, `is(row)`. |
+| `Entity.states(entity)` / `Entity.inState(state, row, operators?)` | Every state declared on an Entity; whether a stored row is in one (`Option`, none where it lacks a field the state reads). |
+| `Query.from(state)` | Every row in a state: the Entity's query with its predicate in `where`. |
+| `Laws.check({ writes, operators? })` / `Laws.show(report)` | Each write (`{ name, write }` or `{ name, entity, footprint }`) against each invariant of its Entity, and the arrows between its states, by enumeration over finite fields: a `LawReport` of `pairs`, `arrows`, `states` and `findings`; the report as text. |
+| `Footprint.declared({ reads?, writes, by })` / `Footprint.unknown` | What a transition that is no declared write reads and writes, on whose word; or nothing known, which writes every member. |
 | `Write.reads(write)` | The fields a write reads from its row: its `when`'s, each it increments, its assignments', the revision. |
 | `Write.update(input, { …, compute })` / `Computation` | A field computed from the row before the write and the input, carried as data. |
 | `Write.apply(row, bound, { operators })` / `Write.boundReads(bound)` | The row a bound write leaves, and what of the row before it that needs. |

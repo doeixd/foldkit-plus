@@ -372,6 +372,57 @@ const Restock = Write.update(
 How the declaration, its guard, its writer and the client fit together:
 [declared writes guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/declared-writes.md).
 
+## States, and checking every write
+
+A state is a named predicate over the row, a value declared once on the Entity
+(never a second descriptor, which every reader of an Entity would have to tell
+apart). A write starts from one and leaves another; `Laws.check` enumerates
+what every write does to every invariant and state.
+
+```ts
+import { Footprint, Laws } from 'foldkit-entity'
+
+const Draft = Entity.refine(Product, 'Draft', { status: 'draft' }) // literal form: one eq per field
+const Published = Entity.refine(Product, 'Published', { status: 'published' })
+const InStock = Entity.refine(Product, 'InStock', ({ row }) => Expr.gt(row.stock, row.reserved))
+
+const Publishing = Write.update(
+  Entity.input(Product, Schema.Struct({ id: Schema.String, status: Schema.Literal('published') })),
+  { id: 'id', from: Draft, becomes: Published },
+)
+
+const report = Laws.check({
+  writes: [
+    { name: 'Publish', write: Publishing }, // a Mutation.write result fits
+    { name: 'Import', entity: Product, footprint: Footprint.unknown },
+  ],
+})
+Laws.show(report)
+```
+
+- **`from: Draft`** joins the state's predicate to the write's `when`: refused as `Unmet` from any
+  other state, a `ConditionedWrite`.
+- **`becomes: Published`** is proved where the write is declared, by enumerating every row it can
+  start from over finite fields (literals, unions of them, booleans). A row it leaves outside throws
+  there, naming it; a claim enumeration cannot decide (a number moved, `becomes: InStock` on a sale)
+  throws too ("needs a writer that enforces it"), until writers enforce it where the write commits.
+- **`Query.from(Draft)`** is the Entity's query with the predicate in `where`; `Expr.show` prints it
+  `Product.Draft`. `Entity.inState(Draft, storedRow)` is an `Option` (none when the row lacks a field
+  it reads); `Draft.is(row)` narrows the literal form's fields. A Selection is never narrowed by state.
+- **Another row.** A state may use `Expr.path`/`Expr.exists`: queried as any predicate, but not
+  `local`, so no `from` or `becomes` and no `inState`. `build` gets `row` only: no past.
+- **Verdicts.** A state invariant the write writes nothing of is `Kept` by disjointness; a transition
+  invariant never is. All-finite members changed only by `set` are enumerated (`Kept` or `Refused` with
+  rows; the `when` drops rows it definitely refuses). Anything else (a number, an increment, a computed
+  field, a link, a missing operator, over 4,096 rows) is `Undecided` with a reason. Findings (`holds`,
+  `undeclared`, `refused`, `unreached`, `terminal`) are reports, not faults.
+- **Footprints.** An entry that is no declared write is `{ name, entity, footprint }`:
+  `Footprint.declared({ writes: [Product.fields.name], by })` keeps a state invariant by disjointness
+  only (another Entity's field is a type error); `Footprint.unknown` writes every member and is
+  `Undecided` against every invariant. `Write.footprint(write)` is a declared write's.
+- Keep the report as a checked-in file (`examples/writes/LAWS.md`, `toMatchFileSnapshot`) so a new write
+  changes it.
+
 ## Typed ids
 
 Brand the `id` field and it flows: `IdOf<typeof Blog.Post>`, `EntityRef<'Post', PostId>`
