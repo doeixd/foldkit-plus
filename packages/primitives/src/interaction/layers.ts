@@ -30,5 +30,8 @@ const mountOn =
 /** Locks the document's scroll while the container is mounted; nested locks release together. */
 export const scrollLock = mountOn('ScrollLock', () => ScrollLockMount())
 
-/** Marks everything outside the container inert while it is mounted. */
+/**
+ * Marks everything outside the container inert while it is mounted, and
+ * releases that set while the container itself is marked leaving.
+ */
 export const hideOutside = mountOn('HideOutside', () => HideOutsideMount())

@@ -213,11 +213,11 @@ reference: every Model shape, Message, argument, and failure rule.
 | [`time`](./time/README.md) | the clock | `Timer`, `Interval`, `ticks`, `debounce`, `Throttle`, `formatRelativeTime` |
 | [`state`](./state/README.md) | UI state with nowhere else to live | `Pagination`, `history`, `Locale`, `SelectionSet`, `Virtual`, `range`, layout math |
 | [`motion`](./motion/README.md) | animation | `Tween`, `Spring`, `Presence`, the `Motion` service |
-| [`interaction`](./interaction/README.md) | keyboard, pointer, and focus patterns, with their Behaviors | `RovingTabindex`, `Typeahead`, `ListNavigation`, `GridNavigation`, `TreeNavigation`, `FocusScope`, `FocusRecovery`, `Press`, `LongPress`, `Move`, `Targets`, `PointerDrag`, `EditableText`, `FocusVisible`, `DismissLayer`, `Layers`, `Selection`, `LiveAnnounce` |
+| [`interaction`](./interaction/README.md) | keyboard, pointer, and focus patterns, with their Behaviors | `RovingTabindex`, `Typeahead`, `ListNavigation`, `GridNavigation`, `TreeNavigation`, `FocusScope`, `FocusRecovery`, `Leaving`, `Press`, `LongPress`, `Move`, `Targets`, `PointerDrag`, `EditableText`, `FocusVisible`, `DismissLayer`, `Layers`, `Selection`, `LiveAnnounce` |
 | [`device`](./device/README.md) | hardware | `Geolocation`, `mediaDevices`, `mediaStream`, `permissions`, fullscreen |
 | [`events`](./events/README.md) | raw window events | `Visibility`, `WindowSize`, `Idle`, `InputModality`, `keyboardEvents`, `pointerEvents`, `scrollEvents`, `activeElementEvents`, `matchHotkey` |
 | [`observers`](./observers/README.md) | element observers | `Resize`, `Intersection`, `Mutation`, `Bounds` |
-| [`dom`](./dom/README.md) | element Mounts and one-shot Commands | `Autofocus`, `InputMask`, `KeepInView`, `Measure`, `FluidHover`, `ScrollBars`, `PointerPosition`, `FocusScope`, `FollowTabStop`, `FocusRecovery`, `ScrollLock`, `HideOutside`, `copyText`, `readText`, `share`, `loadScript`, `decodeImage`, `keepScroll`, `pointedLinks`, `visibleLinks` |
+| [`dom`](./dom/README.md) | element Mounts and one-shot Commands | `Autofocus`, `InputMask`, `KeepInView`, `Measure`, `FluidHover`, `ScrollBars`, `PointerPosition`, `FocusScope`, `FollowTabStop`, `FocusRecovery`, `Leaving`, `ScrollLock`, `HideOutside`, `copyText`, `readText`, `share`, `loadScript`, `decodeImage`, `keepScroll`, `pointedLinks`, `visibleLinks` |
 
 ## Rules every primitive keeps
 

@@ -24,6 +24,7 @@ the handler dispatches    →  update moves the fact; the view redraws from it
 | `TreeNavigation` | `{ current, toggled }` | a tree: a file explorer, a layers panel |
 | `FocusScope` | nothing (a Mount) | keep focus inside an overlay |
 | `FocusRecovery` | nothing (a Mount) | move focus out of a part the view removed |
+| `Leaving` | nothing (a Mount) | move focus out of a part that stays drawn but is no longer eligible |
 | `Press` | `{ pressed, … }`; out `Pressed` | pointer, touch, Enter, Space, and AT clicks as one fact |
 | `LongPress` | `{ … }`; out `LongPressed` | holding for a threshold |
 | `Move` | nothing (a Mount) | pointer drag deltas |
@@ -323,18 +324,20 @@ const TreeKeys = TreeNavigation.behavior(Layers, { openByDefault: true })(TreeSl
 The pure `move(shown, current, key, modifiers, model, args, direction?)`
 answers with `Focus`, `Open`, or `Close`.
 
-**`FocusScope`** is the one entry here that is a Mount, not a Bundle: which
-element has focus is a DOM fact, so nothing crosses to the Model. The Mount
-lives in `foldkit-primitives/dom`;
+**`FocusScope`** is a Mount, not a Bundle: which element has focus is a DOM
+fact, so nothing crosses to the Model. The Mount lives in
+`foldkit-primitives/dom`;
 `FocusScope.behavior(Slots)<Input, Message>({ container, contain?, restore?, initialFocus? })`
 attaches it to a container slot. On insert the container focuses
 `initialFocus`, else its first tabbable descendant, else itself. With `contain`
 (default), Tab from the last tabbable wraps to the first, Shift+Tab from the
 first wraps to the last, and focus that lands outside comes straight back; Tab
-in the middle is the browser's. On unmount, with `restore` (default), focus
-returns to the element that had it, if it is still in the document. A native
-`<dialog>` does all of this itself; this is for a custom overlay, a menu, or a
-command palette.
+in the middle is the browser's. While the container is marked leaving, that
+containment stops, so the handoff out is not pulled back. On unmount, with
+`restore` (default), focus returns to the element that had it when focus would
+otherwise be lost and that element is still in the document. A surface that
+took focus keeps it. A native `<dialog>` does all of this itself; this is for
+a custom overlay, a menu, or a command palette.
 
 **`FocusRecovery`** is the other Mount here: it answers a part that goes with
 focus in it, so a list does not drop focus to the body. Mark a part with
@@ -347,6 +350,14 @@ sibling, else the enclosing part that can take focus, and otherwise nowhere.
 Focus the reader moved elsewhere, a part that moved rather than went, and
 teardown leave focus alone; nested containers own only their own parts. The
 Mount and `part` live in `foldkit-primitives/dom`.
+
+**`Leaving`** is the Mount for a part that stays drawn but is no longer
+eligible. `Leaving.behavior(Slots)<Input, Message>({ container })` attaches it
+to the container that holds the parts; `Leaving.leaving(h)` marks one while it
+should be skipped. Focus moves by `FocusRecovery`'s fallback, then the part
+becomes `inert`. Clearing the marker restores the part's own `inert` and does
+not take focus back. How long the exit lasts stays with `Presence`: mark the
+part while its phase is `hiding`. The Mount sends nothing.
 
 ## Pressing and dragging
 
@@ -576,7 +587,9 @@ for DevTools and agents. `toDismiss(layers, inside)` is the pure rule.
 `HideOutside` Mounts from `foldkit-primitives/dom`: the first locks the
 document's scroll while the container is mounted, refcounted so nested
 overlays release together; the second marks everything outside the container
-inert while it is mounted. A native `<dialog>` shown modally needs neither.
+inert while it is mounted, and releases that set while the container itself is
+marked leaving so focus can move out. Shown again, the outside is hidden once
+more. A native `<dialog>` shown modally needs neither.
 
 **`Overlay`** is one policy value instead of nine overlay implementations:
 `Overlay.modal` (dismissed by Escape and outside press, focused, locked,

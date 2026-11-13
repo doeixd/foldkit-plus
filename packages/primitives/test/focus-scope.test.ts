@@ -128,6 +128,30 @@ describe('FocusScope', () => {
     )
   })
 
+  it('gives a leaving scope its keys and focus away, and keeps a focus a new surface took', async () => {
+    const { outside, scope, first, last } = setup()
+    const taken = document.createElement('button')
+    taken.id = 'taken'
+    document.body.append(taken)
+    scope.setAttribute('data-fk-leaving', '')
+    outside.focus()
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* running({ contain: true, restore: true, initialFocus: null }, scope)
+        last.focus()
+        expect(tab(last)).toBe(false)
+        expect(document.activeElement).toBe(last)
+        outside.focus()
+        expect(document.activeElement).toBe(outside)
+        taken.focus()
+        yield* Fiber.interrupt(fiber)
+        yield* settle
+        expect(document.activeElement).toBe(taken)
+        void first
+      }),
+    )
+  })
+
   it('removes its listeners on unmount', async () => {
     const { scope, first, last } = setup()
     await Effect.runPromise(

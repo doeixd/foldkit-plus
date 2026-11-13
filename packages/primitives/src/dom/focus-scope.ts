@@ -1,5 +1,6 @@
 import { Effect, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
+import { isLeaving } from './leaving.js'
 
 const FOCUSABLE = [
   'a[href]',
@@ -60,6 +61,8 @@ export const FocusScope = Mount.defineStream('FocusScope', {
             element.focus()
           }
           const onKeyDown = (event: Event) => {
+            // Leaving content gives its keys to whatever takes focus next.
+            if (isLeaving(element)) return
             const key = event as KeyboardEvent
             if (key.key !== 'Tab') return
             const tabbable = tabbableWithin(element)
@@ -79,6 +82,8 @@ export const FocusScope = Mount.defineStream('FocusScope', {
             }
           }
           const onFocusIn = (event: Event) => {
+            // Leaving content does not call focus back: the handoff is going out.
+            if (isLeaving(element)) return
             const target = event.target
             if (target instanceof Node && element.contains(target)) return
             focusFirst(tabbableWithin(element))
@@ -95,9 +100,17 @@ export const FocusScope = Mount.defineStream('FocusScope', {
               element.removeEventListener('keydown', onKeyDown)
               ownerDocument.removeEventListener('focusin', onFocusIn)
             }
-            if (restore && previous instanceof HTMLElement && ownerDocument.contains(previous)) {
-              previous.focus()
-            }
+            if (!restore || !(previous instanceof HTMLElement)) return
+            if (!ownerDocument.contains(previous)) return
+            // Restore only focus that would otherwise be lost. A surface that
+            // took it while this one left keeps it.
+            const active = ownerDocument.activeElement
+            const lost =
+              active === null ||
+              active === ownerDocument.body ||
+              !ownerDocument.contains(active) ||
+              element.contains(active)
+            if (lost) previous.focus()
           }),
       ),
     ),

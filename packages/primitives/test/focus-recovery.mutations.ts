@@ -3,7 +3,8 @@
  * packages/primitives/test/focus-recovery.mutations.ts` checks that a test
  * fails for every one.
  */
-const file = '../src/dom/focus-recovery.ts'
+const recovery = '../src/dom/focus-recovery.ts'
+const targets = '../src/dom/focus-targets.ts'
 const tests = ['packages/primitives/test/focus-recovery.browser.test.ts']
 const writing = ['packages/primitives/test/focus-recovery.test.ts']
 
@@ -12,9 +13,9 @@ export default [
     name: 'a part is written under a name the Mount does not read',
     edits: [
       {
-        file,
-        find: "const PART_KEY = 'fk-focus-recovery-part'",
-        replace: "const PART_KEY = 'fk-focus-part'",
+        file: targets,
+        find: "export const PART_KEY = 'fk-focus-recovery-part'",
+        replace: "export const PART_KEY = 'fk-focus-part'",
       },
     ],
     tests: writing,
@@ -23,9 +24,9 @@ export default [
     name: 'the fallback name is written under an attribute the Mount does not read',
     edits: [
       {
-        file,
-        find: "const TO_KEY = 'fk-focus-recovery-to'",
-        replace: "const TO_KEY = 'fk-focus-to'",
+        file: targets,
+        find: "export const TO_KEY = 'fk-focus-recovery-to'",
+        replace: "export const TO_KEY = 'fk-focus-to'",
       },
     ],
     tests: writing,
@@ -34,8 +35,8 @@ export default [
     name: 'a root claims the parts of a nested root',
     edits: [
       {
-        file,
-        find: 'if (node !== root && roots.has(node)) return undefined',
+        file: targets,
+        find: 'if (node !== root && containers.has(node)) return undefined',
         replace: 'if (false) return undefined',
       },
     ],
@@ -45,7 +46,7 @@ export default [
     name: 'an ambiguous id names the first of its matches',
     edits: [
       {
-        file,
+        file: targets,
         find: 'return found.length === 1 ? firstFocusable(found[0]!) : undefined',
         replace: 'return firstFocusable(found[0]!)',
       },
@@ -56,29 +57,28 @@ export default [
     name: 'focus goes back to the part before it rather than the one after',
     edits: [
       {
-        file,
-        find:
-          '    nextFocusable(record.nextSibling) ??\n' +
-          '    previousFocusable(record.previousSibling) ??\n',
+        file: targets,
+        find: '  return nextFocusable(next) ?? previousFocusable(previous) ?? ancestorFocusable(root, enclosing)\n',
         replace:
-          '    previousFocusable(record.previousSibling) ??\n' +
-          '    nextFocusable(record.nextSibling) ??\n',
+          '  return previousFocusable(previous) ?? nextFocusable(next) ?? ancestorFocusable(root, enclosing)\n',
       },
     ],
     tests,
   },
   {
     name: 'a part that moved rather than went takes no focus back',
-    edits: [{ file, find: 'if (leaving.element.isConnected) {', replace: 'if (false) {' }],
+    edits: [
+      { file: recovery, find: 'if (leaving.element.isConnected) {', replace: 'if (false) {' },
+    ],
     tests,
   },
   {
     name: 'an enclosing part is never the fallback',
     edits: [
       {
-        file,
-        find: '    ancestorFocusable(root, record.target)\n',
-        replace: '    undefined\n',
+        file: targets,
+        find: '  return nextFocusable(next) ?? previousFocusable(previous) ?? ancestorFocusable(root, enclosing)\n',
+        replace: '  return nextFocusable(next) ?? previousFocusable(previous) ?? undefined\n',
       },
     ],
     tests,
@@ -87,7 +87,7 @@ export default [
     name: 'focus taken elsewhere is taken back',
     edits: [
       {
-        file,
+        file: recovery,
         find: 'if (active !== null && active !== doc.body && active.isConnected) return',
         replace: 'if (false) return',
       },
@@ -98,7 +98,7 @@ export default [
     name: 'a part keeps its claim after the reader left it',
     edits: [
       {
-        file,
+        file: recovery,
         find:
           '                      setTimeout(() => {\n' +
           '                        if (disposed || held !== leaving) return\n' +
@@ -118,11 +118,11 @@ export default [
     name: 'teardown leaves its listeners and observer working',
     edits: [
       {
-        file,
+        file: recovery,
         find:
           '                  return () => {\n' +
           '                    disposed = true\n' +
-          '                    roots.delete(element)\n' +
+          '                    containers.delete(element)\n' +
           '                    changes.disconnect()\n' +
           "                    element.removeEventListener('focusin', entered)\n" +
           "                    element.removeEventListener('focusout', left)\n" +

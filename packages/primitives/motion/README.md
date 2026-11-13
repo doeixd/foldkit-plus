@@ -64,9 +64,12 @@ Holds mount-transition state for an exit animation. `phase` moves
 `shown → hiding → hidden`: `Hide` starts the timed `hiding` phase, and the
 `Hidden` fact it schedules carries its generation, so a `Show` in between wins
 and the late fact is ignored. `isVisible(model)` reads whether content renders
-(shown or mid-exit); the view keeps drawing while it does, with a class for
-the exit. The timeout Command is the owner; a `transitionend` Mount is a future
-opt-in, not a second timer.
+(shown or mid-exit); the view keeps drawing while it does. While `phase` is
+`hiding`, mark the part with `leaving(h)` from `foldkit-primitives/interaction`
+so focus moves out and the part becomes inert; the marker goes when the phase
+is `shown` again or the part is removed on `Hidden`. That Mount does not time
+the exit. The timeout Command is the owner; there is no `transitionend` timer
+beside it. Under reduced motion the same `Hidden` is sent at once.
 
 ## Reduced motion is a service
 

@@ -9,6 +9,7 @@ import * as Mount from 'foldkit/mount'
 import { Attributes, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import { describe, expect, it } from 'vitest'
 import { HideOutside, ScrollLock } from '../src/dom/index.js'
+import { LEAVING } from '../src/dom/leaving.js'
 import { Layers } from '../src/interaction/index.js'
 
 const run = (
@@ -111,6 +112,54 @@ describe('HideOutside', () => {
           expect(page.hasAttribute('inert')).toBe(false)
           expect(page.getAttribute('aria-hidden')).toBeNull()
           expect(overlay.hasAttribute('data-foldkit-plus-hide-outside')).toBe(false)
+        }),
+      )
+    } finally {
+      document.body.innerHTML = ''
+    }
+  })
+
+  const outsideHidden = (page: HTMLElement) =>
+    page.hasAttribute('inert') || page.getAttribute('aria-hidden') === 'true'
+
+  it('releases the outside while the element is leaving and hides it again when shown', async () => {
+    document.body.innerHTML = `<main id="page"><p id="text">t</p></main><div id="overlay"><button>ok</button></div>`
+    const overlay = document.getElementById('overlay')!
+    const page = document.getElementById('page')!
+    try {
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* run(HideOutside(), overlay)
+          yield* settle
+          expect(outsideHidden(page)).toBe(true)
+          overlay.setAttribute(LEAVING, '')
+          yield* settle
+          expect(outsideHidden(page)).toBe(false)
+          overlay.removeAttribute(LEAVING)
+          yield* settle
+          expect(outsideHidden(page)).toBe(true)
+          yield* Fiber.interrupt(fiber)
+          yield* settle
+          expect(outsideHidden(page)).toBe(false)
+        }),
+      )
+    } finally {
+      document.body.innerHTML = ''
+    }
+  })
+
+  it('starts released when the element is already leaving', async () => {
+    document.body.innerHTML = `<main id="page"><p id="text">t</p></main><div id="overlay"><button>ok</button></div>`
+    const overlay = document.getElementById('overlay')!
+    const page = document.getElementById('page')!
+    overlay.setAttribute(LEAVING, '')
+    try {
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* run(HideOutside(), overlay)
+          yield* settle
+          expect(outsideHidden(page)).toBe(false)
+          yield* Fiber.interrupt(fiber)
         }),
       )
     } finally {

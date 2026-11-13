@@ -23,6 +23,7 @@ wraps.
 | `FocusScope(options)` | Mount | nothing | `{ contain?, restore?, initialFocus? }` |
 | `FollowTabStop` | Mount | nothing | |
 | `FocusRecovery` | Mount | nothing | mark parts with `part(h, { to? })` |
+| `Leaving` | Mount | nothing | mark parts with `leaving(h)` |
 | `ScrollLock`, `HideOutside` | Mounts | nothing | |
 | `PointerPosition({ focus? })` | Mount | `PointerPressed`, `PointerMoved`, `PointerReleased` | `focus`: a selector |
 | `keepScroll(options?)` | entry | nothing | |
@@ -96,8 +97,12 @@ tabbable descendant, else itself. With `contain` (default), Tab from the last
 tabbable wraps to the first, Shift+Tab from the first wraps to the last, and
 focus that lands outside comes straight back; Tab in the middle is the
 browser's. On unmount, with `restore` (default), focus returns to the element
-that had it, if still in the document. A native `<dialog>` does all of this
-itself; this is for a custom overlay, a menu, or a command palette.
+that had it, if it is still in the document and focus would otherwise be lost
+(the body, a disconnected element, or something still inside the scope). A
+surface that took focus keeps it. While the element carries `data-fk-leaving`,
+Tab is not wrapped and a focus outside is not pulled back. A native `<dialog>`
+does all of this itself; this is for a custom overlay, a menu, or a command
+palette.
 `tabbableWithin(element)` is exported: focusable, visible descendants with a
 non-negative `tabindex`, in order. Its Behavior form is in [`interaction`](../interaction/README.md).
 
@@ -119,12 +124,26 @@ and nested containers each own only their own parts. It sends nothing: which
 element has focus is a DOM fact. Its Behavior form is in
 [`interaction`](../interaction/README.md).
 
+**`Leaving`** answers a part that stays drawn but is no longer eligible.
+`leaving(h)` writes `data-fk-leaving` (`LEAVING`); `isLeaving` reads it on the
+element or an ancestor. Focus moves first, by the same fallback as
+`FocusRecovery` (the part's own `data-fk-focus-recovery-to`, else the next
+sibling, else the previous, else the enclosing part), and the part then becomes
+`inert`. Removing the marker restores the `inert` value the part had and does
+not take focus back. `Presence` still owns how long the exit lasts: the view
+marks the part while its phase is `hiding`, and the marker goes when that phase
+is `shown` again or the part is removed. Nothing here times the exit. Nested
+containers own only their own parts, sharing `FocusRecovery`'s registry. Its
+Behavior form is in [`interaction`](../interaction/README.md).
+
 **`ScrollLock`** locks the document's scroll while its element is mounted,
 refcounted so nested overlays release together, with Foldkit's iOS handling;
 **`HideOutside`** marks everything outside its element inert while mounted,
-keyed by an id the Mount mints so two overlays restore independently. Both are
-Foldkit's own `Dom.lockScroll` and `Dom.inertOthers` as Mounts. A native
-`<dialog>` shown modally needs neither.
+keyed by an id the Mount mints so two overlays restore independently. While the
+element itself carries `data-fk-leaving`, that set is released so focus can
+leave, and it is applied again when the marker goes. Both are Foldkit's own
+`Dom.lockScroll` and `Dom.inertOthers` as Mounts. A native `<dialog>` shown
+modally needs neither.
 
 ## Mounts for layout
 

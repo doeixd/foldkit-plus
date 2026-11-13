@@ -157,7 +157,9 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
 - **Keep focus inside an overlay:** `FocusScope.behavior(Slots)<Input, Message>({ container, contain?, restore?, initialFocus? })`
   attaches the `foldkit-primitives/dom` `FocusScope` Mount (no Bundle: focus is a DOM fact).
   Initial focus on insert, Tab and Shift+Tab wrap and a stray focus comes back under
-  `contain`, focus restored on unmount under `restore`. A native `<dialog>` needs none of it.
+  `contain`, and that containment stops while the container is marked leaving.
+  On unmount, `restore` returns focus only when it would otherwise be lost.
+  A native `<dialog>` needs none of it.
 - **Recover focus from a row that goes:** `FocusRecovery.behavior(Slots)<Input, Message>({ container })`
   attaches the `foldkit-primitives/dom` `FocusRecovery` Mount to the container that holds the parts
   (no Bundle: focus is a DOM fact). Mark a part with `part(h)`, name a fallback with
@@ -165,6 +167,12 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   to that id, else the next sibling, else the previous sibling, else the enclosing part that can
   take focus, else nowhere. Focus the reader moved elsewhere, a part that moved rather than went,
   and teardown leave focus alone; nested containers own only their own parts.
+- **Leave a part that stays drawn:** `Leaving.behavior(Slots)<Input, Message>({ container })`
+  attaches the `foldkit-primitives/dom` `Leaving` Mount (no Bundle). `Leaving.leaving(h)` writes
+  `data-fk-leaving` while a `Presence` phase is `hiding`. Focus moves by `FocusRecovery`'s fallback,
+  then the part becomes `inert`; clearing the marker restores the part's own `inert` and does not
+  take focus back. `Presence` still owns the duration, including an immediate `Hidden` under reduced
+  motion. `Layers.hideOutside` releases its inert set while its container is marked leaving.
 - **Activate on press:** place `Press.bundle` (`{ clickSuppressionMs }`) with a required
   `onOut` for `Pressed { pointerType }`; attach `Press.behavior(Declared)(Slots)<Model, Message>({ target, disabled? })`.
   The `Press.events` Mount reports pointer, key, and click facts; `update` decides

@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-primitives`: `Leaving` (a Mount in `foldkit-primitives/dom`,
+  `Leaving.behavior` and `leaving(h)` in `foldkit-primitives/interaction`) moves
+  focus out of a part that stays drawn but is marked leaving, by the same
+  fallback as `FocusRecovery`, then makes the part inert. Clearing the marker
+  restores the part's own `inert` and does not take focus back. `Presence`
+  still owns the exit: mark the part while its phase is `hiding`, and a late
+  `Hidden` after `Show` does not remove it. Under reduced motion that `Hidden`
+  is sent at once. While an element is leaving, `FocusScope` stops containing
+  it and restores focus on unmount only when focus would otherwise be lost, and
+  `HideOutside` releases the rest of the page until the marker goes (#555).
 - `foldkit-primitives`: `FocusRecovery` (a Mount in `foldkit-primitives/dom`,
   `FocusRecovery.behavior` in `foldkit-primitives/interaction`) with
   `part(h, { to? })` moves focus out of a part the view removed: to the fallback
