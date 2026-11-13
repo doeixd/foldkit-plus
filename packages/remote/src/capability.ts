@@ -10,6 +10,7 @@ import { Option, type Stream } from 'effect'
 import type { AnyQuery, AnyWrite, ExprContext, EntityRef, MemoryOperators } from 'foldkit-entity'
 import type { RemoteClient } from './client.js'
 import { items, type Connection, type Edge } from './connection.js'
+import type { Can } from './can.js'
 import type { Asked, NamedProjection } from './active.js'
 import type { HeldConnection } from './impact.js'
 import type {
@@ -190,6 +191,14 @@ export interface WriteCapability {
   ) => WriteMethods<AppModel>
   /** The members of `selected` a pending row of `write`, an insert, cannot hold (#342). */
   readonly unpredicted: (write: AnyWrite, selected: ReadonlyArray<string>) => ReadonlyArray<string>
+  /** `Data.can`: whether a declared write would be refused, told from what is held. */
+  readonly can: (
+    write: AnyWrite,
+    input: Readonly<Record<string, unknown>>,
+    context: ExprContext,
+    store: EntityStore,
+    operators: Option.Option<MemoryOperators>,
+  ) => Can
 }
 
 /** The live capability: a live stream, and what its events do to the Model. */

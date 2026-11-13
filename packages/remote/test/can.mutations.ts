@@ -3,7 +3,7 @@
  * `pnpm mutate packages/remote/test/can.mutations.ts`.
  */
 const tests = ['packages/remote/test/can.test.ts']
-const can = '../src/can.ts'
+const can = '../src/canOf.ts'
 const mutation = '../src/mutation.ts'
 const edit = (name: string, file: string, find: string, replace: string) => ({
   name,
