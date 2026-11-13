@@ -1000,6 +1000,7 @@ export const valuesFor = <E extends AnyEntity, Fields extends Schema.Struct.Fiel
 }
 
 export { isEntity as is, isSameEntity as same }
+export { inState, refine, states } from './refine.js'
 export {
   check,
   invariant,

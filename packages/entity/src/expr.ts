@@ -20,6 +20,8 @@ import { Laws, lawKind } from './lawCore.js'
 import { now, viewer, type NowExpr, type ViewerExpr, type ViewerPathExpr } from './context.js'
 import { own, put } from './record.js'
 import { variantsOf } from './variants.js'
+import { EntityTypeId } from './ids.js'
+import type { Refinement } from './refine.js'
 import type {
   AnyEntity,
   AnyVariantEntity,
@@ -2832,8 +2834,12 @@ const checkSize = (
 }
 
 export const Query = {
-  /** Every row of an Entity: the query each transformation narrows. */
-  from: <E extends AnyEntity>(entity: E): Query<E> => query(entity, [], []),
+  /**
+   * Every row of an Entity, the query each transformation narrows; or every
+   * row in a state of one (`Query.from(Draft)`), its predicate in `where`.
+   */
+  from: <E extends AnyEntity>(source: E | Refinement<E, string, unknown>): Query<E> =>
+    isRefinement(source) ? query(source.entity, [source.predicate], []) : query(source, [], []),
 
   /**
    * Narrows to the rows the predicate holds for. Two `where`s conjoin — the
@@ -3028,6 +3034,8 @@ export const Query = {
  * that *is* the whole expression is not: nothing encloses it.
  */
 const showExpr = (node: AnyExpr | Predicate): string => {
+  const name = names.get(node)
+  if (name !== undefined) return name
   switch (node._tag) {
     case 'Literal':
       return JSON.stringify(node.value) ?? String(node.value)
@@ -3079,6 +3087,19 @@ const showExpr = (node: AnyExpr | Predicate): string => {
         : `${[first.owner.name, ...node.via.map(step => step.key)].join('.')}: ${sought}`
     }
   }
+}
+
+/** Whether `Query.from` was given a state of an Entity rather than an Entity. */
+const isRefinement = <E extends AnyEntity>(
+  source: E | Refinement<E, string, unknown>,
+): source is Refinement<E, string, unknown> => !(EntityTypeId in source)
+
+/** The names `Expr.show` prints a refinement's predicates by (`Product.Draft`), in place of their body. */
+const names = new WeakMap<AnyExpr | Predicate, string>()
+
+/** Prints `node` as `name`: what `Entity.refine` names its predicates. */
+export const nameNode = (node: Predicate, name: string): void => {
+  names.set(node, name)
 }
 
 /**

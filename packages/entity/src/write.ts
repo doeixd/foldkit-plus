@@ -44,6 +44,9 @@ import type { MemoryOperators } from './operators.js'
 import { own, put } from './record.js'
 import { SchemaShape } from './shape.js'
 import type { ContextValue } from './sets.js'
+import { Steps, steps } from './enumerate.js'
+import { Footprint } from './footprint.js'
+import { inState, localTo, type AnyRefinement, type RefinementOf } from './refine.js'
 
 type AnyField = EntityField<string, string, Schema.Constraint>
 type OneRelation = EntityRelation<string, string, AnyEntity, 'one', boolean>
@@ -137,6 +140,17 @@ export interface Write<
    * a row it holds of, and refuses the rest as unmet.
    */
   readonly when: Option.Option<AnyQuery>
+  /**
+   * The state the row must be in for the write to land (`from: Draft`): its
+   * predicate is in `when` too, so a row in another state is refused as unmet.
+   */
+  readonly from: Option.Option<AnyRefinement>
+  /**
+   * The state every row the write can start from is in once it lands
+   * (`becomes: Published`): proved where the write is declared, by
+   * enumerating them.
+   */
+  readonly becomes: Option.Option<AnyRefinement>
   /** The keys it sets, in the input's order. */
   readonly sets: ReadonlyArray<WriteSet>
   /**
@@ -167,6 +181,12 @@ export type ConditionedWrite<
 interface RowOptions<Fields extends Schema.Struct.Fields> {
   readonly id: keyof Fields & string
   readonly expect?: keyof Fields & string
+}
+
+/** A write's states: the one it starts from, and, for an update or insert, the one it leaves. */
+interface StateOptions<E extends AnyEntity> {
+  readonly from?: RefinementOf<E> | undefined
+  readonly becomes?: RefinementOf<E> | undefined
 }
 
 /** The keys of `Fields` whose values are numbers. */
@@ -206,46 +226,69 @@ type UpdateOptions<
 > = RowOptions<Fields> & {
   readonly increment?: WriteIncrements<E, Fields>
   readonly compute?: WriteComputations<E, Fields>
+  readonly becomes?: RefinementOf<E> | undefined
 }
 
-/** `update`: conditioned when given `when`, which the overloads tell apart. */
+/** `update`: conditioned when given `when` or `from`, which the overloads tell apart. */
 interface UpdateWrite {
   <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,
-    options: UpdateOptions<E, Fields> & { readonly when: WriteCondition<E, Fields> },
+    options: UpdateOptions<E, Fields> & {
+      readonly when: WriteCondition<E, Fields>
+      readonly from?: RefinementOf<E> | undefined
+    },
+  ): ConditionedWrite<E, Fields, 'Update'>
+  <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
+    input: EntityInput<E, Fields, any>,
+    options: UpdateOptions<E, Fields> & {
+      readonly when?: undefined
+      readonly from: RefinementOf<E>
+    },
   ): ConditionedWrite<E, Fields, 'Update'>
   // `when?: undefined`, so an optional `when` in a variable cannot pick this one and lose `Unmet`.
   <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,
-    options: UpdateOptions<E, Fields> & { readonly when?: undefined },
+    options: UpdateOptions<E, Fields> & { readonly when?: undefined; readonly from?: undefined },
   ): Write<E, Fields, 'Update'>
 }
 
-/** `delete`: conditioned when given `when`, as an update is. */
+/** `delete`: conditioned when given `when` or `from`, as an update is. */
 interface DeleteWrite {
   <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,
-    options: RowOptions<Fields> & { readonly when: WriteCondition<E, Fields> },
+    options: RowOptions<Fields> & {
+      readonly when: WriteCondition<E, Fields>
+      readonly from?: RefinementOf<E> | undefined
+    },
   ): ConditionedWrite<E, Fields, 'Delete'>
   <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,
-    options: RowOptions<Fields> & { readonly when?: undefined },
+    options: RowOptions<Fields> & { readonly when?: undefined; readonly from: RefinementOf<E> },
+  ): ConditionedWrite<E, Fields, 'Delete'>
+  <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
+    input: EntityInput<E, Fields, any>,
+    options: RowOptions<Fields> & { readonly when?: undefined; readonly from?: undefined },
   ): Write<E, Fields, 'Delete'>
 }
 
-// `declared` sets `when` exactly when it is given, which is what the overloads say.
+// `declared` sets `when` exactly when `when` or `from` is given, which is what the overloads say.
 const update: UpdateWrite = (
   input: EntityInput<AnyEntity, any, any>,
-  options: UpdateOptions<AnyEntity, any>,
+  options: UpdateOptions<AnyEntity, any> & StateOptions<AnyEntity>,
 ) =>
-  settingSomething(
-    Object.freeze({
-      ...declared('Update', input, options),
-      context: contextOf(input.entity, 'write'),
-    }),
+  becoming(
+    settingSomething(
+      Object.freeze({
+        ...declared('Update', input, options),
+        context: contextOf(input.entity, 'write'),
+      }),
+    ),
   ) as never
 
-const remove: DeleteWrite = (input: EntityInput<AnyEntity, any, any>, options: RowOptions<any>) => {
+const remove: DeleteWrite = (
+  input: EntityInput<AnyEntity, any, any>,
+  options: RowOptions<any> & { readonly from?: RefinementOf<AnyEntity> | undefined },
+) => {
   const write = declared('Delete', input, options)
   const named = [...write.sets, ...write.links][0]
   if (named !== undefined) fail(input, `a delete sets nothing, but "${named.key}" is mapped`)
@@ -325,6 +368,8 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields, Kind
     readonly id: keyof Fields & string
     readonly expect?: keyof Fields & string
     readonly when?: WriteCondition<E, Fields> | undefined
+    readonly from?: RefinementOf<E> | undefined
+    readonly becomes?: RefinementOf<E> | undefined
     readonly increment?: Readonly<Record<string, string | undefined>>
     readonly compute?: WriteComputations<E, Fields> | undefined
   },
@@ -364,12 +409,27 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields, Kind
   for (const [key, schema] of Object.entries(input.schema.fields)) {
     placeholders[key] = Expr.input(key, schema as unknown as Schema.Codec<unknown, unknown>)
   }
-  const when = Option.map(Option.fromUndefinedOr(options.when), condition => {
-    // `where` refuses a predicate over another Entity, which the type allows when it is unmarked.
-    return Query.from(input.entity).pipe(
-      Query.where(condition({ input: placeholders as never }) as Predicate),
-    ) as AnyQuery
-  })
+  const from = Option.map(Option.fromUndefinedOr(options.from), state =>
+    localTo(input.entity, state as AnyRefinement, 'from'),
+  )
+  const becomes = Option.map(Option.fromUndefinedOr(options.becomes), state =>
+    localTo(input.entity, state as AnyRefinement, 'becomes'),
+  )
+  // The `from` state's predicate joins the `when`, so another state is refused as unmet.
+  const conditions = [
+    ...Option.toArray(Option.map(from, state => state.predicate as Predicate)),
+    ...Option.toArray(
+      Option.map(
+        Option.fromUndefinedOr(options.when),
+        condition => condition({ input: placeholders as never }) as Predicate,
+      ),
+    ),
+  ]
+  // `where` refuses a predicate over another Entity, which the type allows when it is unmarked.
+  const when =
+    conditions.length === 0
+      ? Option.none<AnyQuery>()
+      : Option.some(Query.from(input.entity).pipe(Query.where(...conditions)) as AnyQuery)
   const increments = Object.entries(options.increment ?? {}).flatMap(([fieldKey, key]) =>
     key === undefined ? [] : [incrementOf(input, fieldKey, key, { expect, sets })],
   )
@@ -406,6 +466,8 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields, Kind
     id: Object.freeze({ key: options.id, field: id }),
     expect,
     when,
+    from,
+    becomes,
     sets: Object.freeze(sets),
     increments: Object.freeze(increments),
     assignments: Object.freeze(assignments),
@@ -768,6 +830,43 @@ const incrementOf = (
   return Object.freeze({ key, field, integer })
 }
 
+/**
+ * A write declared to leave every row in a state, proved by enumerating the
+ * rows it can start from: refused where it is declared when one is left
+ * outside it, and, until a writer enforces such a claim where it commits, when
+ * enumeration cannot decide.
+ */
+const becoming = <E extends AnyEntity, Fields extends Schema.Struct.Fields, Kind extends WriteKind>(
+  write: Write<E, Fields, Kind>,
+): Write<E, Fields, Kind> => {
+  Option.map(write.becomes, target => {
+    const named = `${write.input.entity.name}.${target.name}`
+    const undecided = (reason: string): never =>
+      fail(
+        write.input,
+        `becomes ${named}, which enumeration cannot decide (${reason}); it needs a writer that enforces it`,
+      )
+    Steps.$match(steps(write, target.reads), {
+      Undecided: ({ reason }) => undecided(reason),
+      Steps: ({ steps: each }) => {
+        for (const step of each) {
+          Option.match(inState(target, step.after), {
+            onNone: () => undecided(`the row after reads no ${target.reads.join(', ')}`),
+            onSome: holds => {
+              if (!holds)
+                fail(
+                  write.input,
+                  `becomes ${named}, but from ${JSON.stringify(step.before)} given ${JSON.stringify(step.input)} it leaves ${JSON.stringify(step.after)}`,
+                )
+            },
+          })
+        }
+      },
+    })
+  })
+  return write
+}
+
 /** An update or an insert that would write nothing is refused where it is declared. */
 const settingSomething = <
   E extends AnyEntity,
@@ -823,13 +922,15 @@ export const Write = {
    */
   insert: <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,
-    options: { readonly id: keyof Fields & string },
+    options: { readonly id: keyof Fields & string; readonly becomes?: RefinementOf<E> | undefined },
   ): Write<E, Fields, 'Insert'> =>
-    settingSomething(
-      Object.freeze({
-        ...declared('Insert', input, options),
-        context: contextOf(input.entity, 'create'),
-      }),
+    becoming(
+      settingSomething(
+        Object.freeze({
+          ...declared('Insert', input, options),
+          context: contextOf(input.entity, 'create'),
+        }),
+      ),
     ),
 
   /**
@@ -929,6 +1030,16 @@ export const Write = {
       }),
     ),
   ],
+
+  /**
+   * What a write reads and writes of its row, by field key (`Write.reads`,
+   * `Write.writes`): what `Laws.check` judges it by.
+   */
+  footprint: (write: AnyWrite): Footprint =>
+    Footprint.Derived({
+      reads: Write.reads(write).map(field => field.key),
+      writes: Write.writes(write).map(member => member.key),
+    }),
 
   /**
    * The fields a write reads from the row it writes: those its `when` reads,
