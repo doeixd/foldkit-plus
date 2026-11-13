@@ -70,6 +70,18 @@ Compared at UI SDK `d6996097` (`createSelection`, `createCellRange`, `cellsToTex
 
 A file-manager range, a `selectable` filter inside `Ranged`, and a select-all on `Selection` stay deferred until a list selects the wrong ids. The grid's rectangle and clipboard stay the grid's.
 
+## Roving and grid focus
+
+**Disposition: verified overlap, with a justified deferral.** One tab stop already lives in the Model. A key that names a row which is not mounted should scroll that row into the window, which the windowed-list row already records. Nothing here adds a second focus owner.
+
+Compared at UI SDK `d6996097` (`createRovingFocus`, `createGridFocus`) and this tree:
+
+- **One stop.** [RovingTabindex](../packages/primitives/src/interaction/roving-tabindex.ts) keeps the current id. Arrows, Home, and End move over the enabled items. Page Up and Page Down move by `page` when the parent sets one, and they stop at the ends. `loop` wraps arrows. `virtual` leaves the stop on the container and points with `aria-activedescendant`. Under `rtl`, Left and Right swap. The tab stop is the current item when it is enabled, otherwise the first enabled item, so a render has one `tabindex` of 0. The Model is what remembers the stop. A widget that wants the selected tab or the checked radio first puts that id in `current`.
+- **Disabled and not yet shown.** A disabled item is left out of `enabled`, so arrows skip it and it does not take the stop. UI SDK's `disabled` can still take focus, and `focusable: false` is what gets skipped, such as a tree row under a shut branch. A shut row here is absent from the order the tree walks, which is the same skip. UI SDK's move may name a key that has not bound yet: the stop changes at once, and focus follows when that item binds, if focus is still where the press left it. A windowed list here scrolls the focused index into the window instead of holding focus for a row that is not drawn.
+- **A grid.** [GridNavigation](../packages/primitives/src/interaction/grid-navigation.ts) steps by a column count, skips cells that are not enabled, wraps when asked, and swaps Left and Right under `rtl`. Home and End are the row's ends, and with Ctrl the grid's. It has no Page Up or Page Down. The [data grid](../packages/data-grid/src/focus.ts) moves a page by the rows the viewport shows, and its `Moved` carries the scroll that brings the cell into view. UI SDK's `createGridFocus` does that page step and calls `reveal` before focus moves to a row that is not rendered.
+
+Focusing a disabled item, and Page Up on `GridNavigation`, stay deferred until a toolbar or a calendar needs them. A virtual row is revealed by the grid that owns it.
+
 ## Trees and checked branches
 
 **Disposition: verified overlap, with a justified deferral.** A checkable tree already stores the checked leaves and derives each branch. The other three ways of writing that value stay out: they would change what `checked` means, and no tree asks for them.
