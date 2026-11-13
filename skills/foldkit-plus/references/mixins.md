@@ -94,6 +94,16 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   outside the runtime's `resources`, so the resolver dispatches it at the Mount's element
   (`Diagnostics.dispatch`): `Diagnostics.layer(reporter)` in the resources claims it for
   `reporter`; without that layer it goes to the log.
+- `Assembly.describe({ name, view, behaviors, styles, pattern: { name, pattern }, links, parts, input })`
+  returns one serializable description of the public slots, the attachments in order, the pattern
+  obligations and diagnostics, and any contribution conflict (`mixins:event-conflict` or
+  `mixins:attribute-conflict`, naming both contributors, the slot, and the event or attribute).
+  Omit `input` and a Behavior's events and attributes stay `unknown`; pass it and only those
+  names are filled in. What a closure reads stays `unknown`. A Surface contract or an Action
+  keeps its kind and name. `Assembly.textOf(description)` is that value as text, so a document
+  and a diagnostic share it and neither walks the widget again. describe does not draw the view,
+  call a Mount, or dispatch a Message. A nested part the render closure builds is a `parts`
+  entry. Replacing an attachment returns a new view; the one described is left unchanged.
 - `DevOverlay.make()` gives `{ report, mount }` for development: give
   `Diagnostics.layer(overlay.report)` in the resources and draw `h.div([h.OnMount(overlay.mount)],
   [])` behind the app's development flag. It lists every diagnostic (the newest 50) in a fixed

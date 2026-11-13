@@ -7,6 +7,7 @@
  * runtime: state stays in Model/Submodel, effects in Command/Mount.
  */
 export * as A11y from './a11y.js'
+export * as Assembly from './assembly.js'
 export * as Attr from './attr.js'
 export * as Attributes from './attributes.js'
 export * as Behavior from './behavior.js'

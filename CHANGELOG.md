@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`: `Assembly.describe` returns a serializable description of an
+  assembled widget's public slots, attachment order, pattern obligations, and
+  contribution conflicts (both contributors, the slot, and the event or
+  attribute). Omit `input` and a Behavior's claims stay unknown; pass it and
+  only the claim names are resolved. Closure reads stay unknown. A Surface
+  contract or an Action contributes its kind and name. `Assembly.textOf` is
+  that description as text, so a document and a diagnostic share one value.
+  Inspection does not draw the view, call a Mount, or dispatch a Message.
+  The widgets search field is the first consumer (#556).
 - `foldkit-primitives`: `Leaving` (a Mount in `foldkit-primitives/dom`,
   `Leaving.behavior` and `leaving(h)` in `foldkit-primitives/interaction`) moves
   focus out of a part that stays drawn but is marked leaving, by the same

@@ -257,6 +257,54 @@ Scene test of a page that draws it cannot resolve it.
 The resolver's thrown `Diagnostics` namespace here is a different thing: import one of the two
 under another name.
 
+## Inspecting an assembly
+
+`Assembly.describe` reads the same slots, behaviors, styles and pattern the resolver does, and
+returns one serializable description: public slots, attachments in order, pattern obligations,
+pattern diagnostics, known links, and contribution conflicts. A document and a diagnostic both
+consume that value (`Assembly.textOf`). It does not draw the view, call a Mount, or dispatch a
+Message.
+
+Pass the behaviors and styles you still hold. A behavior records only its mixin on the view, so
+the description names an attachment by the `NamedBehavior` or `NamedStyle` whose mixin is that
+one. Omit `input` and a behavior's events and attributes stay `'unknown'`. Pass `input` and the
+description records the event and attribute names, so a conflict names both contributors, the
+slot, and the event or attribute, in attachment order. What a closure reads stays `'unknown'`.
+Classes, attribute values, and mount actions are not copied. A Surface contract or an Action
+contributes its kind and name. A part the render closure builds, such as a nested input, is a
+`parts` entry: describe does not call the view to find it. Replacing an attachment is a new
+view; describing either one leaves the other unchanged.
+
+```ts
+import { Assembly } from 'foldkit-mixins'
+
+const ClearLabel = Behavior.forSlots(FieldSlots)<FieldInput, Message>(
+  {
+    input: Behavior.slot({
+      attributes: ({ input, h }) => [h.AriaLabel(input.value)],
+    }),
+  },
+  { name: 'ClearLabel' },
+)
+const labeled = Field.pipe(Behavior.attach(ClearLabel))
+// No input: the label claim stays unknown. The text is not read.
+const pending = Assembly.describe({
+  name: 'Field',
+  view: labeled,
+  behaviors: [Validation, ClearLabel],
+  styles: [FieldStyle],
+})
+// Input resolves claim names. The description still has no label text and calls no Mount.
+const described = Assembly.describe({
+  name: 'Field',
+  view: labeled,
+  behaviors: [Validation, ClearLabel],
+  styles: [FieldStyle],
+  input: { value: 'Ada', invalid: false },
+})
+const inspection = Assembly.textOf(described)
+```
+
 ## Slots: the public contract
 
 A slot is metadata, not a DOM node:
