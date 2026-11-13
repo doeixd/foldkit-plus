@@ -23,6 +23,7 @@ import { Match, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Derived, Entity as DomainEntity, Expr, Held, Order, Relation, Write } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
+import { Walk } from '../src/testing.js'
 import { describe, expect, it } from 'vitest'
 import {
   ConnectionChange,
@@ -301,7 +302,7 @@ const storedRename = (operation: string, name: string, state: 'Waiting' | 'Faile
 })
 
 /** Every Message variant's generators, by name. */
-const messages = {
+const { list: cases, table: messages } = Walk.cases<Model, RemoteMessage>()({
   ReadReceived: {
     'a refresh of p1 answered': () => answered([nameOf('p1')], 1),
     'a refresh of p1 with its owner answered': () =>
@@ -719,13 +720,7 @@ const messages = {
       scope: 'ada',
     }),
   },
-} satisfies Record<RemoteMessageTag, Readonly<Record<string, Generate>>>
-
-const cases = Object.entries(messages).flatMap(([tag, generators]) =>
-  Object.entries<Generate>(generators).map(
-    ([name, generate]) => ({ tag, name, generate }) as const,
-  ),
-)
+})
 
 /**
  * Messages that took a held list off screen while a list read `Loading` until
@@ -735,12 +730,12 @@ const cases = Object.entries(messages).flatMap(([tag, generators]) =>
 const regressions: ReadonlyArray<{
   readonly name: string
   readonly from: () => Model
-  readonly message: Generate
+  readonly case: Generate
 }> = [
   {
     name: 'a live insert of a row not yet read',
     from: loaded,
-    message: model => ({
+    case: model => ({
       _tag: 'LiveReceived',
       stream: 's',
       event: {
@@ -756,7 +751,7 @@ const regressions: ReadonlyArray<{
   {
     name: 'a later page whose rows are not yet read',
     from: loaded,
-    message: () => ({
+    case: () => ({
       _tag: 'ConnectionMerged',
       connection: list.ref.identity,
       page: { edges: [edgeOf('p3'), edgeOf('p6')], start: cursor('p3'), end: terminal },
@@ -765,7 +760,7 @@ const regressions: ReadonlyArray<{
   {
     name: "a refresh answered without its rows' fields",
     from: loaded,
-    message: () => ({
+    case: () => ({
       _tag: 'ConnectionMerged',
       connection: list.ref.identity,
       page: { edges: ['p1', 'p5'].map(edgeOf), start: terminal, end: terminal },
@@ -784,7 +779,7 @@ const regressions: ReadonlyArray<{
         deleted: [{ entity: 'Project', id: 'p3' }],
         now: 2,
       }),
-    message: () => ({ _tag: 'RefreshStarted', requests: [nameOf('p3')] }),
+    case: () => ({ _tag: 'RefreshStarted', requests: [nameOf('p3')] }),
   },
   // A list whose every shown row was deleted while the rest were unread read as
   // if it had never shown anything: `Loading` with a read in flight (seed 174,
@@ -799,7 +794,7 @@ const regressions: ReadonlyArray<{
     {
       name: `${name} while the others are unread`,
       from: () => Data.reduce(loaded(), messages.Hydrated['a snapshot under replace']()),
-      message,
+      case: message,
     },
     {
       name: `${name} while the others are read`,
@@ -808,7 +803,7 @@ const regressions: ReadonlyArray<{
           messages.Hydrated['a snapshot under replace'](),
           { _tag: 'ReadStarted', requests: [nameOf('p1')] },
         ]),
-      message,
+      case: message,
     },
   ]),
   {
@@ -820,7 +815,7 @@ const regressions: ReadonlyArray<{
         messages.RetentionChanged['leaving the open list under a small budget'](),
         messages.ConnectionRefreshed['the open list marked fresh'](),
       ]),
-    message: messages.RetentionChanged['leaving everything, its lists ageing'],
+    case: messages.RetentionChanged['leaving everything, its lists ageing'],
   },
   {
     // A refresh forgot a tombstone, so the deleted row was back in the list
@@ -831,7 +826,7 @@ const regressions: ReadonlyArray<{
         messages.Hydrated['a snapshot under replace'](),
         messages.MutationSucceeded['p2 deleted'](),
       ]),
-    message: messages.RefreshStarted['every row refreshing'],
+    case: messages.RefreshStarted['every row refreshing'],
   },
 ]
 
@@ -896,23 +891,13 @@ const kept = (after: RemoteData<unknown>): boolean =>
   holds(after) || (after._tag === 'Failed' && after.previous !== undefined)
 
 /** The reads `message` took off screen without one of the exceptions. */
-const violations = (before: Model, message: RemoteMessage): ReadonlyArray<string> => {
-  const after = Data.reduce(before, message)
-  return watched.flatMap(read => {
+const violations = (before: Model, message: RemoteMessage, after: Model): ReadonlyArray<string> =>
+  watched.flatMap(read => {
     if (!holds(read.read(before)) || kept(read.read(after))) return []
     return Option.isSome(exception(read, message, after))
       ? []
       : [`${read.name}: ${read.read(before)._tag} -> ${read.read(after)._tag}`]
   })
-}
-
-const generator = (seed: number) => {
-  let state = seed
-  return (max: number) => {
-    state = (state * 1103515245 + 12345) & 0x7fffffff
-    return Math.floor((state / 0x7fffffff) * max)
-  }
-}
 
 describe('A value on screen', () => {
   it('starts from a fixture holding every watched read', () => {
@@ -924,35 +909,27 @@ describe('A value on screen', () => {
     ])
   })
 
-  it.each(regressions)('is kept through $name', ({ from, message }) => {
-    const model = from()
-    expect(violations(model, message(model))).toEqual([])
-  })
-
   it.each(cases)('is kept through $tag: $name', ({ generate }) => {
     const model = loaded()
-    expect(violations(model, generate(model))).toEqual([])
+    const message = generate(model)
+    expect(violations(model, message, Data.reduce(model, message))).toEqual([])
   })
 
-  it('is kept through every seeded walk of Messages', () => {
-    const found: string[] = []
-    for (let seed = 1; seed <= 200 && found.length === 0; seed++) {
-      const random = generator(seed)
-      let model = loaded()
-      const walk: string[] = []
-      for (let step = 0; step < 12; step++) {
-        const { tag, name, generate } = cases[random(cases.length)]!
-        const message = generate(model)
-        walk.push(`${tag}: ${name}`)
-        const broken = violations(model, message)
-        if (broken.length > 0) {
-          found.push(`seed ${seed}, after ${walk.join(' > ')}: ${broken.join('; ')}`)
-          break
-        }
-        model = Data.reduce(model, message)
-      }
-    }
-    expect(found).toEqual([])
+  it('is kept through every regression and every seeded walk of Messages', async () => {
+    const result = await Walk.run({
+      cases,
+      from: [{ name: 'loaded', start: loaded }],
+      step: Data.reduce,
+      violations: (before, message, after) =>
+        violations(before, message, after).map(broken => ({
+          law: 'a value on screen stays',
+          message: broken,
+        })),
+      seeds: 200,
+      steps: 12,
+      regressions,
+    })
+    expect(result.failures).toEqual([])
   })
 })
 
