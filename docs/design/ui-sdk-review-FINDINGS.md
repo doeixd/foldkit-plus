@@ -99,6 +99,27 @@ Read from the code:
   `packages/agent/test/parts.test.ts`; unit tests that pin attribute-name
   constants; `data-fk-*` beside the existing `data-foldkit-plus-*` prefix.
 
+## Adopting the new pieces in shipped widgets
+
+Ideas for the catalog once the fixes above land:
+
+- **A1. A shipped `SearchField`.** The fixture becomes a `foldkit-mixins-ui`
+  widget: `Input` and a clear button, Escape-to-clear and ArrowDown as
+  `Behaviors.Keyboard` routes, focus back to the input through `FocusRecovery`.
+- **A2. `TagsInput` and `Toast` on `FocusRecovery`.** `TagsInput` focuses its
+  input after a removal by hand; a dismissed toast or chip drops focus to the
+  body.
+- **A3. A leaving state in the recipes.** Overlay and dismissible-row recipes
+  style `data-fk-leaving` through a Slot (no pointer events, the exit
+  transition).
+- **A4. Exit handling in shipped overlays**, wherever the overlay audit shows a
+  panel that can be pressed or tabbed into during its exit.
+- **A5. A catalog-wide assembly gate.** One test runs `Assembly.describe` over
+  every shipped widget: no contribution conflict, and every pattern obligation
+  has a named provider. The same descriptions can feed the site's widget pages.
+- **A6. Named key routes in existing widgets** that hand-write a `keydown`
+  switch, so an application can add a route without a conflict.
+
 ## Status
 
 | Finding | Status |
