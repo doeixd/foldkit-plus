@@ -366,6 +366,14 @@ const suppliers = (source: AssemblySource): ReadonlyArray<NamedBehavior<any, any
   return listed.filter(behavior => attached.includes(behavior.mixin))
 }
 
+/**
+ * A Behavior declares what it supplies wherever it is attached, so one that
+ * supplies more than this pattern asks is not a mistake in the support list.
+ */
+const asks = (pattern: A11y.Pattern, support: A11y.ObligationSupport): boolean =>
+  Object.hasOwn(pattern.requirements, support.slot) &&
+  pattern.requirements[support.slot]?.obligations?.includes(support.obligation) === true
+
 export const describe = (source: AssemblySource): Description => {
   const slots = slotsOf(source)
   const attachments = attachmentsOf(source)
@@ -386,7 +394,9 @@ export const describe = (source: AssemblySource): Description => {
         : A11y.validate(
             source.pattern.pattern,
             patternSlots,
-            suppliers(source).flatMap(behavior => A11y.suppliedBy(behavior)),
+            suppliers(source)
+              .flatMap(behavior => A11y.suppliedBy(behavior))
+              .filter(support => asks(source.pattern!.pattern, support)),
           ),
     links: (source.links ?? []).map(linkOf),
     conflicts: conflictsOf(attachments),

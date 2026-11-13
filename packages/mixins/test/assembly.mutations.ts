@@ -188,8 +188,8 @@ export default [
     edits: [
       {
         file,
-        find: 'source.pattern === undefined\n        ? []\n        : A11y.validate(\n            source.pattern.pattern,\n            patternSlots,\n            suppliers(source).flatMap(behavior => A11y.suppliedBy(behavior)),\n          ),',
-        replace: '[],',
+        find: 'source.pattern === undefined\n        ? []\n        : A11y.validate(',
+        replace: 'true\n        ? []\n        : A11y.validate(',
       },
     ],
     tests,
@@ -199,8 +199,19 @@ export default [
     edits: [
       {
         file,
-        find: 'suppliers(source).flatMap(behavior => A11y.suppliedBy(behavior)),',
-        replace: '[],',
+        find: '.flatMap(behavior => A11y.suppliedBy(behavior))',
+        replace: '.flatMap(() => [])',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a behavior is reported for supplying more than the pattern asks',
+    edits: [
+      {
+        file,
+        find: '.filter(support => asks(source.pattern!.pattern, support)),',
+        replace: '',
       },
     ],
     tests,

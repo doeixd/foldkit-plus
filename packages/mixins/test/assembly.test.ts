@@ -251,6 +251,23 @@ describe('Assembly', () => {
     expect(replaced.patternDiagnostics[0]?.slot).toBe('item')
   })
 
+  it('does not report a behavior for supplying more than the pattern asks', () => {
+    const Options = Slots.define({
+      items: Slot.make({ capability: Capability.Container }),
+    })
+    const Commits = Behavior.forSlots(Options)<unknown, TestMessage>(
+      { items: Behavior.slot({ supplies: ['navigation', 'activation'] }) },
+      { name: 'Commits' },
+    )
+    const described = Assembly.describe({
+      name: 'List',
+      slots: Options,
+      behaviors: [Commits],
+      pattern: { name: 'list', pattern: A11y.pattern({ items: { obligations: ['navigation'] } }) },
+    })
+    expect(described.patternDiagnostics).toEqual([])
+  })
+
   it('does not attribute an obligation to a behavior the view does not attach', () => {
     const Options = Slots.define({
       items: Slot.make({ capability: Capability.Container }),
