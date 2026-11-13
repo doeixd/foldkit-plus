@@ -58,7 +58,7 @@ export const behavior =
           },
         })
       }
-      chords.set(chord, { ...route })
+      chords.set(chord, route)
     }
     return Behavior.forSlots(slots)<Input, Message>(
       {
