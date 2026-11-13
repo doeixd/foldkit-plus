@@ -123,9 +123,9 @@ export const memoryWriter = <P>(
   }
   // The rows keep a link as its ref key; a body and an invariant read the id it points at.
   const relations: Readonly<Record<string, EntityMember>> = entity.relations
-  const links = Object.entries(relations).flatMap(([key, member]) =>
-    member._tag === 'Relation' && member.cardinality === 'one' ? [key] : [],
-  )
+  const links = Object.entries(relations)
+    .filter(([, member]) => member._tag === 'Relation' && member.cardinality === 'one')
+    .map(([key]) => key)
   const judged = (row: Readonly<Record<string, unknown>>): Row => {
     const read: Record<string, unknown> = { ...row }
     for (const key of links) {
