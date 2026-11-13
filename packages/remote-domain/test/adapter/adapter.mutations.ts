@@ -150,4 +150,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'written is accepted where a member has a Read rule of its own',
+    edits: [
+      {
+        file: '../../src/adapter/binding.ts',
+        find: "if (surfaces['Read'] !== undefined) refuse(",
+        replace: 'if (false) refuse(',
+      },
+    ],
+    tests,
+  },
 ]

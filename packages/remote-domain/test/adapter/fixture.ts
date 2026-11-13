@@ -227,6 +227,18 @@ const StaffFields = Entity.define(
   }),
 )
 
+const NotedFields = Entity.define(
+  'NotedProduct',
+  Schema.Struct({
+    id: Schema.String,
+    ownerId: Schema.String,
+    stock: Schema.Number,
+    reserved: Schema.Number,
+    note: Schema.String,
+    revision: Schema.Number,
+  }),
+)
+
 export const ShopGuards = Guards.declare(
   'ShopGuards',
   User,
@@ -234,6 +246,7 @@ export const ShopGuards = Guards.declare(
     isOwner: guard.row(ProductFields, user => Expr.eq(ProductFields.fields.ownerId, user.id)),
     isStaff: guard.principal(),
     ownsStaffProduct: guard.row(StaffFields, user => Expr.eq(StaffFields.fields.ownerId, user.id)),
+    ownsNoted: guard.row(NotedFields, user => Expr.eq(NotedFields.fields.ownerId, user.id)),
   }),
   { key: user => user.id, unguarded: 'allow' },
 )
@@ -247,6 +260,14 @@ export const ProductEntity = ProductFields.pipe(
 export const StaffProduct = StaffFields.pipe(
   Guards.attach(ShopGuards, {
     row: { Read: [ShopGuards.ownsStaffProduct], Update: [ShopGuards.isStaff] },
+  }),
+)
+
+/** A product whose note only staff read, though its owner reads and changes the rest. */
+export const NotedProduct = NotedFields.pipe(
+  Guards.attach(ShopGuards, {
+    row: { Read: [ShopGuards.ownsNoted], Update: [ShopGuards.ownsNoted] },
+    members: { note: { Read: [ShopGuards.isStaff] } },
   }),
 )
 

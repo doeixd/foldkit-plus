@@ -11,7 +11,14 @@ import { Law } from 'foldkit-remote/testing'
 import { ModelRef } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { DomainReads, DomainRemote } from '../../src/index.js'
-import { invalidOf, ProductEntity, Reserve, ShopApi, StaffProduct } from './fixture.js'
+import {
+  invalidOf,
+  NotedProduct,
+  ProductEntity,
+  Reserve,
+  ShopApi,
+  StaffProduct,
+} from './fixture.js'
 import { bound, world as makeWorld, type World } from './transport.js'
 
 /** Runs a body in a fresh world, with p1 seeded for ada (stock 10) and its View caught up. */
@@ -378,32 +385,38 @@ describe('the law over the write', () => {
 })
 
 describe('a binding', () => {
-  it('refuses written where who may write a row may not read it', () => {
-    const StaffReserve = Mutation.write(
-      'StaffReserve',
-      Write.update(
-        Entity.input(
-          StaffProduct,
-          Schema.Struct({ id: Schema.String, quantity: Schema.Int, revision: Schema.Number }),
-          { quantity: Entity.unmapped },
+  it.each([
+    { entity: StaffProduct, refused: /StaffProduct has a Read rule its Update rules do not imply/ },
+    { entity: NotedProduct, refused: /NotedProduct\.note has a Read rule/ },
+  ])(
+    'refuses written where who may write $entity.name may not read all of it',
+    ({ entity, refused }) => {
+      const Reserving = Mutation.write(
+        'Reserving',
+        Write.update(
+          Entity.input(
+            entity,
+            Schema.Struct({ id: Schema.String, quantity: Schema.Int, revision: Schema.Number }),
+            { quantity: Entity.unmapped },
+          ),
+          { id: 'id', expect: 'revision', increment: { reserved: 'quantity' } },
         ),
-        { id: 'id', expect: 'revision', increment: { reserved: 'quantity' } },
-      ),
-    )
-    const bind = () =>
-      DomainRemote.command(StaffReserve, ShopApi, 'ReserveStock', {
-        target: input => input.id,
-        input: input => ({ quantity: input.quantity, revision: input.revision }),
-        refusals: {
-          Moved: () => DomainRemote.refuse({ _tag: 'Conflict' }),
-          Invalid: () => DomainRemote.fail('invalid'),
-          NotOwner: () => DomainRemote.forbid(),
-          Missing: () => DomainRemote.fail('missing'),
-        },
-        written: reply => reply,
-      })
-    expect(bind).toThrow(/StaffProduct has a Read rule its Update rules do not imply/)
-  })
+      )
+      const bind = () =>
+        DomainRemote.command(Reserving, ShopApi, 'ReserveStock', {
+          target: input => input.id,
+          input: input => ({ quantity: input.quantity, revision: input.revision }),
+          refusals: {
+            Moved: () => DomainRemote.refuse({ _tag: 'Conflict' }),
+            Invalid: () => DomainRemote.fail('invalid'),
+            NotOwner: () => DomainRemote.forbid(),
+            Missing: () => DomainRemote.fail('missing'),
+          },
+          written: reply => reply,
+        })
+      expect(bind).toThrow(refused)
+    },
+  )
 
   it('refuses a View whose state lacks an Entity field, naming it', () => {
     const Wider = Entity.define(

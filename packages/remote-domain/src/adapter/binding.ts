@@ -185,10 +185,10 @@ const fail_ = (message: string): never => {
 const ID = 'id'
 
 /** The fields a View's state declares, or none when its state is no struct. */
-const stateFieldsOf = (view: Domain.View.Any): Option.Option<Readonly<Record<string, unknown>>> => {
+const stateFieldsOf = (view: Domain.View.Any): Option.Option<ReadonlySet<PropertyKey>> => {
   const state = view.definition.state
   return state !== undefined && SchemaAST.isObjects(state.ast)
-    ? Option.some(Object.fromEntries(state.ast.propertySignatures.map(each => [each.name, true])))
+    ? Option.some(new Set(state.ast.propertySignatures.map(each => each.name)))
     : Option.none()
 }
 
@@ -211,7 +211,7 @@ export const view = <E extends AnyEntity, A extends AnyApi, const Name extends V
     fail_(`${name} has no state of fields to read ${entity.name} from`),
   )
   for (const field of Object.keys(entity.fields)) {
-    if (field !== ID && !Object.hasOwn(state, field))
+    if (field !== ID && !state.has(field))
       fail_(`${name}'s state has no field ${field}, which ${entity.name} declares`)
   }
   const revision = config.revision as string
@@ -247,16 +247,18 @@ const rowRules = (entity: AnyEntity, interaction: string): Option.Option<Readonl
 const checkWritten = (entity: AnyEntity, mutation: string): void => {
   const refuse = (why: string) =>
     fail_(`${mutation} cannot answer with its reply: ${why}. Read ${entity.name} through its View`)
-  Option.map(rowRules(entity, 'Read'), read => {
+  const read = rowRules(entity, 'Read')
+  if (Option.isSome(read)) {
     const update = Option.getOrElse(rowRules(entity, 'Update'), () => [])
-    if (update.length === 0 || !update.every(rule => read.includes(rule)))
+    if (update.length === 0 || !update.every(rule => read.value.includes(rule)))
       refuse(`${entity.name} has a Read rule its Update rules do not imply`)
-  })
-  Option.map(Guards.attached(entity), attachment => {
-    for (const [member, surfaces] of Object.entries(attachment.members)) {
+  }
+  const attachment = Guards.attached(entity)
+  if (Option.isSome(attachment)) {
+    for (const [member, surfaces] of Object.entries(attachment.value.members)) {
       if (surfaces['Read'] !== undefined) refuse(`${entity.name}.${member} has a Read rule`)
     }
-  })
+  }
 }
 
 /**
