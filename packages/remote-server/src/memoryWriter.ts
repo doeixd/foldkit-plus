@@ -209,7 +209,9 @@ export const memoryWriter = <P>(
           : [`its assignment to "${field.key}" needs ${missing.join(', ')}`]
       }),
     ],
-    read: ({ id, fields }) => Effect.succeed(Option.map(stored(id), row => picked(row, fields))),
+    // Every row is the writer's to read; the answer names its id, as a source's read does.
+    read: ({ id, fields }) =>
+      Effect.succeed(Option.map(stored(id), row => picked(row, ['id', ...fields]))),
     update: ({ id, values, increments, assignments, links, expect, when }) =>
       Effect.gen(function* () {
         const found = stored(id)

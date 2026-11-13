@@ -4,7 +4,10 @@
  * that a test fails for every one.
  */
 const writer = '../src/memoryWriter.ts'
-const tests = ['packages/remote-server/test/memoryWriter.test.ts']
+const tests = [
+  'packages/remote-server/test/memoryWriter.test.ts',
+  'packages/remote-drizzle/test/memoryWriterParity.test.ts',
+]
 const edit = (name: string, find: string, replace: string) => ({
   name,
   edits: [{ file: writer, find, replace }],
