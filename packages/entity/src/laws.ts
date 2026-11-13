@@ -4,14 +4,17 @@
  * finite fields and nothing cleverer. Pure: it reads declarations and returns
  * a report, which is data; `Laws.show` prints it.
  */
-import { Data, Match, Option } from 'effect'
-import { Steps, steps, type Step } from './enumerate.js'
+import { Data, Match, Option, type Schema } from 'effect'
+import { Steps, finiteValues, steps, type Step } from './enumerate.js'
 import { judgeAgainst, readsBefore, invariantsOf, type Invariant } from './invariant.js'
 import { declaredOwner, Footprint } from './footprint.js'
-import type { AnyEntity } from './index.js'
+import type { AnyEntity, EntityField } from './index.js'
 import { kernelOperators } from './memoryTable.js'
 import type { MemoryOperators } from './operators.js'
+import { own } from './record.js'
 import { inState, states, type AnyRefinement } from './refine.js'
+
+type AnyField = EntityField<string, string, Schema.Constraint>
 import { Write, type AnyWrite } from './write.js'
 
 /** A declared write, as `Mutation.write` returns one. */
@@ -146,18 +149,20 @@ const judgeWrite = (write: AnyWrite, held: Invariant, operators: MemoryOperators
       const refused: Array<Step> = []
       // An insert's step has an empty row before, which a state invariant does not read.
       for (const step of each) {
-        const unrun = Match.valueTags(judgeAgainst([held], step, operators), {
-          Valid: () => Option.none<ReadonlyArray<string>>(),
+        const undecided = Match.valueTags(judgeAgainst([held], step, operators), {
+          Valid: () => Option.none<string>(),
           Invalid: () => {
             refused.push(step)
-            return Option.none<ReadonlyArray<string>>()
+            return Option.none<string>()
           },
-          Undecided: ({ operators: missing }) => Option.some(missing),
+          Undecided: ({ fields, operators: unrun }) =>
+            Option.some(
+              unrun.length > 0
+                ? `it calls ${unrun.join(', ')}, which the operator table does not run`
+                : `the write may leave ${fields.join(', ')} unwritten`,
+            ),
         })
-        if (Option.isSome(unrun))
-          return LawVerdict.Undecided({
-            reason: `it calls ${unrun.value.join(', ')}, which the operator table does not run`,
-          })
+        if (Option.isSome(undecided)) return LawVerdict.Undecided({ reason: undecided.value })
       }
       return refused.length > 0
         ? LawVerdict.Refused({ steps: refused })
@@ -211,8 +216,21 @@ const arrowsOf = (
   if (write._tag === 'Delete') return none
   const written = Write.writes(write).map(member => member.key)
   const moved = local.filter(state => state.reads.some(key => written.includes(key)))
-  if (moved.length === 0) return none
-  const members = [...new Set(local.flatMap(state => state.reads))]
+  // A state over a field that is not finite (`InStock`, over a number) is never enumerated,
+  // so it costs the others nothing: a write moving a row into or out of it is undecided there.
+  const fields = write.input.entity.fields as Readonly<Record<string, AnyField>>
+  const finite = (state: AnyRefinement) =>
+    state.reads.every(key =>
+      Option.isSome(
+        Option.flatMap(Option.fromUndefinedOr(own(fields, key)), field =>
+          finiteValues(field.schema as unknown as Schema.Top),
+        ),
+      ),
+    )
+  const enumerable = local.filter(finite)
+  const unenumerable = new Set(moved.filter(state => !finite(state)).map(state => state.name))
+  if (!moved.some(finite)) return { ...none, undecided: unenumerable }
+  const members = [...new Set(enumerable.flatMap(state => state.reads))]
   return Steps.$match(steps(write, members, { operators }), {
     Undecided: () => ({ ...none, undecided: new Set(moved.map(state => state.name)) }),
     Steps: ({ steps: each }) => {
@@ -224,7 +242,7 @@ const arrowsOf = (
         { from: string; to: string; refusedBy: Option.Option<string> }
       >()
       const inOf = (row: Step['after']) =>
-        local.filter(state => Option.getOrElse(inState(state, row, operators), () => false))
+        enumerable.filter(state => Option.getOrElse(inState(state, row, operators), () => false))
       for (const step of each) {
         const after = inOf(step.after)
         if (write._tag === 'Insert') {
@@ -269,7 +287,7 @@ const arrowsOf = (
           }),
         )
       }
-      return { arrows, findings, reached, left, undecided: new Set<string>() }
+      return { arrows, findings, reached, left, undecided: unenumerable }
     },
   })
 }

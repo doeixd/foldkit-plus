@@ -79,6 +79,17 @@ export default [
     tests: [laws],
   },
   {
+    name: 'a state over a number enumerated with the others',
+    edits: [
+      {
+        file: '../src/laws.ts',
+        find: 'const members = [...new Set(enumerable.flatMap(state => state.reads))]',
+        replace: 'const members = [...new Set(local.flatMap(state => state.reads))]',
+      },
+    ],
+    tests: [laws],
+  },
+  {
     name: 'a declared footprint over another Entity accepted',
     edits: [
       {

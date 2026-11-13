@@ -52,6 +52,8 @@ const Product = Fields.pipe(reservedWithinStock, publishedStaysPublished, soldNe
 const Draft = Entity.refine(Product, 'Draft', { status: 'draft' })
 const Published = Entity.refine(Product, 'Published', { status: 'published' })
 Entity.refine(Product, 'Archived', { status: 'archived' })
+/** Over a number: never enumerated, and no cost to the arrows between the others. */
+Entity.refine(Product, 'InStock', ({ row }) => Expr.gt(row.stock, 0))
 
 const status = (value: 'draft' | 'published' | 'archived') =>
   Entity.input(Product, Schema.Struct({ id: Schema.String, status: Schema.Literal(value) }))
@@ -188,6 +190,38 @@ describe('Laws.check: an operator the table lacks', () => {
   })
 })
 
+describe('Laws.check: an insert', () => {
+  const Toggle = Entity.define(
+    'Toggle',
+    Schema.Struct({ id: Schema.String, on: Schema.Boolean }),
+  ).pipe(Entity.invariant('on', ({ after }) => Expr.eq(after.on, true), { message: 'on' }))
+  const create = (on: Schema.Top) => ({
+    name: 'Create',
+    write: Write.insert(
+      Entity.input(Toggle, Schema.Struct({ id: Schema.String, on: on as typeof Schema.Boolean })),
+      { id: 'id' },
+    ),
+  })
+
+  it('is judged over what it sets', () => {
+    expect(
+      verdict(Laws.check({ writes: [create(Schema.Literal(true))] }), 'Create', 'on'),
+    ).toMatchObject({
+      _tag: 'Kept',
+      by: 'enumeration',
+    })
+    expect(verdict(Laws.check({ writes: [create(Schema.Boolean)] }), 'Create', 'on')._tag).toBe(
+      'Refused',
+    )
+  })
+
+  it('is undecided where it may leave a field unwritten', () => {
+    expect(
+      verdict(Laws.check({ writes: [create(Schema.optionalKey(Schema.Boolean))] }), 'Create', 'on'),
+    ).toEqual({ _tag: 'Undecided', reason: 'the write may leave on unwritten' })
+  })
+})
+
 describe('Laws.check: footprints', () => {
   const Touch = {
     name: 'Touch',
@@ -243,7 +277,7 @@ describe('Laws.check: states', () => {
   it('reports each arrow between states, and the states nothing reaches', () => {
     const report = Laws.check({ writes: [Rename, Publish, Revert, Sell] })
     expect(report.states).toEqual([
-      { entity: 'Product', names: ['Draft', 'Published', 'Archived'] },
+      { entity: 'Product', names: ['Draft', 'Published', 'Archived', 'InStock'] },
     ])
     expect(findings(report)).toEqual(
       [
@@ -284,6 +318,17 @@ describe('Laws.check: states', () => {
     })
     expect(report.findings.filter(Finding.$is('Unreached'))).toEqual([])
     expect(report.findings.filter(Finding.$is('Terminal'))).toEqual([])
+  })
+
+  it('a state over a number is undecided where a write moves it, and costs the others nothing', () => {
+    const report = Laws.check({ writes: [Publish, Sell] })
+    expect(findings(report)).toContainEqual({
+      ...Finding.Holds({ entity: 'Product', write: 'Publish', from: 'Draft', to: 'Published' }),
+    })
+    expect(report.findings.filter(each => 'state' in each && each.state === 'InStock')).toEqual([])
+    expect(findings(Laws.check({ writes: [Publish] }))).toContainEqual({
+      ...Finding.Unreached({ entity: 'Product', state: 'InStock' }),
+    })
   })
 
   it('prints the report', () => {
