@@ -5,7 +5,7 @@
  * that did not would treat `Draft` as `Product` and say nothing. A query, a
  * guard rule or a write's `from` and `becomes` read the predicate it holds.
  */
-import { Option, Schema } from 'effect'
+import { Match, Option, Schema } from 'effect'
 import { Judge, OperatorMissingError, type Row } from './evaluate.js'
 import {
   Expr,
@@ -130,8 +130,10 @@ const judged = (
     const verdict = Judge.predicate(refinement.predicate, heldRow(refinement.entity, row), {
       operators,
     })
-    if (verdict._tag === 'Unknown') return Option.none()
-    return Option.some(verdict.truth === true)
+    return Match.valueTags(verdict, {
+      Unknown: () => Option.none(),
+      Known: ({ truth }) => Option.some(truth === true),
+    })
   } catch (error) {
     if (error instanceof OperatorMissingError) return Option.none()
     throw error

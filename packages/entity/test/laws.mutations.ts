@@ -101,8 +101,8 @@ export default [
     edits: [
       {
         file: '../src/refine.ts',
-        find: "if (verdict._tag === 'Unknown') return Option.none()",
-        replace: "if (verdict._tag === 'Unknown') return Option.some(false)",
+        find: 'Unknown: () => Option.none(),',
+        replace: 'Unknown: () => Option.some(false),',
       },
     ],
     tests: [refine],

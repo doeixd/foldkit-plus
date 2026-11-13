@@ -5,7 +5,7 @@
  * finite, or that the write changes otherwise than by setting it from its
  * input, makes the question undecided, with the reason.
  */
-import { Data, Option, Schema, SchemaAST } from 'effect'
+import { Data, Match, Option, Schema, SchemaAST } from 'effect'
 import { Judge, type Row } from './evaluate.js'
 import { Query } from './expr.js'
 import { Held } from './held.js'
@@ -98,9 +98,12 @@ const changeOf = (write: AnyWrite, key: string): Change => {
     return Change.Other({ reason: `${key} is linked to another row` })
   if (write.context.some(each => each.member.key === key))
     return Change.Other({ reason: `${key} is set by the write's context` })
-  if (write._tag === 'Insert')
-    return Change.Other({ reason: `${key} is not written by the insert, so the store decides it` })
-  return Change.Keep()
+  return Match.value(write).pipe(
+    Match.tag('Insert', () =>
+      Change.Other({ reason: `${key} is not written by the insert, so the store decides it` }),
+    ),
+    Match.orElse(() => Change.Keep()),
+  )
 }
 
 /** Every combination of one value per key. */

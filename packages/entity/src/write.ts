@@ -900,7 +900,14 @@ export const Write = {
    *
    * `when` is what the row must hold for the update to land, checked where it
    * commits (`({ input }) => Expr.eq(Post.fields.status, 'draft')`); a row it
-   * does not hold of is refused as unmet.
+   * does not hold of is refused as unmet. `from: Draft` (an `Entity.refine`
+   * state) joins that state's predicate to it.
+   *
+   * `becomes: Published` says every row it can start from is in that state
+   * once it lands. It is proved where the write is declared, by enumerating
+   * those rows over finite fields: one it leaves outside throws, naming it, and
+   * so, until a writer enforces such a claim where it commits, does one
+   * enumeration cannot decide.
    *
    * `compute` sets a field to what an expression comes to over the row before
    * the write and the input, run where it commits
@@ -918,7 +925,8 @@ export const Write = {
    *
    * What its Entity sets from the write's context (`Entity.sets`: who asks,
    * when) it writes too, never from the input: a server fills them, a client
-   * predicts them. An update writes those set `on: 'write'`.
+   * predicts them. An update writes those set `on: 'write'`. `becomes`, as an
+   * update's, is proved over what the insert sets.
    */
   insert: <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,

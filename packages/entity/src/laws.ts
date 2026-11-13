@@ -4,7 +4,7 @@
  * finite fields and nothing cleverer. Pure: it reads declarations and returns
  * a report, which is data; `Laws.show` prints it.
  */
-import { Data, Option } from 'effect'
+import { Data, Match, Option } from 'effect'
 import { Steps, steps, type Step } from './enumerate.js'
 import { judgeAgainst, readsBefore, invariantsOf, type Invariant } from './invariant.js'
 import { declaredOwner, Footprint } from './footprint.js'
@@ -144,17 +144,20 @@ const judgeWrite = (write: AnyWrite, held: Invariant, operators: MemoryOperators
     Undecided: ({ reason }) => LawVerdict.Undecided({ reason }),
     Steps: ({ steps: each }) => {
       const refused: Array<Step> = []
+      // An insert's step has an empty row before, which a state invariant does not read.
       for (const step of each) {
-        const judged = judgeAgainst(
-          [held],
-          write._tag === 'Insert' ? { after: step.after } : step,
-          operators,
-        )
-        if (judged._tag === 'Undecided')
+        const unrun = Match.valueTags(judgeAgainst([held], step, operators), {
+          Valid: () => Option.none<ReadonlyArray<string>>(),
+          Invalid: () => {
+            refused.push(step)
+            return Option.none<ReadonlyArray<string>>()
+          },
+          Undecided: ({ operators: missing }) => Option.some(missing),
+        })
+        if (Option.isSome(unrun))
           return LawVerdict.Undecided({
-            reason: `it calls ${judged.operators.join(', ')}, which the operator table does not run`,
+            reason: `it calls ${unrun.value.join(', ')}, which the operator table does not run`,
           })
-        if (judged._tag === 'Invalid') refused.push(step)
       }
       return refused.length > 0
         ? LawVerdict.Refused({ steps: refused })
@@ -230,8 +233,11 @@ const arrowsOf = (
         }
         const before = inOf(step.before)
         const judged = judgeAgainst(invariants, step, operators)
-        const refusedBy =
-          judged._tag === 'Invalid' ? Option.some(judged.failures[0]!.id) : Option.none<string>()
+        const refusedBy = Match.valueTags(judged, {
+          Invalid: ({ failures }) => Option.some(failures[0]!.id),
+          Valid: () => Option.none<string>(),
+          Undecided: () => Option.none<string>(),
+        })
         for (const from of before) {
           for (const to of after) {
             if (from === to || before.includes(to)) continue
