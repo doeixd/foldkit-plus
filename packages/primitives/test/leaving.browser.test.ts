@@ -5,7 +5,7 @@
  */
 import { Effect, Fiber, Stream } from 'effect'
 import { liveViewStateChanges } from 'foldkit/mount'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi, type MockInstance } from 'vitest'
 import { FOCUS_RECOVERY_TO } from '../src/dom/focus-recovery.js'
 import { HideOutside } from '../src/dom/layers.js'
 import { LEAVING, Leaving } from '../src/dom/leaving.js'
@@ -191,18 +191,14 @@ it('unmarking a part leaves the other parts inert, without walking its subtree',
   shown.append(inside)
   document.body.append(shown, staying)
   const fiber = start(document.body)
-  const walked: Array<string> = []
-  const real = Element.prototype.querySelectorAll
+  let walk: MockInstance | undefined
   try {
     await settled()
     mark(shown)
     mark(inside)
     mark(staying)
     await settled()
-    Element.prototype.querySelectorAll = function (selectors: string) {
-      walked.push(selectors)
-      return real.call(this, selectors)
-    } as typeof real
+    walk = vi.spyOn(Element.prototype, 'querySelectorAll')
     shown.removeAttribute(LEAVING)
     await settled()
     expect(shown.inert).toBe(false)
@@ -212,9 +208,9 @@ it('unmarking a part leaves the other parts inert, without walking its subtree',
     await settled()
     expect(inside.inert).toBe(false)
     expect(staying.inert).toBe(true)
-    expect(walked).toEqual([])
+    expect(walk).not.toHaveBeenCalled()
   } finally {
-    Element.prototype.querySelectorAll = real
+    walk?.mockRestore()
     await Effect.runPromise(Fiber.interrupt(fiber))
   }
 })
