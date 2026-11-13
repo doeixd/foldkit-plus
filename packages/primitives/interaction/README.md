@@ -234,7 +234,12 @@ within the row and up and down within the column, skipping disabled cells;
 under `wrap` a horizontal key continues into the next row and a vertical key
 into the next column, otherwise the key is consumed at the edge. Home and End
 are the row's first and last enabled cell, Ctrl+Home and Ctrl+End the grid's.
-RTL swaps left and right, and `virtual` works as it does for `RovingTabindex`.
+With `page` (rows per page), PageUp and PageDown move that many rows in the same
+column, stop at the first or last row and never wrap; a disabled landing cell
+continues in the direction of travel as the arrows do, and if nothing beyond it
+is enabled the nearest enabled cell back toward the current one is taken.
+Without `page` the keys are left to the browser. RTL swaps left and right,
+and `virtual` works as it does for `RovingTabindex`.
 
 <!-- docs-check
 const Day = Schema.Struct({ id: Schema.String })
@@ -260,7 +265,7 @@ type CalendarMessage = typeof CalendarMessage.Type
 import { GridNavigation } from 'foldkit-primitives/interaction'
 
 const Cells = Bundle.declare(GridNavigation.bundle, 'cells')
-const gridArgs = { columns: 7, wrap: false, virtual: false } as const
+const gridArgs = { columns: 7, wrap: false, virtual: false, page: 2 } as const
 const DayKeys = GridNavigation.behavior(Cells, gridArgs)(CalendarSlots)<CalendarModel, CalendarMessage>({
   container: 'grid',
   item: 'day',

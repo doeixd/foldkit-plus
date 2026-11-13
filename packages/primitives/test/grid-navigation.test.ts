@@ -1,7 +1,7 @@
 /**
  * GridNavigation: the pure two-dimensional move (rows and columns, wrap in
- * both axes, disabled skipping, Home and End per row and per grid, RTL,
- * modifiers), and the Behavior's attributes on the container and each cell.
+ * both axes, disabled skipping, Home and End per row and per grid, paging by
+ * rows, RTL, modifiers), and the Behavior's attributes on the container and each cell.
  */
 import { Option, Schema } from 'effect'
 import type { KeyboardModifiers } from 'foldkit/html'
@@ -54,6 +54,49 @@ describe('move', () => {
     ['other keys are left alone', 'Enter', 0, plain, grid, undefined],
   ])('%s', (_, key, current, modifiers, options, expected) => {
     expect(move(enabled, count, current, key, modifiers, options)).toBe(expected)
+  })
+
+  describe('paging', () => {
+    const paged = (page: number, options: MoveOptions = grid): MoveOptions => ({ ...options, page })
+    // Column 0 is cells 0, 3, 6; with 6 disabled too, a page down from 0 lands on a disabled cell.
+    const sixOut = [0, 1, 2, 3, 5, 7]
+
+    it.each<[string, string, number, KeyboardModifiers, MoveOptions, number | undefined]>([
+      ['PageDown moves page rows down the column', 'PageDown', 0, plain, paged(1), 3],
+      ['PageDown moves two rows', 'PageDown', 0, plain, paged(2), 6],
+      ['PageDown stops at the last row of the column', 'PageDown', 0, plain, paged(5), 6],
+      ['PageDown stops at the end of a short column', 'PageDown', 2, plain, paged(5), 5],
+      [
+        'PageDown past a disabled landing continues down the column',
+        'PageDown',
+        1,
+        plain,
+        paged(1),
+        7,
+      ],
+      ['PageUp moves page rows up the column', 'PageUp', 6, plain, paged(1), 3],
+      ['PageUp stops at the first row', 'PageUp', 6, plain, paged(5), 0],
+      ['PageUp past a disabled landing continues up the column', 'PageUp', 7, plain, paged(1), 1],
+      ['PageDown at the bottom stays', 'PageDown', 6, plain, paged(1), 6],
+      ['PageUp at the top stays', 'PageUp', 1, plain, paged(1), 1],
+      ['paging never wraps into the next column', 'PageDown', 6, plain, paged(1, wrapping), 6],
+      ['PageDown from nothing lands on the first cell', 'PageDown', -1, plain, paged(1), 0],
+      ['PageUp from nothing lands on the last cell', 'PageUp', -1, plain, paged(1), 7],
+      ['without page the keys are not handled', 'PageDown', 0, plain, grid, undefined],
+      ['Ctrl+PageDown is not a paging key', 'PageDown', 0, ctrl, paged(1), undefined],
+    ])('%s', (_, key, current, modifiers, options, expected) => {
+      expect(move(enabled, count, current, key, modifiers, options)).toBe(expected)
+    })
+
+    it('takes the nearest enabled cell back toward the current one when nothing beyond is enabled', () => {
+      expect(move(sixOut, count, 0, 'PageDown', plain, paged(2))).toBe(3)
+      expect(move(sixOut, count, 0, 'PageDown', plain, paged(1))).toBe(3)
+    })
+
+    it('stays when no cell down the column is enabled', () => {
+      expect(move([0, 1, 2], count, 1, 'PageDown', plain, paged(2))).toBe(1)
+      expect(move([0, 1, 2], count, 0, 'PageDown', plain, paged(2))).toBe(0)
+    })
   })
 
   it('does nothing with no enabled cells', () => {
@@ -125,6 +168,16 @@ describe('GridNavigation behavior', () => {
       focusSelector: '[id="c7"]',
       message: Cells.wrapper.make(GridNavigation.Message.Focused({ id: 'c7' })),
     })
+  })
+
+  it('pages by rows when given page, and leaves the keys alone without it', () => {
+    const paged = (options: GridNavigation.Args) =>
+      Attributes.find(builders(input, options).grid.attrs(), 'OnKeyDownFocus')!.f
+    expect(Option.getOrThrow(paged({ ...args, page: 1 })('PageDown', plain))).toEqual({
+      focusSelector: '[id="c7"]',
+      message: Cells.wrapper.make(GridNavigation.Message.Focused({ id: 'c7' })),
+    })
+    expect(Option.isNone(paged(args)('PageDown', plain))).toBe(true)
   })
 
   it('gives the current cell the tab stop and the rest -1', () => {

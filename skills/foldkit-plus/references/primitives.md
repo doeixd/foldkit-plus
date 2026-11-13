@@ -149,11 +149,12 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   found nearest the container first, and each fact carries `region: boolean`, so `over: null`
   with `region: true` is the region's empty space. `part: attribute` reports an element
   marked by it as `{ id, zone: 'inside', part }`: a node's empty Region, say.
-- **Cells in rows:** `GridNavigation.bundle` (`{ columns, wrap, virtual }`) with
+- **Cells in rows:** `GridNavigation.bundle` (`{ columns, wrap, virtual, page? }`) with
   `GridNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items, direction? })`.
   Same Model slice and item attributes as `RovingTabindex`; arrows move within the row or
   column, `wrap` continues into the next row or column, Home/End are per row and Ctrl+Home/End
-  per grid. The pure move is `GridNavigation.move(enabled, count, current, key, modifiers, options)`.
+  per grid; with `page` (rows) PageUp/PageDown move that many rows down the column, stopping at the
+  first or last row, else they stay native. The pure move is `GridNavigation.move(enabled, count, current, key, modifiers, options)`.
 - **Keep focus inside an overlay:** `FocusScope.behavior(Slots)<Input, Message>({ container, contain?, restore?, initialFocus? })`
   attaches the `foldkit-primitives/dom` `FocusScope` Mount (no Bundle: focus is a DOM fact).
   Initial focus on insert, Tab and Shift+Tab wrap and a stray focus comes back under
