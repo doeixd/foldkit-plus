@@ -130,9 +130,12 @@ describe('A11y', () => {
     { name: 'ListNavigation' },
   )
 
+  // Typed wide on purpose: a literal list that misses an obligation is a type error.
+  const unsupplied: ReadonlyArray<A11y.ObligationSupport> = []
+
   it('does not treat a published attribute as a supplied obligation', () => {
     expect(A11y.validate(options, Options)).toEqual([])
-    const reported = A11y.validate(options, Options, [])
+    const reported = A11y.validate(options, Options, unsupplied)
     expect(codes(reported)).toEqual(['a11y:unsatisfied-obligation', 'a11y:unsatisfied-obligation'])
     expect(reported.map(item => `${item.slot} ${item.details?.['obligation']}`)).toEqual([
       'items navigation',
@@ -157,7 +160,7 @@ describe('A11y', () => {
     expect(codes(A11y.validate(options, Options, support))).toEqual(['a11y:unsatisfied-obligation'])
   })
 
-  it('accepts a native control and a named delegate, and refuses a delegate with no name', () => {
+  it('accepts a native control and a named delegate, and refuses a delegate with no name, and a forged one does not satisfy', () => {
     const box = Slots.define({
       checkbox: Slot.make({ capability: Capability.Interactive, attributes: [Attr.Role] }),
     })
@@ -205,8 +208,9 @@ describe('A11y', () => {
       by: 'delegated',
       provider: '',
     }
+    // A provider-less entry does not satisfy: the obligation reads as unsupplied.
     expect(codes(A11y.validate(checks, box, [forged, ...A11y.suppliedBy(state)]))).toEqual([
-      'a11y:unnamed-delegation',
+      'a11y:unsatisfied-obligation',
     ])
   })
 
@@ -229,16 +233,36 @@ describe('A11y', () => {
     const absent = A11y.pattern({
       legend: { optional: true, obligations: ['navigation'] },
     })
-    expect(A11y.validate(absent, FieldSlots, [])).toEqual([])
+    expect(A11y.validate(absent, FieldSlots, unsupplied)).toEqual([])
     const hidden = A11y.pattern({ internals: { obligations: ['focus'] } })
-    expect(codes(A11y.validate(hidden, FieldSlots, []))).toEqual(['a11y:hidden-slot'])
+    expect(codes(A11y.validate(hidden, FieldSlots, unsupplied))).toEqual(['a11y:hidden-slot'])
   })
 
-  it('judges a wide support list when bound runs', () => {
+  it('judges a wide support list when validate runs', () => {
     const dynamic: ReadonlyArray<A11y.ObligationSupport> = []
-    expect(codes(A11y.bound(options, Options, dynamic))).toEqual([
+    expect(codes(A11y.validate(options, Options, dynamic))).toEqual([
       'a11y:unsatisfied-obligation',
       'a11y:unsatisfied-obligation',
     ])
+  })
+
+  it('reports support for a slot or an obligation the pattern does not require', () => {
+    const typoed: ReadonlyArray<A11y.ObligationSupport> = [
+      ...A11y.suppliedBy(navigation),
+      A11y.delegated({ slot: 'itms', obligation: 'focus', provider: 'Typo' }),
+      A11y.delegated({ slot: 'items', obligation: 'activation', provider: 'Extra' }),
+    ]
+    const reported = A11y.validate(options, Options, typoed).filter(
+      item => item.code === 'a11y:unknown-support',
+    )
+    expect(
+      reported.map(item => [item.slot, item.details?.['obligation'], item.details?.['provider']]),
+    ).toEqual([
+      ['itms', 'focus', 'Typo'],
+      ['items', 'activation', 'Extra'],
+    ])
+    expect(codes(A11y.validate(options, Options, A11y.suppliedBy(navigation)))).not.toContain(
+      'a11y:unknown-support',
+    )
   })
 })

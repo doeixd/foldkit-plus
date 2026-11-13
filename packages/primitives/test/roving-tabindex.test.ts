@@ -147,7 +147,8 @@ describe('obligation declaration', () => {
       tool: { obligations: ['focus'] },
     })
     expect(A11y.validate(pattern, ToolbarSlots, A11y.suppliedBy(wire(args)))).toEqual([])
-    expect(A11y.validate(pattern, ToolbarSlots, []).map(item => item.slot)).toEqual([
+    const none: ReadonlyArray<A11y.ObligationSupport> = []
+    expect(A11y.validate(pattern, ToolbarSlots, none).map(item => item.slot)).toEqual([
       'root',
       'tool',
     ])

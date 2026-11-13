@@ -38,17 +38,6 @@ export default [
     tests,
   },
   {
-    name: 'an unnamed delegate is only unsatisfied',
-    edits: [
-      {
-        file: '../src/a11y.ts',
-        find: "if (unnamed !== undefined && unnamed.provider === '')",
-        replace: 'if (false)',
-      },
-    ],
-    tests,
-  },
-  {
     name: 'an empty provider is accepted',
     edits: [
       {
@@ -107,12 +96,34 @@ export default [
     tests,
   },
   {
-    name: 'bound does not judge the support list',
+    name: 'validate does not judge the support list',
     edits: [
       {
         file: '../src/a11y.ts',
-        find: 'validate(pattern, slots, support as readonly ObligationSupport[])',
-        replace: 'validate(pattern, slots)',
+        find: 'if (support !== undefined && requirement.obligations !== undefined) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a support entry naming a slot the pattern lacks passes',
+    edits: [
+      {
+        file: '../src/a11y.ts',
+        find: 'if (required?.includes(item.obligation) === true) continue',
+        replace: 'continue',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a support entry for an obligation the slot does not require passes',
+    edits: [
+      {
+        file: '../src/a11y.ts',
+        find: 'if (required?.includes(item.obligation) === true) continue',
+        replace: 'if (required !== undefined) continue',
       },
     ],
     tests,

@@ -44,15 +44,31 @@ const OptionPattern = A11y.pattern({
   item: { obligations: ['focus'] },
 })
 
-A11y.bound(OptionPattern, FieldSlots, [
+A11y.validate(OptionPattern, FieldSlots, [
   A11y.delegated({ slot: 'items', obligation: 'navigation', provider: 'ListNavigation' }),
   A11y.delegated({ slot: 'item', obligation: 'focus', provider: 'ListNavigation' }),
 ])
 
-// @ts-expect-error item/focus has no provider in this literal list.
-A11y.bound(OptionPattern, FieldSlots, [
-  A11y.delegated({ slot: 'items', obligation: 'navigation', provider: 'ListNavigation' }),
-])
+A11y.validate(
+  OptionPattern,
+  FieldSlots,
+  // @ts-expect-error item/focus has no provider in this literal list.
+  [A11y.delegated({ slot: 'items', obligation: 'navigation', provider: 'ListNavigation' })],
+)
+
+A11y.validate(
+  OptionPattern,
+  FieldSlots,
+  // @ts-expect-error a literal list that supplies a different obligation does not cover item/focus.
+  [
+    A11y.delegated({ slot: 'items', obligation: 'navigation', provider: 'ListNavigation' }),
+    A11y.delegated({ slot: 'item', obligation: 'activation', provider: 'Press' }),
+  ],
+)
 
 const dynamic: ReadonlyArray<A11y.ObligationSupport> = []
-A11y.bound(OptionPattern, FieldSlots, dynamic)
+A11y.validate(OptionPattern, FieldSlots, dynamic)
+
+// A wide pattern is judged when it runs.
+const widePattern: A11y.Pattern = OptionPattern
+A11y.validate(widePattern, FieldSlots, [])

@@ -19,7 +19,7 @@ export type A11yDiagnosticCode =
   | 'a11y:missing-event'
   | 'a11y:missing-attribute'
   | 'a11y:unsatisfied-obligation'
-  | 'a11y:unnamed-delegation'
+  | 'a11y:unknown-support'
 
 export interface A11yDiagnostic extends Diagnostic {
   readonly source: 'a11y'
@@ -175,11 +175,59 @@ const satisfied = (
 ): boolean =>
   support.some(item => item.slot === slot && item.obligation === obligation && item.provider !== '')
 
-export const validate = (
+type ObligationKey<Spec extends Requirements> = {
+  [Slot in keyof Spec]: Spec[Slot] extends { readonly obligations: readonly (infer Name)[] }
+    ? Name extends string
+      ? `${Slot & string}/${Name}`
+      : never
+    : never
+}[keyof Spec]
+
+type SupportKey<Support> = Support extends {
+  readonly slot: infer Slot extends string
+  readonly obligation: infer Name extends string
+}
+  ? `${Slot}/${Name}`
+  : never
+
+type MissingKeys<Required, Provided> = Required extends Provided ? never : Required
+
+/** The literal obligations a support list does not cover. */
+export interface MissingObligations<Keys extends string> {
+  readonly missing: Keys
+}
+
+/**
+ * Compare a `Slots` contract against a pattern. Without `support` only the
+ * structure is read: a published attribute is not a provider. With `support`
+ * each required obligation must have a named provider, and an entry naming a
+ * slot or obligation the pattern does not require is reported too.
+ *
+ * When `pattern` and `support` are literals, a list that misses a required
+ * `slot/obligation` is a type error. A wide `Pattern` or a list typed
+ * `ObligationSupport[]` is judged when this runs. Neither is a WCAG claim.
+ */
+export function validate(
+  pattern: Pattern,
+  slots: { readonly [name: string]: AnySlot },
+): ReadonlyArray<A11yDiagnostic>
+export function validate<
+  const Spec extends Requirements,
+  const Support extends readonly ObligationSupport[],
+>(
+  pattern: Pattern<Spec>,
+  slots: { readonly [name: string]: AnySlot },
+  support: [ObligationKey<Spec>] extends [never]
+    ? Support
+    : [MissingKeys<ObligationKey<Spec>, SupportKey<Support[number]>>] extends [never]
+      ? Support
+      : MissingObligations<MissingKeys<ObligationKey<Spec>, SupportKey<Support[number]>>>,
+): ReadonlyArray<A11yDiagnostic>
+export function validate(
   pattern: Pattern,
   slots: { readonly [name: string]: AnySlot },
   support?: readonly ObligationSupport[],
-): ReadonlyArray<A11yDiagnostic> => {
+): ReadonlyArray<A11yDiagnostic> {
   const diagnostics: Array<A11yDiagnostic> = []
   for (const name of Object.getOwnPropertyNames(pattern.requirements)) {
     const requirement = pattern.requirements[name]
@@ -250,20 +298,6 @@ export const validate = (
     if (support !== undefined && requirement.obligations !== undefined) {
       for (const obligation of requirement.obligations) {
         if (satisfied(support, name, obligation)) continue
-        const unnamed = support.find(
-          item => item.slot === name && item.obligation === obligation && item.by === 'delegated',
-        )
-        if (unnamed !== undefined && unnamed.provider === '') {
-          diagnostics.push(
-            diagnostic(
-              'a11y:unnamed-delegation',
-              `A delegated obligation "${obligation}" on slot "${name}" names no provider`,
-              name,
-              { obligation },
-            ),
-          )
-          continue
-        }
         diagnostics.push(
           diagnostic(
             'a11y:unsatisfied-obligation',
@@ -275,49 +309,21 @@ export const validate = (
       }
     }
   }
+  if (support !== undefined) {
+    for (const item of support) {
+      const required = Object.hasOwn(pattern.requirements, item.slot)
+        ? pattern.requirements[item.slot]?.obligations
+        : undefined
+      if (required?.includes(item.obligation) === true) continue
+      diagnostics.push(
+        diagnostic(
+          'a11y:unknown-support',
+          `Support for obligation "${item.obligation}" names slot "${item.slot}", which the pattern does not require it on`,
+          item.slot,
+          { obligation: item.obligation, provider: item.provider },
+        ),
+      )
+    }
+  }
   return diagnostics
 }
-
-type ObligationKey<Spec extends Requirements> = {
-  [Slot in keyof Spec]: Spec[Slot] extends { readonly obligations: readonly (infer Name)[] }
-    ? Name extends string
-      ? `${Slot & string}/${Name}`
-      : never
-    : never
-}[keyof Spec]
-
-type SupportKey<Support> = Support extends {
-  readonly slot: infer Slot extends string
-  readonly obligation: infer Name extends string
-}
-  ? `${Slot}/${Name}`
-  : never
-
-type MissingKeys<Required, Provided> = Required extends Provided ? never : Required
-
-/** The literal obligations a support list does not cover. */
-export interface MissingObligations<Keys extends string> {
-  readonly missing: Keys
-}
-
-/**
- * Structural validation plus obligations.
- *
- * A literal support list that misses an obligation is a type error. A list
- * typed only as `ObligationSupport[]` is checked when this runs. `validate`
- * without support does not read obligations: a published attribute is not a
- * provider, and neither result is a WCAG claim.
- */
-export const bound = <
-  const Spec extends Requirements,
-  const Support extends readonly ObligationSupport[],
->(
-  pattern: Pattern<Spec>,
-  slots: { readonly [name: string]: AnySlot },
-  support: [ObligationKey<Spec>] extends [never]
-    ? Support
-    : [MissingKeys<ObligationKey<Spec>, SupportKey<Support[number]>>] extends [never]
-      ? Support
-      : MissingObligations<MissingKeys<ObligationKey<Spec>, SupportKey<Support[number]>>>,
-): ReadonlyArray<A11yDiagnostic> =>
-  validate(pattern, slots, support as readonly ObligationSupport[])
