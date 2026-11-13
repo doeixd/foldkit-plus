@@ -21,8 +21,9 @@ const TooWide = Behavior.forSlots(SearchSlots)<
   root: Behavior.slot({ attributes: ({ input, h }) => [h.AriaBusy(input.pending)] }),
 })
 const NeedsPending = SearchView.pipe(Behavior.attach(TooWide))
+const withoutPending = { id: 'search', value: '', resultsOpen: false }
 // @ts-expect-error attaching the Behavior widens what callers must provide
-NeedsPending({ id: 'search', value: '' }, SlotView.inertBuilder<SearchMessage>())
+NeedsPending(withoutPending, SlotView.inertBuilder<SearchMessage>())
 
 const Elsewhere = Behavior.forSlots(SearchSlots)<SearchModel, typeof Foreign.Type>({
   clear: Behavior.slot({ attributes: ({ h }) => [h.OnClick(Foreign.SentElsewhere())] }),

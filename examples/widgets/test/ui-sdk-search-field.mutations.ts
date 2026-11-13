@@ -17,8 +17,19 @@ export default [
     edits: [
       {
         file: '../src/ui-sdk-search-field.ts',
-        find: "model.value === '' ? { model } : { model: modifyFields(model, { value: () => '' }) },",
-        replace: '{ model },',
+        find: "value: () => '',",
+        replace: 'value: () => model.value,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'clearing leaves the results open',
+    edits: [
+      {
+        file: '../src/ui-sdk-search-field.ts',
+        find: 'resultsOpen: () => false',
+        replace: 'resultsOpen: () => model.resultsOpen',
       },
     ],
     tests,
