@@ -66,11 +66,12 @@ export default [
     tests: [leave],
   },
   {
-    name: 'a Listbox writes no dir for its direction',
+    name: "a Listbox's panel writes no dir, so a portaled panel places for left to right",
     edits: [
       {
         file: '../src/listboxShared.ts',
-        find: '...(direction === undefined ? [] : [h.Dir(direction)]),',
+        find: `        // A portaled panel is no longer inside the wrapper that carries it.
+        ...(direction === undefined ? [] : [h.Dir(direction)]),`,
         replace: '',
       },
     ],

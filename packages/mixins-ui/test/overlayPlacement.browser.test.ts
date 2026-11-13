@@ -12,7 +12,7 @@ import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
-import { Listbox, ListboxSlots, ListboxView, Recipes } from '../src/index.js'
+import { Listbox, ListboxSlots, ListboxView, Menu, MenuSlots, Recipes } from '../src/index.js'
 import { unitKnobs } from './fixture.js'
 
 const theme = Theme.standard(Theme.make({ ...unitKnobs, accent: { hue: 265, chroma: 0.16 } }))
@@ -87,7 +87,7 @@ const mount = ({ portal, compact = false, direction }: Setup) => {
 }
 
 /** Opens the listbox and reads the trigger's and the first row's boxes once the panel is placed. */
-const opened = async () => {
+const opened = async (panelSelector = '[role="listbox"]') => {
   const button = await vi.waitFor(() => {
     const found = document.querySelector<HTMLElement>('button[aria-haspopup]')
     expect(found).not.toBeNull()
@@ -95,13 +95,13 @@ const opened = async () => {
   })
   await userEvent.click(button)
   const panel = await vi.waitFor(() => {
-    const found = document.querySelector<HTMLElement>('[role="listbox"]')
+    const found = document.querySelector<HTMLElement>(panelSelector)
     expect(found?.getBoundingClientRect().height).toBeGreaterThan(0)
     expect(getComputedStyle(found!).visibility).toBe('visible')
     return found!
   })
-  const row = document.querySelector<HTMLElement>('[role="option"]')
-  if (row === null) throw new Error('the open listbox drew no rows')
+  const row = document.querySelector<HTMLElement>('[role="option"], [role="menuitem"]')
+  if (row === null) throw new Error('the open popup drew no rows')
   return { button: button.getBoundingClientRect(), panel: panel.getBoundingClientRect(), row }
 }
 
@@ -143,9 +143,9 @@ const mirrorsUnderRtl = async (portal: boolean) => {
 test("under direction rtl on a page with no dir, a bottom-start popup lines up with the trigger's right edge", () =>
   mirrorsUnderRtl(false))
 
-// `direction` writes `dir` on the listbox's wrapper, and the portaled panel
-// is no longer inside it, so the anchor places it for left to right.
-test.fails("under direction rtl a portaled bottom-start popup lines up with the trigger's right edge", () =>
+// `direction` writes `dir` on the panel as well as the wrapper: a portaled
+// panel is no longer inside the wrapper.
+test("under direction rtl a portaled bottom-start popup lines up with the trigger's right edge", () =>
   mirrorsUnderRtl(true))
 
 test.each([true, false])(
@@ -161,3 +161,60 @@ test.each([true, false])(
     }
   },
 )
+
+// The Menu draws its panel in place, inside the wrapper that carries `dir`:
+// no gap for a portaled panel to fall through, but the placement is pinned.
+test("under direction rtl a Menu's bottom-start panel lines up with the trigger's right edge", async () => {
+  const MenuModel = Schema.Struct({ menu: Menu.Model })
+  const rows: ReadonlyArray<Menu.Row> = [{ label: 'Rename' }, { label: 'A much longer menu row' }]
+  const style = Style.forSlots(MenuSlots)(Recipes.Menu({}))
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent =
+    Style.stylesheet(
+      Layers.standard.declare,
+      Layers.standard.in('reset', Defaults.reset),
+      Layers.standard.in('theme', Theme.root(theme)),
+    ) + style.css
+  document.head.append(sheet)
+  const container = document.createElement('div')
+  container.id = 'overlay-menu'
+  const region = document.createElement('div')
+  region.style.cssText = 'padding: 120px 300px'
+  region.appendChild(container)
+  document.body.appendChild(region)
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model: MenuModel,
+      container,
+      slow: false,
+      init: () => ({ model: { menu: Menu.init('menu', rows) } }),
+      update: (model: typeof MenuModel.Type, message: Menu.Message) => {
+        const next = Menu.update(model.menu, message)
+        return {
+          model: { menu: next.model },
+          ...(next.commands === undefined ? {} : { commands: next.commands }),
+        }
+      },
+      view: (model: typeof MenuModel.Type, h: HtmlBuilder<Menu.Message>) =>
+        Menu.view(
+          {
+            model: model.menu,
+            rows,
+            buttonContent: h.span([], ['Actions']),
+            onMessage: message => message,
+            direction: 'rtl',
+            mixins: [style.mixin],
+          },
+          h,
+        ),
+    }),
+  )
+  try {
+    const { button, panel } = await opened('[role="menu"]')
+    expect(panel.width).toBeGreaterThan(button.width + 20)
+    expect(Math.abs(panel.right - button.right)).toBeLessThan(2)
+  } finally {
+    handle.dispose()
+  }
+})

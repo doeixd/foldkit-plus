@@ -422,6 +422,8 @@ export const computeRender = (
       ...childAttributes([
         h.Id(`${id}-items`),
         h.Role('listbox'),
+        // A portaled panel is no longer inside the wrapper that carries it.
+        ...(direction === undefined ? [] : [h.Dir(direction)]),
         h.AriaOrientation(String.toLowerCase(orientation)),
         ...(behavior.ariaMultiSelectable ? [h.AriaMultiSelectable(true)] : []),
         ...(isReadOnly ? [h.AriaReadonly(true), h.DataAttribute('readonly', '')] : []),
