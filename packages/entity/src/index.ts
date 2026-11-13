@@ -666,7 +666,7 @@ export {
   type LawReport,
   type WriteEntry,
 } from './laws.js'
-export { maxRows, type Step } from './enumerate.js'
+export type { Step } from './enumerate.js'
 export {
   Write,
   type AnyWrite,
