@@ -23,6 +23,7 @@ the handler dispatches    →  update moves the fact; the view redraws from it
 | `GridNavigation` | `{ current }` | cells in rows: a calendar, a swatch picker |
 | `TreeNavigation` | `{ current, toggled }` | a tree: a file explorer, a layers panel |
 | `FocusScope` | nothing (a Mount) | keep focus inside an overlay |
+| `FocusRecovery` | nothing (a Mount) | move focus out of a part the view removed |
 | `Press` | `{ pressed, … }`; out `Pressed` | pointer, touch, Enter, Space, and AT clicks as one fact |
 | `LongPress` | `{ … }`; out `LongPressed` | holding for a threshold |
 | `Move` | nothing (a Mount) | pointer drag deltas |
@@ -334,6 +335,18 @@ in the middle is the browser's. On unmount, with `restore` (default), focus
 returns to the element that had it, if it is still in the document. A native
 `<dialog>` does all of this itself; this is for a custom overlay, a menu, or a
 command palette.
+
+**`FocusRecovery`** is the other Mount here: it answers a part that goes with
+focus in it, so a list does not drop focus to the body. Mark a part with
+`part(h)`, name a fallback with `part(h, { to: 'search' })`, and attach
+`FocusRecovery.behavior(Slots)<Input, Message>({ container })` to the container
+slot that holds them. When the focused descendant of a part leaves the
+document, focus goes to the named id (read on the nearest marked part or marked
+ancestor inside the container), else the next sibling, else the previous
+sibling, else the enclosing part that can take focus, and otherwise nowhere.
+Focus the reader moved elsewhere, a part that moved rather than went, and
+teardown leave focus alone; nested containers own only their own parts. The
+Mount and `part` live in `foldkit-primitives/dom`.
 
 ## Pressing and dragging
 

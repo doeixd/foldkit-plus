@@ -22,6 +22,7 @@ wraps.
 | `ScrollBars({ idle?, scroller? })` | Mount | nothing; writes custom properties and marks | `idle` in ms, default 600 |
 | `FocusScope(options)` | Mount | nothing | `{ contain?, restore?, initialFocus? }` |
 | `FollowTabStop` | Mount | nothing | |
+| `FocusRecovery` | Mount | nothing | mark parts with `part(h, { to? })` |
 | `ScrollLock`, `HideOutside` | Mounts | nothing | |
 | `PointerPosition({ focus? })` | Mount | `PointerPressed`, `PointerMoved`, `PointerReleased` | `focus`: a selector |
 | `keepScroll(options?)` | entry | nothing | |
@@ -103,6 +104,20 @@ non-negative `tabindex`, in order. Its Behavior form is in [`interaction`](../in
 **`FollowTabStop`** moves focus within a container to its roving tab stop when
 a transition the container did not see moves it or removes the focused row. It
 never takes focus from outside the container. `TreeNavigation` uses it.
+
+**`FocusRecovery`** answers the row that goes with focus in it. `part(h)` marks
+an element whose removal may need a fallback, `part(h, { to: 'search' })` names
+one by id, and `FOCUS_RECOVERY_PART` / `FOCUS_RECOVERY_TO` are the attribute
+names it writes. When the focused descendant of a part leaves the document,
+focus goes to the id the nearest marked part or marked ancestor names, else the
+nearest following sibling, else the nearest preceding sibling, else the nearest
+enclosing part that can take focus (a tree row), and otherwise nowhere: recovery
+never guesses, and an id that matches two elements names none. The id is matched
+by walking ids, not by a selector, so `a:b [c]` works. Focus the reader moved
+elsewhere, a part that moved rather than went, and teardown leave focus alone,
+and nested containers each own only their own parts. It sends nothing: which
+element has focus is a DOM fact. Its Behavior form is in
+[`interaction`](../interaction/README.md).
 
 **`ScrollLock`** locks the document's scroll while its element is mounted,
 refcounted so nested overlays release together, with Foldkit's iOS handling;

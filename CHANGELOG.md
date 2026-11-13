@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-primitives`: `FocusRecovery` (a Mount in `foldkit-primitives/dom`,
+  `FocusRecovery.behavior` in `foldkit-primitives/interaction`) with
+  `part(h, { to? })` moves focus out of a part the view removed: to the fallback
+  id the nearest marked part or marked ancestor names, else the next sibling,
+  else the previous sibling, else the enclosing part that can take focus, and
+  otherwise nowhere. Focus the reader moved elsewhere, a part that moved rather
+  than went, and teardown leave focus alone, and nested containers own only
+  their own parts; an id that matches two elements names none (#553).
 - `foldkit-mixins`: `Behaviors.Keyboard.behavior(Slots)({ target, routes })`
   composes named exact key/modifier gestures under one keydown owner, reports
   overlapping routes by contributor and leaves native editing keys alone. The
