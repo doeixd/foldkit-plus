@@ -469,8 +469,11 @@ describe('the generated site', () => {
 
   test('the invalid checkbox group says why while nothing is checked', () => {
     const invalid = page('/components/checkbox-group').getElementById('invalid')?.closest('section')
-    const group = invalid?.querySelector('[data-size="page"] [aria-invalid="true"]')
-    expect(group?.textContent).toContain('Pick at least one.')
+    const group = invalid?.querySelector('[data-size="page"] fieldset')
+    const error = group?.getAttribute('aria-describedby') ?? ''
+    expect(group?.querySelector(`[id="${error}"]`)?.textContent).toBe('Pick at least one.')
+    const boxes = Array.from(group?.querySelectorAll('[role="checkbox"]') ?? [])
+    expect(boxes.map(box => box.getAttribute('aria-invalid'))).toContain('true')
   })
 
   test('the range picker submits its dates under one name', () => {

@@ -111,9 +111,9 @@ These are four jobs.
   no Model.
 
 The runnable pair is in `examples/widgets`.
-[`ui-sdk-search-field.ts`](../../examples/widgets/src/ui-sdk-search-field.ts) is the assembly:
-shipped `Input.view`, an extended `Recipes.Input`, `Behaviors.Keyboard` and a clear-label
-Behavior, and two `Bundle` placements. [`ui-sdk-dismissible-list.ts`](../../examples/widgets/src/ui-sdk-dismissible-list.ts)
+[`search-field`](../../examples/widgets/src/search-field/view.ts) is the assembly: the shipped
+`SearchField.view` with a recipe, an application key route beside its own, and two `Bundle`
+placements. [`dismissible-list`](../../examples/widgets/src/dismissible-list/view.ts)
 is the edit-and-remove widget on the same path: one `update`, `SlotView.forMessages`, and
 `FocusRecovery` attached. A popup that commits a selection is the autocomplete widget, not a
 third assembly API.
@@ -1110,8 +1110,8 @@ Observation, routing and replacement are separate choices. Use an ordinary
 base `OnKeyDown` to observe every non-IME key without cancelling its default;
 use Keyboard to choose Messages per gesture; replace a base keydown by removing
 it before attaching a Behavior, not by attaching a second owner. The runnable
-[`examples/widgets/src/ui-sdk-search-field.ts`](../../examples/widgets/src/ui-sdk-search-field.ts)
-composes Escape-to-clear with ArrowDown-to-open-results.
+[`examples/widgets/src/search-field/view.ts`](../../examples/widgets/src/search-field/view.ts)
+adds ArrowDown-to-open-results beside the `SearchField`'s own Escape-to-clear.
 
 ## SlotView
 

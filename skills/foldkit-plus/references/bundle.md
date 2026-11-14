@@ -244,7 +244,7 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   `no-child-message-construction-in-root` reports. The child's own view and Behaviors still
   send its Messages; `follow`'s replayed asks are the exception. Two placements of one search
   field, each writing only its own slice, are
-  https://github.com/doeixd/foldkit-plus/blob/main/examples/widgets/src/ui-sdk-search-field.ts.
+  https://github.com/doeixd/foldkit-plus/blob/main/examples/widgets/src/search-field/app.ts.
 - **Types:** `Bundle.make` takes no explicit generics. The `Model` and
   `Message` Schemas declare those types and every part is checked against
   them (`init` may write `{}` or `'idle'`); the bundle's services are what

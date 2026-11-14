@@ -303,7 +303,7 @@ describe('the form previews', () => {
     expect(choose('Oslo').widgets.createdCities).toEqual([])
   })
 
-  it('show the key copied until its reset, and not after a refused copy', () => {
+  it('show the key copied until its reset, and a refused copy as failed', () => {
     const copied = send(Widgets.Message.GotCopy({ message: ClipboardMessage.Copied() }))
     expect(copied.widgets.inputCopy.copied).toBe(true)
     const reset = update(
@@ -318,7 +318,8 @@ describe('the form previews', () => {
     const refused = send(
       Widgets.Message.GotCopy({ message: ClipboardMessage.CopyFailed({ message: 'denied' }) }),
     )
-    expect(refused.widgets).toBe(initial.widgets)
+    expect(refused.widgets.inputCopy.copied).toBe(false)
+    expect(refused.widgets.inputCopy.failed).toBe(true)
   })
 
   it('keep what Caps Lock was read as through a key that says nothing of it', () => {
