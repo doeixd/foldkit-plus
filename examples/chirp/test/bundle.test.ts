@@ -21,10 +21,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // carries the write capability, and the declared-write work added to it (module by module,
 // minified: `foldkit-entity` enumerate 2.8 kB, write 0.8, refine 0.6, footprint 0.6;
 // `foldkit-remote` canOf 1.1, remote 0.4, mutation 0.4). Ceiling that plus about 0.5%.
-// +290 bytes for the law graph's facts (#537), measured by building the page with and without them in one tree on 2026-11-14: each declared write's `facts` (`Mutation.write`) and the
-// domain contract joining them. Ceiling raised by that, rounded up.
 // +941 bytes for row revisions and read-after tokens on Remote's wire (#544), measured by building the page with and without them in one tree on 2026-11-14: the wire's schemas, the token in each coalesced read, the floors and revisions in the store and reducer. Ceiling raised by that, rounded up.
-const CEILING = 245_500
+// -382 bytes: the law graph's facts left the page for `Module.graph`'s own path (#537 review): measured with and without the move in one tree on 2026-11-14,
+// the page fell by that, and the ceiling with it.
+const CEILING = 245_118
 
 clientBudget({
   name: 'chirp',

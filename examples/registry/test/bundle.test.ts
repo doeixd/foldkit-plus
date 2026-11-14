@@ -22,9 +22,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // of its own (#560 review): foldkit-crud's index.js grew 685 bytes minified,
 // and the page measured 255,583 against 255,497 from the same tree with the
 // editor before it, in fresh builds of each.
-// +619 bytes for the law graph's facts (#537), measured by building the page with and without them in one tree on 2026-11-14: the page calls `Module.manifest`, whose findings are
-// `Module.validate`'s and now include the graph's three rules, and the Sync contract's `facts`.
-// Ceiling raised by that, rounded up.
+// +619 bytes for the law graph (#537), measured by building the page with and without it in one tree on 2026-11-14: the page calls `Module.manifest`, whose findings are
+// `Module.validate`'s and reach the graph's three rules. Ceiling raised by that, rounded up. When the graph took over deriving each contract's
+// laws from their declarations (#537 review), the page, which reaches that path, measured +175 bytes in one tree (Sync's facts left it,
+// `lawFactsOf` and the derivation came in); the ceiling was not raised for it.
 // +1191 bytes for row revisions and read-after tokens on Remote's wire (#544), measured by building the page with and without them in one tree on 2026-11-14: the wire's schemas, the token in each coalesced read, the floors and revisions in the store and reducer. Ceiling raised by that, rounded up.
 const CEILING = 257_700
 

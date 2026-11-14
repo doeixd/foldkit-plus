@@ -15,7 +15,8 @@ const CEILINGS: ReadonlyArray<readonly [port: string, ceiling: number]> = [
   // 199,529 bytes on 2026-11-14: the page registers Mutations, so the declared-write work
   // reaches it (`foldkit-entity` enumerate 2.8 kB minified, write 0.8, refine 0.6, footprint
   // 0.6, invariant 0.5; `foldkit-remote` remote 0.4); ceiling that plus about 0.5%.
-  // api-cache +209 bytes for the law graph's facts (#537), measured by building the page with and without them in one tree on 2026-11-14: each declared write's `facts`.
+  // api-cache: +209 bytes were raised for the law graph's facts (#537), which then left the page for `Module.graph`'s path; measured with and without the move in one tree on 2026-11-14 the page
+  // declares no write and moved +43 bytes (70 fewer minified), so the ceiling stays.
   // api-cache +996 bytes for row revisions and read-after tokens on Remote's wire (#544), measured by building the page with and without them in one tree on 2026-11-14.
   ['api-cache', 202_000], // 194,578 bytes
   ['auth', 151_000], // 148,015 bytes
