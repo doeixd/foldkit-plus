@@ -1214,6 +1214,36 @@ Three words stay apart here. A slot contract or a `provides` is **declared**: th
 together. Only a browser test is **rendered**: it says the behaviour happened on a page. None of
 them is WCAG conformance.
 
+`Conformance` from `foldkit-mixins/testing` is the rendered word. Each scenario takes a harness
+(`{ root, press, accessibility, click }`: Vitest's keyboard, and Chromium's own accessibility
+tree, which Vitest's locators do not match) and returns its findings as plain data, so a widget
+and a view assembled from primitives are held to one behaviour:
+
+```ts
+import { Conformance } from 'foldkit-mixins/testing'
+
+declare const harness: Conformance.Harness
+declare const button: HTMLElement
+
+const result = await Conformance.listbox(harness, {
+  name: 'Frequency',
+  options: ['Hourly', 'Daily', 'Weekly'],
+  disabled: 'Daily',
+  orientation: 'horizontal',
+  direction: 'rtl',
+  enter: async () => button.focus(), // gives the keyboard to the widget, options drawn
+})
+console.log(Conformance.failures(result)) // []
+```
+
+`Conformance.listbox`, `.checkbox`, `.tree`, `.dialog` (focus in, Tab contained, Escape, focus
+restored, a second dialog opened over the first) and `.tabs` read what the page did: roles and
+names from the accessibility tree, `aria-selected`, `aria-checked` and `aria-expanded` from the
+page, focus from `document`. They read no Model, Slot or obligation. `Conformance.server(scenario,
+root, expected)` is the server half: parse a rendered string and it checks each expected role,
+name and attribute. `harness.ts` in `packages/mixins-ui/test/conformance` is the browser harness.
+`SlotView.describe(view).conforms` lists the patterns a view was conformed to.
+
 ### Obligations: who does what a pattern asks
 
 A contract that publishes `keydown` on a list does not navigate it, and one that publishes

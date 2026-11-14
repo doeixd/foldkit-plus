@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins/testing`: `Conformance` (#552 rendered, #558 item 1), scenarios
+  `listbox`, `checkbox`, `tree`, `dialog` (focus in, Tab contained, Escape,
+  restore, a dialog over a dialog) and `tabs`, each a function of a harness
+  that returns its findings as data, with roles and names read from Chromium's
+  accessibility tree, and `Conformance.server` for markup parsed back.
+  `SlotView.describe(view)` gains `conforms`, the patterns `A11y.conform`
+  checked the view against.
 - `foldkit-primitives/interaction`: `Reorder`, a keyboard path for moving an
   item in a list or a tree (#558 item 3). One Bundle holds the draft (`held`,
   `over`); Space or Enter picks up and drops, the arrows, Home and End walk

@@ -68,6 +68,14 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   they supply on the binder overload only; a hand-written Behavior states it in its type
   (`NamedBehavior<S, I, M, 'clear/activation'>`), and the run-time check holds it to `provides`.
   An annotated `SlotView<S, I, M>` forgets what it supplied. Structural, never WCAG.
+- **Rendered conformance** (#552, #558): `Conformance` (`foldkit-mixins/testing`) runs
+  `listbox`, `checkbox`, `tree`, `dialog` and `tabs` over a mounted widget with a harness
+  `{ root, press, accessibility, click }` and returns `ReadonlyArray<{ scenario, check, passed,
+  detail }>` (`Conformance.failures(result)` keeps the failed ones). Names and roles come from
+  Chromium's accessibility tree; state, focus and keys from the page. `Conformance.server(scenario,
+  root, expected)` reads server markup parsed back. A scenario runs over the shipped widget and
+  over a view assembled from primitives alike. `SlotView.describe(view).conforms` reports the
+  patterns `A11y.conform` checked (slots with capability and obligation names).
 - **Parts** cut a big view so each piece redraws only when what it reads changes:
   `const P = SlotView.parts(S)<Input, Message>()`, `P.part(name, { reads: ['k'], behaviors },
   (input, slots, h) => …)` (input is `Pick<Input, 'k'>`), `P.assemble((input, slots, h, draw) =>
