@@ -112,9 +112,9 @@ provided.
   `resolvePrincipal` decides from the request, through the middleware `middleware(principal)` builds (trusting it; no
   request header reaches it). It binds no command (writes fail `RemoteMutationError`), opens no live stream, and notes
   every read private in `PageReads`. Provide it to `Data.satisfy` in `foldkit-ssr`'s `prepare`, with the hosted model's
-  Layer. `Remote.resume` carries each row's revision and floor; the browser's live stream names those revisions
-  (`LiveRequirement.revisions`) and the adapter sends no frame at or before them, so the page reads nothing it was
-  handed.
+  Layer. `Remote.resume` carries each row's revision (the reader never writes, so no row holds a floor); the
+  browser's live stream names those revisions (`LiveRequirement.revisions`) and the adapter sends no frame at or before
+  them, so the page reads no row it was handed (a live list is read once more as its stream opens).
 - **`Lower.write` (`/lower`)** derives a command, `decide`, `evolve`, the View and both bindings from a declared
   `Write`, landing it through `RemoteServer.write` over `GuardServer.writer` over `RemoteServer.memoryWriter`; you give
   `event`, `record`, `apply`, `revision`, `principal`, `middleware`, `listed`, `policy`. `Lower.check` lists what keeps a

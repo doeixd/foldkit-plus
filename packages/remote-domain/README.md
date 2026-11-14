@@ -307,12 +307,14 @@ and the tests of this package fail when it does.
 ## First paint from a server render
 
 A page rendered on the server reads the Domain model in the server's own
-process, and the browser takes the page over without reading any of it again.
+process, and the browser takes the page over without reading any row of it
+again (a live list is read once more as its stream opens, for a row that may
+have joined since the render).
 Two things carry that, and neither is new state:
 
 ```text
 server:  request -> principal (from the request) -> pageReader -> Data.satisfy -> render
-           Remote.resume sends each row read, with its revision (and a floor, if any)
+           Remote.resume sends each row read, with its revision
 browser: adopts the markup; the read entry plans nothing; the live stream names
          each row's revision, and the adapter sends no frame at or before it
          (a live list is invalidated as its stream opens, and read once more)
@@ -354,8 +356,11 @@ const reader = pageReader(NotesApi, {
   and query is noted private for a render `foldkit-ssr` may keep (`PageReads`),
   so a page read as someone is never served to someone else.
 - **What crosses is Remote's.** `Remote.resume(Data)` in the plan's `parts`
-  sends each row the page's Surfaces read with its revision, and a row a write
-  in the render held to a receipt with its floor. The browser's `DomainRemote.layer`
+  sends each row the page's Surfaces read with its revision. (It would also
+  send a row a write in the render held to a receipt with its floor, as a
+  backend whose page reader writes does for a form posted without scripts;
+  `pageReader` binds no command, so no render through it writes.) The
+  browser's `DomainRemote.layer`
   then answers a live stream that names those revisions (`LiveRequirement.revisions`)
   with no frame at or before them: a change made between render and hydration
   is newer, and arrives as a patch.

@@ -30,7 +30,7 @@ version changed; `pnpm` skips versions already in the registry.
   middleware built for that principal alone. It binds no command, opens no live stream and
   notes every read private. The adapter's `live` sends no frame at or before a
   revision the client names (`LiveRequirement.revisions`), so a page resumed
-  from a server render reads nothing it was handed; `examples/writes-domain`
+  from a server render reads no row it was handed (a live list once more); `examples/writes-domain`
   renders and hydrates its shop that way under jsdom.
 - `foldkit-remote`: a live stream names the revision it holds each row at,
   every field it follows written at that revision, none stale and no floor
