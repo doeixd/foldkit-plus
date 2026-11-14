@@ -7,12 +7,11 @@ import { Option } from 'effect'
 import { Behavior, Behaviors, Style, SlotView } from 'foldkit-mixins'
 import { FocusRecovery, ListNavigation, RovingTabindex } from 'foldkit-primitives/interaction'
 import { Message, Nav, navArgs, resultId, resultsOf, type Model } from './app.js'
-import { SearchSlots, SearchStyle } from './view.js'
+import { SearchSlots, SearchStyle, itemsOf } from './slots.js'
 
 const { Keys } = Behaviors
 
-const items = (model: Model) =>
-  Behaviors.Collection.of(resultsOf(model), { id: fruit => resultId(model.id, fruit) })
+const items = itemsOf
 
 const keys = Keys.behavior(SearchSlots)<Model, Message>({
   slot: 'input',

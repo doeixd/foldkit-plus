@@ -7,37 +7,12 @@
  * binder, for the type-cost comparison in the README.
  */
 import { Option } from 'effect'
-import {
-  Behavior,
-  Behaviors,
-  Capability,
-  Event,
-  Slot,
-  Slots,
-  SlotView,
-  Style,
-} from 'foldkit-mixins'
+import { Behavior, Behaviors, SlotView, Style } from 'foldkit-mixins'
 import { FocusRecovery, ListNavigation, RovingTabindex } from 'foldkit-primitives/interaction'
-import { active, control, focus, panel, t } from '../style.js'
 import { Message, Nav, fruitOf, navArgs, resultId, resultsOf, type Model } from './app.js'
+import { CompactSearchStyle, SearchSlots, SearchStyle, itemsOf } from './slots.js'
 
 const { Keys } = Behaviors
-
-export const SearchSlots = Slots.define({
-  root: Slot.make({ capability: Capability.Container }),
-  input: Slot.make({
-    capability: Capability.TextInput,
-    events: [Event.KeyDown],
-  }),
-  clear: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
-  list: Slot.make({ capability: Capability.Container }),
-  option: Slot.make({ capability: Capability.Focusable }),
-  status: Slot.make({ capability: Capability.Container }),
-})
-
-/** The results as one Collection, so identity, order and the keys agree. */
-export const itemsOf = (model: Model) =>
-  Behaviors.Collection.of(resultsOf(model), { id: fruit => resultId(model.id, fruit) })
 
 const Search = SlotView.over(SearchSlots)<Model, Message>()
 
@@ -119,59 +94,6 @@ export const Recovers = FocusRecovery.behavior(Search)({
   parts: { input: [], clear: [{ part: 'input' }], option: ['next', 'previous', { part: 'input' }] },
 })
 
-/**
- * The look as a recipe: the default selection is what the field ships with,
- * `compact` is an application's override of it.
- */
-export const SearchRecipe = Style.recipeFor(SearchSlots)({
-  base: {
-    root: Style.self({
-      position: 'relative',
-      display: 'inline-grid',
-      gap: t.space['2xs'],
-      inlineSize: '20rem',
-    }),
-    input: Style.compose(
-      Style.self({ boxSizing: 'border-box', inlineSize: '100%', cursor: 'text' }),
-      control,
-      focus,
-    ),
-    clear: Style.compose(
-      Style.self({
-        position: 'absolute',
-        insetBlockStart: t.space['2xs'],
-        insetInlineEnd: t.space['2xs'],
-      }),
-      control,
-      focus,
-    ),
-    list: Style.compose(panel, Style.self({ display: 'grid' })),
-    option: Style.compose(
-      Style.self({ paddingBlock: t.space.xs, paddingInline: t.space.sm, cursor: 'pointer' }),
-      active,
-    ),
-    status: Style.self({ fontSize: t.size.sm, minBlockSize: '1.25rem' }),
-  },
-  variants: {
-    density: {
-      roomy: {},
-      compact: {
-        input: Style.self({ paddingBlock: t.space['3xs'] }),
-        option: Style.self({ paddingBlock: t.space['3xs'] }),
-      },
-    },
-  },
-  defaults: { density: 'roomy' },
-})
-
-export const SearchStyle = Style.forSlots(SearchSlots)(SearchRecipe({}), { name: 'SearchStyle' })
-export const CompactSearchStyle = Style.forSlots(SearchSlots)(
-  SearchRecipe({ density: 'compact' }),
-  {
-    name: 'CompactSearchStyle',
-  },
-)
-
 export const SearchField = Search.define((model, slots, h) => {
   const shown = resultsOf(model)
   const items = itemsOf(model)
@@ -236,3 +158,6 @@ export const SearchField = Search.define((model, slots, h) => {
 )
 
 export { fruitOf }
+
+/** The same field with the application's own selection of its recipe laid over the default. */
+export const CompactSearchField = SearchField.pipe(Style.attach(CompactSearchStyle))

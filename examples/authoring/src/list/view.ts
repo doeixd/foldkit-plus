@@ -33,6 +33,7 @@ export const ListSlots = Slots.define({
   editor: Slot.make({ capability: Capability.TextInput, events: [Event.KeyDown] }),
   dismiss: Slot.make({ capability: Capability.Interactive }),
   add: Slot.make({ capability: Capability.Interactive }),
+  live: Slot.make({ capability: Capability.Container }),
 })
 
 const List = SlotView.over(ListSlots)<Model, Message>()
@@ -107,6 +108,15 @@ export const ListStyle = Style.forSlots(ListSlots)(
     editor: Style.compose(control, focus, Style.self({ flex: '1', cursor: 'text' })),
     dismiss: Style.compose(control, focus, dimmed),
     add: Style.compose(control, focus),
+    // Spoken, never drawn: `display: none` would silence the regions.
+    live: Style.nest('& [data-foldkit-plus-live]', {
+      position: 'absolute',
+      inlineSize: '1px',
+      blockSize: '1px',
+      overflow: 'hidden',
+      clipPath: 'inset(50%)',
+      whiteSpace: 'nowrap',
+    }),
   },
   { name: 'ListStyle' },
 )
@@ -170,7 +180,7 @@ export const EditableList = List.define((model, slots, h) =>
       }),
     ),
     h.button(slots.add.attrs([h.Type('button'), h.OnClick(Message.Added())]), ['Add item']),
-    LiveAnnounce.view(model.live, h),
+    h.div(slots.live.attrs(), [LiveAnnounce.view(model.live, h)]),
   ]),
 ).pipe(
   Behavior.attach(Reorders),

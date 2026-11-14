@@ -69,17 +69,20 @@ export const initialOf = (id: string) => assembly.initial({ id, query: '', picke
 
 export const update = assembly.update((model, message) =>
   Match.valueTags(message, {
-    Typed: ({ text }) => ({
-      model: modifyFields(model, { query: () => text, picked: () => Option.none() }),
-    }),
-    Cleared: () => ({
-      model: modifyFields(model, { query: () => '', picked: () => Option.none() }),
-    }),
-    Picked: ({ id }) => ({
-      model: modifyFields(model, {
-        query: () => fruitOf(model.id, id),
-        picked: () => Option.some(fruitOf(model.id, id)),
-      }),
-    }),
+    Typed: ({ text }) =>
+      text === model.query && Option.isNone(model.picked)
+        ? { model }
+        : { model: modifyFields(model, { query: () => text, picked: () => Option.none() }) },
+    Cleared: () =>
+      model.query === '' && Option.isNone(model.picked)
+        ? { model }
+        : { model: modifyFields(model, { query: () => '', picked: () => Option.none() }) },
+    Picked: ({ id }) => {
+      const fruit = fruitOf(model.id, id)
+      // A result id of another instance or of a result since gone names no fruit here.
+      return !FRUITS.includes(fruit) || Option.exists(model.picked, picked => picked === fruit)
+        ? { model }
+        : { model: modifyFields(model, { query: () => fruit, picked: () => Option.some(fruit) }) }
+    },
   }),
 )

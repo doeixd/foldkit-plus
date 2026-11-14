@@ -97,6 +97,14 @@ test('Space picks a row up, the arrow carries it, Space drops it, and focus neve
     expect(titles()).toEqual(['Review the pull request', 'Write the guide', 'Ship it']),
   )
   await vi.waitFor(() => expect(document.activeElement).toBe(button('Move Write the guide')))
+  // The drop is also spoken, and the regions are drawn though never seen.
+  const spoken = () =>
+    Array.from(document.querySelectorAll('[data-foldkit-plus-live]'))
+      .map(region => region.textContent)
+      .join(' ')
+  await vi.waitFor(() => expect(spoken()).toContain('Write the guide'))
+  const region = document.querySelector<HTMLElement>('[data-foldkit-plus-live]')!
+  expect(region.getBoundingClientRect().width).toBeLessThanOrEqual(1)
 })
 
 test('Escape puts a held row back where it was', async () => {
