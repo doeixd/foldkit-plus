@@ -4,12 +4,21 @@
  * that only the Messages the Surface lists move them.
  */
 import { Option } from 'effect'
-import { Closure } from 'foldkit-surface'
+import { Closure, ClosureViolation } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { AppAgent } from '../src/agent.js'
 import { AgentContext, App, Message, type Model } from '../src/stack.js'
 
-const violations = Closure.violations(App, [AgentContext])
+const check = Closure.violations(App, [AgentContext])
+
+/** A step's violations as a reader of a failing walk wants them. */
+const violations = (before: Model, message: Message, after: Model) =>
+  check(before, message, after).map(
+    ClosureViolation.$match({
+      Reads: ({ surface, fields }) => `${surface}: ${message._tag} read ${fields.join(', ')}`,
+      Outside: ({ surface }) => `${surface}: moved by ${message._tag}, which it does not list`,
+    }),
+  )
 
 /** One step of the walk: the Messages go in order, each from the Model the last one left. */
 const walk = (messages: ReadonlyArray<Message>, start: Model = App.initial) => {
@@ -52,7 +61,7 @@ describe('The agent context Surface', () => {
     const before = App.initial
     const after = { ...before, notes: [{ id: 'n1', body: 'sneaked' }] }
     expect(violations(before, Message.Ping(), after)).toEqual([
-      { surface: 'AgentContext', kind: 'outside' },
+      'AgentContext: moved by Ping, which it does not list',
     ])
   })
 })

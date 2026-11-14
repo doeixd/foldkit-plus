@@ -115,7 +115,8 @@ says its projection after a Message in `messages` depends only on the projection
 before and the Message, and that no other Message changes it. Nothing enforces
 it at run time: `Closure.violations(app, surfaces)` returns `(before, message,
 after) => violations` for a walk, testing only closed Surfaces
-(`{ surface, kind: 'reads', fields }` or `{ surface, kind: 'outside' }`); a
+(a `ClosureViolation`, `Reads({ surface, fields })` or `Outside({ surface })`,
+read through `ClosureViolation.$match`); a
 closed Surface with params is refused. `Surface.contract` carries `closed`.
 `examples/kitchen-sink` declares its agent context closed and walks it.
 

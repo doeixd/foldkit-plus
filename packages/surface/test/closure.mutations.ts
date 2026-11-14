@@ -45,6 +45,11 @@ export default [
     'const fields = reads(app, projection, before, message)',
     'const fields: ReadonlyArray<string> = []',
   ),
+  edit(
+    'a Message outside the set is reported as a read',
+    '[ClosureViolation.Outside({ surface: name })]',
+    '[ClosureViolation.Reads({ surface: name, fields: [] })]',
+  ),
   edit('closed is ignored: every Surface is tested', '.filter(surface => surface.closed)', ''),
   edit(
     'closed is ignored: the flag is always false',

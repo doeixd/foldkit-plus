@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { describe, expect, it } from 'vitest'
-import { Closure, Surface } from '../src/index.js'
+import { Closure, ClosureViolation, Surface } from '../src/index.js'
 
 const Model = Schema.Struct({
   todos: Schema.Array(Schema.String),
@@ -48,13 +48,13 @@ describe('Closure.violations', () => {
       'a Message in the set that reads outside the Surface, naming the field',
       model,
       Message.ClearedShown(),
-      [{ surface: 'Shown', kind: 'reads', fields: ['filter'] }],
+      [ClosureViolation.Reads({ surface: 'Shown', fields: ['filter'] })],
     ],
     [
       'a Message outside the set that changes the projection',
       model,
       Message.Sneaked(),
-      [{ surface: 'Shown', kind: 'outside' }],
+      [ClosureViolation.Outside({ surface: 'Shown' })],
     ],
     ['nothing for a Message in the set that reads only the Surface', model, Message.Emptied(), []],
     [
@@ -87,9 +87,13 @@ describe('Closure.violations', () => {
     })
     const check = Closure.violations(App, [shown(true), calm])
     const sneaked = Message.Sneaked()
-    expect(check(model, sneaked, update(model, sneaked).model)).toEqual([
-      { surface: 'Shown', kind: 'outside' },
-    ])
+    const named = check(model, sneaked, update(model, sneaked).model).map(
+      ClosureViolation.$match({
+        Reads: ({ surface, fields }) => `${surface} reads ${fields.join(', ')}`,
+        Outside: ({ surface }) => `${surface} moved by a Message outside it`,
+      }),
+    )
+    expect(named).toEqual(['Shown moved by a Message outside it'])
   })
 
   it('refuses a closed Surface with params, which has no one projection', () => {
@@ -99,6 +103,15 @@ describe('Closure.violations', () => {
       closed: true,
     })
     expect(() => Closure.violations(App, [byKey])).toThrow('declares params')
+  })
+
+  it('takes Surfaces of the application’s Model only', () => {
+    const other = {
+      initial: { count: 0 },
+      update: (model: { readonly count: number }) => ({ model }),
+    }
+    // @ts-expect-error `Shown` reads another Model
+    expect(() => Closure.violations(other, [shown(true)])).not.toThrow()
   })
 
   it('carries the flag on the Surface and its contract', () => {

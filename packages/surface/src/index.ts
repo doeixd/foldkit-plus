@@ -20,8 +20,8 @@ import type { Url } from 'foldkit/url'
 import { Metadata, type MetadataSummary } from 'foldkit-metadata'
 
 export { Metadata, MetadataTypeId, type MetadataKey, type MetadataSummary } from 'foldkit-metadata'
-export { Closure, type ClosureProjection, type ClosureViolation } from './closure.js'
-import { messageTag, messageTags } from './messageTags.js'
+export { Closure, type ClosureProjection, ClosureViolation } from './closure.js'
+import { hasTagIn, messageTag, messageTags } from './messageTags.js'
 export { Diagnostics, type Diagnostic, type ReportDiagnostic } from './diagnostics.js'
 export {
   CachedRead,
@@ -218,12 +218,6 @@ function propertyReader(root: unknown, key: string): unknown {
 function optionalReader(value: unknown): Option.Option<unknown> {
   return value === undefined ? Option.none() : Option.some(value)
 }
-
-/** Whether a Message, of an application this cannot name, has one of `tags`. */
-const hasTagIn = (tags: ReadonlySet<string>, message: unknown): boolean =>
-  Predicate.hasProperty(message, '_tag') &&
-  typeof message._tag === 'string' &&
-  tags.has(message._tag)
 
 function makeTree(
   schema: AnySchema,

@@ -290,9 +290,10 @@ check(initial, counted, update(initial, counted).model)
 // []: Counted is outside the Surface and leaves its projection alone
 ```
 
-A violation is `{ surface, kind: 'reads', fields }` for a Message in the set that
-reads fields outside the Surface (the fields are named), or `{ surface, kind:
-'outside' }` for a Message outside the set that changed the projection.
+A violation is a `ClosureViolation`: `Reads({ surface, fields })` for a Message
+in the set that reads fields outside the Surface (the fields are named), or
+`Outside({ surface })` for a Message outside the set that changed the
+projection. Read one through `ClosureViolation.$match`.
 `Surface.contract` carries `closed: true` for such a Surface.
 
 ## Applications
@@ -737,7 +738,7 @@ that may observe across those runtime boundaries without creating another one.
 - Application scopes (`Surface.application`) and their identity token.
 - Typed Message subsets (`MessageSet.make`, `MessageSet.union`).
 - `Closure.reads`: whether a projection after a Message depends on the rest of the Model.
-- `Closure.violations`: the closed Surfaces a step broke; `Surface.make`'s and `App.surface`'s `closed`.
+- `Closure.violations`: the closed Surfaces a step broke, as `ClosureViolation`s; `Surface.make`'s and `App.surface`'s `closed`.
 - Actions (`Action.define`, `Action.run`): a named capability ending in a Message.
 - Named Surfaces and their renderer binding.
 - The `Diagnostics` channel and its default reporter; each package owns its own
