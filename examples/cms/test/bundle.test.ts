@@ -20,7 +20,11 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // `live` takes Remote's `liveQuery` from the caller, so Crud no longer keeps liveEvents, liveReads
 // and live (5.8 kB minified, `absent` below); the live entry and its state stay, which every
 // `Data.subscriptions` entry carries. Ceiling lowered by that, rounded up.
-const CEILING = 291_800
+// +89 bytes for `policies` on `Data.wiring` (#236), measured in one tree on 2026-11-14 with and
+// without it (292,065 and 292,154): every subscriptions call goes through one function taking
+// each key's policy, and the wiring checks the keys it is given. Ceiling raised by that, rounded
+// up; the page was over it already from other growth (292,065), which this does not cover.
+const CEILING = 291_900
 
 clientBudget({
   name: 'cms',

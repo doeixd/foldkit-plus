@@ -20,7 +20,11 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +250 on 2026-11-14 (#560 Remote review): the page reads live, and its live stream now names a
 // row's revision only for the fields written at it (the store keeps which, the capture carries
 // them) and at most 256 revisions; measured 249,168 before and 249,375 after in one tree.
-const CEILING = 249_550
+// +211 bytes for `policies` on `Data.wiring` (#236), measured in one tree on 2026-11-14 with
+// and without it (249,481 and 249,692): every subscriptions call goes through one function
+// taking each key's policy, and the wiring checks the keys it is given. Ceiling raised by that,
+// rounded up.
+const CEILING = 249_800
 
 clientBudget({
   name: 'reference',

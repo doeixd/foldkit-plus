@@ -34,7 +34,11 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +276 bytes for a live stream naming the revisions it holds (A-WP9), measured by building the page with and without it
 // in one tree on 2026-11-14 (256,853 and 257,129): `LiveRequirement.revisions` on the wire, the held revisions the live
 // capability works out and the live entry asks for, and the field passed on by the RPC client. Ceiling raised by that, rounded up.
-const CEILING = 257_400
+// +199 bytes for `policies` on `Data.wiring` (#236), measured in one tree on 2026-11-14 with
+// and without it (257,263 and 257,462): every subscriptions call goes through one function
+// taking each key's policy, and the wiring checks the keys it is given. Ceiling raised by that,
+// rounded up.
+const CEILING = 257_600
 
 clientBudget({
   name: 'registry',
