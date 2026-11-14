@@ -8,6 +8,17 @@ const browser = 'packages/mixins-ui/test/passwordInput.browser.test.ts'
 
 export default [
   {
+    name: 'the Caps Lock reading draws no keydown owner',
+    edits: [
+      {
+        file: '../src/passwordInput.ts',
+        find: ': [h.OnKeyDown((key, modifiers) => capsLock.onKey(capsLockOf(key, modifiers)))]),',
+        replace: ': []),',
+      },
+    ],
+    tests: [unit],
+  },
+  {
     name: 'the password shows while hidden',
     edits: [
       {

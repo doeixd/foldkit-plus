@@ -28,7 +28,7 @@ export const PasswordInputSlots = Slots.define({
   group: Slot.make({ capability: Capability.Container }),
   input: Slot.make({
     capability: Capability.TextInput,
-    events: [Event.Input],
+    events: [Event.Input, Event.KeyDown],
     attributes: [Attr.AriaInvalid, Attr.Disabled, Attr.Value],
   }),
   toggle: Slot.make({
