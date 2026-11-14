@@ -63,14 +63,14 @@ export default [
   edit(
     'a call keeps only the last policy of an entry',
     remote,
-    'policies.set(entry, new Map(policies.get(entry)).set(key, options.policy))',
-    'policies.set(entry, new Map([[key, options.policy]]))',
+    'policies.set(entry, new Map(policies.get(entry)).set(key, policy))',
+    'policies.set(entry, new Map([[key, policy]]))',
   ),
   edit(
     'a reader wired again keeps the policy it had',
     remote,
-    'policies.set(entry, new Map(policies.get(entry)).set(key, options.policy))',
-    'policies.set(entry, new Map(policies.get(entry)).set(`${key}${Math.random()}`, options.policy))',
+    'policies.set(entry, new Map(policies.get(entry)).set(key, policy))',
+    'policies.set(entry, new Map(policies.get(entry)).set(`${key}${Math.random()}`, policy))',
   ),
   edit('an entry no call names reads under any policy', remote, '    policies.has(entry) &&\n', ''),
   edit(

@@ -115,6 +115,18 @@ describe('Data.wiring with policies', () => {
     expect(wiring.subscriptions['feed.read']!.modelToDependencies(loaded).expires).toBeNull()
   })
 
+  it('reads an entry it names with no policy under policy', () => {
+    const Data = domain()
+    const wiring = Data.wiring(activesOf(Data), {
+      policy: grid,
+      policies: { grid: undefined },
+      now: () => 0,
+    })
+    const loaded = reduceAll(Data, [answered(mine, 'u1', 0)])
+
+    expect(wiring.subscriptions['grid.read']!.modelToDependencies(loaded).expires?.at).toBe(1_000)
+  })
+
   it('reads a key Object.prototype holds under policy, not under what the prototype answers', () => {
     const Data = domain()
     const wiring = Data.wiring(
@@ -141,9 +153,14 @@ describe('Data.wiring with policies', () => {
 describe('A list two entries read, under policies', () => {
   // Both entries read `mine`; the retain root says whether the list keeps its
   // age once left (`234-352-cache-DESIGN.md`).
-  const rootOf = (options: Parameters<ReturnType<typeof domain>['wiring']>[1]) => {
+  // `oneSurface` names one active entry under both keys.
+  const rootOf = (
+    options: Parameters<ReturnType<typeof domain>['wiring']>[1],
+    oneSurface = false,
+  ) => {
     const Data = domain()
-    const wiring = Data.wiring(activesOf(Data, mine), options)
+    const actives = activesOf(Data, mine)
+    const wiring = Data.wiring(oneSurface ? { ...actives, feed: actives.grid } : actives, options)
     return wiring.subscriptions.retain!.modelToDependencies(start).connections
   }
 
@@ -160,5 +177,14 @@ describe('A list two entries read, under policies', () => {
     expect(
       rootOf({ policy: grid, policies: { feed: RemotePolicy.cacheFirst } })[0],
     ).not.toHaveProperty('ages')
+  })
+
+  it('is held stale when one Surface under two keys ages it under one of them', () => {
+    expect(
+      rootOf({ policy: RemotePolicy.cacheFirst, policies: { grid } }, true)[0],
+    ).not.toHaveProperty('ages')
+    expect(rootOf({ policy: feed, policies: { grid } }, true)).toMatchObject([
+      { identity: mine.ref.identity, ages: true },
+    ])
   })
 })

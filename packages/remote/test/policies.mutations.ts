@@ -36,9 +36,14 @@ export default [
     '      policies.set(entry, new Map(policies.get(entry)).set(key, options.policy))',
   ),
   edit(
-    'a list one entry ages and one does not keeps its age',
+    'a Surface one of its keys does not age keeps its age',
     '    [...policies.get(entry)!.values()].every(policy => policyAt(policy, model)._tag === tag)',
     '    [...policies.get(entry)!.values()].some(policy => policyAt(policy, model)._tag === tag)',
+  ),
+  edit(
+    'a list one entry does not age keeps its age',
+    'root.select === undefined || unaged.has(root.identity)',
+    'root.select === undefined',
   ),
   edit(
     'a key the active record lacks is let through',

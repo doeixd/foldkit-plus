@@ -35,9 +35,9 @@ export default [
     edits: [
       {
         file: '../src/remote.ts',
-        find: '        const asked = (model: AppModel) =>\n          askedUnion(resolvedAt(model).map(({ projection }) => projection))',
+        find: '      const asked = (model: AppModel) =>\n        askedUnion(resolvedAt(model).map(({ projection }) => projection))',
         replace:
-          '        const asked = (model: AppModel) =>\n          askedUnion(resolvedAt(model).slice(0, 1).map(({ projection }) => projection))',
+          '      const asked = (model: AppModel) =>\n        askedUnion(resolvedAt(model).slice(0, 1).map(({ projection }) => projection))',
       },
     ],
     tests,
