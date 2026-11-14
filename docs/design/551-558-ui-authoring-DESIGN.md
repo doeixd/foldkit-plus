@@ -20,7 +20,7 @@ composition of values that exist, plus the few values that were missing.
 
 | # | Issue | Question | Decision |
 | --- | --- | --- | --- |
-| D1 | #551 | Is an assembly helper justified? | **Yes, one, and it is not a new kind of value.** `SlotView.over(slots)<Input, Message>()` names the slots, the input and the Message universe once and hands back `define`, `behavior`, `use` and `parts` already bound. Its result is the SlotView that `SlotView.define` returns today. `SurfaceView.over(surface, slots)` is the same binder with both types read from the Surface, so it takes no annotation at all. |
+| D1 | #551 | Is an assembly helper justified? | **Yes, one, and it is not a new kind of value.** `SlotView.over(slots)<Input, Message>()` names the slots, the input and the Message universe once. It hands back `define`, `behavior` and `parts` already bound, and every Behavior factory takes it where it takes the slots today. Its `define` returns the SlotView that `SlotView.define` returns today. `SurfaceView.over(surface, slots)` is the same binder with both types read from the Surface, so it takes no annotation at all. |
 | D2 | #551 | Is there a "widget" object beside the SlotView? | **No.** The assembled widget is the SlotView. What it gains (D3) is the record of what was attached to it. No placement layer: where a child's state lives stays `Bundle.declare` and `Parent.at` until Blocks replace them (#190 Phase 1), and the binder never touches it. |
 | D3 | #556, #552, #554 | What does a view remember about an attachment? | **Its name, its kind, what it requires and what it supplies, per slot, in order.** Today `Behavior.attach` keeps `{ name, contributions }` and drops the rest. A Mixin gains a frozen `meta`; `SlotView.detach(name)` and `SlotView.replace(name, mixin)` return new views. |
 | D4 | #554, #556 | Who does a resolver conflict name? | **Both contributors, by attachment name** (`"the view"` for base attributes), beside the tag it names today. |
@@ -114,6 +114,18 @@ only when its function answers `Some`; `OnKeyDown` dispatches on every key and
 cannot decline; nothing stops propagation; two handlers given to one vnode
 chain (`addDataOn`, `:210-225`). Real IME input was not driven.
 
+**Types.** A scratch file of declarations modelling `Bound`, `NamedBehavior`
+with a provided union, `View` with a fourth parameter, `attach` and `conform`,
+compiled alone with the workspace's TypeScript 7.0.2 and deleted. It models
+the mechanism, not the packages: the work packages prove it on the real types.
+
+| # | Finding | Evidence |
+| --- | --- | --- |
+| T1 | A factory given the binder types its options from it with nothing annotated, hoisted and inline inside `pipe`, and refuses an unknown slot, a field the input lacks and a Message outside the universe. The old `(slots)<Input, Message>` call still compiles. | Three `@ts-expect-error` used; no other error |
+| T2 | `Search.use(factory)` does not type: the overloaded factory resolves to its last overload as an argument. | `TS18046: 'input' is of type 'unknown'` |
+| T3 | A view accumulates what its attachments provide through `pipe`, and `conform` refuses a pattern they do not cover, an empty view, and a Behavior wired to the wrong slot. | Three errors where expected, one of them `lacks option/focus-strategy` for `item: 'clear'` |
+| T4 | The whole model costs 1,594 instantiations. | `--extendedDiagnostics` |
+
 Not probed: touch (`browser-touch`), a screen reader, Safari and Firefox, and
 snabbdom's choice of which element a keyed reorder moves.
 
@@ -157,7 +169,7 @@ folded them into one would remove the replaceability the issue asks to keep.
 // foldkit-mixins
 const Search = SlotView.over(SearchSlots)<SearchInput, Message>()
 
-const Keys = Search.use(ListNavigation.behavior(Results, navArgs), {
+const Keys = ListNavigation.behavior(Results, navArgs)(Search)({
   container: 'input',
   item: 'option',
   items: input => input.results, // `input` is SearchInput
@@ -171,14 +183,18 @@ export const SearchField = Search.define((input, slots, h) => …) // nothing an
   .pipe(Style.attach(SearchStyle), Behavior.attach(Keys), Behavior.attach(Clears))
 ```
 
-- `over(slots)<Input, Message>()` returns `{ slots, define, behavior, use, parts }`.
+- `over(slots)<Input, Message>()` returns a `Bound<Slots, Input, Message>`:
+  `{ slots, define, behavior, parts }`, carrying the two types.
 - `define(render, options?)` is `SlotView.define` with all three fixed.
 - `behavior(spec, options?)` is `Behavior.forSlots(slots)<Input, Message>(spec, options)`.
-- `use(factory, options)` applies a primitive's curried tail:
-  `factory(slots)<Input, Message>(options)`. Every primitive in
-  `foldkit-primitives/interaction` has that tail, as do the stateless ones
-  under `Behaviors`, so no primitive changes.
 - `parts` is `SlotView.parts(slots)<Input, Message>()`.
+- **A Behavior factory takes the binder where it takes the slots.** Every
+  factory in `foldkit-primitives/interaction` and under `Behaviors` ends in
+  `(slots)<Input, Message>(options)`. Each gains one overload, listed first:
+  `(bound: Bound<Slots, Input, Message>) => (options) => NamedBehavior`. The
+  old call stays. A `use(factory, options)` on the binder was tried and does
+  not type: a generic overloaded function passed as an argument resolves to
+  its last overload, and the options came out `unknown` (probe T2).
 - `SurfaceView.over(surface, slots)` returns the same record with `Input` the
   Surface's projected Model and `Message` its exposed subset.
 
@@ -187,9 +203,10 @@ second way to do what it does, since `forMessages` cannot type a Behavior.
 
 **What it must reject, each as a `@ts-expect-error` case:** a Behavior made by
 another binder with another Message (at `Behavior.attach`, as today); a
-`use` whose options read a field `Input` lacks; `behavior({ nope: … })` for a
-slot the contract does not publish; `define` returning a Message outside the
-universe. **What it must keep:** inference through `pipe` for six attachments
+factory's options that read a field `Input` lacks, name a slot the contract
+does not publish, or return a Message outside the universe;
+`behavior({ nope: … })`. Probe T1 compiled the first four against a model of
+these types. **What it must keep:** inference through `pipe` for six attachments
 without an annotation, tested inline and hoisted (the "curried generic's
 return type" trap).
 
@@ -279,7 +296,7 @@ its claim (`:28-30` reads a connected element as "the user left").
 
 ```ts
 // foldkit-primitives/interaction
-const Recovers = Search.use(FocusRecovery.behavior, {
+const Recovers = FocusRecovery.behavior(Search)({
   owner: 'root',
   parts: {
     clear: [{ part: 'input' }],
@@ -378,8 +395,8 @@ row 41 when it appears" would act frames later on a user who had moved on.
 The resolver gives each event one owner (`resolver.ts:270-286`), and
 `ListNavigation` is one Bundle rather than `RovingTabindex` plus `Typeahead`
 for that reason (`list-navigation.ts:1-8`); its `commit` option exists because
-Enter could not be a second handler (`:98-101`). Thirty source files in the
-UI packages write an `OnKeyDown*`, each a closed table of its own.
+Enter could not be a second handler (`:98-101`). About thirty source files in
+the UI packages write an `OnKeyDown*`, each a closed table of its own.
 
 ### The gap
 
@@ -399,7 +416,7 @@ const ArrowOpens = Keys.route<SearchInput, Message>('ArrowOpens', {
   on: [Keys.chord('ArrowDown', { alt: true })],
   handle: () => Option.some(Message.OpenedResults()),
 })
-const SearchKeys = Search.use(Keys.behavior, {
+const SearchKeys = Keys.behavior(Search)({
   slot: 'input',
   routes: [EscapeClears, ArrowOpens, ListNavigation.keys(Results, navArgs)({ … })],
 })
@@ -502,7 +519,7 @@ end the animation.
 
 ```ts
 // foldkit-primitives/interaction
-const Leaves = List.use(Presence.behavior, {
+const Leaves = Presence.behavior(List)({
   content: 'row',
   phase: (input, item) => input.rows[item.id].phase,
 })
@@ -630,11 +647,12 @@ export const Results = Search.define(…).pipe(
   `` `${slot}/${obligation}` `` literals, and a SlotView accumulates the union
   through `attach` in a fourth type parameter that defaults to `never`.
   `conform` takes a view whose union covers the pattern's, and otherwise its
-  parameter is `Invalid<'slot "option" lacks "focus-strategy"'>`. A Behavior
-  made without literal slot names (the `[options.item]: …` cast every
-  primitive uses today) provides `string` and is checked at run time only:
-  U-WP4 types the primitives' factories by their option literals so the six
-  suppliers above carry theirs.
+  parameter is `Invalid<'lacks option/focus-strategy'>` (probe T3). A factory
+  reads its slot names from its options as literals (`const O`), on the
+  binder overload only: `{ item: 'option' }` provides
+  `'option/focus-strategy'`. A Behavior made through the old
+  `(slots)<Input, Message>` call provides nothing at the type level and is
+  checked at run time, where `meta.provides` holds the same names.
 - `A11y.validate` stays as it is: the structural check of a bare contract.
 
 **Type cost.** The fourth parameter touches every `SlotView` mention. U-WP4
@@ -928,8 +946,9 @@ Rules for every package, from AGENTS.md, to be copied into each brief:
 
 ```text
 U-WP1 (mixins: attachments, contributors, #531, over)
+ ├── U-WP1b (every factory takes the binder)
  ├── U-WP2 (describe) ──────────────────────────────┐
- ├── U-WP3 (Keys) ── U-WP3b (primitives' routes, D8) ┤
+ ├── U-WP3 (Keys) ── U-WP3b (primitives' routes, D8; after U-WP1b) ┤
  ├── U-WP4 (obligations) ── U-WP7 (Conformance) ─────┤
  └── U-WP5 (FocusRecovery) ── U-WP6 (Presence) ──────┼── U-WP9 (examples) ── U-WP10 (docs)
 U-WP8 (Agent parts)  ────────────────────────────────┘
@@ -957,6 +976,24 @@ First, in parallel: U-WP1, U-WP8, U-WP11.
   when its constraint is widened; six attachments infer through `pipe` inline.
 - **Mutations:** drop the source name; skip the child `OnMount`; `detach`
   removing every match; `replace` appending instead of keeping the place.
+
+### U-WP1b. Every Behavior factory takes the binder
+
+- **Issues:** #551.
+- **Model:** Sonnet (one overload per factory, the design fixed by U-WP1).
+- **After:** U-WP1.
+- **Owns:** the `behavior` signatures in
+  `packages/primitives/src/interaction/*.ts` and
+  `packages/mixins/src/behaviors/*.ts`, a shared `bound` helper in
+  `packages/primitives/src/internal.ts`, `packages/primitives/test/bound.test-d.ts`.
+  It lands before U-WP3b, U-WP5 and U-WP12 open those files.
+- **Done when:** each factory accepts `Bound` first and the slots as before;
+  T1's cases hold for `ListNavigation`, `Selection`, `TreeNavigation`,
+  `FocusScope` and `Behaviors.Disclosure` on the real types, inline and
+  hoisted; `examples/tree` compiles unchanged, and compiles rewritten on the
+  binder with no `Model` or `Message` named after it.
+- **Mutations:** none of its own (types); each `@ts-expect-error` is shown to
+  go unused when its constraint is widened.
 
 ### U-WP2. `SlotView.describe`, `SlotView.resolution`
 
@@ -998,7 +1035,7 @@ First, in parallel: U-WP1, U-WP8, U-WP11.
 
 - **Issues:** #554 (D5, D8).
 - **Model:** Sonnet.
-- **After:** U-WP3.
+- **After:** U-WP3, U-WP1b.
 - **Owns:** `packages/primitives/src/interaction/{list-navigation,roving-tabindex,tree-navigation,grid-navigation,typeahead,dismiss-layer}.ts`,
   `packages/mixins/src/behaviors/spin-value.ts`, their tests and mutation
   specs.
@@ -1145,8 +1182,9 @@ First, in parallel: U-WP1, U-WP8, U-WP11.
 - `packages/mixins/src/index.ts`, `behaviors/index.ts`, `testing.ts`: one
   export line each from U-WP2, U-WP3, U-WP7; each through a temporary index.
 - `packages/mixins-surface/src/surfaceView.ts`: U-WP1 (`over`), then U-WP2.
-- `packages/primitives/src/interaction/tree-navigation.ts`: U-WP3b, then
-  U-WP5. `index.ts`: one line each from U-WP5, U-WP6, U-WP12.
+- `packages/primitives/src/interaction/*.ts` and
+  `packages/mixins/src/behaviors/*.ts`: U-WP1b's signatures first.
+  `tree-navigation.ts` then U-WP3b, then U-WP5. `index.ts`: one line each from U-WP5, U-WP6, U-WP12.
 - `packages/mixins-ui/src/patterns.ts`: U-WP4 alone.
 - `packages/agent/**`: U-WP8 alone. The laws note's WP9 (Agent `applies`)
   edits `expose.ts` and `runtime.ts`: whichever starts second rebases on the

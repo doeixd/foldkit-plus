@@ -370,17 +370,20 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
 6. **UI authoring** (#551 to #558): assembly from existing contracts,
    accessibility obligations, focus recovery, one keyboard owner, Presence
    with interaction and recovery, inspection, agent parts, and the UI SDK
-   audit. Work packages U-WP1 to U-WP12. Status of every one: not started.
+   audit. Work packages U-WP1 to U-WP12 (with U-WP1b and U-WP3b). Status
+   of every one: not started.
    First, in parallel: U-WP1, U-WP8, U-WP11.
    [551-558-ui-authoring-DESIGN.md](./docs/design/551-558-ui-authoring-DESIGN.md) §12
    - U-WP1 attachments a view remembers, contributors named in conflicts,
      `SlotView.over`, and #531 (#556, #551, #554). Default. After: none.
+   - U-WP1b every Behavior factory takes the binder where it takes the
+     slots (#551). Sonnet. After: U-WP1; before U-WP3b, U-WP5 and U-WP12.
    - U-WP2 `SlotView.describe` and `SlotView.resolution` (#556). Sonnet.
      After: U-WP1.
    - U-WP3 `Behaviors.Keys`, one `keydown` owner from named routes (#554).
      Default. After: U-WP1.
    - U-WP3b the primitives' routes, and `DismissLayer` yielding to a handled
-     Escape (#554). Sonnet. After: U-WP3.
+     Escape (#554). Sonnet. After: U-WP3, U-WP1b.
    - U-WP4 obligations on `A11y.pattern`, `provides`, `A11y.conform` (#552).
      Default. After: U-WP1; its six `provides` lines after U-WP3b.
    - U-WP5 `FocusRecovery`, and `FollowTabStop` scoped to its owner (#553).
@@ -404,8 +407,9 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
    **File order within item 6** (the note's §12 holds the detail):
    `packages/mixins/src/behavior.ts` and `slotView.ts` are U-WP1's, then
    U-WP4's; `packages/mixins-surface/src/surfaceView.ts` U-WP1's, then
-   U-WP2's; `packages/primitives/src/interaction/tree-navigation.ts`
-   U-WP3b's, then U-WP5's. `packages/agent/src/expose.ts` and `runtime.ts`
+   U-WP2's; the factories' signatures in
+   `packages/primitives/src/interaction` and `packages/mixins/src/behaviors`
+   U-WP1b's first, and `tree-navigation.ts` then U-WP3b's, then U-WP5's. `packages/agent/src/expose.ts` and `runtime.ts`
    are shared with laws WP9: whichever starts second builds on the first.
    Nothing in item 6 touches `packages/remote`, `entity`, `sync` or `guard`.
 
