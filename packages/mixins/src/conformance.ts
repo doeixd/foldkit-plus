@@ -721,6 +721,7 @@ export const tabs = async (harness: Harness, spec: TabsSpec): Promise<Result> =>
     panel !== null && chosen !== undefined && nameOf(panel) === labelOf(chosen),
     `name ${panel === null ? '' : nameOf(panel)}`,
   )
+  const initial = selected()
   const visiblePanels = list(harness.root, '[role="tabpanel"]').filter(shown)
   note('one panel shows', visiblePanels.length === 1, `${visiblePanels.length} panels`)
 
@@ -749,10 +750,9 @@ export const tabs = async (harness: Harness, spec: TabsSpec): Promise<Result> =>
   note(`${back} goes back one`, current() === enabled[enabled.length - 2], `current ${current()}`)
   if (manual) {
     note(
-      'the arrows do not choose a tab',
-      selected()[0] === spec.tabs.find(name => name === selected()[0]) &&
-        selected()[0] !== current(),
-      `selected ${JSON.stringify(selected())}`,
+      'the arrows move the keyboard without choosing a tab',
+      same(selected(), initial),
+      `selected ${JSON.stringify(selected())}, was ${JSON.stringify(initial)}`,
     )
     await press('Enter')
   }
@@ -760,6 +760,12 @@ export const tabs = async (harness: Harness, spec: TabsSpec): Promise<Result> =>
     'the tab the keyboard is on is the selected one',
     same(selected(), [String(current())]),
     `selected ${JSON.stringify(selected())}, current ${current()}`,
+  )
+  const shownPanels = list(harness.root, '[role="tabpanel"]').filter(shown)
+  note(
+    'the panel shown is the selected tab’s',
+    shownPanels.length === 1 && nameOf(shownPanels[0]!) === String(current()),
+    `panels ${JSON.stringify(shownPanels.map(nameOf))}`,
   )
   note(
     'aria-selected has a value on every tab, after every step',
