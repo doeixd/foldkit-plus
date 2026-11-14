@@ -401,6 +401,18 @@ export default [
     tests: tree,
   },
   {
+    // Away from the last child still goes back to the parent: only the inward check sees it.
+    name: 'the inward arrow on an open parent moves to its last child',
+    edits: [
+      edit(
+        treeNav,
+        'return focus(enabled.find(child => child.parent === row.id))',
+        'return focus(enabled.findLast(child => child.parent === row.id))',
+      ),
+    ],
+    tests: tree,
+  },
+  {
     name: 'Home goes to the last row',
     edits: [
       edit(

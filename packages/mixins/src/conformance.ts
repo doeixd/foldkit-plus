@@ -624,7 +624,7 @@ export const tree = async (harness: Harness, spec: TreeSpec): Promise<Result> =>
   await press(toward)
   note(
     `${toward} again moves onto its first child`,
-    current() !== spec.parent && current() !== undefined,
+    current() === spec.child,
     `current ${current()}`,
   )
   await press(away)
