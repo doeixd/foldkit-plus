@@ -3,7 +3,7 @@ import { Option } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, type NamedStyle } from 'foldkit-mixins'
 import { FieldValidation } from 'foldkit'
 import type { Attribute, ChildAttribute, Html, HtmlBuilder, TextareaAttribute } from 'foldkit/html'
-import { descriptionOf, type FieldParts } from './field.js'
+import { descriptionOf, statusOf, type FieldParts } from './field.js'
 import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
 
 export const TextareaSlots = Slots.define({
@@ -13,7 +13,7 @@ export const TextareaSlots = Slots.define({
     attributes: [Attr.AriaLabel, Attr.AriaInvalid, Attr.Disabled, Attr.Value],
   }),
   label: Slot.make({ capability: Capability.Container }),
-  description: Slot.make({ capability: Capability.Container }),
+  description: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
   /** How many characters are written, and of how many when there is a `maxLength`. */
   count: Slot.make({ capability: Capability.Container }),
   /** The box a field with a footer draws around its text and the footer. */
@@ -234,10 +234,7 @@ export const field = <Message>(options: TextareaField<Message>, h: HtmlBuilder<M
             footer === undefined
               ? text
               : h.div(resolved.frame, [text, h.div(resolved.footer, [...footer, count])]),
-          description: Option.match(description, {
-            onNone: () => h.empty,
-            onSome: text => h.span(resolved.description, [text]),
-          }),
+          description: statusOf(h, resolved.description, description),
           count: footer === undefined ? count : h.empty,
         }
         if (options.draw !== undefined) return options.draw(parts, h)

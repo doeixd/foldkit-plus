@@ -105,7 +105,13 @@ for (const component of components) {
       )
       try {
         await vi.waitFor(() => expect(document.querySelector(component.control)).not.toBeNull())
-        expect(document.querySelector('span')).toBeNull()
+        // A live region speaks only what is put into it, so it is drawn before there is anything to say.
+        const region = document.querySelector('span')
+        expect(region?.getAttribute('role')).toBe('status')
+        expect(region?.textContent).toBe('')
+        expect(
+          document.querySelector(component.control)?.getAttribute('aria-describedby'),
+        ).toBeNull()
         expect(document.querySelector(component.control)?.getAttribute('aria-invalid')).toBeNull()
       } finally {
         handle.dispose()
@@ -126,6 +132,7 @@ for (const component of components) {
         const description = document.querySelector('span') as HTMLElement
         expect(control.getAttribute('aria-invalid')).toBe('true')
         expect(control.getAttribute('aria-describedby')).toContain(description.id)
+        expect(description.getAttribute('role')).toBe('status')
       } finally {
         handle.dispose()
       }
@@ -151,7 +158,7 @@ for (const component of components) {
       )
       try {
         await vi.waitFor(() => expect(document.querySelector(component.control)).not.toBeNull())
-        expect(document.querySelector('span')).toBeNull()
+        expect(document.querySelector('span')?.textContent).toBe('')
       } finally {
         valid.dispose()
       }

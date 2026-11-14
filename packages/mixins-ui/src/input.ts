@@ -3,7 +3,7 @@ import { Option } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, type NamedStyle } from 'foldkit-mixins'
 import { FieldValidation } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { descriptionOf, onInputOf, type FieldParts, type OnInput } from './field.js'
+import { descriptionOf, onInputOf, statusOf, type FieldParts, type OnInput } from './field.js'
 import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
 
 export const InputSlots = Slots.define({
@@ -13,7 +13,7 @@ export const InputSlots = Slots.define({
     attributes: [Attr.AriaLabel, Attr.AriaInvalid, Attr.Disabled, Attr.Value],
   }),
   label: Slot.make({ capability: Capability.Container }),
-  description: Slot.make({ capability: Capability.Container }),
+  description: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
 })
 
 /** The input's bundles with the attached Mixins applied. */
@@ -130,10 +130,7 @@ export const field = <Message>(options: InputField<Message>, h: HtmlBuilder<Mess
         const parts: FieldParts = {
           label: h.label(resolved.label, [options.label]),
           control: h.input(resolved.input),
-          description: Option.match(description, {
-            onNone: () => h.empty,
-            onSome: text => h.span(resolved.description, [text]),
-          }),
+          description: statusOf(h, resolved.description, description),
         }
         return options.draw === undefined
           ? h.div([], [parts.label, parts.control, parts.description])
