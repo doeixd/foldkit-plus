@@ -20,16 +20,20 @@ export const oneRelations = (entity: AnyEntity): ReadonlyArray<OneRelation> =>
 export const heldRow = (entity: AnyEntity, row: Row) =>
   Held.rows([{ entity, rows: [row], complete: false }]).rows(entity)[0]!
 
+/** An id as an Entity's id Schema may type it. */
+const isId = (value: unknown): value is string | number =>
+  typeof value === 'string' || typeof value === 'number'
+
 /**
  * The id a `one` relation's value names, as a row holds it: a ref's or a
  * nested Selection value's `id`, an id as it is, and null for one pointing
  * nowhere. None for a value naming no id (a nested Selection that left `id` out).
  */
-export const linkId = (held: unknown): Option.Option<string | null> =>
+export const linkId = (held: unknown): Option.Option<string | number | null> =>
   held === null
     ? Option.some(null)
-    : typeof held === 'string'
+    : isId(held)
       ? Option.some(held)
-      : typeof held === 'object' && 'id' in held && typeof held.id === 'string'
+      : typeof held === 'object' && 'id' in held && isId(held.id)
         ? Option.some(held.id)
         : Option.none()

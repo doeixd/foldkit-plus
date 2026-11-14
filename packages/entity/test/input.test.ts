@@ -158,6 +158,13 @@ describe('Entity.input', () => {
       expect(Entity.valuesFor(edit, { author: { name: 'Ada' } })).toEqual({})
       expect(Entity.valuesFor(edit, { comments: [{ id: 'c1' }, { body: 'x' }] })).toEqual({})
     })
+
+    it('takes a numeric id as it is, from a nested value or bare', () => {
+      expect(Entity.valuesFor(edit, { author: { id: 7, name: 'Ada' }, comments: [3, 4] })).toEqual({
+        authorId: 7,
+        commentIds: [3, 4],
+      })
+    })
   })
 })
 
