@@ -23,7 +23,12 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // 193,520 bytes on CI on 2026-11-12, 20 over: the review fixes added the
 // resolver's tables of each Foldkit handler's DOM event (#523) and of the CSS
 // declarations a style key writes, its shorthands included.
-const CEILING = 194_500
+// 196.1 kB on 2026-11-14, after the UI SDK work: `WindowList` keeps the row
+// holding focus drawn, reveals a row, and can draw find-in-page stand-ins
+// (its module went from 4.4 kB to 9.7 kB minified), and the Listbox and
+// Combobox gained their invalid state, in-place panels and direction. The
+// ceiling is that plus about 1%.
+const CEILING = 198_000
 
 test('the search page loads at most the budgeted brotli JavaScript', async () => {
   const report = await measure(resolve(import.meta.dirname, '..'))

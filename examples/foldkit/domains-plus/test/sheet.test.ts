@@ -12,8 +12,10 @@ import { record } from '../../../../scripts/perf-report.mjs'
 import { stylesheet } from '../src/server/sheet.js'
 
 // Brotli bytes. 10.6 kB measured on 2026-11-08 from a `vite build`, against
-// 15.2 kB before the prune; the ceiling is that plus about 1%.
-const CEILING = 10_700
+// 15.2 kB before the prune; the ceiling is that plus about 1%. 10,817 bytes
+// on 2026-11-14: the Listbox trigger and Combobox field draw their invalid
+// edge in every variant, and the disabled ones no longer answer hover.
+const CEILING = 10_950
 
 test('the pages link at most the budgeted brotli CSS', () => {
   const shipped = Inert.prune(Style.complete(stylesheet))

@@ -12,7 +12,12 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // `foldkit-mixins/vite`'s `modules` and the page stopped loading the style
 // compiler (220.7 kB before); the ceiling is that plus about 2%, rounded up to
 // the next 500 bytes.
-const CEILING = 188_000
+// 191.0 kB on 2026-11-14, after the UI SDK work: the page draws most of the
+// catalog, which gained the Dialog's focus fallback and inert exit, the form
+// options on Input and its siblings, NumberField's locale parsing, the toast's
+// focus and live regions, Command's key routes and the tree's typeahead. The
+// ceiling is that plus about 1%.
+const CEILING = 193_000
 
 clientBudget({
   name: 'design-system',
