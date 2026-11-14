@@ -118,6 +118,11 @@ describe('TreeView.update', () => {
       { id: 'c', label: 'c' },
       { id: 'd', label: 'd', disabled: true, children: [{ id: 'd1', label: 'd1' }] },
       { id: 'e', label: 'e', children: [{ id: 'e1', label: 'e1' }] },
+      {
+        id: 'f',
+        label: 'f',
+        children: [{ id: 'g', label: 'g', children: [{ id: 'g1', label: 'g1' }] }],
+      },
     ]
     const star = TreeView.update(nodes)
     const from = (open: ReadonlyArray<string>) => ({
@@ -127,12 +132,13 @@ describe('TreeView.update', () => {
 
     it('opens every enabled row beside the current one that holds rows', () => {
       const result = star(from([]), Message.Pressed({ key: '*' }))
-      expect([...result.model.open].sort()).toEqual(['a', 'b', 'e'])
+      // `g` is a row holding rows too, but beside `f`'s rows, not the current one's.
+      expect([...result.model.open].sort()).toEqual(['a', 'b', 'e', 'f'])
       expect(result.commands ?? []).toEqual([])
     })
 
     it('changes nothing when they are all open, or nothing is current', () => {
-      const open = from(['a', 'b', 'e'])
+      const open = from(['a', 'b', 'e', 'f'])
       expect(star(open, Message.Pressed({ key: '*' })).model).toBe(open)
       const none = init({ id: 'files' })
       expect(star(none, Message.Pressed({ key: '*' })).model).toBe(none)
