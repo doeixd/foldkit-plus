@@ -9,6 +9,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-remote-domain`: lists and `one` relations. `DomainRemote.query(Query,
+  Api, 'PagedQuery', { input, id })` binds a Remote query to a paged Domain
+  Query, given to `DomainRemote.layer` as `queries`: the Query decides what is
+  listed, each listed row is read through its View (which leaves out a row it
+  hides, and gives each its revision), paging is forward only (`last`,
+  `before`, `first: 0` and a cursor over 1,024 characters are refused), a
+  write's answer carries the lists the client asks back read at its receipt,
+  and a live list is asked again on a change of a row it holds and invalidated
+  when it moved. A View's state holds a `one` relation as the target's id; a
+  read answers its ref key and reads a selected target through the target's
+  own View in the same batch. `DomainRemote.view` refuses an Entity whose `one`
+  relation its View's state lacks.
 - `examples/authoring`: a search field, an editable and reorderable list, a popup conformed to the listbox pattern, a sortable listbox and an editor an agent can save, each assembled from primitives; the save is asserted once for a person, an agent in the page and an agent headless, and the type cost of `SlotView.over` is measured (#551, #556, #557, #558).
 - `foldkit-remote`: a live stream names the revision it holds each row at,
   whole, with no field stale and no floor (`LiveRequirement.revisions`), so a
