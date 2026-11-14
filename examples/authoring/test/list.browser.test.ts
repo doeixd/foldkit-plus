@@ -32,7 +32,7 @@ const titles = () => rows().map(row => row.querySelector('span')?.textContent ??
 const button = (name: string) =>
   document.querySelector<HTMLElement>(`button[aria-label="${name}"]`)!
 
-test('dismissing a row hands focus to the next row at once, takes no click while it leaves, then removes it', async () => {
+test('dismissing a row hands focus to the next row at once, makes it inert while it leaves, then removes it', async () => {
   button('Dismiss Review the pull request').focus()
   await userEvent.keyboard('{Enter}')
   // The frame that draws the leave also moves focus: nothing waits for the removal.
@@ -40,12 +40,22 @@ test('dismissing a row hands focus to the next row at once, takes no click while
   const leaving = rows()[1]!
   expect(leaving.hasAttribute('inert')).toBe(true)
   expect(leaving.getAttribute('data-presence')).toBe('hiding')
-  const rect = leaving.getBoundingClientRect()
-  expect(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)).not.toBe(
-    leaving.querySelector('button[aria-label^="Edit"]'),
-  )
   await vi.waitFor(() => expect(titles()).toEqual(['Write the guide', 'Ship it']))
   expect(document.activeElement).toBe(button('Dismiss Ship it'))
+})
+
+test('a leaving row takes no press', async () => {
+  button('Dismiss Review the pull request').focus()
+  await userEvent.keyboard('{Enter}')
+  const leaving = rows()[1]!
+  await vi.waitFor(() => expect(leaving.getAttribute('data-presence')).toBe('hiding'))
+  // A real press on its Edit button. Forced, since Playwright otherwise waits for the inert
+  // button to take the press, which it never does.
+  await userEvent.click(button('Edit Review the pull request'), { force: true })
+  // Still leaving, so the press met the row while it was inert, not after it went.
+  expect(leaving.isConnected).toBe(true)
+  await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))
+  expect(document.querySelector('input')).toBeNull()
 })
 
 test('dismissing the last row falls back to the previous one, and the only one left to Add', async () => {
@@ -120,10 +130,16 @@ test('Escape puts a held row back where it was', async () => {
 })
 
 test('Add draws a row of its own, which can be dismissed like the others', async () => {
-  button('Dismiss Ship it').focus()
   document.querySelector<HTMLElement>('button:not([aria-label])')!.click()
   await vi.waitFor(() => expect(titles()).toHaveLength(4))
   expect(titles()[3]).toBe('New item 1')
+  button('Dismiss New item 1').focus()
+  await userEvent.keyboard('{Enter}')
+  await vi.waitFor(() => expect(rows()[3]!.getAttribute('data-presence')).toBe('hiding'))
+  await vi.waitFor(() => expect(titles()).toHaveLength(3))
+  expect(titles()).not.toContain('New item 1')
+  // The last row left, so focus falls back to the one before it.
+  expect(document.activeElement).toBe(button('Dismiss Ship it'))
 })
 
 test('a pointer drag from the grip lands the row after the one it is released over', async () => {

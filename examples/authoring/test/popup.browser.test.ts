@@ -81,7 +81,8 @@ test('a press outside closes it, and a click on the disabled option does nothing
   mount('a')
   await open('a')
   options()[1]!.click()
-  await new Promise(done => setTimeout(done, 100))
+  // The click's Message, and any frame it asked for, before asserting it changed nothing.
+  await frames?.settle()
   expect(options()).toHaveLength(4)
   expect(trigger('a').textContent).toBe('Choose')
   document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))

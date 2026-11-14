@@ -62,7 +62,24 @@ test('Alt+Enter grabs the row, an arrow carries it, and Enter drops it with focu
   await vi.waitFor(() => expect(document.activeElement).toBe(on('High')))
 })
 
-test('while a row is held, Space drops it instead of selecting, and Escape puts it back', async () => {
+test('while a row is held, Space drops it instead of selecting', async () => {
+  on('Low').focus()
+  await frames?.settle()
+  await userEvent.keyboard('{Alt>}{Enter}{/Alt}')
+  await vi.waitFor(() => expect(on('Low').getAttribute('data-reorder')).toBe('held'))
+  await userEvent.keyboard('{ArrowUp}')
+  await vi.waitFor(() =>
+    expect(rows().some(row => row.hasAttribute('data-reorder-over'))).toBe(true),
+  )
+  await frames?.settle()
+  await userEvent.keyboard(' ')
+  await vi.waitFor(() => expect(order()).toEqual(['Urgent', 'High', 'Low', 'Normal']))
+  await frames?.settle()
+  expect(rows().some(row => row.hasAttribute('data-reorder'))).toBe(false)
+  expect(on('Low').getAttribute('aria-selected')).not.toBe('true')
+})
+
+test('while a row is held, Escape puts it back where it was', async () => {
   on('Low').focus()
   await frames?.settle()
   await userEvent.keyboard('{Alt>}{Enter}{/Alt}')
@@ -74,5 +91,4 @@ test('while a row is held, Space drops it instead of selecting, and Escape puts 
   await userEvent.keyboard('{Escape}')
   await vi.waitFor(() => expect(rows().some(row => row.hasAttribute('data-reorder'))).toBe(false))
   expect(order()).toEqual(['Urgent', 'High', 'Normal', 'Low'])
-  expect(on('Low').getAttribute('aria-selected')).not.toBe('true')
 })

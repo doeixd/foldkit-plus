@@ -5,6 +5,9 @@
 const unit = 'examples/authoring/test/updates.test.ts'
 const save = 'examples/authoring/test/save.test.ts'
 const views = 'examples/authoring/test/views.test.ts'
+const listPage = 'examples/authoring/test/list.browser.test.ts'
+const sortablePage = 'examples/authoring/test/sortable.browser.test.ts'
+const popupPage = 'examples/authoring/test/popup.browser.test.ts'
 
 export default [
   {
@@ -16,7 +19,7 @@ export default [
         replace: '() => true',
       },
     ],
-    tests: [unit],
+    tests: [unit, popupPage],
   },
   {
     name: 'an option of another popup is chosen',
@@ -39,6 +42,28 @@ export default [
       },
     ],
     tests: [unit],
+  },
+  {
+    name: 'a leaving row takes presses',
+    edits: [
+      {
+        file: '../../../packages/primitives/src/interaction/presence.ts',
+        find: "h.Inert(phase !== 'shown')",
+        replace: 'h.Inert(false)',
+      },
+    ],
+    tests: [listPage],
+  },
+  {
+    name: 'Space selects a held row instead of dropping it',
+    edits: [
+      {
+        file: '../src/sortable/view.ts',
+        find: 'Keys.first(Sorting.keys, Keys.first(selects, navigates))',
+        replace: 'Keys.first(selects, Keys.first(Sorting.keys, navigates))',
+      },
+    ],
+    tests: [sortablePage],
   },
   {
     name: 'a late Hidden removes a row that was shown again',
