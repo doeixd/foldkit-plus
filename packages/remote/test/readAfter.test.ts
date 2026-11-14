@@ -4,7 +4,7 @@
  * the token, writes nothing until the server reads at it, and ends the floor
  * once it does. The floor is in the Model, so a reload keeps asking.
  */
-import { Effect, Layer, Option, Schema, Stream } from 'effect'
+import { Deferred, Effect, Fiber, Layer, Option, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
@@ -12,7 +12,25 @@ import { Entity, Mutation, Remote, RemoteClient, type RemoteMessage } from '../s
 import { live } from '../src/live.js'
 import { RemotePersistence } from '../src/persistence.js'
 import { why } from '../src/why.js'
-import type { ReadBatch, ReadBatchResult } from '../src/wire.js'
+import { coalesceReads, type BatchRead } from '../src/coalesce.js'
+import { withTokens } from '../src/plan.js'
+import {
+  MAX_READ_AFTER,
+  REMOTE_PROTOCOL_VERSION,
+  type ReadBatch,
+  type ReadBatchResult,
+} from '../src/wire.js'
+
+const emptyEntryOf = () => ({
+  values: {},
+  present: new Set<string>(),
+  stale: new Set<string>(),
+  unavailable: new Set<string>(),
+  tombstone: false,
+  updatedAt: 0,
+  oldestAt: 0,
+  windows: {},
+})
 
 const Product = Entity.make(
   'Product',
@@ -229,5 +247,133 @@ describe('What a floor tells', () => {
     const model = written()
     expect(Data.inspect(model).floors).toEqual([{ key: 'Product:p1', token }])
     expect(why(Data, model, product).because.map(reason => reason._tag)).toContain('ReadAfter')
+  })
+})
+
+describe('Coalesced reads at a token', () => {
+  const req = (id: string, fields = ['name']) => ({ entity: 'Product', id, fields })
+  const recording = (
+    behind: (
+      batch: typeof ReadBatch.Type,
+    ) => ReadonlyArray<{ entity: string; id: string }> = () => [],
+  ) => {
+    const batches: Array<typeof ReadBatch.Type> = []
+    const read: BatchRead = batch =>
+      Effect.sync(() => {
+        batches.push(batch)
+        const late = behind(batch)
+        return {
+          entities: batch.requests.map(request => row(1, request.id)),
+          settled: [],
+          ...(late.length === 0 ? {} : { behind: [...late] }),
+        }
+      })
+    return { batches, read }
+  }
+  const tokenOf = (id: string) => ({ entity: 'Product', id, token: `t:${id}` })
+
+  it('send each row its token in the batch they share, and say what the server left behind', async () => {
+    const raw = recording(batch => (batch.after ?? []).map(({ entity, id }) => ({ entity, id })))
+    const [floored, plain] = await Effect.runPromise(
+      Effect.gen(function* () {
+        const read = yield* coalesceReads(raw.read)
+        return yield* Effect.all(
+          [
+            read({ version: REMOTE_PROTOCOL_VERSION, requests: [req('a')], after: [tokenOf('a')] }),
+            read({ version: REMOTE_PROTOCOL_VERSION, requests: [req('b')] }),
+          ],
+          { concurrency: 'unbounded' },
+        )
+      }),
+    )
+    expect(raw.batches.map(batch => batch.after)).toEqual([[tokenOf('a')]])
+    expect(floored!.behind).toEqual([{ entity: 'Product', id: 'a' }])
+    expect(plain!.behind).toEqual([{ entity: 'Product', id: 'a' }])
+  })
+
+  it('do not join a read in flight at another token', async () => {
+    const batches: Array<typeof ReadBatch.Type> = []
+    const tokens = await Effect.runPromise(
+      Effect.gen(function* () {
+        const gate = yield* Deferred.make<void>()
+        const read = yield* coalesceReads(batch =>
+          Effect.gen(function* () {
+            batches.push(batch)
+            if (batches.length === 1) yield* Deferred.await(gate)
+            return { entities: [row(1, 'a')], settled: [] }
+          }),
+        )
+        const first = yield* Effect.forkChild(
+          read({ version: REMOTE_PROTOCOL_VERSION, requests: [req('a')], after: [tokenOf('a')] }),
+        )
+        for (let turn = 0; turn < 100 && batches.length === 0; turn++) yield* Effect.yieldNow
+        const second = yield* Effect.forkChild(
+          read({
+            version: REMOTE_PROTOCOL_VERSION,
+            requests: [req('a')],
+            after: [{ ...tokenOf('a'), token: 'newer' }],
+          }),
+        )
+        for (let turn = 0; turn < 100 && batches.length < 2; turn++) yield* Effect.yieldNow
+        yield* Deferred.succeed(gate, undefined)
+        yield* Fiber.join(first)
+        yield* Fiber.join(second)
+        return batches.map(batch => batch.after?.map(each => each.token))
+      }),
+    )
+    expect(tokens).toEqual([['t:a'], ['newer']])
+  })
+
+  it('read a row asked at two tokens in one batch once at each', async () => {
+    const raw = recording()
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const read = yield* coalesceReads(raw.read)
+        yield* Effect.all(
+          [
+            read({ version: REMOTE_PROTOCOL_VERSION, requests: [req('a')], after: [tokenOf('a')] }),
+            read({
+              version: REMOTE_PROTOCOL_VERSION,
+              requests: [req('a', ['stock'])],
+              after: [{ ...tokenOf('a'), token: 'newer' }],
+            }),
+          ],
+          { concurrency: 'unbounded' },
+        )
+      }),
+    )
+    expect(raw.batches.map(batch => batch.after?.map(row => row.token))).toEqual([
+      ['t:a'],
+      ['newer'],
+    ])
+  })
+
+  it('cut a batch so no read carries more tokens than the wire takes', async () => {
+    const raw = recording()
+    const ids = Array.from({ length: MAX_READ_AFTER + 1 }, (_, at) => `r${at}`)
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const read = yield* coalesceReads(raw.read)
+        yield* read({
+          version: REMOTE_PROTOCOL_VERSION,
+          requests: ids.map(id => req(id)),
+          after: ids.map(tokenOf),
+        })
+      }),
+    )
+    expect(raw.batches.map(batch => batch.after?.length)).toEqual([MAX_READ_AFTER, 1])
+  })
+})
+
+describe('A plan with more floored rows than a read carries', () => {
+  it('sends the first MAX_READ_AFTER with their tokens and leaves the rest for the next plan', () => {
+    const ids = Array.from({ length: MAX_READ_AFTER + 2 }, (_, at) => `r${at}`)
+    const store = Object.fromEntries(
+      ids.map(id => [`Product:${id}`, { ...emptyEntryOf(), floor: `t:${id}` }]),
+    )
+    const planned = ids.map(id => ({ entity: 'Product', id, fields: ['name'] }))
+    const { requirements, after } = withTokens(store, planned)
+    expect(after).toHaveLength(MAX_READ_AFTER)
+    expect(requirements).toHaveLength(MAX_READ_AFTER)
   })
 })

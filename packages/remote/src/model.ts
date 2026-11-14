@@ -2899,7 +2899,7 @@ export const writeRead = (
   requests: ReadonlyArray<Requirement>,
   result: Schema.Schema.Type<typeof ReadBatchResult>,
   now = 0,
-  /** Rows the answer may not speak for (`heldBack`): it writes, tombstones and settles none of them. */
+  /** Rows the answer may not speak for (`readAfter`'s `held`): it writes, tombstones and settles none of them. */
   held: ReadonlySet<EntityKey> = noRows,
 ): EntityStore => {
   if (held.size > 0) {

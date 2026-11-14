@@ -93,4 +93,40 @@ export default [
     '  ...(entry.floor === undefined ? {} : { floor: entry.floor }),\n})',
     '})',
   ),
+  edit(
+    'a coalesced read drops its tokens',
+    '../src/coalesce.ts',
+    '                    ...(after.length === 0 ? {} : { after }),\n',
+    '',
+  ),
+  edit(
+    'a read at a token joins one without it',
+    '../src/coalesce.ts',
+    'key: stableStringify([requirementKey(requirement), token ?? null]),',
+    'key: requirementKey(requirement),',
+  ),
+  edit(
+    'a cut ignores how many tokens a read carries',
+    '../src/coalesce.ts',
+    '        piece.tokens + token <= MAX_READ_AFTER,',
+    '        true,',
+  ),
+  edit(
+    'a coalesced answer drops behind',
+    '../src/coalesce.ts',
+    '            ...(behind.length === 0 ? {} : { behind }),\n',
+    '',
+  ),
+  edit(
+    'a plan sends every floored row at once',
+    plan,
+    '    if (after.length === MAX_READ_AFTER) return false\n',
+    '',
+  ),
+  edit(
+    'a row at two tokens in one batch reads at the last',
+    '../src/coalesce.ts',
+    '            if (held !== undefined && held !== token) {',
+    '            if (false) {',
+  ),
 ]

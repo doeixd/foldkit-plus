@@ -29,8 +29,10 @@ import {
   RemoteUnreachable,
   type QueryRequest,
   type QueryResult,
+  MAX_READ_AFTER,
   type ReadBatch,
   type ReadBatchResult,
+  type RowToken,
 } from './wire.js'
 import type { RemoteProtocolError, RemoteUnauthenticated } from './wire.js'
 
@@ -137,6 +139,22 @@ interface PlannedRead {
   readonly tooLarge: boolean
 }
 
+/** A requirement as a batch asks it: with the read-after token of its row, when it has one. */
+interface Asked {
+  readonly requirement: Requirement
+  readonly token: string | undefined
+}
+
+/** The tokens of the rows `requests` reads, from what each was asked with. */
+const tokensOf = (
+  requests: ReadonlyArray<Requirement>,
+  tokens: ReadonlyMap<string, string>,
+): ReadonlyArray<typeof RowToken.Type> =>
+  requests.flatMap(request => {
+    const token = tokens.get(`${request.entity}\u0000${request.id}`)
+    return token === undefined ? [] : [{ entity: request.entity, id: request.id, token }]
+  })
+
 /**
  * Cuts merged requests into reads that fit `limits`, in order: each request
  * goes into the first piece with room under both limits, so a later entity
@@ -146,8 +164,15 @@ interface PlannedRead {
 const cut = (
   requests: ReadonlyArray<Requirement>,
   limits: Limits,
+  /** Whether a request's row is read at a token: a read carries at most `MAX_READ_AFTER`. */
+  floored: (request: Requirement) => boolean = () => false,
 ): ReadonlyArray<{ readonly requests: ReadonlyArray<Requirement>; readonly tooLarge: boolean }> => {
-  const pieces: Array<{ requests: Requirement[]; bytes: number; ids: Map<string, number> }> = []
+  const pieces: Array<{
+    requests: Requirement[]
+    bytes: number
+    ids: Map<string, number>
+    tokens: number
+  }> = []
   const tooLarge: Requirement[] = []
   for (const request of requests) {
     // One byte for the comma between two requests.
@@ -156,17 +181,25 @@ const cut = (
       tooLarge.push(request)
       continue
     }
+    const token = floored(request) ? 1 : 0
     const piece = pieces.find(
       piece =>
         piece.bytes + bytes <= limits.budget &&
-        (piece.ids.get(request.entity) ?? 0) < limits.maxIds,
+        (piece.ids.get(request.entity) ?? 0) < limits.maxIds &&
+        piece.tokens + token <= MAX_READ_AFTER,
     )
     if (piece !== undefined) {
       piece.requests.push(request)
       piece.bytes += bytes
       piece.ids.set(request.entity, (piece.ids.get(request.entity) ?? 0) + 1)
+      piece.tokens += token
     } else {
-      pieces.push({ requests: [request], bytes, ids: new Map([[request.entity, 1]]) })
+      pieces.push({
+        requests: [request],
+        bytes,
+        ids: new Map([[request.entity, 1]]),
+        tokens: token,
+      })
     }
   }
   return [
@@ -186,10 +219,12 @@ const cut = (
 const readsOf = (
   owned: ReadonlyMap<string, Requirement>,
   limits: Limits,
+  tokens: ReadonlyMap<string, string>,
 ): ReadonlyArray<PlannedRead> => {
   const plain = [...owned].filter(([, requirement]) => !hasWindows(requirement))
   const paged = [...owned].filter(([, requirement]) => hasWindows(requirement))
   const target = (requirement: Requirement) => `${requirement.entity}\u0000${requirement.id}`
+  const floored = (requirement: Requirement) => tokens.has(target(requirement))
   // Each target's keys once, with their place in the batch so a read's keys
   // keep the order the callers asked in.
   const keysByTarget = new Map<string, Array<{ readonly key: string; readonly index: number }>>()
@@ -200,13 +235,15 @@ const readsOf = (
     else keys.push({ key, index })
   })
   return [
-    ...cut(Requirement.merge(plain.map(([, requirement]) => requirement)), limits).map(piece => ({
-      keys: piece.requests
-        .flatMap(request => keysByTarget.get(target(request)) ?? [])
-        .sort((a, b) => a.index - b.index)
-        .map(({ key }) => key),
-      ...piece,
-    })),
+    ...cut(Requirement.merge(plain.map(([, requirement]) => requirement)), limits, floored).map(
+      piece => ({
+        keys: piece.requests
+          .flatMap(request => keysByTarget.get(target(request)) ?? [])
+          .sort((a, b) => a.index - b.index)
+          .map(({ key }) => key),
+        ...piece,
+      }),
+    ),
     ...paged.flatMap(([key, requirement]) =>
       cut([requirement], limits).map(piece => ({ keys: [key], ...piece })),
     ),
@@ -356,7 +393,7 @@ const tooLargeMessage = (options: ClientOptions): string =>
   `The request is larger than the server takes (${options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES} bytes)`
 
 class ReadRequirement extends Request.Class<
-  { readonly key: string; readonly requirement: Requirement },
+  { readonly key: string } & Asked,
   Deferred.Deferred<BatchResult, ReadError>
 > {}
 
@@ -393,20 +430,47 @@ export const coalesceReads = (
         // flight from an earlier batch is joined; the rest are read here.
         const done = new Map<string, Deferred.Deferred<BatchResult, ReadError>>()
         const owned = new Map<string, Requirement>()
+        // A row asked at two tokens in one batch: the second reads on its own, at its own.
+        const apart: Array<readonly [string, Asked]> = []
+        const tokens = new Map<string, string>()
         for (const entry of entries) {
-          const key = entry.request.key
+          const { key, requirement, token } = entry.request
           const joined = calls.running.get(key)?.done
-          if (joined !== undefined) done.set(key, joined)
-          else owned.set(key, entry.request.requirement)
+          if (joined !== undefined) {
+            done.set(key, joined)
+            continue
+          }
+          if (token !== undefined) {
+            const at = `${requirement.entity}\u0000${requirement.id}`
+            const held = tokens.get(at)
+            if (held !== undefined && held !== token) {
+              apart.push([key, { requirement, token }])
+              continue
+            }
+            tokens.set(at, token)
+          }
+          owned.set(key, requirement)
         }
-        for (const planned of readsOf(owned, limits)) {
-          const settled = yield* calls.start(
-            planned.keys,
-            planned.tooLarge
-              ? Effect.fail(new RemoteReadError({ message: tooLargeMessage(options) }))
-              : read({ version: REMOTE_PROTOCOL_VERSION, requests: planned.requests }),
-          )
-          for (const key of planned.keys) done.set(key, settled)
+        const send = (planned: PlannedRead, tokens: ReadonlyMap<string, string>) =>
+          Effect.gen(function* () {
+            const after = tokensOf(planned.requests, tokens)
+            const settled = yield* calls.start(
+              planned.keys,
+              planned.tooLarge
+                ? Effect.fail(new RemoteReadError({ message: tooLargeMessage(options) }))
+                : read({
+                    version: REMOTE_PROTOCOL_VERSION,
+                    requests: planned.requests,
+                    ...(after.length === 0 ? {} : { after }),
+                  }),
+            )
+            for (const key of planned.keys) done.set(key, settled)
+          })
+        for (const planned of readsOf(owned, limits, tokens)) yield* send(planned, tokens)
+        for (const [key, { requirement, token }] of apart) {
+          const own = new Map([[`${requirement.entity}\u0000${requirement.id}`, token!]])
+          for (const planned of readsOf(new Map([[key, requirement]]), limits, own))
+            yield* send(planned, own)
         }
         for (const entry of entries) yield* Request.succeed(entry, done.get(entry.request.key)!)
       })
@@ -418,25 +482,37 @@ export const coalesceReads = (
 
     return batch => {
       if (batch.requests.length === 0) return Effect.succeed({ entities: [], settled: [] })
-      const requirements = batch.requests.map(requirement => ({
-        key: requirementKey(requirement),
-        requirement,
-      }))
+      const tokens = new Map(
+        (batch.after ?? []).map(row => [`${row.entity}\u0000${row.id}`, row.token]),
+      )
+      const requirements = batch.requests.map(requirement => {
+        const token = tokens.get(`${requirement.entity}\u0000${requirement.id}`)
+        // A requirement read at a token is not joined with one read without it, or at another.
+        return {
+          key: stableStringify([requirementKey(requirement), token ?? null]),
+          requirement,
+          token,
+        }
+      })
       return waitHolding(
         calls,
         requirements.map(({ key }) => key),
         Effect.forEach(
           requirements,
-          ({ key, requirement }) =>
-            Effect.request(new ReadRequirement({ key, requirement }), resolver),
+          ({ key, requirement, token }) =>
+            Effect.request(new ReadRequirement({ key, requirement, token }), resolver),
           { concurrency: 'unbounded' },
         ),
       ).pipe(
-        Effect.map(results => ({
-          entities: results.flatMap(result => result.entities),
-          settled: results.flatMap(result => result.settled),
-          ...answeredBy(results),
-        })),
+        Effect.map(results => {
+          const behind = results.flatMap(result => result.behind ?? [])
+          return {
+            entities: results.flatMap(result => result.entities),
+            settled: results.flatMap(result => result.settled),
+            ...answeredBy(results),
+            ...(behind.length === 0 ? {} : { behind }),
+          }
+        }),
       )
     }
   })
