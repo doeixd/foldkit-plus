@@ -152,6 +152,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `MessageScroller` keeps following the end when its scrolling frame shrinks (a
+  keyboard opening, a window resized): the Mount observes the scrolling parent as
+  well as the log, so the end is re-seated instead of left out of view.
 - `foldkit-remote`: `Data.can` answers `Can.Undecided`, naming the member (`Doc.gate`),
   where a `may` member of the row is not held, instead of `Can.Yes`.
 - `foldkit-mixins`: a family's pressed fill (`active`) no longer turns a grey

@@ -125,8 +125,8 @@ export const ScrollToEnd = Command.define('MessageScroller.ScrollToEnd', {
  * scrolls. It tells the reader leaving the end (a scroll up) from the log
  * growing: a scroll that moves up and leaves the end stops following, and
  * one that reaches within `NEAR` of the end starts again. While following,
- * any growth (a message, a streamed word, a picture loading) scrolls to
- * the end; otherwise the first message in view is held where it was, so a
+ * any growth (a message, a streamed word, a picture loading) or a change of
+ * the scrolling frame's own size (a keyboard opening) scrolls to the end; otherwise the first message in view is held where it was, so a
  * page of older messages lands above it unseen. It turns the browser's own
  * scroll anchoring off on the scroller, which would correct the same growth
  * a second time, and which Safari lacks. Without a `ResizeObserver` (a DOM with no
@@ -217,6 +217,7 @@ export const FollowEnd = Mount.defineStream('MessageScroller.FollowEnd', {
           scroller.style.overflowAnchor = 'none'
           scroller.addEventListener('scroll', scrolled, { passive: true })
           observer.observe(element)
+          observer.observe(scroller)
           toEnd()
           remember()
           Queue.offerUnsafe(queue, Message.ReachedEnd())

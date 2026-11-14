@@ -141,8 +141,7 @@ test('a message above the end growing while the reader follows keeps the end in 
   }
 })
 
-// Defect (U-WP11 finding C1): the end is left out of view by exactly the height the frame lost.
-test.fails('DEFECT: the frame shrinking while the reader follows (a keyboard opening) leaves the end out of view', async () => {
+test('the frame shrinking while the reader follows (a keyboard opening) keeps the end in view', async () => {
   const handle = mount()
   try {
     await vi.waitFor(() => expect(fromEnd()).toBeLessThan(1))
