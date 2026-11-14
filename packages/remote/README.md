@@ -4110,8 +4110,8 @@ expect(report.agreed).toEqual(expect.arrayContaining(['Card:c9.createdAt', ByRan
 
 ### Scenarios: a write as data, run against the real thing
 
-A `Scenario` is a write, the rows it starts from and what must come of it,
-written once as plain data. It holds no function and names no backend; a
+A `Scenario` is a declared write (`Mutation.write`), the rows it starts from
+and what must come of it, written once as plain data. It holds no function and names no backend; a
 runner seeds its backend from `given`, sends `when` as `principal` at `now`
 under `operation`, and reports one step for each thing it owns and checked.
 `Scenario.run` gives the mismatches, each naming its backend and step.
