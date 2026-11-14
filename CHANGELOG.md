@@ -47,7 +47,7 @@ version changed; `pnpm` skips versions already in the registry.
   A Surface contract or an Action contributes its kind and name.
   `Assembly.textOf` is that description as text, so a document and a diagnostic
   share one value. Inspection does not draw the view, call a Mount, or dispatch
-  a Message (#556).
+  a Message. `support` lists providers no Behavior declares (#556).
 - `foldkit-primitives`: `Leaving` (a Mount in `foldkit-primitives/dom`,
   `Leaving.behavior` and `leaving(h)` in `foldkit-primitives/interaction`) moves
   focus out of a part that stays drawn but is marked leaving, by the same
@@ -220,6 +220,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- `foldkit-mixins-ui`: slots declare the role and ARIA attributes their elements
+  write, and the patterns require them: `aria-checked` on the Checkbox, Switch,
+  CheckboxGroup and TreeView items and on `RadioGroup.option` (which declared
+  `aria-selected`), `aria-controls` on `Accordion.trigger` and the
+  CheckboxGroup's select-all box, `aria-valuenow` on the AngleSlider and
+  ColorPicker thumbs and the Resizable handle, `aria-current` on the Pagination
+  page and the Breadcrumb's current step, and the names (`role`, `aria-label`,
+  `aria-labelledby`) of Pagination, Breadcrumb, ButtonGroup, Rating, Slider,
+  AngleSlider and ColorPicker (#552).
 - **Breaking:** `foldkit-primitives`: `Selection`'s Model gains `ranged`, the ids
   the last range added. A Shift range from the same anchor takes those back
   before adding its own span, so a shorter second range shrinks as in a file
