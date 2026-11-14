@@ -20,7 +20,10 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // -610 bytes (#560 review): the read-after half of #544 moved behind the write capability, which
 // the Worker's domain never installs, and the wait on a row the server is behind on was added;
 // measured with and without both in one tree on 2026-11-14 (3,245,724 against 3,245,114).
-const CEILING = 3_248_690
+// +489 bytes for `policies` on `Data.wiring` (#236), measured in one tree on 2026-11-14 with and
+// without it (3,264,148 and 3,264,637). The Worker was over the ceiling already from other
+// growth (3,264,148), which this does not cover.
+const CEILING = 3_249_179
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))
