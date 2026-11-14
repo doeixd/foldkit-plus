@@ -89,9 +89,10 @@ interface ListboxSetup {
   readonly trigger?: 'outline' | 'filled' | 'ghost'
   readonly isInvalid?: boolean
   readonly isDisabled?: boolean
+  readonly direction?: 'rtl'
 }
 
-const mountListbox = ({ trigger = 'outline', isInvalid, isDisabled }: ListboxSetup) => {
+const mountListbox = ({ trigger = 'outline', isInvalid, isDisabled, direction }: ListboxSetup) => {
   const style = Style.forSlots(ListboxSlots)(Recipes.Listbox({ trigger }))
   install(style.css)
   handle = Runtime.embed(
@@ -118,6 +119,7 @@ const mountListbox = ({ trigger = 'outline', isInvalid, isDisabled }: ListboxSet
             toView: Listbox.toView([style.mixin], { h }),
             ...(isInvalid === undefined ? {} : { isInvalid }),
             ...(isDisabled === undefined ? {} : { isDisabled }),
+            ...(direction === undefined ? {} : { direction }),
           },
           h,
         ),
@@ -166,6 +168,11 @@ test('an invalid Listbox trigger keeps its error edge under the pointer', async 
   await userEvent.hover(button)
   await settle(button)
   expect(getComputedStyle(button).borderTopColor).toBe(errorEdge())
+})
+
+test("a Listbox given direction rtl draws its trigger right to left, as its panel's keys read", async () => {
+  const button = await mountListbox({ direction: 'rtl' })
+  expect(getComputedStyle(button).direction).toBe('rtl')
 })
 
 // Combobox
