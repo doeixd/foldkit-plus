@@ -8,11 +8,11 @@
 import { Data, Match, Option, Schema, SchemaAST } from 'effect'
 import { Judge, type Row } from './evaluate.js'
 import { Query } from './expr.js'
-import { Held } from './held.js'
 import type { AnyEntity, EntityField } from './index.js'
 import { kernelOperators } from './memoryTable.js'
 import type { MemoryOperators } from './operators.js'
 import { own, put } from './record.js'
+import { heldRow } from './rows.js'
 import type { AnyWrite } from './write.js'
 
 type AnyField = EntityField<string, string, Schema.Constraint>
@@ -210,7 +210,7 @@ export const steps = (
       const refused = Option.match(judged, {
         onNone: () => false,
         onSome: ({ body }) => {
-          const row = Held.rows([{ entity, rows: [before], complete: false }]).rows(entity)[0]!
+          const row = heldRow(entity, before)
           const verdict = Judge.query(body, input, row, { operators })
           return verdict._tag === 'Known' && !verdict.truth
         },

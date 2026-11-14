@@ -17,10 +17,10 @@ import {
   type Predicate,
   type Reads,
 } from './expr.js'
-import { Held } from './held.js'
-import type { AnyEntity, EntityField, EntityIdentity, EntityMember } from './index.js'
+import type { AnyEntity, EntityField, EntityIdentity } from './index.js'
 import type { BeforeRow } from './invariant.js'
 import { kernelOperators } from './memoryTable.js'
+import { heldRow, oneRelations } from './rows.js'
 import type { MemoryOperators } from './operators.js'
 
 type AnyField = EntityField<string, string, Schema.Constraint>
@@ -82,11 +82,7 @@ const rowOf = (
   entity: AnyEntity,
   read: (member: AnyField | OneRelation) => FieldExpr<unknown> | NextExpr<unknown>,
 ): Readonly<Record<string, unknown>> => {
-  const relations = entity.relations as Readonly<Record<string, EntityMember>>
-  const links = Object.values(relations).flatMap(member => {
-    if (member._tag !== 'Relation' || member.cardinality !== 'one') return []
-    return [member as OneRelation]
-  })
+  const links = oneRelations(entity)
   return Object.fromEntries([
     ...Object.entries(entity.fields as Readonly<Record<string, AnyField>>).map(
       ([key, field]) => [key, read(field)] as const,
@@ -114,10 +110,6 @@ const literalPredicate = (
   if (checks.length === 0) fail(entity, name, 'the literal form names no field')
   return checks.length === 1 ? checks[0]! : Expr.and(checks[0]!, ...checks.slice(1))
 }
-
-/** A row as stored, held: a key it lacks is unheld, so a state reading it is undecided. */
-const heldRow = (entity: AnyEntity, row: Row) =>
-  Held.rows([{ entity, rows: [row], complete: false }]).rows(entity)[0]!
 
 /** Whether a stored row is in the state: none where it lacks a field the state reads. */
 const judged = (
