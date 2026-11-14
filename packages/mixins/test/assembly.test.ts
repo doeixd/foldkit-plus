@@ -268,6 +268,35 @@ describe('Assembly', () => {
     expect(described.patternDiagnostics).toEqual([])
   })
 
+  it('takes a native provider no behavior declares, and still reports a mistaken one', () => {
+    const Options = Slots.define({
+      items: Slot.make({ capability: Capability.Container }),
+    })
+    const pattern = {
+      name: 'list',
+      pattern: A11y.pattern({ items: { obligations: ['navigation'] } }),
+    }
+    const bare = Assembly.describe({ name: 'List', slots: Options, pattern })
+    expect(bare.patternDiagnostics.map(item => item.code)).toEqual(['a11y:unsatisfied-obligation'])
+    const native = Assembly.describe({
+      name: 'List',
+      slots: Options,
+      pattern,
+      support: A11y.native({ slot: 'items', obligations: ['navigation'], provider: 'select' }),
+    })
+    expect(native.patternDiagnostics).toEqual([])
+    const mistaken = Assembly.describe({
+      name: 'List',
+      slots: Options,
+      pattern,
+      support: [
+        ...A11y.native({ slot: 'items', obligations: ['navigation'], provider: 'select' }),
+        A11y.delegated({ slot: 'item', obligation: 'focus', provider: 'elsewhere' }),
+      ],
+    })
+    expect(mistaken.patternDiagnostics.map(item => item.code)).toEqual(['a11y:unknown-support'])
+  })
+
   it('does not attribute an obligation to a behavior the view does not attach', () => {
     const Options = Slots.define({
       items: Slot.make({ capability: Capability.Container }),

@@ -206,6 +206,11 @@ export default [
     tests,
   },
   {
+    name: 'a provider named beside the behaviors is not consulted',
+    edits: [{ file, find: '...(source.support ?? []),', replace: '' }],
+    tests,
+  },
+  {
     name: 'a behavior is reported for supplying more than the pattern asks',
     edits: [
       {

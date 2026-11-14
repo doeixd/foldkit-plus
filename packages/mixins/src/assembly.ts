@@ -104,6 +104,8 @@ export interface AssemblySource {
   readonly behaviors?: ReadonlyArray<NamedBehavior<any, any, any>>
   readonly styles?: ReadonlyArray<NamedStyle<any>>
   readonly pattern?: PatternRef
+  /** Providers no Behavior declares: the element itself (`A11y.native`) or a named delegate. */
+  readonly support?: ReadonlyArray<A11y.ObligationSupport>
   readonly links?: ReadonlyArray<LinkSource>
   readonly parts?: ReadonlyArray<AssemblySource>
   /** Resolve Behavior attributes against this input. Omit it to leave their claims unknown. */
@@ -391,13 +393,12 @@ export const describe = (source: AssemblySource): Description => {
     patternDiagnostics:
       source.pattern === undefined
         ? []
-        : A11y.validate(
-            source.pattern.pattern,
-            patternSlots,
-            suppliers(source)
+        : A11y.validate(source.pattern.pattern, patternSlots, [
+            ...suppliers(source)
               .flatMap(behavior => A11y.suppliedBy(behavior))
               .filter(support => asks(source.pattern!.pattern, support)),
-          ),
+            ...(source.support ?? []),
+          ]),
     links: (source.links ?? []).map(linkOf),
     conflicts: conflictsOf(attachments),
     parts: (source.parts ?? []).map(part => describe(part)),

@@ -177,7 +177,15 @@ export type { OtpFieldView } from './otpField.js'
 export type { NumberFieldView } from './numberField.js'
 export { CheckboxGroupSlots } from './checkboxGroup.js'
 export { CommandSlots } from './command.js'
-export type { CommandGroup, CommandHint, CommandItem, CommandPage, CommandView } from './command.js'
+export type {
+  CommandGroup,
+  CommandHint,
+  CommandItem,
+  CommandKeyInput,
+  CommandPage,
+  CommandRoute,
+  CommandView,
+} from './command.js'
 export type { CheckboxGroupOption, CheckboxGroupView } from './checkboxGroup.js'
 export { CheckboxSlots } from './checkbox.js'
 export { CodeBlockSlots } from './codeBlock.js'
