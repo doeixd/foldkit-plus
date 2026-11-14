@@ -71,10 +71,12 @@ export interface EditableForm<
   readonly input: EntityInput<E, Fields, Members>
   readonly initial: FormModel
   readonly fill: (model: FormModel, values: Partial<Value>) => { readonly model: FormModel }
+  // `NoInfer`: the form's `over` is generic in the Model it is given, and would
+  // otherwise offer its constraint as the editor's `FormModel`.
   readonly over: (
-    model: FormModel,
+    model: NoInfer<FormModel>,
     row: Readonly<Record<string, unknown>>,
-  ) => { readonly model: FormModel }
+  ) => { readonly model: NoInfer<FormModel> }
   readonly authoredChanged: (before: FormModel, after: FormModel) => boolean
   readonly controls: ReadonlyArray<FormControl>
   readonly Message: {

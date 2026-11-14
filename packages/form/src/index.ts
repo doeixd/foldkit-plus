@@ -1736,10 +1736,13 @@ const Core = {
      * what the invariants are judged over from now on. It validates nothing,
      * as a `fill` does not; a `fill` keeps it and a `Reset` drops it.
      */
-    const over = (
-      model: Model,
+    // Typed by the one field it writes rather than by `Model`: a nesting form's
+    // type holds this signature, and a second copy of the Model's type in it
+    // passed the length the declaration emitter writes (TS7056).
+    const over = <M extends Pick<Model, 'over'>>(
+      model: M,
       row: Readonly<Record<string, unknown>>,
-    ): { readonly model: Model } => ({
+    ): { readonly model: M } => ({
       model: { ...model, over: Option.some(row) },
     })
 
@@ -1950,7 +1953,7 @@ const Core = {
             return { model }
         }
       },
-      helpers: { fill, over },
+      helpers: { fill },
       // Only what the controls have: a form with none listens to nothing and holds nothing.
       ...(Object.keys(controlSubscriptions).length === 0
         ? {}
