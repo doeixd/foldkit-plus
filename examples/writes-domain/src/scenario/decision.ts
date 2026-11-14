@@ -13,10 +13,14 @@ const failedAs = (failure: { readonly _tag: string; readonly refusal?: unknown }
         onNone: () => ({ _tag: 'Refused', refusal: `Failed ${failure._tag}` }),
         onSome: refusal => ({
           _tag: 'Refused',
-          refusal:
-            refusal._tag === 'Invalid'
-              ? `Invalid ${Option.getOrElse(refusal.entity, () => '?')}.${Option.getOrElse(refusal.rule, () => '?')}`
-              : refusal._tag,
+          refusal: Match.value(refusal).pipe(
+            Match.tag(
+              'Invalid',
+              ({ entity, rule }) =>
+                `Invalid ${Option.getOrElse(entity, () => '?')}.${Option.getOrElse(rule, () => '?')}`,
+            ),
+            Match.orElse(({ _tag }) => _tag),
+          ),
         }),
       }),
     ),

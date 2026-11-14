@@ -6,7 +6,18 @@
  * reply to a `ReserveStock` can be held back, or lost after the command ran,
  * and a View frame can be delivered late.
  */
-import { Deferred, Effect, Layer, Option, Queue, Ref, Schema, Stream, type Duration } from 'effect'
+import {
+  Deferred,
+  Effect,
+  Layer,
+  Match,
+  Option,
+  Queue,
+  Ref,
+  Schema,
+  Stream,
+  type Duration,
+} from 'effect'
 import { RpcClientDefect, RpcClientError } from 'effect/rpc/RpcClientError'
 import { Product } from 'foldkit-example-writes/domain'
 import { host, ShopApi } from '../model.js'
@@ -48,12 +59,18 @@ export const world = (options: { readonly confirmWithin?: Duration.Input } = {})
       ReserveStock: (target, input, options) =>
         Effect.gen(function* () {
           commandIds.push(options?.commandId)
-          const steer = steering.shift()
+          const steer = Option.fromUndefinedOr(steering.shift())
           const answer = yield* client
             .ReserveStock(target, input, { ...options, headers: yield* headers })
             .pipe(Effect.exit)
-          if (steer?._tag === 'Hold') yield* Deferred.await(steer.released)
-          if (steer?._tag === 'Lose') return yield* Effect.fail(lost())
+          yield* Option.match(steer, {
+            onNone: () => Effect.void,
+            onSome: each =>
+              Match.valueTags(each, {
+                Hold: ({ released }) => Deferred.await(released),
+                Lose: () => Effect.fail(lost()),
+              }),
+          })
           return yield* answer
         }),
       ProductRow: {

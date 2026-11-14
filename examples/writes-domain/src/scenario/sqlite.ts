@@ -14,6 +14,7 @@ import { decisionOf } from './decision.js'
 import {
   expectedDecision,
   expectedRow,
+  lands,
   pick,
   targetOf,
   type ScenarioRunner,
@@ -70,18 +71,17 @@ export const sqliteRunner: ScenarioRunner = {
         {
           backend: 'sqlite',
           step: 'ledger',
-          expected:
-            scenario.expect._tag === 'Accepted'
-              ? [
-                  {
-                    scope: Option.match(scenario.principal, {
-                      onNone: () => '',
-                      onSome: ({ id }) => id,
-                    }),
-                    operation: scenario.operation,
-                  },
-                ]
-              : [],
+          expected: lands(scenario)
+            ? [
+                {
+                  scope: Option.match(scenario.principal, {
+                    onNone: () => '',
+                    onSome: ({ id }) => id,
+                  }),
+                  operation: scenario.operation,
+                },
+              ]
+            : [],
           actual: ledgered,
         },
       ] satisfies ReadonlyArray<ScenarioStep>

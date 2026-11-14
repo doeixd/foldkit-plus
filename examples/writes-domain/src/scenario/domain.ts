@@ -23,6 +23,7 @@ import { decisionOf } from './decision.js'
 import {
   expectedDecision,
   expectedRow,
+  lands,
   pick,
   seededRow,
   targetOf,
@@ -123,7 +124,6 @@ export const domainRunner: ScenarioRunner = {
       const products = yield* Product
       const held = Option.getOrElse((yield* products.get(id)).row, () => ({}))
       const told = yield* Effect.exit(story(scenario))
-      const accepted = scenario.expect._tag === 'Accepted'
       return [
         {
           backend: 'domain',
@@ -135,7 +135,7 @@ export const domainRunner: ScenarioRunner = {
         {
           backend: 'domain',
           step: 'commits',
-          expected: scenario.given.length + (accepted ? 1 : 0),
+          expected: scenario.given.length + (lands(scenario) ? 1 : 0),
           actual: shop.control.commits.length,
         },
         {

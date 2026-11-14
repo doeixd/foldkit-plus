@@ -8,10 +8,9 @@
  * The shape is the one `Scenario` in `foldkit-remote/testing` is to take
  * (the laws note's D25); when it lands this file is replaced by it.
  */
-import { Effect, Option } from 'effect'
+import { Effect, Match, Option } from 'effect'
 import type { Invariant, Row } from 'foldkit-entity'
-import type { User } from 'foldkit-example-writes/domain'
-import { Product } from 'foldkit-example-writes/domain'
+import type { Product, User } from 'foldkit-example-writes/domain'
 import type { ReserveStock } from '../domain.js'
 
 /** A refusal named by its declaration: an invariant (`Refusal.isInvalidBy` matches it), or the tag of the write's own. */
@@ -67,15 +66,22 @@ export type Decision =
 
 /** The decision the scenario expects. */
 export const expectedDecision = ({ expect }: WriteScenario): Decision =>
-  expect._tag === 'Refused'
-    ? {
-        _tag: 'Refused',
-        refusal:
-          typeof expect.refusal === 'string'
-            ? expect.refusal
-            : `Invalid ${expect.refusal.entity}.${expect.refusal.id}`,
-      }
-    : { _tag: expect._tag }
+  Match.valueTags(expect, {
+    Accepted: (): Decision => ({ _tag: 'Accepted' }),
+    Forbidden: (): Decision => ({ _tag: 'Forbidden' }),
+    Refused: ({ refusal }): Decision => ({
+      _tag: 'Refused',
+      refusal: typeof refusal === 'string' ? refusal : `Invalid ${refusal.entity}.${refusal.id}`,
+    }),
+  })
+
+/** Whether the scenario says the write lands. */
+export const lands = ({ expect }: WriteScenario): boolean =>
+  Match.valueTags(expect, {
+    Accepted: () => true,
+    Refused: () => false,
+    Forbidden: () => false,
+  })
 
 /** The row the scenario seeded for `id`. */
 export const seededRow = (scenario: WriteScenario, id: string): Row =>
@@ -83,7 +89,11 @@ export const seededRow = (scenario: WriteScenario, id: string): Row =>
 
 /** The fields the scenario says the row holds afterwards: what the write changes, or the seeded ones. */
 export const expectedRow = (scenario: WriteScenario, id: string): Row =>
-  scenario.expect._tag === 'Accepted' ? scenario.expect.row : seededRow(scenario, id)
+  Match.valueTags(scenario.expect, {
+    Accepted: ({ row }) => row,
+    Refused: () => seededRow(scenario, id),
+    Forbidden: () => seededRow(scenario, id),
+  })
 
 /** The id of the row the write is aimed at. */
 export const targetOf = ({ when: [, input] }: WriteScenario): string =>
