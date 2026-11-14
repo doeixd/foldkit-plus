@@ -5,7 +5,7 @@
 import { Match, Option, Result, Schema } from 'effect'
 import { Write as DomainWrite, type AnyWrite, type ExprContext } from 'foldkit-entity'
 import type { HeldRow, MemoryOperators } from 'foldkit-entity'
-import { Can, CanRefusal } from './can.js'
+import { Can, CanRefusal, type CapabilityChecks, type CapabilityRequest } from './can.js'
 import { forbiddenByWrite, judgedByWrite, metByWrite, unheldByWrite } from './mutation.js'
 import { holderOf } from './held.js'
 import { own } from './record.js'
@@ -87,3 +87,74 @@ export const canOf = (
   }
   return reasons.length === 0 ? Can.Yes({}) : Can.Undecided({ reasons })
 }
+
+/** `Data.can` for one write, bound to the domain: a Model and the keys given. */
+export type Ask<Model> = (model: Model, input: Readonly<Record<string, unknown>>) => Can
+
+/**
+ * `Data.capability`: `authorize` refuses a `No(Forbidden)`, `applies` a
+ * `No(Unmet)` or `No(Invalid)`, and both allow `Undecided`, which the server
+ * decides. Each hook asks again, over the Model its call carries.
+ */
+export const capabilityOf = <Model>(
+  mutation: { readonly name: string; readonly write: AnyWrite },
+  ask: Ask<Model>,
+  toInput: (request: CapabilityRequest<Model, any, any>) => Readonly<Record<string, unknown>>,
+): CapabilityChecks<Model, any, any> => {
+  const answer = (request: CapabilityRequest<Model, any, any>) => {
+    const input = toInput(request)
+    return { input, can: ask(request.model, input) }
+  }
+  const allowed = (): true => true
+  return {
+    authorize: request =>
+      Can.match(answer(request).can, {
+        No: ({ refusal }) =>
+          CanRefusal.match(refusal, {
+            Forbidden: ({ reason }) =>
+              Option.match(reason, {
+                onNone: () => false,
+                onSome: words => ({ allowed: false as const, reason: words }),
+              }),
+            Unmet: allowed,
+            Invalid: allowed,
+          }),
+        Yes: allowed,
+        Undecided: allowed,
+      }),
+    applies: request => {
+      const { input, can } = answer(request)
+      return Can.match(can, {
+        No: ({ refusal }) =>
+          CanRefusal.match(refusal, {
+            // `authorize` refused it before `applies` is asked.
+            Forbidden: allowed,
+            Unmet: () => ({
+              applies: false as const,
+              reason: `${mutation.write.input.entity.name} ${String(own(input, mutation.write.id.key))} does not hold what ${mutation.name} asks of it`,
+            }),
+            Invalid: ({ message }) => ({ applies: false as const, reason: message }),
+          }),
+        Yes: allowed,
+        Undecided: allowed,
+      })
+    },
+  }
+}
+
+/** `Data.available`: false while no row is named, or `Data.can` answers `No` for the one named. */
+export const availableOf =
+  <Model>(
+    ask: Ask<Model>,
+    inputOf: (model: Model) => Option.Option<Readonly<Record<string, unknown>>>,
+  ) =>
+  (model: Model): boolean =>
+    Option.match(inputOf(model), {
+      onNone: () => false,
+      onSome: input =>
+        Can.match(ask(model, input), {
+          No: () => false,
+          Yes: () => true,
+          Undecided: () => true,
+        }),
+    })

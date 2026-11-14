@@ -1,5 +1,5 @@
 /** `Data.can` takes a registered mutation and only the keys its input has. */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Write } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
@@ -38,3 +38,46 @@ Data.can(model, Other, { id: 'a' })
 
 // @ts-expect-error `title` is not a key of Publish's input
 Data.can(model, Publish, { id: 'a', title: 'x' })
+
+// `Data.capability` types `toInput`'s return by the write's input, and returns checks over the Model.
+const checks = Data.capability(Publish, ({ input }: { input: { readonly id: string } }) => ({
+  id: input.id,
+}))
+const allowed: boolean | { readonly allowed: false; readonly reason: string } = checks.authorize({
+  model,
+  input: { id: 'a' },
+  principal: undefined,
+})
+void allowed
+// @ts-expect-error the checks are asked over this domain's Model
+checks.applies({ model: {}, input: { id: 'a' }, principal: undefined })
+
+// @ts-expect-error Publish's status is `published`
+Data.capability(Publish, ({ input }: { input: { readonly id: string } }) => ({
+  id: input.id,
+  status: 'draft' as const,
+}))
+
+// @ts-expect-error `Other` is not registered with this domain
+Data.capability(Other, () => ({ id: 'a' }))
+
+Data.available(Publish, () => Option.some({ id: 'a' }))
+// @ts-expect-error `Other` is not registered with this domain
+Data.available(Other, () => Option.some({ id: 'a' }))
+
+// Spread into a consumer that types its hooks by its own input, as `Agent.expose` does.
+declare const variant: <Ext>(config: {
+  readonly input: Schema.Codec<Ext, any>
+  readonly authorize?: (request: { input: Ext; model: Model; principal: unknown }) => unknown
+  readonly applies?: (request: { input: Ext; model: Model; principal: unknown }) => unknown
+}) => void
+variant({
+  input: Schema.Struct({ id: Schema.String }),
+  ...Data.capability(Publish, ({ input }: { input: { readonly id: string } }) => ({
+    id: input.id,
+    status: 'published',
+  })),
+})
+// A literal the write's input asks for is kept, the call's input typed by the request's annotation.
+Data.capability(Publish, () => ({ status: 'published' }))
+Data.available(Publish, () => Option.some({ id: 'a', status: 'published' }))

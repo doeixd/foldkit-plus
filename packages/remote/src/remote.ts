@@ -79,6 +79,7 @@ import {
   type PendingDelete,
 } from './ledger.js'
 import type { MutationDescriptor } from './mutationDescriptor.js'
+import type { Can } from './can.js'
 import { plan as planRequirements, type PlanOptions } from './plan.js'
 import { RemotePolicy } from './policy.js'
 import { IDENTITY_SEPARATOR, queryIdentity, stableStringify } from './query.js'
@@ -1027,6 +1028,30 @@ const bindDomain = <
     viewer: viewerOf(model),
     now: Option.none(),
   })
+  // `Data.can` for one write, checked once: `capability` and `available` are
+  // called where a contract is declared, so a mutation that is no Write fails there.
+  const askOf = (entry: string, mutation: MutationDescriptor<any, any, any, any>) => {
+    assertRegistered(bound, 'Mutation', definition.registry.mutations, mutation.name)
+    const write = mutation.write
+    if (write === undefined)
+      throw new Error(
+        `[foldkit-remote] Data.${entry}(${mutation.name}): the mutation was not declared as a Write, so the client cannot tell what it would refuse`,
+      )
+    if (Option.isNone(capabilities.writes))
+      throw new Error(
+        `[foldkit-remote] Data.${entry}(${mutation.name}): the domain registers no Mutation`,
+      )
+    const writes = capabilities.writes.value
+    const ask = (model: AppModel, input: Readonly<Record<string, unknown>>): Can =>
+      writes.can(
+        write,
+        input,
+        contextOf(model),
+        visibleOf(capabilities, store.get(model), operators),
+        operators,
+      )
+    return { writes, write, ask }
+  }
   // Every reader any `subscriptions` call names, and every connection one keeps:
   // retention is the domain's, so each call's retain entry roots them all, and
   // one call with its own policy does not collect what another call reads.
@@ -1876,23 +1901,14 @@ const bindDomain = <
       return shownEdges(remote, identity, remote.connections[identity] ?? emptyConnection)
     },
     ...writes,
-    can: (model, mutation, input) => {
-      assertRegistered(bound, 'Mutation', definition.registry.mutations, mutation.name)
-      if (mutation.write === undefined)
-        throw new Error(
-          `[foldkit-remote] Data.can(${mutation.name}): the mutation was not declared as a Write, so the client cannot tell what it would refuse`,
-        )
-      if (Option.isNone(capabilities.writes))
-        throw new Error(
-          `[foldkit-remote] Data.can(${mutation.name}): the domain registers no Mutation`,
-        )
-      return capabilities.writes.value.can(
-        mutation.write,
-        input,
-        contextOf(model),
-        visibleOf(capabilities, store.get(model), operators),
-        operators,
-      )
+    can: (model, mutation, input) => askOf('can', mutation).ask(model, input),
+    capability: (mutation, toInput) => {
+      const { writes: capability, write, ask } = askOf('capability', mutation)
+      return capability.capability({ name: mutation.name, write }, ask, toInput)
+    },
+    available: (mutation, inputOf) => {
+      const { writes: capability, ask } = askOf('available', mutation)
+      return capability.available(ask, inputOf)
     },
     mutation: (model, requestId) => mutationStatus(store.get(model).mutations, requestId),
     refusal: (model, requestId, mutation) => {

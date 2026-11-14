@@ -46,7 +46,7 @@ import {
   type ConnectionIdentity,
 } from './capability.js'
 import { assertRegistered } from './registered.js'
-import type { Can } from './can.js'
+import type { Can, CapabilityChecks, CapabilityRequest } from './can.js'
 import { parsedQueryRequest } from './queryRequest.js'
 import { resolvedOf, type Asked, type NamedProjection } from './active.js'
 
@@ -620,6 +620,35 @@ export interface RemoteDomain<
     mutation: M & Registered<M['name'], MutationName<Mutations[number]>, 'Mutation'>,
     input: Partial<MutationInput<M>>,
   ): Can
+  /**
+   * An agent capability's `authorize` and `applies`, from `can` over the write
+   * it dispatches, for spreading into a `foldkit-agent` variant. `toInput`
+   * turns the call into the write's input. A held `may` that forbids refuses
+   * in `authorize`, with its words; a `when` that does not hold, or a broken
+   * invariant, refuses in `applies`, which the agent asks only once
+   * `authorize` allowed; `Undecided` allows, since the server decides. Judged
+   * as the Model's viewer, not as the agent's principal. A key written after
+   * the spread replaces the one given here.
+   */
+  capability<
+    M extends MutationDescriptor<any, any, any>,
+    Input,
+    Principal = unknown,
+    // `const`, so a literal the write's input asks for is not widened before `M` is known.
+    const Given extends Partial<MutationInput<M>> = Partial<MutationInput<M>>,
+  >(
+    mutation: M & Registered<M['name'], MutationName<Mutations[number]>, 'Mutation'>,
+    toInput: (request: CapabilityRequest<AppModel, Input, Principal>) => Given,
+  ): CapabilityChecks<AppModel, Input, Principal>
+  /**
+   * An agent capability's `available`, for one over a row the Model alone
+   * names (the selected one): false while `inputOf` names none, or while
+   * `can` answers `No` for the write with that input.
+   */
+  available<M extends MutationDescriptor<any, any, any>>(
+    mutation: M & Registered<M['name'], MutationName<Mutations[number]>, 'Mutation'>,
+    inputOf: (model: AppModel) => Option.Option<NoInfer<Partial<MutationInput<M>>>>,
+  ): (model: AppModel) => boolean
   /**
    * What Remote knows of a mutation `mutate` started, by its request id:
    * pending, applied, or failed with the error the server or transport gave.
