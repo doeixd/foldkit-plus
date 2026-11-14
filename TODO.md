@@ -367,6 +367,47 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
    - `Scenario`: laws WP12 owns the type. If A-WP4 is ready first it ships its
      local `WriteScenario` in D25's shape, and WP12 deletes it. `Footprint`:
      laws WP2 owns the type, and A-WP5 uses it.
+6. **UI authoring** (#551 to #558): assembly from existing contracts,
+   accessibility obligations, focus recovery, one keyboard owner, Presence
+   with interaction and recovery, inspection, agent parts, and the UI SDK
+   audit. Work packages U-WP1 to U-WP12. Status of every one: not started.
+   First, in parallel: U-WP1, U-WP8, U-WP11.
+   [551-558-ui-authoring-DESIGN.md](./docs/design/551-558-ui-authoring-DESIGN.md) §12
+   - U-WP1 attachments a view remembers, contributors named in conflicts,
+     `SlotView.over`, and #531 (#556, #551, #554). Default. After: none.
+   - U-WP2 `SlotView.describe` and `SlotView.resolution` (#556). Sonnet.
+     After: U-WP1.
+   - U-WP3 `Behaviors.Keys`, one `keydown` owner from named routes (#554).
+     Default. After: U-WP1.
+   - U-WP3b the primitives' routes, and `DismissLayer` yielding to a handled
+     Escape (#554). Sonnet. After: U-WP3.
+   - U-WP4 obligations on `A11y.pattern`, `provides`, `A11y.conform` (#552).
+     Default. After: U-WP1; its six `provides` lines after U-WP3b.
+   - U-WP5 `FocusRecovery`, and `FollowTabStop` scoped to its owner (#553).
+     Sonnet. After: U-WP1, U-WP3b.
+   - U-WP6 `Presence.behavior`: exiting content inert, focus moved once
+     (#555). Sonnet. After: U-WP5.
+   - U-WP7 `Conformance`: rendered scenarios for listbox, checkbox, tree,
+     dialog and tabs (#552, #558). Sonnet. After: U-WP4; U-WP3b for the
+     nested-layer case.
+   - U-WP8 `Agent.part` and `runtime.parts` (#557). Default. After: none.
+   - U-WP9 `examples/authoring`, with the Save fixture and the type-cost
+     comparison (#551, #556, #557). Sonnet. After: U-WP2, U-WP3b, U-WP6,
+     U-WP8.
+   - U-WP10 the guide, the skill references, the READMEs (#551, #558).
+     Sonnet. After: all but U-WP11 and U-WP12.
+   - U-WP11 the audit of reorder, overlays and virtual lists, recorded as
+     browser scenarios and a findings note (#558). Sonnet. After: none.
+   - U-WP12 `Reorder`, the keyboard path beside `PointerDrag` (#558).
+     Default. After: U-WP11, U-WP3b.
+
+   **File order within item 6** (the note's §12 holds the detail):
+   `packages/mixins/src/behavior.ts` and `slotView.ts` are U-WP1's, then
+   U-WP4's; `packages/mixins-surface/src/surfaceView.ts` U-WP1's, then
+   U-WP2's; `packages/primitives/src/interaction/tree-navigation.ts`
+   U-WP3b's, then U-WP5's. `packages/agent/src/expose.ts` and `runtime.ts`
+   are shared with laws WP9: whichever starts second builds on the first.
+   Nothing in item 6 touches `packages/remote`, `entity`, `sync` or `guard`.
 
 Waiting on the owner: the upstream posts (foldkit#1657, #1872, the Workers `fetch` signature, the
 identity markers, floating-ui), the three alchemy-run/alchemy reports, and the Jev reviews (no key here).
