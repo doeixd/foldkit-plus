@@ -340,8 +340,13 @@ export const listParts = (
           label: declared.label as string,
           role: declared.role,
           capability: capability(Option.none()),
+          // Own keys only: an optional field left out must not read `Object.prototype`.
           value: Option.flatMap(declared.field, field =>
-            Option.map(snapshot.encoded, context => (context as Record<string, unknown>)[field]),
+            Option.flatMap(snapshot.encoded, context =>
+              Object.hasOwn(context as object, field)
+                ? Option.some((context as Record<string, unknown>)[field])
+                : Option.none(),
+            ),
           ),
         },
       ],

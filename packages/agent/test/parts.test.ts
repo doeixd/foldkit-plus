@@ -159,6 +159,30 @@ describe('Agent.parts', () => {
     ])
   })
 
+  it('has no value for an optional field the context leaves out', () => {
+    const Notes = Agent.forModel<{ readonly note?: string }>()
+    const Noted = Notes.make({
+      context: Projection.fromReader(
+        Schema.Struct({ note: Schema.optionalKey(Schema.String) }),
+        (model: { readonly note?: string }) => model,
+      ),
+      messages: Notes.expose(Message, {}),
+    })
+    const NotedParts = Notes.parts(Noted, {
+      note: Agent.part({ label: 'Note', role: 'note', field: 'note' }),
+    })
+    const valueOf = (model: { readonly note?: string }) =>
+      Effect.runSync(
+        Notes.bind({
+          definition: Noted,
+          host: { model: () => model, dispatch: () => {} },
+          parts: NotedParts,
+        }).parts.list,
+      )[0]!.value
+    expect(valueOf({})).toEqual(Option.none())
+    expect(valueOf({ note: 'hi' })).toEqual(Option.some('hi'))
+  })
+
   it('leaves out a part whose capability is unavailable, every occurrence included', () => {
     const { state, runtime } = bound(emptyModel)
     expect(idsOf(list(runtime))).toEqual(['todos', 'create'])
