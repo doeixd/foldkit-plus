@@ -306,7 +306,9 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
    reason beside it. First, in parallel: A1, A2, B1, B2, C1, E2, F2, H1.
    [decisions-2026-11-12-build-deferred.md](./docs/design/decisions-2026-11-12-build-deferred.md)
 4. **Laws on every state owner** (#541 and its parts #533 to #540, #542,
-   #543), fifteen work packages. Status of every one: not started. "After"
+   #543), fifteen work packages. Built on the branch: WP1, WP5, WP8a (wave 1), WP2,
+   WP3, WP4 (all but `sell.walk.test.ts`, which waited on WP2), WP6, WP13 (wave 2,
+   PR #559). The rest: not started. "After"
    names the packages that land first; models are the note's.
    [541-laws-DESIGN.md](./docs/design/541-laws-DESIGN.md) §9
    - WP1 descriptors: invariants on the identity, a bare guarded descriptor
@@ -333,7 +335,8 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
      (#537). Default. After: 6, 11, 13.
    - WP15 `foldkit-plus laws` (#536). Sonnet. After: 2.
 5. **`@alchemy.run/domain` as a second authority** (#544 to #547), work
-   packages A-WP1 to A-WP11. Status of every one: not started. A-WP6 repeats
+   packages A-WP1 to A-WP11. Built: A-WP1 (Effect 4.1.4, merged in #550), A-WP2a and
+   A-WP3 (PR #559). The rest: not started. A-WP6 repeats
    in small after each of A-WP7 to A-WP11.
    [544-547-alchemy-DESIGN.md](./docs/design/544-547-alchemy-DESIGN.md) §8
    - A-WP1 the package skeleton, Domain installed, the probe as a test
