@@ -677,7 +677,7 @@ policy is chosen (from Chirp, which reads a profile again sooner than the
 timeline):
 
 <!-- docs-check standalone
-import { Schema, pipe } from 'effect'
+import { Option, Schema, pipe } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { defineRouteUnion, literal, mapTo, root, slash, string } from 'foldkit/route'
 import { Remote, RemotePolicy } from 'foldkit-remote'
@@ -702,6 +702,7 @@ const AppSite = Site.make(
     surface: { surface: Profile, params: ({ handle }) => ({ handle }) },
   }),
 )
+const editor = Data.active('editor', () => Option.none())
 -->
 
 ```ts
@@ -720,11 +721,31 @@ const wiring = Data.wiring(Site.sources(AppSite, App.owner, App.model.route), {
 The Surfaces come from the tree (`Site.sources`), each answering its own
 route, and the policy is the one the Model's route picks, so the two vary
 together without either naming the other. Nothing here fetches: `Data.wiring`
-reads the policy when it plans a read. The limit is that one policy covers
-every Surface active on a route; two policies on one route would need a
-Surface-level option the Remote domain does not have. Retention stays the
-store's: a node has no `retain`. See `examples/chirp/src/app.ts` (`policy`)
-and `examples/chirp/test/site.test.ts` for the same wiring checked per route.
+reads the policy when it plans a read. Retention stays the store's: a node has
+no `retain`. See `examples/chirp/src/app.ts` (`policy`) and
+`examples/chirp/test/site.test.ts` for the same wiring checked per route.
+
+The policy the route picks covers every Surface active on it. When one of them
+should read otherwise, such as an editor shown beside every page that reads
+its draft from the server rather than from what the store holds, `policies` gives it a policy of its own by its key in
+the active record, and the rest read under `policy`:
+
+```ts
+const withEditor = Data.wiring(
+  { ...Site.sources(AppSite, App.owner, App.model.route), editor },
+  {
+    policy: (model: Model) =>
+      AppRoute.match(model.route, { Home: () => timeline, Profile: () => profile }),
+    policies: { editor: RemotePolicy.networkOnly },
+  },
+)
+```
+
+A key the record lacks is a type error. `Site.sources` is typed by `string`:
+given alone, a key naming one of its nodes is checked when the wiring is made;
+spread beside another entry, as here, its keys leave the type, so only
+`editor` can be named. A list the editor and the page both read is held stale
+once left unless both policies age it.
 
 **Reading a page ahead on intent.** Give `Site.routing` a `preload`, and a
 link the reader means to follow is read before they follow it, so its page
