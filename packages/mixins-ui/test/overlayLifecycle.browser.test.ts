@@ -250,12 +250,50 @@ test('a Dialog closed after its trigger was removed throws nothing and releases 
 })
 
 // `Dom.closeDialog` refocuses its recorded element only while that is still in
-// the document, and has no fallback: focus lands on the body.
-test.fails('a Dialog closed after its trigger was removed hands focus to a control, not the body', async () => {
+// the document, and guesses no other: with no fallback named, focus is on the body.
+test('a Dialog closed after its trigger was removed leaves focus on the body when no fallback is named', async () => {
   const handle = mount()
   try {
     await closedWithoutItsTrigger()
-    expect(active()).not.toBe('BODY')
+    expect(active()).toBe('BODY')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a Dialog closed after its trigger was removed hands focus to the fallback it names', async () => {
+  const handle = mount({ focusFallback: true })
+  try {
+    await closedWithoutItsTrigger()
+    await vi.waitFor(() => expect(active()).toBe(ids.fallbackButton))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a Dialog with a fallback still returns focus to its trigger when the trigger is there', async () => {
+  const handle = mount({ focusFallback: true })
+  try {
+    await openOuter()
+    await userEvent.keyboard('{Escape}')
+    await gone(ids.outerPanel)
+    await frames(10)
+    expect(active()).toBe(ids.openOuter)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a Dialog with a fallback leaves focus where an action moved it', async () => {
+  const handle = mount({ focusFallback: true })
+  try {
+    await openOuter()
+    await userEvent.click(await present(ids.removeTrigger))
+    await gone(ids.openOuter)
+    await userEvent.click(await present(ids.closeAndFocus))
+    await gone(ids.outerPanel)
+    await frames(10)
+    expect(active()).toBe(ids.outsideButton)
   } finally {
     handle.dispose()
   }

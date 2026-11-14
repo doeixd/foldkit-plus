@@ -35,6 +35,7 @@ export const ids = {
   openOuter: 'open-outer',
   openInner: 'open-inner',
   outsideButton: 'outside-button',
+  fallbackButton: 'fallback-button',
   closeOuter: 'close-outer',
   closeInner: 'close-inner',
   closeAndFocus: 'close-and-focus',
@@ -88,6 +89,8 @@ export interface Options {
   /** Animated Dialogs leave over `leaveMs`, so a test can act during the exit. */
   readonly animated?: boolean
   readonly leaveMs?: number
+  /** The outer Dialog names `ids.fallbackButton` for focus its opener cannot take. */
+  readonly focusFallback?: boolean
 }
 
 /** Test CSS after the recipes: unlayered, so it beats them. */
@@ -170,6 +173,7 @@ export const mount = (options: Options = {}) => {
             ]
           : []),
         h.button([h.Key(ids.outsideButton), h.Id(ids.outsideButton)], ['Outside']),
+        h.button([h.Key(ids.fallbackButton), h.Id(ids.fallbackButton)], ['Fallback']),
         outer(
           model.outer,
           h,
@@ -261,7 +265,11 @@ export const mount = (options: Options = {}) => {
       update: (model: Model, message: Message) => {
         switch (message._tag) {
           case 'Outer': {
-            const next = UiDialog.update(model.outer, message.message)
+            const next = Dialog.update(
+              model.outer,
+              message.message,
+              options.focusFallback === true ? { focusFallback: ids.fallbackButton } : {},
+            )
             return {
               model: { ...model, outer: next.model },
               commands: mapMessages(next.commands, (inner): Message => ({

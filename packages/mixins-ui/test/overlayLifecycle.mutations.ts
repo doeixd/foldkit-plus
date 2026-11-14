@@ -82,6 +82,28 @@ export default [
     tests: [leave],
   },
   {
+    name: 'a closed Dialog adds no focus fallback',
+    edits: [
+      {
+        file: '../src/dialog.ts',
+        find: "if (focusFallback === undefined || message._tag !== 'CompletedCloseDialog') return next",
+        replace: 'return next',
+      },
+    ],
+    tests: [lifecycle],
+  },
+  {
+    name: 'the focus fallback takes focus from wherever it was',
+    edits: [
+      {
+        file: '../src/dialog.ts',
+        find: 'if (held === null || held === document.body) document',
+        replace: 'if (held !== null) document',
+      },
+    ],
+    tests: [lifecycle],
+  },
+  {
     name: "a Listbox's panel writes no dir, so a portaled panel places for left to right",
     edits: [
       {

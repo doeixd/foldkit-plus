@@ -1,4 +1,12 @@
-import type { Message as DialogMessage, Model as DialogModel, RenderInfo } from '@foldkit/ui/dialog'
+import {
+  Message as DialogMessage,
+  update as updateDialog,
+  type Model as DialogModel,
+  type RenderInfo,
+} from '@foldkit/ui/dialog'
+import { Effect, Schema } from 'effect'
+import * as Command from 'foldkit/command'
+import * as Render from 'foldkit/render'
 import { Attr, Behavior, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
 import { KeyboardInset, ScrollBars } from 'foldkit-primitives/dom'
@@ -156,6 +164,47 @@ export const resolve = <Input, Message>(
 export const isLeaving = (model: DialogModel): boolean =>
   model.animation.transitionState === 'LeaveStart' ||
   model.animation.transitionState === 'LeaveAnimating'
+
+/**
+ * Focuses the element `id` names unless something already holds focus: the
+ * body is where it lands when the opener left the page while the dialog was
+ * open, as `Dom.closeDialog` refocuses its recorded element only if it is
+ * still connected. It answers with the Dialog's own `CompletedReleaseDialogResources`,
+ * a no-op in its `update`, since the Dialog has no Message of its own for it.
+ */
+export const FocusFallback = Command.define('Dialog.FocusFallback', {
+  args: { id: Schema.String },
+  messages: [DialogMessage.CompletedReleaseDialogResources],
+  execute: ({ id }) =>
+    Render.afterCommit.pipe(
+      Effect.map(() => {
+        const held = document.activeElement
+        if (held === null || held === document.body) document.getElementById(id)?.focus()
+        return DialogMessage.CompletedReleaseDialogResources()
+      }),
+    ),
+})
+
+export interface UpdateOptions {
+  /**
+   * The id of an element to take focus when the dialog has closed and the
+   * opener could not, because it was removed meanwhile. Focus that moved
+   * anywhere else is left alone, and without it nothing is guessed.
+   */
+  readonly focusFallback?: string
+}
+
+/** `@foldkit/ui`'s Dialog `update`, with the focus fallback after a close that lost focus. */
+export const update = (
+  model: DialogModel,
+  message: DialogMessage,
+  options: UpdateOptions = {},
+): ReturnType<typeof updateDialog> => {
+  const next = updateDialog(model, message)
+  const { focusFallback } = options
+  if (focusFallback === undefined || message._tag !== 'CompletedCloseDialog') return next
+  return { ...next, commands: [...(next.commands ?? []), FocusFallback({ id: focusFallback })] }
+}
 
 /**
  * Whether `message` is the dialog dismissing itself: Escape, a press on the
