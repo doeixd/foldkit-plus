@@ -103,6 +103,7 @@ const SearchLayer = Search.define((model, slots, h) =>
           ]),
         ),
         h.p([h.Id('current')], [model.nav.current ?? '']),
+        h.p([h.Id('typed')], [model.query]),
       ])
     : h.p([h.Id('closed')], ['closed']),
 ).pipe(Behavior.attach(SearchKeys), Behavior.attach(Layer))
@@ -151,6 +152,16 @@ const isOpen = () => document.getElementById('layer') !== null
 const frames = () =>
   new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
 
+/**
+ * Types `text`, then waits until the page draws the Model's copy of it. The Escape route
+ * reads the view as last drawn, so an Escape sent in the same frame as the keys meets an
+ * empty query, declines, and the layer closes.
+ */
+const type = async (text: string) => {
+  await userEvent.keyboard(text)
+  await expect.poll(() => document.getElementById('typed')?.textContent).toBe(text)
+}
+
 const focusField = async () => {
   field().focus()
   await expect.poll(() => document.activeElement).toBe(field())
@@ -158,8 +169,7 @@ const focusField = async () => {
 
 test('an Escape the input handled clears it and does not dismiss the layer', async () => {
   await focusField()
-  await userEvent.keyboard('abc')
-  await expect.poll(() => field().value).toBe('abc')
+  await type('abc')
   await userEvent.keyboard('{Escape}')
   await expect.poll(() => field().value).toBe('')
   await frames()
@@ -176,7 +186,8 @@ test('an Escape the input declined dismisses the layer', async () => {
 
 test('the second Escape, with nothing left to clear, dismisses', async () => {
   await focusField()
-  await userEvent.keyboard('ab{Escape}')
+  await type('ab')
+  await userEvent.keyboard('{Escape}')
   await expect.poll(() => field().value).toBe('')
   await frames()
   expect(isOpen()).toBe(true)
