@@ -6,7 +6,7 @@
 import { Effect, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Expr, Operators, Relation, Write } from 'foldkit-entity'
-import { Mutation, Remote } from 'foldkit-remote'
+import { Mutation, Refusal, Remote } from 'foldkit-remote'
 import { Law } from 'foldkit-remote/testing'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
@@ -45,6 +45,11 @@ const Stock = Related.Stock.pipe(
     ({ after }) => Expr.lte(after.reserved, after.quantity),
     { message: 'Reserved stock cannot exceed the quantity', path: ['reserved'] },
   ),
+)
+
+/** Over numbers, so no write into it is proved where declared: each is held to it where it lands. */
+const Available = Entity.refine(Stock, 'Available', ({ row }) =>
+  Expr.gt(row.quantity, row.reserved),
 )
 
 const Reserve = Mutation.write(
@@ -111,7 +116,19 @@ const List = Mutation.write(
       }),
       { ownerId: 'owner' },
     ),
-    { id: 'id' },
+    { id: 'id', becomes: Available },
+  ),
+)
+/** Takes from the quantity, and leaves some unreserved: its postcondition. */
+const Take = Mutation.write(
+  'Take',
+  Write.update(
+    Entity.input(
+      Stock,
+      Schema.Struct({ id: Schema.String, revision: Schema.Int, quantity: Schema.Int }),
+      { quantity: Entity.unmapped },
+    ),
+    { id: 'id', expect: 'revision', increment: { quantity: 'quantity' }, becomes: Available },
   ),
 )
 const Withdraw = Mutation.write(
@@ -122,7 +139,7 @@ const Withdraw = Mutation.write(
     when: () => Expr.eq(Stock.fields.status, 'draft'),
   }),
 )
-const mutations = [Reserve, Rename, Relabel, List, Withdraw] as const
+const mutations = [Reserve, Rename, Relabel, List, Withdraw, Take] as const
 
 const row = (id: string, status: string, quantity: number, reserved: number) => ({
   id,
@@ -221,6 +238,23 @@ describe('RemoteServer.memoryWriter', () => {
       { ...row('s1', 'draft', 1, 0), ownerId: 'o1' },
       { _tag: 'Taken', entity: 'Stock', id: 's1' },
     ],
+    [
+      'an update it would leave outside its becomes',
+      'Take',
+      { id: 's1', revision: 1, quantity: -5 },
+      {
+        _tag: 'Invalid',
+        entity: 'Stock',
+        rule: 'becomes:Available',
+        path: ['quantity', 'reserved'],
+      },
+    ],
+    [
+      'an insert it would leave outside its becomes',
+      'List',
+      { ...row('s3', 'draft', 1, 1), ownerId: 'o1' },
+      { _tag: 'Invalid', entity: 'Stock', rule: 'becomes:Available' },
+    ],
     ['a delete at a stale revision', 'Withdraw', { id: 's2', revision: 7 }, { _tag: 'Conflict' }],
     ['a delete of a row not a draft', 'Withdraw', { id: 's1', revision: 1 }, { _tag: 'Unmet' }],
   ])('refuses %s, and writes nothing', async (_, mutation, input, refusal) => {
@@ -228,6 +262,24 @@ describe('RemoteServer.memoryWriter', () => {
     const before = [stock('s1'), stock('s2')]
     expect(await send(mutation, input)).toMatchObject(refused(refusal))
     expect([stock('s1'), stock('s2')]).toEqual(before)
+  })
+
+  it('lands a write its postcondition holds of, and names the postcondition it refuses by', async () => {
+    const { send, stock } = fresh()
+    expect(await send('Take', { id: 's1', revision: 1, quantity: -4 })).toMatchObject({
+      _tag: 'Success',
+    })
+    expect(stock('s1')).toMatchObject({ quantity: 6, reserved: 5, revision: 2 })
+    const answer = await send('Take', { id: 's1', revision: 2, quantity: -1 })
+    if (answer._tag !== 'Failure') throw new Error('the take landed')
+    const { refusal } = answer.failure as { readonly refusal: unknown }
+    expect(
+      Refusal.isInvalidBy(
+        Schema.decodeUnknownSync(Take.Refusal)(refusal),
+        Write.ensured(Take.write),
+      ),
+    ).toBe(true)
+    expect(stock('s1')).toMatchObject({ quantity: 6, revision: 2 })
   })
 
   it('answers a retry of an update that landed with the row, and a computing one as a conflict', async () => {
@@ -268,6 +320,23 @@ describe('RemoteServer.memoryWriter', () => {
     )
     expect(() => RemoteServer.write(Owned, writer)).toThrow(
       'write "Owned" cannot land through its writer for Stock: its precondition needs',
+    )
+    const Open = Mutation.write(
+      'Open',
+      Write.insert(
+        Entity.input(
+          Stock,
+          Schema.Struct({ id: Schema.String, name: Schema.String, quantity: Schema.Int }),
+        ),
+        { id: 'id', becomes: Available },
+      ),
+    )
+    expect(() => RemoteServer.write(Open, writer)).toThrow(
+      'insert "Open" leaves unset a field an invariant reads (reservedWithinQuantity reads reserved; becomes:Available reads reserved)',
+    )
+    const { postconditions: _, ...unjudging } = writer
+    expect(() => RemoteServer.write(Take, unjudging)).toThrow(
+      'write "Take" ensures becomes:Available, which enumeration could not prove where it was declared, but its writer for Stock does not judge one (postconditions)',
     )
   })
 })
