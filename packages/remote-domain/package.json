@@ -41,6 +41,11 @@
       "foldkit-plus:source": "./src/lower/index.ts",
       "types": "./dist/lower/index.d.ts",
       "import": "./dist/lower/index.js"
+    },
+    "./testing": {
+      "foldkit-plus:source": "./src/testing.ts",
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
     }
   },
   "files": [

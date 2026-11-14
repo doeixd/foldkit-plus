@@ -4,7 +4,7 @@
  * mutation Remote sends, and `describe` says what the Api's bindings import,
  * over the adapter's model (`test/adapter/fixture.ts`).
  */
-import { Effect, Layer, Option, Ref, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Expr, Footprint, Order } from 'foldkit-entity'
 import { Mutation, Query, Reach, reaches, Remote, RemoteClient } from 'foldkit-remote'
@@ -117,14 +117,7 @@ describe('Imported.mutation', () => {
   })
 
   it('is callable through the adapter, which lands the command and answers its reply', async () => {
-    const world = makeWorld()
-    const layer = DomainRemote.layer(ShopApi, {
-      views: [Reads],
-      commands: [Reserving, Touching],
-      principal: Ref.get(world.actor),
-      denied: () => 'Unauthenticated',
-      confirmWithin: world.confirmWithin,
-    }).pipe(Layer.provideMerge(world.clientLayer), Layer.provideMerge(world.hosted))
+    const world = makeWorld({ bindings: { views: [Reads], commands: [Reserving, Touching] } })
     const seen = await Effect.runPromise(
       Effect.gen(function* () {
         const domain = yield* ShopApi.Client
@@ -141,7 +134,7 @@ describe('Imported.mutation', () => {
         yield* world.control.drain
         const row = yield* domain.ProductRow.snapshot('p1')
         return { answer, note: row.state?.note }
-      }).pipe(Effect.scoped, Effect.provide(layer)),
+      }).pipe(Effect.scoped, Effect.provide(world.layer)),
     )
     expect(seen.answer.output).toEqual({})
     expect(seen.answer.principal).toBe('ada')

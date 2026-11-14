@@ -1,14 +1,14 @@
 /**
- * The Api's in-process client, wrapped as a transport the tests steer: each
- * call carries the current actor's headers (what a session cookie does over
- * HTTP), is counted, and may have its reply held back (`holdReply`) or lost
+ * The adapter's `Fixture`, with its client wrapped as a transport the tests
+ * steer: each call is counted, and may have its reply held back (`holdReply`) or lost
  * after it ran (`loseReply`); a watch may be sent a frame the transport
  * delivers late (`deliverLate`).
  */
-import { Deferred, Duration, Effect, Layer, Option, Queue, Ref, Stream } from 'effect'
+import { Deferred, Duration, Effect, Option, Queue, Ref, Stream } from 'effect'
 import { RpcClientDefect, RpcClientError } from 'effect/rpc/RpcClientError'
-import { DomainRemote, type Outcome } from '../../src/index.js'
-import { Reserve, ShopApi, host, invalidOf } from './fixture.js'
+import { DomainRemote, type LayerConfig, type Outcome } from '../../src/index.js'
+import { Fixture } from '../../src/testing.js'
+import { Reserve, ProductRowLive, SessionLive, Shop, ShopApi, invalidOf } from './fixture.js'
 
 type Client = Effect.Success<typeof ShopApi.clientInProcess>
 
@@ -21,32 +21,27 @@ const lost = () =>
     reason: new RpcClientDefect({ message: 'the reply was lost', cause: null }),
   })
 
-/** A test's world: the host, the steerable client, and who is signed in. */
-export const world = (options: { readonly confirmWithin?: Duration.Input } = {}) => {
-  const { layer: hosted, control } = host()
-  const actor = Ref.makeUnsafe<Option.Option<string>>(Option.some('ada'))
+/** A test's world: the fixture, the steerable client, and who is signed in. */
+export const world = (
+  options: {
+    readonly confirmWithin?: Duration.Input
+    /** How a non-owner's Rejection is answered. */
+    readonly notOwner?: Outcome<never>
+    /** The bindings to answer with instead of the reservation's. */
+    readonly bindings?: Pick<LayerConfig<typeof ShopApi>, 'views' | 'commands'>
+  } = {},
+) => {
   const calls = new Map<string, number>()
   const commandIds: Array<string | undefined> = []
   const steering = new Map<string, Array<Steer>>()
   const late = Effect.runSync(Queue.unbounded<{ readonly key: string; readonly frame: unknown }>())
 
-  const headers = Effect.map(
-    Ref.get(actor),
-    Option.match({
-      onNone: (): Readonly<Record<string, string>> => ({}),
-      onSome: id => ({ 'x-actor': id }),
-    }),
-  )
-
-  /** Runs `call` as the transport would: counted, with the current headers, steered if asked. */
-  const through = <A, E, R>(
-    name: string,
-    call: (headers: Readonly<Record<string, string>>) => Effect.Effect<A, E, R>,
-  ) =>
+  /** Runs `call` as the transport would: counted, steered if asked. */
+  const through = <A, E, R>(name: string, call: () => Effect.Effect<A, E, R>) =>
     Effect.gen(function* () {
       calls.set(name, (calls.get(name) ?? 0) + 1)
       const steer = steering.get(name)?.shift()
-      const answer = yield* call(yield* headers).pipe(Effect.exit)
+      const answer = yield* call().pipe(Effect.exit)
       if (steer?._tag === 'Hold') yield* Deferred.await(steer.released)
       if (steer?._tag === 'Lose') return yield* Effect.fail(lost())
       return yield* answer
@@ -56,41 +51,66 @@ export const world = (options: { readonly confirmWithin?: Duration.Input } = {})
     const view = client.ProductRow
     return {
       ...client,
-      Seed: (target, input, options) =>
-        through('Seed', headers => client.Seed(target, input, { ...options, headers })),
+      Seed: (target, input, options) => through('Seed', () => client.Seed(target, input, options)),
       ReserveStock: (target, input, options) => {
         commandIds.push(options?.commandId)
-        return through('ReserveStock', headers =>
-          client.ReserveStock(target, input, { ...options, headers }),
-        )
+        return through('ReserveStock', () => client.ReserveStock(target, input, options))
       },
       Touch: (target, input, options) =>
-        through('Touch', headers => client.Touch(target, input, { ...options, headers })),
+        through('Touch', () => client.Touch(target, input, options)),
       ProductRow: {
         ...view,
         snapshot: (key, options) =>
-          through('ProductRow.snapshot', headers => view.snapshot(key, { ...options, headers })),
+          through('ProductRow.snapshot', () => view.snapshot(key, options)),
         watch: (key, options) =>
-          Stream.unwrap(
-            Effect.map(headers, headers =>
-              Stream.merge(
-                view.watch(key, { ...options, headers }),
-                Stream.fromQueue(late).pipe(
-                  Stream.filter(each => each.key === key),
-                  Stream.map(each => each.frame as never),
-                ),
-              ),
+          Stream.merge(
+            view.watch(key, options),
+            Stream.fromQueue(late).pipe(
+              Stream.filter(each => each.key === key),
+              Stream.map(each => each.frame as never),
             ),
           ),
       },
     }
   }
 
-  const clientLayer = Layer.effect(ShopApi.Client, Effect.map(ShopApi.clientInProcess, steered))
+  const Reads = DomainRemote.view(Reserve.write.input.entity, ShopApi, 'ProductRow', {
+    revision: 'revision',
+  })
+  const Reserving = DomainRemote.command(Reserve, ShopApi, 'ReserveStock', {
+    target: input => input.id,
+    input: input => ({ quantity: input.quantity, revision: input.revision }),
+    refusals: {
+      Moved: () => DomainRemote.refuse({ _tag: 'Conflict' }),
+      Invalid: rejection => DomainRemote.refuse(invalidOf(rejection)),
+      NotOwner: () => options.notOwner ?? DomainRemote.forbid('Only its owner reserves its stock'),
+      Missing: () => DomainRemote.fail('No such product'),
+    },
+    written: reply => reply,
+  })
+  const fixture = Fixture.make(ShopApi, {
+    model: Shop,
+    handlers: ProductRowLive,
+    middleware: SessionLive,
+    as: 'ada',
+    through: steered,
+    bindings: {
+      views: options.bindings?.views ?? [Reads],
+      commands: options.bindings?.commands ?? [Reserving],
+      denied: () => 'Unauthenticated',
+      confirmWithin: options.confirmWithin ?? ('200 millis' as Duration.Input),
+    },
+  })
 
   return {
-    control,
-    actor,
+    layer: fixture.layer,
+    control: {
+      drain: fixture.drain,
+      get commits() {
+        return fixture.commits()
+      },
+    },
+    actor: fixture.as as Ref.Ref<Option.Option<string>>,
     /** How many times the client called `name` (a command's tag, or `ProductRow.snapshot`). */
     calls: (name: string) => calls.get(name) ?? 0,
     /** The `commandId` of each `ReserveStock` sent, in order. */
@@ -107,38 +127,7 @@ export const world = (options: { readonly confirmWithin?: Duration.Input } = {})
     },
     /** Sends every open watch of `key` a frame, as one the transport delivered late. */
     deliverLate: (key: string, frame: unknown) => Queue.offer(late, { key, frame }),
-    clientLayer,
-    hosted,
-    confirmWithin: options.confirmWithin ?? ('200 millis' as Duration.Input),
   }
 }
 
 export type World = ReturnType<typeof world>
-
-/** The adapter over a world, as the tests bind it; `notOwner` is how a non-owner's Rejection is answered. */
-export const bound = (
-  world: World,
-  notOwner: Outcome<never> = DomainRemote.forbid('Only its owner reserves its stock'),
-) => {
-  const Reads = DomainRemote.view(Reserve.write.input.entity, ShopApi, 'ProductRow', {
-    revision: 'revision',
-  })
-  const Reserving = DomainRemote.command(Reserve, ShopApi, 'ReserveStock', {
-    target: input => input.id,
-    input: input => ({ quantity: input.quantity, revision: input.revision }),
-    refusals: {
-      Moved: () => DomainRemote.refuse({ _tag: 'Conflict' }),
-      Invalid: rejection => DomainRemote.refuse(invalidOf(rejection)),
-      NotOwner: () => notOwner,
-      Missing: () => DomainRemote.fail('No such product'),
-    },
-    written: reply => reply,
-  })
-  return DomainRemote.layer(ShopApi, {
-    views: [Reads],
-    commands: [Reserving],
-    principal: Ref.get(world.actor),
-    denied: () => 'Unauthenticated',
-    confirmWithin: world.confirmWithin,
-  }).pipe(Layer.provideMerge(world.clientLayer), Layer.provideMerge(world.hosted))
-}

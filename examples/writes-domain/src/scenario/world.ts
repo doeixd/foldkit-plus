@@ -1,6 +1,6 @@
 /**
  * The Domain model behind the adapter, as a scenario and the ordering tests
- * run it: hosted in memory with every View delivery held until `control.drain`,
+ * run it: hosted in memory with every View delivery held until `fixture.drain`,
  * signed in as whoever `as` holds (each call carries that user's header, as a
  * session cookie would), and steerable at the one call that matters: the
  * reply to a `ReserveStock` can be held back, or lost after the command ran,
@@ -20,8 +20,9 @@ import {
 } from 'effect'
 import { RpcClientDefect, RpcClientError } from 'effect/rpc/RpcClientError'
 import { Product } from 'foldkit-example-writes/domain'
-import { host, ShopApi } from '../model.js'
-import { adapter } from '../shop.js'
+import { Fixture } from 'foldkit-remote-domain/testing'
+import { ProductRowLive, SessionLive, Shop, ShopApi } from '../model.js'
+import { bindings } from '../shop.js'
 import type { Row } from 'foldkit-entity'
 
 type Client = Effect.Success<typeof ShopApi.clientInProcess>
@@ -38,19 +39,9 @@ const lost = () =>
   })
 
 export const world = (options: { readonly confirmWithin?: Duration.Input } = {}) => {
-  const { layer: hosted, control } = host()
-  const as = Ref.makeUnsafe<Option.Option<string>>(Option.none())
   const steering: Array<Steer> = []
   const commandIds: Array<string | undefined> = []
   const late = Effect.runSync(Queue.unbounded<{ readonly key: string; readonly frame: unknown }>())
-
-  const headers = Effect.map(
-    Ref.get(as),
-    Option.match({
-      onNone: (): Readonly<Record<string, string>> => ({}),
-      onSome: id => ({ 'x-user': id }),
-    }),
-  )
 
   const steered = (client: Client): Client => {
     const view = client.ProductRow
@@ -60,9 +51,7 @@ export const world = (options: { readonly confirmWithin?: Duration.Input } = {})
         Effect.gen(function* () {
           commandIds.push(options?.commandId)
           const steer = Option.fromUndefinedOr(steering.shift())
-          const answer = yield* client
-            .ReserveStock(target, input, { ...options, headers: yield* headers })
-            .pipe(Effect.exit)
+          const answer = yield* client.ReserveStock(target, input, options).pipe(Effect.exit)
           yield* Option.match(steer, {
             onNone: () => Effect.void,
             onSome: each =>
@@ -75,34 +64,36 @@ export const world = (options: { readonly confirmWithin?: Duration.Input } = {})
         }),
       ProductRow: {
         ...view,
-        snapshot: (key, options) =>
-          Effect.flatMap(headers, headers => view.snapshot(key, { ...options, headers })),
         watch: (key, options) =>
-          Stream.unwrap(
-            Effect.map(headers, headers =>
-              Stream.merge(
-                view.watch(key, { ...options, headers }),
-                Stream.fromQueue(late).pipe(
-                  Stream.filter(each => each.key === key),
-                  Stream.map(each => each.frame as never),
-                ),
-              ),
+          Stream.merge(
+            view.watch(key, options),
+            Stream.fromQueue(late).pipe(
+              Stream.filter(each => each.key === key),
+              Stream.map(each => each.frame as never),
             ),
           ),
       },
     }
   }
 
-  const layer = adapter(Ref.get(as), options).pipe(
-    Layer.provideMerge(Layer.effect(ShopApi.Client, Effect.map(ShopApi.clientInProcess, steered))),
-    Layer.provideMerge(hosted),
-  )
-
+  const fixture = Fixture.make(ShopApi, {
+    model: Shop,
+    handlers: ProductRowLive,
+    middleware: SessionLive,
+    headers: id => ({ 'x-user': id }),
+    through: steered,
+    bindings: bindings(options),
+  })
   return {
-    layer,
-    control,
+    layer: fixture.layer,
+    control: {
+      drain: fixture.drain,
+      get commits() {
+        return fixture.commits()
+      },
+    },
     /** Who the page is signed in as: none is a visitor. */
-    as,
+    as: fixture.as,
     /** The `commandId` of each `ReserveStock` sent, in order. */
     commandIds,
     /** Sends every open watch of `key` a frame, as one the transport delivered late. */
@@ -113,7 +104,7 @@ export const world = (options: { readonly confirmWithin?: Duration.Input } = {})
         const client = yield* ShopApi.clientInProcess
         for (const row of rows)
           yield* client.ListProduct(String(row['id']), { row: decodeRow(row) })
-        yield* control.drain
+        yield* fixture.drain
       }),
     /** Holds the reply of the next `ReserveStock` until `release` runs; the command itself runs at once. */
     holdReply: () => {

@@ -19,21 +19,21 @@ import {
   ShopApi,
   StaffProduct,
 } from './fixture.js'
-import { bound, world as makeWorld, type World } from './transport.js'
+import { world as makeWorld, type World } from './transport.js'
 
 /** Runs a body in a fresh world, with p1 seeded for ada (stock 10) and its View caught up. */
 const run = <A, E>(
-  body: (world: World) => Effect.Effect<A, E, Layer.Success<ReturnType<typeof bound>>>,
+  body: (world: World) => Effect.Effect<A, E, Layer.Success<World['layer']>>,
   notOwner?: Outcome<never>,
 ) => {
-  const world = makeWorld()
+  const world = makeWorld(notOwner === undefined ? {} : { notOwner })
   return Effect.runPromise(
     Effect.gen(function* () {
       const client = yield* ShopApi.Client
       yield* client.Seed('p1', { ownerId: 'ada', stock: 10 })
       yield* world.control.drain
       return yield* body(world)
-    }).pipe(Effect.scoped, Effect.provide(bound(world, notOwner))),
+    }).pipe(Effect.scoped, Effect.provide(world.layer)),
   )
 }
 

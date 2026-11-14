@@ -165,6 +165,7 @@
       "foldkit-plus/remote-domain": ["./src/remote-domain.ts"],
       "foldkit-plus/remote-domain/imported": ["./src/remote-domain/imported.ts"],
       "foldkit-plus/remote-domain/lower": ["./src/remote-domain/lower.ts"],
+      "foldkit-plus/remote-domain/testing": ["./src/remote-domain/testing.ts"],
       "foldkit-plus/remote-drizzle": ["./src/remote-drizzle.ts"],
       "foldkit-plus/remote-drizzle/pg": ["./src/remote-drizzle/pg.ts"],
       "foldkit-plus/remote-server": ["./src/remote-server.ts"],
@@ -221,6 +222,7 @@
       "foldkit-remote-domain": ["../remote-domain/src/index.ts"],
       "foldkit-remote-domain/imported": ["../remote-domain/src/imported/index.ts"],
       "foldkit-remote-domain/lower": ["../remote-domain/src/lower/index.ts"],
+      "foldkit-remote-domain/testing": ["../remote-domain/src/testing.ts"],
       "foldkit-remote-drizzle": ["../remote-drizzle/src/index.ts"],
       "foldkit-remote-drizzle/pg": ["../remote-drizzle/src/pg.ts"],
       "foldkit-remote-server": ["../remote-server/src/index.ts"],
@@ -262,146 +264,52 @@
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts", "tsdown.config.ts"],
   "references": [
-    {
-      "path": "../agent/tsconfig.build.json"
-    },
-    {
-      "path": "../agent-a2a/tsconfig.build.json"
-    },
-    {
-      "path": "../agent-mcp/tsconfig.build.json"
-    },
-    {
-      "path": "../agent-native/tsconfig.build.json"
-    },
-    {
-      "path": "../agent-webmcp/tsconfig.build.json"
-    },
-    {
-      "path": "../auth/tsconfig.build.json"
-    },
-    {
-      "path": "../builder/tsconfig.build.json"
-    },
-    {
-      "path": "../bundle/tsconfig.build.json"
-    },
-    {
-      "path": "../bundle-surface/tsconfig.build.json"
-    },
-    {
-      "path": "../cms/tsconfig.build.json"
-    },
-    {
-      "path": "../cms-drizzle/tsconfig.build.json"
-    },
-    {
-      "path": "../composition/tsconfig.build.json"
-    },
-    {
-      "path": "../crud/tsconfig.build.json"
-    },
-    {
-      "path": "../data-grid/tsconfig.build.json"
-    },
-    {
-      "path": "../durable/tsconfig.build.json"
-    },
-    {
-      "path": "../entity/tsconfig.build.json"
-    },
-    {
-      "path": "../form/tsconfig.build.json"
-    },
-    {
-      "path": "../form-recipes/tsconfig.build.json"
-    },
-    {
-      "path": "../guard/tsconfig.build.json"
-    },
-    {
-      "path": "../host/tsconfig.build.json"
-    },
-    {
-      "path": "../media/tsconfig.build.json"
-    },
-    {
-      "path": "../metadata/tsconfig.build.json"
-    },
-    {
-      "path": "../mirror/tsconfig.build.json"
-    },
-    {
-      "path": "../mixins/tsconfig.build.json"
-    },
-    {
-      "path": "../mixins-builder/tsconfig.build.json"
-    },
-    {
-      "path": "../mixins-crud/tsconfig.build.json"
-    },
-    {
-      "path": "../mixins-data-grid/tsconfig.build.json"
-    },
-    {
-      "path": "../mixins-form/tsconfig.build.json"
-    },
-    {
-      "path": "../mixins-richtext/tsconfig.build.json"
-    },
-    {
-      "path": "../mixins-surface/tsconfig.build.json"
-    },
-    {
-      "path": "../mixins-ui/tsconfig.build.json"
-    },
-    {
-      "path": "../primitives/tsconfig.build.json"
-    },
-    {
-      "path": "../react/tsconfig.build.json"
-    },
-    {
-      "path": "../react-codegen/tsconfig.build.json"
-    },
-    {
-      "path": "../remote/tsconfig.build.json"
-    },
-    {
-      "path": "../remote-domain/tsconfig.build.json"
-    },
-    {
-      "path": "../remote-drizzle/tsconfig.build.json"
-    },
-    {
-      "path": "../remote-server/tsconfig.build.json"
-    },
-    {
-      "path": "../richtext/tsconfig.build.json"
-    },
-    {
-      "path": "../richtext-code/tsconfig.build.json"
-    },
-    {
-      "path": "../richtext-code-shiki/tsconfig.build.json"
-    },
-    {
-      "path": "../richtext-dom/tsconfig.build.json"
-    },
-    {
-      "path": "../richtext-markdown/tsconfig.build.json"
-    },
-    {
-      "path": "../site/tsconfig.build.json"
-    },
-    {
-      "path": "../ssr/tsconfig.build.json"
-    },
-    {
-      "path": "../surface/tsconfig.build.json"
-    },
-    {
-      "path": "../sync/tsconfig.build.json"
-    }
+    { "path": "../agent/tsconfig.build.json" },
+    { "path": "../agent-a2a/tsconfig.build.json" },
+    { "path": "../agent-mcp/tsconfig.build.json" },
+    { "path": "../agent-native/tsconfig.build.json" },
+    { "path": "../agent-webmcp/tsconfig.build.json" },
+    { "path": "../auth/tsconfig.build.json" },
+    { "path": "../builder/tsconfig.build.json" },
+    { "path": "../bundle/tsconfig.build.json" },
+    { "path": "../bundle-surface/tsconfig.build.json" },
+    { "path": "../cms/tsconfig.build.json" },
+    { "path": "../cms-drizzle/tsconfig.build.json" },
+    { "path": "../composition/tsconfig.build.json" },
+    { "path": "../crud/tsconfig.build.json" },
+    { "path": "../data-grid/tsconfig.build.json" },
+    { "path": "../durable/tsconfig.build.json" },
+    { "path": "../entity/tsconfig.build.json" },
+    { "path": "../form/tsconfig.build.json" },
+    { "path": "../form-recipes/tsconfig.build.json" },
+    { "path": "../guard/tsconfig.build.json" },
+    { "path": "../host/tsconfig.build.json" },
+    { "path": "../media/tsconfig.build.json" },
+    { "path": "../metadata/tsconfig.build.json" },
+    { "path": "../mirror/tsconfig.build.json" },
+    { "path": "../mixins/tsconfig.build.json" },
+    { "path": "../mixins-builder/tsconfig.build.json" },
+    { "path": "../mixins-crud/tsconfig.build.json" },
+    { "path": "../mixins-data-grid/tsconfig.build.json" },
+    { "path": "../mixins-form/tsconfig.build.json" },
+    { "path": "../mixins-richtext/tsconfig.build.json" },
+    { "path": "../mixins-surface/tsconfig.build.json" },
+    { "path": "../mixins-ui/tsconfig.build.json" },
+    { "path": "../primitives/tsconfig.build.json" },
+    { "path": "../react/tsconfig.build.json" },
+    { "path": "../react-codegen/tsconfig.build.json" },
+    { "path": "../remote/tsconfig.build.json" },
+    { "path": "../remote-domain/tsconfig.build.json" },
+    { "path": "../remote-drizzle/tsconfig.build.json" },
+    { "path": "../remote-server/tsconfig.build.json" },
+    { "path": "../richtext/tsconfig.build.json" },
+    { "path": "../richtext-code/tsconfig.build.json" },
+    { "path": "../richtext-code-shiki/tsconfig.build.json" },
+    { "path": "../richtext-dom/tsconfig.build.json" },
+    { "path": "../richtext-markdown/tsconfig.build.json" },
+    { "path": "../site/tsconfig.build.json" },
+    { "path": "../ssr/tsconfig.build.json" },
+    { "path": "../surface/tsconfig.build.json" },
+    { "path": "../sync/tsconfig.build.json" }
   ]
 }

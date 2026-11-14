@@ -20,6 +20,7 @@
       "foldkit-remote-domain": ["./src/index.ts"],
       "foldkit-remote-domain/imported": ["./src/imported/index.ts"],
       "foldkit-remote-domain/lower": ["./src/lower/index.ts"],
+      "foldkit-remote-domain/testing": ["./src/testing.ts"],
       "foldkit-remote-server": ["../remote-server/src/index.ts"],
       "foldkit-remote-server/fetch": ["../remote-server/src/fetch.ts"],
       "foldkit-remote-server/port": ["../remote-server/src/port.ts"],
