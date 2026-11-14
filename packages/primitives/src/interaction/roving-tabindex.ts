@@ -129,15 +129,28 @@ export const tabStop = (
   return items.enabled[0] ?? -1
 }
 
-export interface BehaviorOptions<Input, Slots> {
-  /** The slot that receives the arrow keys. */
-  readonly container: keyof Slots & string
-  /** The slot rendered once per item; must carry the item's id (see `Behaviors.Collection`). */
-  readonly item: keyof Slots & string
+export interface KeyOptions<Input> {
   readonly items: (input: Input) => Behaviors.Collection.Items<unknown>
   /** Default `'ltr'`; return `'rtl'` to swap left and right. */
   readonly direction?: (input: Input) => Direction
 }
+
+export interface BehaviorOptions<Input, Slots> extends KeyOptions<Input> {
+  /** The slot that receives the arrow keys. */
+  readonly container: keyof Slots & string
+  /** The slot rendered once per item; must carry the item's id (see `Behaviors.Collection`). */
+  readonly item: keyof Slots & string
+}
+
+const ARROWS: Readonly<Record<Orientation, ReadonlyArray<Behaviors.Keys.NamedKey>>> = {
+  vertical: ['ArrowUp', 'ArrowDown'],
+  horizontal: ['ArrowLeft', 'ArrowRight'],
+  both: ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'],
+}
+
+/** The chords of an orientation's arrows, Shift up and down: what `move` takes beyond Home and End. */
+export const arrowChords = (orientation: Orientation): ReadonlyArray<Behaviors.Keys.Gesture> =>
+  ARROWS[orientation].flatMap(key => Behaviors.Keys.withShift(key))
 
 /** A selector for an element by id, safe for any id. */
 export { idSelector }
@@ -162,8 +175,48 @@ export const itemAttributes = <ParentMessage>(
 }
 
 /**
+ * The route a `RovingTabindex` installs on its container: the arrows of the
+ * orientation, Home and End, each answering `Focused` and moving focus to the
+ * item (under `virtual`, only the Message). List it in a `Keys.behavior` beside
+ * routes of your own, as `behavior` lists it alone.
+ */
+export const keys =
+  <Field extends string>(declared: Declared<typeof bundle, Field>, args: Args) =>
+  <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    options: KeyOptions<Input>,
+  ): Behaviors.Keys.Route<Input, ParentMessage> => {
+    const wrap = (id: string): ParentMessage =>
+      declared.wrapper.make(Message.Focused({ id })) as unknown as ParentMessage
+    const itemsOf = perInput(options.items)
+    return Behaviors.Keys.route<Input, ParentMessage>('RovingTabindex', {
+      on: [
+        ...Behaviors.Keys.withShift('Home'),
+        ...Behaviors.Keys.withShift('End'),
+        ...arrowChords(args.orientation),
+      ],
+      handle: ({ key, modifiers, input }) => {
+        const items = itemsOf(input)
+        const current = input[declared.field].current
+        const next = move(
+          items.enabled,
+          current === null ? -1 : items.indexOf(current),
+          key,
+          modifiers,
+          {
+            ...args,
+            direction: options.direction?.(input) ?? 'ltr',
+          },
+        )
+        const id = next === undefined ? undefined : items.ids[next]
+        if (id === undefined) return Option.none()
+        return Option.some(args.virtual ? wrap(id) : Behaviors.Keys.focus(id, wrap(id)))
+      },
+    })
+  }
+
+/**
  * Wires a placed `RovingTabindex` to the slots: the container's arrow, Home
- * and End keys focus the next item (synchronously, then dispatch), each item
+ * and End keys (`keys`) focus the next item (synchronously, then dispatch), each item
  * gets `tabindex` 0 or -1 and reports `Focused` when focused. Under `virtual`
  * DOM focus never leaves the container: the key only dispatches, the
  * container carries `aria-activedescendant`, and items keep no `tabindex`.
@@ -193,43 +246,23 @@ export const behavior = <Field extends string>(
         declared.wrapper.make(Message.Focused({ id })) as unknown as ParentMessage
       const slice = (input: Input): Model => input[declared.field]
       const itemsOf = perInput(options.items)
+      const keydown = Behaviors.Keys.attribute<Input, ParentMessage>(
+        [keys<Field>(declared, args)<Input, ParentMessage>(options)],
+        { slot: options.container, moveFocus: !args.virtual },
+      )
       return Behavior.forSlots(slots)<Input, ParentMessage>(
         {
           [options.container]: Behavior.slot({
             requires: { capability: Capability.Interactive },
-            attributes: ({
-              input,
-              h,
-            }: {
-              readonly input: Input
-              readonly h: HtmlBuilder<ParentMessage>
-            }) => {
+            attributes: context => {
+              const { input, h } = context
               const items = itemsOf(input)
-              const current = slice(input).current
-              const from = current === null ? -1 : items.indexOf(current)
-              const direction = options.direction?.(input) ?? 'ltr'
-              const stop = tabStop(items, current)
+              const stop = tabStop(items, slice(input).current)
               const stopId = stop === -1 ? undefined : items.ids[stop]
-              const target = (key: string, modifiers: KeyboardModifiers): string | undefined => {
-                const next = move(items.enabled, from, key, modifiers, { ...args, direction })
-                return next === undefined ? undefined : items.ids[next]
-              }
-              // Virtual: DOM focus stays on the container, only the pointer moves.
-              if (args.virtual) {
-                return [
-                  h.OnKeyDownPreventDefault((key, modifiers) =>
-                    Option.map(Option.fromNullishOr(target(key, modifiers)), wrap),
-                  ),
-                  ...(stopId === undefined ? [] : [h.AriaActiveDescendant(stopId)]),
-                ]
-              }
               return [
-                h.OnKeyDownFocus((key, modifiers) =>
-                  Option.map(Option.fromNullishOr(target(key, modifiers)), id => ({
-                    focusSelector: idSelector(id),
-                    message: wrap(id),
-                  })),
-                ),
+                keydown(context),
+                // Virtual: DOM focus stays on the container, only the pointer moves.
+                ...(args.virtual && stopId !== undefined ? [h.AriaActiveDescendant(stopId)] : []),
               ]
             },
           }),

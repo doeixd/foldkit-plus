@@ -136,20 +136,67 @@ export const move = (
   }
 }
 
-export interface BehaviorOptions<Input, Slots> {
-  /** The slot that receives the arrow keys. */
-  readonly container: keyof Slots & string
-  /** The slot rendered once per cell; must carry the cell's id (see `Behaviors.Collection`). */
-  readonly item: keyof Slots & string
+export interface KeyOptions<Input> {
   readonly items: (input: Input) => Behaviors.Collection.Items<unknown>
   /** Default `'ltr'`; return `'rtl'` to swap left and right. */
   readonly direction?: (input: Input) => RovingTabindex.Direction
 }
 
+export interface BehaviorOptions<Input, Slots> extends KeyOptions<Input> {
+  /** The slot that receives the arrow keys. */
+  readonly container: keyof Slots & string
+  /** The slot rendered once per cell; must carry the cell's id (see `Behaviors.Collection`). */
+  readonly item: keyof Slots & string
+}
+
+/**
+ * The route a `GridNavigation` installs on its container: the four arrows,
+ * Home and End, and Ctrl+Home and Ctrl+End for the grid's corners, each
+ * answering `Focused` and moving focus to the cell (under `virtual`, only the
+ * Message).
+ */
+export const keys =
+  <Field extends string>(declared: Declared<typeof bundle, Field>, args: Args) =>
+  <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    options: KeyOptions<Input>,
+  ): Behaviors.Keys.Route<Input, ParentMessage> => {
+    const wrap = (id: string): ParentMessage =>
+      declared.wrapper.make(Message.Focused({ id })) as unknown as ParentMessage
+    const itemsOf = perInput(options.items)
+    return Behaviors.Keys.route<Input, ParentMessage>('GridNavigation', {
+      on: [
+        ...Behaviors.Keys.withShift('Home'),
+        ...Behaviors.Keys.withShift('End'),
+        ...Behaviors.Keys.withShift('Home', { ctrl: true }),
+        ...Behaviors.Keys.withShift('End', { ctrl: true }),
+        ...RovingTabindex.arrowChords('both'),
+      ],
+      handle: ({ key, modifiers, input }) => {
+        const items = itemsOf(input)
+        const current = input[declared.field].current
+        const next = move(
+          items.enabled,
+          items.size,
+          current === null ? -1 : items.indexOf(current),
+          key,
+          modifiers,
+          {
+            columns: args.columns,
+            wrap: args.wrap,
+            direction: options.direction?.(input) ?? 'ltr',
+          },
+        )
+        const id = next === undefined ? undefined : items.ids[next]
+        if (id === undefined) return Option.none()
+        return Option.some(args.virtual ? wrap(id) : Behaviors.Keys.focus(id, wrap(id)))
+      },
+    })
+  }
+
 /**
  * Wires a placed `GridNavigation` to the slots exactly as `RovingTabindex`
  * does, with `move` above deciding the cell: the container's arrows, Home and
- * End focus the next cell (synchronously, then dispatch) or, under `virtual`,
+ * End (`keys`) focus the next cell (synchronously, then dispatch) or, under `virtual`,
  * only dispatch and point with `aria-activedescendant`; each cell gets
  * `tabindex` 0 or -1 and reports `Focused` when focused.
  */
@@ -174,46 +221,22 @@ export const behavior = <Field extends string>(
         declared.wrapper.make(Message.Focused({ id })) as unknown as ParentMessage
       const slice = (input: Input): Model => input[declared.field]
       const itemsOf = perInput(options.items)
+      const keydown = Behaviors.Keys.attribute<Input, ParentMessage>(
+        [keys<Field>(declared, args)<Input, ParentMessage>(options)],
+        { slot: options.container, moveFocus: !args.virtual },
+      )
       return Behavior.forSlots(slots)<Input, ParentMessage>(
         {
           [options.container]: Behavior.slot({
             requires: { capability: Capability.Interactive },
-            attributes: ({
-              input,
-              h,
-            }: {
-              readonly input: Input
-              readonly h: HtmlBuilder<ParentMessage>
-            }) => {
+            attributes: context => {
+              const { input, h } = context
               const items = itemsOf(input)
-              const current = slice(input).current
-              const from = current === null ? -1 : items.indexOf(current)
-              const direction = options.direction?.(input) ?? 'ltr'
-              const stop = RovingTabindex.tabStop(items, current)
+              const stop = RovingTabindex.tabStop(items, slice(input).current)
               const stopId = stop === -1 ? undefined : items.ids[stop]
-              const target = (key: string, modifiers: KeyboardModifiers): string | undefined => {
-                const next = move(items.enabled, items.size, from, key, modifiers, {
-                  columns: args.columns,
-                  wrap: args.wrap,
-                  direction,
-                })
-                return next === undefined ? undefined : items.ids[next]
-              }
-              if (args.virtual) {
-                return [
-                  h.OnKeyDownPreventDefault((key, modifiers) =>
-                    Option.map(Option.fromNullishOr(target(key, modifiers)), wrap),
-                  ),
-                  ...(stopId === undefined ? [] : [h.AriaActiveDescendant(stopId)]),
-                ]
-              }
               return [
-                h.OnKeyDownFocus((key, modifiers) =>
-                  Option.map(Option.fromNullishOr(target(key, modifiers)), id => ({
-                    focusSelector: RovingTabindex.idSelector(id),
-                    message: wrap(id),
-                  })),
-                ),
+                keydown(context),
+                ...(args.virtual && stopId !== undefined ? [h.AriaActiveDescendant(stopId)] : []),
               ]
             },
           }),

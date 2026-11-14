@@ -23,7 +23,7 @@
  * (`foldkit-primitives/events`), not a route.
  */
 import { Data, Option } from 'effect'
-import type { HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
+import type { Attribute, HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import * as Behavior from '../behavior.js'
 import { DiagnosticError } from '../diagnostics.js'
 import * as Event from '../event.js'
@@ -243,6 +243,10 @@ export const chord = <const K extends string>(
   })
 }
 
+/** A named key as two chords, Shift up and Shift down, for a route Shift does not change; chords match modifiers exactly. */
+export const withShift = (key: NamedKey, modifiers: Omit<Modifiers, 'shift'> = {}) =>
+  [chord(key, { ...modifiers, shift: false }), chord(key, { ...modifiers, shift: true })] as const
+
 /** Any one character pressed with no `ctrl`, `alt` or `meta`; Shift allowed. It overlaps every character chord that holds none of the three. */
 export const printable: Gesture = Gesture.Printable()
 
@@ -293,7 +297,8 @@ export const route = <Input, Message>(
   },
 ): Route<Input, Message> => Object.freeze({ name, on: spec.on, handle: spec.handle })
 
-const gestureMatches = (gesture: Gesture, key: string, modifiers: KeyboardModifiers): boolean =>
+/** Whether a press (a `key` and its modifiers) is one `gesture` declares or, for `where`, accepts. */
+export const matches = (gesture: Gesture, key: string, modifiers: KeyboardModifiers): boolean =>
   Gesture.$match(gesture, {
     Chord: chord =>
       chord.key === key &&
@@ -310,7 +315,7 @@ const routeMatches = <Input, Message>(
   candidate: Route<Input, Message>,
   key: string,
   modifiers: KeyboardModifiers,
-): boolean => candidate.on.some(gesture => gestureMatches(gesture, key, modifiers))
+): boolean => candidate.on.some(gesture => matches(gesture, key, modifiers))
 
 /**
  * Two routes as one, named `a>b`: a press either takes asks `a` first, and `b`
@@ -415,15 +420,14 @@ const answerOf =
   <Input, Message>(routes: ReadonlyArray<Route<Input, Message>>) =>
   (press: Press<Input>): Option.Option<Message | Focus<Message>> => {
     const takes = (gesture: Gesture) =>
-      isDeclared(gesture) && gestureMatches(gesture, press.key, press.modifiers)
+      isDeclared(gesture) && matches(gesture, press.key, press.modifiers)
     const owner = Option.fromNullishOr(routes.find(candidate => candidate.on.some(takes)))
     const answered = Option.flatMap(owner, candidate => candidate.handle(press))
     if (Option.isSome(answered)) return answered
     for (const candidate of routes) {
       if (Option.isSome(owner) && owner.value === candidate) continue
       const taken = candidate.on.some(
-        gesture =>
-          Gesture.$is('Where')(gesture) && gestureMatches(gesture, press.key, press.modifiers),
+        gesture => Gesture.$is('Where')(gesture) && matches(gesture, press.key, press.modifiers),
       )
       if (!taken) continue
       const given = candidate.handle(press)
@@ -445,36 +449,58 @@ export const answer = <Input, Message>(
   return answerOf(routes)
 }
 
+export interface AttributeOptions {
+  /** The slot, named in a `mixins:key-conflict`. */
+  readonly slot?: string
+  /** Default `true`. `false` keeps DOM focus where it is (a container pointing at its current item with `aria-activedescendant`): a focus answer sends its message only. */
+  readonly moveFocus?: boolean
+}
+
+/**
+ * The one `keydown` attribute `behavior` installs, for a Behavior that also
+ * writes other attributes on the slot (a roving tab stop, a spinbutton) and so
+ * cannot be a bare `behavior`. Throws `mixins:key-conflict` when two routes
+ * declare one press.
+ */
+export const attribute = <Input, Message>(
+  routes: ReadonlyArray<Route<Input, Message>>,
+  options: AttributeOptions = {},
+): ((context: {
+  readonly input: Input
+  readonly h: HtmlBuilder<Message>
+  readonly item?: SlotItem
+}) => Attribute<Message>) => {
+  refuseOverlaps(routes, Option.fromNullishOr(options.slot))
+  const ask = answerOf(routes)
+  const moveFocus = options.moveFocus !== false
+  return ({ input, h, item }) => {
+    const press = (key: string, modifiers: KeyboardModifiers) =>
+      ask({ key, modifiers, input, ...(item === undefined ? {} : { item }) })
+    return moveFocus
+      ? h.OnKeyDownFocus((key, modifiers) =>
+          Option.map(press(key, modifiers), given =>
+            isFocus(given)
+              ? { focusSelector: idSelector(given.id), message: given.message }
+              : // `:not(*)` matches nothing: the press is handled and focus stays.
+                { focusSelector: ':not(*)', message: given },
+          ),
+        )
+      : h.OnKeyDownPreventDefault((key, modifiers) =>
+          Option.map(press(key, modifiers), given => (isFocus(given) ? given.message : given)),
+        )
+  }
+}
+
 const build = <Slots, Input, Message>(
   slots: Slots,
   options: Options<Slots, Input, Message>,
 ): Behavior.NamedBehavior<Slots, Input, Message> => {
-  refuseOverlaps(options.routes, Option.some(options.slot))
-  const answer = answerOf(options.routes)
+  const keydown = attribute(options.routes, { slot: options.slot })
   return Behavior.forSlots(slots)<Input, Message>(
     {
       [options.slot]: Behavior.slot({
         requires: { events: [Event.KeyDown] },
-        attributes: ({
-          input,
-          h,
-          item,
-        }: {
-          readonly input: Input
-          readonly h: HtmlBuilder<Message>
-          readonly item?: SlotItem
-        }) => [
-          h.OnKeyDownFocus((key, modifiers) =>
-            Option.map(
-              answer({ key, modifiers, input, ...(item === undefined ? {} : { item }) }),
-              given =>
-                isFocus(given)
-                  ? { focusSelector: idSelector(given.id), message: given.message }
-                  : // `:not(*)` matches nothing: the press is handled and focus stays.
-                    { focusSelector: ':not(*)', message: given },
-            ),
-          ),
-        ],
+        attributes: context => [keydown(context)],
       }),
       // Keyed by a value the caller chose; `forSlots` checks the key exists.
     } as unknown as Behavior.BehaviorSpec<Slots, Input, Message>,
