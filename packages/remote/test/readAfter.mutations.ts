@@ -18,8 +18,8 @@ export default [
   edit(
     'revisions compare with <=',
     store,
-    '(held.tombstone ? revision <= held.revision : revision < held.revision)',
-    '(held.tombstone ? revision <= held.revision : revision <= held.revision)',
+    ' : revision < held.revision)',
+    ' : revision <= held.revision)',
   ),
   edit(
     'no revision is compared',
@@ -136,10 +136,22 @@ export default [
     '  })\n}',
   ),
   edit(
+    'a tombstone asked again drops a row at its revision',
+    store,
+    '(held.tombstone && held.stale.size === 0',
+    '(held.tombstone',
+  ),
+  edit(
+    'a tombstone not asked again takes a row at its revision',
+    store,
+    '(held.tombstone && held.stale.size === 0',
+    '(held.tombstone && held.stale.size > 0',
+  ),
+  edit(
     "a row at a tombstone's revision comes back",
     store,
-    '(held.tombstone ? revision <= held.revision : revision < held.revision)',
-    'revision < held.revision',
+    '? revision <= held.revision :',
+    '? revision < held.revision :',
   ),
   edit(
     'a row named behind with no floor is taken as gone',

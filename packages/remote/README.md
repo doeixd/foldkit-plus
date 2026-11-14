@@ -2678,11 +2678,14 @@ back. While a row has a floor:
 
 A row named in `behind` is asked again only when the read entry next
 restarts: a refresh, a change of what it reads, or a live event that changes
-the plan. A tombstone keeps the revision the row was gone at, so a row of
-that revision does not bring it back; a server whose revisions restart when
-a row is created again should send none. `foldkit-remote-drizzle`'s `source`
-sends the bound revision (`source(binding, { revision })`); `foldkit-remote-domain`
-sends both.
+the plan. A tombstone keeps the revision the row was gone at, so a late
+answer to a read begun before it went does not bring it back; a server whose
+revisions restart when a row is created again should send none. A tombstone
+asked about again (`Data.refresh`, a freshness running out) takes a row of
+that revision: a row a read left out because the reader lost sight of it
+comes back unchanged once the reader may see it again.
+`foldkit-remote-drizzle`'s `source` sends the bound revision
+(`source(binding, { revision })`); `foldkit-remote-domain` sends both.
 
 ### Checking an answer against what was shown
 

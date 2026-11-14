@@ -178,8 +178,11 @@ export interface EntityWrite {
 /**
  * Whether a write of `revision` is older than the row the store holds: the
  * server sent a newer revision of it already. A tombstone keeps the revision
- * the row was gone at, and a row of that revision is from before it went. A
- * write or a row with no revision is never older.
+ * the row was gone at, and a row of that revision is from a read begun before
+ * it went, unless the tombstone is being asked about again (`askAgain`): a row
+ * a read left out because the reader lost sight of it comes back unchanged
+ * when the reader may see it again, and only asking again can bring that
+ * answer. A write or a row with no revision is never older.
  */
 export const olderThanHeld = (
   held: EntityEntry | undefined,
@@ -187,7 +190,7 @@ export const olderThanHeld = (
 ): boolean =>
   revision !== undefined &&
   held?.revision !== undefined &&
-  (held.tombstone ? revision <= held.revision : revision < held.revision)
+  (held.tombstone && held.stale.size === 0 ? revision <= held.revision : revision < held.revision)
 
 /**
  * Merges known values into many entities, copying the store once. Every

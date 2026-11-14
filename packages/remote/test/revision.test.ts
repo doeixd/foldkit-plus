@@ -167,4 +167,23 @@ describe('A row revision', () => {
     expect(product.read(Data.reduce(gone, readOf('Five', 5, 12)))._tag).toBe('NotFound')
     expect(nameOf(Data.reduce(gone, readOf('Six', 6, 12)))).toBe('Six')
   })
+
+  const hidden = Data.reduce(at5, {
+    _tag: 'ReadReceived',
+    requests: [request],
+    result: { entities: [], settled: [] },
+    now: 11,
+  })
+
+  it('brings back a row a read left out, asked again, at the revision it had', () => {
+    // Hidden from this reader for a while, then shown again unchanged.
+    expect(product.read(hidden)._tag).toBe('NotFound')
+    const asked = Data.refresh(hidden, product)
+    expect(nameOf(Data.reduce(asked, readOf('Five', 5, 12)))).toBe('Five')
+  })
+
+  it('keeps a row a read left out gone from a late answer at the revision it had', () => {
+    // An answer to a read begun before the one that left the row out.
+    expect(product.read(Data.reduce(hidden, readOf('Five', 5, 12)))._tag).toBe('NotFound')
+  })
 })
