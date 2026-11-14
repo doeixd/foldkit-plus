@@ -231,6 +231,17 @@ export default [
     tests: [...listbox, ...tabs],
   },
   {
+    name: 'a single Selection keeps what it held beside what it activates',
+    edits: [
+      edit(
+        selection,
+        ': { model: { selected: [id], anchor: id } }',
+        ': { model: { selected: [...model.selected, id], anchor: id } }',
+      ),
+    ],
+    tests: listbox,
+  },
+  {
     name: 'Selection activates a disabled item on a press',
     edits: [
       edit(

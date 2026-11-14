@@ -382,20 +382,33 @@ export const listbox = async (harness: Harness, spec: ListboxSpec): Promise<Resu
     )
   }
 
-  // Activation: each key on an option of its own, so the second cannot pass on the first's selection.
+  const selectedNow = () =>
+    options()
+      .filter(option => option.getAttribute('aria-selected') === 'true')
+      .map(labelOf)
+  // Activation: each key on an option of its own, so the second cannot pass on the first's
+  // selection. A single-select listbox then selects that option alone; a multiselectable one
+  // selects it and leaves the rest as they were. Where selection follows the keyboard the
+  // option is selected before the key, and this cannot tell the key did it.
   const targets = { Enter: enabled[1] ?? first, Space: enabled[2] ?? first }
   for (const [activate, target] of Object.entries(targets)) {
     await ensure()
     await press('Home')
     for (let at = 0; at < enabled.indexOf(String(target)); at++) await press(forward)
+    const others = selectedNow().filter(name => name !== target)
     await press(activate === 'Space' ? ' ' : activate)
     await ensure()
-    const selected = options()
-      .filter(option => option.getAttribute('aria-selected') === 'true')
-      .map(labelOf)
+    const selected = selectedNow()
+    const multiple = container()?.getAttribute('aria-multiselectable') === 'true'
     note(
       `${activate} activates the option the keyboard is on`,
-      selected.includes(String(target)),
+      multiple
+        ? selected.includes(String(target)) &&
+            same(
+              selected.filter(name => name !== target),
+              others,
+            )
+        : same(selected, [String(target)]),
       `selected ${JSON.stringify(selected)}, wanted ${target}`,
     )
     observe()
@@ -404,10 +417,6 @@ export const listbox = async (harness: Harness, spec: ListboxSpec): Promise<Resu
   if (spec.disabled !== undefined) {
     await ensure()
     // The control: a press that selects an enabled option, so the refusal below is the option's.
-    const selectedNow = () =>
-      options()
-        .filter(option => option.getAttribute('aria-selected') === 'true')
-        .map(labelOf)
     const control = enabled.find(name => !selectedNow().includes(name))
     const pressed = options().find(each => labelOf(each) === control)
     if (pressed !== undefined) {
