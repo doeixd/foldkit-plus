@@ -151,7 +151,7 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   with `region: true` is the region's empty space. `part: attribute` reports an element
   marked by it as `{ id, zone: 'inside', part }`: a node's empty Region, say.
 - **Reorder a list or tree by keys and pointer:** place `Reorder.bundle` (no args; `onOut`
-  required) and attach `Reorder.behavior(Declared)(Slots)<Model, Message>({ container, item, handle, items, parent?, accepts?, orientation?, direction? })`.
+  required) and attach `Reorder.behavior(Declared)(Slots)<Model, Message>({ container, item, handle, items, parent?, accepts?, orientation?, direction?, grab? })`.
   Model `{ held: Option<{ id, by }>, over: Option<Place> }`, `Place` = `PointerDrag`'s
   `{ id, zone }`. Space/Enter grabs and drops, arrows/Home/End walk `Reorder.places`, Escape or
   blur puts back; `PointerDrag` on the container feeds the same Messages. Out:
@@ -159,9 +159,11 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   (`Reorder.apply(ids, moved)` for a flat list) or refuses it (`Reorder.movesIntoItself` for a
   tree), and reads each out with `LiveAnnounce`'s `announce(Reorder.announcement(fact, { label }))`.
   Items get `data-reorder="held"` and `data-reorder-over=zone`; nothing moves until the drop.
-  Beside `ListNavigation`: `handle: Reorder.routed` and
-  `Keys.first(Reorder.keys(Declared)({ items, current }), ListNavigation.keys(...))`. Keep focus
-  after the keyed move with `FocusRecovery`'s `same` on the handle.
+  Beside `ListNavigation`: `handle: Reorder.routed` with `current` returns `{ behavior, keys }`,
+  the route built from the same options; list `Keys.first(placed.keys, ListNavigation.keys(...))`
+  and attach `placed.behavior`. A list that selects with Space or activates with Enter gives
+  `grab: [Keys.chord('Enter', { alt: true })]`, since the default grab is Space and Enter. Keep
+  focus after the keyed move with `FocusRecovery`'s `same` on the handle.
 - **One router for a field and a list:** `RovingTabindex`, `ListNavigation`, `GridNavigation`, `TreeNavigation` and
   `Typeahead` each export `keys(Declared, args)<Input, Message>(options)` (`Typeahead.keys(Declared)` takes no args), the `Keys.route` their `behavior` installs;
   list it beside your own routes in one `Behaviors.Keys.behavior` (a search input: `EscapeClears` + `ListNavigation.keys`).

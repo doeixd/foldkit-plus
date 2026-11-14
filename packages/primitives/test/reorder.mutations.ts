@@ -101,6 +101,30 @@ export default [
     [unit],
   ),
   one(
+    'the grab chords given are ignored',
+    'const grabs = options.grab ?? SPACE_ENTER',
+    'const grabs = SPACE_ENTER',
+    [unit],
+  ),
+  one(
+    'a grab chord does not drop',
+    'const drops = [...SPACE_ENTER, ...grabs]',
+    'const drops = SPACE_ENTER',
+    [unit],
+  ),
+  one(
+    "a routed placement's route picks up no item the keyboard is on",
+    'isRouted(options) ? options.current(input) : idOf(input, item)',
+    'idOf(input, item)',
+    [unit, browser],
+  ),
+  one(
+    "the route walks no folder's inside place",
+    '...(options.accepts === undefined ? {} : { accepts: id => options.accepts!(input, id) }),',
+    '',
+    [unit],
+  ),
+  one(
     'focus leaving the handle is not heard',
     'onSome: id => [h.OnBlur(wrap(Message.Left({ id })))],',
     'onSome: () => [],',

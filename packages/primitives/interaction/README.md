@@ -733,12 +733,134 @@ list it was given when nothing changes). In a flat list a pointer's `inside`
 (the middle third of a row) means the row's own slot.
 
 **Beside a roving tab stop.** A list with `ListNavigation` already owns its
-container's `keydown`, and both take the arrows. Give the Behavior
-`handle: Reorder.routed` and list the route in the same router, first:
-`Keys.first(Reorder.keys(Rows)({ items, current: m => Option.fromNullishOr(m.nav.current) }), ListNavigation.keys(Nav, args)({ … }))`.
-Before a grab it answers only Space and Enter, so the arrows navigate; while
-an item is held it takes them, and focus stays on the held row. Focus leaving
-the row puts the grab back.
+container's `keydown`, and both take the arrows. Give the placement
+`handle: Reorder.routed` and `current`, the item the keyboard is on: it hands
+back `{ behavior, keys }`, where `keys` is the route built from the same
+options (`items`, `parent`, `accepts`, `orientation`, `grab`), to list first in
+the container's router. Before a grab the route answers only its grab chords,
+so the arrows navigate; while an item is held it takes them, and focus stays on
+the held row. Focus leaving the row puts the grab back.
+
+**Space and Enter are the list's too.** A grab is Space or Enter by default,
+and a listbox that selects with Space, activates with Enter or types a space
+into its typeahead wants them as well: the route, listed first, would take
+every one. Give such a list a grab chord of its own. Here Space selects and
+Alt+Enter picks the row up (while it is held, Space, Enter and Alt+Enter drop
+it):
+
+```ts standalone
+import { Option, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
+import { Bundle } from 'foldkit-bundle'
+import { Behavior, Behaviors, Capability, Event, Slot, SlotView, Slots } from 'foldkit-mixins'
+import {
+  ListNavigation,
+  Reorder,
+  RovingTabindex,
+  Selection,
+} from 'foldkit-primitives/interaction'
+
+const { Keys } = Behaviors
+const Rows = Bundle.declare(Reorder.bundle, 'rows')
+const Nav = Bundle.declare(ListNavigation.bundle, 'nav')
+const Picks = Bundle.declare(Selection.bundle, 'picks')
+const Model = Schema.Struct({
+  ...Rows.fields,
+  ...Nav.fields,
+  ...Picks.fields,
+  ids: Schema.Array(Schema.String),
+})
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Rows.cases, ...Nav.cases, ...Picks.cases })
+type Message = typeof Message.Type
+
+const navArgs = { orientation: 'vertical', loop: false, virtual: false, timeoutMs: 500, page: 5 } as const
+const pickArgs = { mode: 'single', allowEmpty: false } as const
+const Parent = Bundle.parent({ Model, Message })
+const assembly = Parent.assemble(
+  Parent.at(Nav, { args: navArgs }),
+  Parent.at(Picks, { args: pickArgs }),
+  Parent.at(Rows, {
+    onOut: (fact: Reorder.OutMessage) => (model: Model) => ({
+      model: Reorder.OutMessage.match(fact, {
+        Moved: move => modifyFields(model, { ids: ids => Reorder.apply(ids, move) }),
+        PickedUp: () => model,
+        PassedOver: () => model,
+        PutBack: () => model,
+      }),
+    }),
+  }),
+)
+
+const ListboxSlots = Slots.define({
+  list: Slot.make({ capability: Capability.Container, events: [Event.KeyDown] }),
+  option: Slot.make({ capability: Capability.Focusable, events: [Event.Focus, Event.Blur] }),
+})
+const Listbox = SlotView.over(ListboxSlots)<Model, Message>()
+const items = (model: Model) => Behaviors.Collection.of(model.ids, { id: id => id })
+
+const Sorting = Reorder.behavior(Rows)(Listbox)({
+  container: 'list',
+  item: 'option',
+  handle: Reorder.routed,
+  items: model => model.ids,
+  current: model => Option.fromNullishOr(model.nav.current),
+  grab: [Keys.chord('Enter', { alt: true })],
+})
+// Space selects the row the keyboard is on, unless typeahead is mid-word.
+const select = Keys.route<Model, Message>('Select', {
+  on: [Keys.chord(' ')],
+  handle: ({ input }) =>
+    input.nav.query === ''
+      ? Option.map(Option.fromNullishOr(input.nav.current), id =>
+          Picks.wrapper.make(Selection.Message.Activated({ id })),
+        )
+      : Option.none(),
+})
+const navigation = ListNavigation.keys(Nav, navArgs)<Model, Message>({
+  items,
+  text: (model, index) => model.ids[index] ?? '',
+})
+
+const SortableListbox = Listbox.define((model, slots, h) =>
+  h.ul(
+    slots.list.attrs([h.Role('listbox'), h.AriaLabel('Priorities')]),
+    model.ids.map((id, index) =>
+      h.li(slots.option.attrs([h.Key(id), h.Id(id), h.Role('option')], { index, id }), [id]),
+    ),
+  ),
+).pipe(
+  Behavior.attach(
+    Keys.behavior(Listbox)({
+      slot: 'list',
+      routes: [Keys.first(Sorting.keys, Keys.first(select, navigation))],
+    }),
+  ),
+  Behavior.attach(Sorting.behavior),
+  Behavior.attach(
+    Selection.behavior(Picks, pickArgs)(Listbox)({ container: 'list', item: 'option', items }),
+  ),
+  // The roving tab stop: ListNavigation's item half, since its key half is in the router above.
+  Behavior.attach(
+    Behavior.forSlots(ListboxSlots)<Model, Message>(
+      {
+        option: Behavior.slot({
+          attributes: ({ input, h, item }) =>
+            item === undefined
+              ? []
+              : RovingTabindex.itemAttributes(h, items(input), input.nav.current, item, false, id =>
+                  Nav.wrapper.make(ListNavigation.Message.Focused({ id })),
+                ),
+        }),
+      },
+      { name: 'RovingStop' },
+    ),
+  ),
+)
+void assembly
+void SortableListbox
+```
 
 **A tree.** Give `items` the rows that show, flat, with `parent` and
 `accepts`. The places then walk the tree: before each row, `inside` a row that

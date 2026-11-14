@@ -1,13 +1,14 @@
 /**
  * Compile-time contract of Reorder: a placement must handle the facts, the
  * Behavior's slots are slots of the contract, the view's input holds the
- * placed slice, a route on a container names the item it picks up, and the
- * options read the view's input. Type-checked, not executed.
+ * placed slice, a routed placement names the item it picks up and hands back
+ * its route, a handle's takes no `current`, and the options read the view's
+ * input. Type-checked, not executed.
  */
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
-import { Behaviors, Capability, Event, Slot, SlotView, Slots } from 'foldkit-mixins'
+import { Behavior, Behaviors, Capability, Event, Slot, SlotView, Slots } from 'foldkit-mixins'
 import { Reorder } from '../src/interaction/index.js'
 
 const Rows = Bundle.declare(Reorder.bundle, 'rows')
@@ -54,10 +55,56 @@ const routedRows = Reorder.behavior(Rows)(List)({
   item: 'row',
   handle: Reorder.routed,
   items: input => input.ids,
+  current: input => Option.fromNullishOr(input.ids[0]),
+  parent: () => Option.none(),
+  accepts: (input, id) => input.ids.includes(id),
   orientation: 'horizontal',
   direction: () => 'rtl',
+  grab: [Behaviors.Keys.chord('Enter', { alt: true })],
 })
-void routedRows
+// A routed placement hands back its Behavior and the route its options built.
+const routedRoute: Behaviors.Keys.Route<Model, Message> = routedRows.keys
+const routedBehavior: Behavior.NamedBehavior<typeof ListSlots, Model, Message> = routedRows.behavior
+void routedRoute
+void routedBehavior
+
+// @ts-expect-error a routed placement must say which item a key picks up.
+Reorder.behavior(Rows)(List)({
+  container: 'list',
+  item: 'row',
+  handle: Reorder.routed,
+  items: input => input.ids,
+})
+
+Reorder.behavior(Rows)(List)({
+  container: 'list',
+  item: 'row',
+  handle: Reorder.routed,
+  items: input => input.ids,
+  // @ts-expect-error `current` answers an Option, not a bare id.
+  current: input => input.ids[0],
+})
+
+Reorder.behavior(Rows)(List)({
+  container: 'list',
+  item: 'row',
+  handle: 'grip',
+  items: input => input.ids,
+  // @ts-expect-error a handle reads the item it is drawn for: `current` is the routed placement's.
+  current: input => Option.fromNullishOr(input.ids[0]),
+})
+
+// @ts-expect-error a handle's placement is a Behavior, with no route to hand back.
+void withGrip.keys
+
+Reorder.behavior(Rows)(List)({
+  container: 'list',
+  item: 'row',
+  handle: 'grip',
+  items: input => input.ids,
+  // @ts-expect-error a grab is a `Keys.chord`, not a key name.
+  grab: [' '],
+})
 
 Reorder.behavior(Rows)(List)({
   // @ts-expect-error a container the contract does not publish.
@@ -100,19 +147,15 @@ const Unplaced = SlotView.over(ListSlots)<Elsewhere, Message>()
 // @ts-expect-error the view's input does not hold the placed `rows` slice.
 Reorder.behavior(Rows)(Unplaced)
 
-const route: Behaviors.Keys.Route<Model, Message> = Reorder.keys(Rows)<Model, Message>({
+// Unbound slots: the input comes from the options, and a routed placement still hands back its route.
+const unboundRoute: Behaviors.Keys.Route<Model, Message> = Reorder.behavior(Rows)(ListSlots)<
+  Model,
+  Message
+>({
+  container: 'list',
+  item: 'row',
+  handle: Reorder.routed,
   items: input => input.ids,
   current: input => Option.fromNullishOr(input.ids[0]),
-  parent: () => Option.none(),
-  accepts: (input, id) => input.ids.includes(id),
-})
-void route
-
-// @ts-expect-error a route on a container must say which item a key picks up.
-Reorder.keys(Rows)<Model, Message>({ items: input => input.ids })
-
-Reorder.keys(Rows)<Model, Message>({
-  items: input => input.ids,
-  // @ts-expect-error `current` answers an Option, not a bare id.
-  current: input => input.ids[0],
-})
+}).keys
+void unboundRoute

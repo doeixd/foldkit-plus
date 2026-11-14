@@ -8,7 +8,7 @@ import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type { KeyboardModifiers } from 'foldkit/html'
 import { Bundle } from 'foldkit-bundle'
-import { Behaviors } from 'foldkit-mixins'
+import { Behaviors, Capability, Event, Slot, SlotView, Slots } from 'foldkit-mixins'
 import { describe, expect, it } from 'vitest'
 import { ListNavigation, Reorder } from '../src/interaction/index.js'
 
@@ -296,7 +296,7 @@ describe('Reorder.movesIntoItself', () => {
   })
 })
 
-describe('Reorder.keys', () => {
+describe("A routed placement's keys", () => {
   const Rows = Bundle.declare(Reorder.bundle, 'rows')
   interface Input {
     readonly rows: Model
@@ -304,8 +304,22 @@ describe('Reorder.keys', () => {
     readonly focused: string
     readonly dir: 'ltr' | 'rtl'
   }
+  const RouteSlots = Slots.define({
+    list: Slot.make({ capability: Capability.Container }),
+    row: Slot.make({ capability: Capability.Focusable, events: [Event.Blur] }),
+  })
+  // The route a routed placement hands back, from the one options object its Behavior reads.
+  const routed = <I extends { readonly rows: Model }>(
+    options: Omit<Reorder.RoutedOptions<I, typeof RouteSlots>, 'container' | 'item' | 'handle'>,
+  ) =>
+    Reorder.behavior(Rows)(SlotView.over(RouteSlots)<I, unknown>())({
+      container: 'list',
+      item: 'row',
+      handle: Reorder.routed,
+      ...options,
+    }).keys
   const route = (orientation?: 'vertical' | 'horizontal') =>
-    Reorder.keys(Rows)<Input, unknown>({
+    routed<Input>({
       items: input => input.ids,
       current: input => Option.some(input.focused),
       direction: input => input.dir,
@@ -337,6 +351,50 @@ describe('Reorder.keys', () => {
     // A new drawing reads its Model, which says nothing is held.
     expect(answer({ key: 'ArrowDown', modifiers: plain, input: { ...base } })).toEqual(
       Option.none(),
+    )
+  })
+
+  it("picks up on the chord it is given alone, so Space and Enter stay the list's", () => {
+    const answer = Keys.answer([
+      routed<Input>({
+        items: input => input.ids,
+        current: input => Option.some(input.focused),
+        grab: [Keys.chord('Enter', { alt: true })],
+      }),
+    ])
+    const alt: KeyboardModifiers = { ...plain, altKey: true }
+    expect(answer({ key: ' ', modifiers: plain, input: base })).toEqual(Option.none())
+    expect(answer({ key: 'Enter', modifiers: plain, input: base })).toEqual(Option.none())
+    expect(answer({ key: 'Enter', modifiers: alt, input: base })).toEqual(
+      wrapped(Message.Grabbed({ id: 'b', by: 'keys', at: Option.some(before('c')) })),
+    )
+    const held: Input = { ...base, rows: heldBy('b', 'keys', Option.some(before('c'))) }
+    expect(answer({ key: 'Enter', modifiers: alt, input: held })).toEqual(
+      wrapped(Message.Dropped()),
+    )
+    // A drawing of its own: the route remembers the drop it answered on `held`.
+    expect(answer({ key: ' ', modifiers: plain, input: { ...held } })).toEqual(
+      wrapped(Message.Dropped()),
+    )
+  })
+
+  it("walks the places of the one options object, a tree's included", () => {
+    const answer = Keys.answer([
+      routed<Input>({
+        items: input => input.ids,
+        current: input => Option.some(input.focused),
+        parent: () => Option.none(),
+        accepts: (_, id) => id === 'c',
+      }),
+    ])
+    const held: Input = { ...base, rows: heldBy('b', 'keys', Option.some(before('c'))) }
+    expect(answer({ key: 'End', modifiers: plain, input: held })).toEqual(
+      wrapped(
+        Message.Stepped({
+          step: 'last',
+          places: [before('a'), before('c'), inside('c'), after('c')],
+        }),
+      ),
     )
   })
 
@@ -394,7 +452,7 @@ describe('Reorder.keys', () => {
       items: input => Behaviors.Collection.of(input.ids, { id: id => id }),
       text: (input, index) => input.ids[index] ?? '',
     })
-    const reorder = Reorder.keys(Rows)<Both, unknown>({
+    const reorder = routed<Both>({
       items: input => input.ids,
       current: input => Option.fromNullishOr(input.nav.current),
     })

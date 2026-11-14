@@ -1,10 +1,10 @@
 /**
  * Moving an item to another place in a list or a tree, by keyboard and by
- * pointer, as one Bundle. Space or Enter on an item picks it up, the arrows
- * walk it through the places it can go, Space or Enter drops it there, and
- * Escape (or focus leaving it) puts it back. The pointer path is
- * `PointerDrag`'s facts, mapped onto the same Messages, so one draft has one
- * owner whichever way it was started.
+ * pointer, as one Bundle. Space or Enter (or the `grab` chords) on an item
+ * picks it up, the arrows walk it through the places it can go, Space or Enter
+ * drops it there, and Escape (or focus leaving it) puts it back. The pointer
+ * path is `PointerDrag`'s facts, mapped onto the same Messages, so one draft
+ * has one owner whichever way it was started.
  *
  * The Bundle holds the draft alone: what is held and where it would land.
  * Nothing moves until the drop, and then only by the parent: the `Moved`
@@ -359,13 +359,18 @@ export const announcement = (
   })
 }
 
-export interface KeyOptions<Input> extends PlaceOptions<Input> {
-  /** For a route on a container, beside a roving tab stop: the item focus is on, which a key picks up. */
-  readonly current: (input: Input) => Option.Option<string>
+export interface KeyOptions<Input> {
   /** Which arrows walk the places: Up and Down (the default), Left and Right, or both. */
   readonly orientation?: Orientation
   /** Default `'ltr'`; under `'rtl'` Left walks forward and Right back. */
   readonly direction?: (input: Input) => Direction
+  /**
+   * The chords that pick an item up; default Space and Enter. A list that
+   * selects or activates by key takes those too, and its typeahead takes a
+   * space: give it a chord of its own (`[Keys.chord('Enter', { alt: true })]`).
+   * While an item is held, Space, Enter and these drop it.
+   */
+  readonly grab?: ReadonlyArray<Behaviors.Keys.Chord>
 }
 
 const ARROWS: Readonly<Record<Orientation, ReadonlyArray<Behaviors.Keys.NamedKey>>> = {
@@ -393,21 +398,27 @@ export const stepOf = (
   return Option.none()
 }
 
+const SPACE_ENTER: ReadonlyArray<Behaviors.Keys.Chord> = [
+  Behaviors.Keys.chord(' '),
+  Behaviors.Keys.chord('Enter'),
+]
+
 const routeOf = <
   Field extends string,
   Input extends { readonly [K in Field]: Model },
   ParentMessage,
 >(
   declared: Declared<typeof bundle, Field>,
-  options: PlaceOptions<Input> & {
-    readonly orientation?: Orientation
-    readonly direction?: (input: Input) => Direction
-  },
+  options: PlaceOptions<Input> & KeyOptions<Input>,
   pressed: (press: Behaviors.Keys.Press<Input>) => Option.Option<string>,
 ): Behaviors.Keys.Route<Input, ParentMessage> => {
   const wrap = (message: Message): ParentMessage =>
     declared.wrapper.make(message) as unknown as ParentMessage
   const orientation = options.orientation ?? 'vertical'
+  const grabs = options.grab ?? SPACE_ENTER
+  const drops = [...SPACE_ENTER, ...grabs]
+  const among = (chords: ReadonlyArray<Behaviors.Keys.Chord>, press: Behaviors.Keys.Press<Input>) =>
+    chords.some(chord => Behaviors.Keys.matches(chord, press.key, press.modifiers))
   const placesOf = (input: Input, held: string) =>
     places({
       items: options.items(input),
@@ -419,14 +430,15 @@ const routeOf = <
   // frame meet the last drawing, whose Model has not seen the grab or drop
   // before them, so the drawing remembers it.
   const answered = new WeakMap<Input, Option.Option<string>>()
+  // A grab chord that is also Space or Enter is declared once.
+  const declaredChords = new Map(drops.map(chord => [Behaviors.Keys.describe(chord), chord]))
   return Behaviors.Keys.route<Input, ParentMessage>('Reorder', {
     on: [
-      Behaviors.Keys.chord(' '),
-      Behaviors.Keys.chord('Enter'),
       Behaviors.Keys.chord('Escape'),
       Behaviors.Keys.chord('Home'),
       Behaviors.Keys.chord('End'),
       ...ARROWS[orientation].map(key => Behaviors.Keys.chord(key)),
+      ...declaredChords.values(),
     ],
     handle: press => {
       const { key, input } = press
@@ -435,14 +447,14 @@ const routeOf = <
         : Option.map(input[declared.field].held, ({ id }) => id)
       return Option.match(held, {
         onNone: () => {
-          if (key !== ' ' && key !== 'Enter') return Option.none()
+          if (!among(grabs, press)) return Option.none()
           return Option.map(pressed(press), id => {
             answered.set(input, Option.some(id))
             return wrap(Message.Grabbed({ id, by: 'keys', at: placesOf(input, id).origin }))
           })
         },
         onSome: id => {
-          if (key === ' ' || key === 'Enter' || key === 'Escape') {
+          if (key === 'Escape' || among(drops, press)) {
             answered.set(input, Option.none())
             return Option.some(wrap(key === 'Escape' ? Message.Cancelled() : Message.Dropped()))
           }
@@ -455,38 +467,83 @@ const routeOf = <
   })
 }
 
-/**
- * The route for a `Keys.behavior` on a container that already routes keys,
- * such as a list with `ListNavigation`: both take the arrows, so list it as
- * `Keys.first(Reorder.keys(...)(...), ListNavigation.keys(...)(...))`. Before a
- * grab it takes Space and Enter alone, on the item `current` names; while an
- * item is held it takes the arrows, Home, End, Space, Enter and Escape, and
- * focus stays on the held item.
- */
-export const keys =
-  <Field extends string>(declared: Declared<typeof bundle, Field>) =>
-  <Input extends { readonly [K in Field]: Model }, ParentMessage>(
-    options: KeyOptions<Input>,
-  ): Behaviors.Keys.Route<Input, ParentMessage> =>
-    routeOf<Field, Input, ParentMessage>(declared, options, ({ input }) => options.current(input))
-
-/** `handle: Reorder.routed`: the keys are a route in a `Keys.behavior` of the caller's (see `keys`). */
+/** `handle: Reorder.routed`: the keys are a route in a `Keys.behavior` of the caller's. */
 export const routed: unique symbol = Symbol.for('foldkit-primitives.reorder.routed')
 
-export interface BehaviorOptions<Input, Slots> extends PlaceOptions<Input> {
+interface SlotOptions<Slots> {
   /** The slot around every item: the pointer path's Mount goes here. */
   readonly container: keyof Slots & string
   /** The slot drawn once per item; it must carry the item's id (`attrs(…, { index, id })`). */
   readonly item: keyof Slots & string
-  /**
-   * The slot drawn once per item whose keys pick it up and move it: a grip
-   * button in the row, or the row itself. `routed` when the container routes
-   * keys already (a roving tab stop); list `keys` in that router, and focus
-   * leaving the item puts back what it held.
-   */
-  readonly handle: (keyof Slots & string) | typeof routed
-  readonly orientation?: Orientation
-  readonly direction?: (input: Input) => Direction
+}
+
+/** A handle per item: a grip button in the row, or the row itself, takes the keys. */
+export interface HandleOptions<Input, Slots>
+  extends PlaceOptions<Input>, KeyOptions<Input>, SlotOptions<Slots> {
+  /** The slot drawn once per item whose keys pick it up and move it; focus leaving it puts back what it held. */
+  readonly handle: keyof Slots & string
+}
+
+/**
+ * The container routes keys already (a roving tab stop, `ListNavigation`):
+ * the placement hands back its route, built from these same options, for the
+ * caller's `Keys.behavior`.
+ */
+export interface RoutedOptions<Input, Slots>
+  extends PlaceOptions<Input>, KeyOptions<Input>, SlotOptions<Slots> {
+  readonly handle: typeof routed
+  /** The item the keyboard is on, which a grab picks up. */
+  readonly current: (input: Input) => Option.Option<string>
+}
+
+export type BehaviorOptions<Input, Slots> =
+  | HandleOptions<Input, Slots>
+  | RoutedOptions<Input, Slots>
+
+const isRouted = <Input, Slots>(
+  options: BehaviorOptions<Input, Slots>,
+): options is RoutedOptions<Input, Slots> => options.handle === routed
+
+/**
+ * A routed placement: the Behavior to attach, and the key route to list in the
+ * container's `Keys.behavior`, first: `Keys.first(placed.keys, ListNavigation.keys(…)(…))`.
+ */
+export interface Routed<Slots, Input, ParentMessage> {
+  readonly behavior: Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  readonly keys: Behaviors.Keys.Route<Input, ParentMessage>
+}
+
+type HandleOf<Slots> = (keyof Slots & string) | typeof routed
+
+/** The options for a handle `H`: `RoutedOptions` for `routed`, else `HandleOptions` with no `current`. */
+export type OptionsFor<Input, Slots, H extends HandleOf<Slots>> = [H] extends [typeof routed]
+  ? RoutedOptions<Input, Slots>
+  : HandleOptions<Input, Slots> & { readonly current?: never }
+
+/** What a placement gives: `Routed` for `routed`, else the Behavior alone. */
+export type Placed<Slots, Input, ParentMessage, H extends HandleOf<Slots>> = [H] extends [
+  typeof routed,
+]
+  ? Routed<Slots, Input, ParentMessage>
+  : Behavior.NamedBehavior<Slots, Input, ParentMessage>
+
+/** `Reorder.behavior(Declared)(bound)`: a routed placement hands back its route too. */
+export type PlaceBound<Slots, Input, ParentMessage> = <const H extends HandleOf<Slots>>(
+  options: { readonly handle: H } & OptionsFor<Input, Slots, H>,
+) => Placed<Slots, Input, ParentMessage, H>
+
+/**
+ * `Reorder.behavior(Declared)(slots)<Model, Message>`: as `PlaceBound`. The
+ * input and Message are given, so the handle cannot be inferred beside them:
+ * an overload each.
+ */
+export interface PlaceUnbound<Slots, Field extends string> {
+  <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    options: RoutedOptions<Input, Slots>,
+  ): Routed<Slots, Input, ParentMessage>
+  <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    options: HandleOptions<Input, Slots> & { readonly current?: never },
+  ): Behavior.NamedBehavior<Slots, Input, ParentMessage>
 }
 
 const markOf = (field: string) => `data-fk-reorder-${field}`
@@ -497,7 +554,9 @@ const markOf = (field: string) => `data-fk-reorder-${field}`
  * the mark the pointer finds it by, `data-reorder="held"` while it is held,
  * and `data-reorder-over` with the zone while it is the place the held item
  * would land: style the drop line on those. The handle gets the key route
- * and puts a key grab back when focus leaves it.
+ * and puts a key grab back when focus leaves it; under `handle: routed` the
+ * placement hands the route back instead (`Routed`), for the container's own
+ * `Keys.behavior`.
  *
  * Nothing moves while an item is held, so focus stays where it is. When the
  * parent applies `Moved`, a keyed list moves the element, and the browser
@@ -506,17 +565,16 @@ const markOf = (field: string) => `data-fk-reorder-${field}`
 export const behavior = <Field extends string>(declared: Declared<typeof bundle, Field>) => {
   function place<Slots, Input extends { readonly [K in Field]: Model }, ParentMessage>(
     bound: SlotView.Bound<Slots, Input, ParentMessage>,
-  ): (options: BehaviorOptions<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
-  function place<Slots>(
-    slots: SlotView.Unbound<Slots>,
-  ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
-    options: BehaviorOptions<Input, Slots>,
-  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
-  function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+  ): PlaceBound<Slots, Input, ParentMessage>
+  function place<Slots>(slots: SlotView.Unbound<Slots>): PlaceUnbound<Slots, Field>
+  // `unknown`: the overloads above say what each call returns.
+  function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>): unknown {
     const slots = SlotView.boundSlots(given)
     return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
       options: BehaviorOptions<Input, Slots>,
-    ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
+    ):
+      | Behavior.NamedBehavior<Slots, Input, ParentMessage>
+      | Routed<Slots, Input, ParentMessage> => {
       const wrap = (message: Message): ParentMessage =>
         declared.wrapper.make(message) as unknown as ParentMessage
       const mark = markOf(declared.field)
@@ -552,19 +610,14 @@ export const behavior = <Field extends string>(declared: Declared<typeof bundle,
         })
       }
       const handle = options.handle
+      // A routed placement's route reads the item the keyboard is on; a handle's, the item it is drawn for.
+      const route = routeOf<Field, Input, ParentMessage>(declared, options, ({ input, item }) =>
+        isRouted(options) ? options.current(input) : idOf(input, item),
+      )
       const keydown =
         handle === routed
           ? Option.none()
-          : Option.some(
-              Behaviors.Keys.attribute<Input, ParentMessage>(
-                [
-                  routeOf<Field, Input, ParentMessage>(declared, options, ({ input, item }) =>
-                    idOf(input, item),
-                  ),
-                ],
-                { slot: handle },
-              ),
-            )
+          : Option.some(Behaviors.Keys.attribute<Input, ParentMessage>([route], { slot: handle }))
       const handleAttributes = (context: Context): ReadonlyArray<Attribute<ParentMessage>> =>
         Option.match(keydown, {
           onNone: () => [],
@@ -596,11 +649,12 @@ export const behavior = <Field extends string>(declared: Declared<typeof bundle,
           attributes: context => [...handleAttributes(context), ...left(context)],
         })
       }
-      return Behavior.forSlots(slots)<Input, ParentMessage>(
+      const placed = Behavior.forSlots(slots)<Input, ParentMessage>(
         // Keyed by slot names the caller chose; `forSlots` checks each exists.
         spec as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
         { name: 'Reorder' },
       )
+      return handle === routed ? { behavior: placed, keys: route } : placed
     }
   }
   return place

@@ -105,6 +105,14 @@ const gripped = List.define((model, slots, h) =>
   Behavior.attach(FocusRecovery.behavior(List)({ owner: 'list', parts: { grip: ['same'] } })),
 )
 
+const routedRows = Reorder.behavior(Rows)(List)({
+  container: 'list',
+  item: 'row',
+  handle: Reorder.routed,
+  items: m => m.ids,
+  current: m => Option.fromNullishOr(m.nav.current),
+})
+
 const routed = List.define((model, slots, h) =>
   h.ul(
     slots.list.attrs([h.Id('list'), h.Style({ margin: '0', padding: '0' })]),
@@ -116,10 +124,7 @@ const routed = List.define((model, slots, h) =>
       slot: 'list',
       routes: [
         Keys.first(
-          Reorder.keys(Rows)<Model, Message>({
-            items: m => m.ids,
-            current: m => Option.fromNullishOr(m.nav.current),
-          }),
+          routedRows.keys,
           ListNavigation.keys(
             Nav,
             navArgs,
@@ -132,14 +137,7 @@ const routed = List.define((model, slots, h) =>
       ],
     }),
   ),
-  Behavior.attach(
-    Reorder.behavior(Rows)(List)({
-      container: 'list',
-      item: 'row',
-      handle: Reorder.routed,
-      items: m => m.ids,
-    }),
-  ),
+  Behavior.attach(routedRows.behavior),
   Behavior.attach(
     Behavior.forSlots(ListSlots)<Model, Message>(
       {
