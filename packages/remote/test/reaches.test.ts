@@ -6,7 +6,15 @@
  * reach variant dropped from `reaches` turns one row of the table.
  */
 import { Schema } from 'effect'
-import { Entity, Expr, Order, Relation, Write } from 'foldkit-entity'
+import {
+  Entity,
+  Expr,
+  Footprint,
+  type EntityIdentity,
+  Order,
+  Relation,
+  Write,
+} from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
 import { Mutation, Query } from '../src/index.js'
 import { Reach, reaches } from '../src/reaches.js'
@@ -168,5 +176,47 @@ describe('reaches: a declared write against a query body', () => {
     const Opaque = Query.make('Opaque', { Input: {}, Result: Note })
     const Handled = Mutation.make('Handled', { Input: { id: Schema.String }, Output: {} })
     expect(reaches(Handled, Opaque)).toEqual(Reach.Unknown({ why: 'Handler' }))
+  })
+})
+
+describe('reaches: a mutation that is no Write, by its footprint', () => {
+  const opaque = (
+    footprint: Footprint,
+    entity: { readonly identity: EntityIdentity<string> } = Note,
+  ) => ({
+    ...Mutation.make('Opaque', { Input: { id: Schema.String }, Output: {} }),
+    footprint: { entity: entity.identity, footprint },
+  })
+
+  it('reads a declared footprint as a write of those fields', () => {
+    const declared = Footprint.declared({
+      reads: [Note.fields.id],
+      writes: [Note.fields.body],
+      by: 'test',
+    })
+    expect(reaches(opaque(declared), Own)).toEqual(Reach.Reads())
+    expect(reaches(opaque(declared), ThroughPath)).toEqual(Reach.Unaffected())
+  })
+
+  it('reads what a footprint only reads as no write', () => {
+    const readsOnly = Footprint.declared({
+      reads: [Team.fields.name],
+      writes: [Team.fields.id],
+      by: 'test',
+    })
+    expect(reaches(opaque(readsOnly, Team), ThroughPath)).toEqual(Reach.Unaffected())
+  })
+
+  it('keeps an Unknown footprint unknown, never unaffected', () => {
+    expect(reaches(opaque(Footprint.unknown), Own)).toEqual(Reach.Unknown({ why: 'Handler' }))
+  })
+
+  it('tells a namesake Entity apart by identity', () => {
+    const Namesake = Entity.define(
+      'Note',
+      Schema.Struct({ id: Schema.String, body: Schema.String }),
+    )
+    const declared = Footprint.declared({ writes: [Namesake.fields.body], by: 'test' })
+    expect(reaches(opaque(declared, Namesake), Own)).toEqual(Reach.Unaffected())
   })
 })
