@@ -260,3 +260,49 @@ describe('WindowList.pageOf', () => {
     expect(WindowList.pageOf(openedAt(10, 50), keys).previous).toEqual(Option.some(6))
   })
 })
+
+describe('the row holding focus', () => {
+  const focused = (key: string) =>
+    WindowList.update(model, WindowList.Message.Focused({ key: Option.some(key) })).model
+
+  it('is held, and the same report returns the Model it was given', () => {
+    const held = focused('row-50')
+    expect(held.held).toEqual(Option.some('row-50'))
+    expect(
+      WindowList.update(held, WindowList.Message.Focused({ key: Option.some('row-50') })).model,
+    ).toBe(held)
+    expect(WindowList.update(model, WindowList.Message.Focused({ key: Option.none() })).model).toBe(
+      model,
+    )
+    expect(
+      WindowList.update(held, WindowList.Message.Focused({ key: Option.none() })).model.held,
+    ).toEqual(Option.none())
+  })
+
+  it('is found by key, and only while the key is in the list', () => {
+    expect(WindowList.heldRow(focused('row-50'), keys)).toEqual(Option.some(50))
+    expect(WindowList.heldRow(focused('gone'), keys)).toEqual(Option.none())
+    expect(WindowList.heldRow(model, keys)).toEqual(Option.none())
+    const opened = WindowList.update(
+      WindowList.init({ id: 'list', estimatedHeight: 20, from: 10 }),
+      WindowList.Message.Focused({ key: Option.some('row-50') }),
+    ).model
+    expect(WindowList.heldRow(opened, keys)).toEqual(Option.none())
+  })
+
+  it('keeps its measured height when the rows kept are others', () => {
+    const measured = WindowList.update(
+      focused('row-50'),
+      WindowList.Message.Measured({
+        rows: [
+          { key: 'row-50', height: 33 },
+          { key: 'row-1', height: 30 },
+        ],
+      }),
+    ).model
+    expect(Object.keys(WindowList.keep(measured, ['row-1']).heights).sort()).toEqual([
+      'row-1',
+      'row-50',
+    ])
+  })
+})

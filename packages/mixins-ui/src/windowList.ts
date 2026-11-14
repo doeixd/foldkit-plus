@@ -27,13 +27,14 @@
  * window in the page's flow (`Recipes.WindowList` hides the spacers) and
  * pages by links (`pageOf`).
  */
-import { Effect, Option, Schema, Stream } from 'effect'
+import { Effect, Equal, Option, Queue, Schema, Stream } from 'effect'
 import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { Scene } from 'foldkit/test'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import { modifyFields } from 'foldkit/struct'
+import type * as Update from 'foldkit/update'
 import {
   MeasureRows,
   offsetFor,
@@ -67,6 +68,8 @@ export const Model = Schema.Struct({
   viewport: Schema.Struct({ top: Schema.Number, height: Schema.Number }),
   /** The row the window starts at until the list is placed; 0 after. */
   from: Schema.Number,
+  /** The key of the row holding focus, which stays drawn while it is outside the window. */
+  held: Schema.OptionFromNullOr(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -74,6 +77,8 @@ export const Message = defineMessageUnion({
   Placed: { top: Schema.Number, height: Schema.Number },
   /** The rows drawn or resized since the last report, border boxes. */
   Measured: { rows: Schema.Array(Schema.Struct({ key: Schema.String, height: Schema.Number })) },
+  /** The row now holding focus, or none once focus left the list. */
+  Focused: { key: Schema.Option(Schema.String) },
 })
 export type Message = typeof Message.Type
 
@@ -136,6 +141,7 @@ export const init = (config: InitConfig): Model => {
     heights: {},
     viewport: { top: 0, height: config.viewportHeight ?? 1000 },
     from,
+    held: Option.none(),
   }
 }
 
@@ -154,12 +160,16 @@ const withHeights = (model: Model, heights: Model['heights']): Model => {
 }
 
 /** The list after `message`; the same Model when nothing changes. */
-export const update = (model: Model, message: Message): { readonly model: Model } =>
-  Message.match(message, {
+export const update = (model: Model, message: Message): Update.Return<Model, Message> =>
+  Message.match<Update.Return<Model, Message>>(message, {
     Placed: ({ top, height }) =>
       top === model.viewport.top && height === model.viewport.height && model.from === 0
         ? { model }
         : { model: modifyFields(model, { viewport: () => ({ top, height }), from: () => 0 }) },
+    Focused: ({ key }) =>
+      Equal.equals(key, model.held)
+        ? { model }
+        : { model: modifyFields(model, { held: () => key }) },
     Measured: ({ rows }) => {
       // A poisoned reading is ignored; a row drawn again reports the height held.
       const changed = rows.filter(
@@ -183,11 +193,14 @@ export const update = (model: Model, message: Message): { readonly model: Model 
   })
 
 /**
- * The Model without the heights of rows no longer in `keys`, its `'mean'`
- * taken again over those kept; the same Model when none left.
+ * The Model without the heights of rows no longer in `keys` (and not the row
+ * holding focus), its `'mean'` taken again over those kept; the same Model
+ * when none left.
  */
 export const keep = (model: Model, keys: ReadonlyArray<string>): Model => {
-  const kept = new Set(keys)
+  const kept = new Set(
+    Option.match(model.held, { onNone: () => keys, onSome: key => [...keys, key] }),
+  )
   const entries = Object.entries(model.heights)
   const held = entries.filter(([key]) => kept.has(key))
   return held.length === entries.length ? model : withHeights(model, Object.fromEntries(held))
@@ -270,6 +283,27 @@ export const pageOf = (model: Model, keys: ReadonlyArray<string>): Page => {
   }
 }
 
+// A row's index by key, built once per keys array and only when a row holds focus.
+const indexCache = new WeakMap<ReadonlyArray<string>, ReadonlyMap<string, number>>()
+
+const indexByKey = (keys: ReadonlyArray<string>): ReadonlyMap<string, number> => {
+  const cached = indexCache.get(keys)
+  if (cached !== undefined) return cached
+  const built = new Map(keys.map((key, index) => [key, index] as const))
+  indexCache.set(keys, built)
+  return built
+}
+
+/**
+ * The row holding focus, when it is still in `keys` and not the list opened
+ * at a row. The list draws it beside the window, so a reader keeps their place
+ * in the tab order while it is scrolled away.
+ */
+export const heldRow = (model: Model, keys: ReadonlyArray<string>): Option.Option<number> =>
+  model.from === 0
+    ? Option.flatMap(model.held, key => Option.fromNullishOr(indexByKey(keys).get(key)))
+    : Option.none()
+
 export type WindowListView<Item, Outer> = Readonly<{
   model: Model
   items: ReadonlyArray<Item>
@@ -329,6 +363,87 @@ const keysOf = <Item>(
 }
 
 /**
+ * Which row holds focus, as `Focused`. A keyed row that must stay drawn is
+ * moved in the DOM when it changes side of the window, and a move drops
+ * focus (a blur with no new target, then `body`), so a move that took focus
+ * from the held row's control gives it back. Told from a reader leaving by
+ * the records of the list's children: a blur alone is ambiguous.
+ */
+const followFocus = (element: Element): Stream.Stream<Message> =>
+  Stream.callback<Message>(queue =>
+    Effect.acquireRelease(
+      Effect.sync(() => {
+        let held = Option.none<{ readonly row: Element; readonly control: Element }>()
+        let reported = Option.none<string>()
+        const report = (next: Option.Option<string>) => {
+          if (Equal.equals(next, reported)) return
+          reported = next
+          Queue.offerUnsafe(queue, Message.Focused({ key: next }))
+        }
+        const rowOf = (node: EventTarget | null): Option.Option<Element> => {
+          for (let at = node instanceof Element ? node : null; at !== null && at !== element;) {
+            if (at.parentElement === element && at.hasAttribute(ROW_KEY)) return Option.some(at)
+            at = at.parentElement
+          }
+          return Option.none()
+        }
+        const release = () => {
+          held = Option.none()
+          report(Option.none())
+        }
+        const enter = (target: EventTarget | null) => {
+          if (!(target instanceof Element)) return release()
+          const row = rowOf(target)
+          held = Option.map(row, row => ({ row, control: target }))
+          report(Option.flatMap(row, row => Option.fromNullishOr(row.getAttribute(ROW_KEY))))
+        }
+        const adrift = () => {
+          const active = document.activeElement
+          return active === null || active === document.body
+        }
+        const restoreAfterMove = (records: ReadonlyArray<MutationRecord>) => {
+          Option.match(held, {
+            onNone: () => undefined,
+            onSome: ({ row, control }) => {
+              const moved = records.some(
+                record =>
+                  Array.from(record.addedNodes).includes(row) ||
+                  Array.from(record.removedNodes).includes(row),
+              )
+              if (moved && control.isConnected && adrift() && control instanceof HTMLElement) {
+                control.focus({ preventScroll: true })
+              }
+            },
+          })
+        }
+        // A browser that fires no blur when its focused node leaves still
+        // changes the DOM: the held row going is told by its records too.
+        const children = new MutationObserver(records => {
+          restoreAfterMove(records)
+          if (Option.exists(held, ({ row }) => !row.isConnected)) release()
+        })
+        children.observe(element, { childList: true })
+        const onFocusIn = (event: Event) => enter(event.target)
+        // After the patch that moved the row, not during it.
+        const onFocusOut = () =>
+          queueMicrotask(() => {
+            restoreAfterMove(children.takeRecords())
+            if (Option.exists(held, ({ row }) => !row.contains(document.activeElement))) release()
+          })
+        element.addEventListener('focusin', onFocusIn)
+        element.addEventListener('focusout', onFocusOut)
+        enter(document.activeElement)
+        return () => {
+          element.removeEventListener('focusin', onFocusIn)
+          element.removeEventListener('focusout', onFocusOut)
+          children.disconnect()
+        }
+      }),
+      detach => Effect.sync(detach),
+    ),
+  )
+
+/**
  * The list's one Mount, on its `root`: where the viewport lies over the list
  * (`WindowViewport`, as `Placed`) and the heights of the rows drawn
  * (`MeasureRows`, as `Measured`). A failure in either ends both, reported
@@ -336,20 +451,24 @@ const keysOf = <Item>(
  * at a row their room. A Scene test resolves it with `resolveTrack`.
  */
 export const Track = Mount.defineStream('WindowList.Track', {
-  messages: [Message.Placed, Message.Measured],
+  messages: [Message.Placed, Message.Measured, Message.Focused],
   execute: ({ element, viewStateChanges }) =>
     // After the patch that inserted the list: a hydrating runtime compares
     // the page it adopted with the server's once the patch ends.
     Stream.unwrap(
       Effect.map(Effect.yieldNow, () => {
         place(element)
-        return Stream.merge(
-          WindowViewport()
-            .f(element, viewStateChanges)
-            .pipe(Stream.map(({ top, height }) => Message.Placed({ top, height }))),
-          MeasureRows({ attribute: ROW_KEY })
-            .f(element, viewStateChanges)
-            .pipe(Stream.map(({ rows }) => Message.Measured({ rows }))),
+        return Stream.mergeAll(
+          [
+            WindowViewport()
+              .f(element, viewStateChanges)
+              .pipe(Stream.map(({ top, height }) => Message.Placed({ top, height }))),
+            MeasureRows({ attribute: ROW_KEY })
+              .f(element, viewStateChanges)
+              .pipe(Stream.map(({ rows }) => Message.Measured({ rows }))),
+            followFocus(element),
+          ],
+          { concurrency: 'unbounded' },
         )
       }),
     ),
@@ -380,10 +499,8 @@ export const view = <Item, Outer>(
   const keys = keysOf(items, options.itemToKey)
   const { start, end } = windowOf(model, keys)
   const layout = layoutOf(model)
-  const startHeight = offsetFor(start, keys, model.heights, layout)
-  const endHeight =
-    totalHeight(keys, model.heights, layout) - offsetFor(end, keys, model.heights, layout)
-  const spacer = (edge: 'start' | 'end', blockSize: string) =>
+  const offset = (index: number) => offsetFor(index, keys, model.heights, layout)
+  const spacer = (edge: 'start' | 'gap' | 'end', blockSize: string) =>
     h.keyed('div')(
       `${model.id}-${edge}`,
       builders.spacer.attrs([
@@ -393,6 +510,51 @@ export const view = <Item, Outer>(
       ]),
       [],
     )
+  const drawRow = (index: number) =>
+    h.keyed('div')(
+      keys[index]!,
+      builders.row.attrs([
+        h.Role('listitem'),
+        h.Attribute(ROW_KEY, keys[index]!),
+        h.AriaPosinset(index + 1),
+        h.AriaSetsize(items.length),
+        // A child's margin collapsing through the row would escape its measure.
+        h.Style({ display: 'flow-root' }),
+      ]),
+      [itemToView(items[index]!, index)],
+    )
+  const drawRows = (from: number, to: number) =>
+    Array.from({ length: to - from }, (_, at) => drawRow(from + at))
+  const total = totalHeight(keys, model.heights, layout)
+  // A row holding focus outside the window sits in flow at its own offset,
+  // with a spacer for the rows between it and the window, so the spacers
+  // still add up to the whole list and nothing moves when it starts or stops.
+  const held = Option.filter(heldRow(model, keys), index => index < start || index >= end)
+  const startHeight = (until: number) =>
+    model.from === 0 ? `${offset(until)}px` : `calc(var(${PLACED}, 0) * ${offset(until)}px)`
+  const children = Option.match(held, {
+    onNone: () => [
+      spacer('start', startHeight(start)),
+      ...drawRows(start, end),
+      spacer('end', `${total - offset(end)}px`),
+    ],
+    onSome: index =>
+      index < start
+        ? [
+            spacer('start', startHeight(index)),
+            drawRow(index),
+            spacer('gap', `${offset(start) - offset(index + 1)}px`),
+            ...drawRows(start, end),
+            spacer('end', `${total - offset(end)}px`),
+          ]
+        : [
+            spacer('start', startHeight(start)),
+            ...drawRows(start, end),
+            spacer('gap', `${offset(index) - offset(end)}px`),
+            drawRow(index),
+            spacer('end', `${total - offset(index + 1)}px`),
+          ],
+  })
   return h.div(
     builders.root.attrs([
       h.Id(model.id),
@@ -400,27 +562,6 @@ export const view = <Item, Outer>(
       ...(options.label === undefined ? [] : [h.AriaLabel(options.label)]),
       h.OnMount(Mount.mapMessage(Track(), onMessage)),
     ]),
-    [
-      spacer(
-        'start',
-        model.from === 0 ? `${startHeight}px` : `calc(var(${PLACED}, 0) * ${startHeight}px)`,
-      ),
-      ...keys.slice(start, end).map((key, offset) => {
-        const index = start + offset
-        return h.keyed('div')(
-          key,
-          builders.row.attrs([
-            h.Role('listitem'),
-            h.Attribute(ROW_KEY, key),
-            h.AriaPosinset(index + 1),
-            h.AriaSetsize(items.length),
-            // A child's margin collapsing through the row would escape its measure.
-            h.Style({ display: 'flow-root' }),
-          ]),
-          [itemToView(items[index]!, index)],
-        )
-      }),
-      spacer('end', `${endHeight}px`),
-    ],
+    children,
   )
 }

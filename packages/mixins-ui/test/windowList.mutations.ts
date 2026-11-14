@@ -9,6 +9,7 @@
 const file = '../src/windowList.ts'
 const unit = ['packages/mixins-ui/test/windowList.test.ts']
 const browser = ['packages/mixins-ui/test/windowList.browser.test.ts']
+const focus = ['packages/mixins-ui/test/windowListFocus.browser.test.ts']
 const ssr = ['packages/mixins-ui/test/windowList.ssr.test.ts']
 
 export default [
@@ -130,8 +131,8 @@ export default [
     edits: [
       {
         file,
-        find: "      spacer('end', `${endHeight}px`),",
-        replace: "      spacer('end', '0px'),",
+        find: "      ...drawRows(start, end),\n      spacer('end', `${total - offset(end)}px`),\n    ],\n",
+        replace: "      ...drawRows(start, end),\n      spacer('end', '0px'),\n    ],\n",
       },
     ],
     tests: browser,
@@ -141,7 +142,7 @@ export default [
     edits: [
       {
         file,
-        find: 'model.from === 0 ? `${startHeight}px` :',
+        find: 'model.from === 0 ? `${offset(until)}px` :',
         replace: "model.from === 0 ? '0px' :",
       },
     ],
@@ -232,12 +233,12 @@ export default [
   },
   {
     name: 'rows carry no key to be measured by',
-    edits: [{ file, find: '            h.Attribute(ROW_KEY, key),\n', replace: '' }],
+    edits: [{ file, find: '        h.Attribute(ROW_KEY, keys[index]!),\n', replace: '' }],
     tests: browser,
   },
   {
     name: "a row's content margins escape its measure",
-    edits: [{ file, find: "            h.Style({ display: 'flow-root' }),\n", replace: '' }],
+    edits: [{ file, find: "        h.Style({ display: 'flow-root' }),\n", replace: '' }],
     tests: browser,
   },
   {
@@ -315,8 +316,8 @@ export default [
     edits: [
       {
         file,
-        find: ': `calc(var(${PLACED}, 0) * ${startHeight}px)`,',
-        replace: ': `${startHeight}px`,',
+        find: ': `calc(var(${PLACED}, 0) * ${offset(until)}px)`',
+        replace: ': `${offset(until)}px`',
       },
     ],
     tests: [...ssr, ...browser],
@@ -358,5 +359,89 @@ export default [
       },
     ],
     tests: ssr,
+  },
+  {
+    name: 'the same focus report makes a new Model',
+    edits: [
+      { file, find: 'Equal.equals(key, model.held)', replace: 'false' },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'keep drops the height of the row holding focus',
+    edits: [{ file, find: 'onSome: key => [...keys, key] }', replace: 'onSome: () => keys }' }],
+    tests: unit,
+  },
+  {
+    name: 'a held row is looked up in a list opened at a row',
+    edits: [
+      {
+        file,
+        find: 'model.from === 0\n    ? Option.flatMap',
+        replace: 'true\n    ? Option.flatMap',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the row outside the window is not drawn',
+    edits: [
+      {
+        file,
+        find: '  const held = Option.filter(heldRow(model, keys), index => index < start || index >= end)',
+        replace: '  const held = Option.none<number>()',
+      },
+    ],
+    tests: focus,
+  },
+  {
+    name: 'the spacer between the held row and the window is dropped from its height',
+    edits: [
+      {
+        file,
+        find: "spacer('gap', `${offset(start) - offset(index + 1)}px`)",
+        replace: "spacer('gap', '0px')",
+      },
+    ],
+    tests: focus,
+  },
+  {
+    name: 'the held row below the window leaves the end spacer whole',
+    edits: [
+      {
+        file,
+        find: "spacer('end', `${total - offset(index + 1)}px`)",
+        replace: "spacer('end', `${total - offset(end)}px`)",
+      },
+    ],
+    tests: focus,
+  },
+  {
+    name: 'a move that drops focus is not given back',
+    edits: [
+      {
+        file,
+        find: 'if (moved && control.isConnected && adrift() && control instanceof HTMLElement) {',
+        replace:
+          'if (false && moved && control.isConnected && adrift() && control instanceof HTMLElement) {',
+      },
+    ],
+    tests: focus,
+  },
+  {
+    name: 'focus leaving the list is not reported',
+    edits: [
+      {
+        file,
+        find: 'if (Option.exists(held, ({ row }) => !row.contains(document.activeElement))) release()',
+        replace: '',
+      },
+    ],
+    tests: focus,
+  },
+  {
+    name: 'focus entering a row is not listened for',
+    edits: [{ file, find: "element.addEventListener('focusin', onFocusIn)", replace: '' }],
+    tests: focus,
   },
 ]
