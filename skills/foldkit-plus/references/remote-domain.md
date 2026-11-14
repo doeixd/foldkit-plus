@@ -83,8 +83,9 @@ const client = DomainRemote.layer(NotesApi, {
 })
 ```
 
-`view` and `command` are declarations that throw where they are made for a field the View lacks or a `revision`
-that is not a number; only `layer` does anything, once the Api's client is provided.
+`view`, `command` and `query` are declarations that throw where they are made for a field the View lacks, a `revision`
+that is not a number, or a Query that is not served or not paged; only `layer` does anything, once the Api's client is
+provided.
 
 ## What to know
 
@@ -98,6 +99,14 @@ that is not a number; only `layer` does anything, once the Api's client is provi
   that revision or earlier returns.
 - **Command id** = `mutation:operation:digest(principal, target, keys, input)`; a missing `operation` is refused; a
   request for another principal is refused before sending. A lost reply is `RemoteUnreachable`; the retry reuses the id.
+- **Lists.** `DomainRemote.query(RemoteQuery, Api, 'PagedQuery', { input, id })` binds a Remote query to a paged
+  Domain Query, given to `layer` as `queries`. The Query decides what is listed; each listed row is read through its
+  Entity's View, which leaves out a row its `validate` hides and gives each its revision. Paging is Domain's, forward
+  only: `last`/`before`, `first: 0` and a cursor over 1,024 characters are refused (`RemoteQueryError`). A write's answer
+  carries the lists the client asks back, read `atLeast` its receipt; a live list is asked again when a row it holds
+  changes and sends `ConnectionInvalidate` when it moved.
+- **`one` relations.** A View's state holds the target's id (or `null`); `view` refuses an Entity whose `one` relation
+  it lacks. A read answers the ref key and reads a selected target through its own View in the same batch.
 - **`Lower.write` (`/lower`)** derives a command, `decide`, `evolve`, the View and both bindings from a declared
   `Write`, landing it through `RemoteServer.write` over `GuardServer.writer` over `RemoteServer.memoryWriter`; you give
   `event`, `record`, `apply`, `revision`, `principal`, `middleware`, `listed`, `policy`. `Lower.check` lists what keeps a
@@ -112,7 +121,9 @@ that is not a number; only `layer` does anything, once the Api's client is provi
 
 ## Limits
 
-Reads are by id: relations, windows, lists and queries fail by name. A row named in `behind` is asked again with its
+Lists come from paged Domain Queries only, read forward; a plain page carries no read-after token (the wire has none
+for a query), and a live list sees a row join only when a held row changes or it is read again. Relations are `one`
+relations held as ids; `many` relations, relation windows and live reads with relations fail by name. A row named in `behind` is asked again with its
 token after 1 s, doubling, at most 30 s. Open upstream behaviour in beta.86 (not yet reported):
 a reused `commandId` with other input or another principal returns the first receipt and skips `decide`; the View client
 takes no timeout for an `atLeast` read; a snapshot carries no stream version. No deploy, Durable Object or WebSocket

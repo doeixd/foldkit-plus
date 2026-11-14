@@ -304,6 +304,112 @@ own ordering tests use it.
 `Model.Internals`, which Domain marks internal: a Domain release can change it,
 and the tests of this package fail when it does.
 
+## Lists and one relations
+
+A Domain Query answers a question across keys from a store a Projection writes.
+`DomainRemote.query` binds a Remote query to a **paged** one: the Domain Query
+decides which rows are listed and in what order, and the adapter then reads each
+listed row through its Entity's View.
+
+<!-- docs-check standalone
+import * as Domain from '@alchemy.run/domain'
+import { Effect, Schema } from 'effect'
+import { Entity, Expr, Order } from 'foldkit-entity'
+import { DomainRemote } from 'foldkit-remote-domain'
+
+class Seeded extends Domain.Event('Seeded', { stock: Schema.Int, revision: Schema.Int }) {}
+class Seed extends Domain.Command('Seed', { target: Schema.String, input: { stock: Schema.Int }, events: [Seeded] }) {}
+const State = Schema.Struct({ stock: Schema.Int, reserved: Schema.Int, revision: Schema.Int })
+const evolve = { Seeded: (state: typeof State.Type, event: Seeded) => ({ ...state, stock: event.stock, revision: event.revision }) }
+class Stock extends Domain.Aggregate('Product', {
+  id: Schema.String,
+  state: State,
+  initial: { stock: 0, reserved: 0, revision: 0 },
+  commands: [Seed],
+  decide: { Seed: (_, { stock }) => [new Seeded({ stock, revision: 1 })] },
+  evolve,
+}) {}
+class ProductRow extends Domain.View('ProductRow', {
+  from: [Stock],
+  key: Stock,
+  state: State,
+  initial: { stock: 0, reserved: 0, revision: 0 },
+  evolve,
+}) {}
+class InStock extends Domain.Query('InStock', {
+  input: { shelf: Schema.String },
+  success: Schema.Struct({ id: Schema.String }),
+  paged: true,
+}) {}
+class Shop extends Domain.Model('Shop', { aggregates: [Stock], views: [ProductRow], queries: [InStock] }) {}
+class ShopApi extends Domain.Api('ShopApi', { model: Shop, views: ['ProductRow'], queries: ['InStock'] }) {}
+const Product = Entity.define(
+  'Product',
+  Schema.Struct({ id: Schema.String, stock: Schema.Number, reserved: Schema.Number, revision: Schema.Number }),
+)
+const Products = DomainRemote.view(Product, ShopApi, 'ProductRow', { revision: 'revision' })
+const principal = Effect.succeedNone
+const denied = () => 'Unauthenticated' as const
+-->
+
+```text
+edges    = the Domain page's entries, by id, less the rows their View answers absent
+entities = those rows as the View answers them, each with its revision
+```
+
+```ts
+import { Query } from 'foldkit-remote'
+
+const Stocked = Query.define('Stocked', { shelf: Schema.String }, () =>
+  Query.from(Product).pipe(
+    Query.where(Expr.gt(Product.fields.stock, Expr.field(Product.fields.reserved))),
+    Query.orderBy(Order.asc(Product.fields.id)),
+  ),
+)
+
+const Listed = DomainRemote.query(Stocked, ShopApi, 'InStock', {
+  input: input => ({ shelf: input.shelf }), // the Domain Query's input
+  id: entry => entry.id, // the row an entry of its page lists
+})
+
+DomainRemote.layer(ShopApi, { views: [Products], commands: [], queries: [Listed], principal, denied })
+```
+
+(The tests' model, with a projection and a supplier, is `test/adapter/lists.ts`.) What each part does:
+
+- **The View is the one judge of who sees a row.** A row the Domain Query lists
+  but the View's `validate` hides is left out of the page, so a list never names
+  an id a read of it would hide. Every row a page carries holds its revision, so
+  Remote orders it against what it holds as it does a read's.
+- **Paging is Domain's, forward only.** Remote's `first` is Domain's `take`, and
+  a page's end cursor is Domain's cursor, sent back as `after`. A window from the
+  end (`last`, `before`) is refused by name, and so is `first: 0`, which Domain
+  would answer with one row. A cursor longer than 1,024 characters is refused.
+  The request is decoded with Remote's `QueryRequest` and the Remote query's own
+  `Input` before anything is asked. A Rejection of the Query is a
+  `RemoteQueryError`; its middleware's refusal is `RemoteUnauthenticated`.
+- **A write's answer carries its lists.** When the client asks a write back for
+  the lists it moves (`MutationRequest.lists`), the adapter reads each at the
+  write's receipt (`atLeast`), so a row the write moved shows there. A list
+  whose Query has not caught up within `confirmWithin` is left out, and the
+  client asks for it again.
+- **A page is read with no token.** A floored row on a later plain page is held
+  by Remote, as for any page: the page writes it, and ends its floor, only at a
+  newer revision than the one held; otherwise a read at its token does.
+- **A live list is asked again.** A Domain Query has no watch: the adapter
+  watches each row a live list holds, asks the list again when one changes, and
+  sends `ConnectionInvalidate` when what it lists moved (never `EntityDeleted`
+  for a row that only left the list). A row that joins the list with no change
+  to a row it holds is not seen until the list is read again.
+
+A View's state holds a **`one` relation** as the target's id, or `null`.
+`DomainRemote.view` refuses an Entity whose `one` relation the state does not
+hold. A read answers the relation as Remote's ref key (`'Supplier:s1'`) and,
+when the request selects the target, reads it in the same batch through the
+target Entity's own View binding, once however many rows point at it. A target
+its View hides is absent; a `many` relation, a relation window, and a target
+with no View bound fail the read by name (`RemoteReadError`).
+
 ## Lowering a declared write
 
 `foldkit-remote-domain/lower` turns a `Write` into an aggregate, so the rules
@@ -467,10 +573,14 @@ Policy, which is not built here. A lowered write holds no ledger,
 
 ## Limits
 
-- **Reads are by id only.** A request with relations or windows, any list, and
-  any `query` fail by name (`RemoteReadError`, `RemoteQueryError`,
-  `RemoteLiveError`); a Domain Api's queries are not bound. Server-rendered first
-  paint from a View's cursor is not built.
+- **Lists are a paged Domain Query's, read forward.** An unpaged Query cannot
+  answer a list, a window from a list's end is refused, and a live list sees a
+  row join it only when a row it holds changes or it is read again. Each listed
+  row costs one View snapshot (sixteen at a time). A plain page carries no
+  read-after token: Remote's wire has none for a query, so only a write's own
+  answer reads its lists at the receipt. Relations are `one` relations held as
+  ids; a live read with relations is refused (`RemoteLiveError`).
+  Server-rendered first paint from a View's cursor is not built.
 - **`written` and who may read.** A write's reply is not passed through the
   View's `validate`. `DomainRemote.command` refuses `written` where its Entity's
   Update rules do not imply its Read rules, or a member has a Read rule; such a
@@ -496,7 +606,7 @@ Policy, which is not built here. A lowered write holds no ledger,
 
 | Export | Entry | What it is |
 | --- | --- | --- |
-| `DomainRemote.view`, `.command` | `.` | bind a View to an Entity, a command to a mutation |
+| `DomainRemote.view`, `.command`, `.query` | `.` | bind a View to an Entity, a command to a mutation, a paged Query to a Remote query |
 | `DomainRemote.refuse`, `.forbid`, `.unauthenticated`, `.fail` | `.` | how a Rejection reaches Remote |
 | `DomainRemote.layer` | `.` | the `RemoteClient` |
 | `Receipt` | `.` | `{ stream, version }` |
