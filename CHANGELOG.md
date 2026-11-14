@@ -14,6 +14,8 @@ version changed; `pnpm` skips versions already in the registry.
   restore, a dialog over a dialog) and `tabs`, each a function of a harness
   that returns its findings as data, with roles and names read from Chromium's
   accessibility tree, and `Conformance.server` for markup parsed back.
+  `Conformance.harness({ cdp, userEvent }, root?)` is the harness for Vitest's
+  browser mode, given Vitest's two so the package imports no runner.
   `SlotView.describe(view)` gains `conforms`, the patterns `A11y.conform`
   checked the view against.
 - `foldkit-primitives/interaction`: `Reorder`, a keyboard path for moving an

@@ -19,17 +19,158 @@ export interface AxNode {
   readonly name: string
   /** The states Chromium reports, by name: `selected`, `checked`, `expanded`, `disabled`. */
   readonly states: Readonly<Record<string, string>>
+  /** The DOM node it is for, so a scenario pairs it with what it reads from the page. */
+  readonly node: Node
 }
 
 export interface Harness {
-  /** Where the widget is drawn. */
-  readonly root: ParentNode
+  /** Where the widget is drawn; the accessibility tree is read inside it alone. */
+  readonly root: Element | Document
   /** Keys as `userEvent.keyboard` writes them: `{ArrowDown}`, `{Enter}`, ` `. */
   readonly press: (keys: string) => Promise<void>
-  /** The accessibility tree as Chromium has it. Vitest's locators name elements their own way. */
+  /** The accessibility tree as Chromium has it, inside `root`. Vitest's locators name elements their own way. */
   readonly accessibility: () => Promise<ReadonlyArray<AxNode>>
-  /** A pointer press on an element that a disabled control must refuse. */
+  /**
+   * A pointer press: `pointerdown`, `mousedown`, `pointerup`, `mouseup` and
+   * `click`, dispatched on the element at its centre with the primary button.
+   */
   readonly click: (element: Element) => Promise<void>
+}
+
+/** The Chrome DevTools Protocol calls `harness` makes; Vitest's `cdp()` session has them. */
+export interface CdpSession {
+  send(method: 'Accessibility.enable'): Promise<unknown>
+  send(method: 'Page.getFrameTree'): Promise<unknown>
+  send(method: 'Accessibility.getFullAXTree', params: { frameId: string }): Promise<unknown>
+  send(
+    method: 'DOM.resolveNode',
+    params: { backendNodeId: number; objectGroup: string },
+  ): Promise<unknown>
+  send(
+    method: 'Runtime.callFunctionOn',
+    params: { objectId: string; functionDeclaration: string },
+  ): Promise<unknown>
+  send(method: 'Runtime.releaseObjectGroup', params: { objectGroup: string }): Promise<unknown>
+}
+
+/**
+ * What `harness` takes from Vitest's browser mode (`import { cdp, userEvent }
+ * from 'vitest/browser'`), passed in so this module imports no test runner.
+ */
+export interface BrowserTools {
+  readonly cdp: () => CdpSession
+  readonly userEvent: { readonly keyboard: (text: string) => Promise<unknown> }
+}
+
+// CDP's answers, as far as the harness reads them.
+type CdpFrame = {
+  readonly frame: { readonly id: string; readonly url: string }
+  readonly childFrames?: ReadonlyArray<CdpFrame>
+}
+type CdpAxNode = {
+  readonly ignored?: boolean
+  readonly backendDOMNodeId?: number
+  readonly role?: { readonly value?: unknown }
+  readonly name?: { readonly value?: unknown }
+  readonly properties?: ReadonlyArray<{
+    readonly name: string
+    readonly value: { readonly value?: unknown }
+  }>
+}
+
+const GROUP = 'foldkit-conformance'
+const NODES = '__foldkitConformanceNodes'
+
+/**
+ * A harness over Vitest's browser mode: keys from `userEvent.keyboard`, the
+ * accessibility tree from Chrome's own (`Accessibility.getFullAXTree`, which
+ * names an element as a screen reader hears it, where Vitest's locators read
+ * generated text Chrome leaves out), and a pointer press as dispatched events,
+ * which reach an `aria-disabled` element Playwright refuses to press. The tree
+ * is read in the frame `root` is drawn in and kept to the nodes inside `root`,
+ * each with its DOM node.
+ */
+export const harness = (tools: BrowserTools, root: Element | Document = document): Harness => {
+  const owner = root instanceof Document ? root : root.ownerDocument
+  const accessibility = async (): Promise<ReadonlyArray<AxNode>> => {
+    const session = tools.cdp()
+    await session.send('Accessibility.enable')
+    const { frameTree } = (await session.send('Page.getFrameTree')) as { frameTree: CdpFrame }
+    const frames: Array<CdpFrame['frame']> = []
+    const walk = (at: CdpFrame) => {
+      frames.push(at.frame)
+      at.childFrames?.forEach(walk)
+    }
+    walk(frameTree)
+    // The page's own frame: Vitest draws its runner around the test's.
+    const own = frames.filter(frame => frame.url === owner.location.href)
+    const found: Array<AxNode> = []
+    const registry = globalThis as unknown as Record<string, Array<Node>>
+    registry[NODES] = []
+    try {
+      for (const frame of own) {
+        const { nodes } = (await session.send('Accessibility.getFullAXTree', {
+          frameId: frame.id,
+        })) as { nodes: ReadonlyArray<CdpAxNode> }
+        for (const node of nodes) {
+          if (node.ignored === true || node.backendDOMNodeId === undefined) continue
+          // The DOM node behind it: resolved in its frame, handed to this page through a global.
+          const { object } = (await session.send('DOM.resolveNode', {
+            backendNodeId: node.backendDOMNodeId,
+            objectGroup: GROUP,
+          })) as { object: { readonly objectId?: string } }
+          if (object.objectId === undefined) continue
+          const before = registry[NODES].length
+          await session.send('Runtime.callFunctionOn', {
+            objectId: object.objectId,
+            functionDeclaration: `function () { globalThis[${JSON.stringify(NODES)}].push(this) }`,
+          })
+          const dom = registry[NODES][before]
+          if (dom === undefined || !root.contains(dom)) continue
+          found.push({
+            role: String(node.role?.value),
+            name: String(node.name?.value ?? ''),
+            states: Object.fromEntries(
+              (node.properties ?? []).map(property => [
+                property.name,
+                String(property.value.value),
+              ]),
+            ),
+            node: dom,
+          })
+        }
+      }
+    } finally {
+      delete registry[NODES]
+      await session.send('Runtime.releaseObjectGroup', { objectGroup: GROUP })
+    }
+    return found
+  }
+  const click = async (element: Element) => {
+    const box = element.getBoundingClientRect()
+    const at = {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      clientX: box.left + box.width / 2,
+      clientY: box.top + box.height / 2,
+      button: 0,
+    }
+    const pointer = { ...at, pointerId: 1, pointerType: 'mouse', isPrimary: true }
+    element.dispatchEvent(new PointerEvent('pointerdown', { ...pointer, buttons: 1 }))
+    element.dispatchEvent(new MouseEvent('mousedown', { ...at, buttons: 1, detail: 1 }))
+    element.dispatchEvent(new PointerEvent('pointerup', { ...pointer, buttons: 0 }))
+    element.dispatchEvent(new MouseEvent('mouseup', { ...at, buttons: 0, detail: 1 }))
+    element.dispatchEvent(new MouseEvent('click', { ...at, buttons: 0, detail: 1 }))
+  }
+  return {
+    root,
+    press: async keys => {
+      await tools.userEvent.keyboard(keys)
+    },
+    accessibility,
+    click,
+  }
 }
 
 /** One thing a scenario looked at. */
@@ -327,8 +468,12 @@ export const checkbox = async (harness: Harness, spec: CheckboxSpec): Promise<Re
     `checkboxes ${JSON.stringify(names(nodes))}`,
   )
   const elements = list(harness.root, CHECKBOX)
-  const at = names(nodes).indexOf(spec.name)
-  const target = elements[at]
+  // The element the tree names so: paired by node, not by order, which a label can change.
+  const drawn = (name: string) => {
+    const node = nodes.find(each => each.name === name)?.node
+    return elements.find(element => element === node)
+  }
+  const target = drawn(spec.name)
   if (target === undefined || elements.length !== nodes.length) {
     note(
       'the page draws each checkbox once',
@@ -353,16 +498,16 @@ export const checkbox = async (harness: Harness, spec: CheckboxSpec): Promise<Re
   note('Space again toggles it back', isChecked(target) === was, `checked ${isChecked(target)}`)
 
   if (spec.disabled !== undefined) {
-    const lockedAt = names(nodes).indexOf(spec.disabled)
-    const locked = elements[lockedAt]
+    const locked = drawn(spec.disabled)
+    const lockedNode = nodes.find(each => each.node === locked)
     if (locked === undefined) {
       note('a disabled checkbox is drawn', false, `checkboxes ${JSON.stringify(names(nodes))}`)
     } else {
       const before = isChecked(locked)
       note(
         'a disabled checkbox says so',
-        nodes[lockedAt]?.states['disabled'] === 'true',
-        `states ${JSON.stringify(nodes[lockedAt]?.states)}`,
+        lockedNode?.states['disabled'] === 'true',
+        `states ${JSON.stringify(lockedNode?.states)}`,
       )
       locked.focus()
       await harness.press(key(' '))

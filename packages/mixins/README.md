@@ -1218,16 +1218,26 @@ together. Only a browser test is **rendered**: it says the behaviour happened on
 them is WCAG conformance.
 
 `Conformance` from `foldkit-mixins/testing` is the rendered word. Each scenario takes a harness
-(`{ root, press, accessibility, click }`: Vitest's keyboard, and Chromium's own accessibility
-tree, which Vitest's locators do not match) and returns its findings as plain data, so a widget
-and a view assembled from primitives are held to one behaviour:
+and returns its findings as plain data, so a widget and a view assembled from primitives are held
+to one behaviour. `Conformance.harness({ cdp, userEvent })` is the harness for Vitest's browser
+mode: keys from `userEvent.keyboard`, roles and names from Chromium's own accessibility tree
+(which Vitest's locators do not match), read inside its root (the document by default) with each
+node's DOM element, and a pointer press as dispatched events. It takes the two from you, so
+`foldkit-mixins` imports no test runner. `cdp` is the Playwright provider's, so a test file
+names it first (`/// <reference types="@vitest/browser-playwright" />`, which types the session):
+
+<!-- docs-check
+declare const cdp: Conformance.BrowserTools['cdp']
+declare const userEvent: Conformance.BrowserTools['userEvent']
+-->
 
 ```ts
 import { Conformance } from 'foldkit-mixins/testing'
+// import { cdp, userEvent } from 'vitest/browser'
 
-declare const harness: Conformance.Harness
 declare const button: HTMLElement
 
+const harness = Conformance.harness({ cdp, userEvent })
 const result = await Conformance.listbox(harness, {
   name: 'Frequency',
   options: ['Hourly', 'Daily', 'Weekly'],
@@ -1244,8 +1254,8 @@ restored, a second dialog opened over the first) and `.tabs` read what the page 
 names from the accessibility tree, `aria-selected`, `aria-checked` and `aria-expanded` from the
 page, focus from `document`. They read no Model, Slot or obligation. `Conformance.server(scenario,
 root, expected)` is the server half: parse a rendered string and it checks each expected role,
-name and attribute. `harness.ts` in `packages/mixins-ui/test/conformance` is the browser harness.
-`SlotView.describe(view).conforms` lists the patterns a view was conformed to.
+name and attribute. Another runner gives a `Conformance.Harness` of its own (`{ root, press,
+accessibility, click }`). `SlotView.describe(view).conforms` lists the patterns a view was conformed to.
 
 ### Obligations: who does what a pattern asks
 

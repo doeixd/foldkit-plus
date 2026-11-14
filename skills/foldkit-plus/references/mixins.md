@@ -76,7 +76,8 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   assembly. Structural, never WCAG.
 - **Rendered conformance** (#552, #558): `Conformance` (`foldkit-mixins/testing`) runs
   `listbox`, `checkbox`, `tree`, `dialog` and `tabs` over a mounted widget with a harness
-  `{ root, press, accessibility, click }` and returns `ReadonlyArray<{ scenario, check, passed,
+  `{ root, press, accessibility, click }` (`Conformance.harness({ cdp, userEvent }, root?)` from
+  `vitest/browser`'s two; the tree is read inside `root`, each node with its DOM node) and returns `ReadonlyArray<{ scenario, check, passed,
   detail }>` (`Conformance.failures(result)` keeps the failed ones). Names and roles come from
   Chromium's accessibility tree; state, focus and keys from the page. `Conformance.server(scenario,
   root, expected)` reads server markup parsed back. A scenario runs over the shipped widget and

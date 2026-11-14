@@ -8,9 +8,11 @@ import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import { Conformance } from 'foldkit-mixins/testing'
 import { afterEach, expect, test, vi } from 'vitest'
+import { cdp, userEvent } from 'vitest/browser'
 import { Tabs } from '../../src/index.js'
-import { harness } from './harness.js'
 import * as HandBuilt from './tabs.handBuilt.js'
+
+const harness = Conformance.harness({ cdp, userEvent })
 
 const Model = Schema.Struct({ tabs: UiTabs.Model, value: Schema.String })
 type Model = typeof Model.Type

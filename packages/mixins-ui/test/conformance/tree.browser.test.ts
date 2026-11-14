@@ -9,9 +9,11 @@ import { Defaults } from 'foldkit-mixins/defaults'
 import { Conformance } from 'foldkit-mixins/testing'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
+import { cdp, userEvent } from 'vitest/browser'
 import { Recipes, TreeView, TreeViewSlots } from '../../src/index.js'
-import { harness } from './harness.js'
 import * as HandBuilt from './tree.handBuilt.js'
+
+const harness = Conformance.harness({ cdp, userEvent })
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 

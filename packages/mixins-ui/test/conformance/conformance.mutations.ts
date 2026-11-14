@@ -28,10 +28,24 @@ const treeNav = '../../../primitives/src/interaction/tree-navigation.ts'
 const focusScope = '../../../primitives/src/dom/focus-scope.ts'
 const dismiss = '../../../primitives/src/interaction/dismiss-layer.ts'
 const overlay = '../../../primitives/src/interaction/overlay.ts'
+const conformance = '../../../mixins/src/conformance.ts'
 
 const edit = (file: string, find: string, replace: string) => ({ file, find, replace })
 
 export default [
+  // The harness
+  {
+    name: 'the harness reads the whole page, not its root',
+    edits: [
+      edit(
+        conformance,
+        'if (dom === undefined || !root.contains(dom)) continue',
+        'if (dom === undefined) continue',
+      ),
+    ],
+    tests: checkbox,
+  },
+
   // Listbox
   {
     name: 'the listbox draws no role',

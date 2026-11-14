@@ -9,9 +9,11 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import { Conformance } from 'foldkit-mixins/testing'
 import { afterEach, expect, test, vi } from 'vitest'
+import { cdp, userEvent } from 'vitest/browser'
 import { Checkbox } from '../../src/index.js'
 import * as HandBuilt from './checkbox.handBuilt.js'
-import { harness } from './harness.js'
+
+const harness = Conformance.harness({ cdp, userEvent })
 
 const Model = Schema.Struct({ subscribe: Schema.Boolean, locked: Schema.Boolean })
 type Model = typeof Model.Type
@@ -79,6 +81,32 @@ test.each([
     })
     expect(Conformance.failures(result)).toEqual([])
     expect(result.length).toBeGreaterThan(5)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('reads the accessibility tree inside its root alone, and pairs a checkbox by its node', async () => {
+  // A checkbox of the same name outside the widget: neither its node nor its order may count.
+  const stray = document.createElement('input')
+  stray.type = 'checkbox'
+  stray.setAttribute('aria-label', 'Subscribe')
+  document.body.append(stray)
+  const handle = HandBuilt.mount()
+  try {
+    const box = await vi.waitFor(() => {
+      const found = document.querySelector('[role="checkbox"]')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    const drawn = Array.from(document.body.children).find(child => child.contains(box))!
+    const result = await Conformance.checkbox(Conformance.harness({ cdp, userEvent }, drawn), {
+      name: 'Subscribe',
+      disabled: 'Locked',
+      enter,
+    })
+    expect(Conformance.failures(result)).toEqual([])
+    expect(stray.checked).toBe(false)
   } finally {
     handle.dispose()
   }

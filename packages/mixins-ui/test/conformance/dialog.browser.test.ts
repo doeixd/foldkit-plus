@@ -11,9 +11,11 @@ import { Layers, Style } from 'foldkit-mixins'
 import { Conformance } from 'foldkit-mixins/testing'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
+import { cdp, userEvent } from 'vitest/browser'
 import { Dialog, DialogSlots, Recipes } from '../../src/index.js'
 import * as HandBuilt from './dialog.handBuilt.js'
-import { harness } from './harness.js'
+
+const harness = Conformance.harness({ cdp, userEvent })
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(DialogSlots)(Recipes.Dialog({}))
