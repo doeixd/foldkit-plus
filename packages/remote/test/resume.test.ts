@@ -154,6 +154,26 @@ describe('captureRemote', () => {
     }
     expect(captureRemote(remote, [detail]).entities['Project:p1']?.stale).toEqual(['name'])
   })
+
+  it('keeps a floor a write in the render set, so the browser reads the row at its token', () => {
+    const entry = served.remote.entities['Project:p1']
+    if (entry === undefined) throw new Error('the server read no Project:p1')
+    const remote = {
+      ...served.remote,
+      entities: { ...served.remote.entities, 'Project:p1': { ...entry, floor: 'Project/p1@3' } },
+    }
+    const wire = JSON.parse(
+      JSON.stringify(Remote.resume(Data).capture({ ...served, remote }, [detail])),
+    )
+    const resumed = Result.getOrThrow(Remote.resume(Data).restore(initial, wire))
+    expect(resumed.remote.entities['Project:p1']?.floor).toBe('Project/p1@3')
+    // Held to the write, the row is read again, though every field it shows was sent.
+    expect(Data.plan(resumed, detail)).not.toEqual([])
+    expect(served.remote.entities['Project:p1']?.floor).toBeUndefined()
+    expect(
+      Data.plan({ ...initial, remote: restoreRemote(initial.remote, capture) }, detail),
+    ).toEqual([])
+  })
 })
 
 describe('restoreRemote', () => {

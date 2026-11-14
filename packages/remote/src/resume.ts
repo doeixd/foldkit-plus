@@ -8,6 +8,10 @@
  * crosses with the entities it covers, so a subscription started in the
  * browser resumes where the server's left off.
  *
+ * A row the render wrote to (a form posted to the server) crosses with its
+ * read-after token, so the browser keeps it held to that write until a read
+ * at the token answers, as the server would have.
+ *
  * This is not a `Snapshot`, which is built for a cache that survived a reload
  * and deliberately keeps no cursors. Nothing else of `RemoteModel` crosses:
  * loading marks, failures, the mutation ledger, optimistic layers, gaps and
@@ -24,6 +28,7 @@ import { own, put } from './record.js'
 import { targetsOf } from './relation.js'
 import { RemoteConnections, RemoteRequirements, type RelationRequirement } from './requirement.js'
 import { entityKey, readField, type EntityEntry } from './store.js'
+import { ReadAfterToken } from './wire.js'
 
 const CapturedEntry = Schema.Struct({
   values: Schema.Record(Schema.String, Schema.Unknown),
@@ -37,6 +42,11 @@ const CapturedEntry = Schema.Struct({
   oldestAt: Schema.optional(Schema.Number),
   /** The row's revision, when the server sent one: the browser orders what comes after by it. */
   revision: Schema.optional(Schema.Finite),
+  /**
+   * The read-after token of a write the server made while rendering whose
+   * read no answer confirmed: the browser keeps the row held to it.
+   */
+  floor: Schema.optional(ReadAfterToken),
 })
 
 const CapturedBoundary = Schema.Union([
@@ -89,6 +99,7 @@ type MutableEntry = {
   updatedAt: number
   oldestAt: number
   revision: number | undefined
+  floor: string | undefined
 }
 
 /** What some projections read, from their metadata. */
@@ -187,6 +198,7 @@ export const captureRemote = (
       updatedAt: stored.updatedAt,
       oldestAt: stored.oldestAt,
       revision: stored.revision,
+      floor: stored.floor,
     }
     entries.set(key, entry)
     for (const field of requirement.fields) {
@@ -239,6 +251,7 @@ export const captureRemote = (
           updatedAt: entry.updatedAt,
           oldestAt: entry.oldestAt,
           ...(entry.revision === undefined ? {} : { revision: entry.revision }),
+          ...(entry.floor === undefined ? {} : { floor: entry.floor }),
         },
       ]),
     ),
@@ -284,6 +297,7 @@ export const restoreRemote = <Store extends RemoteModel>(
           updatedAt: entry.updatedAt,
           oldestAt: entry.oldestAt ?? entry.updatedAt,
           ...(entry.revision === undefined ? {} : { revision: entry.revision }),
+          ...(entry.floor === undefined ? {} : { floor: entry.floor }),
         } satisfies EntityEntry,
       ]),
     ),
