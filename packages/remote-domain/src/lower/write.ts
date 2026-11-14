@@ -30,6 +30,7 @@ import {
   type ViewNameOf,
 } from '../adapter/binding.js'
 import { check } from './check.js'
+import { decidedOf, type Decided } from '../commandId.js'
 
 /** A declared update, as `Mutation.write` returns it: what `Lower.write` lowers. */
 export type LowerableMutation = MutationDescriptor<string, any, {}, any> & {
@@ -111,12 +112,6 @@ export type LoweredCommand<
 /** An event that carries a whole row of the Entity. */
 export type ListedEvent<E extends AnyEntity> = Domain.Event.Any &
   (new (...args: any[]) => { readonly _tag: string; readonly row: RowOf<E> })
-
-/** One operation the aggregate decided, and the digest of the request it came with. */
-interface Decided {
-  readonly operation: string
-  readonly digest: string
-}
 
 /** The aggregate's state: its row, none until listed, and the operations it last decided. */
 export interface LoweredState<E extends AnyEntity> {
@@ -236,21 +231,6 @@ const fail_ = (message: string): never => {
 
 /** The input key a lowered write names its row by, which is the command's target. */
 const ID = 'id'
-
-/**
- * The operation and request digest a `commandId` names, when the adapter made
- * it (`${mutation}:${operation}:${digest}`); none for an id made otherwise,
- * such as Domain's own for a command sent without one.
- */
-const decidedOf = (mutation: string, commandId: string): Option.Option<Decided> => {
-  if (!commandId.startsWith(`${mutation}:`)) return Option.none()
-  const rest = commandId.slice(mutation.length + 1)
-  const at = rest.lastIndexOf(':')
-  const digest = rest.slice(at + 1)
-  return at > 0 && /^[0-9a-f]{32}$/.test(digest)
-    ? Option.some({ operation: rest.slice(0, at), digest })
-    : Option.none()
-}
 
 /** A store of the one row the aggregate holds, encoded as a memory backend holds it. */
 const storeOf = (entity: string, row: Readonly<Record<string, unknown>>) => {
