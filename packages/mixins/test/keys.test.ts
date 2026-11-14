@@ -163,6 +163,7 @@ describe('two routes declaring one press', () => {
       'Shift+?',
     ],
     ['a character and printable', Keys.chord('a'), Keys.printable, 'a'],
+    ['printable and a character', Keys.printable, Keys.chord('b'), 'b'],
     ['printable twice', Keys.printable, Keys.printable, 'printable'],
     [
       'a chord with modifiers twice',
