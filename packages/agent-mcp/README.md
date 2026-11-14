@@ -112,9 +112,16 @@ await served.handle({
 | --- | --- |
 | `tools/list` | capabilities currently `available` in the Model |
 | `tools/call` | `AgentRuntime` dispatch by protocol name |
-| `resources/list` / `resources/read` | named resources plus `app://context` |
+| `resources/list` / `resources/read` | named resources, `app://context`, and `app://parts` when bound with parts |
 | `notifications/tools/list_changed` | advertised capability set changed |
 | `notifications/cancelled` | abort the matching invocation |
+
+`app://parts` is `runtime.parts.list` as JSON: one entry per part, and per
+occurrence of a repeated one, with `id`, `occurrence`, `label`, `role`,
+`capability` (`name`, `input`, `requiresAuthorization`) and `value`, each left
+out where absent, so a `null` value is a value. A part adds no tool: its
+capability is already one. A resource the contract declares as `parts` or
+`context` takes the name instead.
 
 The adapter derives input schemas from the capability's Effect Schema. A
 capability with a completion contract resolves after its correlated success or

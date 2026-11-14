@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-agent`: parts (#557). `Agent.part({ label, role, field?, invokes?,
+  sets?, each?, key?, input? })` in `Agent.parts(definition, { … })` (also on
+  `forApplication`/`forModel`) names which control on the screen is which
+  exposed capability or key of the projected context; another is a type error
+  and throws. `bind({ parts })` adds `runtime.parts`: `list` reads one Model
+  snapshot, leaves out a part whose capability is unavailable, and reads
+  `value`, `each`, `key` and `label` from the context encoded through its
+  Schema and decoded again; `find({ label })` answers `Found.One`, `Found.None`
+  or `Found.Ambiguous`. A part adds no way to act. `Parts.attributes` writes
+  `data-fk-part`; `toManifest(definition, parts)` lists them.
+  `foldkit-agent-mcp` serves them as `app://parts`.
 - `foldkit-entity`: states and the law check (#535, #536). `Entity.refine(entity,
   name, { field: value } or ({ row }) => predicate)` declares a named state of a
   row on the Entity (`Entity.states`, `Entity.inState`, a narrowing `is`);

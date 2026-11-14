@@ -476,6 +476,64 @@ One invocation reads one Model snapshot for `available`, input mapping, and
 `authorize`, so policy does not accidentally reason over several different
 application states.
 
+## Which control is which: parts
+
+A capability says what an agent may do; nothing in it says which control on
+the screen does it. An agent that reads "Delete Milk" on a button, or is asked
+to "fill in the search box", needs that link. Parts declare it, from the
+contract alone:
+
+```ts
+const AssistantParts = AgentBuilder.parts(AssistantAgent, {
+  title: Agent.part({ label: 'List title', role: 'heading', field: 'listTitle' }),
+  clear: Agent.part({ label: 'Clear completed', role: 'button', invokes: Message.ClearedCompleted }),
+  toggle: Agent.part({
+    role: 'checkbox',
+    invokes: Message.ToggledTodo,
+    each: context => context.todos,
+    key: todo => todo.id,
+    label: todo => todo.title,
+    input: todo => ({ id: todo.id }),
+  }),
+})
+
+const partsRuntime = AgentBuilder.bind({ definition: AssistantAgent, host, parts: AssistantParts })
+```
+
+Read it as three references into what already exists:
+
+```text
+field: 'listTitle'           a key of the context: what the part shows
+invokes / sets: a constructor a capability the contract exposes: what it does
+each, key, label, input      read from the projected context, never the Model
+```
+
+`partsRuntime.parts.list` reads one Model snapshot and describes each part: its
+id, its occurrence key when it repeats, its label and role, the capability it
+names, and its value. It sends no Message. Discovery reads the declaration,
+not the DOM, so it works headless, and a part is listed whether or not a page
+draws it.
+
+The rules keep a part from becoming a second way in:
+
+- **A part gives no authority.** It names a capability; calling it is
+  `messages.dispatch(name, input)`, through availability, decoding,
+  `authorize` and completion, unchanged. A repeated part's `input` is a hint
+  the dispatch decodes again.
+- **A part follows availability.** One whose capability is not available in
+  the snapshot is left out, as the tool list leaves the capability out.
+- **A part sees what the context sees.** `value`, and what `each`, `key` and
+  `label` are given, come from the context encoded through its Schema and
+  decoded again, so a property the Schema leaves out is never there.
+- **Identity is the id, and the occurrence key.** A label is text:
+  `parts.find({ label })` answers `Ambiguous` with every match when two parts
+  share one, never the first.
+
+In a page, `AssistantParts.attributes(h, 'clear')` (and
+`attributes(h, 'toggle', todo.id)`) writes `data-fk-part` and
+`data-fk-part-key` on the drawn control, so an in-page adapter or a test can
+find it. Nothing reads them for authority.
+
 ## The invocation pipeline
 
 Every call goes through the same contract-owned pipeline regardless of adapter:
@@ -621,6 +679,7 @@ Agent.messages(AssistantAgent)
 Agent.schema(AssistantAgent)
 Agent.contextSchema(AssistantAgent)
 Agent.toManifest(AssistantAgent)
+Agent.toManifest(AssistantAgent, AssistantParts) // with the parts, as `parts`
 Agent.toMarkdown(AssistantAgent)
 ```
 
