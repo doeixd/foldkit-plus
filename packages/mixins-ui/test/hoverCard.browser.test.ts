@@ -186,3 +186,29 @@ test('focus on the trigger opens the card, raised, and blur closes it', async ()
     handle.dispose()
   }
 })
+
+test('Escape closes the card without moving the pointer, and the trigger names the card it opened', async () => {
+  const handle = mount()
+  try {
+    const trigger = await vi.waitFor(() => {
+      const found = document.getElementById(HoverIntent.triggerId('ada'))
+      expect(found).not.toBeNull()
+      return found!
+    })
+    await userEvent.hover(away())
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    expect(trigger.hasAttribute('aria-describedby')).toBe(false)
+    trigger.focus()
+    await vi.waitFor(() => expect(card()).not.toBeNull())
+    expect(trigger.getAttribute('aria-expanded')).toBe('true')
+    expect(trigger.getAttribute('aria-describedby')).toBe(card()!.id)
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(card()).toBeNull())
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    // The card does not come back while focus stays on the trigger.
+    await new Promise(resolve => setTimeout(resolve, 300))
+    expect(card()).toBeNull()
+  } finally {
+    handle.dispose()
+  }
+})

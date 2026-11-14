@@ -51,4 +51,31 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'the open trigger does not point at its card',
+    edits: [
+      {
+        file: '../src/hoverIntent.ts',
+        find: '...(render.isVisible ? [h.AriaDescribedBy(panelId(anchored.id))] : []),',
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the trigger does not say whether its card is open',
+    edits: [
+      {
+        file: '../src/hoverIntent.ts',
+        find: 'h.AriaExpanded(render.isVisible),',
+        replace: 'h.AriaExpanded(false),',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the card has no id',
+    edits: [{ file: '../src/hoverIntent.ts', find: 'h.Id(panelId(anchored.id)),', replace: '' }],
+    tests: browser,
+  },
 ]
