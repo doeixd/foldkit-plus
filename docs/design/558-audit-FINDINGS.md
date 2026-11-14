@@ -17,8 +17,8 @@ from a name in UI SDK's index; each gap is a behaviour a test observed.
 | # | Behaviour | Verdict | Severity | Fixed by |
 | --- | --- | --- | --- | --- |
 | R1 | Edge scrolling during a drag | missing | medium | U-WP13 (new) |
-| R2 | A key path for a drag | missing | high | U-WP12 |
-| R3 | Announcements for a drag | missing | medium | U-WP12 |
+| R2 | A key path for a drag | built (U-WP12, `Reorder`) | high | U-WP12 |
+| R3 | Announcements for a drag | built (U-WP12, `Reorder.announcement`) | medium | U-WP12 |
 | R4 | A drop over a descendant of what is dragged | present, unguarded | low | U-WP12 (guard in `update`, doc) |
 | R5 | Cross-list transfer | present | none | none |
 | R6 | A press on empty space starts a selection | missing | low | U-WP13 (new) |
