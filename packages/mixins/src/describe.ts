@@ -11,6 +11,7 @@ import { isChildAttribute } from './attribute.js'
 import type { SlotContribution, StaticContribution } from './contribution.js'
 import { DiagnosticError, type Diagnostic, type DiagnosticCode } from './diagnostics.js'
 import { attributeNameOf, eventNameOf } from './foldkitNames.js'
+import { DRAWN_CLASSES } from './inject.js'
 import { evaluate, isDynamic, type MixinFor, type MixinMeta } from './mixin.js'
 import { resolve } from './resolver.js'
 import type { Any as AnySlot } from './slot.js'
@@ -228,11 +229,26 @@ const readNames = (
   }
 }
 
+// `resolve` reports each `style-` class it draws to a server render's collector; a description
+// draws nothing, so it must not add classes whose CSS the page would then ship.
+const withoutDrawnClasses = (run: () => void): void => {
+  const global = globalThis as Record<symbol, unknown>
+  const collector = global[DRAWN_CLASSES]
+  delete global[DRAWN_CLASSES]
+  try {
+    run()
+  } finally {
+    if (collector !== undefined) global[DRAWN_CLASSES] = collector
+  }
+}
+
 /**
  * What `input` makes each slot hold: class tokens, style property names,
  * attribute names, event names and Mount names, each with the attachment that
- * gave it. It reports no value (a password in `Value` is the input's, and an
- * attribute carries it), no Mount args, and runs no Mount: a handler is built
+ * gave it. It reports no attribute value, style value or Mount args (a password
+ * in `Value` is the input's, and an attribute carries it), but class tokens are
+ * reported as given, so a class built from input text surfaces it. It runs no
+ * Mount: a handler is built
  * with the inert builder and never called, and a contribution is called with
  * `input`, as a render would. Where `resolve` would throw, the conflict is a
  * finding. The view's own base attributes are not drawn, so a clash with one
@@ -257,7 +273,9 @@ export const resolution = (view: AnyView, input: unknown): Resolution => {
     }
     slots[name] = names
     try {
-      resolve(undefined, contributions, { slot: name, protected: slot.protected })
+      withoutDrawnClasses(() =>
+        resolve(undefined, contributions, { slot: name, protected: slot.protected }),
+      )
     } catch (error) {
       if (!(error instanceof DiagnosticError)) throw error
       findings.push(error.diagnostic)

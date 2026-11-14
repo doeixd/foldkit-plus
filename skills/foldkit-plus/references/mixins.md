@@ -335,7 +335,7 @@ const html = SurfaceView.render(TodoListView, TodoList, undefined, {
 })
 ```
 
-`SlotView.describe(view)` (attachments in order, with what each requires and contributes per slot; `'unknown'` for a function of the input) and `SlotView.resolution(view, input)` (names and owners per slot, never values, no Mount or handler run) are serializable. `SurfaceView.describe` adds what the Surface observes and emits, and `toMarkdown` renders either for CI drift checks. `SurfaceView.inspect` is deprecated.
+`SlotView.describe(view)` (attachments in order, with what each requires and contributes per slot; `'unknown'` for a function of the input) and `SlotView.resolution(view, input)` (names and owners per slot, no attribute or style value or Mount args; class tokens as given; no Mount or handler run) are serializable. `SurfaceView.describe` adds what the Surface observes and emits, and `toMarkdown` renders either for CI drift checks. `SurfaceView.inspect` is deprecated.
 
 ## 5. `foldkit-mixins-ui`
 

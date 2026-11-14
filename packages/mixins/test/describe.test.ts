@@ -6,6 +6,7 @@
  */
 import { Effect, Stream } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
+import { DRAWN_CLASSES } from '../src/inject.js'
 import { Attr, Behavior, Event, Mixin, SlotView, Style } from '../src/index.js'
 import { FieldSlots } from './fixture.js'
 import { type TestMessage } from './resolverFixture.js'
@@ -256,6 +257,22 @@ describe('SlotView.resolution', () => {
       details: { event: 'click', contributors: ['First', 'Second'] },
     })
     expect(result.slots.root?.events).toEqual([{ name: 'click', owner: 'First' }])
+  })
+
+  it("leaves a server render's drawn-class collector as it was", () => {
+    const view = FieldView.pipe(
+      SlotView.attach(Mixin.make<never>('Drawn', { root: { classes: ['style-describe-probe'] } })),
+    )
+    const collector = new Set<string>()
+    const global = globalThis as Record<symbol, unknown>
+    global[DRAWN_CLASSES] = collector
+    try {
+      SlotView.resolution(view, { invalid: false, value: '' })
+      expect([...collector]).toEqual([])
+      expect(global[DRAWN_CLASSES]).toBe(collector)
+    } finally {
+      delete global[DRAWN_CLASSES]
+    }
   })
 
   it('is plain data', () => {

@@ -1042,7 +1042,8 @@ const markdown = SlotView.toMarkdown(description)
 `SlotView.resolution(view, input)` evaluates every contribution for one input and reports, per
 slot, the class tokens, style property names, attribute names, event names and Mount names, each
 with the attachment that gave it. It reports no attribute value, style value or Mount args, since
-any of them may be the input's (a password in `Value`). It builds handlers with the inert builder
+any of them may be the input's (a password in `Value`); class tokens are reported as given, so a
+class built from input text surfaces it. It builds handlers with the inert builder
 and calls none, runs no Mount, and returns a conflict as a finding where `resolve` would throw.
 It does not draw the view, so a clash with the view's own base attributes is not reported.
 Attribute and event names are as the resolver compares them (lower case, no hyphens).

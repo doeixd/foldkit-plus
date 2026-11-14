@@ -44,7 +44,8 @@ version changed; `pnpm` skips versions already in the registry.
   view as serializable data (its slots and each attachment in order, with what it
   requires, supplies and contributes per slot, and findings for an unnamed or
   doubly named attachment), `SlotView.resolution(view, input)` the names and
-  owners one input resolves to with no value, Mount args or handler call, and
+  owners one input resolves to with no attribute or style value, Mount args or
+  handler call (class tokens as given), and
   `SlotView.toMarkdown` prints a description (#556). `SurfaceView.describe` gains
   `attachments` and `findings`; `SurfaceView.toMarkdown` prints them, and its
   `Mixins` section is now `Attachments`.

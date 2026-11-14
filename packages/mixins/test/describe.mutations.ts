@@ -134,4 +134,26 @@ export default [
     ],
     tests: surface,
   },
+  {
+    name: 'resolution leaves the drawn-class collector in place while it resolves',
+    edits: [
+      {
+        file: '../src/describe.ts',
+        find: '  delete global[DRAWN_CLASSES]\n',
+        replace: '',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'resolution does not restore the collector',
+    edits: [
+      {
+        file: '../src/describe.ts',
+        find: 'if (collector !== undefined) global[DRAWN_CLASSES] = collector',
+        replace: '',
+      },
+    ],
+    tests: unit,
+  },
 ]
