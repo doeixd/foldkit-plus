@@ -341,6 +341,68 @@ describe('rows of one key', () => {
     expect(late.entities[0]?.values).toMatchObject({ ownerId: 'grace', note: '', revision: 2 })
   })
 
+  it('does not answer a read with the row from before a deletion live sent at its revision', async () => {
+    const seen = await run(world =>
+      Effect.gen(function* () {
+        const client = yield* RemoteClient
+        const watching = yield* client
+          .live({ requirements: [{ entity: 'Product', id: 'p1', fields }], queries: [], after: 0 })
+          .pipe(Stream.take(2), Stream.runCollect, Effect.forkChild)
+        yield* Effect.sleep('50 millis')
+        const release = world.holdReply('ProductRow.snapshot')
+        const late = yield* Effect.forkChild(readP1)
+        yield* Effect.sleep('20 millis')
+        yield* world.deliverLate('p1', { state: null, cursor: 1 })
+        const events = yield* Fiber.join(watching)
+        yield* release
+        return { events, late: yield* Fiber.join(late) }
+      }),
+    )
+    expect(seen.events.map(event => event._tag)).toEqual(['EntityPatched', 'EntityDeleted'])
+    expect(seen.late.entities).toEqual([])
+  })
+
+  it('does not answer an older read with a row a newer read found absent', async () => {
+    const older = await run(world =>
+      Effect.gen(function* () {
+        yield* readP1
+        const release = world.holdReply('ProductRow.snapshot')
+        const older = yield* Effect.forkChild(readP1)
+        yield* Effect.sleep('20 millis')
+        const client = yield* ShopApi.Client
+        yield* client.Transfer('p1', { ownerId: 'grace' })
+        yield* world.control.drain
+        const newer = yield* readP1
+        expect(newer.entities).toEqual([])
+        yield* release
+        return yield* Fiber.join(older)
+      }),
+    )
+    expect(older.entities).toEqual([])
+  })
+
+  it('does not answer a read with a row live has since lost access to', async () => {
+    const seen = await run(world =>
+      Effect.gen(function* () {
+        const client = yield* RemoteClient
+        const watching = yield* client
+          .live({ requirements: [{ entity: 'Product', id: 'p1', fields }], queries: [], after: 0 })
+          .pipe(Stream.take(2), Stream.runCollect, Effect.forkChild)
+        yield* Effect.sleep('50 millis')
+        const release = world.holdReply('ProductRow.snapshot')
+        const late = yield* Effect.forkChild(readP1)
+        yield* Effect.sleep('20 millis')
+        yield* (yield* ShopApi.Client).Transfer('p1', { ownerId: 'grace' })
+        yield* world.control.drain
+        const events = yield* Fiber.join(watching)
+        yield* release
+        return { events, late: yield* Fiber.join(late) }
+      }),
+    )
+    expect(seen.events.map(event => event._tag)).toEqual(['EntityPatched', 'EntityDeleted'])
+    expect(seen.late.entities).toEqual([])
+  })
+
   it('reads a row validate hides as absent', async () => {
     const result = await run(world =>
       Effect.gen(function* () {

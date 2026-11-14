@@ -27,7 +27,49 @@ export default [
   },
   {
     name: 'an older snapshot is let through',
-    edits: [{ file, find: 'if (order < held.value.revision)', replace: 'if (false)' }],
+    edits: [
+      {
+        file,
+        find: 'tombstone ? order <= held.value.revision : order < held.value.revision',
+        replace: 'false',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row at the revision it was deleted at is let through',
+    edits: [
+      {
+        file,
+        find: 'tombstone ? order <= held.value.revision : order < held.value.revision',
+        replace: 'order < held.value.revision',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a read that finds no row records no deletion',
+    edits: [
+      {
+        file,
+        find: `                const { row } = yield* admit(binding, request.id, snapshot, asking)`,
+        replace: `                if (snapshot.state === null) return Option.none()
+                const { row } = yield* admit(binding, request.id, snapshot, asking)`,
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'live losing access to a row records no deletion',
+    edits: [
+      {
+        file,
+        find: `admit(binding, requirement.id, { state: null, cursor: 0 }, asking).pipe(
+                              Effect.andThen(next),`,
+        replace: `Effect.void.pipe(
+                              Effect.andThen(next),`,
+      },
+    ],
     tests,
   },
   {

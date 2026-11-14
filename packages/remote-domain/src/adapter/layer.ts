@@ -189,8 +189,8 @@ export const layer = <A extends AnyApi>(
       /**
        * Lets a snapshot through if its revision is at least the accepted
        * one's, and answers what the key holds then with what it held before.
-       * A deleted row carries no revision: it is let through, and the
-       * revision it was deleted at still orders what comes after.
+       * A deleted row carries no revision: it is let through, and only a row
+       * of a later revision than the one it was deleted at comes after it.
        */
       const admit = (binding: ViewBinding, id: string, snapshot: Snapshot, asking: Principal) =>
         Effect.gen(function* () {
@@ -208,7 +208,9 @@ export const layer = <A extends AnyApi>(
           }
           const order = orderOf(binding, { state: snapshot.state, cursor: snapshot.cursor })
           if (Option.isSome(held)) {
-            if (order < held.value.revision)
+            // A row at the revision it was deleted at is from before the deletion.
+            const tombstone = held.value.snapshot.state === null
+            if (tombstone ? order <= held.value.revision : order < held.value.revision)
               return { admitted: false, row: held.value.snapshot.state, before: held }
             if (
               order === held.value.revision &&
@@ -331,7 +333,6 @@ export const layer = <A extends AnyApi>(
                     ),
                   onSome: Effect.succeed,
                 })
-                if (snapshot.state === null) return Option.none()
                 const { row } = yield* admit(binding, request.id, snapshot, asking)
                 if (Option.isSome(floor)) confirmed(binding, request.id, floor.value.receipt)
                 if (row === null) return Option.none()
@@ -614,11 +615,14 @@ export const layer = <A extends AnyApi>(
                         // `validate` stopped allowing the key: absent to who asks from here on.
                         Rejected: () =>
                           Stream.fromEffect(
-                            Effect.map(next, (at): LiveEvent => ({
-                              _tag: 'EntityDeleted',
-                              ref: { entity: binding.entity.name, id: requirement.id },
-                              cursor: at,
-                            })),
+                            admit(binding, requirement.id, { state: null, cursor: 0 }, asking).pipe(
+                              Effect.andThen(next),
+                              Effect.map((at): LiveEvent => ({
+                                _tag: 'EntityDeleted',
+                                ref: { entity: binding.entity.name, id: requirement.id },
+                                cursor: at,
+                              })),
+                            ),
                           ),
                         Unreachable: ({ message }) => Stream.fail(new RemoteLiveError({ message })),
                         Denied: () =>

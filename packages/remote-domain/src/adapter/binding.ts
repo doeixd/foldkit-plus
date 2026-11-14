@@ -107,6 +107,12 @@ export interface ViewBinding<E extends AnyEntity = AnyEntity, A extends AnyApi =
 
 /** What `DomainRemote.view` takes besides the Entity, the Api and the View's name. */
 export interface ViewConfig<E extends AnyEntity> {
+  /**
+   * The field every event moves: the order of two snapshots of one key. It
+   * must rise across the stream's whole life, deletion included: a key
+   * created again at a revision no higher than the one it was deleted or
+   * hidden at stays absent to who saw that, until a later revision.
+   */
   readonly revision: RevisionKey<E>
 }
 

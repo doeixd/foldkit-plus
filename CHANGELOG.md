@@ -44,8 +44,10 @@ version changed; `pnpm` skips versions already in the registry.
   `commandId` of its operation and a digest of who asks, the target, the keys
   and the input; its receipt holds the row's floor until a read at it answers,
   and a write whose View is behind answers with the row its reply says it
-  wrote. Rows are ordered by revision, never by the View's cursor.
-  `DomainReads` lists the pending reads and confirms one.
+  wrote. Rows are ordered by revision, never by the View's cursor, and per
+  principal: once a key reads as deleted or hidden at a revision, a late row
+  of that revision or an earlier one is not let back in. `DomainReads` lists
+  the pending reads and confirms one.
 - `foldkit-remote/testing`: `Walk.run` runs seeded random walks of Messages over
   a list of named starts and checks a law after every step (it may be
   asynchronous, so a walk can go through a writer); `Walk.cases` requires a
