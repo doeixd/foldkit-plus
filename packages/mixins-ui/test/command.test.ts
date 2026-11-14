@@ -6,7 +6,8 @@
 import { Match, Option } from 'effect'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
-import { A11y, Style } from 'foldkit-mixins'
+import type { HtmlBuilder } from 'foldkit/html'
+import { A11y, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Command, CommandSlots, Patterns, Recipes, type CommandGroup } from '../src/index.js'
 import { h, message } from './fixture.js'
@@ -231,5 +232,77 @@ describe('Command keys', () => {
 
   it('leaves every other key to the field', () => {
     scene(Option.some('find'), Scene.keydown(field, 'a'), Scene.expectIgnored())
+    scene(Option.some('find'), Scene.keydown(field, 'ArrowLeft'), Scene.expectIgnored())
+    // Selecting to the start of the text stays the field's.
+    scene(
+      Option.some('find'),
+      Scene.keydown(field, 'Home', { shiftKey: true }),
+      Scene.expectIgnored(),
+    )
+  })
+
+  it('Home and End go to the first and last enabled row; PageUp and PageDown stop at the ends', () => {
+    scene(Option.some('find'), Scene.keydown(field, 'Home'), highlights('new'))
+    scene(Option.some('find'), Scene.keydown(field, 'End'), highlights('theme'))
+    // Three enabled rows, a page is ten: the end, not a wrap.
+    scene(Option.some('new'), Scene.keydown(field, 'PageDown'), highlights('theme'))
+    scene(Option.some('theme'), Scene.keydown(field, 'PageUp'), highlights('new'))
+    scene(Option.some('theme'), Scene.keydown(field, 'PageDown'), highlights('theme'))
+  })
+})
+
+describe('Command routes', () => {
+  type Message = Readonly<{ _tag: 'Query'; query: string }> | Readonly<{ _tag: 'Other' }>
+  type Step = Parameters<typeof Scene.scene<{ readonly query: string }, Message>>[1]
+  const field = Scene.role('combobox')
+  const clear: Command.CommandRoute<string, Message> = {
+    name: 'Clear',
+    key: 'Escape',
+    toMessage: ({ query }) =>
+      query === '' ? Option.none() : Option.some({ _tag: 'Query', query: '' }),
+  }
+  const drawnWith = (
+    routes: ReadonlyArray<Command.CommandRoute<string, Message>>,
+    query: string,
+    h: HtmlBuilder<Message>,
+  ) =>
+    Command.view<string, Message>(
+      {
+        id: 'palette',
+        label: 'Search commands',
+        groups,
+        query,
+        onQuery: () => ({ _tag: 'Other' }),
+        active: Option.none(),
+        onActive: () => ({ _tag: 'Other' }),
+        onRun: () => ({ _tag: 'Other' }),
+        routes,
+      },
+      h,
+    )
+
+  it("answers the application's key, reading the field's text", () => {
+    const run = (query: string, ...steps: ReadonlyArray<Step>) =>
+      Scene.scene<{ readonly query: string }, Message>(
+        {
+          update: (model, message) =>
+            message._tag === 'Query' ? { model: { query: message.query } } : { model },
+          view: (model, h) => drawnWith([clear], model.query, h),
+        },
+        Scene.given({ query }),
+        ...steps,
+      )
+    run('pa', Scene.keydown(field, 'Escape'), Scene.expect(field).toHaveValue(''))
+    run('', Scene.keydown(field, 'Escape'), Scene.expectIgnored())
+  })
+
+  it('refuses a route on a key the menu answers, naming both', () => {
+    expect(() =>
+      drawnWith(
+        [{ name: 'MyDown', key: 'ArrowDown', toMessage: () => Option.none() }],
+        'pa',
+        SlotView.inertBuilder<Message>(),
+      ),
+    ).toThrow(/"Next" and "MyDown"/)
   })
 })

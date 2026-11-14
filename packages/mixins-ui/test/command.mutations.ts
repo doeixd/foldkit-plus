@@ -63,8 +63,8 @@ export default [
     edits: [
       {
         file,
-        find: "case 'ArrowDown':\n              return Option.map(step(1), options.onActive)",
-        replace: "case 'ArrowDown':\n              return Option.map(step(-1), options.onActive)",
+        find: "moves('Next', 'ArrowDown', () => step(1))",
+        replace: "moves('Next', 'ArrowDown', () => step(-1))",
       },
     ],
     tests: [unit],
@@ -85,19 +85,8 @@ export default [
     edits: [
       {
         file,
-        find: "case 'Enter':\n              return Option.map(current, options.onRun)",
-        replace: "case 'Enter':\n              return Option.none()",
-      },
-    ],
-    tests: [unit],
-  },
-  {
-    name: 'every key runs the highlighted row',
-    edits: [
-      {
-        file,
-        find: 'default:\n              return Option.none()',
-        replace: 'default:\n              return Option.map(current, options.onRun)',
+        find: "route('Run', 'Enter', ({ current }) => Option.map(current, options.onRun))",
+        replace: "route('Run', 'Enter', () => Option.none())",
       },
     ],
     tests: [unit],
@@ -141,12 +130,24 @@ export default [
   },
   {
     name: 'Backspace leaves a page with words in the field',
-    edits: [{ file, find: "return typed.query === ''", replace: 'return true' }],
+    edits: [
+      {
+        file,
+        find: '({ query }) =>' + '\n' + "        query === ''",
+        replace: '({ query }) =>' + '\n' + "        query === '' || true",
+      },
+    ],
     tests: [browser],
   },
   {
     name: 'Backspace decides on the query the field was drawn with',
-    edits: [{ file, find: "return typed.query === ''", replace: "return options.query === ''" }],
+    edits: [
+      {
+        file,
+        find: '({ query }) =>' + '\n' + "        query === ''",
+        replace: '() =>' + '\n' + "        options.query === ''",
+      },
+    ],
     tests: [browser],
   },
   {
@@ -221,5 +222,48 @@ export default [
     name: "the hairline stops at the list's padding",
     edits: [{ file: recipe, find: "marginInline: `calc(-1 * ${ref.space['2xs']})`,", replace: '' }],
     tests: [browser],
+  },
+  {
+    name: 'Home goes to the last row',
+    edits: [
+      {
+        file,
+        find: "moves('First', 'Home', () => at(0))",
+        replace: "moves('First', 'Home', () => at(enabled.length - 1))",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'PageDown wraps past the end',
+    edits: [
+      {
+        file,
+        find: 'Math.min(Math.max(position + by, 0), enabled.length - 1)',
+        replace: '(position + by + enabled.length) % enabled.length',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the application routes are dropped',
+    edits: [{ file, find: '...(options.routes ?? []),', replace: '' }],
+    tests: [unit],
+  },
+  {
+    name: 'keepActiveInView watches nothing',
+    edits: [
+      {
+        file,
+        find: `selector: '[role="option"][aria-selected="true"]'`,
+        replace: `selector: '[data-nothing]'`,
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'Home leaves the caret key to the field',
+    edits: [{ file, find: "moves('First', 'Home', () => at(0)),", replace: '' }],
+    tests: [unit, browser],
   },
 ]

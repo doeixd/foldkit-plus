@@ -402,3 +402,173 @@ test('the field is led by a magnifier, and a hairline parts two groups across th
     handle.dispose()
   }
 })
+
+const LONG: ReadonlyArray<CommandGroup<string>> = [
+  {
+    items: Array.from({ length: 40 }, (_, index) => ({
+      value: `row-${index}`,
+      label: `Row ${index}`,
+    })),
+  },
+]
+
+const ListModel = Schema.Struct({ query: Schema.String, active: Schema.Option(Schema.String) })
+type ListModel = typeof ListModel.Type
+type ListMessage =
+  | { readonly _tag: 'Typed'; readonly query: string }
+  | { readonly _tag: 'Moved'; readonly value: string }
+
+/** A menu of forty rows with no dialog around it, for what the keys do to its list. */
+const mountList = (options: {
+  readonly mixins?: Command.CommandView<string, ListMessage>['mixins']
+  readonly routes?: Command.CommandView<string, ListMessage>['routes']
+}) => {
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent =
+    Style.stylesheet(Layers.standard.declare, Layers.standard.in('theme', Theme.root(theme))) +
+    commandStyle.css
+  document.head.append(sheet)
+  const container = document.createElement('div')
+  container.id = 'command-list'
+  document.body.appendChild(container)
+  return Runtime.embed(
+    Runtime.makeElement({
+      Model: ListModel,
+      container,
+      init: () => ({ model: { query: '', active: Option.none() } }),
+      update: (model: ListModel, message: ListMessage) =>
+        message._tag === 'Typed'
+          ? { model: { ...model, query: message.query } }
+          : { model: { ...model, active: Option.some(message.value) } },
+      view: (model: ListModel, h: HtmlBuilder<ListMessage>) =>
+        Command.view<string, ListMessage>(
+          {
+            id: 'long',
+            label: 'Search',
+            groups: LONG,
+            query: model.query,
+            onQuery: query => ({ _tag: 'Typed', query }),
+            active: model.active,
+            onActive: value => ({ _tag: 'Moved', value }),
+            onRun: value => ({ _tag: 'Moved', value }),
+            style: commandStyle,
+            ...(options.mixins === undefined ? {} : { mixins: options.mixins }),
+            ...(options.routes === undefined ? {} : { routes: options.routes }),
+          },
+          h,
+        ),
+    }),
+  )
+}
+
+const activeRow = () => document.querySelector<HTMLElement>('[role="option"][aria-selected="true"]')
+/** Presses ArrowDown `count` times, each once the one before is drawn: a key meets the last frame's view. */
+const down = async (count: number) => {
+  for (let at = 1; at <= count; at++) {
+    await userEvent.keyboard('{ArrowDown}')
+    await vi.waitFor(() => expect(activeRow()?.textContent).toContain(`Row ${at}`))
+  }
+}
+const inView = (row: HTMLElement) => {
+  const list = document.querySelector('[role="listbox"]')!.getBoundingClientRect()
+  const box = row.getBoundingClientRect()
+  return box.top >= list.top - 1 && box.bottom <= list.bottom + 1
+}
+
+test('the highlighted row is scrolled into the list as the keys move it, with keepActiveInView', async () => {
+  const handle = mountList({ mixins: Command.keepActiveInView })
+  try {
+    const input = await vi.waitFor(() => {
+      const found = field()
+      expect(found).not.toBeNull()
+      return found!
+    })
+    input.focus()
+    const list = document.querySelector<HTMLElement>('[role="listbox"]')!
+    expect(list.scrollHeight).toBeGreaterThan(list.clientHeight)
+    await down(20)
+    await vi.waitFor(() => expect(inView(activeRow()!)).toBe(true))
+    expect(list.scrollTop).toBeGreaterThan(0)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('without keepActiveInView the list stays where it was', async () => {
+  const handle = mountList({})
+  try {
+    const input = await vi.waitFor(() => {
+      const found = field()
+      expect(found).not.toBeNull()
+      return found!
+    })
+    input.focus()
+    await down(20)
+    expect(inView(activeRow()!)).toBe(false)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('Home, End, PageDown and PageUp move the highlight; typing and the caret keys stay the field’s', async () => {
+  const handle = mountList({
+    routes: [
+      {
+        name: 'Clear',
+        key: 'Escape',
+        toMessage: ({ query }) =>
+          query === '' ? Option.none() : Option.some({ _tag: 'Typed', query: '' }),
+      },
+    ],
+  })
+  try {
+    const input = await vi.waitFor(() => {
+      const found = field()
+      expect(found).not.toBeNull()
+      return found!
+    })
+    input.focus()
+    const at = () => activeRow()?.textContent
+    await userEvent.keyboard('{End}')
+    await vi.waitFor(() => expect(at()).toContain('Row 39'))
+    await userEvent.keyboard('{Home}')
+    await vi.waitFor(() => expect(at()).toContain('Row 0'))
+    await userEvent.keyboard('{PageDown}')
+    await vi.waitFor(() => expect(at()).toContain('Row 10'))
+    await userEvent.keyboard('{PageUp}')
+    await vi.waitFor(() => expect(at()).toContain('Row 0'))
+    // The caret and text editing stay native: the keys are not prevented.
+    await userEvent.keyboard('ab')
+    await vi.waitFor(() => expect(input.value).toBe('ab'))
+    const prevented: Array<[string, boolean]> = []
+    input.addEventListener('keydown', event => prevented.push([event.key, event.defaultPrevented]))
+    document.addEventListener('keydown', event => {
+      const last = prevented.findIndex(([key]) => key === event.key)
+      if (last >= 0) prevented[last] = [event.key, event.defaultPrevented]
+    })
+    await userEvent.keyboard('{ArrowLeft}{Shift>}{Home}{/Shift}')
+    expect(prevented).toEqual([
+      ['ArrowLeft', false],
+      ['Shift', false],
+      ['Home', false],
+    ])
+    expect(input.selectionStart).toBe(0)
+    // A key mid-composition is the input method's, whatever it is.
+    const composing = new KeyboardEvent('keydown', {
+      key: 'ArrowDown',
+      isComposing: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    const before = at()
+    input.dispatchEvent(composing)
+    expect(composing.defaultPrevented).toBe(false)
+    expect(at()).toBe(before)
+    // The application's own key reads the field's text.
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(input.value).toBe(''))
+  } finally {
+    handle.dispose()
+  }
+})

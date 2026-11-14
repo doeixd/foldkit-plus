@@ -2,6 +2,7 @@ import { Option, Stream } from 'effect'
 import {
   Attr,
   Behavior,
+  Behaviors,
   Capability,
   Event,
   Slot,
@@ -10,7 +11,7 @@ import {
   type NamedStyle,
 } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { ScrollBars } from 'foldkit-primitives/dom'
+import { KeepInView, ScrollBars } from 'foldkit-primitives/dom'
 import { keyboardEvents, matchHotkey } from 'foldkit-primitives/events'
 import * as Kbd from './kbd.js'
 import type { KbdSlots } from './kbd.js'
@@ -117,6 +118,24 @@ export interface CommandPage<Message> {
   readonly onBack: NoInfer<Message>
 }
 
+/** What a key route reads: the field's words, the highlighted row and the rows ↑↓ can reach. */
+export interface CommandKeyInput<Value extends string> {
+  /** What the field holds now, including a character typed since the last drawing. */
+  readonly query: string
+  readonly current: Option.Option<Value>
+  /** The rows the keys step through, in order: the enabled ones the query leaves. */
+  readonly rows: ReadonlyArray<Value>
+}
+
+/** A key the menu answers beside its own; see `CommandView.routes`. */
+export type CommandRoute<Value extends string, Message> = Behaviors.Keyboard.Route<
+  CommandKeyInput<Value>,
+  Message
+>
+
+/** How many rows PageUp and PageDown move the highlight. */
+const PAGE = 10
+
 export interface CommandView<Value extends string, Message> {
   /** Prefixes every id the menu draws, unique on the page. */
   readonly id: string
@@ -140,6 +159,14 @@ export interface CommandView<Value extends string, Message> {
   readonly loading?: string | undefined
   /** The page the menu is on, when the application has stepped into one. */
   readonly page?: CommandPage<Message> | undefined
+  /**
+   * Keys the application answers in the field, such as Escape clearing the
+   * query. They share one keydown owner with the menu's own (↑ ↓ Home End
+   * PageUp PageDown Enter and Backspace): a route on the same gesture as
+   * another is a diagnostic naming both. Typing and the caret keys stay the
+   * field's; Home and End move the highlight here, and Shift+Home still selects.
+   */
+  readonly routes?: ReadonlyArray<CommandRoute<Value, NoInfer<Message>>> | undefined
   /** The keys named in a footer under the list, such as ↑↓ to move and ↵ to run. */
   readonly hints?: ReadonlyArray<CommandHint> | undefined
   /** A style of `CommandSlots`, for the menu's look. */
@@ -179,11 +206,6 @@ export const view = <Value extends string, Message>(
   options: CommandView<Value, Message>,
   h: HtmlBuilder<Message>,
 ): Html => {
-  const builders = SlotView.buildersFor(
-    CommandSlots,
-    [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
-    { input: undefined, h },
-  )
   const groups = filtered(options.groups, options.query)
   const enabled = groups.flatMap(group => group.items.filter(item => item.disabled !== true))
   // The highlight stays where it is while its row shows, and goes to the first one otherwise.
@@ -200,6 +222,61 @@ export const view = <Value extends string, Message>(
     })
     return Option.fromNullishOr(enabled[(at + by + enabled.length) % enabled.length]?.value)
   }
+  // What the field holds since this drawing: a key handler reads the query it was drawn with,
+  // so a character typed before the next frame would leave Backspace deciding on an empty field.
+  // This drawing's own input handler keeps it, and the next drawing starts from the query again.
+  const typed = { query: options.query }
+  const keyInput: CommandKeyInput<Value> = {
+    get query() {
+      return typed.query
+    },
+    current,
+    rows: enabled.map(item => item.value),
+  }
+  const at = (index: number): Option.Option<Value> => Option.fromNullishOr(enabled[index]?.value)
+  const position = Option.match(current, {
+    onNone: () => -1,
+    onSome: value => enabled.findIndex(item => item.value === value),
+  })
+  const jump = (by: number): Option.Option<Value> =>
+    enabled.length === 0
+      ? Option.none()
+      : at(Math.min(Math.max(position + by, 0), enabled.length - 1))
+  const route = (
+    name: string,
+    key: string,
+    toMessage: (input: CommandKeyInput<Value>) => Option.Option<Message>,
+  ): CommandRoute<Value, Message> => ({ name, key, toMessage })
+  const moves = (name: string, key: string, to: () => Option.Option<Value>) =>
+    route(name, key, () => Option.map(to(), options.onActive))
+  const keyboard = Behaviors.Keyboard.behavior(CommandSlots)<CommandKeyInput<Value>, Message>({
+    target: 'input',
+    name: 'CommandKeys',
+    routes: [
+      moves('Next', 'ArrowDown', () => step(1)),
+      moves('Previous', 'ArrowUp', () => step(-1)),
+      moves('First', 'Home', () => at(0)),
+      moves('Last', 'End', () => at(enabled.length - 1)),
+      moves('PageDown', 'PageDown', () => jump(PAGE)),
+      moves('PageUp', 'PageUp', () => jump(-PAGE)),
+      route('Run', 'Enter', ({ current }) => Option.map(current, options.onRun)),
+      route('Back', 'Backspace', ({ query }) =>
+        query === ''
+          ? Option.map(Option.fromNullishOr(options.page), page => page.onBack)
+          : Option.none(),
+      ),
+      ...(options.routes ?? []),
+    ],
+  })
+  const builders = SlotView.buildersFor(
+    CommandSlots,
+    [
+      ...(options.style === undefined ? [] : [options.style.mixin]),
+      keyboard.mixin,
+      ...(options.mixins ?? []),
+    ],
+    { input: keyInput, h },
+  )
   const keys = (pressed: Keys) => Kbd.combo({ keys: pressed, style: options.kbd }, h)
   const row = (item: CommandItem<Value>) => {
     const disabled = item.disabled === true
@@ -276,10 +353,6 @@ export const view = <Value extends string, Message>(
     ]),
   ])
   const trail = options.page?.trail ?? []
-  // What the field holds since this drawing: a key handler reads the query it was drawn with,
-  // so a character typed before the next frame would leave Backspace deciding on an empty field.
-  // This drawing's own input handler keeps it, and the next drawing starts from the query again.
-  const typed = { query: options.query }
   const search = h.div(builders.search.attrs(), [
     ...(trail.length === 0
       ? []
@@ -314,22 +387,6 @@ export const view = <Value extends string, Message>(
         h.OnInput(query => {
           typed.query = query
           return options.onQuery(query)
-        }),
-        h.OnKeyDownPreventDefault(key => {
-          switch (key) {
-            case 'ArrowDown':
-              return Option.map(step(1), options.onActive)
-            case 'ArrowUp':
-              return Option.map(step(-1), options.onActive)
-            case 'Enter':
-              return Option.map(current, options.onRun)
-            case 'Backspace':
-              return typed.query === ''
-                ? Option.map(Option.fromNullishOr(options.page), page => page.onBack)
-                : Option.none()
-            default:
-              return Option.none()
-          }
         }),
       ]),
     ),
@@ -380,5 +437,22 @@ export const overlayBars = [
       }),
     },
     { name: 'CommandScrollBars' },
+  ).mixin,
+] as const
+
+/**
+ * Scrolls the highlighted row into view as the keys move it, the least that
+ * shows it, in a list taller than its panel. Pass it beside the style. Not a
+ * default, for the reason `overlayBars` is not: its Mount sends no Message.
+ */
+export const keepActiveInView = [
+  Behavior.forSlots(CommandSlots)<unknown, never>(
+    {
+      list: Behavior.slot({
+        requires: { capability: Capability.Container },
+        mount: () => KeepInView({ selector: '[role="option"][aria-selected="true"]' }),
+      }),
+    },
+    { name: 'CommandKeepActiveInView' },
   ).mixin,
 ] as const
