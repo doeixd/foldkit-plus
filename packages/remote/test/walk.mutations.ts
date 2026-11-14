@@ -3,7 +3,11 @@
  * `pnpm mutate packages/remote/test/walk.mutations.ts`.
  */
 const walk = '../src/walk.ts'
-const tests = ['packages/remote/test/walkStates.test.ts', 'packages/remote/test/heldValue.test.ts']
+const tests = [
+  'packages/remote/test/walkStates.test.ts',
+  'packages/remote/test/heldValue.test.ts',
+  'packages/remote/test/walkEvidence.test.ts',
+]
 
 export default [
   {
@@ -134,6 +138,61 @@ export default [
         file: walk,
         find: 'Array.from({ length: random(3) }, (_, index) =>',
         replace: 'Array.from({ length: 1 + random(1) }, (_, index) =>',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a failed walk issues evidence',
+    edits: [
+      {
+        file: walk,
+        find: '    failures.length > 0\n      ? []\n      :',
+        replace: '    failures.length < 0\n      ? []\n      :',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'evidence names every case, drawn or not',
+    edits: [
+      {
+        file: walk,
+        find: ': [...drawn].flatMap(tag =>',
+        replace:
+          ': options.cases.map(({ tag }) => tag).filter((tag, at, all) => all.indexOf(tag) === at).flatMap(tag =>',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'evidence names the tag, not the transition',
+    edits: [{ file: walk, find: 'transition: transition(tag),', replace: 'transition: tag,' }],
+    tests,
+  },
+  {
+    name: 'walked records left unissued',
+    edits: [
+      {
+        file: walk,
+        find: '            issuer.issue(\n',
+        replace: '            ((record: Evidence) => record)(\n',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a violation of an unlisted law accepted',
+    edits: [{ file: walk, find: 'if (stray !== undefined)', replace: 'if (stray === null)' }],
+    tests,
+  },
+  {
+    name: 'an empty laws list accepted',
+    edits: [
+      {
+        file: walk,
+        find: 'if (options.laws.length === 0) throw',
+        replace: 'if (options.laws.length < 0) throw',
       },
     ],
     tests,
