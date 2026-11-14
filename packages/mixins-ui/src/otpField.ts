@@ -17,7 +17,7 @@ export const OtpFieldSlots = Slots.define({
   input: Slot.make({
     capability: Capability.Focusable,
     events: [Event.Input],
-    attributes: [Attr.AriaLabel, Attr.Disabled],
+    attributes: [Attr.AriaLabel, Attr.AriaInvalid, Attr.Disabled],
   }),
   group: Slot.make({ capability: Capability.Container }),
   cell: Slot.make({ capability: Capability.Container }),
@@ -27,6 +27,10 @@ export const OtpFieldSlots = Slots.define({
 const PATTERNS = { digits: /[^0-9]/g, alphanumeric: /[^0-9A-Za-z]/g } as const
 
 export interface OtpFieldView<Message> {
+  /** The input's id, for a label or a form to name it. */
+  readonly id?: string | undefined
+  /** The form field the code submits under. */
+  readonly name?: string | undefined
   /** The field's accessible name: what the code is for. */
   readonly label: string
   /** How many characters the code has. Default 6. */
@@ -39,6 +43,10 @@ export interface OtpFieldView<Message> {
   /** The cells in runs, a separator between them: `[3, 3]`. Default one run. */
   readonly groups?: ReadonlyArray<number> | undefined
   readonly disabled?: boolean | undefined
+  /** The code can be read and copied, not typed. */
+  readonly readOnly?: boolean | undefined
+  /** The code is refused: the input is `aria-invalid`, and each cell carries `data-invalid`. */
+  readonly invalid?: boolean | undefined
   /** A style of `OtpFieldSlots`, for the field's look. */
   readonly style?: NamedStyle<typeof OtpFieldSlots> | undefined
   /** Mixins beside the style. */
@@ -69,6 +77,8 @@ export const view = <Message>(options: OtpFieldView<Message>, h: HtmlBuilder<Mes
     h.div(
       builders.cell.attrs([
         h.DataAttribute('filled', String(index < value.length)),
+        ...(options.disabled === true ? [h.DataAttribute('disabled', '')] : []),
+        ...(options.invalid === true ? [h.DataAttribute('invalid', '')] : []),
         ...(index === Math.min(value.length, length - 1) ? [h.DataAttribute('next', '')] : []),
       ]),
       [value[index] ?? ''],
@@ -77,6 +87,10 @@ export const view = <Message>(options: OtpFieldView<Message>, h: HtmlBuilder<Mes
   return h.div(builders.root.attrs(), [
     h.input(
       builders.input.attrs([
+        ...(options.id === undefined ? [] : [h.Id(options.id)]),
+        ...(options.name === undefined ? [] : [h.Name(options.name)]),
+        ...(options.readOnly === true ? [h.Readonly(true)] : []),
+        ...(options.invalid === true ? [h.AriaInvalid(true)] : []),
         h.Type('text'),
         h.InputMode(pattern === 'digits' ? 'numeric' : 'text'),
         h.Autocomplete('one-time-code'),
@@ -85,7 +99,9 @@ export const view = <Message>(options: OtpFieldView<Message>, h: HtmlBuilder<Mes
         h.Value(value),
         ...(options.disabled === true
           ? [h.Disabled(true)]
-          : [h.OnInput(text => options.onChange(kept(text, length, pattern)))]),
+          : options.readOnly === true
+            ? []
+            : [h.OnInput(text => options.onChange(kept(text, length, pattern)))]),
       ]),
     ),
     // What the cells show is the input's; a screen reader reads the input.

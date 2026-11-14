@@ -8,7 +8,10 @@ import { describe, expect, it } from 'vitest'
 import { A11y, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { OtpField, OtpFieldSlots, Patterns, Recipes } from '../src/index.js'
-import { h, message } from './fixture.js'
+import type { OtpFieldView } from '../src/otpField.js'
+import { h, message, type TestMessage } from './fixture.js'
+
+type Extra = Partial<OtpFieldView<TestMessage>>
 
 const style = Style.forSlots(OtpFieldSlots)(Recipes.OtpField({}))
 const drawn = (value: string, groups?: ReadonlyArray<number>) =>
@@ -133,5 +136,41 @@ describe('OtpField.view', () => {
     )
     expect(separators).toHaveLength(1)
     expect(() => drawn('', [3, 2])).toThrow(/do not add up/)
+  })
+})
+
+describe('OtpField.view form attributes', () => {
+  const field = (extra: Extra) =>
+    OtpField.view(
+      { label: 'Code', value: '12', onChange: () => message('Clicked'), style, ...extra },
+      h,
+    )
+  const input = (extra: Extra) => Inert.byTag(field(extra), 'input')[0]
+  const cellStates = (extra: Extra, name: string) =>
+    Inert.all(field(extra))
+      .filter(node => Inert.value(node, 'data-filled') !== undefined)
+      .map(node => Inert.value(node, name))
+
+  it('names the input, and submits it under a name', () => {
+    expect(Inert.value(input({ id: 'code', name: 'otp' }), 'id')).toBe('code')
+    expect(Inert.value(input({ id: 'code', name: 'otp' }), 'name')).toBe('otp')
+    expect(Inert.value(input({}), 'name')).toBeUndefined()
+  })
+
+  it('is read-only without typing: the attribute is written and no input is handled', () => {
+    expect(Inert.value(input({ readOnly: true }), 'readOnly')).toBe(true)
+    expect(input({ readOnly: true })?.data?.on?.['input']).toBeUndefined()
+    expect(input({})?.data?.on?.['input']).toBeTypeOf('function')
+  })
+
+  it('is invalid on the input and on every cell', () => {
+    expect(Inert.value(input({ invalid: true }), 'aria-invalid')).toBe('true')
+    expect(cellStates({ invalid: true }, 'data-invalid')).toEqual(Array(6).fill(''))
+    expect(cellStates({}, 'data-invalid')).toEqual(Array(6).fill(undefined))
+  })
+
+  it('marks every cell disabled', () => {
+    expect(cellStates({ disabled: true }, 'data-disabled')).toEqual(Array(6).fill(''))
+    expect(cellStates({}, 'data-disabled')).toEqual(Array(6).fill(undefined))
   })
 })
