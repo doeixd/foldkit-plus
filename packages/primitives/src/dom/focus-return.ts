@@ -1,7 +1,6 @@
 import { Effect, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
-import { holdOpener, recoverOpener, take, type Opener } from './focus-recovery.js'
-import { canTakeFocus, tabbableWithin } from './focusable.js'
+import { canTakeFocus, tabbableWithin, take } from './focusable.js'
 import * as LayerStack from './layer-stack.js'
 
 const TRAIL = 8
@@ -33,15 +32,23 @@ export const openerOf = (overlay: Element): HTMLElement | undefined => {
   return [...trail].reverse().find(each => each.isConnected && !overlay.contains(each))
 }
 
+type OpenerRecovery = (opener: HTMLElement) => (() => boolean) | undefined
+let openerRecovery: OpenerRecovery = () => undefined
+
+/** Where `FocusRecovery` lends its owners' fallback steps, once that module is loaded. */
+export const setOpenerRecovery = (recovery: OpenerRecovery): void => {
+  openerRecovery = recovery
+}
+
 /** An overlay's way back, decided when it opens: what to return to, and what its neighbours were. */
 export interface Return {
   readonly opener: HTMLElement | undefined
-  readonly recovery: Opener | undefined
+  readonly recovery: (() => boolean) | undefined
 }
 
 export const returnOf = (overlay: Element): Return => {
   const opener = openerOf(overlay)
-  return { opener, recovery: opener === undefined ? undefined : holdOpener(opener) }
+  return { opener, recovery: opener === undefined ? undefined : openerRecovery(opener) }
 }
 
 /**
@@ -71,7 +78,7 @@ export const giveBack = (
   }
   const redrawn = opener === undefined || opener.id === '' ? null : doc.getElementById(opener.id)
   if (redrawn instanceof HTMLElement && take(redrawn)) return
-  if (recovery !== undefined && recoverOpener(recovery)) return
+  if (recovery?.() === true) return
   if (below !== undefined) {
     if (take(tabbableWithin(below)[0])) return
     if (below instanceof HTMLElement && take(below)) return

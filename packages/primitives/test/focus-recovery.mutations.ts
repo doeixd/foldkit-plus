@@ -36,7 +36,7 @@ export default [
     name: 'it focuses without preventScroll',
     edits: [
       {
-        file: source,
+        file: '../src/dom/focusable.ts',
         find: 'target.focus({ preventScroll: true })',
         replace: 'target.focus()',
       },
@@ -47,7 +47,7 @@ export default [
     name: 'it never scrolls the target to the nearest edge',
     edits: [
       {
-        file: source,
+        file: '../src/dom/focusable.ts',
         find: "target.scrollIntoView({ block: 'nearest', inline: 'nearest' })",
         replace: 'void 0',
       },

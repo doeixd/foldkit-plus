@@ -137,7 +137,8 @@ inside the overlay), focuses the first of these that can take it:
    `fallback` steps for its slot (`same`, `next`, `previous`, `parent`, `stop`,
    `{ part }`, `owner`), read against the parts as they stand then. Its
    neighbours are the ones seen when the overlay opened: a row added while the
-   overlay was open is not one;
+   overlay was open is not one; the step logic is lent by the `FocusRecovery` module, so a page that
+   never imports it carries none of it, and has no owner to ask;
 4. the layer below, the one opened just before this one and still open: its
    first tabbable element, else itself;
 5. the first tabbable element of the page.

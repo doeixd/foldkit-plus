@@ -28,7 +28,7 @@ export default [
     edits: [
       {
         file: source,
-        find: 'if (recovery !== undefined && recoverOpener(recovery)) return',
+        find: 'if (recovery?.() === true) return',
         replace: '',
       },
     ],

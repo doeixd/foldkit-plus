@@ -1,6 +1,7 @@
 import { Effect, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
-import { canTakeFocus, FOCUS_MARK, markOf, ownerAbove } from './focusable.js'
+import { setOpenerRecovery } from './focus-return.js'
+import { canTakeFocus, FOCUS_MARK, markOf, ownerAbove, take } from './focusable.js'
 
 /** Where focus goes when the part that had it is gone, tried in order. */
 export const Step = Schema.Union([
@@ -129,15 +130,6 @@ const candidates = (
   }
 }
 
-/** Focuses the target if it can take it; the page may be scrolled elsewhere, so it scrolls only to show it. */
-export const take = (target: HTMLElement | undefined): boolean => {
-  if (target === undefined || !canTakeFocus(target)) return false
-  target.focus({ preventScroll: true })
-  if (target.ownerDocument.activeElement !== target) return false
-  target.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-  return true
-}
-
 const recoverFrom = (
   owner: Element,
   fallback: Readonly<Record<string, ReadonlyArray<Step>>>,
@@ -153,33 +145,25 @@ const recoverFrom = (
 /** The fallbacks of each mounted owner, which an overlay's opener inside one reads. */
 const fallbacks = new WeakMap<Element, Readonly<Record<string, ReadonlyArray<Step>>>>()
 
-/** An overlay's opener as its `FocusRecovery` owner saw it, kept for when the opener is gone. */
-export interface Opener {
-  readonly owner: Element
-  readonly held: Held
-}
-
 /**
  * Takes the opener's place among the parts of the `FocusRecovery` owner around
- * it, or `undefined` when it is a part of none. Taken when the overlay opens: a
- * removed opener has no neighbours left to read.
+ * it, when the overlay opens: a removed opener has no neighbours left to read.
+ * Returns what to run when the opener is gone: it focuses the first element
+ * the owner's `fallback` steps for the opener's slot find, as they stand
+ * then, and says whether one took focus. `undefined` when the opener is a part
+ * of no owner. Registered with `FocusReturn`, which does not import this
+ * module: a page with an overlay and no owner does not carry it.
  */
-export const holdOpener = (opener: HTMLElement): Opener | undefined => {
+setOpenerRecovery(opener => {
   const owner = opener.closest(`[data-${FOCUS_MARK.owner}]`)
   if (owner === null) return undefined
   const held = holdOf(owner, opener)
-  return held === undefined ? undefined : { owner, held }
-}
-
-/**
- * Focuses the first element the opener's owner's `fallback` steps for the
- * opener's slot find, as they stand now. False when the owner has gone, has
- * no steps for that slot, or none of them can take focus.
- */
-export const recoverOpener = ({ owner, held }: Opener): boolean => {
-  const fallback = fallbacks.get(owner)
-  return fallback !== undefined && recoverFrom(owner, fallback, held)
-}
+  if (held === undefined) return undefined
+  return () => {
+    const fallback = fallbacks.get(owner)
+    return fallback !== undefined && recoverFrom(owner, fallback, held)
+  }
+})
 
 /**
  * Recovers focus for a container of parts, as a Mount. While focus is on a

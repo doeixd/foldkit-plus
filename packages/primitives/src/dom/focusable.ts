@@ -52,3 +52,12 @@ export const ownerAbove = (element: Element): Element | null =>
  * part, so it never stands between a `FocusRecovery` and the parts inside it.
  */
 export const ROVING_MARK = 'fk-roving'
+
+/** Focuses the target if it can take it; the page may be scrolled elsewhere, so it scrolls only to show it. */
+export const take = (target: HTMLElement | undefined): boolean => {
+  if (target === undefined || !canTakeFocus(target)) return false
+  target.focus({ preventScroll: true })
+  if (target.ownerDocument.activeElement !== target) return false
+  target.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  return true
+}
