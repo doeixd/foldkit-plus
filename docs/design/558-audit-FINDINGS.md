@@ -16,12 +16,12 @@ from a name in UI SDK's index; each gap is a behaviour a test observed.
 
 | # | Behaviour | Verdict | Severity | Fixed by |
 | --- | --- | --- | --- | --- |
-| R1 | Edge scrolling during a drag | missing | medium | U-WP13 (new) |
+| R1 | Edge scrolling during a drag | built (U-WP13, `edgeScroll`) | medium | U-WP13 |
 | R2 | A key path for a drag | built (U-WP12, `Reorder`) | high | U-WP12 |
 | R3 | Announcements for a drag | built (U-WP12, `Reorder.announcement`) | medium | U-WP12 |
 | R4 | A drop over a descendant of what is dragged | present, unguarded | low | U-WP12 (the parent's guard in its `update`, `Reorder.movesIntoItself`; the held row's own rows lose their mark) |
 | R5 | Cross-list transfer | present | none | none |
-| R6 | A press on empty space starts a selection | missing | low | U-WP13 (new) |
+| R6 | A press on empty space starts a selection | built (U-WP13, `Marquee`) | low | U-WP13 |
 | R7 | A drop after the list scrolled under the pointer | present | none | none |
 | O1 | Nested modal dialogs: Escape and focus return | present | none | none |
 | O2 | A trigger removed while its dialog is open | wrong | medium | U-WP14 (new) |
@@ -39,7 +39,9 @@ box of twenty marked rows, a tree of nested marked nodes, two lists joined by
 `targets`, and a canvas of absolutely placed nodes, driven with `PointerEvent`
 dispatched at the element under each point (as a real pointer's target is).
 
-**R1. Edge scrolling: missing.** A drag held 2px from the bottom of a 100px
+**R1. Edge scrolling: built (U-WP13).** The finding below is what was observed before it; `edgeScroll` on `PointerDrag` (and `Marquee`; on by default in `Reorder`) is the fix, and the test, renamed "scrolls the list while a drag is held at its edge, with `edgeScroll`", now asserts the scroll. `edgeScroll.browser.test.ts` holds the rest (both edges, depth, the end of a list, hand-over to the page, smooth-scrolling pages, reduced motion, release and stop).
+
+**R1 as observed.** A drag held 2px from the bottom of a 100px
 box for 500ms started (`DragStarted`) and reported its place, and the box's
 `scrollTop` stayed 0. `PointerDrag` has no scrolling code. A list longer than
 its box cannot be reordered past the visible rows by pointer unless the
@@ -90,7 +92,9 @@ under the pointer with `region: true`, and released over `to`'s empty space
 reported `over: null, region: true`. Test: "moves a row to another list
 through `targets`, reporting its empty space as the region".
 
-**R6. A press on empty space: missing.** A press on a canvas's empty area,
+**R6. A press on empty space: built (U-WP13).** `Marquee`, a Mount beside `PointerDrag` rather than an option of it (one more fact in `DragFact` would reach every `Reorder` and builder match), reports the rectangle in container coordinates and the marked ids it touches. The audit's scenario now runs both Mounts on the canvas: `PointerDrag` reports nothing, `Marquee` the lasso (`marquee.browser.test.ts` holds the geometry).
+
+**R6 as observed.** A press on a canvas's empty area,
 moved 100px, produced no fact: `PointerDrag` starts only from a marked
 element. A marquee (lasso) selection has nothing to ride on. Test: "starts no
 drag from a press on empty space (today: nothing a lasso could ride)". No
@@ -216,7 +220,7 @@ are the existing evidence and were not re-read for this audit.
 | WP | Scope | Size |
 | --- | --- | --- |
 | U-WP12 (existing) | `Reorder`: R2, R3, the descendant guard of R4; `place` stays `DragPlace` | as designed |
-| U-WP13 (new) | `PointerDrag`: edge scrolling option (R1) and a marquee fact stream (R6) | medium |
+| U-WP13 (built) | `PointerDrag`/`Marquee`/`Reorder`: the `edgeScroll` option (R1) and the `Marquee` Mount (R6) | medium |
 | U-WP14 (new) | Overlay restoration fallback for a removed opener (O2) and the portal's inherited custom properties (O3) | medium |
 | U-WP15 (new) | `MessageScroller` re-seats the end when its frame resizes (C1) | small |
 | U-WP10 (existing) | The guide: virtual-row focus recipe (V1), ranges over the whole order (V2) | docs |

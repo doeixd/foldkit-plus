@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-primitives`: edge scrolling while dragging and a lasso on empty space (audit
+  R1 and R6, #558). `edgeScroll: {}` (or `{ edge, speed }`) on `PointerDrag` (the Mount and
+  its Behavior) scrolls the nearest scrolling ancestor, then the page, while a drag is held
+  near its edge, in instant steps (jumps every 150ms under reduced motion), and reports the
+  place under the still pointer after each; `Reorder.behavior` turns it on itself
+  (`edgeScroll: false` opts out). `Marquee` (`foldkit-primitives/interaction`, Mount in
+  `/dom`) reports `MarqueeStarted`, `MarqueeChanged { rect, ids, additive }`,
+  `MarqueeEnded` and `MarqueeCancelled` for a press on empty space, beside `PointerDrag`
+  on one container; `Marquee.selected(before, fact)` combines the ids with a selection
+  that `Selection`'s `replace` sets.
 - `foldkit-remote`: `policies` on `Data.wiring`, a policy per active entry by its
   key, so two Surfaces active on one route read under two policies; an entry it
   does not name reads under `policy`. A key the active record lacks is a type
