@@ -80,8 +80,14 @@ const fail = (message: string): never => {
   throw new Error(`[foldkit-remote-domain] ${message}`)
 }
 
-const byId = <T extends { readonly id: string }>(items: ReadonlyArray<T>): ReadonlyArray<T> =>
-  [...items].sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0))
+const byId = <T extends { readonly id: string }>(items: ReadonlyArray<T>): ReadonlyArray<T> => {
+  const seen = new Set<string>()
+  for (const { id } of items) {
+    if (seen.has(id)) fail(`${id} is described twice`)
+    seen.add(id)
+  }
+  return [...items].sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0))
+}
 
 /** Declared writes derive their footprint; any other mutation names one, or none. */
 const footprintOf = (mutation: AnyMutation): Footprint =>

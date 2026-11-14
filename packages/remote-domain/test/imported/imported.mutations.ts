@@ -76,6 +76,11 @@ export default [
     tests: [tests],
   },
   {
+    name: 'a command given twice is described twice',
+    edits: [{ file: describe, find: 'if (seen.has(id))', replace: 'if (false)' }],
+    tests: [tests],
+  },
+  {
     name: 'a binding of another Api is described',
     edits: [{ file: describe, find: 'if (binding.api !== api)', replace: 'if (false)' }],
     tests: [tests],

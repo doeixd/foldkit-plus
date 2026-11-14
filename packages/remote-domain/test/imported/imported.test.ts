@@ -231,6 +231,12 @@ describe('Imported.describe', () => {
     expect(operation('ShopApi/Touch').description).toEqual(Option.none())
   })
 
+  it('throws for a command given twice', () => {
+    expect(() => Imported.describe(ShopApi, { views: [], commands: [Touching, Touching] })).toThrow(
+      /ShopApi\/Touch is described twice/,
+    )
+  })
+
   it('throws for a binding of another Api', () => {
     const elsewhere = { ...Touching, api: { apiName: 'Elsewhere' } } as unknown as typeof Touching
     expect(() => Imported.describe(ShopApi, { views: [], commands: [elsewhere] })).toThrow(
