@@ -10,6 +10,18 @@ const recipe = '../src/recipes/spinner.ts'
 
 export default [
   {
+    name: 'an unlabelled spinner is an empty live region',
+    edits: [
+      {
+        file: '../src/spinner.ts',
+        find: "label === undefined ? [h.AriaHidden(true)] : [h.Role('status'), h.AriaLabel(label)]",
+        replace:
+          "label === undefined ? [h.Role('status')] : [h.Role('status'), h.AriaLabel(label)]",
+      },
+    ],
+    tests: ['packages/mixins-ui/test/spinner.test.ts'],
+  },
+  {
     name: 'a shown label is said twice',
     edits: [
       {

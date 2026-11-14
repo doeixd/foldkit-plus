@@ -10,6 +10,17 @@ const recipe = '../src/recipes/skeleton.ts'
 
 export default [
   {
+    name: 'an unlabelled skeleton is an empty live region',
+    edits: [
+      {
+        file: '../src/skeleton.ts',
+        find: 'options.label === undefined\n    ? [h.AriaHidden(true)]',
+        replace: "options.label === undefined\n    ? [h.Role('status')]",
+      },
+    ],
+    tests: ['packages/mixins-ui/test/skeleton.test.ts'],
+  },
+  {
     name: 'a bar has no floor, so it vanishes where its container sizes to content',
     edits: [{ file: recipe, find: "minInlineSize: '4rem',", replace: '' }],
     tests: browser,

@@ -29,6 +29,12 @@ describe('Spinner view', () => {
     expect(Inert.children(wheel)).toHaveLength(3)
   })
 
+  it('is hidden, not an empty live region, without a label', () => {
+    const wheel = view({}, h)
+    expect(Inert.byRole(wheel, 'status')).toHaveLength(0)
+    expect(Inert.value(wheel, 'aria-hidden')).toBe('true')
+  })
+
   it('shows the label beside the wheel as the status’s words', () => {
     const drawn = view({ label: 'Saving', showLabel: true }, h)
     expect(Inert.value(drawn, 'role')).toBe('status')

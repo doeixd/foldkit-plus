@@ -29,9 +29,11 @@ describe('Skeleton view', () => {
     expect(Inert.value(Inert.byRole(bar, 'status')[0], 'aria-label')).toBe('Profile')
   })
 
-  it('stays silent without a label', () => {
-    const bar = view({}, h)
-    expect(Inert.value(Inert.byRole(bar, 'status')[0], 'aria-label')).toBeUndefined()
+  it('is hidden, not an empty live region, without a label', () => {
+    for (const drawn of [view({}, h), lines({ lines: 2 }, h), card({}, h)]) {
+      expect(Inert.byRole(drawn, 'status')).toHaveLength(0)
+      expect(Inert.value(drawn, 'aria-hidden')).toBe('true')
+    }
   })
 })
 

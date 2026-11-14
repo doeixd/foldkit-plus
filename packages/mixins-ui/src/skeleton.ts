@@ -6,8 +6,8 @@ import type { MixinList } from './resolve.js'
  * A loading placeholder publishes its bars, and the frame that lays several
  * out as one shape: text lines, an avatar beside two lines, a card, a table
  * row. It owns no state, messages, or bundles. A lone bar, or a frame, is
- * one `status` named by what it stands in for; the bars inside a frame are
- * drawing. A frame carries `data-kind`, and its bars `data-shape` (`circle`,
+ * one `status` named by what it stands in for, or hidden from assistive
+ * technology when it names nothing; the bars inside a frame are drawing. A frame carries `data-kind`, and its bars `data-shape` (`circle`,
  * `block` for a picture) and `data-short` for a line that ends early, for a
  * style to lay them out; a table row carries `--fk-skeleton-columns`.
  */
@@ -17,7 +17,7 @@ export const SkeletonSlots = Slots.define({
 })
 
 interface Common<Message> {
-  /** What it stands in for, announced politely. */
+  /** What it stands in for, announced politely. Without it the placeholder is hidden from assistive technology. */
   readonly label?: string | undefined
   /** A style of `SkeletonSlots`, for the look. */
   readonly style?: NamedStyle<typeof SkeletonSlots> | undefined
@@ -35,10 +35,12 @@ const buildersOf = <Message>(options: Common<Message>, h: HtmlBuilder<Message>) 
     { input: undefined, h },
   )
 
-const announced = <Message>(options: Common<Message>, h: HtmlBuilder<Message>) => [
-  h.Role('status'),
-  ...(options.label === undefined ? [] : [h.AriaLabel(options.label)]),
-]
+// Without a label there is nothing to say: an empty `status` would be one
+// more live region for each placeholder on the page, so it is hidden instead.
+const announced = <Message>(options: Common<Message>, h: HtmlBuilder<Message>) =>
+  options.label === undefined
+    ? [h.AriaHidden(true)]
+    : [h.Role('status'), h.AriaLabel(options.label)]
 
 export const view = <Message = never>(
   options: SkeletonView<Message>,
