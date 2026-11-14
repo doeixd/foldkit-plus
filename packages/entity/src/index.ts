@@ -670,6 +670,7 @@ export {
   type WriteEntry,
 } from './laws.js'
 export type { Step } from './enumerate.js'
+export { lawId, transitionId } from './lawIds.js'
 export {
   Write,
   type AnyWrite,

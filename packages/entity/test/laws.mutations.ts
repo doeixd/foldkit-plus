@@ -245,9 +245,16 @@ export default [
     edits: [
       {
         file: '../src/laws.ts',
-        find: '      Declared: ({ writes }) => writes,\n      Unknown: () => [],',
-        replace: '      Declared: () => [],\n      Unknown: () => [],',
+        find: '      Declared: ({ writes }) => writes,\n      Unknown: () => pair.reads,',
+        replace: '      Declared: () => [],\n      Unknown: () => pair.reads,',
       },
+    ],
+    tests: [laws],
+  },
+  {
+    name: 'facts draw no writes edge for an unknown footprint',
+    edits: [
+      { file: '../src/laws.ts', find: 'Unknown: () => pair.reads,', replace: 'Unknown: () => [],' },
     ],
     tests: [laws],
   },

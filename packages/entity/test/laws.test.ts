@@ -15,6 +15,8 @@ import {
   LawNode,
   Laws,
   Write,
+  lawId,
+  transitionId,
   type LawReport,
   type LawVerdict,
 } from '../src/index.js'
@@ -457,6 +459,9 @@ describe('Laws.check: evidence', () => {
   it('names transitions and laws as the graph and evidence do', () => {
     expect(Laws.transition(Sell)).toBe('write:Sell')
     expect(Laws.law(reservedWithinStock)).toBe('Product.reservedWithinStock')
+    // By name too, for a module that must not carry the check: the same functions.
+    expect(Laws.transition).toBe(transitionId)
+    expect(Laws.law).toBe(lawId)
   })
 })
 
@@ -501,21 +506,38 @@ describe('Laws.facts', () => {
     )
   })
 
-  it('says what each law reads and each transition writes, once each', () => {
+  it('says what each law reads and each transition writes, once each, an unknown footprint every member a law reads', () => {
     expect(
       edges.filter(LawEdge.$is('Reads')).filter(each => each.law === 'Product.reservedWithinStock'),
     ).toEqual([
-      LawEdge.Reads({ law: 'Product.reservedWithinStock', path: ['Product', 'reserved'] }),
-      LawEdge.Reads({ law: 'Product.reservedWithinStock', path: ['Product', 'stock'] }),
+      LawEdge.Reads({
+        law: 'Product.reservedWithinStock',
+        space: 'entity',
+        path: ['Product', 'reserved'],
+      }),
+      LawEdge.Reads({
+        law: 'Product.reservedWithinStock',
+        space: 'entity',
+        path: ['Product', 'stock'],
+      }),
     ])
     expect(plain(edges.filter(LawEdge.$is('Writes')))).toEqual(
       [
         ['Publish', 'status'],
         ['Revert', 'status'],
         ['SellInStock', 'stock'],
+        ...[
+          ...new Set(
+            report.pairs.filter(pair => pair.write === 'Import').flatMap(pair => pair.reads),
+          ),
+        ].map(member => ['Import', member]),
         ['Restock', 'stock'],
       ].map(([name, member]) => ({
-        ...LawEdge.Writes({ transition: `write:${name}`, path: ['Product', member!] }),
+        ...LawEdge.Writes({
+          transition: `write:${name}`,
+          space: 'entity',
+          path: ['Product', member!],
+        }),
       })),
     )
   })
