@@ -16,4 +16,15 @@ export default [
     '    const messages = [...durable.tags, ...serverTags]\n',
     '    const messages = [...durable.tags]\n',
   ),
+  {
+    name: 'a Model pair is joined whatever its paths',
+    edits: [
+      {
+        file: '../../surface/src/graph.ts',
+        find: ': written.some(each => overlaps(each, at))',
+        replace: ': true',
+      },
+    ],
+    tests,
+  },
 ]

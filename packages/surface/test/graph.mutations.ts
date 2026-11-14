@@ -34,8 +34,8 @@ export default [
   ),
   edit(
     'a pair of two Entities is joined',
-    '    if (!(reads.get(law) ?? []).some(at => roots.has(rootOf(at))))\n',
-    '    if (false)\n',
+    "      at.space === 'entity' ? entities.has(at.path[0]) : written.some(each => overlaps(each, at))",
+    '      true',
   ),
   edit(
     'a pair sharing no path is reported',

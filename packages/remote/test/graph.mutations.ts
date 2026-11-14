@@ -33,7 +33,7 @@ export default [
   ),
   edit(
     'a delete is of no Entity in the graph',
-    "      ...(entity === undefined ? [] : [rootOf({ space: 'entity', path: [entity] })]),\n",
+    '      ...(entity === undefined ? [] : [entity]),\n',
     '',
     '../../surface/src/graph.ts',
   ),

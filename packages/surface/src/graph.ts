@@ -137,15 +137,6 @@ const overlaps = (a: Located, b: Located): boolean =>
   b.path.length > 0 &&
   (isPrefix(a.path, b.path) || isPrefix(b.path, a.path))
 
-/**
- * The root a record's pair must share: an Entity for an Entity member, the
- * whole Model for a Model path. A pair over two Entities is another
- * Entity's; a pair within one is joined even when it shares no member,
- * which is what `Laws.check` records for a pair kept by disjointness.
- */
-const rootOf = (located: Located): string =>
-  located.space === 'entity' ? `entity:${located.path[0] ?? ''}` : 'model'
-
 export const pathText = (path: ReadonlyArray<string>): string => path.join('.')
 
 const keyOf = (value: unknown): string => JSON.stringify(value)
@@ -289,13 +280,19 @@ export const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptio
     if (!transitions.has(transition))
       return refuse(`names ${transition}, which no contract declares`)
     if (!laws.has(law)) return refuse(`names ${law}, which no contract declares`)
-    // A transition's Entity is a root even where it writes no member: a delete's.
+    // What a record's pair must share. Over an Entity, the Entity: a pair within one is joined
+    // even when it shares no member, as `Laws.check` records one kept by disjointness, and a
+    // transition's own Entity counts where it writes no member (a delete). Over the Model, a
+    // path: Model laws read their owner's slice, so a slice is what tells two owners apart.
+    const written = writes.get(transition) ?? []
     const entity = transitions.get(transition)
-    const roots = new Set([
-      ...(writes.get(transition) ?? []).map(rootOf),
-      ...(entity === undefined ? [] : [rootOf({ space: 'entity', path: [entity] })]),
+    const entities = new Set([
+      ...written.flatMap(at => (at.space === 'entity' ? [at.path[0]] : [])),
+      ...(entity === undefined ? [] : [entity]),
     ])
-    if (!(reads.get(law) ?? []).some(at => roots.has(rootOf(at))))
+    const joins = (at: Located) =>
+      at.space === 'entity' ? entities.has(at.path[0]) : written.some(each => overlaps(each, at))
+    if (!(reads.get(law) ?? []).some(joins))
       return refuse(
         `names a pair the graph does not join: ${transition} writes nothing beside what ${law} reads`,
       )

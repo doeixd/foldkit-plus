@@ -142,3 +142,33 @@ describe('a capped document in the Module graph', () => {
     expect(Module.validate(Module.make(App, [plain]))).toEqual([])
   })
 })
+
+describe('two documents in the Module graph', () => {
+  const filters = Sync.forApplication(App).make({
+    documentId: documentId('filters'),
+    shared: Projection.pick(App.model.filter),
+    durable: MessageSet.make(App, [Message.ChangedFilter]),
+    laws: {
+      shortFilter: {
+        holds: ({ after }) => after.filter.length <= 20,
+        message: 'A filter is short',
+        path: ['filter'],
+      },
+    },
+  })
+  const both = Module.make(App, [capped([Message.CreatedTodo]), filters])
+  const runtimeOnly = (transition: string, judged: string) =>
+    Evidence.runtimeOnly({ transition, law: judged, why: 'the journal judges it' })
+
+  it('joins a record only to a pair of one document, whose slices overlap', () => {
+    const unmatched = Module.validate(both, {
+      evidence: [
+        runtimeOnly('durable:CreatedTodo', 'sync:filters.shortFilter'),
+        runtimeOnly('durable:ChangedFilter', 'sync:filters.shortFilter'),
+      ],
+    }).filter(finding => finding.rule === 'evidence-unmatched')
+    expect(unmatched.map(finding => finding.message)).toEqual([
+      'Evidence that durable:CreatedTodo keeps sync:filters.shortFilter names a pair the graph does not join: durable:CreatedTodo writes nothing beside what sync:filters.shortFilter reads',
+    ])
+  })
+})
