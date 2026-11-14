@@ -161,8 +161,8 @@ export default [
     edits: [
       {
         file: '../src/pagination.ts',
-        find: "stop(count, 'last', 'Last', current === count)",
-        replace: "stop(1, 'last', 'Last', current === count)",
+        find: "stop(count, 'last', options.words?.last ?? 'Last', current === count)",
+        replace: "stop(1, 'last', options.words?.last ?? 'Last', current === count)",
       },
     ],
     tests,

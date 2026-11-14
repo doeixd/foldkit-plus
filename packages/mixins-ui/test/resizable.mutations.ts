@@ -10,6 +10,87 @@ const recipe = '../src/recipes/resizable.ts'
 
 export default [
   {
+    name: 'ArrowLeft grows the first panel',
+    edits: [
+      {
+        file: '../src/splitter.ts',
+        find: ": (['ArrowLeft', 'ArrowRight'] as const)",
+        replace: ": (['ArrowRight', 'ArrowLeft'] as const)",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a vertical split steps on the horizontal arrows',
+    edits: [{ file: '../src/splitter.ts', find: 'keys.stacked', replace: 'false' }],
+    tests: [unit],
+  },
+  {
+    name: 'Home goes to the far bound',
+    edits: [
+      {
+        file,
+        find: ': Option.some(set(options.min ?? 0.1))',
+        replace: ': Option.some(set(options.max ?? 0.9))',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'Enter does not collapse',
+    edits: [
+      {
+        file,
+        find: 'toggle: collapsible === undefined ? Option.none() : Option.some(toggled)',
+        replace: 'toggle: Option.none()',
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: 'Enter is taken where nothing collapses',
+    edits: [
+      {
+        file,
+        find: 'toggle: collapsible === undefined ? Option.none() : Option.some(toggled)',
+        replace: 'toggle: Option.some(toggled)',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the handle names no panel it controls',
+    edits: [{ file, find: 'h.AriaControls(firstId(options.id))', replace: "h.Role('separator')" }],
+    tests: [unit],
+  },
+  {
+    name: 'Home never collapses a collapsible first panel',
+    edits: [
+      {
+        file,
+        find: "collapsible === 'first'\n      ? collapsed",
+        replace: 'false\n      ? collapsed',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'Home is read as End',
+    edits: [
+      {
+        file: '../src/splitter.ts',
+        find: "send('Smallest', 'Home', message)",
+        replace: "send('Smallest', 'End', message)",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'right to left reads the arrows as left to right',
+    edits: [{ file: '../src/splitter.ts', find: "keys.direction === 'rtl'", replace: 'false' }],
+    tests: [unit],
+  },
+  {
     name: 'a share with no bounds may fill the group',
     edits: [
       {
@@ -60,22 +141,6 @@ export default [
     tests: [unit],
   },
   {
-    name: 'ArrowLeft grows the first panel',
-    edits: [{ file, find: "['ArrowLeft', -step],", replace: "['ArrowLeft', step]," }],
-    tests: [unit],
-  },
-  {
-    name: 'the handle reads the arrows physically right to left',
-    edits: [
-      {
-        file,
-        find: 'const key = readingKey(pressed, options.direction)',
-        replace: 'const key = pressed',
-      },
-    ],
-    tests: [unit],
-  },
-  {
     name: 'a drag right to left follows the pointer physically',
     edits: [
       {
@@ -85,29 +150,6 @@ export default [
       },
     ],
     tests: [browser],
-  },
-  {
-    name: 'a vertical split steps on the horizontal arrows',
-    edits: [
-      {
-        file,
-        find: 'const keys = new Map<string, number>(\n    vertical',
-        replace: 'const keys = new Map<string, number>(\n    false',
-      },
-    ],
-    tests: [unit],
-  },
-  {
-    name: 'Home goes to the far bound',
-    edits: [
-      {
-        file,
-        find: "if (key === 'Home') return Option.some(lift(Message.Set({ share: options.min ?? 0.1 })))",
-        replace:
-          "if (key === 'Home') return Option.some(lift(Message.Set({ share: options.max ?? 0.9 })))",
-      },
-    ],
-    tests: [unit],
   },
   {
     name: 'the handle reads as lying along the split',
@@ -175,28 +217,6 @@ export default [
     name: 'a key at the bound makes a new Model',
     edits: [
       { file, find: 'share === model.share && Option.isNone(model.restore)', replace: 'false' },
-    ],
-    tests: [unit],
-  },
-  {
-    name: 'Enter does not collapse',
-    edits: [
-      {
-        file,
-        find: "if (key === 'Enter' && collapsible !== undefined) return Option.some(toggled)",
-        replace: '',
-      },
-    ],
-    tests: [unit, browser],
-  },
-  {
-    name: 'Enter is taken where nothing collapses',
-    edits: [
-      {
-        file,
-        find: "if (key === 'Enter' && collapsible !== undefined)",
-        replace: "if (key === 'Enter')",
-      },
     ],
     tests: [unit],
   },

@@ -138,7 +138,7 @@ export default [
     edits: [
       {
         file: view,
-        find: '...(state.disabled ? [h.Disabled(true)] : [h.OnClick(press.onClick)]),',
+        find: '...(state.disabled ? [h.AriaDisabled(true)] : [h.OnClick(press.onClick)]),',
         replace: '...[h.OnClick(press.onClick)],',
       },
     ],

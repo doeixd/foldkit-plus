@@ -8,6 +8,23 @@ const recipe = '../src/recipes/sidebar.ts'
 
 export default [
   {
+    name: 'Home does not collapse the column',
+    edits: [{ file, find: 'smallest: model.collapsed', replace: 'smallest: !model.collapsed' }],
+    tests: browser,
+  },
+  {
+    name: 'End goes nowhere',
+    edits: [
+      { file, find: 'largest: Option.some(setWidth(max)),', replace: 'largest: Option.none(),' },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'right to left widens with the wrong arrow',
+    edits: [{ file: '../src/splitter.ts', find: "keys.direction === 'rtl'", replace: 'false' }],
+    tests: browser,
+  },
+  {
     name: 'the toggle says the opposite of what shows',
     edits: [
       {
