@@ -18,7 +18,7 @@ export default [
     edits: [
       {
         file,
-        find: 'top === model.viewport.top && height === model.viewport.height',
+        find: 'top === model.viewport.top && height === model.viewport.height && model.placed',
         replace: 'false',
       },
     ],
@@ -131,8 +131,8 @@ export default [
     edits: [
       {
         file,
-        find: "      ...drawRows(start, end),\n      spacer('end', `${total - offset(end)}px`),\n    ],\n",
-        replace: "      ...drawRows(start, end),\n      spacer('end', '0px'),\n    ],\n",
+        find: "      spacer('end', `${total - offset(end)}px`, end, keys.length),\n    ],\n",
+        replace: "      spacer('end', '0px', end, keys.length),\n    ],\n",
       },
     ],
     tests: browser,
@@ -243,18 +243,7 @@ export default [
   },
   {
     name: 'placing leaves the list opened at its row',
-    edits: [{ file, find: 'from: () => 0 }) },', replace: 'from: () => model.from }) },' }],
-    tests: unit,
-  },
-  {
-    name: 'a first reading equal to the one assumed leaves the list opened',
-    edits: [
-      {
-        file,
-        find: 'height === model.viewport.height && model.from === 0',
-        replace: 'height === model.viewport.height',
-      },
-    ],
+    edits: [{ file, find: 'from: () => 0,', replace: 'from: () => model.from,' }],
     tests: unit,
   },
   {
@@ -362,9 +351,7 @@ export default [
   },
   {
     name: 'the same focus report makes a new Model',
-    edits: [
-      { file, find: 'Equal.equals(key, model.held)', replace: 'false' },
-    ],
+    edits: [{ file, find: 'Equal.equals(key, model.held)', replace: 'false' }],
     tests: unit,
   },
   {
@@ -399,8 +386,8 @@ export default [
     edits: [
       {
         file,
-        find: "spacer('gap', `${offset(start) - offset(index + 1)}px`)",
-        replace: "spacer('gap', '0px')",
+        find: "spacer('gap', `${offset(start) - offset(index + 1)}px`, index + 1, start)",
+        replace: "spacer('gap', '0px', index + 1, start)",
       },
     ],
     tests: focus,
@@ -410,8 +397,8 @@ export default [
     edits: [
       {
         file,
-        find: "spacer('end', `${total - offset(index + 1)}px`)",
-        replace: "spacer('end', `${total - offset(end)}px`)",
+        find: "spacer('end', `${total - offset(index + 1)}px`, index + 1, keys.length)",
+        replace: "spacer('end', `${total - offset(end)}px`, index + 1, keys.length)",
       },
     ],
     tests: focus,

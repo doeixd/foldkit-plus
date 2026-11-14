@@ -316,3 +316,22 @@ describe('WindowList.reveal', () => {
     expect(WindowList.update(model, WindowList.Message.CompletedReveal()).model).toBe(model)
   })
 })
+
+describe('the list placed, and a find match', () => {
+  it('is placed by the first reading, even one equal to the viewport assumed', () => {
+    expect(model.placed).toBe(false)
+    const first = WindowList.update(model, WindowList.Message.Placed({ top: 0, height: 100 }))
+    expect(first.model.placed).toBe(true)
+    expect(
+      WindowList.update(first.model, WindowList.Message.Placed({ top: 0, height: 100 })).model,
+    ).toBe(first.model)
+  })
+
+  it('reveals the row a match is in, to the middle, and changes nothing else', () => {
+    const found = WindowList.update(model, WindowList.Message.Found({ index: 42 }))
+    expect(found.model).toBe(model)
+    expect(found.commands?.map(({ name, args }) => ({ name, args }))).toEqual([
+      { name: 'WindowList.Reveal', args: { id: 'list', index: 42, align: 'center' } },
+    ])
+  })
+})

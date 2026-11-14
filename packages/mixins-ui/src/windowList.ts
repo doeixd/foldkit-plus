@@ -72,6 +72,8 @@ export const Model = Schema.Struct({
   from: Schema.Number,
   /** The key of the row holding focus, which stays drawn while it is outside the window. */
   held: Schema.OptionFromNullOr(Schema.String),
+  /** Whether `Track` has placed the list: the runtime has the page, not a server's first draw. */
+  placed: Schema.Boolean,
 })
 export type Model = typeof Model.Type
 
@@ -81,6 +83,8 @@ export const Message = defineMessageUnion({
   Measured: { rows: Schema.Array(Schema.Struct({ key: Schema.String, height: Schema.Number })) },
   /** The row now holding focus, or none once focus left the list. */
   Focused: { key: Schema.Option(Schema.String) },
+  /** The browser's find matched the text of row `index`, which is not drawn. */
+  Found: { index: Schema.Number },
   /** `Reveal` has brought its row into view, or given up on it. */
   CompletedReveal: {},
 })
@@ -146,6 +150,7 @@ export const init = (config: InitConfig): Model => {
     viewport: { top: 0, height: config.viewportHeight ?? 1000 },
     from,
     held: Option.none(),
+    placed: false,
   }
 }
 
@@ -167,9 +172,16 @@ const withHeights = (model: Model, heights: Model['heights']): Model => {
 export const update = (model: Model, message: Message): Update.Return<Model, Message> =>
   Message.match<Update.Return<Model, Message>>(message, {
     Placed: ({ top, height }) =>
-      top === model.viewport.top && height === model.viewport.height && model.from === 0
+      top === model.viewport.top && height === model.viewport.height && model.placed
         ? { model }
-        : { model: modifyFields(model, { viewport: () => ({ top, height }), from: () => 0 }) },
+        : {
+            model: modifyFields(model, {
+              viewport: () => ({ top, height }),
+              from: () => 0,
+              placed: () => true,
+            }),
+          },
+    Found: ({ index }) => ({ model, commands: [Reveal({ id: model.id, index, align: 'center' })] }),
     CompletedReveal: () => ({ model }),
     Focused: ({ key }) =>
       Equal.equals(key, model.held)
@@ -319,11 +331,40 @@ export type WindowListView<Item, Outer> = Readonly<{
   onMessage: (message: Message) => NoInfer<Outer>
   /** Names the list for assistive technology. */
   label?: string | undefined
+  /**
+   * A row's text, for the browser's find in page to match rows that are not
+   * drawn. Each row outside the window is then a `hidden="until-found"`
+   * stand-in with that text, in the spacers, which take the room they took
+   * before; a match scrolls its row into the window (`Reveal`). Costs a node
+   * and a text node per row, so it is for lists of thousands, not
+   * hundreds of thousands. Drawn once the runtime has placed the list, and
+   * only where the browser supports `hidden="until-found"`.
+   */
+  findable?: ((item: Item, index: number) => string) | undefined
   /** A style of `WindowListSlots`. */
   style?: NamedStyle<typeof WindowListSlots> | undefined
   /** Mixins beside the style. */
   mixins?: MixinList<Outer> | undefined
 }>
+
+/** Whether the browser finds text in `hidden="until-found"` and reports a match (`beforematch`). */
+export const supportsFindable = (): boolean =>
+  typeof document !== 'undefined' && document.body !== null && 'onbeforematch' in document.body
+
+/** The attribute naming a stand-in's row, by index. */
+const FIND_INDEX = 'data-window-list-find'
+
+/** Stand-ins come in groups the browser skips style and layout for as one. */
+const FIND_GROUP = 100
+
+// Whole groups of stand-ins, kept for the keys they were drawn from: an
+// identical vnode is not diffed. One vnode stands in one parent only, so
+// each spacer keeps its own: a vnode drawn in two places at once would be
+// created again and take the other's element.
+const standInCache = new WeakMap<
+  ReadonlyArray<string>,
+  { readonly text: unknown; readonly groups: Map<string, Html> }
+>()
 
 /** The attribute naming a row's key, which `MeasureRows` files its height under. */
 const ROW_KEY = 'data-window-list-key'
@@ -532,6 +573,48 @@ const followFocus = (element: Element): Stream.Stream<ReturnType<typeof Message.
   )
 
 /**
+ * The browser's find matching a stand-in, as `Found`. It scrolls to the match
+ * as soon as this returns, to wherever the revealed stand-in lies; the
+ * stand-in is put where its row would be, by the share of its spacer's rows
+ * it comes after, so that scroll lands near and `Reveal` finishes it. Two
+ * frames later it is hidden again, so the page does not show it.
+ */
+const followFind = (element: Element): Stream.Stream<ReturnType<typeof Message.Found>> =>
+  Stream.callback<ReturnType<typeof Message.Found>>(queue =>
+    Effect.acquireRelease(
+      Effect.sync(() => {
+        const onMatch = (event: Event) => {
+          const standIn = event.target
+          if (!(standIn instanceof HTMLElement) || !standIn.hasAttribute(FIND_INDEX)) return
+          const index = Number(standIn.getAttribute(FIND_INDEX))
+          const spacer = standIn.closest<HTMLElement>('[data-edge]')
+          if (spacer === null) return
+          const from = Number(spacer.dataset['from'])
+          const to = Number(spacer.dataset['to'])
+          Object.assign(standIn.style, {
+            position: 'absolute',
+            insetInline: '0',
+            top: `${((index - from) / Math.max(1, to - from)) * spacer.offsetHeight}px`,
+            opacity: '0',
+            pointerEvents: 'none',
+          })
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              standIn.removeAttribute('style')
+              standIn.setAttribute('hidden', 'until-found')
+              standIn.parentElement?.setAttribute('hidden', 'until-found')
+            }),
+          )
+          Queue.offerUnsafe(queue, Message.Found({ index }))
+        }
+        element.addEventListener('beforematch', onMatch)
+        return () => element.removeEventListener('beforematch', onMatch)
+      }),
+      detach => Effect.sync(detach),
+    ),
+  )
+
+/**
  * The list's one Mount, on its `root`: where the viewport lies over the list
  * (`WindowViewport`, as `Placed`) and the heights of the rows drawn
  * (`MeasureRows`, as `Measured`). A failure in either ends both, reported
@@ -539,7 +622,7 @@ const followFocus = (element: Element): Stream.Stream<ReturnType<typeof Message.
  * at a row their room. A Scene test resolves it with `resolveTrack`.
  */
 export const Track = Mount.defineStream('WindowList.Track', {
-  messages: [Message.Placed, Message.Measured, Message.Focused],
+  messages: [Message.Placed, Message.Measured, Message.Focused, Message.Found],
   execute: ({ element, viewStateChanges }) =>
     // After the patch that inserted the list: a hydrating runtime compares
     // the page it adopted with the server's once the patch ends.
@@ -555,7 +638,7 @@ export const Track = Mount.defineStream('WindowList.Track', {
               .f(element, viewStateChanges)
               .pipe(Stream.map(({ rows }) => Message.Measured({ rows }))),
           ),
-          followFocus(element),
+          Stream.merge(followFocus(element), followFind(element)),
         )
       }),
     ),
@@ -587,15 +670,58 @@ export const view = <Item, Outer>(
   const { start, end } = windowOf(model, keys)
   const layout = layoutOf(model)
   const offset = (index: number) => offsetFor(index, keys, model.heights, layout)
-  const spacer = (edge: 'start' | 'gap' | 'end', blockSize: string) =>
+  const text = options.findable
+  const finding = text !== undefined && model.placed && supportsFindable()
+  const cached = (() => {
+    if (!finding) return undefined
+    const kept = standInCache.get(keys)
+    if (kept !== undefined && kept.text === text) return kept.groups
+    const groups = new Map<string, Html>()
+    standInCache.set(keys, { text, groups })
+    return groups
+  })()
+  const standIn = (index: number) =>
+    h.keyed('div')(
+      keys[index]!,
+      [h.Attribute('hidden', 'until-found'), h.Attribute(FIND_INDEX, String(index))],
+      [text!(items[index]!, index)],
+    )
+  // The stand-ins of rows `[from, to)`, in groups of `FIND_GROUP` rows; a group
+  // the window or the held row cuts is drawn each time, one whole is kept.
+  const standIns = (edge: string, from: number, to: number): ReadonlyArray<Html> => {
+    if (cached === undefined) return []
+    const groups: Array<Html> = []
+    for (let group = Math.floor(from / FIND_GROUP); group * FIND_GROUP < to; group++) {
+      const first = Math.max(from, group * FIND_GROUP)
+      const last = Math.min(to, (group + 1) * FIND_GROUP, keys.length)
+      const whole = last - first === FIND_GROUP
+      const kept = whole ? cached.get(`${edge}-${group}`) : undefined
+      if (kept !== undefined) {
+        groups.push(kept)
+        continue
+      }
+      const drawn = h.keyed('div')(
+        `${model.id}-find-${group}`,
+        [h.Attribute('hidden', 'until-found')],
+        Array.from({ length: last - first }, (_, at) => standIn(first + at)),
+      )
+      if (whole) cached.set(`${edge}-${group}`, drawn)
+      groups.push(drawn)
+    }
+    return groups
+  }
+  const spacer = (edge: 'start' | 'gap' | 'end', blockSize: string, from: number, to: number) =>
     h.keyed('div')(
       `${model.id}-${edge}`,
       builders.spacer.attrs([
         h.DataAttribute('edge', edge),
         h.AriaHidden(true),
-        h.Style({ blockSize }),
+        h.Style(finding ? { blockSize, position: 'relative' } : { blockSize }),
+        ...(finding
+          ? [h.DataAttribute('from', String(from)), h.DataAttribute('to', String(to))]
+          : []),
       ]),
-      [],
+      standIns(edge, from, to),
     )
   const drawRow = (index: number) =>
     h.keyed('div')(
@@ -621,25 +747,25 @@ export const view = <Item, Outer>(
     model.from === 0 ? `${offset(until)}px` : `calc(var(${PLACED}, 0) * ${offset(until)}px)`
   const children = Option.match(held, {
     onNone: () => [
-      spacer('start', startHeight(start)),
+      spacer('start', startHeight(start), 0, start),
       ...drawRows(start, end),
-      spacer('end', `${total - offset(end)}px`),
+      spacer('end', `${total - offset(end)}px`, end, keys.length),
     ],
     onSome: index =>
       index < start
         ? [
-            spacer('start', startHeight(index)),
+            spacer('start', startHeight(index), 0, index),
             drawRow(index),
-            spacer('gap', `${offset(start) - offset(index + 1)}px`),
+            spacer('gap', `${offset(start) - offset(index + 1)}px`, index + 1, start),
             ...drawRows(start, end),
-            spacer('end', `${total - offset(end)}px`),
+            spacer('end', `${total - offset(end)}px`, end, keys.length),
           ]
         : [
-            spacer('start', startHeight(start)),
+            spacer('start', startHeight(start), 0, start),
             ...drawRows(start, end),
-            spacer('gap', `${offset(index) - offset(end)}px`),
+            spacer('gap', `${offset(index) - offset(end)}px`, end, index),
             drawRow(index),
-            spacer('end', `${total - offset(index + 1)}px`),
+            spacer('end', `${total - offset(index + 1)}px`, index + 1, keys.length),
           ],
   })
   return h.div(
