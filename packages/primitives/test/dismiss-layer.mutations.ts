@@ -9,12 +9,23 @@ const browser = 'packages/primitives/test/dismiss-layer.browser.test.ts'
 
 export default [
   {
+    name: 'the layer dismisses an Escape pressed during an IME composition',
+    edits: [
+      {
+        file: source,
+        find: 'event.defaultPrevented || press.isComposing || press.key',
+        replace: 'event.defaultPrevented || press.key',
+      },
+    ],
+    tests: [browser],
+  },
+  {
     name: 'the layer dismisses an Escape a handler below it already took',
     edits: [
       {
         file: source,
-        find: 'if (event.defaultPrevented || (event as KeyboardEvent).key',
-        replace: 'if ((event as KeyboardEvent).key',
+        find: 'if (event.defaultPrevented || press.isComposing',
+        replace: 'if (press.isComposing',
       },
     ],
     tests: [browser],
@@ -41,8 +52,8 @@ export default [
     edits: [
       {
         file: source,
-        find: "|| (event as KeyboardEvent).key !== 'Escape') return",
-        replace: "|| (event as KeyboardEvent).key === 'Escape') return",
+        find: "|| press.key !== 'Escape') return",
+        replace: "|| press.key === 'Escape') return",
       },
     ],
     tests: [unit, browser],

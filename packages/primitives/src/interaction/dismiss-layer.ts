@@ -141,8 +141,10 @@ const documentEvents = (): Stream.Stream<Message> => {
             }),
           )
         const onKeyDown = (event: Event) => {
-          // A handler below already took this Escape (an input clearing itself): it wins.
-          if (event.defaultPrevented || (event as KeyboardEvent).key !== 'Escape') return
+          const press = event as KeyboardEvent
+          // A handler below already took this Escape (an input clearing itself): it wins. So does
+          // an IME composition, whose Escape cancels the candidate, not the layer.
+          if (event.defaultPrevented || press.isComposing || press.key !== 'Escape') return
           Queue.offerUnsafe(queue, Message.PressedEscape({ layers: openLayers(document) }))
         }
         document.addEventListener('pointerdown', onPointerDown, { capture: true })

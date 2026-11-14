@@ -14,7 +14,7 @@ import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { Behavior, Behaviors, Capability, Event, Slot, SlotView, Slots } from 'foldkit-mixins'
 import { afterEach, beforeEach, expect, test } from 'vitest'
-import { userEvent } from 'vitest/browser'
+import { cdp, userEvent } from 'vitest/browser'
 import { DismissLayer, ListNavigation } from '../src/interaction/index.js'
 
 const { Keys } = Behaviors
@@ -109,13 +109,17 @@ const SearchLayer = Search.define((model, slots, h) =>
 
 /** What the document saw of each keydown, after the input's handler had run. */
 let seen: Array<{ key: string; prevented: boolean }> = []
-const record = (event: KeyboardEvent) =>
+let composing: Array<boolean> = []
+const record = (event: KeyboardEvent) => {
   seen.push({ key: event.key, prevented: event.defaultPrevented })
+  composing.push(event.isComposing)
+}
 
 let handle: { dispose: () => void } | undefined
 
 beforeEach(async () => {
   seen = []
+  composing = []
   document.addEventListener('keydown', record)
   const container = document.createElement('div')
   container.id = 'layer-host'
@@ -192,4 +196,27 @@ test('the arrows of the same router move the list pointer, and DOM focus stays i
     ['ArrowDown', true],
   ])
   expect(isOpen()).toBe(true)
+})
+
+test('an Escape during an IME composition does not dismiss; once it ends, one clears and the next dismisses', async () => {
+  await focusField()
+  await cdp().send('Input.imeSetComposition', { text: 'か', selectionStart: 1, selectionEnd: 1 })
+  await cdp().send('Input.dispatchKeyEvent', {
+    type: 'rawKeyDown',
+    key: 'Escape',
+    code: 'Escape',
+    windowsVirtualKeyCode: 27,
+    nativeVirtualKeyCode: 27,
+  })
+  await expect.poll(() => seen.length).toBe(1)
+  // Proof the press was a composition's, not merely an Escape the layer declined.
+  expect(composing).toEqual([true])
+  await frames()
+  expect(isOpen()).toBe(true)
+  await cdp().send('Input.insertText', { text: 'か' })
+  await expect.poll(() => field().value).toBe('か')
+  await userEvent.keyboard('{Escape}')
+  await expect.poll(() => field().value).toBe('')
+  await userEvent.keyboard('{Escape}')
+  await expect.poll(isOpen).toBe(false)
 })
