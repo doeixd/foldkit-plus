@@ -1577,19 +1577,21 @@ for those, the evidence is a walk through the writer, a scenario, or
 
 ```ts
 import { Option } from 'effect'
+import { lawFactsOf } from 'foldkit-entity'
 import { Evidence } from 'foldkit-metadata'
 
 const records = report.pairs.flatMap(pair => Option.toArray(pair.evidence))
 records.map(Evidence.issuedBy) // some('foldkit-entity/laws') for each
 Laws.transition(Rename) // 'write:Rename'
 const { nodes, edges } = Laws.facts(report)
+lawFactsOf([Rename]) // the same shape, read off the declarations, with no check run
 ```
 
 Records and the graph name a transition `write:<name>` (`Laws.transition`)
 and a law `<Entity>.<id>` (`Laws.law(invariant)`), so `Laws.check` throws for
 two entries of one name. `lawId` and `transitionId` are the same two
 functions by name, in a module of their own, for code that must not carry the
-check (a page's Remote domain names its laws for the graph with them).
+check.
 `Laws.facts(report)` is the law half of `foldkit-surface`'s graph as plain
 data in that graph's own shape (`GraphFacts`), since this package does not
 import Surface: a `Law` per invariant, a `Transition` per write in a pair or an
@@ -1598,11 +1600,11 @@ paths such as `['Product', 'stock']`, `From` and `To` per arrow, and a `Keeps`
 edge per transition and law whose every pair carries a record. A write's own
 `ensures` is marked `postcondition` on its pair and is no law of the Entity,
 so the facts leave it out; an `Unknown` footprint writes every member, so it
-has a `Writes` edge to each member a law of its Entity reads. A contract over
-transitions that are no declared write (an imported command's footprint)
-returns these facts from its `facts`; `Module.validate` then asks which writes
-are witnessed. A Remote domain's declared writes contribute their own facts,
-so a domain needs none of this.
+has a `Writes` edge to each member a law of its Entity reads.
+`lawFactsOf(entries)` gives the same shape from `Laws.check`'s entries without
+judging them: what Surface's `Module.graph` derives a contract's
+`laws.entities` with (a Remote domain declares its writes there), so only a
+page that asks for the graph carries it, and never the check.
 
 ## Naming a question: operators
 
@@ -1873,6 +1875,7 @@ server on different deploys see which side is behind.
 | `Query.from(state)` | Every row in a state: the Entity's query with its predicate in `where`. |
 | `Laws.check({ writes, operators? })` / `Laws.show(report)` | Each write (`{ name, write }` or `{ name, entity, footprint }`) against each invariant of its Entity, and the arrows between its states, by enumeration over finite fields: a `LawReport` of `pairs` (each with its `Enumerated` `evidence`, if decided kept), `arrows`, `states` and `findings`; the report as text. |
 | `Laws.facts(report)` / `Laws.transition(entry)` / `Laws.law(invariant)` | The report as graph facts (`LawFacts`: `LawNode`s and `LawEdge`s); a transition's id (`write:Sell`) and a law's (`Product.reservedWithinStock`) in evidence and the graph. |
+| `lawFactsOf(entries)` | `Laws.check`'s entries as graph facts, read off the declarations with no check run: what `Module.graph` derives a contract's `laws.entities` with. |
 | `Footprint.declared({ reads?, writes, by })` / `Footprint.unknown` | What a transition that is no declared write reads and writes, on whose word; or nothing known, which writes every member. |
 | `Write.reads(write)` | The fields a write reads from its row: its `when`'s, each it increments, its assignments', the revision. |
 | `Write.update(input, { …, compute })` / `Computation` | A field computed from the row before the write and the input, carried as data. |

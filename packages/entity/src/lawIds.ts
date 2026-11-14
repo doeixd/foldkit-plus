@@ -1,7 +1,7 @@
 /**
  * The ids a transition and a law have in evidence and in Surface's graph. A
- * module of their own, so a Remote domain naming its laws for the graph does
- * not carry `Laws.check`.
+ * module of their own, so code naming a law or a transition does not carry
+ * `Laws.check`.
  */
 
 /** A declared write's id: `write:Sell`. The function `Laws.transition` is. */

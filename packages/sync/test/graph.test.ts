@@ -110,6 +110,10 @@ describe('a capped document in the Module graph', () => {
     ])
   })
 
+  it('declares its laws by id, leaving their nodes and edges to the graph', () => {
+    expect(capped([Message.CreatedTodo]).contract.laws).toEqual({ model: ['atMost3Todos'] })
+  })
+
   it('is clean once each durable Message has evidence', () => {
     const document = capped([Message.CreatedTodo])
     const findings = Module.validate(Module.make(App, [document]), {

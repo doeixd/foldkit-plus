@@ -49,19 +49,29 @@ export default [
   ),
   edit(
     'refines is computed the wrong way round',
-    '        edge(GraphEdge.Refines({ level: a.contract.name, of: b.contract.name }), a.label)',
-    '        edge(GraphEdge.Refines({ level: b.contract.name, of: a.contract.name }), b.label)',
+    '        edge(GraphEdge.Refines({ level: a.name, of: b.name }))',
+    '        edge(GraphEdge.Refines({ level: b.name, of: a.name }))',
   ),
-  edit('a level refines one with the same paths', ' && !covers(b.contract, a.contract)', ''),
+  edit('a level refines one with the same paths', ' && !covers(b, a)', ''),
   edit(
     'two levels are alike whatever their Messages',
     '        sameSet(a.messages, b.messages)',
     '        true',
   ),
   edit(
-    'a contract’s keeps edge is dropped',
-    '        candidates.push({ record: evidence, from: label })\n',
-    '',
+    'a document with no law draws no transition',
+    '  const durable = laws.model === undefined ? [] : contract.messages',
+    '  const durable = (laws.model ?? []).length === 0 ? [] : contract.messages',
+  ),
+  edit(
+    'a contract’s Entity laws are dropped',
+    '  const entities: GraphFacts = lawFactsOf(laws.entities ?? [])',
+    '  const entities: GraphFacts = lawFactsOf([])',
+  ),
+  edit(
+    'a model law reads nothing',
+    "        contract.owns.map(path => GraphEdge.Reads({ law, space: 'model', path })),",
+    '        [],',
   ),
   edit(
     'breakersOf answers nothing for an unknown law',

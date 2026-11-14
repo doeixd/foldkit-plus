@@ -13,9 +13,7 @@ import type {
   Write,
   WriteKind,
 } from 'foldkit-entity'
-import type { GraphFacts } from 'foldkit-surface'
-import { Facts, Installs, type Install } from './capability.js'
-import { writeFacts } from './graphFacts.js'
+import { Installs, type Install } from './capability.js'
 import { installWrites } from './writes.js'
 import { schemaOf, type SchemaOrFields, type TypeOf } from './schema.js'
 
@@ -46,8 +44,6 @@ export interface MutationDescriptor<Name extends string, Input, Output, Refused 
     | undefined
   /** What a domain that registers the mutation installs: the code that shows it pending. */
   readonly [Installs]: Install
-  /** A declared write's laws, transition and what each reads and writes, for `Module.graph`. */
-  readonly [Facts]?: (() => GraphFacts) | undefined
 }
 
 const conflict = Schema.TaggedStruct('Conflict', {})
@@ -185,7 +181,6 @@ export const Mutation = {
     Refusal: refusalOfWrite(write) as unknown as Schema.Codec<RefusalOfWrite<W>, unknown>,
     write,
     [Installs]: installWrites,
-    [Facts]: () => writeFacts(name, write),
   }),
 
   make: <

@@ -17,12 +17,12 @@ export default [
     tests,
   },
   {
-    name: 'a declared write holds no facts',
+    name: 'a domain declares no write',
     edits: [
       {
-        file: '../../../packages/remote/src/mutationDescriptor.ts',
-        find: '    [Facts]: () => writeFacts(name, write),\n',
-        replace: '',
+        file: '../../../packages/remote/src/domain.ts',
+        find: '          write === undefined ? [] : [{ name, write }],',
+        replace: '          [],',
       },
     ],
     tests,
@@ -32,7 +32,7 @@ export default [
     edits: [
       {
         file: '../../../packages/surface/src/graph.ts',
-        find: '  for (const record of options.evidence ?? []) admit(record, undefined)\n',
+        find: '  for (const record of options.evidence ?? []) admit(record)\n',
         replace: '',
       },
     ],

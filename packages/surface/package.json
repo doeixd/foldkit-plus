@@ -43,6 +43,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "foldkit-entity": "workspace:*",
     "foldkit-metadata": "workspace:*"
   },
   "peerDependencies": {

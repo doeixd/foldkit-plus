@@ -11,7 +11,6 @@ import {
   type Breaker,
   type Contract,
   type Finding,
-  type GraphFacts,
 } from '../src/index.js'
 
 const App = Surface.application({
@@ -36,10 +35,6 @@ expectTypeOf<'law-unwitnessed' | 'evidence-unmatched' | 'level-declared-twice'>(
   Finding['rule']
 >()
 
-const facts: GraphFacts = {
-  nodes: [GraphNode.Transition({ id: 'durable:Added', kind: 'durable' })],
-  edges: [GraphEdge.Writes({ transition: 'durable:Added', space: 'model', path: ['todos'] })],
-}
 const _contract: Contract = {
   kind: 'sync',
   name: 'todos',
@@ -47,7 +42,7 @@ const _contract: Contract = {
   observes: [],
   messages: [],
   metadata: [],
-  facts: () => facts,
+  laws: { model: ['few'] },
 }
 
 // @ts-expect-error a path names its space: a Model field or an Entity member
@@ -59,10 +54,10 @@ GraphNode.Transition({ id: 'message:Added', kind: 'message' })
 // @ts-expect-error a space is a Model field or an Entity member, nothing else
 GraphEdge.Reads({ law: 'sync:todos.few', space: 'row', path: ['todos'] })
 
-const _late: Contract = {
+const _derived: Contract = {
   ..._contract,
-  // @ts-expect-error facts are computed when asked: a function, not the data
-  facts,
+  // @ts-expect-error a contract declares its laws; the graph derives their nodes and edges
+  laws: { nodes: [], edges: [] },
 }
 
 // @ts-expect-error evidence is a list of records, not one

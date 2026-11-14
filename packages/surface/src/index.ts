@@ -35,7 +35,7 @@ import {
   labelOf,
   lawsOf,
   pathText,
-  type GraphFacts,
+  type ContractLaws,
   type GraphOptions,
 } from './graph.js'
 export {
@@ -43,6 +43,7 @@ export {
   GraphEdge,
   GraphNode,
   type Breaker,
+  type ContractLaws,
   type GraphFacts,
   type GraphOptions,
   type GraphSpace,
@@ -1781,11 +1782,12 @@ export interface Contract {
   /** A Surface declared `closed: true`; absent for any other contract. */
   readonly closed?: true
   /**
-   * What the contract contributes to `Module.graph`: its laws, transitions and
-   * what each reads and writes, derived from declarations it already holds
-   * and computed when asked. Absent for a contract with none.
+   * The laws the contract holds and the transitions that can break them, as
+   * the declarations themselves: `Module.graph` derives their nodes and edges
+   * when asked, so a page that never asks carries none of that code. Absent
+   * for a contract with none.
    */
-  readonly facts?: (() => GraphFacts) | undefined
+  readonly laws?: ContractLaws | undefined
 }
 
 /**
@@ -1863,7 +1865,7 @@ export interface ModuleManifest {
   readonly fields: readonly string[]
   readonly messages: readonly string[]
   readonly ownership: readonly Ownership[]
-  readonly contracts: readonly Omit<Contract, 'owner' | 'facts'>[]
+  readonly contracts: readonly Omit<Contract, 'owner' | 'laws'>[]
   readonly findings: readonly Finding[]
 }
 
@@ -1927,7 +1929,7 @@ export const Module = {
   }),
 
   /**
-   * The contracts' laws as a graph: each contract's `facts`, a level and a
+   * The contracts' laws as a graph: what each contract's `laws` declare, a level and a
    * `closure:<name>` law per closed Surface, which level refines which, and a
    * `keeps` edge per record of `evidence` that is issued and joins its pair.
    * Pure, and computed each time it is asked.
@@ -2047,7 +2049,7 @@ export const Module = {
       fields: Object.keys(module.app.Model.fields),
       messages: applicationTags(module.app),
       ownership,
-      contracts: module.contracts.map(({ owner: _owner, facts: _facts, ...rest }) => rest),
+      contracts: module.contracts.map(({ owner: _owner, laws: _laws, ...rest }) => rest),
       findings: Module.validate(module, options),
     }
   },

@@ -478,14 +478,16 @@ modules can contribute their contracts independently.
 ### Laws in the graph
 
 A contract may also say which laws it holds and which transitions can break
-them. `Contract.facts` is a function, called only when a graph is asked for,
-returning nodes and edges derived from declarations the contract already has:
-Remote contributes a transition per declared write (`write:Sell`) and a law
-per invariant of its Entity (`Product.reservedWithinStock`); Sync a law per
-document law (`sync:todos-capped.atMost100Todos`) and a transition per durable
-Message (`durable:CreatedTodo`); a closed Surface is a level with a
-`closure:<name>` law over its paths. `Module.graph(module, { evidence })`
-joins them.
+them. `Contract.laws` holds the declarations themselves, and `Module.graph`
+derives their nodes and edges only when it is asked, so a page that never
+asks carries none of that code. `laws.entities` lists transitions over
+Entities as `Laws.check` takes them: Remote declares each declared write, which
+becomes `write:Sell` beside a law per invariant of its Entity
+(`Product.reservedWithinStock`). `laws.model` names laws over the contract's
+Model slice: Sync declares its document's, each `sync:<name>.<id>` reading the
+whole slice, and each of its Messages is `durable:<tag>` writing it. A closed
+Surface is a level with a `closure:<name>` law over its paths.
+`Module.graph(module, { evidence })` joins them.
 
 ```text
 transition --writes--> path <--reads-- law
@@ -503,14 +505,14 @@ did before the graph, so a check written then stands.
 ```ts standalone
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Evidence, Graph, GraphEdge, GraphNode, Module, Surface } from 'foldkit-surface'
+import { Evidence, Graph, Module, Surface } from 'foldkit-surface'
 
 const App = Surface.application({
   Model: Schema.Struct({ todos: Schema.Array(Schema.String) }),
   Message: defineMessageUnion({ Added: { title: Schema.String } }),
 })
 
-// What `Sync.forApplication(App).make` contributes for a document with one law.
+// What `Sync.forApplication(App).make` declares for a document with one law.
 const todos = {
   kind: 'sync',
   name: 'todos',
@@ -519,16 +521,7 @@ const todos = {
   observes: [['todos']],
   messages: ['Added'],
   metadata: [],
-  facts: () => ({
-    nodes: [
-      GraphNode.Law({ id: 'sync:todos.capped' }),
-      GraphNode.Transition({ id: 'durable:Added', kind: 'durable' }),
-    ],
-    edges: [
-      GraphEdge.Reads({ law: 'sync:todos.capped', space: 'model', path: ['todos'] }),
-      GraphEdge.Writes({ transition: 'durable:Added', space: 'model', path: ['todos'] }),
-    ],
-  }),
+  laws: { model: ['capped'] },
 }
 const Todos = Module.make(App, [todos])
 
@@ -831,10 +824,10 @@ that may observe across those runtime boundaries without creating another one.
 - Typed Message subsets (`MessageSet.make`, `MessageSet.union`).
 - `Closure.reads`: whether a projection after a Message depends on the rest of the Model.
 - `Closure.violations`: the closed Surfaces a step broke, as `ClosureViolation`s; `Surface.make`'s and `App.surface`'s `closed`.
-- The law half of the contract graph: `Contract.facts`, `Module.graph`, the rules
+- The law half of the contract graph: `Contract.laws`, `Module.graph`, the rules
   `law-unwitnessed`, `evidence-unmatched` and `level-declared-twice`, and
   `Graph.breakersOf`. It owns the question, not the answers: each contract
-  owns its facts, and the producers of `Evidence` own its records.
+  owns its declared laws, and the producers of `Evidence` own its records.
 - Actions (`Action.define`, `Action.run`): a named capability ending in a Message.
 - Named Surfaces and their renderer binding.
 - The `Diagnostics` channel and its default reporter; each package owns its own

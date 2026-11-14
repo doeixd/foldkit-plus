@@ -1070,11 +1070,11 @@ laws `violations` judges, named as the graph names them (`Laws.law(invariant)`),
 that is no law (what the writer answers) with a `Walk.run` of its own.
 
 Those records, `Laws.check`'s `Enumerated` ones and scenarios' are what `Module.validate(module,
-{ evidence })` takes: a declared write (`Mutation.write`) gives the domain's contract its facts
-(`write:<name>`, the members it writes, its Entity's invariants and what each reads, its states,
-`from` and `becomes`), and each write that writes what an invariant reads is `law-unwitnessed`
-until a record keeps it (`examples/writes/test/graph.test.ts`). A domain with no declared write
-carries none of that code.
+{ evidence })` takes: the domain's contract declares each declared write (`Mutation.write`) in
+`contract.laws.entities`, from which `Module.graph` derives `write:<name>`, the members it writes,
+its Entity's invariants and what each reads, its states, `from` and `becomes`; each write that
+writes what an invariant reads is `law-unwitnessed` until a record keeps it
+(`examples/writes/test/graph.test.ts`). Only a page that asks for the graph carries that code.
 
 A failure names its start, seed and the cases applied. The same seed draws
 the same walk, so a seed in a test name stays reproducible. `Walk.states`

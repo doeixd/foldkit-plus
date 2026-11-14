@@ -4145,6 +4145,9 @@ importers:
 
   packages/surface:
     dependencies:
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../entity
       foldkit-metadata:
         specifier: workspace:*
         version: link:../metadata

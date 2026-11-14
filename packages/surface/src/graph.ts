@@ -1,12 +1,15 @@
 /**
  * The law half of the contract graph (#537): which transitions write what
- * which laws read, and what shows each keeps each. Every contract contributes
- * facts it derives from its own declarations (`Contract.facts`); a closed
- * Surface contributes a level from its flag; tests contribute evidence. The
- * graph is data, and `Module.validate` asks its one question of it: is every
- * transition that can break a law witnessed keeping it?
+ * which laws read, and what shows each keeps each. A contract declares its
+ * laws and transitions as plain data (`Contract.laws`), and the graph derives
+ * their nodes and edges here, when asked, so only a caller of `Module.graph`
+ * or `validate` carries that code; a closed Surface contributes a level from
+ * its flag; tests contribute evidence. The graph is data, and
+ * `Module.validate` asks its one question of it: is every transition that can
+ * break a law witnessed keeping it?
  */
 import { Data, Option } from 'effect'
+import { lawFactsOf, type LawEntry } from 'foldkit-entity'
 import { Evidence } from 'foldkit-metadata'
 import type { Contract } from './index.js'
 
@@ -50,10 +53,28 @@ export type GraphEdge = Data.TaggedEnum<{
 }>
 export const GraphEdge = /* @__PURE__ */ Data.taggedEnum<GraphEdge>()
 
-/** Nodes and edges, as a contract contributes them and as `Module.graph` returns them. */
+/** Nodes and edges, as `Module.graph` returns them. */
 export interface GraphFacts {
   readonly nodes: ReadonlyArray<GraphNode>
   readonly edges: ReadonlyArray<GraphEdge>
+}
+
+/** What a contract declares of its laws, read by `Module.graph` when asked. */
+export interface ContractLaws {
+  /**
+   * Laws over the contract's Model slice, by id, as a Sync document declares
+   * them: each is `<kind>:<name>.<id>`, taken to read every path the contract
+   * owns (a law is a function, so the whole slice), and each of the
+   * contract's Messages is a transition `durable:<tag>` writing it. Given,
+   * even empty, the transitions are drawn.
+   */
+  readonly model?: ReadonlyArray<string> | undefined
+  /**
+   * Transitions over Entities, as `Laws.check` takes them: a declared write
+   * (`{ name, write }`, as `Mutation.write` returns), or one known by its
+   * footprint. Each is `write:<name>`, beside each invariant of its Entity.
+   */
+  readonly entities?: ReadonlyArray<LawEntry> | undefined
 }
 
 /** An application's graph: every contract's facts, its closed Surfaces, and the evidence admitted. */
@@ -122,15 +143,38 @@ export const pathText = (path: ReadonlyArray<string>): string => path.join('.')
 
 const keyOf = (value: unknown): string => JSON.stringify(value)
 
-/** The contracts' facts, their closed Surfaces as levels, and the evidence that joins a pair. */
+/** A contract's declared laws as nodes and edges. */
+const factsOf = (contract: Contract, laws: ContractLaws): GraphFacts => {
+  const model = (laws.model ?? []).map(id => `${labelOf(contract)}.${id}`)
+  const durable = laws.model === undefined ? [] : contract.messages.map(tag => `durable:${tag}`)
+  // An Entity's laws come out shaped as the graph's own nodes and edges.
+  const entities: GraphFacts = lawFactsOf(laws.entities ?? [])
+  return {
+    nodes: [
+      ...model.map(id => GraphNode.Law({ id })),
+      ...durable.map(id => GraphNode.Transition({ id, kind: 'durable' })),
+      ...entities.nodes,
+    ],
+    edges: [
+      ...model.flatMap(law =>
+        contract.owns.map(path => GraphEdge.Reads({ law, space: 'model', path })),
+      ),
+      ...durable.flatMap(transition =>
+        contract.owns.map(path => GraphEdge.Writes({ transition, space: 'model', path })),
+      ),
+      ...entities.edges,
+    ],
+  }
+}
+
+/** The contracts' declared laws, their closed Surfaces as levels, and the evidence that joins a pair. */
 export const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): Assembled => {
   const nodes = new Map<string, GraphNode>()
   const edges = new Map<string, GraphEdge>()
   const contributors = new Map<string, Array<string>>()
   const reads = new Map<string, Array<Located>>()
   const writes = new Map<string, Array<Located>>()
-  const levels: Array<{ readonly contract: Contract; readonly label: string }> = []
-  const candidates: Array<{ readonly record: Evidence; readonly from: string }> = []
+  const levels: Array<Contract> = []
 
   const node = (made: GraphNode) => nodes.set(keyOf(made), made)
   const contributed = (key: string, label: string) => {
@@ -143,7 +187,7 @@ export const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptio
       into.set(id, [...known, at])
     node(GraphNode.Path({ space: at.space, path: at.path }))
   }
-  const edge = (made: GraphEdge, label: string) => {
+  const edge = (made: GraphEdge) => {
     const kept = GraphEdge.$match(made, {
       Owns: ({ path }) => {
         node(GraphNode.Path({ space: 'model', path }))
@@ -163,11 +207,8 @@ export const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptio
       },
       From: () => true,
       To: () => true,
-      // Admitted below, with the evidence option, once every law and transition is known.
-      Keeps: ({ evidence }) => {
-        candidates.push({ record: evidence, from: label })
-        return false
-      },
+      // Only admitted evidence is a keeps edge, made below.
+      Keeps: () => false,
       Refines: () => true,
     })
     if (kept) edges.set(keyOf(made), made)
@@ -177,21 +218,21 @@ export const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptio
     const label = labelOf(contract)
     if (contract.owns.length > 0) {
       node(GraphNode.Owner({ kind: contract.kind, name: contract.name }))
-      for (const path of contract.owns) edge(GraphEdge.Owns({ owner: label, path }), label)
+      for (const path of contract.owns) edge(GraphEdge.Owns({ owner: label, path }))
     }
     if (contract.closed === true) {
       const law = `closure:${contract.name}`
       node(GraphNode.Level({ surface: contract.name }))
       node(GraphNode.Law({ id: law }))
       contributed(`law:${law}`, label)
-      levels.push({ contract, label })
+      levels.push(contract)
       for (const path of contract.observes) {
-        edge(GraphEdge.Observes({ level: contract.name, path }), label)
-        edge(GraphEdge.Reads({ law, space: 'model', path }), label)
+        edge(GraphEdge.Observes({ level: contract.name, path }))
+        edge(GraphEdge.Reads({ law, space: 'model', path }))
       }
     }
-    const facts = contract.facts?.()
-    if (facts === undefined) continue
+    if (contract.laws === undefined) continue
+    const facts = factsOf(contract, contract.laws)
     for (const made of facts.nodes) {
       node(made)
       const key = GraphNode.$match(made, {
@@ -204,7 +245,7 @@ export const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptio
       })
       if (Option.isSome(key)) contributed(key.value, label)
     }
-    for (const made of facts.edges) edge(made, label)
+    for (const made of facts.edges) edge(made)
   }
 
   // A level refines another when its paths cover every one of the other's and the reverse fails.
@@ -212,8 +253,8 @@ export const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptio
     narrower.observes.every(path => wider.observes.some(own => isPrefix(own, path)))
   for (const a of levels)
     for (const b of levels)
-      if (a !== b && covers(a.contract, b.contract) && !covers(b.contract, a.contract))
-        edge(GraphEdge.Refines({ level: a.contract.name, of: b.contract.name }), a.label)
+      if (a !== b && covers(a, b) && !covers(b, a))
+        edge(GraphEdge.Refines({ level: a.name, of: b.name }))
 
   const laws = new Set([...nodes.values()].filter(GraphNode.$is('Law')).map(law => law.id))
   const transitions = new Set(
@@ -221,10 +262,9 @@ export const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptio
   )
   const unmatched: Array<Unmatched> = []
   const kept = new Set<Evidence>()
-  const admit = (record: Evidence, from: string | undefined) => {
+  const admit = (record: Evidence) => {
     const { transition, law } = record
     const involved = [
-      ...(from === undefined ? [] : [from]),
       ...(contributors.get(`transition:${transition}`) ?? []),
       ...(contributors.get(`law:${law}`) ?? []),
     ]
@@ -250,8 +290,7 @@ export const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptio
     // Every admitted record is an edge of its own: a walk and a scenario of one pair are two.
     edges.set(`keeps:${kept.size}`, GraphEdge.Keeps({ transition, law, evidence: record }))
   }
-  for (const { record, from } of candidates) admit(record, from)
-  for (const record of options.evidence ?? []) admit(record, undefined)
+  for (const record of options.evidence ?? []) admit(record)
 
   return {
     graph: { nodes: [...nodes.values()], edges: [...edges.values()] },

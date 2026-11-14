@@ -661,6 +661,7 @@ export {
   LawEdge,
   LawNode,
   LawVerdict,
+  lawFactsOf,
   type Arrow,
   type FootprintEntry,
   type LawEntry,

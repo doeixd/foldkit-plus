@@ -1,9 +1,9 @@
 /**
- * A Remote domain's facts for the Module graph: `pnpm mutate packages/remote/test/graph.mutations.ts`.
+ * A Remote domain's declared laws in the Module graph: `pnpm mutate packages/remote/test/graph.mutations.ts`.
  */
 const tests = ['packages/remote/test/graph.test.ts']
 
-const edit = (name: string, find: string, replace: string, file = '../src/graphFacts.ts') => ({
+const edit = (name: string, find: string, replace: string, file = '../../entity/src/laws.ts') => ({
   name,
   edits: [{ file, find, replace }],
   tests,
@@ -11,30 +11,24 @@ const edit = (name: string, find: string, replace: string, file = '../src/graphF
 
 export default [
   edit(
-    'a domain joins no write’s facts',
-    'definition.mutations.flatMap(mutation => mutation[Facts]?.() ?? [])',
-    '[] as ReadonlyArray<never>',
+    'a domain declares no write',
+    '          write === undefined ? [] : [{ name, write }],',
+    '          [],',
     '../src/domain.ts',
   ),
   edit(
-    'a declared write holds no facts',
-    '    [Facts]: () => writeFacts(name, write),\n',
-    '',
-    '../src/mutationDescriptor.ts',
-  ),
-  edit(
     'a write writes nothing',
-    '      ...written.map(key => GraphEdge.Writes({ transition, ...member(key) })),\n',
+    '    for (const key of written) edge(LawEdge.Writes({ transition: by, ...member(key) }))\n',
     '',
   ),
   edit(
     'a declared becomes is no to edge',
-    '      ...Option.toArray(write.becomes).map(state =>',
-    '      ...Option.toArray(write.from).map(state =>',
+    '    for (const state of Option.toArray(entry.write.becomes))',
+    '    for (const state of Option.toArray(entry.write.from))',
   ),
   edit(
     'an invariant reads only the row before',
-    '        [...new Set([...held.before, ...held.after])].map(key =>',
-    '        [...new Set(held.before)].map(key =>',
+    '      for (const key of readOf(held)) edge(LawEdge.Reads({ law: id, ...member(key) }))',
+    '      for (const key of held.before) edge(LawEdge.Reads({ law: id, ...member(key) }))',
   ),
 ]

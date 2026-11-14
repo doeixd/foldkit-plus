@@ -34,7 +34,6 @@ import type { Connection, Edge } from './connection.js'
 import { Entity, type EntityDescriptor, type FieldsFrom } from './entity.js'
 import {
   Capability,
-  Facts,
   Installs,
   connectionIdentity,
   edgesOf,
@@ -1386,12 +1385,11 @@ export const bindRemote = <
       observes: store.dependency.length === 0 ? [] : [store.dependency],
       messages: [],
       metadata: [],
-      facts: () => {
-        const each = definition.mutations.flatMap(mutation => mutation[Facts]?.() ?? [])
-        return {
-          nodes: each.flatMap(facts => facts.nodes),
-          edges: each.flatMap(facts => facts.edges),
-        }
+      // Its declared writes, as written; `Module.graph` derives their laws when asked.
+      laws: {
+        entities: definition.mutations.flatMap(({ name, write }) =>
+          write === undefined ? [] : [{ name, write }],
+        ),
       },
     },
   }

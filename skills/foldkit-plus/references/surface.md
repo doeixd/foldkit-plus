@@ -15,7 +15,7 @@ tool can inspect it without running anything.
   (`Surface.application`), typed Message subsets (`MessageSet`), named Surfaces
   with their renderer binding, `Module` (static checks across contracts, and
   the law graph: which transitions can break which laws, asked in
-  `Module.validate`, while each contract owns its facts and the producers of
+  `Module.validate`, while each contract owns its declared laws and the producers of
   `Evidence` its records), and `Diagnostics`, the channel every package
   reports quiet failures on.
 - **Does NOT own:** I/O, transport, state, transitions, or Commands. A Surface is
@@ -227,13 +227,14 @@ rules: `foreign-contract`, `duplicate-name`, `ownership-overlap`,
 law graph below.
 
 **Which transitions can break which laws, and what shows they do not.** A
-contract's `facts?: () => GraphFacts` (asked only when a graph is) gives
-`GraphNode`s (`Law`, `Transition`, `State`, `Path`, ...) and `GraphEdge`s
-(`Reads`, `Writes`, `From`, `To`, `Keeps`, ...): a declared write
-(`Mutation.write`) contributes `write:<name>` and its Entity's invariants
-(`Product.reservedWithinStock`), a Sync document `durable:<tag>` per durable
-and server-only tag and `sync:<name>.<law>` per law, a closed Surface a level
-and a `closure:<name>` law over its paths. Evidence (`Evidence`, re-exported
+contract's `laws?: { model?, entities? }` holds its declarations, and
+`Module.graph` derives `GraphNode`s (`Law`, `Transition`, `State`, `Path`,
+...) and `GraphEdge`s (`Reads`, `Writes`, `From`, `To`, `Keeps`, ...) only when
+asked: `entities` (`Laws.check`'s entries; a Remote domain's declared writes)
+give `write:<name>` and its Entity's invariants (`Product.reservedWithinStock`),
+`model` (a Sync document's law ids) `sync:<name>.<law>` reading the owned slice
+and `durable:<tag>` per Message writing it, a closed Surface a level and a
+`closure:<name>` law over its paths. Evidence (`Evidence`, re-exported
 here) says a transition keeps a law; the graph never decides it:
 
 ```ts

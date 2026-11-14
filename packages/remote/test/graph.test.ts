@@ -1,7 +1,8 @@
 /**
- * A Remote domain's facts for the Module graph (#537): each declared write,
- * what it writes, the invariants of its Entity and what they read, the
- * Entity's states, and each write's declared `from` and `becomes`.
+ * A Remote domain's laws in the Module graph (#537): its contract declares
+ * each declared write as written, and the graph derives what it writes, the
+ * invariants of its Entity and what they read, the Entity's states, and each
+ * write's declared `from` and `becomes`.
  */
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
@@ -121,6 +122,16 @@ describe('a Remote domain in the Module graph', () => {
     expect(Module.validate(Shop, { evidence: enumerated }).map(finding => finding.rule)).toEqual([
       'law-unwitnessed',
     ])
+  })
+
+  it('declares its writes as written, leaving their derivation to the graph', () => {
+    expect(Data.contract.laws).toEqual({
+      entities: [
+        { name: 'Publish', write: Publish.write },
+        { name: 'Sell', write: Sell.write },
+        { name: 'Rename', write: Rename.write },
+      ],
+    })
   })
 
   it('contributes nothing for a domain with no declared write', () => {

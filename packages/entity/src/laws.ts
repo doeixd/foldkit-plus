@@ -580,6 +580,47 @@ const facts = (report: LawReport): LawFacts => {
   return { nodes: [...nodes.values()], edges: [...edges.values()] }
 }
 
+/**
+ * Declared transitions as graph facts, read off the declarations alone: a
+ * transition per entry and the members it writes (an `Unknown` footprint
+ * every field), a law per invariant of its Entity and the members it reads,
+ * the Entity's states, and a write's `from` and `becomes`. Nothing is
+ * enumerated, since whether a transition keeps a law is evidence. What
+ * `foldkit-surface`'s `Module.graph` derives a contract's `laws.entities`
+ * with; a function by name, so that path does not carry `Laws.check`.
+ */
+export const lawFactsOf = (entries: ReadonlyArray<LawEntry>): LawFacts => {
+  const nodes = new Map<string, LawNode>()
+  const edges = new Map<string, LawEdge>()
+  const node = (made: LawNode) => nodes.set(JSON.stringify(made), made)
+  const edge = (made: LawEdge) => edges.set(JSON.stringify(made), made)
+  for (const entry of entries) {
+    const entity = entityOf(entry)
+    const by = transition(entry)
+    const member = (key: string) => ({ space: 'entity' as const, path: [entity.name, key] })
+    node(LawNode.Transition({ id: by, kind: 'write' }))
+    const written = Footprint.$match(footprintOf(entry), {
+      Derived: ({ writes }) => writes,
+      Declared: ({ writes }) => writes,
+      Unknown: () => Object.keys(entity.fields),
+    })
+    for (const key of written) edge(LawEdge.Writes({ transition: by, ...member(key) }))
+    for (const held of invariantsOf(entity)) {
+      const id = law(held)
+      node(LawNode.Law({ id }))
+      for (const key of readOf(held)) edge(LawEdge.Reads({ law: id, ...member(key) }))
+    }
+    for (const state of states(entity))
+      node(LawNode.State({ entity: entity.name, name: state.name }))
+    if (!isWriteEntry(entry)) continue
+    for (const state of Option.toArray(entry.write.from))
+      edge(LawEdge.From({ transition: by, entity: entity.name, state: state.name }))
+    for (const state of Option.toArray(entry.write.becomes))
+      edge(LawEdge.To({ transition: by, entity: entity.name, state: state.name }))
+  }
+  return { nodes: [...nodes.values()], edges: [...edges.values()] }
+}
+
 export const Laws = {
   check,
   show,

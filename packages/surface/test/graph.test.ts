@@ -1,12 +1,13 @@
 /**
- * The law half of the contract graph (#537): facts contracts contribute, the
+ * The law half of the contract graph (#537): the laws contracts declare, the
  * levels closed Surfaces make, the evidence admitted, and the three rules
  * `Module.validate` asks over them.
  */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { Entity, Expr, Write } from 'foldkit-entity'
 import { Evidence } from 'foldkit-metadata'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   Graph,
   GraphEdge,
@@ -15,7 +16,6 @@ import {
   Projection,
   Surface,
   type Contract,
-  type GraphFacts,
 } from '../src/index.js'
 
 const Model = Schema.Struct({
@@ -30,19 +30,7 @@ const Message = defineMessageUnion({
 })
 const App = Surface.application({ Model, Message })
 
-/** A document of todos with one law over them, as `Sync.forApplication(App).make` contributes it. */
-const documentFacts = (): GraphFacts => ({
-  nodes: [
-    GraphNode.Law({ id: 'sync:todos.capped' }),
-    GraphNode.Transition({ id: 'durable:CreatedTodo', kind: 'durable' }),
-    GraphNode.Transition({ id: 'durable:RemovedTodo', kind: 'durable' }),
-  ],
-  edges: [
-    GraphEdge.Reads({ law: 'sync:todos.capped', space: 'model', path: ['todos'] }),
-    GraphEdge.Writes({ transition: 'durable:CreatedTodo', space: 'model', path: ['todos'] }),
-    GraphEdge.Writes({ transition: 'durable:RemovedTodo', space: 'model', path: ['todos'] }),
-  ],
-})
+/** A document of todos with one law over them, as `Sync.forApplication(App).make` declares it. */
 const document: Contract = {
   kind: 'sync',
   name: 'todos',
@@ -51,12 +39,70 @@ const document: Contract = {
   observes: [['todos']],
   messages: ['CreatedTodo', 'RemovedTodo'],
   metadata: [],
-  facts: documentFacts,
+  laws: { model: ['capped'] },
 }
 
-const member = (entity: string, key: string) => ({ space: 'entity' as const, path: [entity, key] })
+const ProductFields = Entity.define(
+  'Product',
+  Schema.Struct({
+    id: Schema.String,
+    name: Schema.String,
+    shelf: Schema.Literals(['back', 'front']),
+    stock: Schema.Number,
+    reserved: Schema.Number,
+  }),
+)
+const Product = ProductFields.pipe(
+  Entity.invariant<typeof ProductFields>(
+    'reservedWithinStock',
+    ({ after }) => Expr.lte(after.reserved, after.stock),
+    { message: 'Reserved stock cannot exceed the stock', path: ['reserved'] },
+  ),
+)
+const Front = Entity.refine(Product, 'Front', { shelf: 'front' })
+const OrderFields = Entity.define(
+  'Order',
+  Schema.Struct({ id: Schema.String, paid: Schema.Number }),
+)
+const Order = OrderFields.pipe(
+  Entity.invariant<typeof OrderFields>('paidOnce', ({ after }) => Expr.lte(after.paid, 1), {
+    message: 'An order is paid once',
+    path: ['paid'],
+  }),
+)
 
-/** Two Entities' laws and three writes, as a Remote domain contributes them. */
+const Sell = {
+  name: 'Sell',
+  write: Write.update(
+    Entity.input(Product, Schema.Struct({ id: Schema.String, quantity: Schema.Number }), {
+      quantity: Entity.unmapped,
+    }),
+    { id: 'id', increment: { stock: 'quantity' } },
+  ),
+}
+const Rename = {
+  name: 'Rename',
+  write: Write.update(
+    Entity.input(Product, Schema.Struct({ id: Schema.String, name: Schema.String })),
+    { id: 'id' },
+  ),
+}
+const Shelve = {
+  name: 'Shelve',
+  write: Write.update(
+    Entity.input(Product, Schema.Struct({ id: Schema.String, shelf: Schema.Literal('front') })),
+    { id: 'id', becomes: Front },
+  ),
+}
+const Pay = {
+  name: 'Pay',
+  write: Write.update(
+    Entity.input(Order, Schema.Struct({ id: Schema.String, paid: Schema.Number })),
+    { id: 'id' },
+  ),
+}
+
+/** Two Entities' laws and four writes, as a Remote domain declares them. */
 const shop: Contract = {
   kind: 'remote',
   name: 'shop',
@@ -65,25 +111,7 @@ const shop: Contract = {
   observes: [['remote']],
   messages: [],
   metadata: [],
-  facts: () => ({
-    nodes: [
-      GraphNode.Law({ id: 'Product.reservedWithinStock' }),
-      GraphNode.Law({ id: 'Order.paidOnce' }),
-      GraphNode.Transition({ id: 'write:Sell', kind: 'write' }),
-      GraphNode.Transition({ id: 'write:Rename', kind: 'write' }),
-      GraphNode.Transition({ id: 'write:Pay', kind: 'write' }),
-      GraphNode.State({ entity: 'Product', name: 'InStock' }),
-    ],
-    edges: [
-      GraphEdge.Reads({ law: 'Product.reservedWithinStock', ...member('Product', 'reserved') }),
-      GraphEdge.Reads({ law: 'Product.reservedWithinStock', ...member('Product', 'stock') }),
-      GraphEdge.Reads({ law: 'Order.paidOnce', ...member('Order', 'paid') }),
-      GraphEdge.Writes({ transition: 'write:Sell', ...member('Product', 'stock') }),
-      GraphEdge.Writes({ transition: 'write:Rename', ...member('Product', 'name') }),
-      GraphEdge.Writes({ transition: 'write:Pay', ...member('Order', 'paid') }),
-      GraphEdge.To({ transition: 'write:Sell', entity: 'Product', state: 'InStock' }),
-    ],
-  }),
+  laws: { entities: [Sell, Rename, Shelve, Pay] },
 }
 
 const kept = (transition: string, law: string) =>
@@ -94,7 +122,7 @@ const rulesOf = (findings: ReadonlyArray<{ readonly rule: string }>) =>
   findings.map(finding => finding.rule)
 
 describe('Module.graph', () => {
-  it('holds each contract’s facts, its owners, and the paths its edges name', () => {
+  it('holds what each contract declares, its owners, and the paths its edges name', () => {
     const graph = Module.graph(Laws)
     expect(graph.nodes.filter(GraphNode.$is('Owner')).map(node => ({ ...node }))).toEqual([
       { _tag: 'Owner', kind: 'sync', name: 'todos' },
@@ -109,25 +137,27 @@ describe('Module.graph', () => {
     ).toEqual([
       'model:todos',
       'model:remote',
-      'entity:Product.reserved',
       'entity:Product.stock',
-      'entity:Order.paid',
+      'entity:Product.reserved',
       'entity:Product.name',
+      'entity:Product.shelf',
+      'entity:Order.paid',
     ])
     expect(graph.nodes.filter(GraphNode.$is('State'))).toHaveLength(1)
     expect(graph.edges.filter(GraphEdge.$is('To'))).toHaveLength(1)
   })
 
-  it('asks a contract for its facts when the graph is asked, not when the Module is made', () => {
-    const facts = vi.fn(documentFacts)
-    const asked = Module.make(App, [{ ...document, facts }])
-    expect(facts).not.toHaveBeenCalled()
-    Module.graph(asked)
-    expect(facts).toHaveBeenCalledTimes(1)
+  it('draws a document’s transitions from its Messages, even with no law', () => {
+    const graph = Module.graph(Module.make(App, [{ ...document, laws: { model: [] } }]))
+    expect(graph.nodes.filter(GraphNode.$is('Transition')).map(node => node.id)).toEqual([
+      'durable:CreatedTodo',
+      'durable:RemovedTodo',
+    ])
+    expect(graph.nodes.filter(GraphNode.$is('Law'))).toEqual([])
   })
 
-  it('keeps no facts in the manifest, which is committed and diffed', () => {
-    expect(Module.manifest(Laws).contracts.some(contract => 'facts' in contract)).toBe(false)
+  it('keeps no declared laws in the manifest, which is committed and diffed', () => {
+    expect(Module.manifest(Laws).contracts.some(contract => 'laws' in contract)).toBe(false)
   })
 })
 
@@ -146,25 +176,23 @@ describe('law-unwitnessed', () => {
   })
 
   it('matches a path within a path, either way round', () => {
-    const nested: Contract = {
+    // A law over one field of the slice, declared beside a contract owning the whole list.
+    const titles: Contract = {
       ...document,
       name: 'titles',
-      owns: [],
+      owns: [['todos', 'title']],
       messages: [],
-      facts: () => ({
-        nodes: [
-          GraphNode.Law({ id: 'sync:titles.short' }),
-          GraphNode.Transition({ id: 'durable:Retitled', kind: 'durable' }),
-        ],
-        edges: [
-          GraphEdge.Reads({ law: 'sync:titles.short', space: 'model', path: ['todos', 'title'] }),
-          GraphEdge.Writes({ transition: 'durable:Retitled', space: 'model', path: ['todos'] }),
-        ],
-      }),
+      laws: { model: ['short'] },
     }
-    const graph = Module.graph(Module.make(App, [nested]))
+    const retitled: Contract = {
+      ...document,
+      name: 'retitled',
+      messages: ['ChangedFilter'],
+      laws: { model: [] },
+    }
+    const graph = Module.graph(Module.make(App, [titles, retitled]))
     expect(Graph.breakersOf(graph, 'sync:titles.short').map(each => each.transition)).toEqual([
-      'durable:Retitled',
+      'durable:ChangedFilter',
     ])
   })
 
@@ -178,27 +206,6 @@ describe('law-unwitnessed', () => {
       ],
     })
     expect(findings).toEqual([])
-  })
-
-  it('takes a keeps edge a contract contributes, as the evidence option’s', () => {
-    const record = kept('write:Pay', 'Order.paidOnce')
-    const withKeeps: Contract = {
-      ...shop,
-      facts: () => {
-        const { nodes, edges } = shop.facts!()
-        const keeps = GraphEdge.Keeps({
-          transition: 'write:Pay',
-          law: 'Order.paidOnce',
-          evidence: record,
-        })
-        return { nodes, edges: [...edges, keeps] }
-      },
-    }
-    const messages = Module.validate(Module.make(App, [withKeeps]), { evidence: [] }).map(
-      each => each.message,
-    )
-    expect(messages.some(message => message.startsWith('write:Pay'))).toBe(false)
-    expect(messages.some(message => message.startsWith('write:Sell'))).toBe(true)
   })
 })
 
@@ -355,7 +362,7 @@ describe('the renderers', () => {
   })
 
   it('leave the Laws section out of a Module with no law', () => {
-    const plain = Module.make(App, [{ ...document, facts: undefined }])
+    const plain = Module.make(App, [{ ...document, laws: undefined }])
     expect(Module.toMarkdown(plain)).not.toContain('## Laws')
     expect(Module.toMermaid(plain)).not.toContain('subgraph Laws')
   })
@@ -385,11 +392,11 @@ describe('Module.validate with one argument', () => {
   })
 })
 
-describe('a Module with no facts', () => {
+describe('a Module with no laws', () => {
   it('validates with one argument as it did before the graph', () => {
     const plain = Module.make(App, [
-      { ...document, facts: undefined },
-      { ...shop, facts: undefined },
+      { ...document, laws: undefined },
+      { ...shop, laws: undefined },
     ])
     expect(Module.validate(plain)).toEqual([])
   })
