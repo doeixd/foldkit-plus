@@ -12,7 +12,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // rounded up to the next 500 bytes.
 // +500 on 2026-11-14 (#533): `Data.capability` and `Data.available` on the write
 // capability, 273 bytes measured with and without them (218,816 against 218,543).
-const CEILING = 218_500
+// +500 on 2026-11-14 (#542): a form judging invariants over the row it edits
+// (`form.over`, the edit-time judgement) and the Crud editor that sets it, 383
+// bytes measured with and without them (218,816 against 218,433).
+const CEILING = 219_000
 
 clientBudget({
   name: 'entity',
