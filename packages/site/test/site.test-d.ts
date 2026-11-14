@@ -156,6 +156,24 @@ export const ChildPageBadChanged = Site.placement(ChildNode, ChildBundle, {
   changed: () => 42,
 })
 
+// `Site.sources` is keyed by the tree's tags, so the keys survive a spread
+// beside the application's own entries (an index signature would not).
+const sourced = {
+  ...Site.sources(Site.make(Home, Surfaced), App.owner, App.model.route),
+  own: Surface.at(Page, { searchText: Option.none() }),
+}
+export const sourcedKeys: ReadonlyArray<keyof typeof sourced> = ['Home', 'People', 'own']
+export const peopleSource = sourced.People
+// @ts-expect-error: no node of the tree holds this tag
+export const strangerSource = sourced.Person
+// A destination's Sources are keyed the same way.
+export const sourcedFor = Site.sourcesFor(
+  Site.make(Home, Surfaced),
+  App.owner,
+  App.model.route,
+  AppRoute.Home(),
+).People
+
 // A `Bundle.lazy` page pairs with its node as an eager one does, and is its code.
 const LazyChild = Bundle.lazy(
   {

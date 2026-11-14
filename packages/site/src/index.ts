@@ -465,6 +465,30 @@ const sourceOf = <Root>(
   return [node.tag, { ...gated, activation: { path: focus.dependency, tag: node.tag } }]
 }
 
+/**
+ * What `Site.sources` gives: an entry per surfaced node, keyed by its tag. Every
+ * key is optional, since a node with no Surface has none; a literal key, unlike
+ * an index signature, survives a spread beside the application's own entries.
+ */
+export type SiteSources<Root, Route extends { readonly _tag: string }> = {
+  readonly [Tag in Route['_tag']]?: ActiveSurface<Root> & SurfaceSource<Root>
+}
+
+/** The surfaced entries among `nodes`, keyed by tag. */
+const sourcesOn = <Root, Route extends { readonly _tag: string }>(
+  nodes: ReadonlyArray<SiteNode<any>>,
+  owner: object,
+  place: ModelPlace<Root>,
+): SiteSources<Root, Route> => {
+  const out: Record<string, ActiveSurface<Root> & SurfaceSource<Root>> = {}
+  for (const node of nodes) {
+    const entry = sourceOf(node, owner, place)
+    if (entry !== undefined) out[entry[0]] = entry[1]
+  }
+  // Keyed by each node's own tag, which the tree's route union holds.
+  return out as SiteSources<Root, Route>
+}
+
 /** The fields a `Meta` gives, so one left `undefined` does not erase an ancestor's. */
 const saidOf = (meta: Meta): Meta =>
   Object.fromEntries(Object.entries(meta).filter(([, value]) => value !== undefined))
@@ -977,20 +1001,16 @@ export const Site = {
    * What the tree's surfaced nodes activate, keyed by tag, for `Data.wiring`,
    * `Data.subscriptions`, `Data.satisfy`, or an SSR plan's `surfaces`: each
    * node's `Surface.when` over the application's route place. A surface from
-   * another application is refused here, not at its reads.
+   * another application is refused here, not at its reads. The keys are the
+   * tree's tags, each optional (a node with no Surface has no entry), so they
+   * survive a spread beside the application's own entries and can be named
+   * where the entries are keyed (`Data.wiring`'s `policies`).
    */
-  sources: <Root>(
-    site: SiteTree,
+  sources: <Root, Route extends { readonly _tag: string }>(
+    site: SiteTree<Route>,
     owner: object,
     place: ModelPlace<Root>,
-  ): Record<string, ActiveSurface<Root> & SurfaceSource<Root>> => {
-    const out: Record<string, ActiveSurface<Root> & SurfaceSource<Root>> = {}
-    for (const node of Site.nodesOf(site)) {
-      const entry = sourceOf(node, owner, place)
-      if (entry !== undefined) out[entry[0]] = entry[1]
-    }
-    return out
-  },
+  ): SiteSources<Root, Route> => sourcesOn(Site.nodesOf(site), owner, place),
 
   /**
    * The route-level Sources for one destination: the same entries as
@@ -1008,19 +1028,12 @@ export const Site = {
    * There is deliberately no `SitePlan` object: the chain is already
    * `Site.chainOf`, and the head is `Site.metaOf`.
    */
-  sourcesFor: <Root>(
-    site: SiteTree,
+  sourcesFor: <Root, Route extends { readonly _tag: string }>(
+    site: SiteTree<Route>,
     owner: object,
     place: ModelPlace<Root>,
     route: { readonly _tag: string },
-  ): Record<string, ActiveSurface<Root> & SurfaceSource<Root>> => {
-    const out: Record<string, ActiveSurface<Root> & SurfaceSource<Root>> = {}
-    for (const node of Site.chainOf(site, route)) {
-      const entry = sourceOf(node, owner, place)
-      if (entry !== undefined) out[entry[0]] = entry[1]
-    }
-    return out
-  },
+  ): SiteSources<Root, Route> => sourcesOn(Site.chainOf(site, route), owner, place),
 
   /**
    * The lazy bodies a route draws: the `code` of each page placed on its

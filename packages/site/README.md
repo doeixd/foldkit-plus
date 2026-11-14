@@ -736,16 +736,16 @@ const withEditor = Data.wiring(
   {
     policy: (model: Model) =>
       AppRoute.match(model.route, { Home: () => timeline, Profile: () => profile }),
-    policies: { editor: RemotePolicy.networkOnly },
+    policies: { editor: RemotePolicy.networkOnly, Profile: RemotePolicy.cacheFirst },
   },
 )
 ```
 
-A key the record lacks is a type error. `Site.sources` is typed by `string`:
-given alone, a key naming one of its nodes is checked when the wiring is made;
-spread beside another entry, as here, its keys leave the type, so only
-`editor` can be named. A list the editor and the page both read is held stale
-once left unless both policies age it.
+A key the record lacks is a type error. `Site.sources` is keyed by the tree's
+tags, each optional since a node with no Surface has no entry, so a node's key
+(`Profile`) survives the spread and can be named beside `editor`. A list the
+editor and the page both read is held stale once left unless both policies
+age it.
 
 **Reading a page ahead on intent.** Give `Site.routing` a `preload`, and a
 link the reader means to follow is read before they follow it, so its page
@@ -787,6 +787,48 @@ a 2g connection or in a hidden tab.
 ```ts sketch
 links: Stream.merge(pointedLinks(), visibleLinks({ atMost: 8 })),
 ```
+
+**Code split by route.** Where a page's code is cut is written once, in the
+page: a `Bundle.lazy` from `foldkit-bundle` keeps its `update` and `view`
+behind an `import()` the bundler makes a chunk of, while its Model, Messages
+and `init` stay in the boot chunk for the parent's Schema. The tree only says
+*when* that chunk is asked for. Placed with `Site.placement`, the page carries
+the bundle as its `code`, and `Site.codeFor(site, pages, route)` names the
+code of every page on a route's chain (a nested page and the lazy page above
+it), none for eager pages. It is pure; nothing loads until someone calls
+`load`. Four callers do, each once per chunk:
+
+```text
+the reader points at a link   -> Site.routing's preload fetches codeFor(there)
+the server renders a route    -> SSR.entry's lazy: model => codeFor(model.route)
+the browser boots that page   -> SSR.hydrate's lazy, asked with the resumed Model
+the route arrives unfetched   -> the page's changed Message, which Bundle.lazy loads on
+```
+
+```ts sketch
+const Account = Bundle.lazy(
+  { name: 'Account', Model: AccountModel, Message: AccountMessage, init },
+  () => import('./account.body.js').then(chunk => chunk.body),
+)
+const AccountPage = Site.placement(AccountNode, Account, {
+  link: Link.field<Model>()('account', Link.wrapper(Message.GotAccountMessage)),
+  changed: () => AccountMessage.Arrived(),
+})
+const codeOf = (model: Model) => Site.codeFor(AppSite, [AccountPage], model.route)
+// Pass `pages: [AccountPage]` and a `preload` to Site.routing, and `lazy: codeOf`
+// to both SSR.entry and SSR.hydrate.
+```
+
+`Site.placement` refuses a lazy page without `changed`: a page reached by
+Back or a key press, with nothing fetched ahead, would otherwise draw its
+placeholder until its first Message. A preload that fails to fetch is
+forgotten, so the arrival tries again and reports it. Once the bodies arrive,
+the page draws them though its Model did not change. `examples/auth`'s
+`/account` is the whole path, with a build test that keeps the bodies out of
+the entry chunk and an e2e test that counts one request on hover. Measure
+before splitting: there the bodies are 0.5 kB and the split adds 5.6 kB
+brotli at start, because the bundler cuts the shared boot chunk by which
+dynamic chunks import each module.
 
 ## Limits / when not to use it
 
