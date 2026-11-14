@@ -324,8 +324,9 @@ export const words = {
 } as const
 export type Words = { readonly [K in keyof typeof words]: string }
 
+// One pass: a label is text, and a blank inside it is not filled again.
 const fill = (template: string, item: string, target: string): string =>
-  template.replaceAll('{item}', item).replaceAll('{target}', target)
+  template.replace(/\{(item|target)\}/g, (_, blank: string) => (blank === 'item' ? item : target))
 
 /**
  * The text that reads a transition out, for `LiveAnnounce`'s `announce`:

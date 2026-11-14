@@ -404,6 +404,14 @@ describe('Reorder.announcement', () => {
   ])('reads %o as %s', (fact, text) => {
     expect(Reorder.announcement(fact, { label })).toBe(text)
   })
+  it('fills each blank once, so a label holding a blank is read as it is', () => {
+    const odd = (id: string) => (id === 'x' ? '{target}' : id.toUpperCase())
+    expect(
+      Reorder.announcement(OutMessage.Moved({ id: 'x', by: 'keys', to: before('d') }), {
+        label: odd,
+      }),
+    ).toBe('Dropped {target} before D.')
+  })
   it('tells a key grab how to go on, and takes words of the caller', () => {
     expect(Reorder.announcement(OutMessage.PickedUp({ id: 'b', by: 'keys' }), { label })).toMatch(
       /^Picked up B\. Use the arrow keys/,

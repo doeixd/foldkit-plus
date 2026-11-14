@@ -77,6 +77,12 @@ export default [
     [unit, browser],
   ),
   one(
+    'a blank inside a label is filled again',
+    "(_, blank: string) => (blank === 'item' ? item : target))",
+    "(_, blank: string) => (blank === 'item' ? item : target)).replaceAll('{target}', target)",
+    [unit],
+  ),
+  one(
     'focus leaving the handle is not heard',
     'onSome: id => [h.OnBlur(wrap(Message.Left({ id })))],',
     'onSome: () => [],',
