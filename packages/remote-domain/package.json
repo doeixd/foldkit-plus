@@ -32,6 +32,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./imported": {
+      "foldkit-plus:source": "./src/imported/index.ts",
+      "types": "./dist/imported/index.d.ts",
+      "import": "./dist/imported/index.js"
+    },
     "./lower": {
       "foldkit-plus:source": "./src/lower/index.ts",
       "types": "./dist/lower/index.d.ts",

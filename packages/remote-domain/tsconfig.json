@@ -18,6 +18,7 @@
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
       "foldkit-remote-domain": ["./src/index.ts"],
+      "foldkit-remote-domain/imported": ["./src/imported/index.ts"],
       "foldkit-remote-domain/lower": ["./src/lower/index.ts"],
       "foldkit-remote-server": ["../remote-server/src/index.ts"],
       "foldkit-remote-server/fetch": ["../remote-server/src/fetch.ts"],
