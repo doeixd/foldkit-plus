@@ -1083,7 +1083,10 @@ is not redrawn for. `Panel` is an ordinary SlotView: Styles and Behaviors attach
 to it and reach every part's Slots.
 
 - **A part's own Behaviors** go in its `behaviors` option, declared over the
-  part's selection (`Pick<Input, 'count'>`), and are resolved against it.
+  part's selection (`Pick<Input, 'count'>`), and are resolved against it. A part
+  is found only by drawing it, so `A11y.conform` reads none of its Behaviors'
+  obligations, at the type level or at run time: attach a Behavior that must
+  count to the assembly, and the finding says so when it is put on a part.
 - **A Mixin attached to the whole view that reads the input** (a Behavior's
   `attributes`, `Style.whenInput`) is resolved against the whole input, so the
   parts it reaches are drawn again on every change: correct, not cached. Static

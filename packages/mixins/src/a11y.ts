@@ -289,6 +289,8 @@ const suppliedOn = (meta: MixinMeta | undefined, slot: string, obligation: strin
 export const check = (pattern: Pattern, view: AnyView): ReadonlyArray<A11yDiagnostic> => {
   const slots = view.slots as { readonly [name: string]: AnySlot }
   const mixins: ReadonlyArray<MixinFor<any>> = view.mixins
+  // A part's Behaviors are found only by drawing it, so they cannot be read here.
+  const assembly = Conformed.assemblies.has(view.render)
   const diagnostics = [...validate(pattern, slots)]
   for (const name of Object.getOwnPropertyNames(pattern.requirements)) {
     const obligations = pattern.requirements[name]?.obligations
@@ -309,7 +311,7 @@ export const check = (pattern: Pattern, view: AnyView): ReadonlyArray<A11yDiagno
         diagnostics.push(
           diagnostic(
             'a11y:unsatisfied-obligation',
-            `slot "${name}" owes ${owed}, which nothing attached supplies`,
+            `slot "${name}" owes ${owed}, which nothing attached supplies${assembly ? "; a part's own Behaviors are not read: attach the Behavior to the assembly" : ''}`,
             name,
             { obligation: owed },
           ),

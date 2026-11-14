@@ -235,3 +235,23 @@ bare.pipe(
   // @ts-expect-error listbox/navigation: stated in a value the type does not read.
   A11y.conform(Listbox),
 )
+
+// An assembly supplies what is attached to it; a part's own Behaviors are not read, as at run time.
+const Rows = List.parts.part(
+  'Rows',
+  { reads: ['ids'], behaviors: [Nav, Picks] },
+  (input, slots, h) =>
+    h.ul(
+      slots.listbox.attrs(),
+      input.ids.map((id, index) => h.li(slots.option.attrs([], { id, index }), [id])),
+    ),
+)
+const Assembled = List.parts.assemble((_input, _slots, _h, draw) => draw(Rows))
+// @ts-expect-error the part's Nav and Picks supply nothing to the assembly.
+A11y.conform(Listbox)(Assembled.pipe(SlotView.attach(Named)))
+Assembled.pipe(
+  Behavior.attach(Nav),
+  Behavior.attach(Picks),
+  SlotView.attach(Named),
+  A11y.conform(Listbox),
+)

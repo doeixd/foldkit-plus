@@ -146,4 +146,31 @@ export default [
     ],
     tests: unit,
   },
+  {
+    name: 'an assembly is not told that its parts are unread',
+    edits: [
+      {
+        file: '../src/a11y.ts',
+        find: 'const assembly = Conformed.assemblies.has(view.render)',
+        replace: 'const assembly = false',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'assemble does not record its drawing',
+    edits: [{ file: '../src/slotView.ts', find: '      assemblies.add(drawn)\n', replace: '' }],
+    tests: unit,
+  },
+  {
+    name: 'every view is told its parts are unread',
+    edits: [
+      {
+        file: '../src/a11y.ts',
+        find: 'const assembly = Conformed.assemblies.has(view.render)',
+        replace: 'const assembly = true',
+      },
+    ],
+    tests: unit,
+  },
 ]

@@ -173,6 +173,36 @@ describe('A11y obligations', () => {
     expect(A11y.check(Listbox, complete)).toEqual([])
   })
 
+  describe('an assembly of parts', () => {
+    const ListParts = List.parts
+    const Rows = ListParts.part(
+      'Rows',
+      { reads: ['ids'], behaviors: [Nav, Picks] },
+      (input, slots, h) =>
+        h.ul(
+          slots.listbox.attrs(),
+          input.ids.map((id, index) => h.li(slots.option.attrs([], { id, index }), [id])),
+        ),
+    )
+    const assembled = ListParts.assemble((_input, slots, h, draw) =>
+      h.div([], [draw(Rows), h.button(slots.clear.attrs(), ['Clear'])]),
+    ).pipe(SlotView.attach(Named))
+
+    it('reads no part Behaviors, and says so where it finds one owed', () => {
+      const found = A11y.check(Listbox, assembled)
+      expect(codes(found)).toEqual(Array(4).fill('a11y:unsatisfied-obligation'))
+      expect(found[0]!.message).toContain("a part's own Behaviors are not read")
+      // A view that is no assembly is told nothing of parts.
+      expect(A11y.check(Listbox, bare)[0]!.message).not.toContain('part')
+    })
+
+    it('is met by the same Behaviors attached to the assembly', () => {
+      expect(
+        A11y.check(Listbox, assembled.pipe(Behavior.attach(Nav), Behavior.attach(Picks))),
+      ).toEqual([])
+    })
+  })
+
   it('compares obligations by name, so two State tokens of one attribute are one', () => {
     expect(A11y.State(Attr.AriaSelected)).not.toBe(A11y.State(Attr.AriaSelected))
     expect(A11y.check(Listbox, complete)).toEqual([])

@@ -57,7 +57,8 @@ version changed; `pnpm` skips versions already in the registry.
   `a11y:delegation-unmet`; `A11y.conform(pattern)` in a view's `pipe` is a
   type error naming each missing `slot/obligation`, throws the first finding
   where the module loads, and returns a view whose `SlotView.detach` and
-  `SlotView.replace` are checked again. `SlotView` and `NamedBehavior` take a
+  `SlotView.replace` are checked again; a part's own Behaviors supply nothing
+  to it, which its finding on an assembly says. `SlotView` and `NamedBehavior` take a
   fourth type parameter, what they supply (default `never`), which a binder's
   `behavior` reads from each slot's `provides` (`Behavior.ProvidesOf`) and an
   annotation may forget but never widen, and a SlotView's

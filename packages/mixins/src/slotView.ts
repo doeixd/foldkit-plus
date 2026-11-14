@@ -9,7 +9,7 @@ import { createLazy, inertHtml, type Html, type HtmlBuilder } from 'foldkit/html
 import { Projection } from 'foldkit-surface'
 import type { Supplies, Supply } from './a11y.js'
 import { forSlots, type BehaviorSpec, type NamedBehavior, type ProvidesOf } from './behavior.js'
-import { carry } from './conformed.js'
+import { assemblies, carry } from './conformed.js'
 import { DiagnosticError } from './diagnostics.js'
 import type { SlotContribution, SlotItem } from './contribution.js'
 import { ensure } from './inject.js'
@@ -586,6 +586,8 @@ export interface Parts<Slots, Input, Message> {
   /**
    * A part reading `reads` of the input. `behaviors` are declared over that
    * selection, so they cannot read what the part does not redraw for.
+   * What they supply is not read by `A11y.conform`, which finds no part
+   * without drawing it: attach such a Behavior to the assembly.
    */
   readonly part: <const Reads extends ReadonlyArray<keyof Input>>(
     name: string,
@@ -674,8 +676,8 @@ export const parts =
       mixins: (options.behaviors ?? []).map(behavior => behavior.mixin),
       render,
     }),
-    assemble: (render, options) =>
-      makeView<Slots, Input, Message>(options?.name, slots, [], (input, builders, h) => {
+    assemble: (render, options) => {
+      const drawn: SlotViewRender<Slots, Input, Message> = (input, builders, h) => {
         const mixins: ReadonlyArray<MixinFor<Message>> = mixinsOf.get(builders) ?? []
         // A Mixin attached to the whole view that reads the input is resolved
         // against all of it, so a part it reaches redraws whenever the input changes.
@@ -694,7 +696,10 @@ export const parts =
             () => drawPart(...args),
           )
         })
-      }),
+      }
+      assemblies.add(drawn)
+      return makeView<Slots, Input, Message>(options?.name, slots, [], drawn)
+    },
   })
 
 const BOUND = Symbol.for('foldkit-mixins.bound')

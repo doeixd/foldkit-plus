@@ -25,3 +25,10 @@ export const carry = (from: object, to: object, again: boolean): void => {
   if (again) for (const { check } of conformances) check(to)
   record(to, conformances)
 }
+
+/**
+ * The drawings `SlotView.parts`' `assemble` made, which every view derived
+ * from an assembly keeps: `A11y.check` reads no part's own Behaviors, and
+ * says so for such a view.
+ */
+export const assemblies = new WeakSet<object>()
