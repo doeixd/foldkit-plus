@@ -92,6 +92,28 @@ describe('a write whose View is behind', () => {
     expect(answer.after).toEqual({ token, rows: [{ entity: 'Product', id: 'p1' }] })
   })
 
+  it('holds the row to no token its stream is too long to make', async () => {
+    const long = 'p'.repeat(512)
+    const answer = await run(() =>
+      Effect.gen(function* () {
+        yield* (yield* ShopApi.Client).Seed(long, { ownerId: 'ada', stock: 10 })
+        return yield* Effect.flatMap(RemoteClient, client =>
+          client.mutate({
+            requestId: 'r1',
+            operation: 'op1',
+            mutation: 'ReserveStock',
+            input: { id: long, quantity: 2, revision: 1 },
+            principal: 'ada',
+          }),
+        )
+      }),
+    )
+    expect(answer.entities).toEqual([
+      { entity: 'Product', id: long, values: { reserved: 2, revision: 2 } },
+    ])
+    expect(answer.after).toBeUndefined()
+  })
+
   it('reads at the receipt: behind names the row rather than answer the one from before', async () => {
     const seen = await run(world =>
       Effect.gen(function* () {
@@ -148,6 +170,40 @@ describe('a write whose View is behind', () => {
   it('refuses a token that is no receipt, reading nothing', async () => {
     const refused = await run(() => Effect.flip(readP1At('not a receipt')))
     expect(refused._tag).toBe('RemoteReadError')
+  })
+
+  it('refuses a token longer than the wire carries, reading nothing', async () => {
+    const refused = await run(world =>
+      Effect.flip(readP1At(`Product/${'p'.repeat(512)}@2`)).pipe(
+        Effect.map(error => ({ tag: error._tag, reads: world.calls('ProductRow.snapshot') })),
+      ),
+    )
+    expect(refused).toEqual({ tag: 'RemoteReadError', reads: 0 })
+  })
+
+  it('reads a batch of many rows a few snapshots at a time', async () => {
+    const most = await run(world =>
+      Effect.gen(function* () {
+        // Every reply held, so the reads asked at once are all still waiting.
+        const releases = Array.from({ length: 40 }, () => world.holdReply('ProductRow.snapshot'))
+        const client = yield* RemoteClient
+        const reading = yield* Effect.forkChild(
+          client.read({
+            version: REMOTE_PROTOCOL_VERSION,
+            requests: Array.from({ length: 40 }, (_, index) => ({
+              entity: 'Product',
+              id: `p${index}`,
+              fields,
+            })),
+          }),
+        )
+        yield* Effect.sleep('50 millis')
+        yield* Effect.all(releases)
+        yield* Fiber.join(reading)
+        return world.mostAtOnce('ProductRow.snapshot')
+      }),
+    )
+    expect(most).toBe(16)
   })
 
   it('sends a retried operation no second command, and reads with its receipt', async () => {

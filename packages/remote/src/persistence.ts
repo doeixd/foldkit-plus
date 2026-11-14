@@ -29,6 +29,7 @@ import { recent } from './recent.js'
 import { own } from './record.js'
 import { reachable, type RetentionRoots } from './retain.js'
 import type { RemoteMessage, RemoteModel } from './model.js'
+import { ReadAfterToken } from './wire.js'
 import {
   emptyStore,
   mergeStores,
@@ -340,6 +341,8 @@ const parseExpiry = (value: unknown): number | null => {
   throw new Error('expiresAt is neither a number nor null')
 }
 
+const isToken = Schema.is(ReadAfterToken)
+
 /** Throws on a malformed entry so the whole snapshot is discarded. */
 const parseEntry = (value: unknown): EntityEntry => {
   if (value === null || typeof value !== 'object') throw new Error('entry is not an object')
@@ -356,7 +359,7 @@ const parseEntry = (value: unknown): EntityEntry => {
   if (!isStringRecord(entry.windows)) throw new Error('entry.windows is not a string record')
   if (entry.revision !== undefined && !Number.isFinite(entry.revision))
     throw new Error('entry.revision is not a finite number')
-  if (entry.floor !== undefined && (typeof entry.floor !== 'string' || entry.floor === ''))
+  if (entry.floor !== undefined && !isToken(entry.floor))
     throw new Error('entry.floor is not a token')
   return {
     values: entry.values as Readonly<Record<string, unknown>>,

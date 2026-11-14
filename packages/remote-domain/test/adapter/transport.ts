@@ -32,6 +32,8 @@ export const world = (
   } = {},
 ) => {
   const calls = new Map<string, number>()
+  const running = new Map<string, number>()
+  const mostAtOnce = new Map<string, number>()
   const commandIds: Array<string | undefined> = []
   const steering = new Map<string, Array<Steer>>()
   const late = Effect.runSync(Queue.unbounded<{ readonly key: string; readonly frame: unknown }>())
@@ -41,11 +43,13 @@ export const world = (
     Effect.gen(function* () {
       calls.set(name, (calls.get(name) ?? 0) + 1)
       const steer = steering.get(name)?.shift()
+      running.set(name, (running.get(name) ?? 0) + 1)
+      mostAtOnce.set(name, Math.max(mostAtOnce.get(name) ?? 0, running.get(name)!))
       const answer = yield* call().pipe(Effect.exit)
       if (steer?._tag === 'Hold') yield* Deferred.await(steer.released)
       if (steer?._tag === 'Lose') return yield* Effect.fail(lost())
       return yield* answer
-    })
+    }).pipe(Effect.ensuring(Effect.sync(() => running.set(name, running.get(name)! - 1))))
 
   const steered = (client: Client): Client => {
     const view = client.ProductRow
@@ -113,6 +117,8 @@ export const world = (
     actor: fixture.as as Ref.Ref<Option.Option<string>>,
     /** How many times the client called `name` (a command's tag, or `ProductRow.snapshot`). */
     calls: (name: string) => calls.get(name) ?? 0,
+    /** The most calls of `name` the client had waiting at one time. */
+    mostAtOnce: (name: string) => mostAtOnce.get(name) ?? 0,
     /** The `commandId` of each `ReserveStock` sent, in order. */
     commandIds,
     /** Holds the reply of the next call of `name` until `release` runs; the call itself runs at once. */

@@ -94,6 +94,12 @@ export default [
     '})',
   ),
   edit(
+    'a snapshot keeps a floor too long for the wire',
+    persistence,
+    '  if (entry.floor !== undefined && !isToken(entry.floor))',
+    "  if (entry.floor !== undefined && (typeof entry.floor !== 'string' || entry.floor === ''))",
+  ),
+  edit(
     'a coalesced read drops its tokens',
     '../src/coalesce.ts',
     '                    ...(after.length === 0 ? {} : { after }),\n',

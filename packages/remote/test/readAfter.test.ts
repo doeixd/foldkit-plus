@@ -295,6 +295,15 @@ describe('A floor across a reload', () => {
     )
     expect(run.batches.map(batch => batch.after)).toEqual([sent])
   })
+
+  it('is refused, with the whole snapshot, where the wire could not carry its token', () => {
+    const saved = Data.reduce(written(held, `Product/${'p'.repeat(512)}@2`), {
+      _tag: 'RetentionChanged',
+      roots: { requirements: [request], connections: [] },
+    })
+    const text = RemotePersistence.dehydrate(RemotePersistence.snapshotOf(saved.remote))
+    expect(Option.isNone(RemotePersistence.hydrate(text))).toBe(true)
+  })
 })
 
 describe('A live stream over a floored row', () => {

@@ -7,6 +7,33 @@ const tests = ['packages/remote-domain/test/adapter/adapter.test.ts']
 
 export default [
   {
+    name: 'a receipt too long for the wire is sent as a token',
+    edits: [
+      {
+        file,
+        find: 'Option.liftPredicate(`${receipt.stream}@${receipt.version}`, isToken)',
+        replace: 'Option.some(`${receipt.stream}@${receipt.version}`)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a token too long for the wire is read as a receipt',
+    edits: [{ file, find: '  if (!isToken(token)) return Option.none()\n', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a read asks for every snapshot at once',
+    edits: [
+      {
+        file,
+        find: '{ concurrency: SNAPSHOTS_AT_ONCE }',
+        replace: "{ concurrency: 'unbounded' }",
+      },
+    ],
+    tests,
+  },
+  {
     name: 'rows carry no revision for Remote to order them by',
     edits: [
       {
@@ -74,8 +101,8 @@ export default [
     edits: [
       {
         file,
-        find: '            Option.isSome(bound) && Option.isNone(confirmation)\n',
-        replace: '            false\n',
+        find: 'Option.isSome(bound) && Option.isNone(confirmation) ? tokenOf',
+        replace: 'false ? tokenOf',
       },
     ],
     tests,
@@ -85,8 +112,8 @@ export default [
     edits: [
       {
         file,
-        find: '            Option.isSome(bound) && Option.isNone(confirmation)\n',
-        replace: '            Option.isSome(bound)\n',
+        find: 'Option.isSome(bound) && Option.isNone(confirmation) ? tokenOf',
+        replace: 'Option.isSome(bound) ? tokenOf',
       },
     ],
     tests,

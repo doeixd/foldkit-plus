@@ -28,6 +28,7 @@ import {
   RemoteReadError,
   RemoteUnauthenticated,
   RemoteUnreachable,
+  ReadAfterToken,
   type LiveEvent,
 } from 'foldkit-remote'
 import { commandIdOf } from '../commandId.js'
@@ -104,17 +105,28 @@ const failureOf =
 
 const keyOf = (entity: string, id: string) => JSON.stringify([entity, id])
 
-/** A receipt as Remote carries it, a read-after token: `stream@version`. */
-const tokenOf = (receipt: Receipt): string => `${receipt.stream}@${receipt.version}`
+const isToken = Schema.is(ReadAfterToken)
+
+/**
+ * A receipt as Remote carries it, a read-after token: `stream@version`. None
+ * for a stream too long for the wire, whose token every later read would
+ * carry and the server refuse with the whole batch.
+ */
+const tokenOf = (receipt: Receipt): Option.Option<string> =>
+  Option.liftPredicate(`${receipt.stream}@${receipt.version}`, isToken)
 
 /** The receipt a token names, none for a token this adapter did not write. */
 const receiptOf = (token: string): Option.Option<Receipt> => {
+  if (!isToken(token)) return Option.none()
   const at = token.lastIndexOf('@')
   const version = Number(token.slice(at + 1))
   return at <= 0 || !Number.isSafeInteger(version) || version < 0 || token.slice(at + 1) === ''
     ? Option.none()
     : Option.some({ stream: token.slice(0, at), version })
 }
+
+/** How many View snapshots one read asks for at once. */
+const SNAPSHOTS_AT_ONCE = 16
 
 /** How many commands' receipts the adapter keeps to answer a retry without sending it. */
 const MAX_COMMITTED = 1024
@@ -291,7 +303,7 @@ export const layer = <A extends AnyApi>(
                   ...(yield* encodeRow(binding.entity, request.id, state, request.fields)),
                 }
               }),
-            { concurrency: 'unbounded' },
+            { concurrency: SNAPSHOTS_AT_ONCE },
           )
           const found = answers.flatMap(
             Match.valueTags({ Row: row => [row], Behind: () => [], Absent: () => [] }),
@@ -498,10 +510,13 @@ export const layer = <A extends AnyApi>(
             ),
           )
           // Until a read at the receipt answers, Remote keeps what it holds of the row.
-          const after =
-            Option.isSome(bound) && Option.isNone(confirmation)
-              ? { after: { token: tokenOf(receipt), rows: [{ entity: entity.name, id: target }] } }
-              : {}
+          const after = Option.match(
+            Option.isSome(bound) && Option.isNone(confirmation) ? tokenOf(receipt) : Option.none(),
+            {
+              onNone: () => ({}),
+              onSome: token => ({ after: { token, rows: [{ entity: entity.name, id: target }] } }),
+            },
+          )
           return { output, entities, principal: asking, ...after }
         })
 
@@ -599,6 +614,7 @@ export const layer = <A extends AnyApi>(
                     ),
                   )
               }),
+              // One watch a row, each open for the stream's life.
               { concurrency: 'unbounded' },
             )
           }),
