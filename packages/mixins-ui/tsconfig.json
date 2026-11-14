@@ -7,6 +7,7 @@
     "composite": true,
     "noEmit": false,
     "paths": {
+      "foldkit-bundle": ["../bundle/src/index.ts"],
       "foldkit-media": ["../media/src/index.ts"],
       "foldkit-media/browser": ["../media/src/browser/index.ts"],
       "foldkit-media/client": ["../media/client.d.ts"],
@@ -43,6 +44,9 @@
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "specimen/**/*.ts", "tsdown.config.ts"],
   "references": [
+    {
+      "path": "../bundle/tsconfig.build.json"
+    },
     {
       "path": "../media/tsconfig.build.json"
     },

@@ -13,6 +13,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { Listbox, ListboxSlots, ListboxView, Recipes } from '../../src/index.js'
 import * as UpstreamListbox from '@foldkit/ui/listbox'
 import { harness } from './harness.js'
+import * as HandBuilt from './listbox.handBuilt.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(ListboxSlots)(Recipes.Listbox({}))
@@ -116,3 +117,38 @@ test.each([
     handle.dispose()
   }
 })
+
+const FRUITS = [
+  { id: 'hourly', label: 'Hourly' },
+  { id: 'daily', label: 'Daily', disabled: true },
+  { id: 'overnight', label: 'Overnight' },
+  { id: 'weekly', label: 'Weekly' },
+]
+
+test.each([
+  ['vertical', 'ltr'],
+  ['horizontal', 'ltr'],
+  ['horizontal', 'rtl'],
+] as const)(
+  'a listbox assembled from primitives conforms (%s, %s)',
+  async (orientation, direction) => {
+    const handle = HandBuilt.mount(FRUITS, orientation, direction)
+    try {
+      const result = await Conformance.listbox(harness, {
+        name: 'Frequency',
+        options: FRUITS.map(option => option.label),
+        disabled: 'Daily',
+        orientation,
+        direction,
+        enter: async () => {
+          await vi.waitFor(() => expect(document.querySelector('[role="option"]')).not.toBeNull())
+          document.querySelector<HTMLElement>('[role="option"]:not([aria-disabled])')!.focus()
+        },
+      })
+      expect(Conformance.failures(result)).toEqual([])
+      expect(result.length).toBeGreaterThan(8)
+    } finally {
+      handle.dispose()
+    }
+  },
+)
