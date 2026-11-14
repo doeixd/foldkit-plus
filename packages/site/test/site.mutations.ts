@@ -21,9 +21,8 @@ export default [
     edits: [
       {
         file,
-        find: '    for (const node of Site.nodesOf(site)) {\n      const entry = sourceOf(node, owner, place)',
-        replace:
-          '    for (const node of [] as Array<SiteNode<any>>) {\n      const entry = sourceOf(node, owner, place)',
+        find: 'sourcesOn(Site.nodesOf(site), owner, place)',
+        replace: 'sourcesOn([], owner, place)',
       },
     ],
     tests: together,
@@ -155,7 +154,7 @@ export default [
     edits: [
       {
         file,
-        find: '            ...(config.pages ?? []).map(\n              page => (model: Root) =>\n                Option.getOrElse(page.inform(model, next), () => ({ model })),\n            ),',
+        find: '            ...pages.map(\n              page => (model: Root) =>\n                Option.getOrElse(page.inform(model, next), () => ({ model })),\n            ),',
         replace: '',
       },
     ],
@@ -166,9 +165,8 @@ export default [
     edits: [
       {
         file,
-        find: '    for (const node of Site.chainOf(site, route)) {\n      const entry = sourceOf(node, owner, place)',
-        replace:
-          '    for (const node of Site.nodesOf(site)) {\n      const entry = sourceOf(node, owner, place)',
+        find: 'sourcesOn(Site.chainOf(site, route), owner, place)',
+        replace: 'sourcesOn(Site.nodesOf(site), owner, place)',
       },
     ],
     tests,
