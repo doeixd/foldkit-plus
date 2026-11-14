@@ -206,7 +206,10 @@ declared route, then the `where` routes in list order; the first `Some` wins and
 default-prevented, a declined key keeps its native effect, propagation is never stopped, IME
 composition keys reach no route, and a held key runs its route on every repeat (guard a
 once-only route in `update`). `Keys.answer(routes)(press)` is the same question asked without a
-page. Observing a key without owning it is a Subscription (`foldkit-primitives/events`).
+page, `Keys.matches(gesture, key, modifiers)` asks one gesture, `Keys.withShift('ArrowDown')` is a
+named key as chords with Shift up and down, and `Keys.attribute(routes, { slot?, moveFocus? })` is the
+one `keydown` attribute for a Behavior that also writes other attributes on the slot.
+`SpinValue.keys(options)` is the spinbutton's route. Observing a key without owning it is a Subscription (`foldkit-primitives/events`).
 
 ### 3b. An application's own look
 

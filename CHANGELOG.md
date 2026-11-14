@@ -9,6 +9,21 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-primitives`, `foldkit-mixins`: `RovingTabindex`, `ListNavigation`,
+  `GridNavigation`, `TreeNavigation` and `Typeahead` each export `keys`, the
+  `Keys.route` their `behavior` installs as the container's one `keydown`
+  handler (and `Behaviors.SpinValue.keys` the spinbutton's), so a search input
+  lists `ListNavigation.keys(...)` beside an Escape route in one
+  `Keys.behavior` (#554). A route takes each of its navigation keys with Shift
+  up and down; `ListNavigation.keys` declares every printable key unless
+  `typeahead` is `false`. `Keys.attribute(routes, { slot?, moveFocus? })` is the
+  one `keydown` attribute for a Behavior that also writes other attributes on
+  the slot, `Keys.matches(gesture, key, modifiers)` asks one gesture, and
+  `Keys.withShift(key, modifiers?)` is a named key as two chords. Each
+  primitive's `behavior` is built on them; its attributes are unchanged.
+  `ListNavigation`'s `commit` option still works, and is better written as a
+  route of your own.
+
 - `foldkit-mixins`, `foldkit-mixins-surface`: `SlotView.describe(view)` is a
   view as serializable data (its slots and each attachment in order, with what it
   requires, supplies and contributes per slot, and findings for an unnamed or
@@ -238,6 +253,16 @@ version changed; `pnpm` skips versions already in the registry.
   `refused` ("The column's series gave no text here"), not padded.
 
 ### Changed
+
+- `foldkit-primitives`: `DismissLayer` hears Escape in the bubble phase and
+  skips one whose `defaultPrevented` is set, so an input inside a layer that
+  handled Escape (a search field clearing itself) no longer also dismisses the
+  layer; an Escape nothing handled still does, as a native `<dialog>` already
+  behaves (#554). A page that prevented Escape on purpose and relied on the
+  layer dismissing anyway stops dismissing, and a handler that stops
+  propagation below the document now also hides the key from the layer.
+  `Typeahead.isPrintable` is `Keys.printable`: a character outside the Basic
+  Multilingual Plane (an emoji) is one printable key, where it counted as two.
 
 - `foldkit-mixins-surface`: `SurfaceView.inspect` is deprecated for one release
   in favour of `SlotView.describe` (#556).
