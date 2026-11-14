@@ -61,3 +61,35 @@ it('moves focus to the stop as it moves or its row goes, and only while focus is
     await Effect.runPromise(Fiber.interrupt(fiber))
   }
 })
+
+it('takes the stop of its own rows, not one inside a row that holds another roving widget (B2c)', async () => {
+  const container = document.createElement('ul')
+  container.setAttribute('data-fk-focus-owner', '')
+  const rows = ['one', 'two', 'three'].map(name => {
+    const row = document.createElement('li')
+    row.textContent = name
+    row.tabIndex = -1
+    container.append(row)
+    return row
+  })
+  // The first row holds a widget with a stop of its own, found first in document order.
+  const inner = document.createElement('div')
+  inner.setAttribute('data-fk-focus-owner', '')
+  const tool = document.createElement('button')
+  tool.tabIndex = 0
+  inner.append(tool)
+  rows[0]!.append(inner)
+  rows[2]!.tabIndex = 0
+  document.body.append(container)
+  const fiber = Effect.runFork(Stream.runDrain(FollowTabStop().f(container, liveViewStateChanges)))
+  try {
+    await settled()
+    rows[2]!.focus()
+    rows[2]!.remove()
+    rows[1]!.tabIndex = 0
+    await settled()
+    expect(document.activeElement).toBe(rows[1])
+  } finally {
+    await Effect.runPromise(Fiber.interrupt(fiber))
+  }
+})

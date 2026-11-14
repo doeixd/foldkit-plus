@@ -1,12 +1,14 @@
 import { Effect, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
+import { FOCUS_MARK, ownerAbove } from './focusable.js'
 
 /**
  * Keeps focus that is inside a container of roving tab stops on its stop, as a
  * Mount: when a transition moves the stop (a row made current by a command the
  * container did not see, such as a duplicate) or removes the focused
  * descendant (a deleted row), focus goes to the descendant with
- * `tabindex="0"`. It sends no Message. Focus outside the container is never
+ * `tabindex="0"` (on a container marked `data-fk-focus-owner`, the one no nested
+ * owner owns). It sends no Message. Focus outside the container is never
  * taken, and focus the user moved away stays where it went.
  */
 export const FollowTabStop = Mount.defineStream('FollowTabStop', {
@@ -29,9 +31,21 @@ export const FollowTabStop = Mount.defineStream('FollowTabStop', {
               if (!(from instanceof Node) || from.isConnected) within = false
             })
           }
+          // A container that marks itself as a focus owner owns only the stops no nested
+          // owner owns: a row holding another roving widget has a stop of its own.
+          const stopOf = (): Element | null => {
+            if (!element.hasAttribute(`data-${FOCUS_MARK.owner}`)) {
+              return element.querySelector('[tabindex="0"]')
+            }
+            return (
+              Array.from(element.querySelectorAll('[tabindex="0"]')).find(
+                stop => ownerAbove(stop) === element,
+              ) ?? null
+            )
+          }
           const follow = () => {
             if (!within) return
-            const stop = element.querySelector('[tabindex="0"]')
+            const stop = stopOf()
             const focused = document.activeElement
             if (!(stop instanceof HTMLElement) || stop === focused) return
             const lost = focused === null || focused === document.body

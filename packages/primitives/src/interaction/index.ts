@@ -6,6 +6,7 @@
 export * as BundleBehavior from './bundle-behavior.js'
 export * as DismissLayer from './dismiss-layer.js'
 export * as EditableText from './editable-text.js'
+export * as FocusRecovery from './focus-recovery.js'
 export * as FocusScope from './focus-scope.js'
 export * as FocusVisible from './focus-visible.js'
 export * as GridNavigation from './grid-navigation.js'

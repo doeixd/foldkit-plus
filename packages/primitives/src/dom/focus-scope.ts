@@ -1,20 +1,6 @@
 import { Effect, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
-
-const FOCUSABLE = [
-  'a[href]',
-  'button:not([disabled])',
-  'input:not([disabled]):not([type="hidden"])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[tabindex]',
-  '[contenteditable="true"]',
-].join(', ')
-
-const isVisible = (element: Element): boolean => {
-  const probe = element as { checkVisibility?: () => boolean }
-  return element.closest('[hidden], [inert]') === null && (probe.checkVisibility?.() ?? true)
-}
+import { FOCUSABLE, isVisible } from './focusable.js'
 
 /** Tabbable descendants in DOM order: focusable, visible, and not `tabindex="-1"`. */
 export const tabbableWithin = (root: Element): ReadonlyArray<HTMLElement> =>
