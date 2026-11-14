@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `examples/writes-domain`: one write scenario through three backends (#546).
+  `WriteScenario` is data (rows, principal, clock, the write, its operation and
+  what it must come to); `sqliteRunner`, `memoryRunner` (`RemoteServer.memoryWriter`
+  behind the same guard) and `domainRunner` (the adapter over the lowered model,
+  and a Story) each answer one step per thing they own, and `run` reports every
+  step whose sides differ, naming the backend and the step. Ordering tests drive
+  the page's reducer over the adapter: a reply before and after the View's frame,
+  a frame older than one shown, and a lost reply retried as the same operation.
+
 - `foldkit-remote-domain/imported`: `Imported.mutation(Api, 'Command', { entity,
   footprint?, refusal? })` declares a Domain command nobody wrote a `Write` for as
   a mutation, `Imported.describe(Api, { views, commands, fields? })` lists what
