@@ -89,7 +89,10 @@ const rowsOf = (
   )
 
 const grippedWith = (
-  tree: Pick<Reorder.HandleOptions<Model, typeof ListSlots>, 'parent' | 'accepts'> = {},
+  tree: Pick<
+    Reorder.HandleOptions<Model, typeof ListSlots>,
+    'parent' | 'accepts' | 'edgeScroll'
+  > = {},
 ) =>
   List.define((model, slots, h) =>
     h.ul(
@@ -109,6 +112,7 @@ const grippedWith = (
     Behavior.attach(FocusRecovery.behavior(List)({ owner: 'list', parts: { grip: ['same'] } })),
   )
 const gripped = grippedWith()
+const unscrolled = grippedWith({ edgeScroll: false })
 // A tree drawn flat: C is B's child, and B takes items inside it.
 const branched = grippedWith({
   parent: (_, id) => (id === 'c' ? Option.some('b') : Option.none()),
@@ -206,10 +210,10 @@ const virtual = List.define((model, slots, h) =>
 
 let handle: { dispose: () => void } | undefined
 
-const start = async (view: typeof gripped) => {
+const start = async (view: typeof gripped, box?: HTMLElement) => {
   const container = document.createElement('div')
   container.id = 'reorder-host'
-  document.body.appendChild(container)
+  ;(box ?? document.body).appendChild(container)
   handle = Runtime.embed(
     Runtime.makeElement(
       assembly.complete({
@@ -404,6 +408,45 @@ describe('Reorder by pointer', () => {
     expect(document.getElementById('c')?.dataset['reorderOver']).toBeUndefined()
     pointer('pointerup', bx, child)
     await expect.poll(said).toBe('B put back where it was.')
+  })
+
+  // The four 30px rows are taller than the 100px box that holds the list.
+  const boxed = () => {
+    const box = document.createElement('div')
+    box.id = 'box'
+    box.style.cssText = 'position:absolute;left:0;top:0;width:300px;height:100px;overflow:auto'
+    document.body.append(box)
+    return box
+  }
+  // In the box's last strip, and over the last row once the list has scrolled to its end.
+  const HELD_AT = 80
+  const holdAtBottom = async () => {
+    const [x, y] = centre('a')
+    pointer('pointerdown', x, y)
+    pointer('pointermove', x, y + 10)
+    pointer('pointermove', x, HELD_AT)
+    await expect.poll(() => document.getElementById('a')?.dataset['reorder']).toBe('held')
+    return x
+  }
+
+  it("scrolls the list's box while a row is held at its edge, with nothing set", async () => {
+    const box = boxed()
+    await start(gripped, box)
+    const x = await holdAtBottom()
+    await expect.poll(() => box.scrollTop).toBeGreaterThan(15)
+    // The row under the still pointer is now the last one, which the pointer never moved to.
+    await expect.poll(() => document.getElementById('d')?.dataset['reorderOver']).toBe('after')
+    pointer('pointerup', x, HELD_AT)
+    await expect.poll(order).toEqual(['b', 'c', 'd', 'a'])
+  })
+
+  it('leaves the scrolling to the application with `edgeScroll: false`', async () => {
+    const box = boxed()
+    await start(unscrolled, box)
+    const x = await holdAtBottom()
+    await new Promise(resolve => setTimeout(resolve, 300))
+    expect(box.scrollTop).toBe(0)
+    pointer('pointerup', x, HELD_AT)
   })
 
   it('puts back a drag cancelled with Escape', async () => {

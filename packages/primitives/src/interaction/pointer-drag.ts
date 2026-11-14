@@ -6,6 +6,7 @@
  */
 import * as Mount from 'foldkit/mount'
 import { Behavior, Capability, SlotView } from 'foldkit-mixins'
+import type { EdgeScroll } from '../dom/edge-scroll.js'
 import { PointerDrag as PointerDragMount, type DragFact } from '../dom/pointer-drag.js'
 
 export {
@@ -34,6 +35,12 @@ export interface BehaviorOptions<Slots, ParentMessage> {
   readonly targets?: { readonly attribute: string; readonly within: string }
   /** An attribute naming a part of what a drop lands on, which the place then carries. */
   readonly part?: string
+  /**
+   * Scroll the nearest scrolling ancestor while the drag is held near its
+   * edge (`{}` for the defaults), and report the place under the still pointer
+   * after each step. Absent: nothing scrolls. `Reorder` turns it on itself.
+   */
+  readonly edgeScroll?: EdgeScroll
   /** Turns each fact into the view's Message. */
   readonly toMessage: (fact: DragFact) => ParentMessage
 }
@@ -63,6 +70,7 @@ export function behavior<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) 
                 attribute: options.attribute,
                 ...(options.targets === undefined ? {} : { targets: options.targets }),
                 ...(options.part === undefined ? {} : { part: options.part }),
+                ...(options.edgeScroll === undefined ? {} : { edgeScroll: options.edgeScroll }),
               }),
               options.toMessage,
             ),
