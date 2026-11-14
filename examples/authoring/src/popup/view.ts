@@ -173,19 +173,17 @@ export const ChoicePopup = Popup.define((model, slots, h) =>
         ]
       : []),
   ]),
+).pipe(
+  Behavior.attachAll(PopupOverlay),
+  Behavior.attach(Navigates),
+  Behavior.attach(Selects),
+  Behavior.attach(Activates),
+  Behavior.attach(Opens),
+  Behavior.attach(Behaviors.Collection.behavior(Popup)({ item: 'option', items: itemsOf })),
+  // The view draws the click's `OnClick` and `Activates` draws Enter and Space: its own word, as no Behavior states it.
+  SlotView.attach(A11y.base({ listbox: [A11y.Name], option: [A11y.Activation] })),
+  Style.attach(PopupStyle),
+  A11y.conform(Listbox),
 )
-  // The overlay's Behaviors come as a list, which a typed `pipe` cannot follow, so they go first.
-  .pipe(...PopupOverlay.map(Behavior.attach))
-  .pipe(
-    Behavior.attach(Navigates),
-    Behavior.attach(Selects),
-    Behavior.attach(Activates),
-    Behavior.attach(Opens),
-    Behavior.attach(Behaviors.Collection.behavior(Popup)({ item: 'option', items: itemsOf })),
-    // The view draws the click's `OnClick` and `Activates` draws Enter and Space: its own word, as no Behavior states it.
-    SlotView.attach(A11y.base({ listbox: [A11y.Name], option: [A11y.Activation] })),
-    Style.attach(PopupStyle),
-    A11y.conform(Listbox),
-  )
 
 export { choiceOf }

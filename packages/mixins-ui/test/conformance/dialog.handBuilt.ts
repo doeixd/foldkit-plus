@@ -54,7 +54,7 @@ const view = Dialog.define(
       ...input.body,
     ]),
   { name: 'HandBuiltDialog' },
-).pipe(...policy.map(each => Behavior.attach(each)))
+).pipe(Behavior.attachAll(policy))
 
 export const mount = () => {
   const placed = Page.at(Stack, {

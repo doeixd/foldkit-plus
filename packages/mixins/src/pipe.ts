@@ -3,12 +3,13 @@ export const pipeSelf = (self: unknown, fns: ReadonlyArray<(value: any) => any>)
   fns.reduce((acc, fn) => fn(acc), self)
 
 /**
- * Typed steps first, to twenty as Effect's `pipe`, so a step that changes the
- * type (an attachment that supplies obligations) keeps the change. The
- * catch-all of `(self: Self) => Self` comes last, for a spread array of
- * transforms. A view's supplies are contravariant, so a step that supplies
- * less than `Self` (a `SlotView.detach`) fails the catch-all, and a call the
- * typed steps refuse is refused there too, at that step.
+ * Typed steps, to twenty as Effect's `pipe`, so a step that changes the type
+ * (an attachment that supplies obligations) keeps the change. There is no
+ * catch-all for a spread array: when the typed steps refuse a call, TypeScript
+ * reports the last overload it tried, and a catch-all would judge every step
+ * against the value `pipe` was called on, so an `A11y.conform` would list
+ * what the steps before it supplied. A list of Behaviors is one step,
+ * `Behavior.attachAll`.
  */
 export type Pipeable<Self> = {
   pipe(): Self
@@ -248,5 +249,4 @@ export type Pipeable<Self> = {
     st: (r: R) => S,
     tu: (s: S) => T,
   ): T
-  pipe(...fns: ReadonlyArray<(self: Self) => Self>): Self
 }

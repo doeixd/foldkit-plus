@@ -239,8 +239,8 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   Not for `popover` elements. `Layers.scrollLock(Slots)({ container })` and `Layers.hideOutside(Slots)({ container })`
   mount Foldkit's refcounted scroll lock and keyed inert set.
 - **One overlay policy:** `Overlay.modal` / `Overlay.nonModal` (or an explicit `Policy`) into
-  `Overlay.behaviors(Slots)<Model, Message, StackField>({ stack, layer, trigger?, id, policy })`, spread into the
-  view's pipe: dismiss marking, focus scope, and the scroll/inert mounts the policy keeps. Positioning stays
+  `Overlay.behaviors(Slots)<Model, Message, StackField>({ stack, layer, trigger?, id, policy })`, attached with
+  `Behavior.attachAll(list)` as one step of the view's pipe: dismiss marking, focus scope, and the scroll/inert mounts the policy keeps. Positioning stays
   per-widget (`Anchor.behavior`); presence stays CSS. See `examples/drawer`.
 - **Keep a floating panel inside the viewport:** `Placing.keepWithin(Slots)({ panel })` shifts left past the
   right edge and flips above when the bottom overflows with room overhead; `Placing.placeFor(rect, viewport)`

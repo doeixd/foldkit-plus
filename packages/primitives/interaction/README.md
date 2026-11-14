@@ -1023,7 +1023,8 @@ inert) and `Overlay.nonModal` (dismissed, focus restored, page usable), or
 an explicit `Policy`. `Overlay.behaviors(Slots)<Model, Message,
 StackField>({ stack, layer, trigger?, id, policy })` turns the value into
 the existing pieces — `DismissLayer` marking, `FocusScope`, and the scroll
-and inert mounts the policy keeps — to spread into the view's pipe. Nothing
+and inert mounts the policy keeps — attached as one step of the view's pipe
+with `Behavior.attachAll`. Nothing
 is reimplemented: the mounts are the shared implementation. Positioning
 stays per-widget (`Anchor.behavior` binds a floating element to an external
 id, a different shape), and presence stays CSS. The stack bundle is placed
@@ -1052,7 +1053,7 @@ const DrawerOverlay = Overlay.behaviors(DrawerSlots)<typeof DrawerModel.Type, Dr
 })
 const Drawer = SlotView.forMessages<DrawerMessage>()
   .define(DrawerSlots, (model: typeof DrawerModel.Type, slots, h) => h.div([], [/* … */]))
-  .pipe(...DrawerOverlay.map(Behavior.attach))
+  .pipe(Behavior.attachAll(DrawerOverlay))
 ```
 
 **`Placing`** keeps a floating panel inside the viewport, and can put it

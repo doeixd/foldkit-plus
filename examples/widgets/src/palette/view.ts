@@ -106,7 +106,7 @@ export const Palette = SlotView.forMessages<Message>()
     Behavior.attach(Ids),
     Behavior.attach(Keys),
     Behavior.attach(Picks),
-    ...PaletteOverlay.map(Behavior.attach),
+    Behavior.attachAll(PaletteOverlay),
     Style.attach(paletteStyle(PaletteSlots)),
   )
 

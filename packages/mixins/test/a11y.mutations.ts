@@ -8,7 +8,11 @@
  * unused; so do a bivariant `ProvidesRecord` (the annotations claiming more)
  * and a `ProvidedOn` reading `Obligation<string>` (the unknown obligation),
  * and a `ProvidesOf` reading nothing fails the inferred binder cases. A
- * `Pipeable` typed to eight steps fails the eleven-step case.
+ * `Pipeable` typed to eight steps fails the eleven-step case. The catch-all
+ * `pipe(...fns: (self: Self) => Self)` put back makes `pipeError.test.ts`
+ * read every obligation in the error (it compiles the fixture from disk, out
+ * of `pnpm mutate`'s reach), and `attachAll` stating nothing of its members
+ * fails the list cases.
  */
 const unit = ['packages/mixins/test/a11y.test.ts']
 

@@ -146,7 +146,7 @@ export const Menubar = SlotView.forMessages<Message>()
     Behavior.attach(ItemIds),
     Behavior.attach(Keys),
     Behavior.attach(Picks),
-    ...MenubarOverlay.map(Behavior.attach),
+    Behavior.attachAll(MenubarOverlay),
     Behavior.attach(
       Placing.placeAtTrigger(MenubarSlots)<Model, Message>({
         panel: 'popup',

@@ -72,8 +72,8 @@ export interface BehaviorsOptions<Input, Slots, StackField extends string> {
 }
 
 /**
- * The policy as behaviors, to spread into the view's pipe alongside the
- * widget's own. Conditional pieces are included or left out when the list
+ * The policy as behaviors, attached in one step with `Behavior.attachAll`
+ * beside the widget's own. Conditional pieces are included or left out when the list
  * is built — a static policy per composition — so no slot carries a mount
  * its policy never uses.
  */

@@ -32,6 +32,7 @@ Slots.define({ name: Slot.make({ capability, events, attributes, hidden, protect
       |
 SlotView.define(S, (input, slots, h) => h.x(slots.name.attrs(base), ...))
       .pipe(Style.attach(style), Behavior.attach(behavior))  -> new view (original unchanged)
+      (a list of Behaviors is one step: Behavior.attachAll(list); a spread is no step)
       |
 resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
 ```
@@ -60,8 +61,8 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   Behavior slot says what it meets with `provides`; `A11y.base`, `A11y.native(spec, { element })`
   and `A11y.delegated(spec, { to, provider })` are meta-only Mixins for the view's own word, a
   native element and another slot's Behavior, attached with `SlotView.attach`.
-  `A11y.conform(pattern)` in the view's `pipe` is a type error naming each missing
-  `'slot/obligation'` and, where the module loads, throws the first `a11y:unsatisfied-obligation`
+  `A11y.conform(pattern)` in the view's `pipe` is a type error naming each
+  `'slot/obligation'` the steps before it leave missing and, where the module loads, throws the first `a11y:unsatisfied-obligation`
   / `a11y:delegation-unmet` (all in `details.diagnostics`); it returns a new view whose `detach`
   and `replace` are checked again. `A11y.check(pattern, view)` is the same as data. The navigation
   primitives, `Selection`, `Press`, `ToggleState`, `Disclosure` and `FieldAssociation` state what

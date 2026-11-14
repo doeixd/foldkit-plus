@@ -1341,7 +1341,9 @@ What each call means:
   factory states what it supplies from the slot names it was given (`'listbox/navigation'`,
   `'option/focus-strategy'`), and a view's type collects them through `pipe`. Leave `Selection`
   out and the `conform` line is a type error naming `'option/activation' |
-  'option/state:aria-selected'`. A factory called with bare slots (`(slots)<Input, Message>`)
+  'option/state:aria-selected'`, and nothing the steps before it supply. A factory that hands
+  back several Behaviors (`Overlay.behaviors`) is one step, `Behavior.attachAll(list)`: `pipe`
+  takes typed steps only, so a spread array is refused. A factory called with bare slots (`(slots)<Input, Message>`)
   states nothing, so such a view is judged at run time only. A factory states only what its run
   time is sure to supply: `Selection` states activation for a literal `mode` of `'single'` or
   `'multiple'` with its click on (left out or `true`), and a slot name known only at run time (a

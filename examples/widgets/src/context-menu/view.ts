@@ -113,7 +113,7 @@ export const ContextMenu = SlotView.forMessages<Message>()
     Behavior.attach(Ids),
     Behavior.attach(Keys),
     Behavior.attach(Picks),
-    ...ContextMenuOverlay.map(Behavior.attach),
+    Behavior.attachAll(ContextMenuOverlay),
     Behavior.attach(
       Placing.placeAtTrigger(ContextMenuSlots)<Model, Message>({
         panel: 'popup',

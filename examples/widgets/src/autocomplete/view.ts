@@ -118,7 +118,7 @@ export const Autocomplete = SlotView.forMessages<Message>()
     Behavior.attach(Keys),
     Behavior.attach(Picks),
     Behavior.attach(Associated),
-    ...AutocompleteOverlay.map(Behavior.attach),
+    Behavior.attachAll(AutocompleteOverlay),
     Behavior.attach(Placing.keepWithin(AutocompleteSlots)({ panel: 'list' })),
     Style.attach(autocompleteStyle(AutocompleteSlots)),
   )
