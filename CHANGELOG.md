@@ -63,7 +63,9 @@ version changed; `pnpm` skips versions already in the registry.
   new. `foldkit-primitives`: `ListNavigation`, `RovingTabindex`,
   `TreeNavigation`, `GridNavigation`, `Selection` and `Press`, and
   `Behaviors.ToggleState`, `Disclosure` and `FieldAssociation`, supply theirs,
-  stated in their type on the binder overload. `foldkit-mixins-ui`:
+  stated in their type on the binder overload only where the run time is sure
+  to supply it (`A11y.ProvidedOn`: a literal slot name; `Selection`'s
+  activation for a literal `mode` that selects and its click on). `foldkit-mixins-ui`:
   `Patterns.Listbox` and `Patterns.Checkbox` name their obligations.
 
 - `foldkit-surface`: the law half of the contract graph (#537). A `Contract`

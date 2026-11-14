@@ -2,7 +2,10 @@
  * What each primitive says it supplies to `A11y.conform`:
  * `pnpm mutate packages/primitives/test/obligations.mutations.ts`. The binder
  * overloads' stated names were mutated by hand in `obligations.test-d.ts`
- * (Selection supplying activation with its click off left its case unused).
+ * (Selection supplying activation with its click off left its case unused;
+ * so did reading its `mode` as `Mode` (the `none` and `Selection.Args` cases),
+ * its `Click` as `boolean` (the click-off and `click: clicks` cases), and
+ * `A11y.ProvidedOn` taking a union of slots as one (the `someSlot` case)).
  */
 const unit = ['packages/primitives/test/obligations.test.ts']
 

@@ -137,19 +137,24 @@ export interface BehaviorOptions<
  * `aria-multiselectable` on the container in multiple mode; wires `OnClick`
  * to `Activated` unless told not to. A disabled item gets no click.
  */
-export const behavior = <Field extends string>(
+export const behavior = <Field extends string, const A extends Args = Args>(
   declared: Declared<typeof bundle, Field>,
-  args: Args,
+  args: A,
 ) => {
   function place<Slots, Input extends { readonly [K in Field]: Model }, ParentMessage>(
     bound: SlotView.Bound<Slots, Input, ParentMessage>,
-  ): <Item extends keyof Slots & string, Click extends boolean = boolean>(
+  ): <Item extends keyof Slots & string, Click extends boolean = true>(
     options: BehaviorOptions<Input, Slots, Item, Click>,
   ) => Behavior.NamedBehavior<
     Slots,
     Input,
     ParentMessage,
-    `${Item}/state:aria-selected` | ([Click] extends [false] ? never : `${Item}/activation`)
+    | A11y.ProvidedOn<Item, 'state:aria-selected'>
+    | ([Click] extends [true]
+        ? [A['mode']] extends ['single' | 'multiple']
+          ? A11y.ProvidedOn<Item, 'activation'>
+          : never
+        : never)
   >
   function place<Slots>(
     slots: SlotView.Unbound<Slots>,

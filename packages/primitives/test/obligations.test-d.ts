@@ -115,3 +115,56 @@ pipe(
 A11y.delegated({ toggle: [A11y.Navigation] }, { to: 'listbox', provider: Keys })
 // @ts-expect-error ListNavigation supplies its focus strategy on the item, not the container.
 A11y.delegated({ toggle: [A11y.FocusStrategy] }, { to: 'listbox', provider: Keys })
+
+// Supplied in the type only when the run time supplies it: a Selection that
+// selects nothing, or whose click or mode is not known until it runs, states
+// no activation.
+pipe(
+  bare,
+  Behavior.attach(Keys),
+  Behavior.attach(
+    Selection.behavior(Sel, { mode: 'none', allowEmpty: true })(Options)({
+      item: 'option',
+      items: itemsOf,
+    }),
+  ),
+  SlotView.attach(Named),
+  // @ts-expect-error option/activation: a Selection in mode `none` wires no click.
+  A11y.conform(Listbox),
+)
+declare const clicks: boolean
+pipe(
+  bare,
+  Behavior.attach(Keys),
+  Behavior.attach(
+    Selection.behavior(Sel, selArgs)(Options)({ item: 'option', items: itemsOf, click: clicks }),
+  ),
+  SlotView.attach(Named),
+  // @ts-expect-error option/activation: the click may be off.
+  A11y.conform(Listbox),
+)
+declare const someArgs: Selection.Args
+pipe(
+  bare,
+  Behavior.attach(Keys),
+  Behavior.attach(Selection.behavior(Sel, someArgs)(Options)({ item: 'option', items: itemsOf })),
+  SlotView.attach(Named),
+  // @ts-expect-error option/activation: the mode may be `none`.
+  A11y.conform(Listbox),
+)
+declare const someSlot: 'option' | 'toggle'
+pipe(
+  bare,
+  Behavior.attach(
+    ListNavigation.behavior(List, listArgs)(Options)({
+      container: 'listbox',
+      item: someSlot,
+      items: itemsOf,
+      text: () => '',
+    }),
+  ),
+  Behavior.attach(Picks),
+  SlotView.attach(Named),
+  // @ts-expect-error option/focus-strategy: the item slot is one of two, known only at run time.
+  A11y.conform(Listbox),
+)

@@ -1329,7 +1329,11 @@ What each call means:
   `'option/focus-strategy'`), and a view's type collects them through `pipe`. Leave `Selection`
   out and the `conform` line is a type error naming `'option/activation' |
   'option/state:aria-selected'`. A factory called with bare slots (`(slots)<Input, Message>`)
-  states nothing, so such a view is judged at run time only.
+  states nothing, so such a view is judged at run time only. A factory states only what its run
+  time is sure to supply: `Selection` states activation for a literal `mode` of `'single'` or
+  `'multiple'` with its click on (left out or `true`), and a slot name known only at run time (a
+  union, `string`) states nothing, through `A11y.ProvidedOn`. The type may then refuse a view the
+  run time would pass; call that factory with bare slots and it is judged at run time alone.
 - At run time `conform` runs `A11y.check(pattern, view)` once, where the module loads, and throws
   a `DiagnosticError` for the first finding (`a11y:unsatisfied-obligation`, with `slot` and
   `details.obligation`; `a11y:delegation-unmet`, naming the provider), every finding in

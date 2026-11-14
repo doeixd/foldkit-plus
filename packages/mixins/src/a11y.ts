@@ -223,6 +223,20 @@ export interface Supplies<Provides extends string> {
   readonly [ProvidesTypeId]?: ProvidesRecord<Provides>
 }
 
+type OneOf<T, All = T> = T extends unknown ? ([All] extends [T] ? true : false) : never
+
+/**
+ * `` `${Slot}/${Obligation}` `` when `Slot` is one known slot name, for a
+ * factory's binder overload to state what it supplies. A slot chosen at run
+ * time (a union, `string`) states nothing: the type cannot say which slot the
+ * value will name, so only `conform`'s run-time check can judge it.
+ */
+export type ProvidedOn<Slot extends string, Obligation extends string> = string extends Slot
+  ? never
+  : OneOf<Slot> extends true
+    ? `${Slot}/${Obligation}`
+    : never
+
 type ObligationNames<Requirement> = Requirement extends {
   readonly obligations: ReadonlyArray<infer Owed>
 }

@@ -317,7 +317,7 @@ export const behavior = <Field extends string>(
     Slots,
     Input,
     ParentMessage,
-    `${Container}/navigation` | `${Item}/focus-strategy`
+    A11y.ProvidedOn<Container, 'navigation'> | A11y.ProvidedOn<Item, 'focus-strategy'>
   >
   function place<Slots>(
     slots: SlotView.Unbound<Slots>,

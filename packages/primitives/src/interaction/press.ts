@@ -252,7 +252,7 @@ export const behavior = <Field extends string>(declared: Declared<typeof bundle,
     bound: SlotView.Bound<Slots, Input, ParentMessage>,
   ): <Target extends keyof Slots & string>(
     options: BehaviorOptions<Input, Slots, Target>,
-  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage, `${Target}/activation`>
+  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage, A11y.ProvidedOn<Target, 'activation'>>
   function place<Slots>(
     slots: SlotView.Unbound<Slots>,
   ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
