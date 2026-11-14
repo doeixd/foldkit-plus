@@ -32,8 +32,8 @@ export default [
     edits: [
       {
         file: '../src/write.ts',
-        find: 'Option.match(inState(target, step.after), {',
-        replace: 'Option.match(inState(target, step.before), {',
+        find: 'holds: inState(target, step.after)',
+        replace: 'holds: inState(target, step.before)',
       },
     ],
     tests: [refine],
@@ -130,14 +130,43 @@ export default [
     tests: [refine],
   },
   {
-    name: 'an undecidable becomes accepted',
+    name: 'an undecidable becomes accepted with no postcondition',
+    edits: [
+      { file: '../src/write.ts', find: 'Undecided: enforced,', replace: 'Undecided: () => write,' },
+    ],
+    tests: [refine, laws],
+  },
+  {
+    name: 'the postcondition judged over the row before',
     edits: [
       {
         file: '../src/write.ts',
-        find: 'Undecided: ({ reason }) => undecided(reason),',
-        replace: 'Undecided: () => undefined,',
+        find: 'predicate: target.after as Predicate,',
+        replace: 'predicate: target.predicate as Predicate,',
       },
     ],
     tests: [refine],
+  },
+  {
+    name: "a write's postcondition left out of its pairs",
+    edits: [
+      {
+        file: '../src/laws.ts',
+        find: '[...invariantsOf(entity), ...ensured]',
+        replace: 'invariantsOf(entity)',
+      },
+    ],
+    tests: [laws],
+  },
+  {
+    name: 'an enforced becomes not reported',
+    edits: [
+      {
+        file: '../src/laws.ts',
+        find: 'if (Option.isSome(ensures) && Option.isSome(becomes)) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests: [laws],
   },
 ]

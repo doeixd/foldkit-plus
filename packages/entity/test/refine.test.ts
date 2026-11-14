@@ -179,15 +179,42 @@ describe('becomes', () => {
     expect(() => Write.update(Feature, { id: 'id', becomes: Featured })).toThrow(/it leaves/)
   })
 
-  it('needs a writer that enforces it where enumeration cannot decide', () => {
+  it("is the write's postcondition where enumeration cannot decide", () => {
     const Restock = Entity.input(
       Item,
       Schema.Struct({ id: Schema.String, quantity: Schema.Number }),
       { quantity: Entity.unmapped },
     )
-    expect(() =>
-      Write.update(Restock, { id: 'id', increment: { stock: 'quantity' }, becomes: InStock }),
-    ).toThrow(/stock is incremented.*needs a writer that enforces it/)
+    const Sell = Write.update(Restock, {
+      id: 'id',
+      increment: { stock: 'quantity' },
+      becomes: InStock,
+    })
+    const ensured = Write.ensured(Sell)
+    expect(Sell.ensures).toEqual(Option.some(ensured))
+    expect(ensured).toMatchObject({
+      id: 'becomes:InStock',
+      entity: 'Item',
+      predicate: InStock.after,
+      path: ['stock'],
+      before: [],
+      after: ['stock'],
+    })
+    // Judged over the row the write leaves, as an invariant of that write alone.
+    expect(Entity.judgeAgainst([ensured], { before: { stock: 5 }, after: { stock: 0 } })).toEqual({
+      _tag: 'Invalid',
+      failures: [ensured],
+    })
+    expect(Entity.judgeAgainst([ensured], { before: { stock: 0 }, after: { stock: 1 } })).toEqual({
+      _tag: 'Valid',
+    })
+  })
+
+  it('ensures nothing where it is proved, or not declared', () => {
+    const Publish = Write.update(StatusInput('published'), { id: 'id', becomes: Published })
+    expect(Publish.ensures).toEqual(Option.none())
+    expect(() => Write.ensured(Publish)).toThrow(/ensures nothing/)
+    expect(Write.update(StatusInput('draft'), { id: 'id' }).ensures).toEqual(Option.none())
   })
 
   it('on an insert, is proved over what the insert sets', () => {

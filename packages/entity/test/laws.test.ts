@@ -53,7 +53,7 @@ const Draft = Entity.refine(Product, 'Draft', { status: 'draft' })
 const Published = Entity.refine(Product, 'Published', { status: 'published' })
 Entity.refine(Product, 'Archived', { status: 'archived' })
 /** Over a number: never enumerated, and no cost to the arrows between the others. */
-Entity.refine(Product, 'InStock', ({ row }) => Expr.gt(row.stock, 0))
+const InStock = Entity.refine(Product, 'InStock', ({ row }) => Expr.gt(row.stock, 0))
 
 const status = (value: 'draft' | 'published' | 'archived') =>
   Entity.input(Product, Schema.Struct({ id: Schema.String, status: Schema.Literal(value) }))
@@ -360,6 +360,33 @@ describe('Laws.check: states', () => {
     expect(findings(Laws.check({ writes: [Publish] }))).toContainEqual({
       ...Finding.Unreached({ entity: 'Product', state: 'InStock' }),
     })
+  })
+
+  it('reports a becomes enumeration cannot decide as enforced, and judges its postcondition', () => {
+    const SellInStock = {
+      name: 'SellInStock',
+      write: Write.update(Sell.write.input, {
+        id: 'id',
+        increment: { stock: 'quantity' },
+        becomes: InStock,
+      }),
+    }
+    const report = Laws.check({ writes: [SellInStock] })
+    expect(report.findings.filter(Finding.$is('Enforced')).map(each => ({ ...each }))).toEqual([
+      { ...Finding.Enforced({ entity: 'Product', write: 'SellInStock', to: 'InStock' }) },
+    ])
+    // The postcondition can refuse the sale, as an invariant can: it is a pair of that write alone.
+    expect(verdict(report, 'SellInStock', 'becomes:InStock')).toEqual({
+      _tag: 'Undecided',
+      reason: 'stock is incremented',
+    })
+    expect(Laws.show(report).split('\n').slice(0, 2)).toEqual([
+      'Product',
+      '  * -> InStock   SellInStock   enforced',
+    ])
+    expect(Laws.check({ writes: [Sell] }).pairs.map(pair => pair.invariant)).not.toContain(
+      'becomes:InStock',
+    )
   })
 
   it('prints the report', () => {
