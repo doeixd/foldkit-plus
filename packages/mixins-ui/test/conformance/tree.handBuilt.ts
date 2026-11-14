@@ -106,3 +106,9 @@ export const mount = (nodes: ReadonlyArray<Node>, direction: 'ltr' | 'rtl') => {
     }),
   )
 }
+
+/** The tree as a server draws it: every parent shut. */
+export const served = (nodes: ReadonlyArray<Node>, h: HtmlBuilder<Message>) =>
+  view({ nav: { current: null, toggled: [] }, nodes, direction: 'ltr' }, h)
+
+export type { Message }

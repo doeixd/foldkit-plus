@@ -115,3 +115,18 @@ export const mount = () => {
     }),
   )
 }
+
+/** The pair as a server draws them: the first checked. */
+export const served = (h: HtmlBuilder<Message>) => {
+  const idle = { pressed: false, pointerId: null, key: null, suppressing: null, generation: 0 }
+  const model = { subscribe: idle, locked: idle, isSubscribed: true, isLocked: false }
+  return h.div(
+    [],
+    [
+      subscribeView({ ...model, mine: 'isSubscribed' }, h),
+      lockedView({ ...model, mine: 'isLocked' }, h),
+    ],
+  )
+}
+
+export type { Message }

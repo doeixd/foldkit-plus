@@ -169,3 +169,24 @@ export const mount = (
     }),
   )
 }
+
+/** The listbox as a server draws it: the third option chosen, nothing yet focused. */
+export const served = (
+  options: ReadonlyArray<{
+    readonly id: string
+    readonly label: string
+    readonly disabled?: boolean
+  }>,
+  h: HtmlBuilder<Message>,
+) =>
+  view('vertical')(
+    {
+      list: { current: null, query: '', generation: 0 },
+      selection: { selected: [options[2]!.id], anchor: null },
+      options,
+      direction: 'ltr',
+    },
+    h,
+  )
+
+export type { Message }

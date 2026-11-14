@@ -163,3 +163,17 @@ export const mount = (tabs: ReadonlyArray<Tab>, direction: 'ltr' | 'rtl') => {
     }),
   )
 }
+
+/** The tabs as a server draws them: the third tab chosen. */
+export const served = (tabs: ReadonlyArray<Tab>, h: HtmlBuilder<Message>) =>
+  view(
+    {
+      roving: { current: null },
+      selection: { selected: [tabs[2]!.id], anchor: tabs[2]!.id },
+      tabs,
+      direction: 'ltr',
+    },
+    h,
+  )
+
+export type { Message }
