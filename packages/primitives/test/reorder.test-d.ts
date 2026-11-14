@@ -107,6 +107,15 @@ Reorder.behavior(Rows)(List)({
 })
 
 Reorder.behavior(Rows)(List)({
+  container: 'list',
+  item: 'row',
+  handle: 'grip',
+  items: input => input.ids,
+  // @ts-expect-error no chord would pick anything up.
+  grab: [],
+})
+
+Reorder.behavior(Rows)(List)({
   // @ts-expect-error a container the contract does not publish.
   container: 'nope',
   item: 'row',

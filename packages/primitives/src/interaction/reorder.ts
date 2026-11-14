@@ -390,7 +390,7 @@ export interface KeyOptions<Input> {
    * space: give it a chord of its own (`[Keys.chord('Enter', { alt: true })]`).
    * While an item is held, Space, Enter and these drop it.
    */
-  readonly grab?: ReadonlyArray<Behaviors.Keys.Chord>
+  readonly grab?: readonly [Behaviors.Keys.Chord, ...ReadonlyArray<Behaviors.Keys.Chord>]
 }
 
 const ARROWS: Readonly<Record<Orientation, ReadonlyArray<Behaviors.Keys.NamedKey>>> = {
