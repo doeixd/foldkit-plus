@@ -4,7 +4,7 @@ An audit of the `ui-sdk-work` branch as it stood at `c28ab2629` (2026-11-13),
 covering issues #531 and #551 to #558, the plan in
 `docs/ui-sdk-implementation-plan.md` (branch `ui-sdk-implementation-plan`), the
 matrix in `docs/ui-sdk-core-review.md` (branch `ui-sdk-core-review`) and the
-ledger in `docs/ui-sdk-audit-ledger.md`. Each finding has a status, updated as
+ledger in `docs/design/ui-sdk-audit-LEDGER.md`. Each finding has a status, updated as
 it is fixed.
 
 ## Checks at the audited commit
