@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-remote-domain/imported`: `Imported.mutation(Api, 'Command', { entity,
+  footprint?, refusal? })` declares a Domain command nobody wrote a `Write` for as
+  a mutation, `Imported.describe(Api, { views, commands, fields? })` lists what
+  the bindings import (each command with JSON Schemas of its input and reply,
+  its rejections and the form key each shows beside, and a `Derived`, `Declared`
+  or `Unknown` footprint; each View with its Entity), and `Imported.show` prints
+  it as Markdown (#547). `foldkit-remote`: a `MutationDescriptor` may carry a
+  `footprint`, which `reaches` and `explain`'s `reachedBy` read as the fields it
+  writes when `Declared`, and as no word when `Unknown`. `foldkit-entity`:
+  `Footprint.declared` takes `reads` and `writes` of different fields.
+
 - `foldkit-plus`: `npx foldkit-plus laws <module>[#export]` prints
   `Laws.show` of a module's `LawReport`, or of the `{ writes }` that
   `Laws.check` takes (#536). It loads the module through the project's `tsx`,
