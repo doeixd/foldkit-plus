@@ -126,6 +126,12 @@ export interface EditorModel<FormModel> {
    * only what changed.
    */
   readonly filledWith: Option.Option<Readonly<Record<string, unknown>>>
+  /**
+   * The members the invariants read beside the form's that the form is set
+   * over, none until it is set over the row: one arriving later sets it over
+   * the row again.
+   */
+  readonly judged: Option.Option<ReadonlyArray<string>>
 }
 
 /**
@@ -899,6 +905,7 @@ export const Crud = {
       settledFor: Option.none(),
       refusedFor: Option.none(),
       filledWith: Option.none(),
+      judged: Option.none(),
     }
     const Model = Schema.Struct({
       form: form.bundle.Model,
@@ -911,6 +918,7 @@ export const Crud = {
       settledFor: Schema.OptionFromNullOr(Schema.String),
       refusedFor: Schema.OptionFromNullOr(Schema.String),
       filledWith: Schema.OptionFromNullOr(Schema.Record(Schema.String, Schema.Unknown)),
+      judged: Schema.OptionFromNullOr(Schema.Array(Schema.String)),
     }) as unknown as Schema.Codec<Model, unknown>
 
     // The editor's Messages are the form's own: it adds state around the form,
@@ -945,15 +953,17 @@ export const Crud = {
       },
     })
 
-    // What is loaded: what the form writes, what its invariants read beside it
-    // (so the form judges them over the row), and what `locks` reads; the form
-    // fills from none of those.
-    const current = Entity.selectFor(form.input, {
-      also: { ...Entity.judgedBy(form.input), ...locks?.select },
-    })
-    /** The row a loaded value describes, as the form judges invariants over it. */
-    const rowOf = (value: Readonly<Record<string, unknown>>) =>
-      Entity.rowFrom(form.input.entity, value)
+    // What is loaded and filled from: what the form writes, and what `locks` reads.
+    const current = Entity.selectFor(form.input, { also: locks?.select })
+    // What the invariants read beside it, so the form judges them over the row:
+    // each member in a Selection of its own, since a Read rule may withhold one
+    // from this reader, which settles that Selection unavailable and leaves the
+    // form, and the other members, alone.
+    const judgedReads = Object.keys(Entity.judgedBy(form.input))
+      .filter(member => locks === undefined || !Object.hasOwn(locks.select, member))
+      .map(
+        member => [member, Entity.select(form.input.entity, { [member]: true } as never)] as const,
+      )
     type Row = (typeof current)['schema']['Type']
     /** The member each form key writes: a field's own key, or the relation it points. */
     const writes: ReadonlyArray<readonly [keyof Fields & string, string]> = Object.entries(
@@ -992,6 +1002,37 @@ export const Crud = {
           return mode === 'edit' && target !== null
             ? data.get(current, target).read(root)
             : undefined
+        }
+
+        /**
+         * Each member the invariants read that this reader has been sent. One
+         * withheld is left out, so an invariant reading it stays undecided
+         * rather than judged on a value the reader does not have.
+         */
+        const judgedHeld = (root: Root, target: string): Readonly<Record<string, unknown>> =>
+          Object.fromEntries(
+            judgedReads.flatMap(([member, selection]) =>
+              Option.toArray(RemoteData.held(data.get(selection, target).read(root))).map(
+                value => [member, (value as Readonly<Record<string, unknown>>)[member]] as const,
+              ),
+            ),
+          )
+        /**
+         * The form set over the row a loaded value describes, with the judged
+         * members held beside it, and which those were.
+         */
+        const overOf = (
+          root: Root,
+          formModel: Model['form'],
+          value: Readonly<Record<string, unknown>>,
+        ): Pick<Model, 'form' | 'judged'> => {
+          const { target } = slice.get(root)
+          const held = target === null ? {} : judgedHeld(root, target)
+          return {
+            form: form.over(formModel, Entity.rowFrom(form.input.entity, { ...value, ...held }))
+              .model,
+            judged: Option.some(Object.keys(held)),
+          }
         }
 
         /**
@@ -1048,9 +1089,29 @@ export const Crud = {
           const values = Entity.valuesFor(form.input, value) as Partial<Value>
           return slice.set(root, {
             ...editor,
-            form: form.over(form.fill(editor.form, values).model, rowOf(value)).model,
+            form: form.fill(editor.form, values).model,
             filled: true,
             filledWith: Option.some(values),
+          })
+        }
+
+        /**
+         * Once the form is filled, it is set over the row it edits, and set over
+         * it again when a member the invariants read arrives later (the value
+         * was already held, the member not).
+         */
+        const overLoaded = (root: Root): Root => {
+          const editor = slice.get(root)
+          const { target } = editor
+          if (!editor.filled || target === null) return root
+          const held = Object.keys(judgedHeld(root, target))
+          const over = Option.exists(editor.judged, judged =>
+            held.every(member => judged.includes(member)),
+          )
+          if (over) return root
+          return Option.match(known(root), {
+            onNone: () => root,
+            onSome: value => slice.set(root, { ...editor, ...overOf(root, editor.form, value) }),
           })
         }
 
@@ -1134,15 +1195,15 @@ export const Crud = {
             settledFor,
             filledWith,
             // The row the form edits is now the one its save left.
-            form: Option.match(known(root), {
-              onNone: () => answered,
-              onSome: value => form.over(answered, rowOf(value)).model,
+            ...Option.match(known(root), {
+              onNone: () => ({ form: answered }),
+              onSome: value => overOf(root, answered, value),
             }),
           })
         }
 
         const sync: Update.Step<Root, never, never> = root => ({
-          model: settled(refused(filledOf(root))),
+          model: settled(refused(overLoaded(filledOf(root)))),
         })
 
         /** Why the server refused the last save, when it refused it as data. */
@@ -1257,13 +1318,30 @@ export const Crud = {
 
           /**
            * For `Data.subscriptions`: while an id is being edited, what it loads is
-           * a requirement like any Surface's, so Remote fetches and retains it.
+           * a requirement like any Surface's, so Remote fetches and retains it:
+           * the row it fills from, and each member the invariants read beside it.
            */
           active: data.active<RemoteData<Row>>(name, root => {
             const { mode, target } = slice.get(root)
-            return mode === 'edit' && target !== null
-              ? Option.some(data.get(current, target))
-              : Option.none()
+            if (mode !== 'edit' || target === null) return Option.none()
+            const row = data.get(current, target)
+            // It reads as the row; what it requires is the row and the judged members.
+            const required = Projection.struct({
+              row,
+              ...Object.fromEntries(
+                // Keyed apart from `row`, which a member may be called.
+                judgedReads.map(([member, selection]) => [
+                  `judged ${member}`,
+                  data.get(selection, target),
+                ]),
+              ),
+            })
+            return Option.some(
+              Projection.fromReader(row.Model, row.read, {
+                dependencies: required.dependencies,
+                metadata: required.metadata,
+              }),
+            )
           }),
 
           sync,

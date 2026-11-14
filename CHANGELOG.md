@@ -29,6 +29,9 @@ version changed; `pnpm` skips versions already in the registry.
   `Entity.judgedBy(input)` names what to load beside the input; `Crud.editor`
   loads it and sets its form over the loaded row, so a quote form setting only
   the discount loads `approvedBy` and refuses a discount over 15% as it is typed.
+  It reads each such member in a Selection of its own: one a Read rule
+  withholds from the reader is left out of the row, its invariant undecided,
+  and the form still fills.
 
 - `foldkit-mixins`: `Behaviors.Keys` gives a slot's `keydown` one owner built
   from named routes (`chord`, `printable`, `where`, `route`, `first`,

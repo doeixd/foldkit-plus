@@ -408,7 +408,14 @@ setting only `discountPct` loads `approvedBy` too and says "A discount over 15%
 needs an approval" as 20 is typed, with nothing sent and the status still
 `Editing`. The form, `Data.can` and the check `Data.mutate` makes before
 sending judge one row and agree; the last stays for a row that moved since the
-form was filled. A refusal of a key the
+form was filled. Each such member is read apart from the keys the form fills
+from, so a reader a Read rule withholds one from (`approvedBy` from a sales
+rep) still edits: the member is left out of the row, the invariant reading it
+stays undecided, and the server judges it at the save. A member shown through
+Guard's `redact` arrives as its replacement value, which Remote cannot tell
+from the real one, so the form judges over the replacement: redact a member an
+invariant reads only with a value that judges as the server would, or omit it.
+A refusal of a key the
 form does not have, or of an invariant whose path names none, is left to the
 status and `saveError`.
 

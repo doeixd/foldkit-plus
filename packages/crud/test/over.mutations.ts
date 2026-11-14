@@ -12,17 +12,37 @@ const edit = (name: string, find: string, replace: string) => ({
 export default [
   edit(
     'what the invariants read is not loaded',
-    'also: { ...Entity.judgedBy(form.input), ...locks?.select },',
-    'also: locks?.select,',
+    '`judged ${member}`,\n                  data.get(selection, target),',
+    '`judged ${member}`,\n                  data.get(current, target),',
+  ),
+  edit(
+    'what the invariants read is loaded in the Selection the form fills from',
+    'const current = Entity.selectFor(form.input, { also: locks?.select })',
+    'const current = Entity.selectFor(form.input, { also: { ...Entity.judgedBy(form.input), ...locks?.select } })',
+  ),
+  edit(
+    'a withheld member is judged as null',
+    'Entity.rowFrom(form.input.entity, { ...value, ...held })',
+    'Entity.rowFrom(form.input.entity, { ...Object.fromEntries(judgedReads.map(([member]) => [member, null])), ...value, ...held })',
   ),
   edit(
     'the form is not set over the row it is filled from',
-    'form: form.over(form.fill(editor.form, values).model, rowOf(value)).model,',
-    'form: form.fill(editor.form, values).model,',
+    'onSome: value => slice.set(root, { ...editor, ...overOf(root, editor.form, value) }),',
+    'onSome: () => root,',
+  ),
+  edit(
+    'a judged member arriving after the fill is not taken in',
+    'const over = Option.exists(editor.judged, judged =>',
+    'const over = Option.isSome(editor.judged) || Option.exists(editor.judged, judged =>',
+  ),
+  edit(
+    'the judged members the form is over are not recorded, so every sync sets it over again',
+    'judged: Option.some(Object.keys(held)),',
+    'judged: Option.none(),',
   ),
   edit(
     'the form stays over the row before its own save',
-    'onSome: value => form.over(answered, rowOf(value)).model,',
-    'onSome: () => answered,',
+    'onSome: value => overOf(root, answered, value),',
+    'onSome: () => ({ form: answered }),',
   ),
 ]

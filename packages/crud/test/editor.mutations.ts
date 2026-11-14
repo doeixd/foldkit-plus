@@ -102,7 +102,13 @@ export default [
   },
   {
     name: 'what locks read is not loaded',
-    edits: [{ file: editor, find: '...locks?.select },', replace: '},' }],
+    edits: [
+      {
+        file: editor,
+        find: 'Entity.selectFor(form.input, { also: locks?.select })',
+        replace: 'Entity.selectFor(form.input)',
+      },
+    ],
     tests,
   },
   {

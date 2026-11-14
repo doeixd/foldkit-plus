@@ -76,6 +76,8 @@ const update = QuoteEditor.after(
 
 type Row = Readonly<Record<string, unknown>>
 let held: Row = {}
+/** The fields a Read rule withholds from this reader: answered without, and settled unavailable. */
+let withheld: ReadonlySet<string> = new Set()
 /** The fields each read asked for, and the writes sent. */
 let asked: Array<ReadonlyArray<string>> = []
 let sent: Array<unknown> = []
@@ -87,11 +89,21 @@ const Client = Layer.succeed(RemoteClient, {
         asked.push(request.fields)
         // A server answers what was asked, and nothing else.
         const values = Object.fromEntries(
-          request.fields.filter(field => Object.hasOwn(held, field)).map(f => [f, held[f]]),
+          request.fields
+            .filter(field => Object.hasOwn(held, field) && !withheld.has(field))
+            .map(f => [f, held[f]]),
         )
         return { entity: 'Quote', id: request.id, values }
       }),
-    })),
+    })).pipe(
+      Effect.map(answer => ({
+        ...answer,
+        settled: batch.requests.flatMap(request => {
+          const fields = request.fields.filter(field => withheld.has(field))
+          return fields.length === 0 ? [] : [{ entity: 'Quote', id: request.id, fields }]
+        }),
+      })),
+    ),
   query: () => Effect.die('no queries'),
   mutate: request =>
     Effect.sync(() => {
@@ -105,6 +117,7 @@ const Client = Layer.succeed(RemoteClient, {
 beforeEach(() => {
   asked = []
   sent = []
+  withheld = new Set()
 })
 
 const initial: Model = { remote: Remote.initial, editor: Editor.bundle.init().model }
@@ -208,5 +221,43 @@ describe('An editor over a quote the form sets only the discount of', () => {
           error: { refusal: { _tag: 'Invalid', rule: each.rule } },
         })
     }
+  })
+})
+
+describe('An editor for a reader a Read rule withholds a member an invariant reads from', () => {
+  it('fills the form, judges what it was sent, and leaves the withheld rule undecided', async () => {
+    withheld = new Set(['approvedBy'])
+    const model = typed(await opened(draft), '20')
+    expect(EditForm.field(model.editor.form, 'id')).toMatchObject({ value: 'q1' })
+    // Over a missing approval the rule is undecided: the server judges it.
+    expect(discount(model)._tag).toBe('Valid')
+    expect(form(model, EditForm.Message.Submitted()).commands).toHaveLength(1)
+    // The members it was sent are still judged.
+    expect(discount(typed(await opened(confirmed), '12'))).toMatchObject({
+      _tag: 'Invalid',
+      errors: ["A confirmed quote's price is fixed"],
+    })
+  })
+
+  it('sets the form over a judged member that arrives after it was filled', async () => {
+    held = draft
+    const open = update(initial, Message.Opened({ id: 'q1' })).model
+    // The row the form fills from is already held, from a list say.
+    const listed = await Effect.runPromise(
+      Data.prefetch(open, Data.get(Editor.selection, 'q1')).pipe(Effect.provide(Client)),
+    )
+    const filled = QuoteEditor.sync(listed).model
+    expect(discount(typed(filled, '20'))._tag).toBe('Valid')
+    const projection = Option.getOrThrow(QuoteEditor.active.projectionOf(filled))
+    const arrived = await Effect.runPromise(
+      Data.prefetch(filled, projection).pipe(Effect.provide(Client)),
+    )
+    const judged = QuoteEditor.sync(arrived).model
+    expect(discount(typed(judged, '20'))).toMatchObject({
+      _tag: 'Invalid',
+      errors: ['A discount over 15% needs an approval'],
+    })
+    // Once over every member it was sent, a sync with nothing new changes nothing.
+    expect(QuoteEditor.sync(judged).model).toBe(judged)
   })
 })
