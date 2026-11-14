@@ -359,7 +359,11 @@ attaches it to a container slot. On insert the container focuses
 (default), Tab from the last tabbable wraps to the first, Shift+Tab from the
 first wraps to the last, and focus that lands outside comes straight back; Tab
 in the middle is the browser's. On unmount, with `restore` (default), focus
-returns to the element that had it, if it is still in the document. A native
+returns to the element that had it; when that is gone (removed by the action
+the overlay was opened for, or drawn again), it goes by the rules of
+[`FocusReturn`](../dom/README.md): an element with the same `id`, the opener's
+`FocusRecovery` steps, the layer below, the page's first tabbable element, never
+`body` while one of those can take it. A native
 `<dialog>` does all of this itself; this is for a custom overlay, a menu, or a
 command palette.
 

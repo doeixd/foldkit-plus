@@ -15,6 +15,12 @@ version changed; `pnpm` skips versions already in the registry.
   error, and refused where given for a record typed by `string`. A list two
   entries read is held stale once left unless both policies age it.
   `RemoteWiring`'s `subscriptions` is no longer optional (#236).
+- `foldkit-primitives`: `FocusReturn()`, a Mount (`foldkit-primitives/dom`) that gives an
+  overlay whose own restoring is not ours a way back when its opener is gone as it closes,
+  and `Dialog.focusReturn` in `foldkit-mixins-ui` attaching it to the panel. Focus goes to an
+  element with the opener's `id`, the opener's `FocusRecovery` steps for its slot, the layer
+  below (`LayerStack.below`), then the page's first tabbable element, and is left alone
+  when the user moved it (audit O2, #558).
 - `foldkit-surface`: a `Derived` as an entry of `Projection.struct`. `Projection.derive(on,
   derive, { Model })`, given the Schema of its value, returns a `ModeledDerived`: the
   struct reads its memoized value, declares its paths, plans nothing for it and
@@ -475,6 +481,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- `foldkit-primitives`: `FocusScope`'s restore, with the element that had focus gone, goes by
+  the rules of `FocusReturn` instead of leaving focus on `body`; the element that had focus
+  is read from the last elements focused, not only `activeElement` at mount.
 - **Breaking:** `foldkit-crud`: `Crud.list`'s `live` takes Remote's live read,
   not a flag: write `live: liveQuery` (from `foldkit-remote/live`) where
   `live: true` was. Crud imported `liveQuery` itself for the flag, so every

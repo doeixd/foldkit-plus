@@ -23,6 +23,7 @@ wraps.
 | `FocusScope(options)` | Mount | nothing | `{ contain?, restore?, initialFocus? }` |
 | `FollowTabStop` | Mount | nothing | |
 | `FocusRecovery({ fallback })` | Mount | nothing | `fallback`: steps per part slot |
+| `FocusReturn()` | Mount | nothing | none |
 | `ScrollLock`, `HideOutside` | Mounts | nothing | |
 | `PointerPosition({ focus? })` | Mount | `PointerPressed`, `PointerMoved`, `PointerReleased` | `focus`: a selector |
 | `keepScroll(options?)` | entry | nothing | |
@@ -95,8 +96,9 @@ overlay. On insert the container focuses `initialFocus`, else its first
 tabbable descendant, else itself. With `contain` (default), Tab from the last
 tabbable wraps to the first, Shift+Tab from the first wraps to the last, and
 focus that lands outside comes straight back; Tab in the middle is the
-browser's. On unmount, with `restore` (default), focus returns to the element
-that had it, if still in the document. Scopes and `HideOutside` share one
+browser's. On unmount, with `restore` (default), focus goes back by the rules
+under `FocusReturn` below: the element that had it, else a place chosen by
+rule, never `body` while the page has an element that can take it. Scopes and `HideOutside` share one
 stack of layers, in the order they opened, and the topmost owns containment:
 a scope with a layer open above it contains nothing, so a second dialog drawn
 beside the first (as a dialog portaled to the body is) keeps its focus, and
@@ -122,6 +124,29 @@ to its steps (`same`, `next`, `previous`, `parent`, `stop`, `{ part }`,
 `-parent`) are drawn by its Behavior. It never acts on focus that moved
 elsewhere. The Behavior form and the steps are in
 [`interaction`](../interaction/README.md).
+
+**`FocusReturn()`** gives an overlay whose own restoring is not ours (a native
+`<dialog>` returns to its opener, and to `body` when that is gone) a way back.
+It reads what had focus before the overlay took it when the overlay mounts,
+focuses nothing, and, when the overlay unmounts with focus lost (on `body`, or
+inside the overlay), focuses the first of these that can take it:
+
+1. the opener itself;
+2. an element with the opener's `id`, for an opener drawn again as a new element;
+3. when the opener was a part of a `FocusRecovery` owner, that owner's
+   `fallback` steps for its slot (`same`, `next`, `previous`, `parent`, `stop`,
+   `{ part }`, `owner`), read against the parts as they stand then. Its
+   neighbours are the ones seen when the overlay opened: a row added while the
+   overlay was open is not one;
+4. the layer below, the one opened just before this one and still open: its
+   first tabbable element, else itself;
+5. the first tabbable element of the page.
+
+Focus the user moved elsewhere is left alone. `FocusScope` restores by the same
+rules, always. `FocusReturn` is a layer of the stack while mounted, and takes
+the opener from the last elements that had focus, not only `activeElement`,
+which a Command that shows a dialog has usually moved already. It is one
+document-level `focusin` listener, installed when the module loads.
 
 **`ScrollLock`** locks the document's scroll while its element is mounted,
 refcounted so nested overlays release together, with Foldkit's iOS handling;

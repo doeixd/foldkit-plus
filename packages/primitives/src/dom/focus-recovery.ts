@@ -58,6 +58,129 @@ const lost = (focused: HTMLElement): boolean => {
   return active === focused && !canTakeFocus(focused)
 }
 
+/** The part holding `focused` for `owner`, seen as focus recovery needs it, or `undefined` outside any. */
+const holdOf = (owner: Element, focused: HTMLElement): Held | undefined => {
+  // Focus inside a nested owner's part is, for this owner, in the part holding it.
+  let part = focused.closest(`[data-${FOCUS_MARK.part}]`)
+  while (part !== null && !owns(owner, part)) {
+    part = part.parentElement?.closest(`[data-${FOCUS_MARK.part}]`) ?? null
+  }
+  if (!(part instanceof HTMLElement)) return undefined
+  const slot = markOf(part, 'part') ?? ''
+  const enclosing = part.parentElement?.closest(`[data-${FOCUS_MARK.part}]`)
+  return {
+    focused,
+    part,
+    slot,
+    key: markOf(part, 'key'),
+    parent: markOf(part, 'parent'),
+    enclosing: enclosing instanceof HTMLElement && owns(owner, enclosing) ? enclosing : null,
+    siblings: partsOf(owner)
+      .filter(each => markOf(each, 'part') === slot)
+      .map(each => ({ element: each, key: markOf(each, 'key') })),
+    chain: ownersAbove(focused),
+  }
+}
+
+// A part is found again by its slot and key as it is drawn now: a keyed
+// patch may have made a new element for the same row.
+const current = (owner: Element, slot: string, key: string | null, was: HTMLElement) => {
+  if (key === null) return was.isConnected ? was : undefined
+  return partsOf(owner).find(part => markOf(part, 'part') === slot && markOf(part, 'key') === key)
+}
+
+const candidates = (
+  owner: Element,
+  step: Step,
+  now: Held,
+): ReadonlyArray<HTMLElement | undefined> => {
+  if (typeof step !== 'string') {
+    return partsOf(owner).filter(part => markOf(part, 'part') === step.part)
+  }
+  switch (step) {
+    case 'same':
+      return [current(owner, now.slot, now.key, now.part)]
+    case 'next':
+    case 'previous': {
+      const at = now.siblings.findIndex(sibling =>
+        now.key === null ? sibling.element === now.part : sibling.key === now.key,
+      )
+      const around =
+        at === -1
+          ? []
+          : step === 'next'
+            ? now.siblings.slice(at + 1)
+            : now.siblings.slice(0, at).reverse()
+      return around.map(sibling => current(owner, now.slot, sibling.key, sibling.element))
+    }
+    case 'parent': {
+      const named =
+        now.parent === null
+          ? undefined
+          : partsOf(owner).find(
+              part => markOf(part, 'part') === now.slot && markOf(part, 'key') === now.parent,
+            )
+      return [named ?? now.enclosing ?? undefined]
+    }
+    case 'stop':
+      return partsOf(owner).filter(part => part.getAttribute('tabindex') === '0')
+    case 'owner':
+      return owner instanceof HTMLElement ? [owner] : []
+  }
+}
+
+/** Focuses the target if it can take it; the page may be scrolled elsewhere, so it scrolls only to show it. */
+export const take = (target: HTMLElement | undefined): boolean => {
+  if (target === undefined || !canTakeFocus(target)) return false
+  target.focus({ preventScroll: true })
+  if (target.ownerDocument.activeElement !== target) return false
+  target.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  return true
+}
+
+const recoverFrom = (
+  owner: Element,
+  fallback: Readonly<Record<string, ReadonlyArray<Step>>>,
+  now: Held,
+): boolean => {
+  const steps = Object.hasOwn(fallback, now.slot) ? (fallback[now.slot] ?? []) : []
+  for (const step of steps) {
+    for (const target of candidates(owner, step, now)) if (take(target)) return true
+  }
+  return false
+}
+
+/** The fallbacks of each mounted owner, which an overlay's opener inside one reads. */
+const fallbacks = new WeakMap<Element, Readonly<Record<string, ReadonlyArray<Step>>>>()
+
+/** An overlay's opener as its `FocusRecovery` owner saw it, kept for when the opener is gone. */
+export interface Opener {
+  readonly owner: Element
+  readonly held: Held
+}
+
+/**
+ * Takes the opener's place among the parts of the `FocusRecovery` owner around
+ * it, or `undefined` when it is a part of none. Taken when the overlay opens: a
+ * removed opener has no neighbours left to read.
+ */
+export const holdOpener = (opener: HTMLElement): Opener | undefined => {
+  const owner = opener.closest(`[data-${FOCUS_MARK.owner}]`)
+  if (owner === null) return undefined
+  const held = holdOf(owner, opener)
+  return held === undefined ? undefined : { owner, held }
+}
+
+/**
+ * Focuses the first element the opener's owner's `fallback` steps for the
+ * opener's slot find, as they stand now. False when the owner has gone, has
+ * no steps for that slot, or none of them can take focus.
+ */
+export const recoverOpener = ({ owner, held }: Opener): boolean => {
+  const fallback = fallbacks.get(owner)
+  return fallback !== undefined && recoverFrom(owner, fallback, held)
+}
+
 /**
  * Recovers focus for a container of parts, as a Mount. While focus is on a
  * marked part (`FocusRecovery.behavior` draws the marks), the container
@@ -99,96 +222,14 @@ export const FocusRecovery = Mount.defineStream('FocusRecovery', {
             }
           }
 
-          const hold = (focused: HTMLElement) => {
-            // Focus inside a nested owner's part is, for this owner, in the part holding it.
-            let part = focused.closest(`[data-${FOCUS_MARK.part}]`)
-            while (part !== null && !owns(element, part)) {
-              part = part.parentElement?.closest(`[data-${FOCUS_MARK.part}]`) ?? null
-            }
-            if (!(part instanceof HTMLElement)) {
-              setHeld(undefined)
-              return
-            }
-            const slot = markOf(part, 'part') ?? ''
-            const enclosing = part.parentElement?.closest(`[data-${FOCUS_MARK.part}]`)
-            setHeld({
-              focused,
-              part,
-              slot,
-              key: markOf(part, 'key'),
-              parent: markOf(part, 'parent'),
-              enclosing:
-                enclosing instanceof HTMLElement && owns(element, enclosing) ? enclosing : null,
-              siblings: partsOf(element)
-                .filter(each => markOf(each, 'part') === slot)
-                .map(each => ({ element: each, key: markOf(each, 'key') })),
-              chain: ownersAbove(focused),
-            })
-          }
-
-          // A part is found again by its slot and key as it is drawn now: a keyed
-          // patch may have made a new element for the same row.
-          const current = (slot: string, key: string | null, was: HTMLElement) => {
-            if (key === null) return was.isConnected ? was : undefined
-            return partsOf(element).find(
-              part => markOf(part, 'part') === slot && markOf(part, 'key') === key,
-            )
-          }
-
-          const candidates = (step: Step, now: Held): ReadonlyArray<HTMLElement | undefined> => {
-            if (typeof step !== 'string') {
-              return partsOf(element).filter(part => markOf(part, 'part') === step.part)
-            }
-            switch (step) {
-              case 'same':
-                return [current(now.slot, now.key, now.part)]
-              case 'next':
-              case 'previous': {
-                const at = now.siblings.findIndex(sibling =>
-                  now.key === null ? sibling.element === now.part : sibling.key === now.key,
-                )
-                const around =
-                  at === -1
-                    ? []
-                    : step === 'next'
-                      ? now.siblings.slice(at + 1)
-                      : now.siblings.slice(0, at).reverse()
-                return around.map(sibling => current(now.slot, sibling.key, sibling.element))
-              }
-              case 'parent': {
-                const named =
-                  now.parent === null
-                    ? undefined
-                    : partsOf(element).find(
-                        part =>
-                          markOf(part, 'part') === now.slot && markOf(part, 'key') === now.parent,
-                      )
-                return [named ?? now.enclosing ?? undefined]
-              }
-              case 'stop':
-                return partsOf(element).filter(part => part.getAttribute('tabindex') === '0')
-              case 'owner':
-                return element instanceof HTMLElement ? [element] : []
-            }
-          }
-
-          const take = (target: HTMLElement | undefined): boolean => {
-            if (target === undefined || !canTakeFocus(target)) return false
-            // The page may be scrolled elsewhere: `focus()` alone would scroll to it.
-            target.focus({ preventScroll: true })
-            if (target.ownerDocument.activeElement !== target) return false
-            target.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-            return true
-          }
+          const hold = (focused: HTMLElement) => setHeld(holdOf(element, focused))
 
           const recover = (now: Held) => {
             // Decided once: a part drawn later must not take focus from a user who moved on.
             setHeld(undefined)
-            const steps = Object.hasOwn(fallback, now.slot) ? (fallback[now.slot] ?? []) : []
-            for (const step of steps) {
-              for (const target of candidates(step, now)) if (take(target)) return
+            if (!recoverFrom(element, fallback, now)) {
+              element.dispatchEvent(new CustomEvent(UNRECOVERED, { bubbles: true }))
             }
-            element.dispatchEvent(new CustomEvent(UNRECOVERED, { bubbles: true }))
           }
 
           // Whether this owner is the one to decide: focus is lost with the element, no
@@ -265,10 +306,12 @@ export const FocusRecovery = Mount.defineStream('FocusRecovery', {
 
           const active = element.ownerDocument.activeElement
           if (active instanceof HTMLElement && element.contains(active)) hold(active)
+          fallbacks.set(element, fallback)
           element.addEventListener('focusin', entered)
           element.addEventListener('focusout', left)
           element.addEventListener(UNRECOVERED, passed)
           return () => {
+            fallbacks.delete(element)
             changes.disconnect()
             element.removeEventListener('focusin', entered)
             element.removeEventListener('focusout', left)

@@ -1,13 +1,10 @@
 import { Effect, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
-import { FOCUSABLE, isVisible } from './focusable.js'
+import { giveBack, returnOf } from './focus-return.js'
+import { tabbableWithin } from './focusable.js'
 import * as LayerStack from './layer-stack.js'
 
-/** Tabbable descendants in DOM order: focusable, visible, and not `tabindex="-1"`. */
-export const tabbableWithin = (root: Element): ReadonlyArray<HTMLElement> =>
-  Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-    element => element.tabIndex >= 0 && isVisible(element),
-  )
+export { tabbableWithin }
 
 const focusFirst = (elements: ReadonlyArray<HTMLElement>): boolean => {
   const first = elements[0]
@@ -19,7 +16,9 @@ const focusFirst = (elements: ReadonlyArray<HTMLElement>): boolean => {
 /**
  * A focus scope as a Mount: on insert it remembers what was focused, focuses
  * an initial element inside, and with `contain` keeps Tab and Shift+Tab
- * cycling inside; on unmount it gives focus back. It is a layer of the
+ * cycling inside; on unmount it gives focus back to what had it, or, when that
+ * is gone, where `giveBack` finds a place (never `body` while a page element can
+ * take it). It is a layer of the
  * document's stack while mounted, and a scope with a layer opened after it
  * still open contains nothing: the topmost layer owns containment, so a
  * dialog drawn beside this one, as a portaled one is, keeps its focus.
@@ -43,7 +42,7 @@ export const FocusScope = Mount.defineStream('FocusScope', {
       Effect.acquireRelease(
         Effect.sync(() => {
           const ownerDocument = element.ownerDocument
-          const previous = ownerDocument.activeElement
+          const way = returnOf(element)
           const release = LayerStack.open(element)
           const focusInitial = () => {
             const initial =
@@ -91,19 +90,18 @@ export const FocusScope = Mount.defineStream('FocusScope', {
             element.addEventListener('keydown', onKeyDown)
             ownerDocument.addEventListener('focusin', onFocusIn)
           }
-          return { previous, onKeyDown, onFocusIn, ownerDocument, release, stopWaiting }
+          return { way, onKeyDown, onFocusIn, ownerDocument, release, stopWaiting }
         }),
-        ({ previous, onKeyDown, onFocusIn, ownerDocument, release, stopWaiting }) =>
+        ({ way, onKeyDown, onFocusIn, ownerDocument, release, stopWaiting }) =>
           Effect.sync(() => {
             stopWaiting()
+            const below = LayerStack.below(element)
             release()
             if (contain) {
               element.removeEventListener('keydown', onKeyDown)
               ownerDocument.removeEventListener('focusin', onFocusIn)
             }
-            if (restore && previous instanceof HTMLElement && ownerDocument.contains(previous)) {
-              previous.focus()
-            }
+            if (restore) giveBack(element, way, below)
           }),
       ),
     ),

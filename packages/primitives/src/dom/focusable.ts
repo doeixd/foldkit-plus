@@ -14,6 +14,12 @@ export const isVisible = (element: Element): boolean => {
   return element.closest('[hidden], [inert]') === null && (probe.checkVisibility?.() ?? true)
 }
 
+/** Tabbable descendants in DOM order: focusable, visible, and not `tabindex="-1"`. */
+export const tabbableWithin = (root: Element): ReadonlyArray<HTMLElement> =>
+  Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+    element => element.tabIndex >= 0 && isVisible(element),
+  )
+
 /** Connected, showing, not disabled, and a kind of element that takes focus. */
 export const canTakeFocus = (element: Element): boolean =>
   element.isConnected &&

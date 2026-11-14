@@ -180,7 +180,12 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   Initial focus on insert, Tab and Shift+Tab wrap and a stray focus comes back under
   `contain`, focus restored on unmount under `restore`. Scopes and `HideOutside` share a stack
   of layers whose topmost owns containment, so sibling (portaled) dialogs stack: the lower one
-  neither pulls focus back nor hides the upper. A native `<dialog>` needs none of it.
+  neither pulls focus back nor hides the upper. When the opener is gone on restore (removed,
+  or drawn again), focus goes by rule, never `body` while the page has an element that can take
+  it: an element with the opener's `id`, the opener's `FocusRecovery` steps for its slot, the
+  layer below, the page's first tabbable. A native `<dialog>` returns to its opener only:
+  `FocusReturn()` (`foldkit-primitives/dom`, a Mount that focuses nothing on mount) gives it the
+  same rules, and `Dialog.focusReturn` in `foldkit-mixins-ui` attaches it to the panel.
 - **Keep focus when its part goes away:** `FocusRecovery.behavior(Slots)<Input, Message>({ owner, parts: { row: ['next', 'previous', { part: 'input' }], input: [] }, parent? })`
   attaches the `foldkit-primitives/dom` `FocusRecovery` Mount to the owner and marks
   the parts (`data-fk-focus-*`, key from `item.id`). A removed, hidden, `inert` or

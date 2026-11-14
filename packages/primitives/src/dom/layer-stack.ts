@@ -58,6 +58,12 @@ export const selectorsAbove = (element: Element): ReadonlyArray<string> => {
   return at === -1 ? [] : layers.slice(at + 1).map(layer => `[data-${LAYER_MARK}="${layer.mark}"]`)
 }
 
+/** The layer opened just before `element`'s and still open: where focus goes when this one is gone. */
+export const below = (element: Element): Element | undefined => {
+  const at = layers.findIndex(layer => layer.element === element)
+  return at > 0 ? layers[at - 1]?.element : undefined
+}
+
 /** Whether a layer opened after `element`'s is still open: then that one owns containment. */
 export const isCovered = (element: Element): boolean => selectorsAbove(element).length > 0
 
