@@ -17,9 +17,8 @@ import {
   Style,
 } from 'foldkit-mixins'
 import { LiveAnnounce, FocusRecovery, Presence, Reorder } from 'foldkit-primitives/interaction'
-import { PresenceMessage } from 'foldkit-primitives/motion'
 import { control, dimmed, focus, heldRow, panel, t } from '../style.js'
-import { GotPresence, Message, Rows, editId, editorId, phaseOf, type Model } from './app.js'
+import { Message, Rows, editId, editorId, phaseOf, type Model } from './app.js'
 
 const { Keys } = Behaviors
 
@@ -49,7 +48,11 @@ export const Reorders = Reorder.behavior(Rows)(List)({
 
 export const Leaves = Presence.behavior(List)({
   content: 'row',
-  phase: (model, item) => phaseOf(model, item?.id ?? ''),
+  phase: (model, item) => {
+    if (item?.id === undefined)
+      throw new Error('a row is drawn without its id: slots.row.attrs(…, { index, id })')
+    return phaseOf(model, item.id)
+  },
 })
 
 /** Focus leaves a dismissed row in the frame it turns inert, for the next row's button, else the Add button. */
@@ -169,7 +172,7 @@ export const EditableList = List.define((model, slots, h) =>
                     [
                       h.Type('button'),
                       h.AriaLabel(`Dismiss ${item.title}`),
-                      h.OnClick(GotPresence.make(item.id, PresenceMessage.Hide())),
+                      h.OnClick(Message.Dismissed({ id: item.id })),
                     ],
                     { index, id: item.id },
                   ),

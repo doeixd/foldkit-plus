@@ -4,6 +4,7 @@
  */
 const unit = 'examples/authoring/test/updates.test.ts'
 const save = 'examples/authoring/test/save.test.ts'
+const views = 'examples/authoring/test/views.test.ts'
 
 export default [
   {
@@ -27,6 +28,28 @@ export default [
       },
     ],
     tests: [unit],
+  },
+  {
+    name: 'a dismiss starts no exit',
+    edits: [
+      {
+        file: '../src/list/app.ts',
+        find: 'Dismissed: ({ id }) => Presences.helpers.hide(id)(model),',
+        replace: 'Dismissed: () => ({ model }),',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a row drawn without its id reads as the row with the empty id',
+    edits: [
+      {
+        file: '../src/list/view.ts',
+        find: 'if (item?.id === undefined)',
+        replace: "if (item?.id === undefined) return phaseOf(model, '')\n    if (false)",
+      },
+    ],
+    tests: [views],
   },
   {
     name: 'a result of another instance is picked',

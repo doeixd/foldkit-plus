@@ -93,7 +93,7 @@ describe('the list', () => {
 
   it('removes a row only when its Presence says it is hidden', async () => {
     const start = listInitial().model
-    const hiding = listUpdate(start, GotPresence.make('item-2', PresenceMessage.Hide()))
+    const hiding = listUpdate(start, ListMessage.Dismissed({ id: 'item-2' }))
     expect(hiding.model.presence['item-2']?.phase).toBe('hiding')
     // Still in the items, so the row is drawn, inert, for the whole exit.
     expect(hiding.model.items.map(item => item.id)).toEqual(['item-1', 'item-2', 'item-3'])
@@ -105,7 +105,7 @@ describe('the list', () => {
 
   it('keeps a row that is shown again before its exit finished', async () => {
     const start = listInitial().model
-    const hiding = listUpdate(start, GotPresence.make('item-2', PresenceMessage.Hide()))
+    const hiding = listUpdate(start, ListMessage.Dismissed({ id: 'item-2' }))
     const late = await run(hiding.commands![0]!)
     const shown = listUpdate(hiding.model, GotPresence.make('item-2', PresenceMessage.Show())).model
     const after = listUpdate(shown, late).model

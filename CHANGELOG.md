@@ -177,7 +177,9 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-primitives/interaction`: `Presence.behavior` draws the phase a placed
   `Presence` holds as `data-presence` and `inert`, so a leaving row takes no
   click, Tab or focus; with `FocusRecovery`, focus leaves in the frame it turns
-  `inert` and the removal moves nothing (#555).
+  `inert` and the removal moves nothing (#555). The `Presence` bundle gains
+  helpers, `show` and `hide`, so a parent's `update` starts an exit
+  (`placed.helpers.hide(id)(model)`) with no `Hide` built in the root.
 
 - `foldkit-remote/testing`: `Scenario`, a write (or a Message) as plain data run
   by runners (#538). `Scenario.write` takes `given` rows, `principal`, `now`,

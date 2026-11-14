@@ -40,6 +40,7 @@ export const Message = defineMessageUnion({
   ...Live.cases,
   ...GotPresence.cases,
   Added: {},
+  Dismissed: { id: Schema.String },
   StartedEdit: { id: Schema.String },
   Drafted: { text: Schema.String },
   Committed: {},
@@ -141,6 +142,7 @@ export const update = placements.update((model, message) =>
         }),
       }
     },
+    Dismissed: ({ id }) => Presences.helpers.hide(id)(model),
     StartedEdit: ({ id }) => ({
       model: modifyFields(model, {
         editing: () => Option.some(id),

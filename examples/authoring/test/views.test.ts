@@ -3,10 +3,11 @@
  * theme cannot reach, and no token read that nothing defines.
  */
 import { Option } from 'effect'
+import { SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { describe, expect, it } from 'vitest'
-import { initial as listInitial } from '../src/list/app.js'
-import { EditableList } from '../src/list/view.js'
+import { initial as listInitial, type Message as ListMessage } from '../src/list/app.js'
+import { EditableList, Leaves, ListSlots } from '../src/list/view.js'
 import { initialOf as popupInitial } from '../src/popup/app.js'
 import { ChoicePopup } from '../src/popup/view.js'
 import { initial as saveInitial } from '../src/save/app.js'
@@ -60,5 +61,15 @@ describe('every section drawn inert', () => {
   it('draws the picked result, and the first option of a popup with no state of its own', () => {
     const picked = { ...typed, picked: Option.some('apple') }
     expect(Inert.byRole(Inert.draw(SearchField, picked), 'option')).toHaveLength(0)
+  })
+})
+
+describe('a row drawn without its id', () => {
+  it('is a defect the Presence Behavior names, not a phase it guesses', () => {
+    const builders = SlotView.buildersFor(ListSlots, [Leaves.mixin], {
+      input: listInitial().model,
+      h: SlotView.inertBuilder<ListMessage>(),
+    })
+    expect(() => builders.row.attrs([], { index: 0 })).toThrow(/a row is drawn without its id/)
   })
 })

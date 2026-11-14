@@ -190,7 +190,8 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
 - **A row that leaves without taking input:** `Presence.behavior(Slots)<Input, Message>({ content, phase: (input, item) => 'shown' | 'hiding' | 'hidden' })`
   draws `data-presence` and `inert` (not `aria-hidden`) on the slot for every phase but `shown`;
   it sends no Message. The phase and the timed `Hidden` are `Presence.bundle`'s (`motion`), one
-  per row with `Presence.bundle.each`. Attach `FocusRecovery` too: focus leaves in the frame
+  per row with `Presence.bundle.each`, driven from the parent's `update` by its helpers
+  (`placed.helpers.hide(id)(model)`, `show(id)`). Attach `FocusRecovery` too: focus leaves in the frame
   it turns `inert`, and removal moves nothing; a `Show` before `Hidden` refocuses nothing.
 - **Activate on press:** place `Press.bundle` (`{ clickSuppressionMs }`) with a required
   `onOut` for `Pressed { pointerType }`; attach `Press.behavior(Declared)(Slots)<Model, Message>({ target, disabled? })`.
