@@ -227,6 +227,15 @@ describe('FloatingPanel.view', () => {
     expect(A11y.validate(Patterns.FloatingPanel, FloatingPanelSlots)).toEqual([])
   })
 
+  it('exposes the drag trigger as a button named Move, its visible title still in it', () => {
+    scene(
+      shown(),
+      {},
+      Scene.expect(Scene.role('button', { name: 'Move Notes' })).toExist(),
+      Scene.expect(Scene.selector('#notes-title')).toHaveText('Notes'),
+    )
+  })
+
   it('draws an open panel as a non-modal dialog named by its title, where its rect says', () => {
     scene(
       shown(),

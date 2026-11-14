@@ -533,6 +533,8 @@ export const view = <ParentMessage>(
               ...(draggable
                 ? [
                     h.Tabindex(0),
+                    // A name on a bare div is ignored; "Move <title>" holds the visible words.
+                    h.Role('button'),
                     h.AriaLabel(labels.move ?? `Move ${options.title}`),
                     h.AriaKeyshortcuts('ArrowUp ArrowDown ArrowLeft ArrowRight'),
                     h.Style({ touchAction: 'none' }),

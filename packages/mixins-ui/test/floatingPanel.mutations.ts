@@ -214,4 +214,15 @@ export default [
     edits: [{ file, find: "if (options.title.trim() === '')", replace: 'if (false)' }],
     tests: [unit],
   },
+  {
+    name: 'the drag trigger has no role',
+    edits: [
+      {
+        file,
+        find: "h.Role('button'),\n                    h.AriaLabel(labels.move",
+        replace: 'h.AriaLabel(labels.move',
+      },
+    ],
+    tests: [unit],
+  },
 ]
