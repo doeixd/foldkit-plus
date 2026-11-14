@@ -5247,8 +5247,9 @@ export const numberField = <Message>(
       id: 'servings',
       label: 'Servings',
       description: 'From 1 to 12; the arrow keys step it.',
-      value,
-      onChange,
+      value: Option.some(value),
+      // The demo's Model holds a number, so a cleared field keeps the last one.
+      onChange: next => onChange(Option.getOrElse(next, () => value)),
       min: 1,
       max: 12,
       style,
