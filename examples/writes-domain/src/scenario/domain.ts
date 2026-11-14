@@ -83,6 +83,8 @@ const story = (scenario: WriteScenario) => {
       )
     case 'Forbidden':
       return run(...start, Story.rejected(new Reserved.rejections.Forbidden({})))
+    case 'Unauthenticated':
+      return run(...start, Story.rejected(new Reserved.rejections.Unauthenticated({})))
     case 'Refused': {
       const { refusal } = expect
       return run(

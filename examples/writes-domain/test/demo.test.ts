@@ -35,11 +35,11 @@ describe('foldkit-example-writes-domain', () => {
       '  memory: decision {"_tag":"Forbidden"}; row {"reserved":2,"revision":1}',
       '  domain: decision {"_tag":"Forbidden"}; row {"reserved":2,"revision":1}; commits 2; story "passed"',
       '  the three agree with the scenario',
-      'a visitor is forbidden',
-      '  sqlite: decision {"_tag":"Refused","refusal":"Failed Unauthenticated"}; row {"reserved":2,"revision":1}; ledger []',
-      '  memory: decision {"_tag":"Refused","refusal":"Failed Unauthenticated"}; row {"reserved":2,"revision":1}',
-      '  domain: decision {"_tag":"Forbidden"}; row {"reserved":2,"revision":1}; commits 2; story "passed"',
-      '  disagrees: sqlite / decision: expected {"_tag":"Forbidden"}, got {"_tag":"Refused","refusal":"Failed Unauthenticated"} | memory / decision: expected {"_tag":"Forbidden"}, got {"_tag":"Refused","refusal":"Failed Unauthenticated"}',
+      'a visitor is asked to sign in',
+      '  sqlite: decision {"_tag":"Unauthenticated"}; row {"reserved":2,"revision":1}; ledger []',
+      '  memory: decision {"_tag":"Unauthenticated"}; row {"reserved":2,"revision":1}',
+      '  domain: decision {"_tag":"Unauthenticated"}; row {"reserved":2,"revision":1}; commits 2; story "passed"',
+      '  the three agree with the scenario',
     ])
   })
 })

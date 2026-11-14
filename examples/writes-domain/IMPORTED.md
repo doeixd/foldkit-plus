@@ -353,6 +353,31 @@ Rejections:
   }
   ```
 
+- `Unauthenticated`
+
+  ```json
+  {
+    "$ref": "#/$defs/UnauthenticatedEncoded",
+    "$defs": {
+      "UnauthenticatedEncoded": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "Unauthenticated"
+            ]
+          }
+        },
+        "required": [
+          "_tag"
+        ],
+        "additionalProperties": true
+      }
+    }
+  }
+  ```
+
 - `NotFound`
 
   ```json

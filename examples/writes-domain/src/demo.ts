@@ -13,7 +13,7 @@ import {
   sqliteRunner,
   type ScenarioStep,
 } from './scenario/index.js'
-import { scenarios, visitor } from './scenario/scenarios.js'
+import { scenarios } from './scenario/scenarios.js'
 
 const runners = [sqliteRunner, memoryRunner, domainRunner]
 
@@ -31,7 +31,7 @@ const lines = (steps: ReadonlyArray<ScenarioStep>) =>
 
 export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const out: Array<string> = []
-  for (const scenario of [...scenarios, visitor]) {
+  for (const scenario of scenarios) {
     const report = await Effect.runPromise(run(scenario, runners))
     out.push(`${scenario.name}`, ...lines(report.steps))
     out.push(

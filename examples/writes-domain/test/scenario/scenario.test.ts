@@ -15,7 +15,7 @@ import {
   Scenario,
   sqliteRunner,
 } from '../../src/scenario/index.js'
-import { accepted, scenarios, visitor } from '../../src/scenario/scenarios.js'
+import { accepted, scenarios } from '../../src/scenario/scenarios.js'
 
 const runners = [sqliteRunner, memoryRunner, domainRunner]
 
@@ -77,18 +77,5 @@ describe('the mismatch report', () => {
     expect(
       mismatches.filter(({ step }) => step === 'decision').map(({ backend }) => backend),
     ).toEqual(['sqlite', 'memory', 'domain'])
-  })
-})
-
-describe('a visitor', () => {
-  // The backends differ here, and the report says where: Domain's Rejection is
-  // `Forbidden` (the lowering answers a visitor as the guard does), while the
-  // servers answer the wire's `Unauthenticated` before any guard runs.
-  it('is Forbidden to Domain and Unauthenticated to the two servers', async () => {
-    const { mismatches } = await Effect.runPromise(run(visitor, runners))
-    expect(mismatches.map(describeMismatch)).toEqual([
-      'sqlite / decision: expected {"_tag":"Forbidden"}, got {"_tag":"Refused","refusal":"Failed Unauthenticated"}',
-      'memory / decision: expected {"_tag":"Forbidden"}, got {"_tag":"Refused","refusal":"Failed Unauthenticated"}',
-    ])
   })
 })

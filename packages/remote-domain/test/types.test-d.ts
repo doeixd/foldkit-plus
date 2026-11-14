@@ -3,7 +3,8 @@
  * one `@ts-expect-error` of its own, beside the call it accepts, so a check
  * that fails open shows as an unused directive.
  */
-import { DomainRemote } from '../src/index.js'
+import { DomainRemote, type Forbid, type Outcome } from '../src/index.js'
+import type { RejectionsOf } from '../src/lower/index.js'
 import { ProductEntity, Reserve, ShopApi } from './adapter/fixture.js'
 
 const target = (input: { readonly id: string }) => input.id
@@ -71,3 +72,22 @@ DomainRemote.command(Reserve, ShopApi, 'ReserveStock', {
 
 // @ts-expect-error a declared write's binding without `written`
 DomainRemote.command(Reserve, ShopApi, 'ReserveStock', { target, input, refusals })
+
+// A signed-out visitor is a Rejection of its own beside Forbidden, and an Outcome of its own too.
+declare const lowered: RejectionsOf<typeof Reserve>
+new lowered.Unauthenticated({})._tag satisfies 'Unauthenticated'
+new lowered.Forbidden({})._tag satisfies 'Forbidden'
+// @ts-expect-error the visitor's Rejection is no Forbidden
+new lowered.Unauthenticated({})._tag satisfies 'Forbidden'
+
+DomainRemote.unauthenticated() satisfies Outcome<never>
+DomainRemote.unauthenticated('sign in first')._tag satisfies 'Unauthenticated'
+// @ts-expect-error the visitor's Outcome is no Forbid
+DomainRemote.unauthenticated() satisfies Forbid
+
+DomainRemote.command(Reserve, ShopApi, 'ReserveStock', {
+  target,
+  input,
+  refusals: { ...refusals, NotOwner: () => DomainRemote.unauthenticated() },
+  written: reply => reply,
+})

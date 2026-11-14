@@ -4,10 +4,11 @@ import type { Decision } from './scenario.js'
 
 const decodeRefusal = Schema.decodeUnknownOption(ReserveStock.Refusal)
 
-/** What a failed mutation says, as a decision: its declared refusal, `Forbidden`, or the failure's own tag. */
+/** What a failed mutation says, as a decision: its declared refusal, `Forbidden`, `Unauthenticated`, or the failure's own tag. */
 const failedAs = (failure: { readonly _tag: string; readonly refusal?: unknown }): Decision =>
   Match.value(failure._tag).pipe(
     Match.when('Forbidden', (): Decision => ({ _tag: 'Forbidden' })),
+    Match.when('Unauthenticated', (): Decision => ({ _tag: 'Unauthenticated' })),
     Match.when('RemoteMutationError', (): Decision =>
       Option.match(decodeRefusal(failure.refusal), {
         onNone: () => ({ _tag: 'Refused', refusal: `Failed ${failure._tag}` }),

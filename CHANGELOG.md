@@ -181,8 +181,10 @@ version changed; `pnpm` skips versions already in the registry.
   mutation's own. It holds no ledger and judges no rule reading another row.
 - `foldkit-remote-domain`: `DomainRemote`, a `RemoteClient` over an Alchemy
   Domain Api (#544). `view` binds a View to an Entity by a numeric revision
-  field, `command` binds a command to a mutation with one `refuse`, `forbid`
-  or `fail` per declared Rejection, and `layer` answers reads and live reads
+  field, `command` binds a command to a mutation with one `refuse`, `forbid`,
+  `unauthenticated` or `fail` per declared Rejection (each an `Outcome`,
+  answered as the mutation's refusal, `RemoteForbidden`,
+  `RemoteUnauthenticated` or `RemoteMutationError`), and `layer` answers reads and live reads
   from the Views and writes from the commands. A write is sent under a
   `commandId` of its operation and a digest of who asks, the target, the keys
   and the input; its receipt holds the row's floor until a read at it answers,
@@ -194,7 +196,8 @@ version changed; `pnpm` skips versions already in the registry.
   rows and floors of the last four principals to ask.
 - `foldkit-remote-domain/lower`: `Lower.write` lowers a declared update into
   one Domain aggregate (#545). It derives the command, a Rejection per
-  member of the mutation's `Refusal` plus `Forbidden`, `NotFound` and
+  member of the mutation's `Refusal` plus `Forbidden`, `Unauthenticated` (a
+  visitor the guard refuses, answered as a server answers one), `NotFound` and
   `Reused`, the aggregate's state (its row and the operations it decided),
   `decide`, `evolve`, the reply and the by-id View's state and `evolve`, and
   the adapter's two bindings (`binding(api)`, `reads(api, view)`); the author
@@ -202,7 +205,8 @@ version changed; `pnpm` skips versions already in the registry.
   middleware that provides it. `decide` restates no rule: it lands the write
   through `RemoteServer.write` over `GuardServer.writer` over
   `RemoteServer.memoryWriter`. To who may write the row, an operation sent
-  again with another request is `Reused`. `Lower.check` lists, as data, each
+  again with another request is `Reused`; a visitor or who the guard refuses
+  hears the guard instead. `Lower.check` lists, as data, each
   rule, precondition, invariant or context value that reads another row and
   each member the row does not hold; `Lower.write` refuses such a write.
 - `foldkit-remote/testing`: `Walk.run` runs seeded random walks of Messages over

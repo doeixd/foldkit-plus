@@ -125,3 +125,24 @@ describe('the same operation from another principal', () => {
     expect(seen).toEqual({ two: { _tag: 'Forbidden' }, reserved: Option.some(5) })
   })
 })
+
+describe('the same operation from a visitor', () => {
+  const asked = (digest: string) => `ReserveStock:${first.operation}:${digest.repeat(32)}`
+
+  it('the lowered aggregate tells a visitor to sign in, not that the operation was used', async () => {
+    const seen = await domain(client =>
+      Effect.gen(function* () {
+        yield* reserve(client, first, asked('a'))
+        // No `x-user` header: the session middleware provides nobody.
+        const two = yield* client
+          .ReserveStock(first.id, { revision: 2, quantity: 1 }, { commandId: asked('b') })
+          .pipe(
+            Effect.map(() => 'Accepted'),
+            Effect.catch(rejection => Effect.succeed(rejection._tag)),
+          )
+        return { two, reserved: yield* reservedNow }
+      }),
+    )
+    expect(seen).toEqual({ two: 'Unauthenticated', reserved: Option.some(5) })
+  })
+})

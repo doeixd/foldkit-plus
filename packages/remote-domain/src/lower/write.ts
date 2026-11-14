@@ -20,6 +20,7 @@ import {
   fail,
   forbid,
   refuse,
+  unauthenticated,
   view as bindView,
   type AnyApi,
   type CommandBinding,
@@ -57,15 +58,17 @@ export type RejectionFor<Tag extends string, Value> = RejectionClass<
   FieldsFor<Omit<Value, '_tag'>>
 >
 
-/** The Rejections a lowered command may answer: one per member of its mutation's `Refusal`, and three of its own. */
+/** The Rejections a lowered command may answer: one per member of its mutation's `Refusal`, and four of its own. */
 export type RejectionsOf<M extends LowerableMutation> = {
   readonly [Tag in RefusalOfMutation<M>['_tag']]: RejectionFor<
     Tag,
     Extract<RefusalOfMutation<M>, { readonly _tag: Tag }>
   >
 } & {
-  /** The guard refused who asks, a visitor included. */
+  /** The guard refused who asks. */
   readonly Forbidden: RejectionFor<'Forbidden', { readonly _tag: 'Forbidden' }>
+  /** The guard refused a visitor: nobody is signed in. */
+  readonly Unauthenticated: RejectionFor<'Unauthenticated', { readonly _tag: 'Unauthenticated' }>
   /** The aggregate holds no row yet: nothing listed it. */
   readonly NotFound: RejectionFor<'NotFound', { readonly _tag: 'NotFound' }>
   /** The operation was decided before with another request. */
@@ -255,7 +258,8 @@ const storeOf = (entity: string, row: Readonly<Record<string, unknown>>) => {
  * `RemoteServer.write(mutation, GuardServer.writer(entity, policy,
  * RemoteServer.memoryWriter(store, entity), { revision }))` over that row and
  * records `record(after, before, input)`. Each refusal is the Rejection of the
- * same tag; a guard's refusal is `Forbidden`. To who the guard lets write, an
+ * same tag; a guard's refusal is `Forbidden`, or `Unauthenticated` for a
+ * visitor, as a server answers it. To who the guard lets write, an
  * operation decided before with another request (another `commandId` digest)
  * is `Reused`, whatever the write would have answered: a retry is never a
  * second, different write. That holds only for `commandId`s the adapter made
@@ -324,9 +328,11 @@ export const write = <
     refusalFields.set(tag, Object.keys(fields))
   }
   const Forbidden = Domain.Rejection('Forbidden')
+  const Unauthenticated = Domain.Rejection('Unauthenticated')
   const NotFound = Domain.Rejection('NotFound')
   const Reused = Domain.Rejection('Reused', { operation: Schema.String })
   rejectionByTag.set('Forbidden', Forbidden)
+  rejectionByTag.set('Unauthenticated', Unauthenticated)
   rejectionByTag.set('NotFound', NotFound)
   rejectionByTag.set('Reused', Reused)
   const rejections = Object.fromEntries(rejectionByTag) as unknown as RejectionsOf<M>
@@ -418,7 +424,7 @@ export const write = <
                       new Error(`${mutation.name} was refused with what it does not declare`),
                     ),
               Forbidden: () => Effect.fail(reject('Forbidden')),
-              Unauthenticated: () => Effect.fail(reject('Forbidden')),
+              Unauthenticated: () => Effect.fail(reject('Unauthenticated')),
               RemoteServerError: error => Effect.die(error),
             }),
           )
@@ -430,7 +436,7 @@ export const write = <
       if (Option.isSome(reused)) {
         // Only who the guard lets write the row learns the operation was used:
         // judged at the row's own revision, since a stale one is a conflict
-        // decided before any rule.
+        // decided before any rule. A visitor, and who it refuses, hear the guard.
         const judged = yield* Effect.result(
           land(
             Option.match(expected, {
@@ -443,7 +449,8 @@ export const write = <
           ),
         )
         return yield* Effect.fail(
-          Result.isFailure(judged) && Schema.is(Forbidden)(judged.failure)
+          Result.isFailure(judged) &&
+            (Schema.is(Forbidden)(judged.failure) || Schema.is(Unauthenticated)(judged.failure))
             ? judged.failure
             : reject('Reused', { operation: reused.value.operation }),
         )
@@ -505,6 +512,7 @@ export const write = <
   const refusals = {
     ...Object.fromEntries([...refusalFields.keys()].map(tag => [tag, refusalOf(tag)])),
     Forbidden: () => forbid(),
+    Unauthenticated: () => unauthenticated(),
     NotFound: () => fail(`no such ${entity.name}`),
     Reused: () => fail('this operation was sent before with another request'),
   }

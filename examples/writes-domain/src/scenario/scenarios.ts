@@ -70,11 +70,9 @@ export const scenarios = [
     { id: 'p1', revision: 1, quantity: 3 },
     { principal: Option.some({ id: 'grace' }), expect: Scenario.forbidden },
   ),
+  reserve(
+    'a visitor is asked to sign in',
+    { id: 'p1', revision: 1, quantity: 3 },
+    { principal: Option.none(), expect: Scenario.unauthenticated },
+  ),
 ]
-
-/** A visitor: Domain answers `Forbidden`, the servers `Unauthenticated`. */
-export const visitor = reserve(
-  'a visitor is forbidden',
-  { id: 'p1', revision: 1, quantity: 3 },
-  { principal: Option.none(), expect: Scenario.forbidden },
-)

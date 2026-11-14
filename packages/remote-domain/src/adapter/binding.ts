@@ -85,6 +85,12 @@ export interface Forbid {
   readonly reason: Option.Option<string>
 }
 
+/** A Rejection answered as `RemoteUnauthenticated`: nobody is signed in, with a reason when given. */
+export interface Unauthenticated {
+  readonly _tag: 'Unauthenticated'
+  readonly reason: Option.Option<string>
+}
+
 /** A Rejection answered as a `RemoteMutationError` with no refusal: a message, nothing to match on. */
 export interface Fail {
   readonly _tag: 'Fail'
@@ -92,7 +98,7 @@ export interface Fail {
 }
 
 /** How one Rejection reaches Remote. */
-export type Outcome<R> = Refuse<R> | Forbid | Fail
+export type Outcome<R> = Refuse<R> | Forbid | Unauthenticated | Fail
 
 /** A View bound to the Entity whose rows it serves. */
 export interface ViewBinding<E extends AnyEntity = AnyEntity, A extends AnyApi = AnyApi> {
@@ -314,6 +320,12 @@ export const refuse = <const R>(refusal: R): Refuse<R> => ({ _tag: 'Refuse', ref
 /** Answers a Rejection as `RemoteForbidden`, with words for who asked when given. */
 export const forbid = (reason?: string): Forbid => ({
   _tag: 'Forbid',
+  reason: Option.fromUndefinedOr(reason),
+})
+
+/** Answers a Rejection as `RemoteUnauthenticated`: who asks must sign in first. */
+export const unauthenticated = (reason?: string): Unauthenticated => ({
+  _tag: 'Unauthenticated',
   reason: Option.fromUndefinedOr(reason),
 })
 

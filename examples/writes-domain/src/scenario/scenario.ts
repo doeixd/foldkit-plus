@@ -33,6 +33,8 @@ export interface WriteScenario {
     | { readonly _tag: 'Accepted'; readonly row: Row }
     | { readonly _tag: 'Refused'; readonly refusal: RefusalMatch }
     | { readonly _tag: 'Forbidden' }
+    /** Nobody is signed in. */
+    | { readonly _tag: 'Unauthenticated' }
 }
 
 /** One thing a backend owns and checked: what the scenario says it holds, and what it held. */
@@ -56,6 +58,7 @@ export const Scenario = {
   accepted: (row: Row) => ({ _tag: 'Accepted', row }) as const,
   refused: (refusal: RefusalMatch) => ({ _tag: 'Refused', refusal }) as const,
   forbidden: { _tag: 'Forbidden' } as const,
+  unauthenticated: { _tag: 'Unauthenticated' } as const,
 }
 
 /** What a decision reads as, whichever backend made it: the tag, and the rule an `Invalid` names. */
@@ -63,12 +66,14 @@ export type Decision =
   | { readonly _tag: 'Accepted' }
   | { readonly _tag: 'Refused'; readonly refusal: string }
   | { readonly _tag: 'Forbidden' }
+  | { readonly _tag: 'Unauthenticated' }
 
 /** The decision the scenario expects. */
 export const expectedDecision = ({ expect }: WriteScenario): Decision =>
   Match.valueTags(expect, {
     Accepted: (): Decision => ({ _tag: 'Accepted' }),
     Forbidden: (): Decision => ({ _tag: 'Forbidden' }),
+    Unauthenticated: (): Decision => ({ _tag: 'Unauthenticated' }),
     Refused: ({ refusal }): Decision => ({
       _tag: 'Refused',
       refusal: typeof refusal === 'string' ? refusal : `Invalid ${refusal.entity}.${refusal.id}`,
@@ -81,6 +86,7 @@ export const lands = ({ expect }: WriteScenario): boolean =>
     Accepted: () => true,
     Refused: () => false,
     Forbidden: () => false,
+    Unauthenticated: () => false,
   })
 
 /** The row the scenario seeded for `id`. */
@@ -93,6 +99,7 @@ export const expectedRow = (scenario: WriteScenario, id: string): Row =>
     Accepted: ({ row }) => row,
     Refused: () => seededRow(scenario, id),
     Forbidden: () => seededRow(scenario, id),
+    Unauthenticated: () => seededRow(scenario, id),
   })
 
 /** The id of the row the write is aimed at. */
