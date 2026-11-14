@@ -8,6 +8,48 @@ const browser = 'packages/mixins-ui/test/treeView.browser.test.ts'
 
 export default [
   {
+    name: 'typing forgets the letters before it',
+    edits: [{ file: '../src/treeView.ts', find: 'model.typeahead.query + key', replace: 'key' }],
+    tests: [unit],
+  },
+  {
+    name: 'a stale expiry drops the query',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: 'generation === model.typeahead.generation &&',
+        replace: 'true &&',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a move leaves the typed word',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: 'Focus: ({ id }) => focused(calm, id),',
+        replace: 'Focus: ({ id }) => focused(model, id),',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'star opens a row that holds none',
+    edits: [{ file: '../src/treeView.ts', find: 'other.branch &&', replace: '' }],
+    tests: [unit],
+  },
+  {
+    name: 'star opens a disabled row',
+    edits: [{ file: '../src/treeView.ts', find: 'other.disabled !== true &&', replace: '' }],
+    tests: [unit],
+  },
+  {
+    name: 'star opens rows of other parents',
+    edits: [{ file: '../src/treeView.ts', find: 'other.parent === row.parent &&', replace: '' }],
+    tests: [unit],
+  },
+  {
     name: 'a move sends no focus',
     edits: [
       {

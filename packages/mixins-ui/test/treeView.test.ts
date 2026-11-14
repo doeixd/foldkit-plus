@@ -59,17 +59,84 @@ describe('TreeView.update', () => {
     ['Home lands on the first row', [], 'package', 'Home', 'src'],
     ['Right on an open row steps into it', ['src'], 'src', 'ArrowRight', 'components'],
     ['Left on a shut row steps out to its parent', ['src'], 'components', 'ArrowLeft', 'src'],
-    ['a character moves to the next row it starts', [], 'src', 'r', 'readme'],
-    ['a character finds an open row’s rows', ['src', 'components'], 'button', 't', 'tree'],
   ] as const)('%s, and focuses it', (_, open, current, key, to) => {
     const result = press(at(open, Option.fromUndefinedOr(current)), key)
     expect(result.model.current).toEqual(Option.some(to))
     expect(names(result)).toEqual(['FocusItem'])
   })
 
-  it('a character skips the rows of a shut row', () => {
+  it.each([
+    ['a character moves to the next row it starts', [], 'src', 'r', 'readme'],
+    ['a character finds an open row’s rows', ['src', 'components'], 'button', 't', 'tree'],
+  ] as const)('%s, focuses it and starts the query’s expiry', (_, open, current, key, to) => {
+    const result = press(at(open, Option.fromUndefinedOr(current)), key)
+    expect(result.model.current).toEqual(Option.some(to))
+    expect(names(result)).toEqual(['FocusItem', 'ExpireQuery'])
+  })
+
+  it('a character skips the rows of a shut row, keeping the query', () => {
     const model = at([], Option.some('src'))
-    expect(press(model, 'b').model).toBe(model)
+    const result = press(model, 'b')
+    expect(result.model.current).toEqual(model.current)
+    expect(result.model.typeahead.query).toBe('b')
+    expect(names(result)).toEqual(['ExpireQuery'])
+  })
+
+  it('typed letters add up to a word, which stays on the row it matches', () => {
+    const open = ['src', 'components']
+    const first = press(at(open, Option.some('src')), 't')
+    expect(first.model.current).toEqual(Option.some('tree'))
+    // A lone `r` would go on to README.md; after `t` it asks for `tr`.
+    const second = press(first.model, 'r')
+    expect(second.model.current).toEqual(Option.some('tree'))
+    expect(second.model.typeahead.query).toBe('tr')
+  })
+
+  it('a pause drops the query, once, for the key it followed', () => {
+    const typed = press(at([], Option.some('src')), 'r').model
+    const stale = update(
+      typed,
+      Message.QueryExpired({ generation: typed.typeahead.generation - 1 }),
+    )
+    expect(stale.model).toBe(typed)
+    const expired = update(typed, Message.QueryExpired({ generation: typed.typeahead.generation }))
+    expect(expired.model.typeahead.query).toBe('')
+    expect(
+      update(expired.model, Message.QueryExpired({ generation: typed.typeahead.generation })).model,
+    ).toBe(expired.model)
+  })
+
+  it('a move ends the word being typed', () => {
+    const typed = press(at([], Option.some('src')), 'r').model
+    expect(press(typed, 'ArrowDown').model.typeahead.query).toBe('')
+  })
+
+  describe('`*`', () => {
+    const nodes: ReadonlyArray<TreeView.TreeNode> = [
+      { id: 'a', label: 'a', children: [{ id: 'a1', label: 'a1' }] },
+      { id: 'b', label: 'b', children: [{ id: 'b1', label: 'b1' }] },
+      { id: 'c', label: 'c' },
+      { id: 'd', label: 'd', disabled: true, children: [{ id: 'd1', label: 'd1' }] },
+      { id: 'e', label: 'e', children: [{ id: 'e1', label: 'e1' }] },
+    ]
+    const star = TreeView.update(nodes)
+    const from = (open: ReadonlyArray<string>) => ({
+      ...init({ id: 'files', open }),
+      current: Option.some('a'),
+    })
+
+    it('opens every enabled row beside the current one that holds rows', () => {
+      const result = star(from([]), Message.Pressed({ key: '*' }))
+      expect([...result.model.open].sort()).toEqual(['a', 'b', 'e'])
+      expect(result.commands ?? []).toEqual([])
+    })
+
+    it('changes nothing when they are all open, or nothing is current', () => {
+      const open = from(['a', 'b', 'e'])
+      expect(star(open, Message.Pressed({ key: '*' })).model).toBe(open)
+      const none = init({ id: 'files' })
+      expect(star(none, Message.Pressed({ key: '*' })).model).toBe(none)
+    })
   })
 
   it('Right opens a shut row and Left shuts an open one, focus staying', () => {
