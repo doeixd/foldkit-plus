@@ -192,6 +192,26 @@ describe('An answer to a read of a floored row', () => {
   })
 })
 
+describe('A list page over a floored row', () => {
+  it('writes nothing of the row: a page is read with no token', () => {
+    const model = Data.reduce(written(), {
+      _tag: 'ConnectionMerged',
+      connection: 'products',
+      page: {
+        edges: [{ key: 'Product:p1', ref: { entity: 'Product', id: 'p1' } }],
+        start: { _tag: 'Terminal' },
+        end: { _tag: 'Terminal' },
+      },
+      select: { entity: 'Product', fields: ['name', 'stock'] },
+      entities: [row(9)],
+      settled: [],
+      now: 10,
+    })
+    expect(stockOf(model)).toBe(3)
+    expect(floorOf(model)).toBe(token)
+  })
+})
+
 describe('A row named behind with no floor', () => {
   it('is not taken as deleted', () => {
     const model = Data.reduce(held, {

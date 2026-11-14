@@ -147,4 +147,10 @@ export default [
     '  const held = new Set<EntityKey>(behind)',
     '  const held = new Set<EntityKey>()',
   ),
+  edit(
+    'a list page writes a floored row',
+    model,
+    '              readAfter(model.entities, requests, payloadRead, undefined).held,\n',
+    '',
+  ),
 ]

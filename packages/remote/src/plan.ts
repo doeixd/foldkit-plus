@@ -174,17 +174,6 @@ export const plan = (
 }
 
 /**
- * What of `planned`, the plan of `store` under `options`, is read again
- * though the store holds it: every field under a force, an expired entity's
- * fields, and a field held under another window. A refreshing policy marks
- * these stale, so each reads `Refreshing`. A field planned because it is
- * missing or already stale is not: marking it is no news, and Foldkit reduces
- * the mark after the Messages already queued, an answer to that very field
- * among them, which the mark would make stale again (#399). Two reads of one
- * row then each planned what the other's mark undid, for good. Nothing here
- * reads what the mark changes, so a read entry is not restarted by its own.
- */
-/**
  * The read-after tokens of the rows `planned` reads that hold one, at most
  * `MAX_READ_AFTER`, with the requirements a read sends them with: those of
  * the rows past the bound wait for the next plan, made once an answer ends
@@ -211,6 +200,17 @@ export const withTokens = (
   return after.length === 0 ? { requirements: planned, after } : { requirements, after }
 }
 
+/**
+ * What of `planned`, the plan of `store` under `options`, is read again
+ * though the store holds it: every field under a force, an expired entity's
+ * fields, and a field held under another window. A refreshing policy marks
+ * these stale, so each reads `Refreshing`. A field planned because it is
+ * missing or already stale is not: marking it is no news, and Foldkit reduces
+ * the mark after the Messages already queued, an answer to that very field
+ * among them, which the mark would make stale again (#399). Two reads of one
+ * row then each planned what the other's mark undid, for good. Nothing here
+ * reads what the mark changes, so a read entry is not restarted by its own.
+ */
 export const refreshedOf = (
   store: EntityStore,
   planned: ReadonlyArray<Requirement>,

@@ -2436,14 +2436,17 @@ const reduceRemote = (
           : message.page.edges
               .filter(edge => edge.ref.entity === message.select!.entity)
               .map(edge => ({ ...message.select!, id: edge.ref.id }))
+      const payloadRead = { entities: [...payload], settled: [...settled] }
+      // A page is read with no token: a floored row on it may be older than the write.
       const entities =
         requests.length === 0
           ? model.entities
           : writeRead(
               model.entities,
               requests,
-              { entities: [...payload], settled: [...settled] },
+              payloadRead,
               message.now ?? 0,
+              readAfter(model.entities, requests, payloadRead, undefined).held,
             )
       // Like `ReadReceived`: the answer settles what it was asked, whether
       // with values or as settled, so a prior failure does not outlive it.
