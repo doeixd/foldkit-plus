@@ -2,7 +2,8 @@
 import { Option } from 'effect'
 import { Product, reservedWithinStock } from 'foldkit-example-writes/domain'
 import { ReserveStock } from '../domain.js'
-import { Scenario } from './scenario.js'
+import type { User } from 'foldkit-example-writes/domain'
+import { Scenario } from 'foldkit-remote/testing'
 
 const bolt = {
   id: 'p1',
@@ -25,7 +26,7 @@ const reserve = (
   when: { id: string; revision: number; quantity: number },
   options: { principal?: typeof ada; expect: Parameters<typeof Scenario.write>[0]['expect'] },
 ) =>
-  Scenario.write({
+  Scenario.write<User>({
     name,
     given,
     principal: options.principal ?? ada,

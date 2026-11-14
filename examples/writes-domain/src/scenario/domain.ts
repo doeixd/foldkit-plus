@@ -19,17 +19,8 @@ import {
   Shop,
   StockReserved,
 } from '../model.js'
-import { decisionOf } from './decision.js'
-import {
-  expectedDecision,
-  expectedRow,
-  lands,
-  pick,
-  seededRow,
-  targetOf,
-  type ScenarioRunner,
-  type WriteScenario,
-} from './scenario.js'
+import { Scenario } from 'foldkit-remote/testing'
+import { lands, seededRow, type ScenarioRunner, type WriteScenario } from './scenario.js'
 import { world } from './world.js'
 
 const decodeRow = Schema.decodeUnknownSync(ProductEntity.schema)
@@ -50,7 +41,7 @@ const invalid = ({ entity, id }: { readonly entity: string; readonly id: string 
 
 /** The write as a Story over the target's aggregate: what Domain records, rejects and shows. */
 const story = (scenario: WriteScenario) => {
-  const id = targetOf(scenario)
+  const id = Scenario.target(scenario)
   const ref = Product.ref(id)
   const [, input] = scenario.when
   const { revision, quantity } = input as { readonly revision: number; readonly quantity: number }
@@ -105,15 +96,16 @@ export const domainRunner: ScenarioRunner = {
   name: 'domain',
   run: scenario => {
     const shop = world()
-    const id = targetOf(scenario)
-    const wanted = expectedRow(scenario, id)
+    const id = Scenario.target(scenario)
+    const wanted = Scenario.expectedRow(scenario, id)
     const [mutation, input] = scenario.when
     const asking = Option.map(scenario.principal, user => user.id)
     return Effect.gen(function* () {
       yield* shop.seed(scenario.given.map(({ row }) => row))
       yield* Ref.set(shop.as, asking)
       const client = yield* RemoteClient
-      const decision = yield* decisionOf(
+      const decision = yield* Scenario.decisionOf(
+        mutation,
         client.mutate({
           requestId: scenario.operation,
           operation: scenario.operation,
@@ -130,10 +122,10 @@ export const domainRunner: ScenarioRunner = {
         {
           backend: 'domain',
           step: 'decision',
-          expected: expectedDecision(scenario),
+          expected: Scenario.expectedDecision(scenario),
           actual: decision,
         },
-        { backend: 'domain', step: 'row', expected: wanted, actual: pick(held, wanted) },
+        { backend: 'domain', step: 'row', expected: wanted, actual: Scenario.pick(held, wanted) },
         {
           backend: 'domain',
           step: 'commits',

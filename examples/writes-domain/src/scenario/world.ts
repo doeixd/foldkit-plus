@@ -6,18 +6,7 @@
  * reply to a `ReserveStock` can be held back, or lost after the command ran,
  * and a View frame can be delivered late.
  */
-import {
-  Deferred,
-  Effect,
-  Layer,
-  Match,
-  Option,
-  Queue,
-  Ref,
-  Schema,
-  Stream,
-  type Duration,
-} from 'effect'
+import { Deferred, Effect, Match, Option, Queue, Schema, Stream, type Duration } from 'effect'
 import { RpcClientDefect, RpcClientError } from 'effect/rpc/RpcClientError'
 import { Product } from 'foldkit-example-writes/domain'
 import { Fixture } from 'foldkit-remote-domain/testing'

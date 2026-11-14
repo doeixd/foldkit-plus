@@ -6,15 +6,10 @@
  * the row it leaves, or what it alone owns (the ledger, the events).
  */
 import { Effect } from 'effect'
+import type { User } from 'foldkit-example-writes/domain'
 import { describe, expect, it } from 'vitest'
-import {
-  describeMismatch,
-  domainRunner,
-  memoryRunner,
-  run,
-  Scenario,
-  sqliteRunner,
-} from '../../src/scenario/index.js'
+import { Scenario } from 'foldkit-remote/testing'
+import { domainRunner, memoryRunner, sqliteRunner } from '../../src/scenario/index.js'
 import { accepted, scenarios } from '../../src/scenario/scenarios.js'
 
 const runners = [sqliteRunner, memoryRunner, domainRunner]
@@ -23,8 +18,8 @@ describe('one scenario through three backends', () => {
   it.each(scenarios.map(scenario => [scenario.name, scenario] as const))(
     '%s',
     async (_, scenario) => {
-      const report = await Effect.runPromise(run(scenario, runners))
-      expect(report.mismatches.map(describeMismatch)).toEqual([])
+      const report = await Effect.runPromise(Scenario.run(scenario, runners))
+      expect(report.mismatches.map(Scenario.describeMismatch)).toEqual([])
       // Each backend answered: a runner that says nothing agrees with everything.
       expect(new Set(report.steps.map(step => step.backend))).toEqual(
         new Set(['sqlite', 'memory', 'domain']),
@@ -33,7 +28,7 @@ describe('one scenario through three backends', () => {
   )
 
   it('checks what each backend owns: the ledger, the events', async () => {
-    const { steps } = await Effect.runPromise(run(accepted, runners))
+    const { steps } = await Effect.runPromise(Scenario.run(accepted, runners))
     expect(steps.map(({ backend, step }) => `${backend}/${step}`)).toEqual([
       'sqlite/decision',
       'sqlite/row',
@@ -50,12 +45,12 @@ describe('one scenario through three backends', () => {
 
 describe('the mismatch report', () => {
   it('names the backend and the step where a scenario’s expectation is wrong', async () => {
-    const wrong = Scenario.write({
+    const wrong = Scenario.write<User>({
       ...accepted,
       name: 'a wrong expectation',
       expect: Scenario.accepted({ reserved: 6, revision: 2 }),
     })
-    const { mismatches } = await Effect.runPromise(run(wrong, runners))
+    const { mismatches } = await Effect.runPromise(Scenario.run(wrong, runners))
     // Every backend lands the same row, so each says the scenario is wrong at its own `row`.
     expect(mismatches.map(({ backend, step }) => `${backend}/${step}`)).toEqual([
       'sqlite/row',
@@ -72,8 +67,8 @@ describe('the mismatch report', () => {
   })
 
   it('names the decision step where a refusal is expected of an accepted write', async () => {
-    const wrong = Scenario.write({ ...accepted, expect: Scenario.refused('Unmet') })
-    const { mismatches } = await Effect.runPromise(run(wrong, runners))
+    const wrong = Scenario.write<User>({ ...accepted, expect: Scenario.refused('Unmet') })
+    const { mismatches } = await Effect.runPromise(Scenario.run(wrong, runners))
     expect(
       mismatches.filter(({ step }) => step === 'decision').map(({ backend }) => backend),
     ).toEqual(['sqlite', 'memory', 'domain'])

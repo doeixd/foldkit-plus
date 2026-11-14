@@ -10,16 +10,8 @@ import { schema } from 'foldkit-example-writes/server'
 import { databaseLayer } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { server } from '../sqlite.js'
-import { decisionOf } from './decision.js'
-import {
-  expectedDecision,
-  expectedRow,
-  lands,
-  pick,
-  targetOf,
-  type ScenarioRunner,
-  type ScenarioStep,
-} from './scenario.js'
+import { Scenario, type ScenarioStep } from 'foldkit-remote/testing'
+import { lands, type ScenarioRunner } from './scenario.js'
 
 const columns = 'id, owner_id, name, status, stock, reserved, revision'
 
@@ -43,7 +35,8 @@ export const sqliteRunner: ScenarioRunner = {
           Number(row['revision']),
         )
       const [mutation, input] = scenario.when
-      const decision = yield* decisionOf(
+      const decision = yield* Scenario.decisionOf(
+        mutation,
         RemoteServer.handlers(server, scenario.principal).FoldkitRemoteMutate({
           requestId: scenario.operation,
           operation: scenario.operation,
@@ -52,8 +45,8 @@ export const sqliteRunner: ScenarioRunner = {
         }),
       ).pipe(Effect.provide(databaseLayer(drizzle({ client: database }))))
 
-      const id = targetOf(scenario)
-      const wanted = expectedRow(scenario, id)
+      const id = Scenario.target(scenario)
+      const wanted = Scenario.expectedRow(scenario, id)
       const held = database
         .prepare(
           `select id, owner_id as ownerId, name, status, stock, reserved, revision from products where id = ?`,
@@ -64,10 +57,15 @@ export const sqliteRunner: ScenarioRunner = {
         {
           backend: 'sqlite',
           step: 'decision',
-          expected: expectedDecision(scenario),
+          expected: Scenario.expectedDecision(scenario),
           actual: decision,
         },
-        { backend: 'sqlite', step: 'row', expected: wanted, actual: pick(held ?? {}, wanted) },
+        {
+          backend: 'sqlite',
+          step: 'row',
+          expected: wanted,
+          actual: Scenario.pick(held ?? {}, wanted),
+        },
         {
           backend: 'sqlite',
           step: 'ledger',

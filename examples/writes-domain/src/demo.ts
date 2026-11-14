@@ -5,14 +5,8 @@
  * mismatch, naming the backend and the step.
  */
 import { Effect } from 'effect'
-import {
-  describeMismatch,
-  domainRunner,
-  memoryRunner,
-  run,
-  sqliteRunner,
-  type ScenarioStep,
-} from './scenario/index.js'
+import { Scenario, type ScenarioStep } from 'foldkit-remote/testing'
+import { domainRunner, memoryRunner, sqliteRunner } from './scenario/index.js'
 import { scenarios } from './scenario/scenarios.js'
 
 const runners = [sqliteRunner, memoryRunner, domainRunner]
@@ -32,12 +26,12 @@ const lines = (steps: ReadonlyArray<ScenarioStep>) =>
 export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const out: Array<string> = []
   for (const scenario of scenarios) {
-    const report = await Effect.runPromise(run(scenario, runners))
+    const report = await Effect.runPromise(Scenario.run(scenario, runners))
     out.push(`${scenario.name}`, ...lines(report.steps))
     out.push(
       report.mismatches.length === 0
         ? '  the three agree with the scenario'
-        : `  disagrees: ${report.mismatches.map(describeMismatch).join(' | ')}`,
+        : `  disagrees: ${report.mismatches.map(Scenario.describeMismatch).join(' | ')}`,
     )
   }
   return out
