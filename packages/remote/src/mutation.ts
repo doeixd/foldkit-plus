@@ -569,10 +569,11 @@ const plainRow = (entity: AnyEntity, row: HeldRow): Record<string, unknown> => {
 }
 
 /**
- * What the Entity's invariants say of a declared write's row, as the client
- * holds it: the store's row with the write's values over it, a field the
- * write moves (an increment, a computed value) not held, and for an update
- * the row before. None for a delete, which leaves no row.
+ * What the Entity's invariants and the write's postcondition say of a
+ * declared write's row, as the client holds it: the store's row with the
+ * write's values over it, a field the write moves (an increment, a computed
+ * value) not held, and for an update the row before. None for a delete,
+ * which leaves no row.
  */
 export const judgedByWrite = (
   write: AnyWrite,
@@ -598,9 +599,10 @@ export const judgedByWrite = (
   const before = Option.getOrUndefined(
     Option.map(holder.rows.row(entity, patch.id), row => plainRow(entity, row)),
   )
+  // The write's own postcondition is judged beside the Entity's invariants, as a writer judges it.
   return Option.some(
-    DomainEntity.judge(
-      entity,
+    DomainEntity.judgeAgainst(
+      [...DomainEntity.invariants(entity), ...Option.toArray(write.ensures)],
       Match.value(write).pipe(
         Match.tag('Insert', () => ({ after })),
         Match.orElse(() => (before === undefined ? { after } : { after, before })),
