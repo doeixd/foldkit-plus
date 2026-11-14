@@ -14,6 +14,7 @@ import {
   behindAgain,
   clearFloors,
   entityKey,
+  pastFloor,
   setFloors,
   type EntityKey,
   type EntityStore,
@@ -23,10 +24,11 @@ import type { ReadBatchResult, RowToken } from './wire.js'
 /**
  * What an answer to a read may say of the rows held to a read-after token
  * (`EntityEntry.floor`). A row the read carried its token for and the server
- * read at it (not named in `behind`) is `confirmed`: the answer writes it and
- * its floor ends. Every other floored row the answer names is `held`: it was
- * asked without the token, at another one, or the server's read model is
- * behind it, so the answer may be older than the write, and writes nothing.
+ * read at it (not named in `behind`), or one answered at a newer revision than
+ * held (`pastFloor`), is `confirmed`: the answer writes it and its floor ends.
+ * Every other floored row the answer names is `held`: it was asked without
+ * the token, at another one, or the server's read model is behind it, so the
+ * answer may be older than the write, and writes nothing.
  * A row named in `behind` is held whether it has a floor or not, and one asked
  * at its floor is `waiting`: asked again after a wait.
  */
@@ -42,11 +44,14 @@ const answeredAt = (
   const held = new Set<EntityKey>(behind)
   const confirmed = new Set<EntityKey>()
   const waiting = new Set<EntityKey>()
+  const revisions = new Map(
+    result.entities.map(row => [entityKey(row.entity, row.id), row.revision] as const),
+  )
   for (const ref of [...requests, ...result.entities, ...result.settled]) {
     const key = entityKey(ref.entity, ref.id)
     const floor = store[key]?.floor
     if (floor === undefined) continue
-    if (tokens.get(key) !== floor) held.add(key)
+    if (tokens.get(key) !== floor && !pastFloor(store[key], revisions.get(key))) held.add(key)
     else if (behind.has(key)) {
       held.add(key)
       waiting.add(key)

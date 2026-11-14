@@ -39,11 +39,11 @@ version changed; `pnpm` skips versions already in the registry.
   token, rows }`) holds each row to the token (`EntityEntry.floor`): the read
   entry reads it again carrying the token (`ReadBatch.after`, at most
   `MAX_READ_AFTER`, 256), a live stream subscribes with it
-  (`LiveRequirement.floors`), an answer read at it or a patch on a stream
-  opened at it ends the floor, and a row named in `ReadBatchResult.behind`
-  keeps what the store holds and is asked again after 1 second, doubling, at
-  most 30 (`EntityEntry.behind`). Revision and
-  floor are kept by `persistence` and listed by `Data.inspect(model).floors`;
+  (`LiveRequirement.floors`), an answer read at it, a patch on a stream
+  opened at it, or either at a newer revision than held ends the floor, and a
+  row named in `ReadBatchResult.behind` keeps what the store holds and is
+  asked again after 1 second, doubling, at most 30 (`EntityEntry.behind`).
+  Revision and floor are kept by `persistence` and listed by `Data.inspect(model).floors`;
   `why` names the wait (`ReadAfter`). `REMOTE_PROTOCOL_VERSION` is 6.
   `foldkit-remote-server` sends an `EntityRecord.revision`, through
   `GuardServer.filter` too;

@@ -37,8 +37,8 @@ export default [
   edit(
     'a live patch ignores the revision held',
     events,
-    '  if (olderThanHeld(store[key], event.revision) || ',
-    '  if (false || ',
+    '    olderThanHeld(store[key], event.revision) ||\n',
+    '    false ||\n',
   ),
   edit(
     'a floor clears on behind',
@@ -49,8 +49,8 @@ export default [
   edit(
     'a floor clears on an answer asked without its token',
     readAfter,
-    'if (tokens.get(key) !== floor) held.add(key)\n    else if',
-    'if (false) held.add(key)\n    else if',
+    'if (tokens.get(key) !== floor && !pastFloor(store[key], revisions.get(key))) held.add(key)',
+    'if (false) held.add(key)',
   ),
   edit(
     'a row named in behind is written',
@@ -147,8 +147,8 @@ export default [
   edit(
     'a live patch from a stream opened before the write is written',
     events,
-    ' || (floor !== undefined && context.token !== floor)',
-    '',
+    '    (floor !== undefined && context.token !== floor && !pastFloor(store[key], event.revision))',
+    '    false',
   ),
   edit(
     'a live patch at the token keeps the floor',
@@ -161,6 +161,24 @@ export default [
     '../src/liveReads.ts',
     '        ...(token === undefined ? {} : { token }),\n',
     '',
+  ),
+  edit(
+    'a read at a newer revision without the token is held',
+    readAfter,
+    ' && !pastFloor(store[key], revisions.get(key))) held.add(key)',
+    ') held.add(key)',
+  ),
+  edit(
+    'a newer revision never ends a floor',
+    store,
+    'revision !== undefined && held?.revision !== undefined && revision > held.revision',
+    'false',
+  ),
+  edit(
+    'a revision as old as held ends a floor',
+    store,
+    'revision !== undefined && held?.revision !== undefined && revision > held.revision',
+    'revision !== undefined && held?.revision !== undefined && revision >= held.revision',
   ),
   edit(
     'a coalesced read drops its tokens',

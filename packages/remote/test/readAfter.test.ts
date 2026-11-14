@@ -183,6 +183,18 @@ describe('An answer to a read of a floored row', () => {
     expect(floorOf(model)).toBe(token)
   })
 
+  it('asked without the token, at a newer revision than held: writes the row and ends the floor', () => {
+    const newer: RemoteMessage = {
+      _tag: 'ReadReceived',
+      requests: [request],
+      result: { entities: [{ ...row(4), revision: 10 }], settled: [] },
+      now: 10,
+    }
+    const model = Data.reduce(written(), newer)
+    expect(stockOf(model)).toBe(4)
+    expect(floorOf(model)).toBeUndefined()
+  })
+
   it('asked at an older token: writes nothing and keeps the newer floor', () => {
     const model = Data.reduce(written(written(), 'Product/p1@3'), answer(5, { after: sent }))
     expect(stockOf(model)).toBe(3)
@@ -484,6 +496,28 @@ describe('A live stream over a floored row', () => {
     const after = messages.reduce((current, message) => Data.reduce(current, message), model)
     expect(after.remote.entities[p2]?.values).toMatchObject({ stock: 4 })
     expect(after.remote.entities[p2]?.floor).toBeUndefined()
+  })
+
+  it('writes a patch of a newer revision than held from any stream, and ends the floor', () => {
+    const patchOf = (revision: number): RemoteMessage => ({
+      _tag: 'LiveReceived',
+      stream: 's',
+      event: {
+        _tag: 'EntityPatched',
+        cursor: 1,
+        ref: { entity: 'Product', id: 'p1' },
+        values: { name: 'Desk' },
+        changed: ['name'],
+        revision,
+      },
+      now: 10,
+    })
+    const nameOf = (model: Model) => model.remote.entities['Product:p1']?.values['name']
+    // p1 is held at revision 9: one of 9 may be from before the write, one of 10 is past it.
+    expect(floorOf(Data.reduce(written(), patchOf(9)))).toBe(token)
+    expect(nameOf(Data.reduce(written(), patchOf(9)))).toBe('Lamp')
+    expect(floorOf(Data.reduce(written(), patchOf(10)))).toBeUndefined()
+    expect(nameOf(Data.reduce(written(), patchOf(10)))).toBe('Desk')
   })
 
   it('writes nothing of a patch sent on a stream opened before the write', () => {

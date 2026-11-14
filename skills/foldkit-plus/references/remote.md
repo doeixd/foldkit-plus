@@ -1548,9 +1548,9 @@ handler's write and raw SQL are held to the invariants and move the revision too
   answer may carry `after: { token, rows }`: each row is held to the token
   (`EntityEntry.floor`, kept by `persistence`), read again carrying it
   (`ReadBatch.after`, `LiveRequirement.floors`), and written only by an answer
-  read at it or a live patch on a stream opened at it; a row the server names
-  in `behind` keeps what is held and is asked again after 1s, doubling, at
-  most 30s. `Data.inspect(model).floors`, `why`'s `ReadAfter`.
+  read at it, a live patch on a stream opened at it, or either at a newer
+  revision than held; a row the server names in `behind` keeps what is held
+  and is asked again after 1s, doubling, at most 30s. `Data.inspect(model).floors`, `why`'s `ReadAfter`.
   `source(binding, { revision })` in `foldkit-remote-drizzle` sends the revision;
   `foldkit-remote-domain` sends both.
 - `RemoteServer.handlers` takes an already-authenticated principal; it never reads

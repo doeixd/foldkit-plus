@@ -2670,17 +2670,18 @@ back. While a row has a floor:
 - the read entry reads it again, even with every field held, and the read
   carries its token (`ReadBatch.after`, at most `MAX_READ_AFTER` = 256 rows; the
   rest wait for the next plan);
-- an answer read at the token writes the row and ends the floor; a row the
-  server names in `behind` (its copy has not caught up) keeps what the store
-  holds and the floor, and is asked again with the token after a wait (1
-  second, doubling with each answer `behind`, at most 30; `EntityEntry.behind`,
-  not persisted, so a reload asks at once); an answer to a read asked without
-  the token writes nothing of the row;
+- an answer read at the token, or one of a newer revision than the row held
+  (the server has it past the write), writes the row and ends the floor; a
+  row the server names in `behind` (its copy has not caught up) keeps what the
+  store holds and the floor, and is asked again with the token after a wait
+  (1 second, doubling with each answer `behind`, at most 30;
+  `EntityEntry.behind`, not persisted, so a reload asks at once); any other
+  answer to a read asked without the token writes nothing of the row;
 - a live stream subscribes with the tokens of the rows it watches
   (`LiveRequirement.floors`), and restarts when they change. A server sends a
   floored row's patch only once it reads at the token, so a patch on a stream
-  opened at the row's token writes it and ends the floor, and one on a stream
-  opened before writes nothing of it;
+  opened at the row's token, or one of a newer revision, writes it and ends
+  the floor, and any other on a stream opened before writes nothing of it;
 - `Data.inspect(model).floors` lists them, and `why` names the wait
   (`ReadAfter`).
 

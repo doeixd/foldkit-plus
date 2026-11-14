@@ -17,6 +17,7 @@ import {
   entityKey,
   tombstone,
   olderThanHeld,
+  pastFloor,
   writeEntities,
   type EntityEntry,
   type EntityKey,
@@ -283,11 +284,15 @@ export const applyEntityEvent = (
     }
   }
   // Older than the row held: the stream has moved past it, and so has the store.
-  // A floored row is written only by a stream opened at its token, which the
-  // server answers at or after it: such a patch ends the floor, and one from
-  // a stream opened before may be older than the write.
+  // A floored row is written only by a patch at or after the write that set
+  // its floor: one on a stream opened at its token, which the server answers
+  // at or after it, or one of a newer revision. Such a patch ends the floor;
+  // any other may be older than the write.
   const floor = store[key]?.floor
-  if (olderThanHeld(store[key], event.revision) || (floor !== undefined && context.token !== floor))
+  if (
+    olderThanHeld(store[key], event.revision) ||
+    (floor !== undefined && context.token !== floor && !pastFloor(store[key], event.revision))
+  )
     return { state: next, store, outcome, written: {}, echoes, kept, contradicted: [] }
   const heard =
     awaited === undefined ? undefined : heardBack(awaited, context.stream ?? '', event.values)

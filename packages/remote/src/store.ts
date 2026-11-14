@@ -385,6 +385,14 @@ export const clearFloors = (store: EntityStore, keys: Iterable<EntityKey>): Enti
   return next ?? store
 }
 
+/**
+ * Whether a row of `revision` is newer than the floored row held, whose
+ * revision a write's answer set: the server has it past that write, whatever
+ * token it was read at.
+ */
+export const pastFloor = (held: EntityEntry | undefined, revision: number | undefined): boolean =>
+  revision !== undefined && held?.revision !== undefined && revision > held.revision
+
 /** The wait before asking a row again after its `tries`-th answer `behind`: 1s, doubling, at most 30s. */
 export const behindDelay = (tries: number): number => Math.min(30_000, 1000 * 2 ** (tries - 1))
 
