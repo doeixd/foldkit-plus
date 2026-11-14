@@ -27,11 +27,11 @@ different jobs. `Input.view` is use. `Recipes.Input.extend`, `Style.forSlots`, a
 `Behavior.attach` are customization; the original view stays. `Bundle.make` with `declare` /
 `parent` / `at` assembles one child and places it, twice if the parent draws two. A primitive
 (`Behaviors.Keyboard`, `FocusRecovery`) returns a Behavior and holds no Model. The widgets
-search field is that assembly, and the dismissible list is the edit-and-remove widget on the
-same path:
-https://github.com/doeixd/foldkit-plus/blob/main/examples/widgets/src/ui-sdk-search-field.ts
+search-field demo draws the shipped `SearchField.view` with an application key route and places it twice
+through Bundle, and the dismissible list shows `FocusRecovery` on the list that holds its rows:
+https://github.com/doeixd/foldkit-plus/blob/main/examples/widgets/src/search-field/
 and
-https://github.com/doeixd/foldkit-plus/blob/main/examples/widgets/src/ui-sdk-dismissible-list.ts.
+https://github.com/doeixd/foldkit-plus/blob/main/examples/widgets/src/dismissible-list/.
 `forMessages<Message>()`, a `(model: Model)` parameter, `<Model, Message>` on a Behavior whose
 callback does not mention those types, and `Submodel.defineView<Model, Message>(view)` are the
 annotations inference does not pin. Omitting `defineView`'s arguments infers a view-input
