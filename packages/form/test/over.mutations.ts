@@ -42,4 +42,9 @@ export default [
     'return { model: { ...initial, subject: model.subject } }',
     'return { model: { ...initial, subject: model.subject, over: model.over } }',
   ),
+  edit(
+    'a relation key the form sets is not counted',
+    'RelationInput: ({ relation }) => [[relation.key, key] as const],',
+    'RelationInput: () => [],',
+  ),
 ]

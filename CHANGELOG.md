@@ -23,8 +23,9 @@ version changed; `pnpm` skips versions already in the registry.
   invariants over the row it edits (#542, #543). `form.over(model, row)` keeps
   the encoded row (`model.over`, stored as null when none, so an older Model
   decodes), and invariants are judged over it with the form's values laid
-  over it, transitions included, on each edit once every key setting a field
-  the rule reads has been edited (`model.reached`), and on submit.
+  over it, transitions included, on each edit once every key setting a member
+  the rule reads, a field or a relation, has been edited (`model.reached`), and
+  on submit.
   `Entity.rowFrom(entity, value)` gives the row from a read value, and
   `Entity.judgedBy(input)` names what to load beside the input; `Crud.editor`
   loads it and sets its form over the loaded row, so a quote form setting only

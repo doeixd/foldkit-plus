@@ -431,7 +431,8 @@ Entity's: the operation decides what is valid, and may be stricter.
   form's keys: `Entity.selectFor(input, { also: Entity.judgedBy(input) })`.
   A form over a row also judges **on each edit**, as #192 has every key do:
   a failure shows once the person has edited every key of the form that sets
-  a field the rule reads (`model.reached`), so a rule over two keys waits for
+  a member the rule reads, a field or a relation it points (`model.reached`),
+  so a rule over two keys waits for
   the second; a blur judges nothing; a submit shows every failure, edited or
   not. A rule the row lacks a field for is still the server's.
   `foldkit-crud`'s editor does all of this.

@@ -1440,14 +1440,17 @@ const Core = {
       Schema.toType(input.schema) as Schema.Codec<Value>,
     )
 
-    // The key of this input that sets each field, for showing an invariant beside it.
-    const keyOfField = new Map<string, Key>(
-      keys.flatMap(key => {
-        const member = members[key]!
-        if (member._tag !== 'Field') return []
-        const field = member.key
-        return [[field, key] as const]
-      }),
+    // The key of this input that sets each member, a field or a `one` relation it
+    // points: what an invariant reads of it, and where its failure shows.
+    const keyOfMember = new Map<string, Key>(
+      keys.flatMap(key =>
+        Match.valueTags(members[key]!, {
+          Field: ({ key: field }) => [[field, key] as const],
+          RelationInput: ({ relation }) => [[relation.key, key] as const],
+          NestedInput: () => [],
+          Unmapped: () => [],
+        }),
+      ),
     )
 
     /** The value's row under its Entity's invariants, over the row the form edits when it has one. */
@@ -1466,7 +1469,7 @@ const Core = {
       const errors: Array<string> = []
       for (const failure of failures) {
         const shown = failure.path.flatMap(field =>
-          Option.toArray(Option.fromUndefinedOr(keyOfField.get(field))),
+          Option.toArray(Option.fromUndefinedOr(keyOfMember.get(field))),
         )
         if (shown.length === 0) errors.push(failure.message)
         for (const key of shown) {
@@ -1489,7 +1492,7 @@ const Core = {
     /**
      * After an edit of a form over a row, the invariants judged over what
      * decodes so far: a failure shows once the person has reached every key of
-     * the form that sets a field it reads, so a rule over two keys does not
+     * the form that sets a member it reads (a field, or a relation it points), so a rule over two keys does not
      * scold before the second is typed. A form with no row waits for a submit.
      */
     const judgedOnEdit = (model: Model): Model => {
@@ -1500,7 +1503,7 @@ const Core = {
         Invalid: ({ failures }) => {
           const reached = failures.filter(failure => {
             const setting = [...failure.after, ...failure.before].flatMap(field =>
-              Option.toArray(Option.fromUndefinedOr(keyOfField.get(field))),
+              Option.toArray(Option.fromUndefinedOr(keyOfMember.get(field))),
             )
             return setting.length > 0 && setting.every(key => model.reached[key] === true)
           })

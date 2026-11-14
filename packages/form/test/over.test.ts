@@ -4,7 +4,7 @@
  * edited (#192's timing) and on a submit. A form with no row judges as before.
  */
 import { Option, Schema } from 'effect'
-import { Entity, Expr } from 'foldkit-entity'
+import { Entity, Expr, Relation } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
 import { Form } from '../src/index.js'
 
@@ -204,6 +204,67 @@ describe('A form over the row it edits', () => {
     const opened = repOver(draft)
     expect(Rep.fill(opened, { discountPct: 12 }).model.over).toEqual(Option.some(draft))
     expect(run(Rep, opened, [Rep.Message.Reset()]).model.over).toEqual(Option.none())
+  })
+})
+
+const PersonFields = Entity.define('Person', Schema.Struct({ id: Schema.String }))
+const Ticket = Entity.relate(
+  {
+    Person: PersonFields,
+    Ticket: Entity.define('Ticket', Schema.Struct({ id: Schema.String, priority: Schema.Number })),
+  },
+  { Ticket: { assignee: Relation.one(PersonFields, { optional: true }) } },
+).Ticket.pipe(
+  Entity.invariant(
+    'urgentIsAssigned',
+    ({ after }) => Expr.or(Expr.lte(after.priority, 2), Expr.isNotNull(after.assignee)),
+    { message: 'An urgent ticket needs an assignee', path: ['priority'] },
+  ),
+  Entity.invariant('assigned', ({ after }) => Expr.isNotNull(after.assignee), {
+    message: 'A ticket needs an assignee',
+    path: ['assignee'],
+  }),
+)
+const Triage = Form.make(
+  'Triage',
+  Entity.input(
+    Ticket,
+    Schema.Struct({
+      id: Schema.String,
+      priority: Schema.Number,
+      assigneeId: Schema.NullOr(Schema.String),
+    }),
+    { assigneeId: 'assignee' },
+  ),
+)
+
+describe('A form over a row, judging invariants over a relation it sets', () => {
+  const opened = Triage.over(
+    Triage.fill(Triage.initial, { id: 't1', priority: 1, assigneeId: null }).model,
+    { id: 't1', priority: 1, assignee: null },
+  ).model
+  const reachedAssignee = [
+    Triage.Message.Changed({ key: 'assigneeId', value: 'x' }),
+    Triage.Message.Changed({ key: 'assigneeId', value: '' }),
+  ]
+
+  it('waits for the relation key as for a field key', () => {
+    const typed = run(Triage, opened, [Triage.Message.Changed({ key: 'priority', value: '3' })])
+    expect(Triage.field(typed.model, 'priority')._tag).toBe('Valid')
+    const reached = run(Triage, typed.model, reachedAssignee).model
+    expect(Triage.field(reached, 'priority')).toMatchObject({
+      _tag: 'Invalid',
+      errors: ['An urgent ticket needs an assignee'],
+    })
+  })
+
+  it('shows a rule over the relation alone once its key is reached, beside that key', () => {
+    const { model } = run(Triage, opened, reachedAssignee)
+    expect(Triage.field(model, 'assigneeId')).toMatchObject({
+      _tag: 'Invalid',
+      errors: ['A ticket needs an assignee'],
+    })
+    expect(model.errors).toEqual([])
   })
 })
 

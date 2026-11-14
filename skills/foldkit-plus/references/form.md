@@ -174,7 +174,7 @@ const RenameForm = Page.at(Slot, {
 - **Judge invariants over the row it edits:** `Rename.over(model, Entity.rowFrom(Rename.input.entity, loaded))`
   keeps the encoded row (`model.over`, an `Option`; `fill` keeps it, `Reset` drops it).
   Invariants are then judged over the row with the values laid over it, transitions
-  included, on each edit once every key setting a field the rule reads is edited
+  included, on each edit once every key setting a member (field or relation) the rule reads is edited
   (`model.reached`), never on a blur, and in full on submit. Load what they read with
   `Entity.selectFor(input, { also: Entity.judgedBy(input) })`. `Crud.editor` does both.
 - **Enable the button:** `Rename.canSubmit(model.rename)` (true while a check
