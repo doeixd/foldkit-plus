@@ -658,10 +658,13 @@ export { Footprint, type DeclaredFootprint } from './footprint.js'
 export {
   Laws,
   Finding,
+  LawEdge,
+  LawNode,
   LawVerdict,
   type Arrow,
   type FootprintEntry,
   type LawEntry,
+  type LawFacts,
   type LawPair,
   type LawReport,
   type WriteEntry,

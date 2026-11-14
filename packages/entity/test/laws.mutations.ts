@@ -169,4 +169,86 @@ export default [
     ],
     tests: [laws],
   },
+  {
+    name: 'Enumerated issued for an undecided pair',
+    edits: [
+      {
+        file: '../src/laws.ts',
+        find: '    Refused: () => Option.none(),\n    Undecided: () => Option.none(),',
+        replace:
+          '    Refused: () => Option.none(),\n    Undecided: () =>\n      Option.some(issuer.issue(Evidence.Enumerated({ transition: transition({ name }), law: law(held) }))),',
+      },
+    ],
+    tests: [laws],
+  },
+  {
+    name: 'Enumerated issued for a refused pair',
+    edits: [
+      {
+        file: '../src/laws.ts',
+        find: '    Refused: () => Option.none(),\n    Undecided',
+        replace:
+          '    Refused: () =>\n      Option.some(issuer.issue(Evidence.Enumerated({ transition: transition({ name }), law: law(held) }))),\n    Undecided',
+      },
+    ],
+    tests: [laws],
+  },
+  {
+    name: "Enumerated issued on an author's word",
+    edits: [
+      { file: '../src/laws.ts', find: "by === 'declared'", replace: "by === ('none' as string)" },
+    ],
+    tests: [laws],
+  },
+  {
+    name: 'Enumerated records left unissued',
+    edits: [
+      {
+        file: '../src/laws.ts',
+        find: 'issuer.issue(Evidence.Enumerated({ transition: transition({ name }), law: law(held) })),',
+        replace: 'Evidence.Enumerated({ transition: transition({ name }), law: law(held) }),',
+      },
+    ],
+    tests: [laws],
+  },
+  {
+    name: "facts keep a write's postcondition as a law",
+    edits: [
+      { file: '../src/laws.ts', find: '    if (pair.postcondition) continue\n', replace: '' },
+    ],
+    tests: [laws],
+  },
+  {
+    name: 'facts draw no keeps edge',
+    edits: [
+      {
+        file: '../src/laws.ts',
+        find: '    if (Option.isSome(pair.evidence))',
+        replace: "    if (Option.isSome(pair.evidence) && pair.write === '')",
+      },
+    ],
+    tests: [laws],
+  },
+  {
+    name: 'facts draw no to edge for an enforced becomes',
+    edits: [
+      {
+        file: '../src/laws.ts',
+        find: "if (Finding.$is('Enforced')(finding)) {",
+        replace: "if (Finding.$is('Enforced')(finding) && finding.write === '') {",
+      },
+    ],
+    tests: [laws],
+  },
+  {
+    name: 'facts read a declared footprint as writing nothing',
+    edits: [
+      {
+        file: '../src/laws.ts',
+        find: '      Declared: ({ writes }) => writes,\n      Unknown: () => [],',
+        replace: '      Declared: () => [],\n      Unknown: () => [],',
+      },
+    ],
+    tests: [laws],
+  },
 ]

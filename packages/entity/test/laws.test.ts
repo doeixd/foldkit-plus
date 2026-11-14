@@ -3,13 +3,16 @@
  * enumeration over finite fields, and the arrows its writes make between the
  * Entity's states.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
+import { Evidence } from 'foldkit-metadata'
 import { describe, expect, it } from 'vitest'
 import {
   Entity,
   Expr,
   Finding,
   Footprint,
+  LawEdge,
+  LawNode,
   Laws,
   Write,
   type LawReport,
@@ -409,5 +412,135 @@ describe('Laws.check: states', () => {
         'Sell      x soldNeverFalls            undecided: sold is not finite',
       ].join('\n'),
     )
+  })
+})
+
+describe('Laws.check: evidence', () => {
+  const Touch = {
+    name: 'Touch',
+    entity: Product,
+    footprint: Footprint.declared({ writes: [Product.fields.name], by: 'the Domain model' }),
+  }
+  const report = Laws.check({ writes: [Rename, Revert, Sell, Remove, Touch] })
+  const evidence = (write: string, invariant: string) =>
+    report.pairs.find(each => each.write === write && each.invariant === invariant)!.evidence
+
+  it.each([
+    ['Rename', 'reservedWithinStock', 'disjointness'],
+    ['Rename', 'publishedStaysPublished', 'enumeration'],
+    ['Remove', 'reservedWithinStock', 'delete'],
+  ])('issues an Enumerated record for %s x %s, kept by %s', (write, invariant) => {
+    const record = Option.getOrThrow(evidence(write, invariant))
+    expect(record).toEqual(
+      Evidence.Enumerated({ transition: `write:${write}`, law: `Product.${invariant}` }),
+    )
+    expect(Evidence.issuedBy(record)).toEqual(Option.some('foldkit-entity/laws'))
+  })
+
+  it.each([
+    ['Sell', 'reservedWithinStock', 'undecided'],
+    ['Revert', 'publishedStaysPublished', 'refused'],
+    ['Touch', 'reservedWithinStock', "kept on its author's word"],
+  ])('issues none for %s x %s, %s', (write, invariant) => {
+    expect(evidence(write, invariant)).toEqual(Option.none())
+  })
+
+  it('names transitions and laws as the graph and evidence do', () => {
+    expect(Laws.transition(Sell)).toBe('write:Sell')
+    expect(Laws.law(reservedWithinStock)).toBe('Product.reservedWithinStock')
+  })
+})
+
+describe('Laws.facts', () => {
+  const SellInStock = {
+    name: 'SellInStock',
+    write: Write.update(Sell.write.input, {
+      id: 'id',
+      increment: { stock: 'quantity' },
+      becomes: InStock,
+    }),
+  }
+  const Import = { name: 'Import', entity: Product, footprint: Footprint.unknown }
+  const Restock = {
+    name: 'Restock',
+    entity: Product,
+    footprint: Footprint.declared({ writes: [Product.fields.stock], by: 'the Domain model' }),
+  }
+  const report = Laws.check({ writes: [Publish, Revert, SellInStock, Import, Restock] })
+  const { nodes, edges } = Laws.facts(report)
+  const plain = (each: ReadonlyArray<object>) => each.map(item => ({ ...item }))
+
+  it('makes a node of each law, transition and state, and of each member named', () => {
+    expect(plain(nodes.filter(LawNode.$is('Law')))).toEqual(
+      ['reservedWithinStock', 'publishedStaysPublished', 'soldNeverFalls'].map(id => ({
+        ...LawNode.Law({ id: `Product.${id}` }),
+      })),
+    )
+    expect(plain(nodes.filter(LawNode.$is('Transition')))).toEqual(
+      ['Publish', 'Revert', 'SellInStock', 'Import', 'Restock'].map(name => ({
+        ...LawNode.Transition({ id: `write:${name}`, kind: 'write' }),
+      })),
+    )
+    expect(nodes.filter(LawNode.$is('State')).map(state => state.name)).toEqual([
+      'Draft',
+      'Published',
+      'Archived',
+      'InStock',
+    ])
+    expect(nodes.filter(LawNode.$is('Path')).map(each => each.path.join('.'))).toContain(
+      'Product.reserved',
+    )
+  })
+
+  it('says what each law reads and each transition writes, once each', () => {
+    expect(
+      edges.filter(LawEdge.$is('Reads')).filter(each => each.law === 'Product.reservedWithinStock'),
+    ).toEqual([
+      LawEdge.Reads({ law: 'Product.reservedWithinStock', path: ['Product', 'reserved'] }),
+      LawEdge.Reads({ law: 'Product.reservedWithinStock', path: ['Product', 'stock'] }),
+    ])
+    expect(plain(edges.filter(LawEdge.$is('Writes')))).toEqual(
+      [
+        ['Publish', 'status'],
+        ['Revert', 'status'],
+        ['SellInStock', 'stock'],
+        ['Restock', 'stock'],
+      ].map(([name, member]) => ({
+        ...LawEdge.Writes({ transition: `write:${name}`, path: ['Product', member!] }),
+      })),
+    )
+  })
+
+  it('joins a transition to a law it keeps by its Enumerated record, and no other', () => {
+    const keeps = edges.filter(LawEdge.$is('Keeps'))
+    const decided = report.pairs.filter(pair => Option.isSome(pair.evidence))
+    expect(keeps.map(each => [each.transition, each.law])).toEqual(
+      decided.map(pair => [`write:${pair.write}`, `Product.${pair.invariant}`]),
+    )
+    expect(keeps.map(each => each.evidence)).toEqual(
+      decided.map(pair => Option.getOrThrow(pair.evidence)),
+    )
+    expect(
+      keeps.some(
+        each =>
+          each.transition === 'write:Revert' && each.law === 'Product.publishedStaysPublished',
+      ),
+    ).toBe(false)
+  })
+
+  it("leaves a write's own postcondition out, and draws its becomes as a to edge", () => {
+    expect(nodes.some(each => LawNode.$is('Law')(each) && each.id.includes('becomes:'))).toBe(false)
+    expect(plain(edges.filter(LawEdge.$is('To')))).toEqual(
+      [
+        ['Publish', 'Published'],
+        ['Revert', 'Draft'],
+        ['SellInStock', 'InStock'],
+      ].map(([name, state]) => ({
+        ...LawEdge.To({ transition: `write:${name}`, entity: 'Product', state: state! }),
+      })),
+    )
+    expect(
+      edges.filter(LawEdge.$is('From')).map(each => `${each.transition} ${each.state}`),
+    ).toEqual(['write:Publish Draft', 'write:Revert Published', 'write:Revert Archived'])
   })
 })
