@@ -1934,12 +1934,7 @@ const reduceRemote = (
       return model
     case 'ReadReceived': {
       if (askedBeforeForget(model, message.generation)) return model
-      const { held, confirmed } = readAfter(
-        model.entities,
-        message.requests,
-        message.result,
-        message.after,
-      )
+      const { held } = readAfter(model.entities, message.requests, message.result, message.after)
       return {
         ...model,
         outbox: heardAs(
@@ -1948,9 +1943,12 @@ const reduceRemote = (
           message.result.principal === undefined ? undefined : madeAsOf(message.result.principal),
           message.generation,
         ),
-        entities: clearFloors(
-          writeRead(model.entities, message.requests, message.result, message.now, held),
-          confirmed,
+        entities: writeReadAt(
+          model.entities,
+          message.requests,
+          message.result,
+          message.now,
+          message.after,
         ),
         echoes: answeredSince(
           model.echoes,
@@ -2890,6 +2888,22 @@ const readAfter = (
     else held.add(key)
   }
   return { held: held.size === 0 ? noRows : held, confirmed }
+}
+
+/**
+ * `writeRead` of a read sent with `after`'s tokens: a floored row it may not
+ * speak for is left as held (`readAfter`), and each it read at its token ends
+ * its floor.
+ */
+export const writeReadAt = (
+  store: EntityStore,
+  requests: ReadonlyArray<Requirement>,
+  result: Schema.Schema.Type<typeof ReadBatchResult>,
+  now: number,
+  after: ReadonlyArray<Schema.Schema.Type<typeof RowToken>> | undefined,
+): EntityStore => {
+  const { held, confirmed } = readAfter(store, requests, result, after)
+  return clearFloors(writeRead(store, requests, result, now, held), confirmed)
 }
 
 /**

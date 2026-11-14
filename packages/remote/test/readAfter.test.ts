@@ -192,6 +192,58 @@ describe('An answer to a read of a floored row', () => {
   })
 })
 
+describe('Reads outside the read entry', () => {
+  const through = <A>(effect: Effect.Effect<A, unknown, RemoteClient>) => {
+    const batches: Array<typeof ReadBatch.Type> = []
+    return Effect.runPromise(
+      effect.pipe(
+        Effect.provide(
+          Layer.succeed(RemoteClient, {
+            read: batch =>
+              Effect.sync(() => (batches.push(batch), { entities: [row(4)], settled: [] })),
+            query: () => Effect.die('no query'),
+            mutate: () => Effect.die('no mutate'),
+            live: () => Stream.empty,
+          }),
+        ),
+        Effect.map(model => ({ model, batches })),
+      ),
+    )
+  }
+
+  it.each([
+    ['Data.prefetch', (model: Model) => Data.prefetch(model, product)],
+    ['Data.satisfy', (model: Model) => Data.satisfy(model, { product: active.product })],
+  ] as const)('%s carries the token and ends the floor', async (_, read) => {
+    const { model, batches } = await through(read(written()))
+    expect(batches.map(batch => batch.after)).toEqual([sent])
+    expect(stockOf(model as Model)).toBe(4)
+    expect(floorOf(model as Model)).toBeUndefined()
+  })
+})
+
+describe('Remote.prefetch, the kernel read', () => {
+  it('carries the token and ends the floor', async () => {
+    const batches: Array<typeof ReadBatch.Type> = []
+    const store = await Effect.runPromise(
+      Remote.prefetch(Data, written(), product).pipe(
+        Effect.provide(
+          Layer.succeed(RemoteClient, {
+            read: batch =>
+              Effect.sync(() => (batches.push(batch), { entities: [row(4)], settled: [] })),
+            query: () => Effect.die('no query'),
+            mutate: () => Effect.die('no mutate'),
+            live: () => Stream.empty,
+          }),
+        ),
+      ),
+    )
+    expect(batches.map(batch => batch.after)).toEqual([sent])
+    expect(store['Product:p1']?.floor).toBeUndefined()
+    expect(store['Product:p1']?.values['stock']).toBe(4)
+  })
+})
+
 describe('A list page over a floored row', () => {
   it('writes nothing of the row: a page is read with no token', () => {
     const model = Data.reduce(written(), {

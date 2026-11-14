@@ -35,7 +35,7 @@ export default [
     'generation !== undefined && generation < model.refresh.floor',
     'false',
   ),
-  unguarded('read answer', 'const { held, confirmed } = readAfter('),
+  unguarded('read answer', 'const { held } = readAfter('),
   unguarded('read failure', '// A broken live stream is not a failed read.'),
   unguarded('live event', 'const state = model.live[message.stream] ?? emptyLiveState'),
   unguarded('page', 'const current = model.connections[message.connection] ?? emptyConnection'),
@@ -73,8 +73,8 @@ export default [
   edit(
     'a preloaded read names no generation',
     remote,
-    'now: at,\n        generation,\n      })',
-    'now: at,\n      })',
+    '...(after.length === 0 ? {} : { after }),\n        generation,\n      })',
+    '...(after.length === 0 ? {} : { after }),\n      })',
   ),
   edit(
     'a preloaded page names no generation',

@@ -54,8 +54,8 @@ export default [
   edit(
     'a row named in behind is written',
     model,
-    '      writeRead(model.entities, message.requests, message.result, message.now, held),',
-    '      writeRead(model.entities, message.requests, message.result, message.now),',
+    'return clearFloors(writeRead(store, requests, result, now, held), confirmed)',
+    'return clearFloors(writeRead(store, requests, result, now), confirmed)',
   ),
   edit(
     'a floored row is not planned',
@@ -152,5 +152,17 @@ export default [
     model,
     '              readAfter(model.entities, requests, payloadRead, undefined).held,\n',
     '',
+  ),
+  edit(
+    'Remote.prefetch reads without the token',
+    '../src/remote.ts',
+    '  const { requirements, after } = withTokens(store, missing)',
+    '  const { requirements } = withTokens(store, missing)\n  const after: ReadonlyArray<never> = []',
+  ),
+  edit(
+    'prefetch and satisfy read without the token',
+    '../src/remote.ts',
+    '      const { requirements, after } = withTokens(\n        store.get(current).entities,',
+    '      const { requirements, after: _after } = withTokens(\n        store.get(current).entities,',
   ),
 ]
