@@ -40,6 +40,17 @@ export { toManifest, toMarkdown, type Manifest } from './docs.js'
 export { contextSchema, messages, resources, schema } from './introspect.js'
 export { newInvocationId } from './invocation.js'
 export { resource, type Resource, type ResourceOptions } from './resource.js'
+export {
+  Found,
+  part,
+  parts,
+  type Part,
+  type PartDescriptor,
+  type PartRole,
+  type Parts,
+  type RepeatedPartConfig,
+  type SinglePartConfig,
+} from './parts.js'
 export { bind, type AgentHost, type AgentRuntime, type BindOptions } from './runtime.js'
 export type {
   AgentSchema,
