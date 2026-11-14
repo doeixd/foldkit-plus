@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`: `SlotView.over(slots)<Input, Message>()` names the slots, the
+  input and the Message universe once and returns `define`, `behavior` and
+  `parts` with them fixed; `SlotView.isBound` tells it from bare slots.
+  `foldkit-mixins-surface`'s `SurfaceView.over(surface, slots)` reads both types
+  from the Surface (#551). A Mixin carries a frozen `meta` (kind, and per slot
+  what it requires, provides and reads), filled by `Style.forSlots` and
+  `Behavior.forSlots`; `SlotView.detach(name)` and `SlotView.replace(name,
+  mixin)` address an attachment by name (`mixins:unknown-attachment`,
+  `mixins:ambiguous-attachment`). Every two-owner diagnostic names both
+  contributors in its message and `details.contributors` (#556).
 - `foldkit-agent`: parts (#557). `Agent.part({ label, role, field?, invokes?,
   sets?, each?, key?, input? })` in `Agent.parts(definition, { … })` (also on
   `forApplication`/`forModel`) names which control on the screen is which
@@ -163,6 +173,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins`: a Mount inside a `ChildAttribute` on a Slot is composed with
+  the Slot's other Mounts, instead of drawn beside them where Foldkit kept one,
+  and still sends through its own boundary (#531).
 - `MessageScroller` keeps following the end when its scrolling frame shrinks (a
   keyboard opening, a window resized): the Mount observes the scrolling parent as
   well as the log, so the end is re-seated instead of left out of view.
