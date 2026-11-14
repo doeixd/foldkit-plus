@@ -312,6 +312,9 @@ const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Projec
 // Policy for fields already cached (default RemotePolicy.cacheFirst), as the second argument:
 // Data.subscriptions({ page: Surface.at(...) }, { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), grace: '5 seconds' })
 // A policy covers one call: use one call per policy and spread the records together.
+// Data.wiring is one call: policies gives entries their own, by key, over policy (a key the record lacks is a type error):
+// Data.wiring({ page, editor }, { policy: ageing, policies: { editor: RemotePolicy.networkOnly } })
+// A list two entries read is held stale once left unless both policies age it.
 // Retention is the domain's: any call's `retain` entry roots the reads of every call.
 // `now` defaults to Date.now read at each use (fake timers move it; pass `now` under TestClock).
 // Entry dependencies are typed: ReadDependencies / LiveDependencies / RetentionRoots.
