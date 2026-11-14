@@ -196,12 +196,13 @@ const html = SurfaceView.render(TodoListView, TodoList, undefined, {
 
 ## Introspection
 
-`SurfaceView.inspect(view)` returns serializable `{ name, slots, mixins }` with
-no functions. `SurfaceView.describe(surface, params, view)` merges that with
-`Surface.inspect` — what the Surface observes, its projection `metadata`, and
-what it may emit, with emitted Messages as tags — into one value.
-`SurfaceView.toMarkdown` renders it deterministically for docs or a CI drift
-check.
+`SurfaceView.describe(surface, params, view)` is `SlotView.describe(view)` (the slots, and each
+attachment in order with what it requires and contributes per slot, plus `findings`) merged with
+`Surface.inspect`: what the Surface observes, its projection `metadata`, and what it may emit, with
+emitted Messages as tags. `mixins` stays as the attachments' names. `SurfaceView.toMarkdown`
+renders it deterministically for docs or a CI drift check. `SurfaceView.inspect(view)` is
+deprecated for one release in favour of `SlotView.describe`; it still returns `{ name, slots,
+mixins }`.
 
 Each of `define`, `toRenderer`, `render`, `inspect`, `describe`, and `toMarkdown` is also a
 direct named export if you prefer that to the `SurfaceView` namespace.

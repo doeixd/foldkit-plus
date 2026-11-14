@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`, `foldkit-mixins-surface`: `SlotView.describe(view)` is a
+  view as serializable data (its slots and each attachment in order, with what it
+  requires, supplies and contributes per slot, and findings for an unnamed or
+  doubly named attachment), `SlotView.resolution(view, input)` the names and
+  owners one input resolves to with no value, Mount args or handler call, and
+  `SlotView.toMarkdown` prints a description (#556). `SurfaceView.describe` gains
+  `attachments` and `findings`; `SurfaceView.toMarkdown` prints them, and its
+  `Mixins` section is now `Attachments`.
+
 - `examples/writes-domain`: one write scenario through three backends (#546).
   `WriteScenario` is data (rows, principal, clock, the write, its operation and
   what it must come to); `sqliteRunner`, `memoryRunner` (`RemoteServer.memoryWriter`
@@ -229,6 +238,9 @@ version changed; `pnpm` skips versions already in the registry.
   `refused` ("The column's series gave no text here"), not padded.
 
 ### Changed
+
+- `foldkit-mixins-surface`: `SurfaceView.inspect` is deprecated for one release
+  in favour of `SlotView.describe` (#556).
 
 - `Entity.judgeInput(input, value, { operators?, over? })` takes an options
   object in place of the positional operator table (#542).
