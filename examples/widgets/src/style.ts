@@ -13,6 +13,10 @@ import type { AlertDialogSlots } from './alert-dialog/view.js'
 import type { AutocompleteSlots } from './autocomplete/view.js'
 import type { CheckboxGroupSlots } from './checkbox-group/view.js'
 import type { CommandSlots } from './command/view.js'
+import type { DismissibleListSlots } from './dismissible-list/view.js'
+import type { LeavingRowsSlots } from './leaving-rows/view.js'
+import type { SearchSlots } from './search-field/view.js'
+import type { SearchPageSlots } from './search-field/demo.js'
 import type { MeterSlots } from './meter/view.js'
 import type { HoverCardSlots } from './hover-card/view.js'
 import type { MenubarSlots } from './menubar/view.js'
@@ -150,6 +154,73 @@ export const toolbarStyle = (slots: typeof ToolbarSlots) =>
       ),
     },
     { name: 'ShowcaseToolbar' },
+  )
+
+export const dismissibleListStyle = (slots: typeof DismissibleListSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'grid', gap: '0.5rem', maxWidth: '24rem' }),
+      filter: Style.compose(Style.self({ boxSizing: 'border-box', width: '100%' }), control, focus),
+      clear: Style.compose(control, focus),
+      remove: Style.compose(control, focus),
+    },
+    { name: 'ShowcaseDismissibleList' },
+  )
+
+export const searchFieldStyle = (slots: typeof SearchSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'grid', gap: '0.5rem' }),
+      results: Style.self({ color: muted }),
+    },
+    { name: 'ShowcaseSearchField' },
+  )
+
+export const searchPageStyle = (slots: typeof SearchPageSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'grid', gap: '1rem', maxWidth: '24rem' }),
+      inspection: Style.self({
+        margin: '0',
+        padding: '0.75rem',
+        overflow: 'auto',
+        background: wash,
+        borderRadius: t.radius.lg,
+        fontSize: '0.75rem',
+      }),
+    },
+    { name: 'ShowcaseSearchPage' },
+  )
+
+export const leavingRowsStyle = (slots: typeof LeavingRowsSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'grid', gap: '0.5rem', maxWidth: '24rem' }),
+      filter: Style.compose(Style.self({ boxSizing: 'border-box', width: '100%' }), control, focus),
+      row: Style.compose(
+        // Fades while an exit keeps it drawn.
+        Style.self({ transition: 'opacity 300ms' }),
+        Style.nest('&[data-fk-leaving]', { opacity: '0.3' }),
+      ),
+      dismiss: Style.compose(control, focus),
+      keep: Style.compose(control, focus),
+      remove: Style.compose(control, focus),
+      open: Style.compose(control, focus),
+      panel: Style.compose(
+        Style.self({
+          display: 'grid',
+          gap: '0.5rem',
+          padding: '0.75rem',
+          border: `${t.border.thin} solid ${line}`,
+          borderRadius: t.radius.lg,
+          background: onAccent,
+          transition: 'opacity 300ms',
+        }),
+        Style.nest('&[data-fk-leaving]', { opacity: '0.3' }),
+      ),
+      close: Style.compose(control, focus),
+    },
+    { name: 'ShowcaseLeavingRows' },
   )
 
 export const toggleStyle = (slots: typeof ToggleSlots) =>

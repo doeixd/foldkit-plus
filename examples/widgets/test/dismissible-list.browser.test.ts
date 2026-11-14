@@ -1,7 +1,8 @@
 import * as Runtime from 'foldkit/runtime'
 import { afterEach, expect, it, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
-import { Model, initial, update, view } from '../src/ui-sdk-dismissible-list.js'
+import { Model, initial, update } from '../src/dismissible-list/app.js'
+import { DismissibleList } from '../src/dismissible-list/view.js'
 
 let dispose = () => {}
 afterEach(() => {
@@ -17,7 +18,13 @@ const start = async () => {
   container.id = 'dismissible-list'
   document.body.append(container)
   dispose = Runtime.embed(
-    Runtime.makeElement({ Model, container, init: () => ({ model: initial }), update, view }),
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => ({ model: initial }),
+      update,
+      view: DismissibleList,
+    }),
   ).dispose
   await vi.waitFor(() => expect(button('Remove design')).not.toBeUndefined())
 }

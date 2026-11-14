@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { Message, initial, update } from '../src/ui-sdk-dismissible-list.js'
+import { Message, initial, update } from '../src/dismissible-list/app.js'
 
 test('a row and a branch leave the list by their own ids', () => {
   const withoutDesign = update(initial, Message.Removed({ id: 'design' })).model

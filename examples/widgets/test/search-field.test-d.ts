@@ -1,17 +1,13 @@
 import { Behavior, SlotView } from 'foldkit-mixins'
-import {
-  SearchSlots,
-  SearchView,
-  type SearchModel,
-  type SearchMessage,
-} from '../src/ui-sdk-search-field.js'
 import { defineMessageUnion } from 'foldkit/message'
+import { SearchSlots, SearchView } from '../src/search-field/view.js'
+import type { SearchMessage, SearchModel } from '../src/search-field/child.js'
 
 const Foreign = defineMessageUnion({ SentElsewhere: {} })
 
 Behavior.forSlots(SearchSlots)<SearchModel, SearchMessage>({
-  // @ts-expect-error the search view does not publish a results slot
-  results: Behavior.slot({}),
+  // @ts-expect-error the search view does not publish a clear slot: the field draws its own
+  clear: Behavior.slot({}),
 })
 
 const TooWide = Behavior.forSlots(SearchSlots)<
@@ -26,7 +22,7 @@ const withoutPending = { id: 'search', value: '', resultsOpen: false }
 NeedsPending(withoutPending, SlotView.inertBuilder<SearchMessage>())
 
 const Elsewhere = Behavior.forSlots(SearchSlots)<SearchModel, typeof Foreign.Type>({
-  clear: Behavior.slot({ attributes: ({ h }) => [h.OnClick(Foreign.SentElsewhere())] }),
+  results: Behavior.slot({ attributes: ({ h }) => [h.OnClick(Foreign.SentElsewhere())] }),
 })
 // @ts-expect-error the search view cannot send a foreign Message
 SearchView.pipe(Behavior.attach(Elsewhere))

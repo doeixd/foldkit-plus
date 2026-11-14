@@ -3,12 +3,13 @@
  * The leaving page rendered on a server: a hiding row and a shown popup are in
  * the markup, and the hiding row carries the leaving marker before any script.
  */
-import { Effect, Option } from 'effect'
+import { Effect } from 'effect'
 import { injectIntoTemplate, renderToString } from 'foldkit/experimental/server'
 import type { HtmlBuilder } from 'foldkit/html'
 import { expect, test } from 'vitest'
 import { LEAVING } from 'foldkit-primitives/dom'
-import { Message, Model, initial, view } from '../src/ui-sdk-leaving.js'
+import { Message, Model, initial } from '../src/leaving-rows/app.js'
+import { LeavingRows } from '../src/leaving-rows/view.js'
 
 test('a hiding row and an open popup are in the first markup', async () => {
   const served = await Effect.runPromise(
@@ -17,14 +18,13 @@ test('a hiding row and an open popup are in the first markup', async () => {
         init: () => ({
           model: {
             ...initial.model,
-            closing: Option.some('design'),
-            rowExit: { phase: 'hiding' as const, generation: 2 },
+            exits: { ...initial.model.exits, design: { phase: 'hiding' as const, generation: 2 } },
             popup: { phase: 'shown' as const, generation: 1 },
           },
         }),
         view: (model: Model, h: HtmlBuilder<Message>) => ({
           title: 'Leaving',
-          body: view(model, h),
+          body: LeavingRows(model, h),
         }),
       },
       { buildId: 'leaving' },

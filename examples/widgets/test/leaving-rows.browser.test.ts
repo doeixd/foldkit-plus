@@ -8,7 +8,8 @@ import { Motion } from 'foldkit-primitives/motion'
 import { afterEach, expect, it, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { LEAVING } from 'foldkit-primitives/dom'
-import { Model, filterId, initialFor, update, view } from '../src/ui-sdk-leaving.js'
+import { Model, filterId, initialFor, update } from '../src/leaving-rows/app.js'
+import { LeavingRows } from '../src/leaving-rows/view.js'
 
 let dispose = () => {}
 afterEach(() => {
@@ -34,7 +35,7 @@ const start = async (scope: string, reduced = false) => {
       container,
       init: () => initialFor(scope),
       update,
-      view,
+      view: LeavingRows,
       ...(reduced ? { resources: Motion.reduced } : {}),
     }),
   )
@@ -43,8 +44,8 @@ const start = async (scope: string, reduced = false) => {
     embedded.dispose()
     previous()
   }
-  // embed draws in place of the container, so the page is the view's main.
-  const page = () => document.getElementById(filterId(scope))?.closest('main') ?? null
+  // embed draws in place of the container, so the page is the view's root.
+  const page = () => document.getElementById(filterId(scope))?.parentElement ?? null
   await vi.waitFor(() => expect(page()).toBeInstanceOf(HTMLElement))
   return page() as HTMLElement
 }
@@ -64,8 +65,8 @@ it('moves focus to the next row while the dismissed row is still drawn, then dro
 it('keeps the row when it is shown again before the exit completes', async () => {
   const page = await start('keep')
   await userEvent.click(buttonIn(page, 'Remove design')!)
-  await vi.waitFor(() => expect(buttonIn(page, 'Keep')).toBeDefined())
-  await userEvent.click(buttonIn(page, 'Keep')!)
+  await vi.waitFor(() => expect(buttonIn(page, 'Keep design')).toBeDefined())
+  await userEvent.click(buttonIn(page, 'Keep design')!)
   await vi.waitFor(() => expect(rowIn(page, 'design')?.hasAttribute(LEAVING)).toBe(false))
   await new Promise(resolve => setTimeout(resolve, 500))
   expect(rowIn(page, 'design')).toBeDefined()
@@ -143,4 +144,28 @@ it('recovers each list on its own', async () => {
   await vi.waitFor(() => expect(buttonIn(one, 'Remove design')).toBeUndefined())
   expect(document.activeElement).toBe(buttonIn(one, 'Remove release'))
   expect(buttonIn(two, 'Remove design')).toBeDefined()
+})
+
+it('dismisses two rows in quick succession and drops each on its own exit', async () => {
+  const page = await start('two')
+  await userEvent.click(buttonIn(page, 'Remove design')!)
+  await userEvent.click(buttonIn(page, 'Remove release')!)
+  await vi.waitFor(() => expect(rowIn(page, 'release')?.hasAttribute(LEAVING)).toBe(true))
+  expect(rowIn(page, 'design')?.hasAttribute(LEAVING)).toBe(true)
+  expect(rowIn(page, 'backlog')?.hasAttribute(LEAVING)).toBe(false)
+  await vi.waitFor(() => expect(rowIn(page, 'design')).toBeUndefined())
+  await vi.waitFor(() => expect(rowIn(page, 'release')).toBeUndefined())
+  expect(rowIn(page, 'backlog')).toBeDefined()
+})
+
+it('keeps one row during its exit without stopping the other from leaving', async () => {
+  const page = await start('independent')
+  await userEvent.click(buttonIn(page, 'Remove design')!)
+  await userEvent.click(buttonIn(page, 'Remove release')!)
+  await vi.waitFor(() => expect(buttonIn(page, 'Keep design')).toBeDefined())
+  await userEvent.click(buttonIn(page, 'Keep design')!)
+  await vi.waitFor(() => expect(rowIn(page, 'release')).toBeUndefined())
+  expect(rowIn(page, 'design')).toBeDefined()
+  expect(rowIn(page, 'design')?.hasAttribute(LEAVING)).toBe(false)
+  expect(rowIn(page, 'design')?.inert).toBe(false)
 })

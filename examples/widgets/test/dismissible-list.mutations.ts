@@ -1,11 +1,12 @@
 /**
  * The dismissible list fixture, broken in turn: `pnpm mutate
- * examples/widgets/test/ui-sdk-dismissible-list.mutations.ts` checks that a
+ * examples/widgets/test/dismissible-list.mutations.ts` checks that a
  * test fails for every one.
  */
-const file = '../src/ui-sdk-dismissible-list.ts'
-const unit = ['examples/widgets/test/ui-sdk-dismissible-list.test.ts']
-const tests = [...unit, 'examples/widgets/test/ui-sdk-dismissible-list.browser.test.ts']
+const file = '../src/dismissible-list/app.ts'
+const viewFile = '../src/dismissible-list/view.ts'
+const unit = ['examples/widgets/test/dismissible-list.test.ts']
+const tests = [...unit, 'examples/widgets/test/dismissible-list.browser.test.ts']
 
 export default [
   {
@@ -56,7 +57,7 @@ export default [
     name: 'a row names the field whether or not it is the last',
     edits: [
       {
-        file,
+        file: viewFile,
         find: 'index === model.tags.length - 1 ? { to: FILTER_ID } : {}',
         replace: '{ to: FILTER_ID }',
       },
@@ -67,7 +68,7 @@ export default [
     name: 'removing a branch sends the row Message',
     edits: [
       {
-        file,
+        file: viewFile,
         find: 'h.OnClick(Message.RemovedChild({ id: child.id })),',
         replace: 'h.OnClick(Message.Removed({ id: child.id })),',
       },
