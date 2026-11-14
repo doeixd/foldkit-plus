@@ -114,3 +114,5 @@ export const Metadata = {
       entries: values.map(value => key.summarize(value)),
     })),
 }
+
+export { Evidence, type EvidenceIssuer } from './evidence.js'

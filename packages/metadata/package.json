@@ -26,8 +26,8 @@
   "exports": {
     ".": {
       "foldkit-plus:source": "./src/index.ts",
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
   "files": [
@@ -39,7 +39,11 @@
     "build": "node ../../scripts/declarations.mjs . && tsdown && node ../../scripts/declared-any.mjs .",
     "typecheck": "tsc -b"
   },
+  "peerDependencies": {
+    "effect": "^4.1.0"
+  },
   "devDependencies": {
+    "effect": "4.1.4",
     "tsdown": "^0.23.1",
     "typescript": "7.0.2"
   }
