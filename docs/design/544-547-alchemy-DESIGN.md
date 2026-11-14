@@ -1066,7 +1066,10 @@ WP1 (alone: lockfile)
     joining between a server render and hydration, or in a restart's gap
     (Remote's restart re-reads rows, not lists), was lost for good. The stream
     now opens with one `ConnectionInvalidate`, so each start costs one read of
-    the list.
+    the list. Asking the list again reads every listed row through its View, so
+    the frames of a burst are gathered for 50 ms and cost one ask, and a move
+    opens and closes only the watches of rows that joined or left (reopening
+    them all judged every kept row again for its first frame).
   - **Relations.** A View's state holds a `one` relation as the target's id or
     `null`; `view` refuses an Entity whose `one` relation the state lacks. A
     read answers the ref key and reads selected targets level by level through

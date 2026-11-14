@@ -14,7 +14,7 @@
  */
 import type * as Domain from '@alchemy.run/domain'
 import type { QueriesOf } from '@alchemy.run/domain/Api'
-import { Duration, Effect, Match, Option, Schema, Stream, SubscriptionRef } from 'effect'
+import { Duration, Effect, FiberMap, Match, Option, Queue, Ref, Schema, Stream } from 'effect'
 import {
   entityKey,
   queryIdentity,
@@ -274,13 +274,23 @@ const sameIds = (left: ReadonlyArray<string>, right: ReadonlyArray<string>) =>
   left.length === right.length && left.every((id, index) => id === right[index])
 
 /**
+ * How long a live list waits after a frame of a row it holds before asking
+ * the list again: the frames of a burst (one write touching several rows, a
+ * catch-up) cost one re-read of the list, which reads every listed row through
+ * its View.
+ */
+const RELIST_AFTER = Duration.millis(50)
+
+/**
  * A list read live: `ConnectionInvalidate` once as the stream starts, then
- * asked again whenever a row it lists changes, and `ConnectionInvalidate` when
+ * asked again after a row it lists changes, and `ConnectionInvalidate` when
  * what it lists moved, so the client reads it again. The first is for what
  * moved before the stream opened: the client's list may be a server render's,
  * or one read before a break, and Remote's restart re-reads its rows, not its
  * lists. After that, a row that joins the list without a change to a row it
  * holds is not seen until the list is read again: a Domain Query has no watch.
+ * When the list moves, only the watches of rows that joined or left open or
+ * close.
  */
 export const liveQuery = (
   lists: Lists,
@@ -295,45 +305,55 @@ export const liveQuery = (
       const listed = asLive(
         Effect.map(answerQuery(lists, bare), result => result.edges.map(edge => edge.id)),
       )
-      const held = yield* SubscriptionRef.make(yield* listed)
       const connection = queryIdentity(request.query, request.input)
       const invalidate = Effect.map(next, (cursor): LiveEvent => ({
         _tag: 'ConnectionInvalidate',
         connection,
         cursor,
       }))
-      // A frame of any listed row, after the first each watch sends of the row as it is.
-      const changed = SubscriptionRef.changes(held).pipe(
-        Stream.switchMap(ids =>
-          Stream.mergeAll(
-            ids.map(id =>
-              lists.watch(binding.entity, id).pipe(
-                Stream.drop(1),
-                Stream.as(undefined),
-                Stream.catch(error =>
-                  Match.valueTags(failureOf(lists.views.get(binding.entity)!.rejections)(error), {
-                    // Its View stopped letting who asks see it: the list moved.
-                    Rejected: () => Stream.make(undefined),
-                    Behind: ({ message }) => Stream.fail(new RemoteLiveError({ message })),
-                    Unreachable: ({ message }) => Stream.fail(new RemoteLiveError({ message })),
-                    Denied: () =>
-                      Stream.fail(
-                        new RemoteUnauthenticated({ message: 'The Domain Api refused who asks' }),
-                      ),
-                  }),
+      const rejections = lists.views.get(binding.entity)!.rejections
+      // A frame of a listed row, after the first each watch sends of the row as it is.
+      const frames = yield* Queue.unbounded<void, RemoteLiveError | RemoteUnauthenticated>()
+      const watches = yield* FiberMap.make<string>()
+      const watched = (id: string) =>
+        lists.watch(binding.entity, id).pipe(
+          Stream.drop(1),
+          Stream.runForEach(() => Queue.offer(frames, undefined)),
+          Effect.catch(error =>
+            Match.valueTags(failureOf(rejections)(error), {
+              // Its View stopped letting who asks see it: the list moved.
+              Rejected: () => Queue.offer(frames, undefined),
+              Behind: ({ message }) => Queue.fail(frames, new RemoteLiveError({ message })),
+              Unreachable: ({ message }) => Queue.fail(frames, new RemoteLiveError({ message })),
+              Denied: () =>
+                Queue.fail(
+                  frames,
+                  new RemoteUnauthenticated({ message: 'The Domain Api refused who asks' }),
                 ),
-              ),
-            ),
-            { concurrency: 'unbounded' },
+            }),
           ),
-        ),
-      )
-      const moved = changed.pipe(
+        )
+      /** Watches the rows `ids` lists that `before` did not, and stops watching those it left. */
+      const follow = (before: ReadonlyArray<string>, ids: ReadonlyArray<string>) =>
+        Effect.gen(function* () {
+          const kept = new Set(ids)
+          for (const id of before) if (!kept.has(id)) yield* FiberMap.remove(watches, id)
+          for (const id of ids)
+            yield* FiberMap.run(watches, id, watched(id), { onlyIfMissing: true })
+        })
+      const first = yield* listed
+      const held = yield* Ref.make(first)
+      yield* follow([], first)
+      const moved = Stream.fromQueue(frames).pipe(
         Stream.mapEffect(() =>
           Effect.gen(function* () {
+            yield* Effect.sleep(RELIST_AFTER)
+            yield* Queue.clear(frames)
             const ids = yield* listed
-            if (sameIds(ids, yield* SubscriptionRef.get(held))) return Option.none<LiveEvent>()
-            yield* SubscriptionRef.set(held, ids)
+            const before = yield* Ref.get(held)
+            if (sameIds(ids, before)) return Option.none<LiveEvent>()
+            yield* Ref.set(held, ids)
+            yield* follow(before, ids)
             return Option.some(yield* invalidate)
           }),
         ),

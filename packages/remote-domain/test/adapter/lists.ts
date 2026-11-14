@@ -227,10 +227,14 @@ export class InStock extends Domain.Query('InStock', {
   rejects: [NoShelf],
 }) {}
 
+/** How often the shop listed what is in stock, and judged a product row for who asks: what a live list costs. */
+export const calls = { listed: 0, judged: 0 }
+
 const InStockLive = InStock.toLayer(
   Effect.gen(function* () {
     const shelf = yield* Shelf
     return Effect.fn(function* ({ shelf: name }, page) {
+      calls.listed++
       if (name !== 'main') return yield* new NoShelf()
       const ids = [...(yield* Ref.get(shelf)).entries()]
         .filter(([, row]) => row.stock > row.reserved)
@@ -283,6 +287,7 @@ const handlers = Layer.mergeAll(
   ProductRow.toLayer(
     Effect.succeed(
       Effect.fn(function* (_request, row) {
+        calls.judged++
         yield* owned(row)
       }),
     ),

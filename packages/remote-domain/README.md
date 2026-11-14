@@ -464,9 +464,10 @@ DomainRemote.layer(ShopApi, { views: [Products], commands: [], queries: [Listed]
   sends `ConnectionInvalidate` once as a live list's stream opens, so the
   client reads the list once more (the list it holds may be a server render's,
   or one read before the stream broke); then it watches each row the list
-  holds, asks the list again when one changes, and sends `ConnectionInvalidate`
-  when what it lists moved (never `EntityDeleted` for a row that only left the
-  list). A row that joins the list while the stream is open, with no change to
+  holds, asks the list again 50 ms after one changes (the changes of a burst
+  cost one ask), and sends `ConnectionInvalidate` when what it lists moved
+  (never `EntityDeleted` for a row that only left the list), watching the rows
+  that joined and no longer those that left. A row that joins the list while the stream is open, with no change to
   a row it holds, is not seen until the list is read again.
 
 A View's state holds a **`one` relation** as the target's id, or `null`.

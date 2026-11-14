@@ -74,7 +74,7 @@ export default [
     edits: [
       {
         file: query,
-        find: 'if (sameIds(ids, yield* SubscriptionRef.get(held)))',
+        find: 'if (sameIds(ids, before))',
         replace: 'if (true)',
       },
     ],
@@ -87,6 +87,33 @@ export default [
         file: query,
         find: 'return Stream.concat(Stream.fromEffect(invalidate), moved)',
         replace: 'return moved',
+      },
+    ],
+    tests: lists,
+  },
+  {
+    name: 'every frame of a burst asks the list again',
+    edits: [{ file: query, find: '            yield* Queue.clear(frames)\n', replace: '' }],
+    tests: lists,
+  },
+  {
+    name: 'a moved list reopens the watch of every row',
+    edits: [
+      {
+        file: query,
+        find: 'FiberMap.run(watches, id, watched(id), { onlyIfMissing: true })',
+        replace: 'FiberMap.run(watches, id, watched(id))',
+      },
+    ],
+    tests: lists,
+  },
+  {
+    name: 'a row that left the list is still watched',
+    edits: [
+      {
+        file: query,
+        find: 'for (const id of before) if (!kept.has(id)) yield* FiberMap.remove(watches, id)',
+        replace: 'void kept',
       },
     ],
     tests: lists,

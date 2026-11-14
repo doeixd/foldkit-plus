@@ -5,7 +5,7 @@
  * lists every product in stock, whoever owns it; ada reads only hers, so
  * grace's p3 is listed by Domain and never by the adapter.
  */
-import { Effect, Fiber, Layer, Option, Ref, type Scope, Stream } from 'effect'
+import { type Duration, Effect, Fiber, Layer, Option, Ref, type Scope, Stream } from 'effect'
 import { RemoteClient, Remote, type LiveEvent, type QueryRequest } from 'foldkit-remote'
 import { liveQuery } from 'foldkit-remote/live'
 import { Law } from 'foldkit-remote/testing'
@@ -15,6 +15,7 @@ import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { DomainRemote } from '../../src/index.js'
 import {
+  calls,
   Data,
   PageModel,
   Products,
@@ -211,7 +212,7 @@ describe("a write's answer", () => {
 
 describe('a live list', () => {
   /** What the list's live stream sends within a moment of opening. */
-  const watch = (take: number) =>
+  const watch = (take: number, within: Duration.Input = '300 millis') =>
     Effect.flatMap(RemoteClient, client =>
       client
         .live({
@@ -221,7 +222,7 @@ describe('a live list', () => {
         })
         .pipe(
           Stream.take(take),
-          Stream.interruptWhen(Effect.sleep('300 millis')),
+          Stream.interruptWhen(Effect.sleep(within)),
           Stream.runCollect,
           Effect.forkChild,
         ),
@@ -262,6 +263,54 @@ describe('a live list', () => {
       }),
     )
     expect(events).toEqual([invalidated(8)])
+  })
+
+  it('asks the list again once for a burst of frames of the rows it lists', async () => {
+    const listings = await run(seeded =>
+      Effect.gen(function* () {
+        const watching = yield* watch(2)
+        yield* Effect.sleep('50 millis')
+        const before = calls.listed
+        const client = yield* ShopApi.Client
+        // Three rows change and stay listed, delivered together.
+        for (const id of ['p1', 'p4', 'p5'])
+          yield* client.ReserveStock(id, { quantity: 1, revision: 1 })
+        yield* seeded.drain
+        yield* Effect.sleep('150 millis')
+        yield* Fiber.interrupt(watching)
+        return calls.listed - before
+      }),
+    )
+    expect(listings).toBe(1)
+  })
+
+  // Reopening every watch would judge each kept row again for its first frame,
+  // and a row that left would still be watched.
+  it('keeps the watches of the rows that stay listed when it moves', async () => {
+    const { moved, asked, relisted } = await run(seeded =>
+      Effect.gen(function* () {
+        const watching = yield* watch(3, '2 seconds')
+        yield* Effect.sleep('50 millis')
+        const before = calls.judged
+        // p2 leaves: its frame is judged, and the list asked again.
+        yield* (yield* ShopApi.Client).ReserveStock('p2', { quantity: 5, revision: 1 })
+        yield* seeded.drain
+        yield* Effect.sleep('150 millis')
+        const moved = calls.judged - before
+        const askedFrom = calls.judged
+        yield* ask({ first: 10 })
+        const asked = calls.judged - askedFrom
+        // p2 left, so a change of it is no reason to ask the list again.
+        const listedFrom = calls.listed
+        yield* (yield* ShopApi.Client).Transfer('p2', { ownerId: 'grace' })
+        yield* seeded.drain
+        yield* Effect.sleep('150 millis')
+        yield* Fiber.interrupt(watching)
+        return { moved, asked, relisted: calls.listed - listedFrom }
+      }),
+    )
+    expect(moved).toBe(asked + 1)
+    expect(relisted).toBe(0)
   })
 
   // A server render listed p1, p2, p4 and p5; p3 joined (grace gave it to ada)
