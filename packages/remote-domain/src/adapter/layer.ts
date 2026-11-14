@@ -293,11 +293,15 @@ export const layer = <A extends AnyApi>(
               }),
             { concurrency: 'unbounded' },
           )
-          const found = answers.flatMap(answer => (answer._tag === 'Row' ? [answer] : []))
-          const behind = answers.flatMap(answer =>
-            answer._tag === 'Behind'
-              ? [{ entity: answer.request.entity, id: answer.request.id }]
-              : [],
+          const found = answers.flatMap(
+            Match.valueTags({ Row: row => [row], Behind: () => [], Absent: () => [] }),
+          )
+          const behind = answers.flatMap(
+            Match.valueTags({
+              Row: () => [],
+              Behind: ({ request }) => [{ entity: request.entity, id: request.id }],
+              Absent: () => [],
+            }),
           )
           return {
             entities: found.map(({ request, values, revision }) => ({
