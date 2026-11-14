@@ -3,7 +3,8 @@
  * bound domain that its public face does not offer. Held beside the domain
  * rather than on it, so a page that never calls them keeps none of their code.
  */
-import type { ExprContext } from 'foldkit-entity'
+import type { Option } from 'effect'
+import type { ExprContext, Judgement } from 'foldkit-entity'
 import type {
   ActiveEntry,
   QueryInput,
@@ -12,6 +13,7 @@ import type {
   QueryEntity,
 } from './index.js'
 import type { LiveAsk } from './liveState.js'
+import type { MutationDescriptor } from './mutationDescriptor.js'
 import type { QueryDescriptor } from './query.js'
 import type { Connection, Edge } from './connection.js'
 import type { RemoteModel } from './model.js'
@@ -39,6 +41,16 @@ export interface Inner<AppModel> {
   readonly liveAsk: (model: AppModel, active: ActiveEntry<AppModel>) => LiveAsk
   /** Whether every `subscriptions` call naming the entry reads it `cacheOnly` for this Model. */
   readonly unasked: (model: AppModel, active: ActiveEntry<AppModel>) => boolean
+  /**
+   * The invariants of the row a declared write would leave, judged as
+   * `Data.can` judges them: what `Law.check` tells a refusal the client
+   * could not judge by.
+   */
+  readonly judged: (
+    model: AppModel,
+    mutation: MutationDescriptor<any, any, any, any>,
+    input: Readonly<Record<string, unknown>>,
+  ) => Option.Option<Judgement>
 }
 
 const inners = new WeakMap<object, unknown>()

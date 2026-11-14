@@ -11,7 +11,7 @@ import type { AnyQuery, AnyWrite, ExprContext, EntityRef, MemoryOperators } from
 import type { RemoteClient } from './client.js'
 import { items, type Connection, type Edge } from './connection.js'
 import type { Can } from './can.js'
-import type { availableOf, capabilityOf } from './canOf.js'
+import type { availableOf, capabilityOf, judgedOf } from './canOf.js'
 import type { Asked, NamedProjection } from './active.js'
 import type { HeldConnection } from './impact.js'
 import type {
@@ -200,6 +200,11 @@ export interface WriteCapability {
     store: EntityStore,
     operators: Option.Option<MemoryOperators>,
   ) => Can
+  /**
+   * The invariants of the row a declared write would leave, judged over what
+   * is held: none where the client builds no such row.
+   */
+  readonly judged: typeof judgedOf
   /** `Data.capability`: an agent capability's checks from `Data.can`, asked through `ask`. */
   readonly capability: typeof capabilityOf
   /** `Data.available`: a discovery predicate from `Data.can`, asked through `ask`. */

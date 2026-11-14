@@ -32,8 +32,8 @@ export default [
     edits: [
       {
         file: '../../../packages/remote/src/law.ts',
-        find: "Data.can(model, config.mutation, config.input as never)._tag === 'Undecided'",
-        replace: 'false',
+        find: "{ onNone: () => true, onSome: judged => judged._tag === 'Undecided' },",
+        replace: '{ onNone: () => false, onSome: () => false },',
       },
     ],
     tests,

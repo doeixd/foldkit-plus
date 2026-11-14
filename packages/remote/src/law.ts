@@ -8,6 +8,7 @@
 import { Effect, Option, Result, Schema } from 'effect'
 import type { AnyEntity } from 'foldkit-entity'
 import { RemoteClient, remoteError } from './client.js'
+import { innerOf } from './inner.js'
 import type { RemoteDomain } from './index.js'
 import { Refusal, type MutationDescriptor } from './mutationDescriptor.js'
 import { stableStringify, type QueryRef } from './query.js'
@@ -84,9 +85,10 @@ const nothingCompared = (mutation: string): never => {
  * then compares each predicted field, each predicted deletion and each list's
  * order with what the server answers after the write.
  *
- * A server's `Invalid` meets a client that could not judge the row
- * (`Data.can` undecided, as for a field the write moves): the write is
- * reported in `unknown`, left to the server, not as a disagreement.
+ * A server's `Invalid` meets a client that could not judge the row (its
+ * invariants undecided, as for a field the write moves): the write is
+ * reported in `unknown`, left to the server, not as a disagreement. One the
+ * client judged Valid is a disagreement, whatever else `Data.can` was unsure of.
  *
  * Fails when nothing was compared: two sides that both said nothing agree,
  * and that agreement is no evidence.
@@ -197,13 +199,22 @@ const check = <AppModel>(
       const refusal = answer.error.refusal
       // An invalid row the client could not judge (an invariant or a postcondition over a
       // field the write moves) was left to the server: a verdict that is not Valid meets it.
+      // Judged by the invariants alone: `Data.can` is undecided for other reasons too (an
+      // unheld `may`), over a row it judged Valid, and that refusal is a disagreement.
       if (
         Option.exists(
           Schema.decodeUnknownOption(config.mutation.Refusal)(refusal),
           Refusal.isInvalid,
         ) &&
         // `input` is the mutation's own, which `Data.mutate` took above.
-        Data.can(model, config.mutation, config.input as never)._tag === 'Undecided'
+        Option.match(
+          innerOf<AppModel>(Data).judged(
+            model,
+            config.mutation,
+            config.input as Readonly<Record<string, unknown>>,
+          ),
+          { onNone: () => true, onSome: judged => judged._tag === 'Undecided' },
+        )
       ) {
         unknown.push(config.mutation.name)
         return { agreed, disagreed, unknown }

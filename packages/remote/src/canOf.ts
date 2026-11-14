@@ -4,7 +4,7 @@
  */
 import { Match, Option, Result, Schema } from 'effect'
 import { Write as DomainWrite, type AnyWrite, type ExprContext } from 'foldkit-entity'
-import type { HeldRow, MemoryOperators } from 'foldkit-entity'
+import type { HeldRow, Judgement, MemoryOperators } from 'foldkit-entity'
 import { Can, CanRefusal, type CapabilityChecks, type CapabilityRequest } from './can.js'
 import { forbiddenByWrite, judgedByWrite, metByWrite, unheldByWrite } from './mutation.js'
 import { holderOf } from './held.js'
@@ -30,6 +30,15 @@ const encodedGiven = (
           ]
     }),
   )
+
+export const judgedOf = (
+  write: AnyWrite,
+  input: Readonly<Record<string, unknown>>,
+  context: ExprContext,
+  store: EntityStore,
+  given: Option.Option<MemoryOperators>,
+): Option.Option<Judgement> =>
+  judgedByWrite(write, input, undefined, context, store, tableOf(given))
 
 export const canOf = (
   write: AnyWrite,

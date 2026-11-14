@@ -1050,7 +1050,15 @@ const bindDomain = <
         visibleOf(capabilities, store.get(model), operators),
         operators,
       )
-    return { writes, write, ask }
+    const judged = (model: AppModel, input: Readonly<Record<string, unknown>>) =>
+      writes.judged(
+        write,
+        input,
+        contextOf(model),
+        visibleOf(capabilities, store.get(model), operators),
+        operators,
+      )
+    return { writes, write, ask, judged }
   }
   // Every reader any `subscriptions` call names, and every connection one keeps:
   // retention is the domain's, so each call's retain entry roots them all, and
@@ -2023,6 +2031,7 @@ const bindDomain = <
   return withInner(domain, {
     why: whyReader,
     unasked: (model, entry) => readsUnder(entry, model, 'CacheOnly'),
+    judged: (model, mutation, input) => askOf('judged', mutation).judged(model, input),
     context: contextOf,
     shown: shownEdges,
     liveQuery: (query, input, options) => queryRead(query, input, options, true),

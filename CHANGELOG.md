@@ -89,7 +89,9 @@ version changed; `pnpm` skips versions already in the registry.
   one over a writer without `postconditions`. The client judges it before
   sending where it holds what it reads, and `Laws.check` reports the arrow
   `enforced`. `Law.check` reports a server `Invalid` the client could not judge
-  (`Data.can` undecided) as `unknown` rather than a disagreement.
+  (the row's invariants undecided) as `unknown` rather than a disagreement;
+  one over a row the client judged Valid stays a disagreement, though
+  `Data.can` was undecided for another reason, such as a `may` it does not hold.
 - `foldkit-sync`: a document's laws. `forApplication(...).make({ laws })` takes
   `{ holds({ before, after }), message, path? }` per id, typed over the shared
   fields alone; the journal judges each operation's resulting snapshot and

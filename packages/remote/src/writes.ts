@@ -23,7 +23,7 @@ import {
   remoteError,
   type RemoteClient,
 } from './client.js'
-import { availableOf, canOf, capabilityOf } from './canOf.js'
+import { availableOf, canOf, capabilityOf, judgedOf } from './canOf.js'
 import { installLayers } from './layers.js'
 import { mutationStatus } from './ledger.js'
 import { reduceIn, type RemoteMessage, type RemoteModel } from './model.js'
@@ -385,6 +385,7 @@ const writes: WriteCapability = {
   },
   unpredicted,
   can: canOf,
+  judged: judgedOf,
   capability: capabilityOf,
   available: availableOf,
 }
