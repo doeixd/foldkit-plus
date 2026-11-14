@@ -165,7 +165,10 @@ works the value out again on every memo hit and throws when it differs
 (`Equal.equals`), naming `on`'s paths. A Remote read declares no path, alone or in a `struct`, so while
 `on` holds one the value is worked out on every read; naming the store's field
 (`App.model.remote`) in its place, and making the read inside `derive`, keeps
-the value while the store holds.
+the value while the store holds. Given `{ Model: schema }` (the value's Schema),
+the result can be an entry of `Projection.struct`: the struct reads the memoized
+value, declares its paths, plans nothing for it, and the Surface checks the
+value against `Model`. Without `Model`, `struct` refuses it.
 
 ```ts
 const Open = Projection.derive([App.model.todos], m => m.todos.filter(t => !t.done))

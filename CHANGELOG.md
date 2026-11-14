@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-surface`: a `Derived` as an entry of `Projection.struct`. `Projection.derive(on,
+  derive, { Model })`, given the Schema of its value, returns a `ModeledDerived`: the
+  struct reads its memoized value, declares its paths, plans nothing for it and
+  checks the value against `Model`. A Derived without `Model` is a type error there,
+  and throws if the type is bypassed.
 - `foldkit-remote-domain`: lists and `one` relations. `DomainRemote.query(Query,
   Api, 'PagedQuery', { input, id })` binds a Remote query to a paged Domain
   Query, given to `DomainRemote.layer` as `queries`: the Query decides what is
