@@ -26,14 +26,35 @@ export default [
     tests: [unit],
   },
   {
-    name: 'a letter is matched by case',
+    name: 'a typed letter replaces the query',
     edits: [
       {
         file,
-        find: 'row.label.toLocaleLowerCase().startsWith(letter)',
-        replace: 'row.label.startsWith(key)',
+        find: 'const query = model.typeahead.query + key',
+        replace: 'const query = key',
       },
     ],
+    tests: [unit],
+  },
+  {
+    name: 'a superseded expiry clears the query',
+    edits: [{ file, find: 'generation === model.typeahead.generation &&', replace: '' }],
+    tests: [unit],
+  },
+  {
+    name: 'the value is joined into one input',
+    edits: [
+      {
+        file,
+        find: "(value.length === 0 ? [''] : value).map((step, level) =>",
+        replace: "[value.join('/')].map((step, level) =>",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'no value sends no field',
+    edits: [{ file, find: "(value.length === 0 ? [''] : value)", replace: 'value' }],
     tests: [unit],
   },
   {

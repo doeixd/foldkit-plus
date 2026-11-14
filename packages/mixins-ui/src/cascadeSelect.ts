@@ -8,6 +8,7 @@ import * as Mount from 'foldkit/mount'
 import * as Render from 'foldkit/render'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
+import { Typeahead } from 'foldkit-primitives/interaction'
 import { layerBox, topLayer } from './anchor.js'
 import { readingKey } from './direction.js'
 import type { MixinList } from './resolve.js'
@@ -93,6 +94,8 @@ export const Model = Schema.Struct({
   highlighted: Schema.Array(Schema.String),
   /** Whether the columns were too wide for the window when the popup last opened; the view then drills in. */
   cramped: Schema.Boolean,
+  /** The letters typed together, which pick the row that begins with all of them. */
+  typeahead: Typeahead.Model,
 })
 export type Model = typeof Model.Type
 
@@ -111,6 +114,8 @@ export const Message = defineMessageUnion({
   /** Focus left the open panel, by Tab or a press elsewhere. */
   Left: {},
   Cleared: {},
+  /** A pause after the last typed letter ended `generation`'s query. */
+  QueryExpired: { generation: Schema.Number },
   /** The panel was shown and placed, and whether a column per level would fit the window. */
   Placed: { cramped: Schema.Boolean },
   CompletedFocusTrigger: {},
@@ -138,6 +143,7 @@ export const init = (options: {
   value: Option.fromNullishOr(options.value),
   highlighted: [],
   cramped: false,
+  typeahead: { query: '', generation: 0 },
 })
 
 export const triggerId = (id: string): string => `${id}-trigger`
@@ -188,6 +194,16 @@ export const labelsOf = (nodes: ReadonlyArray<Node>, path: ReadonlyArray<string>
 /** The most levels a path through `nodes` opens. */
 const depthOf = (nodes: ReadonlyArray<Node>): number =>
   nodes.reduce((deepest, node) => Math.max(deepest, 1 + depthOf(node.children ?? [])), 0)
+
+/** How long a typed query lasts after its last letter. */
+const QUERY_MS = 500
+
+const ExpireQuery = Command.define('ExpireQuery', {
+  args: { generation: Schema.Number },
+  messages: [Message.QueryExpired],
+  execute: ({ generation }) =>
+    Effect.sleep(QUERY_MS).pipe(Effect.as(Message.QueryExpired({ generation }))),
+})
 
 /** Focuses the trigger once the closed popup is drawn away. */
 export const FocusTrigger = Command.define('CascadeSelect.FocusTrigger', {
@@ -369,17 +385,23 @@ export const update = (config: Config) => {
       return at
     }
 
-  const typed =
-    (key: string) =>
-    (rows: ReadonlyArray<Node>, at: number): number => {
-      const letter = key.toLocaleLowerCase()
-      for (let offset = 1; offset <= rows.length; offset++) {
-        const place = (at + offset) % rows.length
-        const row = rows[place]!
-        if (enabled(row) && row.label.toLocaleLowerCase().startsWith(letter)) return place
-      }
-      return at
-    }
+  /** A letter joins the query, and the row the whole query begins is the active one. */
+  const typed = (model: Model, key: string): Return => {
+    const query = model.typeahead.query + key
+    const generation = model.typeahead.generation + 1
+    const extended = modifyFields(model, { typeahead: () => ({ query, generation }) })
+    const stepped = moved(
+      extended,
+      (rows, at) =>
+        Typeahead.match(
+          rows.map(row => row.label),
+          rows.flatMap((row, place) => (enabled(row) ? [place] : [])),
+          query,
+          at,
+        ) ?? at,
+    )
+    return { ...stepped, commands: [...(stepped.commands ?? []), ExpireQuery({ generation })] }
+  }
 
   const pressed = (model: Model, key: string): Return => {
     if (!model.open) return { model }
@@ -406,7 +428,7 @@ export const update = (config: Config) => {
       case 'Escape':
         return closed(model, true)
       default:
-        return key.length === 1 ? moved(model, typed(key)) : { model }
+        return key.length === 1 ? typed(model, key) : { model }
     }
   }
 
@@ -415,6 +437,10 @@ export const update = (config: Config) => {
       Opened: () => opened(model),
       Closed: () => closed(model, true),
       Pressed: ({ key }) => pressed(model, key),
+      QueryExpired: ({ generation }) =>
+        generation === model.typeahead.generation && model.typeahead.query !== ''
+          ? { model: modifyFields(model, { typeahead: () => ({ query: '', generation }) }) }
+          : { model },
       Highlighted: ({ path }) =>
         model.open && reachable(path) ? highlight(model, path, false) : { model },
       Picked: ({ path }) => (model.open ? choose(model, path) : { model }),
@@ -716,17 +742,23 @@ export const view = <ParentMessage>(
             ),
           ]
         : []),
-      ...(options.name === undefined
-        ? []
-        : [
-            h.input(
+      // One input per level, as a multiple Listbox submits: an id may hold any character, so
+      // no separator joins them unambiguously. No value is one empty input, so the field is sent.
+      ...Option.match(Option.fromNullishOr(options.name), {
+        onNone: () => [],
+        onSome: name =>
+          (value.length === 0 ? [''] : value).map((step, level) =>
+            h.keyed('input')(
+              `submit-${level}`,
               builders.input.attrs([
                 h.Type('hidden'),
-                h.Attribute('name', options.name),
-                h.Attribute('value', value.join('/')),
+                h.Attribute('name', name),
+                h.Attribute('value', step),
               ]),
+              [],
             ),
-          ]),
+          ),
+      }),
       ...popup,
     ],
   )
