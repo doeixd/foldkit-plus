@@ -79,6 +79,29 @@ export default [
     tests: [`${dir}scenarios.browser.test.ts`],
   },
 
+  {
+    name: 'every role is named by its text',
+    edits: [
+      edit(
+        conformance,
+        "named !== '' || !NAMED_BY_CONTENT.has(role) ? named",
+        "named !== '' ? named",
+      ),
+    ],
+    tests: [`${dir}conformance.ssr.test.ts`],
+  },
+  {
+    name: 'an attribute required absent may be present',
+    edits: [
+      edit(
+        conformance,
+        "typeof want === 'string' ? got === want : want === (got !== null)",
+        "typeof want === 'string' ? got === want : !want || got !== null",
+      ),
+    ],
+    tests: [`${dir}conformance.ssr.test.ts`],
+  },
+
   // Listbox
   {
     name: 'the listbox draws no role',

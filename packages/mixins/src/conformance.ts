@@ -975,8 +975,45 @@ export const tabs = async (harness: Harness, spec: TabsSpec): Promise<Result> =>
 export interface Expect {
   readonly role: string
   readonly name: string
-  /** Attributes that must hold, by name; the value `true` means present with any value. */
-  readonly attributes?: Readonly<Record<string, string | true>>
+  /** Attributes that must hold, by name: a value exactly, `true` present with any value, `false` absent. */
+  readonly attributes?: Readonly<Record<string, string | boolean>>
+}
+
+/**
+ * The roles WAI-ARIA names from their content: a listbox, dialog, tree, tab
+ * list or tab panel is named only by `aria-label` or `aria-labelledby`, and
+ * the text of its options is not its name.
+ */
+const NAMED_BY_CONTENT = new Set([
+  'button',
+  'cell',
+  'checkbox',
+  'columnheader',
+  'gridcell',
+  'heading',
+  'link',
+  'menuitem',
+  'menuitemcheckbox',
+  'menuitemradio',
+  'option',
+  'radio',
+  'row',
+  'rowheader',
+  'switch',
+  'tab',
+  'tooltip',
+  'treeitem',
+])
+
+const wanted = (attribute: string, want: string | boolean): string => {
+  if (typeof want === 'string') return `has ${attribute}="${want}"`
+  return want ? `has ${attribute}` : `has no ${attribute}`
+}
+
+/** An element's name as served: `aria-labelledby` or `aria-label`, else its text where its role takes it. */
+const servedName = (element: Element, role: string): string => {
+  const named = nameOf(element)
+  return named !== '' || !NAMED_BY_CONTENT.has(role) ? named : labelOf(element)
 }
 
 const roleOf = (element: Element): string =>
@@ -1000,7 +1037,7 @@ export const server = (
   const { checks, note } = recorder(`${scenario} (server)`)
   for (const { role, name, attributes } of expected) {
     const found = Array.from(root.querySelectorAll('*')).filter(
-      each => roleOf(each) === role && (nameOf(each) === name || labelOf(each) === name),
+      each => roleOf(each) === role && servedName(each, role) === name,
     )
     note(`${role} "${name}" is in the markup`, found.length === 1, `${found.length} found`)
     const element = found[0]
@@ -1008,8 +1045,8 @@ export const server = (
     for (const [attribute, want] of Object.entries(attributes ?? {})) {
       const got = element.getAttribute(attribute)
       note(
-        `${role} "${name}" has ${attribute}${want === true ? '' : `="${want}"`}`,
-        want === true ? got !== null : got === want,
+        `${role} "${name}" ${wanted(attribute, want)}`,
+        typeof want === 'string' ? got === want : want === (got !== null),
         `${attribute}=${got}`,
       )
     }

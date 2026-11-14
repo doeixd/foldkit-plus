@@ -262,3 +262,21 @@ test('a tree assembled from TreeNavigation is served with levels and an expanded
     6,
   )
 })
+
+test('a role named only by its label is not named by its options, and an attribute can be required absent', () => {
+  const page = new DOMParser().parseFromString(
+    `<div role="listbox"><div role="option" aria-selected="true">Hourly</div></div>`,
+    'text/html',
+  )
+  expect(
+    Conformance.failures(
+      Conformance.server('listbox', page, [{ role: 'listbox', name: 'Hourly' }]),
+    ),
+  ).toHaveLength(1)
+  const option = (attributes: Readonly<Record<string, string | boolean>>) =>
+    Conformance.failures(
+      Conformance.server('listbox', page, [{ role: 'option', name: 'Hourly', attributes }]),
+    ).map(check => check.check)
+  expect(option({ 'aria-disabled': false })).toEqual([])
+  expect(option({ 'aria-selected': false })).toEqual(['option "Hourly" has no aria-selected'])
+})
