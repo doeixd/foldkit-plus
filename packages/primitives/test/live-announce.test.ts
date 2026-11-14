@@ -46,7 +46,7 @@ describe('LiveAnnounce placement', () => {
   it('a burst reads once, the last text, into its region, and clears later', () => {
     const burst = send(
       fresh,
-      M.Announced({ message: 'one', politeness: 'polite' }),
+      M.Announced({ message: 'one', politeness: 'assertive' }),
       M.Announced({ message: 'two', politeness: 'assertive' }),
     )
     expect(burst.model.live).toMatchObject({ polite: '', assertive: '', generation: 2 })
@@ -59,6 +59,52 @@ describe('LiveAnnounce placement', () => {
     expect(send(read.model, M.Cleared({ generation: 1 })).model.live.assertive).toBe('two')
     expect(send(read.model, M.Cleared({ generation: 2 })).model.live.assertive).toBe('')
   })
+
+  it('reads an announcement of the other politeness now instead of dropping it', () => {
+    const mixed = send(
+      fresh,
+      M.Announced({ message: 'Saved', politeness: 'polite' }),
+      M.Announced({ message: 'Failed', politeness: 'assertive' }),
+    )
+    expect(mixed.model.live).toMatchObject({
+      polite: 'Saved',
+      assertive: '',
+      pending: { message: 'Failed', politeness: 'assertive' },
+    })
+    const read = send(mixed.model, M.Read({ generation: 2 })).model.live
+    expect(read).toMatchObject({ polite: 'Saved', assertive: 'Failed', pending: null })
+    // The newest announcement's clock clears both regions together.
+    expect(
+      send(mixed.model, M.Read({ generation: 2 }), M.Cleared({ generation: 2 })).model.live,
+    ).toMatchObject({
+      polite: '',
+      assertive: '',
+    })
+  })
+
+  it('reads a repeated text twice even when the other politeness flushed in between', () => {
+    const repeated = send(
+      fresh,
+      M.Announced({ message: 'Saved', politeness: 'polite' }),
+      M.Read({ generation: 1 }),
+      M.Announced({ message: 'Failed', politeness: 'assertive' }),
+      M.Announced({ message: 'Saved', politeness: 'polite' }),
+    )
+    expect(repeated.model.live.assertive).toBe('Failed')
+    expect(repeated.model.live.polite).toBe('Saved')
+    expect(send(repeated.model, M.Read({ generation: 3 })).model.live.polite).toBe(
+      `Saved${String.fromCharCode(160)}`,
+    )
+  })
+
+  it.each(['', '   ', String.fromCharCode(10)])(
+    'an empty announcement (%j) changes nothing and starts no clock',
+    text => {
+      const result = send(fresh, M.Announced({ message: text, politeness: 'polite' }))
+      expect(result.model).toBe(fresh)
+      expect(result.commands).toEqual([])
+    },
+  )
 
   it('the same text twice is read twice', () => {
     const first = send(
@@ -103,6 +149,17 @@ describe('LiveAnnounce.view', () => {
     const regions = vnode.children ?? []
     expect(regions.map(r => r.data?.attrs?.['aria-live'])).toEqual(['polite', 'assertive'])
     expect(regions.map(r => r.data?.attrs?.['aria-atomic'])).toEqual(['true', 'true'])
+    expect(regions.map(r => r.data?.attrs?.role)).toEqual(['status', 'alert'])
     expect(regions[0]?.children?.[0]?.text).toBe('hello')
+  })
+
+  it('draws both regions empty from the first view, before any message', () => {
+    const h = SlotView.inertBuilder<Message>()
+    const vnode = LiveAnnounce.view(fresh.live, h) as {
+      readonly children?: ReadonlyArray<{
+        readonly data?: { readonly attrs?: Record<string, unknown> }
+      }>
+    }
+    expect(vnode.children?.map(r => r.data?.attrs?.['aria-live'])).toEqual(['polite', 'assertive'])
   })
 })

@@ -941,10 +941,15 @@ A parent says something through the placement's `announce(text, politeness?)`
 helper, folded in `update` or an `onOut`; an announcement waits `debounceMs` so a burst reads once, then
 clears after `clearAfterMs`, both on Effect's clock with a generation so a
 superseded timer changes nothing; the same text twice gets a trailing no-break
-space toggled, which is what makes a screen reader read it again.
-`LiveAnnounce.view(slice, h)` renders the two regions: put it once in the page
-and hide them visually with a rule on `[data-foldkit-plus-live]`, never
-`display: none`.
+space toggled, which is what makes a screen reader read it again. Blank text
+is ignored, and a polite announcement still waiting when an assertive one
+arrives (or the reverse) is read at once, not dropped; a second one of the same
+politeness replaces it, as a burst does.
+`LiveAnnounce.view(slice, h)` renders the two regions (`role="status"` and
+`role="alert"`): draw it in the page's first view and hide the regions
+visually with a rule on `[data-foldkit-plus-live]`, never `display: none`.
+Assistive technology ignores a region that arrives together with its text, so
+a view that adds the regions on the first message loses that message.
 
 ## In the examples
 
