@@ -80,6 +80,27 @@ describe('Resizable.view', () => {
     expect(Inert.value(handle, 'aria-orientation')).toBe('vertical')
     expect(Inert.value(handle, 'tabIndex')).toBe(0)
   })
+
+  it('names the first panel it controls, when given an id', () => {
+    const drawn = (id: string | undefined) =>
+      Resizable.view(
+        {
+          model: init(0.35),
+          onMessage: () => message('Other'),
+          label: 'Resize the list',
+          id,
+          first: h.p([], ['one']),
+          second: h.p([], ['two']),
+          style,
+        },
+        h,
+      )
+    const handle = (html: ReturnType<typeof drawn>) =>
+      Inert.all(html).filter(node => Inert.value(node, 'role') === 'separator')[0]
+    expect(Inert.value(handle(drawn('files')), 'aria-controls')).toBe('files-first')
+    expect(Inert.all(drawn('files')).map(node => Inert.value(node, 'id'))).toContain('files-first')
+    expect(Inert.value(handle(drawn(undefined)), 'aria-controls')).toBeUndefined()
+  })
 })
 
 describe('Resizable keys', () => {
@@ -241,6 +262,20 @@ describe('Resizable collapse keys', () => {
       Scene.expect(Scene.selector('[data-collapsed]')).toHaveText('one'),
       Scene.keydown(handle, 'Enter'),
       Scene.expect(handle).toHaveAttr('aria-valuenow', '40'),
+      Scene.expect(Scene.selector('[data-collapsed]')).toBeAbsent(),
+    )
+  })
+
+  it('Home collapses a collapsible first panel, End opens to the most, and each stops at its end', () => {
+    scene(
+      'first',
+      Scene.keydown(handle, 'Home'),
+      Scene.expect(handle).toHaveAttr('aria-valuenow', '0'),
+      // Already at the smallest place: the key is left alone.
+      Scene.keydown(handle, 'Home'),
+      Scene.expectIgnored(),
+      Scene.keydown(handle, 'End'),
+      Scene.expect(handle).toHaveAttr('aria-valuenow', '90'),
       Scene.expect(Scene.selector('[data-collapsed]')).toBeAbsent(),
     )
   })

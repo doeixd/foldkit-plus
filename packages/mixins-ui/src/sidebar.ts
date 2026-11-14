@@ -3,6 +3,7 @@ import { Match, Option, Schema, Stream } from 'effect'
 import {
   Attr,
   Behavior,
+  Behaviors,
   Capability,
   Event,
   Slot,
@@ -20,10 +21,10 @@ import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
 import { FluidHover, Measure, Move } from 'foldkit-primitives/dom'
 import { flipped } from './choices.js'
-import { readingKey } from './direction.js'
 import type { ResolvedDialog } from './dialog.js'
 import type { MixinList } from './resolve.js'
 import * as Sheet from './sheet.js'
+import * as Splitter from './splitter.js'
 import * as Tooltip from './tooltip.js'
 
 /**
@@ -453,12 +454,37 @@ export interface SidebarView<Message> {
  * its own, so the two never share one.
  */
 export const view = <Message>(options: SidebarView<Message>, h: HtmlBuilder<Message>): Html => {
+  const { model, onMessage } = options
+  const setWidth = (size: number) => onMessage(Message.SetWidth({ size }))
+  // Collapsed is the handle's least place, as `aria-valuemin` says: Home goes there.
+  const keys = Behaviors.Keyboard.behavior(SidebarSlots)<unknown, Message>({
+    target: 'resize',
+    name: 'SidebarResizeKeys',
+    routes: Option.match(model.width, {
+      onNone: () => [],
+      onSome: ({ size, max }) =>
+        Splitter.routes({
+          stacked: false,
+          direction: options.direction,
+          shrink: setWidth(size - STEP),
+          grow: setWidth(size + STEP),
+          smallest: model.collapsed
+            ? Option.none()
+            : Option.some(onMessage(Message.ToggledCollapsed())),
+          largest: Option.some(setWidth(max)),
+          toggle: Option.some(onMessage(Message.ToggledCollapsed())),
+        }),
+    }),
+  })
   const builders = SlotView.buildersFor(
     SidebarSlots,
-    [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
+    [
+      ...(options.style === undefined ? [] : [options.style.mixin]),
+      keys.mixin,
+      ...(options.mixins ?? []),
+    ],
     { input: undefined, h },
   )
-  const { model, onMessage } = options
   const rail = options.collapse === 'icons'
   const railed = rail && model.collapsed
   const navId = `${model.id}-nav`
@@ -583,17 +609,6 @@ export const view = <Message>(options: SidebarView<Message>, h: HtmlBuilder<Mess
               h.AriaValuemax(max),
               h.AriaValuenow(model.collapsed ? 0 : size),
               h.Tabindex(0),
-              h.OnKeyDownSelfPreventDefault(pressed => {
-                const key = readingKey(pressed, options.direction)
-                const to = (width: number) =>
-                  Option.some(onMessage(Message.SetWidth({ size: width })))
-                if (key === 'Home') return to(min)
-                if (key === 'End') return to(max)
-                if (key === 'ArrowLeft') return to(size - STEP)
-                if (key === 'ArrowRight') return to(size + STEP)
-                if (key === 'Enter') return Option.some(onMessage(Message.ToggledCollapsed()))
-                return Option.none()
-              }),
               h.OnDoubleClick(onMessage(Message.ToggledCollapsed())),
               h.OnMount(Mount.mapMessage(Widen(), onMessage)),
             ]),

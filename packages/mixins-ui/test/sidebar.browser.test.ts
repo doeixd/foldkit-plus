@@ -381,6 +381,34 @@ test.each([
   },
 )
 
+test.each([
+  ['ltr', 'ArrowRight', 'ArrowLeft'],
+  ['rtl', 'ArrowLeft', 'ArrowRight'],
+] as const)(
+  '%s, %s widens the column and %s narrows it, Home collapses it and End opens it to the widest',
+  async (direction, widen, narrow) => {
+    const handle = mount({ direction, resizable: { size: 300, min: 200, max: 400 } })
+    try {
+      await vi.waitFor(() => expect(Math.round(rect(nav()).width)).toBe(300))
+      resizeHandle().focus()
+      await userEvent.keyboard(`{${widen}}`)
+      await vi.waitFor(() => expect(resizeHandle().getAttribute('aria-valuenow')).toBe('316'))
+      // A key reads the width the last frame drew, so each waits for its answer.
+      await userEvent.keyboard(`{${narrow}}`)
+      await vi.waitFor(() => expect(resizeHandle().getAttribute('aria-valuenow')).toBe('300'))
+      await userEvent.keyboard(`{${narrow}}`)
+      await vi.waitFor(() => expect(resizeHandle().getAttribute('aria-valuenow')).toBe('284'))
+      await userEvent.keyboard('{Home}')
+      await vi.waitFor(() => expect(resizeHandle().getAttribute('aria-valuenow')).toBe('0'))
+      expect(rect(nav()).width).toBeLessThan(50)
+      await userEvent.keyboard('{End}')
+      await vi.waitFor(() => expect(resizeHandle().getAttribute('aria-valuenow')).toBe('400'))
+    } finally {
+      handle.dispose()
+    }
+  },
+)
+
 test.each(['icons', 'offcanvas'] as const)(
   'dragged below half its least width, the column collapses (%s) and gives the page its room, and the toggle brings its width back',
   async collapse => {

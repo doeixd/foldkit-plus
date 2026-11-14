@@ -1,13 +1,22 @@
 import { Match, Option, Schema } from 'effect'
-import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import {
+  Attr,
+  Behaviors,
+  Capability,
+  Event,
+  Slot,
+  Slots,
+  SlotView,
+  type NamedStyle,
+} from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import { modifyFields } from 'foldkit/struct'
 import { Move } from 'foldkit-primitives/dom'
 import { Resize } from 'foldkit-primitives/observers'
-import { readingKey } from './direction.js'
 import type { MixinList } from './resolve.js'
+import * as Splitter from './splitter.js'
 
 /**
  * Two panels with a handle between them, shadcn's Resizable and the APG's
@@ -28,7 +37,7 @@ export const ResizableSlots = Slots.define({
   handle: Slot.make({
     capability: Capability.Interactive,
     events: [Event.KeyDown],
-    attributes: [Attr.Role, Attr.AriaLabel],
+    attributes: [Attr.Role, Attr.AriaLabel, Attr.AriaControls],
   }),
   /** The mark on the handle to take hold of; the recipe's `handle: 'grip'` shows it. */
   grip: Slot.make({ capability: Capability.Container }),
@@ -133,6 +142,12 @@ export interface ResizableView<Message> extends Bounds {
   readonly direction?: 'ltr' | 'rtl' | undefined
   /** The handle's accessible name: what it resizes. */
   readonly label: string
+  /**
+   * Prefixes the first panel's id, which the handle's `aria-controls` names, as
+   * the APG's window splitter asks. Unique on the page; without one the handle
+   * names no panel.
+   */
+  readonly id?: string | undefined
   readonly first: Html
   readonly second: Html
   /** A style of `ResizableSlots`, for the split's look. */
@@ -141,13 +156,10 @@ export interface ResizableView<Message> extends Bounds {
   readonly mixins?: MixinList<Message> | undefined
 }
 
+const firstId = (id: string) => `${id}-first`
+
 export const view = <Outer>(options: ResizableView<Outer>, h: HtmlBuilder<Outer>): Html => {
   const lift = options.onMessage
-  const builders = SlotView.buildersFor(
-    ResizableSlots,
-    [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
-    { input: undefined, h },
-  )
   const vertical = options.orientation === 'vertical'
   const { collapsible } = options
   const collapsed = Option.isSome(options.model.restore) && collapsible !== undefined
@@ -179,16 +191,41 @@ export const view = <Outer>(options: ResizableView<Outer>, h: HtmlBuilder<Outer>
       }),
     ),
   )
-  const keys = new Map<string, number>(
-    vertical
-      ? [
-          ['ArrowUp', -step],
-          ['ArrowDown', step],
-        ]
-      : [
-          ['ArrowLeft', -step],
-          ['ArrowRight', step],
-        ],
+  const set = (share: number) => lift(Message.Set({ share }))
+  // The ends a collapsible panel reaches: Home and End go there, collapsing it, as the APG asks.
+  const smallest =
+    collapsible === 'first'
+      ? collapsed
+        ? Option.none()
+        : Option.some(toggled)
+      : Option.some(set(options.min ?? 0.1))
+  const largest =
+    collapsible === 'second'
+      ? collapsed
+        ? Option.none()
+        : Option.some(toggled)
+      : Option.some(set(options.max ?? 0.9))
+  const keys = Behaviors.Keyboard.behavior(ResizableSlots)<unknown, Outer>({
+    target: 'handle',
+    name: 'ResizableKeys',
+    routes: Splitter.routes({
+      stacked: vertical,
+      direction: options.direction,
+      shrink: set(options.model.share - step),
+      grow: set(options.model.share + step),
+      smallest,
+      largest,
+      toggle: collapsible === undefined ? Option.none() : Option.some(toggled),
+    }),
+  })
+  const builders = SlotView.buildersFor(
+    ResizableSlots,
+    [
+      ...(options.style === undefined ? [] : [options.style.mixin]),
+      keys.mixin,
+      ...(options.mixins ?? []),
+    ],
+    { input: undefined, h },
   )
   return h.div(
     builders.root.attrs([
@@ -201,26 +238,24 @@ export const view = <Outer>(options: ResizableView<Outer>, h: HtmlBuilder<Outer>
       h.OnMount(measured),
     ]),
     [
-      h.div(builders.first.attrs(marked('first')), [options.first]),
+      h.div(
+        builders.first.attrs([
+          ...(options.id === undefined ? [] : [h.Id(firstId(options.id))]),
+          ...marked('first'),
+        ]),
+        [options.first],
+      ),
       h.div(
         builders.handle.attrs([
           h.Role('separator'),
           // A separator's orientation is its own line's: a side-by-side split's is vertical.
           h.AriaOrientation(vertical ? 'horizontal' : 'vertical'),
           h.AriaLabel(options.label),
+          ...(options.id === undefined ? [] : [h.AriaControls(firstId(options.id))]),
           h.AriaValuemin(Math.round(least * 100)),
           h.AriaValuemax(Math.round(most * 100)),
           h.AriaValuenow(percent),
           h.Tabindex(0),
-          h.OnKeyDownSelfPreventDefault(pressed => {
-            const key = readingKey(pressed, options.direction)
-            if (key === 'Home') return Option.some(lift(Message.Set({ share: options.min ?? 0.1 })))
-            if (key === 'End') return Option.some(lift(Message.Set({ share: options.max ?? 0.9 })))
-            if (key === 'Enter' && collapsible !== undefined) return Option.some(toggled)
-            return Option.map(Option.fromNullishOr(keys.get(key)), by =>
-              lift(Message.Set({ share: options.model.share + by })),
-            )
-          }),
           ...(collapsible === undefined ? [] : [h.OnDoubleClick(toggled)]),
           h.OnMount(dragged),
           // A Mount reads its args once: a new direction draws a new handle.
