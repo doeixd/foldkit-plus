@@ -56,6 +56,17 @@ export default [
     ],
     tests: [`${dir}scenarios.browser.test.ts`],
   },
+  {
+    name: 'the manual tabs check holds whatever the arrows choose',
+    edits: [
+      edit(
+        conformance,
+        "'the arrows move the keyboard without choosing a tab',\n      same(selected(), initial),",
+        "'the arrows move the keyboard without choosing a tab',\n      true,",
+      ),
+    ],
+    tests: [`${dir}scenarios.browser.test.ts`],
+  },
 
   // Listbox
   {
@@ -516,6 +527,17 @@ export default [
         focusScope,
         'if (restore && previous instanceof HTMLElement',
         'if (false && previous instanceof HTMLElement',
+      ),
+    ],
+    tests: dialog,
+  },
+  {
+    name: 'Shift+Tab leaves a dialog',
+    edits: [
+      edit(
+        focusScope,
+        'if (key.shiftKey && (active === first || !element.contains(active))) {',
+        'if (false) {',
       ),
     ],
     tests: dialog,

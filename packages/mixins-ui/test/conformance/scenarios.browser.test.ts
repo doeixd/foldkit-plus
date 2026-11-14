@@ -4,8 +4,9 @@
  * conforms.
  */
 import { Conformance } from 'foldkit-mixins/testing'
-import { afterEach, expect, test } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 import { cdp, userEvent } from 'vitest/browser'
+import * as HandTabs from './tabs.handBuilt.js'
 
 const harness = Conformance.harness({ cdp, userEvent })
 
@@ -35,4 +36,31 @@ test('a row whose group an ancestor hides is not showing', async () => {
     enter: async () => document.getElementById('src')!.focus(),
   })
   expect(outcome(result, 'a shut parent shows no child')).toBe(true)
+})
+
+test('tabs whose arrows choose fail the manual check, which only manual tabs pass', async () => {
+  const tabs = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'settings', label: 'Settings' },
+    { id: 'billing', label: 'Billing' },
+  ]
+  const handle = HandTabs.mount(tabs, 'ltr')
+  try {
+    const result = await Conformance.tabs(harness, {
+      name: 'Project',
+      tabs: tabs.map(tab => tab.label),
+      activation: 'manual',
+      enter: async () => {
+        const selected = await vi.waitFor(() => {
+          const found = document.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+          expect(found).not.toBeNull()
+          return found!
+        })
+        selected.focus()
+      },
+    })
+    expect(outcome(result, 'the arrows move the keyboard without choosing a tab')).toBe(false)
+  } finally {
+    handle.dispose()
+  }
 })
