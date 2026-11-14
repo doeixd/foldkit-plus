@@ -124,7 +124,7 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   Right opens or steps in, Left closes or steps out; the Behavior writes the ARIA tree attributes
   and `--fk-tree-level` (1 at the top) for indenting: `calc(var(--fk-tree-level) * 1rem)`.
   Focus in the tree follows its tab stop when an edit elsewhere moves it or removes the
-  focused row (`FollowTabStop` Mount, `/dom`).
+  focused row (`FollowTabStop` Mount, `/dom`, reading only the stops of the tree's own rows).
 - **Which item is under the pointer, or was clicked,** among many: `Targets.behavior(Slots)<Input, Message>({ container, attribute: 'data-row', preventDefault?, toMessage })`
   (the Mount is `Targets({ attribute, preventDefault })` in `/dom`): `TargetHovered { id | null }`,
   `TargetPressed { id, shiftKey, ... }`, from one set of listeners on the container.
@@ -163,6 +163,13 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   attaches the `foldkit-primitives/dom` `FocusScope` Mount (no Bundle: focus is a DOM fact).
   Initial focus on insert, Tab and Shift+Tab wrap and a stray focus comes back under
   `contain`, focus restored on unmount under `restore`. A native `<dialog>` needs none of it.
+- **Keep focus when its part goes away:** `FocusRecovery.behavior(Slots)<Input, Message>({ owner, parts: { row: ['next', 'previous', { part: 'input' }], input: [] }, parent? })`
+  attaches the `foldkit-primitives/dom` `FocusRecovery` Mount to the owner and marks
+  the parts (`data-fk-focus-*`, key from `item.id`). A removed, hidden, `inert` or
+  `disabled` focused part, or a row a keyed reorder moved, sends focus to the first step
+  that can take it: `same`, `next`, `previous`, `parent`, `stop`, `{ part }`, `owner`.
+  Never when focus moved elsewhere; nested owners decide innermost first, then outward;
+  a row not drawn yet is the Model's (a Command), not the Mount's. Opt-in.
 - **Activate on press:** place `Press.bundle` (`{ clickSuppressionMs }`) with a required
   `onOut` for `Pressed { pointerType }`; attach `Press.behavior(Declared)(Slots)<Model, Message>({ target, disabled? })`.
   The `Press.events` Mount reports pointer, key, and click facts; `update` decides

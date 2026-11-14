@@ -123,7 +123,7 @@ export const FocusRecovery = Mount.defineStream('FocusRecovery', {
             }
             switch (step) {
               case 'same':
-                return [current(now.slot, now.key, now.focused)]
+                return [current(now.slot, now.key, now.part)]
               case 'next':
               case 'previous': {
                 const at = now.siblings.findIndex(sibling =>

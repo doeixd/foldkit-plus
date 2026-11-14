@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-primitives`: `FocusRecovery` (`/dom` Mount, `/interaction` Behavior):
+  when the focused part of a marked owner is removed, hidden, made `inert` or
+  `disabled`, or moved in the tree, focus goes to the first of the part's
+  fallback steps (`same`, `next`, `previous`, `parent`, `stop`, `{ part }`,
+  `owner`) that can take it, and never when focus moved elsewhere (#553).
+
 - `foldkit-remote/testing`: `Scenario`, a write (or a Message) as plain data run
   by runners (#538). `Scenario.write` takes `given` rows, `principal`, `now`,
   `when`, `operation` and an `expect` (`accepted`, `refused` by an invariant or
@@ -338,6 +344,10 @@ version changed; `pnpm` skips versions already in the registry.
   anyone write (#539). The client's hints (`may`, placement) are unchanged.
 
 ### Fixed
+
+- `foldkit-primitives`: `FollowTabStop` on a container marked `data-fk-focus-owner`
+  (`TreeNavigation` marks its own) reads only the stops of its own rows, so a row
+  holding another roving widget no longer takes the focus of a removed row (#553).
 
 - `foldkit-remote/outbox`: a durable write is sent once across tabs. The answer
   settles the sending tab's queue, which ends its send; where that came before

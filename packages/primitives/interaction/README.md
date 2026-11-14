@@ -23,6 +23,7 @@ the handler dispatches    →  update moves the fact; the view redraws from it
 | `GridNavigation` | `{ current }` | cells in rows: a calendar, a swatch picker |
 | `TreeNavigation` | `{ current, toggled }` | a tree: a file explorer, a layers panel |
 | `FocusScope` | nothing (a Mount) | keep focus inside an overlay |
+| `FocusRecovery` | nothing (a Mount) | keep focus when its part is removed or hidden |
 | `Press` | `{ pressed, … }`; out `Pressed` | pointer, touch, Enter, Space, and AT clicks as one fact |
 | `LongPress` | `{ … }`; out `LongPressed` | holding for a threshold |
 | `Move` | nothing (a Mount) | pointer drag deltas |
@@ -299,7 +300,10 @@ each showing row's `id` (through `domId`, by default the row's own),
 `OnFocus`; the container's keys move focus by id, or open and close the
 current row in place. Focus in the tree follows its stop when a transition it
 did not see moves it or removes the focused row (the `FollowTabStop` Mount in
-`foldkit-primitives/dom`, which never takes focus from outside the container).
+`foldkit-primitives/dom`, which never takes focus from outside the container,
+and reads only the stops of rows the tree owns: the container is marked
+`data-fk-focus-owner`, so a row holding another roving widget keeps its own).
+A tree that also wants a fallback when the last row goes attaches `FocusRecovery` beside it.
 The level is also the custom property `--fk-tree-level`, 1 at the top, so one
 rule indents any depth: `padding-inline-start: calc(var(--fk-tree-level) * 1rem)`.
 
@@ -351,6 +355,87 @@ in the middle is the browser's. On unmount, with `restore` (default), focus
 returns to the element that had it, if it is still in the document. A native
 `<dialog>` does all of this itself; this is for a custom overlay, a menu, or a
 command palette.
+
+**`FocusRecovery`** keeps focus when the element that has it goes away: a
+removed row, a clear button that leaves with the text, a part made `inert`,
+`hidden` or `disabled`. The browser drops focus to `body` (probes in the design
+note, not guesses); the Mount runs in the same task as the change, before that,
+and moves focus along a fallback the application declares. Like `FocusScope` it
+is DOM, not state: nothing crosses to the Model except what the target's own
+`OnFocus` already reports. Where `FocusScope` acts when a scope appears or goes
+and `FollowTabStop` follows a roving stop, `FocusRecovery` acts only on focus
+that was lost with a part.
+
+```text
+focus on a marked part, remembered with its slot, key and neighbours
+  -> the part is removed, hidden, made inert/disabled, or moved in the tree
+  -> focus is lost (not moved: a dialog the action opened keeps it)
+  -> the part's steps in order, until one can take focus
+  -> none: the next owner out decides; with none, focus stays where it is
+```
+
+<!-- docs-check
+const RecoverySlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  input: Slot.make({ capability: Capability.TextInput }),
+  clear: Slot.make({ capability: Capability.Interactive }),
+  row: Slot.make({ capability: Capability.Focusable }),
+})
+interface RecoveryInput {
+  readonly rows: ReadonlyArray<{ readonly id: string }>
+}
+const RecoveryView = SlotView.over(RecoverySlots)<RecoveryInput, never>()
+-->
+
+```ts
+import { FocusRecovery } from 'foldkit-primitives/interaction'
+
+const Recovers = FocusRecovery.behavior(RecoveryView)({
+  owner: 'root',
+  parts: {
+    input: [],
+    clear: [{ part: 'input' }],
+    row: ['next', 'previous', { part: 'input' }],
+  },
+})
+```
+
+`owner` and every key of `parts` are slots of the contract, and so is
+`{ part }`, so a misspelling is a type error. The Behavior draws marks, which a
+server render has: `data-fk-focus-owner` on the owner, `data-fk-focus-part`
+on each part, and `data-fk-focus-key` from `item.id` on a slot drawn per item.
+Attach it beside the Behaviors already on the owner: the resolver composes
+their Mounts. It is opt-in, since a Mount that sends no Message cannot be
+resolved by a Scene test of every page that draws the component.
+
+The steps of a part, in order, until one finds an element that is connected,
+showing, and focusable (and this owner's own):
+
+| Step | Finds |
+| --- | --- |
+| `same` | the part with the held slot and key, drawn again (a keyed reorder moves a focused row, and the browser drops focus) |
+| `next`, `previous` | the nearest part of the same slot after or before the held one, in the order last seen while it was focused |
+| `parent` | the part named by `parent: (input, item) => Option<id>` (a tree drawn flat), else the closest part around it |
+| `stop` | this owner's part with `tabindex="0"` |
+| `{ part }` | the first part of that slot |
+| `owner` | the owner element, when it is focusable |
+
+Focus moves with `preventScroll`, then `scrollIntoView({ block: 'nearest' })`,
+which moves nothing when the target is showing. It never moves when focus is
+somewhere else (the user, or an action that opened a dialog, got there first),
+and a claim ends once decided, so a part drawn later takes nothing. Owners
+nest: the innermost one decides; one with no step left sends a bubbling
+`foldkit-plus:focus-unrecovered`, and the next owner out acts for the part of
+its own that holds the inner one; with none left focus stays on `body`, and it
+never goes outside the owners it was in. A whole owner removed decides
+nothing; its outer owner does.
+
+A row that is not drawn yet is not found: `next` sees what is drawn. For a
+windowed list, let `update`, which knows the row it wants, scroll and focus by
+Command after the scroll settles (`ListNavigation`'s `helpers.focus`, then
+`Dom.focus`); a Mount that held "focus row 41 when it appears" would take
+focus from a user who has moved on. Ids are read as attributes and compared as
+strings, never put in a selector, so `a:b` and `x"y` work.
 
 ## Pressing and dragging
 

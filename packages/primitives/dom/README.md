@@ -22,6 +22,7 @@ wraps.
 | `ScrollBars({ idle?, scroller? })` | Mount | nothing; writes custom properties and marks | `idle` in ms, default 600 |
 | `FocusScope(options)` | Mount | nothing | `{ contain?, restore?, initialFocus? }` |
 | `FollowTabStop` | Mount | nothing | |
+| `FocusRecovery({ fallback })` | Mount | nothing | `fallback`: steps per part slot |
 | `ScrollLock`, `HideOutside` | Mounts | nothing | |
 | `PointerPosition({ focus? })` | Mount | `PointerPressed`, `PointerMoved`, `PointerReleased` | `focus`: a selector |
 | `keepScroll(options?)` | entry | nothing | |
@@ -102,7 +103,18 @@ non-negative `tabindex`, in order. Its Behavior form is in [`interaction`](../in
 
 **`FollowTabStop`** moves focus within a container to its roving tab stop when
 a transition the container did not see moves it or removes the focused row. It
-never takes focus from outside the container. `TreeNavigation` uses it.
+never takes focus from outside the container. `TreeNavigation` uses it. On a
+container marked `data-fk-focus-owner` it reads only the stops no nested owner
+owns, so a row that holds another roving widget keeps that widget's stop.
+
+**`FocusRecovery({ fallback })`** moves focus to a declared fallback when the
+marked part that had it is removed, hidden, made `inert` or `disabled`, or
+moved in the tree, in the same task as the change. `fallback` maps a part slot
+to its steps (`same`, `next`, `previous`, `parent`, `stop`, `{ part }`,
+`owner`); the marks it reads (`data-fk-focus-owner`, `-part`, `-key`,
+`-parent`) are drawn by its Behavior. It never acts on focus that moved
+elsewhere. The Behavior form and the steps are in
+[`interaction`](../interaction/README.md).
 
 **`ScrollLock`** locks the document's scroll while its element is mounted,
 refcounted so nested overlays release together, with Foldkit's iOS handling;

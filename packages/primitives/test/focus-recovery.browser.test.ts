@@ -6,12 +6,18 @@
  * in its own way. Focus claims are read from `document.activeElement`, which
  * jsdom does not move.
  */
-import { Effect, Fiber, Stream } from 'effect'
+import { Effect, Fiber, Schema, Stream } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Mount from 'foldkit/mount'
 import { liveViewStateChanges } from 'foldkit/mount'
+import * as Runtime from 'foldkit/runtime'
+import { Behavior, Capability, Event as SlotEvent, Slot, SlotView, Slots } from 'foldkit-mixins'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { FocusRecovery } from '../src/dom/focus-recovery.js'
 import type { Step } from '../src/dom/focus-recovery.js'
+import { FocusRecovery as FocusRecoveryBehavior } from '../src/interaction/index.js'
 
 type Activation = 'pointer' | 'keyboard'
 const activations: ReadonlyArray<Activation> = ['pointer', 'keyboard']
@@ -63,7 +69,7 @@ const row = (id: string, act: Act = 'remove', slot = 'row') => {
 const button = (item: Element) => item.querySelector('button') as HTMLButtonElement
 
 /** One handler for every action: what a press does is the `data-act` of the button. */
-const actions = (root: HTMLElement, dialog?: HTMLDialogElement) =>
+const actions = (root: HTMLElement, dialog?: HTMLDialogElement, modal = true) =>
   root.addEventListener('click', event => {
     const target = (event.target as Element).closest('button')
     const item = target?.closest('li')
@@ -76,7 +82,8 @@ const actions = (root: HTMLElement, dialog?: HTMLDialogElement) =>
     else if (act === 'moveUp') item.parentElement?.insertBefore(item, item.previousElementSibling)
     else if (act === 'removeAndDialog') {
       item.remove()
-      dialog?.showModal()
+      if (modal) dialog?.showModal()
+      else dialog?.show()
     }
   })
 
@@ -93,6 +100,7 @@ const rig = (
   ids: ReadonlyArray<string>,
   fallback: Record<string, ReadonlyArray<Step>>,
   act: Act = 'remove',
+  dialog?: { readonly element: HTMLDialogElement; readonly modal: boolean },
 ): Rig => {
   const owner = mark(document.createElement('div'), { 'data-fk-focus-owner': '' })
   const input = mark(document.createElement('input'), { 'data-fk-focus-part': 'input' })
@@ -103,7 +111,7 @@ const rig = (
   const outside = document.createElement('button')
   outside.textContent = 'outside'
   document.body.append(owner, outside)
-  actions(owner)
+  actions(owner, dialog?.element, dialog?.modal)
   run(owner, fallback)
   return { owner, list, input, rows, outside }
 }
@@ -183,22 +191,28 @@ describe.each(activations)('removing the focused part by %s', how => {
     await expect.poll(() => document.activeElement).toBe(input)
   })
 
-  it('leaves focus on a dialog the removing action opened', async () => {
-    const dialog = document.createElement('dialog')
-    const ok = document.createElement('button')
-    ok.textContent = 'ok'
-    dialog.append(ok)
-    document.body.append(dialog)
-    const { rows, owner } = rig(['a', 'b'], { row: rowSteps }, 'removeAndDialog')
-    actions(owner, dialog)
-    await settled()
-    // Both rig and this call listen; the dialog opens once, and a second open throws.
-    await press(button(rows[0]!), how).catch(() => undefined)
-    await expect.poll(() => document.activeElement).toBe(ok)
-    await settled()
-    expect(document.activeElement).toBe(ok)
-    dialog.close()
-  })
+  it.each([true, false])(
+    'leaves focus on a dialog the removing action opened (modal: %s)',
+    async modal => {
+      const dialog = document.createElement('dialog')
+      const ok = document.createElement('button')
+      ok.textContent = 'ok'
+      dialog.append(ok)
+      document.body.append(dialog)
+      // A modal dialog refuses focus elsewhere itself; a plain one does not, so
+      // only focus that is moved elsewhere keeps the Mount from taking it back.
+      const { rows } = rig(['a', 'b'], { row: rowSteps }, 'removeAndDialog', {
+        element: dialog,
+        modal,
+      })
+      await settled()
+      await press(button(rows[0]!), how)
+      await expect.poll(() => document.activeElement).toBe(ok)
+      await settled()
+      expect(document.activeElement).toBe(ok)
+      dialog.close()
+    },
+  )
 
   it.each(['inert', 'hidden', 'disable'] as const)(
     'moves focus off a part made %s before the browser would',
@@ -226,6 +240,34 @@ describe.each(activations)('removing the focused part by %s', how => {
     rows[0]!.remove()
     await settled()
     expect(document.activeElement).toBe(outside)
+  })
+})
+
+describe('a claim that ended', () => {
+  it('is not taken up by a part that is drawn later, once nothing was found', async () => {
+    const { rows, list } = rig(['a', 'b'], { row: ['stop'] })
+    await settled()
+    button(rows[1]!).focus()
+    rows[1]!.remove()
+    await settled()
+    expect(document.activeElement).toBe(document.body)
+    // A stop drawn now would be a target for the removal already decided.
+    const late = row('late')
+    late.tabIndex = 0
+    list.append(late)
+    await settled()
+    expect(document.activeElement).toBe(document.body)
+  })
+
+  it('is not kept after the user blurred the element', async () => {
+    const { rows } = rig(['a', 'b'], { row: rowSteps })
+    await settled()
+    button(rows[0]!).focus()
+    button(rows[0]!).blur()
+    await settled()
+    rows[0]!.remove()
+    await settled()
+    expect(document.activeElement).toBe(document.body)
   })
 })
 
@@ -380,6 +422,31 @@ describe('scrolling', () => {
 })
 
 describe('after release', () => {
+  it('removes every listener it added and disconnects its observer', async () => {
+    const owner = mark(document.createElement('div'), { 'data-fk-focus-owner': '' })
+    document.body.append(owner)
+    const added: Array<[string, unknown]> = []
+    const removed: Array<[string, unknown]> = []
+    vi.spyOn(owner, 'addEventListener').mockImplementation((type, listener) => {
+      added.push([type, listener])
+    })
+    vi.spyOn(owner, 'removeEventListener').mockImplementation((type, listener) => {
+      removed.push([type, listener])
+    })
+    const disconnect = vi.spyOn(MutationObserver.prototype, 'disconnect')
+    const fiber = run(owner, { row: [] })
+    await settled()
+    expect(added.map(([type]) => type).sort()).toEqual([
+      'focusin',
+      'focusout',
+      'foldkit-plus:focus-unrecovered',
+    ])
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    expect(removed).toEqual(expect.arrayContaining(added))
+    expect(disconnect).toHaveBeenCalledTimes(1)
+    disconnect.mockRestore()
+  })
+
   it('reacts to neither a mutation nor a focusout', async () => {
     const { rows, outside, owner } = rig(['a', 'b'], { row: rowSteps })
     await settled()
@@ -393,5 +460,121 @@ describe('after release', () => {
     await settled()
     for (const spy of spies) expect(spy).not.toHaveBeenCalled()
     expect(document.activeElement).toBe(document.body)
+  })
+})
+
+describe.each(activations)('drawn by the Behavior in a running application, pressed by %s', how => {
+  const Mark = Mount.defineStream('MarkOwner', {
+    messages: [Schema.Never],
+    execute: ({ element }) =>
+      Stream.callback<never>(() =>
+        Effect.acquireRelease(
+          Effect.sync(() => element.setAttribute('data-second-mount', 'ran')),
+          () => Effect.void,
+        ),
+      ),
+  })
+  const Model = Schema.Struct({ rows: Schema.Array(Schema.String), query: Schema.String })
+  type Model = typeof Model.Type
+  const Message = defineMessageUnion({
+    Removed: { id: Schema.String },
+    Typed: { value: Schema.String },
+    Cleared: {},
+  })
+  type Message = typeof Message.Type
+  const Slots_ = Slots.define({
+    root: Slot.make({ capability: Capability.Container }),
+    input: Slot.make({ capability: Capability.TextInput, events: [SlotEvent.Input] }),
+    clear: Slot.make({ capability: Capability.Interactive, events: [SlotEvent.Click] }),
+    row: Slot.make({ capability: Capability.Focusable }),
+  })
+  const Search = SlotView.over(Slots_)<Model, Message>()
+  const Recovers = FocusRecoveryBehavior.behavior(Search)({
+    owner: 'root',
+    parts: {
+      input: [],
+      clear: [{ part: 'input' }],
+      row: ['next', 'previous', { part: 'input' }],
+    },
+  })
+  // A second Mount on the owner: one `OnMount` per element would drop one of the two.
+  const Marks = Behavior.forSlots(Slots_)<Model, Message>({
+    root: Behavior.slot({ mount: () => Mark() }),
+  })
+  const view = Search.define((model, slots, h) =>
+    h.div(slots.root.attrs([h.Id('widget')]), [
+      h.input(
+        slots.input.attrs([
+          h.Id('query'),
+          h.Value(model.query),
+          h.OnInput(value => Message.Typed({ value })),
+        ]),
+      ),
+      ...(model.query === ''
+        ? []
+        : [h.button(slots.clear.attrs([h.Id('clear'), h.OnClick(Message.Cleared())]), ['clear'])]),
+      h.ul(
+        [],
+        model.rows.map(id =>
+          h.li(slots.row.attrs([h.Key(id), h.Id(`item-${id}`), h.Tabindex(-1)], { index: 0, id }), [
+            h.button([h.Id(`remove-${id}`), h.OnClick(Message.Removed({ id }))], [`remove ${id}`]),
+          ]),
+        ),
+      ),
+    ]),
+  ).pipe(Behavior.attach(Recovers), Behavior.attach(Marks))
+  let handle: { dispose: () => void } | undefined
+  const boot = async (rows: ReadonlyArray<string>, query: string) => {
+    const container = document.createElement('div')
+    container.id = 'host'
+    document.body.append(container)
+    handle = Runtime.embed(
+      Runtime.makeElement({
+        Model,
+        container,
+        init: () => ({ model: { rows, query } }),
+        update: (model: Model, message: Message) =>
+          Message.match<{ readonly model: Model }>(message, {
+            Removed: ({ id }) => ({
+              model: { ...model, rows: model.rows.filter(row => row !== id) },
+            }),
+            Typed: ({ value }) => ({ model: { ...model, query: value } }),
+            Cleared: () => ({ model: { ...model, query: '' } }),
+          }),
+        view: (model: Model, h: HtmlBuilder<Message>) => h.main([], [view(model, h)]),
+      }),
+    )
+    await expect.poll(() => document.getElementById('widget')).not.toBeNull()
+  }
+  afterEach(() => {
+    handle?.dispose()
+    handle = undefined
+  })
+
+  it('draws the marks and both Mounts on the owner', async () => {
+    await boot(['a', 'b'], '')
+    const widget = document.getElementById('widget')!
+    expect(widget.hasAttribute('data-fk-focus-owner')).toBe(true)
+    await expect.poll(() => widget.getAttribute('data-second-mount')).toBe('ran')
+    expect(document.getElementById('item-a')!.getAttribute('data-fk-focus-key')).toBe('a')
+  })
+
+  it('moves focus to the next row when the removed one is pressed', async () => {
+    await boot(['a', 'b', 'c'], '')
+    await press(document.getElementById('remove-b')!, how)
+    await expect.poll(() => document.activeElement).toBe(document.getElementById('item-c'))
+  })
+
+  it('moves focus to the input when the last row is removed', async () => {
+    await boot(['a'], '')
+    await press(document.getElementById('remove-a')!, how)
+    await expect.poll(() => document.activeElement).toBe(document.getElementById('query'))
+  })
+
+  it('moves focus from the clear button that leaves with the text to the input', async () => {
+    await boot([], 'abc')
+    await press(document.getElementById('clear')!, how)
+    await expect.poll(() => document.getElementById('clear')).toBeNull()
+    await expect.poll(() => document.activeElement).toBe(document.getElementById('query'))
   })
 })
