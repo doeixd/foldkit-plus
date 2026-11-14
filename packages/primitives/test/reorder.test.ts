@@ -174,6 +174,19 @@ describe('Reorder transitions', () => {
     )
   })
 
+  it('lets a blur with nothing held through as the parent Model it was given', () => {
+    const Rows = Bundle.declare(Reorder.bundle, 'rows')
+    const Page = Bundle.parent({
+      Model: Schema.Struct({ ...Rows.fields }),
+      Message: defineMessageUnion({ ...Rows.cases }),
+    })
+    const update = Page.assemble(Page.at(Rows, { onOut: () => model => ({ model }) })).update(
+      model => ({ model }),
+    )
+    const model = { rows: idle }
+    expect(update(model, Rows.wrapper.make(Message.Left({ id: 'a' }))).model).toBe(model)
+  })
+
   it('cancels through the helper a parent calls, and the placement hears it put back', () => {
     const Rows = Bundle.declare(Reorder.bundle, 'rows')
     const Page = Bundle.parent({

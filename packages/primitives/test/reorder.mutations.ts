@@ -40,6 +40,12 @@ export default [
     'onSome: () => -1,',
     [unit, browser],
   ),
+  one(
+    'a message with nothing held makes a new Model',
+    'Option.match(model.held, { onNone: () => ({ model }), onSome: then })',
+    'Option.match(model.held, { onNone: () => ({ model: { ...model } }), onSome: then })',
+    [unit],
+  ),
   one('an unchanged place is reported again', 'sameOver(next, model.over)', 'false', [unit]),
   one(
     'a pointer drop lands where the pointer was last seen',

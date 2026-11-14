@@ -607,6 +607,9 @@ export const behavior = <Field extends string>(declared: Declared<typeof bundle,
         readonly h: HtmlBuilder<ParentMessage>
         readonly item?: SlotItem
       }
+      // On every item for its life, not only the held one: a grab and a Tab inside one frame
+      // meet a drawing that does not know of the grab, and its blur would be lost. With nothing
+      // held, `Left` returns the Model it was given, so the page does not draw again.
       const left = ({ input, h, item }: Context): ReadonlyArray<Attribute<ParentMessage>> =>
         Option.match(idOf(input, item), {
           onNone: () => [],
