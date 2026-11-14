@@ -68,12 +68,25 @@ version changed; `pnpm` skips versions already in the registry.
   `Query.from(state)` queries it, and `Expr.show` prints it by name. A write takes
   `from: state`, joined to its `when`, and `becomes: state`, proved where the
   write is declared by enumerating the rows it can start from (one that cannot
-  be decided throws until writers enforce it); a state reaching another row is
-  neither. `Laws.check({ writes })` judges each write, or a `{ name, entity,
+  be decided is the write's postcondition, held where it commits); a state
+  reaching another row is neither. `Laws.check({ writes })` judges each write, or a `{ name, entity,
   footprint }` entry (`Footprint.declared`, `Footprint.unknown`), against each
   invariant of its Entity by enumeration over finite fields, and reports the
   arrows between states; `Laws.show` prints it, `Write.footprint` is a
   write's own. `Write` gains `from` and `becomes`.
+- `foldkit-entity`, `foldkit-remote-server`, `foldkit-remote-drizzle`,
+  `foldkit-guard`, `foldkit-remote`: a `becomes` is enforced where the write
+  commits (#535). One the enumerator cannot decide is the write's `ensures`, an
+  invariant of that write alone with the id `becomes:<State>`;
+  `Write.ensured(write)` names it for `Refusal.isInvalidBy`. Writers declare
+  `postconditions` and are handed `ensures` on `update` and `insert`; the
+  Drizzle writer (SQLite, Postgres, D1) compiles it into the statement beside
+  the invariants, the memory writer and `GuardServer.writer` judge or forward
+  it, and each refuses as `Invalid`. `RemoteServer.write` refuses a write with
+  one over a writer without `postconditions`. The client judges it before
+  sending where it holds what it reads, and `Laws.check` reports the arrow
+  `enforced`. `Law.check` reports a server `Invalid` the client could not judge
+  (`Data.can` undecided) as `unknown` rather than a disagreement.
 - `foldkit-sync`: a document's laws. `forApplication(...).make({ laws })` takes
   `{ holds({ before, after }), message, path? }` per id, typed over the shared
   fields alone; the journal judges each operation's resulting snapshot and
