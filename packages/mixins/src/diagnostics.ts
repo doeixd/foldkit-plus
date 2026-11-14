@@ -39,6 +39,8 @@ export type DiagnosticCode =
   | 'a11y:capability-mismatch'
   | 'a11y:missing-event'
   | 'a11y:missing-attribute'
+  | 'a11y:unsatisfied-obligation'
+  | 'a11y:delegation-unmet'
 
 export interface Diagnostic {
   readonly source: 'mixins' | 'a11y' | 'style' | 'theme'

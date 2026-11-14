@@ -103,6 +103,8 @@ export interface SurfaceViewDescription {
   /** Emitted Message tags, not constructors, so the value stays serializable. */
   readonly emits: ReadonlyArray<string>
   readonly slots: ViewDescription['slots']
+  /** The patterns the view was conformed to. */
+  readonly conforms: ViewDescription['conforms']
   /** Each attachment in order, with what it requires and contributes per slot. */
   readonly attachments: ViewDescription['attachments']
   readonly findings: ViewDescription['findings']
@@ -128,6 +130,7 @@ export const describe = <Root, Model, Message, Params, Slots_>(
     metadata: inspection.metadata,
     emits: inspection.emits.map(constructorTag),
     slots: ui.slots,
+    conforms: ui.conforms,
     attachments: ui.attachments,
     findings: ui.findings,
     mixins: ui.attachments.map(attachment => attachment.name),

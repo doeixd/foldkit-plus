@@ -15,6 +15,9 @@ import {
   LawNode,
   Laws,
   Write,
+  lawFactsOf,
+  lawId,
+  transitionId,
   type LawReport,
   type LawVerdict,
 } from '../src/index.js'
@@ -457,6 +460,9 @@ describe('Laws.check: evidence', () => {
   it('names transitions and laws as the graph and evidence do', () => {
     expect(Laws.transition(Sell)).toBe('write:Sell')
     expect(Laws.law(reservedWithinStock)).toBe('Product.reservedWithinStock')
+    // By name too, for a module that must not carry the check: the same functions.
+    expect(Laws.transition).toBe(transitionId)
+    expect(Laws.law).toBe(lawId)
   })
 })
 
@@ -487,7 +493,7 @@ describe('Laws.facts', () => {
     )
     expect(plain(nodes.filter(LawNode.$is('Transition')))).toEqual(
       ['Publish', 'Revert', 'SellInStock', 'Import', 'Restock'].map(name => ({
-        ...LawNode.Transition({ id: `write:${name}`, kind: 'write' }),
+        ...LawNode.Transition({ id: `write:${name}`, kind: 'write', entity: 'Product' }),
       })),
     )
     expect(nodes.filter(LawNode.$is('State')).map(state => state.name)).toEqual([
@@ -501,21 +507,38 @@ describe('Laws.facts', () => {
     )
   })
 
-  it('says what each law reads and each transition writes, once each', () => {
+  it('says what each law reads and each transition writes, once each, an unknown footprint every member a law reads', () => {
     expect(
       edges.filter(LawEdge.$is('Reads')).filter(each => each.law === 'Product.reservedWithinStock'),
     ).toEqual([
-      LawEdge.Reads({ law: 'Product.reservedWithinStock', path: ['Product', 'reserved'] }),
-      LawEdge.Reads({ law: 'Product.reservedWithinStock', path: ['Product', 'stock'] }),
+      LawEdge.Reads({
+        law: 'Product.reservedWithinStock',
+        space: 'entity',
+        path: ['Product', 'reserved'],
+      }),
+      LawEdge.Reads({
+        law: 'Product.reservedWithinStock',
+        space: 'entity',
+        path: ['Product', 'stock'],
+      }),
     ])
     expect(plain(edges.filter(LawEdge.$is('Writes')))).toEqual(
       [
         ['Publish', 'status'],
         ['Revert', 'status'],
         ['SellInStock', 'stock'],
+        ...[
+          ...new Set(
+            report.pairs.filter(pair => pair.write === 'Import').flatMap(pair => pair.reads),
+          ),
+        ].map(member => ['Import', member]),
         ['Restock', 'stock'],
       ].map(([name, member]) => ({
-        ...LawEdge.Writes({ transition: `write:${name}`, path: ['Product', member!] }),
+        ...LawEdge.Writes({
+          transition: `write:${name}`,
+          space: 'entity',
+          path: ['Product', member!],
+        }),
       })),
     )
   })
@@ -556,6 +579,29 @@ describe('Laws.facts', () => {
     ).toBe(true)
   })
 
+  it('reads a transition invariant whole, since a write leaving its members alone can break it', () => {
+    const whole = (law: string) =>
+      edges
+        .filter(LawEdge.$is('Reads'))
+        .some(each => each.law === law && each.path.length === 1 && each.path[0] === 'Product')
+    expect(whole('Product.publishedStaysPublished')).toBe(true)
+    expect(whole('Product.soldNeverFalls')).toBe(true)
+    expect(whole('Product.reservedWithinStock')).toBe(false)
+  })
+
+  it('names a delete’s Entity on its transition, which writes no member but keeps each law', () => {
+    const removed = Laws.facts(Laws.check({ writes: [Remove] }))
+    expect(plain(removed.nodes.filter(LawNode.$is('Transition')))).toEqual([
+      { ...LawNode.Transition({ id: 'write:Remove', kind: 'write', entity: 'Product' }) },
+    ])
+    expect(removed.edges.filter(LawEdge.$is('Writes'))).toEqual([])
+    expect(removed.edges.filter(LawEdge.$is('Keeps')).map(each => each.law)).toEqual([
+      'Product.reservedWithinStock',
+      'Product.publishedStaysPublished',
+      'Product.soldNeverFalls',
+    ])
+  })
+
   it("leaves a write's own postcondition out, and draws its becomes as a to edge", () => {
     expect(nodes.some(each => LawNode.$is('Law')(each) && each.id.includes('becomes:'))).toBe(false)
     expect(plain(edges.filter(LawEdge.$is('To')))).toEqual(
@@ -570,5 +616,35 @@ describe('Laws.facts', () => {
     expect(
       edges.filter(LawEdge.$is('From')).map(each => `${each.transition} ${each.state}`),
     ).toEqual(['write:Publish Draft', 'write:Revert Published', 'write:Revert Archived'])
+  })
+})
+
+describe('lawFactsOf', () => {
+  const { nodes, edges } = lawFactsOf([Rename, Publish])
+
+  it('reads the declarations, with no check run: each transition, what it writes, and each law', () => {
+    expect(nodes.filter(LawNode.$is('Transition')).map(each => each.id)).toEqual([
+      'write:Rename',
+      'write:Publish',
+    ])
+    expect(
+      edges.filter(LawEdge.$is('Writes')).map(each => `${each.transition} ${each.path.join('.')}`),
+    ).toEqual(['write:Rename Product.name', 'write:Publish Product.status'])
+    expect(nodes.filter(LawNode.$is('Law')).map(each => each.id)).toEqual([
+      'Product.reservedWithinStock',
+      'Product.publishedStaysPublished',
+      'Product.soldNeverFalls',
+    ])
+    expect(edges.filter(LawEdge.$is('Keeps'))).toEqual([])
+  })
+
+  it('reads a transition invariant whole, and a state invariant by its members', () => {
+    const reads = (law: string) =>
+      edges
+        .filter(LawEdge.$is('Reads'))
+        .filter(each => each.law === law)
+        .map(each => each.path.join('.'))
+    expect(reads('Product.reservedWithinStock')).toEqual(['Product.reserved', 'Product.stock'])
+    expect(reads('Product.soldNeverFalls')).toContain('Product')
   })
 })

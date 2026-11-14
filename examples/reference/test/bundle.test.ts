@@ -16,7 +16,8 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // invariant reads in a Selection of its own; the page read 247,439 against
 // 247,174 from the same tree with the editor before it (CI read 247,530; crud's
 // index.js grew 685 bytes minified).
-const CEILING = 248_000
+// +1291 bytes for row revisions and read-after tokens on Remote's wire (#544), measured by building the page with and without them in one tree on 2026-11-14: the wire's schemas, the token in each coalesced read, the floors and revisions in the store and reducer. Ceiling raised by that, rounded up.
+const CEILING = 249_300
 
 clientBudget({
   name: 'reference',

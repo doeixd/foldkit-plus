@@ -68,6 +68,7 @@ import {
   setConnectionStale,
   withRefreshRequested,
   writeRead,
+  readAfterIn,
   type RemoteMessage,
   type RemoteMessageInput,
   type RemoteModel,
@@ -535,10 +536,16 @@ export const prefetch = /* @__PURE__ */ Effect.fn('Remote.prefetch')(function* <
     RemotePolicy.toPlan(policyAt(options.policy, model), at),
   )
   if (missing.length === 0) return store
-  yield* Effect.annotateCurrentSpan('requirementCount', missing.length)
+  const tokens = readAfterIn(bound[Capability])
+  const { requirements, after } = tokens.withTokens(store, missing)
+  yield* Effect.annotateCurrentSpan('requirementCount', requirements.length)
   const client = yield* RemoteClient
-  const result = yield* client.read({ version: REMOTE_PROTOCOL_VERSION, requests: missing })
-  return writeRead(store, missing, result, at)
+  const result = yield* client.read({
+    version: REMOTE_PROTOCOL_VERSION,
+    requests: requirements,
+    ...(after.length === 0 ? {} : { after }),
+  })
+  return tokens.read(store, requirements, result, at, after).store
 })
 
 /**
@@ -747,13 +754,14 @@ export const clientLayer = <R = never>(
               ),
               Effect.provideContext(context),
             ),
-          live: ({ requirements, queries, after }) =>
+          live: ({ requirements, queries, after, floors }) =>
             client
               .FoldkitRemoteLive({
                 version: REMOTE_PROTOCOL_VERSION,
                 requirements,
                 ...(queries.length === 0 ? {} : { queries }),
                 after,
+                ...(floors === undefined || floors.length === 0 ? {} : { floors }),
               })
               .pipe(
                 Stream.catchTag(['RpcClientError', 'Unreachable'], error =>
@@ -897,6 +905,7 @@ export const mutateInto = /* @__PURE__ */ Effect.fn('Remote.mutateInto')(functio
     entities: outcome.entities,
     connections: outcome.connections,
     deleted: outcome.deleted,
+    ...(outcome.after === undefined ? {} : { after: outcome.after }),
     ...(outcome.principal === undefined
       ? {}
       : { principal: madeAsOf(outcome.principal), generation: started.refresh.floor }),
@@ -1473,23 +1482,23 @@ const bindDomain = <
           pageMessage(query.identity, page, true, query.window, query.select, now(), generation),
         )
       }
-      const requirements = planAsked(
-        bound,
-        store.get(current),
-        askedUnion(projections),
-        planOptions,
-      ).requirements
+      const { requirements, after } = readAfterIn(bound[Capability]).withTokens(
+        store.get(current).entities,
+        planAsked(bound, store.get(current), askedUnion(projections), planOptions).requirements,
+      )
       if (requirements.length === 0) return current
       const at = now()
       const result = yield* client.read({
         version: REMOTE_PROTOCOL_VERSION,
         requests: requirements,
+        ...(after.length === 0 ? {} : { after }),
       })
       return hear(current, {
         _tag: 'ReadReceived',
         requests: requirements,
         result,
         now: at,
+        ...(after.length === 0 ? {} : { after }),
         generation,
       })
     })

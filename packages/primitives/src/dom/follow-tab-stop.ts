@@ -1,12 +1,14 @@
 import { Effect, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
+import { ROVING_MARK } from './focusable.js'
 
 /**
  * Keeps focus that is inside a container of roving tab stops on its stop, as a
  * Mount: when a transition moves the stop (a row made current by a command the
  * container did not see, such as a duplicate) or removes the focused
  * descendant (a deleted row), focus goes to the descendant with
- * `tabindex="0"`. It sends no Message. Focus outside the container is never
+ * `tabindex="0"` (on a container marked `data-fk-roving`, the one no nested
+ * roving container holds). It sends no Message. Focus outside the container is never
  * taken, and focus the user moved away stays where it went.
  */
 export const FollowTabStop = Mount.defineStream('FollowTabStop', {
@@ -29,9 +31,21 @@ export const FollowTabStop = Mount.defineStream('FollowTabStop', {
               if (!(from instanceof Node) || from.isConnected) within = false
             })
           }
+          // A marked roving container's stop is the one no nested roving container
+          // holds: a row holding another roving widget has a stop of its own.
+          const stopOf = (): Element | null => {
+            if (!element.hasAttribute(`data-${ROVING_MARK}`)) {
+              return element.querySelector('[tabindex="0"]')
+            }
+            return (
+              Array.from(element.querySelectorAll('[tabindex="0"]')).find(
+                stop => stop.parentElement?.closest(`[data-${ROVING_MARK}]`) === element,
+              ) ?? null
+            )
+          }
           const follow = () => {
             if (!within) return
-            const stop = element.querySelector('[tabindex="0"]')
+            const stop = stopOf()
             const focused = document.activeElement
             if (!(stop instanceof HTMLElement) || stop === focused) return
             const lost = focused === null || focused === document.body

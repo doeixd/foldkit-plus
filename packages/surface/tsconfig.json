@@ -7,12 +7,17 @@
     "composite": true,
     "noEmit": false,
     "paths": {
+      "foldkit-entity": ["../entity/src/index.ts"],
+      "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-surface": ["./src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
   "references": [
+    {
+      "path": "../entity/tsconfig.build.json"
+    },
     {
       "path": "../metadata/tsconfig.build.json"
     }

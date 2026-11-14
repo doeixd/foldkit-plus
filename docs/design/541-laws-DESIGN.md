@@ -728,6 +728,16 @@ names fields at run time, and the transitions of a Composition are #1655's.
 So a law over the local Model has no `law-unwitnessed` rule yet. A walk over
 it still runs and still issues records.
 
+**As built.** The graph moved off `Module` before release, onto `Graph` in
+`graph.ts`: `Graph.of(module, { evidence })` (was `Module.graph`),
+`Graph.validate` (the four rules, `transition-declared-twice` among them; no
+evidence is none, so every pair a transition can break is unwitnessed),
+`Graph.breakersOf`, and `Graph.toMarkdown` and `Graph.toMermaid` for the
+Laws section. `Module.validate`, `manifest`, `toMarkdown` and `toMermaid`
+take one argument, answer as before the graph, and reach none of its code:
+while `Module` was one object holding both, the registry page, which calls
+only `Module.manifest`, carried 2.4 kB brotli of it.
+
 ### D24. `Walk.run`
 
 ```ts sketch

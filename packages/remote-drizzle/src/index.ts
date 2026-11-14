@@ -453,6 +453,8 @@ const cursorId = (cursor: string): string => {
   return parts.id === '' ? cursor : parts.id
 }
 
+const REVISION_ALIAS = '\u0000revision'
+
 /**
  * A `RemoteServer.entity` source backed by the `DrizzleDatabase` service. It
  * selects the requested columns in one batch, then resolves each selected
@@ -468,8 +470,8 @@ const cursorId = (cursor: string): string => {
  * server it is mounted in says (`RemoteServer.make`'s `viewer`), which is
  * refused without one; a read made outside a server is refused it.
  */
-export const source = <P = unknown>(
-  binding: AnyEntityBinding,
+export const source = <P = unknown, B extends AnyEntityBinding = AnyEntityBinding>(
+  binding: B,
   options?: {
     readonly authorize?: EntitySource<P, DrizzleDatabase>['authorize'] | undefined
     readonly filter?: EntitySource<P, DrizzleDatabase>['filter'] | undefined
@@ -483,9 +485,32 @@ export const source = <P = unknown>(
      * hold for one row; a read finding more is refused. Default 100.
      */
     readonly maxCollection?: number | undefined
+    /**
+     * The field holding the row's revision: every read sends it with each
+     * row (`EntityRecord.revision`), asked for or not, so a client never lets
+     * an older answer over a newer row. It must be a column holding a number.
+     */
+    readonly revision?: (keyof B['fields'] & string) | undefined
   },
 ): EntitySource<P, DrizzleDatabase> => {
   const maxCollection = options?.maxCollection ?? 100
+  const revisionColumn =
+    options?.revision === undefined || !Object.hasOwn(binding.columns, options.revision)
+      ? undefined
+      : binding.columns[options.revision]
+  if (options?.revision !== undefined && revisionColumn === undefined) {
+    throw new Error(
+      `[foldkit-remote-drizzle] ${binding.name} has no column for its revision "${options.revision}"`,
+    )
+  }
+  if (
+    revisionColumn !== undefined &&
+    !String((revisionColumn as { readonly dataType?: unknown }).dataType).startsWith('number')
+  ) {
+    throw new Error(
+      `[foldkit-remote-drizzle] ${binding.name}'s revision "${options?.revision}" is not a number column`,
+    )
+  }
   if (!Number.isInteger(maxCollection) || maxCollection < 1) {
     throw new Error(
       `[foldkit-remote-drizzle] ${binding.name}'s maxCollection must be a whole number above 0`,
@@ -532,6 +557,8 @@ export const source = <P = unknown>(
         if (!projectsAny(binding, context.fields)) return []
         const database = yield* DrizzleDatabase
         const columns = selectColumns(binding, context.fields)
+        // Under a name no field has, so a revision not asked for is never sent as a value.
+        if (revisionColumn !== undefined) columns[REVISION_ALIAS] = revisionColumn
         for (const field of context.fields) {
           const computed = binding.computed[field]
           if (computed === undefined) continue
@@ -836,7 +863,14 @@ export const source = <P = unknown>(
             })
         }
 
-        return rows.map(row => ({ id: String(row.id), values: row }))
+        return rows.map(row => {
+          const revision = row[REVISION_ALIAS]
+          return {
+            id: String(row.id),
+            values: row,
+            ...(typeof revision === 'number' ? { revision } : {}),
+          }
+        })
       }),
     ...(options?.authorize === undefined ? {} : { authorize: options.authorize }),
     ...(options?.filter === undefined ? {} : { filter: options.filter }),

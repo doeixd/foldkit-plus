@@ -172,11 +172,19 @@ breaks one is wrong even when every test passes.
 | needs(Surface, Requirement) | Server data the Surface's Projection pulls |
 | activeOn(Surface, Route) | Activation recorded by `Surface.when` |
 
-`Module.make` and `Module.validate` exist today with six rules
-(`foreign-contract`, `duplicate-name`, `ownership-overlap`,
-`message-claimed-twice`, `unknown-path`, `unknown-message`). The graph is
-`Module` generalised: built from a Block Composition plus contracts, with the
-rules kept and queries added.
+`Module.make` and `Module.validate` exist today with six rules over
+contracts (`foreign-contract`, `duplicate-name`, `ownership-overlap`,
+`message-claimed-twice`, `unknown-path`, `unknown-message`), and
+`Graph.validate` with four over the law half of the graph (`law-unwitnessed`,
+`evidence-unmatched`, `level-declared-twice`, `transition-declared-twice`), built before any Composition (#537,
+[541-laws-DESIGN.md](./541-laws-DESIGN.md) D21, D22). That half is in place:
+`Graph.of(module, { evidence })` holds Owner, Path (`model` and `entity`
+spaces), Transition (`write` and `durable`), Law, State and Level nodes, and
+`owns`, `reads`, `writes`, `observes`, `from`, `to`, `keeps` and `refines`
+edges, each contract contributing its own through `Contract.facts`; Owner is
+a contract there, not yet a Block placement. The graph is `Module`
+generalised: built from a Block Composition plus contracts, with the rules
+kept and queries added.
 
 ### 5.2 Packages after the move
 
@@ -299,8 +307,12 @@ Gate: Phase 2.
 
 1. `Module.fromComposition(ApplicationComposition, contracts)` (*Sketch*)
    builds the graph of §5.1. Owners, keys and operations come from the
-   Composition (invariant 4).
-2. Keep the six existing rules; add `transition-outside-owner` (a contract that
+   Composition (invariant 4). It starts from `Graph.of`'s nodes and edges
+   and `Contract.facts`, adding Block placements as Owners and a
+   `message` Transition per local Message with its `writes` edges, which wait
+   on foldkit/foldkit#1655; `law-unwitnessed` then covers laws over the local
+   Model with no new rule.
+2. Keep the nine existing rules; add `transition-outside-owner` (a contract that
    writes a path its owner does not route), `unguarded-capability`,
    `unreachable-requirement`.
 3. Queries: `capabilitiesFor(principal)`, `readersOf(path)`,
@@ -426,6 +438,14 @@ is sent; and a client claiming an old version is refused by `admit` and
 `authorize` exactly as the current Message would be.
 
 ### 6.6 Phase 6: authorities we do not own (M)
+
+Status (2026-11-14): the Domain adapter is built as `foldkit-remote-domain`
+against `@alchemy.run/domain@2.0.0-beta.86`, where `View.snapshot` and live reads
+that carry cursors are published, so the gate on #2567 and #2569 is what that
+beta contains (the state of the PRs was not read). Built: items 2, 3 and 6 for
+reads by id, 5 as `Fixture`, and the lowering and import of
+[544-547-alchemy-DESIGN.md](./544-547-alchemy-DESIGN.md). Not built: lists and
+relations, first paint (item 4), and the graph part, which waits on Phase 3.
 
 Gate: Phase 3 for the graph part; `RemoteServer.describe` can start after
 Phase 1. The Domain adapter waits for alchemy-run/alchemy#2567 (`View.snapshot`)

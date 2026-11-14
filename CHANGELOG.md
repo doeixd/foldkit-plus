@@ -9,6 +9,149 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins/testing`: `Conformance` (#552 rendered, #558 item 1), scenarios
+  `listbox`, `checkbox`, `tree`, `dialog` (focus in, Tab contained, Escape,
+  restore, a dialog over a dialog) and `tabs`, each a function of a harness
+  that returns its findings as data, with roles and names read from Chromium's
+  accessibility tree, and `Conformance.server` for markup parsed back.
+  `Conformance.harness({ cdp, userEvent }, root?)` is the harness for Vitest's
+  browser mode, given Vitest's two so the package imports no runner.
+  `SlotView.describe(view)` gains `conforms`, the patterns `A11y.conform`
+  checked the view against.
+- `foldkit-primitives/interaction`: `Reorder`, a keyboard path for moving an
+  item in a list or a tree (#558 item 3). One Bundle holds the draft (`held`,
+  `over`); Space or Enter picks up and drops, the arrows, Home and End walk
+  `Reorder.places`, Escape or focus leaving puts back, and `PointerDrag`'s facts
+  feed the same Messages. Out-facts `PickedUp`, `PassedOver`, `Moved`, `PutBack`:
+  the parent applies or refuses `Moved` (`Reorder.apply`,
+  `Reorder.movesIntoItself`) and reads each out with `Reorder.announcement`
+  through `LiveAnnounce`, a refused move as refused (`refuses`). Beside
+  `ListNavigation`, `handle: Reorder.routed` hands back `{ behavior, keys }`,
+  the route built from the same options, for `Keys.first`; `grab` gives the
+  chords that pick up (Space and Enter by default), so a list that selects or
+  activates by key keeps those; RTL swaps Left and Right.
+- `foldkit-remote`: row revisions and read-after tokens on Remote's wire
+  (#544, #480's open item). `NormalizedEntity.revision` and
+  `EntityPatched.revision`: a row of a lower revision than the one held writes
+  nothing, from `ReadReceived`, `LiveReceived` or `MutationSucceeded`, and a
+  tombstone keeps the revision it was gone at, taking a row of it again only
+  while asked about again. `MutationResult.after` (`{
+  token, rows }`) holds each row to the token (`EntityEntry.floor`): the read
+  entry reads it again carrying the token (`ReadBatch.after`, at most
+  `MAX_READ_AFTER`, 256), a live stream subscribes with it
+  (`LiveRequirement.floors`), an answer read at it, a patch on a stream
+  opened at it, or either at a newer revision than held ends the floor, and a
+  row named in `ReadBatchResult.behind` keeps what the store holds and is
+  asked again after 1 second, doubling, at most 30 (`EntityEntry.behind`).
+  Revision and floor are kept by `persistence` and listed by `Data.inspect(model).floors`;
+  `why` names the wait (`ReadAfter`). `REMOTE_PROTOCOL_VERSION` is 6.
+  `foldkit-remote-server` sends an `EntityRecord.revision`, through
+  `GuardServer.filter` too;
+  `foldkit-remote-drizzle`'s `source(binding, { revision })` reads the column
+  with every row, and `pollLive` sends it.
+- `foldkit-remote-domain`: the adapter holds no rows and no floors. Each row
+  and live frame carries its View revision, a write whose View is behind
+  answers its receipt as `MutationResult.after` (`stream@version`), and a read
+  carrying a token asks the View `atLeast` it, naming a row still behind in
+  `behind`. A receipt whose token would pass 512 characters holds the row to
+  nothing. `DomainReads` and `PendingRead` are removed: Remote's Model keeps
+  both facts, and a reload keeps them.
+
+- `foldkit-mixins`: obligations (#552). An `A11y.pattern` slot may name
+  `obligations` (`A11y.Navigation`, `A11y.FocusStrategy`, `A11y.Activation`,
+  `A11y.State(attr)`, `A11y.Name`) that an attachment must say it meets; a
+  `Behavior.slot` says so with `provides`, and `A11y.base`, `A11y.native` and
+  `A11y.delegated` are meta-only Mixins for the view's own word, a native
+  element and another slot's Behavior. `A11y.check(pattern, view)` reports
+  what `validate` does plus `a11y:unsatisfied-obligation` and
+  `a11y:delegation-unmet`; `A11y.conform(pattern)` in a view's `pipe` is a
+  type error naming each missing `slot/obligation`, throws the first finding
+  where the module loads, and returns a view whose `SlotView.detach` and
+  `SlotView.replace` are checked again; a part's own Behaviors supply nothing
+  to it, which its finding on an assembly says. `SlotView` and `NamedBehavior` take a
+  fourth type parameter, what they supply (default `never`), which a binder's
+  `behavior` reads from each slot's `provides` (`Behavior.ProvidesOf`) and an
+  annotation may forget but never widen, and a SlotView's
+  own `pipe` types up to twenty steps that change it; `Attr.AriaChecked` is
+  new. `foldkit-primitives`: `ListNavigation`, `RovingTabindex`,
+  `TreeNavigation`, `GridNavigation`, `Selection` and `Press`, and
+  `Behaviors.ToggleState`, `Disclosure` and `FieldAssociation`, supply theirs,
+  stated in their type on the binder overload only where the run time is sure
+  to supply it (`A11y.ProvidedOn`: a literal slot name; `Selection`'s
+  activation for a literal `mode` that selects and its click on). `foldkit-mixins-ui`:
+  `Patterns.Listbox` and `Patterns.Checkbox` name their obligations.
+
+- `foldkit-surface`: the law half of the contract graph (#537). A `Contract`
+  may carry `laws?: ContractLaws`, its declarations as plain data: `model`, law
+  ids over its Model slice, and `entities`, `Laws.check`'s entries.
+  `Graph`, apart from `Module` so a page that reads only `Module` carries none
+  of its code, works over them. `Graph.of(module, { evidence })` derives their
+  nodes and edges (`GraphNode`: `Owner`, `Path`, `Transition` (a write's with
+  its Entity, so a delete, which writes no member, still joins its laws),
+  `Law`, `State`, `Level`;
+  `GraphEdge`: `Owns`, `Reads`, `Writes`, `Observes`, `From`, `To`, `Keeps`,
+  `Refines`), and joins them with a level and a `closure:<name>` law per
+  closed Surface, which level refines which, and a `Keeps` edge per record of
+  `evidence` that is issued and joins its pair. `Graph.validate(module,
+  { evidence })` reports `law-unwitnessed` (a transition writes a path a law
+  reads, and no evidence keeps it; with no evidence, every such pair),
+  `evidence-unmatched`, `level-declared-twice` and `transition-declared-twice`
+  (two contracts declare a write of one name); `Module.validate` asks none of
+  them and is unchanged. `Graph.breakersOf(graph, law)` names each transition
+  that could break a law and its evidence; `Graph.toMarkdown` writes a Laws
+  section to set beside `Module.toMarkdown`'s, and `Graph.toMermaid` draws
+  the laws as a flowchart. `Evidence` is re-exported beside `Metadata`. `foldkit-remote`: a domain's contract declares its
+  declared writes (`Mutation.write`), giving `write:<name>`, what it writes,
+  its Entity's invariants and states, and its `from` and `becomes`.
+  `foldkit-sync`: a document declares its law ids, giving `sync:<name>.<law>`
+  per law, reading the shared slice, and `durable:<tag>` per durable and
+  server-only tag, writing it. `foldkit-entity`: `lawFactsOf(entries)` gives
+  the graph's facts of `Laws.check`'s entries with no check run, what the graph
+  derives `laws.entities` with; `lawId` and `transitionId` are `Laws.law` and
+  `Laws.transition` by name; `Laws.facts`'s `Reads` and `Writes` carry
+  `space: 'entity'`, so its result is a `GraphFacts`, an `Unknown`
+  footprint writes every member a law of its Entity reads, and a transition
+  invariant (`LawPair.readsBefore`) reads its whole row, so every write to the
+  row can break it.
+  `examples/writes` validates its Module and keeps the evidence table in
+  `LAWS.md`.
+
+- `foldkit-remote-domain/testing`: `Fixture.make(Api, { model, handlers?,
+  middleware?, bindings, given?, as?, headers?, through? })` hosts a Domain model
+  in memory with every View delivery held until `drain`, commits the `given`
+  Events, calls as `as` (its headers added to a call's own, which win), and
+  answers `RemoteClient` and the Api's client, for client tests with no server
+  (#544); its `layer` requires what the Api's client needs that nothing hosted
+  provides, such as a session middleware left out. A test over `Domain.protocolHttp`
+  from a local Node server shows a reply lost after the commit reading
+  `RemoteUnreachable`, and a trace spanning Remote's mutation, the adapter's call
+  and Domain's `decide`. The package README is rewritten around who owns what,
+  and `skills/foldkit-plus/references/remote-domain.md` is new.
+- `examples/writes-domain`: its scenarios are `Scenario` of `foldkit-remote/testing`
+  (#538), typed by the shop's user.
+
+- `foldkit-primitives`: `FocusRecovery` (`/dom` Mount, `/interaction` Behavior):
+  when the focused part of a marked owner is removed, hidden, made `inert` or
+  `disabled`, or moved in the tree, focus goes to the first of the part's
+  fallback steps (`same`, `next`, `previous`, `parent`, `stop`, `{ part }`,
+  `owner`) that can take it, and never when focus moved elsewhere (#553).
+
+- `foldkit-primitives/interaction`: `Presence.behavior` draws the phase a placed
+  `Presence` holds as `data-presence` and `inert`, so a leaving row takes no
+  click, Tab or focus; with `FocusRecovery`, focus leaves in the frame it turns
+  `inert` and the removal moves nothing (#555).
+
+- `foldkit-remote/testing`: `Scenario`, a write (or a Message) as plain data run
+  by runners (#538). `Scenario.write` takes `given` rows, `principal`, `now`,
+  `when`, `operation` and an `expect` (`accepted`, `refused` by an invariant or
+  `'Unmet'`, `'Conflict'`, `'Taken'`, `'Referenced'`, `forbidden`,
+  `unauthenticated`); `Scenario.remote` runs it through `Law.check` and the
+  server; `Scenario.run` returns the mismatches (each naming its backend and
+  step) and issues a `Scenario` record per runner with no mismatch, and with a
+  `Laws.check` report throws before running a scenario that expects what the
+  report disproved; `Scenario.fromReport` derives scenarios from the report;
+  `Scenario.messages` and `Scenario.runMessages` do the same for an `update`.
+
 - `foldkit-metadata`: `Evidence`, records that a transition keeps a law
   (`Enumerated`, `Walked`, `Scenario`, `RuntimeOnly`), stamped by the producer
   that issued them (#537). `Evidence.issuedBy(record)` is that producer, none
@@ -187,13 +330,11 @@ version changed; `pnpm` skips versions already in the registry.
   `RemoteUnauthenticated` or `RemoteMutationError`), and `layer` answers reads and live reads
   from the Views and writes from the commands. A write is sent under a
   `commandId` of its operation and a digest of who asks, the target, the keys
-  and the input; its receipt holds the row's floor until a read at it answers,
-  and a write whose View is behind answers with the row its reply says it
-  wrote. Rows are ordered by revision, never by the View's cursor, and per
-  principal: once a key reads as deleted or hidden at a revision, a late row
-  of that revision or an earlier one is not let back in. `DomainReads` lists
-  the pending reads of who asks now and confirms one. The adapter keeps the
-  rows and floors of the last four principals to ask.
+  and the input; a write whose View is behind answers with the row its reply
+  says it wrote, and its receipt as a read-after token that Remote holds the
+  row to. Every row carries its revision, never the View's cursor, which
+  Remote orders by: once a key reads as deleted or hidden at a revision, a
+  late row of that revision or an earlier one is not let back in.
 - `foldkit-remote-domain/lower`: `Lower.write` lowers a declared update into
   one Domain aggregate (#545). It derives the command, a Rejection per
   member of the mutation's `Refusal` plus `Forbidden`, `Unauthenticated` (a
@@ -328,6 +469,26 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-primitives`: modal layers drawn as siblings, as portaled dialogs
+  are, stack. `FocusScope` and `HideOutside` share a stack of open layers whose
+  topmost owns containment: a scope with a layer open above it no longer pulls
+  focus back out of it, and a `HideOutside` no longer hides a layer opened over
+  it (it is re-isolated around it, and that layer's scope takes focus once it
+  is shown). Before, focus ended on the body.
+
+- `foldkit-primitives`: `FollowTabStop` on a container marked `data-fk-roving`
+  reads only the stops no nested roving container holds, so a row holding
+  another roving widget no longer takes the focus of a removed row (#553).
+  `RovingTabindex`, `ListNavigation`, `GridNavigation` and `TreeNavigation`
+  mark their containers; the mark is no focus owner, so a `FocusRecovery`
+  around a tree still owns the rows inside it.
+
+- `foldkit-remote/outbox`: a durable write is sent once across tabs. The answer
+  settles the sending tab's queue, which ends its send; where that came before
+  the store was written, the send's lock went with the store still saying
+  waiting, and another tab holding the lock sent the write again. Recording
+  the answer is no longer interruptible; a store that does not take it within
+  5 seconds is given up on, so the lock still goes.
 - `foldkit-mixins`: a Mount inside a `ChildAttribute` on a Slot is composed with
   the Slot's other Mounts, instead of drawn beside them where Foldkit kept one,
   and still sends through its own boundary (#531).

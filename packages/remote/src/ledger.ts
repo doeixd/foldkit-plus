@@ -15,6 +15,8 @@ export interface NormalizedPatch {
   readonly entity: string
   readonly id: string
   readonly values: Readonly<Record<string, unknown>>
+  /** The row's revision with these values, when the server sent one. */
+  readonly revision?: number | undefined
 }
 
 /**
@@ -276,7 +278,15 @@ export const reconcileMutation = (
         const values = Object.fromEntries(
           Object.entries(entity.values).filter(([field]) => !newer(`${key}\u0000${field}`)),
         )
-        return Object.keys(values).length === 0 ? [] : [{ key, values }]
+        return Object.keys(values).length === 0
+          ? []
+          : [
+              {
+                key,
+                values,
+                ...(entity.revision === undefined ? {} : { revision: entity.revision }),
+              },
+            ]
       })
   const deleted = repeated
     ? []

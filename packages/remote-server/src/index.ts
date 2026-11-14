@@ -165,6 +165,11 @@ export class MutationRefused extends Schema.TaggedError<MutationRefused>()('Muta
 export interface EntityRecord {
   readonly id: string
   readonly values: Readonly<Record<string, unknown>>
+  /**
+   * The row's revision, when the source keeps one: sent with the row, and a
+   * client never lets a lower revision over a higher one it holds.
+   */
+  readonly revision?: number | undefined
 }
 
 export interface EntitySourceContext<P> {
@@ -275,7 +280,11 @@ const readAs = <P, R>(
           for (const field of allowed) {
             if (Object.hasOwn(record.values, field)) values[field] = record.values[field]
           }
-          return { id: record.id, values }
+          return {
+            id: record.id,
+            values,
+            ...(record.revision === undefined ? {} : { revision: record.revision }),
+          }
         }),
       ),
     ),
@@ -1330,6 +1339,7 @@ const liveHub = <P, R>(
                 id: ref.id,
                 values,
                 changed,
+                ...(record.revision === undefined ? {} : { revision: record.revision }),
               })
             }
           })
@@ -3141,7 +3151,12 @@ export const RemoteServer = {
                 values[renamed(renames, field)] = record.values[field]
               else if (asked?.has(field) === true) omitted.push(renamed(renames, field))
             }
-            entities.push({ entity: name, id: record.id, values })
+            entities.push({
+              entity: name,
+              id: record.id,
+              values,
+              ...(record.revision === undefined ? {} : { revision: record.revision }),
+            })
             settle(name, record.id, omitted)
 
             const key = `${name}:${record.id}`

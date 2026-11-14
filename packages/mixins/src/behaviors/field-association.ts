@@ -6,12 +6,17 @@
  * ids are derived, not minted, so a resumed page and a test agree on them.
  */
 import type { HtmlBuilder } from 'foldkit/html'
+import * as A11y from '../a11y.js'
 import * as Behavior from '../behavior.js'
 import * as Capability from '../capability.js'
 import { boundSlots, type Bound, type Unbound } from '../slotView.js'
 
-export interface Options<Input, Slots> {
-  readonly control: keyof Slots & string
+export interface Options<
+  Input,
+  Slots,
+  Control extends keyof Slots & string = keyof Slots & string,
+> {
+  readonly control: Control
   readonly label: keyof Slots & string
   readonly description?: keyof Slots & string
   readonly error?: keyof Slots & string
@@ -29,9 +34,12 @@ export const ids = (id: string) => ({
   error: `${id}-error`,
 })
 
+/** Supplies `A11y.Name` on `control`, which its label names. */
 export function behavior<Slots, Input, Message>(
   bound: Bound<Slots, Input, Message>,
-): (options: Options<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, Message>
+): <Control extends keyof Slots & string>(
+  options: Options<Input, Slots, Control>,
+) => Behavior.NamedBehavior<Slots, Input, Message, `${Control}/name`>
 export function behavior<Slots>(
   slots: Unbound<Slots>,
 ): <Input, Message>(options: Options<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, Message>
@@ -44,6 +52,7 @@ export function behavior<Slots>(given: Slots | Bound<Slots, any, any>) {
       {
         [options.control]: Behavior.slot({
           requires: { capability: Capability.Interactive },
+          provides: [A11y.Name],
           attributes: ({
             input,
             h,

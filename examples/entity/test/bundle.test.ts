@@ -19,7 +19,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // (the editor's judged reads, the Keys and bound-slot changes); locally the page
 // read 218,827, and 218,838 with the editor before its judged reads, so no single
 // module of crud's is the growth: brotli over the whole page moved it.
-const CEILING = 219_500
+// +918 bytes for row revisions and read-after tokens on Remote's wire (#544), measured by building the page with and without them in one tree on 2026-11-14: the wire's schemas, the token in each coalesced read, the floors and revisions in the store and reducer. Ceiling raised by that, rounded up.
+// -370 bytes: the law graph's facts left the page for `Module.graph`'s own path (#537 review): measured with and without the move in one tree on 2026-11-14,
+// the page fell by that, and the ceiling with it.
+const CEILING = 220_630
 
 clientBudget({
   name: 'entity',

@@ -640,14 +640,18 @@ const build = <
       model: () => readOnly,
       messages: durable.constructors,
     })
+    const messages = [...durable.tags, ...serverTags]
     const contract: Contract = {
       kind: 'sync',
       name: surface.name,
       owner: app.owner,
       owns: shared.dependencies,
       observes: shared.dependencies,
-      messages: [...durable.tags, ...serverTags],
+      messages,
       metadata: [],
+      // Each law reads the whole slice and each durable or server-only tag writes it, drawn by
+      // `Graph.of` when asked.
+      laws: { model: Object.keys(laws) },
     }
     return {
       ...sync,

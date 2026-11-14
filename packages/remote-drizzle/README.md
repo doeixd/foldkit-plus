@@ -727,6 +727,31 @@ That predicate is combined with the relation's static `where`. Policies are only
 valid for collection relations; putting one on a singular relation is rejected
 at definition time because it would not filter the target read correctly.
 
+### Each row's revision
+
+A table with a revision column (one every write moves, as `expect` and
+`revisionTrigger` use) can send it with every row it reads, asked for or
+not, so a client never lets an older answer over a row it holds at a newer
+revision (`foldkit-remote`'s
+[revisions and read-after tokens](../remote/README.md#when-the-servers-reads-lag-its-writes-revisions-and-read-after-tokens)).
+`pollLive` sends it with each polled row patch. A field with no number
+column is refused where the source is made.
+
+<!-- docs-check standalone
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { entity, source } from 'foldkit-remote-drizzle'
+const items = sqliteTable('items', { id: text('id').primaryKey(), name: text('name').notNull(), revision: integer('revision').notNull() })
+const Item = entity('Item', items)
+-->
+
+```ts
+const ItemSource = source(Item, { revision: 'revision' })
+```
+
+A table whose revisions start again when a row is created again should send
+none: the client keeps a deleted row's revision, and holds a row of that
+revision or a lower one away.
+
 ### A collection read whole is bounded
 
 A collection relation read with no window (`comments: true`) comes back as the

@@ -697,6 +697,13 @@ Foldkit's own behaviour that we work around is listed in
   Holding the placement for that report placed the list a frame late, after
   domains-plus's first reads, which then looped (#399). Read what is drawn
   synchronously when observing starts.
+- **A stream's own Message can interrupt it.** The outbox's send emitted
+  its answer, which took the write out of the queue, so Foldkit restarted
+  the send entry and interrupted the store write after it; the lock went
+  while the store still said waiting, and a second tab sent the write again
+  (once on CI, never under throttling). What must finish after an emit runs
+  `Effect.uninterruptible` (with a timeout), and a lagged store per tab
+  reproduces it (`outboxTabs.browser.test.ts`).
 - **A Subscription's restart speaks after the Messages already queued.**
   Foldkit derives dependencies on a fiber of its own (a PubSub of Models), so
   the first Messages of a restarted stream land behind answers queued
@@ -1373,6 +1380,13 @@ of its own named a form field "fits the Catalog". Read words with
 
 **Types**
 
+- **A hand-written type beside a schema breaks inference when they drift.**
+  `NormalizedEntity` gained an optional `revision`; `ConnectionMerged`'s
+  hand-typed rows did not, so `RemoteMessage` stopped being a strict subtype
+  of the app's Message, and `Effect.provide` over a union of commands
+  inferred `unknown` while plain assignability still passed. Every agent
+  read the error as another's for a day. Type a wire shape once, from the
+  schema (`Schema.Schema.Type<typeof NormalizedEntity>`).
 - **An `Option` compared with `undefined` or `null` type-checks and is always
   unequal.** Moving `projectionOf` to `Option` left `projection === undefined`
   in a test helper; it compiled, never matched, and failed 27 cms-drizzle

@@ -10,6 +10,9 @@ one file, `alchemy.run.ts`, and creates, updates or deletes them to match
 [`examples/cloudflare`](https://github.com/doeixd/foldkit-plus/tree/main/examples/cloudflare)
 deploys with.
 
+This file is about declaring cloud resources. For the Domain library (`@alchemy.run/domain`: Commands, Aggregates,
+Views) read through Remote, see [remote-domain.md](remote-domain.md).
+
 ## What it owns
 
 Alchemy owns **infrastructure**: which Worker, D1 database, R2 bucket, Durable

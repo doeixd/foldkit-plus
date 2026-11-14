@@ -17,9 +17,9 @@ from a name in UI SDK's index; each gap is a behaviour a test observed.
 | # | Behaviour | Verdict | Severity | Fixed by |
 | --- | --- | --- | --- | --- |
 | R1 | Edge scrolling during a drag | missing | medium | U-WP13 (new) |
-| R2 | A key path for a drag | missing | high | U-WP12 |
-| R3 | Announcements for a drag | missing | medium | U-WP12 |
-| R4 | A drop over a descendant of what is dragged | present, unguarded | low | U-WP12 (guard in `update`, doc) |
+| R2 | A key path for a drag | built (U-WP12, `Reorder`) | high | U-WP12 |
+| R3 | Announcements for a drag | built (U-WP12, `Reorder.announcement`) | medium | U-WP12 |
+| R4 | A drop over a descendant of what is dragged | present, unguarded | low | U-WP12 (the parent's guard in its `update`, `Reorder.movesIntoItself`; the held row's own rows lose their mark) |
 | R5 | Cross-list transfer | present | none | none |
 | R6 | A press on empty space starts a selection | missing | low | U-WP13 (new) |
 | R7 | A drop after the list scrolled under the pointer | present | none | none |
@@ -70,8 +70,10 @@ move that makes a node its own descendant arrives as an ordinary fact. The
 design puts the meaning of a drop in the parent's `update`, which is right;
 the gap is that nothing says so, and `Reorder` will carry the same fact.
 Test: "reports a drop over a descendant of what is dragged, which only the
-parent can refuse". Severity low. U-WP12 refuses it in `update` for the tree
-form and documents it.
+parent can refuse". Severity low. U-WP12 gives the parent the guard,
+`Reorder.movesIntoItself`, which its `update` applies to refuse such a `Moved`
+and `Reorder.announcement` reads as `words.refused`; while a row is held, the
+Behavior takes the mark off its own rows, so the pointer finds no place there.
 
 **What `place` needs (U-WP12's open question).** `{ id, zone: before | inside |
 after, part? }` with the `region` flag is enough for list reorder, tree moves

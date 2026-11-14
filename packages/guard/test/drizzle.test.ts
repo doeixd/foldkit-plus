@@ -218,6 +218,38 @@ describe('GuardServer.filter on a Drizzle source', () => {
       sqlite.close()
     }
   })
+  it('sends the revision the source read with each record it decides', async () => {
+    const plain = source<Option.Option<User>>(Db.Todo)
+    const server = RemoteServer.make({
+      entities: [
+        {
+          ...plain,
+          read: context =>
+            Effect.map(plain.read(context), records =>
+              records.map((record, index) => ({ ...record, revision: index + 7 })),
+            ),
+          filter: GuardServer.filter(Todo, Policy),
+        },
+      ],
+    })
+    const { sqlite, database } = setup()
+    try {
+      const result = await run(
+        RemoteServer.handlers(server, ada)
+          .FoldkitRemoteRead({
+            version: REMOTE_PROTOCOL_VERSION,
+            requests: ['t1', 't2'].map(id => ({ entity: 'Todo', id, fields: ['title'] })),
+          })
+          .pipe(Effect.provide(databaseLayer(database))),
+      )
+      expect(result.entities.map(entity => [entity.id, entity.revision])).toEqual([
+        ['t1', 7],
+        ['t2', 8],
+      ])
+    } finally {
+      sqlite.close()
+    }
+  })
 })
 
 describe('may on a Drizzle source', () => {

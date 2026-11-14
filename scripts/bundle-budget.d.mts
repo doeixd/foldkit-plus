@@ -8,4 +8,6 @@ export declare const clientBudget: (options: {
   readonly ceiling: number
   /** Build in a child process, for a config that imports `foldkit-ssr/vite`. */
   readonly childProcess?: boolean
+  /** Modules the page must not load at start, as `package/file` without an extension. */
+  readonly absent?: ReadonlyArray<string>
 }) => void

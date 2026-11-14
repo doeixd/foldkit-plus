@@ -661,6 +661,7 @@ export {
   LawEdge,
   LawNode,
   LawVerdict,
+  lawFactsOf,
   type Arrow,
   type FootprintEntry,
   type LawEntry,
@@ -670,6 +671,7 @@ export {
   type WriteEntry,
 } from './laws.js'
 export type { Step } from './enumerate.js'
+export { lawId, transitionId } from './lawIds.js'
 export {
   Write,
   type AnyWrite,

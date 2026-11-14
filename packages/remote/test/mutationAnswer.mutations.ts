@@ -77,8 +77,8 @@ export default [
     edits: [
       {
         file: model,
-        find: ': writeRead(settled.store, read.requests, read.result, message.now),',
-        replace: ': settled.store,',
+        find: ': writeRead(\n              settled.store,',
+        replace: ': settled.store || writeRead(\n              settled.store,',
       },
     ],
     tests,

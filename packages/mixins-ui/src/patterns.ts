@@ -8,7 +8,10 @@
  * floor: what the widget relies on the browser for, so a reader or an agent
  * can ask. The gate test validates every adapter's Slots against its
  * pattern; a custom view built from `foldkit-primitives/interaction`
- * entries validates against the same one.
+ * entries validates against the same one, and `Listbox` and `Checkbox` also
+ * name obligations, which `A11y.conform` holds such a view to. An adapter
+ * draws upstream's widget, whose keys and state are upstream's: it is
+ * validated, never conformed.
  */
 import { A11y, Attr, Capability, Event } from 'foldkit-mixins'
 import { AccordionSlots } from './accordion.js'
@@ -119,8 +122,18 @@ export const Select = A11y.pattern({
   description: { capability: Capability.Container, optional: true },
 })
 
+/**
+ * A checkbox owes its activation, a focus strategy, `aria-checked` on every
+ * draw and a name: `ToggleState` supplies the state, `FieldAssociation` the
+ * name, `Press` the activation, and `A11y.native` what a `<button>` does by itself.
+ */
 export const Checkbox = A11y.pattern({
-  checkbox: { capability: Capability.Interactive, events: [Event.Click], attributes: [Attr.Role] },
+  checkbox: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.Role],
+    obligations: [A11y.Activation, A11y.FocusStrategy, A11y.State(Attr.AriaChecked), A11y.Name],
+  },
   label: { capability: Capability.Container },
   hiddenInput: { capability: Capability.Base, attributes: [Attr.Value], optional: true },
 })
@@ -469,6 +482,11 @@ export const Combobox = A11y.pattern({
   },
 })
 
+/**
+ * The list owes navigation and a name, each option a focus strategy, its
+ * activation and `aria-selected` on every draw: `ListNavigation` supplies the
+ * first two of those, `Selection` the rest, and the view's label the name.
+ */
 export const Listbox = A11y.pattern({
   wrapper: { capability: Capability.Container },
   button: {
@@ -477,11 +495,17 @@ export const Listbox = A11y.pattern({
     attributes: [Attr.AriaExpanded],
   },
   backdrop: { capability: Capability.Container, optional: true },
-  items: { capability: Capability.Container, attributes: [Attr.Role], optional: true },
+  items: {
+    capability: Capability.Container,
+    attributes: [Attr.Role],
+    optional: true,
+    obligations: [A11y.Navigation, A11y.Name],
+  },
   item: {
     capability: Capability.Interactive,
     events: [Event.Click],
     attributes: [Attr.Role, Attr.AriaSelected],
+    obligations: [A11y.FocusStrategy, A11y.Activation, A11y.State(Attr.AriaSelected)],
   },
 })
 

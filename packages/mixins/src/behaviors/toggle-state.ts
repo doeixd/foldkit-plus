@@ -5,23 +5,33 @@
  * group's exclusivity is a selection, not a toggle.
  */
 import type { HtmlBuilder } from 'foldkit/html'
+import * as A11y from '../a11y.js'
+import * as Attr from '../attr.js'
 import * as Behavior from '../behavior.js'
 import * as Capability from '../capability.js'
 import { boundSlots, type Bound, type Unbound } from '../slotView.js'
 
 export type State = boolean | 'mixed'
 
-export interface Options<Input, Slots> {
-  readonly control: keyof Slots & string
+export interface Options<
+  Input,
+  Slots,
+  Control extends keyof Slots & string = keyof Slots & string,
+  As extends 'checked' | 'pressed' = 'checked' | 'pressed',
+> {
+  readonly control: Control
   readonly state: (input: Input) => State
   /** `'checked'` writes `aria-checked` (checkbox, switch, radio, option);
    *  `'pressed'` writes `aria-pressed` (a toggle button). */
-  readonly as: 'checked' | 'pressed'
+  readonly as: As
 }
 
+/** Supplies `A11y.State` of the attribute it writes on `control`. */
 export function behavior<Slots, Input, Message>(
   bound: Bound<Slots, Input, Message>,
-): (options: Options<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, Message>
+): <Control extends keyof Slots & string, As extends 'checked' | 'pressed'>(
+  options: Options<Input, Slots, Control, As>,
+) => Behavior.NamedBehavior<Slots, Input, Message, `${Control}/state:aria-${As}`>
 export function behavior<Slots>(
   slots: Unbound<Slots>,
 ): <Input, Message>(options: Options<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, Message>
@@ -34,6 +44,7 @@ export function behavior<Slots>(given: Slots | Bound<Slots, any, any>) {
       {
         [options.control]: Behavior.slot({
           requires: { capability: Capability.Interactive },
+          provides: [A11y.State(options.as === 'checked' ? Attr.AriaChecked : Attr.AriaPressed)],
           attributes: ({
             input,
             h,

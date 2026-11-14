@@ -3,7 +3,7 @@
  * `pnpm mutate examples/writes-domain/test/scenario/scenario.mutations.ts`.
  */
 const adapter = '../../../../packages/remote-domain/src/adapter/layer.ts'
-const scenario = '../../src/scenario/scenario.ts'
+const sqlite = '../../src/scenario/sqlite.ts'
 const ordering = ['examples/writes-domain/test/scenario/ordering.test.ts']
 const report = ['examples/writes-domain/test/scenario/scenario.test.ts']
 
@@ -21,24 +21,23 @@ export default [
     tests: ordering,
   },
   {
-    name: 'a View frame older than one already let through is let through',
+    name: 'a View frame carries no revision, so an older one is let through',
     edits: [
       {
         file: adapter,
-        find: 'tombstone ? order <= held.value.revision : order < held.value.revision',
-        replace: 'false',
+        find: 'const revision = state[binding.revision]',
+        replace: 'const revision = undefined',
       },
     ],
     tests: ordering,
   },
   {
-    name: 'the report compares nothing for the SQLite backend',
+    name: 'the SQLite runner expects a ledger row for a write that did not land',
     edits: [
       {
-        file: scenario,
-        find: 'steps.filter(({ expected, actual }) => !same(expected, actual))',
-        replace:
-          "steps.filter(({ backend, expected, actual }) => backend !== 'sqlite' && !same(expected, actual))",
+        file: sqlite,
+        find: 'expected: lands(scenario)',
+        replace: 'expected: !lands(scenario)',
       },
     ],
     tests: report,

@@ -124,7 +124,9 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   Right opens or steps in, Left closes or steps out; the Behavior writes the ARIA tree attributes
   and `--fk-tree-level` (1 at the top) for indenting: `calc(var(--fk-tree-level) * 1rem)`.
   Focus in the tree follows its tab stop when an edit elsewhere moves it or removes the
-  focused row (`FollowTabStop` Mount, `/dom`).
+  focused row (`FollowTabStop` Mount, `/dom`, reading only the stops of the tree's own rows:
+  every roving primitive marks its container `data-fk-roving`, which is no focus owner, so a
+  `FocusRecovery` around the tree still owns its rows).
 - **Which item is under the pointer, or was clicked,** among many: `Targets.behavior(Slots)<Input, Message>({ container, attribute: 'data-row', preventDefault?, toMessage })`
   (the Mount is `Targets({ attribute, preventDefault })` in `/dom`): `TargetHovered { id | null }`,
   `TargetPressed { id, shiftKey, ... }`, from one set of listeners on the container.
@@ -143,12 +145,25 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   button found released). One pointer; touch and pen work by position. A finger's
   press is a drag once held still `HOLD_TO_DRAG_MS` (400ms); one that moves `HOLD_SLOP`
   (8px) first is a scroll, so leave the marked elements' `touch-action` alone and a list of
-  them still scrolls. No roles or keys: give the keyboard
-  its own way. Swallows the click a drop ends with. Onto another region (a palette onto a
+  them still scrolls. No roles or keys: `Reorder` is the keyboard's way. Swallows the click a drop ends with. Onto another region (a palette onto a
   page): `targets: { attribute, within: selector }`, so `over` is one of those; `within` is
   found nearest the container first, and each fact carries `region: boolean`, so `over: null`
   with `region: true` is the region's empty space. `part: attribute` reports an element
   marked by it as `{ id, zone: 'inside', part }`: a node's empty Region, say.
+- **Reorder a list or tree by keys and pointer:** place `Reorder.bundle` (no args; `onOut`
+  required) and attach `Reorder.behavior(Declared)(Slots)<Model, Message>({ container, item, handle, items, parent?, accepts?, orientation?, direction?, grab? })`.
+  Model `{ held: Option<{ id, by }>, over: Option<Place> }`, `Place` = `PointerDrag`'s
+  `{ id, zone }`. Space/Enter grabs and drops, arrows/Home/End walk `Reorder.places`, Escape or
+  blur puts back; `PointerDrag` on the container feeds the same Messages. Out:
+  `PickedUp`, `PassedOver`, `Moved { id, by, to }`, `PutBack`; the parent applies `Moved`
+  (`Reorder.apply(ids, moved)` for a flat list) or refuses it (`Reorder.movesIntoItself` for a
+  tree), and reads each out with `LiveAnnounce`'s `announce(Reorder.announcement(fact, { label }))`.
+  Items get `data-reorder="held"` and `data-reorder-over=zone`; nothing moves until the drop.
+  Beside `ListNavigation`: `handle: Reorder.routed` with `current` returns `{ behavior, keys }`,
+  the route built from the same options; list `Keys.first(placed.keys, ListNavigation.keys(...))`
+  and attach `placed.behavior`. A list that selects with Space or activates with Enter gives
+  `grab: [Keys.chord('Enter', { alt: true })]`, since the default grab is Space and Enter. Keep
+  focus after the keyed move with `FocusRecovery`'s `same` on the handle.
 - **One router for a field and a list:** `RovingTabindex`, `ListNavigation`, `GridNavigation`, `TreeNavigation` and
   `Typeahead` each export `keys(Declared, args)<Input, Message>(options)` (`Typeahead.keys(Declared)` takes no args), the `Keys.route` their `behavior` installs;
   list it beside your own routes in one `Behaviors.Keys.behavior` (a search input: `EscapeClears` + `ListNavigation.keys`).
@@ -162,7 +177,21 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
 - **Keep focus inside an overlay:** `FocusScope.behavior(Slots)<Input, Message>({ container, contain?, restore?, initialFocus? })`
   attaches the `foldkit-primitives/dom` `FocusScope` Mount (no Bundle: focus is a DOM fact).
   Initial focus on insert, Tab and Shift+Tab wrap and a stray focus comes back under
-  `contain`, focus restored on unmount under `restore`. A native `<dialog>` needs none of it.
+  `contain`, focus restored on unmount under `restore`. Scopes and `HideOutside` share a stack
+  of layers whose topmost owns containment, so sibling (portaled) dialogs stack: the lower one
+  neither pulls focus back nor hides the upper. A native `<dialog>` needs none of it.
+- **Keep focus when its part goes away:** `FocusRecovery.behavior(Slots)<Input, Message>({ owner, parts: { row: ['next', 'previous', { part: 'input' }], input: [] }, parent? })`
+  attaches the `foldkit-primitives/dom` `FocusRecovery` Mount to the owner and marks
+  the parts (`data-fk-focus-*`, key from `item.id`). A removed, hidden, `inert` or
+  `disabled` focused part, or a row a keyed reorder moved, sends focus to the first step
+  that can take it: `same`, `next`, `previous`, `parent`, `stop`, `{ part }`, `owner`.
+  Never when focus moved elsewhere; nested owners decide innermost first, then outward;
+  a row not drawn yet is the Model's (a Command), not the Mount's. Opt-in.
+- **A row that leaves without taking input:** `Presence.behavior(Slots)<Input, Message>({ content, phase: (input, item) => 'shown' | 'hiding' | 'hidden' })`
+  draws `data-presence` and `inert` (not `aria-hidden`) on the slot for every phase but `shown`;
+  it sends no Message. The phase and the timed `Hidden` are `Presence.bundle`'s (`motion`), one
+  per row with `Presence.bundle.each`. Attach `FocusRecovery` too: focus leaves in the frame
+  it turns `inert`, and removal moves nothing; a `Show` before `Hidden` refocuses nothing.
 - **Activate on press:** place `Press.bundle` (`{ clickSuppressionMs }`) with a required
   `onOut` for `Pressed { pointerType }`; attach `Press.behavior(Declared)(Slots)<Model, Message>({ target, disabled? })`.
   The `Press.events` Mount reports pointer, key, and click facts; `update` decides

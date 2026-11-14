@@ -19,8 +19,26 @@ import type * as Update from 'foldkit/update'
 import type { Url } from 'foldkit/url'
 import { Metadata, type MetadataSummary } from 'foldkit-metadata'
 
-export { Metadata, MetadataTypeId, type MetadataKey, type MetadataSummary } from 'foldkit-metadata'
+export {
+  Evidence,
+  Metadata,
+  MetadataTypeId,
+  type MetadataKey,
+  type MetadataSummary,
+} from 'foldkit-metadata'
 export { Closure, type ClosureProjection, ClosureViolation } from './closure.js'
+import type { ContractLaws } from './graph.js'
+import { labelOf, pathText, tableCell } from './text.js'
+export {
+  Graph,
+  GraphEdge,
+  GraphNode,
+  type Breaker,
+  type ContractLaws,
+  type GraphFacts,
+  type GraphOptions,
+  type GraphSpace,
+} from './graph.js'
 import { hasTagIn, messageTag, messageTags } from './messageTags.js'
 export { Diagnostics, type Diagnostic, type ReportDiagnostic } from './diagnostics.js'
 export {
@@ -1754,6 +1772,13 @@ export interface Contract {
   readonly metadata: readonly MetadataSummary[]
   /** A Surface declared `closed: true`; absent for any other contract. */
   readonly closed?: true
+  /**
+   * The laws the contract holds and the transitions that can break them, as
+   * the declarations themselves: `Graph.of` derives their nodes and edges
+   * when asked, so a page that never imports `Graph` carries none of that code. Absent
+   * for a contract with none.
+   */
+  readonly laws?: ContractLaws | undefined
 }
 
 /**
@@ -1806,6 +1831,7 @@ export interface Module<
 }
 
 export interface Finding {
+  /** The last four are `Graph.validate`'s, over the laws; the rest are `Module.validate`'s. */
   readonly rule:
     | 'foreign-contract'
     | 'duplicate-name'
@@ -1813,6 +1839,10 @@ export interface Finding {
     | 'message-claimed-twice'
     | 'unknown-path'
     | 'unknown-message'
+    | 'law-unwitnessed'
+    | 'evidence-unmatched'
+    | 'level-declared-twice'
+    | 'transition-declared-twice'
   /** `kind:name` of each contract involved. */
   readonly contracts: readonly string[]
   readonly message: string
@@ -1828,7 +1858,7 @@ export interface ModuleManifest {
   readonly fields: readonly string[]
   readonly messages: readonly string[]
   readonly ownership: readonly Ownership[]
-  readonly contracts: readonly Omit<Contract, 'owner'>[]
+  readonly contracts: readonly Omit<Contract, 'owner' | 'laws'>[]
   readonly findings: readonly Finding[]
 }
 
@@ -1838,14 +1868,8 @@ export type ModuleItem<Root> =
   | { readonly contract: Contract }
   | Surface<Root, any, any, void>
 
-const label = (contract: Contract): string => `${contract.kind}:${contract.name}`
-/** Metadata summaries are application data (a query's input), so they cannot break the table. */
-const tableCell = (text: string): string =>
-  text
-    .replace(/\\/g, '\\\\')
-    .replace(/\|/g, '\\|')
-    .replace(/\r\n?|\n/g, ' ')
-const pathKey = (path: readonly string[]): string => path.join('.')
+const label = labelOf
+const pathKey = pathText
 const isPrefix = (prefix: readonly string[], path: readonly string[]): boolean =>
   prefix.length <= path.length && prefix.every((segment, index) => segment === path[index])
 
@@ -1895,7 +1919,8 @@ export const Module = {
    * Cross-contract invariants the types cannot express: a contract from another
    * application, a duplicate `kind:name`, two owners of overlapping Model paths,
    * a Message recorded by two replication contracts, and a path or Message the
-   * application does not declare.
+   * application does not declare. The rules over the contracts' laws are
+   * `Graph.validate`'s.
    */
   validate: (module: Module<any, any, any>): readonly Finding[] => {
     const findings: Finding[] = []
@@ -1966,7 +1991,6 @@ export const Module = {
           })
         else recorded.set(tag, contract)
       }
-
     return findings
   },
 
@@ -1995,12 +2019,15 @@ export const Module = {
       fields: Object.keys(module.app.Model.fields),
       messages: applicationTags(module.app),
       ownership,
-      contracts: module.contracts.map(({ owner: _owner, ...rest }) => rest),
+      contracts: module.contracts.map(({ owner: _owner, laws: _laws, ...rest }) => rest),
       findings: Module.validate(module),
     }
   },
 
-  /** The manifest as Markdown: the ownership tree, a table of contracts, and findings. */
+  /**
+   * The manifest as Markdown: the ownership tree, a table of contracts, and
+   * findings. `Graph.toMarkdown` writes the laws.
+   */
   toMarkdown: (module: Module<any, any, any>): string => {
     const manifest = Module.manifest(module)
     const lines: string[] = ['```text', 'Model']
@@ -2032,6 +2059,7 @@ export const Module = {
   /**
    * The manifest as a Mermaid flowchart: Model fields in a subgraph, one node
    * per contract, a solid edge for ownership and a dotted edge for observation.
+   * `Graph.toMermaid` draws the laws.
    */
   toMermaid: (module: Module<any, any, any>): string => {
     const manifest = Module.manifest(module)

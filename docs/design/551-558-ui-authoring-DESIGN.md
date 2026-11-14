@@ -367,9 +367,12 @@ U-WP1 and its browser test draws the owner with a second Mount.
 **`FollowTabStop` (D11).** It keeps both jobs it has (follow a stop that
 moved; follow after a removal when a stop remains). Its query changes from
 "the first `[tabindex="0"]` below me" to "the first whose closest
-`[data-fk-focus-owner]` is me", and `TreeNavigation.behavior` writes the mark
-on its container. A bare Mount user adds the attribute; without it the query
-is as before. That fixes B2c without changing what it means. A tree that also
+`[data-fk-roving]` is me", and every roving primitive (`ListNavigation`,
+`RovingTabindex`, `TreeNavigation`, `GridNavigation`) writes that mark on its
+container. (As built: the first version had the tree write
+`data-fk-focus-owner`, which also hid the tree's rows from a `FocusRecovery`
+around it; the review moved it to a mark of its own.) A bare Mount user adds
+the attribute; without it the query is as before. That fixes B2c without changing what it means. A tree that also
 wants `parent` or `{ part }` attaches `FocusRecovery` beside it: the two
 never both act, since each acts only on lost focus and the first leaves none.
 
@@ -779,7 +782,7 @@ drift, and the conflict fixture (two `keydown` owners) asserts the same
 description's attachment names appear in the diagnostic's `contributors`.
 
 **No second graph.** A description is a function of one view value. When
-`Module.graph` exists (541 WP14), a Surface's node joins a description by the
+`Graph.of` exists (541 WP14), a Surface's node joins a description by the
 Surface's name and each link by its capability's name; nothing is registered
 anywhere now.
 

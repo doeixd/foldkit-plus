@@ -21,6 +21,7 @@
       "foldkit-remote-domain": ["../../packages/remote-domain/src/index.ts"],
       "foldkit-remote-domain/imported": ["../../packages/remote-domain/src/imported/index.ts"],
       "foldkit-remote-domain/lower": ["../../packages/remote-domain/src/lower/index.ts"],
+      "foldkit-remote-domain/testing": ["../../packages/remote-domain/src/testing.ts"],
       "foldkit-remote-drizzle": ["../../packages/remote-drizzle/src/index.ts"],
       "foldkit-remote-drizzle/pg": ["../../packages/remote-drizzle/src/pg.ts"],
       "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],

@@ -23,6 +23,14 @@ export const Data = Remote.make({
   mutations: [ReserveStock],
 })
 
+/** What the adapter is bound with: the page's reads and its write, and how long a read waits for a View. */
+export const bindings = (options: { readonly confirmWithin?: Duration.Input } = {}) => ({
+  views: [ProductReads],
+  commands: [ReserveBinding],
+  denied: () => 'Unauthenticated' as const,
+  confirmWithin: options.confirmWithin ?? '50 millis',
+})
+
 /**
  * `RemoteClient` answered from the model: `principal` is who the page is signed
  * in as (the adapter keeps one write queue per principal), and `confirmWithin`
@@ -31,11 +39,4 @@ export const Data = Remote.make({
 export const adapter = (
   principal: Effect.Effect<Option.Option<string>>,
   options: { readonly confirmWithin?: Duration.Input } = {},
-) =>
-  DomainRemote.layer(ShopApi, {
-    views: [ProductReads],
-    commands: [ReserveBinding],
-    principal,
-    denied: () => 'Unauthenticated',
-    confirmWithin: options.confirmWithin ?? '50 millis',
-  })
+) => DomainRemote.layer(ShopApi, { ...bindings(options), principal })

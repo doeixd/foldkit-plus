@@ -22,6 +22,7 @@ wraps.
 | `ScrollBars({ idle?, scroller? })` | Mount | nothing; writes custom properties and marks | `idle` in ms, default 600 |
 | `FocusScope(options)` | Mount | nothing | `{ contain?, restore?, initialFocus? }` |
 | `FollowTabStop` | Mount | nothing | |
+| `FocusRecovery({ fallback })` | Mount | nothing | `fallback`: steps per part slot |
 | `ScrollLock`, `HideOutside` | Mounts | nothing | |
 | `PointerPosition({ focus? })` | Mount | `PointerPressed`, `PointerMoved`, `PointerReleased` | `focus`: a selector |
 | `keepScroll(options?)` | entry | nothing | |
@@ -95,19 +96,40 @@ tabbable descendant, else itself. With `contain` (default), Tab from the last
 tabbable wraps to the first, Shift+Tab from the first wraps to the last, and
 focus that lands outside comes straight back; Tab in the middle is the
 browser's. On unmount, with `restore` (default), focus returns to the element
-that had it, if still in the document. A native `<dialog>` does all of this
+that had it, if still in the document. Scopes and `HideOutside` share one
+stack of layers, in the order they opened, and the topmost owns containment:
+a scope with a layer open above it contains nothing, so a second dialog drawn
+beside the first (as a dialog portaled to the body is) keeps its focus, and
+the first contains again when it closes. A native `<dialog>` does all of this
 itself; this is for a custom overlay, a menu, or a command palette.
 `tabbableWithin(element)` is exported: focusable, visible descendants with a
 non-negative `tabindex`, in order. Its Behavior form is in [`interaction`](../interaction/README.md).
 
 **`FollowTabStop`** moves focus within a container to its roving tab stop when
 a transition the container did not see moves it or removes the focused row. It
-never takes focus from outside the container. `TreeNavigation` uses it.
+never takes focus from outside the container. `TreeNavigation` uses it. On a
+container marked `data-fk-roving` it reads only the stops no nested roving
+container holds, so a row that holds another roving widget keeps that widget's
+stop. `RovingTabindex`, `ListNavigation`, `GridNavigation` and `TreeNavigation`
+write the mark on their containers; it is no focus owner, so a `FocusRecovery`
+around a tree still owns the rows inside it.
+
+**`FocusRecovery({ fallback })`** moves focus to a declared fallback when the
+marked part that had it is removed, hidden, made `inert` or `disabled`, or
+moved in the tree, in the same task as the change. `fallback` maps a part slot
+to its steps (`same`, `next`, `previous`, `parent`, `stop`, `{ part }`,
+`owner`); the marks it reads (`data-fk-focus-owner`, `-part`, `-key`,
+`-parent`) are drawn by its Behavior. It never acts on focus that moved
+elsewhere. The Behavior form and the steps are in
+[`interaction`](../interaction/README.md).
 
 **`ScrollLock`** locks the document's scroll while its element is mounted,
 refcounted so nested overlays release together, with Foldkit's iOS handling;
 **`HideOutside`** marks everything outside its element inert while mounted,
-keyed by an id the Mount mints so two overlays restore independently. Both are
+keyed by an id the Mount mints so two overlays restore independently, and never
+a layer opened after its own, wherever that is drawn: a dialog portaled into a
+container the first had hidden is shown a frame after it opens, and its scope
+then takes focus. Both are
 Foldkit's own `Dom.lockScroll` and `Dom.inertOthers` as Mounts. A native
 `<dialog>` shown modally needs neither.
 

@@ -11,6 +11,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
 import {
+  A11y,
   Behavior,
   Behaviors,
   Capability,
@@ -19,6 +20,7 @@ import {
   type SlotItem,
 } from 'foldkit-mixins'
 import type { Declared } from 'foldkit-bundle'
+import { ROVING_MARK } from '../dom/focusable.js'
 import { perInput } from '../internal.js'
 
 export const Orientation = Schema.Literals(['vertical', 'horizontal', 'both'])
@@ -135,11 +137,16 @@ export interface KeyOptions<Input> {
   readonly direction?: (input: Input) => Direction
 }
 
-export interface BehaviorOptions<Input, Slots> extends KeyOptions<Input> {
+export interface BehaviorOptions<
+  Input,
+  Slots,
+  Container extends keyof Slots & string = keyof Slots & string,
+  Item extends keyof Slots & string = keyof Slots & string,
+> extends KeyOptions<Input> {
   /** The slot that receives the arrow keys. */
-  readonly container: keyof Slots & string
+  readonly container: Container
   /** The slot rendered once per item; must carry the item's id (see `Behaviors.Collection`). */
-  readonly item: keyof Slots & string
+  readonly item: Item
 }
 
 const ARROWS: Readonly<Record<Orientation, ReadonlyArray<Behaviors.Keys.NamedKey>>> = {
@@ -231,7 +238,14 @@ export const behavior = <Field extends string>(
 ) => {
   function place<Slots, Input extends { readonly [K in Field]: Model }, ParentMessage>(
     bound: SlotView.Bound<Slots, Input, ParentMessage>,
-  ): (options: BehaviorOptions<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  ): <Container extends keyof Slots & string, Item extends keyof Slots & string>(
+    options: BehaviorOptions<Input, Slots, Container, Item>,
+  ) => Behavior.NamedBehavior<
+    Slots,
+    Input,
+    ParentMessage,
+    A11y.ProvidedOn<Container, 'navigation'> | A11y.ProvidedOn<Item, 'focus-strategy'>
+  >
   function place<Slots>(
     slots: SlotView.Unbound<Slots>,
   ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
@@ -254,6 +268,7 @@ export const behavior = <Field extends string>(
         {
           [options.container]: Behavior.slot({
             requires: { capability: Capability.Interactive },
+            provides: [A11y.Navigation],
             attributes: context => {
               const { input, h } = context
               const items = itemsOf(input)
@@ -261,6 +276,8 @@ export const behavior = <Field extends string>(
               const stopId = stop === -1 ? undefined : items.ids[stop]
               return [
                 keydown(context),
+                // Whose `tabindex="0"` is this container's stop, for a `FollowTabStop` around it.
+                h.DataAttribute(ROVING_MARK, ''),
                 // Virtual: DOM focus stays on the container, only the pointer moves.
                 ...(args.virtual && stopId !== undefined ? [h.AriaActiveDescendant(stopId)] : []),
               ]
@@ -268,6 +285,7 @@ export const behavior = <Field extends string>(
           }),
           [options.item]: Behavior.slot({
             requires: { capability: Capability.Focusable },
+            provides: [A11y.FocusStrategy],
             attributes: ({
               input,
               h,

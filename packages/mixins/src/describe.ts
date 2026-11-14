@@ -2,12 +2,15 @@
  * What an assembled view is, as data: `describe` reads its attachments and
  * what each asks of a slot and gives it, with no input; `resolution` reads what
  * one input makes the attachments contribute, as names and owners. Neither runs
- * a Mount, a Command or `update`, and neither reads the DOM. Re-exported as
+ * a Mount, a Command or `update`, and neither reads the DOM. Both are plain
+ * JSON, for an agent or a document to read, so an absent value is `null`
+ * rather than an `Option`. Re-exported as
  * `SlotView.describe`, `SlotView.resolution` and `SlotView.toMarkdown`.
  */
 import { Match, Option } from 'effect'
 import { inertHtml, type Attribute, type HtmlBuilder } from 'foldkit/html'
 import { isChildAttribute } from './attribute.js'
+import { conformancesOf } from './conformed.js'
 import type { SlotContribution, StaticContribution } from './contribution.js'
 import { DiagnosticError, type Diagnostic, type DiagnosticCode } from './diagnostics.js'
 import { attributeNameOf, eventNameOf } from './foldkitNames.js'
@@ -46,9 +49,25 @@ export interface AttachmentDescription {
   readonly slots: Readonly<Record<string, SlotDescription>>
 }
 
+/** A pattern a view was conformed to: what it owes on each slot, by name. */
+export interface ConformanceDescription {
+  readonly slots: Readonly<
+    Record<
+      string,
+      {
+        /** `null` is JSON's: the pattern asks for no capability there. */
+        readonly capability: string | null
+        readonly obligations: ReadonlyArray<string>
+      }
+    >
+  >
+}
+
 export interface ViewDescription {
   readonly name: string
   readonly slots: ReturnType<typeof Slots.describe>['slots']
+  /** The patterns `A11y.conform` checked this view against, in the order it was conformed. */
+  readonly conforms: ReadonlyArray<ConformanceDescription>
   readonly attachments: ReadonlyArray<AttachmentDescription>
   readonly findings: ReadonlyArray<Finding>
 }
@@ -177,6 +196,22 @@ const namingFindings = (view: AnyView): ReadonlyArray<Finding> => {
 export const describe = (view: AnyView): ViewDescription => ({
   name: view.name ?? '',
   slots: Slots.describe(view.slots).slots,
+  conforms: conformancesOf(view).map(({ pattern }) => ({
+    slots: Object.fromEntries(
+      Object.entries(pattern.requirements).map(([slot, requirement]) => [
+        slot,
+        {
+          capability:
+            requirement.capability === undefined
+              ? null
+              : typeof requirement.capability === 'string'
+                ? requirement.capability
+                : requirement.capability.name,
+          obligations: (requirement.obligations ?? []).map(obligation => obligation.name),
+        },
+      ]),
+    ),
+  })),
   attachments: view.mixins.map(describeAttachment),
   findings: namingFindings(view),
 })

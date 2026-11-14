@@ -21,7 +21,16 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // carries the write capability, and the declared-write work added to it (module by module,
 // minified: `foldkit-entity` enumerate 2.8 kB, write 0.8, refine 0.6, footprint 0.6;
 // `foldkit-remote` canOf 1.1, remote 0.4, mutation 0.4). Ceiling that plus about 0.5%.
-const CEILING = 244_000
+// +941 bytes for row revisions and read-after tokens on Remote's wire (#544), measured by building the page with and without them in one tree on 2026-11-14: the wire's schemas, the token in each coalesced read, the floors and revisions in the store and reducer. Ceiling raised by that, rounded up.
+// -382 bytes: the law graph's facts left the page for `Module.graph`'s own path (#537 review): measured with and without the move in one tree on 2026-11-14,
+// the page fell by that, and the ceiling with it.
+// +500 (#560 review): asking again a row the server is behind on, a live patch ending a floor,
+// and the read-after half moved behind the write capability, which Chirp installs: the move
+// costs a page that writes what it saves one that reads (domains-plus -320). Measured with and
+// without both in one tree on 2026-11-14: 245,167 against 245,663, +496, rounded up.
+// +96 bytes (2026-11-14, fresh builds of 28bf08e31 and HEAD): conformed.js, 136 bytes minified, the obligations' carry
+// through `SlotView`'s detach and replace (#552), which a page drawing a slot view pays.
+const CEILING = 245_800
 
 clientBudget({
   name: 'chirp',

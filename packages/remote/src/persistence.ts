@@ -29,6 +29,7 @@ import { recent } from './recent.js'
 import { own } from './record.js'
 import { reachable, type RetentionRoots } from './retain.js'
 import type { RemoteMessage, RemoteModel } from './model.js'
+import { ReadAfterToken } from './wire.js'
 import {
   emptyStore,
   mergeStores,
@@ -257,6 +258,10 @@ interface SerializedEntry {
   readonly windows: Readonly<Record<string, string>>
   /** `null` for never: JSON has no `Infinity`. */
   readonly expiresAt: number | null
+  /** Absent for a row the server sent no revision of, and from an older snapshot. */
+  readonly revision?: number
+  /** The row's read-after token, while no read has confirmed it: a reload asks again with it. */
+  readonly floor?: string
 }
 
 interface SerializedList {
@@ -289,6 +294,8 @@ const serializeEntry = (entry: EntityEntry, expiresAt: number | null): Serialize
   oldestAt: entry.oldestAt,
   windows: entry.windows,
   expiresAt,
+  ...(entry.revision === undefined ? {} : { revision: entry.revision }),
+  ...(entry.floor === undefined ? {} : { floor: entry.floor }),
 })
 
 const serializeList = (list: SavedList, expiresAt: number | null): SerializedList => ({
@@ -334,6 +341,8 @@ const parseExpiry = (value: unknown): number | null => {
   throw new Error('expiresAt is neither a number nor null')
 }
 
+const isToken = Schema.is(ReadAfterToken)
+
 /** Throws on a malformed entry so the whole snapshot is discarded. */
 const parseEntry = (value: unknown): EntityEntry => {
   if (value === null || typeof value !== 'object') throw new Error('entry is not an object')
@@ -348,6 +357,10 @@ const parseEntry = (value: unknown): EntityEntry => {
   if (typeof entry.updatedAt !== 'number') throw new Error('entry.updatedAt is not a number')
   if (typeof entry.oldestAt !== 'number') throw new Error('entry.oldestAt is not a number')
   if (!isStringRecord(entry.windows)) throw new Error('entry.windows is not a string record')
+  if (entry.revision !== undefined && !Number.isFinite(entry.revision))
+    throw new Error('entry.revision is not a finite number')
+  if (entry.floor !== undefined && !isToken(entry.floor))
+    throw new Error('entry.floor is not a token')
   return {
     values: entry.values as Readonly<Record<string, unknown>>,
     present: new Set(entry.present),
@@ -357,6 +370,8 @@ const parseEntry = (value: unknown): EntityEntry => {
     updatedAt: entry.updatedAt,
     oldestAt: entry.oldestAt,
     windows: entry.windows,
+    ...(entry.revision === undefined ? {} : { revision: entry.revision as number }),
+    ...(entry.floor === undefined ? {} : { floor: entry.floor as string }),
   }
 }
 

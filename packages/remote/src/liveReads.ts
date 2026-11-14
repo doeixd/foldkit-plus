@@ -4,7 +4,7 @@
  * the layer capability a live insert needs, so a page that reads nothing live
  * keeps none of it.
  */
-import { Duration, Effect, Option, Stream } from 'effect'
+import { Duration, Effect, Match, Option, Stream } from 'effect'
 import type { Install, LiveCapability } from './capability.js'
 import { RemoteClient, remoteError } from './client.js'
 import type { LiveOptions } from './index.js'
@@ -72,26 +72,37 @@ const policy: LiveCapability['policy'] = (lists, visible, event, context) => {
 }
 
 const stream: LiveCapability['stream'] = (
-  { requirements, queries, cursor, floor, restarts, failures },
+  { requirements, queries, cursor, floor, tokens, restarts, failures },
   toMessage,
   options,
 ) => {
   const key = liveStreamKey({ requirements, queries })
+  const tokenOf = new Map(tokens.map(row => [entityKey(row.entity, row.id), row.token]))
   const live = Stream.unwrap(
     Effect.gen(function* () {
       const client = yield* RemoteClient
-      return client.live({ requirements, queries, after: cursor })
+      return client.live({
+        requirements,
+        queries,
+        after: cursor,
+        ...(tokens.length === 0 ? {} : { floors: tokens }),
+      })
     }),
   ).pipe(
-    Stream.map(event =>
-      toMessage({
+    Stream.map(event => {
+      const token = Match.value(event).pipe(
+        Match.tags({ EntityPatched: ({ ref }) => tokenOf.get(entityKey(ref.entity, ref.id)) }),
+        Match.orElse(() => undefined),
+      )
+      return toMessage({
         _tag: 'LiveReceived',
         stream: key,
         event,
         now: (options.now ?? wallClock)(),
         generation: floor,
-      }),
-    ),
+        ...(token === undefined ? {} : { token }),
+      })
+    }),
     Stream.catchIf(
       (
         _error,

@@ -3,6 +3,8 @@
  * example twice from one source, require the two readings to agree (a miss
  * names what differs, #504), record the reading, and hold it between the
  * ceiling and 90% of it. A drop of more than 10% means the ceiling is stale.
+ * `absent` names modules the page must not load at start, as `package/file`
+ * without an extension (`foldkit-surface/graph`).
  */
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
@@ -29,7 +31,7 @@ const measureInChild = (dir, dump) => {
   }
 }
 
-export const clientBudget = ({ name, dir, ceiling, childProcess = false }) => {
+export const clientBudget = ({ name, dir, ceiling, childProcess = false, absent = [] }) => {
   test(`the ${name} client loads at most the budgeted brotli JavaScript`, async () => {
     const dumps = mkdtempSync(join(tmpdir(), 'bundle-budget-dump-'))
     const [first, second] = [join(dumps, 'first'), join(dumps, 'second')]
@@ -52,6 +54,10 @@ export const clientBudget = ({ name, dir, ceiling, childProcess = false }) => {
         value: report.total.brotli,
         budget: ceiling,
       })
+      expect(
+        report.included.filter(module => absent.includes(module.replace(/\.(m?js|ts)$/, ''))),
+        'modules the page must not load at start',
+      ).toEqual([])
       const message = `${formatReport(report)}\n\nbudget: ${ceiling} bytes`
       expect(report.total.brotli, message).toBeLessThanOrEqual(ceiling)
       expect(report.total.brotli, message).toBeGreaterThan(ceiling * 0.9)

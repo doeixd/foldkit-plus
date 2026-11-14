@@ -3,9 +3,12 @@
  * one `@ts-expect-error` of its own, beside the call it accepts, so a check
  * that fails open shows as an unused directive.
  */
+import type { Layer } from 'effect'
+import { expectTypeOf } from 'vitest'
 import { DomainRemote, type Forbid, type Outcome } from '../src/index.js'
 import type { RejectionsOf } from '../src/lower/index.js'
-import { ProductEntity, Reserve, ShopApi } from './adapter/fixture.js'
+import { Fixture } from '../src/testing.js'
+import { ProductEntity, Reserve, Session, SessionLive, Shop, ShopApi } from './adapter/fixture.js'
 
 const target = (input: { readonly id: string }) => input.id
 const input = (input: { readonly quantity: number; readonly revision: number }) => ({
@@ -91,3 +94,15 @@ DomainRemote.command(Reserve, ShopApi, 'ReserveStock', {
   refusals: { ...refusals, NotOwner: () => DomainRemote.unauthenticated() },
   written: reply => reply,
 })
+
+// A fixture's layer needs what the Api's client needs that nothing hosted provides: without the
+// middleware, the session it reads the actor from.
+const hostedBindings = { views: [], commands: [], denied: () => 'Unauthenticated' as const }
+const unsessioned = Fixture.make(ShopApi, { model: Shop, bindings: hostedBindings })
+expectTypeOf<Layer.Services<typeof unsessioned.layer>>().toEqualTypeOf<Session>()
+const sessioned = Fixture.make(ShopApi, {
+  model: Shop,
+  middleware: SessionLive,
+  bindings: hostedBindings,
+})
+expectTypeOf<Layer.Services<typeof sessioned.layer>>().toEqualTypeOf<never>()

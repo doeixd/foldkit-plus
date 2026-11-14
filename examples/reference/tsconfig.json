@@ -125,6 +125,7 @@
       "foldkit-plus/remote-domain": ["../../packages/plus/src/remote-domain.ts"],
       "foldkit-plus/remote-domain/imported": ["../../packages/plus/src/remote-domain/imported.ts"],
       "foldkit-plus/remote-domain/lower": ["../../packages/plus/src/remote-domain/lower.ts"],
+      "foldkit-plus/remote-domain/testing": ["../../packages/plus/src/remote-domain/testing.ts"],
       "foldkit-plus/remote-drizzle": ["../../packages/plus/src/remote-drizzle.ts"],
       "foldkit-plus/remote-drizzle/pg": ["../../packages/plus/src/remote-drizzle/pg.ts"],
       "foldkit-plus/remote-server": ["../../packages/plus/src/remote-server.ts"],
