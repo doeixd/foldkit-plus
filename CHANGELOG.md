@@ -9,6 +9,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-remote-domain/testing`: `Fixture.make(Api, { model, handlers?,
+  middleware?, bindings, given?, as?, headers?, through? })` hosts a Domain model
+  in memory with every View delivery held until `drain`, commits the `given`
+  Events, calls as `as`, and answers `RemoteClient`, `DomainReads` and the Api's
+  client, for client tests with no server (#544). A test over `Domain.protocolHttp`
+  from a local Node server shows a reply lost after the commit reading
+  `RemoteUnreachable`, and a trace spanning Remote's mutation, the adapter's call
+  and Domain's `decide`. The package README is rewritten around who owns what,
+  and `skills/foldkit-plus/references/remote-domain.md` is new.
+- `examples/writes-domain`: its scenarios are `Scenario` of `foldkit-remote/testing`
+  (#538), typed by the shop's user.
+
 - `foldkit-primitives`: `FocusRecovery` (`/dom` Mount, `/interaction` Behavior):
   when the focused part of a marked owner is removed, hidden, made `inert` or
   `disabled`, or moved in the tree, focus goes to the first of the part's

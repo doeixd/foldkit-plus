@@ -427,6 +427,14 @@ is sent; and a client claiming an old version is refused by `admit` and
 
 ### 6.6 Phase 6: authorities we do not own (M)
 
+Status (2026-11-14): the Domain adapter is built as `foldkit-remote-domain`
+against `@alchemy.run/domain@2.0.0-beta.86`, where `View.snapshot` and live reads
+that carry cursors are published, so the gate on #2567 and #2569 is what that
+beta contains (the state of the PRs was not read). Built: items 2, 3 and 6 for
+reads by id, 5 as `Fixture`, and the lowering and import of
+[544-547-alchemy-DESIGN.md](./544-547-alchemy-DESIGN.md). Not built: lists and
+relations, first paint (item 4), and the graph part, which waits on Phase 3.
+
 Gate: Phase 3 for the graph part; `RemoteServer.describe` can start after
 Phase 1. The Domain adapter waits for alchemy-run/alchemy#2567 (`View.snapshot`)
 and #2569 (live reads that carry cursors) to merge; until then, at most a spike
