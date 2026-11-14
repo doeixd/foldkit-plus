@@ -317,6 +317,8 @@ const isChecked = (element: HTMLElement): boolean =>
  */
 export const checkbox = async (harness: Harness, spec: CheckboxSpec): Promise<Result> => {
   const { checks, note } = recorder('checkbox')
+  await spec.enter()
+  await frames()
   const tree = await harness.accessibility()
   const nodes = axOf(tree, 'checkbox')
   note(
@@ -335,8 +337,6 @@ export const checkbox = async (harness: Harness, spec: CheckboxSpec): Promise<Re
     )
     return checks
   }
-  await spec.enter()
-  await frames()
   const was = isChecked(target)
   await harness.press(key(' '))
   await frames()
@@ -420,6 +420,8 @@ export const tree = async (harness: Harness, spec: TreeSpec): Promise<Result> =>
   }
   const expanded = (name: string) => row(name)?.getAttribute('aria-expanded')
 
+  await spec.enter()
+  await frames()
   const ax = await harness.accessibility()
   note(
     'one tree with its name',
@@ -432,8 +434,6 @@ export const tree = async (harness: Harness, spec: TreeSpec): Promise<Result> =>
     `items ${JSON.stringify(names(axOf(ax, 'treeitem')))}`,
   )
 
-  await spec.enter()
-  await frames()
   await press('Home')
   note(
     'Home goes to the first row',
@@ -689,6 +689,8 @@ export const tabs = async (harness: Harness, spec: TabsSpec): Promise<Result> =>
     observe()
   }
 
+  await spec.enter()
+  await frames()
   const ax = await harness.accessibility()
   note(
     'one tab list with its name',
@@ -722,8 +724,6 @@ export const tabs = async (harness: Harness, spec: TabsSpec): Promise<Result> =>
   const visiblePanels = list(harness.root, '[role="tabpanel"]').filter(shown)
   note('one panel shows', visiblePanels.length === 1, `${visiblePanels.length} panels`)
 
-  await spec.enter()
-  await frames()
   const forward = forwardKey('horizontal', direction)
   const back = backKey('horizontal', direction)
   await press('Home')
