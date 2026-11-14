@@ -135,4 +135,15 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'an id selector leaves a newline raw',
+    edits: [
+      {
+        file: '../src/behaviors/id-selector.ts',
+        find: '["\\\\\\u0000-\\u001f\\u007f]',
+        replace: '["\\\\]',
+      },
+    ],
+    tests: browser,
+  },
 ]

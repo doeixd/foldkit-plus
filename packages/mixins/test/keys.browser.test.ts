@@ -21,6 +21,7 @@ const Message = defineMessageUnion({
   OpenedResults: {},
   Moved: {},
   Jumped: {},
+  JumpedFar: {},
 })
 type Message = typeof Message.Type
 
@@ -53,6 +54,10 @@ const SearchKeys = Keys.behavior(Search)({
       on: [Keys.chord('Enter')],
       handle: () => Option.some(Keys.focus('after:1', Message.Jumped())),
     }),
+    Keys.route('F2JumpsFar', {
+      on: [Keys.chord('F2')],
+      handle: () => Option.some(Keys.focus('far\nand "quoted" \\ id', Message.JumpedFar())),
+    }),
   ],
 })
 
@@ -66,6 +71,7 @@ const SearchField = Search.define((input, slots, h) =>
       ]),
     ),
     h.button([h.Id('after:1')], ['after']),
+    h.button([h.Id('far\nand "quoted" \\ id')], ['far']),
   ]),
 ).pipe(Behavior.attach(SearchKeys))
 
@@ -100,6 +106,7 @@ beforeEach(async () => {
           OpenedResults: () => modifyFields(model, { heard: () => [...model.heard, 'Opened'] }),
           Moved: () => modifyFields(model, { heard: () => [...model.heard, 'Moved'] }),
           Jumped: () => modifyFields(model, { heard: () => [...model.heard, 'Jumped'] }),
+          JumpedFar: () => modifyFields(model, { heard: () => [...model.heard, 'JumpedFar'] }),
         }),
       }),
       view: (model, h) =>
@@ -209,4 +216,12 @@ test('a focus answer moves focus to an id no `#id` selector could name', async (
   await userEvent.keyboard('{Enter}')
   await expect.poll(heard).toBe('Jumped')
   expect(document.activeElement?.id).toBe('after:1')
+})
+
+test('a focus answer reaches an id with a newline, a quote and a backslash', async () => {
+  await focusField()
+  await userEvent.keyboard('{F2}')
+  await expect.poll(heard).toBe('JumpedFar')
+  expect(document.activeElement?.id).toBe('far\nand "quoted" \\ id')
+  expect(seen.at(-1)).toMatchObject({ key: 'F2', prevented: true })
 })

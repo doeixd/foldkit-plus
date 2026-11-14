@@ -29,6 +29,7 @@ import { DiagnosticError } from '../diagnostics.js'
 import * as Event from '../event.js'
 import type { SlotItem } from '../slotItem.js'
 import * as SlotView from '../slotView.js'
+import { idSelector } from './id-selector.js'
 
 /** The named key values of the UI Events specification a route may take, modifiers aside. */
 const NAMED_KEYS = [
@@ -480,9 +481,6 @@ const build = <Slots, Input, Message>(
     { name: options.name ?? 'Keys' },
   )
 }
-
-/** An attribute selector for any id: `#id` throws or misses for ids such as `a:b` or `1-x`. */
-const idSelector = (id: string): string => `[id="${id.replace(/["\\]/g, '\\$&')}"]`
 
 /**
  * One Behavior owning `slot`'s `keydown`, folded from `routes`. It requires

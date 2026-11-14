@@ -133,7 +133,7 @@ export interface BehaviorOptions<Input, Slots> {
 }
 
 /** A selector for an element by id, safe for any id. */
-export const idSelector = (id: string): string => `[id="${id.replace(/["\\]/g, '\\$&')}"]`
+export const idSelector = Behaviors.idSelector
 
 /**
  * The attributes one item gets: `tabindex` 0 when it holds the tab stop and
