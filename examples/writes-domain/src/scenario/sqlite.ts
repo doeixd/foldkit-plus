@@ -46,7 +46,7 @@ export const sqliteRunner: ScenarioRunner = {
       ).pipe(Effect.provide(databaseLayer(drizzle({ client: database }))))
 
       const id = Scenario.target(scenario)
-      const wanted = Scenario.expectedRow(scenario, id)
+      const wanted = Scenario.expectedRow(scenario)
       const held = database
         .prepare(
           `select id, owner_id as ownerId, name, status, stock, reserved, revision from products where id = ?`,

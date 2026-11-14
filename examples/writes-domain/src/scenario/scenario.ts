@@ -20,6 +20,11 @@ export const lands = ({ expect }: WriteScenario): boolean =>
     Unauthenticated: () => false,
   })
 
-/** The row the scenario seeded for `id`. */
-export const seededRow = (scenario: WriteScenario, id: string): Row =>
-  scenario.given.find(({ row }) => row['id'] === id)?.row ?? {}
+/** The row the scenario seeded for the write's own Entity and `id`. */
+export const seededRow = (scenario: WriteScenario, id: string): Row => {
+  const entity = scenario.when[0].write.input.entity.name
+  return (
+    scenario.given.find(each => each.entity.name === entity && String(each.row['id']) === id)
+      ?.row ?? {}
+  )
+}

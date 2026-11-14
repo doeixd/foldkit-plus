@@ -97,7 +97,7 @@ export const domainRunner: ScenarioRunner = {
   run: scenario => {
     const shop = world()
     const id = Scenario.target(scenario)
-    const wanted = Scenario.expectedRow(scenario, id)
+    const wanted = Scenario.expectedRow(scenario)
     const [mutation, input] = scenario.when
     const asking = Option.map(scenario.principal, user => user.id)
     return Effect.gen(function* () {

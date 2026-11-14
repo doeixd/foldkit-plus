@@ -40,7 +40,7 @@ export const memoryRunner: ScenarioRunner = {
         }),
       )
       const id = Scenario.target(scenario)
-      const wanted = Scenario.expectedRow(scenario, id)
+      const wanted = Scenario.expectedRow(scenario)
       const held = backend.rows('Product').find(row => row['id'] === id) ?? {}
       return [
         {
