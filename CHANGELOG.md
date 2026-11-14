@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-plus`: `npx foldkit-plus laws <module>[#export]` prints
+  `Laws.show` of a module's `LawReport`, or of the `{ writes }` that
+  `Laws.check` takes (#536). It loads the module through the project's `tsx`,
+  else Node's own TypeScript support, and exits 1 only when the module cannot
+  be loaded or the export is neither shape; findings do not fail it.
+
 - `foldkit-agent`, `foldkit-remote`: an agent capability over a declared write
   (#533). A variant's `applies({ model, input, principal })` judges a call
   against what the Model holds, after `authorize` and over the invocation's one
