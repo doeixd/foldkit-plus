@@ -9,6 +9,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-site`, `foldkit-ssr`: route code from the Site tree (#438). A page placed with
+  `Site.placement` from a `Bundle.lazy` carries it as `page.code`, and
+  `Site.codeFor(site, pages, route)` names the code of every page on a route's chain.
+  `SSR.entry`, `SSR.render` and `SSR.hydrate` take `lazy` as a function of the Model
+  (`model => Site.codeFor(AppSite, pages, model.route)`): the server asks it with the
+  Model the page is drawn from, after `prepare`, running `init` once; the browser with
+  the resumed Model; so a page loads no other route's code. With `pages` and a
+  `preload`, `Site.routing` fetches a pointed-at route's unloaded code beside its read,
+  once (`Site.LoadCode`, which completes with `completed` whether the chunk loads or
+  not). `examples/auth` gains `/account`, a lazy page, with a build test and an e2e test
+  counting one chunk request on hover.
+
 - `foldkit-mixins-ui`: `Anchor.inheritRegion(mount)`, and the `Anchor` Mount itself, give a
   panel the anchor relocates to the portal root the custom properties its region set (a
   region set compact, a density), unless the panel sets them itself. Menu, Listbox and
@@ -496,6 +508,13 @@ version changed; `pnpm` skips versions already in the registry.
   `refused` ("The column's series gave no text here"), not padded.
 
 ### Changed
+
+- `foldkit-site`: `Site.placement` refuses a `Bundle.lazy` page without `changed`, which
+  would draw its placeholder after an arrival nothing fetched ahead. `Site.sources` and
+  `Site.sourcesFor` return `SiteSources`, an optional entry per tag of the tree's routes,
+  instead of `Record<string, …>`: the node keys survive a spread beside the application's
+  own entries, so `Data.wiring`'s `policies` can name them, and a tag the tree lacks is a
+  type error.
 
 - `foldkit-primitives`: `FocusScope`'s restore, with the element that had focus gone, goes by
   the rules of `FocusReturn` instead of leaving focus on `body`; the element that had focus

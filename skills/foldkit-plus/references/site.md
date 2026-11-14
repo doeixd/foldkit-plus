@@ -126,7 +126,8 @@ then shows a list left within `historyWindow` as it was, asking nothing.
 
 **Attached Surfaces.** `surface: { surface, params: route => params }` on a
 node; `Site.sources(site, App.owner, App.model.route)` is each surfaced node
-as its `Surface.when`, keyed by tag, for `Data.wiring` / `subscriptions` /
+as its `Surface.when`, keyed by tag (`SiteSources`: an optional key per tag of
+the tree, so the keys survive `{ ...Site.sources(…), editor }`), for `Data.wiring` / `subscriptions` /
 `satisfy` / SSR `surfaces`. Refuses a foreign surface. Each entry answers its
 own tag only. `Site.sourcesFor(site, App.owner, App.model.route,
 target.route)` is the same entries for the target's chain only — what
@@ -162,6 +163,16 @@ tells the child on arrival (`undefined` = nothing needed; absent = never
 informed). `Site.routing({ ..., pages: [...] })` informs arrivals, and `arrived: (model, route) => Update.Return` runs after
 them for a new route (focus, say), never for an echo. Bundles
 with OutMessages and non-Bundle children stay on `Bundle.at` / `Link.child`.
+
+**Code split by route.** A page placed from a `Bundle.lazy` carries it as
+`page.code`; `Site.placement` refuses one without `changed` (its arrival is
+what loads it). `Site.codeFor(site, pages, route)` is the code of every page
+on the route's chain, root first; pure. Give it to `SSR.entry` and
+`SSR.hydrate` as `lazy: model => Site.codeFor(site, pages, model.route)`.
+With `pages` and a `preload`, `Site.routing` fetches a pointed-at route's
+unloaded code beside its read (a `Site.LoadCode` Command completing with
+`completed`, failure or not), once. `examples/auth`'s `/account`. The split
+can cost more than it defers: measure the start bundle before and after.
 
 ## Gotchas
 

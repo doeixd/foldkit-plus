@@ -353,6 +353,10 @@ would rebuild those elements.
   the parent's wrapped Message (`hole` one wrapper down, `depth`), so the
   Surface lists `Message.GotUploadMessage`. Server markup stamps each
   placement root `data-foldkit-plus-slot="Upload@upload"` (`SLOT_ATTRIBUTE`).
+  `lazy` may be a function of the Model, `model => Site.codeFor(AppSite,
+  pages, model.route)`: the server asks it with the Model the page is drawn
+  from (after `prepare`) and runs `init` once; the browser with the resumed
+  Model; so another route's code is never loaded for this page.
 - `fallback: 'server'` on the plan: a form with a named `rh.OnSubmit(Message)`
   and no `Method` is written `method="post"` to its own URL with a hidden
   `foldkit-plus-message` input (the Message encoded). `SSR.handle(request,
