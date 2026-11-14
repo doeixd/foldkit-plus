@@ -34,7 +34,7 @@ export default [
     edits: [
       {
         file: '../src/carousel.ts',
-        find: "options.autoplay !== true ? 'None' : prefersReducedMotion() ? 'Stopped' : 'Rotating'",
+        find: "options.autoplay !== true ? 'None' : options.reducedMotion === true ? 'Stopped' : 'Rotating'",
         replace: "options.autoplay !== true ? 'None' : 'Rotating'",
       },
     ],

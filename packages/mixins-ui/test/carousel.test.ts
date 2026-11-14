@@ -238,17 +238,15 @@ describe('Carousel.view', () => {
 })
 
 describe('Carousel.init', () => {
-  const reduced = (matches: boolean) =>
-    vi.stubGlobal('matchMedia', (query: string) => ({
-      matches: query === '(prefers-reduced-motion: reduce)' && matches,
-    }))
-
   it('starts rotating on autoplay, and stopped for a reader who asked for less motion', () => {
-    reduced(false)
     expect(Carousel.init({ id: 'trip', autoplay: true }).rotation).toBe('Rotating')
-    reduced(true)
-    expect(Carousel.init({ id: 'trip', autoplay: true }).rotation).toBe('Stopped')
-    expect(Carousel.init({ id: 'trip' }).rotation).toBe('None')
+    expect(Carousel.init({ id: 'trip', autoplay: true, reducedMotion: false }).rotation).toBe(
+      'Rotating',
+    )
+    expect(Carousel.init({ id: 'trip', autoplay: true, reducedMotion: true }).rotation).toBe(
+      'Stopped',
+    )
+    expect(Carousel.init({ id: 'trip', reducedMotion: true }).rotation).toBe('None')
   })
 })
 

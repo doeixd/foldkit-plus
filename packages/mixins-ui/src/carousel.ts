@@ -113,26 +113,26 @@ export type Message = typeof Message.Type
 /** The default delay, Embla's autoplay's. */
 export const DELAY = 4000
 
-// A reader who asked for less motion is not started on a rotation; the rotation
-// button, which `Stopped` draws, still lets them start it.
-const prefersReducedMotion = (): boolean =>
-  typeof window !== 'undefined' &&
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
 export const init = (options: {
   readonly id: string
   readonly index?: number
   /**
-   * Rotate from the start; default no rotation and no rotation button. Under
-   * `prefers-reduced-motion: reduce` it begins `Stopped`, with the button to start it.
+   * Rotate from the start; default no rotation and no rotation button.
+   * With `reducedMotion` it begins `Stopped`, with the button to start it.
    */
   readonly autoplay?: boolean
+  /**
+   * Whether the reader asked for less motion (`prefers-reduced-motion: reduce`),
+   * which the application knows from its flags or a `MediaQuery`. `init` stays
+   * pure so a server's Model equals the client's.
+   */
+  readonly reducedMotion?: boolean
   readonly delay?: number
 }): Model => ({
   id: options.id,
   index: options.index ?? 0,
-  rotation: options.autoplay !== true ? 'None' : prefersReducedMotion() ? 'Stopped' : 'Rotating',
+  rotation:
+    options.autoplay !== true ? 'None' : options.reducedMotion === true ? 'Stopped' : 'Rotating',
   hovered: false,
   delay: options.delay ?? DELAY,
   turn: 0,
