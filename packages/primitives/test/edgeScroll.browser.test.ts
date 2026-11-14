@@ -126,6 +126,10 @@ it('scrolls nothing without the option, nothing while the pointer is mid-box, an
     holdAt(50)
     await later(300)
     expect(box.scrollTop).toBe(0)
+    // 62 is inside the default 40px band, but a box 100px tall keeps its strips to a third (33px).
+    pointer(10, 62, 'pointermove')
+    await later(300)
+    expect(box.scrollTop).toBe(0)
     pointer(10, 98, 'pointermove')
     await until(() => box.scrollTop > 0)
     expect(box.scrollTop).toBeGreaterThan(0)
