@@ -570,8 +570,38 @@ Testing:
 `@foldkit/ui`:
 
 - **The anchor portals its node by default** (`portal ?? true`) and burns time
-  without layout; we pass `portal: false`. Menus, Listboxes and Comboboxes
-  portal their panel, so a knob set on the wrapper never reaches it.
+  without layout; we pass `portal: false`. Upstream's Menu, Listbox and
+  Combobox portal their panel, so a knob set on the wrapper never reaches it;
+  ours draw the panel in place unless an application passes
+  `anchor: { portal: true }`.
+- **The VirtualList draws only its slice.** It slices `items` by the scroll
+  offset and offers no way to draw a row outside that slice, so a row holding
+  focus is removed when it scrolls out, focus falls to the body, and the next
+  Tab restarts after the list. It needs a `keep` input: indices drawn beside
+  the window, with the spacer arithmetic split around them, as our
+  `WindowList` does (`Model.held`). Until then
+  `packages/mixins-ui/test/virtualListFocus.browser.test.ts` holds a
+  `test.fails` that goes red the day upstream keeps the row.
+- **`closeDialog` refocuses the opener only if it is still connected**
+  (`releaseDialogHygieneById` in `foldkit/dom`), with no fallback, so a dialog
+  whose trigger was removed while it was open leaves focus on the body. A
+  closed `<dialog>` that was the only focus target also stays
+  `document.activeElement`. `Dialog.update({ focusFallback })` and
+  `Sheet.init({ focusFallback })` cover both from outside; a fallback id on
+  `closeDialog` would retire them.
+- **A leaving Dialog's controls still act.** Upstream disables its own close
+  button and backdrop during the leave, and its render info says nothing of
+  the leave, so a view cannot gate its own controls: a press or Enter on a
+  button in the panel mid-exit still fires. We read the Model's transition
+  state (`Dialog.isLeaving`) and draw the panel inert; an `isLeaving` in the
+  render info, or an inert panel while leaving, would retire that.
+- **A second `ShowDialog` for a dialog already held is a no-op**, so reopening
+  one mid-exit restores no focus. `Dialog.open` and `Dialog.update` put it back
+  after the commit (`Dialog.RestoreFocus`).
+- **HoverIntent has no leave state**, so a hover card cannot animate out: the
+  panel is removed at once. It also closes on Escape only from the trigger or
+  the panel, not while the pointer alone rests on the card and focus is
+  elsewhere, which WCAG 1.4.13 asks for.
 - **The Menu clicks a row for you** on a release over 200ms and 5px after a
   press on the trigger, beside the browser's own click.
 - **A disabled Button is only `aria-disabled`**, which keeps it focusable, so
