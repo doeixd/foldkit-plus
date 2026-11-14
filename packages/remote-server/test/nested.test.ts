@@ -302,6 +302,16 @@ describe('RemoteServer protocol version', () => {
     expect((await call(REMOTE_PROTOCOL_VERSION))._tag).toBe('Success')
   })
 
+  it('refuses a client of protocol 5, from before row revisions and read-after tokens (#544)', async () => {
+    expect(REMOTE_PROTOCOL_VERSION).toBe(6)
+    const result = await call(5)
+    expect(result._tag === 'Failure' && result.failure).toMatchObject({
+      _tag: 'RemoteProtocolError',
+      expected: 6,
+      received: 5,
+    })
+  })
+
   it('refuses a live subscription from another version', async () => {
     const result = await Effect.runPromise(
       Effect.scoped(

@@ -336,10 +336,11 @@ export const pollLive = <P, R>(
           const ids = [...asked.keys()].filter(reads)
           const answered = ids.length === 0 ? Option.none() : yield* read(ids, fields)
           if (Option.isSome(answered)) {
-            const records = new Map(answered.value.map(record => [record.id, record.values]))
+            const records = new Map(answered.value.map(record => [record.id, record]))
             for (const [id, own] of asked) {
               if (!reads(id)) continue
-              const values = records.get(id)
+              const record = records.get(id)
+              const values = record?.values
               const before = previous.get(id)
               if (values === undefined) {
                 if (before !== undefined) {
@@ -362,6 +363,7 @@ export const pollLive = <P, R>(
                 values: picked(values, changed),
                 changed,
                 cursor: next(),
+                ...(record?.revision === undefined ? {} : { revision: record.revision }),
               })
             }
           }
