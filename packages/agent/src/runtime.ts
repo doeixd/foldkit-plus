@@ -368,13 +368,17 @@ export const bind = <
   )
 
   const compiledParts = options.parts?.compiled ?? []
+  // Projecting the context costs an encode and a decode; parts of buttons alone read none of it.
+  const partsReadContext = compiledParts.some(
+    declared => Option.isSome(declared.field) || Option.isSome(declared.each),
+  )
   // One snapshot: availability, the context and every part read the same Model.
   const listedParts = Effect.suspend(() => {
     const model = host.model()
     const available = new Set(availableAt(model).map(variant => variant.tag))
     const declared = definition.context
     const context =
-      declared === undefined
+      declared === undefined || !partsReadContext
         ? Effect.succeed(Option.none<{ encoded: unknown; decoded: unknown }>())
         : project(declared.Model, declared.read(model), 'context').pipe(
             // Decoded again from what is served, so a part reads no property the Schema drops.

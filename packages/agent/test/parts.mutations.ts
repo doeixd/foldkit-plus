@@ -100,6 +100,17 @@ export default [
     tests,
   },
   {
+    name: 'the context is projected for parts that read none of it',
+    edits: [
+      {
+        file: runtime,
+        find: 'declared === undefined || !partsReadContext',
+        replace: 'declared === undefined',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'bind takes the parts of another definition',
     edits: [
       {

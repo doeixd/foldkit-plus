@@ -212,6 +212,23 @@ describe('Agent.parts', () => {
     expect(state.reads).toBe(1)
   })
 
+  it('projects no context for parts that read none', () => {
+    let projected = 0
+    const Counted = TodoAgent.make({
+      context: Projection.fromReader(Context, (model: Model) => {
+        projected += 1
+        return { todos: model.todos }
+      }),
+      messages: AppAgent.messages,
+    })
+    const Buttons = TodoAgent.parts(Counted, {
+      create: Agent.part({ label: 'New', role: 'button', invokes: Message.RequestedCreateTodo }),
+    })
+    const { host } = hostOver(modelWith({ todos: [milk] }))
+    Effect.runSync(TodoAgent.bind({ definition: Counted, host, parts: Buttons }).parts.list)
+    expect(projected).toBe(0)
+  })
+
   it('refuses two occurrences with one key', () => {
     const { runtime } = bound(modelWith({ todos: [milk, { ...eggs, id: 't1' }] }))
     expect(() => list(runtime)).toThrow('two occurrences keyed "t1"')
