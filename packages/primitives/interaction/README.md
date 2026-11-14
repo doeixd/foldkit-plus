@@ -303,9 +303,11 @@ each showing row's `id` (through `domId`, by default the row's own),
 current row in place. Focus in the tree follows its stop when a transition it
 did not see moves it or removes the focused row (the `FollowTabStop` Mount in
 `foldkit-primitives/dom`, which never takes focus from outside the container,
-and reads only the stops of rows the tree owns: the container is marked
-`data-fk-focus-owner`, so a row holding another roving widget keeps its own).
-A tree that also wants a fallback when the last row goes attaches `FocusRecovery` beside it.
+and reads only the tree's own stops: each roving primitive marks its container
+`data-fk-roving`, so a row holding a `RovingTabindex` toolbar keeps the toolbar's).
+A tree that also wants a fallback when the last row goes has `FocusRecovery` on its container or
+around it, with the rows as parts: while a row is left, `FollowTabStop` takes the tree's stop, and
+`FocusRecovery`'s steps run once none is.
 The level is also the custom property `--fk-tree-level`, 1 at the top, so one
 rule indents any depth: `padding-inline-start: calc(var(--fk-tree-level) * 1rem)`.
 

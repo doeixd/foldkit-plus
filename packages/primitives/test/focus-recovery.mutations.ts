@@ -7,6 +7,7 @@ const source = '../src/dom/focus-recovery.ts'
 const follow = '../src/dom/follow-tab-stop.ts'
 const browser = 'packages/primitives/test/focus-recovery.browser.test.ts'
 const followTest = 'packages/primitives/test/follow-tab-stop.browser.test.ts'
+const rovingMark = 'packages/primitives/test/roving-mark.test.ts'
 
 export default [
   {
@@ -162,10 +163,32 @@ export default [
     edits: [
       {
         file: follow,
-        find: 'stop => ownerAbove(stop) === element',
+        find: 'stop => stop.parentElement?.closest(`[data-${ROVING_MARK}]`) === element',
         replace: 'stop => stop !== null',
       },
     ],
     tests: [followTest],
   },
+  {
+    name: 'TreeNavigation marks its container a focus owner, standing between FocusRecovery and its rows',
+    edits: [
+      {
+        file: '../src/interaction/tree-navigation.ts',
+        find: "context.h.DataAttribute(ROVING_MARK, '')]",
+        replace: "context.h.DataAttribute('fk-focus-owner', '')]",
+      },
+    ],
+    tests: [browser, rovingMark],
+  },
+  ...['roving-tabindex', 'list-navigation', 'grid-navigation'].map(file => ({
+    name: `${file} does not mark its container roving`,
+    edits: [
+      {
+        file: `../src/interaction/${file}.ts`,
+        find: "                h.DataAttribute(ROVING_MARK, ''),\n",
+        replace: '',
+      },
+    ],
+    tests: [followTest, rovingMark],
+  })),
 ] as const

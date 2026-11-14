@@ -21,7 +21,7 @@ import { Bundle } from 'foldkit-bundle'
 import type { Declared } from 'foldkit-bundle'
 import { A11y, Behavior, Behaviors, Capability, SlotView, type SlotItem } from 'foldkit-mixins'
 import { FollowTabStop } from '../dom/follow-tab-stop.js'
-import { FOCUS_MARK } from '../dom/focusable.js'
+import { ROVING_MARK } from '../dom/focusable.js'
 import { arrowChords } from './roving-tabindex.js'
 import { perInput } from '../internal.js'
 
@@ -344,10 +344,7 @@ export const behavior = <Field extends string>(
             provides: [A11y.Navigation],
             // Focus in the tree stays on its stop when an edit elsewhere moves or removes it.
             mount: () => FollowTabStop(),
-            attributes: context => [
-              keydown(context),
-              context.h.DataAttribute(FOCUS_MARK.owner, ''),
-            ],
+            attributes: context => [keydown(context), context.h.DataAttribute(ROVING_MARK, '')],
           }),
           [options.item]: Behavior.slot({
             requires: { capability: Capability.Focusable },

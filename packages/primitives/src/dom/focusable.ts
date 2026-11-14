@@ -38,3 +38,11 @@ export const markOf = (
 /** The innermost owner above an element, or `null`. */
 export const ownerAbove = (element: Element): Element | null =>
   element.parentElement?.closest(`[data-${FOCUS_MARK.owner}]`) ?? null
+
+/**
+ * The `data-` name (without the prefix) a container of roving tab stops
+ * writes, so `FollowTabStop` takes its own stop, never one a nested roving
+ * widget holds. Apart from the focus owner marks: a roving container owns no
+ * part, so it never stands between a `FocusRecovery` and the parts inside it.
+ */
+export const ROVING_MARK = 'fk-roving'

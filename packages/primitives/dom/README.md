@@ -104,8 +104,11 @@ non-negative `tabindex`, in order. Its Behavior form is in [`interaction`](../in
 **`FollowTabStop`** moves focus within a container to its roving tab stop when
 a transition the container did not see moves it or removes the focused row. It
 never takes focus from outside the container. `TreeNavigation` uses it. On a
-container marked `data-fk-focus-owner` it reads only the stops no nested owner
-owns, so a row that holds another roving widget keeps that widget's stop.
+container marked `data-fk-roving` it reads only the stops no nested roving
+container holds, so a row that holds another roving widget keeps that widget's
+stop. `RovingTabindex`, `ListNavigation`, `GridNavigation` and `TreeNavigation`
+write the mark on their containers; it is no focus owner, so a `FocusRecovery`
+around a tree still owns the rows inside it.
 
 **`FocusRecovery({ fallback })`** moves focus to a declared fallback when the
 marked part that had it is removed, hidden, made `inert` or `disabled`, or

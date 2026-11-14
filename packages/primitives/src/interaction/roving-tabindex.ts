@@ -20,6 +20,7 @@ import {
   type SlotItem,
 } from 'foldkit-mixins'
 import type { Declared } from 'foldkit-bundle'
+import { ROVING_MARK } from '../dom/focusable.js'
 import { perInput } from '../internal.js'
 
 export const Orientation = Schema.Literals(['vertical', 'horizontal', 'both'])
@@ -275,6 +276,8 @@ export const behavior = <Field extends string>(
               const stopId = stop === -1 ? undefined : items.ids[stop]
               return [
                 keydown(context),
+                // Whose `tabindex="0"` is this container's stop, for a `FollowTabStop` around it.
+                h.DataAttribute(ROVING_MARK, ''),
                 // Virtual: DOM focus stays on the container, only the pointer moves.
                 ...(args.virtual && stopId !== undefined ? [h.AriaActiveDescendant(stopId)] : []),
               ]

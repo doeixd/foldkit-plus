@@ -124,7 +124,9 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   Right opens or steps in, Left closes or steps out; the Behavior writes the ARIA tree attributes
   and `--fk-tree-level` (1 at the top) for indenting: `calc(var(--fk-tree-level) * 1rem)`.
   Focus in the tree follows its tab stop when an edit elsewhere moves it or removes the
-  focused row (`FollowTabStop` Mount, `/dom`, reading only the stops of the tree's own rows).
+  focused row (`FollowTabStop` Mount, `/dom`, reading only the stops of the tree's own rows:
+  every roving primitive marks its container `data-fk-roving`, which is no focus owner, so a
+  `FocusRecovery` around the tree still owns its rows).
 - **Which item is under the pointer, or was clicked,** among many: `Targets.behavior(Slots)<Input, Message>({ container, attribute: 'data-row', preventDefault?, toMessage })`
   (the Mount is `Targets({ attribute, preventDefault })` in `/dom`): `TargetHovered { id | null }`,
   `TargetPressed { id, shiftKey, ... }`, from one set of listeners on the container.

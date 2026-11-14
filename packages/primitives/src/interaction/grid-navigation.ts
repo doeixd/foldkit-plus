@@ -14,6 +14,7 @@ import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
 import { A11y, Behavior, Behaviors, Capability, SlotView, type SlotItem } from 'foldkit-mixins'
 import * as RovingTabindex from './roving-tabindex.js'
+import { ROVING_MARK } from '../dom/focusable.js'
 import { perInput } from '../internal.js'
 
 export const Model = Schema.Struct({
@@ -249,6 +250,8 @@ export const behavior = <Field extends string>(
               const stopId = stop === -1 ? undefined : items.ids[stop]
               return [
                 keydown(context),
+                // Whose `tabindex="0"` is this container's stop, for a `FollowTabStop` around it.
+                h.DataAttribute(ROVING_MARK, ''),
                 ...(args.virtual && stopId !== undefined ? [h.AriaActiveDescendant(stopId)] : []),
               ]
             },

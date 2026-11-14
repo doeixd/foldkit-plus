@@ -18,6 +18,7 @@ import { userEvent } from 'vitest/browser'
 import { FocusRecovery } from '../src/dom/focus-recovery.js'
 import type { Step } from '../src/dom/focus-recovery.js'
 import { FocusRecovery as FocusRecoveryBehavior } from '../src/interaction/index.js'
+import { boot as bootTree } from './treeToolbar.fixture.js'
 
 type Activation = 'pointer' | 'keyboard'
 const activations: ReadonlyArray<Activation> = ['pointer', 'keyboard']
@@ -576,5 +577,32 @@ describe.each(activations)('drawn by the Behavior in a running application, pres
     await press(document.getElementById('clear')!, how)
     await expect.poll(() => document.getElementById('clear')).toBeNull()
     await expect.poll(() => document.activeElement).toBe(document.getElementById('query'))
+  })
+})
+
+describe('around a tree of real roving primitives', () => {
+  let handle: ReturnType<typeof bootTree> | undefined
+  afterEach(() => {
+    handle?.dispose()
+    handle = undefined
+  })
+
+  it('takes focus to the input when the tree loses its last row, the tree standing between', async () => {
+    handle = bootTree(['a'], { recovery: true })
+    await expect.poll(() => document.getElementById('a')).not.toBeNull()
+    await userEvent.click(document.getElementById('a')!)
+    await expect.poll(() => document.activeElement).toBe(document.getElementById('a'))
+    handle.ports.remove.send('a')
+    await expect.poll(() => document.getElementById('a')).toBeNull()
+    await expect.poll(() => document.activeElement).toBe(document.getElementById('query'))
+  })
+
+  it('leaves a removal the tree can still answer to the tree, which takes its stop', async () => {
+    handle = bootTree(['a', 'b', 'c'], { recovery: true })
+    await expect.poll(() => document.getElementById('c')).not.toBeNull()
+    await userEvent.click(document.getElementById('c')!)
+    handle.ports.remove.send('c')
+    await expect.poll(() => document.getElementById('c')).toBeNull()
+    await expect.poll(() => document.activeElement).toBe(document.getElementById('b'))
   })
 })

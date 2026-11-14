@@ -459,9 +459,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
-- `foldkit-primitives`: `FollowTabStop` on a container marked `data-fk-focus-owner`
-  (`TreeNavigation` marks its own) reads only the stops of its own rows, so a row
-  holding another roving widget no longer takes the focus of a removed row (#553).
+- `foldkit-primitives`: `FollowTabStop` on a container marked `data-fk-roving`
+  reads only the stops no nested roving container holds, so a row holding
+  another roving widget no longer takes the focus of a removed row (#553).
+  `RovingTabindex`, `ListNavigation`, `GridNavigation` and `TreeNavigation`
+  mark their containers; the mark is no focus owner, so a `FocusRecovery`
+  around a tree still owns the rows inside it.
 
 - `foldkit-remote/outbox`: a durable write is sent once across tabs. The answer
   settles the sending tab's queue, which ends its send; where that came before
