@@ -107,6 +107,14 @@ provided.
   changes and sends `ConnectionInvalidate` when it moved.
 - **`one` relations.** A View's state holds the target's id (or `null`); `view` refuses an Entity whose `one` relation
   it lacks. A read answers the ref key and reads a selected target through its own View in the same batch.
+- **First paint (`/server`).** `pageReader(Api, { views, resolvePrincipal, middleware })` is a server render's reader:
+  `(request, env) => Layer<RemoteClient>`, `DomainRemote.layer` over `Api.clientInProcess` as the principal
+  `resolvePrincipal` decides from the request, through the middleware `middleware(principal)` builds (trusting it; no
+  request header reaches it). It binds no command (writes fail `RemoteMutationError`), opens no live stream, and notes
+  every read private in `PageReads`. Provide it to `Data.satisfy` in `foldkit-ssr`'s `prepare`, with the hosted model's
+  Layer. `Remote.resume` carries each row's revision and floor; the browser's live stream names those revisions
+  (`LiveRequirement.revisions`) and the adapter sends no frame at or before them, so the page reads nothing it was
+  handed.
 - **`Lower.write` (`/lower`)** derives a command, `decide`, `evolve`, the View and both bindings from a declared
   `Write`, landing it through `RemoteServer.write` over `GuardServer.writer` over `RemoteServer.memoryWriter`; you give
   `event`, `record`, `apply`, `revision`, `principal`, `middleware`, `listed`, `policy`. `Lower.check` lists what keeps a

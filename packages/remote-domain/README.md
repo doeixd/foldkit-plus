@@ -304,6 +304,64 @@ own ordering tests use it.
 `Model.Internals`, which Domain marks internal: a Domain release can change it,
 and the tests of this package fail when it does.
 
+## First paint from a server render
+
+A page rendered on the server reads the Domain model in the server's own
+process, and the browser takes the page over without reading any of it again.
+Two things carry that, and neither is new state:
+
+```text
+server:  request -> principal (from the request) -> pageReader -> Data.satisfy -> render
+           Remote.resume sends each row read, with its revision (and a floor, if any)
+browser: adopts the markup; the read entry plans nothing; the live stream names
+         each row's revision, and the adapter sends no frame at or before it
+```
+
+`pageReader` from `foldkit-remote-domain/server` is the reader a page render
+reads through:
+
+<!-- docs-check
+declare const sessionOf: (request: Request) => Option.Option<string>
+-->
+
+```ts
+import { Layer } from 'effect'
+import { pageReader } from 'foldkit-remote-domain/server'
+
+const reader = pageReader(NotesApi, {
+  views: [NoteReads],
+  // Who the request is, decided from the request itself: a session cookie.
+  resolvePrincipal: (request: Request) => Effect.succeed(sessionOf(request)),
+  // The Api's middleware for this render, trusting that principal. NotesApi has none.
+  middleware: () => Layer.empty,
+})
+```
+
+- `reader(request, env)` is a `Layer` of `RemoteClient`: `DomainRemote.layer`
+  over the Api's in-process client (`clientInProcess`). Provide it to the
+  pre-read, `Data.satisfy(model, actives).pipe(Effect.provide(reader(request,
+  env)))` in `foldkit-ssr`'s `prepare`, with the hosted model's Layer (what
+  `Notes.layer(…)` provides) beside it. `resolvePrincipal` failing
+  `RemoteUnauthenticated` fails the pre-read, as a 401 would.
+- **Who it reads as is the request's, never a header's.** The middleware is
+  built from the principal `resolvePrincipal` decided, in Domain's way of
+  calling an already-authenticated caller in process; no header the request
+  carries reaches it. A middleware that reads headers (as one over HTTP does)
+  is the wrong one to give here.
+- **It only reads.** It binds no command, so a write fails
+  `RemoteMutationError`, and a live stream fails `RemoteLiveError`. Every read
+  and query is noted private for a render `foldkit-ssr` may keep (`PageReads`),
+  so a page read as someone is never served to someone else.
+- **What crosses is Remote's.** `Remote.resume(Data)` in the plan's `parts`
+  sends each row the page's Surfaces read with its revision, and a row a write
+  in the render held to a receipt with its floor. The browser's `DomainRemote.layer`
+  then answers a live stream that names those revisions (`LiveRequirement.revisions`)
+  with no frame at or before them: a change made between render and hydration
+  is newer, and arrives as a patch.
+
+[`examples/writes-domain/test/ssr.test.ts`](../../examples/writes-domain/test/ssr.test.ts)
+renders the shop this way under jsdom and hydrates it.
+
 ## Lists and one relations
 
 A Domain Query answers a question across keys from a store a Projection writes.
@@ -580,7 +638,6 @@ Policy, which is not built here. A lowered write holds no ledger,
   read-after token: Remote's wire has none for a query, so only a write's own
   answer reads its lists at the receipt. Relations are `one` relations held as
   ids; a live read with relations is refused (`RemoteLiveError`).
-  Server-rendered first paint from a View's cursor is not built.
 - **`written` and who may read.** A write's reply is not passed through the
   View's `validate`. `DomainRemote.command` refuses `written` where its Entity's
   Update rules do not imply its Read rules, or a member has a Read rule; such a
@@ -609,6 +666,7 @@ Policy, which is not built here. A lowered write holds no ledger,
 | `DomainRemote.view`, `.command`, `.query` | `.` | bind a View to an Entity, a command to a mutation, a paged Query to a Remote query |
 | `DomainRemote.refuse`, `.forbid`, `.unauthenticated`, `.fail` | `.` | how a Rejection reaches Remote |
 | `DomainRemote.layer` | `.` | the `RemoteClient` |
+| `pageReader`, `PageReaderConfig` | `./server` | the reader a server render reads through |
 | `Receipt` | `.` | `{ stream, version }` |
 | `Lower.check`, `Lower.write`, `LoweringFinding` | `./lower` | lower a declared write |
 | `Imported.mutation`, `.describe`, `.show` | `./imported` | an undeclared command, and what was imported |
