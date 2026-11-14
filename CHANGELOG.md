@@ -9,6 +9,22 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-metadata`: `Evidence`, records that a transition keeps a law
+  (`Enumerated`, `Walked`, `Scenario`, `RuntimeOnly`), stamped by the producer
+  that issued them (#537). `Evidence.issuedBy(record)` is that producer, none
+  for a record typed by hand or spread from an issued one;
+  `Evidence.runtimeOnly({ transition, law, why })` refuses an empty `why`. The
+  package now peers on `effect`. `foldkit-entity`: each `Laws.check` pair the
+  check keeps by reading the declarations carries an `Enumerated` record in
+  `evidence`, and a write's own `ensures` is marked `postcondition`;
+  `Laws.facts(report)` gives the law half of the graph as plain data, and
+  `Laws.transition` and `Laws.law` the ids it and evidence use.
+  `foldkit-remote/testing`: `Walk.run` takes `laws` (every law its
+  `violations` judges; another name throws) and an optional `transition`, and
+  returns `evidence`, a `Walked` record per drawn transition per law when no
+  walk failed. `pnpm evidence:check` refuses an `Evidence.issuer` call outside
+  the producer modules.
+
 - `foldkit-primitives`, `foldkit-mixins`: `RovingTabindex`, `ListNavigation`,
   `GridNavigation`, `TreeNavigation` and `Typeahead` each export `keys`, the
   `Keys.route` their `behavior` installs as the container's one `keydown`
