@@ -8,7 +8,6 @@
 import type { HtmlBuilder } from 'foldkit/html'
 import type { Declared } from 'foldkit-bundle'
 import { Behavior, Capability, SlotView } from 'foldkit-mixins'
-import { boundSlots, type Unbound } from '../internal.js'
 import { InputModality, type InputModalityModel } from '../events/input-modality.js'
 
 export { InputModality as bundle, Modality, modalityOfKey } from '../events/input-modality.js'
@@ -23,12 +22,12 @@ export const behavior = <Field extends string>(declared: Declared<typeof InputMo
     bound: SlotView.Bound<Slots, Input, ParentMessage>,
   ): (options: BehaviorOptions<Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(
-    slots: Unbound<Slots>,
+    slots: SlotView.Unbound<Slots>,
   ): <Input extends { readonly [K in Field]: InputModalityModel }, ParentMessage>(
     options: BehaviorOptions<Slots>,
   ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
-    const slots = boundSlots(given)
+    const slots = SlotView.boundSlots(given)
     return <Input extends { readonly [K in Field]: InputModalityModel }, ParentMessage>(
       options: BehaviorOptions<Slots>,
     ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>

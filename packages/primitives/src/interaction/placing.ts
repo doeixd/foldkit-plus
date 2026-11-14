@@ -36,7 +36,6 @@
 import { Effect, Option, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
 import { Behavior, Capability, SlotView } from 'foldkit-mixins'
-import { boundSlots, type Unbound } from '../internal.js'
 
 export interface PanelRect {
   readonly top: number
@@ -316,12 +315,12 @@ export function placeAtTrigger<Slots, Input, ParentMessage>(
   options: PlaceAtTriggerOptions<Input, Slots>,
 ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
 export function placeAtTrigger<Slots>(
-  slots: Unbound<Slots>,
+  slots: SlotView.Unbound<Slots>,
 ): <Input, ParentMessage>(
   options: PlaceAtTriggerOptions<Input, Slots>,
 ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
 export function placeAtTrigger<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
-  const slots = boundSlots(given)
+  const slots = SlotView.boundSlots(given)
   return <Input, ParentMessage>(
     options: PlaceAtTriggerOptions<Input, Slots>,
   ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
@@ -350,12 +349,12 @@ export function keepWithin<Slots, Input, ParentMessage>(
   bound: SlotView.Bound<Slots, Input, ParentMessage>,
 ): (options: KeepWithinOptions<Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
 export function keepWithin<Slots>(
-  slots: Unbound<Slots>,
+  slots: SlotView.Unbound<Slots>,
 ): <Input, ParentMessage>(
   options: KeepWithinOptions<Slots>,
 ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
 export function keepWithin<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
-  const slots = boundSlots(given)
+  const slots = SlotView.boundSlots(given)
   return <Input, ParentMessage>(
     options: KeepWithinOptions<Slots>,
   ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>

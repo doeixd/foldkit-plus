@@ -8,8 +8,7 @@ import type { HtmlBuilder } from 'foldkit/html'
 import * as Behavior from '../behavior.js'
 import type { SlotItem } from '../contribution.js'
 import { DiagnosticError } from '../diagnostics.js'
-import { boundSlots, type Unbound } from './bound.js'
-import type { Bound } from '../slotView.js'
+import { boundSlots, type Bound, type Unbound } from '../slotView.js'
 
 export interface Items<T> {
   readonly size: number

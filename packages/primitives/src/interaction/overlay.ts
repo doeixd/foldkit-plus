@@ -18,7 +18,6 @@
  */
 import type { Declared } from 'foldkit-bundle'
 import { Behavior, SlotView, type NamedBehavior } from 'foldkit-mixins'
-import { boundSlots, type Unbound } from '../internal.js'
 import { behavior as dismissLayerBehavior, bundle as dismissLayerBundle } from './dismiss-layer.js'
 import { behavior as focusScopeBehavior } from './focus-scope.js'
 import { hideOutside, scrollLock } from './layers.js'
@@ -84,13 +83,15 @@ export function behaviors<Slots, Input, ParentMessage, StackField extends string
   options: BehaviorsOptions<Input, Slots, StackField>,
 ) => ReadonlyArray<NamedBehavior<Slots, Input, ParentMessage>>
 export function behaviors<Slots>(
-  slots: Unbound<Slots>,
+  slots: SlotView.Unbound<Slots>,
 ): <Input, ParentMessage, StackField extends string>(
   options: BehaviorsOptions<Input, Slots, StackField>,
 ) => ReadonlyArray<NamedBehavior<Slots, Input, ParentMessage>>
 export function behaviors<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
-  // `boundSlots` took a binder apart, so these are slots the factories below accept as they are.
-  const slots = boundSlots(given) as Unbound<Slots>
+  // `boundSlots` took a binder apart, so these are slots the callee's overload accepts. `Unbound<Slots>`
+  // is a conditional on a generic, which no plain `Slots` is known to satisfy: the cast is the
+  // only way in without a second, unchecked entry on every callee.
+  const slots = SlotView.boundSlots(given) as SlotView.Unbound<Slots>
   return <Input, ParentMessage, StackField extends string>(
     options: BehaviorsOptions<Input, Slots, StackField>,
   ): ReadonlyArray<NamedBehavior<Slots, Input, ParentMessage>> => [

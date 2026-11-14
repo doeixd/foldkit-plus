@@ -6,7 +6,6 @@
  */
 import type { MountAction } from 'foldkit/mount'
 import { Behavior, Capability, SlotView } from 'foldkit-mixins'
-import { boundSlots, type Unbound } from '../internal.js'
 import { HideOutside as HideOutsideMount, ScrollLock as ScrollLockMount } from '../dom/layers.js'
 
 export { HideOutside as hideOutsideMount, ScrollLock as scrollLockMount } from '../dom/layers.js'
@@ -20,12 +19,12 @@ const mountOn = (name: string, mount: () => MountAction<never>) => {
     bound: SlotView.Bound<Slots, Input, ParentMessage>,
   ): (options: ContainerOptions<Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(
-    slots: Unbound<Slots>,
+    slots: SlotView.Unbound<Slots>,
   ): <Input, ParentMessage>(
     options: ContainerOptions<Slots>,
   ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
-    const slots = boundSlots(given)
+    const slots = SlotView.boundSlots(given)
     return <Input, ParentMessage>(
       options: ContainerOptions<Slots>,
     ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>

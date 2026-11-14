@@ -1,12 +1,4 @@
 import { Equal, Option } from 'effect'
-import { SlotView } from 'foldkit-mixins'
-
-/** Slots that are not a `SlotView.over` binder, so a binder that fails a factory's first overload is refused there, not read as slots. */
-export type Unbound<Slots> = Slots extends SlotView.Bound<any, any, any> ? never : Slots
-
-/** The slots a Behavior factory was given: the binder's, or the slots themselves. */
-export const boundSlots = <Slots>(given: Slots | SlotView.Bound<Slots, any, any>): Slots =>
-  SlotView.isBound(given) ? given.slots : given
 
 /** Whether two id lists hold the same ids in the same order. */
 export const sameIds = (a: ReadonlyArray<string>, b: ReadonlyArray<string>): boolean =>

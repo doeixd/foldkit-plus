@@ -3,7 +3,6 @@
  * container slot. No Bundle, because which element has focus is a DOM fact.
  */
 import { Behavior, Capability, SlotView } from 'foldkit-mixins'
-import { boundSlots, type Unbound } from '../internal.js'
 import { FocusScope as FocusScopeMount } from '../dom/focus-scope.js'
 
 export { FocusScope as mount, tabbableWithin } from '../dom/focus-scope.js'
@@ -29,12 +28,12 @@ export function behavior<Slots, Input, ParentMessage>(
   bound: SlotView.Bound<Slots, Input, ParentMessage>,
 ): (options: BehaviorOptions<Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
 export function behavior<Slots>(
-  slots: Unbound<Slots>,
+  slots: SlotView.Unbound<Slots>,
 ): <Input, ParentMessage>(
   options: BehaviorOptions<Slots>,
 ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
 export function behavior<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
-  const slots = boundSlots(given)
+  const slots = SlotView.boundSlots(given)
   return <Input, ParentMessage>(
     options: BehaviorOptions<Slots>,
   ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>

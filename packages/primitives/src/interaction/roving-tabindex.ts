@@ -10,9 +10,16 @@ import type { Attribute, HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
-import { Behavior, Behaviors, Capability, SlotView, type SlotItem } from 'foldkit-mixins'
+import {
+  Behavior,
+  Behaviors,
+  Capability,
+  idSelector,
+  SlotView,
+  type SlotItem,
+} from 'foldkit-mixins'
 import type { Declared } from 'foldkit-bundle'
-import { boundSlots, type Unbound, perInput } from '../internal.js'
+import { perInput } from '../internal.js'
 
 export const Orientation = Schema.Literals(['vertical', 'horizontal', 'both'])
 export type Orientation = typeof Orientation.Type
@@ -133,7 +140,7 @@ export interface BehaviorOptions<Input, Slots> {
 }
 
 /** A selector for an element by id, safe for any id. */
-export const idSelector = Behaviors.idSelector
+export { idSelector }
 
 /**
  * The attributes one item gets: `tabindex` 0 when it holds the tab stop and
@@ -173,12 +180,12 @@ export const behavior = <Field extends string>(
     bound: SlotView.Bound<Slots, Input, ParentMessage>,
   ): (options: BehaviorOptions<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(
-    slots: Unbound<Slots>,
+    slots: SlotView.Unbound<Slots>,
   ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
     options: BehaviorOptions<Input, Slots>,
   ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
-    const slots = boundSlots(given)
+    const slots = SlotView.boundSlots(given)
     return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
       options: BehaviorOptions<Input, Slots>,
     ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {

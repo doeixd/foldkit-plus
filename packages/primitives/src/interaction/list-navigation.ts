@@ -14,7 +14,7 @@ import { Bundle, type Declared } from 'foldkit-bundle'
 import { Behavior, Behaviors, Capability, SlotView, type SlotItem } from 'foldkit-mixins'
 import * as RovingTabindex from './roving-tabindex.js'
 import * as Typeahead from './typeahead.js'
-import { boundSlots, type Unbound, clearQuery, perInput } from '../internal.js'
+import { clearQuery, perInput } from '../internal.js'
 
 export const Model = Schema.Struct({
   current: Schema.NullOr(Schema.String),
@@ -144,12 +144,12 @@ export const behavior = <Field extends string>(
     options: BehaviorOptions<Input, Slots, ParentMessage>,
   ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(
-    slots: Unbound<Slots>,
+    slots: SlotView.Unbound<Slots>,
   ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
     options: BehaviorOptions<Input, Slots, ParentMessage>,
   ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
-    const slots = boundSlots(given)
+    const slots = SlotView.boundSlots(given)
     return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
       options: BehaviorOptions<Input, Slots, ParentMessage>,
     ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {

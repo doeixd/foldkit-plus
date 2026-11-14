@@ -22,7 +22,7 @@ import type { Declared } from 'foldkit-bundle'
 import { Behavior, Capability, SlotView, type SlotItem } from 'foldkit-mixins'
 import { FollowTabStop } from '../dom/follow-tab-stop.js'
 import { idSelector } from './roving-tabindex.js'
-import { boundSlots, type Unbound, perInput } from '../internal.js'
+import { perInput } from '../internal.js'
 
 export const Model = Schema.Struct({
   /** The current row's id, or `null` before any row has been focused. */
@@ -243,12 +243,12 @@ export const behavior = <Field extends string>(
     bound: SlotView.Bound<Slots, Input, ParentMessage>,
   ): (options: BehaviorOptions<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(
-    slots: Unbound<Slots>,
+    slots: SlotView.Unbound<Slots>,
   ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
     options: BehaviorOptions<Input, Slots>,
   ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
-    const slots = boundSlots(given)
+    const slots = SlotView.boundSlots(given)
     return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
       options: BehaviorOptions<Input, Slots>,
     ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {

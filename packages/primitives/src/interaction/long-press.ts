@@ -12,7 +12,6 @@ import * as Mount from 'foldkit/mount'
 import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
 import { Behavior, Capability, SlotView } from 'foldkit-mixins'
-import { boundSlots, type Unbound } from '../internal.js'
 import * as Press from './press.js'
 
 export const Model = Schema.Struct({
@@ -127,12 +126,12 @@ export const behavior = <Field extends string>(declared: Declared<typeof bundle,
     bound: SlotView.Bound<Slots, Input, ParentMessage>,
   ): (options: BehaviorOptions<Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(
-    slots: Unbound<Slots>,
+    slots: SlotView.Unbound<Slots>,
   ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
     options: BehaviorOptions<Slots>,
   ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
-    const slots = boundSlots(given)
+    const slots = SlotView.boundSlots(given)
     return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
       options: BehaviorOptions<Slots>,
     ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>

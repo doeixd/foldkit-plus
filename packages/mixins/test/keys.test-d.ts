@@ -99,3 +99,7 @@ Keys.behavior(Search)({ slot: 'nope', routes: [] })
 
 // @ts-expect-error -- a hidden slot takes no Behavior
 Keys.behavior(Search)({ slot: 'internals', routes: [] })
+
+// A binder is never read as slots: the slots-first overload refuses it.
+// @ts-expect-error -- `Search` is a binder, not a slot set
+Keys.behavior<typeof Search>(Search)

@@ -6,7 +6,6 @@
  */
 import * as Mount from 'foldkit/mount'
 import { Behavior, Capability, SlotView } from 'foldkit-mixins'
-import { boundSlots, type Unbound } from '../internal.js'
 import { EditableText as EditableTextMount, type TextFact } from '../dom/editable-text.js'
 
 export {
@@ -34,12 +33,12 @@ export function behavior<Slots, Input, ParentMessage>(
   options: BehaviorOptions<Slots, ParentMessage>,
 ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
 export function behavior<Slots>(
-  slots: Unbound<Slots>,
+  slots: SlotView.Unbound<Slots>,
 ): <Input, ParentMessage>(
   options: BehaviorOptions<Slots, ParentMessage>,
 ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
 export function behavior<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
-  const slots = boundSlots(given)
+  const slots = SlotView.boundSlots(given)
   return <Input, ParentMessage>(
     options: BehaviorOptions<Slots, ParentMessage>,
   ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>

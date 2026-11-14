@@ -11,7 +11,7 @@ import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
 import { Behavior, Behaviors, Capability, SlotView } from 'foldkit-mixins'
 import { idSelector } from './roving-tabindex.js'
-import { boundSlots, type Unbound, clearQuery } from '../internal.js'
+import { clearQuery } from '../internal.js'
 
 export const Model = Schema.Struct({
   query: Schema.String,
@@ -129,12 +129,12 @@ export const behavior = <Field extends string>(declared: Declared<typeof bundle,
     bound: SlotView.Bound<Slots, Input, ParentMessage>,
   ): (options: BehaviorOptions<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(
-    slots: Unbound<Slots>,
+    slots: SlotView.Unbound<Slots>,
   ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
     options: BehaviorOptions<Input, Slots>,
   ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
-    const slots = boundSlots(given)
+    const slots = SlotView.boundSlots(given)
     return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
       options: BehaviorOptions<Input, Slots>,
     ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {

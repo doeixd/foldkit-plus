@@ -506,13 +506,13 @@ export function behavior<Slots, Input, Message>(
   bound: SlotView.Bound<Slots, Input, Message>,
 ): (options: Options<Slots, Input, Message>) => Behavior.NamedBehavior<Slots, Input, Message>
 export function behavior<Slots>(
-  slots: Slots,
+  slots: SlotView.Unbound<Slots>,
 ): <Input, Message>(
   options: Options<Slots, Input, Message>,
 ) => Behavior.NamedBehavior<Slots, Input, Message>
 export function behavior<Slots, Input, Message>(
   target: Slots | SlotView.Bound<Slots, Input, Message>,
 ) {
-  const slots = SlotView.isBound(target) ? target.slots : target
+  const slots = SlotView.boundSlots(target)
   return (options: Options<Slots, Input, Message>) => build(slots, options)
 }

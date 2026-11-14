@@ -12,7 +12,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
 import { Behavior, Behaviors, Capability, SlotView } from 'foldkit-mixins'
-import { boundSlots, type Unbound, perInput, sameIds } from '../internal.js'
+import { perInput, sameIds } from '../internal.js'
 import { BundleBehavior } from './bundle-behavior.js'
 
 export const Mode = Schema.Literals(['single', 'multiple', 'none'])
@@ -140,13 +140,15 @@ export const behavior = <Field extends string>(
     bound: SlotView.Bound<Slots, Input, ParentMessage>,
   ): (options: BehaviorOptions<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(
-    slots: Unbound<Slots>,
+    slots: SlotView.Unbound<Slots>,
   ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
     options: BehaviorOptions<Input, Slots>,
   ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
-    // `boundSlots` took a binder apart, so this is a slot set `fromBundle` accepts as it is.
-    const slots = boundSlots(given) as Unbound<Slots>
+    // `boundSlots` took a binder apart, so this is a slot set `fromBundle` accepts. `Unbound<Slots>`
+    // is a conditional on a generic, which no plain `Slots` is known to satisfy: the cast is the
+    // only way in without a second, unchecked entry on `fromBundle`.
+    const slots = SlotView.boundSlots(given) as SlotView.Unbound<Slots>
     return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
       options: BehaviorOptions<Input, Slots>,
     ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {

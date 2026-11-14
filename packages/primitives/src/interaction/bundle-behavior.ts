@@ -27,7 +27,6 @@ import {
   type SlotItem,
   type SlotRequirements,
 } from 'foldkit-mixins'
-import { boundSlots, type Unbound } from '../internal.js'
 
 // `any` for the bundle and the field so a behavior's own generic `Field`
 // (`Declared<typeof bundle, Field>`) is accepted; the parts stay inferred.
@@ -77,13 +76,13 @@ export const fromBundle = <D extends Declared<any, any>>(declared: D) => {
     options?: { readonly name?: string },
   ) => NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(
-    slots: Unbound<Slots>,
+    slots: SlotView.Unbound<Slots>,
   ): <Input extends { readonly [K in D['field']]: BundleModelOf<D> }, ParentMessage>(
     spec: BundleBehaviorSpec<D, Input, ParentMessage>,
     options?: { readonly name?: string },
   ) => NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
-    const slots = boundSlots(given)
+    const slots = SlotView.boundSlots(given)
     return <Input extends { readonly [K in D['field']]: BundleModelOf<D> }, ParentMessage>(
       spec: BundleBehaviorSpec<D, Input, ParentMessage>,
       options?: { readonly name?: string },

@@ -16,7 +16,6 @@ import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
 import { Behavior, Capability, SlotView } from 'foldkit-mixins'
-import { boundSlots, type Unbound } from '../internal.js'
 
 export const LAYER_ATTRIBUTE = 'data-foldkit-plus-layer'
 export const TRIGGER_ATTRIBUTE = 'data-foldkit-plus-layer-trigger'
@@ -180,12 +179,12 @@ export const behavior = <Field extends string>(_declared: Declared<typeof bundle
     bound: SlotView.Bound<Slots, Input, ParentMessage>,
   ): (options: BehaviorOptions<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(
-    slots: Unbound<Slots>,
+    slots: SlotView.Unbound<Slots>,
   ): <Input, ParentMessage>(
     options: BehaviorOptions<Input, Slots>,
   ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
-    const slots = boundSlots(given)
+    const slots = SlotView.boundSlots(given)
     return <Input, ParentMessage>(
       options: BehaviorOptions<Input, Slots>,
     ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
