@@ -108,7 +108,7 @@ inside a workspace package, since none has Domain installed.
 | P14 | `Annotations` holds `description` and `httpApiCacheControl` only. There is no `Api.describe`, `needsApproval` or `access`. | `Annotations.d.ts`; grep of `lib/*.d.ts`. |
 | P15 | The whole probe gave the same output on `effect@4.1.1`. | Second install with `--legacy-peer-deps`. |
 
-Not probed: Domain's `Query`, the HTTP and WebSocket protocols, Durable Object
+Not probed here: Domain's `Query` (WP8 probed it; its As built), the HTTP and WebSocket protocols, Durable Object
 hosting, what an `RpcClientError` looks like when a reply is lost on a real
 transport, and the state of the upstream PRs the contract-layer plan gates on
 (alchemy-run/alchemy #2567, #2569). `View.snapshot` and a `watch` that carries
@@ -1015,6 +1015,69 @@ WP1 (alone: lockfile)
   row written through a command appears in the list at or after its receipt;
   a relation's target reads in one batch; `Law.check` with `lists` reports no
   disagreement for `ReserveStock`.
+- **As built (2026-11-14).** The probe (beta.86, run from `packages/remote-domain`,
+  a projection-backed paged Query on `InMemory` in manual mode) found:
+  - **Q1.** A page is `{ entries, cursor }`, `cursor` `null` on the last; the
+    cursor is the handler's own encoding, sent back verbatim as `after`.
+  - **Q2.** `take` is clamped to `[1, take.max]`: 10 gave 3 (max 3), and 0, -1
+    and 1.5 each gave one row. A request for no rows is a quiet fallback, so the
+    adapter refuses `first < 1` itself.
+  - **Q3.** There is no backward paging (`before`, `last`) and no total.
+  - **Q4.** `atLeast` takes receipts and waits on the Query's `waitsFor` reads,
+    with no client timeout (still waiting after 300 ms; Domain's own is about
+    10 s); after `drain` it answers the new state. A plain ask before the
+    projection catches up answers what it held.
+  - **Q5.** A Rejection reaches the client typed; a middleware error apart.
+  - **Q6.** An entry carries only what the handler returns (no revision unless
+    its schema has one), and the Api has no watch for a Query: `QueryClient`
+    is the call, `pages` and `entries`.
+  - **Q7.** A View's `watch` sends the key's current state first.
+
+  Decided and built:
+  - `DomainRemote.query(RemoteQuery, Api, 'PagedQuery', { input, id })`, given
+    to `layer` as `queries`. The name is typed by the Api's paged Queries; an
+    unserved or unpaged one throws where it is bound, and `layer` throws for a
+    list whose Entity has no View binding. The design's `edge: row => ({ id,
+    key })` became `id` alone: Remote dedupes and places edges by
+    `entityKey(entity, id)`, which an optimistic insert also uses, so a key of
+    the author's own would split one row into two edges.
+  - The Query decides membership; **each listed row is read through its
+    View**, and a row the View answers absent is left out of the edges. One
+    judge of who sees a row, lists included, and every row on a page carries
+    the View's revision. Cost: one snapshot per listed row, sixteen at once.
+  - The request is decoded with `QueryRequest` and the Remote query's `Input`;
+    `last`/`before`, `first: 0` and a cursor over 1,024 characters are refused
+    by name before Domain is asked.
+  - **Floors.** Remote's `QueryRequest` carries no tokens, and its wire is not
+    this package's to change, so a plain page is read with none; the client
+    already holds a floored row against a page unless the page brings a newer
+    revision. A row written through a command appears in a list at its receipt
+    through the write's own answer: `MutationRequest.lists` is read `atLeast`
+    the receipt within `confirmWithin`, and a list not caught up is left out
+    for the client to ask again. The adapter keeps no new state (the reply
+    cache was not used as a source of list receipts). A `QueryRequest.after` of
+    row tokens is the open follow-up, for Remote's owner.
+  - **Live.** Per Q6, a live list watches the rows it holds (skipping each
+    watch's first frame, Q7), asks the list again on a change, and sends
+    `ConnectionInvalidate` when its ids moved; it never sends `EntityDeleted`
+    for a row that left. A row joining without a held row changing is not seen
+    until the list is read again.
+  - **Relations.** A View's state holds a `one` relation as the target's id or
+    `null`; `view` refuses an Entity whose `one` relation the state lacks. A
+    read answers the ref key and reads selected targets level by level through
+    their own View bindings, once per row however many point at it; a hidden
+    target is absent. A `many` relation, a relation window and a target with no
+    View bound fail by name. A live read with relations is still refused.
+  - The `Supplier` Entity and `Stocked` Query live in the package's test model
+    (`test/adapter/lists.ts`), not in `examples/writes-domain`: relating
+    `examples/writes`' `Product` there would add a member to an Entity the laws
+    cluster owns, for every module that imports it (#332).
+  - `Law.check` with `lists: [Stocked]` finds no disagreement for
+    `ReserveStock` (`test/adapter/query.test.ts`); the `lists.mutations.ts`
+    spec's 20 mutations are each killed.
+  - The paging test asks each page through `RemoteClient.query` and merges them
+    with Remote's own reducer (`ConnectionMerged`) into one list of four rows; it
+    drives no running page's `Data.query`.
 
 ### WP9: first paint from a server render
 
