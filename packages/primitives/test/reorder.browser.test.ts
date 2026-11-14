@@ -88,22 +88,32 @@ const rowsOf = (
     ),
   )
 
-const gripped = List.define((model, slots, h) =>
-  h.ul(
-    slots.list.attrs([h.Id('list'), h.Style({ margin: '0', padding: '0' })]),
-    rowsOf(model, slots, h, true),
-  ),
-).pipe(
-  Behavior.attach(
-    Reorder.behavior(Rows)(List)({
-      container: 'list',
-      item: 'row',
-      handle: 'grip',
-      items: m => m.ids,
-    }),
-  ),
-  Behavior.attach(FocusRecovery.behavior(List)({ owner: 'list', parts: { grip: ['same'] } })),
-)
+const grippedWith = (
+  tree: Pick<Reorder.HandleOptions<Model, typeof ListSlots>, 'parent' | 'accepts'> = {},
+) =>
+  List.define((model, slots, h) =>
+    h.ul(
+      slots.list.attrs([h.Id('list'), h.Style({ margin: '0', padding: '0' })]),
+      rowsOf(model, slots, h, true),
+    ),
+  ).pipe(
+    Behavior.attach(
+      Reorder.behavior(Rows)(List)({
+        container: 'list',
+        item: 'row',
+        handle: 'grip',
+        items: m => m.ids,
+        ...tree,
+      }),
+    ),
+    Behavior.attach(FocusRecovery.behavior(List)({ owner: 'list', parts: { grip: ['same'] } })),
+  )
+const gripped = grippedWith()
+// A tree drawn flat: C is B's child, and B takes items inside it.
+const branched = grippedWith({
+  parent: (_, id) => (id === 'c' ? Option.some('b') : Option.none()),
+  accepts: (_, id) => id === 'b',
+})
 
 const routedRows = Reorder.behavior(Rows)(List)({
   container: 'list',
@@ -294,6 +304,47 @@ describe('Reorder by pointer', () => {
     pointer('pointerup', x, below)
     await expect.poll(order).toEqual(['b', 'c', 'a', 'd'])
     await expect.poll(said).toBe('Dropped A after C.')
+  })
+
+  it('reads the middle of a row that takes nothing as its own slot, as the keys do', async () => {
+    await start(gripped)
+    const [x, y] = centre('a')
+    pointer('pointerdown', x, y)
+    pointer('pointermove', x, y + 10)
+    const [, middle] = centre('c')
+    pointer('pointermove', x, middle)
+    await expect.poll(() => document.getElementById('c')?.dataset['reorderOver']).toBe('after')
+    await expect.poll(said).toBe('A: after C.')
+    pointer('pointerup', x, middle)
+    await expect.poll(order).toEqual(['b', 'c', 'a', 'd'])
+    await expect.poll(said).toBe('Dropped A after C.')
+  })
+
+  it("offers inside a row that takes items, and no place among the held row's own rows", async () => {
+    await start(branched)
+    const [x, y] = centre('a')
+    pointer('pointerdown', x, y)
+    pointer('pointermove', x, y + 10)
+    const [, middle] = centre('b')
+    pointer('pointermove', x, middle)
+    await expect.poll(() => document.getElementById('b')?.dataset['reorderOver']).toBe('inside')
+    await expect.poll(said).toBe('A: inside B.')
+    pointer('pointerup', x, middle)
+    await expect.poll(said).toBe('Dropped A inside B.')
+    // Now B, held, over its own child C: no place.
+    const [bx, by] = centre('b')
+    pointer('pointerdown', bx, by)
+    pointer('pointermove', bx, by + 10)
+    await expect.poll(() => document.getElementById('b')?.dataset['reorder']).toBe('held')
+    const [, last] = centre('d', 0.9)
+    pointer('pointermove', bx, last)
+    await expect.poll(said).toBe('B: after D.')
+    const [, child] = centre('c', 0.9)
+    pointer('pointermove', bx, child)
+    await expect.poll(said).toBe('B: over no place.')
+    expect(document.getElementById('c')?.dataset['reorderOver']).toBeUndefined()
+    pointer('pointerup', bx, child)
+    await expect.poll(said).toBe('B put back where it was.')
   })
 
   it('puts back a drag cancelled with Escape', async () => {

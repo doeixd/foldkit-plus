@@ -13,7 +13,7 @@
  * transition is also an out-fact, so the parent can read it out through
  * `LiveAnnounce` with `announcement`.
  */
-import { Match, Option, Schema } from 'effect'
+import { Match, Option, Schema, Stream } from 'effect'
 import type { Attribute, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
@@ -289,16 +289,19 @@ export const places = (options: {
   return { places: found, origin }
 }
 
+/** A move as `Moved` carries it, for `apply`, `movesIntoItself` and a parent's own refusal. */
+export interface Move {
+  readonly id: string
+  readonly to: Place
+}
+
 /**
  * A flat list's ids with a move applied, or `ids` itself when nothing
- * changes or either id is missing. `inside` in a flat list (the pointer's
- * middle third of a row) is the row's own slot: after it when moving down,
- * before it when moving up.
+ * changes or either id is missing. `behavior` never reports `inside` on a row
+ * that accepts nothing; given one, it is the row's own slot: after it when
+ * moving down, before it when moving up.
  */
-export const apply = (
-  ids: ReadonlyArray<string>,
-  moved: { readonly id: string; readonly to: Place },
-): ReadonlyArray<string> => {
+export const apply = (ids: ReadonlyArray<string>, moved: Move): ReadonlyArray<string> => {
   const from = ids.indexOf(moved.id)
   const target = ids.indexOf(moved.to.id)
   if (from === -1 || target === -1 || from === target) return ids
@@ -323,6 +326,7 @@ export const words = {
   movedInside: 'Dropped {item} inside {target}.',
   movedAfter: 'Dropped {item} after {target}.',
   putBack: '{item} put back where it was.',
+  refused: '{item} cannot go there; put back where it was.',
 } as const
 export type Words = { readonly [K in keyof typeof words]: string }
 
@@ -333,11 +337,17 @@ const fill = (template: string, item: string, target: string): string =>
 /**
  * The text that reads a transition out, for `LiveAnnounce`'s `announce`:
  * `label` names an item by its id, as the page shows it. A placement's
- * `onOut` calls it on every fact and announces the result.
+ * `onOut` calls it on every fact and announces the result. `refuses` is the
+ * test the parent's `update` refuses a `Moved` by (`movesIntoItself`, say):
+ * a refused move reads `words.refused`, not that it was dropped.
  */
 export const announcement = (
   fact: OutMessage,
-  options: { readonly label: (id: string) => string; readonly words?: Partial<Words> },
+  options: {
+    readonly label: (id: string) => string
+    readonly words?: Partial<Words>
+    readonly refuses?: (move: Move) => boolean
+  },
 ): string => {
   const said: Words = { ...words, ...options.words }
   const { label } = options
@@ -350,11 +360,13 @@ export const announcement = (
         onSome: place => fill(said[place.zone], label(id), label(place.id)),
       }),
     Moved: ({ id, to }) =>
-      fill(
-        { before: said.movedBefore, inside: said.movedInside, after: said.movedAfter }[to.zone],
-        label(id),
-        label(to.id),
-      ),
+      options.refuses?.({ id, to }) === true
+        ? fill(said.refused, label(id), label(to.id))
+        : fill(
+            { before: said.movedBefore, inside: said.movedInside, after: said.movedAfter }[to.zone],
+            label(id),
+            label(to.id),
+          ),
     PutBack: ({ id }) => fill(said.putBack, label(id), ''),
   })
 }
@@ -592,13 +604,26 @@ export const behavior = <Field extends string>(declared: Declared<typeof bundle,
           onNone: () => [],
           onSome: id => [h.OnBlur(wrap(Message.Left({ id })))],
         })
+      const parentOf = (input: Input) => (id: string) =>
+        options.parent === undefined ? Option.none<string>() : options.parent(input, id)
       const itemAttributes = (context: Context): ReadonlyArray<Attribute<ParentMessage>> => {
         const { input, h, item } = context
         const state = input[declared.field]
         return Option.match(idOf(input, item), {
           onNone: () => [],
           onSome: id => [
-            h.Attribute(mark, id),
+            // A held item's own rows are no place for it: unmarked, the pointer finds none there.
+            ...(Option.exists(
+              state.held,
+              held => held.id !== id && within(id, held.id, parentOf(input)),
+            )
+              ? []
+              : [h.Attribute(mark, id)]),
+            // What the pointer's middle third over this row means: inside it, or its own slot.
+            ...(options.accepts?.(input, id) === true ||
+            Option.exists(state.held, held => Option.contains(parentOf(input)(held.id), id))
+              ? [h.Attribute(`${mark}-accepts`, '')]
+              : []),
             ...(Option.exists(state.held, held => held.id === id)
               ? [h.DataAttribute('reorder', 'held')]
               : []),
@@ -626,10 +651,7 @@ export const behavior = <Field extends string>(declared: Declared<typeof bundle,
       const spec: Record<string, ReturnType<typeof Behavior.slot>> = Object.create(null)
       spec[options.container] = Behavior.slot({
         requires: { capability: Capability.Container },
-        mount: () =>
-          Mount.mapMessage(PointerDrag({ attribute: mark }), (fact: DragFact) =>
-            wrap(fromDrag(fact)),
-          ),
+        mount: () => Mount.mapMessage(pointerPath(mark), (message: Message) => wrap(message)),
       })
       if (handle === routed || handle === options.item) {
         spec[options.item] = Behavior.slot({
@@ -660,11 +682,51 @@ export const behavior = <Field extends string>(declared: Declared<typeof bundle,
   return place
 }
 
-/** The pointer's facts as this Bundle's Messages: one draft, whichever way it started. */
-const fromDrag = (fact: DragFact): Message =>
-  Match.valueTags(fact, {
-    DragStarted: ({ id }): Message => Message.Grabbed({ id, by: 'pointer', at: Option.none() }),
-    DraggedOver: ({ over }): Message => Message.PointedAt({ over: Option.fromNullishOr(over) }),
-    DragDropped: ({ over }): Message => Message.Released({ over: Option.fromNullishOr(over) }),
-    DragCancelled: (): Message => Message.Released({ over: Option.none() }),
-  })
+/**
+ * `inside` a row that takes nothing is its own slot, as the keys walk it:
+ * after it when the held item comes before it, before it otherwise. Read from
+ * the drawn rows when the fact arrives, as `PointerDrag` reads its places.
+ */
+const slotted = (
+  container: Element,
+  mark: string,
+  held: string | null,
+  place: DragPlace | null,
+): DragPlace | null => {
+  if (place === null || place.zone !== 'inside' || place.part !== undefined) return place
+  const rows = Array.from(container.querySelectorAll(`[${mark}]`))
+  const at = rows.findIndex(row => row.getAttribute(mark) === place.id)
+  if (at === -1 || rows[at]!.hasAttribute(`${mark}-accepts`)) return place
+  const from = rows.findIndex(row => row.getAttribute(mark) === held)
+  return { id: place.id, zone: from !== -1 && from < at ? 'after' : 'before' }
+}
+
+/** `PointerDrag` on the container, its facts as this Bundle's Messages: one draft, whichever way it started. */
+const pointerPath = (mark: string): Mount.MountAction<Message> => {
+  const drag = PointerDrag({ attribute: mark })
+  return {
+    ...drag,
+    f: (element, viewStateChanges) => {
+      let held: string | null = null
+      return drag.f(element, viewStateChanges).pipe(
+        Stream.map((fact: DragFact): Message =>
+          Match.valueTags(fact, {
+            DragStarted: ({ id }): Message => {
+              held = id
+              return Message.Grabbed({ id, by: 'pointer', at: Option.none() })
+            },
+            DraggedOver: ({ over }): Message =>
+              Message.PointedAt({
+                over: Option.fromNullishOr(slotted(element, mark, held, over)),
+              }),
+            DragDropped: ({ over }): Message =>
+              Message.Released({
+                over: Option.fromNullishOr(slotted(element, mark, held, over)),
+              }),
+            DragCancelled: (): Message => Message.Released({ over: Option.none() }),
+          }),
+        ),
+      )
+    },
+  }
+}

@@ -124,13 +124,31 @@ export default [
     '',
     [unit],
   ),
+  one('a refused move is read as dropped', 'options.refuses?.({ id, to }) === true', 'false', [
+    unit,
+  ]),
+  one(
+    "a pointer's middle third over a row that takes nothing is inside it",
+    'if (at === -1 || rows[at]!.hasAttribute(`${mark}-accepts`)) return place',
+    'return place',
+    [browser],
+  ),
+  one('a row that takes items is not marked so', "? [h.Attribute(`${mark}-accepts`, '')]", '? []', [
+    browser,
+  ]),
+  one(
+    "the held row's own rows stay places for the pointer",
+    'held => held.id !== id && within(id, held.id, parentOf(input)),',
+    '() => false,',
+    [browser],
+  ),
   one(
     'focus leaving the handle is not heard',
     'onSome: id => [h.OnBlur(wrap(Message.Left({ id })))],',
     'onSome: () => [],',
     [browser],
   ),
-  one('items carry no mark the pointer finds', 'h.Attribute(mark, id),', '', [browser]),
+  one('items carry no mark the pointer finds', ': [h.Attribute(mark, id)]),', ': []),', [browser]),
   one(
     'the drop line is drawn on every other row',
     "over.id === id ? [h.DataAttribute('reorder-over', over.zone)] : []",

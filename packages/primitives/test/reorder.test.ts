@@ -491,6 +491,23 @@ describe('Reorder.announcement', () => {
   ])('reads %o as %s', (fact, text) => {
     expect(Reorder.announcement(fact, { label })).toBe(text)
   })
+  it('reads a move the parent refuses as refused, by the test its update refuses it by', () => {
+    const parent = (id: string) => (id === 'c' ? Option.some('b') : Option.none())
+    const refuses = (move: Reorder.Move) => Reorder.movesIntoItself({ ...move, parent })
+    expect(
+      Reorder.announcement(OutMessage.Moved({ id: 'b', by: 'pointer', to: after('c') }), {
+        label,
+        refuses,
+      }),
+    ).toBe('B cannot go there; put back where it was.')
+    expect(
+      Reorder.announcement(OutMessage.Moved({ id: 'c', by: 'pointer', to: after('d') }), {
+        label,
+        refuses,
+      }),
+    ).toBe('Dropped C after D.')
+  })
+
   it('fills each blank once, so a label holding a blank is read as it is', () => {
     const odd = (id: string) => (id === 'x' ? '{target}' : id.toUpperCase())
     expect(

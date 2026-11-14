@@ -737,8 +737,9 @@ void view
 marks on each item, and the key route on the handle, which may be the row
 itself. Nothing here fetches or writes your list: `Moved` is a fact, and
 `Reorder.apply(ids, moved)` is the pure move for a flat list (it returns the
-list it was given when nothing changes). In a flat list a pointer's `inside`
-(the middle third of a row) means the row's own slot.
+list it was given when nothing changes). The pointer's middle third over a row
+that takes nothing is that row's own slot, before or after it as the keys walk
+it, so a flat list never shows, announces or drops `inside`.
 
 **Beside a roving tab stop.** A list with `ListNavigation` already owns its
 container's `keydown`, and both take the arrows. Give the placement
@@ -873,10 +874,31 @@ void SortableListbox
 **A tree.** Give `items` the rows that show, flat, with `parent` and
 `accepts`. The places then walk the tree: before each row, `inside` a row that
 accepts items and shows none of its own (as its last child), and `after` each
-level that ends. The held row's own rows are never offered, but a pointer can
-report one, and only the parent knows the tree: refuse such a `Moved` with
-`Reorder.movesIntoItself({ id, to, parent })`. `Reorder.places` is the walk
-itself, for a view that shows "position 2 of 5".
+level that ends. The held row's own rows are never offered, and the Behavior
+takes its mark off them while it is held, so the pointer finds no place there.
+A drag that reached one in the frame before that drawing can still drop on it,
+and only the parent knows the tree, so the guard is the parent's: its `update`
+refuses such a `Moved` with `Reorder.movesIntoItself`, and `announcement`
+reads the same test as `words.refused`:
+
+```ts
+const parents = new Map([
+  ['intro', 'docs'],
+  ['guide', 'docs'],
+])
+const parent = (id: string) => Option.fromNullishOr(parents.get(id))
+// The one test: `onOut` leaves the list alone on a `Moved` it holds for, and the words say so.
+const refuses = (move: Reorder.Move) => Reorder.movesIntoItself({ ...move, parent })
+
+const intoItself = Reorder.OutMessage.Moved({
+  id: 'docs',
+  by: 'pointer',
+  to: { id: 'intro', zone: 'after' },
+})
+Reorder.announcement(intoItself, { label: id => id, refuses }) // 'docs cannot go there; put back where it was.'
+```
+
+`Reorder.places` is the walk itself, for a view that shows "position 2 of 5".
 
 **Words, direction, keys faster than a frame.** `announcement` reads each
 fact with `words` (English templates with `{item}` and `{target}`; pass your
