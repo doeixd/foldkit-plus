@@ -490,19 +490,28 @@ over several different application states.
 
 A capability that dispatches a declared write (`Mutation.write`) need not
 restate when the write is refused. `foldkit-remote` judges it from what the
-client holds (`Data.can`) and gives the checks in the shape a variant takes:
+client holds (`Data.can`) and gives the checks in the shape a variant takes.
+Those checks judge as **the Model's viewer**, the person signed in to the
+page, not as the agent's principal. Used as a capability's only `authorize`,
+`Data.capability` hands the agent everything the viewer may write. Compose it
+with your own principal check, written after the spread so it replaces the
+`authorize` the spread gave (`examples/kitchen-sink`'s `agent.ts`):
 
 ```ts sketch
+const completeTask = Data.capability(CompleteTask, ({ input }: { input: { readonly id: string } }) => ({
+  id: input.id,
+  status: 'done',
+}))
+
 Agent.expose(Message, {
   RequestedCompleteTask: {
     name: 'complete_task',
     description: 'Complete an open task',
     input: Schema.Struct({ id: Schema.String }),
     toMessage: input => input,
-    ...Data.capability(CompleteTask, ({ input }: { input: { readonly id: string } }) => ({
-      id: input.id,
-      status: 'done',
-    })),
+    ...completeTask,
+    // The principal's own permission first, then the write's rules.
+    authorize: request => (request.principal.canWrite ? completeTask.authorize(request) : false),
   },
 })
 ```
@@ -511,31 +520,17 @@ Agent.expose(Message, {
 `may` that forbids the write refuses in `authorize`, with its words; a `when`
 that does not hold, or an invariant the write would break, refuses in
 `applies`. Where the client cannot tell (the row is not held, a field is
-missing) both allow, and the server decides when the write is sent. The
-checks judge as the Model's viewer, not as the agent's principal: an agent
-acting for someone else adds its own check. Annotate `toInput`'s request, as
-above: a spread gives the call no type to infer it from.
-
-A key written after the spread replaces the one it gave, so the principal's own
-permission can come first:
-
-```ts sketch
-const completeTask = Data.capability(CompleteTask, ({ input }: { input: { readonly id: string } }) => ({
-  id: input.id,
-  status: 'done',
-}))
-
-RequestedCompleteTask: {
-  // name, description, input, toMessage as above
-  ...completeTask,
-  authorize: request => (request.principal.canWrite ? completeTask.authorize(request) : false),
-}
-```
+missing) both allow, and the server decides when the write is sent, as the
+viewer's session. Annotate `toInput`'s request, as above: a spread gives the
+call no type to infer it from.
 
 For a capability over a row the Model alone names, such as the selected one,
 `Data.available(mutation, model => Option<Partial<Input>>)` is its `available`:
 false while no row is named or `Data.can` answers `No`, so a capability that
-cannot succeed leaves discovery. `examples/kitchen-sink` declares one over
+cannot succeed leaves discovery. Availability runs at discovery, before
+`authorize`, and judges as the viewer too: whether the capability is listed
+tells any caller whether the viewer's write would be refused. Give it only to
+an agent whose callers may know that. `examples/kitchen-sink` declares one over
 `CompleteTask`.
 
 ## Which control is which: parts

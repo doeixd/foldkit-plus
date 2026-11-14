@@ -2536,6 +2536,9 @@ to grey a control: `Data.mutate` does not read it, and still asks the server. Se
 `Data.capability(Mutation, toInput)` and `Data.available(Mutation, inputOf)` turn
 the same answer into a `foldkit-agent` capability's `authorize`, `applies` and
 `available` ([Agents](../../docs/agents.md#a-capability-over-a-declared-write)).
+They judge as the Model's viewer: as an agent's only `authorize` they give it
+the viewer's write rights, so compose them with a check of the agent's
+principal.
 
 <!-- docs-check standalone use bare-app
 import { Entity as DomainEntity, Write } from 'foldkit-entity'
