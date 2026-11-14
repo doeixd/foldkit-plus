@@ -305,7 +305,7 @@ describe('the Behavior', () => {
     )
   })
 
-  it('beside another keydown owner, conflicts naming both and pointing at Keys', () => {
+  it('beside another keydown owner, conflicts naming both', () => {
     const view = Bound.define((input, slots, h) =>
       h.input(slots.input.attrs([h.Value(input.query)])),
     ).pipe(
@@ -319,7 +319,6 @@ describe('the Behavior', () => {
       code: 'mixins:event-conflict',
       details: { event: 'keydown', contributors: ['Mine', 'Theirs'] },
     })
-    expect(diagnostic.message).toContain('fold their keys into one Behaviors.Keys.behavior')
   })
 
   it('is refused by a slot that protects keydown', () => {

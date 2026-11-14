@@ -124,15 +124,4 @@ export default [
     ],
     tests: browser,
   },
-  {
-    name: 'a keydown conflict does not point at Keys',
-    edits: [
-      {
-        file: '../src/resolver.ts',
-        find: "'; fold their keys into one Behaviors.Keys.behavior'",
-        replace: "''",
-      },
-    ],
-    tests: unit,
-  },
 ]

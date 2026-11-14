@@ -13,6 +13,8 @@
  * reads `defaultPrevented`; a held key runs its route on every repeat, since a
  * handler is not told `repeat` (guard a once-only route in `update`).
  *
+ * Two attachments that both write `keydown` on one slot still fail
+ * `mixins:event-conflict`; fold their keys into one `behavior` instead.
  * Observing a key without owning it is a Subscription
  * (`foldkit-primitives/events`), not a route.
  */
@@ -192,9 +194,10 @@ const fail = (
 }
 
 /**
- * A key with its modifiers, each `false` unless given. A `key` longer than one
- * character must be a named key of the UI Events specification
- * (`Keys.chord('Esc')` throws `mixins:unknown-key`).
+ * A key with its modifiers, each `false` unless given, except that a
+ * character chord that does not state `shift` takes the character however it
+ * was typed. A `key` longer than one character must be a named key of the UI
+ * Events specification (`Keys.chord('Esc')` throws `mixins:unknown-key`).
  */
 export const chord = <const K extends string>(
   key: KeyName<K>,
@@ -226,7 +229,7 @@ export const chord = <const K extends string>(
   })
 }
 
-/** Any one character pressed with no `ctrl`, `alt` or `meta`; Shift allowed. It overlaps every character chord. */
+/** Any one character pressed with no `ctrl`, `alt` or `meta`; Shift allowed. It overlaps every character chord that holds none of the three. */
 export const printable: Gesture = Gesture.Printable()
 
 /**
