@@ -2,7 +2,9 @@
  * What an assembled view is, as data: `describe` reads its attachments and
  * what each asks of a slot and gives it, with no input; `resolution` reads what
  * one input makes the attachments contribute, as names and owners. Neither runs
- * a Mount, a Command or `update`, and neither reads the DOM. Re-exported as
+ * a Mount, a Command or `update`, and neither reads the DOM. Both are plain
+ * JSON, for an agent or a document to read, so an absent value is `null`
+ * rather than an `Option`. Re-exported as
  * `SlotView.describe`, `SlotView.resolution` and `SlotView.toMarkdown`.
  */
 import { Match, Option } from 'effect'
@@ -52,7 +54,11 @@ export interface ConformanceDescription {
   readonly slots: Readonly<
     Record<
       string,
-      { readonly capability: string | null; readonly obligations: ReadonlyArray<string> }
+      {
+        /** `null` is JSON's: the pattern asks for no capability there. */
+        readonly capability: string | null
+        readonly obligations: ReadonlyArray<string>
+      }
     >
   >
 }
