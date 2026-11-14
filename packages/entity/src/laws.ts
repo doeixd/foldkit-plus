@@ -490,8 +490,9 @@ export interface LawFacts {
 }
 
 /**
- * The report as graph facts: a Law per invariant, a Transition per write, a
- * State per local state, what each law reads and each transition writes,
+ * The report as graph facts: a Law per invariant, a Transition per write in
+ * a pair or an arrow (one judged against nothing and moving no state has no
+ * law to keep), a State per local state, what each law reads and each transition writes,
  * each arrow's `from` and `to`, and a `keeps` edge per `Enumerated` record.
  * A write's own `ensures` is no law of its Entity and is left out. An
  * `Unknown` footprint writes members the report does not list, so it

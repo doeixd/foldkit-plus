@@ -1588,8 +1588,8 @@ const { nodes, edges } = Laws.facts(report)
 Records and the graph name a transition `write:<name>` (`Laws.transition`)
 and a law `<Entity>.<id>` (`Laws.law(invariant)`). `Laws.facts(report)` is
 the law half of `foldkit-surface`'s graph as plain data, since this package
-does not import Surface: a `Law` per invariant, a `Transition` per write, a
-`State` per local state, `Reads` and `Writes` over `['Product', 'stock']`
+does not import Surface: a `Law` per invariant, a `Transition` per write in
+a pair or an arrow, a `State` per local state, `Reads` and `Writes` over `['Product', 'stock']`
 paths, `From` and `To` per arrow, and a `Keeps` edge per record. A write's
 own `ensures` is marked `postcondition` on its pair and is no law of the
 Entity, so the facts leave it out; an `Unknown` footprint gives its
