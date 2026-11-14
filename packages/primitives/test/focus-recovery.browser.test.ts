@@ -355,6 +355,23 @@ describe('nested owners', () => {
     await expect.poll(() => document.activeElement).toBe(second!.item)
   })
 
+  it('passes outward past an owner between that holds nothing of it', async () => {
+    const { outer, outerRows } = nest()
+    const [first, second] = outerRows
+    actions(outer)
+    // An owner around the inner one whose own parts hold none of it.
+    const between = mark(document.createElement('div'), { 'data-fk-focus-owner': '' })
+    first!.item.replaceChild(between, first!.inner)
+    between.append(first!.inner)
+    run(outer, { outerRow: ['next'] })
+    run(between, { row: ['next'] })
+    for (const each of outerRows) run(each.inner, { row: [] })
+    await settled()
+    onlyInner(first!.innerRows[0]!).focus()
+    first!.innerRows[0]!.remove()
+    await expect.poll(() => document.activeElement).toBe(second!.item)
+  })
+
   it('has the outer owner decide when a whole inner owner goes with the row', async () => {
     const { outer, outerRows } = nest()
     const [first, second] = outerRows

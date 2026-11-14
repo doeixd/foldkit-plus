@@ -216,8 +216,10 @@ export const FocusRecovery = Mount.defineStream('FocusRecovery', {
               }),
             )
           }
+          // Taken from an inner owner only by one that holds the part around it: an owner
+          // between that holds none of it lets the event on to the owners further out.
           const passed = (event: Event) => {
-            if (event.target === element) return
+            if (event.target === element || held === undefined) return
             event.stopPropagation()
             decide(true)
           }

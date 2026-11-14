@@ -191,4 +191,27 @@ export default [
     ],
     tests: [followTest, rovingMark],
   })),
+  {
+    name: 'an owner between that holds nothing stops the event going further out',
+    edits: [
+      {
+        file: source,
+        find: 'if (event.target === element || held === undefined) return',
+        replace: 'if (event.target === element) return',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a blur is judged one microtask after it, before the mutation records arrive',
+    edits: [
+      {
+        file: source,
+        find: '              queueMicrotask(() => {\n                const now = held',
+        replace:
+          '              ((run: () => void) => run())(() => {\n                const now = held',
+      },
+    ],
+    tests: [browser],
+  },
 ] as const

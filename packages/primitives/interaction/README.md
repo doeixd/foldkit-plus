@@ -429,8 +429,9 @@ which moves nothing when the target is showing. It never moves when focus is
 somewhere else (the user, or an action that opened a dialog, got there first),
 and a claim ends once decided, so a part drawn later takes nothing. Owners
 nest: the innermost one decides; one with no step left sends a bubbling
-`foldkit-plus:focus-unrecovered`, and the next owner out acts for the part of
-its own that holds the inner one; with none left focus stays on `body`, and it
+`foldkit-plus:focus-unrecovered`, and the next owner out with a part of its
+own around the inner one acts for that part (an owner between with none lets
+it pass); with none left focus stays on `body`, and it
 never goes outside the owners it was in. A whole owner removed decides
 nothing; its outer owner does.
 
