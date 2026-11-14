@@ -100,7 +100,7 @@ describe('Skeleton recipe', () => {
     }
     // The lone bar's own circle, not the one a frame draws for an avatar.
     expect(css({ shape: 'circle' })).toMatch(
-      /:not\(\[aria-hidden="true"\]\)\{[^}]*border-radius:var\(--fk-radius-full\)/,
+      /\[data-lone\]\{[^}]*border-radius:var\(--fk-radius-full\)/,
     )
   })
 })

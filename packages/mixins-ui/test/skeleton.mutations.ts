@@ -87,7 +87,7 @@ export default [
     edits: [
       {
         file: recipe,
-        find: 'const lone = \'&:not([aria-hidden="true"])\'',
+        find: "const lone = '&[data-lone]'",
         replace: "const lone = '&'",
       },
     ],

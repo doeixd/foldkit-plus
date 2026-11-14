@@ -45,7 +45,13 @@ const announced = <Message>(options: Common<Message>, h: HtmlBuilder<Message>) =
 export const view = <Message = never>(
   options: SkeletonView<Message>,
   h: HtmlBuilder<Message>,
-): Html => h.div(buildersOf(options, h).bar.attrs(announced(options, h)), [])
+): Html =>
+  h.div(
+    // The recipe sizes a lone bar by this mark: an unnamed one is `aria-hidden`
+    // like the bars of a frame, so that attribute cannot tell them apart.
+    buildersOf(options, h).bar.attrs([...announced(options, h), h.DataAttribute('lone', '')]),
+    [],
+  )
 
 const whole = (count: number, what: string) => {
   if (!Number.isInteger(count) || count < 1) {
