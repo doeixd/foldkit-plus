@@ -8,7 +8,9 @@
 import { Option } from 'effect'
 import { MoveEnded, MoveStarted, Moved } from 'foldkit-primitives/dom'
 import { describe, expect, it } from 'vitest'
+import { Inert } from 'foldkit-mixins/testing'
 import { Toast } from '../src/index.js'
+import { h, message } from './fixture.js'
 
 const names = (result: { readonly commands?: ReadonlyArray<{ readonly name: string }> }) =>
   (result.commands ?? []).map(command => command.name)
@@ -154,4 +156,34 @@ describe('a swipe toward the edge', () => {
       expect(Option.isNone(away.ended.swipe)).toBe(true)
     },
   )
+})
+
+describe('the live regions', () => {
+  const regions = (model: Toast.Model) => {
+    const drawn = Toast.view({ model, onMessage: () => message('Other') }, h)
+    return {
+      status: Inert.byRole(drawn, 'status').flatMap(region =>
+        Inert.children(region).map(child => Inert.text(child)),
+      ),
+      alert: Inert.byRole(drawn, 'alert').flatMap(region =>
+        Inert.children(region).map(child => Inert.text(child)),
+      ),
+      atomic: [...Inert.byRole(drawn, 'status'), ...Inert.byRole(drawn, 'alert')].map(region =>
+        Inert.value(region, 'aria-atomic'),
+      ),
+    }
+  }
+
+  it('hold every toast added together, each apart, so a reader meets each one', () => {
+    // Two toasts in one update, and the same words twice.
+    const both = Toast.show(Toast.show(empty, { title: 'Saved' }).model, { title: 'Saved' })
+    const withError = Toast.show(both.model, { title: 'Could not sync', type: 'error' })
+    const read = regions(withError.model)
+    expect(read.status).toEqual(['Saved', 'Saved'])
+    expect(read.alert).toEqual(['Could not sync'])
+  })
+
+  it('are read a toast at a time, not whole at each change', () => {
+    expect(regions(shown.model).atomic).toEqual(['false', 'false'])
+  })
 })

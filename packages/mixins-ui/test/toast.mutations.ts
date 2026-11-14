@@ -236,4 +236,26 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'a live region holds only the newest toast',
+    edits: [
+      {
+        file,
+        find: ".map(entry => h.keyed('p')(entry.id, [], [spoken(entry)]))",
+        replace: ".slice(0, 1).map(entry => h.keyed('p')(entry.id, [], [spoken(entry)]))",
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the regions are read whole at each change',
+    edits: [
+      {
+        file,
+        find: "builders.status.attrs([h.Role('status'), h.AriaAtomic(false), h.Style(unseen)])",
+        replace: "builders.status.attrs([h.Role('status'), h.Style(unseen)])",
+      },
+    ],
+    tests: unit,
+  },
 ]

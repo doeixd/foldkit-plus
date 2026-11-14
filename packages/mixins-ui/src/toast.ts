@@ -855,11 +855,13 @@ export const view = <ParentMessage>(
   const staying = model.entries.filter(entry => !isLeaving(entry))
   const shown = new Set(staying.slice(0, model.max).map(entry => entry.id))
   const expanded = options.expand === true || model.pointer || model.focus
-  const newest = (polite: boolean) =>
-    Option.match(Option.fromNullishOr(staying.find(entry => (entry.type !== 'error') === polite)), {
-      onNone: () => [],
-      onSome: entry => [spoken(entry)],
-    })
+  // Each toast is a child of its own, so one added is a node a reader meets, even beside
+  // another added in the same update or with the same words; a region read whole at each
+  // change would say every toast again.
+  const spokenBy = (polite: boolean) =>
+    staying
+      .filter(entry => (entry.type !== 'error') === polite)
+      .map(entry => h.keyed('p')(entry.id, [], [spoken(entry)]))
   // A card's place among those staying: one leaving keeps its place while it fades, and the
   // cards behind move up at once rather than once it has gone.
   let ahead = 0
@@ -973,8 +975,14 @@ export const view = <ParentMessage>(
         placed.map(toast),
       ),
       // Always drawn, so the regions are in the page before what they announce.
-      h.div(builders.status.attrs([h.Role('status'), h.Style(unseen)]), newest(true)),
-      h.div(builders.alert.attrs([h.Role('alert'), h.Style(unseen)]), newest(false)),
+      h.div(
+        builders.status.attrs([h.Role('status'), h.AriaAtomic(false), h.Style(unseen)]),
+        spokenBy(true),
+      ),
+      h.div(
+        builders.alert.attrs([h.Role('alert'), h.AriaAtomic(false), h.Style(unseen)]),
+        spokenBy(false),
+      ),
     ],
   )
 }
