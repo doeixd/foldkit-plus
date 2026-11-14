@@ -10,6 +10,17 @@ const recipe = '../src/recipes/resizable.ts'
 
 export default [
   {
+    name: 'keyboard focus looks like a pointer rest',
+    edits: [
+      {
+        file: recipe,
+        find: 'draw.\n      focusRing,',
+        replace: "draw.\n      Style.pseudo(':focus-visible', { outline: 'none' }),",
+      },
+    ],
+    tests: [browser],
+  },
+  {
     name: 'ArrowLeft grows the first panel',
     edits: [
       {

@@ -10,7 +10,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { ResizableSlots } from '../resizable.js'
-import { component, ref, transition, travelled, variant } from './design.js'
+import { component, focusRing, ref, transition, travelled, variant } from './design.js'
 
 const vertical = '[data-orientation="vertical"]'
 const held = ':is(:hover, :active, :focus-visible)'
@@ -67,7 +67,8 @@ export const Resizable = Style.recipeFor(ResizableSlots)({
         background: ref.accent.default,
         boxShadow: `0 0 0 ${ref.border.thin} ${ref.accent.default}`,
       }),
-      Style.pseudo(':focus-visible', { outline: 'none' }),
+      // The accent line alone reads as a pointer rest; keys get the ring the others draw.
+      focusRing,
     ),
     grip: component(Style.self({ display: 'none' })),
   },
