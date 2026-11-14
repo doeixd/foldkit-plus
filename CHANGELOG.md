@@ -109,8 +109,10 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-remote-domain/testing`: `Fixture.make(Api, { model, handlers?,
   middleware?, bindings, given?, as?, headers?, through? })` hosts a Domain model
   in memory with every View delivery held until `drain`, commits the `given`
-  Events, calls as `as`, and answers `RemoteClient` and the Api's
-  client, for client tests with no server (#544). A test over `Domain.protocolHttp`
+  Events, calls as `as` (its headers added to a call's own, which win), and
+  answers `RemoteClient` and the Api's client, for client tests with no server
+  (#544); its `layer` requires what the Api's client needs that nothing hosted
+  provides, such as a session middleware left out. A test over `Domain.protocolHttp`
   from a local Node server shows a reply lost after the commit reading
   `RemoteUnreachable`, and a trace spanning Remote's mutation, the adapter's call
   and Domain's `decide`. The package README is rewritten around who owns what,

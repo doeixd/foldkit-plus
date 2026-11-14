@@ -135,4 +135,16 @@ describe('Fixture.make', () => {
     )
     expect(first).toMatchObject({ ownerId: 'ada', reserved: 3 })
   })
+
+  it('keeps a call’s own headers beside the actor’s', async () => {
+    const shop = fixture()
+    const state = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* shop.drain
+        const client = yield* ShopApi.Client
+        return (yield* client.ProductRow.snapshot('p1', { headers: { 'x-actor': 'ada' } })).state
+      }).pipe(Effect.scoped, Effect.provide(shop.layer)),
+    )
+    expect(state).toMatchObject({ ownerId: 'ada', reserved: 3 })
+  })
 })

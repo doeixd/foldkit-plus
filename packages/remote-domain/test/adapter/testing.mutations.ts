@@ -1,6 +1,8 @@
 /**
  * The fixture's seeding, holding and headers, broken in turn:
  * `pnpm mutate packages/remote-domain/test/adapter/testing.mutations.ts`.
+ * What its layer requires (`Unmet`) is a type, held by `test/types.test-d.ts`,
+ * which `tsc -b` checks.
  */
 const tests = ['packages/remote-domain/test/adapter/testing.test.ts']
 
@@ -26,8 +28,19 @@ export default [
     edits: [
       {
         file: '../../src/testing.ts',
-        find: 'next[at] = { ...(next[at] as object | undefined), headers }',
-        replace: 'next[at] = next[at]',
+        find: 'headers: { ...headers, ...options?.headers } }',
+        replace: 'headers: { ...options?.headers } }',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a call’s own headers are replaced by the actor’s',
+    edits: [
+      {
+        file: '../../src/testing.ts',
+        find: 'headers: { ...headers, ...options?.headers } }',
+        replace: 'headers }',
       },
     ],
     tests,

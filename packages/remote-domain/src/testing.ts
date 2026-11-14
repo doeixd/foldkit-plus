@@ -7,7 +7,7 @@
 import * as Model from '@alchemy.run/domain/Model'
 import * as InMemory from '@alchemy.run/domain/InMemory'
 import type { RemoteClient } from 'foldkit-remote'
-import { Context, Effect, identity, Layer, Option, Ref, Stream } from 'effect'
+import { Context, Effect, identity, Layer, Option, Ref, type Scope, Stream } from 'effect'
 import type { AnyApi } from './adapter/binding.js'
 import { DomainRemote, type LayerConfig } from './index.js'
 
@@ -61,6 +61,23 @@ type ClientIdentifier<A extends HostedApi> =
 
 type Client<A extends HostedApi> = Effect.Success<A['clientInProcess']>
 
+/** What the hosted model provides: its aggregates' and views' services, and its internals. */
+type ModelServices<M extends HostedModel> = Layer.Success<ReturnType<M['layer']>>
+
+/**
+ * What the Api's in-process client needs that neither the hosted model nor the
+ * middleware provides (the model's own needs are the in-memory platform's):
+ * a session middleware left out, say.
+ */
+type Unmet<
+  A extends HostedApi,
+  M extends HostedModel,
+  W extends Layer.Layer<never, never, never>,
+> = Exclude<
+  Effect.Services<A['clientInProcess']>,
+  Scope.Scope | ModelServices<M> | Layer.Success<W>
+>
+
 /**
  * What a fixture offers: `layer` answers `RemoteClient` and the Api's own
  * client; `drain` lets every held View delivery through; `commits`
@@ -73,7 +90,9 @@ export interface Fixture<
   W extends Layer.Layer<never, never, never> = Layer.Layer<never>,
 > {
   readonly layer: Layer.Layer<
-    RemoteClient | ClientIdentifier<A> | Layer.Success<ReturnType<M['layer']>> | Layer.Success<W>
+    RemoteClient | ClientIdentifier<A> | ModelServices<M> | Layer.Success<W>,
+    never,
+    Unmet<A, M, W>
   >
   readonly drain: Effect.Effect<void>
   readonly commits: () => InMemory.Control['commits']
@@ -101,12 +120,16 @@ const make = <
     Option.match({ onNone: (): Headers => ({}), onSome: headersOf }),
   )
 
-  /** Calls `call` with the actor's headers in its options, which sit at index `at` of its arguments. */
+  /**
+   * Calls `call` with the actor's headers in its options, which sit at index
+   * `at` of its arguments, beside the call's own headers, which win.
+   */
   const withHeaders = (at: number, stream: boolean, call: Call): Call => {
     const send = (args: ReadonlyArray<unknown>, headers: Headers) => {
       const next = [...args]
       next.length = Math.max(next.length, at + 1)
-      next[at] = { ...(next[at] as object | undefined), headers }
+      const options = next[at] as { readonly headers?: Headers } | undefined
+      next[at] = { ...options, headers: { ...headers, ...options?.headers } }
       return call(...next)
     }
     return (...args) =>
@@ -168,7 +191,8 @@ const make = <
     Layer.provideMerge(hosted),
   )
 
-  // The layers' requirements are `any` where the model and middleware are typed loosely: what is left is provided above.
+  // The layers here are `any` where the Api and model are typed loosely; `Unmet` reads what is
+  // left off their own types.
   return {
     layer: layer as Fixture<A, M, W>['layer'],
     drain: control.drain,

@@ -104,7 +104,8 @@ that is not a number; only `layer` does anything, once the Api's client is provi
 - **`Imported` (`/imported`)** declares a command with no `Write` (`mutation`, with a `Derived`, `Declared` or `Unknown`
   footprint), `describe`s what is imported, and `show`s it as Markdown.
 - **`Fixture.make` (`/testing`)** hosts the model in memory with deliveries held until `drain`, seeds `given` Events,
-  calls as `as`, and answers `RemoteClient` for client tests.
+  calls as `as` (its headers added to a call's own, which win), and answers `RemoteClient` for client tests; its
+  `layer` requires what the Api's client needs that nothing hosted provides (a session middleware left out).
 - **Scenarios.** `examples/writes-domain` runs one `Scenario` of `foldkit-remote/testing` on SQLite, in memory and on the
   Domain model.
 

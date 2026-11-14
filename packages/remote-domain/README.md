@@ -293,7 +293,8 @@ const read = Effect.gen(function* () {
 `shop.commits()` lists the Events commands committed (seeded Events are not
 commands); `shop.as` is who the calls are made as, for a model with middleware
 that reads the call's headers (`as`, `headers`, `middleware` and `handlers` are
-its options). `through` wraps the Api's client after the actor's headers are
+its options). The actor's headers are added to a call's own, which win on a
+name both give. `through` wraps the Api's client after the actor's headers are
 attached, to hold a reply back or lose it after the command ran; this package's
 own ordering tests use it.
 
