@@ -42,6 +42,7 @@ const keptFrom = async (
  */
 const cases: ReadonlyArray<readonly [name: string, page: string]> = [
   ['mixins', `import { Behaviors } from 'pkg'\nexport const used = Behaviors.Disclosure`],
+  ['metadata', `import { Metadata } from 'pkg'\nexport const used = Metadata.combine`],
   ['bundle', `import { Resource } from 'pkg'\nexport const used = Resource.lazy`],
   ['media', `import { Icon } from 'pkg'\nexport const used = Icon.draw`],
   ['entity', `import { Collation } from 'pkg'\nexport const used = Collation.binary`],
@@ -87,3 +88,23 @@ test.each(cases)(
   },
   120_000,
 )
+
+/**
+ * The size check above catches Evidence linked into the entry; this one, a
+ * module of the source that keeps Evidence (an import run for its effect),
+ * which both builds would keep alike. `pnpm mutate` cannot edit what tsdown
+ * and this build read from the disk, so it was broken by hand: an
+ * `Evidence.issuedBy` call at the top of `src/index.ts` turned it red.
+ */
+test('a page reading only Metadata keeps no Evidence module, built or source', async () => {
+  const root = scratchIn('metadata', 'published-')
+  made.push(root)
+  const page = cases.find(([name]) => name === 'metadata')![1]
+  const kept = async (entry: string) =>
+    (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+  const built = await kept(await buildPublished('metadata', root))
+  const source = await kept(join(packages, 'metadata', 'src', 'index.ts'))
+  expect(built.some(id => id.endsWith('/dist/index.js'))).toBe(true)
+  expect(source.some(id => id.endsWith('/metadata/src/index.ts'))).toBe(true)
+  expect([...built, ...source].filter(id => /\/evidence\.(js|ts)$/.test(id))).toEqual([])
+}, 120_000)
