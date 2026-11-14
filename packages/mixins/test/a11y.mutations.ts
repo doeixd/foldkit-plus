@@ -7,7 +7,8 @@
  * a `detach` keeping what the view supplied each leave its negative cases
  * unused; so do a bivariant `ProvidesRecord` (the annotations claiming more)
  * and a `ProvidedOn` reading `Obligation<string>` (the unknown obligation),
- * and a `ProvidesOf` reading nothing fails the inferred binder cases.
+ * and a `ProvidesOf` reading nothing fails the inferred binder cases. A
+ * `Pipeable` typed to eight steps fails the eleven-step case.
  */
 const unit = ['packages/mixins/test/a11y.test.ts']
 

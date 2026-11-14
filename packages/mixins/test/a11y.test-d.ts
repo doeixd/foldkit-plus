@@ -133,8 +133,7 @@ pipe(
   // @ts-expect-error what a detached attachment supplied is not known, so nothing is.
   A11y.conform(Listbox),
 )
-// And through the view's own `pipe`. Its catch-all, for a spread array of transforms, reads a
-// refused call's every step as the view it was called on, which supplies nothing here.
+// And through the view's own `pipe`, where the view it was called on supplies nothing either.
 bare.pipe(
   Behavior.attach(Nav),
   Behavior.attach(Picks),
@@ -253,5 +252,35 @@ Assembled.pipe(
   Behavior.attach(Nav),
   Behavior.attach(Picks),
   SlotView.attach(Named),
+  A11y.conform(Listbox),
+)
+
+// A view that supplies everything, a detach of what supplied navigation, and `conform`: refused,
+// though the view it was called on would conform. The view's own `pipe` names the step that
+// took the supplies away; Effect's names the `conform`.
+Conforming.pipe(
+  // @ts-expect-error listbox/navigation went with Nav.
+  SlotView.detach('Nav'),
+  A11y.conform(Listbox),
+)
+pipe(
+  Conforming,
+  SlotView.detach('Nav'),
+  // @ts-expect-error listbox/navigation went with Nav.
+  A11y.conform(Listbox),
+)
+// The view's own `pipe` keeps what each step supplies past eight steps.
+bare.pipe(
+  Style.attach(Look),
+  Style.attach(Look),
+  Style.attach(Look),
+  Style.attach(Look),
+  Style.attach(Look),
+  Style.attach(Look),
+  Behavior.attach(Nav),
+  Behavior.attach(Picks),
+  SlotView.attach(Named),
+  Style.attach(Look),
+  Style.attach(Look),
   A11y.conform(Listbox),
 )

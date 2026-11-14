@@ -62,7 +62,7 @@ version changed; `pnpm` skips versions already in the registry.
   fourth type parameter, what they supply (default `never`), which a binder's
   `behavior` reads from each slot's `provides` (`Behavior.ProvidesOf`) and an
   annotation may forget but never widen, and a SlotView's
-  own `pipe` types up to eight steps that change it; `Attr.AriaChecked` is
+  own `pipe` types up to twenty steps that change it; `Attr.AriaChecked` is
   new. `foldkit-primitives`: `ListNavigation`, `RovingTabindex`,
   `TreeNavigation`, `GridNavigation`, `Selection` and `Press`, and
   `Behaviors.ToggleState`, `Disclosure` and `FieldAssociation`, supply theirs,

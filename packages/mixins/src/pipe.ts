@@ -3,13 +3,12 @@ export const pipeSelf = (self: unknown, fns: ReadonlyArray<(value: any) => any>)
   fns.reduce((acc, fn) => fn(acc), self)
 
 /**
- * Typed steps first, as Effect's `pipe`, so a step that changes the type (an
- * attachment that supplies obligations) keeps the change. The catch-all of
- * `(self: Self) => Self` comes last, for a spread array of transforms; when
- * the typed steps refuse a call it reads every step as `Self`, so on a view
- * that already supplies an obligation, a `detach` and an `A11y.conform` in one
- * call judge the view before the detach (the run-time check still refuses
- * it). Effect's `pipe` has no catch-all.
+ * Typed steps first, to twenty as Effect's `pipe`, so a step that changes the
+ * type (an attachment that supplies obligations) keeps the change. The
+ * catch-all of `(self: Self) => Self` comes last, for a spread array of
+ * transforms. A view's supplies are contravariant, so a step that supplies
+ * less than `Self` (a `SlotView.detach`) fails the catch-all, and a call the
+ * typed steps refuse is refused there too, at that step.
  */
 export type Pipeable<Self> = {
   pipe(): Self
@@ -51,5 +50,203 @@ export type Pipeable<Self> = {
     gh: (f: F) => G,
     hi: (g: G) => H,
   ): H
+  pipe<A, B, C, D, E, F, G, H, I>(
+    ab: (self: Self) => A,
+    bc: (a: A) => B,
+    cd: (b: B) => C,
+    de: (c: C) => D,
+    ef: (d: D) => E,
+    fg: (e: E) => F,
+    gh: (f: F) => G,
+    hi: (g: G) => H,
+    ij: (h: H) => I,
+  ): I
+  pipe<A, B, C, D, E, F, G, H, I, J>(
+    ab: (self: Self) => A,
+    bc: (a: A) => B,
+    cd: (b: B) => C,
+    de: (c: C) => D,
+    ef: (d: D) => E,
+    fg: (e: E) => F,
+    gh: (f: F) => G,
+    hi: (g: G) => H,
+    ij: (h: H) => I,
+    jk: (i: I) => J,
+  ): J
+  pipe<A, B, C, D, E, F, G, H, I, J, K>(
+    ab: (self: Self) => A,
+    bc: (a: A) => B,
+    cd: (b: B) => C,
+    de: (c: C) => D,
+    ef: (d: D) => E,
+    fg: (e: E) => F,
+    gh: (f: F) => G,
+    hi: (g: G) => H,
+    ij: (h: H) => I,
+    jk: (i: I) => J,
+    kl: (j: J) => K,
+  ): K
+  pipe<A, B, C, D, E, F, G, H, I, J, K, L>(
+    ab: (self: Self) => A,
+    bc: (a: A) => B,
+    cd: (b: B) => C,
+    de: (c: C) => D,
+    ef: (d: D) => E,
+    fg: (e: E) => F,
+    gh: (f: F) => G,
+    hi: (g: G) => H,
+    ij: (h: H) => I,
+    jk: (i: I) => J,
+    kl: (j: J) => K,
+    lm: (k: K) => L,
+  ): L
+  pipe<A, B, C, D, E, F, G, H, I, J, K, L, M>(
+    ab: (self: Self) => A,
+    bc: (a: A) => B,
+    cd: (b: B) => C,
+    de: (c: C) => D,
+    ef: (d: D) => E,
+    fg: (e: E) => F,
+    gh: (f: F) => G,
+    hi: (g: G) => H,
+    ij: (h: H) => I,
+    jk: (i: I) => J,
+    kl: (j: J) => K,
+    lm: (k: K) => L,
+    mn: (l: L) => M,
+  ): M
+  pipe<A, B, C, D, E, F, G, H, I, J, K, L, M, N>(
+    ab: (self: Self) => A,
+    bc: (a: A) => B,
+    cd: (b: B) => C,
+    de: (c: C) => D,
+    ef: (d: D) => E,
+    fg: (e: E) => F,
+    gh: (f: F) => G,
+    hi: (g: G) => H,
+    ij: (h: H) => I,
+    jk: (i: I) => J,
+    kl: (j: J) => K,
+    lm: (k: K) => L,
+    mn: (l: L) => M,
+    no: (m: M) => N,
+  ): N
+  pipe<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O>(
+    ab: (self: Self) => A,
+    bc: (a: A) => B,
+    cd: (b: B) => C,
+    de: (c: C) => D,
+    ef: (d: D) => E,
+    fg: (e: E) => F,
+    gh: (f: F) => G,
+    hi: (g: G) => H,
+    ij: (h: H) => I,
+    jk: (i: I) => J,
+    kl: (j: J) => K,
+    lm: (k: K) => L,
+    mn: (l: L) => M,
+    no: (m: M) => N,
+    op: (n: N) => O,
+  ): O
+  pipe<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P>(
+    ab: (self: Self) => A,
+    bc: (a: A) => B,
+    cd: (b: B) => C,
+    de: (c: C) => D,
+    ef: (d: D) => E,
+    fg: (e: E) => F,
+    gh: (f: F) => G,
+    hi: (g: G) => H,
+    ij: (h: H) => I,
+    jk: (i: I) => J,
+    kl: (j: J) => K,
+    lm: (k: K) => L,
+    mn: (l: L) => M,
+    no: (m: M) => N,
+    op: (n: N) => O,
+    pq: (o: O) => P,
+  ): P
+  pipe<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q>(
+    ab: (self: Self) => A,
+    bc: (a: A) => B,
+    cd: (b: B) => C,
+    de: (c: C) => D,
+    ef: (d: D) => E,
+    fg: (e: E) => F,
+    gh: (f: F) => G,
+    hi: (g: G) => H,
+    ij: (h: H) => I,
+    jk: (i: I) => J,
+    kl: (j: J) => K,
+    lm: (k: K) => L,
+    mn: (l: L) => M,
+    no: (m: M) => N,
+    op: (n: N) => O,
+    pq: (o: O) => P,
+    qr: (p: P) => Q,
+  ): Q
+  pipe<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R>(
+    ab: (self: Self) => A,
+    bc: (a: A) => B,
+    cd: (b: B) => C,
+    de: (c: C) => D,
+    ef: (d: D) => E,
+    fg: (e: E) => F,
+    gh: (f: F) => G,
+    hi: (g: G) => H,
+    ij: (h: H) => I,
+    jk: (i: I) => J,
+    kl: (j: J) => K,
+    lm: (k: K) => L,
+    mn: (l: L) => M,
+    no: (m: M) => N,
+    op: (n: N) => O,
+    pq: (o: O) => P,
+    qr: (p: P) => Q,
+    rs: (q: Q) => R,
+  ): R
+  pipe<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S>(
+    ab: (self: Self) => A,
+    bc: (a: A) => B,
+    cd: (b: B) => C,
+    de: (c: C) => D,
+    ef: (d: D) => E,
+    fg: (e: E) => F,
+    gh: (f: F) => G,
+    hi: (g: G) => H,
+    ij: (h: H) => I,
+    jk: (i: I) => J,
+    kl: (j: J) => K,
+    lm: (k: K) => L,
+    mn: (l: L) => M,
+    no: (m: M) => N,
+    op: (n: N) => O,
+    pq: (o: O) => P,
+    qr: (p: P) => Q,
+    rs: (q: Q) => R,
+    st: (r: R) => S,
+  ): S
+  pipe<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T>(
+    ab: (self: Self) => A,
+    bc: (a: A) => B,
+    cd: (b: B) => C,
+    de: (c: C) => D,
+    ef: (d: D) => E,
+    fg: (e: E) => F,
+    gh: (f: F) => G,
+    hi: (g: G) => H,
+    ij: (h: H) => I,
+    jk: (i: I) => J,
+    kl: (j: J) => K,
+    lm: (k: K) => L,
+    mn: (l: L) => M,
+    no: (m: M) => N,
+    op: (n: N) => O,
+    pq: (o: O) => P,
+    qr: (p: P) => Q,
+    rs: (q: Q) => R,
+    st: (r: R) => S,
+    tu: (s: S) => T,
+  ): T
   pipe(...fns: ReadonlyArray<(self: Self) => Self>): Self
 }
