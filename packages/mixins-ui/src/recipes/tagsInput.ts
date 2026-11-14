@@ -21,6 +21,7 @@ import {
   transition,
   travelled,
   unfilledHover,
+  controlHeight,
 } from './design.js'
 
 const swing = (first: string, second: string) =>
@@ -99,7 +100,7 @@ export const TagsInput = Style.recipeFor(TagsInputSlots)({
         flexWrap: 'wrap',
         alignItems: 'center',
         gap: '0.35rem',
-        minBlockSize: ladder('height'),
+        minBlockSize: controlHeight,
         paddingBlock: '0.25rem',
         paddingInline: ladder('pad'),
         border: `${ref.border.thin} solid ${ref.outline.default}`,
