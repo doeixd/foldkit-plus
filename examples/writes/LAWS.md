@@ -24,3 +24,16 @@ Sell      x reservedWithinStock       undecided: stock is incremented
 Sell      x publishedStaysPublished   kept: 3 rows enumerated
 Sell      x becomes:InStock           undecided: stock is incremented
 ```
+
+## Evidence
+
+What keeps each law against each write that can break it, as `Module.toMarkdown`
+says with the evidence `test/shop.ts` gathers: the check's records, the walk of
+`Sell` and `Restock` through the server, and one line for the refused revert.
+
+| Law | Transition | Evidence |
+| --- | --- | --- |
+| Product.reservedWithinStock | write:Restock | walked: 12 seeds of 15 steps from stocked, all reserved, empty |
+| Product.reservedWithinStock | write:Sell | walked: 12 seeds of 15 steps from stocked, all reserved, empty |
+| Product.publishedStaysPublished | write:Publish | enumerated |
+| Product.publishedStaysPublished | write:Revert | runtime only: Laws.check finds Published -> Draft refused: the writer refuses such a revert where it commits, as Invalid publishedStaysPublished |
