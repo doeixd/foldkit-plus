@@ -71,6 +71,10 @@ export interface EditableForm<
   readonly input: EntityInput<E, Fields, Members>
   readonly initial: FormModel
   readonly fill: (model: FormModel, values: Partial<Value>) => { readonly model: FormModel }
+  readonly over: (
+    model: FormModel,
+    row: Readonly<Record<string, unknown>>,
+  ) => { readonly model: FormModel }
   readonly authoredChanged: (before: FormModel, after: FormModel) => boolean
   readonly controls: ReadonlyArray<FormControl>
   readonly Message: {
@@ -939,9 +943,15 @@ export const Crud = {
       },
     })
 
-    // What is loaded: what the form writes, and what `locks` reads beside it,
-    // which the form never fills from.
-    const current = Entity.selectFor(form.input, { also: locks?.select })
+    // What is loaded: what the form writes, what its invariants read beside it
+    // (so the form judges them over the row), and what `locks` reads; the form
+    // fills from none of those.
+    const current = Entity.selectFor(form.input, {
+      also: { ...Entity.judgedBy(form.input), ...locks?.select },
+    })
+    /** The row a loaded value describes, as the form judges invariants over it. */
+    const rowOf = (value: Readonly<Record<string, unknown>>) =>
+      Entity.rowFrom(form.input.entity, value)
     type Row = (typeof current)['schema']['Type']
     /** The member each form key writes: a field's own key, or the relation it points. */
     const writes: ReadonlyArray<readonly [keyof Fields & string, string]> = Object.entries(
@@ -1036,7 +1046,7 @@ export const Crud = {
           const values = Entity.valuesFor(form.input, value) as Partial<Value>
           return slice.set(root, {
             ...editor,
-            form: form.fill(editor.form, values).model,
+            form: form.over(form.fill(editor.form, values).model, rowOf(value)).model,
             filled: true,
             filledWith: Option.some(values),
           })
@@ -1112,14 +1122,19 @@ export const Crud = {
               onSome: value => ({ [expectKey!]: value }),
             }),
           })
+          const answered = Option.match(revision, {
+            onNone: () => editor.form,
+            onSome: value =>
+              form.fill(editor.form, { [expectKey!]: value } as Partial<Value>).model,
+          })
           return slice.set(root, {
             ...editor,
             settledFor,
             filledWith,
-            form: Option.match(revision, {
-              onNone: () => editor.form,
-              onSome: value =>
-                form.fill(editor.form, { [expectKey!]: value } as Partial<Value>).model,
+            // The row the form edits is now the one its save left.
+            form: Option.match(known(root), {
+              onNone: () => answered,
+              onSome: value => form.over(answered, rowOf(value)).model,
             }),
           })
         }
