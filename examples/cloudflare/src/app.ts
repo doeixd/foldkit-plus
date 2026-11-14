@@ -15,6 +15,7 @@ import { Crud } from 'foldkit-crud'
 import { Style } from 'foldkit-mixins'
 import { FormView } from 'foldkit-mixins-form'
 import { Remote, type RemoteClient } from 'foldkit-remote'
+import { liveQuery } from 'foldkit-remote/live'
 import { persistence } from 'foldkit-remote/persistence'
 import { modifyFields } from 'foldkit/struct'
 import { Surface } from 'foldkit-surface'
@@ -104,7 +105,7 @@ const Listed = Crud.list('Todos', {
   pageSize: TODO_PAGE_SIZE,
   // Another tab's row joins or leaves while the list is shown. The read does
   // not change with a local edit, so the stream stays open across one.
-  live: true,
+  live: liveQuery,
 })
 export type TodoItem = typeof Listed.Row
 export const Todos = Listed.at({

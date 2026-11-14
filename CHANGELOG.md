@@ -464,6 +464,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Breaking:** `foldkit-crud`: `Crud.list`'s `live` takes Remote's live read,
+  not a flag: write `live: liveQuery` (from `foldkit-remote/live`) where
+  `live: true` was. Crud imported `liveQuery` itself for the flag, so every
+  page drawing a list kept Remote's live modules whether it read live or not;
+  a page that passes no `live` now keeps none of them.
+
 - **Breaking:** `foldkit-mixins`: a view's `pipe` (and a Slot's and a knob
   theme's) takes typed steps only, and no spread array. The catch-all that
   took one was the overload TypeScript reported when the typed steps refused

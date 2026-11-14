@@ -6,6 +6,7 @@ import { ConnectionChange, Query, Remote, RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Crud } from '../src/index.js'
+import { liveQuery } from 'foldkit-remote/live'
 import { overlay } from 'foldkit-remote/overlay'
 
 const Author = Entity.define(
@@ -121,7 +122,7 @@ describe('Crud.list', () => {
     const Watched = Crud.list('Watched', {
       query: AuthorsQuery,
       selection: Entity.select(Blog.Author, { name: true }),
-      live: true,
+      live: liveQuery,
     }).at({ data: Data, input: () => Option.some({ search: 'a' }) })
     const entries = Data.subscriptions({ watched: Watched.active, still: AuthorList.active })
     const searching = { ...initial, search: 'a' }

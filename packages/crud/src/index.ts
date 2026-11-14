@@ -38,7 +38,7 @@ import {
   type RemoteError,
   type RemoteMessage,
 } from 'foldkit-remote'
-import { liveQuery } from 'foldkit-remote/live'
+import type { liveQuery } from 'foldkit-remote/live'
 import { ModelRef, Projection, type ActiveSurface } from 'foldkit-surface'
 import { define as defineCommand, type Command } from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
@@ -531,8 +531,12 @@ export const Crud = {
       readonly selection: Selection<EntityName, Members, S>
       /** How many rows a page holds. Default 25. */
       readonly pageSize?: number
-      /** Watch the list live while it is shown (`liveQuery` from `foldkit-remote/live`). */
-      readonly live?: boolean
+      /**
+       * Watch the list live while it is shown: pass `liveQuery` from
+       * `foldkit-remote/live`. The caller hands it over so that a page reading
+       * no list live keeps none of Remote's live modules.
+       */
+      readonly live?: typeof liveQuery
       /**
        * How a row reads as a choice in a relation picker: its id, and the words
        * that identify it to a person. Give it to a list that feeds pickers.
@@ -543,7 +547,7 @@ export const Crud = {
       }
     },
   ) => {
-    const { query, selection, pageSize = 25, live = false, choice } = config
+    const { query, selection, pageSize = 25, live, choice } = config
     const columns = columnsOf(selection)
 
     return {
@@ -565,9 +569,9 @@ export const Crud = {
         const { data, input } = where
         const projectionOf = (root: Root) =>
           Option.map(input(root), value =>
-            live
-              ? liveQuery<Root>(data, query, value, { select: selection, first: pageSize })
-              : data.query(query, value, { select: selection, first: pageSize }),
+            live === undefined
+              ? data.query(query, value, { select: selection, first: pageSize })
+              : live<Root>(data, query, value, { select: selection, first: pageSize }),
           )
         const page = (root: Root): RemoteData<Page<S['Type']>> =>
           Option.match(projectionOf(root), {
