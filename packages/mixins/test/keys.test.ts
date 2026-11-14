@@ -95,6 +95,29 @@ describe('a chord', () => {
     expect(diagnostic.message).toBe(message)
   })
 
+  it.each([
+    ['a', 'A'],
+    ['é', 'É'],
+  ])('refuses shift on %j, naming %j', (key, upper) => {
+    const diagnostic = diagnosticOf(() => Keys.chord(key, { shift: true }))
+    expect(diagnostic).toMatchObject({ code: 'mixins:unknown-key', details: { key } })
+    expect(diagnostic.message).toContain(`Keys.chord('${upper}', { shift: true })`)
+  })
+
+  it.each([
+    ['A', { shift: true }, 'A', { shiftKey: true }, true],
+    ['A', { shift: true }, 'A', {}, false],
+    ['a', { shift: false }, 'a', {}, true],
+    ['1', { shift: true }, '1', { shiftKey: true }, true],
+  ] as const)(
+    'chord(%j, %j) takes the press %j with %j: %s',
+    (key, modifiers, pressed, held, takes) => {
+      expect(answered([routeOf('R', [Keys.chord(key, modifiers)])], pressed, held)).toBe(
+        takes ? 'R' : null,
+      )
+    },
+  )
+
   it('takes one character, astral ones included, and a named key', () => {
     expect([Keys.chord('a'), Keys.chord('😀'), Keys.chord('Escape')].map(Keys.describe)).toEqual([
       'a',
@@ -112,7 +135,7 @@ describe('a chord', () => {
     ['Tab', { shift: true }, 'Tab', { shiftKey: true }, true],
     ['?', {}, '?', { shiftKey: true }, true],
     ['?', {}, '?', {}, true],
-    ['a', { shift: false }, 'a', { shiftKey: true }, false],
+    ['?', { shift: false }, '?', { shiftKey: true }, false],
     ['a', {}, 'a', { metaKey: true }, false],
     ['a', {}, 'A', { shiftKey: true }, false],
   ] as const)('chord(%j, %j) on %j with %j: %s', (key, modifiers, pressed, held, takes) => {
@@ -181,8 +204,8 @@ describe('two routes declaring one press', () => {
     ['one key under other modifiers', Keys.chord('Escape'), Keys.chord('Escape', { alt: true })],
     [
       'a character shifted and not',
-      Keys.chord('a', { shift: false }),
-      Keys.chord('a', { shift: true }),
+      Keys.chord('?', { shift: false }),
+      Keys.chord('?', { shift: true }),
     ],
     ['two predicates', Keys.where(() => true), Keys.where(() => true)],
   ])('%s do not', (_, a, b) => {

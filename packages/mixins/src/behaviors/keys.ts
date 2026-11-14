@@ -13,6 +13,10 @@
  * reads `defaultPrevented`; a held key runs its route on every repeat, since a
  * handler is not told `repeat` (guard a once-only route in `update`).
  *
+ * A chord matches the `key` a press reports, which a modifier can change:
+ * Shift+a reports 'A' (write `chord('A')`), and on macOS Alt changes it too
+ * (Alt+a reports 'å'), so `chord('a', { alt: true })` does not fire there.
+ *
  * Two attachments that both write `keydown` on one slot still fail
  * `mixins:event-conflict`; fold their keys into one `behavior` instead.
  * Observing a key without owning it is a Subscription
@@ -197,7 +201,8 @@ const fail = (
  * A key with its modifiers, each `false` unless given, except that a
  * character chord that does not state `shift` takes the character however it
  * was typed. A `key` longer than one character must be a named key of the UI
- * Events specification (`Keys.chord('Esc')` throws `mixins:unknown-key`).
+ * Events specification (`Keys.chord('Esc')` throws `mixins:unknown-key`), and
+ * `shift: true` on a lowercase letter throws it too: write `chord('A')`.
  */
 export const chord = <const K extends string>(
   key: KeyName<K>,
@@ -217,6 +222,14 @@ export const chord = <const K extends string>(
             meant,
             { onNone: () => '', onSome: name => `; did you mean "${name}"?` },
           )}`,
+      { key },
+    )
+  }
+  const upper = key.toUpperCase()
+  if (modifiers.shift === true && upper !== key && isCharacter(upper)) {
+    fail(
+      'mixins:unknown-key',
+      `Shift+${key} reports the key "${upper}", so this chord would fire only under CapsLock: write Keys.chord('${upper}', { shift: true }), or Keys.chord('${upper}') to take it however it was typed`,
       { key },
     )
   }

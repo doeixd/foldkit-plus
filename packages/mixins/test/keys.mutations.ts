@@ -7,6 +7,17 @@ const file = '../src/behaviors/keys.ts'
 
 export default [
   {
+    name: 'a lowercase letter with shift: true is accepted',
+    edits: [
+      {
+        file,
+        find: 'modifiers.shift === true && upper !== key',
+        replace: 'false && upper !== key',
+      },
+    ],
+    tests: unit,
+  },
+  {
     name: "the declared route's answer does not end the press",
     edits: [{ file, find: '    if (Option.isSome(answered)) return answered\n', replace: '' }],
     tests: unit,
