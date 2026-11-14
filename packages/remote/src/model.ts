@@ -743,13 +743,7 @@ export type RemoteMessage =
        */
       readonly select?: RelationRequirement | undefined
       /** The selected fields of the page's items, as a read batch returns them. */
-      readonly entities?:
-        | ReadonlyArray<{
-            readonly entity: string
-            readonly id: string
-            readonly values: Record<string, unknown>
-          }>
-        | undefined
+      readonly entities?: ReadonlyArray<Schema.Schema.Type<typeof NormalizedEntity>> | undefined
       /** Fields asked for that the server settled without a value. */
       readonly settled?:
         | ReadonlyArray<{
