@@ -848,7 +848,9 @@ describe('defineDocumentHost with reactions', () => {
     // than the 800ms below, the alarm had passed, and the host rightly
     // replaced it, so the test read the clock rather than the rule.
     vi.useFakeTimers({ toFake: ['Date'] })
-    onTestFinished(() => vi.useRealTimers())
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
     const file = notesFile()
     const storage = alarmStorage()
     // Sooner than the second the host would set after a commit.
