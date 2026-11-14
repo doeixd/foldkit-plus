@@ -182,8 +182,8 @@ export default [
     edits: [
       {
         file: '../src/sheet.ts',
-        find: 'dialogStep(model, UiDialog.open(model.dialog), { at: model.opensAt })',
-        replace: 'dialogStep(model, UiDialog.open(model.dialog))',
+        find: 'dialogStep(model, openDialog(model.dialog, dialogOptions(model)), { at: model.opensAt })',
+        replace: 'dialogStep(model, openDialog(model.dialog, dialogOptions(model)))',
       },
     ],
     tests: [unit],
