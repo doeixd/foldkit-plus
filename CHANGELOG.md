@@ -42,8 +42,9 @@ version changed; `pnpm` skips versions already in the registry.
   type error naming each missing `slot/obligation`, throws the first finding
   where the module loads, and returns a view whose `SlotView.detach` and
   `SlotView.replace` are checked again. `SlotView` and `NamedBehavior` take a
-  fourth type parameter, what they supply (default `never`); `Attr.AriaChecked`
-  is new. `foldkit-primitives`: `ListNavigation`, `RovingTabindex`,
+  fourth type parameter, what they supply (default `never`), and a SlotView's
+  own `pipe` types up to eight steps that change it; `Attr.AriaChecked` is
+  new. `foldkit-primitives`: `ListNavigation`, `RovingTabindex`,
   `TreeNavigation`, `GridNavigation`, `Selection` and `Press`, and
   `Behaviors.ToggleState`, `Disclosure` and `FieldAssociation`, supply theirs,
   stated in their type on the binder overload. `foldkit-mixins-ui`:
@@ -376,11 +377,6 @@ version changed; `pnpm` skips versions already in the registry.
   `refused` ("The column's series gave no text here"), not padded.
 
 ### Changed
-
-- `foldkit-mixins`: a `pipe` on a SlotView, Slot or knob theme takes up to
-  eight typed steps and no longer a longer list of steps of one type: a step
-  that changes what a view supplies (#552) would have been read back as the
-  view before it. Split a longer chain, or use Effect's `pipe`.
 
 - `foldkit-primitives`: `DismissLayer` hears Escape in the bubble phase and
   skips one whose `defaultPrevented` is set, so an input inside a layer that

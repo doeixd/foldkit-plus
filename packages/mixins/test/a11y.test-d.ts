@@ -131,6 +131,17 @@ bare.pipe(
 )
 // @ts-expect-error a bare view supplies nothing.
 A11y.conform(Listbox)(bare)
+pipe(
+  bare,
+  Behavior.attach(Nav),
+  Behavior.attach(Picks),
+  SlotView.attach(Named),
+  SlotView.detach('Clears'),
+  // @ts-expect-error what a detached attachment supplied is not known, so nothing is.
+  A11y.conform(Listbox),
+)
+// And through the view's own `pipe`. Its catch-all, for a spread array of transforms, reads a
+// refused call's every step as the view it was called on, which supplies nothing here.
 bare.pipe(
   Behavior.attach(Nav),
   Behavior.attach(Picks),
