@@ -15,6 +15,7 @@ export const SwitchSlots = Slots.define({
       Attr.AriaChecked,
       Attr.AriaLabelledby,
       Attr.AriaDisabled,
+      Attr.AriaInvalid,
       Attr.Disabled,
       Attr.Value,
     ],

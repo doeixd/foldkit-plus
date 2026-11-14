@@ -17,7 +17,7 @@ import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 export const RadioGroupSlots = Slots.define({
   group: Slot.make({
     capability: Capability.Container,
-    attributes: [Attr.Role, Attr.AriaLabel],
+    attributes: [Attr.Role, Attr.AriaLabel, Attr.AriaInvalid],
   }),
   option: Slot.make({
     capability: Capability.Interactive,
