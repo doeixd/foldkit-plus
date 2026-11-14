@@ -511,7 +511,7 @@ test('without keepActiveInView the list stays where it was', async () => {
   }
 })
 
-test('Home, End, PageDown and PageUp move the highlight; typing and the caret keys stay the field’s', async () => {
+test('PageDown and PageUp move the highlight; typing and the caret keys, Home and End included, stay the field’s', async () => {
   const handle = mountList({
     routes: [
       {
@@ -530,30 +530,32 @@ test('Home, End, PageDown and PageUp move the highlight; typing and the caret ke
     })
     input.focus()
     const at = () => activeRow()?.textContent
-    await userEvent.keyboard('{End}')
-    await vi.waitFor(() => expect(at()).toContain('Row 39'))
-    await userEvent.keyboard('{Home}')
-    await vi.waitFor(() => expect(at()).toContain('Row 0'))
+    await userEvent.keyboard('{ArrowDown}')
+    await vi.waitFor(() => expect(at()).toContain('Row 1'))
     await userEvent.keyboard('{PageDown}')
-    await vi.waitFor(() => expect(at()).toContain('Row 10'))
+    await vi.waitFor(() => expect(at()).toContain('Row 11'))
     await userEvent.keyboard('{PageUp}')
-    await vi.waitFor(() => expect(at()).toContain('Row 0'))
+    await vi.waitFor(() => expect(at()).toContain('Row 1'))
     // The caret and text editing stay native: the keys are not prevented.
-    await userEvent.keyboard('ab')
-    await vi.waitFor(() => expect(input.value).toBe('ab'))
+    await userEvent.keyboard('ro')
+    await vi.waitFor(() => expect(input.value).toBe('ro'))
     const prevented: Array<[string, boolean]> = []
     input.addEventListener('keydown', event => prevented.push([event.key, event.defaultPrevented]))
     document.addEventListener('keydown', event => {
       const last = prevented.findIndex(([key]) => key === event.key)
       if (last >= 0) prevented[last] = [event.key, event.defaultPrevented]
     })
-    await userEvent.keyboard('{ArrowLeft}{Shift>}{Home}{/Shift}')
+    await userEvent.keyboard('{ArrowLeft}{Home}')
+    expect(input.selectionStart).toBe(0)
+    await userEvent.keyboard('{End}')
+    expect(input.selectionStart).toBe(2)
     expect(prevented).toEqual([
       ['ArrowLeft', false],
-      ['Shift', false],
       ['Home', false],
+      ['End', false],
     ])
-    expect(input.selectionStart).toBe(0)
+    // Neither moved the highlight.
+    expect(at()).toContain('Row 1')
     // A key mid-composition is the input method's, whatever it is.
     const composing = new KeyboardEvent('keydown', {
       key: 'ArrowDown',

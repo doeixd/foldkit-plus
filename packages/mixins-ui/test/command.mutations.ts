@@ -224,17 +224,6 @@ export default [
     tests: [browser],
   },
   {
-    name: 'Home goes to the last row',
-    edits: [
-      {
-        file,
-        find: "moves('First', 'Home', () => at(0))",
-        replace: "moves('First', 'Home', () => at(enabled.length - 1))",
-      },
-    ],
-    tests: [unit],
-  },
-  {
     name: 'PageDown wraps past the end',
     edits: [
       {
@@ -262,8 +251,15 @@ export default [
     tests: [browser],
   },
   {
-    name: 'Home leaves the caret key to the field',
-    edits: [{ file, find: "moves('First', 'Home', () => at(0)),", replace: '' }],
+    name: 'Home moves the highlight, not the caret',
+    edits: [
+      {
+        file,
+        find: "moves('PageDown', 'PageDown', () => jump(PAGE)),",
+        replace:
+          "moves('PageDown', 'PageDown', () => jump(PAGE)), moves('First', 'Home', () => at(0)),",
+      },
+    ],
     tests: [unit, browser],
   },
 ]

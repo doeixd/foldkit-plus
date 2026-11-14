@@ -161,10 +161,10 @@ export interface CommandView<Value extends string, Message> {
   readonly page?: CommandPage<Message> | undefined
   /**
    * Keys the application answers in the field, such as Escape clearing the
-   * query. They share one keydown owner with the menu's own (↑ ↓ Home End
-   * PageUp PageDown Enter and Backspace): a route on the same gesture as
+   * query. They share one keydown owner with the menu's own (↑ ↓ PageUp PageDown
+   * Enter and Backspace): a route on the same gesture as
    * another is a diagnostic naming both. Typing and the caret keys stay the
-   * field's; Home and End move the highlight here, and Shift+Home still selects.
+   * field's; Home and End stay the caret's, as in the Combobox; add them here to move the highlight.
    */
   readonly routes?: ReadonlyArray<CommandRoute<Value, NoInfer<Message>>> | undefined
   /** The keys named in a footer under the list, such as ↑↓ to move and ↵ to run. */
@@ -255,8 +255,6 @@ export const view = <Value extends string, Message>(
     routes: [
       moves('Next', 'ArrowDown', () => step(1)),
       moves('Previous', 'ArrowUp', () => step(-1)),
-      moves('First', 'Home', () => at(0)),
-      moves('Last', 'End', () => at(enabled.length - 1)),
       moves('PageDown', 'PageDown', () => jump(PAGE)),
       moves('PageUp', 'PageUp', () => jump(-PAGE)),
       route('Run', 'Enter', ({ current }) => Option.map(current, options.onRun)),

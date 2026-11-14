@@ -241,9 +241,9 @@ describe('Command keys', () => {
     )
   })
 
-  it('Home and End go to the first and last enabled row; PageUp and PageDown stop at the ends', () => {
-    scene(Option.some('find'), Scene.keydown(field, 'Home'), highlights('new'))
-    scene(Option.some('find'), Scene.keydown(field, 'End'), highlights('theme'))
+  it('leaves Home and End to the field’s caret, and PageUp and PageDown stop at the ends', () => {
+    scene(Option.some('find'), Scene.keydown(field, 'Home'), Scene.expectIgnored())
+    scene(Option.some('find'), Scene.keydown(field, 'End'), Scene.expectIgnored())
     // Three enabled rows, a page is ten: the end, not a wrap.
     scene(Option.some('new'), Scene.keydown(field, 'PageDown'), highlights('theme'))
     scene(Option.some('theme'), Scene.keydown(field, 'PageUp'), highlights('new'))
@@ -294,6 +294,16 @@ describe('Command routes', () => {
       )
     run('pa', Scene.keydown(field, 'Escape'), Scene.expect(field).toHaveValue(''))
     run('', Scene.keydown(field, 'Escape'), Scene.expectIgnored())
+  })
+
+  it('takes Home from the application, which the menu leaves to the field', () => {
+    expect(() =>
+      drawnWith(
+        [{ name: 'First', key: 'Home', toMessage: () => Option.none() }],
+        'pa',
+        SlotView.inertBuilder<Message>(),
+      ),
+    ).not.toThrow()
   })
 
   it('refuses a route on a key the menu answers, naming both', () => {
