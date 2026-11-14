@@ -30,7 +30,7 @@ import {
 } from 'foldkit-remote'
 import type { Receipt } from '../index.js'
 import type { AnyApi } from './binding.js'
-import { failureOf, readRows, type Codec, type Rows, type Snapshot } from './relations.js'
+import { failureOf, keyOf, readRows, type Codec, type Rows, type Snapshot } from './relations.js'
 
 /** The Queries an Api serves that answer a page at a time. */
 type PagedQueriesOf<A extends AnyApi> = Extract<
@@ -217,10 +217,9 @@ const page = (lists: Lists, request: unknown, atLeast: Option.Option<Receipt>) =
       ids.map(id => ({ ...select, entity: binding.entity, id, fields: select?.fields ?? [] })),
       new Map(),
     ).pipe(Effect.mapError(({ message }) => new RemoteQueryError({ message })))
-    const listed = new Set(read.entities.map(row => row.id))
     const result: Result = {
       edges: ids
-        .filter(id => listed.has(id))
+        .filter(id => !read.absent.has(keyOf(binding.entity, id)))
         .map(id => ({ entity: binding.entity, id, key: entityKey(binding.entity, id) })),
       start: after === undefined ? { _tag: 'Terminal' } : { _tag: 'Cursor', cursor: after },
       end:
@@ -288,8 +287,10 @@ export const liveQuery = (
   Stream.unwrap(
     Effect.gen(function* () {
       const { binding } = yield* admitted(lists, request)
+      // Only what it lists is compared: the rows' fields reach the page through their own reads.
+      const { select: _selected, ...bare } = request
       const listed = asLive(
-        Effect.map(answerQuery(lists, request), result => result.edges.map(edge => edge.id)),
+        Effect.map(answerQuery(lists, bare), result => result.edges.map(edge => edge.id)),
       )
       const held = yield* SubscriptionRef.make(yield* listed)
       const connection = queryIdentity(request.query, request.input)

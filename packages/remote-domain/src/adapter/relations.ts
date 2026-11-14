@@ -11,7 +11,6 @@ import { RpcClientError } from 'effect/rpc/RpcClientError'
 import type { AnyEntity } from 'foldkit-entity'
 import {
   entityKey,
-  MAX_RELATION_DEPTH,
   RemoteReadError,
   RemoteUnauthenticated,
   RemoteUnreachable,
@@ -177,11 +176,8 @@ export const readRows = (
     const answers = new Map<string, Answer>()
     const order: Array<{ readonly entity: string; readonly id: string }> = []
     let level: ReadonlyArray<Requirement> = requests
-    for (let depth = 0; level.length > 0; depth++) {
-      if (depth > MAX_RELATION_DEPTH)
-        return yield* new RemoteReadError({
-          message: `A read may follow relations at most ${MAX_RELATION_DEPTH} deep`,
-        })
+    // Each level is one deeper in the requests' own relation slices, so it ends with them.
+    while (level.length > 0) {
       const asked = new Map<string, Requirement>()
       for (const request of level) {
         const key = keyOf(request.entity, request.id)
