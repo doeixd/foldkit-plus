@@ -85,16 +85,24 @@ const mount = async () => {
   )
 }
 
-test('measure: focused row scrolled out', async () => {
+// Upstream's list slices `items` by the scroll offset and has no way to keep a
+// row beyond it, so the wrapper cannot hold the focused row: `test.fails`
+// goes red the day upstream gains one, which is the cue to wire it.
+test.fails('the control holding focus keeps it when its row scrolls out of the window', async () => {
   await mount()
   document.getElementById('before')!.focus()
   await userEvent.tab()
-  const first = document.activeElement?.id
+  expect(document.activeElement?.id).toBe('b-0')
+  document.querySelector('ul')!.scrollTop = 20_000
+  await vi.waitFor(() =>
+    expect(document.querySelector('[data-virtual-list-item-index="0"]')).toBeNull(),
+  )
+  expect(document.activeElement?.id).toBe('b-0')
+})
+
+test('the text of a row outside the window is not in the page', async () => {
+  await mount()
   document.querySelector('ul')!.scrollTop = 20_000
   await vi.waitFor(() => expect(document.getElementById('b-0')).toBeNull())
-  const report = { first, active: document.activeElement?.tagName, id: document.activeElement?.id }
-  await userEvent.tab()
-  const next = document.activeElement?.id
-  const text = document.body.textContent!.includes('Button 0')
-  expect.fail('FOCUS-V ' + JSON.stringify({ report, next, text }))
+  expect(document.body.textContent).not.toContain('Button 0')
 })
