@@ -7,7 +7,8 @@
 import { Effect, Stream } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 import { DRAWN_CLASSES } from '../src/inject.js'
-import { Attr, Behavior, Event, Mixin, SlotView, Style } from '../src/index.js'
+import { A11y, Attr, Behavior, Event, Mixin, SlotView, Style } from '../src/index.js'
+import { Clears, Listbox, Named, Nav, Picks, bare } from './a11y.fixture.js'
 import { FieldSlots } from './fixture.js'
 import { type TestMessage } from './resolverFixture.js'
 
@@ -110,6 +111,29 @@ describe('SlotView.describe', () => {
     })
     expect(composed?.slots.root?.contributes).toEqual({ classes: ['field'], mounts: [] })
     expect(composed?.slots.input?.contributes).toBe('unknown')
+  })
+
+  it('reports the pattern a conformed view was checked against, and nothing for one never conformed', () => {
+    const listbox = bare.pipe(
+      Behavior.attach(Nav),
+      Behavior.attach(Picks),
+      SlotView.attach(Named),
+      A11y.conform(Listbox),
+    )
+    expect(SlotView.describe(bare).conforms).toEqual([])
+    expect(SlotView.describe(listbox).conforms).toEqual([
+      {
+        slots: {
+          listbox: { capability: 'Interactive', obligations: ['navigation', 'name'] },
+          option: {
+            capability: 'Focusable',
+            obligations: ['focus-strategy', 'activation', 'state:aria-selected'],
+          },
+        },
+      },
+    ])
+    // An attachment that leaves the view conforming keeps the report.
+    expect(SlotView.describe(listbox.pipe(Behavior.attach(Clears))).conforms).toHaveLength(1)
   })
 
   it('survives a JSON round trip', () => {

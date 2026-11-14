@@ -7,6 +7,28 @@ const surface = ['packages/mixins-surface/test/surfaceView.test.ts']
 
 export default [
   {
+    name: 'a conformed view reports no pattern',
+    edits: [
+      {
+        file: '../src/describe.ts',
+        find: 'conforms: conformancesOf(view).map(',
+        replace: 'conforms: [].map(',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a pattern is reported without its obligations',
+    edits: [
+      {
+        file: '../src/describe.ts',
+        find: 'obligations: (requirement.obligations ?? []).map(obligation => obligation.name),',
+        replace: 'obligations: [],',
+      },
+    ],
+    tests: unit,
+  },
+  {
     name: 'a contribution that reads the input is reported as empty',
     edits: [
       {
