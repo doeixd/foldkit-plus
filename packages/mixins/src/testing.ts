@@ -390,3 +390,6 @@ const track = (): TrackedFrames => {
  * any stub of `requestAnimationFrame`, since it wraps whichever is installed.
  */
 export const Frames = { track } as const
+
+/** Rendered conformance scenarios over a widget in a real browser, and their server half. */
+export * as Conformance from './conformance.js'
