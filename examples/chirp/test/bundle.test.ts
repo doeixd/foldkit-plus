@@ -28,7 +28,9 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // and the read-after half moved behind the write capability, which Chirp installs: the move
 // costs a page that writes what it saves one that reads (domains-plus -320). Measured with and
 // without both in one tree on 2026-11-14: 245,167 against 245,663, +496, rounded up.
-const CEILING = 245_618
+// +96 bytes (2026-11-14, fresh builds of 28bf08e31 and HEAD): conformed.js, 136 bytes minified, the obligations' carry
+// through `SlotView`'s detach and replace (#552), which a page drawing a slot view pays.
+const CEILING = 245_800
 
 clientBudget({
   name: 'chirp',
