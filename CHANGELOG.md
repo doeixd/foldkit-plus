@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-remote`: a live stream names the revision it holds each row at,
+  whole, with no field stale and no floor (`LiveRequirement.revisions`), so a
+  server may leave out a frame the page already has; a moved revision does not
+  restart the stream. `REMOTE_PROTOCOL_VERSION` is 7, so a client and server of
+  6 and 7 refuse each other. `Remote.resume`'s capture carries a row's
+  read-after floor, so a row a write in the render held (a form posted without
+  scripts) stays held in the browser and is read at its token.
 - Docs: the laws guide (`docs/laws.md`, the skill's `references/laws.md`) gains
   states (`Entity.refine`, `from`, `becomes`), a document's `laws` with the
   monotone form for live documents and `Board.judge` as the audit, `Laws.check`

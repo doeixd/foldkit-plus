@@ -72,7 +72,7 @@ const policy: LiveCapability['policy'] = (lists, visible, event, context) => {
 }
 
 const stream: LiveCapability['stream'] = (
-  { requirements, queries, cursor, floor, tokens, restarts, failures },
+  { requirements, queries, cursor, floor, tokens, revisions, restarts, failures },
   toMessage,
   options,
 ) => {
@@ -86,6 +86,7 @@ const stream: LiveCapability['stream'] = (
         queries,
         after: cursor,
         ...(tokens.length === 0 ? {} : { floors: tokens }),
+        ...(revisions.length === 0 ? {} : { revisions }),
       })
     }),
   ).pipe(

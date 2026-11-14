@@ -29,6 +29,7 @@ import {
   RemoteUnreachable,
   type LiveChange,
   type LiveRequirement,
+  type RowRevision,
   type RowToken,
 } from './wire.js'
 
@@ -69,6 +70,8 @@ export class RemoteClient extends Context.Service<
       readonly after: LiveCursor
       /** Rows of `requirements` held to a read-after token: `LiveRequirement.floors`. */
       readonly floors?: ReadonlyArray<Schema.Schema.Type<typeof RowToken>> | undefined
+      /** Rows of `requirements` held whole at a revision: `LiveRequirement.revisions`. */
+      readonly revisions?: ReadonlyArray<Schema.Schema.Type<typeof RowRevision>> | undefined
     }) => Stream.Stream<
       LiveEvent,
       RemoteLiveError | RemoteLiveRefused | RemoteProtocolError | RemoteUnauthenticated

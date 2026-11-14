@@ -754,7 +754,7 @@ export const clientLayer = <R = never>(
               ),
               Effect.provideContext(context),
             ),
-          live: ({ requirements, queries, after, floors }) =>
+          live: ({ requirements, queries, after, floors, revisions }) =>
             client
               .FoldkitRemoteLive({
                 version: REMOTE_PROTOCOL_VERSION,
@@ -762,6 +762,7 @@ export const clientLayer = <R = never>(
                 ...(queries.length === 0 ? {} : { queries }),
                 after,
                 ...(floors === undefined || floors.length === 0 ? {} : { floors }),
+                ...(revisions === undefined || revisions.length === 0 ? {} : { revisions }),
               })
               .pipe(
                 Stream.catchTag(['RpcClientError', 'Unreachable'], error =>

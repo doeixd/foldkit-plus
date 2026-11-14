@@ -2660,7 +2660,8 @@ a write's token    MutationResult.after = { token, rows }
 ```
 
 The store keeps both beside the row (`EntityEntry.revision`, `.floor`), so a
-snapshot `persistence` restores keeps them, and nothing else owns them. Only a
+snapshot `persistence` restores keeps them, as does a server render's capture
+(`Remote.resume`), and nothing else owns them. Only a
 domain that registers a Mutation reads with tokens: a page that writes nothing
 carries none of that code, and keeps a floor a snapshot brought without
 asking at it. The
@@ -2682,6 +2683,11 @@ back. While a row has a floor:
   floored row's patch only once it reads at the token, so a patch on a stream
   opened at the row's token, or one of a newer revision, writes it and ends
   the floor, and any other on a stream opened before writes nothing of it;
+- a live stream also names the revision it holds each row at whole, with no
+  field stale and no floor (`LiveRequirement.revisions`), as it starts; a
+  moved revision does not restart it. A server may leave out a row's state at
+  or before that revision, which the store has: a page resumed from a server
+  render opens its stream without being sent back what it was handed;
 - `Data.inspect(model).floors` lists them, and `why` names the wait
   (`ReadAfter`).
 
@@ -3591,6 +3597,11 @@ const Page = SSR.plan(App, {
   where the server stopped.
 - **Live cursors cross with the entities they follow**, so a live
   subscription started in the browser asks from where the server's left off.
+- **Revisions and floors cross with their rows.** The browser's live stream
+  names the revisions it was handed (`LiveRequirement.revisions`), so a
+  server that keeps them sends no frame the page already has, and a row a
+  write in the render held to a token (a form posted without scripts) stays
+  held, and is read at that token.
 - **Nothing else crosses.** Loading marks, failures, the mutation ledger,
   optimistic layers, gaps and retention start at their initial values.
 

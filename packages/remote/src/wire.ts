@@ -12,7 +12,7 @@ import type { RelationRequirement, Requirement } from './requirement.js'
  * server refuses a mismatch with `RemoteProtocolError`, so a shape change never
  * drifts silently: bump it whenever `ReadRequest` or `LiveRequirement` change.
  */
-export const REMOTE_PROTOCOL_VERSION = 6
+export const REMOTE_PROTOCOL_VERSION = 7
 
 export class RemoteReadError extends Schema.TaggedError<RemoteReadError>()('RemoteReadError', {
   message: Schema.String,
@@ -189,6 +189,13 @@ export const RowToken = Schema.Struct({
 })
 
 const RowTokens = Schema.Array(RowToken).check(Schema.isMaxLength(MAX_READ_AFTER))
+
+/** A row and the revision a client holds it at. */
+export const RowRevision = Schema.Struct({
+  entity: Schema.String,
+  id: Schema.String,
+  revision: Revision,
+})
 
 /**
  * What a write's answer says of the rows it wrote: a read of them is current
@@ -430,6 +437,12 @@ export const LiveRequirement = Schema.Struct({
    * the stream sends none of them from before its token.
    */
   floors: Schema.optional(RowTokens),
+  /**
+   * Rows of `requirements` the client holds whole at a revision (a server
+   * render's, resumed): the stream may leave out their state at or before
+   * it, which the client has. A server that keeps no revision ignores it.
+   */
+  revisions: Schema.optional(Schema.Array(RowRevision)),
 })
 
 /**
