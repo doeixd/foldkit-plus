@@ -11,6 +11,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import { expect, vi } from 'vitest'
 import * as Drawer from '../src/drawer.js'
 import { Drawer as DrawerRecipe } from '../src/recipes/drawer.js'
+import type { MixinList } from '../src/resolve.js'
 import type { SwipeConfig } from '../src/sheet.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
@@ -19,7 +20,12 @@ export const belowLg = Style.forSlots(Drawer.DrawerSlots)(DrawerRecipe({ dock: '
 const Model = Schema.Struct({ drawer: Drawer.Model })
 type Model = typeof Model.Type
 
-export const mount = (open: boolean, drawn = style, swipe?: SwipeConfig) => {
+export const mount = (
+  open: boolean,
+  drawn = style,
+  swipe?: SwipeConfig,
+  mixins: MixinList<Drawer.Message> = [],
+) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -57,6 +63,7 @@ export const mount = (open: boolean, drawn = style, swipe?: SwipeConfig) => {
             onMessage: message => message,
             labels: { open: 'Hide the tools', closed: 'Show the tools' },
             style: drawn,
+            mixins,
             // The sizes on a wrapper: the panel's own style is the drag's.
             draw: ({ panel, handle, body, grip }) =>
               h.div(

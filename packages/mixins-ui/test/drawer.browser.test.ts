@@ -6,8 +6,9 @@
  * sends after a drag toggles nothing; peeking, its body is hidden.
  */
 import { afterEach, expect, test, vi } from 'vitest'
-import { page, userEvent } from 'vitest/browser'
-import { belowLg, down, mount, panel, settled } from './drawerFixture.js'
+import { cdp, page, userEvent } from 'vitest/browser'
+import * as Drawer from '../src/drawer.js'
+import { belowLg, down, mount, panel, settled, style } from './drawerFixture.js'
 
 afterEach(() => {
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
@@ -168,7 +169,7 @@ test('docked below lg only: wider, it is the column it sits in, its body shown t
     await page.viewport(400, 800)
     await vi.waitFor(() => expect(getComputedStyle(element).position).toBe('fixed'))
     expect(getComputedStyle(handle).display).toBe('block')
-    expect(body(element).visibility).toBe('hidden')
+    await vi.waitFor(() => expect(body(element).visibility).toBe('hidden'))
   } finally {
     runtime.dispose()
     await page.viewport(414, 896)
@@ -221,5 +222,66 @@ test('takes a finger-sized handle, drawn into the space around it', async () => 
     expect(grip.getBoundingClientRect().top - element.getBoundingClientRect().top).toBeLessThan(40)
   } finally {
     runtime.dispose()
+  }
+})
+
+test('its body stays drawn while the panel slides down, and is hidden once it has', async () => {
+  await cdp().send('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }],
+  })
+  const runtime = mount(true)
+  try {
+    const element = await panel()
+    await settled(element)
+    const handle = element.querySelector<HTMLElement>('button')!
+    handle.click()
+    await vi.waitFor(() => expect(element.dataset['open']).toBe('false'))
+    // Halfway through its slide, held there: the clock is not the test's.
+    await vi.waitFor(() =>
+      expect(element.getAnimations({ subtree: true }).length).toBeGreaterThan(0),
+    )
+    const running = element.getAnimations({ subtree: true })
+    for (const animation of running) {
+      animation.pause()
+      animation.currentTime = 40
+    }
+    expect(down(element)).toBeGreaterThan(0)
+    expect(down(element)).toBeLessThan(320)
+    expect(body(element).visibility).toBe('visible')
+    for (const animation of running) animation.finish()
+    await settled(element)
+    await vi.waitFor(() => expect(body(element).visibility).toBe('hidden'))
+    // Opening shows it at once, not after the slide.
+    handle.click()
+    await vi.waitFor(() => expect(element.dataset['open']).toBe('true'))
+    expect(body(element).visibility).toBe('visible')
+  } finally {
+    runtime.dispose()
+  }
+})
+
+test('collapsing with focus in the body moves focus to the handle with keepFocus, and not without', async () => {
+  for (const [mixins, handleHasFocus] of [
+    [Drawer.keepFocus, true],
+    [[], false],
+  ] as const) {
+    const runtime = mount(true, style, undefined, mixins)
+    try {
+      const element = await panel()
+      await settled(element)
+      const handle = element.querySelector<HTMLElement>('button')!
+      const tool = element.querySelector<HTMLElement>('#drawer-body button')!
+      tool.focus()
+      // A programmatic click moves no focus, as a drag of the grip does not.
+      handle.click()
+      await vi.waitFor(() => expect(element.dataset['open']).toBe('false'))
+      await settled(element)
+      await vi.waitFor(() => expect(body(element).visibility).toBe('hidden'))
+      await wait(50)
+      expect(document.activeElement === handle).toBe(handleHasFocus)
+    } finally {
+      runtime.dispose()
+      document.body.replaceChildren()
+    }
   }
 })
