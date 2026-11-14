@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins-ui`: `Anchor.inheritRegion(mount)`, and the `Anchor` Mount itself, give a
+  panel the anchor relocates to the portal root the custom properties its region set (a
+  region set compact, a density), unless the panel sets them itself. Menu, Listbox and
+  Combobox wrap their upstream anchor Mounts with it, so a region reaches a portaled panel
+  as it reaches an in-place one. A Popover or Tooltip with `portal: true` is not
+  covered (audit O3, #558).
 - `foldkit-primitives`: edge scrolling while dragging and a lasso on empty space (audit
   R1 and R6, #558). `edgeScroll: {}` (or `{ edge, speed }`) on `PointerDrag` (the Mount and
   its Behavior) scrolls the nearest scrolling ancestor, then the page, while a drag is held

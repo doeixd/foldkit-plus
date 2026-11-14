@@ -24,8 +24,8 @@ from a name in UI SDK's index; each gap is a behaviour a test observed.
 | R6 | A press on empty space starts a selection | built (U-WP13, `Marquee`) | low | U-WP13 |
 | R7 | A drop after the list scrolled under the pointer | present | none | none |
 | O1 | Nested modal dialogs: Escape and focus return | present | none | none |
-| O2 | A trigger removed while its dialog is open | wrong | medium | U-WP14 (new) |
-| O3 | A portaled panel inherits a region's custom properties | wrong | medium | U-WP14 (new) |
+| O2 | A trigger removed while its dialog is open | built (U-WP14, `FocusReturn`, `Dialog.focusReturn`) | medium | U-WP14 |
+| O3 | A portaled panel inherits a region's custom properties | built for Menu, Listbox, Combobox and the Anchor Mount (U-WP14, `Anchor.inheritRegion`); a portaled Popover stays unsupported | medium | U-WP14 |
 | V1 | Focus in a virtual row that scrolls out | by design, undocumented | low | U-WP10 (guide), D12's recipe |
 | V2 | Shift range over a virtual list | present, caller-fed | low | U-WP10 (guide) |
 | V3 | `GridNavigation` against a wrapped layout | missing (spatial) | low | not built, see below |
@@ -126,7 +126,7 @@ the outer, a second Escape closes the outer and focus returns to its opener.
 Test: "Escape closes the inner dialog only, and focus returns to each opener in
 turn".
 
-**O2. A removed trigger: wrong.** With the outer dialog open, the view stopped
+**O2. A removed trigger: built (U-WP14).** Fixed as below; the original finding: With the outer dialog open, the view stopped
 drawing its trigger; closing the dialog left `document.activeElement` on
 `<body>`. The user's place in the page is lost, and a keyboard or screen
 reader user starts again from the top. Test: "a trigger removed while its
@@ -137,7 +137,7 @@ as D9 (`same`, `next`, `previous`, `parent`, `owner`), applied to the
 dialog's opener instead of a roving row. U-WP5 builds `FocusRecovery` for
 roving stops; its use for an overlay's opener is a new package, U-WP14.
 
-**O3. Portaled theme inheritance: wrong.** A custom property set on a region
+**O3. Portaled theme inheritance: built (U-WP14).** Fixed as below, for what this package can wrap; the original finding: A custom property set on a region
 that holds the Popover's trigger reached the panel with the default anchor
 (the panel stays under the region), and did not with `portal: true`: the panel
 moved to the document and read `''`. This is the trap CLAUDE.md records for
@@ -148,6 +148,28 @@ property no longer reaches it (today)". Severity medium for an application
 that scopes a theme to a region. Fix: the portal's root takes the owner's
 resolved custom properties, or the Style adds the region's scope to the
 panel's slot; U-WP14.
+
+What was built. O2: `FocusReturn()` (a Mount, `foldkit-primitives/dom`) and
+`Dialog.focusReturn` (the mixin that attaches it to the panel; upstream's
+Dialog returns to its opener and to `body` with none) go by one rule when the
+opener is gone: an element with its `id`, the opener's `FocusRecovery` steps
+for its slot (read from the owner's registered fallback, with the neighbours
+seen when the overlay opened), the layer below (`LayerStack.below`), the page's
+first tabbable element; `FocusScope`'s restore uses the same. Tests: the
+audit's `dialog-nesting` scenarios (the "today" test is now the control without
+the mixin, and three more with it) and `focus-return.browser.test.ts`. O3: a
+portaled panel is given the custom properties its region set, written inline
+on it once relocated, when they differ from what it inherits there and the
+panel does not set them itself (`Anchor.inheritRegion` around upstream's Menu,
+Listbox and Combobox anchor Mounts, and inside the `Anchor` Mount; a MutationObserver
+set in the Mount's own acquire sees the move). The copy is made when the panel
+leaves, not kept in step with the region afterwards. A Popover with
+`portal: true` is not fixed: its anchor is upstream's Mount inside an opaque
+bundle that this package cannot wrap, and its `layer` Mount runs after the
+panel's, too late to see the move; the Popover draws in place (`anchor()`'s
+default), which the top layer already lifts out of every stacking context, and
+the audit test pins the portaled case as unsupported. Tests:
+`popupRegion.browser.test.ts`, `popupLadder.browser.test.ts`.
 
 Not audited, said plainly: `DismissLayer` in a runtime with portaled layers.
 It orders layers by DOM order at the event, so a portaled child that lands
@@ -221,7 +243,7 @@ are the existing evidence and were not re-read for this audit.
 | --- | --- | --- |
 | U-WP12 (existing) | `Reorder`: R2, R3, the descendant guard of R4; `place` stays `DragPlace` | as designed |
 | U-WP13 (built) | `PointerDrag`/`Marquee`/`Reorder`: the `edgeScroll` option (R1) and the `Marquee` Mount (R6) | medium |
-| U-WP14 (new) | Overlay restoration fallback for a removed opener (O2) and the portal's inherited custom properties (O3) | medium |
+| U-WP14 (built) | Overlay restoration fallback for a removed opener (O2) and the portal's inherited custom properties (O3) | medium |
 | U-WP15 (new) | `MessageScroller` re-seats the end when its frame resizes (C1) | small |
 | U-WP10 (existing) | The guide: virtual-row focus recipe (V1), ranges over the whole order (V2) | docs |
 

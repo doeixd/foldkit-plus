@@ -1,9 +1,11 @@
 /**
  * Audit of #558 item 4 for portaled theme inheritance, on the shipped Popover:
  * a custom property set on an ancestor of the trigger reaches the panel or it
- * does not, and the Popover without an anchor of its own is the control. A
- * test named "today" pins current behaviour that a finding in
- * `docs/design/558-audit-FINDINGS.md` calls a gap.
+ * does not, and the Popover without an anchor of its own is the control.
+ * The Popover's panel is anchored by upstream's Mount inside its bundle, which
+ * this package cannot wrap, so a portaled one (which `layer` does not support)
+ * stays without the region; Menu, Listbox and Combobox are wrapped, and
+ * `test/popupLadder.browser.test.ts` holds those.
  */
 import { Schema } from 'effect'
 import { Popover as UiPopover } from '@foldkit/ui'
@@ -116,7 +118,7 @@ test('the default anchor keeps the panel under the trigger region, so a region p
   }
 })
 
-test('a portaled anchor moves the panel out of the region, so a region property no longer reaches it (today)', async () => {
+test('a portaled Popover panel, which layer does not support, stays without the region property', async () => {
   const shown = await open({ ...Popover.anchor(), portal: true })
   try {
     expect(shown.panel.closest('#region')).toBeNull()

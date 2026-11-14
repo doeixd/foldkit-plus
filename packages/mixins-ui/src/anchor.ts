@@ -9,6 +9,8 @@
  *
  * `portal` defaults to true upstream: the element is relocated into a
  * portal root, so the runtime no longer patches it and a test sees it move.
+ * The panel is given the custom properties of the region it was drawn in, as
+ * it leaves it, so a region's density or compact step still reaches it.
  * Pass `portal: false` to keep the node where the view drew it. Positioning
  * without layout (jsdom's zero geometry) burns tens of seconds, portal or
  * not — drive the config, not the clock, in tests.
@@ -50,9 +52,11 @@ export const Anchor = Mount.defineStream('Anchor', {
   execute: ({ element, buttonId, anchor, ...optional }) =>
     Stream.callback<never>(() =>
       Effect.acquireRelease(
-        Effect.sync(() =>
+        Effect.sync(() => {
+          const origin = element.parentElement
+          const stopCarrying = origin === null ? () => {} : carryOnRelocation(origin, element)
           // `Schema.optional` admits undefined; the setup wants the key absent.
-          anchorSetup(element, {
+          const release = anchorSetup(element, {
             buttonId,
             anchor,
             ...Object.fromEntries(
@@ -60,14 +64,90 @@ export const Anchor = Mount.defineStream('Anchor', {
                 ([key, value]) => key !== 'viewStateChanges' && value !== undefined,
               ),
             ),
-          }),
-        ),
+          })
+          return () => {
+            stopCarrying()
+            release()
+          }
+        }),
         release => Effect.sync(() => release()),
       ),
     ),
 })
 
 export type AnchorArgs = Parameters<typeof Anchor>[0]
+
+/**
+ * Gives a panel the custom properties its region set, once it has left the
+ * region: a property set on an ancestor of the trigger (`--fk-knob-step: 1` on
+ * a compact toolbar) reaches an in-place panel by inheritance, and not one
+ * the anchor relocated to the portal root. Each custom property whose value
+ * differs between where the panel was drawn (`origin`) and where it stands now
+ * is written on the panel, unless the panel sets it itself (a popup's `size`
+ * sets the step on its own slot): the panel's own value, read as it stands,
+ * differs from what it would inherit there. Values are as they resolved, so
+ * they are as the region had them when the panel left it, not afterwards.
+ */
+const carryRegion = (origin: Element, panel: HTMLElement): void => {
+  const view = panel.ownerDocument.defaultView
+  const around = panel.parentElement
+  if (view === null || around === null) return
+  const from = view.getComputedStyle(origin)
+  const own = view.getComputedStyle(panel)
+  const inherited = view.getComputedStyle(around)
+  for (const name of Array.from(from)) {
+    if (!name.startsWith('--')) continue
+    const value = from.getPropertyValue(name)
+    if (value === inherited.getPropertyValue(name)) continue
+    if (own.getPropertyValue(name) !== inherited.getPropertyValue(name)) continue
+    panel.style.setProperty(name, value)
+  }
+}
+
+/**
+ * Watches `parent` for `child` being taken out of it to stand elsewhere in the
+ * document, which is a portal's relocation (a keyed move stays inside
+ * `parent`, and a removal leaves the child unattached), and carries the
+ * region's properties onto it. Returns the stop. It must be called before the
+ * relocation: a Mount's own acquire is the place, and a parent's Mount runs
+ * after its children's, too late to see one.
+ */
+const carryOnRelocation = (parent: Element, child: Element): (() => void) => {
+  const observer = new MutationObserver(records => {
+    for (const record of records) {
+      for (const node of record.removedNodes) {
+        if (!(node instanceof HTMLElement) || node !== child) continue
+        if (node.isConnected && !parent.contains(node)) carryRegion(parent, node)
+      }
+    }
+  })
+  observer.observe(parent, { childList: true })
+  return () => observer.disconnect()
+}
+
+/**
+ * Wraps an anchor Mount that portals its panel (upstream's, which the
+ * `portal` of its config does not say no to) so the panel keeps the custom
+ * properties of the region it was drawn in: a region set compact, or a
+ * density, reaches it as it would an in-place panel. Where the panel is not
+ * relocated it does nothing. Wrapping keeps the wrapped Mount's name, args
+ * and Messages, as `topLayer` does.
+ */
+export const inheritRegion = <Message, E>(
+  action: Mount.MountAction<Message, E>,
+): Mount.MountAction<Message, E> => ({
+  ...action,
+  f: (element, viewStateChanges) =>
+    Stream.unwrap(
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          const origin = element.parentElement
+          return origin === null ? () => {} : carryOnRelocation(origin, element)
+        }),
+        stop => Effect.sync(stop),
+      ).pipe(Effect.as(action.f(element, viewStateChanges))),
+    ),
+})
 
 /**
  * The elements showing as manual popovers, so release hides only what this

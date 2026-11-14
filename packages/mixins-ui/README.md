@@ -778,8 +778,12 @@ What a recipe assumes and does:
   padding, gap and text stepping with them (`Theme.ladder`, read on the
   element). `--fk-knob-step: 1` on any element makes everything inside it
   compact, the popups it opens included when they stay in the page (an
-  anchor's `portal: false`, as the gallery's do); upstream portals a panel
-  out of the page by default, where no region reaches it. A recipe's `size`
+  anchor's `portal: false`, as the gallery's do); a panel upstream portals out
+  of the page (the default of its own anchor) is given the region's custom
+  properties as it leaves, so the region reaches it too, unless the panel sets
+  the property itself. That holds for Menu, Listbox, Combobox and the `Anchor`
+  Mount; a Popover or Tooltip with `portal: true` is not supported (draw it in
+  place, as `anchor()` does). A recipe's `size`
   (`sm` compact, `md` default, `lg` a half step up at 40px) sets the step on
   its own element and beats the region, and a popup's sets it on its panel
   too, so it holds portaled or not; unset, which is the default, follows the
