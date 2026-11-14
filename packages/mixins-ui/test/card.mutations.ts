@@ -12,6 +12,17 @@ const recipe = '../src/recipes/card.ts'
 
 export default [
   {
+    name: 'a dismissed card drops the focus to the page',
+    edits: [
+      {
+        file: '../src/card.ts',
+        find: '...(dismiss === undefined ? [] : FocusRecovery.part(h)),',
+        replace: '',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/dismissFocus.browser.test.ts'],
+  },
+  {
     name: 'the outlined card loses its surface',
     edits: [
       {

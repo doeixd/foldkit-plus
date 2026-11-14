@@ -447,3 +447,18 @@ test.each(['light', 'dark'] as const)(
     }
   },
 )
+
+test('a click on a close button, which takes the focus, hands it to the tab after it', async () => {
+  const handle = mount({ values: ['one', 'two', 'three'], closable: true })
+  try {
+    await vi.waitFor(() => expect(tab('one')).toBeTruthy())
+    const close = tab('two')!.parentElement!.querySelector<HTMLElement>('[title="Close two"]')!
+    await userEvent.click(close)
+    await vi.waitFor(() => {
+      expect(names()).toEqual(['one', 'three'])
+      expect(document.activeElement).toBe(tab('three'))
+    })
+  } finally {
+    handle.dispose()
+  }
+})

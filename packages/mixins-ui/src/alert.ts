@@ -1,13 +1,16 @@
 import { Match } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import { FocusRecovery } from 'foldkit-primitives/interaction'
 import type { MixinList } from './resolve.js'
 
 /**
  * An alert publishes its regions as slots; it owns no state. Shown or
  * dismissed is the application's: `onDismiss` asks, and the next view leaves
  * the alert out. The root carries `data-layout` and `data-dismissible` for a
- * style to read.
+ * style to read. A dismissible alert is a `FocusRecovery` part: with that
+ * Mount on the list holding the alerts, dismissing one hands its focus to its
+ * neighbour (or the fallback the list names) instead of dropping it to the page.
  */
 export const AlertSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] }),
@@ -86,6 +89,7 @@ export const view = <Message = never>(
     h.DataAttribute('layout', options.layout),
     // Whether the root holds a dismiss button, for a recipe that keeps room for it.
     h.DataAttribute('dismissible', String(onDismiss !== undefined)),
+    ...(onDismiss === undefined ? [] : FocusRecovery.part(h)),
   ]
   const region = Match.value(options).pipe(
     Match.discriminatorsExhaustive('layout')({

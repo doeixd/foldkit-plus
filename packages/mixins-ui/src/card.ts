@@ -8,6 +8,7 @@ import {
 } from 'foldkit-mixins'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import { FLUID_PRESS_ATTRIBUTE, FluidHover, fluidHovered } from 'foldkit-primitives/dom'
+import { FocusRecovery } from 'foldkit-primitives/interaction'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -20,6 +21,9 @@ import type { MixinList } from './resolve.js'
  * one announcement. The action, the footer and the dismiss button sit above
  * it and stay pressable on their own. The root carries `data-selected`,
  * `data-disabled`, `data-pressable` and `data-dismissible` for a style to read.
+ * A dismissible card is a `FocusRecovery` part: with that Mount on the list
+ * holding the cards, dismissing one hands its focus to its neighbour (or the
+ * fallback the list names) instead of dropping it to the page.
  */
 export const CardSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -152,6 +156,7 @@ export const view = <Message>(options: CardView<Message>, h: HtmlBuilder<Message
       h.DataAttribute('disabled', flag(disabled)),
       h.DataAttribute('pressable', flag(press !== undefined)),
       h.DataAttribute('dismissible', flag(dismiss !== undefined)),
+      ...(dismiss === undefined ? [] : FocusRecovery.part(h)),
       ...(disabled ? [h.AriaDisabled(true)] : []),
     ]),
     [

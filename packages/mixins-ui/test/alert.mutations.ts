@@ -9,6 +9,17 @@ const recipe = '../src/recipes/alert.ts'
 
 export default [
   {
+    name: 'a dismissed alert drops the focus to the page',
+    edits: [
+      {
+        file: '../src/alert.ts',
+        find: '...(onDismiss === undefined ? [] : FocusRecovery.part(h)),',
+        replace: '',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/dismissFocus.browser.test.ts'],
+  },
+  {
     name: 'a banner is 120% of its container',
     edits: [{ file: recipe, find: "inlineSize: '100%',", replace: "inlineSize: '120%'," }],
     tests: browser,
