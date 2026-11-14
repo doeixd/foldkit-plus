@@ -1,4 +1,4 @@
-import { Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { MixinList } from './resolve.js'
 
@@ -14,6 +14,8 @@ export const CodeBlockSlots = Slots.define({
   header: Slot.make({ capability: Capability.Container }),
   title: Slot.make({ capability: Capability.Container }),
   copy: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+  /** Always drawn, so it is in place before it speaks: says `copiedLabel` once copied. */
+  status: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
   body: Slot.make({ capability: Capability.Container }),
   code: Slot.make({ capability: Capability.Container }),
   line: Slot.make({ capability: Capability.Container }),
@@ -106,6 +108,8 @@ export const linesOf = (
       if (index > 0) lines.push([])
       if (part !== '') lines.at(-1)!.push({ text: part, kind: run.kind })
     })
+  // A final line break ends the last line; it does not start another to number.
+  if (lines.length > 1 && lines.at(-1)?.length === 0) lines.pop()
   return lines
 }
 
@@ -138,6 +142,11 @@ export const view = <Message>(options: CodeBlockView<Message>, h: HtmlBuilder<Me
                         : (copy.label ?? 'Copy'),
                     ],
                   ),
+                  // The button's own words change, which a screen reader does not announce.
+                  h.span(
+                    builders.status.attrs([h.Role('status')]),
+                    copy.copied === true ? [copy.copiedLabel ?? 'Copied'] : [],
+                  ),
                 ]),
           ]),
         ]
@@ -159,6 +168,11 @@ export const view = <Message>(options: CodeBlockView<Message>, h: HtmlBuilder<Me
       ...(options.language === undefined ? [] : [h.DataAttribute('language', options.language)]),
       h.DataAttribute('line-numbers', String(options.lineNumbers === true)),
     ]),
-    [...header, h.pre(builders.body.attrs(), [h.code(builders.code.attrs(), lines)])],
+    [
+      ...header,
+      h.pre(builders.body.attrs(), [
+        h.code(builders.code.attrs(), [...lines, ...(options.code.endsWith('\n') ? ['\n'] : [])]),
+      ]),
+    ],
   )
 }

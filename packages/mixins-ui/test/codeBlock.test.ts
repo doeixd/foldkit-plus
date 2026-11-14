@@ -51,6 +51,12 @@ describe('linesOf', () => {
     ])
   })
 
+  it('does not make a line of the break that ends the code', () => {
+    expect(linesOf('a\n', [])).toEqual([[{ text: 'a', kind: undefined }]])
+    // A break before a blank last line is still that line.
+    expect(linesOf('a\n\n', [])).toEqual([[{ text: 'a', kind: undefined }], []])
+  })
+
   it.each([
     [
       'overlapping the one before',
@@ -80,6 +86,22 @@ describe('CodeBlock view', () => {
       ['syntax-string', '"x"'],
       ['syntax-comment', '// note'],
     ])
+  })
+
+  it('draws a final line break once, in the text and not as a numbered line', () => {
+    const block = view({ code: 'a\n' }, h)
+    expect(Inert.text(Inert.byTag(block, 'code')[0])).toBe('a\n')
+    const [body] = Inert.byTag(block, 'code')
+    expect(Inert.children(body).filter(child => child.sel === 'span')).toHaveLength(1)
+  })
+
+  it('keeps a status region beside the copy button, which says the copied words once copied', () => {
+    const status = (copied?: boolean) =>
+      Inert.byRole(view({ code, copy: { copied, copiedLabel: 'Copied!' } }, h), 'status')
+    expect(status()).toHaveLength(1)
+    expect(Inert.text(status()[0])).toBe('')
+    expect(Inert.text(status(true)[0])).toBe('Copied!')
+    expect(Inert.byRole(view({ code }, h), 'status')).toEqual([])
   })
 
   it('heads the code with its title over its language, and with nothing when it has neither', () => {

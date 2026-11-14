@@ -5,6 +5,7 @@
  * copied state follow attributes, so they need no JavaScript.
  */
 import { Style } from 'foldkit-mixins'
+import { Utilities } from 'foldkit-mixins/utilities'
 import { CodeBlockSlots } from '../codeBlock.js'
 import { component, focusRing, hover, ref } from './design.js'
 
@@ -66,6 +67,7 @@ export const CodeBlock = Style.recipeFor(CodeBlockSlots)({
       ),
       focusRing,
     ),
+    status: component(Utilities.srOnly),
     body: component(
       Style.self({
         margin: '0',
