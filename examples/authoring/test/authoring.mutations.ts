@@ -151,6 +151,17 @@ export default [
     tests: [save],
   },
   {
+    name: 'the writer refuses with no reason',
+    edits: [
+      {
+        file: '../src/save/server.ts',
+        find: "TitleRefused.make({ key: 'title', reason: 'A title is required.' })",
+        replace: "TitleRefused.make({ key: 'title', reason: '' })",
+      },
+    ],
+    tests: [save],
+  },
+  {
     name: 'a refused save forgets the writer reason',
     edits: [
       {

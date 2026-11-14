@@ -17,7 +17,9 @@ export const NOTE = 'note-1'
 export const Note = Entity.make('Note', Schema.Struct({ id: Schema.String, title: Schema.String }))
 
 /** Why the server refused a title: the one field, and the words to show beside it. */
-export const Refused = Schema.Union([Refusal.field('title', Schema.String)])
+/** The writer's one refusal: the title, with the reason the field shows. */
+export const TitleRefused = Refusal.field('title', Schema.String)
+export const Refused = Schema.Union([TitleRefused])
 
 export const SaveNote = Mutation.make('SaveNote', {
   Input: { id: Schema.String, title: Schema.String },

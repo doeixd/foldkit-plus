@@ -7,7 +7,7 @@
  */
 import { Effect, Layer, Schema, Stream } from 'effect'
 import { RemoteClient, RemoteMutationError } from 'foldkit-remote'
-import { SaveNote } from './app.js'
+import { SaveNote, TitleRefused } from './app.js'
 
 /** What a held save is answered with: the writer's own decision, or a transport that fails. */
 export type Answer = 'writer' | 'down'
@@ -38,7 +38,10 @@ export const makeServer = (): Server => {
       ? Effect.fail(
           new RemoteMutationError({
             message: 'refused',
-            refusal: { _tag: 'Field', key: 'title', reason: 'A title is required.' },
+            // Encoded, as the wire carries it.
+            refusal: Schema.encodeSync(TitleRefused)(
+              TitleRefused.make({ key: 'title', reason: 'A title is required.' }),
+            ),
           }),
         )
       : Effect.succeed({
