@@ -123,6 +123,9 @@
       "foldkit-plus/react-codegen": ["../../../packages/plus/src/react-codegen.ts"],
       "foldkit-plus/remote": ["../../../packages/plus/src/remote.ts"],
       "foldkit-plus/remote-domain": ["../../../packages/plus/src/remote-domain.ts"],
+      "foldkit-plus/remote-domain/imported": [
+        "../../../packages/plus/src/remote-domain/imported.ts"
+      ],
       "foldkit-plus/remote-domain/lower": ["../../../packages/plus/src/remote-domain/lower.ts"],
       "foldkit-plus/remote-drizzle": ["../../../packages/plus/src/remote-drizzle.ts"],
       "foldkit-plus/remote-drizzle/pg": ["../../../packages/plus/src/remote-drizzle/pg.ts"],

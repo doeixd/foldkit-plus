@@ -224,6 +224,23 @@ const Keys = ListNavigation.behavior(Nav, navArgs)(ListSlots)<ListModel, ListMes
 })
 ```
 
+**Routes.** `RovingTabindex`, `ListNavigation`, `GridNavigation`,
+`TreeNavigation` and `Typeahead` each export `keys`, the route their Behavior
+installs as the container's one `keydown` handler (and `SpinValue.keys` in
+`foldkit-mixins`). `keys` takes the same placed Bundle and args as `behavior`,
+then the options without the slot names, and returns a `Keys.route`, so a
+field that also wants Escape to clear lists it beside its own route in one
+`Keys.behavior` instead of failing `mixins:event-conflict`. A route declares
+the chords it takes, each with Shift up and down (the moves ignore Shift), so
+`Keys.chord('ArrowDown')` beside `ListNavigation.keys` throws
+`mixins:key-conflict` at definition, and `ListNavigation.keys` declares every
+printable key unless `typeahead` is `false`. Under `virtual` the route
+answers the Message alone; otherwise it also moves focus to the item. A
+`Keys.behavior` writes only `keydown`: the router's slot gets none of the
+primitive's other attributes, so draw `RovingTabindex.itemAttributes` on the
+items and `aria-activedescendant` on the container yourself, or attach the
+primitive's own `behavior` when no other route shares its slot.
+
 **`GridNavigation`** is the two-dimensional counterpart for cells laid out in
 rows of `columns` (a calendar grid, a swatch picker, an emoji palette). Its
 Model slice and item attributes are `RovingTabindex`'s, so the two are
@@ -509,8 +526,10 @@ in the Model, or show the same answer somewhere other than the focused
 element.
 
 **`DismissLayer`** closes overlays that are not native `<dialog>` or `popover`
-elements: Escape closes the topmost open layer, and a pointer press closes the
-layers it is outside of. One Bundle, **placed once**, owns the document
+elements: Escape closes the topmost open layer, unless a handler below it already
+took the key (`defaultPrevented`: a search field clearing itself on Escape
+keeps its layer open, and the next Escape, with nothing to clear, dismisses),
+and a pointer press closes the layers it is outside of. One Bundle, **placed once**, owns the document
 listeners; each layer's Behavior marks its container with
 `data-foldkit-plus-layer="<id>"` and its trigger with the matching trigger
 attribute. The stack is the DOM order of the marked elements at the moment of

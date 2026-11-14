@@ -58,6 +58,15 @@ export type {
   StaticContribution,
   StaticContributionMap,
 } from './contribution.js'
+export type {
+  AttachmentDescription,
+  Finding,
+  Owned,
+  Resolution,
+  SlotDescription,
+  SlotResolution,
+  ViewDescription,
+} from './describe.js'
 export type { Diagnostic, DiagnosticCode } from './diagnostics.js'
 export type { EventToken } from './event.js'
 export type { AnyMixin, Mixin as MixinValue, MixinFor, StaticMixin } from './mixin.js'

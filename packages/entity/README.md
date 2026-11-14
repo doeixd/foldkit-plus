@@ -1566,6 +1566,37 @@ type error where the entry names its Entity. It keeps a state invariant only
 by disjointness, and decides no transition invariant. `Write.footprint(write)`
 is a declared write's own.
 
+#### Evidence, and the graph's facts
+
+A pair the check keeps by reading the declarations (by disjointness, by
+enumeration, a create against a transition invariant, a delete) carries an
+`Enumerated` record in `evidence`, issued by `foldkit-entity/laws`. A pair
+kept on its author's word (`declared`), refused or undecided carries none:
+for those, the evidence is a walk through the writer, a scenario, or
+`Evidence.runtimeOnly` with its reason (`foldkit-metadata`).
+
+```ts
+import { Option } from 'effect'
+import { Evidence } from 'foldkit-metadata'
+
+const records = report.pairs.flatMap(pair => Option.toArray(pair.evidence))
+records.map(Evidence.issuedBy) // some('foldkit-entity/laws') for each
+Laws.transition(Rename) // 'write:Rename'
+const { nodes, edges } = Laws.facts(report)
+```
+
+Records and the graph name a transition `write:<name>` (`Laws.transition`)
+and a law `<Entity>.<id>` (`Laws.law(invariant)`), so `Laws.check` throws for
+two entries of one name. `Laws.facts(report)` is
+the law half of `foldkit-surface`'s graph as plain data, since this package
+does not import Surface: a `Law` per invariant, a `Transition` per write in
+a pair or an arrow, a `State` per local state, `Reads` and `Writes` over `['Product', 'stock']`
+paths, `From` and `To` per arrow, and a `Keeps` edge per transition and law whose
+every pair carries a record. A write's
+own `ensures` is marked `postcondition` on its pair and is no law of the
+Entity, so the facts leave it out; an `Unknown` footprint gives its
+`Transition` and no `Writes`, since the report does not list the members.
+
 ## Naming a question: operators
 
 What operators make possible, end to end (a rule named once, search and order
@@ -1833,7 +1864,8 @@ server on different deploys see which side is behind.
 | `Entity.refine(entity, name, { field: value } or ({ row }) => predicate)` | A named state of the row, declared on the Entity: `predicate`, `after`, `local`, `reads`, `is(row)`. |
 | `Entity.states(entity)` / `Entity.inState(state, row, operators?)` | Every state declared on an Entity; whether a stored row is in one (`Option`, none where it lacks a field the state reads). |
 | `Query.from(state)` | Every row in a state: the Entity's query with its predicate in `where`. |
-| `Laws.check({ writes, operators? })` / `Laws.show(report)` | Each write (`{ name, write }` or `{ name, entity, footprint }`) against each invariant of its Entity, and the arrows between its states, by enumeration over finite fields: a `LawReport` of `pairs`, `arrows`, `states` and `findings`; the report as text. |
+| `Laws.check({ writes, operators? })` / `Laws.show(report)` | Each write (`{ name, write }` or `{ name, entity, footprint }`) against each invariant of its Entity, and the arrows between its states, by enumeration over finite fields: a `LawReport` of `pairs` (each with its `Enumerated` `evidence`, if decided kept), `arrows`, `states` and `findings`; the report as text. |
+| `Laws.facts(report)` / `Laws.transition(entry)` / `Laws.law(invariant)` | The report as graph facts (`LawFacts`: `LawNode`s and `LawEdge`s); a transition's id (`write:Sell`) and a law's (`Product.reservedWithinStock`) in evidence and the graph. |
 | `Footprint.declared({ reads?, writes, by })` / `Footprint.unknown` | What a transition that is no declared write reads and writes, on whose word; or nothing known, which writes every member. |
 | `Write.reads(write)` | The fields a write reads from its row: its `when`'s, each it increments, its assignments', the revision. |
 | `Write.update(input, { …, compute })` / `Computation` | A field computed from the row before the write and the input, carried as data. |

@@ -10,7 +10,7 @@ import { Mutation, Refusal, Remote, RemoteClient, REMOTE_PROTOCOL_VERSION } from
 import { Law } from 'foldkit-remote/testing'
 import { ModelRef } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { DomainReads, DomainRemote } from '../../src/index.js'
+import { DomainReads, DomainRemote, type Outcome } from '../../src/index.js'
 import {
   invalidOf,
   NotedProduct,
@@ -24,6 +24,7 @@ import { bound, world as makeWorld, type World } from './transport.js'
 /** Runs a body in a fresh world, with p1 seeded for ada (stock 10) and its View caught up. */
 const run = <A, E>(
   body: (world: World) => Effect.Effect<A, E, Layer.Success<ReturnType<typeof bound>>>,
+  notOwner?: Outcome<never>,
 ) => {
   const world = makeWorld()
   return Effect.runPromise(
@@ -32,7 +33,7 @@ const run = <A, E>(
       yield* client.Seed('p1', { ownerId: 'ada', stock: 10 })
       yield* world.control.drain
       return yield* body(world)
-    }).pipe(Effect.scoped, Effect.provide(bound(world))),
+    }).pipe(Effect.scoped, Effect.provide(bound(world, notOwner))),
   )
 }
 
@@ -200,6 +201,18 @@ describe('what a write fails with', () => {
       _tag: 'Forbidden',
       reason: 'Only its owner reserves its stock',
     })
+  })
+
+  it('answers a Rejection its binding maps to unauthenticated as Unauthenticated, with its reason', async () => {
+    const answered = await run(
+      world =>
+        Effect.gen(function* () {
+          yield* Ref.set(world.actor, Option.some('grace'))
+          return yield* Effect.flip(reserve('op1', { quantity: 1, revision: 1 }, 'grace'))
+        }),
+      DomainRemote.unauthenticated('Sign in as its owner'),
+    )
+    expect(answered).toMatchObject({ _tag: 'Unauthenticated', reason: 'Sign in as its owner' })
   })
 
   it('answers a lost reply Unreachable, and its retry is the same command', async () => {

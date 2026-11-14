@@ -675,6 +675,8 @@ order (the server's `orderBy` decides it) by any change to a row it holds. `Data
 `Mutation.write`, and a query descriptor) compares `Write.writes` with what the body reads (`fields`, and `reaches`:
 a path, an exists with its `where`, a path from the viewer) by owner identity, and answers a `Reach`: `Reads`,
 `Unaffected`, or `Unknown({ why: 'NoBody' | 'Handler' })` for a `Query.make` query or a `Mutation.make` handler.
+A mutation that is no `Write` may carry a `footprint` (`{ entity, footprint }`, which `Imported.mutation` of
+`foldkit-remote-domain/imported` sets): a `Declared` one is read as an in-place update of those fields only (a command that creates or deletes rows, or changes relations, must declare `Footprint.unknown`, or `reachedBy` under-reports), an `Unknown` one as a handler.
 Never `Unaffected` where the declarations are silent; `explain`'s `reachedBy` lists the registered mutations that `Reads` a list.
 
 **Declared writes.** `Mutation.write(name, Write.update(input, { id }))` (or
@@ -1052,12 +1054,20 @@ const result = await Walk.run({
   from: [{ name: 'loaded', start: loaded }, ...Walk.states(Model, { count: 20, seed: 7 })],
   step: (model, message) => Data.reduce(model, message), // may return a Promise
   violations: (before, message, after) => [{ law: 'below 100', message: '…' }], // [] when it holds
+  laws: ['below 100'], // every law violations judges; another name throws
+  transition: tag => `write:${tag}`, // its id in evidence; the tag by default
   seeds: 200,
   steps: 12,
   regressions: [{ name: 'a fixed case', from: loaded, case: () => message }], // run first
 })
 expect(result.failures).toEqual([]) // each: { start, seed, path, broken }
 ```
+
+With no failure, `result.evidence` holds a `Walked` record (`foldkit-metadata`'s `Evidence`, issued
+by `foldkit-remote/walk`) for each transition a walk drew against each law; with any failure, none.
+A listed law that `violations` never checks still gets its records, on the author's word: list only
+laws `violations` judges, named as the graph names them (`Laws.law(invariant)`), and walk a check
+that is no law (what the writer answers) with a `Walk.run` of its own.
 
 A failure names its start, seed and the cases applied. The same seed draws
 the same walk, so a seed in a test name stays reproducible. `Walk.states`

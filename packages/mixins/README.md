@@ -1024,6 +1024,33 @@ resolution order. Each throws `mixins:unknown-attachment` for a name the view do
 `mixins:ambiguous-attachment` for one it holds twice, so name a Behavior you mean to address
 (an unnamed one is called `Behavior`).
 
+### Describing a view, and what one input resolves to
+
+`SlotView.describe(view)` is the view as data: its slots, and each attachment in order with, per
+slot, what it requires, what it supplies and the classes and Mounts it contributes. It needs no
+input and calls no contribution; one that is a function of the input reads `'unknown'`. It
+reads the view value, so a view you attach to or detach from has a description of its own and
+the first one's does not change. A `JSON.parse(JSON.stringify(description))` equals it, and
+`SlotView.toMarkdown(description)` prints it.
+
+```ts
+const description = SlotView.describe(Checked)
+// description.attachments[0]: { order, name, kind, slots: { input: { requires, provides, contributes } } }
+const markdown = SlotView.toMarkdown(description)
+```
+
+`SlotView.resolution(view, input)` evaluates every contribution for one input and reports, per
+slot, the class tokens, style property names, attribute names, event names and Mount names, each
+with the attachment that gave it. It reports no attribute value, style value or Mount args, since
+any of them may be the input's (a password in `Value`); class tokens are reported as given, so a
+class built from input text surfaces it. It builds handlers with the inert builder
+and calls none, runs no Mount, and returns a conflict as a finding where `resolve` would throw.
+It does not draw the view, so a clash with the view's own base attributes is not reported.
+Attribute and event names are as the resolver compares them (lower case, no hyphens).
+
+`findings` also warn (`severity: 'warning'`) of an unnamed attachment and of two with one name,
+which `detach` and `replace` cannot address.
+
 For per-item groups such as tabs, options or calendar cells, use
 `SlotView.buildersFor(slots, mixins, { input, h })` and map the items yourself. One contribution
 then applies to every item while each item's base attributes retain their own event ownership.
@@ -1185,7 +1212,8 @@ tolerates an absent slot but still checks a present one. It does **not** certify
 
 The contracts are data:
 
-- `Slots.describe(contract)` and `Slot.describe(slot)` return serializable metadata.
+- `Slots.describe(contract)` and `Slot.describe(slot)` return serializable metadata;
+  `SlotView.describe(view)` and `SlotView.resolution(view, input)` describe an assembled view.
 - `Mixin.compose` combines mixins; `Mixin.make`, `Mixin.dynamic` and `Mixin.empty` build them.
 - diagnostics have stable codes and structured `details`, so the same information can feed tests,
   DevTools, documentation or agent tooling.

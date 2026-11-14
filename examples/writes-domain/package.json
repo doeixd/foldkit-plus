@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "demo": "tsx src/main.ts",
     "typecheck": "tsc -b"
   },
   "dependencies": {

@@ -8,6 +8,7 @@ const parity = 'examples/writes-domain/test/lower/parity.test.ts'
 const ledger = 'examples/writes-domain/test/lower/ledger.test.ts'
 const story = 'examples/writes-domain/test/lower/story.test.ts'
 const checks = 'packages/remote-domain/test/lower/check.test.ts'
+const scenarios = 'examples/writes-domain/test/scenario/scenario.test.ts'
 
 export default [
   {
@@ -65,7 +66,7 @@ export default [
     edits: [
       {
         file: write,
-        find: 'Result.isFailure(judged) && Schema.is(Forbidden)(judged.failure)',
+        find: '(Schema.is(Forbidden)(judged.failure) || Schema.is(Unauthenticated)(judged.failure))',
         replace: 'false',
       },
     ],
@@ -75,5 +76,38 @@ export default [
     name: 'every refusal is answered as a conflict',
     edits: [{ file: write, find: '                        refusal._tag,', replace: "'Conflict'," }],
     tests: [parity, story],
+  },
+  {
+    name: 'a reused operation is Reused to a visitor',
+    edits: [
+      {
+        file: write,
+        find: ' || Schema.is(Unauthenticated)(judged.failure)',
+        replace: '',
+      },
+    ],
+    tests: [ledger],
+  },
+  {
+    name: "the guard's Unauthenticated lowered as Forbidden",
+    edits: [
+      {
+        file: write,
+        find: "Unauthenticated: () => Effect.fail(reject('Unauthenticated')),",
+        replace: "Unauthenticated: () => Effect.fail(reject('Forbidden')),",
+      },
+    ],
+    tests: [scenarios, ledger],
+  },
+  {
+    name: 'the lowered Unauthenticated bound as Forbid',
+    edits: [
+      {
+        file: write,
+        find: 'Unauthenticated: () => unauthenticated(),',
+        replace: 'Unauthenticated: () => forbid(),',
+      },
+    ],
+    tests: [scenarios],
   },
 ]

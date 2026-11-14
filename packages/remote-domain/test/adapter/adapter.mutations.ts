@@ -231,4 +231,27 @@ export default [
     ],
     tests,
   },
+  {
+    name: "an Unauthenticated outcome's reason dropped",
+    edits: [
+      {
+        file,
+        find: 'message: `Sign in to send ${binding.command}`,\n                ...Option.match(reason, { onNone: () => ({}), onSome: reason => ({ reason }) }),',
+        replace: 'message: `Sign in to send ${binding.command}`,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an Unauthenticated outcome answered as RemoteForbidden, to the adapter',
+    edits: [
+      {
+        file,
+        find: '              new RemoteUnauthenticated({\n                message: `Sign in to send ${binding.command}`,',
+        replace:
+          '              new RemoteForbidden({\n                message: `Sign in to send ${binding.command}`,',
+      },
+    ],
+    tests,
+  },
 ]

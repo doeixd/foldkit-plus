@@ -64,7 +64,7 @@ export default [
   {
     name: 'the Behavior skips the overlap check',
     edits: [
-      { file, find: '  refuseOverlaps(options.routes, Option.some(options.slot))\n', replace: '' },
+      { file, find: '  refuseOverlaps(routes, Option.fromNullishOr(options.slot))\n', replace: '' },
     ],
     tests: unit,
   },

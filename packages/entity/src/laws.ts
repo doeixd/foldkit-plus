@@ -5,6 +5,7 @@
  * a report, which is data; `Laws.show` prints it.
  */
 import { Data, Match, Option, type Schema } from 'effect'
+import { Evidence } from 'foldkit-metadata'
 import { Steps, finiteValues, steps, type Step } from './enumerate.js'
 import { judgeAgainst, readsBefore, invariantsOf, type Invariant } from './invariant.js'
 import { declaredOwner, Footprint } from './footprint.js'
@@ -71,6 +72,14 @@ export interface LawPair {
   readonly reads: ReadonlyArray<string>
   readonly footprint: Footprint
   readonly verdict: LawVerdict
+  /** True for a write's own `ensures`: a law of that write alone, held where it commits. */
+  readonly postcondition: boolean
+  /**
+   * An `Enumerated` record for a pair the check kept by reading the
+   * declarations; none for an author's word (`declared`), a refusal, or an
+   * undecided pair.
+   */
+  readonly evidence: Option.Option<Evidence>
 }
 
 /** A write taking a row from one state of its Entity to another. */
@@ -131,6 +140,28 @@ const readOf = (held: Invariant): ReadonlyArray<string> => [
 
 const disjoint = (writes: ReadonlyArray<string>, reads: ReadonlyArray<string>): boolean =>
   !writes.some(key => reads.includes(key))
+
+const issuer = Evidence.issuer('foldkit-entity/laws')
+
+/** A transition's id in the graph and in evidence: `write:Sell`. */
+const transition = (entry: { readonly name: string }): string => `write:${entry.name}`
+
+/** An invariant's id in the graph and in evidence: `Product.reservedWithinStock`. */
+const law = (invariant: { readonly id: string; readonly entity: string }): string =>
+  `${invariant.entity}.${invariant.id}`
+
+/** The record for a pair the check decided it keeps, unless only its author says so. */
+const evidenceOf = (name: string, held: Invariant, verdict: LawVerdict): Option.Option<Evidence> =>
+  LawVerdict.$match(verdict, {
+    Kept: ({ by }) =>
+      by === 'declared'
+        ? Option.none()
+        : Option.some(
+            issuer.issue(Evidence.Enumerated({ transition: transition({ name }), law: law(held) })),
+          ),
+    Refused: () => Option.none(),
+    Undecided: () => Option.none(),
+  })
 
 /** One declared write against one invariant. */
 const judgeWrite = (write: AnyWrite, held: Invariant, operators: MemoryOperators): LawVerdict => {
@@ -295,7 +326,8 @@ const arrowsOf = (
  * its writes make between the Entity's declared states. An entry is a
  * declared write (`{ name, write }`, as `Mutation.write` returns), or a
  * transition known by its footprint (`{ name, entity, footprint }`). Pure, and
- * never a fault: what it finds is a report.
+ * what it finds is a report, never a fault; it throws only for two entries of
+ * one name, which its report could not tell apart.
  */
 const check = <const W extends ReadonlyArray<LawEntry>>(options: {
   readonly writes: W & { readonly [K in keyof W]: Checked<W[K]> }
@@ -305,22 +337,30 @@ const check = <const W extends ReadonlyArray<LawEntry>>(options: {
   const entries = options.writes as ReadonlyArray<LawEntry>
   const pairs: Array<LawPair> = []
   const entities: Array<AnyEntity> = []
+  const names = new Set<string>()
   for (const entry of entries) {
+    // Pairs, arrows and evidence name a transition by its name alone.
+    if (names.has(entry.name))
+      throw new Error(`[foldkit-entity] Laws.check: two transitions are named ${entry.name}`)
+    names.add(entry.name)
     const entity = entityOf(entry)
     if (!entities.some(known => known.identity === entity.identity)) entities.push(entity)
     const footprint = footprintOf(entry)
     // A write's own postcondition is judged as an invariant of that write alone.
     const ensured = isWriteEntry(entry) ? Option.toArray(entry.write.ensures) : []
     for (const held of [...invariantsOf(entity), ...ensured]) {
+      const verdict = isWriteEntry(entry)
+        ? judgeWrite(entry.write, held, operators)
+        : judgeFootprint(entry.footprint, held)
       pairs.push({
         write: entry.name,
         entity: entity.name,
         invariant: held.id,
         reads: readOf(held),
         footprint,
-        verdict: isWriteEntry(entry)
-          ? judgeWrite(entry.write, held, operators)
-          : judgeFootprint(entry.footprint, held),
+        verdict,
+        postcondition: ensured.includes(held),
+        evidence: evidenceOf(entry.name, held, verdict),
       })
     }
   }
@@ -430,7 +470,119 @@ const show = (report: LawReport): string => {
   return [...sections, pairs.join('\n')].filter(part => part.length > 0).join('\n\n')
 }
 
+/** A node of the law half of `foldkit-surface`'s graph, as plain data. */
+export type LawNode = Data.TaggedEnum<{
+  /** A member of an Entity: `['Product', 'reserved']`. */
+  Path: { readonly space: 'entity'; readonly path: ReadonlyArray<string> }
+  Transition: { readonly id: string; readonly kind: 'write' }
+  Law: { readonly id: string }
+  State: { readonly entity: string; readonly name: string }
+}>
+export const LawNode = Data.taggedEnum<LawNode>()
+
+/** An edge of the law half of the graph, naming its nodes by id or path. */
+export type LawEdge = Data.TaggedEnum<{
+  Reads: { readonly law: string; readonly path: ReadonlyArray<string> }
+  Writes: { readonly transition: string; readonly path: ReadonlyArray<string> }
+  From: { readonly transition: string; readonly entity: string; readonly state: string }
+  To: { readonly transition: string; readonly entity: string; readonly state: string }
+  Keeps: { readonly transition: string; readonly law: string; readonly evidence: Evidence }
+}>
+export const LawEdge = Data.taggedEnum<LawEdge>()
+
+export interface LawFacts {
+  readonly nodes: ReadonlyArray<LawNode>
+  readonly edges: ReadonlyArray<LawEdge>
+}
+
+/**
+ * The report as graph facts: a Law per invariant, a Transition per write in
+ * a pair or an arrow (one judged against nothing and moving no state has no
+ * law to keep), a State per local state, what each law reads and each transition writes,
+ * each arrow's `from` and `to`, and a `keeps` edge per transition and law whose every
+ * pair carries an `Enumerated` record.
+ * A write's own `ensures` is no law of its Entity and is left out. An
+ * `Unknown` footprint writes members the report does not list, so it
+ * contributes its Transition and no `writes` edge.
+ */
+const facts = (report: LawReport): LawFacts => {
+  const nodes = new Map<string, LawNode>()
+  const edges = new Map<string, LawEdge>()
+  const node = (made: LawNode) => nodes.set(JSON.stringify(made), made)
+  const edge = (key: unknown, made: LawEdge) => edges.set(JSON.stringify(key), made)
+  // Per (transition, law), the last record, or none once any pair for it has none.
+  const keeps = new Map<
+    string,
+    {
+      readonly transition: string
+      readonly law: string
+      readonly evidence: Option.Option<Evidence>
+    }
+  >()
+  const path = (entity: string, member: string) => {
+    const at = [entity, member]
+    node(LawNode.Path({ space: 'entity', path: at }))
+    return at
+  }
+  const write = (name: string) => {
+    const id = transition({ name })
+    node(LawNode.Transition({ id, kind: 'write' }))
+    return id
+  }
+  for (const { entity, names } of report.states)
+    for (const name of names) node(LawNode.State({ entity, name }))
+  for (const pair of report.pairs) {
+    const by = write(pair.write)
+    const writes = Footprint.$match(pair.footprint, {
+      Derived: ({ writes }) => writes,
+      Declared: ({ writes }) => writes,
+      Unknown: () => [],
+    })
+    for (const member of writes)
+      edge(
+        ['writes', by, pair.entity, member],
+        LawEdge.Writes({ transition: by, path: path(pair.entity, member) }),
+      )
+    if (pair.postcondition) continue
+    const id = law({ id: pair.invariant, entity: pair.entity })
+    node(LawNode.Law({ id }))
+    for (const member of pair.reads)
+      edge(
+        ['reads', id, pair.entity, member],
+        LawEdge.Reads({ law: id, path: path(pair.entity, member) }),
+      )
+    const key = JSON.stringify(['keeps', by, id])
+    const known = keeps.get(key)
+    keeps.set(key, {
+      transition: by,
+      law: id,
+      evidence:
+        known === undefined ? pair.evidence : Option.flatMap(known.evidence, () => pair.evidence),
+    })
+  }
+  for (const { transition: by, law: id, evidence } of keeps.values())
+    if (Option.isSome(evidence))
+      edge(['keeps', by, id], LawEdge.Keeps({ transition: by, law: id, evidence: evidence.value }))
+  for (const { entity, write: name, from, to } of report.arrows) {
+    const by = write(name)
+    edge(['from', by, entity, from], LawEdge.From({ transition: by, entity, state: from }))
+    edge(['to', by, entity, to], LawEdge.To({ transition: by, entity, state: to }))
+  }
+  for (const finding of report.findings)
+    if (Finding.$is('Enforced')(finding)) {
+      const by = write(finding.write)
+      edge(
+        ['to', by, finding.entity, finding.to],
+        LawEdge.To({ transition: by, entity: finding.entity, state: finding.to }),
+      )
+    }
+  return { nodes: [...nodes.values()], edges: [...edges.values()] }
+}
+
 export const Laws = {
   check,
   show,
+  facts,
+  transition,
+  law,
 }

@@ -425,6 +425,13 @@ export const layer = <A extends AnyApi>(
                 ...Option.match(reason, { onNone: () => ({}), onSome: reason => ({ reason }) }),
               }),
             ),
+          Unauthenticated: ({ reason }) =>
+            Effect.fail(
+              new RemoteUnauthenticated({
+                message: `Sign in to send ${binding.command}`,
+                ...Option.match(reason, { onNone: () => ({}), onSome: reason => ({ reason }) }),
+              }),
+            ),
           Fail: ({ message }) => Effect.fail(new RemoteMutationError({ message })),
         })
       }

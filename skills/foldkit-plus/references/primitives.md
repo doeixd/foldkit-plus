@@ -149,6 +149,11 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   found nearest the container first, and each fact carries `region: boolean`, so `over: null`
   with `region: true` is the region's empty space. `part: attribute` reports an element
   marked by it as `{ id, zone: 'inside', part }`: a node's empty Region, say.
+- **One router for a field and a list:** `RovingTabindex`, `ListNavigation`, `GridNavigation`, `TreeNavigation` and
+  `Typeahead` each export `keys(Declared, args)<Input, Message>(options)` (`Typeahead.keys(Declared)` takes no args), the `Keys.route` their `behavior` installs;
+  list it beside your own routes in one `Behaviors.Keys.behavior` (a search input: `EscapeClears` + `ListNavigation.keys`).
+  Chords come with Shift up and down; `ListNavigation.keys` declares every printable key unless `typeahead: false`.
+  Only `keydown` is written: draw `RovingTabindex.itemAttributes` and `aria-activedescendant` yourself.
 - **Cells in rows:** `GridNavigation.bundle` (`{ columns, wrap, virtual }`) with
   `GridNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items, direction? })`.
   Same Model slice and item attributes as `RovingTabindex`; arrows move within the row or
@@ -201,6 +206,7 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
 - **Dismiss on Escape or outside press:** place `DismissLayer.bundle` once (required `onOut` for `Dismiss { ids }`);
   `DismissLayer.behavior(Declared)(Slots)({ layer, trigger?, id, outsidePress?, escape? })` marks each layer.
   The stack is DOM order at the event; a press inside a parent is outside its children; a trigger counts as inside.
+  Escape is heard in the bubble phase and skipped when `defaultPrevented`: an input inside a layer that handled Escape (cleared itself) keeps the layer open.
   Not for `popover` elements. `Layers.scrollLock(Slots)({ container })` and `Layers.hideOutside(Slots)({ container })`
   mount Foldkit's refcounted scroll lock and keyed inert set.
 - **One overlay policy:** `Overlay.modal` / `Overlay.nonModal` (or an explicit `Policy`) into

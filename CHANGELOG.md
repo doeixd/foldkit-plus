@@ -9,6 +9,77 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-metadata`: `Evidence`, records that a transition keeps a law
+  (`Enumerated`, `Walked`, `Scenario`, `RuntimeOnly`), stamped by the producer
+  that issued them (#537). `Evidence.issuedBy(record)` is that producer, none
+  for a record typed by hand or spread from an issued one, and a second
+  `Evidence.issuer` of a name throws;
+  `Evidence.runtimeOnly({ transition, law, why })` refuses an empty `why`. The
+  package now peers on `effect`. `foldkit-entity`: each `Laws.check` pair the
+  check keeps by reading the declarations carries an `Enumerated` record in
+  `evidence`, and a write's own `ensures` is marked `postcondition`; two
+  entries of one name throw, since records name a transition by it;
+  `Laws.facts(report)` gives the law half of the graph as plain data (a
+  `Keeps` edge only where every pair of that transition and law has a record),
+  and `Laws.transition` and `Laws.law` the ids it and evidence use.
+  `foldkit-remote/testing`: `Walk.run` takes `laws` (every law its
+  `violations` judges; another name throws, and a listed law it never checks
+  still gets records, on the author's word) and an optional `transition`, and
+  returns `evidence`, a `Walked` record per drawn transition per law when no
+  walk failed. `pnpm evidence:check` refuses an `Evidence.issuer` call outside
+  the producer modules.
+
+- `foldkit-primitives`, `foldkit-mixins`: `RovingTabindex`, `ListNavigation`,
+  `GridNavigation`, `TreeNavigation` and `Typeahead` each export `keys`, the
+  `Keys.route` their `behavior` installs as the container's one `keydown`
+  handler (and `Behaviors.SpinValue.keys` the spinbutton's), so a search input
+  lists `ListNavigation.keys(...)` beside an Escape route in one
+  `Keys.behavior` (#554). A route takes each of its navigation keys with Shift
+  up and down; `ListNavigation.keys` declares every printable key unless
+  `typeahead` is `false`. `Keys.attribute(routes, { slot?, moveFocus? })` is the
+  one `keydown` attribute for a Behavior that also writes other attributes on
+  the slot, `Keys.matches(gesture, key, modifiers)` asks one gesture, and
+  `Keys.withShift(key, modifiers?)` is a named key as two chords. Each
+  primitive's `behavior` is built on them; its attributes are unchanged.
+  `ListNavigation`'s `commit` option still works, and is better written as a
+  route of your own.
+
+- `foldkit-mixins`, `foldkit-mixins-surface`: `SlotView.describe(view)` is a
+  view as serializable data (its slots and each attachment in order, with what it
+  requires, supplies and contributes per slot, and findings for an unnamed or
+  doubly named attachment), `SlotView.resolution(view, input)` the names and
+  owners one input resolves to with no attribute or style value, Mount args or
+  handler call (class tokens as given), and
+  `SlotView.toMarkdown` prints a description (#556). `SurfaceView.describe` gains
+  `attachments` and `findings`; `SurfaceView.toMarkdown` prints them, and its
+  `Mixins` section is now `Attachments`.
+
+- `examples/writes-domain`: one write scenario through three backends (#546).
+  `WriteScenario` is data (rows, principal, clock, the write, its operation and
+  what it must come to); `sqliteRunner`, `memoryRunner` (`RemoteServer.memoryWriter`
+  behind the same guard) and `domainRunner` (the adapter over the lowered model,
+  and a Story) each answer one step per thing they own, and `run` reports every
+  step whose sides differ, naming the backend and the step. Ordering tests drive
+  the page's reducer over the adapter: a reply before and after the View's frame,
+  a frame older than one shown, and a lost reply retried as the same operation.
+
+- `foldkit-remote-domain/imported`: `Imported.mutation(Api, 'Command', { entity,
+  footprint?, refusal? })` declares a Domain command nobody wrote a `Write` for as
+  a mutation, `Imported.describe(Api, { views, commands, fields? })` lists what
+  the bindings import (each command with JSON Schemas of its input and reply,
+  its rejections and the form key each shows beside, and a `Derived`, `Declared`
+  or `Unknown` footprint; each View with its Entity), and `Imported.show` prints
+  it as Markdown (#547). `foldkit-remote`: a `MutationDescriptor` may carry a
+  `footprint`, which `reaches` and `explain`'s `reachedBy` read as the fields it
+  writes when `Declared`, and as no word when `Unknown`. `foldkit-entity`:
+  `Footprint.declared` takes `reads` and `writes` of different fields.
+
+- `foldkit-plus`: `npx foldkit-plus laws <module>[#export]` prints
+  `Laws.show` of a module's `LawReport`, or of the `{ writes }` that
+  `Laws.check` takes (#536). It loads the module through the project's `tsx`,
+  else Node's own TypeScript support, and exits 1 only when the module cannot
+  be loaded or the export is neither shape; findings do not fail it.
+
 - `foldkit-agent`, `foldkit-remote`: an agent capability over a declared write
   (#533). A variant's `applies({ model, input, principal })` judges a call
   against what the Model holds, after `authorize` and over the invocation's one
@@ -110,8 +181,10 @@ version changed; `pnpm` skips versions already in the registry.
   mutation's own. It holds no ledger and judges no rule reading another row.
 - `foldkit-remote-domain`: `DomainRemote`, a `RemoteClient` over an Alchemy
   Domain Api (#544). `view` binds a View to an Entity by a numeric revision
-  field, `command` binds a command to a mutation with one `refuse`, `forbid`
-  or `fail` per declared Rejection, and `layer` answers reads and live reads
+  field, `command` binds a command to a mutation with one `refuse`, `forbid`,
+  `unauthenticated` or `fail` per declared Rejection (each an `Outcome`,
+  answered as the mutation's refusal, `RemoteForbidden`,
+  `RemoteUnauthenticated` or `RemoteMutationError`), and `layer` answers reads and live reads
   from the Views and writes from the commands. A write is sent under a
   `commandId` of its operation and a digest of who asks, the target, the keys
   and the input; its receipt holds the row's floor until a read at it answers,
@@ -123,7 +196,8 @@ version changed; `pnpm` skips versions already in the registry.
   rows and floors of the last four principals to ask.
 - `foldkit-remote-domain/lower`: `Lower.write` lowers a declared update into
   one Domain aggregate (#545). It derives the command, a Rejection per
-  member of the mutation's `Refusal` plus `Forbidden`, `NotFound` and
+  member of the mutation's `Refusal` plus `Forbidden`, `Unauthenticated` (a
+  visitor the guard refuses, answered as a server answers one), `NotFound` and
   `Reused`, the aggregate's state (its row and the operations it decided),
   `decide`, `evolve`, the reply and the by-id View's state and `evolve`, and
   the adapter's two bindings (`binding(api)`, `reads(api, view)`); the author
@@ -131,7 +205,8 @@ version changed; `pnpm` skips versions already in the registry.
   middleware that provides it. `decide` restates no rule: it lands the write
   through `RemoteServer.write` over `GuardServer.writer` over
   `RemoteServer.memoryWriter`. To who may write the row, an operation sent
-  again with another request is `Reused`. `Lower.check` lists, as data, each
+  again with another request is `Reused`; a visitor or who the guard refuses
+  hears the guard instead. `Lower.check` lists, as data, each
   rule, precondition, invariant or context value that reads another row and
   each member the row does not hold; `Lower.write` refuses such a write.
 - `foldkit-remote/testing`: `Walk.run` runs seeded random walks of Messages over
@@ -203,6 +278,19 @@ version changed; `pnpm` skips versions already in the registry.
   `refused` ("The column's series gave no text here"), not padded.
 
 ### Changed
+
+- `foldkit-primitives`: `DismissLayer` hears Escape in the bubble phase and
+  skips one whose `defaultPrevented` is set, so an input inside a layer that
+  handled Escape (a search field clearing itself) no longer also dismisses the
+  layer; an Escape nothing handled still does, as a native `<dialog>` already
+  behaves (#554). A page that prevented Escape on purpose and relied on the
+  layer dismissing anyway stops dismissing, and a handler that stops
+  propagation below the document now also hides the key from the layer.
+  `Typeahead.isPrintable` is `Keys.printable`: a character outside the Basic
+  Multilingual Plane (an emoji) is one printable key, where it counted as two.
+
+- `foldkit-mixins-surface`: `SurfaceView.inspect` is deprecated for one release
+  in favour of `SlotView.describe` (#556).
 
 - `Entity.judgeInput(input, value, { operators?, over? })` takes an options
   object in place of the positional operator table (#542).

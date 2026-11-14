@@ -7,6 +7,7 @@
  * row written by SQL), so a walk begins from a list of named starts.
  */
 import { Exit, Match, Option, Schema, SchemaAST } from 'effect'
+import { Evidence } from 'foldkit-metadata'
 
 /** A Model a walk begins from, by name, so a failure says which. */
 export interface Start<Model> {
@@ -43,6 +44,15 @@ export interface WalkOptions<Model, Message> {
   /** May answer later: a walk of declared writes goes through the writer. */
   readonly step: (model: Model, message: Message) => Model | Promise<Model>
   readonly violations: (before: Model, message: Message, after: Model) => ReadonlyArray<Violation>
+  /**
+   * Every law `violations` judges: a walk with no failure is evidence for
+   * each. A violation naming another law throws, but nothing can tell that
+   * `violations` checks a listed law at all: one it never checks still gets
+   * `Walked` records, on the author's word.
+   */
+  readonly laws: ReadonlyArray<string>
+  /** A drawn case's transition id in evidence, such as `write:Sell` for `Sell`; its tag by default. */
+  readonly transition?: (tag: string) => string
   /** Walks of seeds `1..seeds` from each start, each `steps` long. */
   readonly seeds: number
   readonly steps: number
@@ -56,6 +66,11 @@ export interface WalkOptions<Model, Message> {
 
 export interface WalkResult {
   readonly failures: ReadonlyArray<WalkFailure>
+  /**
+   * A `Walked` record for each transition a walk drew against each law, all
+   * from every start passing; empty when anything failed.
+   */
+  readonly evidence: ReadonlyArray<Evidence>
   readonly seeds: number
   readonly steps: number
 }
@@ -100,9 +115,23 @@ const cases =
     ),
   })
 
+const issuer = Evidence.issuer('foldkit-remote/walk')
+
+/** Refuses a violation naming a law the walk did not say it judges: its evidence would miss it. */
+const judged =
+  <Model, Message>(options: WalkOptions<Model, Message>) =>
+  (before: Model, message: Message, after: Model): ReadonlyArray<Violation> => {
+    const broken = options.violations(before, message, after)
+    const stray = broken.find(({ law }) => !options.laws.includes(law))
+    if (stray !== undefined)
+      throw new Error(`Walk.run: a violation names "${stray.law}", which \`laws\` does not list`)
+    return broken
+  }
+
 /** Applies every step in turn from `model`, returning the first law broken. */
 const walkFrom = async <Model, Message>(
   options: WalkOptions<Model, Message>,
+  judge: (before: Model, message: Message, after: Model) => ReadonlyArray<Violation>,
   model: Model,
   next: () => WalkCase<Model, Message>,
 ): Promise<{ readonly path: ReadonlyArray<string>; readonly broken: ReadonlyArray<Violation> }> => {
@@ -113,7 +142,7 @@ const walkFrom = async <Model, Message>(
     const message = generate(current)
     path.push(`${tag}: ${name}`)
     const after = await options.step(current, message)
-    const broken = options.violations(current, message, after)
+    const broken = judge(current, message, after)
     if (broken.length > 0) return { path, broken }
     current = after
   }
@@ -123,11 +152,14 @@ const walkFrom = async <Model, Message>(
 const run = async <Model, Message>(options: WalkOptions<Model, Message>): Promise<WalkResult> => {
   if (options.from.length === 0) throw new Error('Walk.run: `from` has no starts to walk from')
   if (options.cases.length === 0) throw new Error('Walk.run: `cases` has nothing to walk with')
+  if (options.laws.length === 0) throw new Error('Walk.run: `laws` names nothing it judges')
+  const judge = judged(options)
   const failures: WalkFailure[] = []
+  const drawn = new Set<string>()
   for (const regression of options.regressions ?? []) {
     const model = regression.from()
     const message = regression.case(model)
-    const broken = options.violations(model, message, await options.step(model, message))
+    const broken = judge(model, message, await options.step(model, message))
     if (broken.length > 0) {
       failures.push({
         start: `regression: ${regression.name}`,
@@ -140,18 +172,36 @@ const run = async <Model, Message>(options: WalkOptions<Model, Message>): Promis
   for (const { name, start } of options.from) {
     for (let seed = 1; seed <= options.seeds; seed++) {
       const random = generator(seed)
-      const result = await walkFrom(
-        options,
-        start(),
-        () => options.cases[random(options.cases.length)]!,
-      )
+      const result = await walkFrom(options, judge, start(), () => {
+        const drew = options.cases[random(options.cases.length)]!
+        drawn.add(drew.tag)
+        return drew
+      })
       if (result.broken.length > 0) {
         failures.push({ start: name, seed: Option.some(seed), ...result })
         break
       }
     }
   }
-  return { failures, seeds: options.seeds, steps: options.steps }
+  const transition = options.transition ?? (tag => tag)
+  const starts = options.from.map(({ name }) => name)
+  const evidence =
+    failures.length > 0
+      ? []
+      : [...drawn].flatMap(tag =>
+          options.laws.map(law =>
+            issuer.issue(
+              Evidence.Walked({
+                transition: transition(tag),
+                law,
+                seeds: options.seeds,
+                steps: options.steps,
+                starts,
+              }),
+            ),
+          ),
+        )
+  return { failures, evidence, seeds: options.seeds, steps: options.steps }
 }
 
 const numbers = [0, 1, -1, 2 ** 31, 0.5]

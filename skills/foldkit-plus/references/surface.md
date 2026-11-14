@@ -281,6 +281,14 @@ a `Metadata` per node (`Metadata.empty` by default) and merges its parts with
 `Metadata.combine(parts)`, which runs each key's own `merge`. `Metadata.is`
 rejects copies and hand-built values.
 
+`foldkit-metadata` also holds `Evidence`, records that a transition keeps a law
+(`Enumerated` from `Laws.check`, `Walked` from `Walk.run`, `RuntimeOnly` by hand
+with a reason). `Evidence.issuedBy(record)` is the producer, none for a record
+typed by hand or spread from an issued one (or issued through another copy of
+the package); a name has one `Evidence.issuer`, and a second throws.
+`Evidence.runtimeOnly({ transition, law, why })` throws on an empty `why`. Not
+re-exported by Surface.
+
 - `Surface.when(surface, place, TaggedCase, value => params)` is `Surface.at`
   with the activation **readable**: it records the Model path and the tag, so a
   route-to-Surface manifest, a prefetch analysis or `explain`'s heading can

@@ -924,6 +924,7 @@ describe('A value on screen', () => {
           law: 'a value on screen stays',
           message: broken,
         })),
+      laws: ['a value on screen stays'],
       seeds: 200,
       steps: 12,
       regressions,

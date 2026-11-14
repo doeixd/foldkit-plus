@@ -1,5 +1,6 @@
 /**
- * Dismissable layers: Escape closes the topmost open layer, a pointer press
+ * Dismissable layers: Escape closes the topmost open layer unless a handler
+ * below it already took the key (`defaultPrevented`), a pointer press
  * outside closes the layers it is outside of. One Bundle, placed once, owns
  * the document listeners; each layer's Behavior marks its container (and its
  * trigger) with data attributes. The stack is the DOM order of the marked
@@ -140,17 +141,21 @@ const documentEvents = (): Stream.Stream<Message> => {
             }),
           )
         const onKeyDown = (event: Event) => {
-          if ((event as KeyboardEvent).key !== 'Escape') return
+          const press = event as KeyboardEvent
+          // A handler below already took this Escape (an input clearing itself): it wins. So does
+          // an IME composition, whose Escape cancels the candidate, not the layer.
+          if (event.defaultPrevented || press.isComposing || press.key !== 'Escape') return
           Queue.offerUnsafe(queue, Message.PressedEscape({ layers: openLayers(document) }))
         }
         document.addEventListener('pointerdown', onPointerDown, { capture: true })
-        document.addEventListener('keydown', onKeyDown, { capture: true })
+        // Bubble phase, after the handlers of the elements below, which can prevent it.
+        document.addEventListener('keydown', onKeyDown)
         return { onPointerDown, onKeyDown }
       }),
       ({ onPointerDown, onKeyDown }) =>
         Effect.sync(() => {
           document.removeEventListener('pointerdown', onPointerDown, { capture: true })
-          document.removeEventListener('keydown', onKeyDown, { capture: true })
+          document.removeEventListener('keydown', onKeyDown)
         }),
     ),
   )

@@ -7,7 +7,7 @@
  */
 import { Deferred, Duration, Effect, Layer, Option, Queue, Ref, Stream } from 'effect'
 import { RpcClientDefect, RpcClientError } from 'effect/rpc/RpcClientError'
-import { DomainRemote } from '../../src/index.js'
+import { DomainRemote, type Outcome } from '../../src/index.js'
 import { Reserve, ShopApi, host, invalidOf } from './fixture.js'
 
 type Client = Effect.Success<typeof ShopApi.clientInProcess>
@@ -115,8 +115,11 @@ export const world = (options: { readonly confirmWithin?: Duration.Input } = {})
 
 export type World = ReturnType<typeof world>
 
-/** The adapter over a world, as the tests bind it. */
-export const bound = (world: World) => {
+/** The adapter over a world, as the tests bind it; `notOwner` is how a non-owner's Rejection is answered. */
+export const bound = (
+  world: World,
+  notOwner: Outcome<never> = DomainRemote.forbid('Only its owner reserves its stock'),
+) => {
   const Reads = DomainRemote.view(Reserve.write.input.entity, ShopApi, 'ProductRow', {
     revision: 'revision',
   })
@@ -126,7 +129,7 @@ export const bound = (world: World) => {
     refusals: {
       Moved: () => DomainRemote.refuse({ _tag: 'Conflict' }),
       Invalid: rejection => DomainRemote.refuse(invalidOf(rejection)),
-      NotOwner: () => DomainRemote.forbid('Only its owner reserves its stock'),
+      NotOwner: () => notOwner,
       Missing: () => DomainRemote.fail('No such product'),
     },
     written: reply => reply,

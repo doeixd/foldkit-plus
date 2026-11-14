@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: '../src/interaction/list-navigation.ts',
-        find: "if (!typeahead && result !== undefined && result._tag === 'Type')\n                  return Option.none()\n",
-        replace: '',
+        find: '...(typeahead ? [Behaviors.Keys.printable] : []),',
+        replace: '...[Behaviors.Keys.printable],',
       },
     ],
     tests,
@@ -33,8 +33,8 @@ export default [
     edits: [
       {
         file: '../src/interaction/list-navigation.ts',
-        find: "key === 'Enter' &&\n",
-        replace: "key === 'Enter' && false &&\n",
+        find: "key === 'Enter' && options.commit",
+        replace: "key === 'Enter' && false && options.commit",
       },
     ],
     tests,

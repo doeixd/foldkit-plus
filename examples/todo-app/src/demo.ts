@@ -13,7 +13,6 @@ import { AgentWebMcp } from 'foldkit-agent-webmcp'
 import type { ModelContext, RegisterToolOptions, ToolDescriptor } from 'foldkit-agent-webmcp'
 import { A11y, Capability, Event } from 'foldkit-mixins'
 import { SurfaceView } from 'foldkit-mixins-surface'
-import { Surface } from 'foldkit-surface'
 import { ReplicaId, type Storage } from 'foldkit-sync'
 import { AppAgent, bindAgent } from './agent.js'
 import { Message, counts, initialModel, visibleTodos } from './app.js'
@@ -201,12 +200,8 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   // 11. style.ts / view.ts — appearance and interaction attached from outside.
   say('')
   say('# slots, styles, and behaviors (style.ts, view.ts)')
-  const board = SurfaceView.inspect(BoardView)
-  say(
-    `Board surface observes: ${Surface.inspect(Board, undefined)
-      .dependencies.map(path => path.join('.'))
-      .join(', ')}`,
-  )
+  const board = SurfaceView.describe(Board, undefined, BoardView)
+  say(`Board surface observes: ${board.observes.map(path => path.join('.')).join(', ')}`)
   say(`Board mixins: ${board.mixins.join(', ')}`)
   const accessibility = A11y.validate(
     A11y.pattern({

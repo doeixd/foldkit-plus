@@ -42,11 +42,11 @@ export const Footprint = {
    * Entity: another's throws here, and is a type error where the entry names
    * its Entity.
    */
-  declared: <const F extends AnyField>(declared: {
-    readonly reads?: ReadonlyArray<F>
-    readonly writes: ReadonlyArray<F>
+  declared: <const R extends AnyField = never, const W extends AnyField = never>(declared: {
+    readonly reads?: ReadonlyArray<R>
+    readonly writes: ReadonlyArray<W>
     readonly by: string
-  }): DeclaredFootprint<OwnerOf<F>> => {
+  }): DeclaredFootprint<OwnerOf<R | W>> => {
     const fields = [...(declared.reads ?? []), ...declared.writes]
     const owner = fields[0]?.owner
     if (owner === undefined)
@@ -65,7 +65,7 @@ export const Footprint = {
       by: declared.by,
     })
     declaredOwner.set(footprint, owner)
-    return footprint as DeclaredFootprint<OwnerOf<F>>
+    return footprint as DeclaredFootprint<OwnerOf<R | W>>
   },
   /** Nothing is known of what it writes, so every member: never kept. */
   unknown: Footprints.Unknown() as Extract<Footprint, { readonly _tag: 'Unknown' }>,

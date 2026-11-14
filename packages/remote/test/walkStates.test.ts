@@ -80,6 +80,7 @@ describe('Walk.states', () => {
       from: Walk.states(Row, { count: 3, seed: 9 }),
       step: model => model,
       violations: before => (before.quantity > 0 ? [] : [{ law: 'positive', message: 'no' }]),
+      laws: ['positive'],
       seeds: 2,
       steps: 2,
     })
@@ -141,6 +142,7 @@ describe('Walk.run', () => {
     step: (model: Counter, message: Message) => ({ n: model.n + message.by }),
     violations: (_: Counter, __: Message, after: Counter) =>
       after.n >= 100 ? [{ law: 'below 100', message: `reached ${after.n}` }] : [],
+    laws: ['below 100'],
     seeds: 5,
     steps: 12,
   }
@@ -170,7 +172,7 @@ describe('Walk.run', () => {
       cases: adds,
       from: [{ name: 'loaded', start: () => ({ n: 0 }) }],
     })
-    expect(result).toEqual({ failures: [], seeds: 5, steps: 12 })
+    expect(result).toMatchObject({ failures: [], seeds: 5, steps: 12 })
   })
 
   it('draws the same walks from the same seeds', async () => {
@@ -180,6 +182,7 @@ describe('Walk.run', () => {
         cases: both,
         from: [{ name: 'start', start: () => ({ n: 0 }) }],
         violations: (_, __, after) => (after.n > 10 ? [{ law: 'under 18', message: '' }] : []),
+        laws: ['under 18'],
         seeds: 1,
       })
     const first = await run()
