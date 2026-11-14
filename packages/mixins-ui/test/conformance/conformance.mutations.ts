@@ -350,6 +350,22 @@ export default [
     tests: tabs,
   },
   {
+    name: 'tabs with one enabled tab are asked to go back one',
+    edits: [
+      edit(
+        conformance,
+        'if (enabled.length > 1) {\n    await press(back)\n    note(`${back} goes back one`, current() === enabled[enabled.length - 2], `current ${current()}`)\n  }\n  if (spec.disabled',
+        'if (true) {\n    await press(back)\n    note(`${back} goes back one`, current() === enabled[enabled.length - 2], `current ${current()}`)\n  }\n  if (spec.disabled',
+      ),
+    ],
+    tests: [`${dir}scenarios.browser.test.ts`],
+  },
+  {
+    name: 'a disabled assembled tab does not say so',
+    edits: [edit(handTabs, '...(tab.disabled === true ? [h.AriaDisabled(true)] : []),', '')],
+    tests: tabs,
+  },
+  {
     name: 'the shipped tabs read the arrows physically under right to left',
     edits: [
       edit('../../src/tabs.ts', 'mount: () => ReadingKeys(),', 'mount: () => FollowDirection(),'),

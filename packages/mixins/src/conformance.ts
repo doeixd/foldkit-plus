@@ -836,8 +836,8 @@ const TAB = '[role="tab"]'
  * Tabs: the tab list, tabs and the one panel from the accessibility tree, the
  * panel named by its tab; exactly one tab selected, its `aria-controls` the
  * panel; the arrows (mirrored under right to left) move over the enabled tabs
- * and never onto a disabled one, Home and End reach the ends; `aria-selected`
- * has a value on every tab after every step.
+ * and never onto a disabled one, which says it is disabled; Home and End reach
+ * the ends; `aria-selected` has a value on every tab after every step.
  */
 export const tabs = async (harness: Harness, spec: TabsSpec): Promise<Result> => {
   const { checks, note } = recorder('tabs')
@@ -921,8 +921,18 @@ export const tabs = async (harness: Harness, spec: TabsSpec): Promise<Result> =>
     same(visited.map(String), enabled),
     `visited ${JSON.stringify(visited)}`,
   )
-  await press(back)
-  note(`${back} goes back one`, current() === enabled[enabled.length - 2], `current ${current()}`)
+  if (enabled.length > 1) {
+    await press(back)
+    note(`${back} goes back one`, current() === enabled[enabled.length - 2], `current ${current()}`)
+  }
+  if (spec.disabled !== undefined) {
+    const tab = items().find(item => labelOf(item) === spec.disabled)
+    note(
+      'a disabled tab says so',
+      tab?.getAttribute('aria-disabled') === 'true' || tab?.hasAttribute('disabled') === true,
+      `aria-disabled ${tab?.getAttribute('aria-disabled')}`,
+    )
+  }
   if (manual) {
     note(
       'the arrows move the keyboard without choosing a tab',

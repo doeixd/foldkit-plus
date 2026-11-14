@@ -64,3 +64,29 @@ test('tabs whose arrows choose fail the manual check, which only manual tabs pas
     handle.dispose()
   }
 })
+
+test('tabs with one enabled tab are not asked to go back one', async () => {
+  const tabs = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'settings', label: 'Settings', disabled: true },
+  ]
+  const handle = HandTabs.mount(tabs, 'ltr')
+  try {
+    const result = await Conformance.tabs(harness, {
+      name: 'Project',
+      tabs: tabs.map(tab => tab.label),
+      disabled: 'Settings',
+      enter: async () => {
+        const selected = await vi.waitFor(() => {
+          const found = document.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+          expect(found).not.toBeNull()
+          return found!
+        })
+        selected.focus()
+      },
+    })
+    expect(Conformance.failures(result)).toEqual([])
+  } finally {
+    handle.dispose()
+  }
+})
