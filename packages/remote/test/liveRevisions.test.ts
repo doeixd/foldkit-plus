@@ -50,6 +50,15 @@ const holding = (change: (entry: EntityEntry) => EntityEntry = held => held): Mo
 
 const revisionsOf = (model: Model) => entry.modelToDependencies(model).revisions
 
+/** `model` after a read of p1's `values` answered at `revision`. */
+const readAt = (model: Model, values: Readonly<Record<string, unknown>>, revision: number): Model =>
+  Data.reduce(model, {
+    _tag: 'ReadReceived',
+    requests: [{ entity: 'Product', id: 'p1', fields: Object.keys(values) }],
+    result: { entities: [{ entity: 'Product', id: 'p1', values, revision }], settled: [] },
+    now: 0,
+  })
+
 describe('A live stream over rows the store holds', () => {
   it('names the revision of a row held whole', () => {
     expect(revisionsOf(holding())).toEqual([{ entity: 'Product', id: 'p1', revision: 4 }])
@@ -112,6 +121,40 @@ describe('A live stream over rows the store holds', () => {
     ['no answer carried a revision', ({ revision: _, ...held }: EntityEntry) => held],
   ])('names none when %s', (_, change) => {
     expect(revisionsOf(holding(change))).toEqual([])
+  })
+
+  // A detail read whole at 3, `stock` changed at 4, a list reading `name` at 5:
+  // the store holds `stock` from 3 under revision 5, and the rev-5 frame is
+  // the one carrying the stock the page lacks.
+  it('names none when a partial write moved the revision past a field asked', () => {
+    const partial = readAt(
+      readAt({ remote: Remote.initial }, { name: 'Lamp', stock: 5 }, 3),
+      {
+        name: 'Lamp',
+      },
+      5,
+    )
+    expect(partial.remote.entities['Product:p1']?.revision).toBe(5)
+    expect(revisionsOf(partial)).toEqual([])
+    expect(revisionsOf(readAt(partial, { stock: 4 }, 5))).toEqual([
+      { entity: 'Product', id: 'p1', revision: 5 },
+    ])
+  })
+
+  it('names one held at a revision read in parts', () => {
+    const parts = readAt(readAt({ remote: Remote.initial }, { name: 'Lamp' }, 3), { stock: 5 }, 3)
+    expect(revisionsOf(parts)).toEqual([{ entity: 'Product', id: 'p1', revision: 3 }])
+  })
+
+  it('names none when a write with no revision changed a field asked', () => {
+    const overlaid = Data.reduce(holding(), {
+      _tag: 'ReadReceived',
+      requests: [{ entity: 'Product', id: 'p1', fields: ['stock'] }],
+      result: { entities: [{ entity: 'Product', id: 'p1', values: { stock: 2 } }], settled: [] },
+      now: 0,
+    })
+    expect(overlaid.remote.entities['Product:p1']?.revision).toBe(4)
+    expect(revisionsOf(overlaid)).toEqual([])
   })
 
   it('does not restart the stream when a revision moves', () => {

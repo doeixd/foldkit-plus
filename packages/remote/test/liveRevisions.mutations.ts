@@ -4,6 +4,7 @@
  */
 const entry = '../src/liveEntry.ts'
 const reads = '../src/liveReads.ts'
+const store = '../src/store.ts'
 const tests = ['packages/remote/test/liveRevisions.test.ts']
 
 export default [
@@ -17,8 +18,8 @@ export default [
     edits: [
       {
         file: reads,
-        find: 'held.present.has(field) && !held.stale.has(field)',
-        replace: 'held.present.has(field)',
+        find: ' &&\n          !held.stale.has(field) &&',
+        replace: ' &&',
       },
     ],
     tests,
@@ -28,11 +29,55 @@ export default [
     edits: [
       {
         file: reads,
-        find: 'held.present.has(field) && !held.stale.has(field)',
-        replace: '!held.stale.has(field)',
+        find: '          held.present.has(field) &&\n',
+        replace: '',
       },
     ],
     tests,
+  },
+  {
+    name: 'a field an older revision wrote counts as held at the newer',
+    edits: [
+      {
+        file: reads,
+        find: ' &&\n          held.revisionFields?.has(field) === true',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a write at the held revision forgets the fields written at it before',
+    edits: [
+      {
+        file: store,
+        find: '  if (revision === previous.revision) for (const field of held ?? []) fields.add(field)\n',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a write with no revision leaves its fields known at the revision',
+    edits: [
+      {
+        file: store,
+        find: '    if (held === undefined || !Object.keys(values).some(field => held.has(field))) return held\n',
+        replace: '    return held\n',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a capture drops the fields known at the revision',
+    edits: [
+      {
+        file: '../src/resume.ts',
+        find: '      if (stored.revisionFields?.has(field) === true) entry.revisionFields.add(field)\n',
+        replace: '',
+      },
+    ],
+    tests: ['examples/writes-domain/test/ssr.test.ts'],
   },
   {
     name: 'a tombstone is named at its revision',

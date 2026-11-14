@@ -143,9 +143,11 @@ const stream: LiveCapability['stream'] = (
 }
 
 /**
- * The revision of each row asked that the store holds with every field asked,
- * none stale, and no read-after floor: a frame of it at that revision is one
- * the store has. A floored row is left out, since only a read at its token,
+ * The revision of each row asked that the store holds with every field asked
+ * written at that revision, none stale, and no read-after floor: a frame of
+ * it at that revision is one the store has. A row whose revision a partial
+ * write moved holds its other fields from an older revision, so it is left
+ * out for any of them; so is a floored row, since only a read at its token,
  * which may answer that same revision, ends the floor.
  */
 const heldRevisions: LiveCapability['heldRevisions'] = (store, requirements) =>
@@ -154,7 +156,12 @@ const heldRevisions: LiveCapability['heldRevisions'] = (store, requirements) =>
     return held?.revision === undefined ||
       held.tombstone ||
       held.floor !== undefined ||
-      !fields.every(field => held.present.has(field) && !held.stale.has(field))
+      !fields.every(
+        field =>
+          held.present.has(field) &&
+          !held.stale.has(field) &&
+          held.revisionFields?.has(field) === true,
+      )
       ? []
       : [{ entity, id, revision: held.revision }]
   })

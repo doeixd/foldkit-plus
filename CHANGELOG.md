@@ -31,8 +31,9 @@ version changed; `pnpm` skips versions already in the registry.
   from a server render reads nothing it was handed; `examples/writes-domain`
   renders and hydrates its shop that way under jsdom.
 - `foldkit-remote`: a live stream names the revision it holds each row at,
-  whole, with no field stale and no floor (`LiveRequirement.revisions`), so a
-  server may leave out a frame the page already has; a moved revision does not
+  every field it follows written at that revision, none stale and no floor
+  (`LiveRequirement.revisions`), so a server may leave out a frame the page
+  already has (a row whose revision a partial read moved is named at none); a moved revision does not
   restart the stream. `REMOTE_PROTOCOL_VERSION` is 7, so a client and server of
   6 and 7 refuse each other. `Remote.resume`'s capture carries a row's
   read-after floor, so a row a write in the render held (a form posted without

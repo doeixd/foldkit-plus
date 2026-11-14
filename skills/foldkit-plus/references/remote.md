@@ -1551,7 +1551,8 @@ handler's write and raw SQL are held to the invariants and move the revision too
   read at it, a live patch on a stream opened at it, or either at a newer
   revision than held; a row the server names in `behind` keeps what is held
   and is asked again after 1s, doubling, at most 30s. `Data.inspect(model).floors`, `why`'s `ReadAfter`.
-  A live stream names the revision it holds each row at whole, unfloored, as it
+  A live stream names the revision it holds each row at, unfloored and with every
+  field it follows written at that revision (a partial read that moved it names none), as it
   starts (`LiveRequirement.revisions`; a moved one does not restart it): a
   server may leave out a frame at or before it, as `foldkit-remote-domain` does.
   `source(binding, { revision })` in `foldkit-remote-drizzle` sends the revision;

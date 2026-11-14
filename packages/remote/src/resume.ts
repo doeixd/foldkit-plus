@@ -42,6 +42,8 @@ const CapturedEntry = Schema.Struct({
   oldestAt: Schema.optional(Schema.Number),
   /** The row's revision, when the server sent one: the browser orders what comes after by it. */
   revision: Schema.optional(Schema.Finite),
+  /** The captured fields a write at `revision` carried; absent from an older server's capture, which names none. */
+  revisionFields: Schema.optional(Schema.Array(Schema.String)),
   /**
    * The read-after token of a write the server made while rendering whose
    * read no answer confirmed: the browser keeps the row held to it.
@@ -99,6 +101,7 @@ type MutableEntry = {
   updatedAt: number
   oldestAt: number
   revision: number | undefined
+  revisionFields: Set<string>
   floor: string | undefined
 }
 
@@ -198,6 +201,7 @@ export const captureRemote = (
       updatedAt: stored.updatedAt,
       oldestAt: stored.oldestAt,
       revision: stored.revision,
+      revisionFields: new Set<string>(),
       floor: stored.floor,
     }
     entries.set(key, entry)
@@ -209,6 +213,7 @@ export const captureRemote = (
       put(entry.values, field, stored.values[field])
       entry.present.add(field)
       if (stored.stale.has(field)) entry.stale.add(field)
+      if (stored.revisionFields?.has(field) === true) entry.revisionFields.add(field)
       const window = own(stored.windows, field)
       if (window !== undefined) put(entry.windows, field, window)
       const nested = requirement.relations?.[field]
@@ -250,7 +255,9 @@ export const captureRemote = (
           tombstone: entry.tombstone,
           updatedAt: entry.updatedAt,
           oldestAt: entry.oldestAt,
-          ...(entry.revision === undefined ? {} : { revision: entry.revision }),
+          ...(entry.revision === undefined
+            ? {}
+            : { revision: entry.revision, revisionFields: [...entry.revisionFields] }),
           ...(entry.floor === undefined ? {} : { floor: entry.floor }),
         },
       ]),
@@ -296,7 +303,9 @@ export const restoreRemote = <Store extends RemoteModel>(
           tombstone: entry.tombstone,
           updatedAt: entry.updatedAt,
           oldestAt: entry.oldestAt ?? entry.updatedAt,
-          ...(entry.revision === undefined ? {} : { revision: entry.revision }),
+          ...(entry.revision === undefined
+            ? {}
+            : { revision: entry.revision, revisionFields: new Set(entry.revisionFields) }),
           ...(entry.floor === undefined ? {} : { floor: entry.floor }),
         } satisfies EntityEntry,
       ]),
