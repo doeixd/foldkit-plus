@@ -431,8 +431,10 @@ const SearchKeys = Keys.behavior(Search)({
 - **A route** is `{ name, on, handle }`. `handle({ key, modifiers, input,
   item })` answers `Option<Message>` or `Option<{ message, focus }>`, `focus`
   being an element id (looked up as `idSelector` does, B5).
-- **`Keys.behavior`** contributes one handler to one slot: `OnKeyDownFocus`
-  when any route can answer `focus`, else `OnKeyDownPreventDefault`. It
+- **`Keys.behavior`** contributes one handler to one slot, always
+  `OnKeyDownFocus`: a route that answers no `focus` gets the selector `:not(*)`,
+  which matches nothing, so focus stays and Foldkit still prevents only on
+  `Some`. It
   requires `Event.KeyDown` of the slot, like any Behavior, and a slot that
   protects `keydown` refuses it, like any Mixin. Nothing in the resolver
   changes for it.
