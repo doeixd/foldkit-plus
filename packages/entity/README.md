@@ -1447,8 +1447,10 @@ const Publish = Write.update(
   once it lands. It is decided where the write is declared, by enumerating
   those rows: a claim the patch cannot keep throws there, naming a row it
   breaks. A claim enumeration cannot decide (a sale `becomes: InStock` moves a
-  number) throws too, saying it needs a writer that enforces it; enforcing such
-  a claim where the write commits is not built yet.
+  number) is the write's postcondition, `ensures`: an invariant of that write
+  alone, id `becomes:InStock`, which each writer judges where the write commits
+  and refuses as `Invalid`. `Write.ensured(Sell.write)` is that invariant, for
+  `Refusal.isInvalidBy`; `Laws.check` reports the arrow `enforced`.
 
 ### Checking every write: `Laws.check`
 
@@ -1539,8 +1541,11 @@ filtered by the invariants before enumeration, since a row may be invalid
 before a write; a row the write's `when` (and `from`) definitely refuses is
 dropped, and one it cannot judge stays.
 
-The findings (`holds`, `undeclared`, `refused`, `unreached`, `terminal`) are
-reports, never faults: a write an invariant can refuse is legitimate.
+The findings (`holds`, `enforced`, `undeclared`, `refused`, `unreached`,
+`terminal`) are reports, never faults: a write an invariant can refuse is
+legitimate. `enforced` (`* -> InStock   Sell   enforced`) is a `becomes` held by
+its postcondition where the write commits, and that postcondition is a pair of
+the write alone (`Sell x becomes:InStock`).
 
 A transition that is no declared write (another package's command, an
 import) is an entry with a `Footprint`: what its author says it writes, or
@@ -1821,8 +1826,9 @@ server on different deploys see which side is behind.
 | `Entity.select(entity, { key: true or Selection })` | A Selection: what was selected (`members`) and the `schema` of the result; a tagged union of cases for a variant Entity whose `_tag` is selected. |
 | `Entity.page(selection, { first, after } or { last, before })` | In a Selection, a `many` relation read as a page: `items`, `hasNext`, `hasPrevious`. |
 | `Entity.fields(entity, ...keys)` | The schemas of those fields, by key, to spread into an input's struct. |
-| `Write.update(input, { id, expect?, when?, from?, becomes?, increment? })` | A declared update of one row: every key the input maps to a field, but the id and the expected revision; `when`, what the row must hold for it to land; `from`, a state whose predicate joins the `when`; `becomes`, the state every row it starts from is in once it lands, proved where declared; `increment`, the number fields it moves by an input amount. |
+| `Write.update(input, { id, expect?, when?, from?, becomes?, increment? })` | A declared update of one row: every key the input maps to a field, but the id and the expected revision; `when`, what the row must hold for it to land; `from`, a state whose predicate joins the `when`; `becomes`, the state every row it starts from is in once it lands, proved where declared or else held where it commits (`ensures`); `increment`, the number fields it moves by an input amount. |
 | `Write.insert(input, { id, becomes? })` / `Write.delete(input, { id, expect?, when?, from? })` | A declared insert under an id the client chose; a declared delete of one row, which sets nothing. |
+| `Write.ensured(write)` | The postcondition a `becomes` enumeration could not decide holds the write to where it commits (`becomes:<State>`), for `Refusal.isInvalidBy`; throws for a write with none. |
 | `Write.footprint(write)` | What a write reads and writes of its row, by field key, as a `Footprint.Derived`. |
 | `Entity.refine(entity, name, { field: value } or ({ row }) => predicate)` | A named state of the row, declared on the Entity: `predicate`, `after`, `local`, `reads`, `is(row)`. |
 | `Entity.states(entity)` / `Entity.inState(state, row, operators?)` | Every state declared on an Entity; whether a stored row is in one (`Option`, none where it lacks a field the state reads). |

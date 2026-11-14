@@ -407,7 +407,9 @@ Laws.show(report)
 - **`becomes: Published`** is proved where the write is declared, by enumerating every row it can
   start from over finite fields (literals, unions of them, booleans). A row it leaves outside throws
   there, naming it; a claim enumeration cannot decide (a number moved, `becomes: InStock` on a sale)
-  throws too ("needs a writer that enforces it"), until writers enforce it where the write commits.
+  is the write's postcondition `ensures` (id `becomes:InStock`), judged by the writer where it
+  commits beside the invariants and refused as `Invalid`; `Write.ensured(write)` names it for
+  `Refusal.isInvalidBy`, and a writer without `postconditions` is refused at `RemoteServer.write`.
 - **`Query.from(Draft)`** is the Entity's query with the predicate in `where`; `Expr.show` prints it
   `Product.Draft`. `Entity.inState(Draft, storedRow)` is an `Option` (none when the row lacks a field
   it reads); `Draft.is(row)` narrows the literal form's fields. A Selection is never narrowed by state.
@@ -417,7 +419,8 @@ Laws.show(report)
   invariant never is. All-finite members changed only by `set` are enumerated (`Kept` or `Refused` with
   rows; the `when` drops rows it definitely refuses). Anything else (a number, an increment, a computed
   field, a link, a missing operator, over 4,096 rows) is `Undecided` with a reason. Findings (`holds`,
-  `undeclared`, `refused`, `unreached`, `terminal`) are reports, not faults.
+  `enforced` for a `becomes` held where it commits, `undeclared`, `refused`, `unreached`, `terminal`)
+  are reports, not faults.
 - **Footprints.** An entry that is no declared write is `{ name, entity, footprint }`:
   `Footprint.declared({ writes: [Product.fields.name], by })` keeps a state invariant by disjointness
   only (another Entity's field is a type error); `Footprint.unknown` writes every member and is

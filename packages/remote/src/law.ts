@@ -84,6 +84,10 @@ const nothingCompared = (mutation: string): never => {
  * then compares each predicted field, each predicted deletion and each list's
  * order with what the server answers after the write.
  *
+ * A server's `Invalid` meets a client that could not judge the row
+ * (`Data.can` undecided, as for a field the write moves): the write is
+ * reported in `unknown`, left to the server, not as a disagreement.
+ *
  * Fails when nothing was compared: two sides that both said nothing agree,
  * and that agreement is no evidence.
  */

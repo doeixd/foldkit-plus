@@ -54,7 +54,7 @@ export default [
   edit(
     'a refused write the client showed nothing of is a disagreement',
     '../../remote/src/law.ts',
-    'if (predicted.size > 0)\n        compare(',
+    'if (predicted.size > 0) compare(',
     'compare(',
   ),
   edit(
