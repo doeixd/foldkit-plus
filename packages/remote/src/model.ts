@@ -2866,6 +2866,7 @@ const rowsOf = (
  * its floor ends. Every other floored row the answer names is `held`: it was
  * asked without the token, at another one, or the server's read model is
  * behind it, so the answer may be older than the write, and writes nothing.
+ * A row named in `behind` is held whether it has a floor or not.
  */
 const readAfter = (
   store: EntityStore,
@@ -2875,7 +2876,8 @@ const readAfter = (
 ): { readonly held: ReadonlySet<EntityKey>; readonly confirmed: ReadonlySet<EntityKey> } => {
   const tokens = new Map((sent ?? []).map(row => [entityKey(row.entity, row.id), row.token]))
   const behind = rowsOf(result.behind)
-  const held = new Set<EntityKey>()
+  // A row the server could not read at its token is no evidence it is gone, floored or not.
+  const held = new Set<EntityKey>(behind)
   const confirmed = new Set<EntityKey>()
   for (const ref of [...requests, ...result.entities, ...result.settled]) {
     const key = entityKey(ref.entity, ref.id)

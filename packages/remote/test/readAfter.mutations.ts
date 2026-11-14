@@ -141,4 +141,10 @@ export default [
     '(held.tombstone ? revision <= held.revision : revision < held.revision)',
     'revision < held.revision',
   ),
+  edit(
+    'a row named behind with no floor is taken as gone',
+    model,
+    '  const held = new Set<EntityKey>(behind)',
+    '  const held = new Set<EntityKey>()',
+  ),
 ]

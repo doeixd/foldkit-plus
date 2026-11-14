@@ -205,6 +205,25 @@ const answered = (requests: ReadonlyArray<Requirement>, now = 0): RemoteMessage 
   now,
 })
 
+/** p1's name as the server answers it, at a revision (#544). */
+const atRevision = (revision: number) =>
+  ({
+    _tag: 'ReadReceived',
+    requests: [nameOf('p1')],
+    result: {
+      settled: [],
+      entities: [
+        {
+          entity: 'Project',
+          id: 'p1',
+          values: pick(server[entityKey('Project', 'p1')]!, ['name']),
+          revision,
+        },
+      ],
+    },
+    now: 1,
+  }) satisfies RemoteMessage
+
 /** A list's first page as the server sends it, its rows' names riding on it. */
 const page = (identity: string, ids: ReadonlyArray<string>, refreshes = true): RemoteMessage => ({
   _tag: 'ConnectionMerged',
@@ -313,6 +332,19 @@ const { list: cases, table: messages } = Walk.cases<Model, RemoteMessage>()({
       requests: [nameOf('p2')],
       result: { settled: [], entities: [] },
       now: 1,
+    }),
+    'p1 answered at revision 7': () => atRevision(7),
+    'p1 answered at revision 3': () => atRevision(3),
+    "p1 read at its write's token, behind": () => ({
+      _tag: 'ReadReceived',
+      requests: [nameOf('p1')],
+      result: { settled: [], entities: [], behind: [{ entity: 'Project', id: 'p1' }] },
+      now: 1,
+      after: [{ entity: 'Project', id: 'p1', token: 'p1@2' }],
+    }),
+    "p1 read at its write's token, answered": () => ({
+      ...atRevision(7),
+      after: [{ entity: 'Project', id: 'p1', token: 'p1@2' }],
     }),
   },
   ReadFailed: {
@@ -482,6 +514,13 @@ const { list: cases, table: messages } = Walk.cases<Model, RemoteMessage>()({
       entities: [{ entity: 'Project', id: 'p1', values: { name: 'Renamed' } }],
       now: 2,
     }),
+    'the rename confirmed with a read-after token': () => ({
+      _tag: 'MutationSucceeded',
+      requestId: 'rename',
+      entities: [{ entity: 'Project', id: 'p1', values: { name: 'Renamed' } }],
+      after: { token: 'p1@2', rows: [{ entity: 'Project', id: 'p1' }] },
+      now: 2,
+    }),
     'the create confirmed': () => ({
       _tag: 'MutationSucceeded',
       requestId: 'create',
@@ -571,6 +610,19 @@ const { list: cases, table: messages } = Walk.cases<Model, RemoteMessage>()({
         values: { name: 'Live' },
         changed: ['name'],
         cursor: live(model, 's'),
+      },
+      now: 3,
+    }),
+    'p1 patched live at revision 5': model => ({
+      _tag: 'LiveReceived',
+      stream: 's',
+      event: {
+        _tag: 'EntityPatched',
+        ref: { entity: 'Project', id: 'p1' },
+        values: { name: 'Live five' },
+        changed: ['name'],
+        cursor: live(model, 's'),
+        revision: 5,
       },
       now: 3,
     }),
@@ -869,9 +921,10 @@ const deletes = (message: RemoteMessage, key: string): boolean =>
       LiveReceived: ({ event }) =>
         event._tag === 'EntityDeleted' && entityKey(event.ref.entity, event.ref.id) === key,
       // Asked for by id, and answered with neither it nor any of its fields.
+      // A row the server named behind is not answered at all.
       ReadReceived: ({ requests, result }) =>
         requests.some(request => entityKey(request.entity, request.id) === key) &&
-        ![...result.entities, ...result.settled].some(
+        ![...result.entities, ...result.settled, ...(result.behind ?? [])].some(
           entry => entityKey(entry.entity, entry.id) === key,
         ),
       Preloaded: ({ messages }) => messages.some(inner => deletes(inner, key)),

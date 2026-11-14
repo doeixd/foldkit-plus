@@ -192,6 +192,18 @@ describe('An answer to a read of a floored row', () => {
   })
 })
 
+describe('A row named behind with no floor', () => {
+  it('is not taken as deleted', () => {
+    const model = Data.reduce(held, {
+      _tag: 'ReadReceived',
+      requests: [request],
+      result: { entities: [], settled: [], behind: [{ entity: 'Product', id: 'p1' }] },
+      now: 10,
+    })
+    expect(stockOf(model)).toBe(5)
+  })
+})
+
 describe('A floor across a reload', () => {
   it('survives a persisted snapshot and is asked again with its token', async () => {
     const saved = Data.reduce(written(), {
