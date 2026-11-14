@@ -52,8 +52,8 @@ const describeValue = (value: unknown): string => {
   return keys.length === 0 ? 'an empty object' : `an object with the keys ${keys.join(', ')}`
 }
 
-/** The file a package's export `subpath` names for `import`, read from its manifest. */
-const entryOf = (dir: string, subpath: string): Option.Option<string> => {
+/** The file a package's export `subpath` names for Node's `import`, read from its manifest: `node`, then `import`, then `default`, as Node picks. */
+export const entryOf = (dir: string, subpath: string): Option.Option<string> => {
   const exported = (
     JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as {
       exports?: Readonly<Record<string, unknown>>
@@ -62,7 +62,10 @@ const entryOf = (dir: string, subpath: string): Option.Option<string> => {
   const target = (value: unknown): Option.Option<string> => {
     if (typeof value === 'string') return Option.some(value)
     if (!isRecord(value)) return Option.none()
-    return Option.orElse(target(value['import']), () => target(value['default']))
+    return [value['node'], value['import'], value['default']].reduce<Option.Option<string>>(
+      (found, condition) => Option.orElse(found, () => target(condition)),
+      Option.none(),
+    )
   }
   return Option.map(target(exported), file => join(dir, file))
 }
@@ -81,10 +84,8 @@ const nearestTsconfig = (from: string): Option.Option<string> => {
  * keeps them one copy of the library, so `Laws.check` meets the entries the
  * module built; two `tsImport` calls would each load their own.
  */
-const throughTsx = async (tsx: string, file: string): Promise<Option.Option<Scoped>> => {
-  const api = entryOf(tsx, './esm/api')
-  if (Option.isNone(api)) return Option.none()
-  const { register } = (await import(/* @vite-ignore */ pathToFileURL(api.value).href)) as {
+const throughTsx = async (api: string, file: string): Promise<Scoped> => {
+  const { register } = (await import(/* @vite-ignore */ pathToFileURL(api).href)) as {
     register: (options: { namespace: string; tsconfig?: string }) => {
       readonly import: (specifier: string, parent: string) => Promise<unknown>
       readonly unregister: () => Promise<void>
@@ -97,10 +98,18 @@ const throughTsx = async (tsx: string, file: string): Promise<Option.Option<Scop
       : { namespace: 'foldkit-plus-laws' },
   )
   const parent = pathToFileURL(file).href
-  return Option.some({
+  return {
     load: specifier => scope.import(specifier, parent),
     close: scope.unregister,
-  })
+  }
+}
+
+/** What to say when the project's tsx is too old to have the API this command loads through. */
+export const tsxWithoutApi = (dir: string): string => {
+  const { version } = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as {
+    version?: string
+  }
+  return `The tsx installed at ${dir} (${version ?? 'unknown version'}) has no esm/api export, which this command loads the module through. Upgrade tsx to a 4.x release that has it (foldkit-plus is tested with ^4.23.15).`
 }
 
 /** Node's own TypeScript support: the module by its URL, `foldkit-entity` from the nearest `node_modules`. */
@@ -156,7 +165,11 @@ const printed = async (
   }
   if (!isEntityLaws(laws))
     return failed("The project's foldkit-entity exports no Laws.check and Laws.show.")
-  return { text: `${laws.show(isWrites(value) ? laws.check(value) : value)}\n`, isError: false }
+  try {
+    return { text: `${laws.show(isWrites(value) ? laws.check(value) : value)}\n`, isError: false }
+  } catch (error) {
+    return failed(`Laws could not report on the ${named} of ${file}: ${messageOf(error)}`)
+  }
 }
 
 /**
@@ -172,7 +185,9 @@ export const lawsReport = async (spec: string, cwd: string): Promise<Printed> =>
   if (!existsSync(file)) return failed(`No such file: ${file}`)
 
   const tsx = installedFrom(dirname(file), 'tsx')
-  const scoped = Option.isSome(tsx) ? await throughTsx(tsx.value, file) : Option.none<Scoped>()
+  const api = Option.flatMap(tsx, dir => entryOf(dir, './esm/api'))
+  if (Option.isSome(tsx) && Option.isNone(api)) return failed(tsxWithoutApi(tsx.value))
+  const scoped = Option.isSome(api) ? Option.some(await throughTsx(api.value, file)) : Option.none()
   try {
     return await printed(
       file,

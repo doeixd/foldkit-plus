@@ -26,4 +26,24 @@ export default [
     'isError: false }',
     'isError: isReport(value) && (value as { findings: Array<unknown> }).findings.length > 0 }',
   ),
+  edit(
+    'a throw from Laws.check escapes',
+    '    return failed(`Laws could not report on the ${named} of ${file}: ${messageOf(error)}`)',
+    '    throw error',
+  ),
+  edit(
+    'entryOf takes import before node',
+    "[value['node'], value['import'], value['default']]",
+    "[value['import'], value['node'], value['default']]",
+  ),
+  edit(
+    'entryOf ignores default',
+    "[value['node'], value['import'], value['default']]",
+    "[value['node'], value['import']]",
+  ),
+  edit(
+    'a tsx without esm/api falls back to Node',
+    'if (Option.isSome(tsx) && Option.isNone(api)) return failed(tsxWithoutApi(tsx.value))',
+    '',
+  ),
 ]
