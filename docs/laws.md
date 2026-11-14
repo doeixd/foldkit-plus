@@ -438,7 +438,7 @@ issued by whatever produced it, and each kind says how much it proves:
 
 | Kind | Issued by | What it shows |
 | --- | --- | --- |
-| `Enumerated` | `Laws.check`, for each pair it decided `kept` by reading the declarations | Every row the write can start from was judged. A proof, not a sample. |
+| `Enumerated` | `Laws.check`, for each pair it decided `kept` by reading the declarations | Read off the declarations: the write touches nothing the rule reads, or every row it can start from was judged. A proof, not a sample. |
 | `Walked` | `Walk.run` (`foldkit-remote/testing`), when no walk failed | Seeded sequences of Messages, through the real writer, never broke the law. Says which seeds passed, not that none can. |
 | `Scenario` | `Scenario.run` (`foldkit-remote/testing`), per runner with no mismatch | One written case ran on each backend and agreed. |
 | `RuntimeOnly` | `Evidence.runtimeOnly`, by hand, with a `why` | Only the writer or the journal refuses it in production, and nothing earlier covers it. A reasoned admission, not a test. |
