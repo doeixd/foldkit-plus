@@ -321,7 +321,7 @@ export const resolve = <Message>(
     if (owner !== undefined) {
       fail(
         'mixins:event-conflict',
-        `two owners for event "${eventName}": ${quoted(owner.source)} already owns it through "${owner.tag}", and ${quoted(source)} claims it through "${tag}"`,
+        `two owners for event "${eventName}": ${quoted(owner.source)} already owns it through "${owner.tag}", and ${quoted(source)} claims it through "${tag}"${eventName === 'keydown' ? '; fold their keys into one Behaviors.Keys.behavior' : ''}`,
         { tag, event: eventName, owner: owner.tag, contributors: [owner.source, source] },
       )
     }
