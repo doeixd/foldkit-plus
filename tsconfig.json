@@ -56,6 +56,7 @@
     { "path": "./examples/tree" },
     { "path": "./examples/drawer" },
     { "path": "./examples/widgets" },
+    { "path": "./examples/authoring" },
     { "path": "./examples/bundle" },
     { "path": "./examples/react" },
     { "path": "./examples/remote" },

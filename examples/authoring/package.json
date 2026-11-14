@@ -1,0 +1,34 @@
+{
+  "name": "foldkit-example-authoring",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "demo": "tsx src/main.ts",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "effect": "4.1.4",
+    "foldkit": "0.170.0",
+    "foldkit-agent": "workspace:*",
+    "foldkit-bundle": "workspace:*",
+    "foldkit-mixins": "workspace:*",
+    "foldkit-primitives": "workspace:*",
+    "foldkit-remote": "workspace:*"
+  },
+  "devDependencies": {
+    "@effect/platform-browser": "4.1.4",
+    "@foldkit/vite-plugin": "0.29.0",
+    "effect": "4.1.4",
+    "foldkit": "0.170.0",
+    "foldkit-agent": "workspace:*",
+    "foldkit-bundle": "workspace:*",
+    "foldkit-mixins": "workspace:*",
+    "foldkit-primitives": "workspace:*",
+    "foldkit-remote": "workspace:*",
+    "typescript": "7.0.2",
+    "vite": "8.3.5"
+  }
+}
