@@ -959,11 +959,9 @@ export const Crud = {
     // each member in a Selection of its own, since a Read rule may withhold one
     // from this reader, which settles that Selection unavailable and leaves the
     // form, and the other members, alone.
-    const judgedReads = Object.keys(Entity.judgedBy(form.input))
-      .filter(member => locks === undefined || !Object.hasOwn(locks.select, member))
-      .map(
-        member => [member, Entity.select(form.input.entity, { [member]: true } as never)] as const,
-      )
+    const judgedReads = Object.keys(Entity.judgedBy(form.input)).map(
+      member => [member, Entity.select(form.input.entity, { [member]: true } as never)] as const,
+    )
     type Row = (typeof current)['schema']['Type']
     /** The member each form key writes: a field's own key, or the relation it points. */
     const writes: ReadonlyArray<readonly [keyof Fields & string, string]> = Object.entries(
@@ -1009,25 +1007,29 @@ export const Crud = {
          * withheld is left out, so an invariant reading it stays undecided
          * rather than judged on a value the reader does not have.
          */
-        const judgedHeld = (root: Root, target: string): Readonly<Record<string, unknown>> =>
-          Object.fromEntries(
-            judgedReads.flatMap(([member, selection]) =>
-              Option.toArray(RemoteData.held(data.get(selection, target).read(root))).map(
-                value => [member, (value as Readonly<Record<string, unknown>>)[member]] as const,
-              ),
-            ),
-          )
+        const judgedHeld = (
+          root: Root,
+          target: string | null,
+        ): Readonly<Record<string, unknown>> => {
+          const held: Record<string, unknown> = Object.create(null)
+          if (target !== null)
+            for (const [member, selection] of judgedReads) {
+              const read = RemoteData.held(data.get(selection, target).read(root))
+              if (Option.isSome(read)) held[member] = read.value[member]
+            }
+          return held
+        }
         /**
-         * The form set over the row a loaded value describes, with the judged
-         * members held beside it, and which those were.
+         * The form set over the row a loaded value of `target` describes, with
+         * the judged members held beside it, and which those were.
          */
         const overOf = (
           root: Root,
+          target: string | null,
           formModel: Model['form'],
           value: Readonly<Record<string, unknown>>,
         ): Pick<Model, 'form' | 'judged'> => {
-          const { target } = slice.get(root)
-          const held = target === null ? {} : judgedHeld(root, target)
+          const held = judgedHeld(root, target)
           return {
             form: form.over(formModel, Entity.rowFrom(form.input.entity, { ...value, ...held }))
               .model,
@@ -1105,13 +1107,12 @@ export const Crud = {
           const { target } = editor
           if (!editor.filled || target === null) return root
           const held = Object.keys(judgedHeld(root, target))
-          const over = Option.exists(editor.judged, judged =>
-            held.every(member => judged.includes(member)),
-          )
-          if (over) return root
+          if (Option.exists(editor.judged, judged => held.every(m => judged.includes(m))))
+            return root
           return Option.match(known(root), {
             onNone: () => root,
-            onSome: value => slice.set(root, { ...editor, ...overOf(root, editor.form, value) }),
+            onSome: value =>
+              slice.set(root, { ...editor, ...overOf(root, target, editor.form, value) }),
           })
         }
 
@@ -1197,7 +1198,7 @@ export const Crud = {
             // The row the form edits is now the one its save left.
             ...Option.match(known(root), {
               onNone: () => ({ form: answered }),
-              onSome: value => overOf(root, answered, value),
+              onSome: value => overOf(root, editor.target, answered, value),
             }),
           })
         }

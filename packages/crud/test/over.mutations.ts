@@ -27,13 +27,13 @@ export default [
   ),
   edit(
     'the form is not set over the row it is filled from',
-    'onSome: value => slice.set(root, { ...editor, ...overOf(root, editor.form, value) }),',
-    'onSome: () => root,',
+    'slice.set(root, { ...editor, ...overOf(root, target, editor.form, value) }),',
+    'root,',
   ),
   edit(
     'a judged member arriving after the fill is not taken in',
-    'const over = Option.exists(editor.judged, judged =>',
-    'const over = Option.isSome(editor.judged) || Option.exists(editor.judged, judged =>',
+    'if (Option.exists(editor.judged, judged => held.every(m => judged.includes(m))))',
+    'if (Option.isSome(editor.judged))',
   ),
   edit(
     'the judged members the form is over are not recorded, so every sync sets it over again',
@@ -42,7 +42,7 @@ export default [
   ),
   edit(
     'the form stays over the row before its own save',
-    'onSome: value => overOf(root, answered, value),',
+    'onSome: value => overOf(root, editor.target, answered, value),',
     'onSome: () => ({ form: answered }),',
   ),
 ]
