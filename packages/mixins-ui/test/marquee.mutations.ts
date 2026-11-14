@@ -8,6 +8,28 @@ const browser = 'packages/mixins-ui/test/marquee.browser.test.ts'
 
 export default [
   {
+    name: 'the copies repeat the items’ ids',
+    edits: [
+      {
+        file: '../src/marquee.ts',
+        find: '(copy === 0 ? options.items : cloned)',
+        replace: 'options.items',
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: 'a copy keeps the ids of what is nested in an item',
+    edits: [
+      {
+        file: '../src/marquee.ts',
+        find: "typeof child === 'string' ? child : unidentifiedNode(child)",
+        replace: 'child',
+      },
+    ],
+    tests: [unit],
+  },
+  {
     name: 'the copies are read and reached like the first',
     edits: [{ file: '../src/marquee.ts', find: "h.Attribute('inert', ''),", replace: '' }],
     tests: [unit],

@@ -23,6 +23,7 @@ const measured = (content: number, viewport: number) =>
   ).model
 
 type More = Partial<Marquee.MarqueeView<TestMessage>>
+const h = SlotView.inertBuilder<TestMessage>()
 const style = Style.forSlots(MarqueeSlots)(Recipe({}))
 const Shown = SlotView.forMessages<TestMessage>().define(MarqueeSlots, (more: More, _, h) =>
   Marquee.view(
@@ -54,6 +55,19 @@ describe('Marquee.view', () => {
       'horizontal',
     ])
     expect(Inert.value(rootOf({ side: 'bottom' }), 'data-orientation')).toBe('vertical')
+  })
+
+  it('keeps an item’s ids in the first copy only, at any depth', () => {
+    const identified = drawn({
+      items: [h.span([h.Id('badge')], [h.span([h.Id('inner')], [])])],
+    })
+    const ids = Inert.bySlot(identified, 'content').map(copy =>
+      Inert.byTag(copy, 'span').map(span => Inert.value(span, 'id')),
+    )
+    expect(ids).toEqual([
+      ['badge', 'inner'],
+      [undefined, undefined],
+    ])
   })
 
   it('draws the content once for reading and its copies inert', () => {

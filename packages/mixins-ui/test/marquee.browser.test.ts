@@ -38,6 +38,8 @@ interface Options {
   readonly dir?: 'rtl'
   readonly side?: Marquee.MarqueeSide
   readonly speed?: number
+  /** Gives every item an id, as an application's own markup may. */
+  readonly ids?: boolean
   /** Set on the marquee's wrapper, as a theme would. */
   readonly knobs?: Readonly<Record<string, string>>
   /** The height of a box drawn around the marquee. */
@@ -60,7 +62,14 @@ const mount = (options: Options = {}) => {
   document.body.append(container)
   const items = (h: HtmlBuilder<Marquee.Message>): ReadonlyArray<Html> =>
     ['Acme', 'Globex', 'Initech'].map(name =>
-      h.a([h.Href('#'), h.Style({ display: 'block', inlineSize: '60px' })], [name]),
+      h.a(
+        [
+          h.Href('#'),
+          h.Style({ display: 'block', inlineSize: '60px' }),
+          ...(options.ids === true ? [h.Id(`logo-${name}`)] : []),
+        ],
+        [name],
+      ),
     )
   return Runtime.embed(
     Runtime.makeElement({
@@ -239,6 +248,19 @@ test.each([
     expect(box(viewport()).height).toBeCloseTo(height, 0)
     expect(box(region()!).bottom).toBeCloseTo(box(document.getElementById('box')!).bottom, 0)
     expect(getComputedStyle(viewport()).overflow).toBe('hidden')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('repeats no id across the copies the document holds', async () => {
+  const handle = mount({ ids: true })
+  try {
+    await ready()
+    expect(copies().length).toBeGreaterThan(2)
+    const ids = Array.from(document.querySelectorAll('[id^="logo-"]')).map(element => element.id)
+    expect(ids).toEqual(['logo-Acme', 'logo-Globex', 'logo-Initech'])
+    expect(first().querySelectorAll('[id]')).toHaveLength(3)
   } finally {
     handle.dispose()
   }

@@ -104,6 +104,7 @@ export interface MarqueeView<Message> {
   readonly onMessage: (message: typeof Message.Type) => NoInfer<Message>
   /** What scrolls by, naming the region. */
   readonly label: string
+  /** The copies after the first draw these without their `id`s, so a document holds each once. */
   readonly items: ReadonlyArray<Html>
   /** Default `start`: toward the inline start, so leftward left to right. */
   readonly side?: MarqueeSide | undefined
@@ -128,6 +129,36 @@ export interface MarqueeView<Message> {
   /** Mixins beside the style. */
   readonly mixins?: MixinList<Message> | undefined
 }
+
+// A copy of a record without one key, keeping the descriptors and symbols
+// Foldkit marks its data with, which a spread would flatten.
+const withoutKey = <Record extends object>(record: Record, key: string): Record => {
+  const copy = Object.defineProperties({}, Object.getOwnPropertyDescriptors(record))
+  Reflect.deleteProperty(copy, key)
+  return copy as Record
+}
+
+// The copies after the first repeat the items' markup, and so every `id` in it:
+// a document may hold each once, so a copy is the items without them.
+const unidentifiedNode = (node: NonNullable<Html>): NonNullable<Html> => {
+  const { data } = node
+  return {
+    ...node,
+    data:
+      data === undefined
+        ? undefined
+        : {
+            ...data,
+            ...(data.props === undefined ? {} : { props: withoutKey(data.props, 'id') }),
+            ...(data.attrs === undefined ? {} : { attrs: withoutKey(data.attrs, 'id') }),
+          },
+    children: node.children?.map(child =>
+      typeof child === 'string' ? child : unidentifiedNode(child),
+    ),
+  }
+}
+
+const unidentified = (item: Html): Html => (item === null ? item : unidentifiedNode(item))
 
 /** How many copies draw: enough to cover the viewport and one more, never fewer than `repeat`. */
 const copiesOf = (
@@ -163,6 +194,7 @@ export const view = <Outer>(options: MarqueeView<Outer>, h: HtmlBuilder<Outer>):
       onSome: String,
     }),
   }
+  const cloned = copies > 1 ? options.items.map(unidentified) : []
   const labels = options.pauseLabels ?? { pause: 'Pause', play: 'Play' }
 
   return h.div(
@@ -207,7 +239,7 @@ export const view = <Outer>(options: MarqueeView<Outer>, h: HtmlBuilder<Outer>):
                     h.Attribute('inert', ''),
                   ]),
             ]),
-            options.items.map(item => h.div(builders.item.attrs(), [item])),
+            (copy === 0 ? options.items : cloned).map(item => h.div(builders.item.attrs(), [item])),
           ),
         ),
       ),
