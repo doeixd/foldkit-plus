@@ -16,9 +16,11 @@ version changed; `pnpm` skips versions already in the registry.
   `Evidence.runtimeOnly({ transition, law, why })` refuses an empty `why`. The
   package now peers on `effect`. `foldkit-entity`: each `Laws.check` pair the
   check keeps by reading the declarations carries an `Enumerated` record in
-  `evidence`, and a write's own `ensures` is marked `postcondition`;
-  `Laws.facts(report)` gives the law half of the graph as plain data, and
-  `Laws.transition` and `Laws.law` the ids it and evidence use.
+  `evidence`, and a write's own `ensures` is marked `postcondition`; two
+  entries of one name throw, since records name a transition by it;
+  `Laws.facts(report)` gives the law half of the graph as plain data (a
+  `Keeps` edge only where every pair of that transition and law has a record),
+  and `Laws.transition` and `Laws.law` the ids it and evidence use.
   `foldkit-remote/testing`: `Walk.run` takes `laws` (every law its
   `violations` judges; another name throws) and an optional `transition`, and
   returns `evidence`, a `Walked` record per drawn transition per law when no

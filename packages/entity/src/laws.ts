@@ -326,7 +326,8 @@ const arrowsOf = (
  * its writes make between the Entity's declared states. An entry is a
  * declared write (`{ name, write }`, as `Mutation.write` returns), or a
  * transition known by its footprint (`{ name, entity, footprint }`). Pure, and
- * never a fault: what it finds is a report.
+ * what it finds is a report, never a fault; it throws only for two entries of
+ * one name, which its report could not tell apart.
  */
 const check = <const W extends ReadonlyArray<LawEntry>>(options: {
   readonly writes: W & { readonly [K in keyof W]: Checked<W[K]> }
@@ -336,7 +337,12 @@ const check = <const W extends ReadonlyArray<LawEntry>>(options: {
   const entries = options.writes as ReadonlyArray<LawEntry>
   const pairs: Array<LawPair> = []
   const entities: Array<AnyEntity> = []
+  const names = new Set<string>()
   for (const entry of entries) {
+    // Pairs, arrows and evidence name a transition by its name alone.
+    if (names.has(entry.name))
+      throw new Error(`[foldkit-entity] Laws.check: two transitions are named ${entry.name}`)
+    names.add(entry.name)
     const entity = entityOf(entry)
     if (!entities.some(known => known.identity === entity.identity)) entities.push(entity)
     const footprint = footprintOf(entry)
@@ -493,7 +499,8 @@ export interface LawFacts {
  * The report as graph facts: a Law per invariant, a Transition per write in
  * a pair or an arrow (one judged against nothing and moving no state has no
  * law to keep), a State per local state, what each law reads and each transition writes,
- * each arrow's `from` and `to`, and a `keeps` edge per `Enumerated` record.
+ * each arrow's `from` and `to`, and a `keeps` edge per transition and law whose every
+ * pair carries an `Enumerated` record.
  * A write's own `ensures` is no law of its Entity and is left out. An
  * `Unknown` footprint writes members the report does not list, so it
  * contributes its Transition and no `writes` edge.
@@ -503,6 +510,15 @@ const facts = (report: LawReport): LawFacts => {
   const edges = new Map<string, LawEdge>()
   const node = (made: LawNode) => nodes.set(JSON.stringify(made), made)
   const edge = (key: unknown, made: LawEdge) => edges.set(JSON.stringify(key), made)
+  // Per (transition, law), the last record, or none once any pair for it has none.
+  const keeps = new Map<
+    string,
+    {
+      readonly transition: string
+      readonly law: string
+      readonly evidence: Option.Option<Evidence>
+    }
+  >()
   const path = (entity: string, member: string) => {
     const at = [entity, member]
     node(LawNode.Path({ space: 'entity', path: at }))
@@ -535,12 +551,18 @@ const facts = (report: LawReport): LawFacts => {
         ['reads', id, pair.entity, member],
         LawEdge.Reads({ law: id, path: path(pair.entity, member) }),
       )
-    if (Option.isSome(pair.evidence))
-      edge(
-        ['keeps', by, id],
-        LawEdge.Keeps({ transition: by, law: id, evidence: pair.evidence.value }),
-      )
+    const key = JSON.stringify(['keeps', by, id])
+    const known = keeps.get(key)
+    keeps.set(key, {
+      transition: by,
+      law: id,
+      evidence:
+        known === undefined ? pair.evidence : Option.flatMap(known.evidence, () => pair.evidence),
+    })
   }
+  for (const { transition: by, law: id, evidence } of keeps.values())
+    if (Option.isSome(evidence))
+      edge(['keeps', by, id], LawEdge.Keeps({ transition: by, law: id, evidence: evidence.value }))
   for (const { entity, write: name, from, to } of report.arrows) {
     const by = write(name)
     edge(['from', by, entity, from], LawEdge.From({ transition: by, entity, state: from }))

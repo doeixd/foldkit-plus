@@ -445,6 +445,15 @@ describe('Laws.check: evidence', () => {
     expect(evidence(write, invariant)).toEqual(Option.none())
   })
 
+  it('refuses two entries of one name, whose pairs it could not tell apart', () => {
+    expect(() => Laws.check({ writes: [Revert, { name: 'Revert', write: Rename.write }] })).toThrow(
+      'two transitions are named Revert',
+    )
+    expect(() => Laws.check({ writes: [Touch, { ...Touch }] })).toThrow(
+      'two transitions are named Touch',
+    )
+  })
+
   it('names transitions and laws as the graph and evidence do', () => {
     expect(Laws.transition(Sell)).toBe('write:Sell')
     expect(Laws.law(reservedWithinStock)).toBe('Product.reservedWithinStock')
@@ -526,6 +535,25 @@ describe('Laws.facts', () => {
           each.transition === 'write:Revert' && each.law === 'Product.publishedStaysPublished',
       ),
     ).toBe(false)
+  })
+
+  it('draws no keeps edge for a transition and law one of its pairs has no record for', () => {
+    // A report is data: one joined from two checks can name a transition twice.
+    const kept = Laws.check({ writes: [{ name: 'Revert', write: Rename.write }] })
+    const joined = { ...report, pairs: [...report.pairs, ...kept.pairs] }
+    const stays = 'Product.publishedStaysPublished'
+    expect(
+      kept.pairs.some(
+        pair => pair.invariant === 'publishedStaysPublished' && Option.isSome(pair.evidence),
+      ),
+    ).toBe(true)
+    const keeps = Laws.facts(joined).edges.filter(LawEdge.$is('Keeps'))
+    expect(keeps.some(each => each.transition === 'write:Revert' && each.law === stays)).toBe(false)
+    expect(
+      keeps.some(
+        each => each.transition === 'write:Revert' && each.law === 'Product.reservedWithinStock',
+      ),
+    ).toBe(true)
   })
 
   it("leaves a write's own postcondition out, and draws its becomes as a to edge", () => {

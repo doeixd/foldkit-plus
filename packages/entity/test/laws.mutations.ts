@@ -223,8 +223,8 @@ export default [
     edits: [
       {
         file: '../src/laws.ts',
-        find: '    if (Option.isSome(pair.evidence))',
-        replace: "    if (Option.isSome(pair.evidence) && pair.write === '')",
+        find: '    if (Option.isSome(evidence))',
+        replace: "    if (Option.isSome(evidence) && by === '')",
       },
     ],
     tests: [laws],
@@ -247,6 +247,28 @@ export default [
         file: '../src/laws.ts',
         find: '      Declared: ({ writes }) => writes,\n      Unknown: () => [],',
         replace: '      Declared: () => [],\n      Unknown: () => [],',
+      },
+    ],
+    tests: [laws],
+  },
+  {
+    name: 'two entries of one name both checked',
+    edits: [
+      {
+        file: '../src/laws.ts',
+        find: '    if (names.has(entry.name))\n',
+        replace: '    if (false)\n',
+      },
+    ],
+    tests: [laws],
+  },
+  {
+    name: 'facts keep the last record of a transition and law, whatever came before',
+    edits: [
+      {
+        file: '../src/laws.ts',
+        find: 'Option.flatMap(known.evidence, () => pair.evidence)',
+        replace: 'pair.evidence',
       },
     ],
     tests: [laws],
