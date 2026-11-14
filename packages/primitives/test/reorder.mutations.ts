@@ -143,6 +143,18 @@ export default [
     [browser],
   ),
   one(
+    'focus leaving a routed list is not heard',
+    'return routedList ? Stream.merge(facts, leaving(element)) : facts',
+    'return facts',
+    [browser],
+  ),
+  one(
+    'focus leaving a routed list puts back a pointer drag too',
+    "LeftList: () =>\n      holdingBy('keys',",
+    'LeftList: () =>\n      holding(',
+    [unit],
+  ),
+  one(
     'focus leaving the handle is not heard',
     'onSome: id => [h.OnBlur(wrap(Message.Left({ id })))],',
     'onSome: () => [],',

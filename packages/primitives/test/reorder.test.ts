@@ -114,6 +114,14 @@ describe('Reorder transitions', () => {
     expect(step(pointer, Message.Left({ id: 'b' })).model).toBe(pointer)
   })
 
+  it('puts back a key grab when focus leaves a routed list, whose rows may never blur', () => {
+    expect(step(heldBy('b', 'keys'), Message.LeftList()).outMessage).toEqual(
+      OutMessage.PutBack({ id: 'b', by: 'keys' }),
+    )
+    const pointer = heldBy('b', 'pointer')
+    expect(step(pointer, Message.LeftList()).model).toBe(pointer)
+  })
+
   it('refuses a second grab while one is held, and the other path does not steer the one held', () => {
     const keys = heldBy('a', 'keys', Option.some(before('c')))
     const cases: ReadonlyArray<[Model, Reorder.Message]> = [

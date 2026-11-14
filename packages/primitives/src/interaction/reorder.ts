@@ -13,7 +13,7 @@
  * transition is also an out-fact, so the parent can read it out through
  * `LiveAnnounce` with `announcement`.
  */
-import { Match, Option, Schema, Stream } from 'effect'
+import { Effect, Match, Option, Queue, Schema, Stream } from 'effect'
 import type { Attribute, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
@@ -64,6 +64,12 @@ export const Message = defineMessageUnion({
   Cancelled: {},
   /** Focus left an item; it puts back a key grab of that item. */
   Left: { id: Schema.String },
+  /**
+   * Focus left the container of a routed list; it puts back a key grab. Its
+   * items may never take focus themselves (`aria-activedescendant`), so none
+   * of them blurs.
+   */
+  LeftList: {},
 })
 export type Message = typeof Message.Type
 
@@ -156,6 +162,8 @@ const update = (model: Model, message: Message): Return => {
       holdingBy('keys', held =>
         held.id === id ? { model: idle, outMessage: OutMessage.PutBack(held) } : { model },
       ),
+    LeftList: () =>
+      holdingBy('keys', held => ({ model: idle, outMessage: OutMessage.PutBack(held) })),
   })
 }
 
@@ -651,7 +659,10 @@ export const behavior = <Field extends string>(declared: Declared<typeof bundle,
       const spec: Record<string, ReturnType<typeof Behavior.slot>> = Object.create(null)
       spec[options.container] = Behavior.slot({
         requires: { capability: Capability.Container },
-        mount: () => Mount.mapMessage(pointerPath(mark), (message: Message) => wrap(message)),
+        mount: () =>
+          Mount.mapMessage(pointerPath(mark, handle === routed), (message: Message) =>
+            wrap(message),
+          ),
       })
       if (handle === routed || handle === options.item) {
         spec[options.item] = Behavior.slot({
@@ -701,14 +712,38 @@ const slotted = (
   return { id: place.id, zone: from !== -1 && from < at ? 'after' : 'before' }
 }
 
-/** `PointerDrag` on the container, its facts as this Bundle's Messages: one draft, whichever way it started. */
-const pointerPath = (mark: string): Mount.MountAction<Message> => {
+/**
+ * Focus leaving `element` for somewhere outside it, as `LeftList`. Heard for
+ * the Mount's life, not only while an item is held: a grab and a Tab inside
+ * one frame meet a drawing that does not know of the grab yet.
+ */
+const leaving = (element: Element): Stream.Stream<Message> =>
+  Stream.callback<Message>(queue =>
+    Effect.acquireRelease(
+      Effect.sync(() => {
+        const left = (event: Event) => {
+          const next = (event as FocusEvent).relatedTarget
+          if (next instanceof Node && element.contains(next)) return
+          Queue.offerUnsafe(queue, Message.LeftList())
+        }
+        element.addEventListener('focusout', left)
+        return left
+      }),
+      left => Effect.sync(() => element.removeEventListener('focusout', left)),
+    ),
+  )
+
+/**
+ * `PointerDrag` on the container, its facts as this Bundle's Messages: one
+ * draft, whichever way it started. A routed list also hears focus leave it.
+ */
+const pointerPath = (mark: string, routedList: boolean): Mount.MountAction<Message> => {
   const drag = PointerDrag({ attribute: mark })
   return {
     ...drag,
     f: (element, viewStateChanges) => {
       let held: string | null = null
-      return drag.f(element, viewStateChanges).pipe(
+      const facts = drag.f(element, viewStateChanges).pipe(
         Stream.map((fact: DragFact): Message =>
           Match.valueTags(fact, {
             DragStarted: ({ id }): Message => {
@@ -727,6 +762,7 @@ const pointerPath = (mark: string): Mount.MountAction<Message> => {
           }),
         ),
       )
+      return routedList ? Stream.merge(facts, leaving(element)) : facts
     },
   }
 }

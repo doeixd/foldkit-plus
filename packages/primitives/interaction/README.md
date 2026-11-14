@@ -748,7 +748,8 @@ back `{ behavior, keys }`, where `keys` is the route built from the same
 options (`items`, `parent`, `accepts`, `orientation`, `grab`), to list first in
 the container's router. Before a grab the route answers only its grab chords,
 so the arrows navigate; while an item is held it takes them, and focus stays on
-the held row. Focus leaving the row puts the grab back.
+the held row. Focus leaving the row, or the list (whose rows never take focus
+under `aria-activedescendant`), puts the grab back.
 
 **Space and Enter are the list's too.** A grab is Space or Enter by default,
 and a listbox that selects with Space, activates with Enter or types a space

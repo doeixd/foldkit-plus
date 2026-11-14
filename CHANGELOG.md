@@ -25,11 +25,11 @@ version changed; `pnpm` skips versions already in the registry.
   feed the same Messages. Out-facts `PickedUp`, `PassedOver`, `Moved`, `PutBack`:
   the parent applies or refuses `Moved` (`Reorder.apply`,
   `Reorder.movesIntoItself`) and reads each out with `Reorder.announcement`
-  through `LiveAnnounce`. Beside `ListNavigation`, `handle: Reorder.routed`
-  hands back `{ behavior, keys }`, the route built from the same options, for
-  `Keys.first`; `grab` gives the chords that pick up (Space and Enter by
-  default), so a list that selects or activates by key keeps those; RTL swaps
-  Left and Right.
+  through `LiveAnnounce`, a refused move as refused (`refuses`). Beside
+  `ListNavigation`, `handle: Reorder.routed` hands back `{ behavior, keys }`,
+  the route built from the same options, for `Keys.first`; `grab` gives the
+  chords that pick up (Space and Enter by default), so a list that selects or
+  activates by key keeps those; RTL swaps Left and Right.
 - `foldkit-remote`: row revisions and read-after tokens on Remote's wire
   (#544, #480's open item). `NormalizedEntity.revision` and
   `EntityPatched.revision`: a row of a lower revision than the one held writes

@@ -167,6 +167,43 @@ const routed = List.define((model, slots, h) =>
   Behavior.attach(FocusRecovery.behavior(List)({ owner: 'list', parts: { row: ['same'] } })),
 )
 
+// The list keeps DOM focus and points at the current row with aria-activedescendant.
+const virtualRows = Reorder.behavior(Rows)(List)({
+  container: 'list',
+  item: 'row',
+  handle: Reorder.routed,
+  items: m => m.ids,
+  current: m => Option.fromNullishOr(m.nav.current),
+})
+const virtual = List.define((model, slots, h) =>
+  h.ul(
+    slots.list.attrs([
+      h.Id('list'),
+      h.Tabindex(0),
+      ...(model.nav.current === null ? [] : [h.AriaActiveDescendant(model.nav.current)]),
+      h.Style({ margin: '0', padding: '0' }),
+    ]),
+    rowsOf(model, slots, h, false),
+  ),
+).pipe(
+  Behavior.attach(
+    Keys.behavior(List)({
+      slot: 'list',
+      routes: [
+        Keys.first(
+          virtualRows.keys,
+          ListNavigation.keys(Nav, { ...navArgs, virtual: true })<Model, Message>({
+            items: m => Behaviors.Collection.of(m.ids, { id: id => id }),
+            text: (m, index) => m.ids[index] ?? '',
+            typeahead: false,
+          }),
+        ),
+      ],
+    }),
+  ),
+  Behavior.attach(virtualRows.behavior),
+)
+
 let handle: { dispose: () => void } | undefined
 
 const start = async (view: typeof gripped) => {
@@ -269,6 +306,28 @@ describe('Reorder routed beside ListNavigation', () => {
     await expect.poll(order).toEqual(['a', 'c', 'd', 'b'])
     await expect.poll(said).toBe('Dropped B after D.')
     await expect.poll(active).toBe('b')
+  })
+})
+
+describe('Reorder routed on a list whose rows never take focus', () => {
+  it('puts the grab back when focus leaves the list', async () => {
+    await start(virtual)
+    const outside = document.createElement('button')
+    outside.id = 'outside'
+    document.body.append(outside)
+    document.getElementById('list')!.focus()
+    const pointed = () => document.getElementById('list')?.getAttribute('aria-activedescendant')
+    await userEvent.keyboard('{ArrowDown}')
+    await expect.poll(pointed).toBe('a')
+    await userEvent.keyboard('{ArrowDown}')
+    await expect
+      .poll(() => document.getElementById('list')?.getAttribute('aria-activedescendant'))
+      .toBe('b')
+    await userEvent.keyboard(' ')
+    await expect.poll(() => document.getElementById('b')?.dataset['reorder']).toBe('held')
+    outside.focus()
+    await expect.poll(() => document.querySelector('[data-reorder]')).toBeNull()
+    await expect.poll(said).toBe('B put back where it was.')
   })
 })
 
