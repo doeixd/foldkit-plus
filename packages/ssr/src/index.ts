@@ -87,7 +87,7 @@ import {
   HEAD_END_MARKER,
   HEAD_MARKER,
   tagOf,
-  type Loadable,
+  lazyFor,
   type PlanSurface,
   type ResumableConfig,
   type ResumePlan,
@@ -691,9 +691,26 @@ const unplacedKeeps = (html: string): ReadonlyArray<string> => {
   return found
 }
 
-/** Loads every lazy bundle's bodies, so the view renders whole. */
-const loadLazy = (config: { readonly lazy?: ReadonlyArray<Loadable> | undefined }) =>
-  Effect.promise(() => Promise.all((config.lazy ?? []).map(bundle => bundle.load())))
+/**
+ * Loads the lazy bundles the page draws, so the view renders whole, and
+ * returns the config the render starts from. A list loads whole; a function
+ * of the Model is asked with the Model `init` starts this page from, so the
+ * render starts from that start rather than running `init` a second time.
+ */
+const loadLazy = <Model>(
+  config: ResumableConfig<Model>,
+  options: { readonly url?: string | undefined; readonly flags?: unknown },
+): Effect.Effect<ResumableConfig<Model>, RenderError> =>
+  Effect.gen(function* () {
+    const { lazy } = config
+    if (typeof lazy !== 'function') {
+      yield* Effect.promise(() => Promise.all((lazy ?? []).map(each => each.load())))
+      return config
+    }
+    const started = yield* startOf(config, options)
+    yield* Effect.promise(() => Promise.all(lazy(started.model).map(each => each.load())))
+    return startingFrom(config, started) as ResumableConfig<Model>
+  })
 
 /** Foldkit's own Flags script, which a resumed page never carries. */
 const FLAGS_SCRIPT = new RegExp(
@@ -857,7 +874,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
   match: RouteMatch,
 ): Effect.Effect<Served<Model>, RenderError | ResumeUnsafe> =>
   Effect.gen(function* () {
-    yield* loadLazy(config)
+    config = yield* loadLazy(config, options)
     let served: ReturnType<ResumableConfig<Model>['init']> | undefined
     const regions = new Map<string, Region>()
     const duplicates = new Set<string>()
@@ -1235,15 +1252,15 @@ const reportedUnnamed = new Set<string>()
 /**
  * Reports, once per process, each handler that keeps a page from answering
  * before boot. Only a page that waits to boot is held up: one started
- * `'now'`, with no lazy bundle to load, boots before any event.
+ * `'now'`, with no lazy bundle to load for the Model it shows, boots before any event.
  */
 const reportUnnamed = <Model, Fields extends Schema.Struct.Fields>(
   config: ResumableConfig<Model>,
   plan: ResumePlan<Model, Fields>,
-  unnamed: ReadonlyArray<UnnamedHandler>,
+  { model, page: { unnamed } }: Served<Model>,
 ): Effect.Effect<void> =>
   Effect.suspend(() => {
-    if (plan.start === 'now' && (config.lazy ?? []).length === 0) return Effect.void
+    if (plan.start === 'now' && lazyFor(config, model).length === 0) return Effect.void
     const first = unnamed.filter(({ element, event }) => {
       const key = JSON.stringify([plan.id, element, event])
       if (reportedUnnamed.has(key)) return false
@@ -1314,9 +1331,8 @@ const generate = <
         },
         'path',
       ).pipe(
-        Effect.map(served => served.page),
-        Effect.tap(result => reportUnnamed(config, plan, result.unnamed)),
-        Effect.map(result => ({
+        Effect.tap(served => reportUnnamed(config, plan, served)),
+        Effect.map(({ page: result }) => ({
           path,
           file: fileOf(path),
           html: page(options.template, result, { head: options.head }),
@@ -1678,7 +1694,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
             ),
           )
         }
-        yield* reportUnnamed(config, plan, served.page.unnamed)
+        yield* reportUnnamed(config, plan, served)
         // No `headers` or `status` key unless given: a `Rendered` that carries
         // neither stays generatable as a static file.
         return Rendered(served.page.rendered, {

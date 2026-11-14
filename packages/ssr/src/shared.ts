@@ -694,9 +694,19 @@ export interface ResumableConfig<Model, Message = any> extends ApplicationOption
    * Bundles whose bodies load on demand (`Bundle.lazy`). The server loads
    * them before it renders; the browser loads them before it boots, answering
    * from the markers meanwhile, so a page never shows a bundle's placeholder.
+   * A function is asked with the Model the page is drawn from (the server's
+   * after `prepare`, the browser's as resumed), so only what that page draws
+   * loads: `model => Site.codeFor(AppSite, pages, model.route)`.
    */
-  readonly lazy?: ReadonlyArray<Loadable> | undefined
+  readonly lazy?: ReadonlyArray<Loadable> | ((model: Model) => ReadonlyArray<Loadable>) | undefined
 }
+
+/** The lazy bundles a page drawn from `model` needs loaded. */
+export const lazyFor = <Model>(
+  config: { readonly lazy?: ResumableConfig<Model>['lazy'] },
+  model: Model,
+): ReadonlyArray<Loadable> =>
+  typeof config.lazy === 'function' ? config.lazy(model) : (config.lazy ?? [])
 
 /** What `SSR` needs of a lazy bundle: `Bundle.lazy` gives it. */
 export interface Loadable {
