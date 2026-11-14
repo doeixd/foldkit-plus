@@ -16,11 +16,17 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // keeps Remote's live capability and live entry whether it reads live or not, and measured 292,749
 // without it and 293,110 with it in one tree (`LiveRequirement.revisions` on the wire, the held
 // revisions worked out, the field passed on by the RPC client); +361, rounded up.
-const CEILING = 293_400
+// -1,640 on 2026-11-14 (293,105 to 291,465 in fresh builds of 8cca4a535 and the change): Crud.list's
+// `live` takes Remote's `liveQuery` from the caller, so Crud no longer keeps liveEvents, liveReads
+// and live (5.8 kB minified, `absent` below); the live entry and its state stay, which every
+// `Data.subscriptions` entry carries. Ceiling lowered by that, rounded up.
+const CEILING = 291_800
 
 clientBudget({
   name: 'cms',
   dir: resolve(import.meta.dirname, '..'),
   ceiling: CEILING,
   childProcess: true,
+  // Its lists read nothing live, so none of Remote's live reads may come with Crud.
+  absent: ['foldkit-remote/live', 'foldkit-remote/liveReads', 'foldkit-remote/liveEvents'],
 })

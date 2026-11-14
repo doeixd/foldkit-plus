@@ -934,6 +934,11 @@ Foldkit's own behaviour that we work around is listed in
   bytes, failing one run in two (#504). Two guesses (a lock, an import sort)
   fixed real but different things. Make a flaky size explain itself (which
   modules differ, `explainDifference`) before guessing again.
+- **A flag that switches a capability on keeps it in every page.** `Crud.list`'s
+  `live: boolean` made Crud import `liveQuery` to honour it, so every page
+  drawing a list kept Remote's live reads (about 1.5 kB brotli) and read
+  nothing live. Take the capability from the caller (`live: liveQuery`) and
+  import only its type, and pin it with a budget's `absent`.
 - **A namespace object (`Sync.forApplication`) keeps every member's module.**
   The cloudflare Worker read `Sync.forApplication` and carried Sync's client
   mount, sockets, presence and IndexedDB, 492 kB raw, until it imported
