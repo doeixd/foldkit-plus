@@ -8,6 +8,42 @@ const unit = 'packages/mixins-ui/test/inputCopy.test.ts'
 
 export default [
   {
+    name: 'a refused copy is not marked failed',
+    edits: [
+      { file: '../src/inputCopy.ts', find: 'failed: () => true,', replace: 'failed: () => false,' },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a later copy keeps the failure',
+    edits: [
+      {
+        file: '../src/inputCopy.ts',
+        find: 'failed: () => false,',
+        replace: 'failed: () => model.failed,',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a failure never clears',
+    edits: [
+      {
+        file: '../src/inputCopy.ts',
+        find: '(model.copied || model.failed)',
+        replace: 'model.copied',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the status region stays silent on a failure',
+    edits: [
+      { file: '../src/inputCopy.ts', find: "options.failedLabel ?? 'Copy failed'", replace: "''" },
+    ],
+    tests: [unit],
+  },
+  {
     name: 'the field can be edited',
     edits: [{ file: '../src/inputCopy.ts', find: "h.Attribute('readonly', ''),", replace: '' }],
     tests: [unit],
@@ -44,7 +80,7 @@ export default [
     edits: [
       {
         file: '../src/inputCopy.ts',
-        find: "h.span(builders.status.attrs([h.Role('status')]), options.copied ? [copiedLabel] : []),",
+        find: "h.span(\n      builders.status.attrs([h.Role('status')]),\n      options.copied ? [copiedLabel] : failed ? [options.failedLabel ?? 'Copy failed'] : [],\n    ),",
         replace:
           "...(options.copied ? [h.span(builders.status.attrs([h.Role('status')]), [copiedLabel])] : []),",
       },
@@ -56,8 +92,8 @@ export default [
     edits: [
       {
         file: '../src/inputCopy.ts',
-        find: 'options.copied ? [copiedLabel] : []),',
-        replace: '[]),',
+        find: 'options.copied ? [copiedLabel] : failed',
+        replace: 'false ? [copiedLabel] : failed',
       },
     ],
     tests: [unit],
@@ -78,8 +114,8 @@ export default [
     edits: [
       {
         file: '../src/inputCopy.ts',
-        find: 'copy === model.copies && model.copied',
-        replace: 'model.copied',
+        find: 'copy === model.copies && (model.copied',
+        replace: '(model.copied',
       },
     ],
     tests: [unit],
@@ -100,8 +136,8 @@ export default [
     edits: [
       {
         file: '../src/inputCopy.ts',
-        find: 'commands: [Reset({ ms: model.resetAfter, copy: copies })],',
-        replace: 'commands: [],',
+        find: 'commands: [Reset({ ms: model.resetAfter, copy: copies })],\n      }\n    },\n    Failed:',
+        replace: 'commands: [],\n      }\n    },\n    Failed:',
       },
     ],
     tests: [unit],

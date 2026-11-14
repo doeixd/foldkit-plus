@@ -2237,7 +2237,7 @@ export const showcases: ReadonlyArray<Showcase> = [
     (style, live) =>
       Snippet.inputCopy(
         style,
-        live.widgets.inputCopy.copied,
+        live.widgets.inputCopy,
         text => live.onWidget(Widgets.Message.PressedCopy({ text })),
         live.h,
       ),

@@ -6597,7 +6597,7 @@ export const API_KEY = 'sk-live-4f9a2c71'
 
 export const inputCopy = <Message>(
   style: NamedStyle<typeof InputCopySlots>,
-  copied: boolean,
+  model: InputCopy.Model,
   onCopy: (text: string) => Message,
   h: HtmlBuilder<Message>,
 ): Html =>
@@ -6606,7 +6606,8 @@ export const inputCopy = <Message>(
       id: 'preview-api-key',
       label: 'API key',
       value: API_KEY,
-      copied,
+      copied: model.copied,
+      failed: model.failed,
       onCopy: onCopy(API_KEY),
       style,
     },

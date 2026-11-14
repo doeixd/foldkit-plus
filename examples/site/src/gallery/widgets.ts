@@ -1828,11 +1828,10 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         Message.GotCopy({ message }),
       ),
     }),
-    // A refused copy leaves the button as it was: there is nothing to say was copied.
     GotCopy: ({ message }) =>
       ClipboardMessage.match(message, {
         Copied: () => foldInputCopy(model, InputCopy.Message.Copied()),
-        CopyFailed: () => ({ model }),
+        CopyFailed: () => foldInputCopy(model, InputCopy.Message.Failed()),
       }),
     GotInputCopy: ({ message }) => foldInputCopy(model, message),
     GotSelect: ({ example, message }) => foldSelect(model, example, message),
