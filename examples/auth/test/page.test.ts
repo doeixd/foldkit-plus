@@ -9,6 +9,7 @@
 import { readFile } from 'node:fs/promises'
 import { toResponse } from 'foldkit/experimental/server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { Account } from '../src/account.js'
 import { startHttpServer } from '../src/http.js'
 import { PageContext, httpReader, makeRenderPage } from '../src/page.js'
 import { notes } from '../src/server.js'
@@ -85,5 +86,23 @@ describe('a page read over HTTP', () => {
   it('leaves a method no page takes to the entry, which refuses it unread', async () => {
     const response = await answer('/notes', { method: 'DELETE' })
     expect(response.status).toBe(405)
+  })
+})
+
+describe('the account page, whose bodies are a chunk of their own', () => {
+  // In this order: a lazy bundle stays loaded once any render loads it.
+  it('loads none of its code to render another page, or to send a visitor away', async () => {
+    const cookie = await signIn('ada')
+    expect((await answer('/notes', { cookie })).status).toBe(200)
+    expect((await answer('/', { cookie })).status).toBe(200)
+    expect((await answer('/account')).status).toBe(303)
+    expect(Account.isLoaded()).toBe(false)
+  })
+
+  it('loads its code to render it, so the page carries its bodies', async () => {
+    const response = await answer('/account', { cookie: await signIn('ada') })
+    expect(response.status).toBe(200)
+    expect(Account.isLoaded()).toBe(true)
+    expect(await response.text()).toMatch(/<p id="digest"[^>]*>Weekly digest: off<\/p>/)
   })
 })

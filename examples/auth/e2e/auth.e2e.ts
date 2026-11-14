@@ -118,6 +118,15 @@ const clientImports = (page: Page): Array<string> => {
   return asked
 }
 
+/** How many times `page` asks for the account page's bodies, a chunk of their own (`Bundle.lazy`). */
+const accountImports = (page: Page): Array<string> => {
+  const asked: Array<string> = []
+  page.on('request', request => {
+    if (new URL(request.url()).pathname === '/src/account.body.ts') asked.push(request.url())
+  })
+  return asked
+}
+
 const signIn = async (page: Page, subjectId: 'ada' | 'grace') => {
   const account = accounts.find(each => each.subjectId === subjectId)!
   await page.getByLabel('Email').fill(account.email)
@@ -326,5 +335,48 @@ test('a single press of Sign out on the server-drawn page, made before its scrip
   expect(await who(page)).toBe('Signed in as grace')
   release()
   await poll(isVisitor(page)).toBe(true)
+  expect(errors).toEqual([])
+})
+
+test("pointing at the account link fetches its page's code once, and the page draws it on arrival", async () => {
+  await signedOut()
+  const errors: Array<string> = []
+  const page = await context.newPage()
+  page.on('pageerror', error => errors.push(String(error)))
+  const imported = accountImports(page)
+  await page.goto(origin)
+  await booted(page)
+  await signIn(page, 'ada')
+  await poll(() => who(page)).toBe('Signed in as ada')
+  // The home page draws none of it: nothing has asked for the account page's code.
+  expect(imported).toEqual([])
+
+  const link = page.getByRole('link', { name: 'Account' })
+  await link.hover()
+  await poll(() => imported.length).toBe(1)
+  // Away and back: the chunk has arrived, so nothing is asked for again.
+  await page.getByRole('heading', { name: 'Notes, by who is signed in' }).hover()
+  await link.hover()
+  await link.click()
+  await poll(() => page.locator('#digest').textContent()).toBe('Weekly digest: off')
+  await page.getByRole('button', { name: 'Send me a digest' }).click()
+  await poll(() => page.locator('#digest').textContent()).toBe('Weekly digest: on')
+  expect(imported).toHaveLength(1)
+  expect(errors).toEqual([])
+})
+
+test('the account page the server sends carries its bodies, and boots once its code loads', async () => {
+  // Signed in as ada by the test before.
+  const errors: Array<string> = []
+  const page = await context.newPage()
+  page.on('pageerror', error => errors.push(String(error)))
+  const imported = accountImports(page)
+  const response = await page.goto(`${origin}/account`)
+  expect(response!.status()).toBe(200)
+  expect(await response!.text()).toContain('Weekly digest: off')
+  await booted(page)
+  expect(imported).toHaveLength(1)
+  await page.getByRole('button', { name: 'Send me a digest' }).click()
+  await poll(() => page.locator('#digest').textContent()).toBe('Weekly digest: on')
   expect(errors).toEqual([])
 })

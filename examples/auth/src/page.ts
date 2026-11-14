@@ -11,7 +11,7 @@ import { fromString } from 'foldkit/url'
 import { Remote, type RemoteClient, type RemoteUnauthenticated } from 'foldkit-remote'
 import { Access } from 'foldkit-site'
 import { SSR } from 'foldkit-ssr'
-import { Data, Model, accessOf, actives, initial, plan, unreadAt, update } from './app.js'
+import { Data, Model, accessOf, actives, codeOf, initial, plan, unreadAt, update } from './app.js'
 import { view } from './view.js'
 
 /** What the host hands each page request: the reader its reads go through, as whoever asked. */
@@ -83,16 +83,21 @@ const readAs = (request: Request) =>
 export const makeRenderPage = (options: {
   readonly buildId: string
 }): ((request: Request) => Promise<EntryResult>) =>
-  SSR.entry({ Model, init: () => ({ model: initial }), update, view, container: null }, plan, {
-    buildId: options.buildId,
-    prepare: (_model, request) => readAs(request),
-    redirect: model =>
-      Access.match(accessOf(model), {
-        Denied: ({ url }) => Option.some(url),
-        Allowed: () => Option.none(),
-        Pending: () => Option.none(),
-      }),
-    headers: () => pageHeaders,
-    diagnostics: diagnostic =>
-      Effect.sync(() => console.error(`examples/auth: ${diagnostic.message}`)),
-  }).renderPage
+  SSR.entry(
+    // Only the page drawn loads its code: `/account`'s bodies for that page alone.
+    { Model, init: () => ({ model: initial }), update, view, container: null, lazy: codeOf },
+    plan,
+    {
+      buildId: options.buildId,
+      prepare: (_model, request) => readAs(request),
+      redirect: model =>
+        Access.match(accessOf(model), {
+          Denied: ({ url }) => Option.some(url),
+          Allowed: () => Option.none(),
+          Pending: () => Option.none(),
+        }),
+      headers: () => pageHeaders,
+      diagnostics: diagnostic =>
+        Effect.sync(() => console.error(`examples/auth: ${diagnostic.message}`)),
+    },
+  ).renderPage
