@@ -89,8 +89,19 @@ export default [
     edits: [
       {
         file: '../src/search/app.ts',
-        find: '!FRUITS.includes(fruit) ||',
-        replace: '',
+        find: 'fruit => resultId(model.id, fruit) === id',
+        replace: 'fruit => id.endsWith(`:${fruit}`)',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a result the query no longer shows is picked',
+    edits: [
+      {
+        file: '../src/search/app.ts',
+        find: 'Array.findFirst(resultsOf(model),',
+        replace: 'Array.findFirst(FRUITS,',
       },
     ],
     tests: [unit],

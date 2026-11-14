@@ -9,7 +9,7 @@
 import { Option } from 'effect'
 import { Behavior, Behaviors, SlotView, Style } from 'foldkit-mixins'
 import { FocusRecovery, ListNavigation } from 'foldkit-primitives/interaction'
-import { Message, Nav, fruitOf, navArgs, resultId, resultsOf, type Model } from './app.js'
+import { Message, Nav, navArgs, resultId, resultsOf, type Model } from './app.js'
 import { CompactSearchStyle, SearchSlots, SearchStyle, itemsOf } from './slots.js'
 
 const { Keys } = Behaviors
@@ -147,8 +147,6 @@ export const SearchField = Search.define((model, slots, h) => {
   Behavior.attach(Recovers),
   Style.attach(SearchStyle),
 )
-
-export { fruitOf }
 
 /** The same field with the application's own selection of its recipe laid over the default. */
 export const CompactSearchField = SearchField.pipe(Style.attach(CompactSearchStyle))

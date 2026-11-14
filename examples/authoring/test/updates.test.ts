@@ -21,7 +21,6 @@ import {
 } from '../src/popup/app.js'
 import {
   Message as SearchMessage,
-  fruitOf,
   initialOf as searchInitial,
   resultId,
   resultsOf,
@@ -46,9 +45,26 @@ describe('the search field', () => {
     expect(resultsOf(picked)).toEqual([])
   })
 
-  it('names an id with the instance first, whatever the fruit or the instance holds', () => {
-    expect(fruitOf('a:b', resultId('a:b', 'apple'))).toBe('apple')
-    expect(fruitOf('search-a', resultId('search-a', 'blueberry'))).toBe('blueberry')
+  it('picks only a result this instance shows now', () => {
+    const a = searchUpdate(
+      searchInitial('search-a').model,
+      SearchMessage.Typed({ text: 'ban' }),
+    ).model
+    // Another instance's id for a fruit this one shows too.
+    expect(
+      searchUpdate(a, SearchMessage.Picked({ id: resultId('search-b', 'banana') })).model,
+    ).toBe(a)
+    // This instance's id for a fruit the query no longer shows.
+    expect(
+      searchUpdate(a, SearchMessage.Picked({ id: resultId('search-a', 'cherry') })).model,
+    ).toBe(a)
+    // An instance whose id holds the separator still names its own results.
+    const nested = searchUpdate(
+      searchInitial('a:b').model,
+      SearchMessage.Typed({ text: 'ban' }),
+    ).model
+    const picked = searchUpdate(nested, SearchMessage.Picked({ id: resultId('a:b', 'banana') }))
+    expect(Option.getOrNull(picked.model.picked)).toBe('banana')
   })
 
   it('refuses a result that names no fruit, and returns the Model it was given when nothing changes', () => {
@@ -59,7 +75,9 @@ describe('the search field', () => {
   })
 
   it('clears the query and the pick, and typing again takes the pick back', () => {
-    const picked = searchUpdate(start, SearchMessage.Picked({ id: resultId('s', 'cherry') })).model
+    const typed = searchUpdate(start, SearchMessage.Typed({ text: 'ch' })).model
+    const picked = searchUpdate(typed, SearchMessage.Picked({ id: resultId('s', 'cherry') })).model
+    expect(Option.getOrNull(picked.picked)).toBe('cherry')
     expect(searchUpdate(picked, SearchMessage.Cleared()).model).toMatchObject({
       query: '',
       picked: Option.none(),
