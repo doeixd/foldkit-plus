@@ -16,7 +16,7 @@ import {
 import type * as Domain from 'foldkit-entity'
 import type { Command } from 'foldkit/command'
 import type * as Update from 'foldkit/update'
-import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
+import type { EntryWithoutKeepAlive, Subscriptions } from 'foldkit/subscription'
 import {
   type ActiveSurface,
   type Contract,
@@ -377,13 +377,26 @@ export type RemoteWiring<AppModel, Shared extends RemoteMessageTag = never> = Wi
   RemoteMessage | RemoteMessageInput,
   RemoteClient,
   RemoteMessageTag
-> & { readonly shared: ReadonlyArray<Shared> }
+> & {
+  readonly shared: ReadonlyArray<Shared>
+  /** Each active entry's read and live entries, keyed `${key}.read` and `${key}.live`, and `retain`. */
+  readonly subscriptions: Subscriptions<AppModel, RemoteMessage, RemoteClient>
+}
 
 /** How `Data.wiring` joins an assembly: its Subscriptions' options, and what the application hears. */
 export interface WiringOptions<
   Shared extends RemoteMessageTag = never,
   AppModel = never,
+  Active = Readonly<Record<string, ActiveEntry<AppModel>>>,
 > extends SubscriptionsOptions<AppModel> {
+  /**
+   * The policy of some of the active record's entries, by their key, so two
+   * Surfaces active on one route read under two policies. An entry it does
+   * not name reads under `policy`.
+   */
+  readonly policies?:
+    | { readonly [K in keyof Active]?: PolicyOption<AppModel> | undefined }
+    | undefined
   /**
    * Remote's Messages the application's own `update` receives as well, after
    * Remote has reduced them, so the Model it gets already holds what they say:
@@ -728,14 +741,14 @@ export interface RemoteDomain<
    * `RemoteClient` from the runtime's resources Layer. One assembly holds at
    * most one Remote wiring: every domain claims the same tags, and routing
    * takes the first claimant. `shared` names the Messages the application's
-   * own update hears too.
+   * own update hears too, and `policies` gives entries a policy of their own.
    */
   wiring: <
     const Active extends Readonly<Record<string, ActiveEntry<AppModel>>>,
     const Shared extends RemoteMessageTag = never,
   >(
     active: Active,
-    options?: WiringOptions<Shared, AppModel>,
+    options?: WiringOptions<Shared, AppModel, Active>,
   ) => RemoteWiring<AppModel, Shared>
   /** `Remote.inspect` of the bound slice. */
   inspect(model: AppModel): RemoteInspection
