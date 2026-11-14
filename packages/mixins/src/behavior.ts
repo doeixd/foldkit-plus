@@ -7,6 +7,7 @@
  */
 import type { Attribute, ChildAttribute, HtmlBuilder } from 'foldkit/html'
 import type { MountAction } from 'foldkit/mount'
+import type { Obligation, Supplies } from './a11y.js'
 import * as Capability from './capability.js'
 import type { SlotContribution, SlotItem } from './contribution.js'
 import { DiagnosticError, type DiagnosticCode } from './diagnostics.js'
@@ -24,6 +25,11 @@ export interface SlotRequirements {
 
 export interface BehaviorSlotOptions<Input, Message> {
   readonly requires?: SlotRequirements
+  /**
+   * The obligations (`A11y.Navigation`, …) this slot's contributions meet,
+   * which `A11y.conform` reads. Declared, not inferred from the attributes.
+   */
+  readonly provides?: ReadonlyArray<Obligation>
   /**
    * Attributes for one resolution of the slot. `item` is present when the view
    * passed one to `slots.x.attrs(base, item)`, that is, when the slot is
@@ -44,7 +50,18 @@ export type BehaviorSpec<Slots, Input, Message> = {
   >
 }
 
-export interface NamedBehavior<Slots, Input, Message> {
+/**
+ * A Behavior. `Provides` names, as `` `${slot}/${obligation}` ``, what it
+ * supplies for `A11y.conform` at the type level: a factory given a
+ * `SlotView.over` binder states it from the slot names it was given, and
+ * `forSlots` states nothing.
+ */
+export interface NamedBehavior<
+  Slots,
+  Input,
+  Message,
+  Provides extends string = never,
+> extends Supplies<Provides> {
   readonly name?: string
   readonly spec: BehaviorSpec<Slots, Input, Message>
   readonly mixin: MixinValue<Message>
@@ -110,7 +127,11 @@ const validateRequirements = (
   }
 }
 
-const slotMeta = (requirements: SlotRequirements, reads: SlotMeta['reads']): SlotMeta =>
+const slotMeta = (
+  requirements: SlotRequirements,
+  provides: ReadonlyArray<Obligation>,
+  reads: SlotMeta['reads'],
+): SlotMeta =>
   Object.freeze({
     requires: Object.freeze({
       ...(requirements.capability === undefined
@@ -119,7 +140,7 @@ const slotMeta = (requirements: SlotRequirements, reads: SlotMeta['reads']): Slo
       events: Object.freeze((requirements.events ?? []).map(MetadataToken.nameOf)),
       attributes: Object.freeze((requirements.attributes ?? []).map(MetadataToken.nameOf)),
     }),
-    provides: Object.freeze([]),
+    provides: Object.freeze(provides.map(MetadataToken.nameOf)),
     reads,
   })
 
@@ -149,6 +170,7 @@ export const forSlots =
       const mount = slotOptions?.mount
       meta[name] = slotMeta(
         slotOptions?.requires ?? {},
+        slotOptions?.provides ?? [],
         attributes === undefined && mount === undefined ? 'static' : 'input',
       )
       if (attributes === undefined && mount === undefined) continue
@@ -184,10 +206,12 @@ export const forSlots =
  * input type.
  */
 export const attach =
-  <BehaviorSlots, Message, Input>(behavior: NamedBehavior<BehaviorSlots, Input, Message>) =>
-  <ViewSlots>(
-    view: SlotView.SlotView<ViewSlots, Input, Message>,
-  ): SlotView.SlotView<ViewSlots, Input, Message> =>
+  <BehaviorSlots, Message, Input, Provides extends string = never>(
+    behavior: NamedBehavior<BehaviorSlots, Input, Message, Provides>,
+  ) =>
+  <ViewSlots, ViewProvides extends string = never>(
+    view: SlotView.SlotView<ViewSlots, Input, Message, ViewProvides>,
+  ): SlotView.SlotView<ViewSlots, Input, Message, ViewProvides | Provides> =>
     SlotView.attach(behavior.mixin)(view)
 
 export const Behavior = { slot, forSlots, attach } as const

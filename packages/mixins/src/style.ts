@@ -414,9 +414,9 @@ export const stylesheet = (...styles: ReadonlyArray<StyleValue | StylesheetSourc
 
 export const attach =
   <Slots>(style: NamedStyle<Slots>) =>
-  <ViewSlots, Input, Message>(
-    view: SlotView.SlotView<ViewSlots, Input, Message>,
-  ): SlotView.SlotView<ViewSlots, Input, Message> =>
+  <ViewSlots, Input, Message, Provides extends string = never>(
+    view: SlotView.SlotView<ViewSlots, Input, Message, Provides>,
+  ): SlotView.SlotView<ViewSlots, Input, Message, Provides> =>
     SlotView.attach(style.mixin)(view)
 
 export type RecipeVariantDef = Readonly<Record<string, StyleValue>>

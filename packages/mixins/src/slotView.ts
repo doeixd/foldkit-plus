@@ -7,7 +7,9 @@
  */
 import { createLazy, inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import { Projection } from 'foldkit-surface'
+import type { Supplies, Supply } from './a11y.js'
 import { forSlots, type BehaviorSpec, type NamedBehavior } from './behavior.js'
+import { carry } from './conformed.js'
 import { DiagnosticError } from './diagnostics.js'
 import type { SlotContribution, SlotItem } from './contribution.js'
 import { ensure } from './inject.js'
@@ -71,7 +73,13 @@ export type SlotViewRender<Slots, Input, Message> = (
   h: HtmlBuilder<Message>,
 ) => Html
 
-export interface SlotView<Slots, Input, Message> extends Pipeable<SlotView<Slots, Input, Message>> {
+/**
+ * A view over published Slots. `Provides` is what its attachments supply, as
+ * `` `${slot}/${obligation}` `` names, which `A11y.conform` checks; a view
+ * defined bare supplies nothing.
+ */
+export interface SlotView<Slots, Input, Message, Provides extends string = never>
+  extends Pipeable<SlotView<Slots, Input, Message, Provides>>, Supplies<Provides> {
   (input: Input, h: HtmlBuilder<Message>): Html
   readonly name?: string
   readonly slots: Slots
@@ -443,25 +451,42 @@ export interface MessageSlotView<Message> {
 export const forMessages = <Message>(): MessageSlotView<Message> => ({ define })
 
 /** A transform on any view, used by Message-free static mixins such as Style. */
-export type SlotViewTransform = <Slots, Input, Message>(
-  view: SlotView<Slots, Input, Message>,
-) => SlotView<Slots, Input, Message>
+export type SlotViewTransform = <Slots, Input, Message, Provides extends string = never>(
+  view: SlotView<Slots, Input, Message, Provides>,
+) => SlotView<Slots, Input, Message, Provides>
 
 /** A transform restricted to one Message universe, for Behavior mixins. */
-export type SlotViewTransformFor<Message> = <Slots, Input>(
-  view: SlotView<Slots, Input, Message>,
+export type SlotViewTransformFor<Message> = <Slots, Input, Provides extends string = never>(
+  view: SlotView<Slots, Input, Message, Provides>,
+) => SlotView<Slots, Input, Message, Provides>
+
+/**
+ * A transform that takes an attachment away or puts another in its place. The
+ * view it makes supplies nothing at the type level, since what was taken is
+ * not known there; `A11y.conform`'s run-time check is made again instead.
+ */
+export type SlotViewRemoval = <Slots, Input, Message, Provides extends string = never>(
+  view: SlotView<Slots, Input, Message, Provides>,
 ) => SlotView<Slots, Input, Message>
 
 /** Attach one Mixin. Returns a new view; the original is unchanged. */
+export function attach<Provides extends string>(
+  mixin: Supply<Provides>,
+): <Slots, Input, Message, ViewProvides extends string = never>(
+  view: SlotView<Slots, Input, Message, ViewProvides>,
+) => SlotView<Slots, Input, Message, ViewProvides | Provides>
 export function attach(mixin: StaticMixin<never> | Mixin<never>): SlotViewTransform
 export function attach<MixinMessage>(mixin: Mixin<MixinMessage>): SlotViewTransformFor<MixinMessage>
 export function attach(mixin: AnyMixin | Mixin<never>): any {
-  return (view: SlotView<any, any, any>) =>
-    makeView(view.name, view.slots, [...view.mixins, mixin], view.render)
+  return (view: SlotView<any, any, any, any>) => {
+    const next = makeView(view.name, view.slots, [...view.mixins, mixin], view.render)
+    carry(view, next, false)
+    return next
+  }
 }
 
 /** Where the attachment named `name` sits in `view`; refused when it is not there once. */
-const attachmentAt = (view: SlotView<any, any, any>, name: string): number => {
+const attachmentAt = (view: SlotView<any, any, any, any>, name: string): number => {
   const found = view.mixins.flatMap((mixin, at) => (mixin.name === name ? [at] : []))
   const at = found[0]
   if (at === undefined) {
@@ -488,38 +513,46 @@ const attachmentAt = (view: SlotView<any, any, any>, name: string): number => {
 /**
  * The view without the attachment named `name`. Returns a new view; the
  * original is unchanged. Refused (`mixins:unknown-attachment`,
- * `mixins:ambiguous-attachment`) unless the view holds exactly one by that name.
+ * `mixins:ambiguous-attachment`) unless the view holds exactly one by that
+ * name, and by `A11y.conform`'s check when the view was conformed to a
+ * pattern the attachment helped meet.
  */
 export const detach =
-  (name: string): SlotViewTransform =>
+  (name: string): SlotViewRemoval =>
   view => {
     const at = attachmentAt(view, name)
-    return makeView(
+    const next = makeView(
       view.name,
       view.slots,
       view.mixins.filter((_, index) => index !== at),
       view.render,
     )
+    carry(view, next, true)
+    return next
   }
 
 /**
  * The view with `mixin` in the place of the attachment named `name`, so it
  * resolves in the same order. Refused as `detach` is.
  */
-export function replace(name: string, mixin: StaticMixin<never> | Mixin<never>): SlotViewTransform
+export function replace(name: string, mixin: StaticMixin<never> | Mixin<never>): SlotViewRemoval
 export function replace<MixinMessage>(
   name: string,
   mixin: Mixin<MixinMessage>,
-): SlotViewTransformFor<MixinMessage>
+): <Slots, Input, Provides extends string = never>(
+  view: SlotView<Slots, Input, MixinMessage, Provides>,
+) => SlotView<Slots, Input, MixinMessage>
 export function replace(name: string, mixin: AnyMixin | Mixin<never>): any {
-  return (view: SlotView<any, any, any>) => {
+  return (view: SlotView<any, any, any, any>) => {
     const at = attachmentAt(view, name)
-    return makeView(
+    const next = makeView(
       view.name,
       view.slots,
       view.mixins.map((held, index) => (index === at ? mixin : held)),
       view.render,
     )
+    carry(view, next, true)
+    return next
   }
 }
 
@@ -558,7 +591,9 @@ export interface Parts<Slots, Input, Message> {
     name: string,
     options: {
       readonly reads: Reads
-      readonly behaviors?: ReadonlyArray<NamedBehavior<Slots, Pick<Input, Reads[number]>, Message>>
+      readonly behaviors?: ReadonlyArray<
+        NamedBehavior<Slots, Pick<Input, Reads[number]>, Message, string>
+      >
     },
     render: (
       input: Pick<Input, Reads[number]>,
