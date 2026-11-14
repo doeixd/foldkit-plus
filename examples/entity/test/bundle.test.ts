@@ -10,7 +10,9 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // Brotli bytes. Never raise it without saying here what the growth bought.
 // 213.4 kB (213,380 bytes) measured on 2026-11-11; the ceiling is that plus about 2%,
 // rounded up to the next 500 bytes.
-const CEILING = 218_000
+// +500 on 2026-11-14 (#533): `Data.capability` and `Data.available` on the write
+// capability, 273 bytes measured with and without them (218,816 against 218,543).
+const CEILING = 218_500
 
 clientBudget({
   name: 'entity',
