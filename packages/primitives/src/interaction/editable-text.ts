@@ -5,7 +5,8 @@
  * `update`.
  */
 import * as Mount from 'foldkit/mount'
-import { Behavior, Capability } from 'foldkit-mixins'
+import { Behavior, Capability, SlotView } from 'foldkit-mixins'
+import { boundSlots, type Unbound } from '../internal.js'
 import { EditableText as EditableTextMount, type TextFact } from '../dom/editable-text.js'
 
 export {
@@ -27,9 +28,19 @@ export interface BehaviorOptions<Slots, ParentMessage> {
   readonly toMessage: (fact: TextFact) => ParentMessage
 }
 
-export const behavior =
-  <Slots>(slots: Slots) =>
-  <Input, ParentMessage>(
+export function behavior<Slots, Input, ParentMessage>(
+  bound: SlotView.Bound<Slots, Input, ParentMessage>,
+): (
+  options: BehaviorOptions<Slots, ParentMessage>,
+) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+export function behavior<Slots>(
+  slots: Unbound<Slots>,
+): <Input, ParentMessage>(
+  options: BehaviorOptions<Slots, ParentMessage>,
+) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+export function behavior<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+  const slots = boundSlots(given)
+  return <Input, ParentMessage>(
     options: BehaviorOptions<Slots, ParentMessage>,
   ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
     Behavior.forSlots(slots)<Input, ParentMessage>(
@@ -46,3 +57,4 @@ export const behavior =
       } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
       { name: 'EditableText' },
     )
+}

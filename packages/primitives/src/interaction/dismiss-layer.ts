@@ -15,7 +15,8 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
-import { Behavior, Capability } from 'foldkit-mixins'
+import { Behavior, Capability, SlotView } from 'foldkit-mixins'
+import { boundSlots, type Unbound } from '../internal.js'
 
 export const LAYER_ATTRIBUTE = 'data-foldkit-plus-layer'
 export const TRIGGER_ATTRIBUTE = 'data-foldkit-plus-layer-trigger'
@@ -174,43 +175,54 @@ export interface BehaviorOptions<Input, Slots> {
  * parent Model is the whole lifecycle. Not for an element with `popover`,
  * which the browser dismisses itself.
  */
-export const behavior =
-  <Field extends string>(_declared: Declared<typeof bundle, Field>) =>
-  <Slots>(slots: Slots) =>
-  <Input, ParentMessage>(
+export const behavior = <Field extends string>(_declared: Declared<typeof bundle, Field>) => {
+  function place<Slots, Input, ParentMessage>(
+    bound: SlotView.Bound<Slots, Input, ParentMessage>,
+  ): (options: BehaviorOptions<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(
+    slots: Unbound<Slots>,
+  ): <Input, ParentMessage>(
     options: BehaviorOptions<Input, Slots>,
-  ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
-    Behavior.forSlots(slots)<Input, ParentMessage>(
-      {
-        [options.layer]: Behavior.slot({
-          requires: { capability: Capability.Container },
-          attributes: ({
-            input,
-            h,
-          }: {
-            readonly input: Input
-            readonly h: HtmlBuilder<ParentMessage>
-          }) => [
-            h.Attribute(LAYER_ATTRIBUTE, options.id(input)),
-            ...(options.outsidePress === false ? [h.Attribute(OUTSIDE_ATTRIBUTE, 'false')] : []),
-            ...(options.escape === false ? [h.Attribute(ESCAPE_ATTRIBUTE, 'false')] : []),
-          ],
-        }),
-        ...(options.trigger === undefined
-          ? {}
-          : {
-              [options.trigger]: Behavior.slot({
-                requires: { capability: Capability.Interactive },
-                attributes: ({
-                  input,
-                  h,
-                }: {
-                  readonly input: Input
-                  readonly h: HtmlBuilder<ParentMessage>
-                }) => [h.Attribute(TRIGGER_ATTRIBUTE, options.id(input))],
+  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+    const slots = boundSlots(given)
+    return <Input, ParentMessage>(
+      options: BehaviorOptions<Input, Slots>,
+    ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
+      Behavior.forSlots(slots)<Input, ParentMessage>(
+        {
+          [options.layer]: Behavior.slot({
+            requires: { capability: Capability.Container },
+            attributes: ({
+              input,
+              h,
+            }: {
+              readonly input: Input
+              readonly h: HtmlBuilder<ParentMessage>
+            }) => [
+              h.Attribute(LAYER_ATTRIBUTE, options.id(input)),
+              ...(options.outsidePress === false ? [h.Attribute(OUTSIDE_ATTRIBUTE, 'false')] : []),
+              ...(options.escape === false ? [h.Attribute(ESCAPE_ATTRIBUTE, 'false')] : []),
+            ],
+          }),
+          ...(options.trigger === undefined
+            ? {}
+            : {
+                [options.trigger]: Behavior.slot({
+                  requires: { capability: Capability.Interactive },
+                  attributes: ({
+                    input,
+                    h,
+                  }: {
+                    readonly input: Input
+                    readonly h: HtmlBuilder<ParentMessage>
+                  }) => [h.Attribute(TRIGGER_ATTRIBUTE, options.id(input))],
+                }),
               }),
-            }),
-        // Keyed by values the caller chose; `forSlots` checks the keys exist.
-      } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
-      { name: 'DismissLayer' },
-    )
+          // Keyed by values the caller chose; `forSlots` checks the keys exist.
+        } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
+        { name: 'DismissLayer' },
+      )
+  }
+  return place
+}

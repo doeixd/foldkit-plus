@@ -8,6 +8,8 @@ import type { HtmlBuilder } from 'foldkit/html'
 import * as Behavior from '../behavior.js'
 import type { SlotItem } from '../contribution.js'
 import { DiagnosticError } from '../diagnostics.js'
+import { boundSlots, type Unbound } from './bound.js'
+import type { Bound } from '../slotView.js'
 
 export interface Items<T> {
   readonly size: number
@@ -86,9 +88,17 @@ export interface BehaviorOptions<Input, Slots> {
  * on request. Reads the item context the view passes to `attrs`; with none it
  * contributes nothing, so a slot rendered once is left alone.
  */
-export const behavior =
-  <Slots>(slots: Slots) =>
-  <Input, Message>(
+export function behavior<Slots, Input, Message>(
+  bound: Bound<Slots, Input, Message>,
+): (options: BehaviorOptions<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, Message>
+export function behavior<Slots>(
+  slots: Unbound<Slots>,
+): <Input, Message>(
+  options: BehaviorOptions<Input, Slots>,
+) => Behavior.NamedBehavior<Slots, Input, Message>
+export function behavior<Slots>(given: Slots | Bound<Slots, any, any>) {
+  const slots = boundSlots(given)
+  return <Input, Message>(
     options: BehaviorOptions<Input, Slots>,
   ): Behavior.NamedBehavior<Slots, Input, Message> =>
     Behavior.forSlots(slots)<Input, Message>(
@@ -120,3 +130,4 @@ export const behavior =
       } as unknown as Behavior.BehaviorSpec<Slots, Input, Message>,
       { name: 'Collection' },
     )
+}

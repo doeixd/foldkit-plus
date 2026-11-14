@@ -7,6 +7,8 @@
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Behavior from '../behavior.js'
 import * as Capability from '../capability.js'
+import { boundSlots, type Unbound } from './bound.js'
+import type { Bound } from '../slotView.js'
 
 export type State = boolean | 'mixed'
 
@@ -18,9 +20,17 @@ export interface Options<Input, Slots> {
   readonly as: 'checked' | 'pressed'
 }
 
-export const behavior =
-  <Slots>(slots: Slots) =>
-  <Input, Message>(options: Options<Input, Slots>): Behavior.NamedBehavior<Slots, Input, Message> =>
+export function behavior<Slots, Input, Message>(
+  bound: Bound<Slots, Input, Message>,
+): (options: Options<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, Message>
+export function behavior<Slots>(
+  slots: Unbound<Slots>,
+): <Input, Message>(options: Options<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, Message>
+export function behavior<Slots>(given: Slots | Bound<Slots, any, any>) {
+  const slots = boundSlots(given)
+  return <Input, Message>(
+    options: Options<Input, Slots>,
+  ): Behavior.NamedBehavior<Slots, Input, Message> =>
     Behavior.forSlots(slots)<Input, Message>(
       {
         [options.control]: Behavior.slot({
@@ -42,3 +52,4 @@ export const behavior =
       } as unknown as Behavior.BehaviorSpec<Slots, Input, Message>,
       { name: 'ToggleState' },
     )
+}

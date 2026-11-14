@@ -11,7 +11,8 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
-import { Behavior, Capability } from 'foldkit-mixins'
+import { Behavior, Capability, SlotView } from 'foldkit-mixins'
+import { boundSlots, type Unbound } from '../internal.js'
 import * as Press from './press.js'
 
 export const Model = Schema.Struct({
@@ -121,32 +122,43 @@ export interface BehaviorOptions<Slots> {
  * `LongPress` on one slot are refused by the resolver (two Mounts of one
  * name), so today a slot takes one of them.
  */
-export const behavior =
-  <Field extends string>(declared: Declared<typeof bundle, Field>) =>
-  <Slots>(slots: Slots) =>
-  <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+export const behavior = <Field extends string>(declared: Declared<typeof bundle, Field>) => {
+  function place<Slots, Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    bound: SlotView.Bound<Slots, Input, ParentMessage>,
+  ): (options: BehaviorOptions<Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(
+    slots: Unbound<Slots>,
+  ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
     options: BehaviorOptions<Slots>,
-  ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
-    Behavior.forSlots(slots)<Input, ParentMessage>(
-      {
-        [options.target]: Behavior.slot({
-          requires: { capability: Capability.Interactive },
-          attributes: ({
-            input,
-            h,
-          }: {
-            readonly input: Input
-            readonly h: HtmlBuilder<ParentMessage>
-          }) => (input[declared.field].holding ? [h.DataAttribute('holding', 'true')] : []),
-          mount: () =>
-            Mount.mapMessage(
-              Press.events(),
-              // The facts are the same tagged structs; only the union differs.
-              (fact): ParentMessage =>
-                declared.wrapper.make(fact as unknown as Message) as unknown as ParentMessage,
-            ),
-        }),
-        // Keyed by a value the caller chose; `forSlots` checks the key exists.
-      } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
-      { name: 'LongPress' },
-    )
+  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+    const slots = boundSlots(given)
+    return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+      options: BehaviorOptions<Slots>,
+    ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
+      Behavior.forSlots(slots)<Input, ParentMessage>(
+        {
+          [options.target]: Behavior.slot({
+            requires: { capability: Capability.Interactive },
+            attributes: ({
+              input,
+              h,
+            }: {
+              readonly input: Input
+              readonly h: HtmlBuilder<ParentMessage>
+            }) => (input[declared.field].holding ? [h.DataAttribute('holding', 'true')] : []),
+            mount: () =>
+              Mount.mapMessage(
+                Press.events(),
+                // The facts are the same tagged structs; only the union differs.
+                (fact): ParentMessage =>
+                  declared.wrapper.make(fact as unknown as Message) as unknown as ParentMessage,
+              ),
+          }),
+          // Keyed by a value the caller chose; `forSlots` checks the key exists.
+        } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
+        { name: 'LongPress' },
+      )
+  }
+  return place
+}

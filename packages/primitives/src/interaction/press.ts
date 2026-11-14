@@ -12,7 +12,8 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
-import { Behavior, Capability } from 'foldkit-mixins'
+import { Behavior, Capability, SlotView } from 'foldkit-mixins'
+import { boundSlots, type Unbound } from '../internal.js'
 import { BundleBehavior } from './bundle-behavior.js'
 
 export const PointerType = Schema.Literals(['mouse', 'touch', 'pen', 'keyboard', 'virtual'])
@@ -243,22 +244,34 @@ export interface BehaviorOptions<Input, Slots> {
  * decides nothing; a click, a touch, Enter, Space, or an assistive
  * technology's click all reach `update` and come out as one `Pressed`.
  */
-export const behavior =
-  <Field extends string>(declared: Declared<typeof bundle, Field>) =>
-  <Slots>(slots: Slots) =>
-  <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+export const behavior = <Field extends string>(declared: Declared<typeof bundle, Field>) => {
+  function place<Slots, Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    bound: SlotView.Bound<Slots, Input, ParentMessage>,
+  ): (options: BehaviorOptions<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(
+    slots: Unbound<Slots>,
+  ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
     options: BehaviorOptions<Input, Slots>,
-  ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
-    BundleBehavior.fromBundle(declared)(slots)<Input, ParentMessage>(
-      {
-        [options.target]: {
-          requires: { capability: Capability.Interactive },
-          attributes: ({ input, h }) => [
-            ...(input[declared.field].pressed ? [h.DataAttribute('pressed', 'true')] : []),
-            ...(options.disabled?.(input) === true ? [h.AriaDisabled(true)] : []),
-          ],
-          events: events(),
+  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+    // `boundSlots` took a binder apart, so this is a slot set `fromBundle` accepts as it is.
+    const slots = boundSlots(given) as Unbound<Slots>
+    return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+      options: BehaviorOptions<Input, Slots>,
+    ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
+      BundleBehavior.fromBundle(declared)<Slots>(slots)<Input, ParentMessage>(
+        {
+          [options.target]: {
+            requires: { capability: Capability.Interactive },
+            attributes: ({ input, h }) => [
+              ...(input[declared.field].pressed ? [h.DataAttribute('pressed', 'true')] : []),
+              ...(options.disabled?.(input) === true ? [h.AriaDisabled(true)] : []),
+            ],
+            events: events(),
+          },
         },
-      },
-      { name: 'Press' },
-    )
+        { name: 'Press' },
+      )
+  }
+  return place
+}

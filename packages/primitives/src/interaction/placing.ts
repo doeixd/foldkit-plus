@@ -35,7 +35,8 @@
  */
 import { Effect, Option, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
-import { Behavior, Capability } from 'foldkit-mixins'
+import { Behavior, Capability, SlotView } from 'foldkit-mixins'
+import { boundSlots, type Unbound } from '../internal.js'
 
 export interface PanelRect {
   readonly top: number
@@ -300,16 +301,30 @@ export const PlaceAtPoint = Mount.defineStream('PlaceAtPoint', {
     ),
 })
 
-export const placeAtTrigger =
-  <Slots>(slots: Slots) =>
-  <Input, ParentMessage>(options: {
-    readonly panel: keyof Slots & string
-    /** The trigger this open belongs to. Read at insert, so key the panel by it. */
-    readonly triggerId: (input: Input) => string
-    readonly gap?: number
-    /** A viewport point wins over the trigger. None places under `triggerId`. */
-    readonly at?: (input: Input) => Option.Option<ViewportPoint>
-  }): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
+export interface PlaceAtTriggerOptions<Input, Slots> {
+  readonly panel: keyof Slots & string
+  /** The trigger this open belongs to. Read at insert, so key the panel by it. */
+  readonly triggerId: (input: Input) => string
+  readonly gap?: number
+  /** A viewport point wins over the trigger. None places under `triggerId`. */
+  readonly at?: (input: Input) => Option.Option<ViewportPoint>
+}
+
+export function placeAtTrigger<Slots, Input, ParentMessage>(
+  bound: SlotView.Bound<Slots, Input, ParentMessage>,
+): (
+  options: PlaceAtTriggerOptions<Input, Slots>,
+) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+export function placeAtTrigger<Slots>(
+  slots: Unbound<Slots>,
+): <Input, ParentMessage>(
+  options: PlaceAtTriggerOptions<Input, Slots>,
+) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+export function placeAtTrigger<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+  const slots = boundSlots(given)
+  return <Input, ParentMessage>(
+    options: PlaceAtTriggerOptions<Input, Slots>,
+  ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
     Behavior.forSlots(slots)<Input, ParentMessage>(
       {
         [options.panel]: Behavior.slot({
@@ -325,12 +340,25 @@ export const placeAtTrigger =
       } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
       { name: 'PlaceAt' },
     )
+}
 
-export const keepWithin =
-  <Slots>(slots: Slots) =>
-  <Input, ParentMessage>(options: {
-    readonly panel: keyof Slots & string
-  }): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
+export interface KeepWithinOptions<Slots> {
+  readonly panel: keyof Slots & string
+}
+
+export function keepWithin<Slots, Input, ParentMessage>(
+  bound: SlotView.Bound<Slots, Input, ParentMessage>,
+): (options: KeepWithinOptions<Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+export function keepWithin<Slots>(
+  slots: Unbound<Slots>,
+): <Input, ParentMessage>(
+  options: KeepWithinOptions<Slots>,
+) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+export function keepWithin<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+  const slots = boundSlots(given)
+  return <Input, ParentMessage>(
+    options: KeepWithinOptions<Slots>,
+  ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
     Behavior.forSlots(slots)<Input, ParentMessage>(
       {
         [options.panel]: Behavior.slot({
@@ -341,3 +369,4 @@ export const keepWithin =
       } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
       { name: 'KeepWithin' },
     )
+}
