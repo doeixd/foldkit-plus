@@ -458,17 +458,6 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
-- **Breaking:** `foldkit-mixins`: a view's `pipe` (and a Slot's and a knob
-  theme's) takes typed steps only, and no spread array. The catch-all that
-  took one was the overload TypeScript reported when the typed steps refused
-  a call, so an `A11y.conform` after several attachments was judged against
-  the view before them and listed every obligation, met or not; the error
-  now names only what the steps before it leave owed. A list of Behaviors is
-  one step, `Behavior.attachAll(list)`, which supplies what each member does:
-  write `.pipe(Behavior.attachAll(overlay), …)` where
-  `.pipe(...overlay.map(Behavior.attach))` was (`overlay` from
-  `Overlay.behaviors`).
-
 - `foldkit-primitives`: `DismissLayer` hears Escape in the bubble phase and
   skips one whose `defaultPrevented` is set, so an input inside a layer that
   handled Escape (a search field clearing itself) no longer also dismisses the
