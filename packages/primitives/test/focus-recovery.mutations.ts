@@ -67,7 +67,13 @@ export default [
   },
   {
     name: 'it keeps listening after release (the observer)',
-    edits: [{ file: source, find: 'changes.disconnect()', replace: 'void 0' }],
+    edits: [
+      {
+        file: source,
+        find: "            changes.disconnect()\n            element.removeEventListener('focusin', entered)",
+        replace: "            element.removeEventListener('focusin', entered)",
+      },
+    ],
     tests: [browser],
   },
   {
@@ -107,7 +113,7 @@ export default [
     edits: [
       {
         file: source,
-        find: '            held = undefined\n            const steps',
+        find: '            setHeld(undefined)\n            const steps',
         replace: '            const steps',
       },
     ],
@@ -118,7 +124,7 @@ export default [
     edits: [
       {
         file: source,
-        find: 'now.focused.ownerDocument.activeElement !== now.focused\n                ) {\n                  held = undefined',
+        find: 'now.focused.ownerDocument.activeElement !== now.focused\n                ) {\n                  setHeld(undefined)',
         replace:
           'now.focused.ownerDocument.activeElement !== now.focused\n                ) {\n                  void 0',
       },
@@ -210,6 +216,51 @@ export default [
         find: '              queueMicrotask(() => {\n                const now = held',
         replace:
           '              ((run: () => void) => run())(() => {\n                const now = held',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the owner is observed while it holds nothing',
+    edits: [
+      {
+        file: source,
+        find: '          const active = element.ownerDocument.activeElement\n',
+        replace:
+          '          changes.observe(element, { subtree: true, childList: true })\n          const active = element.ownerDocument.activeElement\n',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the owner is still observed once the claim ends',
+    edits: [
+      {
+        file: source,
+        find: '              changes.disconnect()\n              observing = false',
+        replace: '              observing = false',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'every child list change reads the parts again',
+    edits: [
+      {
+        file: source,
+        find: 'if (records.some(drawsOrRemovesAPart)) hold(now.focused)',
+        replace: "if (records.some(record => record.type === 'childList')) hold(now.focused)",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a part drawn or removed does not refresh the siblings',
+    edits: [
+      {
+        file: source,
+        find: 'if (records.some(drawsOrRemovesAPart)) hold(now.focused)',
+        replace: 'void drawsOrRemovesAPart',
       },
     ],
     tests: [browser],

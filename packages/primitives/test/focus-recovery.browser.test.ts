@@ -439,6 +439,38 @@ describe('scrolling', () => {
   })
 })
 
+describe('while nothing is held', () => {
+  it('observes the owner only while it holds a focused part', async () => {
+    const observe = vi.spyOn(MutationObserver.prototype, 'observe')
+    const disconnect = vi.spyOn(MutationObserver.prototype, 'disconnect')
+    try {
+      const { rows, outside } = rig(['a', 'b'], { row: rowSteps })
+      await settled()
+      expect(observe).not.toHaveBeenCalled()
+      button(rows[0]!).focus()
+      expect(observe).toHaveBeenCalledTimes(1)
+      outside.focus()
+      expect(disconnect).toHaveBeenCalledTimes(1)
+    } finally {
+      observe.mockRestore()
+      disconnect.mockRestore()
+    }
+  })
+
+  it('reads its parts again only for a change that draws or removes a part', async () => {
+    const { rows, list, owner } = rig(['a', 'b'], { row: rowSteps })
+    await settled()
+    button(rows[0]!).focus()
+    const reads = vi.spyOn(owner, 'querySelectorAll')
+    list.append(document.createElement('span'))
+    await settled()
+    expect(reads).not.toHaveBeenCalled()
+    list.append(row('c'))
+    await settled()
+    expect(reads).toHaveBeenCalled()
+  })
+})
+
 describe('after release', () => {
   it('removes every listener it added and disconnects its observer', async () => {
     const owner = mark(document.createElement('div'), { 'data-fk-focus-owner': '' })

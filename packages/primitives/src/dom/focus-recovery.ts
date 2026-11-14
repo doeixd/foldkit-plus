@@ -80,6 +80,24 @@ export const FocusRecovery = Mount.defineStream('FocusRecovery', {
       Effect.acquireRelease(
         Effect.sync(() => {
           let held: Held | undefined
+          // The owner is observed only while it holds a part: a page's patches elsewhere,
+          // or while focus is outside, cost nothing.
+          let observing = false
+          const setHeld = (next: Held | undefined) => {
+            held = next
+            if (next !== undefined && !observing) {
+              changes.observe(element, {
+                subtree: true,
+                childList: true,
+                attributes: true,
+                attributeFilter: ['inert', 'hidden', 'disabled'],
+              })
+              observing = true
+            } else if (next === undefined && observing) {
+              changes.disconnect()
+              observing = false
+            }
+          }
 
           const hold = (focused: HTMLElement) => {
             // Focus inside a nested owner's part is, for this owner, in the part holding it.
@@ -88,12 +106,12 @@ export const FocusRecovery = Mount.defineStream('FocusRecovery', {
               part = part.parentElement?.closest(`[data-${FOCUS_MARK.part}]`) ?? null
             }
             if (!(part instanceof HTMLElement)) {
-              held = undefined
+              setHeld(undefined)
               return
             }
             const slot = markOf(part, 'part') ?? ''
             const enclosing = part.parentElement?.closest(`[data-${FOCUS_MARK.part}]`)
-            held = {
+            setHeld({
               focused,
               part,
               slot,
@@ -105,7 +123,7 @@ export const FocusRecovery = Mount.defineStream('FocusRecovery', {
                 .filter(each => markOf(each, 'part') === slot)
                 .map(each => ({ element: each, key: markOf(each, 'key') })),
               chain: ownersAbove(focused),
-            }
+            })
           }
 
           // A part is found again by its slot and key as it is drawn now: a keyed
@@ -165,7 +183,7 @@ export const FocusRecovery = Mount.defineStream('FocusRecovery', {
 
           const recover = (now: Held) => {
             // Decided once: a part drawn later must not take focus from a user who moved on.
-            held = undefined
+            setHeld(undefined)
             const steps = Object.hasOwn(fallback, now.slot) ? (fallback[now.slot] ?? []) : []
             for (const step of steps) {
               for (const target of candidates(step, now)) if (take(target)) return
@@ -194,7 +212,7 @@ export const FocusRecovery = Mount.defineStream('FocusRecovery', {
             const next = (event as FocusEvent).relatedTarget
             if (next instanceof Node) {
               // Moved inside: `focusin` takes it from here. Moved out: the user left.
-              if (!element.contains(next)) held = undefined
+              if (!element.contains(next)) setHeld(undefined)
               return
             }
             // Blur is dispatched in the middle of the change that causes it, and that
@@ -211,7 +229,7 @@ export const FocusRecovery = Mount.defineStream('FocusRecovery', {
                   canTakeFocus(now.focused) &&
                   now.focused.ownerDocument.activeElement !== now.focused
                 ) {
-                  held = undefined
+                  setHeld(undefined)
                 }
               }),
             )
@@ -223,6 +241,14 @@ export const FocusRecovery = Mount.defineStream('FocusRecovery', {
             event.stopPropagation()
             decide(true)
           }
+          const drawsOrRemovesAPart = (record: MutationRecord): boolean =>
+            record.type === 'childList' &&
+            [...record.addedNodes, ...record.removedNodes].some(
+              node =>
+                node instanceof Element &&
+                (node.hasAttribute(`data-${FOCUS_MARK.part}`) ||
+                  node.querySelector(`[data-${FOCUS_MARK.part}]`) !== null),
+            )
           const changes = new MutationObserver(records => {
             const now = held
             if (now === undefined) return
@@ -231,7 +257,7 @@ export const FocusRecovery = Mount.defineStream('FocusRecovery', {
             )
             if (!moved && canTakeFocus(now.focused)) {
               // Still where it was: remember the siblings as they are, for when it goes.
-              if (records.some(record => record.type === 'childList')) hold(now.focused)
+              if (records.some(drawsOrRemovesAPart)) hold(now.focused)
               return
             }
             decide(false, moved)
@@ -242,12 +268,6 @@ export const FocusRecovery = Mount.defineStream('FocusRecovery', {
           element.addEventListener('focusin', entered)
           element.addEventListener('focusout', left)
           element.addEventListener(UNRECOVERED, passed)
-          changes.observe(element, {
-            subtree: true,
-            childList: true,
-            attributes: true,
-            attributeFilter: ['inert', 'hidden', 'disabled'],
-          })
           return () => {
             changes.disconnect()
             element.removeEventListener('focusin', entered)
