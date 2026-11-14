@@ -8,7 +8,7 @@ import { Effect, Option } from 'effect'
 import { injectIntoTemplate, renderToString } from 'foldkit/experimental/server'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { expect, test } from 'vitest'
-import { CheckboxGroup, Rating, Slider } from '../src/index.js'
+import { CheckboxGroup, Input, Rating, Slider, Textarea } from '../src/index.js'
 
 const template =
   '<!doctype html><html><head><title></title></head><body><div id="root"></div></body></html>'
@@ -97,4 +97,37 @@ test('a checkbox group submits each checked value and none other', async () => {
     ['hidden', 'mentions'],
     ['hidden', 'offers'],
   ])
+})
+
+test('an input and a textarea name their value, and an input says it is required', async () => {
+  const page = await served(h =>
+    h.div(
+      [],
+      [
+        Input.view(
+          {
+            id: 'email',
+            name: 'email',
+            value: 'a@b.c',
+            required: true,
+            draw: ({ input }, h) => h.input(input),
+          },
+          h,
+        ),
+        Textarea.view(
+          {
+            id: 'bio',
+            name: 'bio',
+            value: 'Hello',
+            draw: ({ textarea }, h) => h.textarea(textarea),
+          },
+          h,
+        ),
+      ],
+    ),
+  )
+  const email = page.querySelector('input[name="email"]')
+  expect(email?.getAttribute('value')).toBe('a@b.c')
+  expect(email?.hasAttribute('required')).toBe(true)
+  expect(page.querySelector('textarea[name="bio"]')?.textContent).toBe('Hello')
 })

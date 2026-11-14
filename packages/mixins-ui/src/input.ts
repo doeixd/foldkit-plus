@@ -2,7 +2,7 @@ import { view as inputView, type InputAttributes } from '@foldkit/ui/input'
 import { Option } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, type NamedStyle } from 'foldkit-mixins'
 import { FieldValidation } from 'foldkit'
-import type { Html, HtmlBuilder } from 'foldkit/html'
+import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import { descriptionOf, onInputOf, statusOf, type FieldParts, type OnInput } from './field.js'
 import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
 
@@ -52,6 +52,36 @@ export interface InputView<Message> {
   readonly described?: boolean | undefined
   readonly type?: string | undefined
   readonly placeholder?: string | undefined
+  /** The form field the value submits under. */
+  readonly name?: string | undefined
+  /** The value can be read and selected, not edited; no input is handled. */
+  readonly readOnly?: boolean | undefined
+  /** The field must be filled to submit: the native `required` and `aria-required`. */
+  readonly required?: boolean | undefined
+  /** What the browser may fill in, as the HTML `autocomplete` attribute takes it. */
+  readonly autocomplete?: string | undefined
+  /** The keyboard a phone offers, as the HTML `inputmode` attribute takes it. */
+  readonly inputMode?:
+    | 'none'
+    | 'text'
+    | 'decimal'
+    | 'numeric'
+    | 'tel'
+    | 'search'
+    | 'email'
+    | 'url'
+    | undefined
+  /** The most characters it takes (`maxlength`). */
+  readonly maxLength?: number | undefined
+  /**
+   * Attributes added to a Slot before the mixins resolve, as `Button.view`'s
+   * and `PasswordInput.view`'s are: a blur handler, `aria-busy`. Plain attributes, as
+   * the input's own bundle holds, not the child attributes a Button takes. A class among
+   * them joins the recipe's, and an owned event or attribute among them is a conflict.
+   */
+  readonly attributes?:
+    | { readonly [K in keyof typeof InputSlots]?: ReadonlyArray<Attribute<NoInfer<Message>>> }
+    | undefined
   /** A style of `InputSlots`, for the input's own look. */
   readonly style?: NamedStyle<typeof InputSlots> | undefined
   /** Mixins beside the style, for state or behavior the style does not own. */
@@ -71,13 +101,32 @@ export const view = <Message>(options: InputView<Message>, h: HtmlBuilder<Messag
       ...(options.described === undefined ? {} : { hasDescription: options.described }),
       ...(options.type === undefined ? {} : { type: options.type }),
       ...(options.placeholder === undefined ? {} : { placeholder: options.placeholder }),
+      ...(options.name === undefined ? {} : { name: options.name }),
+      ...(options.readOnly === undefined ? {} : { isReadOnly: options.readOnly }),
       toView: attributes =>
         options.draw(
           resolve(
-            // Bound here: `@foldkit/ui`'s own `onInput` takes a closure alone.
-            options.onInput === undefined || options.disabled === true
-              ? attributes
-              : { ...attributes, input: [...attributes.input, onInputOf(h, options.onInput)] },
+            {
+              ...attributes,
+              input: [
+                ...attributes.input,
+                // Bound here: `@foldkit/ui`'s own `onInput` takes a closure alone.
+                ...(options.onInput === undefined ||
+                options.disabled === true ||
+                options.readOnly === true
+                  ? []
+                  : [onInputOf(h, options.onInput)]),
+                ...(options.required === true ? [h.Required(true), h.AriaRequired(true)] : []),
+                ...(options.autocomplete === undefined
+                  ? []
+                  : [h.Autocomplete(options.autocomplete)]),
+                ...(options.inputMode === undefined ? [] : [h.InputMode(options.inputMode)]),
+                ...(options.maxLength === undefined ? [] : [h.Maxlength(options.maxLength)]),
+                ...(options.attributes?.input ?? []),
+              ],
+              label: [...attributes.label, ...(options.attributes?.label ?? [])],
+              description: [...attributes.description, ...(options.attributes?.description ?? [])],
+            },
             [
               ...(options.style === undefined ? [] : [options.style.mixin]),
               ...(options.mixins ?? []),

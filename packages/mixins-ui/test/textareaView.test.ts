@@ -4,7 +4,8 @@
  * and the rest of `@foldkit/ui`'s own config, drawn on the real runtime.
  */
 import { Schema } from 'effect'
-import { Style } from 'foldkit-mixins'
+import { SlotView, Style } from 'foldkit-mixins'
+import { Inert } from 'foldkit-mixins/testing'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
@@ -151,5 +152,32 @@ describe('Textarea.countOf', () => {
   it('counts the characters, of the limit when there is one', () => {
     expect(Textarea.countOf('hello')).toBe('5')
     expect(Textarea.countOf('hello', 280)).toBe('5 / 280')
+  })
+})
+
+describe('Textarea.view form attributes', () => {
+  const builder = SlotView.inertBuilder<Message>()
+  const drawn = (extra: Partial<TextareaView<Message>>) => {
+    const field = Textarea.view(
+      { id: 'bio', draw: ({ textarea }, h) => h.textarea(textarea), ...extra },
+      builder,
+    )
+    return Inert.byTag(field, 'textarea')[0]
+  }
+
+  it.each([
+    ['required', { required: true }, 'required', true],
+    ['autocomplete', { autocomplete: 'off' }, 'autocomplete', 'off'],
+  ] as const)(
+    'writes %s on the textarea, and not when it is not given',
+    (_, extra, key, written) => {
+      expect(Inert.value(drawn(extra), key)).toBe(written)
+      expect(Inert.value(drawn({}), key)).toBeUndefined()
+    },
+  )
+
+  it('adds the attributes it is handed to the textarea, before the mixins resolve', () => {
+    const textarea = drawn({ attributes: { textarea: [builder.AriaBusy(true)] } })
+    expect(Inert.value(textarea, 'aria-busy')).toBe('true')
   })
 })

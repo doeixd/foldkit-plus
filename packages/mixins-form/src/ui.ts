@@ -182,12 +182,10 @@ export const field =
       ...(checking ? [options.words?.checking ?? 'Checking…'] : []),
       ...input.errors,
     ]
-    const extra = [
-      h.Name(input.control.key),
-      h.OnBlur(options.toMessage(input.blurred)),
-      ...(input.control.required ? [h.AriaRequired(true)] : []),
-      ...(checking ? [h.AriaBusy(true)] : []),
-    ]
+    // The widget writes the name and the native `required`, and owns `blur` and `aria-busy` as given.
+    const attributes = {
+      input: [h.OnBlur(options.toMessage(input.blurred)), ...(checking ? [h.AriaBusy(true)] : [])],
+    }
     const finish = (parts: FieldParts): Html => {
       const value: UiFieldParts = { ...parts, field: input.field }
       return options.draw === undefined
@@ -217,6 +215,8 @@ export const field =
       invalid: input.invalid,
       described: description.length > 0,
       placeholder: input.attrs.placeholder,
+      name: input.control.key,
+      required: input.control.required,
       input: input.field,
     }
     if (FormInput.Text.is(input.control.control))
@@ -224,11 +224,12 @@ export const field =
         {
           ...common,
           type: input.attrs.type ?? 'text',
+          attributes,
           style: options.inputStyle,
           draw: resolved =>
             finish({
               label: h.label(resolved.label, [input.control.label]),
-              control: h.input([...resolved.input, ...extra]),
+              control: h.input(resolved.input),
               description: described(resolved.description),
             }),
         },
@@ -239,11 +240,12 @@ export const field =
         {
           ...common,
           rows: input.attrs.rows,
+          attributes: { textarea: attributes.input },
           style: options.textareaStyle,
           draw: resolved =>
             finish({
               label: h.label(resolved.label, [input.control.label]),
-              control: h.textarea([...resolved.textarea, ...extra]),
+              control: h.textarea(resolved.textarea),
               description: described(resolved.description),
             }),
         },

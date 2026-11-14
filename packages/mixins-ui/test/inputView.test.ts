@@ -121,3 +121,53 @@ describe('Input.view', () => {
     expect(input?.data?.on?.['input']).toBeUndefined()
   })
 })
+
+describe('Input.view form attributes', () => {
+  const drawn = (extra: Partial<InputView<Message>>) =>
+    Input.view(
+      {
+        id: 'email',
+        onInput: value => Message.Typed({ value }),
+        draw: ({ input }, h) => h.input(input),
+        ...extra,
+      },
+      SlotView.inertBuilder<Message>(),
+    )
+  const field = (extra: Partial<InputView<Message>>) => Inert.byTag(drawn(extra), 'input')[0]
+
+  it.each([
+    ['name', { name: 'email' }, 'name', 'email'],
+    ['readOnly', { readOnly: true }, 'readOnly', true],
+    ['required', { required: true }, 'required', true],
+    ['autocomplete', { autocomplete: 'email' }, 'autocomplete', 'email'],
+    ['inputMode', { inputMode: 'email' }, 'inputmode', 'email'],
+    ['maxLength', { maxLength: 40 }, 'maxLength', 40],
+  ] as const)('writes %s on the input, and not when it is not given', (_, extra, key, written) => {
+    expect(Inert.value(field(extra), key)).toBe(written)
+    expect(Inert.value(field({}), key)).toBeUndefined()
+  })
+
+  it('also says aria-required, which the form tests read', () => {
+    expect(Inert.value(field({ required: true }), 'aria-required')).toBe('true')
+  })
+
+  it('handles no typing while read-only', () => {
+    expect(field({})?.data?.on?.['input']).toBeTypeOf('function')
+    expect(field({ readOnly: true })?.data?.on?.['input']).toBeUndefined()
+  })
+
+  it('adds the attributes it is handed to their slots, before the mixins resolve', () => {
+    const page = (h: HtmlBuilder<Message>) =>
+      Input.view(
+        {
+          id: 'email',
+          attributes: { input: [h.AriaBusy(true)], label: [h.DataAttribute('field', 'email')] },
+          draw: ({ input, label }) => h.div([], [h.label(label, ['Email']), h.input(input)]),
+        },
+        h,
+      )
+    const drawnPage = page(SlotView.inertBuilder<Message>())
+    expect(Inert.value(Inert.byTag(drawnPage, 'input')[0], 'aria-busy')).toBe('true')
+    expect(Inert.value(Inert.byTag(drawnPage, 'label')[0], 'data-field')).toBe('email')
+  })
+})
