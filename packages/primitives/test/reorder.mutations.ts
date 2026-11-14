@@ -110,7 +110,7 @@ export default [
     'the grab chords given are ignored',
     'const grabs = options.grab ?? SPACE_ENTER',
     'const grabs = SPACE_ENTER',
-    [unit],
+    [unit, 'packages/primitives/test/reorder-listbox.browser.test.ts'],
   ),
   one(
     'a grab chord does not drop',
