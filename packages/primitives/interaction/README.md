@@ -469,18 +469,23 @@ const LeaveSlots = Slots.define({
   row: Slot.make({ capability: Capability.Focusable }),
 })
 interface LeaveInput {
-  readonly rows: Record<string, { readonly phase: 'shown' | 'hiding' | 'hidden' }>
+  readonly rows: ReadonlyMap<string, { readonly phase: 'shown' | 'hiding' | 'hidden' }>
 }
 const LeaveView = SlotView.over(LeaveSlots)<LeaveInput, never>()
 -->
 
 ```ts
+import type { SlotItem } from 'foldkit-mixins'
 import { FocusRecovery, Presence } from 'foldkit-primitives/interaction'
 
-const Leaves = Presence.behavior(LeaveView)({
-  content: 'row',
-  phase: (input, item) => input.rows[item?.id ?? '']?.phase ?? 'hidden',
-})
+// Every row drawn has a placement, so a row without one is a bug to report, not a phase to guess.
+const phaseOf = (input: LeaveInput, item: SlotItem | undefined): Presence.Phase => {
+  const placed = item?.id === undefined ? undefined : input.rows.get(item.id)
+  if (placed === undefined) throw new Error(`row ${item?.id} is drawn with no Presence placed`)
+  return placed.phase
+}
+
+const Leaves = Presence.behavior(LeaveView)({ content: 'row', phase: phaseOf })
 const RecoversLeaving = FocusRecovery.behavior(LeaveView)({
   owner: 'list',
   parts: { row: ['next', 'previous', 'owner'] },
@@ -491,6 +496,9 @@ Place one `Presence` per row with `Presence.bundle.each(link, { args: { duration
 (the bundle is `foldkit-primitives/motion`'s `Presence`, re-exported as `bundle`).
 `content` is a slot of the contract, so a misspelling is a type error; `phase`
 is given the slot's item, or `undefined` for a slot drawn once, such as a popup.
+Read the rows by id from a `Map` (an object indexed by an id reads `constructor`
+from its prototype), and refuse a row with no placement rather than guess a
+phase: `'hidden'` would draw a live row `inert`.
 A recipe styles the exit on `[data-presence="hiding"]`, its duration the theme's
 motion token times `travel`, the same number `durationMs` is given. Under
 `Motion.reduced` the `Hidden` fact arrives at once, through the same two
