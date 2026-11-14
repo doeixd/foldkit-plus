@@ -425,7 +425,7 @@ Each pair and finding has one repair:
 A transition that is no declared write (an import, another package's
 command) is an entry with a `Footprint`: what its author says it writes, or
 `Footprint.unknown`, which writes every member and is `undecided` against
-every invariant. `npx foldkit-plus laws src/laws.ts` prints the same report
+every invariant. `npx foldkit-plus laws src/laws.ts#report` prints the same report
 for a module that exports it, and an example keeps it as text in a checked-in
 file, so a write added later changes a file a reviewer sees
 ([`examples/writes/LAWS.md`](https://github.com/doeixd/foldkit-plus/blob/main/examples/writes/LAWS.md)).

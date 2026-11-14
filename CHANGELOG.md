@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- Docs: the laws guide (`docs/laws.md`, the skill's `references/laws.md`) gains
+  states (`Entity.refine`, `from`, `becomes`), a document's `laws` with the
+  monotone form for live documents and `Board.judge` as the audit, `Laws.check`
+  with a repair for each finding, the evidence kinds and how `Graph.validate`'s
+  `law-unwitnessed` is cleared, `Data.can`, and "when a state depends on the
+  past, store the fact" (#540).
 - `foldkit-mixins/testing`: `Conformance` (#552 rendered, #558 item 1), scenarios
   `listbox`, `checkbox`, `tree`, `dialog` (focus in, Tab contained, Escape,
   restore, a dialog over a dialog) and `tabs`, each a function of a harness
