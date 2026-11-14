@@ -31,4 +31,15 @@ export default [
     '      for (const key of readOf(held)) edge(LawEdge.Reads({ law: id, ...member(key) }))',
     '      for (const key of held.before) edge(LawEdge.Reads({ law: id, ...member(key) }))',
   ),
+  edit(
+    'a delete is of no Entity in the graph',
+    "      ...(entity === undefined ? [] : [rootOf({ space: 'entity', path: [entity] })]),\n",
+    '',
+    '../../surface/src/graph.ts',
+  ),
+  edit(
+    'lawFactsOf names no Entity on a transition',
+    "    node(LawNode.Transition({ id: by, kind: 'write', entity: entity.name }))",
+    "    node(LawNode.Transition({ id: by, kind: 'write', entity: '' }))",
+  ),
 ]

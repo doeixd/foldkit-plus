@@ -478,7 +478,8 @@ const show = (report: LawReport): string => {
 export type LawNode = Data.TaggedEnum<{
   /** A member of an Entity (`['Product', 'reserved']`), or its whole row (`['Product']`), which a transition invariant reads. */
   Path: { readonly space: 'entity'; readonly path: ReadonlyArray<string> }
-  Transition: { readonly id: string; readonly kind: 'write' }
+  /** A transition over one Entity's rows: a delete, which writes no member, is still of its Entity. */
+  Transition: { readonly id: string; readonly kind: 'write'; readonly entity: string }
   Law: { readonly id: string }
   State: { readonly entity: string; readonly name: string }
 }>
@@ -532,15 +533,15 @@ const facts = (report: LawReport): LawFacts => {
     node(LawNode.Path({ space: 'entity', path: at }))
     return at
   }
-  const write = (name: string) => {
+  const write = (name: string, entity: string) => {
     const id = transition({ name })
-    node(LawNode.Transition({ id, kind: 'write' }))
+    node(LawNode.Transition({ id, kind: 'write', entity }))
     return id
   }
   for (const { entity, names } of report.states)
     for (const name of names) node(LawNode.State({ entity, name }))
   for (const pair of report.pairs) {
-    const by = write(pair.write)
+    const by = write(pair.write, pair.entity)
     const writes = Footprint.$match(pair.footprint, {
       Derived: ({ writes }) => writes,
       Declared: ({ writes }) => writes,
@@ -579,13 +580,13 @@ const facts = (report: LawReport): LawFacts => {
     if (Option.isSome(evidence))
       edge(['keeps', by, id], LawEdge.Keeps({ transition: by, law: id, evidence: evidence.value }))
   for (const { entity, write: name, from, to } of report.arrows) {
-    const by = write(name)
+    const by = write(name, entity)
     edge(['from', by, entity, from], LawEdge.From({ transition: by, entity, state: from }))
     edge(['to', by, entity, to], LawEdge.To({ transition: by, entity, state: to }))
   }
   for (const finding of report.findings)
     if (Finding.$is('Enforced')(finding)) {
-      const by = write(finding.write)
+      const by = write(finding.write, finding.entity)
       edge(
         ['to', by, finding.entity, finding.to],
         LawEdge.To({ transition: by, entity: finding.entity, state: finding.to }),
@@ -612,7 +613,7 @@ export const lawFactsOf = (entries: ReadonlyArray<LawEntry>): LawFacts => {
     const entity = entityOf(entry)
     const by = transition(entry)
     const member = (key: string) => ({ space: 'entity' as const, path: [entity.name, key] })
-    node(LawNode.Transition({ id: by, kind: 'write' }))
+    node(LawNode.Transition({ id: by, kind: 'write', entity: entity.name }))
     const written = Footprint.$match(footprintOf(entry), {
       Derived: ({ writes }) => writes,
       Declared: ({ writes }) => writes,

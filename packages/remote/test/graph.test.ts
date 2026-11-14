@@ -176,3 +176,24 @@ describe('a transition invariant in the Module graph', () => {
     ])
   })
 })
+
+describe('a delete in the Module graph', () => {
+  const Remove = Mutation.write(
+    'Remove',
+    Write.delete(Entity.input(Product, Schema.Struct({ id: Schema.String })), { id: 'id' }),
+  )
+  const Removals = Module.make(App, [
+    Remote.make({ model: App.model.remote, entities: [Product], mutations: [Remove] }),
+  ])
+
+  it('writes nothing, so breaks nothing, and the record Laws.check issues for it is admitted', () => {
+    const evidence = Laws.check({ writes: [Remove] }).pairs.flatMap(pair =>
+      Option.toArray(pair.evidence),
+    )
+    expect(evidence.map(record => `${record.transition} ${record.law}`)).toEqual([
+      `write:Remove ${law}`,
+    ])
+    expect(Graph.breakersOf(Module.graph(Removals), law)).toEqual([])
+    expect(Module.validate(Removals, { evidence })).toEqual([])
+  })
+})

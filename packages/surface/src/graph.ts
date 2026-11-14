@@ -20,8 +20,15 @@ export type GraphNode = Data.TaggedEnum<{
   /** A contract that owns Model paths: `remote:Shop`, `sync:todos-capped`. */
   Owner: { readonly kind: string; readonly name: string }
   Path: { readonly space: GraphSpace; readonly path: ReadonlyArray<string> }
-  /** A declared write (`write:Sell`) or a durable Message (`durable:CreatedTodo`). */
-  Transition: { readonly id: string; readonly kind: 'write' | 'durable' }
+  /**
+   * A declared write (`write:Sell`), with the Entity whose rows it writes, or
+   * a durable Message (`durable:CreatedTodo`), with none.
+   */
+  Transition: {
+    readonly id: string
+    readonly kind: 'write' | 'durable'
+    readonly entity?: string | undefined
+  }
   /** An Entity's invariant (`Product.reservedWithinStock`), a document's law, or a closed Surface's closure. */
   Law: { readonly id: string }
   /** A declared state of an Entity. */
@@ -257,8 +264,10 @@ export const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptio
         edge(GraphEdge.Refines({ level: a.name, of: b.name }))
 
   const laws = new Set([...nodes.values()].filter(GraphNode.$is('Law')).map(law => law.id))
-  const transitions = new Set(
-    [...nodes.values()].filter(GraphNode.$is('Transition')).map(transition => transition.id),
+  const transitions = new Map(
+    [...nodes.values()]
+      .filter(GraphNode.$is('Transition'))
+      .map(transition => [transition.id, transition.entity] as const),
   )
   const unmatched: Array<Unmatched> = []
   const kept = new Set<Evidence>()
@@ -280,7 +289,12 @@ export const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptio
     if (!transitions.has(transition))
       return refuse(`names ${transition}, which no contract declares`)
     if (!laws.has(law)) return refuse(`names ${law}, which no contract declares`)
-    const roots = new Set((writes.get(transition) ?? []).map(rootOf))
+    // A transition's Entity is a root even where it writes no member: a delete's.
+    const entity = transitions.get(transition)
+    const roots = new Set([
+      ...(writes.get(transition) ?? []).map(rootOf),
+      ...(entity === undefined ? [] : [rootOf({ space: 'entity', path: [entity] })]),
+    ])
     if (!(reads.get(law) ?? []).some(at => roots.has(rootOf(at))))
       return refuse(
         `names a pair the graph does not join: ${transition} writes nothing beside what ${law} reads`,

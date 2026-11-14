@@ -75,7 +75,9 @@ version changed; `pnpm` skips versions already in the registry.
   may carry `laws?: ContractLaws`, its declarations as plain data: `model`, law
   ids over its Model slice, and `entities`, `Laws.check`'s entries.
   `Module.graph(module, { evidence })` derives their nodes and edges when
-  asked (`GraphNode`: `Owner`, `Path`, `Transition`, `Law`, `State`, `Level`;
+  asked (`GraphNode`: `Owner`, `Path`, `Transition` (a write's with its
+  Entity, so a delete, which writes no member, still joins its laws), `Law`,
+  `State`, `Level`;
   `GraphEdge`: `Owns`, `Reads`, `Writes`, `Observes`, `From`, `To`, `Keeps`,
   `Refines`), so only a page that asks carries that code, and joins them with
   a level and a `closure:<name>` law per closed Surface, which level refines

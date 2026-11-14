@@ -493,7 +493,7 @@ describe('Laws.facts', () => {
     )
     expect(plain(nodes.filter(LawNode.$is('Transition')))).toEqual(
       ['Publish', 'Revert', 'SellInStock', 'Import', 'Restock'].map(name => ({
-        ...LawNode.Transition({ id: `write:${name}`, kind: 'write' }),
+        ...LawNode.Transition({ id: `write:${name}`, kind: 'write', entity: 'Product' }),
       })),
     )
     expect(nodes.filter(LawNode.$is('State')).map(state => state.name)).toEqual([
@@ -587,6 +587,19 @@ describe('Laws.facts', () => {
     expect(whole('Product.publishedStaysPublished')).toBe(true)
     expect(whole('Product.soldNeverFalls')).toBe(true)
     expect(whole('Product.reservedWithinStock')).toBe(false)
+  })
+
+  it('names a delete’s Entity on its transition, which writes no member but keeps each law', () => {
+    const removed = Laws.facts(Laws.check({ writes: [Remove] }))
+    expect(plain(removed.nodes.filter(LawNode.$is('Transition')))).toEqual([
+      { ...LawNode.Transition({ id: 'write:Remove', kind: 'write', entity: 'Product' }) },
+    ])
+    expect(removed.edges.filter(LawEdge.$is('Writes'))).toEqual([])
+    expect(removed.edges.filter(LawEdge.$is('Keeps')).map(each => each.law)).toEqual([
+      'Product.reservedWithinStock',
+      'Product.publishedStaysPublished',
+      'Product.soldNeverFalls',
+    ])
   })
 
   it("leaves a write's own postcondition out, and draws its becomes as a to edge", () => {
