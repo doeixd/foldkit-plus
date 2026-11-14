@@ -15,7 +15,7 @@ Message, and the gate can only judge what the state it reads contains.
 | State | The log | The fold | The gate | History kept |
 | --- | --- | --- | --- | --- |
 | The local Model | Messages as they are dispatched; not stored | `update` | None for a view. For an agent, the capability's `available` and `authorize` | No |
-| A Sync document | Durable Messages in the journal, in the server's order | `update`, through the derived replay | `authorize` and `validate`, on the server, inside the commit | Until the journal is compacted; then a checkpoint |
+| A Sync document | Durable Messages in the journal, in the server's order | `update`, through the derived replay | `authorize`, `validate` and the laws, on the server, inside the commit | Until the journal is compacted; then a checkpoint |
 | A Remote row | None | None: the row is what is stored | The declared write: its rules, its `when`, the Entity's invariants | No |
 
 A row edited offline through a journal is the second case with a table as its
@@ -110,7 +110,7 @@ const folded = history.reduce((model, message) => update(model, message).model, 
 
 ## A document: the same fold, with a gate and a stored log
 
-Sync stores the Messages and adds the gate:
+Sync stores the Messages and adds the gate and the document's laws:
 
 ```ts
 type Principal = { readonly actorId: string; readonly canWrite: boolean }
@@ -126,9 +126,14 @@ const TodoSync = forApplication(App)
       Message.ClearedTodos,
     ]),
     authorize: {
-      CreatedTodo: ({ shared }) =>
-        shared.todos.length < 100 ? true : { allowed: false, reason: 'A list holds 100 todos' },
       CompletedTodo: ({ message, shared }) => shared.todos.some(todo => todo.id === message.id),
+    },
+    laws: {
+      atMost100Todos: {
+        holds: ({ after }) => after.todos.length <= 100,
+        message: 'A list holds 100 todos',
+        path: ['todos'],
+      },
     },
   })
 ```
@@ -138,8 +143,12 @@ const TodoSync = forApplication(App)
 - **`durable`** is the event vocabulary. Each of these Messages becomes an
   operation in the outbox and a row in the journal. `ChoseFilter` is not
   listed, so it changes the Model and goes nowhere.
-- **`authorize`** is the gate. It runs on the server, inside the commit,
-  against the authoritative snapshot before the operation.
+- **`authorize`** is the gate on who and what may be asked. It runs on the server,
+  inside the commit, against the authoritative snapshot before the operation.
+- **`laws`** say what the document must always be. A cap on its length is a
+  law, not an `authorize` rule: it judges what an operation leaves, so every
+  Message that can grow the list is held to it, including ones added to
+  `durable` later. See [A rule that fits](./replication.md#a-rule-that-fits-at-most-100-todos).
 
 The declaration runs nothing. [Replicated state](./replication.md) covers the
 client, the server and what the person sees while an edit is in flight.
@@ -163,17 +172,18 @@ See [the two write paths](./state-model.md#the-two-write-paths).
 ## What it does not give you: a correct state
 
 The fold accepts any sequence. Whether a sequence should have happened is the
-gate's question, and a gate rule is keyed by Message:
+gate's question, and the two hooks answer it differently:
 
-- **A rule covers its own Message only.** The cap above is on `CreatedTodo`. A
-  variant without a rule is allowed, so a later `ImportedTodos` that also
-  grows the list is held to no cap until it gets a rule of its own.
-- **A rule reads the snapshot before the operation**, not the one it leaves.
+- **An `authorize` rule covers its own Message only.** A variant without a rule
+  is allowed, and the rule reads the snapshot before the operation, not the one
+  it leaves.
+- **A law covers every Message.** It judges the snapshot an operation leaves, so
+  the cap above holds for a later `ImportedTodos` with no rule of its own.
 
-A rule about the document, as opposed to one Message, therefore has to be
-written for every Message that can break it. When you add a durable Message,
-ask of each existing rule whether it applies to the new one too, and test the
-new Message at the limit.
+A rule about who may ask belongs in `authorize`, and has to be written for each
+Message it applies to: when you add a durable Message, ask of each existing rule
+whether it applies to the new one too. A rule about what the document must
+always be belongs in a law. Test a new Message at a law's limit all the same.
 
 Rows work the other way round. An `Entity.invariant` is declared once on the
 Entity and judged over the row every write would leave, whoever writes it. See
