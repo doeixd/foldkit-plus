@@ -19,6 +19,8 @@ export type LiveEvent =
       readonly values: Readonly<Record<string, unknown>>
       readonly changed: ReadonlyArray<string>
       readonly cursor: LiveCursor
+      /** The row's revision after the change, when the server keeps one. */
+      readonly revision?: number | undefined
     }
   | { readonly _tag: 'EntityDeleted'; readonly ref: EdgeRef; readonly cursor: LiveCursor }
   | {

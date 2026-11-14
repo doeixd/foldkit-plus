@@ -76,6 +76,12 @@ export const Why = defineTaggedUnion({
   FieldsFailed: { row: RowRef, via: Names, fields: Names, error: remoteErrorSchema },
   /** The server settled these fields without a value for this principal. */
   Unavailable: { row: RowRef, via: Names, fields: Names },
+  /**
+   * A write to the row committed and the server's read model has not shown
+   * it yet (`MutationResult.after`): the row shows what the write's answer
+   * wrote, and is read again with its token until the server answers at it.
+   */
+  ReadAfter: { row: RowRef, via: Names, token: Schema.String },
   /** What the store holds does not decode against the Selection. */
   Undecodable: { message: Schema.String },
   /** The row is shown only by an overlay, which lacks fields nothing will fetch. */
@@ -202,6 +208,8 @@ export const whyWords = (why: Why): string =>
       `Reading ${fields.join(', ')} of ${rowWords(row, via)} failed. ${failedReadWords(error)}`,
     Unavailable: ({ row, via, fields }) =>
       `The server settled ${fields.join(', ')} of ${rowWords(row, via)} without a value for this principal. Select without them, or Data.refresh asks again.`,
+    ReadAfter: ({ row, via }) =>
+      `${rowWords(row, via)} is waiting for the server's read model to show a write: it shows what the write's answer wrote, and is read again with the write's token until the server answers at it. A read the server answers behind keeps it waiting until the read entry asks again (a refresh, or a change of what it reads).`,
     Undecodable: ({ message }) =>
       `What the store holds does not decode against the Selection: ${message}`,
     OverlayOnly: ({ message }) =>
@@ -260,6 +268,7 @@ const decides = (why: Why): ReadonlyArray<State> =>
     ListFailed: () => ['Failed'],
     FieldsFailed: () => ['Failed'],
     Unavailable: () => ['Failed'],
+    ReadAfter: () => ['Ready', 'Refreshing'],
     Undecodable: () => ['Failed'],
     OverlayOnly: () => ['Failed'],
     Deleted: () => ['NotFound'],

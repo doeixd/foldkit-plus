@@ -72,7 +72,7 @@ const policy: LiveCapability['policy'] = (lists, visible, event, context) => {
 }
 
 const stream: LiveCapability['stream'] = (
-  { requirements, queries, cursor, floor, restarts, failures },
+  { requirements, queries, cursor, floor, tokens, restarts, failures },
   toMessage,
   options,
 ) => {
@@ -80,7 +80,12 @@ const stream: LiveCapability['stream'] = (
   const live = Stream.unwrap(
     Effect.gen(function* () {
       const client = yield* RemoteClient
-      return client.live({ requirements, queries, after: cursor })
+      return client.live({
+        requirements,
+        queries,
+        after: cursor,
+        ...(tokens.length === 0 ? {} : { floors: tokens }),
+      })
     }),
   ).pipe(
     Stream.map(event =>

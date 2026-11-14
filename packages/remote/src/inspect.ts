@@ -13,7 +13,14 @@ export interface RemoteInspection {
     readonly tombstone: boolean
     readonly updatedAt: number
     readonly windows: Readonly<Record<string, string>>
+    /** The row's revision, when the server sent one. */
+    readonly revision?: number | undefined
   }>
+  /**
+   * The rows held to a read-after token (`MutationResult.after`), with it:
+   * each is read again, carrying it, until the server answers at it.
+   */
+  readonly floors: ReadonlyArray<{ readonly key: string; readonly token: string }>
   readonly connections: ReadonlyArray<string>
   readonly live: ReadonlyArray<string>
   readonly gaps: ReadonlyArray<string>
@@ -47,11 +54,15 @@ const inspectEntry = (key: string, entry: EntityEntry): RemoteInspection['entiti
   tombstone: entry.tombstone,
   updatedAt: entry.updatedAt,
   windows: { ...entry.windows },
+  ...(entry.revision === undefined ? {} : { revision: entry.revision }),
 })
 
 /** A pure, serializable view of the whole cache. */
 export const inspectRemote = (model: RemoteModel): RemoteInspection => ({
   entities: Object.entries(model.entities).map(([key, entry]) => inspectEntry(key, entry)),
+  floors: Object.entries(model.entities).flatMap(([key, entry]) =>
+    entry.floor === undefined ? [] : [{ key, token: entry.floor }],
+  ),
   connections: Object.keys(model.connections),
   live: Object.keys(model.live),
   gaps: [...model.gaps],

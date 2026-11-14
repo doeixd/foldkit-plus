@@ -552,6 +552,7 @@ describe('live and Data.subscriptions', () => {
       refreshes: [],
       expires: null,
       abandoned: [],
+      after: [],
     })
     expect(subscriptions['page.read'].modelToDependencies(at(''))).toEqual({
       requirements: [],
@@ -561,6 +562,7 @@ describe('live and Data.subscriptions', () => {
       refreshes: [],
       expires: null,
       abandoned: [],
+      after: [],
     })
     expect(subscriptions['home.read'].modelToDependencies(at(''))).toEqual({
       requirements: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
@@ -570,6 +572,7 @@ describe('live and Data.subscriptions', () => {
       refreshes: [],
       expires: null,
       abandoned: [],
+      after: [],
     })
   })
 
@@ -584,6 +587,7 @@ describe('live and Data.subscriptions', () => {
       queries: [],
       cursor: 0,
       floor: 0,
+      tokens: [],
       restarts: 0,
       failures: 0,
     })
@@ -592,6 +596,7 @@ describe('live and Data.subscriptions', () => {
       queries: [],
       cursor: 0,
       floor: 0,
+      tokens: [],
       restarts: 0,
       failures: 0,
     })
@@ -633,6 +638,7 @@ describe('live and Data.subscriptions', () => {
       refreshes: [],
       expires: null,
       abandoned: [],
+      after: [],
     })
 
     const collected = await Effect.runPromise(
@@ -688,6 +694,7 @@ describe('live and Data.subscriptions', () => {
       refreshes: [],
       expires: null,
       abandoned: [],
+      after: [],
     })
     expect(tuned['home.read'].modelToDependencies(loaded)).toEqual({
       requirements: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
@@ -698,6 +705,7 @@ describe('live and Data.subscriptions', () => {
       refreshes: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
       expires: null,
       abandoned: [],
+      after: [],
     })
   })
 })
@@ -1558,6 +1566,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       refreshes: [],
       expires: null,
       abandoned: [],
+      after: [],
     })
     // The connection is a retention root by itself, with what the page selects of each item.
     // (Only among the roots: every call roots this file's other readers of `Data` too.)
@@ -1611,6 +1620,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       refreshes: [],
       expires: null,
       abandoned: [],
+      after: [],
     })
     const reads = await Effect.runPromise(
       Stream.runCollect(entry.dependenciesToStream(entry.modelToDependencies(paged))).pipe(
@@ -1636,6 +1646,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       refreshes: [],
       expires: null,
       abandoned: [],
+      after: [],
     })
   })
 
@@ -1775,6 +1786,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       refreshes: [],
       expires: null,
       abandoned: [],
+      after: [],
     })
     const foreign = Data.reduce(initial, {
       _tag: 'ConnectionMerged',

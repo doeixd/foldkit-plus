@@ -77,7 +77,14 @@ import type { MutationStatus } from './ledger.js'
 import type { MutationDescriptor } from './mutationDescriptor.js'
 import { domainFacts } from './graphFacts.js'
 import type { OptimisticOperation } from './optimistic.js'
-import { deadlineOf, plan, refreshedOf, type Deadline, type PlanOptions } from './plan.js'
+import {
+  deadlineOf,
+  plan,
+  refreshedOf,
+  withTokens,
+  type Deadline,
+  type PlanOptions,
+} from './plan.js'
 import { RemotePolicy } from './policy.js'
 import { stableStringify } from './query.js'
 import type { ConnectionSpec, QueryDescriptor, QueryRef, QueryWindow } from './query.js'
@@ -95,6 +102,7 @@ import {
   ReadRequest,
   RelationRequest,
   REMOTE_PROTOCOL_VERSION,
+  RowToken,
   WindowSchema,
   RemoteProtocolError,
   RemoteQueryError,
@@ -343,6 +351,12 @@ export interface LiveDependencies {
   readonly queries: ReadonlyArray<Schema.Schema.Type<typeof QueryRequest>>
   readonly cursor: LiveCursor
   readonly floor: number
+  /**
+   * The read-after tokens of the rows `requirements` names that hold one
+   * (`LiveRequirement.floors`): a new one restarts the stream, so the server
+   * holds the row to it.
+   */
+  readonly tokens: ReadonlyArray<Schema.Schema.Type<typeof RowToken>>
   /** How many times the stream broke; each break restarts it. */
   readonly restarts: number
   /** Breaks since its last applied event, which the restart's backoff grows with. */
@@ -1740,6 +1754,7 @@ export const rootsOf = (
 /** Reads requirements and reports the Message that settles them. Never fails. */
 const readMessage = (
   requirements: ReadonlyArray<Requirement>,
+  after: ReadonlyArray<Schema.Schema.Type<typeof RowToken>>,
   now: () => number,
   generation: number,
 ): Effect.Effect<RemoteMessage, never, RemoteClient> =>
@@ -1747,7 +1762,13 @@ const readMessage = (
     const client = yield* RemoteClient
     const at = now()
     const result = yield* Effect.result(
-      defectAsFailure(client.read({ version: REMOTE_PROTOCOL_VERSION, requests: requirements })),
+      defectAsFailure(
+        client.read({
+          version: REMOTE_PROTOCOL_VERSION,
+          requests: requirements,
+          ...(after.length === 0 ? {} : { after }),
+        }),
+      ),
     )
     return Result.isFailure(result)
       ? {
@@ -1761,6 +1782,7 @@ const readMessage = (
           requests: requirements,
           result: result.success,
           now: at,
+          ...(after.length === 0 ? {} : { after }),
           generation,
         }
   })
@@ -1808,6 +1830,8 @@ const PlannedQuery = Schema.Struct({
 /** The dependencies of the read entry: the entity fields to read and the queries to run. */
 export interface ReadDependencies {
   readonly requirements: ReadonlyArray<Requirement>
+  /** The read-after tokens of the rows `requirements` reads that hold one (`withTokens`). */
+  readonly after: ReadonlyArray<Schema.Schema.Type<typeof RowToken>>
   readonly queries: ReadonlyArray<Schema.Schema.Type<typeof PlannedQuery>>
   /**
    * The highest generation the fields this entry reads were refreshed at: a
@@ -1876,8 +1900,15 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
   const { now = wallClock, timeout } = options
   // Who set a `loading` mark, so a restart takes back its own and no other's.
   const by = `read:${++readEntries}`
-  const read = (requirements: ReadonlyArray<Requirement>, generation: number) =>
-    Effect.map(withCallTimeout(readMessage(requirements, now, generation), timeout), toMessage)
+  const read = (
+    requirements: ReadonlyArray<Requirement>,
+    after: ReadDependencies['after'],
+    generation: number,
+  ) =>
+    Effect.map(
+      withCallTimeout(readMessage(requirements, after, now, generation), timeout),
+      toMessage,
+    )
   const run = (query: ReadDependencies['queries'][number], generation: number) =>
     Effect.map(withCallTimeout(queryMessage(query, now, generation), timeout), toMessage)
   // A plan is a function of the Remote model, what is asked, and the clock only
@@ -1891,6 +1922,7 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
   return {
     dependenciesSchema: Schema.Struct({
       requirements: Schema.Array(ReadRequest),
+      after: Schema.Array(RowToken),
       queries: Schema.Array(PlannedQuery),
       refresh: Schema.Number,
       refreshing: Schema.Array(Schema.String),
@@ -1917,8 +1949,9 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       const known = byAsked?.get(askedKey)
       if (known !== undefined && at < known.until) return known.dependencies
       const plan = planAsked(bound, remote, asked, RemotePolicy.toPlan(policy, at))
+      const { requirements, after } = withTokens(remote.entities, plan.requirements)
       const asking = new Set([
-        ...plan.requirements.flatMap(({ entity, id, fields }) =>
+        ...requirements.flatMap(({ entity, id, fields }) =>
           fields.map(field => fieldMark(entity, id, field)),
         ),
         ...plan.queries.map(query => connectionMark(query.identity)),
@@ -1926,10 +1959,11 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       const dependencies: ReadDependencies = {
         refresh: refreshedAt(
           remote.refresh,
-          plan.requirements,
+          requirements,
           plan.queries.map(query => query.identity),
         ),
-        requirements: plan.requirements,
+        requirements,
+        after,
         queries: plan.queries.map(({ identity, window, select }) => ({
           identity,
           window,
@@ -1949,6 +1983,7 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
     },
     dependenciesToStream: ({
       requirements,
+      after,
       queries,
       refresh,
       refreshing,
@@ -1986,7 +2021,7 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
             [
               ...(requirements.length === 0
                 ? []
-                : [Stream.fromEffect(read(requirements, refresh))]),
+                : [Stream.fromEffect(read(requirements, after, refresh))]),
               ...queries.map(query => Stream.fromEffect(run(query, refresh))),
             ],
             { concurrency: 'unbounded' },

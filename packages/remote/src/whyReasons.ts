@@ -115,6 +115,9 @@ const rowReasons = (
   }
   for (const [error, fields] of failed) reasons.push(Why.FieldsFailed({ row, via, fields, error }))
 
+  const floor = remote.entities[key]?.floor
+  if (floor !== undefined) reasons.push(Why.ReadAfter({ row, via, token: floor }))
+
   const unavailable = relation.fields.filter(field => entry?.unavailable.has(field) === true)
   if (unavailable.length > 0) reasons.push(Why.Unavailable({ row, via, fields: unavailable }))
 

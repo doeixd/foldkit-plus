@@ -349,6 +349,7 @@ const writes: WriteCapability = {
                             deleted: outcome.deleted,
                             ...(outcome.read === undefined ? {} : { read: outcome.read }),
                             ...(outcome.lists === undefined ? {} : { lists: outcome.lists }),
+                            ...(outcome.after === undefined ? {} : { after: outcome.after }),
                             ...(outcome.principal === undefined
                               ? {}
                               : {

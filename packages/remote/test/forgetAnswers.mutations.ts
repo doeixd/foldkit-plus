@@ -35,7 +35,7 @@ export default [
     'generation !== undefined && generation < model.refresh.floor',
     'false',
   ),
-  unguarded('read answer', 'return {\n        ...model,\n        outbox: heardAs('),
+  unguarded('read answer', 'const { held, confirmed } = readAfter('),
   unguarded('read failure', '// A broken live stream is not a failed read.'),
   unguarded('live event', 'const state = model.live[message.stream] ?? emptyLiveState'),
   unguarded('page', 'const current = model.connections[message.connection] ?? emptyConnection'),

@@ -15,7 +15,8 @@ import { own } from './record.js'
 import {
   entityKey,
   tombstone,
-  writeEntity,
+  olderThanHeld,
+  writeEntities,
   type EntityEntry,
   type EntityKey,
   type EntityStore,
@@ -278,13 +279,26 @@ export const applyEntityEvent = (
       contradicted: [],
     }
   }
+  // Older than the row held: the stream has moved past it, and so has the store.
+  if (olderThanHeld(store[key], event.revision))
+    return { state: next, store, outcome, written: {}, echoes, kept, contradicted: [] }
   const heard =
     awaited === undefined ? undefined : heardBack(awaited, context.stream ?? '', event.values)
   const written = heard?.values ?? event.values
   const unexpiredKept = unexpired(kept, context.now ?? 0)
   return {
     state: next,
-    store: writeEntity(store, key, written, context.now ?? 0),
+    store: writeEntities(
+      store,
+      [
+        {
+          key,
+          values: written,
+          ...(event.revision === undefined ? {} : { revision: event.revision }),
+        },
+      ],
+      context.now ?? 0,
+    ),
     outcome,
     written,
     echoes:

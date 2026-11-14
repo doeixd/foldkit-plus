@@ -12,7 +12,7 @@ import type { RelationRequirement, Requirement } from './requirement.js'
  * server refuses a mismatch with `RemoteProtocolError`, so a shape change never
  * drifts silently: bump it whenever `ReadRequest` or `LiveRequirement` change.
  */
-export const REMOTE_PROTOCOL_VERSION = 5
+export const REMOTE_PROTOCOL_VERSION = 6
 
 export class RemoteReadError extends Schema.TaggedError<RemoteReadError>()('RemoteReadError', {
   message: Schema.String,
@@ -160,15 +160,63 @@ export const ReadRequest: Schema.Codec<Requirement, Requirement> = Schema.Struct
   readRequestFields,
 ) as unknown as Schema.Codec<Requirement, Requirement>
 
+/** A batch may name at most this many rows in `after`, a stream in `floors`, an answer in `behind` or `after.rows`. */
+export const MAX_READ_AFTER = 256
+
+/**
+ * A read-after token: the server's own mark of a point in its history (a
+ * Domain receipt, a D1 session bookmark). Remote never reads it; it only
+ * sends it back with a read of the rows it was given for. Bounded, since a
+ * client keeps it in its Model and sends it on every such read.
+ */
+export const ReadAfterToken = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(512))
+
+/**
+ * A row's revision, when the server keeps one: a number every change of the
+ * row moves forward. A client never lets a row of a lower revision over one
+ * of a higher revision it holds.
+ */
+export const Revision = Schema.Finite
+
+/** One row, by Entity and id. */
+export const RowRef = Schema.Struct({ entity: Schema.String, id: Schema.String })
+
+/** A row and the token a read of it must be current at. */
+export const RowToken = Schema.Struct({
+  entity: Schema.String,
+  id: Schema.String,
+  token: ReadAfterToken,
+})
+
+const RowTokens = Schema.Array(RowToken).check(Schema.isMaxLength(MAX_READ_AFTER))
+
+/**
+ * What a write's answer says of the rows it wrote: a read of them is current
+ * only at or after `token`. Until such a read answers, the client keeps the
+ * rows it holds and asks with the token (`ReadBatch.after`).
+ */
+export const ReadAfter = Schema.Struct({
+  token: ReadAfterToken,
+  rows: Schema.Array(RowRef).check(Schema.isMaxLength(MAX_READ_AFTER)),
+})
+
 export const ReadBatch = Schema.Struct({
   version: Schema.Number,
   requests: Schema.Array(ReadRequest),
+  /**
+   * The rows of `requests` a write's answer gave a token for (`MutationResult.after`)
+   * that no read has answered at it yet: the server reads each at or after
+   * its token, or names it in `behind`.
+   */
+  after: Schema.optional(RowTokens),
 })
 
 export const NormalizedEntity = Schema.Struct({
   entity: Schema.String,
   id: Schema.String,
   values: Schema.Record(Schema.String, Schema.Unknown),
+  /** The row's revision, when the server keeps one: a lower one never overwrites a higher. */
+  revision: Schema.optional(Revision),
 })
 
 /**
@@ -199,6 +247,12 @@ export const ReadBatchResult = Schema.Struct({
   entities: Schema.Array(NormalizedEntity),
   settled: Schema.Array(SettledFields),
   principal: answeredAs,
+  /**
+   * Rows of the batch's `after` the server could not read at their token
+   * (its read model is behind): the client keeps what it holds of each and
+   * asks with the token again.
+   */
+  behind: Schema.optional(Schema.Array(RowRef).check(Schema.isMaxLength(MAX_READ_AFTER))),
 })
 
 /** A read a mutation's answer carries: what was asked, and what came back. */
@@ -357,6 +411,8 @@ export const MutationResult = Schema.Struct({
    */
   lists: Schema.optional(Schema.Array(AnswerList)),
   principal: answeredAs,
+  /** A read of the rows the write wrote is current only at or after this. */
+  after: Schema.optional(ReadAfter),
 })
 
 /** A live subscription may watch no more lists than this; each is run again every tick. */
@@ -369,6 +425,11 @@ export const LiveRequirement = Schema.Struct({
   queries: Schema.optional(Schema.Array(QueryRequest).check(Schema.isMaxLength(MAX_LIVE_QUERIES))),
   /** Resume cursor; events at or before it are duplicates. */
   after: Schema.Number,
+  /**
+   * Rows of `requirements` held to a read-after token (`ReadBatch.after`):
+   * the stream sends none of them from before its token.
+   */
+  floors: Schema.optional(RowTokens),
 })
 
 /**
@@ -383,6 +444,8 @@ export const LiveChange = Schema.Union([
     id: Schema.String,
     values: Schema.Record(Schema.String, Schema.Unknown),
     changed: Schema.Array(Schema.String),
+    /** The row's revision after the change, when the server keeps one. */
+    revision: Schema.optional(Revision),
   }),
   Schema.Struct({
     _tag: Schema.Literal('EntityDeleted'),

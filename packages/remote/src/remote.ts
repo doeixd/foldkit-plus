@@ -747,13 +747,14 @@ export const clientLayer = <R = never>(
               ),
               Effect.provideContext(context),
             ),
-          live: ({ requirements, queries, after }) =>
+          live: ({ requirements, queries, after, floors }) =>
             client
               .FoldkitRemoteLive({
                 version: REMOTE_PROTOCOL_VERSION,
                 requirements,
                 ...(queries.length === 0 ? {} : { queries }),
                 after,
+                ...(floors === undefined || floors.length === 0 ? {} : { floors }),
               })
               .pipe(
                 Stream.catchTag(['RpcClientError', 'Unreachable'], error =>
@@ -897,6 +898,7 @@ export const mutateInto = /* @__PURE__ */ Effect.fn('Remote.mutateInto')(functio
     entities: outcome.entities,
     connections: outcome.connections,
     deleted: outcome.deleted,
+    ...(outcome.after === undefined ? {} : { after: outcome.after }),
     ...(outcome.principal === undefined
       ? {}
       : { principal: madeAsOf(outcome.principal), generation: started.refresh.floor }),

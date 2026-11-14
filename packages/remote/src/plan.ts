@@ -13,7 +13,9 @@
 import { stableStringify } from './query.js'
 import { targetsOf } from './relation.js'
 import { Requirement, type RelationRequirement } from './requirement.js'
+import type { Schema } from 'effect'
 import { entityKey, missingFields, oldestOf, readField, type EntityStore } from './store.js'
+import { MAX_READ_AFTER, type RowToken } from './wire.js'
 
 type Window = NonNullable<Requirement['windows']>[string]
 
@@ -132,11 +134,16 @@ export const plan = (
   for (const group of Requirement.merge(requirements)) {
     const key = entityKey(group.entity, group.id)
     const expired = isExpired(store, key, group.fields, freshness)
+    // A row held to a read-after token is read again, with it, until an
+    // answer read at the token confirms what it holds.
+    const floored = store[key]?.floor !== undefined
     const windowKeys = Object.fromEntries(
       Object.entries(group.windows ?? {}).map(([field, window]) => [field, windowKey(window)]),
     )
     const missing =
-      force || expired ? group.fields : missingFields(store, key, group.fields, windowKeys)
+      force || expired || floored
+        ? group.fields
+        : missingFields(store, key, group.fields, windowKeys)
     const missingSet = new Set(missing)
 
     // A relation the store already holds is followed into its targets; one
@@ -177,6 +184,33 @@ export const plan = (
  * row then each planned what the other's mark undid, for good. Nothing here
  * reads what the mark changes, so a read entry is not restarted by its own.
  */
+/**
+ * The read-after tokens of the rows `planned` reads that hold one, at most
+ * `MAX_READ_AFTER`, with the requirements a read sends them with: those of
+ * the rows past the bound wait for the next plan, made once an answer ends
+ * the floors before them.
+ */
+export const withTokens = (
+  store: EntityStore,
+  planned: ReadonlyArray<Requirement>,
+): {
+  readonly requirements: ReadonlyArray<Requirement>
+  readonly after: ReadonlyArray<Schema.Schema.Type<typeof RowToken>>
+} => {
+  const after: Array<Schema.Schema.Type<typeof RowToken>> = []
+  const seen = new Set<string>()
+  const requirements = planned.filter(requirement => {
+    const key = entityKey(requirement.entity, requirement.id)
+    const token = store[key]?.floor
+    if (token === undefined || seen.has(key)) return true
+    if (after.length === MAX_READ_AFTER) return false
+    seen.add(key)
+    after.push({ entity: requirement.entity, id: requirement.id, token })
+    return true
+  })
+  return after.length === 0 ? { requirements: planned, after } : { requirements, after }
+}
+
 export const refreshedOf = (
   store: EntityStore,
   planned: ReadonlyArray<Requirement>,

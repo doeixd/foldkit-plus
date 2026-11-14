@@ -52,6 +52,17 @@ export interface EntityEntry {
    * A later request with a *known, different* window is planned as missing.
    */
   readonly windows: Readonly<Record<string, string>>
+  /**
+   * The row's revision, as the server last sent it: a write of a lower one
+   * is dropped (`writeEntities`). Absent while no answer carried one.
+   */
+  readonly revision?: number | undefined
+  /**
+   * The read-after token of the newest write to the row whose read no answer
+   * has confirmed (`MutationResult.after`): a read of the row is planned while
+   * it is set, carries it, and writes nothing until an answer read at it.
+   */
+  readonly floor?: string | undefined
 }
 
 export type EntityStore = Readonly<Record<EntityKey, EntityEntry>>
@@ -89,6 +100,7 @@ const written = (
   now: number,
   windows?: Readonly<Record<string, string>>,
   kept?: number,
+  revision?: number,
 ): EntityEntry => {
   const present = new Set(previous.present)
   const stale = new Set(previous.stale)
@@ -136,6 +148,8 @@ const written = (
     oldestAt: kept ?? (whole ? now : Math.min(previous.oldestAt, now)),
     fieldAt,
     windows: nextWindows,
+    ...(previous.floor === undefined ? {} : { floor: previous.floor }),
+    ...(revision === undefined ? {} : { revision }),
   }
 }
 
@@ -157,7 +171,19 @@ export interface EntityWrite {
   readonly updatedAt?: number | undefined
   /** The row's freshness to keep, instead of what the write would make it (an overlay's). */
   readonly oldestAt?: number | undefined
+  /** The row's revision, as the server sent it with these values. */
+  readonly revision?: number | undefined
 }
+
+/**
+ * Whether a write of `revision` is older than the row the store holds: the
+ * server sent a newer revision of it already. A write or a row with no
+ * revision is never older.
+ */
+export const olderThanHeld = (
+  held: EntityEntry | undefined,
+  revision: number | undefined,
+): boolean => revision !== undefined && held?.revision !== undefined && revision < held.revision
 
 /**
  * Merges known values into many entities, copying the store once. Every
@@ -170,17 +196,21 @@ export const writeEntities = (
   now = 0,
 ): EntityStore => {
   if (writes.length === 0) return store
-  const next: Record<EntityKey, EntityEntry> = { ...store }
+  let next: Record<EntityKey, EntityEntry> | undefined
   for (const write of writes) {
+    const held = (next ?? store)[write.key]
+    if (olderThanHeld(held, write.revision)) continue
+    next ??= { ...store }
     next[write.key] = written(
-      next[write.key] ?? emptyEntry,
+      held ?? emptyEntry,
       write.values,
       write.updatedAt ?? now,
       write.windows,
       write.oldestAt,
+      write.revision ?? held?.revision,
     )
   }
-  return next
+  return next ?? store
 }
 
 /** `writeEntities` for one entity. */
@@ -303,6 +333,38 @@ export const askAgain = (
     if (asked.size === previous.stale.size) continue
     next ??= { ...store }
     next[key] = { ...previous, stale: asked }
+  }
+  return next ?? store
+}
+
+/**
+ * Holds each row to a read-after token: it keeps what the store holds of it
+ * until a read at the token answers. A row the store does not hold gets an
+ * entry holding only the token.
+ */
+export const setFloors = (
+  store: EntityStore,
+  floors: ReadonlyArray<{ readonly key: EntityKey; readonly token: string }>,
+): EntityStore => {
+  let next: Record<EntityKey, EntityEntry> | undefined
+  for (const { key, token } of floors) {
+    const held = (next ?? store)[key] ?? emptyEntry
+    if (held.floor === token) continue
+    next ??= { ...store }
+    next[key] = { ...held, floor: token }
+  }
+  return next ?? store
+}
+
+/** Ends each row's read-after token: a read answered at it. */
+export const clearFloors = (store: EntityStore, keys: Iterable<EntityKey>): EntityStore => {
+  let next: Record<EntityKey, EntityEntry> | undefined
+  for (const key of keys) {
+    const held = (next ?? store)[key]
+    if (held?.floor === undefined) continue
+    next ??= { ...store }
+    const { floor: _cleared, ...rest } = held
+    next[key] = rest
   }
   return next ?? store
 }

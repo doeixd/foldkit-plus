@@ -55,6 +55,7 @@ import {
 import type { StoredWrite } from './outboxStore.js'
 import {
   askAgain,
+  clearFloors,
   entityKey,
   entry as storeEntry,
   emptyStore,
@@ -62,6 +63,7 @@ import {
   mergeStores,
   readField,
   remove,
+  setFloors,
   setStale,
   setUnavailable,
   tombstone,
@@ -97,10 +99,12 @@ import {
   AnswerRead,
   NormalizedEntity,
   QueryRequest,
+  ReadAfter,
   ReadBatchResult,
   ReadRequest,
   readRequestFields,
   RelationRequest,
+  RowToken,
   SettledFields,
   type RemoteLiveRefused,
 } from './wire.js'
@@ -444,6 +448,11 @@ export type RemoteMessage =
       readonly result: Schema.Schema.Type<typeof ReadBatchResult>
       readonly now: number
       /**
+       * The read-after tokens the read was sent with (`ReadBatch.after`): an
+       * answer ends a row's floor only for the token it was asked at.
+       */
+      readonly after?: ReadonlyArray<Schema.Schema.Type<typeof RowToken>> | undefined
+      /**
        * The refresh generation the request was planned or sent under. An
        * answer from before the last `forget` is the previous principal's and
        * writes nothing (#484); whom an answer was for is heard only from a
@@ -675,6 +684,11 @@ export type RemoteMessage =
        * `forget` (#405). Without it, it is not heard.
        */
       readonly generation?: number | undefined
+      /**
+       * A read of the rows the write wrote is current only at or after this
+       * token (`MutationResult.after`): each row is held to it (`floor`).
+       */
+      readonly after?: Schema.Schema.Type<typeof ReadAfter> | undefined
     }
   | {
       readonly _tag: 'MutationFailed'
@@ -795,6 +809,7 @@ export const remoteMessageCases = {
     requests: Schema.Array(ReadRequest),
     result: ReadBatchResult,
     now: Schema.Number,
+    after: Schema.optional(Schema.Array(RowToken)),
     generation: Schema.optional(Schema.Number),
   },
   ReadFailed: {
@@ -877,6 +892,7 @@ export const remoteMessageCases = {
     now: Schema.Number,
     principal: Schema.optional(MadeAs),
     generation: Schema.optional(Schema.Number),
+    after: Schema.optional(ReadAfter),
   },
   MutationFailed: { requestId: Schema.String, error: remoteErrorSchema, operation: Schema.String },
   OverlayShown: { id: Schema.String, optimistic: Schema.Array(Schema.Unknown) },
@@ -1916,8 +1932,14 @@ const reduceRemote = (
       )
     case 'CompletedReportDiagnostics':
       return model
-    case 'ReadReceived':
+    case 'ReadReceived': {
       if (askedBeforeForget(model, message.generation)) return model
+      const { held, confirmed } = readAfter(
+        model.entities,
+        message.requests,
+        message.result,
+        message.after,
+      )
       return {
         ...model,
         outbox: heardAs(
@@ -1926,8 +1948,17 @@ const reduceRemote = (
           message.result.principal === undefined ? undefined : madeAsOf(message.result.principal),
           message.generation,
         ),
-        entities: writeRead(model.entities, message.requests, message.result, message.now),
-        echoes: answeredSince(model.echoes, message.result.entities, message.now),
+        entities: clearFloors(
+          writeRead(model.entities, message.requests, message.result, message.now, held),
+          confirmed,
+        ),
+        echoes: answeredSince(
+          model.echoes,
+          held.size === 0
+            ? message.result.entities
+            : message.result.entities.filter(row => !held.has(entityKey(row.entity, row.id))),
+          message.now,
+        ),
         loading: withoutLoading(model.loading, message.requests),
         // What was asked, and what came back: a relation riding on the request
         // writes its targets too, and a target's old failure must not outlive
@@ -1937,6 +1968,7 @@ const reduceRemote = (
           ...patchedMarks(message.result.entities),
         ]),
       }
+    }
     case 'ReadFailed':
       if (askedBeforeForget(model, message.generation)) return model
       // A broken live stream is not a failed read. Marking its fields failed
@@ -2202,12 +2234,29 @@ const reduceRemote = (
                 message.now,
               ),
           })
+      const repeated = model.mutations.applied.has(message.requestId)
+      const written =
+        read === undefined
+          ? settled.store
+          : writeRead(
+              settled.store,
+              read.requests,
+              read.result,
+              message.now,
+              rowsOf(read.result.behind),
+            )
       const next: RemoteModel = {
         ...model,
         entities:
-          read === undefined
-            ? settled.store
-            : writeRead(settled.store, read.requests, read.result, message.now),
+          message.after === undefined || repeated
+            ? written
+            : setFloors(
+                written,
+                message.after.rows.map(row => ({
+                  key: entityKey(row.entity, row.id),
+                  token: message.after!.token,
+                })),
+              ),
         echoes,
         kept,
         mutations: settled.state,
@@ -2801,6 +2850,43 @@ const unsettledRead = (
   return { requests, result: { entities, settled } }
 }
 
+const noRows: ReadonlySet<EntityKey> = new Set()
+
+const rowsOf = (
+  refs: ReadonlyArray<{ readonly entity: string; readonly id: string }> | undefined,
+): ReadonlySet<EntityKey> =>
+  refs === undefined || refs.length === 0
+    ? noRows
+    : new Set(refs.map(ref => entityKey(ref.entity, ref.id)))
+
+/**
+ * What an answer to a read may say of the rows held to a read-after token
+ * (`EntityEntry.floor`). A row the read carried its token for and the server
+ * read at it (not named in `behind`) is `confirmed`: the answer writes it and
+ * its floor ends. Every other floored row the answer names is `held`: it was
+ * asked without the token, at another one, or the server's read model is
+ * behind it, so the answer may be older than the write, and writes nothing.
+ */
+const readAfter = (
+  store: EntityStore,
+  requests: ReadonlyArray<Requirement>,
+  result: Schema.Schema.Type<typeof ReadBatchResult>,
+  sent: ReadonlyArray<Schema.Schema.Type<typeof RowToken>> | undefined,
+): { readonly held: ReadonlySet<EntityKey>; readonly confirmed: ReadonlySet<EntityKey> } => {
+  const tokens = new Map((sent ?? []).map(row => [entityKey(row.entity, row.id), row.token]))
+  const behind = rowsOf(result.behind)
+  const held = new Set<EntityKey>()
+  const confirmed = new Set<EntityKey>()
+  for (const ref of [...requests, ...result.entities, ...result.settled]) {
+    const key = entityKey(ref.entity, ref.id)
+    const floor = store[key]?.floor
+    if (floor === undefined) continue
+    if (tokens.get(key) === floor && !behind.has(key)) confirmed.add(key)
+    else held.add(key)
+  }
+  return { held: held.size === 0 ? noRows : held, confirmed }
+}
+
 /**
  * Writes a read result into the store, recording each field's applied window so
  * a later request with a different window refetches. A relation page requested
@@ -2813,7 +2899,19 @@ export const writeRead = (
   requests: ReadonlyArray<Requirement>,
   result: Schema.Schema.Type<typeof ReadBatchResult>,
   now = 0,
+  /** Rows the answer may not speak for (`heldBack`): it writes, tombstones and settles none of them. */
+  held: ReadonlySet<EntityKey> = noRows,
 ): EntityStore => {
+  if (held.size > 0) {
+    const free = (ref: { readonly entity: string; readonly id: string }) =>
+      !held.has(entityKey(ref.entity, ref.id))
+    requests = requests.filter(free)
+    result = {
+      ...result,
+      entities: result.entities.filter(free),
+      settled: result.settled.filter(free),
+    }
+  }
   const returned = new Map<string, Record<string, unknown>>()
   for (const entity of result.entities) {
     const key = entityKey(entity.entity, entity.id)
@@ -2875,7 +2973,12 @@ export const writeRead = (
       }
     }
     pending.set(key, { ...pending.get(key), ...values })
-    writes.push({ key, values, windows: entry?.windows })
+    writes.push({
+      key,
+      values,
+      windows: entry?.windows,
+      ...(entity.revision === undefined ? {} : { revision: entity.revision }),
+    })
   }
   // The server was asked for these ids by name and answered without them, and
   // without settling any of their fields: whether the entity never existed or

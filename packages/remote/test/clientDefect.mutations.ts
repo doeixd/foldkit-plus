@@ -13,8 +13,8 @@ export default [
     edits: [
       {
         file: '../src/domain.ts',
-        find: 'defectAsFailure(client.read(',
-        replace: '(client.read(',
+        find: 'defectAsFailure(\n        client.read({',
+        replace: '(<A>(read: A): A => read)(\n        client.read({',
       },
     ],
     tests,

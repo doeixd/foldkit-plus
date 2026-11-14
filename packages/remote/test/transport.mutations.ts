@@ -193,8 +193,8 @@ export default [
     edits: [
       {
         file: '../src/domain.ts',
-        find: 'Effect.map(withCallTimeout(readMessage(requirements, now, generation), timeout), toMessage)',
-        replace: 'Effect.map(readMessage(requirements, now, generation), toMessage)',
+        find: 'withCallTimeout(readMessage(requirements, after, now, generation), timeout),',
+        replace: 'readMessage(requirements, after, now, generation),',
       },
     ],
     tests: [calls],
