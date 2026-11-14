@@ -13,9 +13,9 @@ export default [
     edits: [
       {
         file: '../src/dom/layers.ts',
-        find: '            Effect.sync(() => element.removeAttribute(HIDE_OUTSIDE_ATTRIBUTE)),\n          ),\n      ),',
+        find: '              release()\n            }),\n          ),\n      ),',
         replace:
-          '            Effect.sync(() => element.removeAttribute(HIDE_OUTSIDE_ATTRIBUTE)),\n          ),\n        { interruptible: true },\n      ),',
+          '              release()\n            }),\n          ),\n        { interruptible: true },\n      ),',
       },
     ],
     tests,
