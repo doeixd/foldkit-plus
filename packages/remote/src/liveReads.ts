@@ -142,6 +142,23 @@ const stream: LiveCapability['stream'] = (
   )
 }
 
+/**
+ * The revision of each row asked that the store holds with every field asked,
+ * none stale, and no read-after floor: a frame of it at that revision is one
+ * the store has. A floored row is left out, since only a read at its token,
+ * which may answer that same revision, ends the floor.
+ */
+const heldRevisions: LiveCapability['heldRevisions'] = (store, requirements) =>
+  requirements.flatMap(({ entity, id, fields }) => {
+    const held = store[entityKey(entity, id)]
+    return held?.revision === undefined ||
+      held.tombstone ||
+      held.floor !== undefined ||
+      !fields.every(field => held.present.has(field) && !held.stale.has(field))
+      ? []
+      : [{ entity, id, revision: held.revision }]
+  })
+
 export const liveReads: LiveCapability = {
   applyEntity: applyEntityEvent,
   applyConnection: applyConnectionEvent,
@@ -149,6 +166,7 @@ export const liveReads: LiveCapability = {
   settleKept,
   policy,
   stream,
+  heldRevisions,
 }
 
 /** Installs live reads, and the layers a live insert shows. */

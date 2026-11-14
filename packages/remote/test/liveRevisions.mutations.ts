@@ -3,19 +3,20 @@
  * `pnpm mutate packages/remote/test/liveRevisions.mutations.ts`.
  */
 const entry = '../src/liveEntry.ts'
+const reads = '../src/liveReads.ts'
 const tests = ['packages/remote/test/liveRevisions.test.ts']
 
 export default [
   {
     name: 'a row held to a write is named at its revision',
-    edits: [{ file: entry, find: '      held.floor !== undefined ||\n', replace: '' }],
+    edits: [{ file: reads, find: '      held.floor !== undefined ||\n', replace: '' }],
     tests,
   },
   {
     name: 'a stale field does not keep a row out',
     edits: [
       {
-        file: entry,
+        file: reads,
         find: 'held.present.has(field) && !held.stale.has(field)',
         replace: 'held.present.has(field)',
       },
@@ -26,7 +27,7 @@ export default [
     name: 'a missing field does not keep a row out',
     edits: [
       {
-        file: entry,
+        file: reads,
         find: 'held.present.has(field) && !held.stale.has(field)',
         replace: '!held.stale.has(field)',
       },
@@ -35,7 +36,7 @@ export default [
   },
   {
     name: 'a tombstone is named at its revision',
-    edits: [{ file: entry, find: '      held.tombstone ||\n', replace: '' }],
+    edits: [{ file: reads, find: '      held.tombstone ||\n', replace: '' }],
     tests,
   },
   {
@@ -53,7 +54,7 @@ export default [
     name: 'the stream is opened without the revisions',
     edits: [
       {
-        file: '../src/liveReads.ts',
+        file: reads,
         find: '        ...(revisions.length === 0 ? {} : { revisions }),\n',
         replace: '',
       },

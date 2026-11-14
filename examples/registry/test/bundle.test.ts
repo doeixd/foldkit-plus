@@ -31,7 +31,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // only `Module.manifest`, keeps none of it (`absent` below): 259,242 before and 256,853 after,
 // measured in one tree on 2026-11-14. The +619 raised for the graph is taken back; the rest of
 // the drop paid for growth the ceiling was never raised for (U-WP1, the editor's Selections above).
-const CEILING = 257_081
+// +276 bytes for a live stream naming the revisions it holds (A-WP9), measured by building the page with and without it
+// in one tree on 2026-11-14 (256,853 and 257,129): `LiveRequirement.revisions` on the wire, the held revisions the live
+// capability works out and the live entry asks for, and the field passed on by the RPC client. Ceiling raised by that, rounded up.
+const CEILING = 257_400
 
 clientBudget({
   name: 'registry',

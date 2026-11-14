@@ -12,8 +12,6 @@ import type { BoundRemote, LiveDependencies, LiveOptions } from './index.js'
 import { liveStreamKey, type LiveAsk } from './liveState.js'
 import { readAfterIn, type RemoteMessage, type RemoteModel } from './model.js'
 import { parsedQueryRequest } from './queryRequest.js'
-import type { Requirement } from './requirement.js'
-import { entityKey, type EntityStore } from './store.js'
 import { QueryRequest, ReadRequest, RowRevision, RowToken } from './wire.js'
 
 /**
@@ -41,23 +39,6 @@ const resumeCursor = Schema.Number.pipe(Schema.overrideToEquivalence(() => () =>
 const startRevisions = Schema.Array(RowRevision).pipe(
   Schema.overrideToEquivalence(() => () => true),
 )
-
-/**
- * The revision of each row asked that the store holds with every field asked,
- * none stale, and no read-after floor: a frame of it at that revision is one
- * the store has. A floored row is left out, since only a read at its token,
- * which may answer that same revision, ends the floor.
- */
-const heldRevisions = (store: EntityStore, requirements: ReadonlyArray<Requirement>) =>
-  requirements.flatMap(({ entity, id, fields }) => {
-    const held = store[entityKey(entity, id)]
-    return held?.revision === undefined ||
-      held.tombstone ||
-      held.floor !== undefined ||
-      !fields.every(field => held.present.has(field) && !held.stale.has(field))
-      ? []
-      : [{ entity, id, revision: held.revision }]
-  })
 
 /** The live entry: subscribes to `liveOf(model)` from the Model's resume cursor. */
 export const liveEntry = <AppModel, Store extends RemoteModel, Message>(
@@ -89,7 +70,11 @@ export const liveEntry = <AppModel, Store extends RemoteModel, Message>(
       // A stream is the principal's: `forget` moves the floor, and it restarts.
       floor: remote.refresh.floor,
       tokens: readAfterIn(bound[Capability]).withTokens(remote.entities, asked.requirements).after,
-      revisions: heldRevisions(remote.entities, asked.requirements),
+      // Only a live read asks a row live, and it installed the capability.
+      revisions:
+        asked.requirements.length === 0
+          ? []
+          : liveIn(bound[Capability]).heldRevisions(remote.entities, asked.requirements),
       restarts: health?.restarts ?? 0,
       failures: health?.failures ?? 0,
     }

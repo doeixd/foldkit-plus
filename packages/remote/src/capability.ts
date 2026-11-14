@@ -43,7 +43,7 @@ import type {
 import type { waitingOf, withTokens } from './plan.js'
 import type { LivePolicy } from './query.js'
 import type { Requirement } from './requirement.js'
-import type { ReadBatchResult, RowToken } from './wire.js'
+import type { ReadBatchResult, RowRevision, RowToken } from './wire.js'
 import { entityKey, isTombstone, type EntityKey, type EntityStore } from './store.js'
 
 /** Where a bound domain holds what its declarations installed. */
@@ -242,6 +242,11 @@ export interface ReadAfterCapability {
 
 /** The live capability: a live stream, and what its events do to the Model. */
 export interface LiveCapability {
+  /** The rows asked live the store holds whole and unheld, at their revisions (`LiveRequirement.revisions`). */
+  readonly heldRevisions: (
+    store: EntityStore,
+    requirements: ReadonlyArray<Requirement>,
+  ) => ReadonlyArray<Schema.Schema.Type<typeof RowRevision>>
   readonly applyEntity: typeof applyEntityEvent
   readonly applyConnection: typeof applyConnectionEvent
   /** What a write's answer leaves the streams to send back (#485). */
