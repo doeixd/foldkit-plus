@@ -22,6 +22,23 @@ export const define = <Root, Model, Message, Params, Slots_>(
   })
 
 /**
+ * `SlotView.over` with the input the Surface's projected Model and the Message
+ * universe the subset it exposes, both read from `surface`, so nothing is
+ * annotated. Its `define` names the view after the Surface unless told otherwise.
+ */
+export const over = <Root, Model, Message, Params, Slots_>(
+  surface: Surface<Root, Model, Message, Params>,
+  slots: Slots_,
+): SlotView.Bound<Slots_, Model, Message> =>
+  Object.freeze({
+    ...SlotView.over(slots)<Model, Message>(),
+    define: (
+      render: SlotViewRender<Slots_, Model, Message>,
+      options?: { readonly name?: string },
+    ) => define(surface, slots, render, options),
+  })
+
+/**
  * Adapts a SlotView to a Surface renderer. `Surface.view` hands a renderer a
  * `ViewBuilder` — the real builder with its `MessageUniverse` phantom removed —
  * and this is the matching boundary cast, sound because the renderer only

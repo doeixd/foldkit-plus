@@ -7,7 +7,8 @@
  */
 import { createLazy, inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import { Projection } from 'foldkit-surface'
-import type { NamedBehavior } from './behavior.js'
+import { forSlots, type BehaviorSpec, type NamedBehavior } from './behavior.js'
+import { DiagnosticError } from './diagnostics.js'
 import type { SlotContribution, SlotItem } from './contribution.js'
 import { ensure } from './inject.js'
 import { SLOT_MARK, isMarking } from './slotMark.js'
@@ -116,7 +117,7 @@ const buildersOver = <Slots, Message>(
               })
               // What this Slot draws brings its CSS, whether or not a stylesheet listed it.
               if (injects) ensure(evaluated)
-              contributions.push(evaluated)
+              contributions.push({ ...evaluated, source: mixin.name })
             }
           }
         }
@@ -457,6 +458,69 @@ export function attach(mixin: AnyMixin | Mixin<never>): any {
     makeView(view.name, view.slots, [...view.mixins, mixin], view.render)
 }
 
+/** Where the attachment named `name` sits in `view`; refused when it is not there once. */
+const attachmentAt = (view: SlotView<any, any, any>, name: string): number => {
+  const found = view.mixins.flatMap((mixin, at) => (mixin.name === name ? [at] : []))
+  const at = found[0]
+  if (at === undefined) {
+    throw new DiagnosticError({
+      source: 'mixins',
+      code: 'mixins:unknown-attachment',
+      severity: 'error',
+      message: `the view holds no attachment named "${name}"; it holds ${view.mixins.length === 0 ? 'none' : view.mixins.map(mixin => `"${mixin.name}"`).join(', ')}`,
+      details: { name },
+    })
+  }
+  if (found.length > 1) {
+    throw new DiagnosticError({
+      source: 'mixins',
+      code: 'mixins:ambiguous-attachment',
+      severity: 'error',
+      message: `the view holds ${found.length} attachments named "${name}"; name them apart to address one`,
+      details: { name, count: found.length },
+    })
+  }
+  return at
+}
+
+/**
+ * The view without the attachment named `name`. Returns a new view; the
+ * original is unchanged. Refused (`mixins:unknown-attachment`,
+ * `mixins:ambiguous-attachment`) unless the view holds exactly one by that name.
+ */
+export const detach =
+  (name: string): SlotViewTransform =>
+  view => {
+    const at = attachmentAt(view, name)
+    return makeView(
+      view.name,
+      view.slots,
+      view.mixins.filter((_, index) => index !== at),
+      view.render,
+    )
+  }
+
+/**
+ * The view with `mixin` in the place of the attachment named `name`, so it
+ * resolves in the same order. Refused as `detach` is.
+ */
+export function replace(name: string, mixin: StaticMixin<never> | Mixin<never>): SlotViewTransform
+export function replace<MixinMessage>(
+  name: string,
+  mixin: Mixin<MixinMessage>,
+): SlotViewTransformFor<MixinMessage>
+export function replace(name: string, mixin: AnyMixin | Mixin<never>): any {
+  return (view: SlotView<any, any, any>) => {
+    const at = attachmentAt(view, name)
+    return makeView(
+      view.name,
+      view.slots,
+      view.mixins.map((held, index) => (index === at ? mixin : held)),
+      view.render,
+    )
+  }
+}
+
 /**
  * One piece of an assembled view, drawn from its own selection of the view's
  * input: the keys it names in `reads`, and nothing else. It is drawn again
@@ -595,6 +659,70 @@ export const parts =
         })
       }),
   })
+
+const BOUND = Symbol.for('foldkit-mixins.bound')
+
+/**
+ * Slots, an input and a Message universe named once. Its `define`, `behavior`
+ * and `parts` are `SlotView.define`, `Behavior.forSlots` and `SlotView.parts`
+ * with all three fixed, so nothing passed to them needs an annotation. A
+ * Behavior factory takes one where it takes the slots.
+ */
+export interface Bound<Slots, Input, Message> {
+  readonly [BOUND]: true
+  readonly slots: Slots
+  readonly define: (
+    render: SlotViewRender<Slots, Input, Message>,
+    options?: { readonly name?: string },
+  ) => SlotView<Slots, Input, Message>
+  readonly behavior: (
+    spec: BehaviorSpec<Slots, Input, Message>,
+    options?: { readonly name?: string },
+  ) => NamedBehavior<Slots, Input, Message>
+  readonly parts: Parts<Slots, Input, Message>
+}
+
+/**
+ * Binds `slots`, the view's input and its Message universe once.
+ *
+ * @example
+ * ```ts
+ * const Search = SlotView.over(SearchSlots)<SearchInput, Message>()
+ * const Clears = Search.behavior(
+ *   { clear: { attributes: ({ h }) => [h.OnClick(Message.Cleared())] } },
+ *   { name: 'Clears' },
+ * )
+ * const SearchField = Search.define((input, slots, h) =>
+ *   h.div(slots.root.attrs(), [h.button(slots.clear.attrs(), ['Clear'])]),
+ * ).pipe(Behavior.attach(Clears))
+ * ```
+ */
+export const over =
+  <Slots>(slots: Slots) =>
+  <Input, Message>(): Bound<Slots, Input, Message> =>
+    Object.freeze({
+      [BOUND]: true as const,
+      slots,
+      define: (
+        render: SlotViewRender<Slots, Input, Message>,
+        options?: { readonly name?: string },
+      ) => define(slots, render, options),
+      behavior: (spec: BehaviorSpec<Slots, Input, Message>, options?: { readonly name?: string }) =>
+        forSlots(slots)<Input, Message>(spec, options),
+      parts: parts(slots)<Input, Message>(),
+    })
+
+/**
+ * Whether a factory was handed a `Bound` rather than bare slots. Asked of
+ * `Slots | Bound<Slots, Input, Message>`, each branch keeps its own type.
+ */
+export function isBound<Slots, Input, Message>(
+  value: Slots | Bound<Slots, Input, Message>,
+): value is Bound<Slots, Input, Message>
+export function isBound(value: unknown): value is Bound<unknown, unknown, unknown>
+export function isBound(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && Object.hasOwn(value, BOUND)
+}
 
 /**
  * What a region reads: the Model paths it depends on and how its value is

@@ -73,6 +73,28 @@ void Field
   void Inert.value(Inert.byTag(root, 'input')[0], 'value')
 }
 
+// "Naming the slots, input and Messages once" and "What a view remembers".
+const Fields = SlotView.over(FieldSlots)<FieldInput, Message>()
+
+const Validates = Fields.behavior(
+  { input: { attributes: ({ input, h }) => [h.AriaInvalid(input.invalid)] } },
+  { name: 'Validates' },
+)
+const BoundField = Fields.define((input, slots, h) =>
+  h.label(slots.root.attrs(), [
+    h.input(
+      slots.input.attrs([
+        h.Value(input.value),
+        h.OnInput(value => Message.ChangedValue({ value })),
+      ]),
+    ),
+  ]),
+).pipe(Behavior.attach(Validates))
+const Unchecked = BoundField.pipe(SlotView.detach('Validates'))
+const Checked = Unchecked.pipe(Behavior.attach(Validates))
+const Swapped = Checked.pipe(SlotView.replace('Validates', Validates.mixin))
+void Swapped
+
 // "Parts: redraw only what changed".
 const PanelSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),

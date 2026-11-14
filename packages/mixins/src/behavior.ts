@@ -12,7 +12,7 @@ import type { SlotContribution, SlotItem } from './contribution.js'
 import { DiagnosticError, type DiagnosticCode } from './diagnostics.js'
 import * as MetadataToken from './metadataToken.js'
 import * as Mixin from './mixin.js'
-import type { Mixin as MixinValue } from './mixin.js'
+import type { Mixin as MixinValue, SlotMeta } from './mixin.js'
 import type { Any as AnySlot, AttributeName, EventName, HiddenOf, SlotCapability } from './slot.js'
 import * as SlotView from './slotView.js'
 
@@ -110,6 +110,19 @@ const validateRequirements = (
   }
 }
 
+const slotMeta = (requirements: SlotRequirements, reads: SlotMeta['reads']): SlotMeta =>
+  Object.freeze({
+    requires: Object.freeze({
+      ...(requirements.capability === undefined
+        ? {}
+        : { capability: MetadataToken.nameOf(requirements.capability) }),
+      events: Object.freeze((requirements.events ?? []).map(MetadataToken.nameOf)),
+      attributes: Object.freeze((requirements.attributes ?? []).map(MetadataToken.nameOf)),
+    }),
+    provides: Object.freeze([]),
+    reads,
+  })
+
 export const forSlots =
   <Slots>(slots: Slots) =>
   <Input, Message>(
@@ -118,6 +131,7 @@ export const forSlots =
   ): NamedBehavior<Slots, Input, Message> => {
     const source = slots as unknown as Record<string, AnySlot>
     const contributions: Record<string, SlotContribution<Message>> = Object.create(null)
+    const meta: Record<string, SlotMeta> = Object.create(null)
     for (const [name, slotOptions] of Object.entries(
       spec as Record<string, BehaviorSlotOptions<Input, Message> | undefined>,
     )) {
@@ -133,6 +147,10 @@ export const forSlots =
       }
       const attributes = slotOptions?.attributes
       const mount = slotOptions?.mount
+      meta[name] = slotMeta(
+        slotOptions?.requires ?? {},
+        attributes === undefined && mount === undefined ? 'static' : 'input',
+      )
       if (attributes === undefined && mount === undefined) continue
       contributions[name] = context => ({
         ...(attributes === undefined
@@ -150,7 +168,11 @@ export const forSlots =
     return Object.freeze({
       ...(options?.name === undefined ? {} : { name: options.name }),
       spec,
-      mixin: Mixin.dynamic<Message>(options?.name ?? 'Behavior', contributions),
+      mixin: Mixin.dynamic<Message>(
+        options?.name ?? 'Behavior',
+        contributions,
+        Object.freeze({ kind: 'behavior', slots: Object.freeze(meta) }),
+      ),
     })
   }
 

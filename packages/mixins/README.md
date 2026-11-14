@@ -214,11 +214,15 @@ Attachments are not concatenated and left to renderer order. The resolver applie
   `insetInlineEnd`), and `translate`, `rotate` or `scale` beside `transform`;
 - `Key`, `InnerHTML` and a `Prop` that replaces the children are structural and cannot be
   overridden;
-- multiple mount contributions compose into exactly one `OnMount`.
+- multiple mount contributions compose into exactly one `OnMount`, a Mount inside a
+  `ChildAttribute` (a Submodel's) included; that one still sends through its own boundary.
 
 Conflicts throw `Diagnostics.DiagnosticError` with stable codes such as
 `mixins:event-conflict`, `mixins:style-property-conflict` and `mixins:protected-attribute`, so tests,
-DevTools and editor tooling can all speak the same diagnostic language. The style rule exists
+DevTools and editor tooling can all speak the same diagnostic language. A conflict between two
+owners (an event, an attribute, a style property, a Mount name) names both contributors in its
+message and in `details.contributors`: each attachment by its name, and `the view` for the base
+attributes the render passed. The style rule exists
 because a positioning Behavior that writes `top` and a Style that also sets `top` would otherwise
 fight silently, last writer winning.
 A theme refuses its values the same way: `Theme.make` with a value out of a knob's range throws
@@ -968,6 +972,57 @@ infers it from an explicit `h: HtmlBuilder<Message>` annotation. Without one, `M
 
 `Behavior.attach` uses the behavior's `Input` as the attached view's `Input`, so declare a
 behavior over the view's input type, not merely the subset of fields it happens to read.
+
+### Naming the slots, input and Messages once: `SlotView.over`
+
+A Behavior is made before the view it meets, so `Behavior.forSlots(S)<Input, Message>` names
+both types again for every Behavior. `SlotView.over(S)<Input, Message>()` names them once and
+hands back `define`, `behavior` and `parts` with all three fixed, so nothing passed to them is
+annotated:
+
+```ts
+const Fields = SlotView.over(FieldSlots)<FieldInput, Message>()
+
+const Validates = Fields.behavior(
+  { input: { attributes: ({ input, h }) => [h.AriaInvalid(input.invalid)] } },
+  { name: 'Validates' },
+)
+const BoundField = Fields.define((input, slots, h) =>
+  h.label(slots.root.attrs(), [
+    h.input(
+      slots.input.attrs([
+        h.Value(input.value),
+        h.OnInput(value => Message.ChangedValue({ value })),
+      ]),
+    ),
+  ]),
+).pipe(Behavior.attach(Validates))
+```
+
+`Fields.define` is `SlotView.define`, `Fields.behavior` is `Behavior.forSlots` and
+`Fields.parts` is `SlotView.parts`: the binder makes no new kind of value and holds no state. A
+Behavior from a binder over another Message universe is still refused at `Behavior.attach`.
+`foldkit-mixins-surface`'s `SurfaceView.over(surface, slots)` is the same binder with both types
+read from the Surface. A factory that takes slots can take a binder in their place, telling the
+two apart with `SlotView.isBound`.
+
+### What a view remembers of its attachments
+
+Each attachment keeps its name, and a Style or Behavior also its `meta`: its kind and, per slot,
+what it requires and whether it reads the input. A Mixin made with `Mixin.make` or
+`Mixin.dynamic` carries none; `Mixin.compose` records its parts in order. A name addresses an
+attachment:
+
+```ts
+const Unchecked = BoundField.pipe(SlotView.detach('Validates'))
+const Checked = Unchecked.pipe(Behavior.attach(Validates))
+const Swapped = Checked.pipe(SlotView.replace('Validates', Validates.mixin))
+```
+
+`detach` and `replace` return a new view, `replace` keeping the attachment's place in the
+resolution order. Each throws `mixins:unknown-attachment` for a name the view does not hold and
+`mixins:ambiguous-attachment` for one it holds twice, so name a Behavior you mean to address
+(an unnamed one is called `Behavior`).
 
 For per-item groups such as tabs, options or calendar cells, use
 `SlotView.buildersFor(slots, mixins, { input, h })` and map the items yourself. One contribution

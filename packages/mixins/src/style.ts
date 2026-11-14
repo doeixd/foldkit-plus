@@ -11,7 +11,7 @@ import type { InputContribution, SlotContribution } from './contribution.js'
 import { DiagnosticError } from './diagnostics.js'
 import { own } from './record.js'
 import * as Mixin from './mixin.js'
-import type { Mixin as MixinValue } from './mixin.js'
+import type { Mixin as MixinValue, MixinMeta, SlotMeta } from './mixin.js'
 import * as SlotModule from './slot.js'
 import type {
   Any as AnySlot,
@@ -245,6 +245,21 @@ const contributionFrom = (
   return contribution
 }
 
+const NOTHING_REQUIRED = Object.freeze({ events: Object.freeze([]), attributes: Object.freeze([]) })
+
+/** A Style asks nothing of a slot and supplies nothing; a piece may read the input. */
+const styleMeta = (contributions: Record<string, SlotContribution<never>>): MixinMeta => {
+  const slots: Record<string, SlotMeta> = Object.create(null)
+  for (const [slot, contribution] of Object.entries(contributions)) {
+    slots[slot] = Object.freeze({
+      requires: NOTHING_REQUIRED,
+      provides: Object.freeze([]),
+      reads: Mixin.isDynamic(contribution) ? 'input' : 'static',
+    })
+  }
+  return Object.freeze({ kind: 'style', slots: Object.freeze(slots) })
+}
+
 export const forSlots =
   <Slots>(slots: Slots) =>
   (pieces: StylePieces<Slots>, options?: StyleOptions): NamedStyle<Slots> => {
@@ -296,7 +311,11 @@ export const forSlots =
     return Object.freeze({
       ...(options?.name === undefined ? {} : { name: options.name }),
       pieces: compiledPieces,
-      mixin: Mixin.dynamic<never>(options?.name ?? 'Style', contributions),
+      mixin: Mixin.dynamic<never>(
+        options?.name ?? 'Style',
+        contributions,
+        styleMeta(contributions),
+      ),
       css,
       globalCss,
       rules: Object.freeze(rules),

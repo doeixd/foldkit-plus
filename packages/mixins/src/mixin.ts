@@ -15,14 +15,41 @@ import type {
   StaticContributionMap,
 } from './contribution.js'
 
+/** What one slot's attachment asked of the slot and what it supplies, as names. */
+export interface SlotMeta {
+  readonly requires: {
+    readonly capability?: string
+    readonly events: ReadonlyArray<string>
+    readonly attributes: ReadonlyArray<string>
+  }
+  readonly provides: ReadonlyArray<string>
+  /** `input`: the contribution is a function of the view's input; `static`: it is data. */
+  readonly reads: 'static' | 'input'
+}
+
+/**
+ * What a view remembers of an attachment beside its contributions, written
+ * once where the Mixin is made. `Behavior.forSlots` and `Style.forSlots` fill
+ * it; a Mixin made with `make` or `dynamic` has none, so nothing is known of it.
+ */
+export interface MixinMeta {
+  readonly kind: 'style' | 'behavior' | 'mixin'
+  /** Per slot, what this Mixin itself declares. A composition declares nothing of its own. */
+  readonly slots: Readonly<Record<string, SlotMeta>>
+  /** The Mixins `compose` joined, in order. */
+  readonly parts?: ReadonlyArray<{ readonly name: string; readonly meta?: MixinMeta }>
+}
+
 export interface Mixin<Message = never> {
   readonly name: string
   readonly contributions: Contribution<Message>
+  readonly meta?: MixinMeta
 }
 
 export interface StaticMixin<Message = never> {
   readonly name: string
   readonly contributions: StaticContributionMap<Message>
+  readonly meta?: MixinMeta
 }
 
 export type AnyMixin = Mixin<any> | StaticMixin<any>
@@ -79,7 +106,13 @@ export const make = <Message = never>(
 export const dynamic = <Message = never>(
   name: string,
   contributions: Contribution<Message>,
-): Mixin<Message> => Object.freeze({ name, contributions: ownCopy(contributions) })
+  meta?: MixinMeta,
+): Mixin<Message> =>
+  Object.freeze({
+    name,
+    contributions: ownCopy(contributions),
+    ...(meta === undefined ? {} : { meta }),
+  })
 
 export const empty = <Message = never>(): StaticMixin<Message> => make('Empty', {})
 
@@ -97,7 +130,22 @@ export const compose = <Message = never>(
       merged[slot] = existing === undefined ? normalized : mergeSlot(existing, normalized)
     }
   }
-  return dynamic(mixins.length === 0 ? 'Empty' : mixins.map(mixin => mixin.name).join('+'), merged)
+  return dynamic(
+    mixins.length === 0 ? 'Empty' : mixins.map(mixin => mixin.name).join('+'),
+    merged,
+    Object.freeze({
+      kind: 'mixin',
+      slots: Object.freeze({}),
+      parts: Object.freeze(
+        mixins.map(mixin =>
+          Object.freeze({
+            name: mixin.name,
+            ...(mixin.meta === undefined ? {} : { meta: mixin.meta }),
+          }),
+        ),
+      ),
+    }),
+  )
 }
 
 export const contributionsFor = <Message>(

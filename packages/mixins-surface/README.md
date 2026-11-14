@@ -125,6 +125,28 @@ A Behavior's `Input` parameter still has to be exactly the projected type — a
 `SlotView` is invariant in it, so a narrower "just the fields I happen to read"
 type is rejected by `Behavior.attach`.
 
+`SurfaceView.over(surface, slots)` reads both types from the Surface once, so a
+Behavior needs neither written out. It is `SlotView.over` from `foldkit-mixins`
+with the projection as the input and the exposed subset as the Messages, and its
+`define` names the view after the Surface:
+
+```ts
+const Todos = SurfaceView.over(TodoList, TodoSlots)
+
+const Archives = Todos.behavior({
+  archive: {
+    attributes: ({ input, h }) =>
+      Option.match(input.selectedId, {
+        onNone: () => [],
+        onSome: id => [h.OnClick(Message.ArchivedTodo({ id }))],
+      }),
+  },
+})
+const BoundTodoListView = Todos.define((model, slots, h) =>
+  h.section(slots.root.attrs(), [h.button(slots.archive.attrs(), ['Archive selected'])]),
+).pipe(Behavior.attach(Archives))
+```
+
 `toRenderer` is the single boundary adaptation. `Surface.view` hands a renderer
 a `ViewBuilder` with its `MessageUniverse` phantom removed; the SlotView is sound
 there because `SurfaceView.define` already restricted what it can construct to
