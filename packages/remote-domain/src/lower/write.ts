@@ -6,7 +6,9 @@
  */
 import * as Domain from '@alchemy.run/domain'
 import type { DecideContext, Envelope } from '@alchemy.run/domain/Aggregate'
-import type { Cause, Context } from 'effect'
+import type { CommandClass, CommandRpc } from '@alchemy.run/domain/Command'
+import type { RejectionClass } from '@alchemy.run/domain/Rejection'
+import type { Context } from 'effect'
 import { DateTime, Effect, Match, Option, Result, Schema, SchemaAST } from 'effect'
 import { Write, type AnyEntity, type MemoryOperators } from 'foldkit-entity'
 import type { Policy } from 'foldkit-guard'
@@ -45,11 +47,14 @@ type InputOf<M extends LowerableMutation> =
 /** The command's fields: the write's input, less the `id` its target is. */
 export type CommandInputOf<M extends LowerableMutation> = Omit<InputOf<M>, 'id'>
 
+/** Schema fields for a value of type `T`, each by the type it decodes to. */
+type FieldsFor<T> = { readonly [K in keyof T]-?: Schema.Codec<T[K], unknown> }
+
 /** A Rejection class whose instance is `Value`, as the client fails with it. */
-export interface RejectionFor<Tag extends string, Value> extends Domain.Rejection.Any {
-  readonly tag: Tag
-  new (fields: Omit<Value, '_tag'>): Value & Cause.YieldableError
-}
+export type RejectionFor<Tag extends string, Value> = RejectionClass<
+  Tag,
+  FieldsFor<Omit<Value, '_tag'>>
+>
 
 /** The Rejections a lowered command may answer: one per member of its mutation's `Refusal`, and three of its own. */
 export type RejectionsOf<M extends LowerableMutation> = {
@@ -68,25 +73,40 @@ export type RejectionsOf<M extends LowerableMutation> = {
 
 type RejectionClassOf<M extends LowerableMutation> = RejectionsOf<M>[keyof RejectionsOf<M>]
 
+type ReplyFieldsOf<M extends LowerableMutation> = {
+  readonly [K in keyof RowOf<EntityOf<M>>]: Schema.optionalKey<
+    Schema.Codec<RowOf<EntityOf<M>>[K], unknown>
+  >
+}
+
 /**
- * The command a lowered write becomes: a `Domain.Command` whose instance is
- * the write's input less its `id`, and whose reply is the fields it sets and
- * the revision.
+ * The command a lowered write becomes, as `Domain.Command` types one: its
+ * instance is the write's input less its `id`, its reply the fields it sets
+ * and the revision.
  */
-export interface LoweredCommand<
+export type LoweredCommand<
   M extends LowerableMutation,
   Ev extends Domain.Event.Any,
   Ms extends Domain.Middleware.List,
+> = CommandClass<
+  M['name'],
+  typeof Schema.String,
+  FieldsFor<CommandInputOf<M>>,
+  readonly [Ev],
+  ReadonlyArray<RejectionClassOf<M>>,
+  Schema.Struct<ReplyFieldsOf<M>>,
+  Ms,
+  Domain.Middleware.Apply<
+    CommandRpc<
+      M['name'],
+      typeof Schema.String,
+      FieldsFor<CommandInputOf<M>>,
+      ReadonlyArray<RejectionClassOf<M>>,
+      Schema.Struct<ReplyFieldsOf<M>>
+    >,
+    Ms
+  >
 >
-  extends Domain.Command.Any {
-  readonly tag: M['name']
-  readonly target: Schema.Top & { readonly Type: string; readonly Encoded: string }
-  readonly events: readonly [Ev]
-  readonly rejects: ReadonlyArray<RejectionClassOf<M>>
-  readonly reply: Schema.Codec<Partial<RowOf<EntityOf<M>>>, unknown>
-  readonly middleware: Ms
-  new (input: CommandInputOf<M>): { readonly _tag: M['name'] } & CommandInputOf<M>
-}
 
 /** An event that carries a whole row of the Entity. */
 export type ListedEvent<E extends AnyEntity> = Domain.Event.Any &
@@ -303,6 +323,7 @@ export const write = <
     Object.entries(inputFields).filter(([key]) => key !== ID),
   )
   const revision = config.revision as string
+  const expected = Option.fromUndefinedOr(declared.expect)
   const replyKeys = [...new Set([...Write.writes(declared).map(member => member.key), revision])]
   const entityFields: Readonly<Record<string, Schema.Top>> = entity.schema.fields
   const replyFields = Object.fromEntries(replyKeys.map(key => [key, entityFields[key]!]))
@@ -345,8 +366,8 @@ export const write = <
 
   // ---------------------------------------------------------------- the chain
 
-  // Built once, where the write is declared, so a writer or a guard that
-  // refuses it does so here rather than on the first command.
+  // Built for each command, over a copy of its row; built once here too, so a
+  // writer or a guard that refuses the write does so where it is lowered.
   const chainOver = (store: MemoryStore) =>
     RemoteServer.write(
       mutation,
@@ -385,52 +406,71 @@ export const write = <
         ...Object.fromEntries(Object.keys(commandFields).map(key => [key, fields[key]])),
         [ID]: ctx.id,
       } as Input
-      const held = storeOf(entity.name, encodeRow(row))
-      const landed = yield* chainOver(held.store)
-        .run({
-          input,
-          principal,
-          viewer: Option.none(),
-          requestId: ctx.commandId,
-          operation: Option.none(),
-          now: DateTime.toEpochMillis(ctx.now),
-          read: () => Effect.succeedNone,
-        })
-        .pipe(
-          Effect.catchTags({
-            MutationRefused: ({ refusal }) =>
-              Schema.is(Refusal)(refusal)
-                ? Effect.fail(
-                    reject(
-                      refusal._tag,
-                      Object.fromEntries(
-                        (refusalFields.get(refusal._tag) ?? []).map(key => [
-                          key,
-                          (refusal as unknown as Readonly<Record<string, unknown>>)[key],
-                        ]),
+      /** The write landed over a copy of the row, which only a success keeps. */
+      const land = (input: Input) => {
+        const held = storeOf(entity.name, encodeRow(row))
+        return chainOver(held.store)
+          .run({
+            input,
+            principal,
+            viewer: Option.none(),
+            requestId: ctx.commandId,
+            operation: Option.none(),
+            now: DateTime.toEpochMillis(ctx.now),
+            read: () => Effect.succeedNone,
+          })
+          .pipe(
+            Effect.map(() => decodeRow(held.row())),
+            Effect.catchTags({
+              MutationRefused: ({ refusal }) =>
+                Schema.is(Refusal)(refusal)
+                  ? Effect.fail(
+                      reject(
+                        refusal._tag,
+                        Object.fromEntries(
+                          (refusalFields.get(refusal._tag) ?? []).map(key => [
+                            key,
+                            (refusal as unknown as Readonly<Record<string, unknown>>)[key],
+                          ]),
+                        ),
                       ),
+                    )
+                  : Effect.die(
+                      new Error(`${mutation.name} was refused with what it does not declare`),
                     ),
-                  )
-                : Effect.die(
-                    new Error(`${mutation.name} was refused with what it does not declare`),
-                  ),
-            Forbidden: () => Effect.fail(reject('Forbidden')),
-            Unauthenticated: () => Effect.fail(reject('Forbidden')),
-            RemoteServerError: error => Effect.die(error),
-          }),
-          Effect.result,
-        )
-      // Checked after the guard, so only who may write the row learns the operation was used.
-      if (Result.isFailure(landed) && Schema.is(Forbidden)(landed.failure))
-        return yield* Effect.fail(landed.failure)
+              Forbidden: () => Effect.fail(reject('Forbidden')),
+              Unauthenticated: () => Effect.fail(reject('Forbidden')),
+              RemoteServerError: error => Effect.die(error),
+            }),
+          )
+      }
       const asked = decidedOf(mutation.name, ctx.commandId)
-      const reused = Option.exists(asked, ({ operation, digest }) =>
+      const reused = Option.filter(asked, ({ operation, digest }) =>
         state.operations.some(each => each.operation === operation && each.digest !== digest),
       )
-      if (reused && Option.isSome(asked))
-        return yield* Effect.fail(reject('Reused', { operation: asked.value.operation }))
-      if (Result.isFailure(landed)) return yield* Effect.fail(landed.failure)
-      return [config.record(decodeRow(held.row()), row, input)]
+      if (Option.isSome(reused)) {
+        // Only who the guard lets write the row learns the operation was used:
+        // judged at the row's own revision, since a stale one is a conflict
+        // decided before any rule.
+        const judged = yield* Effect.result(
+          land(
+            Option.match(expected, {
+              onNone: () => input,
+              onSome: ({ key, field }) => ({
+                ...input,
+                [key]: (row as Readonly<Record<string, unknown>>)[field.key],
+              }),
+            }),
+          ),
+        )
+        return yield* Effect.fail(
+          Result.isFailure(judged) && Schema.is(Forbidden)(judged.failure)
+            ? judged.failure
+            : reject('Reused', { operation: reused.value.operation }),
+        )
+      }
+      const after = yield* land(input)
+      return [config.record(after, row, input)]
     })
 
   // ---------------------------------------------------------------- evolve, reply, View
