@@ -18,8 +18,20 @@ const one = (name: string, find: string, replace: string, tests: ReadonlyArray<s
 export default [
   one(
     'focus leaving puts back a pointer drag too',
-    "held.id === id && held.by === 'keys'",
-    'held.id === id',
+    "Left: ({ id }) =>\n      holdingBy('keys', held =>",
+    'Left: ({ id }) =>\n      holding(held =>',
+    [unit],
+  ),
+  one(
+    'a second grab replaces the first',
+    'Option.isSome(model.held)',
+    'Option.exists(model.held, held => held.id === id && held.by === by)',
+    [unit],
+  ),
+  one(
+    'the pointer steers a key grab, and the keys a pointer grab',
+    'held.by === by ? then(held) : { model }',
+    'then(held)',
     [unit],
   ),
   one(
@@ -31,8 +43,8 @@ export default [
   one('an unchanged place is reported again', 'sameOver(next, model.over)', 'false', [unit]),
   one(
     'a pointer drop lands where the pointer was last seen',
-    'Released: ({ over: at }) => holding(held => finish(held, at)),',
-    'Released: () => holding(held => finish(held, model.over)),',
+    "Released: ({ over: at }) => holdingBy('pointer', held => finish(held, at)),",
+    "Released: () => holdingBy('pointer', held => finish(held, model.over)),",
     [unit],
   ),
   one(

@@ -114,6 +114,28 @@ describe('Reorder transitions', () => {
     expect(step(pointer, Message.Left({ id: 'b' })).model).toBe(pointer)
   })
 
+  it('refuses a second grab while one is held, and the other path does not steer the one held', () => {
+    const keys = heldBy('a', 'keys', Option.some(before('c')))
+    const cases: ReadonlyArray<[Model, Reorder.Message]> = [
+      [keys, Message.Grabbed({ id: 'b', by: 'pointer', at: Option.none() })],
+      [keys, Message.Grabbed({ id: 'b', by: 'keys', at: Option.some(before('d')) })],
+      [keys, Message.PointedAt({ over: Option.some(after('d')) })],
+      [keys, Message.Released({ over: Option.some(after('d')) })],
+    ]
+    for (const [model, message] of cases) {
+      const result = step(model, message)
+      expect(result.model).toBe(model)
+      expect(result.outMessage).toBeUndefined()
+    }
+    const pointer = heldBy('a', 'pointer', Option.some(before('c')))
+    for (const message of [
+      Message.Stepped({ step: 'next', places: [before('c'), before('d')] }),
+      Message.Dropped(),
+    ]) {
+      expect(step(pointer, message).model).toBe(pointer)
+    }
+  })
+
   it('returns the Model it was given when nothing changes, and reports nothing', () => {
     const cases: ReadonlyArray<[Model, Reorder.Message]> = [
       [idle, Message.Dropped()],

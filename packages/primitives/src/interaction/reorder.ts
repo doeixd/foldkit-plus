@@ -58,9 +58,9 @@ export const Message = defineMessageUnion({
   Stepped: { step: Step, places: Schema.Array(Place) },
   /** Space or Enter: drop where the item is over. */
   Dropped: {},
-  /** The pointer was let go over this place, tested again at the release. */
+  /** The pointer was let go over this place, tested again at the release; over none when its drag was cancelled. */
   Released: { over: Schema.OptionFromNullOr(Place) },
-  /** Escape, or a cancelled pointer. */
+  /** Escape on a key grab, or the parent's `cancel`: puts back whatever is held. */
   Cancelled: {},
   /** Focus left an item; it puts back a key grab of that item. */
   Left: { id: Schema.String },
@@ -114,6 +114,10 @@ const stepped = (at: number, count: number, step: Step): number => {
 const update = (model: Model, message: Message): Return => {
   const holding = (then: (held: Held) => Return): Return =>
     Option.match(model.held, { onNone: () => ({ model }), onSome: then })
+  // The keys steer a key grab and the pointer a pointer grab: a drag refused while
+  // a key grab is held must not move what the keys hold.
+  const holdingBy = (by: By, then: (held: Held) => Return): Return =>
+    holding(held => (held.by === by ? then(held) : { model }))
   const over = (held: Held, next: Option.Option<Place>) =>
     sameOver(next, model.over)
       ? { model }
@@ -127,19 +131,17 @@ const update = (model: Model, message: Message): Return => {
       onSome: (to): Return => ({ model: idle, outMessage: OutMessage.Moved({ ...held, to }) }),
     })
   return Message.match<Return>(message, {
+    // One draft: a grab while another item is held is refused, and the held one stays.
     Grabbed: ({ id, by, at }) =>
-      Option.match(model.held, {
-        onNone: () => false,
-        onSome: held => held.id === id && held.by === by,
-      })
+      Option.isSome(model.held)
         ? { model }
         : {
             model: { held: Option.some({ id, by }), over: at },
             outMessage: OutMessage.PickedUp({ id, by }),
           },
-    PointedAt: ({ over: next }) => holding(held => over(held, next)),
+    PointedAt: ({ over: next }) => holdingBy('pointer', held => over(held, next)),
     Stepped: ({ step, places }) =>
-      holding(held => {
+      holdingBy('keys', held => {
         if (places.length === 0) return { model }
         const at = Option.match(model.over, {
           onNone: () => -1,
@@ -147,14 +149,12 @@ const update = (model: Model, message: Message): Return => {
         })
         return over(held, Option.fromNullishOr(places[stepped(at, places.length, step)]))
       }),
-    Dropped: () => holding(held => finish(held, model.over)),
-    Released: ({ over: at }) => holding(held => finish(held, at)),
+    Dropped: () => holdingBy('keys', held => finish(held, model.over)),
+    Released: ({ over: at }) => holdingBy('pointer', held => finish(held, at)),
     Cancelled: () => holding(held => ({ model: idle, outMessage: OutMessage.PutBack(held) })),
     Left: ({ id }) =>
-      holding(held =>
-        held.id === id && held.by === 'keys'
-          ? { model: idle, outMessage: OutMessage.PutBack(held) }
-          : { model },
+      holdingBy('keys', held =>
+        held.id === id ? { model: idle, outMessage: OutMessage.PutBack(held) } : { model },
       ),
   })
 }
@@ -612,5 +612,5 @@ const fromDrag = (fact: DragFact): Message =>
     DragStarted: ({ id }): Message => Message.Grabbed({ id, by: 'pointer', at: Option.none() }),
     DraggedOver: ({ over }): Message => Message.PointedAt({ over: Option.fromNullishOr(over) }),
     DragDropped: ({ over }): Message => Message.Released({ over: Option.fromNullishOr(over) }),
-    DragCancelled: (): Message => Message.Cancelled(),
+    DragCancelled: (): Message => Message.Released({ over: Option.none() }),
   })

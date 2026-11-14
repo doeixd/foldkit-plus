@@ -754,9 +754,10 @@ own). `orientation: 'horizontal'` walks with Left and Right, and
 and steps from the Model's `over`, and the route remembers its own grab on a
 drawing, so keys pressed faster than a frame each count.
 
-Limits: one draft per placement; a pointer drag onto `targets` elsewhere is
-`PointerDrag`'s, not this one's; an empty list offers no place, since a place
-names an item.
+Limits: one draft per placement (a second grab while an item is held is
+refused, and the pointer never steers a key grab, nor the keys a pointer one);
+a pointer drag onto `targets` elsewhere is `PointerDrag`'s, not this one's; an
+empty list offers no place, since a place names an item.
 
 ## Editing in place
 
