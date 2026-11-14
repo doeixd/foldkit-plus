@@ -9,6 +9,28 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-remote`: row revisions and read-after tokens on Remote's wire
+  (#544, #480's open item). `NormalizedEntity.revision` and
+  `EntityPatched.revision`: a row of a lower revision than the one held writes
+  nothing, from `ReadReceived`, `LiveReceived` or `MutationSucceeded`, and a
+  tombstone keeps the revision it was gone at. `MutationResult.after` (`{
+  token, rows }`) holds each row to the token (`EntityEntry.floor`): the read
+  entry reads it again carrying the token (`ReadBatch.after`, at most
+  `MAX_READ_AFTER`, 256), a live stream subscribes with it
+  (`LiveRequirement.floors`), an answer read at it ends the floor, and a row
+  named in `ReadBatchResult.behind` keeps what the store holds. Revision and
+  floor are kept by `persistence` and listed by `Data.inspect(model).floors`;
+  `why` names the wait (`ReadAfter`). `REMOTE_PROTOCOL_VERSION` is 6.
+  `foldkit-remote-server` sends an `EntityRecord.revision`;
+  `foldkit-remote-drizzle`'s `source(binding, { revision })` reads the column
+  with every row, and `pollLive` sends it.
+- `foldkit-remote-domain`: the adapter holds no rows and no floors. Each row
+  and live frame carries its View revision, a write whose View is behind
+  answers its receipt as `MutationResult.after` (`stream@version`), and a read
+  carrying a token asks the View `atLeast` it, naming a row still behind in
+  `behind`. `DomainReads` and `PendingRead` are removed: Remote's Model keeps
+  both facts, and a reload keeps them.
+
 - `foldkit-mixins`: obligations (#552). An `A11y.pattern` slot may name
   `obligations` (`A11y.Navigation`, `A11y.FocusStrategy`, `A11y.Activation`,
   `A11y.State(attr)`, `A11y.Name`) that an attachment must say it meets; a
@@ -56,7 +78,7 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-remote-domain/testing`: `Fixture.make(Api, { model, handlers?,
   middleware?, bindings, given?, as?, headers?, through? })` hosts a Domain model
   in memory with every View delivery held until `drain`, commits the `given`
-  Events, calls as `as`, and answers `RemoteClient`, `DomainReads` and the Api's
+  Events, calls as `as`, and answers `RemoteClient` and the Api's
   client, for client tests with no server (#544). A test over `Domain.protocolHttp`
   from a local Node server shows a reply lost after the commit reading
   `RemoteUnreachable`, and a trace spanning Remote's mutation, the adapter's call
@@ -265,13 +287,11 @@ version changed; `pnpm` skips versions already in the registry.
   `RemoteUnauthenticated` or `RemoteMutationError`), and `layer` answers reads and live reads
   from the Views and writes from the commands. A write is sent under a
   `commandId` of its operation and a digest of who asks, the target, the keys
-  and the input; its receipt holds the row's floor until a read at it answers,
-  and a write whose View is behind answers with the row its reply says it
-  wrote. Rows are ordered by revision, never by the View's cursor, and per
-  principal: once a key reads as deleted or hidden at a revision, a late row
-  of that revision or an earlier one is not let back in. `DomainReads` lists
-  the pending reads of who asks now and confirms one. The adapter keeps the
-  rows and floors of the last four principals to ask.
+  and the input; a write whose View is behind answers with the row its reply
+  says it wrote, and its receipt as a read-after token that Remote holds the
+  row to. Every row carries its revision, never the View's cursor, which
+  Remote orders by: once a key reads as deleted or hidden at a revision, a
+  late row of that revision or an earlier one is not let back in.
 - `foldkit-remote-domain/lower`: `Lower.write` lowers a declared update into
   one Domain aggregate (#545). It derives the command, a Rejection per
   member of the mutation's `Refusal` plus `Forbidden`, `Unauthenticated` (a

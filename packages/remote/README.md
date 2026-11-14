@@ -2645,6 +2645,45 @@ is shown. A row the answer does not name is not read; the server names the
 rows a write changed. Each `Data.subscriptions` call registers what it reads, so
 a `Data.mutate` with none registered sends nothing to show.
 
+### When the server's reads lag its writes: revisions and read-after tokens
+
+Some servers answer a read from a copy that catches up after a write: a
+Domain View, a database read replica. Two things on Remote's wire, both
+optional and both opaque to Remote, keep such a server from showing a row
+older than one the client already holds:
+
+```text
+a row's revision   NormalizedEntity.revision, EntityPatched.revision
+                   a row of a lower revision than the one held writes nothing
+a write's token    MutationResult.after = { token, rows }
+                   each row is held to the token (its floor) until a read at it answers
+```
+
+The store keeps both beside the row (`EntityEntry.revision`, `.floor`), so a
+snapshot `persistence` restores keeps them, and nothing else owns them. The
+server owns what they mean: Remote only compares revisions and sends a token
+back. While a row has a floor:
+
+- the read entry reads it again, even with every field held, and the read
+  carries its token (`ReadBatch.after`, at most `MAX_READ_AFTER` = 256 rows; the
+  rest wait for the next plan);
+- an answer read at the token writes the row and ends the floor; a row the
+  server names in `behind` (its copy has not caught up) keeps what the store
+  holds and the floor, and an answer to a read asked without the token writes
+  nothing of the row;
+- a live stream subscribes with the tokens of the rows it watches
+  (`LiveRequirement.floors`), and restarts when they change;
+- `Data.inspect(model).floors` lists them, and `why` names the wait
+  (`ReadAfter`).
+
+A row named in `behind` is asked again only when the read entry next
+restarts: a refresh, a change of what it reads, or a live event that changes
+the plan. A tombstone keeps the revision the row was gone at, so a row of
+that revision does not bring it back; a server whose revisions restart when
+a row is created again should send none. `foldkit-remote-drizzle`'s `source`
+sends the bound revision (`source(binding, { revision })`); `foldkit-remote-domain`
+sends both.
+
 ### Checking an answer against what was shown
 
 When the answer comes, the request's layer comes off, and what the row shows
@@ -3712,7 +3751,7 @@ wire yourself, each `POST` body is one of these, `version` being
 `REMOTE_PROTOCOL_VERSION`:
 
 ```json
-{ "operation": "read", "payload": { "version": 5, "requests": [{ "entity": "Post", "id": "p1", "fields": ["title"] }] } }
+{ "operation": "read", "payload": { "version": 6, "requests": [{ "entity": "Post", "id": "p1", "fields": ["title"] }] } }
 { "operation": "query", "payload": { "query": "PostsByAuthor", "input": { "authorId": "a1" }, "window": { "first": 20 } } }
 { "operation": "mutate", "payload": { "requestId": "r1", "mutation": "RenamePost", "input": { "id": "p1", "title": "Hello" } } }
 ```

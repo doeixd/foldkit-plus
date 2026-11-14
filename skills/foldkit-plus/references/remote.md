@@ -1537,8 +1537,19 @@ handler's write and raw SQL are held to the invariants and move the revision too
   restart clears it, not a later in-order event. A stream the 256-stream
   ledger dropped meets its next event as a gap.
 - Coalescing is per `RemoteClient` layer; separate layers do not share batches.
-- Wire limits: 256 fields per entity request, relation depth 8; protocol version
-  mismatch fails with `RemoteProtocolError`.
+- Wire limits: 256 fields per entity request, relation depth 8, 256 rows per
+  `after`/`floors`/`behind`; protocol version (6) mismatch fails with
+  `RemoteProtocolError`.
+- **Revisions and read-after tokens (#544).** A row may carry `revision`
+  (`NormalizedEntity`, `EntityPatched`): one lower than the row held writes
+  nothing, from a read, a live patch or an answer; a tombstone keeps the
+  revision it was gone at. A write's answer may carry `after: { token, rows }`:
+  each row is held to the token (`EntityEntry.floor`, kept by `persistence`),
+  read again carrying it (`ReadBatch.after`, `LiveRequirement.floors`), and
+  written only by an answer read at it; a row the server names in `behind`
+  keeps what is held. `Data.inspect(model).floors`, `why`'s `ReadAfter`.
+  `source(binding, { revision })` in `foldkit-remote-drizzle` sends the revision;
+  `foldkit-remote-domain` sends both.
 - `RemoteServer.handlers` takes an already-authenticated principal; it never reads
   headers/cookies. Pass a Context key instead of a value and each call reads it, so
   one handler set serves every request: `handlers(Server, CurrentUser)`, then

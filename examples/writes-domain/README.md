@@ -11,8 +11,8 @@ One write, decided by three backends. `ReserveStock` is declared once, over
 
 Who owns what: the declaration owns the rules, each backend owns the row it holds,
 and on the Domain side the model owns the decision and its Events while Remote
-owns the page's copy and the pending write. The adapter holds only the receipt
-of a write whose View has not caught up.
+owns the page's copy, the pending write, and the receipt of a write whose View
+has not caught up (a read-after token on Remote's wire). The adapter holds none of it.
 
 ```bash
 pnpm --filter foldkit-example-writes-domain demo
