@@ -8,6 +8,16 @@ const recipe = '../src/recipes/sidebar.ts'
 
 export default [
   {
+    name: 'a rail with no Tooltip for a row draws it unnamed',
+    edits: [{ file, find: 'if (tooltip === undefined)', replace: 'if (tooltip === null)' }],
+    tests: unit,
+  },
+  {
+    name: 'an expanded sidebar asks for Tooltips too',
+    edits: [{ file, find: 'if (!railed) return Option.none()', replace: '' }],
+    tests: unit,
+  },
+  {
     name: 'Home does not collapse the column',
     edits: [{ file, find: 'smallest: model.collapsed', replace: 'smallest: !model.collapsed' }],
     tests: browser,

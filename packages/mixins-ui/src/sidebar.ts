@@ -227,7 +227,7 @@ const clamp = (size: number, min: number, max: number) => Math.min(max, Math.max
 export interface InitConfig {
   /** Prefixes every id the sidebar draws, unique on the page. */
   readonly id: string
-  /** The ids of the rows a rail names in tooltips: each gets a Tooltip. */
+  /** The ids of the rows a rail names in tooltips: each gets a Tooltip, and a rail drawing a row not listed here throws. */
   readonly rows: ReadonlyArray<string>
   readonly collapsed?: boolean | undefined
   /** The groups and branches open at first; default none. */
@@ -491,6 +491,17 @@ export const view = <Message>(options: SidebarView<Message>, h: HtmlBuilder<Mess
   const collapsed = h.DataAttribute('collapsed', String(model.collapsed))
   const tips = new Map(model.tips.map(tip => [tip.row, tip.tooltip]))
   const drawn = groupsOf(options, builders, h)
+  // A Tooltip is state, which only `init` can give: a row it was not told of
+  // would draw an icon with no name, so the mismatch is refused where it shows.
+  const railedTip = (row: string) => {
+    if (!railed) return Option.none()
+    const tooltip = tips.get(row)
+    if (tooltip === undefined)
+      throw new Error(
+        `Sidebar "${model.id}" draws a rail, but its Model has no Tooltip for the row "${row}": pass it in \`init\`'s \`rows\`.`,
+      )
+    return Option.some(tooltip)
+  }
   const end = (
     slot: typeof builders.header,
     given: SidebarEnd | undefined,
@@ -560,37 +571,33 @@ export const view = <Message>(options: SidebarView<Message>, h: HtmlBuilder<Mess
             railed,
             // Only a rail names its rows in tooltips: expanded, the words show.
             tip: (row, link) =>
-              Option.match(
-                Option.filter(Option.fromNullishOr(tips.get(row.id)), () => railed),
-                {
-                  onNone: () => link([]),
-                  onSome: tooltip =>
-                    h.submodel({
-                      slotId: tooltip.id,
-                      model: tooltip,
-                      view: UiTooltip.view,
-                      viewInputs: {
-                        anchor: Tooltip.anchor({
-                          placement: options.direction === 'rtl' ? 'left' : 'right',
-                        }),
-                        toView: Tooltip.toView(options.tooltip ?? [], { h, id: tooltip.id }, tip =>
-                          h.div(builders.tip.attrs(), [
-                            link(tip.trigger),
-                            ...(tip.isVisible
-                              ? [
-                                  h.div(tip.layer, [
-                                    h.div(tip.panel, [h.span(tip.arrow, []), row.label]),
-                                  ]),
-                                ]
-                              : []),
-                          ]),
-                        ),
-                      },
-                      toParentMessage: message =>
-                        onMessage(Message.GotTip({ row: row.id, message })),
-                    }),
-                },
-              ),
+              Option.match(railedTip(row.id), {
+                onNone: () => link([]),
+                onSome: tooltip =>
+                  h.submodel({
+                    slotId: tooltip.id,
+                    model: tooltip,
+                    view: UiTooltip.view,
+                    viewInputs: {
+                      anchor: Tooltip.anchor({
+                        placement: options.direction === 'rtl' ? 'left' : 'right',
+                      }),
+                      toView: Tooltip.toView(options.tooltip ?? [], { h, id: tooltip.id }, tip =>
+                        h.div(builders.tip.attrs(), [
+                          link(tip.trigger),
+                          ...(tip.isVisible
+                            ? [
+                                h.div(tip.layer, [
+                                  h.div(tip.panel, [h.span(tip.arrow, []), row.label]),
+                                ]),
+                              ]
+                            : []),
+                        ]),
+                      ),
+                    },
+                    toParentMessage: message => onMessage(Message.GotTip({ row: row.id, message })),
+                  }),
+              }),
           }),
         ],
       ),

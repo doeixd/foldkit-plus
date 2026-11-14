@@ -139,7 +139,7 @@ const mount = (fixture: Fixture = {}) => {
         model: {
           sidebar: Sidebar.init({
             id: 'app',
-            rows: ['inbox', 'calendar', 'projects'],
+            rows: ['inbox', 'calendar', 'notes', 'projects'],
             collapsed: fixture.collapsed ?? false,
             open: ['work'],
             width: fixture.resizable,
