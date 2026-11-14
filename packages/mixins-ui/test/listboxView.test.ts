@@ -270,11 +270,19 @@ describe('forked listbox seam', () => {
     expect(render.hiddenInputs).toEqual([])
   })
 
-  it('draws the panel for the top layer only when the anchor stays in place', () => {
+  it('draws the panel for the top layer unless the application asks to portal it', () => {
     Scene.scene<SingleModel, Message, UpstreamListbox.OutMessage<Fruit>>(
       {
         update: upstreamSingle.update,
-        view: (current, h) => forkSingle.view(current, singleInputs(h), h),
+        view: (current, h) =>
+          forkSingle.view(
+            current,
+            {
+              ...singleInputs(h),
+              anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: true },
+            },
+            h,
+          ),
       },
       Scene.given(openSingle()),
       anchoredSingle(),
@@ -292,6 +300,16 @@ describe('forked listbox seam', () => {
             },
             h,
           ),
+      },
+      Scene.given(openSingle()),
+      anchoredSingle(),
+      Scene.expect(Scene.selector(panel)).toHaveAttr('popover', 'manual'),
+    )
+    // No `portal` given: in place, so the region's theme reaches the panel.
+    Scene.scene<SingleModel, Message, UpstreamListbox.OutMessage<Fruit>>(
+      {
+        update: upstreamSingle.update,
+        view: (current, h) => forkSingle.view(current, singleInputs(h), h),
       },
       Scene.given(openSingle()),
       anchoredSingle(),

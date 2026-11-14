@@ -97,6 +97,17 @@ export default [
     tests,
   },
   {
+    name: 'a combobox panel the application gave no portal option is portaled',
+    edits: [
+      {
+        file: '../src/comboboxShared.ts',
+        find: 'portal: givenAnchor.portal ?? false',
+        replace: 'portal: givenAnchor.portal ?? true',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'the panel never reaches the top layer',
     edits: [
       {

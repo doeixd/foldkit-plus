@@ -119,6 +119,17 @@ export default [
     tests,
   },
   {
+    name: 'a listbox panel the application gave no portal option is portaled',
+    edits: [
+      {
+        file: '../src/listboxShared.ts',
+        find: 'portal: givenAnchor.portal ?? false',
+        replace: 'portal: givenAnchor.portal ?? true',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'the panel never reaches the top layer',
     edits: [
       {

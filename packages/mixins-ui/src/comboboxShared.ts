@@ -145,7 +145,7 @@ export const computeRender = (
     groupAttributes = [],
     separatorClassName,
     separatorAttributes = [],
-    anchor = {},
+    anchor: givenAnchor = {},
     ariaLabel,
     ariaLabelledBy,
     empty,
@@ -378,6 +378,9 @@ export const computeRender = (
     ...inputAttributes,
   ]
 
+  // In place by default, as the Menu's is: a portaled panel leaves the region
+  // that sets the theme's knobs, so a compact region would not reach its rows.
+  const anchor = { ...givenAnchor, portal: givenAnchor.portal ?? false }
   const placed = { position: 'absolute', margin: '0', visibility: 'hidden' }
   const anchorAttributes = [
     // Only with an in-place panel: portal relocation moves a panel after the

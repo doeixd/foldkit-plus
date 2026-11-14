@@ -27,7 +27,8 @@ afterEach(() => {
 })
 
 interface Setup {
-  readonly portal: boolean
+  /** Unset, the application passes none and the widget's default stands. */
+  readonly portal?: boolean
   /** A region that sets the step knob compact around the page the runtime draws. */
   readonly compact?: boolean
   readonly direction?: 'rtl'
@@ -58,7 +59,12 @@ const mount = ({ portal, compact = false, direction }: Setup) => {
     Frequencies.view(
       model.listbox,
       {
-        anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal },
+        anchor: {
+          placement: 'bottom-start',
+          gap: 4,
+          padding: 8,
+          ...(portal === undefined ? {} : { portal }),
+        },
         items: ['Hourly', 'A much longer frequency name'],
         maybeSelectedValue: Option.none(),
         itemToConfig: (frequency: string) => ({ content: h.span([], [frequency]) }),
@@ -105,28 +111,30 @@ const opened = async (panelSelector = '[role="listbox"]') => {
   return { button: button.getBoundingClientRect(), panel: panel.getBoundingClientRect(), row }
 }
 
-const regionReachesRows = async (portal: boolean) => {
-  const handle = mount({ portal, compact: true })
+const regionReachesRows = async (portal: boolean | undefined, rowHeight: number) => {
+  const handle = mount({ ...(portal === undefined ? {} : { portal }), compact: true })
   try {
     const { row } = await opened()
     const inPlace = document
       .getElementById('overlay-page')!
       .contains(document.querySelector('[role="option"]'))
-    // The case is only worth having where the panel really left the page.
-    expect(inPlace).toBe(!portal)
-    expect(row.getBoundingClientRect().height).toBe(28)
+    expect(inPlace).toBe(portal !== true)
+    expect(row.getBoundingClientRect().height).toBe(rowHeight)
   } finally {
     handle.dispose()
   }
 }
 
-test('a region set compact reaches the rows of a panel kept in place', () =>
-  regionReachesRows(false))
+test('a region set compact reaches the rows of a panel the application gave no portal option', () =>
+  regionReachesRows(undefined, 28))
 
-// A portaled panel leaves the region, so a knob set on the region never
-// reaches it (`--fk-knob-step` reads the root's: 36px rows, not 28).
-test.fails('a region set compact reaches the rows of a portaled panel', () =>
-  regionReachesRows(true))
+test('a region set compact reaches the rows of a panel kept in place', () =>
+  regionReachesRows(false, 28))
+
+// A cascade fact, not a defect: a panel the application asks to portal leaves
+// the region, so a knob set on the region does not reach it: the root's step (36px rows).
+test('a panel the application portals reads the root knobs, not those of its region', () =>
+  regionReachesRows(true, 36))
 
 const mirrorsUnderRtl = async (portal: boolean) => {
   const handle = mount({ portal, direction: 'rtl' })
