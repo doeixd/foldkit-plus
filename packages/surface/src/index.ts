@@ -1939,10 +1939,11 @@ export const Module = {
    * Cross-contract invariants the types cannot express: a contract from another
    * application, a duplicate `kind:name`, two owners of overlapping Model paths,
    * a Message recorded by two replication contracts, and a path or Message the
-   * application does not declare. Over the graph: a transition that writes
-   * what a law reads with no evidence it keeps it (`law-unwitnessed`), a
-   * record of `evidence` not admitted (`evidence-unmatched`), and two closed
-   * Surfaces declared alike (`level-declared-twice`).
+   * application does not declare. Given `evidence`, even none, also the rules
+   * over the graph: a transition that writes what a law reads with no
+   * evidence it keeps it (`law-unwitnessed`), a record of `evidence` not
+   * admitted (`evidence-unmatched`), and two closed Surfaces declared alike
+   * (`level-declared-twice`).
    */
   validate: (module: Module<any, any, any>, options: GraphOptions = {}): readonly Finding[] => {
     const findings: Finding[] = []
@@ -2014,7 +2015,10 @@ export const Module = {
         else recorded.set(tag, contract)
       }
 
-    findings.push(...graphFindings(module.contracts, assemble(module.contracts, options)))
+    // The graph's rules ask what evidence shows, so they run only when evidence is passed, even
+    // none: a call with one argument answers as it did before the graph.
+    if (options.evidence !== undefined)
+      findings.push(...graphFindings(module.contracts, assemble(module.contracts, options)))
     return findings
   },
 

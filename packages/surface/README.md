@@ -496,7 +496,9 @@ A transition that writes a path a law reads could break it. The graph does not
 decide whether it does; evidence says so: `Laws.check`'s `Enumerated` records,
 what a walk or a scenario returns, or `Evidence.runtimeOnly` for a pair only
 the writer or the journal refuses. `Module.validate(module, { evidence })` asks
-the one question of the graph:
+the one question of the graph. The rules over the graph run only when
+`evidence` is passed, even `[]`: with one argument `validate` answers as it
+did before the graph, so a check written then stands.
 
 ```ts standalone
 import { Schema } from 'effect'
@@ -530,7 +532,8 @@ const todos = {
 }
 const Todos = Module.make(App, [todos])
 
-Module.validate(Todos)
+Module.validate(Todos) // []: with one argument, the graph's rules do not run
+Module.validate(Todos, { evidence: [] })
 // [{ rule: 'law-unwitnessed', message: 'durable:Added writes todos, which sync:todos.capped reads, …' }]
 
 const judged = Evidence.runtimeOnly({

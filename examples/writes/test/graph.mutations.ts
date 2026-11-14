@@ -10,8 +10,8 @@ export default [
     edits: [
       {
         file: '../../../packages/surface/src/index.ts',
-        find: '    findings.push(...graphFindings(module.contracts, assemble(module.contracts, options)))\n',
-        replace: '',
+        find: '      findings.push(...graphFindings(module.contracts, assemble(module.contracts, options)))\n',
+        replace: '      void options\n',
       },
     ],
     tests,

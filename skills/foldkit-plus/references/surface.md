@@ -254,8 +254,8 @@ Module.toMarkdown(Project, { evidence }) // adds a Laws table: law, transition, 
 other) and no admitted record joins them. `evidence-unmatched`: a record typed
 by hand or copied (no issuer), or naming a transition or law no contract
 declares, or a write and a law of two Entities. `level-declared-twice`: two
-closed Surfaces over the same paths and Messages. One argument behaves as
-before for a Module whose contracts contribute no facts. A local Message has
+closed Surfaces over the same paths and Messages. The three run only when
+`evidence` is passed (`[]` for none); one argument answers as before. A local Message has
 no `writes` edge yet (foldkit/foldkit#1655). `examples/writes/test/graph.test.ts`
 is the worked case.
 

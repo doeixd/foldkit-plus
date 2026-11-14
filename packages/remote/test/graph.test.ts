@@ -111,9 +111,10 @@ describe('a Remote domain in the Module graph', () => {
 
   it('names Sell, and Sell alone, as what can break the law, until evidence keeps it', () => {
     expect(Graph.breakersOf(graph, law).map(breaker => breaker.transition)).toEqual(['write:Sell'])
-    expect(Module.validate(Shop).map(finding => [finding.rule, ...finding.contracts])).toEqual([
-      ['law-unwitnessed', 'remote:remote'],
-    ])
+    expect(Module.validate(Shop)).toEqual([])
+    expect(
+      Module.validate(Shop, { evidence: [] }).map(finding => [finding.rule, ...finding.contracts]),
+    ).toEqual([['law-unwitnessed', 'remote:remote']])
     const report = Laws.check({ writes: [Publish, Sell, Rename] })
     // The check's records keep the pairs it decided; Sell's, undecided over a computed stock, is not one.
     const enumerated = report.pairs.flatMap(pair => Option.toArray(pair.evidence))

@@ -133,7 +133,9 @@ describe('Module.graph', () => {
 
 describe('law-unwitnessed', () => {
   it('reports each transition that writes what a law reads, and no pair sharing no path', () => {
-    const findings = Module.validate(Laws).filter(finding => finding.rule === 'law-unwitnessed')
+    const findings = Module.validate(Laws, { evidence: [] }).filter(
+      finding => finding.rule === 'law-unwitnessed',
+    )
     expect(findings.map(finding => finding.message)).toEqual([
       'durable:CreatedTodo writes todos, which sync:todos.capped reads, and no evidence shows it keeps sync:todos.capped',
       'durable:RemovedTodo writes todos, which sync:todos.capped reads, and no evidence shows it keeps sync:todos.capped',
@@ -192,7 +194,9 @@ describe('law-unwitnessed', () => {
         return { nodes, edges: [...edges, keeps] }
       },
     }
-    const messages = Module.validate(Module.make(App, [withKeeps])).map(each => each.message)
+    const messages = Module.validate(Module.make(App, [withKeeps]), { evidence: [] }).map(
+      each => each.message,
+    )
     expect(messages.some(message => message.startsWith('write:Pay'))).toBe(false)
     expect(messages.some(message => message.startsWith('write:Sell'))).toBe(true)
   })
@@ -296,6 +300,7 @@ describe('closed Surfaces', () => {
         closed('Two', 'todos'),
         closed('Other', 'todos', [Message.RemovedTodo]),
       ]),
+      { evidence: [] },
     )
     expect(findings.filter(finding => finding.rule === 'level-declared-twice')).toEqual([
       {
@@ -362,6 +367,21 @@ describe('the renderers', () => {
     expect(mermaid).toContain('    t2["write:Sell"]')
     expect(mermaid).toContain('  t2 -->|RuntimeOnly| l1')
     expect(mermaid).toContain('  t0 -.->|unwitnessed| l0')
+  })
+})
+
+describe('Module.validate with one argument', () => {
+  it('answers as before the graph, whose rules ask what evidence shows', () => {
+    const alike = (name: string) =>
+      Surface.make(App, name, {
+        model: ({ model }) => Projection.struct({ todos: model.todos }),
+        messages: [Message.CreatedTodo],
+        closed: true,
+      })
+    const module = Module.make(App, [document, shop, alike('One'), alike('Two')])
+    expect(Module.validate(module)).toEqual([])
+    expect(Module.manifest(module).findings).toEqual([])
+    expect(rulesOf(Module.validate(module, { evidence: [] }))).toContain('law-unwitnessed')
   })
 })
 

@@ -12,8 +12,14 @@ const edit = (name: string, find: string, replace: string, file = '../src/graph.
 export default [
   edit(
     'the rules over the graph are dropped',
-    '    findings.push(...graphFindings(module.contracts, assemble(module.contracts, options)))\n',
-    '',
+    '      findings.push(...graphFindings(module.contracts, assemble(module.contracts, options)))\n',
+    '      void options\n',
+    '../src/index.ts',
+  ),
+  edit(
+    'one argument runs the rules over the graph',
+    '    if (options.evidence !== undefined)\n',
+    '    if (true)\n',
     '../src/index.ts',
   ),
   edit(
