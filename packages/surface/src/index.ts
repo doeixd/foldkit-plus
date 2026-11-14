@@ -19,7 +19,13 @@ import type * as Update from 'foldkit/update'
 import type { Url } from 'foldkit/url'
 import { Metadata, type MetadataSummary } from 'foldkit-metadata'
 
-export { Metadata, MetadataTypeId, type MetadataKey, type MetadataSummary } from 'foldkit-metadata'
+export {
+  Evidence,
+  Metadata,
+  MetadataTypeId,
+  type MetadataKey,
+  type MetadataSummary,
+} from 'foldkit-metadata'
 export { Closure, type ClosureProjection, ClosureViolation } from './closure.js'
 import {
   assemble,

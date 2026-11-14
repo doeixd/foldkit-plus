@@ -6,11 +6,15 @@
  */
 import { Equal, Option, Predicate, Schema } from 'effect'
 import {
+  GraphEdge,
+  GraphNode,
   MessageSet,
   Projection,
   Surface,
   type AppScope,
   type Contract,
+  type DependencyTree,
+  type GraphFacts,
   type MergeConstructors,
   type MergeFields,
   type RunnableApplication,
@@ -492,6 +496,36 @@ const lawsOf = <Shared>(
 }
 
 /**
+ * A document's facts for `Module.graph`: a law per declared law
+ * (`sync:<name>.<id>`), taken to read the whole shared slice since `holds` is
+ * a function, and a transition per durable and server-only tag
+ * (`durable:<tag>`), which writes it.
+ */
+const documentFacts = (document: {
+  readonly name: string
+  readonly laws: ReadonlyArray<string>
+  readonly tags: ReadonlyArray<string>
+  readonly paths: DependencyTree
+}): GraphFacts => {
+  const laws = document.laws.map(id => `sync:${document.name}.${id}`)
+  const transitions = document.tags.map(tag => `durable:${tag}`)
+  return {
+    nodes: [
+      ...laws.map(id => GraphNode.Law({ id })),
+      ...transitions.map(id => GraphNode.Transition({ id, kind: 'durable' })),
+    ],
+    edges: [
+      ...laws.flatMap(law =>
+        document.paths.map(path => GraphEdge.Reads({ law, space: 'model', path })),
+      ),
+      ...transitions.flatMap(transition =>
+        document.paths.map(path => GraphEdge.Writes({ transition, space: 'model', path })),
+      ),
+    ],
+  }
+}
+
+/**
  * Merges fragments into one. The primitives reject a conflicting field, a
  * duplicate tag, and a subset from another application.
  */
@@ -640,14 +674,22 @@ const build = <
       model: () => readOnly,
       messages: durable.constructors,
     })
+    const messages = [...durable.tags, ...serverTags]
     const contract: Contract = {
       kind: 'sync',
       name: surface.name,
       owner: app.owner,
       owns: shared.dependencies,
       observes: shared.dependencies,
-      messages: [...durable.tags, ...serverTags],
+      messages,
       metadata: [],
+      facts: () =>
+        documentFacts({
+          name: surface.name,
+          laws: Object.keys(laws),
+          tags: messages,
+          paths: shared.dependencies,
+        }),
     }
     return {
       ...sync,
