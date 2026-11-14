@@ -1600,7 +1600,9 @@ paths such as `['Product', 'stock']`, `From` and `To` per arrow, and a `Keeps`
 edge per transition and law whose every pair carries a record. A write's own
 `ensures` is marked `postcondition` on its pair and is no law of the Entity,
 so the facts leave it out; an `Unknown` footprint writes every member, so it
-has a `Writes` edge to each member a law of its Entity reads.
+has a `Writes` edge to each member a law of its Entity reads. A transition
+invariant (`pair.readsBefore`) also reads its whole row (`['Product']`), since
+a write leaving every member it reads alone can still break it.
 `lawFactsOf(entries)` gives the same shape from `Laws.check`'s entries without
 judging them: what Surface's `Module.graph` derives a contract's
 `laws.entities` with (a Remote domain declares its writes there), so only a

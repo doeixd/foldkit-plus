@@ -280,4 +280,22 @@ export default [
     ],
     tests: [laws],
   },
+  {
+    name: 'facts read a transition invariant by its members alone',
+    edits: [
+      { file: '../src/laws.ts', find: '    if (pair.readsBefore) {', replace: '    if (false) {' },
+    ],
+    tests: [laws],
+  },
+  {
+    name: 'lawFactsOf reads a transition invariant by its members alone',
+    edits: [
+      {
+        file: '../src/laws.ts',
+        find: '      if (readsBefore(held)) edge(',
+        replace: '      if (false) edge(',
+      },
+    ],
+    tests: [laws, 'packages/remote/test/graph.test.ts'],
+  },
 ]

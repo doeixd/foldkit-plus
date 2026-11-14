@@ -543,7 +543,7 @@ The three rules over the graph:
 
 | Rule | Reported when |
 | --- | --- |
-| `law-unwitnessed` | A transition writes a path a law reads (one within the other), and no evidence joins them. A pair sharing no path is never reported. |
+| `law-unwitnessed` | A transition writes a path a law reads (one within the other), and no evidence joins them. A pair sharing no path is never reported, but a law over a row's change (one reading `before`) reads the whole row, since a write leaving its members alone can still break it. |
 | `evidence-unmatched` | A record was issued by no producer (typed by hand, or a copy of one), or names a transition or law no contract declares, or a pair the graph does not join: a write and a law of two Entities. |
 | `level-declared-twice` | Two closed Surfaces observe the same paths and list the same Messages. |
 

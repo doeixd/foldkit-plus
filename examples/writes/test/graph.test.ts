@@ -30,11 +30,15 @@ describe('the declared writes in the Module graph', () => {
   })
 
   it('report Sell x reservedWithinStock, among each write that can break a law, until evidence keeps it', () => {
+    // A transition invariant reads the whole row, so every write to it can break it.
     expect(unwitnessed([])).toEqual([
       'write:Restock x Product.reservedWithinStock',
       'write:Sell x Product.reservedWithinStock',
       'write:Publish x Product.publishedStaysPublished',
+      'write:Rename x Product.publishedStaysPublished',
+      'write:Restock x Product.publishedStaysPublished',
       'write:Revert x Product.publishedStaysPublished',
+      'write:Sell x Product.publishedStaysPublished',
     ])
     expect(unwitnessed(enumerated)).toEqual([
       'write:Restock x Product.reservedWithinStock',

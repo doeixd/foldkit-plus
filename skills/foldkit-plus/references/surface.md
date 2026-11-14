@@ -252,7 +252,7 @@ Module.toMarkdown(Project, { evidence }) // adds a Laws table: law, transition, 
 ```
 
 `law-unwitnessed`: a transition writes a path a law reads (one path within the
-other) and no admitted record joins them. `evidence-unmatched`: a record typed
+other; a transition invariant reads its whole row) and no admitted record joins them. `evidence-unmatched`: a record typed
 by hand or copied (no issuer), or naming a transition or law no contract
 declares, or a write and a law of two Entities. `level-declared-twice`: two
 closed Surfaces over the same paths and Messages. The three run only when

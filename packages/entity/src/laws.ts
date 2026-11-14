@@ -71,6 +71,12 @@ export interface LawPair {
   readonly invariant: string
   /** The members the invariant reads, before and after, by field key. */
   readonly reads: ReadonlyArray<string>
+  /**
+   * True for a transition invariant, which reads the row before: a write that
+   * leaves every member it reads alone can still break it, so the graph reads
+   * it as reading the whole row.
+   */
+  readonly readsBefore: boolean
   readonly footprint: Footprint
   readonly verdict: LawVerdict
   /** True for a write's own `ensures`: a law of that write alone, held where it commits. */
@@ -354,6 +360,7 @@ const check = <const W extends ReadonlyArray<LawEntry>>(options: {
         entity: entity.name,
         invariant: held.id,
         reads: readOf(held),
+        readsBefore: readsBefore(held),
         footprint,
         verdict,
         postcondition: ensured.includes(held),
@@ -469,7 +476,7 @@ const show = (report: LawReport): string => {
 
 /** A node of the law half of `foldkit-surface`'s graph, as plain data. */
 export type LawNode = Data.TaggedEnum<{
-  /** A member of an Entity: `['Product', 'reserved']`. */
+  /** A member of an Entity (`['Product', 'reserved']`), or its whole row (`['Product']`), which a transition invariant reads. */
   Path: { readonly space: 'entity'; readonly path: ReadonlyArray<string> }
   Transition: { readonly id: string; readonly kind: 'write' }
   Law: { readonly id: string }
@@ -552,6 +559,13 @@ const facts = (report: LawReport): LawFacts => {
         ['reads', id, pair.entity, member],
         LawEdge.Reads({ law: id, space: 'entity', path: path(pair.entity, member) }),
       )
+    if (pair.readsBefore) {
+      node(LawNode.Path({ space: 'entity', path: [pair.entity] }))
+      edge(
+        ['reads', id, pair.entity],
+        LawEdge.Reads({ law: id, space: 'entity', path: [pair.entity] }),
+      )
+    }
     const key = JSON.stringify(['keeps', by, id])
     const known = keeps.get(key)
     keeps.set(key, {
@@ -609,6 +623,8 @@ export const lawFactsOf = (entries: ReadonlyArray<LawEntry>): LawFacts => {
       const id = law(held)
       node(LawNode.Law({ id }))
       for (const key of readOf(held)) edge(LawEdge.Reads({ law: id, ...member(key) }))
+      // A write leaving a transition invariant's members alone can still break it: it reads the row.
+      if (readsBefore(held)) edge(LawEdge.Reads({ law: id, space: 'entity', path: [entity.name] }))
     }
     for (const state of states(entity))
       node(LawNode.State({ entity: entity.name, name: state.name }))

@@ -139,3 +139,40 @@ describe('a Remote domain in the Module graph', () => {
     expect(Module.graph(Module.make(App, [reads])).nodes.filter(GraphNode.$is('Law'))).toEqual([])
   })
 })
+
+describe('a transition invariant in the Module graph', () => {
+  // A law over the row's change: a write that leaves `status` alone breaks it.
+  const RevisedFields = Entity.define(
+    'Revised',
+    Schema.Struct({ id: Schema.String, name: Schema.String, status: Schema.Literals(['a', 'b']) }),
+  )
+  const statusMoves = Entity.invariant<typeof RevisedFields>(
+    'statusMoves',
+    ({ before, after }) => Expr.not(Expr.eq(after.status, before.status)),
+    { message: 'Every write moves the status', path: ['status'] },
+  )
+  const Revised = RevisedFields.pipe(statusMoves)
+  const Retitle = Mutation.write(
+    'Retitle',
+    Write.update(Entity.input(Revised, Schema.Struct({ id: Schema.String, name: Schema.String })), {
+      id: 'id',
+    }),
+  )
+  const Revisions = Module.make(App, [
+    Remote.make({ model: App.model.remote, entities: [Revised], mutations: [Retitle] }),
+  ])
+
+  it('is read whole, so a write leaving its members alone can break it, as Laws.check finds', () => {
+    expect(Laws.check({ writes: [Retitle] }).pairs.map(pair => pair.verdict._tag)).toEqual([
+      'Refused',
+    ])
+    expect(
+      Graph.breakersOf(Module.graph(Revisions), Laws.law(statusMoves)).map(
+        breaker => breaker.transition,
+      ),
+    ).toEqual(['write:Retitle'])
+    expect(Module.validate(Revisions, { evidence: [] }).map(finding => finding.rule)).toEqual([
+      'law-unwitnessed',
+    ])
+  })
+})

@@ -15,6 +15,7 @@ import {
   LawNode,
   Laws,
   Write,
+  lawFactsOf,
   lawId,
   transitionId,
   type LawReport,
@@ -578,6 +579,16 @@ describe('Laws.facts', () => {
     ).toBe(true)
   })
 
+  it('reads a transition invariant whole, since a write leaving its members alone can break it', () => {
+    const whole = (law: string) =>
+      edges
+        .filter(LawEdge.$is('Reads'))
+        .some(each => each.law === law && each.path.length === 1 && each.path[0] === 'Product')
+    expect(whole('Product.publishedStaysPublished')).toBe(true)
+    expect(whole('Product.soldNeverFalls')).toBe(true)
+    expect(whole('Product.reservedWithinStock')).toBe(false)
+  })
+
   it("leaves a write's own postcondition out, and draws its becomes as a to edge", () => {
     expect(nodes.some(each => LawNode.$is('Law')(each) && each.id.includes('becomes:'))).toBe(false)
     expect(plain(edges.filter(LawEdge.$is('To')))).toEqual(
@@ -592,5 +603,35 @@ describe('Laws.facts', () => {
     expect(
       edges.filter(LawEdge.$is('From')).map(each => `${each.transition} ${each.state}`),
     ).toEqual(['write:Publish Draft', 'write:Revert Published', 'write:Revert Archived'])
+  })
+})
+
+describe('lawFactsOf', () => {
+  const { nodes, edges } = lawFactsOf([Rename, Publish])
+
+  it('reads the declarations, with no check run: each transition, what it writes, and each law', () => {
+    expect(nodes.filter(LawNode.$is('Transition')).map(each => each.id)).toEqual([
+      'write:Rename',
+      'write:Publish',
+    ])
+    expect(
+      edges.filter(LawEdge.$is('Writes')).map(each => `${each.transition} ${each.path.join('.')}`),
+    ).toEqual(['write:Rename Product.name', 'write:Publish Product.status'])
+    expect(nodes.filter(LawNode.$is('Law')).map(each => each.id)).toEqual([
+      'Product.reservedWithinStock',
+      'Product.publishedStaysPublished',
+      'Product.soldNeverFalls',
+    ])
+    expect(edges.filter(LawEdge.$is('Keeps'))).toEqual([])
+  })
+
+  it('reads a transition invariant whole, and a state invariant by its members', () => {
+    const reads = (law: string) =>
+      edges
+        .filter(LawEdge.$is('Reads'))
+        .filter(each => each.law === law)
+        .map(each => each.path.join('.'))
+    expect(reads('Product.reservedWithinStock')).toEqual(['Product.reserved', 'Product.stock'])
+    expect(reads('Product.soldNeverFalls')).toContain('Product')
   })
 })

@@ -433,8 +433,8 @@ Laws.show(report)
   by name, without the check). `Laws.facts(report)` is the law half of Surface's graph in its own shape
   (`GraphFacts`; `LawNode`: Path, Transition, Law, State; `LawEdge`: Reads and Writes with
   `space: 'entity'`, From, To, Keeps, drawn only where every pair of that transition and law has a
-  record); a write's own `ensures` (`pair.postcondition`) is left out, and an `Unknown` footprint
-  writes each member a law reads. `lawFactsOf(entries)` is that shape read off the entries with no
+  record); a write's own `ensures` (`pair.postcondition`) is left out, an `Unknown` footprint
+  writes each member a law reads, and a transition invariant (`pair.readsBefore`) reads its whole row. `lawFactsOf(entries)` is that shape read off the entries with no
   check run, which `Module.graph` derives a contract's `laws.entities` with. Pass `pair.evidence` records to `Module.validate`'s `evidence`. Entries are told apart by name: `Laws.check` throws for two of one.
 - Keep the report as a checked-in file (`examples/writes/LAWS.md`, `toMatchFileSnapshot`) so a new write
   changes it.

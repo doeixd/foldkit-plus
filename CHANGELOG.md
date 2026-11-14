@@ -95,8 +95,10 @@ version changed; `pnpm` skips versions already in the registry.
   the graph's facts of `Laws.check`'s entries with no check run, what the graph
   derives `laws.entities` with; `lawId` and `transitionId` are `Laws.law` and
   `Laws.transition` by name; `Laws.facts`'s `Reads` and `Writes` carry
-  `space: 'entity'`, so its result is a `GraphFacts`, and an `Unknown`
-  footprint writes every member a law of its Entity reads.
+  `space: 'entity'`, so its result is a `GraphFacts`, an `Unknown`
+  footprint writes every member a law of its Entity reads, and a transition
+  invariant (`LawPair.readsBefore`) reads its whole row, so every write to the
+  row can break it.
   `examples/writes` validates its Module and keeps the evidence table in
   `LAWS.md`.
 
