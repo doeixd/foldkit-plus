@@ -344,7 +344,7 @@ export const computeRender = (
         ? [h.DataAttribute('open', ''), h.Style({ position: 'relative', zIndex: '1' })]
         : []),
       ...(isReadOnly ? [h.DataAttribute('readonly', '')] : []),
-      ...(isInvalid ? [h.DataAttribute('invalid', '')] : []),
+      ...(isInvalid ? [h.AriaInvalid(true), h.DataAttribute('invalid', '')] : []),
       ...(buttonClassName ? [h.Class(buttonClassName)] : []),
     ]),
     ...buttonAttributes,

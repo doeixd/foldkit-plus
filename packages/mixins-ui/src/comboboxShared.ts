@@ -301,24 +301,8 @@ export const computeRender = (
         }
         return Option.some(Message.Closed({ restingInputValue, isClearable: !isReadOnly }))
       }),
-      Match.whenOr('Home', 'End', () => {
-        if (!isOpen) {
-          return Option.none()
-        }
-
-        if (Array.isReadonlyArrayEmpty(items)) {
-          return Option.some(Message.SuppressedEmptyItemNavigation())
-        }
-
-        const targetIndex = resolveActiveIndex(key)
-        return Option.some(
-          Message.ActivatedItem({
-            index: targetIndex,
-            activationTrigger: 'Keyboard',
-            maybeImmediateSelection: resolveImmediateSelection(targetIndex),
-          }),
-        )
-      }),
+      // Home and End are the text's: the APG has an editable combobox keep them
+      // in the textbox, moving the caret, where the list's ends are optional.
       Match.orElse(() => Option.none()),
     )
 
