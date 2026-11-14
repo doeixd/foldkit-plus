@@ -36,8 +36,8 @@ export default [
     edits: [
       {
         file: '../src/input.ts',
-        find: 'input: [...attributes.input, onInputOf(h, options.onInput)]',
-        replace: 'input: attributes.input',
+        find: ': [onInputOf(h, options.onInput)]),',
+        replace: ': []),',
       },
     ],
     tests: [input, field],
@@ -47,8 +47,8 @@ export default [
     edits: [
       {
         file: '../src/input.ts',
-        find: 'options.onInput === undefined || options.disabled === true',
-        replace: 'options.onInput === undefined',
+        find: 'options.disabled === true ||',
+        replace: '',
       },
     ],
     tests: [input],

@@ -42,12 +42,12 @@ export default [
     tests: [unit],
   },
   {
-    name: 'the radios are grouped by a client-only property',
+    name: 'the radios are not grouped by the id',
     edits: [
       {
         file: '../src/rating.ts',
-        find: "h.Attribute('name', options.id),",
-        replace: 'h.Name(options.id),',
+        find: 'h.Name(options.name ?? options.id)',
+        replace: "h.Name('')",
       },
     ],
     tests: [unit],
