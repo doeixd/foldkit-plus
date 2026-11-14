@@ -156,4 +156,15 @@ describe('A row revision', () => {
       fieldMark('Product', 'p1', 'stock'),
     ])
   })
+
+  it('keeps a deleted row gone from a row of the revision it was deleted at', () => {
+    const gone = Data.reduce(at5, {
+      _tag: 'LiveReceived',
+      stream: 's',
+      event: { _tag: 'EntityDeleted', cursor: 1, ref: { entity: 'Product', id: 'p1' } },
+      now: 11,
+    })
+    expect(product.read(Data.reduce(gone, readOf('Five', 5, 12)))._tag).toBe('NotFound')
+    expect(nameOf(Data.reduce(gone, readOf('Six', 6, 12)))).toBe('Six')
+  })
 })

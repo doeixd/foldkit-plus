@@ -177,13 +177,17 @@ export interface EntityWrite {
 
 /**
  * Whether a write of `revision` is older than the row the store holds: the
- * server sent a newer revision of it already. A write or a row with no
- * revision is never older.
+ * server sent a newer revision of it already. A tombstone keeps the revision
+ * the row was gone at, and a row of that revision is from before it went. A
+ * write or a row with no revision is never older.
  */
 export const olderThanHeld = (
   held: EntityEntry | undefined,
   revision: number | undefined,
-): boolean => revision !== undefined && held?.revision !== undefined && revision < held.revision
+): boolean =>
+  revision !== undefined &&
+  held?.revision !== undefined &&
+  (held.tombstone ? revision <= held.revision : revision < held.revision)
 
 /**
  * Merges known values into many entities, copying the store once. Every
@@ -301,19 +305,21 @@ export const isFieldUnavailable = (store: EntityStore, key: EntityKey, field: st
  * Records that the entity is known to be absent, so it is not refetched. On a
  * tombstone being asked about again, the answer: still absent, so the asking ends.
  */
-export const tombstone = (store: EntityStore, key: EntityKey): EntityStore =>
-  isTombstone(store, key) && store[key]!.stale.size === 0
-    ? store
-    : replace(store, key, {
-        values: {},
-        present: new Set(),
-        stale: new Set(),
-        unavailable: new Set(),
-        tombstone: true,
-        updatedAt: 0,
-        oldestAt: 0,
-        windows: {},
-      })
+export const tombstone = (store: EntityStore, key: EntityKey): EntityStore => {
+  if (isTombstone(store, key) && store[key]!.stale.size === 0) return store
+  const revision = store[key]?.revision
+  return replace(store, key, {
+    values: {},
+    present: new Set(),
+    stale: new Set(),
+    unavailable: new Set(),
+    tombstone: true,
+    updatedAt: 0,
+    oldestAt: 0,
+    windows: {},
+    ...(revision === undefined ? {} : { revision }),
+  })
+}
 
 /**
  * Asks about tombstoned entities again: each stays absent, so a list keeps

@@ -18,14 +18,14 @@ export default [
   edit(
     'revisions compare with <=',
     store,
-    'revision !== undefined && held?.revision !== undefined && revision < held.revision',
-    'revision !== undefined && held?.revision !== undefined && revision <= held.revision',
+    '(held.tombstone ? revision <= held.revision : revision < held.revision)',
+    '(held.tombstone ? revision <= held.revision : revision <= held.revision)',
   ),
   edit(
     'no revision is compared',
     store,
-    'revision !== undefined && held?.revision !== undefined && revision < held.revision',
-    'false',
+    '  revision !== undefined &&\n  held?.revision !== undefined &&\n',
+    '  false &&\n',
   ),
   edit(
     'a written row forgets the revision it held',
@@ -128,5 +128,17 @@ export default [
     '../src/coalesce.ts',
     '            if (held !== undefined && held !== token) {',
     '            if (false) {',
+  ),
+  edit(
+    'a tombstone forgets the revision it was gone at',
+    store,
+    '    ...(revision === undefined ? {} : { revision }),\n  })\n}',
+    '  })\n}',
+  ),
+  edit(
+    "a row at a tombstone's revision comes back",
+    store,
+    '(held.tombstone ? revision <= held.revision : revision < held.revision)',
+    'revision < held.revision',
   ),
 ]
