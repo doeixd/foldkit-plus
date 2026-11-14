@@ -893,6 +893,12 @@ describe('defineDocumentHost with reactions', () => {
   })
 
   it('runs one pass at a time, so a failure is counted once', async () => {
+    // A held clock: the retry waits 500ms after a failure, and on a loaded
+    // runner the second alarm started later than that and rightly retried.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
     const file = notesFile()
     let calls = 0
     const { Host } = hostOf(file, () =>
