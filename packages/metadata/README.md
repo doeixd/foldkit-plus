@@ -132,7 +132,7 @@ producer modules. And a `Walked` record says only which seeds passed.
 | `Metadata.is(value)` | True only for a value this module made. |
 | `Evidence.issuedBy(record)` | The producer that issued `record`: an `Option`, none for a record typed by hand or copied. |
 | `Evidence.runtimeOnly({ transition, law, why })` | An issued `RuntimeOnly` record; throws on an empty `why`. |
-| `Evidence.issuer(name)` | For a producer, once at module level: `{ name, issue(record) }`, where `issue` returns a frozen, stamped copy. Throws for a name that already has an issuer. |
+| `Evidence.issuer(name)` | For a producer, once at module level: `{ name, issue(record) }`, where `issue` returns a frozen, stamped copy (its arrays copied and frozen too). Throws for a name that already has an issuer. |
 | `Evidence.Enumerated` / `Scenario` / `Walked`, `$match`, `$is` | A producer's records before it issues them, and reading a record by kind. |
 
 ## Limits

@@ -39,7 +39,7 @@ export type Evidence = Data.TaggedEnum<{
 /** What a producer issues records with. */
 export interface EvidenceIssuer {
   readonly name: string
-  /** A frozen copy of `record`, stamped with this issuer's name. */
+  /** A frozen copy of `record`, its arrays copied and frozen too, stamped with this issuer's name. */
   readonly issue: (record: Evidence) => Evidence
 }
 
@@ -56,7 +56,16 @@ const issuer = (name: string): EvidenceIssuer => {
   return {
     name,
     issue: record => {
-      const issued = Object.freeze({ ...record })
+      // A record's fields are strings, numbers and arrays of strings (`Walked.starts`):
+      // freezing a copy of each array keeps a caller's array, often shared, out of it.
+      const issued = Object.freeze(
+        Object.fromEntries(
+          Object.entries(record).map(([key, value]) => [
+            key,
+            Array.isArray(value) ? Object.freeze([...value]) : value,
+          ]),
+        ) as Evidence,
+      )
       issuedBy.set(issued, name)
       return issued
     },

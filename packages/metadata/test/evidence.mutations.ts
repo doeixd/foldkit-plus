@@ -21,8 +21,8 @@ export default [
     edits: [
       {
         file: evidence,
-        find: 'const issued = Object.freeze({ ...record })',
-        replace: 'const issued = record',
+        find: 'const issued = Object.freeze(',
+        replace: 'const issued = record ?? Object.freeze(',
       },
     ],
     tests,
@@ -54,6 +54,22 @@ export default [
     edits: [
       { file: evidence, find: 'if (taken.has(name))', replace: 'if (taken.has(name) && false)' },
     ],
+    tests,
+  },
+  {
+    name: "an issued record's array shared with the caller",
+    edits: [
+      {
+        file: evidence,
+        find: 'Array.isArray(value) ? Object.freeze([...value]) : value',
+        replace: 'value',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "an issued record's array copied but not frozen",
+    edits: [{ file: evidence, find: 'Object.freeze([...value])', replace: '[...value]' }],
     tests,
   },
 ]

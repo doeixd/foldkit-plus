@@ -30,6 +30,19 @@ describe('Evidence', () => {
     expect(Object.isFrozen(issued)).toBe(true)
   })
 
+  it("copies and freezes a record's arrays, so one record cannot edit another", () => {
+    const starts = ['empty']
+    const walked = { ...pair, seeds: 1, steps: 1, starts }
+    const first = producer.issue(Evidence.Walked(walked))
+    const second = producer.issue(Evidence.Walked(walked))
+    if (!Evidence.$is('Walked')(first)) throw new Error('issued a Walked record as another kind')
+    // @ts-expect-error: the array is readonly in type, and frozen at run time
+    expect(() => first.starts.push('x')).toThrow(TypeError)
+    starts.push('later')
+    expect(second).toMatchObject({ starts: ['empty'] })
+    expect(first).toMatchObject({ starts: ['empty'] })
+  })
+
   it('stamps runtimeOnly records as its own', () => {
     const record = Evidence.runtimeOnly({ ...pair, why: 'the writer refuses an oversell' })
     expect(Evidence.issuedBy(record)).toEqual(Option.some('foldkit-metadata/runtimeOnly'))
