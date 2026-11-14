@@ -464,6 +464,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-primitives`: modal layers drawn as siblings, as portaled dialogs
+  are, stack. `FocusScope` and `HideOutside` share a stack of open layers whose
+  topmost owns containment: a scope with a layer open above it no longer pulls
+  focus back out of it, and a `HideOutside` no longer hides a layer opened over
+  it (it is re-isolated around it, and that layer's scope takes focus once it
+  is shown). Before, focus ended on the body.
+
 - `foldkit-primitives`: `FollowTabStop` on a container marked `data-fk-roving`
   reads only the stops no nested roving container holds, so a row holding
   another roving widget no longer takes the focus of a removed row (#553).

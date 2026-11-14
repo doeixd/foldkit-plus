@@ -860,7 +860,7 @@ for DevTools and agents. `toDismiss(layers, inside)` is the pure rule.
 `HideOutside` Mounts from `foldkit-primitives/dom`: the first locks the
 document's scroll while the container is mounted, refcounted so nested
 overlays release together; the second marks everything outside the container
-inert while it is mounted. A native `<dialog>` shown modally needs neither.
+inert while it is mounted, except a layer opened over it. A native `<dialog>` shown modally needs neither.
 
 **`Overlay`** is one policy value instead of nine overlay implementations:
 `Overlay.modal` (dismissed by Escape and outside press, focused, locked,

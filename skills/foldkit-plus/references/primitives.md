@@ -175,7 +175,9 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
 - **Keep focus inside an overlay:** `FocusScope.behavior(Slots)<Input, Message>({ container, contain?, restore?, initialFocus? })`
   attaches the `foldkit-primitives/dom` `FocusScope` Mount (no Bundle: focus is a DOM fact).
   Initial focus on insert, Tab and Shift+Tab wrap and a stray focus comes back under
-  `contain`, focus restored on unmount under `restore`. A native `<dialog>` needs none of it.
+  `contain`, focus restored on unmount under `restore`. Scopes and `HideOutside` share a stack
+  of layers whose topmost owns containment, so sibling (portaled) dialogs stack: the lower one
+  neither pulls focus back nor hides the upper. A native `<dialog>` needs none of it.
 - **Keep focus when its part goes away:** `FocusRecovery.behavior(Slots)<Input, Message>({ owner, parts: { row: ['next', 'previous', { part: 'input' }], input: [] }, parent? })`
   attaches the `foldkit-primitives/dom` `FocusRecovery` Mount to the owner and marks
   the parts (`data-fk-focus-*`, key from `item.id`). A removed, hidden, `inert` or

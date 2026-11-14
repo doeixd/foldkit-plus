@@ -96,7 +96,11 @@ tabbable descendant, else itself. With `contain` (default), Tab from the last
 tabbable wraps to the first, Shift+Tab from the first wraps to the last, and
 focus that lands outside comes straight back; Tab in the middle is the
 browser's. On unmount, with `restore` (default), focus returns to the element
-that had it, if still in the document. A native `<dialog>` does all of this
+that had it, if still in the document. Scopes and `HideOutside` share one
+stack of layers, in the order they opened, and the topmost owns containment:
+a scope with a layer open above it contains nothing, so a second dialog drawn
+beside the first (as a dialog portaled to the body is) keeps its focus, and
+the first contains again when it closes. A native `<dialog>` does all of this
 itself; this is for a custom overlay, a menu, or a command palette.
 `tabbableWithin(element)` is exported: focusable, visible descendants with a
 non-negative `tabindex`, in order. Its Behavior form is in [`interaction`](../interaction/README.md).
@@ -122,7 +126,10 @@ elsewhere. The Behavior form and the steps are in
 **`ScrollLock`** locks the document's scroll while its element is mounted,
 refcounted so nested overlays release together, with Foldkit's iOS handling;
 **`HideOutside`** marks everything outside its element inert while mounted,
-keyed by an id the Mount mints so two overlays restore independently. Both are
+keyed by an id the Mount mints so two overlays restore independently, and never
+a layer opened after its own, wherever that is drawn: a dialog portaled into a
+container the first had hidden is shown a frame after it opens, and its scope
+then takes focus. Both are
 Foldkit's own `Dom.lockScroll` and `Dom.inertOthers` as Mounts. A native
 `<dialog>` shown modally needs neither.
 

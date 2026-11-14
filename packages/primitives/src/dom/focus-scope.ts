@@ -1,6 +1,7 @@
 import { Effect, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
 import { FOCUSABLE, isVisible } from './focusable.js'
+import * as LayerStack from './layer-stack.js'
 
 /** Tabbable descendants in DOM order: focusable, visible, and not `tabindex="-1"`. */
 export const tabbableWithin = (root: Element): ReadonlyArray<HTMLElement> =>
@@ -18,7 +19,11 @@ const focusFirst = (elements: ReadonlyArray<HTMLElement>): boolean => {
 /**
  * A focus scope as a Mount: on insert it remembers what was focused, focuses
  * an initial element inside, and with `contain` keeps Tab and Shift+Tab
- * cycling inside; on unmount it gives focus back. Nothing crosses to the
+ * cycling inside; on unmount it gives focus back. It is a layer of the
+ * document's stack while mounted, and a scope with a layer opened after it
+ * still open contains nothing: the topmost layer owns containment, so a
+ * dialog drawn beside this one, as a portaled one is, keeps its focus.
+ * Nothing crosses to the
  * Model: which element had focus is a DOM fact, so this is element lifecycle,
  * not state. It emits no Messages.
  */
@@ -39,12 +44,24 @@ export const FocusScope = Mount.defineStream('FocusScope', {
         Effect.sync(() => {
           const ownerDocument = element.ownerDocument
           const previous = ownerDocument.activeElement
-          const initial =
-            initialFocus === null ? null : element.querySelector<HTMLElement>(initialFocus)
-          if (initial !== null) initial.focus()
-          else if (!focusFirst(tabbableWithin(element)) && element instanceof HTMLElement) {
-            element.focus()
+          const release = LayerStack.open(element)
+          const focusInitial = () => {
+            const initial =
+              initialFocus === null ? null : element.querySelector<HTMLElement>(initialFocus)
+            if (initial !== null) initial.focus()
+            else if (!focusFirst(tabbableWithin(element)) && element instanceof HTMLElement) {
+              element.focus()
+            }
           }
+          focusInitial()
+          // Drawn where a lower layer hid it, nothing in it takes focus until that one stops
+          // hiding it, and nothing outside it can take focus meanwhile: focus it then.
+          const landed = () => element.contains(ownerDocument.activeElement)
+          const stopWaiting = LayerStack.whenShown(() => {
+            if (!landed()) focusInitial()
+            if (landed()) stopWaiting()
+          })
+          if (landed()) stopWaiting()
           const onKeyDown = (event: Event) => {
             const key = event as KeyboardEvent
             if (key.key !== 'Tab') return
@@ -67,16 +84,19 @@ export const FocusScope = Mount.defineStream('FocusScope', {
           const onFocusIn = (event: Event) => {
             const target = event.target
             if (target instanceof Node && element.contains(target)) return
+            if (LayerStack.isCovered(element)) return
             focusFirst(tabbableWithin(element))
           }
           if (contain) {
             element.addEventListener('keydown', onKeyDown)
             ownerDocument.addEventListener('focusin', onFocusIn)
           }
-          return { previous, onKeyDown, onFocusIn, ownerDocument }
+          return { previous, onKeyDown, onFocusIn, ownerDocument, release, stopWaiting }
         }),
-        ({ previous, onKeyDown, onFocusIn, ownerDocument }) =>
+        ({ previous, onKeyDown, onFocusIn, ownerDocument, release, stopWaiting }) =>
           Effect.sync(() => {
+            stopWaiting()
+            release()
             if (contain) {
               element.removeEventListener('keydown', onKeyDown)
               ownerDocument.removeEventListener('focusin', onFocusIn)

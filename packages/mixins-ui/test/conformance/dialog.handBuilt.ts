@@ -92,8 +92,6 @@ export const mount = () => {
             [],
             [
               h.button([h.Id('open-outer'), h.OnClick(Message.OpenedOuter())], ['Open outer']),
-              // The inner layer is drawn inside the outer one: the outer's `FocusScope` contains focus
-              // to its own element, so a sibling layer would be pulled back out of.
               ...(model.outer
                 ? [
                     view(
@@ -105,15 +103,13 @@ export const mount = () => {
                             [h.Id('open-inner'), h.OnClick(Message.OpenedInner())],
                             ['Open inner'],
                           ),
-                          ...(model.inner
-                            ? [view({ id: 'inner', title: 'Inner', body: [] }, h)]
-                            : []),
                         ],
                       },
                       h,
                     ),
                   ]
                 : []),
+              ...(model.inner ? [view({ id: 'inner', title: 'Inner', body: [] }, h)] : []),
             ],
           ),
         subscriptions: placements.subscriptions(),
