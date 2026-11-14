@@ -64,6 +64,8 @@ export interface CardDismiss<Message> {
  */
 export interface CardView<Message> {
   readonly title?: string | undefined
+  /** The level of the heading that holds the title, for the page's outline. Default 3. */
+  readonly headingLevel?: 2 | 3 | 4 | 5 | 6 | undefined
   readonly description?: string | undefined
   readonly content?: Html | undefined
   /** A banner across the top of a stacked card, a square beside an inline one. */
@@ -76,7 +78,7 @@ export interface CardView<Message> {
   readonly press?: CardPress<Message> | undefined
   /** The press's accessible name; the title when omitted, and required without one. */
   readonly label?: string | undefined
-  /** Chosen: `aria-pressed` on a pressing button, `aria-current` on a link. */
+  /** Chosen: `aria-pressed` on a pressing button, `aria-current="page"` on a link. */
   readonly selected?: boolean | undefined
   readonly disabled?: boolean | undefined
   readonly dismiss?: CardDismiss<Message> | undefined
@@ -118,7 +120,7 @@ export const overlay = <Message>(
               h.Href(press.href),
               ...(external ? [h.Target('_blank'), h.Rel('noopener noreferrer')] : []),
             ]),
-        ...(state.selected === true ? [h.AriaCurrent('true')] : []),
+        ...(state.selected === true ? [h.AriaCurrent('page')] : []),
         ...(external ? [h.AriaDescription('Opens in a new tab')] : []),
       ]),
       [],
@@ -129,11 +131,17 @@ export const overlay = <Message>(
       ...shared,
       h.Type('button'),
       ...(state.selected === undefined ? [] : [h.AriaPressed(flag(state.selected))]),
-      ...(state.disabled ? [h.Disabled(true)] : [h.OnClick(press.onClick)]),
+      // `aria-disabled`, not `disabled`: a button that disables itself under the keys drops the focus.
+      ...(state.disabled ? [h.AriaDisabled(true)] : [h.OnClick(press.onClick)]),
     ]),
     [],
   )
 }
+
+const headingOf =
+  <Message>(h: HtmlBuilder<Message>) =>
+  (level: NonNullable<CardView<Message>['headingLevel']> = 3) =>
+    ({ 2: h.h2, 3: h.h3, 4: h.h4, 5: h.h5, 6: h.h6 })[level]
 
 export const view = <Message>(options: CardView<Message>, h: HtmlBuilder<Message>): Html => {
   const builders = SlotView.buildersFor(
@@ -147,6 +155,7 @@ export const view = <Message>(options: CardView<Message>, h: HtmlBuilder<Message
     throw new Error('Card: a pressable card needs a `label` when it has no `title` to be named by')
   }
   const disabled = options.disabled === true
+  const heading = headingOf(h)
   const dismiss = options.dismiss
   const hasHeader =
     options.title !== undefined || options.description !== undefined || options.action !== undefined
@@ -157,7 +166,6 @@ export const view = <Message>(options: CardView<Message>, h: HtmlBuilder<Message
       h.DataAttribute('pressable', flag(press !== undefined)),
       h.DataAttribute('dismissible', flag(dismiss !== undefined)),
       ...(dismiss === undefined ? [] : FocusRecovery.part(h)),
-      ...(disabled ? [h.AriaDisabled(true)] : []),
     ]),
     [
       ...(options.image === undefined ? [] : [h.div(builders.image.attrs(), [options.image])]),
@@ -168,9 +176,10 @@ export const view = <Message>(options: CardView<Message>, h: HtmlBuilder<Message
               ...(options.title === undefined
                 ? []
                 : [
-                    h.h3(builders.title.attrs([h.DataAttribute('label', options.title)]), [
-                      options.title,
-                    ]),
+                    heading(options.headingLevel)(
+                      builders.title.attrs([h.DataAttribute('label', options.title)]),
+                      [options.title],
+                    ),
                   ]),
               ...(options.description === undefined
                 ? []
@@ -310,7 +319,8 @@ export const group = <Message>(options: CardGroupView<Message>, h: HtmlBuilder<M
             key,
             builders.item.attrs([
               h.DataAttribute('card-item', ''),
-              ...(card.disabled === true ? [h.AriaDisabled(true)] : []),
+              // `data-disabled`, which the highlight reads: an `li` allows no `aria-disabled`.
+              ...(card.disabled === true ? [h.DataAttribute('disabled', 'true')] : []),
             ]),
             [view({ ...card, style: card.style ?? options.cardStyle }, h)],
           ),
