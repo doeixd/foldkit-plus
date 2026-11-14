@@ -20,7 +20,8 @@ import type { Url } from 'foldkit/url'
 import { Metadata, type MetadataSummary } from 'foldkit-metadata'
 
 export { Metadata, MetadataTypeId, type MetadataKey, type MetadataSummary } from 'foldkit-metadata'
-export { Closure, type ClosureProjection } from './closure.js'
+export { Closure, type ClosureProjection, ClosureViolation } from './closure.js'
+import { hasTagIn, messageTag, messageTags } from './messageTags.js'
 export { Diagnostics, type Diagnostic, type ReportDiagnostic } from './diagnostics.js'
 export {
   CachedRead,
@@ -217,23 +218,6 @@ function propertyReader(root: unknown, key: string): unknown {
 function optionalReader(value: unknown): Option.Option<unknown> {
   return value === undefined ? Option.none() : Option.some(value)
 }
-
-/** Reads the tag off a Foldkit Message constructor without constructing one. */
-const messageTag = (constructor: unknown): string | undefined => {
-  const literal = (constructor as { fields?: { _tag?: { ast?: { literal?: unknown } } } }).fields
-    ?._tag?.ast?.literal
-  return typeof literal === 'string' ? literal : undefined
-}
-
-/** Whether a Message, of an application this cannot name, has one of `tags`. */
-const hasTagIn = (tags: ReadonlySet<string>, message: unknown): boolean =>
-  Predicate.hasProperty(message, '_tag') &&
-  typeof message._tag === 'string' &&
-  tags.has(message._tag)
-
-/** The tags of the Messages a Surface lists in `messages`. */
-const messageTags = (surface: { readonly messages: readonly unknown[] }): ReadonlyArray<string> =>
-  surface.messages.map(messageTag).filter((tag): tag is string => tag !== undefined)
 
 function makeTree(
   schema: AnySchema,
@@ -865,6 +849,8 @@ export interface Surface<Root, Model, Message, Params> {
   readonly Params: ParamsSchema<Params>
   readonly Message: Schema.Schema<Message>
   readonly messages: readonly unknown[]
+  /** Declared `closed: true`: `Closure.violations` tests it in a walk. */
+  readonly closed: boolean
   readonly projection: (params: Params) => Projection<Root, Model>
 }
 
@@ -1104,6 +1090,7 @@ export interface Application<
         readonly params: ParamsOf<Params>
       }) => Shape
       readonly messages?: Ms
+      readonly closed?: boolean
     },
   ) => Surface<Root, ModelOf<Root, Shape>, MsgOf<Ms>, ParamsOf<Params>>
   /**
@@ -1238,6 +1225,7 @@ function application(config: any): any {
       readonly params?: ParamsShape | undefined
       readonly model: (context: { readonly model: unknown; readonly params: unknown }) => unknown
       readonly messages?: readonly unknown[]
+      readonly closed?: boolean
     },
   ) =>
     Surface.make(scope, name, {
@@ -1253,6 +1241,7 @@ function application(config: any): any {
         return isProjection(shape) ? shape : Projection.struct(shape as never)
       },
       messages: surfaceConfig.messages,
+      closed: surfaceConfig.closed,
     } as never)
   const made = { ...scope, fields: scope.model, surface }
   const runnable = (run: { readonly initial: unknown; readonly update: unknown }): unknown => ({
@@ -1615,6 +1604,11 @@ export const Surface = {
         readonly params: Params
       }) => Projection<Root, Model>
       readonly messages?: Ms
+      /**
+       * The projection after a Message in `messages` depends only on the projection before and
+       * the Message, and no other Message changes it; `Closure.violations` tests both.
+       */
+      readonly closed?: boolean
     },
   ): Surface<Root, Model, MsgOf<Ms>, Params> => {
     // Deliberately no eager `projection(undefined)`: a parameterized Surface's
@@ -1638,6 +1632,7 @@ export const Surface = {
       Params: config.Params as ParamsSchema<Params>,
       Message: Schema.Never as unknown as Schema.Schema<MsgOf<Ms>>,
       messages: config.messages ?? [],
+      closed: config.closed ?? false,
       projection,
     }
   },
@@ -1710,6 +1705,7 @@ export const Surface = {
       observes: projection.dependencies,
       messages: messageTags(surface),
       metadata: Metadata.summarize(projection.metadata),
+      ...(surface.closed ? { closed: true as const } : {}),
     }
   },
 
@@ -1756,6 +1752,8 @@ export interface Contract {
   readonly messages: readonly string[]
   /** What interpreters attached to the contract's reads, as text. */
   readonly metadata: readonly MetadataSummary[]
+  /** A Surface declared `closed: true`; absent for any other contract. */
+  readonly closed?: true
 }
 
 /**

@@ -44,6 +44,12 @@ export default [
     'if (false) {',
   ),
   edit(
+    'the memory writer claims to judge rules in its statement',
+    '../../remote-server/src/memoryWriter.ts',
+    '    preconditions: true,\n',
+    '    preconditions: true,\n    requires: true,\n',
+  ),
+  edit(
     'an exists reached through a path reads nothing of its own row',
     condition,
     'Exists: ({ via }) => via.slice(0, 1).map(relation => relation.key),',

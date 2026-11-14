@@ -22,6 +22,7 @@ import {
   servePresence,
   socketPresenceChannel,
 } from './presence.js'
+import { isInvalidBy } from './refusal.js'
 import { defineSync, syncMetrics, type Sync as SyncContract } from './sync.js'
 import {
   layerFromPromise,
@@ -53,6 +54,8 @@ export const Sync = {
   migrations,
   /** Runs a Foldkit application over an open replica with one reducer. */
   mount,
+  /** Whether a refusal is the server's answer that a declared law broke: `Sync.isInvalidBy(refusal, contract.laws.capped)`. */
+  isInvalidBy,
   /** A Command whose Message the mount applies within the transition that returned it. */
   fact,
   /** Counters and a histogram an application can scrape. */
@@ -115,7 +118,7 @@ export type {
   SyncDiagnostic,
   UnknownRefusal,
 } from './diagnostics.js'
-export { SyncRefusal } from './refusal.js'
+export { SyncRefusal, isInvalidBy } from './refusal.js'
 export {
   indexedDb,
   tabStorage,
@@ -141,6 +144,8 @@ export {
   type DefinedSync,
   type FragmentMessages,
   type HistoryOption,
+  type Law,
+  type LawsOption,
   type MakeOptions,
   type MsgOf,
   type PolicyJournalContract,
@@ -169,6 +174,7 @@ export {
   InvalidExchangeError,
   InvalidOutboxError,
   InvalidReplicaHistoryError,
+  LawBrokenError,
   ReplayError,
   ReplicaClosedError,
   ServerKeyReusedError,
@@ -223,6 +229,7 @@ export {
   type Checkpoint,
   type CommitStamp,
   type CommittedOperation,
+  type DeclaredLaw,
   type Exchange,
   type JournalContract,
   type MessageHistory,

@@ -14,6 +14,7 @@ import {
 } from './expose.js'
 import { type Resource, type ResourceOptions, resource } from './resource.js'
 import { type AgentRuntime, type BindOptions, bind } from './runtime.js'
+import { parts } from './parts.js'
 import type { AnyMessage } from './types.js'
 import type { MessageUnion } from 'foldkit/message'
 import type { MessageSet } from 'foldkit-surface'
@@ -66,6 +67,9 @@ export interface BoundAgent<Model, Principal> {
     options: MakeOptions<Model, Context_, Principal, ByName, ByTag>,
   ) => DefinitionOf<Model, Context_, Principal, ByName, ByTag>
 
+  /** The parts of a definition, checked against it: `Agent.parts`. */
+  readonly parts: typeof parts
+
   readonly bind: <
     Context_,
     Message extends AnyMessage = AnyMessage,
@@ -103,5 +107,6 @@ export const forModel = <Model, Principal = unknown>(): BoundAgent<Model, Princi
   exposeSubset: exposeSubset as BoundAgent<Model, Principal>['exposeSubset'],
   resource,
   make,
+  parts,
   bind,
 })

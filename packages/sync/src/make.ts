@@ -19,9 +19,11 @@ import {
 } from 'foldkit-surface'
 import type { DocumentId } from './ids.js'
 import type { Migrations } from './migrations.js'
+import { fitWords } from './refusal.js'
 import {
   defineSync,
   type CommitStamp,
+  type DeclaredLaw,
   type JournalContract,
   type Operation,
   type Sync,
@@ -98,6 +100,31 @@ export interface PolicyJournalContract<Operation, Shared, Principal> extends Jou
     readonly operation: Operation
     readonly snapshot: Shared
   }) => AuthorizeDecision
+}
+
+/**
+ * One law of a document. `holds` judges the snapshot an operation leaves,
+ * with the one before it, and only `true` holds; it sees no principal and no
+ * Message. `message` is what the person whose edit broke it is told, and
+ * `path` the shared fields it is about.
+ */
+export interface Law<Shared, Key extends string> {
+  readonly holds: (states: { readonly before: Shared; readonly after: Shared }) => boolean
+  readonly message: string
+  readonly path?: ReadonlyArray<Key>
+}
+
+/** `make`'s laws, keyed by id: each over the shared fields, and nothing else of the Model. */
+export interface LawsOption<Fields extends Schema.Struct.Fields, LawIds extends string> {
+  /**
+   * What every snapshot of the document keeps, judged where an operation
+   * commits and, as a hint, by a replica's `submit`. An operation whose
+   * snapshot breaks one is refused as `SyncRefusal.Invalid` with the law's id
+   * as `rule`; the first broken law in the record's order is named.
+   */
+  readonly laws?: {
+    readonly [Id in LawIds]: Law<Schema.Struct.Type<Fields>, keyof Fields & string>
+  }
 }
 
 /**
@@ -251,6 +278,8 @@ export interface DefinedSync<
   Authorized extends boolean = false,
   /** The server-only constructors, `[]` when `make` was given none. */
   SMs extends readonly unknown[] = [],
+  /** The ids of `make`'s `laws`; `string` reads any contract's. */
+  LawIds extends string = string,
 > extends Sync<Message, Schema.Struct.Type<Fields>, MsgOf<Ms>> {
   readonly surface: Surface<AppModel, Schema.Struct.Type<Fields>, MsgOf<Ms>, void>
   readonly projection: WritableProjection<AppModel, Fields>
@@ -263,6 +292,17 @@ export interface DefinedSync<
   readonly messages: Ms
   /** The server-only constructors: what only the server appends. */
   readonly serverOnlyMessages: SMs
+  /** The declared laws, by id: what `Sync.isInvalidBy` matches a refusal against. */
+  readonly laws: { readonly [Id in LawIds]: DeclaredLaw<Id> }
+  /**
+   * The first law the step from `before` to `after` breaks, or none: what the
+   * journal and `submit` run. Run it over stored snapshots (`judge(s, s)`) to
+   * audit them before deploying a new law.
+   */
+  readonly judge: (
+    before: Schema.Struct.Type<Fields>,
+    after: Schema.Struct.Type<Fields>,
+  ) => Option.Option<DeclaredLaw<LawIds>>
   /** For `Module`: this contract owns the shared projection's paths and records the durable and server-only tags. */
   readonly contract: Contract
   /**
@@ -321,12 +361,23 @@ export interface ApplicationSync<
       SMs extends readonly MessageConstructor<
         Exclude<AppMessage<AppModel, F, Cases>, MsgOf<Ms>>
       >[] = [],
+      LawIds extends string = never,
     >(
       options: MakeOptions<AppModel, Fields, Subset, Ms, Principal, ServerSubset, SMs> &
-        HistoryOption<AppMessage<AppModel, F, Cases>, AppMessageEncoded<AppModel, F, Cases>> & {
+        HistoryOption<AppMessage<AppModel, F, Cases>, AppMessageEncoded<AppModel, F, Cases>> &
+        LawsOption<NoInfer<Fields>, LawIds> & {
           readonly authorize: AuthorizePolicy<Principal, NoInfer<Fields>, NoInfer<[...Ms, ...SMs]>>
         },
-    ): DefinedSync<AppModel, Fields, AppMessage<AppModel, F, Cases>, Ms, Principal, true, SMs>
+    ): DefinedSync<
+      AppModel,
+      Fields,
+      AppMessage<AppModel, F, Cases>,
+      Ms,
+      Principal,
+      true,
+      SMs,
+      LawIds
+    >
     <
       Fields extends Schema.Struct.Fields,
       Subset,
@@ -335,10 +386,21 @@ export interface ApplicationSync<
       SMs extends readonly MessageConstructor<
         Exclude<AppMessage<AppModel, F, Cases>, MsgOf<Ms>>
       >[] = [],
+      LawIds extends string = never,
     >(
       options: MakeOptions<AppModel, Fields, Subset, Ms, Principal, ServerSubset, SMs> &
-        HistoryOption<AppMessage<AppModel, F, Cases>, AppMessageEncoded<AppModel, F, Cases>>,
-    ): DefinedSync<AppModel, Fields, AppMessage<AppModel, F, Cases>, Ms, Principal, false, SMs>
+        HistoryOption<AppMessage<AppModel, F, Cases>, AppMessageEncoded<AppModel, F, Cases>> &
+        LawsOption<NoInfer<Fields>, LawIds>,
+    ): DefinedSync<
+      AppModel,
+      Fields,
+      AppMessage<AppModel, F, Cases>,
+      Ms,
+      Principal,
+      false,
+      SMs,
+      LawIds
+    >
   }
 }
 
@@ -399,6 +461,37 @@ const derivedReplay = <
 }
 
 /**
+ * The declared laws and their judge. Each id and message must fit a
+ * refusal's words, and a path its sixteen fields, or the refusal could not
+ * be sent; `make` throws rather than let one fail every exchange.
+ */
+const lawsOf = <Shared>(
+  declared: Record<string, Law<Shared, string>>,
+): {
+  readonly laws: Record<string, DeclaredLaw>
+  readonly judge: (before: Shared, after: Shared) => Option.Option<DeclaredLaw>
+} => {
+  const entries = Object.entries(declared).map(([id, law]) => {
+    const path = law.path ?? []
+    if (
+      fitWords(id) !== id ||
+      fitWords(law.message) !== law.message ||
+      path.length > 16 ||
+      path.some(field => fitWords(field) !== field)
+    )
+      throw new Error(
+        `Sync.make: the law "${fitWords(id)}" does not fit a refusal: an id, a message or a field over 500 characters, or a path over 16 fields`,
+      )
+    return [{ id, message: law.message, path }, law.holds] as const
+  })
+  return {
+    laws: Object.fromEntries(entries.map(([law]) => [law.id, law])),
+    judge: (before, after) =>
+      Option.fromUndefinedOr(entries.find(([, holds]) => holds({ before, after }) !== true)?.[0]),
+  }
+}
+
+/**
  * Merges fragments into one. The primitives reject a conflicting field, a
  * duplicate tag, and a subset from another application.
  */
@@ -448,8 +541,9 @@ const build = <
 
   const make = (
     options: MakeOptions<AppModel, any, any, any, Principal, any, any> &
-      HistoryOption<Message, unknown>,
-  ): DefinedSync<AppModel, any, Message, any, Principal, boolean, any> => {
+      HistoryOption<Message, unknown> &
+      LawsOption<any, string>,
+  ): DefinedSync<AppModel, any, Message, any, Principal, boolean, any, string> => {
     type Shared = Record<string, unknown>
     const { shared, durable, migrations, serverOnly } = options
     // A Schema of an older version can equal the current one structurally, so
@@ -483,6 +577,7 @@ const build = <
     const stamps = options.stamp as
       | Record<string, (message: Message, commit: CommitStamp) => Message>
       | undefined
+    const { laws, judge } = lawsOf(options.laws ?? {})
     const sync = defineSync<Message, Shared, unknown, unknown>({
       documentId: options.documentId,
       ...(migrations === undefined
@@ -490,6 +585,7 @@ const build = <
         : { migrations }),
       shared: sharedCodec,
       empty: shared.get(app.initial),
+      ...(options.laws === undefined ? {} : { judge }),
       durable: message => Option.exists(tagOf(message), tag => durableTags.has(tag)),
       serverOnly: message => Option.exists(tagOf(message), tag => serverTags.has(tag)),
       replay,
@@ -561,6 +657,8 @@ const build = <
       replay,
       messages: durable.constructors,
       serverOnlyMessages: serverOnly?.constructors ?? [],
+      laws,
+      judge,
       contract,
       wiring: () => ({ key: `sync:${contract.name}`, handles: [], contract }),
     }

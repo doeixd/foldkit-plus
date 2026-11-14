@@ -43,6 +43,17 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   metadata; declaring them installs nothing.
 - `Behavior.slot({ requires, attributes: ({ input, h }) => [...], mount })` — `requires`
   (capability/events/attributes) is checked against the slot **when `forSlots` runs**.
+- **Binder**: `const B = SlotView.over(S)<Input, Message>()` names the slots, input and Message
+  universe once; `B.define((input, slots, h) => …)`, `B.behavior({ slot: { attributes } }, { name })`
+  and `B.parts` are `SlotView.define`, `Behavior.forSlots` and `SlotView.parts` with all three
+  fixed, so nothing is annotated. `SurfaceView.over(surface, S)` reads both types from a Surface.
+  `SlotView.isBound(x)` tells a binder from bare slots, for a factory that takes either.
+- **Attachments are remembered**: each Mixin keeps its name and, from `Style.forSlots` or
+  `Behavior.forSlots`, a frozen `meta` (`kind`, per slot `requires`, `provides`, `reads`).
+  `SlotView.detach(name)` and `SlotView.replace(name, mixin)` (same place in the order) return a
+  new view, and throw `mixins:unknown-attachment` / `mixins:ambiguous-attachment`, so name a
+  Behavior you mean to address. A two-owner conflict names both contributors (`the view` for base
+  attributes) in its message and `details.contributors`.
 - **Parts** cut a big view so each piece redraws only when what it reads changes:
   `const P = SlotView.parts(S)<Input, Message>()`, `P.part(name, { reads: ['k'], behaviors },
   (input, slots, h) => …)` (input is `Pick<Input, 'k'>`), `P.assemble((input, slots, h, draw) =>
@@ -233,7 +244,8 @@ drives and `U.plainOnly('flex')` shows its plain stand-in there; write no `srOnl
 Use only if the feature already renders through a `foldkit-surface` Surface. `SurfaceView.define`
 makes the SlotView's input exactly the Surface projection and its Message universe exactly the
 exposed subset, so no annotations are needed and Behaviors cannot read unprojected fields or emit
-unexposed Messages. It adds no state and no renderer.
+unexposed Messages. It adds no state and no renderer. `SurfaceView.over(surface, slots)` is
+`SlotView.over` with the same two types, for making Behaviors without naming them.
 
 ```ts standalone
 import { Option, Schema } from 'effect'

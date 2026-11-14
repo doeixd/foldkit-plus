@@ -20,8 +20,9 @@ export default [
     edits: [
       {
         file,
-        find: "field: fieldAt(input, options.expect, 'expect')",
-        replace: 'field: undefined as never',
+        // An empty stand-in for the field: `undefined` would throw where an increment reads it.
+        find: '    Unmapped: unmapped,',
+        replace: '    Unmapped: () => ({}) as never,',
       },
     ],
     tests,

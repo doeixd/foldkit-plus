@@ -5,7 +5,7 @@
  * one `OnMount`. Conflicts throw a `DiagnosticError` before Foldkit could
  * silently chain or replace.
  */
-import { Cause, Match, Option, Stream } from 'effect'
+import { Cause, Effect, Match, Option, Stream } from 'effect'
 import type { Attribute, ChildAttribute } from 'foldkit/html'
 import type { MountAction } from 'foldkit/mount'
 import { Diagnostics as Reported } from 'foldkit-surface'
@@ -41,6 +41,25 @@ export type ContributedAttribute<Message> =
   | Exclude<Attribute<Message>, { readonly _tag: 'InnerHTML' }>
   | ChildAttribute
 
+/**
+ * A contribution and the name of the Mixin that gave it, which an ownership
+ * diagnostic names as a contributor. Without one it is named "a Mixin".
+ */
+export type SourcedContribution<Message> = StaticContribution<Message> & {
+  readonly source?: string
+}
+
+/** The contributor an ownership diagnostic names for the view's own base attributes. */
+const VIEW = 'the view'
+
+const quoted = (contributor: string): string => (contributor === VIEW ? VIEW : `"${contributor}"`)
+
+/** A Mount and, when it came inside a child attribute, that attribute, whose boundary it dispatches through. */
+interface HeldMount<Message> {
+  readonly action: MountAction<Message, any>
+  readonly child?: ChildAttribute
+}
+
 export interface ResolveOptions {
   readonly slot?: string
   readonly protected?: SlotProtection
@@ -52,6 +71,15 @@ const isClass = (value: unknown): value is { readonly _tag: 'Class'; readonly va
   // tag-check: open — a Foldkit attribute's tag, from a package whose union we do not have.
   value._tag === 'Class' &&
   typeof (value as { value?: unknown }).value === 'string'
+
+/** A Foldkit `OnMount` attribute, read inside a child attribute another package built. */
+const isMount = (
+  value: unknown,
+): value is { readonly _tag: 'OnMount'; readonly action: MountAction<any, any> } =>
+  isTagged(value) &&
+  // tag-check: open — a Foldkit attribute's tag, from a package whose union we do not have.
+  value._tag === 'OnMount' &&
+  typeof (value as { action?: unknown }).action === 'object'
 
 const splitClasses = (value: string): ReadonlyArray<string> =>
   value.split(/\s+/).filter(token => token.length > 0)
@@ -80,7 +108,7 @@ const toDiagnostic = (
 
 export const resolve = <Message>(
   base: SlotAttributes<Message> | undefined,
-  contributions: ReadonlyArray<StaticContribution<Message>>,
+  contributions: ReadonlyArray<SourcedContribution<Message>>,
   options: ResolveOptions = {},
 ): SlotAttributes<Message> => {
   const slot = options.slot
@@ -102,13 +130,19 @@ export const resolve = <Message>(
   // and over each other (that is restyling); a Behavior's property has one
   // owner, shorthands and sides included, and a Style piece may not overwrite
   // what a Behavior set.
-  const styleOwners = new Map<string, 'base' | 'style' | 'behavior'>()
-  const mounts: Array<MountAction<Message, any>> = []
-  const mountNames = new Map<string, number>()
+  const styleOwners = new Map<
+    string,
+    { readonly writer: 'base' | 'style' | 'behavior'; readonly source: string }
+  >()
+  const mounts: Array<HeldMount<Message>> = []
+  const mountSources = new Map<string, string>()
   const preserved: Array<Attribute<Message> | ChildAttribute> = []
   const added: Array<Attribute<Message> | ChildAttribute> = []
-  const ownedEvents = new Map<string, string>()
-  const ownedAttributes = new Map<string, string>()
+  // Each owned event and attribute: the Foldkit tag that set it, and who gave it.
+  const ownedEvents = new Map<string, { readonly tag: string; readonly source: string }>()
+  const ownedAttributes = new Map<string, { readonly tag: string; readonly source: string }>()
+  // Who is contributing now: the view while its base is read, then each Mixin in turn.
+  let source = VIEW
 
   function fail(
     code: DiagnosticCode,
@@ -143,31 +177,33 @@ export const resolve = <Message>(
     const declaration = declarationName(property)
     for (const [written, owner] of styleOwners) {
       if (
-        (writer === 'behavior' || (writer === 'style' && owner === 'behavior')) &&
+        (writer === 'behavior' || (writer === 'style' && owner.writer === 'behavior')) &&
         overlaps(declaration, written)
       ) {
         fail(
           'mixins:style-property-conflict',
-          `two owners for style property "${property}": ${owner === 'base' ? 'the view' : owner === 'style' ? 'a Style' : 'a Behavior'} already sets "${written}"`,
-          { property, owner, writer },
+          `two owners for style property "${property}": ${quoted(owner.source)} already sets "${written}", and ${quoted(source)} sets "${property}"`,
+          { property, owner: owner.writer, writer, contributors: [owner.source, source] },
         )
       }
     }
     if (!styleOwners.has(declaration) || writer === 'behavior') {
-      styleOwners.set(declaration, writer)
+      styleOwners.set(declaration, { writer, source })
     }
     style.set(declaration, { property, value })
   }
 
-  const addMount = (action: MountAction<Message, any>): void => {
-    const count = (mountNames.get(action.name) ?? 0) + 1
-    mountNames.set(action.name, count)
-    if (count > 1) {
-      fail('mixins:duplicate-mount-name', `two Mounts are both named "${action.name}"`, {
-        name: action.name,
-      })
+  const addMount = (action: MountAction<Message, any>, child?: ChildAttribute): void => {
+    const owner = mountSources.get(action.name)
+    if (owner !== undefined) {
+      fail(
+        'mixins:duplicate-mount-name',
+        `two Mounts are both named "${action.name}": ${quoted(owner)} gives one, and ${quoted(source)} the other`,
+        { name: action.name, contributors: [owner, source] },
+      )
     }
-    mounts.push(action)
+    mountSources.set(action.name, source)
+    mounts.push(child === undefined ? { action } : { action, child })
   }
 
   const failUnknownHandler = (tag: string): never =>
@@ -182,8 +218,8 @@ export const resolve = <Message>(
     if (tag === 'OnMount') return
     if (isUnknownHandler(tag)) failUnknownHandler(tag)
     Option.match(eventNameOf(tag, value), {
-      onSome: eventName => ownedEvents.set(eventName, tag),
-      onNone: () => ownedAttributes.set(attributeNameOf(tag, value), tag),
+      onSome: eventName => ownedEvents.set(eventName, { tag, source }),
+      onNone: () => ownedAttributes.set(attributeNameOf(tag, value), { tag, source }),
     })
   }
 
@@ -196,6 +232,8 @@ export const resolve = <Message>(
         for (const token of splitClasses(inner.value)) addClass(token)
         return
       }
+      // An element holds one Mount, so a child's joins the slot's others (#531).
+      if (isMount(inner)) return addMount(inner.action, attribute)
       if (isTagged(inner)) reserve(inner._tag, inner)
       preserved.push(attribute)
       return
@@ -260,11 +298,16 @@ export const resolve = <Message>(
     if (owner !== undefined) {
       fail(
         'mixins:attribute-conflict',
-        `two owners for "${owner}": ${tag} sets the same attribute (${attributeName})`,
-        { tag, attribute: attributeName, owner },
+        `two owners for "${owner.tag}": ${quoted(owner.source)} sets ${attributeName}, and ${quoted(source)} sets it again through ${tag}`,
+        {
+          tag,
+          attribute: attributeName,
+          owner: owner.tag,
+          contributors: [owner.source, source],
+        },
       )
     }
-    ownedAttributes.set(attributeName, tag)
+    ownedAttributes.set(attributeName, { tag, source })
   }
 
   const claimEvent = (tag: string, eventName: string): void => {
@@ -278,11 +321,11 @@ export const resolve = <Message>(
     if (owner !== undefined) {
       fail(
         'mixins:event-conflict',
-        `two owners for event "${eventName}": "${owner}" already owns it`,
-        { tag, event: eventName, owner },
+        `two owners for event "${eventName}": ${quoted(owner.source)} already owns it through "${owner.tag}", and ${quoted(source)} claims it through "${tag}"`,
+        { tag, event: eventName, owner: owner.tag, contributors: [owner.source, source] },
       )
     }
-    ownedEvents.set(eventName, tag)
+    ownedEvents.set(eventName, { tag, source })
   }
 
   const applyMixinAttribute = (attribute: Attribute<Message> | ChildAttribute): void => {
@@ -293,6 +336,7 @@ export const resolve = <Message>(
         for (const token of splitClasses(inner.value)) addClass(token)
         return
       }
+      if (isMount(inner)) return addMount(inner.action, attribute)
       if (isTagged(inner)) claim(inner._tag, inner)
       added.push(attribute)
       return
@@ -320,6 +364,7 @@ export const resolve = <Message>(
   for (const attribute of base ?? []) addBase(attribute)
 
   for (const contribution of contributions) {
+    source = contribution.source ?? 'a Mixin'
     for (const token of contribution.classes ?? []) addClass(token)
     for (const [property, value] of Object.entries(contribution.style ?? {})) {
       writeStyle(property, value, 'style')
@@ -341,39 +386,60 @@ export const resolve = <Message>(
   return emitted
 }
 
+/**
+ * A child attribute's Mount sends the child's Messages, which only its own
+ * boundary's dispatch lifts to the parent: run beside the others, it sends
+ * through that and gives the composed stream nothing.
+ */
+const messagesOf = <Message>(
+  held: HeldMount<Message>,
+  element: Element,
+  viewStateChanges: Parameters<MountAction<Message, any>['f']>[1],
+): Stream.Stream<Message, unknown> => {
+  const child = held.child
+  if (child === undefined) return held.action.f(element, viewStateChanges)
+  return Stream.unwrap(
+    Effect.sync(() => {
+      const dispatch = child.resolveMountDispatch?.resolve() ?? child.dispatch
+      return held.action.f(element, viewStateChanges).pipe(
+        Stream.tap(message => Effect.sync(() => dispatch(message))),
+        Stream.drain,
+      )
+    }),
+  )
+}
+
 const composeMounts = <Message>(
-  mounts: ReadonlyArray<MountAction<Message, any>>,
+  mounts: ReadonlyArray<HeldMount<Message>>,
   slot: string | undefined,
-): Attribute<Message> | undefined => {
+): Attribute<Message> | ChildAttribute | undefined => {
   const first = mounts[0]
   if (first === undefined) return undefined
-  if (mounts.length === 1) return mountAttribute(first)
+  if (mounts.length === 1) return first.child ?? mountAttribute(first.action)
   const slotOf = Option.fromUndefinedOr(slot)
-  const name = `Mixins[${slot ?? 'slot'}](${mounts.map(mount => mount.name).join(',')})`
+  const name = `Mixins[${slot ?? 'slot'}](${mounts.map(({ action }) => action.name).join(',')})`
   return mountAttribute({
     name,
     args: {
       slot: slot ?? null,
-      actions: mounts.map(mount => ({ name: mount.name, args: mount.args })),
+      actions: mounts.map(({ action }) => ({ name: action.name, args: action.args })),
     },
     f: (element, viewStateChanges) =>
       Stream.mergeAll(
-        mounts.map(mount =>
+        mounts.map(held =>
           // A merge ends every stream in it when one fails, so each fails alone,
           // reported as `MountFailed`, and the rest go on: dispatched at the
           // element, since a Mount runs outside the application's resources.
           // One that ends interrupted is being torn down with its element.
-          mount
-            .f(element, viewStateChanges)
-            .pipe(
-              Stream.catchCause(cause =>
-                Cause.hasInterruptsOnly(cause)
-                  ? Stream.empty
-                  : Stream.fromEffectDrain(
-                      Reported.dispatch(element, mountFailed(mount.name, slotOf, cause)),
-                    ),
-              ),
+          messagesOf(held, element, viewStateChanges).pipe(
+            Stream.catchCause(cause =>
+              Cause.hasInterruptsOnly(cause)
+                ? Stream.empty
+                : Stream.fromEffectDrain(
+                    Reported.dispatch(element, mountFailed(held.action.name, slotOf, cause)),
+                  ),
             ),
+          ),
         ),
         { concurrency: 'unbounded' },
       ),

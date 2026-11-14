@@ -91,6 +91,7 @@ import {
 } from 'foldkit-remote'
 import { answerUnread, clockSkewed, publishFailed, serverDefect } from './diagnostics.js'
 import { unauthenticatedAnswer } from './refusal.js'
+import { memoryWriter } from './memoryWriter.js'
 
 /** What a call `RemoteServer.answer` makes can fail with, before the answer says so. */
 type AnswerError =
@@ -2152,6 +2153,12 @@ export const RemoteServer = {
   /** A backend held in memory, for a first run, a test or a demo. See `memory`. */
   memory,
 
+  /**
+   * A declared write landed over a memory backend's rows (`MemoryStore`), as
+   * `foldkit-remote-drizzle`'s writer lands it over a table. See `memoryWriter`.
+   */
+  memoryWriter,
+
   /** A mutation outcome's report that `ref` now heads the connection. */
   prepend: (
     connection: ConnectionIdentity,
@@ -3437,6 +3444,7 @@ export const RemoteServer = {
 }
 
 export * from './evaluate.js'
+export type { MemoryWriterOptions } from './memoryWriter.js'
 export { bodyLimit } from './body.js'
 export type {
   AnswerUnread,

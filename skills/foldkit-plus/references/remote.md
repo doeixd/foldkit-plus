@@ -719,6 +719,12 @@ seconds, `0` never) of its Effect clock, else its own clock, reporting `ClockSke
 same `requestId`, which a ledgered writer answers from its record. Declaring them, and
 invariants: [entity.md](entity.md).
 
+`Data.can(model, M, partialInput)` reads what the Model holds and answers `Can.Yes`,
+`Can.No({ refusal })` (`Forbidden { reason }`, `Unmet`, `Invalid { entity, rule, message, path }`,
+the server's order) or `Can.Undecided({ reasons })` (row, field, `may` member or input key missing; an
+increment or computed field not worked out). A hint: `Data.mutate` still asks the server.
+Throws for a mutation not declared with `Mutation.write`. Match with `Can.match`.
+
 **Refusals.** `Mutation.make(name, { Input, Output, Refusal })` declares what
 the server may refuse with (`Refusal.field(key, reason)`, `Refusal.conflict`,
 or any codec); a `Mutation.write` whose write has a `when` may also be refused
@@ -1025,6 +1031,36 @@ expect(report.agreed).toEqual(expect.arrayContaining(['Card:c9.createdAt']))
 Pin the server's `Clock` to `now`. What the client left unknown is not
 compared; a check that compared nothing throws.
 
+**Walking Messages from starts you did not build.** `Walk.run`
+(`foldkit-remote/testing`) applies seeded random Messages to a Model and
+checks a law after every step. It begins from a list of named starts, because
+a law that holds from the Model an example builds may break from one no
+Message produces (a checkpoint, a hydrated snapshot, a row written by SQL):
+
+```ts sketch
+const cases = Walk.cases<Model, Message>()({
+  Add: { 'one': () => ({ _tag: 'Add', by: 1 }), 'two': () => ({ _tag: 'Add', by: 2 }) },
+}) // a Message variant with no entry does not compile
+const result = await Walk.run({
+  cases: cases.list,
+  from: [{ name: 'loaded', start: loaded }, ...Walk.states(Model, { count: 20, seed: 7 })],
+  step: (model, message) => Data.reduce(model, message), // may return a Promise
+  violations: (before, message, after) => [{ law: 'below 100', message: '…' }], // [] when it holds
+  seeds: 200,
+  steps: 12,
+  regressions: [{ name: 'a fixed case', from: loaded, case: () => message }], // run first
+})
+expect(result.failures).toEqual([]) // each: { start, seed, path, broken }
+```
+
+A failure names its start, seed and the cases applied. The same seed draws
+the same walk, so a seed in a test name stays reproducible. `Walk.states`
+builds values over the Schema's encoded side, decodes each through the
+Schema (a check refuses what it should; a refused value is drawn again, up to
+a bound), and gives the same starts for the same seed. A kind it has no
+generator for (`Option`, `Date`, a recursive Schema) throws at the call,
+naming the kind and its path: give such a Model's starts by hand.
+
 **The same properties in a real browser.** `foldkit-plus/testing/playwright`
 checks the drawn page over the real network, where SSR, persistence and the
 Worker take part (`playwright` is an optional peer, for its types):
@@ -1116,6 +1152,12 @@ const inProcess = Remote.clientLayer(handlers)            // tests/SSR/worker
 // No server yet: RemoteServer.memory({ domain: Data, rows: { Project: [...] } }).layer.
 // Rows in wire shape (a relation is 'User:u1'); Query.define bodies run over them;
 // mutations: store => [...] write through store.write. No live.
+// A declared write over the rows: mutations: store => [RemoteServer.write(Reserve,
+//   RemoteServer.memoryWriter(store, Stock, { operators }))] decides what the Drizzle writer
+// decides (expect, when, increments, computed fields over the row before, invariants, a
+// taken id), refused as Conflict, Unmet, Invalid or Taken. It holds no ledger and judges no
+// rule reading another row, nor cascades, restricts or clears: RemoteServer.write and
+// GuardServer.writer refuse, by name, what needs one where it is served.
 // authorize: { Project: (principal: Principal, fields) => ... } plus principal: the layer's.
 // filter: { Project: (principal, fields) => Effect<{ fields, apply }> } decides per record;
 // readable: (principal, row) => Effect<(entity, values) => boolean> hides rows from reads,

@@ -1,6 +1,7 @@
 /**
  * What client and server share: one Entity, who may change it, what every row
- * of it holds, what every change of it holds, and five declared writes. Nothing here runs a query or touches a table.
+ * of it holds, what every change of it holds, its states, and five declared
+ * writes. Nothing here runs a query or touches a table.
  */
 import { Schema } from 'effect'
 import { Entity, Expr, Write } from 'foldkit-entity'
@@ -62,6 +63,11 @@ export const Product = ProductFields.pipe(
   publishedStaysPublished,
 )
 
+/** A product's states, declared once: what a write starts from and leaves, and what a query asks for. */
+export const Draft = Entity.refine(Product, 'Draft', { status: 'draft' })
+export const Published = Entity.refine(Product, 'Published', { status: 'published' })
+export const Archived = Entity.refine(Product, 'Archived', { status: 'archived' })
+
 /** A guarded rename: the rules decide who may, the writer's revision pin when it lands. */
 export const Rename = Mutation.write(
   'Rename',
@@ -74,6 +80,7 @@ export const Rename = Mutation.write(
  * A transition that makes sense from one state only: a draft is published.
  * An archived product is not; a published one already is, so publishing it
  * again changes nothing and is answered as written, as a retry would be.
+ * That it leaves the product published is proved where it is declared.
  */
 export const Publish = Mutation.write(
   'Publish',
@@ -82,7 +89,7 @@ export const Publish = Mutation.write(
       Product,
       Schema.Struct({ id: Schema.String, status: Schema.Literal('published') }),
     ),
-    { id: 'id', when: () => Expr.eq(Product.fields.status, 'draft') },
+    { id: 'id', from: Draft, becomes: Published },
   ),
 )
 

@@ -20,6 +20,7 @@ import {
   InvalidExchangeError,
   InvalidOutboxError,
   InvalidReplicaHistoryError,
+  LawBrokenError,
   ReplayError,
   ReplicaClosedError,
   ServerOnlyMessageError,
@@ -382,6 +383,21 @@ export interface SyncDefinitionOptions<Message, Shared, SharedEncoded> {
    * replica replays the same one in place of what it sent.
    */
   readonly stamp?: ((message: Message, commit: CommitStamp) => Message) | undefined
+  /**
+   * Optional. The document's laws, over the snapshot before an operation and
+   * the one it leaves: the first broken one, or none. The server's journal
+   * refuses an operation that breaks one, and a replica's `submit` refuses a
+   * Message whose optimistic result does. `forApplication(...).make`'s `laws`
+   * builds it.
+   */
+  readonly judge?: ((before: Shared, after: Shared) => Option.Option<DeclaredLaw>) | undefined
+}
+
+/** A law of a document, as declared: its id, its words, and the shared fields it names. */
+export interface DeclaredLaw<Id extends string = string> {
+  readonly id: Id
+  readonly message: string
+  readonly path: ReadonlyArray<string>
 }
 
 /**
@@ -496,6 +512,16 @@ export interface JournalContract<Operation, Shared> {
   }
   readonly empty: () => Shared
   readonly reduce: (snapshot: Shared, operation: Operation) => Shared
+  /**
+   * Present when the definition has laws: Durable's `judge`, run after
+   * `reduce` and before the operation is written.
+   */
+  readonly judge?: (request: {
+    readonly before: Shared
+    readonly after: Shared
+  }) =>
+    | true
+    | { readonly rule: string; readonly message: string; readonly path: ReadonlyArray<string> }
   /** Present when the definition stamps: Durable's `stamp`, over the operation's Message. */
   readonly stamp?: (
     operation: Operation,
@@ -727,6 +753,15 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
     snapshot: { encode: encodeShared, decode: decodeShared },
     empty: () => definition.empty,
     reduce: (snapshot, operation) => definition.replay(snapshot, decodeMessage(operation.message)),
+    ...(definition.judge === undefined
+      ? {}
+      : {
+          judge: ({ before, after }: { readonly before: Shared; readonly after: Shared }) =>
+            Option.match(definition.judge!(before, after), {
+              onNone: () => true as const,
+              onSome: law => ({ rule: law.id, message: law.message, path: law.path }),
+            }),
+        }),
     ...(definition.stamp === undefined
       ? {}
       : {
@@ -972,20 +1007,35 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
             // too (an upgrade that changed `update` for a pending Message), so
             // it sits inside the same typed error as the new Message's replay.
             const cached = yield* Ref.get(projection)
-            const replayed = yield* Effect.try({
-              try: () =>
-                definition.replay(
+            // The laws judge the result there too, a hint over what is held: the
+            // server judges again over the snapshot it commits on.
+            const { replayed, broken } = yield* Effect.try({
+              try: () => {
+                const before =
                   cached !== undefined && cached.state === current
                     ? cached.shared
-                    : optimistic(current),
-                  message,
-                ),
+                    : optimistic(current)
+                const replayed = definition.replay(before, message)
+                return {
+                  replayed,
+                  broken:
+                    definition.judge === undefined
+                      ? Option.none()
+                      : definition.judge(before, replayed),
+                }
+              },
               catch: cause =>
                 new ReplayError({
                   message: cause instanceof Error ? cause.message : 'Replay failed',
                   cause,
                 }),
             })
+            if (Option.isSome(broken))
+              return yield* new LawBrokenError({
+                rule: broken.value.id,
+                message: broken.value.message,
+                path: broken.value.path,
+              })
             // Validated and encoded by `persist`; decoding here would demand the
             // encoded side and break a transforming `shared` codec.
             // The sequence moves on a merge too, so every submit is visible in it; a gap

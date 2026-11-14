@@ -46,6 +46,7 @@ import {
   type ConnectionIdentity,
 } from './capability.js'
 import { assertRegistered } from './registered.js'
+import type { Can } from './can.js'
 import { parsedQueryRequest } from './queryRequest.js'
 import { resolvedOf, type Asked, type NamedProjection } from './active.js'
 
@@ -605,6 +606,20 @@ export interface RemoteDomain<
     input: MutationInput<M>,
     options?: DomainMutateOptions,
   ): MutationStarted<AppModel>
+  /**
+   * Whether a registered write would be refused, told from what `model` holds
+   * and in the order the server refuses: a held `may`, the write's `when`,
+   * then the invariants of the row it leaves. `input` may leave keys out: a
+   * `when` that reads one is undecided, and the invariants are judged over the
+   * row with the keys given. A hint only: `mutate` still asks the server, and a
+   * `No(Unmet)` is answered as written when the server finds the row already
+   * where the write puts it. Throws for a mutation not declared as a `Write`.
+   */
+  can<M extends MutationDescriptor<any, any, any>>(
+    model: AppModel,
+    mutation: M & Registered<M['name'], MutationName<Mutations[number]>, 'Mutation'>,
+    input: Partial<MutationInput<M>>,
+  ): Can
   /**
    * What Remote knows of a mutation `mutate` started, by its request id:
    * pending, applied, or failed with the error the server or transport gave.

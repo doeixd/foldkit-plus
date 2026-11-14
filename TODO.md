@@ -306,7 +306,9 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
    reason beside it. First, in parallel: A1, A2, B1, B2, C1, E2, F2, H1.
    [decisions-2026-11-12-build-deferred.md](./docs/design/decisions-2026-11-12-build-deferred.md)
 4. **Laws on every state owner** (#541 and its parts #533 to #540, #542,
-   #543), fifteen work packages. Status of every one: not started. "After"
+   #543), fifteen work packages. Built on the branch: WP1, WP5, WP8a (wave 1), WP2,
+   WP3, WP4 (all but `sell.walk.test.ts`, which waited on WP2), WP6, WP13 (wave 2,
+   PR #559). The rest: not started. "After"
    names the packages that land first; models are the note's.
    [541-laws-DESIGN.md](./docs/design/541-laws-DESIGN.md) §9
    - WP1 descriptors: invariants on the identity, a bare guarded descriptor
@@ -333,7 +335,8 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
      (#537). Default. After: 6, 11, 13.
    - WP15 `foldkit-plus laws` (#536). Sonnet. After: 2.
 5. **`@alchemy.run/domain` as a second authority** (#544 to #547), work
-   packages A-WP1 to A-WP11. Status of every one: not started. A-WP6 repeats
+   packages A-WP1 to A-WP11. Built: A-WP1 (Effect 4.1.4, merged in #550), A-WP2a and
+   A-WP3 (PR #559). The rest: not started. A-WP6 repeats
    in small after each of A-WP7 to A-WP11.
    [544-547-alchemy-DESIGN.md](./docs/design/544-547-alchemy-DESIGN.md) §8
    - A-WP1 the package skeleton, Domain installed, the probe as a test
@@ -367,6 +370,59 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
    - `Scenario`: laws WP12 owns the type. If A-WP4 is ready first it ships its
      local `WriteScenario` in D25's shape, and WP12 deletes it. `Footprint`:
      laws WP2 owns the type, and A-WP5 uses it.
+6. **UI authoring** (#551 to #558): assembly from existing contracts,
+   accessibility obligations, focus recovery, one keyboard owner, Presence
+   with interaction and recovery, inspection, agent parts, and the UI SDK
+   audit. Work packages U-WP1 to U-WP15 (with U-WP1b and U-WP3b). Built:
+   U-WP11 (the audit, `docs/design/558-audit-FINDINGS.md`). Running: U-WP1,
+   U-WP8. The rest: not started.
+   First, in parallel: U-WP1, U-WP8, U-WP11.
+   [551-558-ui-authoring-DESIGN.md](./docs/design/551-558-ui-authoring-DESIGN.md) §12
+   - U-WP1 attachments a view remembers, contributors named in conflicts,
+     `SlotView.over`, and #531 (#556, #551, #554). Default. After: none.
+   - U-WP1b every Behavior factory takes the binder where it takes the
+     slots (#551). Sonnet. After: U-WP1; before U-WP3b, U-WP5 and U-WP12.
+   - U-WP2 `SlotView.describe` and `SlotView.resolution` (#556). Sonnet.
+     After: U-WP1.
+   - U-WP3 `Behaviors.Keys`, one `keydown` owner from named routes (#554).
+     Default. After: U-WP1.
+   - U-WP3b the primitives' routes, and `DismissLayer` yielding to a handled
+     Escape (#554). Sonnet. After: U-WP3, U-WP1b.
+   - U-WP4 obligations on `A11y.pattern`, `provides`, `A11y.conform` (#552).
+     Default. After: U-WP1; its six `provides` lines after U-WP3b.
+   - U-WP5 `FocusRecovery`, and `FollowTabStop` scoped to its owner (#553).
+     Sonnet. After: U-WP1, U-WP3b.
+   - U-WP6 `Presence.behavior`: exiting content inert, focus moved once
+     (#555). Sonnet. After: U-WP5.
+   - U-WP7 `Conformance`: rendered scenarios for listbox, checkbox, tree,
+     dialog and tabs (#552, #558). Sonnet. After: U-WP4; U-WP3b for the
+     nested-layer case.
+   - U-WP8 `Agent.part` and `runtime.parts` (#557). Default. After: none.
+   - U-WP9 `examples/authoring`, with the Save fixture and the type-cost
+     comparison (#551, #556, #557). Sonnet. After: U-WP2, U-WP3b, U-WP6,
+     U-WP8.
+   - U-WP10 the guide, the skill references, the READMEs (#551, #558).
+     Sonnet. After: all but U-WP11 and U-WP12.
+   - U-WP11 the audit of reorder, overlays and virtual lists, recorded as
+     browser scenarios and a findings note (#558). Sonnet. After: none.
+   - U-WP12 `Reorder`, the keyboard path beside `PointerDrag` (#558).
+     Default. After: U-WP11, U-WP3b.
+   - U-WP13 edge scrolling while dragging, and a marquee press on empty
+     space (#558, audit R1 and R6). Sonnet. After: U-WP12.
+   - U-WP14 an overlay's focus return when its opener is gone, and a
+     portaled panel inheriting its region's custom properties (#558, audit
+     O2 and O3). Sonnet. After: U-WP5.
+   - U-WP15 the chat scroller following the end when its frame shrinks
+     (#558, audit C1; flips its `DEFECT:` test). Sonnet. After: none.
+
+   **File order within item 6** (the note's §12 holds the detail):
+   `packages/mixins/src/behavior.ts` and `slotView.ts` are U-WP1's, then
+   U-WP4's; `packages/mixins-surface/src/surfaceView.ts` U-WP1's, then
+   U-WP2's; the factories' signatures in
+   `packages/primitives/src/interaction` and `packages/mixins/src/behaviors`
+   U-WP1b's first, and `tree-navigation.ts` then U-WP3b's, then U-WP5's. `packages/agent/src/expose.ts` and `runtime.ts`
+   are shared with laws WP9: whichever starts second builds on the first.
+   Nothing in item 6 touches `packages/remote`, `entity`, `sync` or `guard`.
 
 Waiting on the owner: the upstream posts (foldkit#1657, #1872, the Workers `fetch` signature, the
 identity markers, floating-ui), the three alchemy-run/alchemy reports, and the Jev reviews (no key here).

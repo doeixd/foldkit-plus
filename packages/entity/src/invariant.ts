@@ -23,25 +23,18 @@ import { OperatorMissingError, truthOver, type Row } from './evaluate.js'
 import { kernelOperators } from './memoryTable.js'
 import type { MemoryOperators } from './operators.js'
 import { put } from './record.js'
+import { oneRelations } from './rows.js'
 import {
   Expr,
   Query,
   dependenciesOf,
   type FieldExpr,
   type NextExpr,
-  type OneRelation,
   type Predicate,
   type Reads,
 } from './expr.js'
 import { extend, invariantsOfIdentity, variantBases } from './descriptor.js'
-import type {
-  AnyEntity,
-  EntityField,
-  EntityIdentity,
-  EntityInput,
-  EntityMember,
-  InputMember,
-} from './index.js'
+import type { AnyEntity, EntityField, EntityIdentity, EntityInput, InputMember } from './index.js'
 import { storesNull, variantsOf } from './variants.js'
 
 type AnyField = EntityField<string, string, Schema.Constraint>
@@ -157,12 +150,8 @@ const declareOn = <E extends AnyEntity>(
   options: Options<E>,
 ): Invariant => {
   const fields = entity.fields as Readonly<Record<string, E['fields'][string]>>
-  const relations = entity.relations as Readonly<Record<string, EntityMember>>
-  // A `one` relation reads as the id it points at; a `many` holds no one value.
-  const links = Object.values(relations).flatMap(member => {
-    if (member._tag !== 'Relation' || member.cardinality !== 'one') return []
-    return [member as OneRelation]
-  })
+  // A `one` relation reads as the id it points at.
+  const links = oneRelations(entity)
   const nexts = [
     ...Object.entries(fields).map(([key, field]) => [key, Expr.next(field)] as const),
     ...links.map(link => [link.key, Expr.next(link)] as const),

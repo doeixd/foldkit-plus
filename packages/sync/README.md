@@ -485,13 +485,15 @@ handles both with one function:
   replica belongs to another actor. `reason` is the rule's own words when it
   gave some (a plain `false` gives none), cut to 500 characters. Remote's
   `Denied.Forbidden` has the same shape.
-- `Invalid { message, entity, rule, path }`: the operation failed, with a fixed
-  sentence as `message`. "Not a valid operation" when `validate` refused or
-  threw, `authorize` threw, or the reducer could not apply it; "Not an
-  operation this server accepts" when it did not decode or named another
-  document; "Its id was already used for another" for a reused id.
-  `journalExchange` names no Entity, so `entity`, `rule` and `path` are empty;
-  the shape is Remote's `Refusal.invalid`.
+- `Invalid { message, entity, rule, path }`: the operation failed. When it
+  breaks one of the contract's [laws](#laws-what-every-snapshot-keeps), `rule`
+  is the law's id and `message` and `path` are the law's own. Otherwise `rule`
+  and `path` are empty and `message` is a fixed sentence: "Not a valid
+  operation" when `validate` refused or threw, `authorize` or a law threw, or
+  the reducer could not apply it; "Not an operation this server accepts" when
+  it did not decode or named another document; "Its id was already used for
+  another" for a reused id. `journalExchange` names no Entity, so `entity` is
+  empty; the shape is Remote's `Refusal.invalid`.
 - `Unreadable { version }`: written at an older Message version that no step
   of the server's history reads. The replica keeps such an operation in
   `status.refused` as well, with its payload (see
@@ -621,6 +623,63 @@ that is not a durable variant is a type error. The rules ride in
 
 An edit the policy refuses still shows at once on the client, then comes back
 as a rejection, as [above](#what-to-show-the-user).
+
+### Laws: what every snapshot keeps
+
+`authorize` decides who may make a change. What the document must always be,
+whoever changes it and whichever Message does, is a **law**: a predicate over
+the snapshot an operation leaves.
+
+```ts
+const CappedBoard = AppSync.make({
+  documentId: DocumentId.make('capped-board'),
+  ...AppSync.compose(Todos, Members),
+  laws: {
+    atMost100Todos: {
+      holds: ({ after }) => after.todos.length <= 100,
+      message: 'A board holds 100 todos',
+      path: ['todos'],
+    },
+  },
+})
+```
+
+```text
+operation -> validate -> authorize -> reduce -> laws(before, after) -> written
+```
+
+- **Where it is judged.** The contract's `journalContract()` carries a
+  `judge` built from the laws, which the journal runs inside the commit after
+  `reduce`, over the snapshot before and the one the operation leaves. The
+  first law that does not answer `true`, in the record's order, refuses the
+  operation: `journalExchange` sends it as `Invalid` with the law's id as
+  `rule`, its `message`, and its `path`. On D1 a commit that lost a race is
+  reduced and judged again over the snapshot it then lands on.
+- **What it sees.** `holds` gets `{ before, after }`, typed over the shared
+  fields alone, so a law that reads a local field does not compile. It sees no
+  principal and no Message: a rule about who belongs in `authorize`.
+- **Matching the refusal.** `CappedBoard.laws.atMost100Todos` is the declared
+  law (`{ id, message, path }`), and
+  `Sync.isInvalidBy(refusal, CappedBoard.laws.atMost100Todos)` tells its
+  refusal from any other.
+- **On the replica.** `submit` judges the Message's optimistic result before
+  writing the outbox, and fails with `LawBrokenError` (`rule`, `message`,
+  `path`) when it breaks a law, so nothing is sent; `Sync.mount` reverts the
+  edit it showed and hands the error to `onPersistenceFailure`. It is a hint: the
+  optimistic snapshot holds pending edits the server may still refuse, and the
+  server judges again where it commits.
+- **Strict.** A law judges `after`, whatever `before` held. A document that
+  already breaks one, because the law was added after the fact, refuses every
+  operation that leaves it broken until one repairs it. To let such documents
+  shrink toward a new cap, write the law over `before` too
+  (`after.todos.length <= Math.max(100, before.todos.length)`), and run
+  `CappedBoard.judge(snapshot, snapshot)` over the stored snapshots before the
+  deploy to find the ones it would refuse.
+- **The server's own appends** go through the same commit, so
+  `appendAsServer` and a reaction's appends are judged too.
+
+`make` throws for a law whose id or message is over 500 characters, or whose
+`path` names more than 16 fields: its refusal could not be sent.
 
 ### Stamp what only the commit decides
 
@@ -774,8 +833,8 @@ const serving = Effect.gen(function* () {
   redelivered webhook is harmless; the same key with another Message fails
   with `ServerKeyReusedError`, and the first fact stands. A key is a
   non-empty string of at most 200 characters.
-- **It goes through the journal's `append`**, so `validate` and `authorize`
-  judge it like any operation.
+- **It goes through the journal's `append`**, so `validate`, `authorize` and
+  the laws judge it like any operation.
 - **Keep the server's `actorId`.** The journal binds each replica id to the
   first actor that commits from it, so after a change of `actorId` a
   redelivered key is an `IdentityConflictError`: that fact was the first
@@ -783,7 +842,7 @@ const serving = Effect.gen(function* () {
   new actor.
 - **A refused append frees its key.** The key is recorded before the append,
   so a redelivery after a deploy appends the bytes first written; when the
-  journal refuses the append (`validate`, `authorize`), nothing committed and
+  journal refuses the append (`validate`, `authorize`, a law), nothing committed and
   the record is cleared, so the key can name a Message the rules take. A
   redelivery after a refusal is judged afresh: refused again with the same
   error, or committed if the rules now take it, never `ServerKeyReusedError`.
@@ -857,7 +916,7 @@ commit -> react: read after the stored cursor -> run (answer recorded)
   defect and a timeout (`timeout`, 10 s by default) are failures like any
   other.
 - **A run that can never succeed is parked**: the journal refused its append
-  (`validate`, `authorize`), or its answer holds a Message `appends` does not
+  (`validate`, `authorize`, a law), or its answer holds a Message `appends` does not
   name, more than 16, or one that will not encode. So is one that has failed
   `attempts` times (8) *and* for at least `parkAfter` (an hour), so an outage
   parks nothing. The journal itself failing counts toward neither. A parked

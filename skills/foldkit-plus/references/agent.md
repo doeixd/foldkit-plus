@@ -188,9 +188,35 @@ RenamedList: {
 
 ### Resources, audit, manifest
 
-- `resources: [Agent.resource('todos', { description, schema: Model.fields.todos, read: model => model.todos })]` in `make`; MCP serves them as `app://<name>` and the context as `app://context`.
+- `resources: [Agent.resource('todos', { description, schema: Model.fields.todos, read: model => model.todos })]` in `make`; MCP serves them as `app://<name>`, the context as `app://context`, and a runtime's parts as `app://parts`.
 - `Agent.auditLog({ capacity, principal: p => p.userId, includeInput, redact: ['token'] })` passed as `bind({ audit })`; `audit.entries()` lists decisions. It never stores the Model, and a throwing sink never fails a dispatch.
-- `Agent.toManifest(definition)` (agent.json, commit it so exposure changes show in review), `Agent.toMarkdown(definition)`, and `Agent.messages(definition)` for tests without an LLM.
+- `Agent.toManifest(definition, parts?)` (agent.json, commit it so exposure changes show in review; `parts` lists the parts too), `Agent.toMarkdown(definition)`, and `Agent.messages(definition)` for tests without an LLM.
+
+### Parts: which control is which capability
+
+A part links a control on the screen to the contract: a label, an ARIA `role`, a key of the projected context (`field`), and an exposed capability it `invokes` (or that `sets` its field). Discovery reads the declaration, not the DOM, so it works headless.
+
+```ts
+const AppParts = TodoAgent.parts(AppAgent, {
+  create: Agent.part({ label: 'New todo', role: 'button', invokes: Message.RequestedCreateTodo }),
+  remove: Agent.part({
+    role: 'button',
+    invokes: Message.RequestedDeleteTodo,
+    each: context => context.todos, // the projected context, never the Model
+    key: todo => todo.id,           // the occurrence key
+    label: todo => `Delete ${todo.title}`,
+    input: todo => ({ id: todo.id }), // a hint; dispatch decodes it again
+  }),
+})
+const partsRuntime = TodoAgent.bind({ definition: AppAgent, host, parts: AppParts })
+const listed = Effect.runSync(partsRuntime.parts.list) // one snapshot; sends no Message
+```
+
+- An unexposed constructor or an unprojected `field` is a type error and throws in `parts`.
+- **A part gives no authority**: acting on one is `messages.dispatch(capability.name, input)`, through `available`, decode and `authorize` as ever. A part whose capability is unavailable is not listed.
+- `value`, and what `each`/`key`/`label` see, come from the context encoded through its Schema and decoded again, so a property it leaves out is never there.
+- `parts.find({ label })` answers `Agent.Found` `One`, `None`, or `Ambiguous` with every match; identity is `id` plus `occurrence`, never the label.
+- `AppParts.attributes(h, 'create')` / `attributes(h, 'remove', key)` write `data-fk-part`/`data-fk-part-key` for an in-page adapter or a test; nothing reads them for authority.
 
 ## 5. Adapters (all serve one bound runtime)
 

@@ -21,9 +21,8 @@ export default [
     edits: [
       {
         file: '../src/mixin.ts',
-        find: '): Mixin<Message> => Object.freeze({ name, contributions: ownCopy(contributions) })',
-        replace:
-          '): Mixin<Message> => Object.freeze({ name, contributions: Object.freeze({ ...contributions }) })',
+        find: '    name,\n    contributions: ownCopy(contributions),\n    ...(meta',
+        replace: '    name,\n    contributions: Object.freeze({ ...contributions }),\n    ...(meta',
       },
     ],
     tests,

@@ -15,7 +15,7 @@ import type * as Update from 'foldkit/update'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
 import { RemoteUnauthenticated } from 'foldkit-remote'
 import type { Diagnostic } from 'foldkit-surface'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { Sync, documentId, replicaId, type Operation } from '../src/index.js'
 import { armAlarm, defineDocumentHost, type AcceptingWebSocket } from '../src/do.js'
 import { documentHost, reaction } from '../src/journal.js'
@@ -844,6 +844,13 @@ describe('defineDocumentHost with reactions', () => {
   })
 
   it('brings an alarm earlier, never later', async () => {
+    // A held clock: on a loaded runner the upgrade and the commit took longer
+    // than the 800ms below, the alarm had passed, and the host rightly
+    // replaced it, so the test read the clock rather than the rule.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
     const file = notesFile()
     const storage = alarmStorage()
     // Sooner than the second the host would set after a commit.

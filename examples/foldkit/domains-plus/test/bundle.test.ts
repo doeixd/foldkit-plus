@@ -23,7 +23,12 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // 193,520 bytes on CI on 2026-11-12, 20 over: the review fixes added the
 // resolver's tables of each Foldkit handler's DOM event (#523) and of the CSS
 // declarations a style key writes, its shorthands included.
-const CEILING = 194_500
+// 2026-11-14, U-WP1 (#551, #556, #531): foldkit-mixins' resolver.js grew 814
+// bytes minified (both contributors named in every ownership diagnostic, and a
+// child attribute's Mount composed through its own boundary) and behavior.js
+// 406 (each Behavior's attachment metadata, which describe reads), measured by
+// minifying the two sources before and after. The page then measured 194,714.
+const CEILING = 195_000
 
 test('the search page loads at most the budgeted brotli JavaScript', async () => {
   const report = await measure(resolve(import.meta.dirname, '..'))

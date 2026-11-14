@@ -9,6 +9,86 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`: `SlotView.over(slots)<Input, Message>()` names the slots, the
+  input and the Message universe once and returns `define`, `behavior` and
+  `parts` with them fixed; `SlotView.isBound` tells it from bare slots.
+  `foldkit-mixins-surface`'s `SurfaceView.over(surface, slots)` reads both types
+  from the Surface (#551). A Mixin carries a frozen `meta` (kind, and per slot
+  what it requires, provides and reads), filled by `Style.forSlots` and
+  `Behavior.forSlots`; `SlotView.detach(name)` and `SlotView.replace(name,
+  mixin)` address an attachment by name (`mixins:unknown-attachment`,
+  `mixins:ambiguous-attachment`). Every two-owner diagnostic names both
+  contributors in its message and `details.contributors` (#556).
+- `foldkit-agent`: parts (#557). `Agent.part({ label, role, field?, invokes?,
+  sets?, each?, key?, input? })` in `Agent.parts(definition, { … })` (also on
+  `forApplication`/`forModel`) names which control on the screen is which
+  exposed capability or key of the projected context; another is a type error
+  and throws. `bind({ parts })` adds `runtime.parts`: `list` reads one Model
+  snapshot, leaves out a part whose capability is unavailable, and reads
+  `value`, `each`, `key` and `label` from the context encoded through its
+  Schema and decoded again; `find({ label })` answers `Found.One`, `Found.None`
+  or `Found.Ambiguous`. A part adds no way to act. `Parts.attributes` writes
+  `data-fk-part`; `toManifest(definition, parts)` lists them.
+  `foldkit-agent-mcp` serves them as `app://parts`.
+- `foldkit-entity`: states and the law check (#535, #536). `Entity.refine(entity,
+  name, { field: value } or ({ row }) => predicate)` declares a named state of a
+  row on the Entity (`Entity.states`, `Entity.inState`, a narrowing `is`);
+  `Query.from(state)` queries it, and `Expr.show` prints it by name. A write takes
+  `from: state`, joined to its `when`, and `becomes: state`, proved where the
+  write is declared by enumerating the rows it can start from (one that cannot
+  be decided throws until writers enforce it); a state reaching another row is
+  neither. `Laws.check({ writes })` judges each write, or a `{ name, entity,
+  footprint }` entry (`Footprint.declared`, `Footprint.unknown`), against each
+  invariant of its Entity by enumeration over finite fields, and reports the
+  arrows between states; `Laws.show` prints it, `Write.footprint` is a
+  write's own. `Write` gains `from` and `becomes`.
+- `foldkit-sync`: a document's laws. `forApplication(...).make({ laws })` takes
+  `{ holds({ before, after }), message, path? }` per id, typed over the shared
+  fields alone; the journal judges each operation's resulting snapshot and
+  refuses one that breaks a law as `SyncRefusal.Invalid` with the law's id as
+  `rule`, which `Sync.isInvalidBy(refusal, contract.laws.id)` matches.
+  `appendAsServer` and reactions are judged too (a reaction's refused append
+  parks at once), and `replica.submit` fails with `LawBrokenError` before the
+  outbox. The contract gives back `laws` and `judge(before, after)`, an audit
+  of stored snapshots. `foldkit-durable`: `JournalOptions.judge`, run after
+  `reduce`; a broken law is an `OperationRejectedError` with `rule` and `path`.
+- `foldkit-remote-server`: `RemoteServer.memoryWriter(store, entity, { operators? })`,
+  the `EntityWriter` for a memory backend's rows: a declared write lands over them
+  as `foldkit-remote-drizzle`'s writer lands it over a table (revision, `when`,
+  increments, computed fields, invariants, a taken id), each refusal the
+  mutation's own. It holds no ledger and judges no rule reading another row.
+- `foldkit-remote-domain`: `DomainRemote`, a `RemoteClient` over an Alchemy
+  Domain Api (#544). `view` binds a View to an Entity by a numeric revision
+  field, `command` binds a command to a mutation with one `refuse`, `forbid`
+  or `fail` per declared Rejection, and `layer` answers reads and live reads
+  from the Views and writes from the commands. A write is sent under a
+  `commandId` of its operation and a digest of who asks, the target, the keys
+  and the input; its receipt holds the row's floor until a read at it answers,
+  and a write whose View is behind answers with the row its reply says it
+  wrote. Rows are ordered by revision, never by the View's cursor, and per
+  principal: once a key reads as deleted or hidden at a revision, a late row
+  of that revision or an earlier one is not let back in. `DomainReads` lists
+  the pending reads of who asks now and confirms one. The adapter keeps the
+  rows and floors of the last four principals to ask.
+- `foldkit-remote/testing`: `Walk.run` runs seeded random walks of Messages over
+  a list of named starts and checks a law after every step (it may be
+  asynchronous, so a walk can go through a writer); `Walk.cases` requires a
+  generator for every Message variant, and `regressions` run first from their
+  own starts. `Walk.states(schema, { count, seed })` derives starts from a
+  Schema, decoded through it, deterministic per seed, and throws by kind and
+  path for a kind it cannot build.
+- `foldkit-remote`: `Data.can(model, mutation, input)` tells, from what the Model
+  holds, whether a declared write would be refused: `Can.No` with `Forbidden`,
+  `Unmet` or `Invalid` in the server's order, `Can.Undecided` with its reasons
+  where the row, a field or an input key is missing, else `Can.Yes`. A hint:
+  `Data.mutate` still asks the server.
+- `foldkit-surface`: `closed: true` on `Surface.make` and `App.surface` declares a
+  Surface closed, and `Closure.violations(app, surfaces)` is the step check a
+  walk calls: a Message in the Surface's set that reads outside it is a
+  `ClosureViolation.Reads` naming the fields, and any other Message that
+  changes its projection a `ClosureViolation.Outside`. A Surface not declared
+  closed is never tested. `Surface.contract` carries the
+  flag.
 - `foldkit-remote-domain` (new, Early: it tracks a beta): the start of the
   bridge from an Alchemy Domain Api to Remote. It exports `Receipt`, the
   `{ stream, version }` a Domain command answers with, and its tests pin the
@@ -93,6 +173,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins`: a Mount inside a `ChildAttribute` on a Slot is composed with
+  the Slot's other Mounts, instead of drawn beside them where Foldkit kept one,
+  and still sends through its own boundary (#531).
+- `MessageScroller` keeps following the end when its scrolling frame shrinks (a
+  keyboard opening, a window resized): the Mount observes the scrolling parent as
+  well as the log, so the end is re-seated instead of left out of view.
+- `foldkit-remote`: `Data.can` answers `Can.Undecided`, naming the member (`Doc.gate`),
+  where a `may` member of the row is not held, instead of `Can.Yes`.
 - `foldkit-mixins`: a family's pressed fill (`active`) no longer turns a grey
   red. It added 0.05 of chroma at the fill's hue, which a grey does not have:
   shadcn's black accent pressed its secondary as a dark red, and a fill set to

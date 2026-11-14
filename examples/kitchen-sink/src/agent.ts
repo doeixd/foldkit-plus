@@ -8,7 +8,7 @@
  */
 import { Agent } from 'foldkit-agent'
 import { Projection } from 'foldkit-surface'
-import { App, Data, Message, ProjectSummary, ProjectsByOwner } from './stack.js'
+import { AgentContext, App, Data, Message, ProjectSummary, ProjectsByOwner } from './stack.js'
 
 /** Who is calling the agent. A real application resolves this from a session. */
 export interface AgentPrincipal {
@@ -40,7 +40,7 @@ const projects = Data.query(
 
 export const AppAgent = BoardAgent.make({
   // What an agent may see: the replicated notes and the current selection.
-  context: Projection.pick(App.model.notes, App.model.selectedNoteId),
+  context: AgentContext.projection(undefined),
 
   messages: BoardAgent.expose(Message, {
     RequestedCreateNote: {

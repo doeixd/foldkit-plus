@@ -2526,6 +2526,14 @@ one write from here to the statement that lands it. `keys` names the input keys
 an author changed: only those are shown, and the request carries them for the
 server to write; the input is still sent and validated whole.
 
+`Data.can(model, Mutation, input)` tells, before anything is sent, whether the
+server would refuse a declared write, from what the Model holds: `Can.No` with
+`Forbidden` (a held `may`), `Unmet` (the `when`) or `Invalid` (an invariant),
+checked in the server's order; `Can.Undecided` with its reasons where the row,
+a field it reads, a `may` member or an input key is missing; otherwise `Can.Yes`. It is a hint
+to grey a control: `Data.mutate` does not read it, and still asks the server. See
+[Asking before sending](../../docs/declared-writes.md#asking-before-sending-datacan).
+
 <!-- docs-check standalone use bare-app
 import { Entity as DomainEntity, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'

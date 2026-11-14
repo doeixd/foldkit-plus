@@ -594,6 +594,59 @@ do"](../packages/guard/README.md#what-the-client-may-do)). Each spares a round
 trip and decides nothing for the server, which judges every write that reaches
 it.
 
+### Asking before sending: `Data.can`
+
+A button for a write can be grey before it is pressed. `Data.can` answers, from
+what the Model holds and with no I/O, whether the server would refuse the
+write, judging in the server's own order: a held `may` (`Forbidden`), then the
+write's `when` (`Unmet`), then the invariants of the row the write leaves
+(`Invalid`). The first definite refusal answers `No`.
+
+<!-- docs-check
+const Publish = Mutation.write(
+  'Publish',
+  Write.update(
+    Entity.input(
+      Product,
+      Schema.Struct({ id: Schema.String, status: Schema.Literal('published') }),
+    ),
+    { id: 'id', when: () => Expr.eq(Product.fields.status, 'draft') },
+  ),
+)
+const Gate = Remote.make({ model: App.model.remote, entities: [Product], mutations: [Publish] })
+-->
+```ts
+import { Can } from 'foldkit-remote'
+
+const answer = Gate.can(model, Publish, { id: 'p1', status: 'published' })
+const label = Can.match(answer, {
+  Yes: () => 'Publish',
+  No: ({ refusal }) => `Cannot publish: ${refusal._tag}`,
+  Undecided: ({ reasons }) => `Publish (unchecked: ${reasons.join('; ')})`,
+})
+```
+
+- **`Can.Yes`**: nothing the client holds refuses it.
+- **`Can.No({ refusal })`**: the refusal is `Forbidden { reason }`, `Unmet`, or
+  `Invalid { entity, rule, message, path }`, the shape the server's refusal
+  has, so one component can show either.
+- **`Can.Undecided({ reasons })`**: the client cannot tell. The row is not held,
+  a field or operator a rule reads is missing, an increment or computed field
+  would have to be worked out, an input key the `when` reads was left out, or
+  a `may` member of the row is not held (the reason names it, `Doc.gate`): a
+  gate the client has not read could refuse the write. The rows a delete clears
+  or takes with it are not asked; the server judges them.
+  `input` is `Partial`: ask with the id alone and a `when` over the input says
+  `Undecided`, ask per value and it decides. Invariants are judged over the row
+  as it would be with the keys given.
+
+`No` is a hint, not a refusal. `Data.mutate` does not consult it: a write the
+client calls `Unmet` is still sent, because the server answers some of them as
+written (publishing a published product is answered as a retry would be, not
+refused), and a row the client holds may be stale. `Data.can` never decides for
+the server. It throws for a mutation that was not declared as a `Write`, since
+nothing is declared to judge.
+
 ### Checking the prediction against the server
 
 The client and the server must agree: what a pending write shows should be

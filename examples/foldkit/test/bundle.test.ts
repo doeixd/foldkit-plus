@@ -12,7 +12,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // plus about 2%, rounded up to the next 500 bytes. Never raise one without saying here what
 // the growth bought.
 const CEILINGS: ReadonlyArray<readonly [port: string, ceiling: number]> = [
-  ['api-cache', 198_500], // 194,578 bytes
+  // 199,529 bytes on 2026-11-14: the page registers Mutations, so the declared-write work
+  // reaches it (`foldkit-entity` enumerate 2.8 kB minified, write 0.8, refine 0.6, footprint
+  // 0.6, invariant 0.5; `foldkit-remote` remote 0.4); ceiling that plus about 0.5%.
+  ['api-cache', 200_500], // 194,578 bytes
   ['auth', 151_000], // 148,015 bytes
   ['counter', 116_000], // 113,631 bytes
   ['domains', 191_000], // 187,092 bytes

@@ -36,8 +36,8 @@ export default [
     edits: [
       {
         file: journal,
-        find: "Effect.sync(() => forbid(error.opId, error.reason, 'Refused by the server')),",
-        replace: "Effect.sync(() => invalid(error.opId, 'Refused by the server')),",
+        find: "? forbid(error.opId, error.reason, 'Refused by the server')",
+        replace: "? invalid(error.opId, 'Refused by the server')",
       },
     ],
     tests: exchangeTests,

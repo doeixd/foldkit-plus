@@ -1,9 +1,9 @@
 /**
  * What a declared write predicts and refuses on the client (#378): its patch,
  * the derived members it moves, the fields its answer must carry, and the
- * invariants and `may` it breaks. Reached only through the write capability.
+ * invariants and `may` it breaks, and what `Data.can` tells of them.
  */
-import { Effect, Match, Option, Record as Rec, Schema } from 'effect'
+import { Effect, Match, Option, Record as Rec, Result, Schema } from 'effect'
 import {
   Entity as DomainEntity,
   Write as DomainWrite,
@@ -12,6 +12,8 @@ import {
   type ContextRead,
   Derivation,
   Held,
+  Judge,
+  Query,
   type AnyEntity,
   type EntityDerived,
   type EntityMember,
@@ -20,6 +22,7 @@ import {
   type WriteSurface,
   type ExprContext,
   type Invariant,
+  type Judgement,
   type MemoryOperators,
   type Predict,
 } from 'foldkit-entity'
@@ -566,20 +569,19 @@ const plainRow = (entity: AnyEntity, row: HeldRow): Record<string, unknown> => {
 }
 
 /**
- * The invariant a declared write's row would break, as the client holds it:
- * the store's row with the write's values over it, a field the write moves
- * (an increment, a computed value) not held, and for an update the row
- * before. Only a definite failure counts: an invariant over a field the
- * client lacks is undecided, and refuses nothing. A delete leaves no row.
+ * What the Entity's invariants say of a declared write's row, as the client
+ * holds it: the store's row with the write's values over it, a field the
+ * write moves (an increment, a computed value) not held, and for an update
+ * the row before. None for a delete, which leaves no row.
  */
-export const brokenByWrite = (
+export const judgedByWrite = (
   write: AnyWrite,
   input: unknown,
   keys: ReadonlyArray<string> | undefined,
   context: ExprContext,
   store: EntityStore,
   operators: MemoryOperators,
-): Option.Option<Invariant> => {
+): Option.Option<Judgement> => {
   const entity = write.input.entity
   const patch = optimisticOfWrite(write, input, keys, context, store).find(
     (each): each is PendingPatch => !('_tag' in each),
@@ -596,20 +598,67 @@ export const brokenByWrite = (
   const before = Option.getOrUndefined(
     Option.map(holder.rows.row(entity, patch.id), row => plainRow(entity, row)),
   )
-  const judged = DomainEntity.judge(
-    entity,
-    Match.value(write).pipe(
-      Match.tag('Insert', () => ({ after })),
-      Match.orElse(() => (before === undefined ? { after } : { after, before })),
+  return Option.some(
+    DomainEntity.judge(
+      entity,
+      Match.value(write).pipe(
+        Match.tag('Insert', () => ({ after })),
+        Match.orElse(() => (before === undefined ? { after } : { after, before })),
+      ),
+      operators,
     ),
-    operators,
   )
-  return Match.valueTags(judged, {
-    Invalid: ({ failures }) => Option.fromUndefinedOr(failures[0]),
-    Valid: () => Option.none(),
-    Undecided: () => Option.none(),
-  })
 }
+
+/**
+ * The invariant a declared write's row would break: only a definite failure
+ * counts, and an invariant over a field the client lacks refuses nothing.
+ */
+export const brokenByWrite = (
+  write: AnyWrite,
+  input: unknown,
+  keys: ReadonlyArray<string> | undefined,
+  context: ExprContext,
+  store: EntityStore,
+  operators: MemoryOperators,
+): Option.Option<Invariant> =>
+  Option.flatMap(judgedByWrite(write, input, keys, context, store, operators), judged =>
+    Match.valueTags(judged, {
+      Invalid: ({ failures }) => Option.fromUndefinedOr(failures[0]),
+      Valid: () => Option.none(),
+      Undecided: () => Option.none(),
+    }),
+  )
+
+/**
+ * Whether `row`, a held row the declared write would land on, holds what the
+ * write's `when` asks: true or false when the client can tell, and why not
+ * when an input key the `when` reads was not given, or the store lacks a
+ * field or operator it reads. `encoded` is the input as the server reads it,
+ * by key. A write with no `when` asks nothing.
+ */
+export const metByWrite = (
+  write: AnyWrite,
+  row: HeldRow,
+  encoded: Readonly<Record<string, unknown>>,
+  context: ExprContext,
+  store: EntityStore,
+  operators: MemoryOperators,
+): Result.Result<boolean, string> =>
+  Option.match(write.when, {
+    onNone: () => Result.succeed(true),
+    onSome: body => {
+      const missing = Query.dependencies(body).inputs.filter(key => !Object.hasOwn(encoded, key))
+      if (missing.length > 0)
+        return Result.fail(
+          `${write.input.entity.name}'s condition reads ${missing.join(', ')}, not given`,
+        )
+      return Judge.match<boolean, Result.Result<boolean, string>>(
+        Judge.query(body, encoded, row, { operators, context, rows: holderOf(store).rows }),
+        { onKnown: truth => Result.succeed(truth), onUnknown: reason => Result.fail(reason) },
+      )
+    },
+  })
 
 /** Each supplied member of `entity` that says which write its value refuses, by key. */
 const forbidding = new WeakMap<AnyEntity, ReadonlyArray<readonly [string, Forbids]>>()
@@ -644,6 +693,19 @@ const forbiddenOf = (
       held.present.has(key) ? forbids(held.values[key], surface) : Option.none(),
     ),
   )
+}
+
+/** The supplied members (Guard's `may`) of a held row that the client holds no value of, named `Entity.member`. */
+const unheldForbidders = (
+  entity: AnyEntity,
+  id: string,
+  store: EntityStore,
+): ReadonlyArray<string> => {
+  const held = store[entityKey(entity.name, id)]
+  if (held === undefined) return []
+  return forbiddersOf(entity)
+    .filter(([key]) => !held.present.has(key))
+    .map(([key]) => `${entity.name}.${key}`)
 }
 
 const deleting: WriteSurface = { kind: 'Delete', members: [], relations: [] }
@@ -737,3 +799,23 @@ export const forbiddenByWrite = (
     },
   })
 }
+
+/**
+ * The `may` members of the row a write changes that `forbiddenByWrite` could
+ * not read because the client holds no value of them: a write they could
+ * refuse is undecided, not allowed. The rows a delete clears or takes with it
+ * are not asked: the server judges them, `Data.can` does not.
+ */
+export const unheldByWrite = (
+  write: AnyWrite,
+  input: unknown,
+  keys: ReadonlyArray<string> | undefined,
+  store: EntityStore,
+): ReadonlyArray<string> =>
+  Match.valueTags(write, {
+    Insert: () => [],
+    Update: () =>
+      unheldForbidders(write.input.entity, DomainWrite.bind(write, input as never, keys).id, store),
+    Delete: () =>
+      unheldForbidders(write.input.entity, DomainWrite.bind(write, input as never, keys).id, store),
+  })

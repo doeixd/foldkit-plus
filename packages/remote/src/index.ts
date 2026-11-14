@@ -5,6 +5,7 @@
  * live classification, optimistic layers) performs no I/O. The `Remote.*`
  * helpers that read or mutate go through the `RemoteClient` Effect service.
  */
+export * from './can.js'
 export * from './client.js'
 export type { RemoteResumePart } from './resume.js'
 export {

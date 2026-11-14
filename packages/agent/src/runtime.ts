@@ -24,6 +24,7 @@ import type {
   MessageDescriptor,
 } from './types.js'
 import { messages as describeMessages } from './introspect.js'
+import { Found, type PartDescriptor, type Parts, listParts } from './parts.js'
 
 /**
  * The application-supplied binding between an agent contract and a live
@@ -166,6 +167,20 @@ export interface AgentRuntime<
     ) => Effect.Effect<DispatchResult, DispatchError>
   }
 
+  /**
+   * The parts `bind({ parts })` was given: what an agent may know of the
+   * screen's controls. Listing reads one Model snapshot and sends no Message;
+   * a part gives no authority, so acting on one is `messages.dispatch`.
+   */
+  readonly parts: {
+    /** The declared ids, in declaration order; empty when `bind` was given no parts. */
+    readonly ids: ReadonlyArray<string>
+    /** The parts the current Model shows, leaving out those whose capability is unavailable. */
+    readonly list: Effect.Effect<ReadonlyArray<PartDescriptor>>
+    /** The parts labelled `label` exactly: `One`, `Ambiguous` with every match, or `None`. */
+    readonly find: (query: { readonly label: string }) => Effect.Effect<Found>
+  }
+
   /** Subscribes to Model changes, when the host supports it. Returns an unsubscribe function. */
   readonly subscribe: (listener: () => void) => () => void
 }
@@ -197,6 +212,8 @@ export type BindOptions<
    * new way for a capability to break.
    */
   readonly audit?: AuditSink<Principal> | undefined
+  /** The definition's parts, from `Agent.parts(definition, …)`: they become `runtime.parts`. */
+  readonly parts?: Parts<any> | undefined
   /** The host must accept every Message the contract can construct. */
   readonly host: AgentHost<Model, Message, Principal> & {
     readonly dispatch: (
@@ -216,6 +233,9 @@ export const bind = <
   options: BindOptions<Model, Context_, Principal, Message, ByName, ByTag>,
 ): AgentRuntime<Model, Context_, Principal, ByName, ByTag> => {
   const { definition, host } = options
+  if (options.parts !== undefined && options.parts.definition !== definition) {
+    throw new Error('Agent.bind: the parts were declared for another definition')
+  }
 
   // The contract is immutable, so every lookup table and descriptor is built
   // once here rather than on each invocation.
@@ -337,6 +357,53 @@ export const bind = <
 
   const isAvailable = (variant: ExposedVariant<Model, Principal>, model: Model): boolean =>
     variant.available === undefined || variant.available(model)
+
+  const availableAt = (model: Model): ReadonlyArray<ExposedVariant<Model, Principal>> =>
+    definition.messages.variants.filter(variant => isAvailable(variant, model))
+
+  const descriptorByTag = new Map(
+    definition.messages.variants.map(
+      variant => [variant.tag, descriptorByName.get(variant.name)!] as const,
+    ),
+  )
+
+  const compiledParts = options.parts?.compiled ?? []
+  // Projecting the context costs an encode and a decode; parts of buttons alone read none of it.
+  const partsReadContext = compiledParts.some(
+    declared => Option.isSome(declared.field) || Option.isSome(declared.each),
+  )
+  // One snapshot: availability, the context and every part read the same Model.
+  const listedParts = Effect.suspend(() => {
+    const model = host.model()
+    const available = new Set(availableAt(model).map(variant => variant.tag))
+    const declared = definition.context
+    const context =
+      declared === undefined || !partsReadContext
+        ? Effect.succeed(Option.none<{ encoded: unknown; decoded: unknown }>())
+        : project(declared.Model, declared.read(model), 'context').pipe(
+            // Decoded again from what is served, so a part reads no property the Schema drops.
+            Effect.flatMap(encoded =>
+              Effect.map(
+                Effect.orDie(Schema.decodeUnknownEffect(declared.Model)(encoded)),
+                decoded => Option.some({ encoded, decoded }),
+              ),
+            ),
+          )
+    return Effect.map(context, projected =>
+      listParts(compiledParts, {
+        encoded: Option.map(projected, each => each.encoded),
+        decoded: Option.map(projected, each => each.decoded),
+        available,
+        capabilityOf: tag => {
+          const descriptor = descriptorByTag.get(tag)!
+          return {
+            name: descriptor.name,
+            requiresAuthorization: descriptor.requiresAuthorization,
+          }
+        },
+      }),
+    )
+  })
 
   const dispatchResolved = Effect.fn('Agent.dispatch')(function* (
     target: unknown,
@@ -532,14 +599,22 @@ export const bind = <
 
     messages: {
       list: Effect.succeed(descriptors),
-      available: Effect.sync(() => {
-        const model = host.model()
-        return definition.messages.variants
-          .filter(variant => isAvailable(variant, model))
-          .map(variant => descriptorByName.get(variant.name)!)
-      }),
+      available: Effect.sync(() =>
+        availableAt(host.model()).map(variant => descriptorByName.get(variant.name)!),
+      ),
       dispatch: dispatch as Dispatch<ByName, ByTag>,
       dispatchUnknown: dispatch,
+    },
+
+    parts: {
+      ids: compiledParts.map(declared => declared.id),
+      list: listedParts,
+      find: ({ label }) =>
+        Effect.map(listedParts, listed => {
+          const matches = listed.filter(each => each.label === label)
+          if (matches.length > 1) return Found.Ambiguous({ parts: matches })
+          return matches.length === 1 ? Found.One({ part: matches[0]! }) : Found.None()
+        }),
     },
 
     subscribe: (listener: () => void) => host.subscribe?.(listener) ?? (() => {}),

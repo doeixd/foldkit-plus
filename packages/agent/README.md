@@ -229,11 +229,12 @@ Read current state before deciding whether to retry an effectful operation.
 | `Agent.make({ context, messages, resources })` | The protocol-neutral contract; `context` is a `Projection`, a `Projection.pick`, or a feature Surface. |
 | `Agent.forApplication(App)` / `Agent.forApplication(App).withPrincipal<Principal>()` | The above, with `Model` inferred from a `Surface.application`; `withPrincipal` fixes the `Principal` type, or takes it from the Context key a server reads it from (`withPrincipal(G.Principal)`), so the two are one type. |
 | `Agent.forModel<Model>()` | The same, when only a Model (no application) is available. |
-| `Agent.bind({ definition, host })` | Binds the contract to a live Runtime. |
+| `Agent.part(config)` / `Agent.parts(definition, parts)` | Which control on the screen is which capability or context field, for an agent: see [Parts](#parts). |
+| `Agent.bind({ definition, host, parts? })` | Binds the contract to a live Runtime; `parts` adds `runtime.parts`. |
 | `Agent.host(config)` | `{ config, host }`: the application config to start, and the host over the runtime started from it. |
 | `Agent.headless(config)` | `{ host, dispose }`: the application's `init`, `update`, Commands and Subscriptions run with no view. |
 | `Agent.schema/messages/resources/contextSchema` | Introspection, as plain data. |
-| `Agent.toManifest(definition)` | The contract as `agent.json`, for committing and diffing. |
+| `Agent.toManifest(definition, parts?)` | The contract as `agent.json`, for committing and diffing; with `parts`, they are listed too. |
 | `Agent.toMarkdown(definition)` | The contract as documentation. |
 | `Agent.auditLog(options)` | A bounded record of decisions, refusals included. |
 | `Agent.summarize(result)` | One outcome summary, so the adapters map results to their protocols the same way. |
@@ -344,6 +345,68 @@ writeFileSync('AGENT.md', Agent.toMarkdown(AppAgent))
 Both are reproducible for a given contract and read nothing from the Model, so a
 committed manifest makes a change to what an application exposes show up in
 review rather than only at runtime.
+
+### Parts
+
+A capability says what an agent may do, not which control on the screen does
+it. A part names that control in the contract's own terms: a label and an ARIA
+role, a key of the projected context it shows (`field`), and the exposed
+capability it invokes (`invokes`), or that changes its field (`sets`).
+
+```ts
+const AppParts = TodoAgent.parts(AppAgent, {
+  selected: Agent.part({ label: 'Selected todo', role: 'status', field: 'selectedTodoId' }),
+  create: Agent.part({ label: 'New todo', role: 'button', invokes: Message.RequestedCreateTodo }),
+  remove: Agent.part({
+    role: 'button',
+    invokes: Message.RequestedDeleteTodo,
+    each: context => context.todos,
+    key: todo => todo.id,
+    label: todo => `Delete ${todo.title}`,
+    input: todo => ({ id: todo.id }),
+  }),
+})
+
+const partsRuntime = TodoAgent.bind({ definition: AppAgent, host, parts: AppParts })
+
+const found = await Effect.runPromise(partsRuntime.parts.find({ label: 'Delete Milk' }))
+```
+
+A constructor the contract does not expose, or a field its context does not
+project, is a type error, and `parts` throws for it too. `each`, `key`,
+`label` and `input` are given the projected context, never the Model.
+
+`runtime.parts.list` reads one Model snapshot and returns a
+`PartDescriptor` per part, and per item of a repeated one: `id` (the
+declaration's key), `occurrence` (`key(item)`), `label`, `role`,
+`capability` (its `name`, the occurrence's `input`, and whether it
+`requiresAuthorization`) and `value` (the field's, from the encoded context
+`runtime.context` serves). Listing sends no Message.
+
+- A part gives no authority. Acting on one is `messages.dispatch` with its
+  capability's name, through availability, decoding and `authorize`, as
+  before; `input` is a hint the dispatch decodes again.
+- A part whose capability is unavailable in the snapshot is left out.
+- The context a part reads is encoded through its Schema and decoded again,
+  so a property the Schema leaves out never reaches `value`, `each` or
+  `label`.
+- `find({ label })` answers `Found.One`, `Found.None`, or `Found.Ambiguous`
+  with every match: a label is text, and two parts can share one. Tell them
+  apart by `id` and `occurrence`. A repeated part whose `key` gives two items
+  one occurrence is a defect of the listing.
+
+```ts
+const named = Agent.Found.$match(found, {
+  One: ({ part }) => part.capability,
+  Ambiguous: () => Option.none(),
+  None: () => Option.none(),
+})
+```
+
+In a page, `AppParts.attributes(h, 'create')`, or `attributes(h, 'remove',
+todo.id)` for an occurrence, writes `data-fk-part` and `data-fk-part-key` on
+the control, so an in-page adapter or a test can find it; nothing reads them
+for authority. `foldkit-agent-mcp` serves the list as `app://parts`.
 
 ### Dispatch
 

@@ -245,9 +245,10 @@ an exchange rejection, and the replica drops it; `status.rejected` is
 vocabulary, the refused operation as sent, and its Message encoded at the
 current version, to read what it changed.
 `Forbidden { reason }` is `authorize` or `admit` refusing, with the rule's
-words (Remote's `Denied.Forbidden`); `Invalid { message, ... }` is the
-operation failing, with a fixed sentence from `journalExchange`, never an
-error's message (Remote's `Refusal.invalid`); `Unreadable { version }` is an
+words (Remote's `Denied.Forbidden`); `Invalid { message, rule, path }` is a
+law breaking (`rule` its id, below) or the operation failing, with a fixed
+sentence from `journalExchange`, never an error's message (Remote's
+`Refusal.invalid`); `Unreadable { version }` is an
 older Message version no step of the history reads (below), which the replica
 also keeps in `status.refused`. None means the server named no refusal, or one
 this build cannot read (reported as `UnknownRefusal`). `reason`, the words
@@ -267,6 +268,35 @@ const said = (rejection: Rejection): string =>
     }),
   })
 ```
+
+What the document must always be, whoever changes it, is a **law**, not an
+`authorize` rule: a predicate over the snapshot an operation leaves.
+
+```ts
+const Capped = forApplication(App).make({
+  documentId: DocumentId.make('capped'),
+  shared: Projection.pick(App.model.todos),
+  durable: MessageSet.make(App, [Message.CreatedTodo]),
+  laws: {
+    atMost100Todos: {
+      holds: ({ after }) => after.todos.length <= 100, // `before` too; shared fields only
+      message: 'A list holds 100 todos',
+      path: ['todos'],
+    },
+  },
+})
+```
+
+The journal judges every operation after `reduce` (`journalContract()` carries
+`judge`), `appendAsServer` and reactions included; a broken law is
+`OperationRejectedError` with `rule`, sent as `Invalid` with the law's id, and
+`Sync.isInvalidBy(refusal, Capped.laws.atMost100Todos)` matches it. A reaction
+whose append a law refuses parks at once. `replica.submit` judges its
+optimistic result first and fails with `LawBrokenError` before the outbox (a
+hint; the server judges again). Strict: a document already breaking a law
+takes only an operation that repairs it; write a new cap over `before`
+(`after.todos.length <= Math.max(100, before.todos.length)`) and audit stored
+snapshots with `Capped.judge(snapshot, snapshot)` (`Option<DeclaredLaw>`).
 
 ## Changing a durable Message
 
@@ -340,7 +370,8 @@ const server = Effect.gen(function* () {
 ```
 
 - `append(documentId, op, principal)` is one transaction: decode,
-  `validate`/`authorize`, reduce, assign a gap-free sequence, persist. It
+  `validate`/`authorize`, reduce, `judge` (the laws), assign a gap-free
+  sequence, persist. It
   returns `Committed`, or `AlreadyCommitted` if the payload was compacted. A
   resent `opId` is never applied twice. The same `opId` with a different
   payload fails with `IdentityConflictError`, and a refusal with

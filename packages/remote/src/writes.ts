@@ -23,6 +23,7 @@ import {
   remoteError,
   type RemoteClient,
 } from './client.js'
+import { canOf } from './canOf.js'
 import { installLayers } from './layers.js'
 import { mutationStatus } from './ledger.js'
 import { reduceIn, type RemoteMessage, type RemoteModel } from './model.js'
@@ -383,6 +384,7 @@ const writes: WriteCapability = {
     return { mutate, retry }
   },
   unpredicted,
+  can: canOf,
 }
 
 /** Installs the write capability, and the layer capability a write's pending layer needs. */

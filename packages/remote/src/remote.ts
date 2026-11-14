@@ -1876,6 +1876,24 @@ const bindDomain = <
       return shownEdges(remote, identity, remote.connections[identity] ?? emptyConnection)
     },
     ...writes,
+    can: (model, mutation, input) => {
+      assertRegistered(bound, 'Mutation', definition.registry.mutations, mutation.name)
+      if (mutation.write === undefined)
+        throw new Error(
+          `[foldkit-remote] Data.can(${mutation.name}): the mutation was not declared as a Write, so the client cannot tell what it would refuse`,
+        )
+      if (Option.isNone(capabilities.writes))
+        throw new Error(
+          `[foldkit-remote] Data.can(${mutation.name}): the domain registers no Mutation`,
+        )
+      return capabilities.writes.value.can(
+        mutation.write,
+        input,
+        contextOf(model),
+        visibleOf(capabilities, store.get(model), operators),
+        operators,
+      )
+    },
     mutation: (model, requestId) => mutationStatus(store.get(model).mutations, requestId),
     refusal: (model, requestId, mutation) => {
       const status = mutationStatus(store.get(model).mutations, requestId)

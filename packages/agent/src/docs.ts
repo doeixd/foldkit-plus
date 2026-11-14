@@ -2,6 +2,8 @@ import { isStateCompletion } from './completion.js'
 import type { Definition } from './make.js'
 import { contextSchema, messages, resources } from './introspect.js'
 import { messageTags } from './tag.js'
+import type { Parts } from './parts.js'
+import { Option } from 'effect'
 
 /**
  * The agent contract as a self-contained document.
@@ -32,6 +34,18 @@ export interface Manifest {
     readonly schema: Record<string, unknown>
   }>
   readonly context?: Record<string, unknown>
+  /** The parts given to `toManifest`, in declaration order. */
+  readonly parts?: ReadonlyArray<{
+    readonly id: string
+    readonly role: string
+    /** Present when the label is text; a repeated part's may be worked out per item. */
+    readonly label?: string
+    /** The name of the capability the part invokes or sets. */
+    readonly capability?: string
+    /** The context key the part shows. */
+    readonly field?: string
+    readonly repeated: boolean
+  }>
 }
 
 /**
@@ -41,8 +55,15 @@ export interface Manifest {
  * The output is reproducible for a given contract, so it can be committed and
  * diffed. Nothing here reads the Model.
  */
-export const toManifest = (definition: Definition<any, any, any, any, any>): Manifest => {
+export const toManifest = (
+  definition: Definition<any, any, any, any, any>,
+  parts?: Parts<any>,
+): Manifest => {
+  if (parts !== undefined && parts.definition !== definition) {
+    throw new Error('Agent.toManifest: the parts were declared for another definition')
+  }
   const context = contextSchema(definition)
+  const nameOf = new Map(definition.messages.variants.map(variant => [variant.tag, variant.name]))
 
   return {
     capabilities: messages(definition).map(capability => {
@@ -79,6 +100,24 @@ export const toManifest = (definition: Definition<any, any, any, any, any>): Man
       schema: resource.schema,
     })),
     ...(context === undefined ? {} : { context }),
+    ...(parts === undefined
+      ? {}
+      : {
+          parts: parts.compiled.map(declared => ({
+            id: declared.id,
+            role: declared.role,
+            ...(typeof declared.label === 'string' ? { label: declared.label } : {}),
+            ...Option.match(declared.tag, {
+              onNone: () => ({}),
+              onSome: tag => ({ capability: nameOf.get(tag)! }),
+            }),
+            ...Option.match(declared.field, {
+              onNone: () => ({}),
+              onSome: field => ({ field }),
+            }),
+            repeated: Option.isSome(declared.each),
+          })),
+        }),
   }
 }
 

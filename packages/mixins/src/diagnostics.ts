@@ -18,6 +18,8 @@ export type DiagnosticCode =
   | 'mixins:attribute-conflict'
   | 'mixins:structural-override'
   | 'mixins:duplicate-mount-name'
+  | 'mixins:unknown-attachment'
+  | 'mixins:ambiguous-attachment'
   | 'mixins:duplicate-item-id'
   | 'mixins:ragged-grid-areas'
   | 'mixins:inline-shorthand-conflict'

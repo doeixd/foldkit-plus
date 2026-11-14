@@ -261,6 +261,17 @@ export const BoardSurface = App.surface('Board', {
 // The client-owned replica (durable + sync)
 // ---------------------------------------------------------------------------
 
+/**
+ * What the agent sees, as a Surface declared closed: the notes and the selection after one of
+ * these Messages depend on nothing else in the Model, and no other Message moves them.
+ * `test/agent-context.test.ts` walks it with `Closure.violations`.
+ */
+export const AgentContext = App.surface('AgentContext', {
+  model: ({ model }) => ({ notes: model.notes, selectedNoteId: model.selectedNoteId }),
+  messages: [Message.RequestedCreateNote, Message.RequestedRenameNote, Message.SelectedNote],
+  closed: true,
+})
+
 export const Notes = Projection.pick(App.model.notes)
 export const NoteChanges = MessageSet.make(App, [
   Message.RequestedCreateNote,

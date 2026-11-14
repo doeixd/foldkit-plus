@@ -3822,6 +3822,16 @@ importers:
         version: 7.0.2
 
   packages/remote-domain:
+    dependencies:
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../entity
+      foldkit-guard:
+        specifier: workspace:*
+        version: link:../guard
+      foldkit-remote:
+        specifier: workspace:*
+        version: link:../remote
     devDependencies:
       '@alchemy.run/domain':
         specifier: 2.0.0-beta.86
@@ -3835,6 +3845,9 @@ importers:
       effect:
         specifier: 4.1.4
         version: 4.1.4
+      foldkit-surface:
+        specifier: workspace:*
+        version: link:../surface
       tsdown:
         specifier: ^0.23.1
         version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)

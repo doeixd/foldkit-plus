@@ -863,4 +863,32 @@ describe('Sync.mount', () => {
     await disposing
     expect(pending(replica)).toHaveLength(1)
   })
+
+  it('reverts an edit that breaks a law, and hands LawBrokenError to onPersistenceFailure', async () => {
+    const Capped = forApplication(App).make({
+      documentId: documentId('todos'),
+      shared: Projection.pick(App.model.todos),
+      durable: MessageSet.make(App, [Message.CreatedTodo]),
+      laws: { one: { holds: ({ after }) => after.todos.length <= 1, message: 'One todo' } },
+    })
+    replica = await Effect.runPromise(
+      Capped.openReplica(memoryStorage(), { replicaId: replicaId('a') }),
+    )
+    const app = mount(App, Capped, {
+      replica,
+      container,
+      view: (model, h) => ({
+        title: 'todos',
+        body: h.p([], [model.todos.map(todo => todo.title).join(', ')]),
+      }),
+      onPersistenceFailure: (model, error) => ({ ...model, lastError: error._tag }),
+    })
+    mounted = app
+    app.dispatch(Message.CreatedTodo({ id: 'a', title: 'Milk' }))
+    await vi.waitFor(() => expect(pending(replica)).toHaveLength(1))
+    app.dispatch(Message.CreatedTodo({ id: 'b', title: 'Eggs' }))
+    await vi.waitFor(() => expect(app.model().lastError).toBe('LawBrokenError'))
+    expect(app.model().todos).toEqual([{ id: 'a', title: 'Milk' }])
+    expect(pending(replica)).toHaveLength(1)
+  })
 })

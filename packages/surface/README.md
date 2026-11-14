@@ -250,6 +250,52 @@ field that holds any path of the projection is never named. `Sync.mount` runs it
 on every durable dispatch; see the
 [Sync README](https://github.com/doeixd/foldkit-plus/blob/main/packages/sync/README.md#what-makes-a-message-durable).
 
+### A closed Surface
+
+`closed: true` on a Surface declares the same property of the whole Surface: for
+a Message in its `messages`, the projection after depends only on the projection
+before and the Message, and no other Message changes it. Declaring it enforces
+nothing at run time; it is a law of the application, tested in a walk.
+`Closure.violations(app, surfaces)` returns a step check,
+`(before, message, after) => violations`, to call at every step of a walk. It
+tests only the Surfaces declared closed, and refuses a closed Surface with
+params, which has no one projection.
+
+```ts standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Closure, Surface } from 'foldkit-surface'
+
+const Model = Schema.Struct({ todos: Schema.Array(Schema.String), tally: Schema.Number })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ Emptied: {}, Counted: {} })
+const initial: Model = { todos: ['a'], tally: 0 }
+const update = (model: Model, message: typeof Message.Type) => ({
+  model: Message.match(message, {
+    Emptied: () => ({ ...model, todos: [] }),
+    Counted: () => ({ ...model, tally: model.tally + 1 }),
+  }),
+})
+
+const App = Surface.application({ Model, Message, initial, update })
+const Shown = App.surface('Shown', {
+  model: ({ model }) => ({ todos: model.todos }),
+  messages: [Message.Emptied],
+  closed: true,
+})
+
+const check = Closure.violations(App, [Shown])
+const counted = Message.Counted()
+check(initial, counted, update(initial, counted).model)
+// []: Counted is outside the Surface and leaves its projection alone
+```
+
+A violation is a `ClosureViolation`: `Reads({ surface, fields })` for a Message
+in the set that reads fields outside the Surface (the fields are named), or
+`Outside({ surface })` for a Message outside the set that changed the
+projection. Read one through `ClosureViolation.$match`.
+`Surface.contract` carries `closed: true` for such a Surface.
+
 ## Applications
 
 `Surface.application({ Model, Message })` returns an `Application`: the schemas
@@ -692,6 +738,7 @@ that may observe across those runtime boundaries without creating another one.
 - Application scopes (`Surface.application`) and their identity token.
 - Typed Message subsets (`MessageSet.make`, `MessageSet.union`).
 - `Closure.reads`: whether a projection after a Message depends on the rest of the Model.
+- `Closure.violations`: the closed Surfaces a step broke, as `ClosureViolation`s; `Surface.make`'s and `App.surface`'s `closed`.
 - Actions (`Action.define`, `Action.run`): a named capability ending in a Message.
 - Named Surfaces and their renderer binding.
 - The `Diagnostics` channel and its default reporter; each package owns its own
