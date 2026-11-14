@@ -416,9 +416,6 @@ export const layer = <A extends AnyApi>(
               request.floors ?? [],
               message => new RemoteLiveError({ message }),
             )
-            const held = new Map(
-              (request.revisions ?? []).map(row => [keyOf(row.entity, row.id), row.revision]),
-            )
             const watched = yield* Effect.forEach(request.requirements, requirement =>
               Effect.gen(function* () {
                 const binding = yield* viewOf(requirement.entity).pipe(
@@ -469,19 +466,7 @@ export const layer = <A extends AnyApi>(
                     .pipe(
                       Stream.mapEffect(snapshot =>
                         Option.match(receipt, {
-                          // A frame at or before the revision the client holds is one it has.
-                          onNone: () =>
-                            Effect.succeed(
-                              Option.filter(
-                                Option.some(snapshot),
-                                () =>
-                                  !isHeld(
-                                    binding,
-                                    snapshot,
-                                    held.get(keyOf(requirement.entity, requirement.id)),
-                                  ),
-                              ),
-                            ),
+                          onNone: () => Effect.succeedSome(snapshot),
                           // Held to a write's receipt, a frame is only a signal: read at it.
                           onSome: () =>
                             snapshotAt(binding, requirement.id, receipt).pipe(
