@@ -64,7 +64,7 @@ export default [
     edits: [
       {
         file: scenario,
-        find: "options.report === undefined || scenario.expect._tag !== 'Accepted'",
+        find: 'options.report === undefined || !lands(scenario.expect)',
         replace: 'options.report === undefined',
       },
     ],
