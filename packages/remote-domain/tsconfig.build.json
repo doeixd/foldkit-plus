@@ -19,6 +19,9 @@
       "path": "../remote/tsconfig.build.json"
     },
     {
+      "path": "../surface/tsconfig.build.json"
+    },
+    {
       "path": "../remote-server/tsconfig.build.json"
     }
   ]
