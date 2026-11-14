@@ -33,7 +33,7 @@ import { Effect, Schema, Stream } from 'effect'
 import { AnchorConfig, anchorSetup } from '@foldkit/ui/anchor'
 import type { Attribute, HtmlBuilder } from 'foldkit/html'
 import * as Mount from 'foldkit/mount'
-import { Behavior, Capability } from 'foldkit-mixins'
+import { Behavior, Capability, SlotView } from 'foldkit-mixins'
 
 export const Anchor = Mount.defineStream('Anchor', {
   messages: [Schema.Never],
@@ -244,10 +244,21 @@ export interface BehaviorOptions<Input, Slots> {
   readonly config: (input: Input) => AnchorArgs
 }
 
-/** Mounts the anchor on the floating slot with the config the input gives. */
-export const behavior =
-  <Slots>(slots: Slots) =>
-  <Input, ParentMessage>(
+/**
+ * Mounts the anchor on the floating slot with the config the input gives.
+ * Takes a `SlotView.over` binder, which types `config`'s input, or the slots.
+ */
+export function behavior<Slots, Input, ParentMessage>(
+  bound: SlotView.Bound<Slots, Input, ParentMessage>,
+): (options: BehaviorOptions<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+export function behavior<Slots>(
+  slots: SlotView.Unbound<Slots>,
+): <Input, ParentMessage>(
+  options: BehaviorOptions<Input, Slots>,
+) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+export function behavior<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+  const slots = SlotView.boundSlots(given)
+  return <Input, ParentMessage>(
     options: BehaviorOptions<Input, Slots>,
   ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
     Behavior.forSlots(slots)<Input, ParentMessage>(
@@ -260,3 +271,4 @@ export const behavior =
       } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
       { name: 'Anchor' },
     )
+}
