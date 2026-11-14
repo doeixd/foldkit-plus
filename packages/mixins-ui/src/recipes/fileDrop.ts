@@ -22,7 +22,16 @@ export const FileDrop = Style.recipeFor(FileDropSlots)({
         textAlign: 'center',
         cursor: 'pointer',
       }),
-      Style.pseudo(':hover', { borderColor: ref.outline.overt }),
+      Style.pseudo(':hover:not([data-disabled])', { borderColor: ref.outline.overt }),
+      // The input is the only focusable thing and is hidden, so the zone shows its focus; a press does not ring it.
+      Style.pseudo(':has(> input:focus-visible)', {
+        outline: `${ref.border.thick} solid ${ref.outline.focus}`,
+        outlineOffset: '2px',
+      }),
+      Style.pseudo('[data-disabled]', {
+        opacity: ref.knob['state-disabled'],
+        cursor: 'not-allowed',
+      }),
       // Drag-over is DOM state on the root, so it goes through `states`.
       Style.states(
         {
