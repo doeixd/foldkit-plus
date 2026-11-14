@@ -18,6 +18,10 @@
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
       "foldkit-remote-domain": ["./src/index.ts"],
+      "foldkit-remote-domain/lower": ["./src/lower/index.ts"],
+      "foldkit-remote-server": ["../remote-server/src/index.ts"],
+      "foldkit-remote-server/fetch": ["../remote-server/src/fetch.ts"],
+      "foldkit-remote-server/port": ["../remote-server/src/port.ts"],
       "foldkit-remote/filter": ["../remote/src/filter.ts"],
       "foldkit-remote/live": ["../remote/src/live.ts"],
       "foldkit-remote/outbox": ["../remote/src/outbox.ts"],
@@ -45,6 +49,9 @@
     },
     {
       "path": "../surface/tsconfig.build.json"
+    },
+    {
+      "path": "../remote-server/tsconfig.build.json"
     }
   ]
 }

@@ -20,6 +20,7 @@ export default defineConfig({
       'foldkit-entity',
       'foldkit-guard',
       'foldkit-remote',
+      'foldkit-remote-server',
     ],
   },
 })
