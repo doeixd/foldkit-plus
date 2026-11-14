@@ -93,6 +93,19 @@ version changed; `pnpm` skips versions already in the registry.
   of that revision or an earlier one is not let back in. `DomainReads` lists
   the pending reads of who asks now and confirms one. The adapter keeps the
   rows and floors of the last four principals to ask.
+- `foldkit-remote-domain/lower`: `Lower.write` lowers a declared update into
+  one Domain aggregate (#545). It derives the command, a Rejection per
+  member of the mutation's `Refusal` plus `Forbidden`, `NotFound` and
+  `Reused`, the aggregate's state (its row and the operations it decided),
+  `decide`, `evolve`, the reply and the by-id View's state and `evolve`, and
+  the adapter's two bindings (`binding(api)`, `reads(api, view)`); the author
+  gives the events, `record` and `apply`, the revision, who asks and the
+  middleware that provides it. `decide` restates no rule: it lands the write
+  through `RemoteServer.write` over `GuardServer.writer` over
+  `RemoteServer.memoryWriter`. To who may write the row, an operation sent
+  again with another request is `Reused`. `Lower.check` lists, as data, each
+  rule, precondition, invariant or context value that reads another row and
+  each member the row does not hold; `Lower.write` refuses such a write.
 - `foldkit-remote/testing`: `Walk.run` runs seeded random walks of Messages over
   a list of named starts and checks a law after every step (it may be
   asynchronous, so a walk can go through a writer); `Walk.cases` requires a

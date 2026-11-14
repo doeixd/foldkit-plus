@@ -171,13 +171,12 @@ export interface Lowered<
   Listed extends Domain.Event.Any,
   Ev extends Domain.Event.Any,
 > {
-  readonly mutation: M
   readonly command: LoweredCommand<M, Ev, Ms>
   readonly rejections: RejectionsOf<M>
   /** The aggregate's state schema and the state of one never listed. */
   readonly state: Schema.Codec<LoweredState<EntityOf<M>>, unknown>
   readonly initial: LoweredState<EntityOf<M>>
-  /** The command's handler: the `Reused` check, then the write landed through the server's chain. */
+  /** The command's handler: the write landed through the server's chain, then the `Reused` check. */
   readonly decide: (
     state: LoweredState<EntityOf<M>>,
     command: Domain.Aggregate.InstanceOf<LoweredCommand<M, Ev, Ms>>,
@@ -235,7 +234,7 @@ const fail_ = (message: string): never => {
   throw new Error(`[foldkit-remote-domain] ${message}`)
 }
 
-/** The key a lowered write reads its target from, as the adapter's `commandId` names it. */
+/** The input key a lowered write names its row by, which is the command's target. */
 const ID = 'id'
 
 /**
@@ -548,7 +547,6 @@ export const write = <
   ): ViewBinding<E, A> => bindView(entity, api, name, { revision: config.revision })
 
   return {
-    mutation,
     command,
     rejections,
     state: Schema.Struct({
