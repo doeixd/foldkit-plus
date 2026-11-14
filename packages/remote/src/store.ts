@@ -115,14 +115,13 @@ const fieldsAtRevision = (
   previous: EntityEntry,
   values: Readonly<Record<string, unknown>>,
   revision: number | undefined,
-): ReadonlySet<string> | undefined => {
-  const held = previous.revisionFields
-  if (revision === undefined) {
-    if (held === undefined || !Object.keys(values).some(field => held.has(field))) return held
-    return new Set([...held].filter(field => !Object.hasOwn(values, field)))
-  }
-  const fields = new Set(Object.keys(values))
-  if (revision === previous.revision) for (const field of held ?? []) fields.add(field)
+): ReadonlySet<string> => {
+  const fields = new Set(
+    revision === undefined || revision === previous.revision ? previous.revisionFields : [],
+  )
+  for (const field of Object.keys(values))
+    if (revision === undefined) fields.delete(field)
+    else fields.add(field)
   return fields
 }
 

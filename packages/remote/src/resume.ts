@@ -101,7 +101,6 @@ type MutableEntry = {
   updatedAt: number
   oldestAt: number
   revision: number | undefined
-  revisionFields: Set<string>
   floor: string | undefined
 }
 
@@ -201,7 +200,6 @@ export const captureRemote = (
       updatedAt: stored.updatedAt,
       oldestAt: stored.oldestAt,
       revision: stored.revision,
-      revisionFields: new Set<string>(),
       floor: stored.floor,
     }
     entries.set(key, entry)
@@ -213,7 +211,6 @@ export const captureRemote = (
       put(entry.values, field, stored.values[field])
       entry.present.add(field)
       if (stored.stale.has(field)) entry.stale.add(field)
-      if (stored.revisionFields?.has(field) === true) entry.revisionFields.add(field)
       const window = own(stored.windows, field)
       if (window !== undefined) put(entry.windows, field, window)
       const nested = requirement.relations?.[field]
@@ -257,7 +254,12 @@ export const captureRemote = (
           oldestAt: entry.oldestAt,
           ...(entry.revision === undefined
             ? {}
-            : { revision: entry.revision, revisionFields: [...entry.revisionFields] }),
+            : {
+                revision: entry.revision,
+                revisionFields: [...entry.present].filter(
+                  field => store[key]?.revisionFields?.has(field) === true,
+                ),
+              }),
           ...(entry.floor === undefined ? {} : { floor: entry.floor }),
         },
       ]),

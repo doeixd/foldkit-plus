@@ -51,8 +51,8 @@ export default [
     edits: [
       {
         file: store,
-        find: '  if (revision === previous.revision) for (const field of held ?? []) fields.add(field)\n',
-        replace: '',
+        find: 'revision === undefined || revision === previous.revision ? previous.revisionFields : []',
+        replace: 'revision === undefined ? previous.revisionFields : []',
       },
     ],
     tests,
@@ -62,8 +62,8 @@ export default [
     edits: [
       {
         file: store,
-        find: '    if (held === undefined || !Object.keys(values).some(field => held.has(field))) return held\n',
-        replace: '    return held\n',
+        find: '    if (revision === undefined) fields.delete(field)\n    else fields.add(field)',
+        replace: '    if (revision !== undefined) fields.add(field)',
       },
     ],
     tests,
@@ -73,8 +73,8 @@ export default [
     edits: [
       {
         file: '../src/resume.ts',
-        find: '      if (stored.revisionFields?.has(field) === true) entry.revisionFields.add(field)\n',
-        replace: '',
+        find: 'field => store[key]?.revisionFields?.has(field) === true',
+        replace: '() => false',
       },
     ],
     tests: ['examples/writes-domain/test/ssr.test.ts'],
