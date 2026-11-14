@@ -75,6 +75,7 @@ import {
 import { DerivedBy } from './derived.js'
 import type { MutationStatus } from './ledger.js'
 import type { MutationDescriptor } from './mutationDescriptor.js'
+import { domainFacts } from './graphFacts.js'
 import type { OptimisticOperation } from './optimistic.js'
 import { deadlineOf, plan, refreshedOf, type Deadline, type PlanOptions } from './plan.js'
 import { RemotePolicy } from './policy.js'
@@ -1371,6 +1372,7 @@ export const bindRemote = <
       observes: store.dependency.length === 0 ? [] : [store.dependency],
       messages: [],
       metadata: [],
+      facts: () => domainFacts(definition.mutations),
     },
   }
 }
