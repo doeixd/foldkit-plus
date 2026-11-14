@@ -3,9 +3,12 @@
  * The declared writes in the Module graph (#537): each write that can break a
  * law is `law-unwitnessed` until a check, a walk or a line says it keeps it.
  */
-import { Laws } from 'foldkit-entity'
-import { Evidence, Graph, GraphNode, Module } from 'foldkit-surface'
+import { Schema } from 'effect'
+import { Entity, Expr, Laws, Write } from 'foldkit-entity'
+import { Mutation, Remote } from 'foldkit-remote'
+import { Evidence, Graph, GraphNode, Module, Surface } from 'foldkit-surface'
 import { beforeAll, describe, expect, it } from 'vitest'
+import { Product, Publish, Rename, Restock, Revert, Sell } from '../src/domain.js'
 import { report } from '../src/laws.js'
 import { Shop, enumerated, reverted, walked } from './shop.js'
 
@@ -67,7 +70,7 @@ describe('the declared writes in the Module graph', () => {
     ])
   })
 
-  it('refuse a record typed by hand, and one naming a law the domain does not declare', () => {
+  it('refuse a record typed by hand, and one naming a law no contract declares', () => {
     const typed = Evidence.Walked({
       transition: 'write:Sell',
       law: 'Product.reservedWithinStock',
@@ -78,7 +81,7 @@ describe('the declared writes in the Module graph', () => {
     const stranger = Evidence.runtimeOnly({
       transition: 'write:Sell',
       law: 'Order.paidOnce',
-      why: 'another Entity’s law',
+      why: 'a law nothing declares',
     })
     const findings = Module.validate(Shop, {
       evidence: [...enumerated, ...walk, reverted, typed, stranger],
@@ -86,6 +89,52 @@ describe('the declared writes in the Module graph', () => {
     expect(findings.map(finding => finding.rule)).toEqual([
       'evidence-unmatched',
       'evidence-unmatched',
+    ])
+  })
+})
+
+describe('a second Entity beside the products', () => {
+  const OrderFields = Entity.define(
+    'Order',
+    Schema.Struct({ id: Schema.String, paid: Schema.Number }),
+  )
+  const paidOnce = Entity.invariant<typeof OrderFields>(
+    'paidOnce',
+    ({ after }) => Expr.lte(after.paid, 1),
+    { message: 'An order is paid once', path: ['paid'] },
+  )
+  const Order = OrderFields.pipe(paidOnce)
+  const Pay = Mutation.write(
+    'Pay',
+    Write.update(Entity.input(Order, Schema.Struct({ id: Schema.String, paid: Schema.Number })), {
+      id: 'id',
+    }),
+  )
+  const App = Surface.application({
+    Model: Schema.Struct({ remote: Remote.Model }),
+    Message: Remote.Message,
+  })
+  const Orders = Module.make(App, [
+    Remote.make({
+      model: App.model.remote,
+      entities: [Product, Order],
+      mutations: [Publish, Rename, Restock, Revert, Sell, Pay],
+    }),
+  ])
+  const crossed = (transition: string, law: string) =>
+    Evidence.runtimeOnly({ transition, law, why: 'the other Entity’s pair' })
+
+  it('refuse a record joining a write of one Entity to a law of the other, both declared', () => {
+    const findings = Module.validate(Orders, {
+      evidence: [
+        crossed('write:Sell', Laws.law(paidOnce)),
+        crossed('write:Pay', 'Product.reservedWithinStock'),
+        crossed('write:Pay', Laws.law(paidOnce)),
+      ],
+    }).filter(finding => finding.rule === 'evidence-unmatched')
+    expect(findings.map(finding => finding.message)).toEqual([
+      'Evidence that write:Sell keeps Order.paidOnce names a pair the graph does not join: write:Sell writes nothing beside what Order.paidOnce reads',
+      'Evidence that write:Pay keeps Product.reservedWithinStock names a pair the graph does not join: write:Pay writes nothing beside what Product.reservedWithinStock reads',
     ])
   })
 })

@@ -38,4 +38,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a pair of two Entities is joined',
+    edits: [
+      {
+        file: '../../../packages/surface/src/graph.ts',
+        find: "at.space === 'entity' ? entities.has(at.path[0]) :",
+        replace: "at.space === 'entity' ? true :",
+      },
+    ],
+    tests: ['examples/writes/test/graph.test.ts'],
+  },
 ]
