@@ -27,6 +27,11 @@ version changed; `pnpm` skips versions already in the registry.
   fallback steps (`same`, `next`, `previous`, `parent`, `stop`, `{ part }`,
   `owner`) that can take it, and never when focus moved elsewhere (#553).
 
+- `foldkit-primitives/interaction`: `Presence.behavior` draws the phase a placed
+  `Presence` holds as `data-presence` and `inert`, so a leaving row takes no
+  click, Tab or focus; with `FocusRecovery`, focus leaves in the frame it turns
+  `inert` and the removal moves nothing (#555).
+
 - `foldkit-remote/testing`: `Scenario`, a write (or a Message) as plain data run
   by runners (#538). `Scenario.write` takes `given` rows, `principal`, `now`,
   `when`, `operation` and an `expect` (`accepted`, `refused` by an invariant or

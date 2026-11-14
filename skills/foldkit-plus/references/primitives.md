@@ -170,6 +170,11 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   that can take it: `same`, `next`, `previous`, `parent`, `stop`, `{ part }`, `owner`.
   Never when focus moved elsewhere; nested owners decide innermost first, then outward;
   a row not drawn yet is the Model's (a Command), not the Mount's. Opt-in.
+- **A row that leaves without taking input:** `Presence.behavior(Slots)<Input, Message>({ content, phase: (input, item) => 'shown' | 'hiding' | 'hidden' })`
+  draws `data-presence` and `inert` (not `aria-hidden`) on the slot for every phase but `shown`;
+  it sends no Message. The phase and the timed `Hidden` are `Presence.bundle`'s (`motion`), one
+  per row with `Presence.bundle.each`. Attach `FocusRecovery` too: focus leaves in the frame
+  it turns `inert`, and removal moves nothing; a `Show` before `Hidden` refocuses nothing.
 - **Activate on press:** place `Press.bundle` (`{ clickSuppressionMs }`) with a required
   `onOut` for `Pressed { pointerType }`; attach `Press.behavior(Declared)(Slots)<Model, Message>({ target, disabled? })`.
   The `Press.events` Mount reports pointer, key, and click facts; `update` decides

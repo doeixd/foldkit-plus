@@ -24,6 +24,7 @@ the handler dispatches    →  update moves the fact; the view redraws from it
 | `TreeNavigation` | `{ current, toggled }` | a tree: a file explorer, a layers panel |
 | `FocusScope` | nothing (a Mount) | keep focus inside an overlay |
 | `FocusRecovery` | nothing (a Mount) | keep focus when its part is removed or hidden |
+| `Presence` | nothing (draws the Model's phase) | a leaving row that takes no click, Tab or focus |
 | `Press` | `{ pressed, … }`; out `Pressed` | pointer, touch, Enter, Space, and AT clicks as one fact |
 | `LongPress` | `{ … }`; out `LongPressed` | holding for a threshold |
 | `Move` | nothing (a Mount) | pointer drag deltas |
@@ -436,6 +437,73 @@ Command after the scroll settles (`ListNavigation`'s `helpers.focus`, then
 `Dom.focus`); a Mount that held "focus row 41 when it appears" would take
 focus from a user who has moved on. Ids are read as attributes and compared as
 strings, never put in a selector, so `a:b` and `x"y` work.
+
+## `Presence`: a leaving row is out of reach
+
+`Presence` (from `foldkit-primitives/motion`) owns *when* a row leaves: its
+Model holds `shown`, `hiding` or `hidden`, and `Hide` yields a timed `Hidden`
+fact. The Behavior here owns what the row is *while* it leaves: it reads the
+phase the Model already holds and draws `data-presence="shown|hiding"` and, for
+every phase but `shown`, `inert`. It sends no Message and mounts nothing, so a
+Scene test resolves it.
+
+```text
+Hide -> the frame draws inert  -> FocusRecovery moves focus  -> Hidden -> the row is removed
+        (no click, Tab, focus)     (one move, in that frame)      (finds focus elsewhere: moves nothing)
+```
+
+Five facts, kept apart: the application's Model says whether the user wants
+the row; `isVisible(presence)` says to keep drawing it; `phase === 'shown'` says
+it may be pressed and read; removal is the view ceasing to draw it. The row's
+data and its presence are two facts with two owners, joined in one `update`:
+the parent sends `Hide` to the row's placement on dismiss and removes the row
+from its own data on that placement's `Hidden`.
+
+<!-- docs-check
+const LeaveSlots = Slots.define({
+  list: Slot.make({ capability: Capability.Container }),
+  row: Slot.make({ capability: Capability.Focusable }),
+})
+interface LeaveInput {
+  readonly rows: Record<string, { readonly phase: 'shown' | 'hiding' | 'hidden' }>
+}
+const LeaveView = SlotView.over(LeaveSlots)<LeaveInput, never>()
+-->
+
+```ts
+import { FocusRecovery, Presence } from 'foldkit-primitives/interaction'
+
+const Leaves = Presence.behavior(LeaveView)({
+  content: 'row',
+  phase: (input, item) => input.rows[item?.id ?? '']?.phase ?? 'hidden',
+})
+const RecoversLeaving = FocusRecovery.behavior(LeaveView)({
+  owner: 'list',
+  parts: { row: ['next', 'previous', 'owner'] },
+})
+```
+
+Place one `Presence` per row with `Presence.bundle.each(link, { args: { durationMs } })`
+(the bundle is `foldkit-primitives/motion`'s `Presence`, re-exported as `bundle`).
+`content` is a slot of the contract, so a misspelling is a type error; `phase`
+is given the slot's item, or `undefined` for a slot drawn once, such as a popup.
+A recipe styles the exit on `[data-presence="hiding"]`, its duration the theme's
+motion token times `travel`, the same number `durationMs` is given. Under
+`Motion.reduced` the `Hidden` fact arrives at once, through the same two
+Messages.
+
+`inert`, not `aria-hidden` (which leaves focus inside the row) and not `hidden`
+(which would end the animation). Focus leaves a part in the frame it turns
+`inert`, before the browser would drop it to `body`, so attach `FocusRecovery`
+beside it; at removal focus is already elsewhere and nothing moves a second
+time. A `Show` before `Hidden` wins (the late fact carries an older generation
+and is refused): `inert` goes with the next frame and nothing refocuses the row,
+since `FocusRecovery` acts only on lost focus. A surface that took focus during
+the exit, such as a dialog the press opened, keeps it. The completion owner is
+the timeout Command; a `transitionend` listener would be a second one. A popup
+that restores focus to its trigger keeps `FocusScope`'s `restore` as the one
+owner of the return, and `FocusRecovery` there uses `{ part: 'trigger' }` with
+`restore` off.
 
 ## Pressing and dragging
 

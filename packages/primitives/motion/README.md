@@ -68,6 +68,11 @@ and the late fact is ignored. `isVisible(model)` reads whether content renders
 the exit. The timeout Command is the owner; a `transitionend` Mount is a future
 opt-in, not a second timer.
 
+While it exits the content should take no click, Tab or focus: draw it with
+[`Presence.behavior`](../interaction/README.md), which writes `data-presence` and
+`inert` from the phase, and let `FocusRecovery` move focus off it in the frame it
+turns `inert`.
+
 ## Reduced motion is a service
 
 Whether motion should be reduced is read when a transition starts, not sniffed
