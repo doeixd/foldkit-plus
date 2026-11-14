@@ -27,6 +27,7 @@ import {
   type AnyEntity,
   type EntityInput,
   type InputMember,
+  type Invariant,
   type InputMembers,
   type MemoryOperators,
   type NestedInput,
@@ -147,6 +148,12 @@ export interface FormModel<Fields extends Schema.Struct.Fields, Members = {}, Co
    */
   readonly touched: Readonly<Record<string, boolean>>
   /**
+   * The keys the person has edited since the form started, was filled or was
+   * reset. A form over a row shows an invariant on an edit only once every key
+   * that sets a field it reads is here.
+   */
+  readonly reached: Readonly<Record<string, boolean>>
+  /**
    * A submit has been asked since the form started, was filled or was reset.
    * A view draws its list of fields to fix only then. `ValidatedAll` is not
    * one: the page that sends it owns the submit.
@@ -171,6 +178,13 @@ export interface FormModel<Fields extends Schema.Struct.Fields, Members = {}, Co
    * which is what a form that creates something means.
    */
   readonly subject: Readonly<Record<string, string>>
+  /**
+   * The row the form edits, encoded as the store holds it, when it was given
+   * one (`form.over`): the Entity's invariants are judged over it with the
+   * form's values laid over it, transitions included, on each edit as well as
+   * on a submit. None for a form that creates something, and after a `Reset`.
+   */
+  readonly over: Option.Option<Readonly<Record<string, unknown>>>
 }
 
 /**
@@ -986,6 +1000,9 @@ const Core = {
       nextRow: Schema.Number,
       searches: Schema.Record(Schema.String, Schema.String),
       touched: Schema.Record(Schema.String, Schema.Boolean),
+      reached: Schema.Record(Schema.String, Schema.Boolean).pipe(
+        Schema.withDecodingDefaultKey(Effect.succeed({})),
+      ),
       // Defaulted, so a Model stored before it existed still decodes.
       attempted: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(false))),
       errors: Schema.Array(Schema.String),
@@ -994,6 +1011,10 @@ const Core = {
       ),
       submitPending: Schema.Boolean,
       subject: Schema.Record(Schema.String, Schema.String),
+      // Defaulted, so a Model stored before it existed still decodes.
+      over: Schema.OptionFromNullOr(Schema.Record(Schema.String, Schema.Unknown)).pipe(
+        Schema.withDecodingDefaultKey(Effect.succeed(null)),
+      ),
     }) as unknown as Schema.Codec<Model, unknown>
 
     // A form of nested keys only has no key to change, and `Literals` needs one.
@@ -1133,11 +1154,13 @@ const Core = {
         nextRow: 0,
         searches: {},
         touched: {},
+        reached: {},
         attempted: false,
         errors: [],
         marks: {},
         submitPending: false,
         subject: {},
+        over: Option.none(),
       },
     )
     const drafts = (model: Model): Readonly<Record<Key, FieldValidation.Field<Draft>>> =>
@@ -1368,9 +1391,11 @@ const Core = {
     ): { readonly model: Model; readonly commands: Commands } => {
       const follows = plans[key].control.follows !== undefined
       const handedBack = follows && isEmpty(draft)
-      const owned: Model = follows
-        ? { ...model, touched: { ...model.touched, [key]: !handedBack } }
-        : model
+      const owned: Model = {
+        ...model,
+        reached: { ...model.reached, [key]: true },
+        ...(follows ? { touched: { ...model.touched, [key]: !handedBack } } : {}),
+      }
       const written = validateKey(owned, key, handedBack ? derived(owned, key) : draft)
       const result = followedBy(key).reduce(
         (result, follower) => {
@@ -1382,7 +1407,10 @@ const Core = {
       )
       // Each check is asked once every follower is written, so the values it
       // reads are the ones the form ends with, and its answer is not stale.
-      return { model: result.model, commands: result.asked.map(asked => ask(result.model, asked)) }
+      return {
+        model: judgedOnEdit(result.model),
+        commands: result.asked.map(asked => ask(result.model, asked)),
+      }
     }
 
     /** A follower written from the key it follows, and its own followers after it, with the keys it asks. */
@@ -1422,36 +1450,64 @@ const Core = {
       }),
     )
 
+    /** The value's row under its Entity's invariants, over the row the form edits when it has one. */
+    const judgement = (model: Model, value: Partial<Value>) =>
+      Entity.judgeInput(input, value as Readonly<Record<string, unknown>>, {
+        operators: options.operators,
+        over: Option.getOrUndefined(model.over),
+      })
+
     /**
-     * The value's row under its Entity's invariants, as the server will judge
-     * it: each failure beside the keys its path names that this form sets, or
-     * on the whole input when it sets none of them.
+     * Each failure beside the keys its path names that this form sets, or on
+     * the whole input when it sets none of them.
      */
+    const marked = (model: Model, failures: ReadonlyArray<Invariant>): Model => {
+      const marks = new Map<string, Array<string>>()
+      const errors: Array<string> = []
+      for (const failure of failures) {
+        const shown = failure.path.flatMap(field =>
+          Option.toArray(Option.fromUndefinedOr(keyOfField.get(field))),
+        )
+        if (shown.length === 0) errors.push(failure.message)
+        for (const key of shown) {
+          const held = marks.get(key)
+          if (held === undefined) marks.set(key, [failure.message])
+          else held.push(failure.message)
+        }
+      }
+      return { ...model, marks: Object.fromEntries(marks), errors }
+    }
+
+    /** The value's row under its Entity's invariants, as the server will judge it: every failure shown. */
     const judged = (model: Model, value: Value): Option.Option<Model> =>
-      Match.value(
-        Entity.judgeInput(input, value as Readonly<Record<string, unknown>>, options.operators),
-      ).pipe(
-        Match.tagsExhaustive({
-          Valid: () => Option.none(),
-          Undecided: () => Option.none(),
-          Invalid: ({ failures }) => {
-            const marks = new Map<string, Array<string>>()
-            const errors: Array<string> = []
-            for (const failure of failures) {
-              const shown = failure.path.flatMap(field =>
-                Option.toArray(Option.fromUndefinedOr(keyOfField.get(field))),
-              )
-              if (shown.length === 0) errors.push(failure.message)
-              for (const key of shown) {
-                const held = marks.get(key)
-                if (held === undefined) marks.set(key, [failure.message])
-                else held.push(failure.message)
-              }
-            }
-            return Option.some({ ...model, marks: Object.fromEntries(marks), errors })
-          },
-        }),
-      )
+      Match.valueTags(judgement(model, value), {
+        Valid: () => Option.none(),
+        Undecided: () => Option.none(),
+        Invalid: ({ failures }) => Option.some(marked(model, failures)),
+      })
+
+    /**
+     * After an edit of a form over a row, the invariants judged over what
+     * decodes so far: a failure shows once the person has reached every key of
+     * the form that sets a field it reads, so a rule over two keys does not
+     * scold before the second is typed. A form with no row waits for a submit.
+     */
+    const judgedOnEdit = (model: Model): Model => {
+      if (Option.isNone(model.over)) return model
+      return Match.valueTags(judgement(model, decoded(model)), {
+        Valid: () => model,
+        Undecided: () => model,
+        Invalid: ({ failures }) => {
+          const reached = failures.filter(failure => {
+            const setting = [...failure.after, ...failure.before].flatMap(field =>
+              Option.toArray(Option.fromUndefinedOr(keyOfField.get(field))),
+            )
+            return setting.length > 0 && setting.every(key => model.reached[key] === true)
+          })
+          return reached.length === 0 ? model : marked(model, reached)
+        },
+      })
+    }
 
     const acceptable = (model: Model): boolean =>
       asked(model).every(key => {
@@ -1635,6 +1691,10 @@ const Core = {
                 : [],
           ),
         ),
+        // A key given a value has not been edited since.
+        reached: Object.fromEntries(
+          Object.entries(model.reached).filter(([key]) => !Object.hasOwn(given, key)),
+        ),
         // Another value to edit, with nothing submitted yet.
         attempted: false,
         errors: [],
@@ -1670,6 +1730,18 @@ const Core = {
         }, filled),
       }
     }
+
+    /**
+     * The row the form edits, encoded as the store holds it (`Entity.rowFrom`):
+     * what the invariants are judged over from now on. It validates nothing,
+     * as a `fill` does not; a `fill` keeps it and a `Reset` drops it.
+     */
+    const over = (
+      model: Model,
+      row: Readonly<Record<string, unknown>>,
+    ): { readonly model: Model } => ({
+      model: { ...model, over: Option.some(row) },
+    })
 
     /** Whether a key's draft says the same thing in two Models: a control's by the value it holds. */
     const sameValue = (key: Key, before: Draft, after: Draft): boolean => {
@@ -1867,7 +1939,8 @@ const Core = {
             }
           }
           case 'Reset':
-            // Emptying the form does not change which row it is about.
+            // Emptying the form does not change which row it is about, but its
+            // values no longer come from that row, so it is judged as new.
             return { model: { ...initial, subject: model.subject } }
           case 'Submitted':
             return submitted(model)
@@ -1877,7 +1950,7 @@ const Core = {
             return { model }
         }
       },
-      helpers: { fill },
+      helpers: { fill, over },
       // Only what the controls have: a form with none listens to nothing and holds nothing.
       ...(Object.keys(controlSubscriptions).length === 0
         ? {}
@@ -1952,6 +2025,8 @@ const Core = {
       authoredChanged,
       /** The `fill` helper as a plain function of the form's Model, for a package that wraps the form. */
       fill,
+      /** The `over` helper as a plain function of the form's Model: the row it edits. */
+      over,
       /** The Model the form starts from and resets to: every key empty and not validated. */
       initial,
       /** The keys in the input's order, each with its control, label, and member. */
