@@ -4,19 +4,11 @@
  * with no other edit, and this test fails until the change is looked at
  * (`vitest -u` writes it).
  */
-import { Laws, type WriteEntry } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
-import * as Domain from '../src/domain.js'
-
-/** Every declared write the domain exports, whatever it is named. */
-const writes = Object.values(Domain).filter(
-  (value): value is WriteEntry & typeof value =>
-    typeof value === 'object' && value !== null && 'write' in value && value.write !== undefined,
-)
+import { report } from '../src/laws.js'
 
 describe('the laws of the declared writes', () => {
-  const report = Laws.check({ writes })
-
   it('are kept as text in LAWS.md', async () => {
     await expect(
       [

@@ -119,6 +119,30 @@ one read away. Nothing is indexed ahead of time and nothing is fetched.
 project with no Foldkit Plus package, or one whose `package.json` names a
 package that is not installed exits 1 and says which.
 
+## The laws of your writes
+
+```bash
+npx foldkit-plus laws src/laws.ts            # the module's default export
+npx foldkit-plus laws src/domain.ts#report   # a named export
+```
+
+`foldkit-entity`'s `Laws.check` judges each declared write against its
+Entity's invariants and answers a report; `laws` prints that report as
+`Laws.show` writes it, so a person or an agent can read it without a test
+run. The export is a `LawReport` (what `Laws.check` returns), or the
+`{ writes }` that `Laws.check` takes; `examples/writes/src/laws.ts` exports
+the first. Findings are the report's content: a report that holds some still
+exits 0. A module that cannot be loaded, has no such export, or exports
+neither shape exits 1 and says what it found. The command only reads: it
+checks and prints, and writes nothing.
+
+It loads the module with the project's own `tsx` (found in the `node_modules`
+above the module), which reads the project's tsconfig `paths` and `.js`
+import specifiers for `.ts` files. With no `tsx` it uses Node's own
+TypeScript support, which needs neither of those; when that fails it says to
+install `tsx`. `foldkit-entity` is the project's copy in both cases, loaded
+beside the module so the entries it checks are the ones that module built.
+
 ## Testing a running application
 
 Two subpaths of this package's own drive the tools an application tests with.

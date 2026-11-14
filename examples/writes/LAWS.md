@@ -12,14 +12,14 @@ Product
   * -> InStock         Sell      enforced
   Archived                       unreached
 
-Rename    x reservedWithinStock       kept: writes no member it reads
-Rename    x publishedStaysPublished   kept: 3 rows enumerated
 Publish   x reservedWithinStock       kept: writes no member it reads
 Publish   x publishedStaysPublished   kept: 1 row enumerated
-Revert    x reservedWithinStock       kept: writes no member it reads
-Revert    x publishedStaysPublished   refused: from {"status":"published"} it leaves {"status":"draft"}
+Rename    x reservedWithinStock       kept: writes no member it reads
+Rename    x publishedStaysPublished   kept: 3 rows enumerated
 Restock   x reservedWithinStock       undecided: stock is incremented
 Restock   x publishedStaysPublished   kept: 3 rows enumerated
+Revert    x reservedWithinStock       kept: writes no member it reads
+Revert    x publishedStaysPublished   refused: from {"status":"published"} it leaves {"status":"draft"}
 Sell      x reservedWithinStock       undecided: stock is incremented
 Sell      x publishedStaysPublished   kept: 3 rows enumerated
 Sell      x becomes:InStock           undecided: stock is incremented
