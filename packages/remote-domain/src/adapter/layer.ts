@@ -12,10 +12,8 @@
  * `behind`. The adapter keeps only the commands it sent, so a retry is
  * answered without sending one.
  */
-import * as Domain from '@alchemy.run/domain'
+import type * as Domain from '@alchemy.run/domain'
 import { type Context, Duration, Effect, Layer, Match, Option, Ref, Schema, Stream } from 'effect'
-import { RpcClientError } from 'effect/rpc/RpcClientError'
-import type { AnyEntity } from 'foldkit-entity'
 import {
   REMOTE_PROTOCOL_VERSION,
   RemoteClient,
@@ -24,7 +22,6 @@ import {
   RemoteMutationError,
   RemotePrincipalChanged,
   RemoteProtocolError,
-  RemoteQueryError,
   RemoteReadError,
   RemoteUnauthenticated,
   RemoteUnreachable,
@@ -41,6 +38,16 @@ import {
   type ViewBinding,
   type ViewsOf,
 } from './binding.js'
+import { answerLists, answerQuery, liveQuery, type Lists, type QueryBinding } from './query.js'
+import {
+  encodeRow,
+  failureOf,
+  keyOf,
+  readRows,
+  revisionOf,
+  type Codec,
+  type Snapshot,
+} from './relations.js'
 
 type MiddlewareOf<A extends AnyApi> =
   | Domain.Api.CommandsOf<A>['middleware']
@@ -53,6 +60,8 @@ export type DeniedOf<A extends AnyApi> = Domain.Middleware.Errors<MiddlewareOf<A
 export interface LayerConfig<A extends AnyApi> {
   readonly views: ReadonlyArray<ViewBinding<any, A>>
   readonly commands: ReadonlyArray<CommandBinding<any, A>>
+  /** The lists, each a Remote query answered by a paged Domain Query (`DomainRemote.query`). */
+  readonly queries?: ReadonlyArray<QueryBinding<any, A>>
   /** The key of who the Domain session is: what results name as their `principal`. */
   readonly principal: Effect.Effect<Option.Option<string>>
   /** What a middleware's refusal of a write means to Remote; a read's is always `Unauthenticated`. */
@@ -63,11 +72,6 @@ export interface LayerConfig<A extends AnyApi> {
 
 type ClientIdentifier<A extends AnyApi> =
   A['Client'] extends Context.Key<infer Identifier, any> ? Identifier : never
-
-interface Snapshot {
-  readonly state: Readonly<Record<string, unknown>> | null
-  readonly cursor: number
-}
 
 type AtLeast = { readonly atLeast: Receipt } | undefined
 
@@ -82,28 +86,6 @@ type CommandClient = (
   input: unknown,
   options: { readonly commandId: string },
 ) => Effect.Effect<{ readonly reply: unknown } & Receipt, unknown>
-
-/** What a call failed with, as the adapter answers it. */
-type Failure =
-  | { readonly _tag: 'Rejected'; readonly rejection: { readonly _tag: string } }
-  | { readonly _tag: 'Behind'; readonly message: string }
-  | { readonly _tag: 'Unreachable'; readonly message: string }
-  | { readonly _tag: 'Denied'; readonly error: unknown }
-
-const failureOf =
-  (rejections: ReadonlyArray<Domain.Rejection.Any>) =>
-  (error: unknown): Failure => {
-    const rejection = rejections.find(each => Schema.is(each)(error))
-    if (rejection !== undefined)
-      return { _tag: 'Rejected', rejection: error as { readonly _tag: string } }
-    if (Schema.is(RpcClientError)(error))
-      return { _tag: 'Unreachable', message: 'The Domain Api did not answer' }
-    if (Schema.is(Domain.ConsistencyTimeout)(error))
-      return { _tag: 'Behind', message: 'The View did not catch up with the write' }
-    return { _tag: 'Denied', error }
-  }
-
-const keyOf = (entity: string, id: string) => JSON.stringify([entity, id])
 
 const isToken = Schema.is(ReadAfterToken)
 
@@ -125,14 +107,8 @@ const receiptOf = (token: string): Option.Option<Receipt> => {
     : Option.some({ stream: token.slice(0, at), version })
 }
 
-/** How many View snapshots one read asks for at once. */
-const SNAPSHOTS_AT_ONCE = 16
-
 /** How many commands' receipts the adapter keeps to answer a retry without sending it. */
 const MAX_COMMITTED = 1024
-
-/** A codec as the adapter runs it: the mutation's and the Entity's need no services. */
-type Codec = Schema.Codec<unknown, unknown>
 
 /** A short hash of the text, hex: SHA-256, cut to 128 bits. */
 const digest = (text: string): Effect.Effect<string> =>
@@ -173,10 +149,19 @@ export const layer = <A extends AnyApi>(
       const confirmWithin = Duration.fromInputUnsafe(config.confirmWithin ?? '2 seconds')
       const views = new Map(config.views.map(binding => [binding.entity.name, binding]))
       const commands = new Map(config.commands.map(binding => [binding.mutation.name, binding]))
-      for (const binding of [...config.views, ...config.commands]) {
+      const queries = new Map(
+        (config.queries ?? []).map(binding => [binding.descriptor.name, binding]),
+      )
+      for (const binding of [...config.views, ...config.commands, ...queries.values()]) {
         if (binding.api !== api)
           throw new Error(
             `[foldkit-remote-domain] a binding of ${binding.api.apiName} given to ${api.apiName}'s layer`,
+          )
+      }
+      for (const binding of queries.values()) {
+        if (!views.has(binding.entity))
+          throw new Error(
+            `[foldkit-remote-domain] ${binding.descriptor.name} lists ${binding.entity}, which no View given to the layer serves`,
           )
       }
 
@@ -197,51 +182,21 @@ export const layer = <A extends AnyApi>(
           )
           .pipe(Effect.timeoutOption(confirmWithin))
 
-      /** The revision a View state holds, as Remote orders rows by it. */
-      const revisionOf = (binding: ViewBinding, state: Readonly<Record<string, unknown>>) => {
-        const revision = state[binding.revision]
-        return typeof revision === 'number' && Number.isFinite(revision)
-          ? { revision }
-          : ({} as { readonly revision?: number })
-      }
-
-      /** A row's values for `fields`, encoded as the Entity stores them, and the fields it lacks. */
-      const encodeRow = (
-        entity: AnyEntity,
-        id: string,
-        state: Readonly<Record<string, unknown>>,
-        fields: ReadonlyArray<string>,
-      ) =>
-        Effect.gen(function* () {
-          const values: Record<string, unknown> = Object.create(null)
-          const lacking: Array<string> = []
-          for (const field of fields) {
-            const member: { readonly schema: Codec } | undefined = Object.hasOwn(
-              entity.fields,
-              field,
-            )
-              ? entity.fields[field]
-              : undefined
-            if (field === 'id') values[field] = id
-            else if (member === undefined || !Object.hasOwn(state, field)) lacking.push(field)
-            else
-              values[field] = yield* Schema.encodeUnknownEffect(member.schema)(state[field]).pipe(
-                Effect.mapError(
-                  () =>
-                    new RemoteReadError({
-                      message: `${field} of ${entity.name} ${id} does not encode as ${entity.name} declares it`,
-                    }),
-                ),
-              )
-          }
-          return { values, lacking }
-        })
-
       const viewOf = (entity: string) =>
         Option.fromUndefinedOr(views.get(entity)).pipe(
           Effect.fromOption,
           Effect.mapError(() => `No View is bound to ${entity}`),
         )
+
+      const lists: Lists = {
+        views,
+        snapshotAt,
+        queries,
+        client,
+        confirmWithin,
+        principal: principalKey,
+        watch: (entity, id) => viewClient(views.get(entity)!).watch(id),
+      }
 
       const read: RemoteClient['Service']['read'] = batch =>
         Effect.gen(function* () {
@@ -256,90 +211,16 @@ export const layer = <A extends AnyApi>(
             batch.after ?? [],
             message => new RemoteReadError({ message }),
           )
-          const answers = yield* Effect.forEach(
-            batch.requests,
-            request =>
-              Effect.gen(function* () {
-                const binding = yield* viewOf(request.entity).pipe(
-                  Effect.mapError(message => new RemoteReadError({ message })),
-                )
-                if (request.relations !== undefined || request.windows !== undefined)
-                  return yield* new RemoteReadError({
-                    message: `${request.entity} is read through ${binding.view}, which serves no relations yet`,
-                  })
-                const receipt = Option.fromUndefinedOr(
-                  receipts.get(keyOf(request.entity, request.id)),
-                )
-                // A read at a receipt the View has not reached is behind, not unanswered.
-                const behind = () =>
-                  Option.isSome(receipt)
-                    ? Effect.succeed({ _tag: 'Behind' as const, request })
-                    : Effect.fail(
-                        new RemoteUnreachable({
-                          message: `${binding.view} did not answer in time`,
-                        }),
-                      )
-                const answered = yield* snapshotAt(binding, request.id, receipt).pipe(
-                  Effect.catch(error =>
-                    Match.valueTags(failureOf(binding.rejections)(error), {
-                      // Hidden reads as missing, as a guarded Source's does.
-                      Rejected: () => Effect.succeed(Option.some({ state: null, cursor: 0 })),
-                      Behind: () => Effect.succeedNone,
-                      Unreachable: ({ message }) => Effect.fail(new RemoteUnreachable({ message })),
-                      Denied: () =>
-                        Effect.fail(
-                          new RemoteUnauthenticated({ message: 'The Domain Api refused who asks' }),
-                        ),
-                    }),
-                  ),
-                )
-                if (Option.isNone(answered)) return yield* behind()
-                const state = answered.value.state
-                if (state === null) return { _tag: 'Absent' as const }
-                return {
-                  _tag: 'Row' as const,
-                  request,
-                  revision: revisionOf(binding, state),
-                  ...(yield* encodeRow(binding.entity, request.id, state, request.fields)),
-                }
-              }),
-            { concurrency: SNAPSHOTS_AT_ONCE },
-          )
-          const found = answers.flatMap(
-            Match.valueTags({ Row: row => [row], Behind: () => [], Absent: () => [] }),
-          )
-          const behind = answers.flatMap(
-            Match.valueTags({
-              Row: () => [],
-              Behind: ({ request }) => [{ entity: request.entity, id: request.id }],
-              Absent: () => [],
-            }),
-          )
+          const { entities, settled, behind } = yield* readRows(lists, batch.requests, receipts)
           return {
-            entities: found.map(({ request, values, revision }) => ({
-              entity: request.entity,
-              id: request.id,
-              values,
-              ...revision,
-            })),
-            settled: found
-              .filter(({ lacking }) => lacking.length > 0)
-              .map(({ request, lacking }) => ({
-                entity: request.entity,
-                id: request.id,
-                fields: lacking,
-              })),
+            entities,
+            settled,
             principal: asking,
             ...(behind.length === 0 ? {} : { behind }),
           }
         })
 
-      const query: RemoteClient['Service']['query'] = request =>
-        Effect.fail(
-          new RemoteQueryError({
-            message: `${request.query} is not served: a Domain Api's queries are not bound yet`,
-          }),
-        )
+      const query: RemoteClient['Service']['query'] = request => answerQuery(lists, request)
 
       /** A Rejection answered as its binding says. */
       const outcomeError = (binding: CommandBinding, rejection: { readonly _tag: string }) => {
@@ -517,19 +398,26 @@ export const layer = <A extends AnyApi>(
               onSome: token => ({ after: { token, rows: [{ entity: entity.name, id: target }] } }),
             },
           )
-          return { output, entities, principal: asking, ...after }
+          const answered =
+            request.lists === undefined ? [] : yield* answerLists(lists, request.lists, receipt)
+          return {
+            output,
+            entities,
+            principal: asking,
+            ...after,
+            ...(answered.length === 0 ? {} : { lists: answered }),
+          }
         })
 
       const live: RemoteClient['Service']['live'] = request =>
         Stream.unwrap(
           Effect.gen(function* () {
-            if (request.queries.length > 0)
-              return yield* new RemoteLiveError({
-                message: 'A Domain Api serves no live lists yet',
-              })
             const receipts = yield* receiptsOf(
               request.floors ?? [],
               message => new RemoteLiveError({ message }),
+            )
+            const held = new Map(
+              (request.revisions ?? []).map(row => [keyOf(row.entity, row.id), row.revision]),
             )
             const watched = yield* Effect.forEach(request.requirements, requirement =>
               Effect.gen(function* () {
@@ -570,51 +458,67 @@ export const layer = <A extends AnyApi>(
               })
 
             return Stream.mergeAll(
-              watched.map(({ binding, requirement }) => {
-                const receipt = Option.fromUndefinedOr(
-                  receipts.get(keyOf(requirement.entity, requirement.id)),
-                )
-                return viewClient(binding)
-                  .watch(requirement.id)
-                  .pipe(
-                    Stream.mapEffect(snapshot =>
-                      Option.match(receipt, {
-                        onNone: () => Effect.succeedSome(snapshot),
-                        // Held to a write's receipt, a frame is only a signal: read at it.
-                        onSome: () =>
-                          snapshotAt(binding, requirement.id, receipt).pipe(
-                            Effect.orElseSucceed(() => Option.none<Snapshot>()),
-                          ),
-                      }),
-                    ),
-                    Stream.flatMap(snapshot => Stream.fromIterable(Option.toArray(snapshot))),
-                    Stream.mapEffect(snapshot =>
-                      eventOf(binding, requirement.id, requirement.fields, snapshot),
-                    ),
-                    Stream.catch(error =>
-                      Match.valueTags(failureOf(binding.rejections)(error), {
-                        // `validate` stopped allowing the key: absent to who asks from here on.
-                        Rejected: () =>
-                          Stream.fromEffect(
-                            Effect.map(next, (at): LiveEvent => ({
-                              _tag: 'EntityDeleted',
-                              ref: { entity: binding.entity.name, id: requirement.id },
-                              cursor: at,
-                            })),
-                          ),
-                        Behind: ({ message }) => Stream.fail(new RemoteLiveError({ message })),
-                        Unreachable: ({ message }) => Stream.fail(new RemoteLiveError({ message })),
-                        Denied: () =>
-                          Stream.fail(
-                            new RemoteUnauthenticated({
-                              message: 'The Domain Api refused who asks',
-                            }),
-                          ),
-                      }),
-                    ),
+              [
+                ...request.queries.map(asked => liveQuery(lists, asked, next)),
+                ...watched.map(({ binding, requirement }) => {
+                  const receipt = Option.fromUndefinedOr(
+                    receipts.get(keyOf(requirement.entity, requirement.id)),
                   )
-              }),
-              // One watch a row, each open for the stream's life.
+                  return viewClient(binding)
+                    .watch(requirement.id)
+                    .pipe(
+                      Stream.mapEffect(snapshot =>
+                        Option.match(receipt, {
+                          // A frame at or before the revision the client holds is one it has.
+                          onNone: () =>
+                            Effect.succeed(
+                              Option.filter(
+                                Option.some(snapshot),
+                                () =>
+                                  !isHeld(
+                                    binding,
+                                    snapshot,
+                                    held.get(keyOf(requirement.entity, requirement.id)),
+                                  ),
+                              ),
+                            ),
+                          // Held to a write's receipt, a frame is only a signal: read at it.
+                          onSome: () =>
+                            snapshotAt(binding, requirement.id, receipt).pipe(
+                              Effect.orElseSucceed(() => Option.none<Snapshot>()),
+                            ),
+                        }),
+                      ),
+                      Stream.flatMap(snapshot => Stream.fromIterable(Option.toArray(snapshot))),
+                      Stream.mapEffect(snapshot =>
+                        eventOf(binding, requirement.id, requirement.fields, snapshot),
+                      ),
+                      Stream.catch(error =>
+                        Match.valueTags(failureOf(binding.rejections)(error), {
+                          // `validate` stopped allowing the key: absent to who asks from here on.
+                          Rejected: () =>
+                            Stream.fromEffect(
+                              Effect.map(next, (at): LiveEvent => ({
+                                _tag: 'EntityDeleted',
+                                ref: { entity: binding.entity.name, id: requirement.id },
+                                cursor: at,
+                              })),
+                            ),
+                          Behind: ({ message }) => Stream.fail(new RemoteLiveError({ message })),
+                          Unreachable: ({ message }) =>
+                            Stream.fail(new RemoteLiveError({ message })),
+                          Denied: () =>
+                            Stream.fail(
+                              new RemoteUnauthenticated({
+                                message: 'The Domain Api refused who asks',
+                              }),
+                            ),
+                        }),
+                      ),
+                    )
+                }),
+              ],
+              // One watch a row, and one stream a list, each open for the stream's life.
               { concurrency: 'unbounded' },
             )
           }),

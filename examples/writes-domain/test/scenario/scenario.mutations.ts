@@ -24,7 +24,7 @@ export default [
     name: 'a View frame carries no revision, so an older one is let through',
     edits: [
       {
-        file: adapter,
+        file: '../../../../packages/remote-domain/src/adapter/relations.ts',
         find: 'const revision = state[binding.revision]',
         replace: 'const revision = undefined',
       },
