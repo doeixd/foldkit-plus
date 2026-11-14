@@ -312,16 +312,21 @@ export const outbox = <AppModel>(
       /**
        * The outcome told this tab and the others first, so each settles
        * with the server's answer, then written to the store before the
-       * lock goes, so the next sender reads it.
+       * lock goes, so the next sender reads it. Not interruptible: the
+       * answer settles this page's queue, which ends this send, and a send
+       * ended before the write lets the lock go with the store still saying
+       * waiting, so a tab holding it sends the write again.
        */
       const settle = (message: RemoteMessage, change: StoredOutbox) =>
-        emit(message).pipe(
-          Effect.andThen(announce(key, Option.some(message))),
-          Effect.andThen(writeStored(key, scope, change)),
-          Effect.andThen(announce(key, Option.none())),
-          // Unwritten, the store still says waiting: the next sender sends it
-          // again, and the operation id has the server answer from its record.
-          Effect.ignore,
+        Effect.uninterruptible(
+          emit(message).pipe(
+            Effect.andThen(announce(key, Option.some(message))),
+            Effect.andThen(writeStored(key, scope, change)),
+            Effect.andThen(announce(key, Option.none())),
+            // Unwritten, the store still says waiting: the next sender sends it
+            // again, and the operation id has the server answer from its record.
+            Effect.ignore,
+          ),
         )
       const operation = write.operation
       return withLock(
@@ -350,22 +355,23 @@ export const outbox = <AppModel>(
             )
             if (Result.isSuccess(result)) {
               const outcome = result.success
-              const at = yield* Clock.currentTimeMillis
-              return yield* settle(
-                {
-                  _tag: 'MutationSucceeded',
-                  requestId: operation,
-                  entities: outcome.entities,
-                  connections: outcome.connections,
-                  deleted: outcome.deleted,
-                  ...(outcome.read === undefined ? {} : { read: outcome.read }),
-                  ...(outcome.lists === undefined ? {} : { lists: outcome.lists }),
-                  ...(outcome.principal === undefined
-                    ? {}
-                    : { principal: madeAsOf(outcome.principal), generation }),
-                  now: at,
-                },
-                storedChange([], [operation]),
+              return yield* Effect.flatMap(Clock.currentTimeMillis, at =>
+                settle(
+                  {
+                    _tag: 'MutationSucceeded',
+                    requestId: operation,
+                    entities: outcome.entities,
+                    connections: outcome.connections,
+                    deleted: outcome.deleted,
+                    ...(outcome.read === undefined ? {} : { read: outcome.read }),
+                    ...(outcome.lists === undefined ? {} : { lists: outcome.lists }),
+                    ...(outcome.principal === undefined
+                      ? {}
+                      : { principal: madeAsOf(outcome.principal), generation }),
+                    now: at,
+                  },
+                  storedChange([], [operation]),
+                ),
               )
             }
             const error = remoteError(result.failure)
@@ -388,7 +394,9 @@ export const outbox = <AppModel>(
                 revision: write.revision + 1,
                 state: { _tag: 'WaitingForSignIn', error },
               } as const
-              return yield* Effect.flatMap(saved(key, scope, storedChange([waiting], [])), emit)
+              return yield* Effect.uninterruptible(
+                Effect.flatMap(saved(key, scope, storedChange([waiting], [])), emit),
+              )
             }
             // Nothing answered: kept waiting, and sent again after a wait.
             if (next === 'sendAgain') {

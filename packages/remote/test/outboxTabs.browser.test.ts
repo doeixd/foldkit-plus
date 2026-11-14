@@ -151,8 +151,26 @@ const client: RemoteClient['Service'] = {
   live: () => Stream.empty,
 }
 
+/** How long a tab's store takes to read and to write, as one under load does. */
+interface Lag {
+  /** The wait before each read, asked once per read. */
+  readonly get: () => number
+  readonly set: number
+}
+const slowStore = (lag: Lag) =>
+  Layer.effect(
+    KeyValueStore.KeyValueStore,
+    Effect.map(Effect.service(KeyValueStore.KeyValueStore), base =>
+      KeyValueStore.make({
+        ...base,
+        get: key => Effect.andThen(Effect.sleep(lag.get()), base.get(key)),
+        set: (key, value) => Effect.andThen(Effect.sleep(lag.set), base.set(key, value)),
+      }),
+    ),
+  ).pipe(Layer.provide(KeyValueStore.layerStorage(() => localStorage)))
+
 /** A tab: the application in a section of its own, over the page's `localStorage`. */
-const tab = (name: string, start: Model = initial) => {
+const tab = (name: string, start: Model = initial, lag: Lag = { get: () => 0, set: 0 }) => {
   const section = document.createElement('section')
   section.className = name
   const container = document.createElement('div')
@@ -169,10 +187,7 @@ const tab = (name: string, start: Model = initial) => {
       view,
       subscriptions: durable.subscriptions!,
       container,
-      resources: Layer.merge(
-        Layer.succeed(RemoteClient, client),
-        KeyValueStore.layerStorage(() => localStorage),
-      ),
+      resources: Layer.merge(Layer.succeed(RemoteClient, client), slowStore(lag)),
     }),
   )
   const read = (part: string) => section.querySelector(`.${part}`)?.textContent
@@ -200,6 +215,36 @@ it('shows a write queued in one tab in the other, sends it once, and settles bot
       entries: [],
       done: [sent[0]],
     })
+  } finally {
+    a.handle.dispose()
+    b.handle.dispose()
+  }
+})
+
+it('sends a write once when the tab that sent it stops waiting for the answer before storing it', async () => {
+  // The sending tab's store is slow to write and the other's slow to read, as under load:
+  // the answer settles the sender's queue, which ends its send, while it is still writing,
+  // and the other tab takes the lock before it has heard the answer.
+  const a = tab('a', initial, { get: () => 0, set: 300 })
+  let late = false
+  const b = tab('b', initial, {
+    get: () => {
+      const wait = late ? 150 : 0
+      late = false
+      return wait
+    },
+    set: 0,
+  })
+  try {
+    await vi.waitFor(() => expect([a.read('count'), b.read('count')]).toEqual(['1', '1']))
+    a.press()
+    await vi.waitFor(() => expect([a.read('waiting'), b.read('waiting')]).toEqual(['1', '1']))
+    await vi.waitFor(() => expect(sent).toHaveLength(1))
+    late = true
+    answer()
+    await vi.waitFor(() => expect([a.read('waiting'), b.read('waiting')]).toEqual(['0', '0']))
+    await new Promise(resolve => setTimeout(resolve, 400))
+    expect(sent).toHaveLength(1)
   } finally {
     a.handle.dispose()
     b.handle.dispose()

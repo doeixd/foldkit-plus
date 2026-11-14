@@ -231,6 +231,17 @@ export default [
     tests: ['packages/remote/test/outboxTabs.browser.test.ts'],
   },
   {
+    name: 'a send ended while it settles lets the lock go before the store says it is done',
+    edits: [
+      {
+        file: outbox,
+        find: '        Effect.uninterruptible(\n          emit(message).pipe(',
+        replace: '        Effect.interruptible(\n          emit(message).pipe(',
+      },
+    ],
+    tests: ['packages/remote/test/outboxTabs.browser.test.ts'],
+  },
+  {
     name: 'a trace runs no outbox, so a durable write is never sent',
     edits: [
       {

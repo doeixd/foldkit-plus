@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-remote/testing`: `Scenario`, a write (or a Message) as plain data run
+  by runners (#538). `Scenario.write` takes `given` rows, `principal`, `now`,
+  `when`, `operation` and an `expect` (`accepted`, `refused` by an invariant or
+  `'Unmet'`, `'Conflict'`, `'Taken'`, `'Referenced'`, `forbidden`,
+  `unauthenticated`); `Scenario.remote` runs it through `Law.check` and the
+  server; `Scenario.run` returns the mismatches (each naming its backend and
+  step) and issues a `Scenario` record per runner with no mismatch, and with a
+  `Laws.check` report throws before running a scenario that expects what the
+  report disproved; `Scenario.fromReport` derives scenarios from the report;
+  `Scenario.messages` and `Scenario.runMessages` do the same for an `update`.
+
 - `foldkit-metadata`: `Evidence`, records that a transition keeps a law
   (`Enumerated`, `Walked`, `Scenario`, `RuntimeOnly`), stamped by the producer
   that issued them (#537). `Evidence.issuedBy(record)` is that producer, none
@@ -328,6 +339,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-remote/outbox`: a durable write is sent once across tabs. The answer
+  settles the sending tab's queue, which ends its send; where that came before
+  the store was written, the send's lock went with the store still saying
+  waiting, and another tab holding the lock sent the write again. Recording
+  the answer is no longer interruptible.
 - `foldkit-mixins`: a Mount inside a `ChildAttribute` on a Slot is composed with
   the Slot's other Mounts, instead of drawn beside them where Foldkit kept one,
   and still sends through its own boundary (#531).
