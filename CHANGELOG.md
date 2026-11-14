@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-remote`: `policies` on `Data.wiring`, a policy per active entry by its
+  key, so two Surfaces active on one route read under two policies; an entry it
+  does not name reads under `policy`. A key the active record lacks is a type
+  error, and refused where given for a record typed by `string`. A list two
+  entries read is held stale once left unless both policies age it.
+  `RemoteWiring`'s `subscriptions` is no longer optional (#236).
 - `foldkit-surface`: a `Derived` as an entry of `Projection.struct`. `Projection.derive(on,
   derive, { Model })`, given the Schema of its value, returns a `ModeledDerived`: the
   struct reads its memoized value, declares its paths, plans nothing for it and
