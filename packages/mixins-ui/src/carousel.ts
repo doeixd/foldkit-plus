@@ -113,16 +113,26 @@ export type Message = typeof Message.Type
 /** The default delay, Embla's autoplay's. */
 export const DELAY = 4000
 
+// A reader who asked for less motion is not started on a rotation; the rotation
+// button, which `Stopped` draws, still lets them start it.
+const prefersReducedMotion = (): boolean =>
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
 export const init = (options: {
   readonly id: string
   readonly index?: number
-  /** Rotate from the start; default no rotation and no rotation button. */
+  /**
+   * Rotate from the start; default no rotation and no rotation button. Under
+   * `prefers-reduced-motion: reduce` it begins `Stopped`, with the button to start it.
+   */
   readonly autoplay?: boolean
   readonly delay?: number
 }): Model => ({
   id: options.id,
   index: options.index ?? 0,
-  rotation: options.autoplay === true ? 'Rotating' : 'None',
+  rotation: options.autoplay !== true ? 'None' : prefersReducedMotion() ? 'Stopped' : 'Rotating',
   hovered: false,
   delay: options.delay ?? DELAY,
   turn: 0,
@@ -430,19 +440,22 @@ export const view = <ParentMessage>(
           ]),
       h.div(
         builders.track.attrs([h.Id(`${id}-track`), h.OnMount(settle)]),
-        options.slides.map((slide, index) =>
-          h.div(
+        options.slides.map((slide, index) => {
+          const shown = index >= current && index < current + perView
+          return h.div(
             builders.slide.attrs([
               h.Key(String(index)),
               h.Id(slideId(id, index)),
               h.Role('group'),
               roledescription('slide'),
               h.AriaLabel(slideLabel(index, count)),
-              h.DataAttribute('current', String(index >= current && index < current + perView)),
+              h.DataAttribute('current', String(shown)),
+              // Out of view, its content must not take the focus, which would scroll the track.
+              ...(shown ? [] : [h.Inert(true)]),
             ]),
             [slide],
-          ),
-        ),
+          )
+        }),
       ),
       h.div(builders.controls.attrs(), [
         h.button(

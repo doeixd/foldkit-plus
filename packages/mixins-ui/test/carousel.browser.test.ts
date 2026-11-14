@@ -93,7 +93,7 @@ const mount = (
                 label: 'Trip photos',
                 model: model.carousel,
                 slides: PLACES.map(name =>
-                  h.p([h.Style({ height: '120px', margin: '0' })], [name]),
+                  h.p([h.Style({ height: '120px', margin: '0' })], [h.a([h.Href('#')], [name])]),
                 ),
                 onMessage: message => Message.Got({ message }),
                 style,
@@ -235,6 +235,25 @@ test('focus arriving by the keys stops it, and its button starts it again', asyn
       expect(rotation().getAttribute('aria-label')).toBe('Stop slide rotation'),
     )
     expect(element('#trip').dataset['rotation']).toBe('rotating')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('Tab skips a link in a slide out of view, and the track stays put', async () => {
+  const handle = mount(Carousel.init({ id: 'trip' }))
+  try {
+    await vi.waitFor(() => element('#trip-slide-3'))
+    element('#trip-slide-0 a').focus()
+    for (let press = 0; press < 12; press++) {
+      await userEvent.tab()
+      expect(
+        document.querySelector(
+          '#trip-track #trip-slide-1 a:focus, #trip-slide-2 a:focus, #trip-slide-3 a:focus',
+        ),
+      ).toBeNull()
+    }
+    expect(element('#trip-track').scrollLeft).toBe(0)
   } finally {
     handle.dispose()
   }

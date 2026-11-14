@@ -8,6 +8,39 @@ const browser = 'packages/mixins-ui/test/carousel.browser.test.ts'
 
 export default [
   {
+    name: 'a slide out of view keeps its focusable content reachable',
+    edits: [
+      {
+        file: '../src/carousel.ts',
+        find: '...(shown ? [] : [h.Inert(true)]),',
+        replace: '',
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: 'every slide is inert',
+    edits: [
+      {
+        file: '../src/carousel.ts',
+        find: '...(shown ? [] : [h.Inert(true)]),',
+        replace: '...[h.Inert(true)],',
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: 'autoplay ignores reduced motion',
+    edits: [
+      {
+        file: '../src/carousel.ts',
+        find: "options.autoplay !== true ? 'None' : prefersReducedMotion() ? 'Stopped' : 'Rotating'",
+        replace: "options.autoplay !== true ? 'None' : 'Rotating'",
+      },
+    ],
+    tests: [unit],
+  },
+  {
     name: 'ShowSlide scrolls nothing',
     edits: [
       {
