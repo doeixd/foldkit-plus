@@ -92,7 +92,7 @@ export default [
   edit(
     'a form judges with the kernel',
     form,
-    'Entity.judgeInput(input, value as Readonly<Record<string, unknown>>, options.operators),',
-    'Entity.judgeInput(input, value as Readonly<Record<string, unknown>>),',
+    '        operators: options.operators,\n        over:',
+    '        over:',
   ),
 ]
