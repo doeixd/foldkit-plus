@@ -7,7 +7,7 @@ import { Nav as UiNav } from '@foldkit/ui'
 import { Option } from 'effect'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
-import { A11y, Style } from 'foldkit-mixins'
+import { A11y, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Nav, NavSlots, Patterns, Recipes } from '../src/index.js'
 
@@ -56,6 +56,44 @@ describe('Nav.view', () => {
         expect(Inert.value(overlay, 'aria-hidden')).toBe('true')
       }
     }))
+})
+
+describe('Nav.view menu', () => {
+  const h = SlotView.inertBuilder<Nav.Message>()
+  const entries: ReadonlyArray<Nav.NavEntry> = [
+    { label: 'Home', href: '#home' },
+    { label: 'Start', href: '#home' },
+    { id: 'docs', label: 'Docs', groups: [{ links: [{ label: 'Guides', href: '#guides' }] }] },
+  ]
+  const menu = (open: Option.Option<string>) =>
+    Nav.view(
+      {
+        model: { ...Nav.init('site'), open },
+        entries,
+        label: 'Site',
+        onMessage: message => message,
+        mixins: [style.mixin],
+      },
+      h,
+    )
+  const trigger = (open: Option.Option<string>) =>
+    Inert.byTag(menu(open), 'button').find(button => Inert.text(button).startsWith('Docs'))
+
+  it('names a panel with aria-controls only while it is drawn', () => {
+    expect(Inert.value(trigger(Option.none()), 'aria-controls')).toBeUndefined()
+    const shown = trigger(Option.some('docs'))
+    expect(Inert.value(shown, 'aria-controls')).toBe('site-panel-2')
+    expect(Inert.all(menu(Option.some('docs'))).map(node => Inert.value(node, 'id'))).toContain(
+      'site-panel-2',
+    )
+  })
+
+  it('keys two links to one address apart', () => {
+    const items = Inert.byTag(menu(Option.none()), 'li').filter(item => item.key !== undefined)
+    const keys = items.map(item => item.key)
+    expect(keys).toHaveLength(3)
+    expect(new Set(keys).size).toBe(3)
+  })
 })
 
 describe('Nav.update', () => {

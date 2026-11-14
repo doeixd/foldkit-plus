@@ -503,7 +503,8 @@ export const view = <Message>(options: NavView<Message>, h: HtmlBuilder<Message>
         h.Id(entryId(model.id, index)),
         h.Type('button'),
         h.AriaExpanded(shown),
-        h.AriaControls(panelId(model.id, index)),
+        // Named only while drawn: an id with no element is a dangling reference.
+        ...(shown ? [h.AriaControls(panelId(model.id, index))] : []),
         ...(holdsCurrent ? [h.DataAttribute('current', '')] : []),
         h.DataAttribute('state', shown ? 'open' : 'closed'),
         h.OnClick(onMessage(Message.Toggled({ panel: entry.id }))),
@@ -533,7 +534,7 @@ export const view = <Message>(options: NavView<Message>, h: HtmlBuilder<Message>
           h.li(builders.highlight.attrs([h.AriaHidden(true), h.Role('presentation')]), []),
           ...entries.map((entry, index) => {
             if (!isPanel(entry)) {
-              return h.keyed('li')(`link-${entry.href}`, builders.item.attrs(), [
+              return h.keyed('li')(`link-${index}-${entry.href}`, builders.item.attrs(), [
                 drawLink(entry, index),
               ])
             }
