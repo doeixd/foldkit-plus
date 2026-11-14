@@ -25,7 +25,8 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +619 bytes for the law graph's facts (#537), measured by building the page with and without them in one tree on 2026-11-14: the page calls `Module.manifest`, whose findings are
 // `Module.validate`'s and now include the graph's three rules, and the Sync contract's `facts`.
 // Ceiling raised by that, rounded up.
-const CEILING = 256_500
+// +1191 bytes for row revisions and read-after tokens on Remote's wire (#544), measured by building the page with and without them in one tree on 2026-11-14: the wire's schemas, the token in each coalesced read, the floors and revisions in the store and reducer. Ceiling raised by that, rounded up.
+const CEILING = 257_700
 
 clientBudget({
   name: 'registry',

@@ -16,7 +16,8 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // at 85e0f67 (2026-11-02) it grew steadily, about 39 kB over 337 commits with
 // no step above 17 kB: the SSR loader and redirect, Remote and Surface
 // features the page uses. Not an accident in one commit.
-const CEILING = 3_240_000
+// +9284 bytes for row revisions and read-after tokens on Remote's wire (#544), measured by building the page with and without them in one tree on 2026-11-14: the wire's schemas, the token in each coalesced read, the floors and revisions in the store and reducer. Ceiling raised by that, rounded up.
+const CEILING = 3_249_300
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))
