@@ -168,7 +168,8 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   `Typeahead` each export `keys(Declared, args)<Input, Message>(options)` (`Typeahead.keys(Declared)` takes no args), the `Keys.route` their `behavior` installs;
   list it beside your own routes in one `Behaviors.Keys.behavior` (a search input: `EscapeClears` + `ListNavigation.keys`).
   Chords come with Shift up and down; `ListNavigation.keys` declares every printable key unless `typeahead: false`.
-  Only `keydown` is written: draw `RovingTabindex.itemAttributes` and `aria-activedescendant` yourself.
+  Only `keydown` is written: attach `ListNavigation.item(Declared, args)(Slots)({ item, items })` for its items'
+  tab stop and `OnFocus` (the others: `RovingTabindex.itemAttributes`), and draw `aria-activedescendant` yourself.
 - **Cells in rows:** `GridNavigation.bundle` (`{ columns, wrap, virtual }`) with
   `GridNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items, direction? })`.
   Same Model slice and item attributes as `RovingTabindex`; arrows move within the row or
@@ -190,7 +191,8 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
 - **A row that leaves without taking input:** `Presence.behavior(Slots)<Input, Message>({ content, phase: (input, item) => 'shown' | 'hiding' | 'hidden' })`
   draws `data-presence` and `inert` (not `aria-hidden`) on the slot for every phase but `shown`;
   it sends no Message. The phase and the timed `Hidden` are `Presence.bundle`'s (`motion`), one
-  per row with `Presence.bundle.each`. Attach `FocusRecovery` too: focus leaves in the frame
+  per row with `Presence.bundle.each`, driven from the parent's `update` by its helpers
+  (`placed.helpers.hide(id)(model)`, `show(id)`). Attach `FocusRecovery` too: focus leaves in the frame
   it turns `inert`, and removal moves nothing; a `Show` before `Hidden` refocuses nothing.
 - **Activate on press:** place `Press.bundle` (`{ clickSuppressionMs }`) with a required
   `onOut` for `Pressed { pointerType }`; attach `Press.behavior(Declared)(Slots)<Model, Message>({ target, disabled? })`.
@@ -239,8 +241,8 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   Not for `popover` elements. `Layers.scrollLock(Slots)({ container })` and `Layers.hideOutside(Slots)({ container })`
   mount Foldkit's refcounted scroll lock and keyed inert set.
 - **One overlay policy:** `Overlay.modal` / `Overlay.nonModal` (or an explicit `Policy`) into
-  `Overlay.behaviors(Slots)<Model, Message, StackField>({ stack, layer, trigger?, id, policy })`, spread into the
-  view's pipe: dismiss marking, focus scope, and the scroll/inert mounts the policy keeps. Positioning stays
+  `Overlay.behaviors(Slots)<Model, Message, StackField>({ stack, layer, trigger?, id, policy })`, attached with
+  `Behavior.attachAll(list)` as one step of the view's pipe: dismiss marking, focus scope, and the scroll/inert mounts the policy keeps. Positioning stays
   per-widget (`Anchor.behavior`); presence stays CSS. See `examples/drawer`.
 - **Keep a floating panel inside the viewport:** `Placing.keepWithin(Slots)({ panel })` shifts left past the
   right edge and flips above when the bottom overflows with room overhead; `Placing.placeFor(rect, viewport)`

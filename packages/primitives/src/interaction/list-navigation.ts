@@ -206,6 +206,93 @@ export const keys =
     })
   }
 
+export interface ItemOptions<
+  Input,
+  Slots,
+  Item extends keyof Slots & string = keyof Slots & string,
+> {
+  /** The slot rendered once per item; must carry the item's id (see `Behaviors.Collection`). */
+  readonly item: Item
+  readonly items: (input: Input) => Behaviors.Collection.Items<unknown>
+}
+
+// What each item is given, under `behavior` and `item` alike.
+const itemSlot = <
+  Field extends string,
+  Input extends { readonly [K in Field]: Model },
+  ParentMessage,
+>(
+  declared: Declared<typeof bundle, Field>,
+  args: Args,
+  items: (input: Input) => Behaviors.Collection.Items<unknown>,
+) => {
+  const focused = (id: string): ParentMessage =>
+    declared.wrapper.make(Message.Focused({ id })) as unknown as ParentMessage
+  return Behavior.slot({
+    requires: { capability: Capability.Focusable },
+    provides: [A11y.FocusStrategy],
+    attributes: ({
+      input,
+      h,
+      item,
+    }: {
+      readonly input: Input
+      readonly h: HtmlBuilder<ParentMessage>
+      readonly item?: SlotItem
+    }) =>
+      item === undefined
+        ? []
+        : RovingTabindex.itemAttributes(
+            h,
+            items(input),
+            input[declared.field].current,
+            item,
+            args.virtual,
+            focused,
+          ),
+  })
+}
+
+/**
+ * The item half of `behavior`, for a container whose `keydown` is a router's
+ * (`Keys.behavior` listing `keys` beside routes of its own): each item gets
+ * `tabindex` (none under `virtual`) and an `OnFocus` reporting it current, so
+ * neither the items' attributes nor the `Focused` Message is written by hand.
+ */
+export const item = <Field extends string>(
+  declared: Declared<typeof bundle, Field>,
+  args: Args,
+) => {
+  function place<Slots, Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    bound: SlotView.Bound<Slots, Input, ParentMessage>,
+  ): <Item extends keyof Slots & string>(
+    options: ItemOptions<Input, Slots, Item>,
+  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage, A11y.ProvidedOn<Item, 'focus-strategy'>>
+  function place<Slots>(
+    slots: SlotView.Unbound<Slots>,
+  ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    options: ItemOptions<Input, Slots>,
+  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+    const slots = SlotView.boundSlots(given)
+    return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+      options: ItemOptions<Input, Slots>,
+    ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
+      Behavior.forSlots(slots)<Input, ParentMessage>(
+        {
+          [options.item]: itemSlot<Field, Input, ParentMessage>(
+            declared,
+            args,
+            perInput(options.items),
+          ),
+          // Keyed by a value the caller chose; `forSlots` checks the key exists.
+        } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
+        { name: 'ListNavigation.item' },
+      )
+  }
+  return place
+}
+
 /**
  * Wires a placed `ListNavigation` to the slots. The container gets the `keys`
  * route as its one key handler. Each item gets `tabindex` and `OnFocus` as
@@ -236,9 +323,6 @@ export const behavior = <Field extends string>(
     return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
       options: BehaviorOptions<Input, Slots, ParentMessage>,
     ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
-      const wrap = (message: Message): ParentMessage =>
-        declared.wrapper.make(message) as unknown as ParentMessage
-      const focused = (id: string): ParentMessage => wrap(Message.Focused({ id }))
       const slice = (input: Input): Model => input[declared.field]
       const itemsOf = perInput(options.items)
       const keydown = Behaviors.Keys.attribute<Input, ParentMessage>(
@@ -263,29 +347,7 @@ export const behavior = <Field extends string>(
               ]
             },
           }),
-          [options.item]: Behavior.slot({
-            requires: { capability: Capability.Focusable },
-            provides: [A11y.FocusStrategy],
-            attributes: ({
-              input,
-              h,
-              item,
-            }: {
-              readonly input: Input
-              readonly h: HtmlBuilder<ParentMessage>
-              readonly item?: SlotItem
-            }) =>
-              item === undefined
-                ? []
-                : RovingTabindex.itemAttributes(
-                    h,
-                    itemsOf(input),
-                    slice(input).current,
-                    item,
-                    args.virtual,
-                    focused,
-                  ),
-          }),
+          [options.item]: itemSlot<Field, Input, ParentMessage>(declared, args, itemsOf),
           // Keyed by values the caller chose; `forSlots` checks both keys exist.
         } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
         { name: 'ListNavigation' },

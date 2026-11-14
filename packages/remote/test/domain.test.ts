@@ -591,6 +591,7 @@ describe('live and Data.subscriptions', () => {
       cursor: 0,
       floor: 0,
       tokens: [],
+      revisions: [],
       restarts: 0,
       failures: 0,
     })
@@ -600,6 +601,7 @@ describe('live and Data.subscriptions', () => {
       cursor: 0,
       floor: 0,
       tokens: [],
+      revisions: [],
       restarts: 0,
       failures: 0,
     })

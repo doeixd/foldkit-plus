@@ -9,6 +9,45 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-remote-domain`: lists and `one` relations. `DomainRemote.query(Query,
+  Api, 'PagedQuery', { input, id })` binds a Remote query to a paged Domain
+  Query, given to `DomainRemote.layer` as `queries`: the Query decides what is
+  listed, each listed row is read through its View (which leaves out a row it
+  hides, and gives each its revision), paging is forward only (`last`,
+  `before`, `first: 0` and a cursor over 1,024 characters are refused), a
+  write's answer carries the lists the client asks back read at its receipt,
+  and a live list is invalidated as its stream opens (read once more, for what
+  moved before it opened), asked again 50 ms after a change of a row it holds
+  (one ask for a burst), and
+  invalidated when it moved. A View's state holds a `one` relation as the target's id; a
+  read answers its ref key and reads a selected target through the target's
+  own View in the same batch. `DomainRemote.view` refuses an Entity whose `one`
+  relation its View's state lacks.
+- `examples/authoring`: a search field, an editable and reorderable list, a popup conformed to the listbox pattern, a sortable listbox and an editor an agent can save, each assembled from primitives; the save is asserted once for a person, an agent in the page and an agent headless, and the type cost of `SlotView.over` is measured (#551, #556, #557, #558).
+- `foldkit-remote-domain/server`: `pageReader(Api, { views, resolvePrincipal,
+  middleware })`, the reader a server render reads a Domain model through in
+  process, as the principal decided from the request (a navigation's resolver,
+  `AuthServer.host(…).navigation.resolvePrincipal`, fits without a cast) and through a
+  middleware built for that principal alone. It binds no command, opens no live stream and
+  notes every read private. The adapter's `live` sends no frame at or before a
+  revision the client names (`LiveRequirement.revisions`), so a page resumed
+  from a server render reads no row it was handed (a live list once more); `examples/writes-domain`
+  renders and hydrates its shop that way under jsdom.
+- `foldkit-remote`: a live stream names the revision it holds each row at,
+  every field it follows written at that revision, none stale and no floor
+  (`LiveRequirement.revisions`), so a server may leave out a frame the page
+  already has (a row whose revision a partial read moved is named at none; at
+  most 256, and `foldkit-remote-server` refuses more than the rows followed); a moved revision does not
+  restart the stream. `REMOTE_PROTOCOL_VERSION` is 7, so a client and server of
+  6 and 7 refuse each other. `Remote.resume`'s capture carries a row's
+  read-after floor, so a row a write in the render held (a form posted without
+  scripts) stays held in the browser and is read at its token.
+- Docs: the laws guide (`docs/laws.md`, the skill's `references/laws.md`) gains
+  states (`Entity.refine`, `from`, `becomes`), a document's `laws` with the
+  monotone form for live documents and `Board.judge` as the audit, `Laws.check`
+  with a repair for each finding, the evidence kinds and how `Graph.validate`'s
+  `law-unwitnessed` is cleared, `Data.can`, and "when a state depends on the
+  past, store the fact" (#540).
 - `foldkit-mixins/testing`: `Conformance` (#552 rendered, #558 item 1), scenarios
   `listbox`, `checkbox`, `tree`, `dialog` (focus in, Tab contained, Escape,
   restore, a dialog over a dialog) and `tabs`, each a function of a harness
@@ -139,7 +178,9 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-primitives/interaction`: `Presence.behavior` draws the phase a placed
   `Presence` holds as `data-presence` and `inert`, so a leaving row takes no
   click, Tab or focus; with `FocusRecovery`, focus leaves in the frame it turns
-  `inert` and the removal moves nothing (#555).
+  `inert` and the removal moves nothing (#555). The `Presence` bundle gains
+  helpers, `show` and `hide`, so a parent's `update` starts an exit
+  (`placed.helpers.hide(id)(model)`) with no `Hide` built in the root.
 
 - `foldkit-remote/testing`: `Scenario`, a write (or a Message) as plain data run
   by runners (#538). `Scenario.write` takes `given` rows, `principal`, `now`,
@@ -185,7 +226,10 @@ version changed; `pnpm` skips versions already in the registry.
   `Keys.withShift(key, modifiers?)` is a named key as two chords. Each
   primitive's `behavior` is built on them; its attributes are unchanged.
   `ListNavigation`'s `commit` option still works, and is better written as a
-  route of your own.
+  route of your own. `ListNavigation.item(declared, args)(slots)({ item,
+  items })` is the item half beside such a router: each item's tab stop and
+  the `OnFocus` reporting it current, stating `item/focus-strategy` on a
+  binder, so no item attribute or `Focused` Message is written by hand.
 
 - `foldkit-mixins`, `foldkit-mixins-surface`: `SlotView.describe(view)` is a
   view as serializable data (its slots and each attachment in order, with what it
@@ -419,6 +463,23 @@ version changed; `pnpm` skips versions already in the registry.
   `refused` ("The column's series gave no text here"), not padded.
 
 ### Changed
+
+- **Breaking:** `foldkit-crud`: `Crud.list`'s `live` takes Remote's live read,
+  not a flag: write `live: liveQuery` (from `foldkit-remote/live`) where
+  `live: true` was. Crud imported `liveQuery` itself for the flag, so every
+  page drawing a list kept Remote's live modules whether it read live or not;
+  a page that passes no `live` now keeps none of them.
+
+- **Breaking:** `foldkit-mixins`: a view's `pipe` (and a Slot's and a knob
+  theme's) takes typed steps only, and no spread array. The catch-all that
+  took one was the overload TypeScript reported when the typed steps refused
+  a call, so an `A11y.conform` after several attachments was judged against
+  the view before them and listed every obligation, met or not; the error
+  now names only what the steps before it leave owed. A list of Behaviors is
+  one step, `Behavior.attachAll(list)`, which supplies what each member does:
+  write `.pipe(Behavior.attachAll(overlay), …)` where
+  `.pipe(...overlay.map(Behavior.attach))` was (`overlay` from
+  `Overlay.behaviors`).
 
 - `foldkit-primitives`: `DismissLayer` hears Escape in the bubble phase and
   skips one whose `defaultPrevented` is set, so an input inside a layer that

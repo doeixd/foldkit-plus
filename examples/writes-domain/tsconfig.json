@@ -21,6 +21,7 @@
       "foldkit-remote-domain": ["../../packages/remote-domain/src/index.ts"],
       "foldkit-remote-domain/imported": ["../../packages/remote-domain/src/imported/index.ts"],
       "foldkit-remote-domain/lower": ["../../packages/remote-domain/src/lower/index.ts"],
+      "foldkit-remote-domain/server": ["../../packages/remote-domain/src/adapter/resume.ts"],
       "foldkit-remote-domain/testing": ["../../packages/remote-domain/src/testing.ts"],
       "foldkit-remote-drizzle": ["../../packages/remote-drizzle/src/index.ts"],
       "foldkit-remote-drizzle/pg": ["../../packages/remote-drizzle/src/pg.ts"],
@@ -35,6 +36,10 @@
       "foldkit-remote/port": ["../../packages/remote/src/port.ts"],
       "foldkit-remote/testing": ["../../packages/remote/src/testing.ts"],
       "foldkit-remote/why": ["../../packages/remote/src/why.ts"],
+      "foldkit-ssr": ["../../packages/ssr/src/index.ts"],
+      "foldkit-ssr/client": ["../../packages/ssr/src/client.ts"],
+      "foldkit-ssr/loader": ["../../packages/ssr/src/loader.ts"],
+      "foldkit-ssr/vite": ["../../packages/ssr/src/vite.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"]
     }
   },
@@ -63,6 +68,9 @@
     },
     {
       "path": "../../packages/surface/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/ssr/tsconfig.build.json"
     }
   ]
 }

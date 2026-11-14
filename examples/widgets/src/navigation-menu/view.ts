@@ -134,7 +134,7 @@ export const NavigationMenu = SlotView.forMessages<Message>()
     Behavior.attach(LinkIds),
     Behavior.attach(Keys),
     Behavior.attach(Picks),
-    ...NavigationOverlay.map(Behavior.attach),
+    Behavior.attachAll(NavigationOverlay),
     Behavior.attach(
       Placing.placeAtTrigger(NavigationMenuSlots)<Model, Message>({
         panel: 'popup',

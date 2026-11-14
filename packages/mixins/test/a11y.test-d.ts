@@ -256,11 +256,11 @@ Assembled.pipe(
 )
 
 // A view that supplies everything, a detach of what supplied navigation, and `conform`: refused,
-// though the view it was called on would conform. The view's own `pipe` names the step that
-// took the supplies away; Effect's names the `conform`.
+// though the view it was called on would conform. Both pipes name the `conform`, judged against
+// the view the steps before it made.
 Conforming.pipe(
-  // @ts-expect-error listbox/navigation went with Nav.
   SlotView.detach('Nav'),
+  // @ts-expect-error listbox/navigation went with Nav.
   A11y.conform(Listbox),
 )
 pipe(
@@ -284,3 +284,45 @@ bare.pipe(
   Style.attach(Look),
   A11y.conform(Listbox),
 )
+
+// A list of Behaviors attaches in one step, and the view supplies what each member does.
+const _allSupplied: SlotView.SlotView<
+  typeof ListSlots,
+  ListInput,
+  TestMessage,
+  | 'listbox/navigation'
+  | 'listbox/name'
+  | 'option/focus-strategy'
+  | 'option/activation'
+  | 'option/state:aria-selected'
+> = bare.pipe(
+  Behavior.attachAll([Nav, Picks, Clears]),
+  SlotView.attach(Named),
+  A11y.conform(Listbox),
+)
+// A list typed as an array of one Behavior type supplies what that type does.
+const someBehaviors: ReadonlyArray<typeof Clears> = [Clears]
+bare.pipe(
+  Behavior.attachAll(someBehaviors),
+  Behavior.attach(Nav),
+  Behavior.attach(Picks),
+  SlotView.attach(Named),
+  A11y.conform(Listbox),
+)
+void _allSupplied
+bare.pipe(
+  Behavior.attachAll([Nav, Clears]),
+  SlotView.attach(Named),
+  // @ts-expect-error option/activation: the list holds no Picks.
+  A11y.conform(Listbox),
+)
+// A member over another `Input` is refused, as `attach` refuses it.
+const OtherInput = SlotView.over(ListSlots)<{ readonly other: string }, TestMessage>().behavior({
+  listbox: Behavior.slot({ attributes: ({ input, h }) => [h.Id(input.other)] }),
+})
+// @ts-expect-error the member reads `{ other }`, which the view is not called with.
+bare.pipe(Behavior.attachAll([Nav, OtherInput]))
+// A spread is no step: each argument of the view's `pipe` is one typed step.
+const steps = [Behavior.attach(Nav), Behavior.attach(Picks)]
+// @ts-expect-error an array of any length matches none of the typed steps.
+bare.pipe(...steps)

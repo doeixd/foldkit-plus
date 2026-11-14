@@ -8,7 +8,7 @@ import { Option, Schema } from 'effect'
 import type { KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
-import { Attributes, Behaviors, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { Attributes, Behaviors, Capability, Event, Slot, Slots, SlotView } from 'foldkit-mixins'
 import { describe, expect, it } from 'vitest'
 import { ListNavigation, RovingTabindex, Typeahead } from '../src/interaction/index.js'
 
@@ -233,6 +233,55 @@ describe('ListNavigation behavior', () => {
     const f = Attributes.find(b.list.attrs(), 'OnKeyDownPreventDefault')?.f
     if (f === undefined) throw new Error('no OnKeyDownPreventDefault')
     expect(Option.isNone(f('Enter', plain))).toBe(true)
+  })
+})
+
+describe('ListNavigation.item, the item half beside a router', () => {
+  // Not the first item, so a stop read from `current` and one that defaults to the first differ.
+  const input: ListInput = { nav: { current: 'banana', query: '', generation: 0 }, fruits }
+  const RoutedSlots = Slots.define({
+    list: Slot.make({ capability: Capability.Container, events: [Event.KeyDown] }),
+    option: Slot.make({ capability: Capability.Focusable }),
+  })
+  const half = (options: ListNavigation.Args = args) =>
+    ListNavigation.item(Nav, options)(RoutedSlots)<ListInput, Message>({
+      item: 'option',
+      items: model => describeFruits(model.fruits),
+    })
+  const router = Behaviors.Keys.behavior(RoutedSlots)<ListInput, Message>({
+    slot: 'list',
+    routes: [
+      ListNavigation.keys(
+        Nav,
+        args,
+      )<ListInput, Message>({
+        items: model => describeFruits(model.fruits),
+        text: (model, index) => model.fruits[index]?.label ?? '',
+      }),
+    ],
+  })
+  const drawn = (options?: ListNavigation.Args) =>
+    SlotView.buildersFor(RoutedSlots, [router.mixin, half(options).mixin], { input, h })
+
+  it('gives the current item the tab stop and every item an OnFocus reporting it current', () => {
+    const b = drawn()
+    expect(Attributes.find(b.option.attrs([], items.slotItem(2)), 'Tabindex')?.value).toBe(0)
+    expect(Attributes.find(b.option.attrs([], items.slotItem(0)), 'Tabindex')?.value).toBe(-1)
+    expect(Attributes.find(b.option.attrs([], items.slotItem(4)), 'OnFocus')?.message).toEqual(
+      Nav.wrapper.make(ListNavigation.Message.Focused({ id: 'cherry' })),
+    )
+  })
+
+  it('writes nothing on the container, whose keys are the router’s', () => {
+    const list = drawn().list.attrs()
+    expect(Attributes.find(list, 'OnKeyDownFocus')).toBeDefined()
+    expect(list.map(Attributes.tagOf)).not.toContain('AriaActiveDescendant')
+    expect(SlotView.buildersFor(RoutedSlots, [half().mixin], { input, h }).list.attrs()).toEqual([])
+  })
+
+  it('under virtual gives no tab stop', () => {
+    const option = drawn({ ...args, virtual: true }).option.attrs([], items.slotItem(2))
+    expect(Attributes.find(option, 'Tabindex')).toBeUndefined()
   })
 })
 

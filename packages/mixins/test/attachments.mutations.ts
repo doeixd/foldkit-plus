@@ -10,6 +10,29 @@ const surfaceOver = ['packages/mixins-surface/test/over.test.ts']
 
 export default [
   {
+    name: 'attachAll attaches only the first of its list',
+    edits: [
+      {
+        file: '../src/behavior.ts',
+        find: '    behaviors.reduce<SlotView.SlotView<ViewSlots, Input, Message, any>>(',
+        replace:
+          '    behaviors.slice(0, 1).reduce<SlotView.SlotView<ViewSlots, Input, Message, any>>(',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'attachAll attaches its list backwards',
+    edits: [
+      {
+        file: '../src/behavior.ts',
+        find: '    behaviors.reduce<SlotView.SlotView<ViewSlots, Input, Message, any>>(',
+        replace: '    behaviors.reduceRight<SlotView.SlotView<ViewSlots, Input, Message, any>>(',
+      },
+    ],
+    tests: unit,
+  },
+  {
     name: 'a conflict is not told who gave each contribution',
     edits: [
       {

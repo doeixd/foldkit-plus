@@ -72,6 +72,7 @@ import {
   type ConnectionSpec,
   type ConnectionIdentity,
   type LiveChange,
+  type LiveRequirement,
   type MutationDescriptor,
   type NormalizedPatch,
   type QueryDescriptor,
@@ -1007,9 +1008,14 @@ const checkIdsPerEntity = (
 
 /** Why a live subscription asks more than a read may; `undefined` when it does not. */
 const liveRefusal = (
-  requirements: ReadonlyArray<Requirement>,
+  { requirements, revisions }: Pick<typeof LiveRequirement.Type, 'requirements' | 'revisions'>,
   maxIds: number,
 ): RemoteLiveRefused | undefined => {
+  // A revision names a row the subscription follows, so it cannot outnumber them.
+  if ((revisions?.length ?? 0) > requirements.length)
+    return new RemoteLiveRefused({
+      message: `More revisions than rows in one live subscription (${requirements.length})`,
+    })
   const over = checkIdsPerEntity(requirements, maxIds)
   if (over !== undefined) {
     return new RemoteLiveRefused({
@@ -3418,7 +3424,7 @@ export const RemoteServer = {
         // Admitted once, before any live source or the hub is asked, so every
         // live path is held to the bounds a read is.
         const maxIds = Math.max(1, options.maxIdsPerEntity ?? DEFAULT_MAX_IDS_PER_ENTITY)
-        const refusal = liveRefusal(payload.requirements, maxIds)
+        const refusal = liveRefusal(payload, maxIds)
         if (refusal !== undefined) return Stream.fail(refusal)
         return Stream.unwrap(
           Effect.gen(function* () {

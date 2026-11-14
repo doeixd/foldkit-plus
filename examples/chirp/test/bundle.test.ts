@@ -30,10 +30,17 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // without both in one tree on 2026-11-14: 245,167 against 245,663, +496, rounded up.
 // +96 bytes (2026-11-14, fresh builds of 28bf08e31 and HEAD): conformed.js, 136 bytes minified, the obligations' carry
 // through `SlotView`'s detach and replace (#552), which a page drawing a slot view pays.
-const CEILING = 245_800
+// 2026-11-14, fresh builds of d9fa163eb (245,714) and 8cca4a535 (245,845): +131, all
+// foldkit-remote's live revisions (minified: liveReads 315, store 183, liveEntry 135, wire 82,
+// remote 52, outboxStore 13), never raised for. Then -1,425 (244,420): Crud.list's `live` takes
+// Remote's `liveQuery` from the caller, so Crud no longer keeps liveEvents, liveReads and live
+// (5.8 kB minified, `absent` below). Ceiling 245,800 + 131 - 1,425, rounded up.
+const CEILING = 244_550
 
 clientBudget({
   name: 'chirp',
   dir: resolve(import.meta.dirname, '..'),
   ceiling: CEILING,
+  // It reads nothing live, so none of Remote's live reads may come with Crud.
+  absent: ['foldkit-remote/live', 'foldkit-remote/liveReads', 'foldkit-remote/liveEvents'],
 })

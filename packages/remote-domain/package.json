@@ -42,6 +42,11 @@
       "types": "./dist/lower/index.d.ts",
       "import": "./dist/lower/index.js"
     },
+    "./server": {
+      "foldkit-plus:source": "./src/adapter/resume.ts",
+      "types": "./dist/adapter/resume.d.ts",
+      "import": "./dist/adapter/resume.js"
+    },
     "./testing": {
       "foldkit-plus:source": "./src/testing.ts",
       "types": "./dist/testing.d.ts",
@@ -61,7 +66,8 @@
     "foldkit-entity": "workspace:*",
     "foldkit-guard": "workspace:*",
     "foldkit-remote": "workspace:*",
-    "foldkit-remote-server": "workspace:*"
+    "foldkit-remote-server": "workspace:*",
+    "foldkit-surface": "workspace:*"
   },
   "peerDependencies": {
     "@alchemy.run/domain": "2.0.0-beta.86",
@@ -73,7 +79,6 @@
     "@cloudflare/workers-types": "5.20261112.1",
     "alchemy": "2.0.0-beta.86",
     "effect": "4.1.4",
-    "foldkit-surface": "workspace:*",
     "tsdown": "^0.23.1",
     "typescript": "7.0.2"
   }

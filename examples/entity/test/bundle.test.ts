@@ -22,10 +22,15 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +918 bytes for row revisions and read-after tokens on Remote's wire (#544), measured by building the page with and without them in one tree on 2026-11-14: the wire's schemas, the token in each coalesced read, the floors and revisions in the store and reducer. Ceiling raised by that, rounded up.
 // -370 bytes: the law graph's facts left the page for `Module.graph`'s own path (#537 review): measured with and without the move in one tree on 2026-11-14,
 // the page fell by that, and the ceiling with it.
-const CEILING = 220_630
+// -1,519 on 2026-11-14 (220,522 to 219,003 in fresh builds of 8cca4a535 and the change): Crud.list's
+// `live` takes Remote's `liveQuery` from the caller, so Crud no longer keeps liveEvents, liveReads
+// and live (5.8 kB minified, `absent` below). Ceiling lowered by that, rounded up.
+const CEILING = 219_150
 
 clientBudget({
   name: 'entity',
   dir: resolve(import.meta.dirname, '..'),
   ceiling: CEILING,
+  // Its lists read nothing live, so none of Remote's live reads may come with Crud.
+  absent: ['foldkit-remote/live', 'foldkit-remote/liveReads', 'foldkit-remote/liveEvents'],
 })

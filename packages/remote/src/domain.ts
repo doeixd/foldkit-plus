@@ -95,6 +95,7 @@ import {
   ReadRequest,
   RelationRequest,
   REMOTE_PROTOCOL_VERSION,
+  RowRevision,
   RowToken,
   WindowSchema,
   RemoteProtocolError,
@@ -350,6 +351,12 @@ export interface LiveDependencies {
    * holds the row to it.
    */
   readonly tokens: ReadonlyArray<Schema.Schema.Type<typeof RowToken>>
+  /**
+   * The revision of each row `requirements` names that the store holds whole
+   * and unheld (`LiveRequirement.revisions`), as the stream starts: a new one
+   * is no reason to restart it.
+   */
+  readonly revisions: ReadonlyArray<Schema.Schema.Type<typeof RowRevision>>
   /** How many times the stream broke; each break restarts it. */
   readonly restarts: number
   /** Breaks since its last applied event, which the restart's backoff grows with. */

@@ -226,6 +226,11 @@ export const view = <E extends AnyEntity, A extends AnyApi, const Name extends V
     if (field !== ID && !state.has(field))
       fail_(`${name}'s state has no field ${field}, which ${entity.name} declares`)
   }
+  // A `one` relation is held as the target's id; a list of rows is no field of a View's state.
+  for (const [key, relation] of Object.entries(entity.relations)) {
+    if (relation.cardinality === 'one' && !state.has(key))
+      fail_(`${name}'s state has no field ${key}, the id ${entity.name}'s ${key} points at`)
+  }
   const revision = config.revision as string
   const field: { readonly schema: Schema.Top } | undefined = Object.hasOwn(entity.fields, revision)
     ? entity.fields[revision]

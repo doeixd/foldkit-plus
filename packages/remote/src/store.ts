@@ -58,6 +58,12 @@ export interface EntityEntry {
    */
   readonly revision?: number | undefined
   /**
+   * The fields a write at `revision` carried: a partial write moves the
+   * revision while the row's other fields were read at an older one, so only
+   * these hold their values at it. Not persisted: a restored row names none.
+   */
+  readonly revisionFields?: ReadonlySet<string> | undefined
+  /**
    * The read-after token of the newest write to the row whose read no answer
    * has confirmed (`MutationResult.after`): a read of the row is planned while
    * it is set, carries it, and writes nothing until an answer read at it.
@@ -99,6 +105,26 @@ const replace = (store: EntityStore, key: EntityKey, entry: EntityEntry): Entity
   [key]: entry,
 })
 
+/**
+ * The fields known at the revision a write leaves the row at. A write at the
+ * held revision adds to them; one at a newer revision starts them again; one
+ * with none (an overlay) leaves its fields no longer known at the revision
+ * the row keeps.
+ */
+const fieldsAtRevision = (
+  previous: EntityEntry,
+  values: Readonly<Record<string, unknown>>,
+  revision: number | undefined,
+): ReadonlySet<string> => {
+  const fields = new Set(
+    revision === undefined || revision === previous.revision ? previous.revisionFields : [],
+  )
+  for (const field of Object.keys(values))
+    if (revision === undefined) fields.delete(field)
+    else fields.add(field)
+  return fields
+}
+
 const written = (
   previous: EntityEntry,
   values: Readonly<Record<string, unknown>>,
@@ -135,6 +161,8 @@ const written = (
     for (const field of Object.keys(values)) put(dated, field, now)
     fieldAt = dated
   }
+  const revisionFields = fieldsAtRevision(previous, values, revision)
+  const nextRevision = revision ?? previous.revision
   return {
     // Equal data keeps the object it was, so what is derived from it by
     // identity (a read's decoded row) survives a refetch that changed nothing.
@@ -154,7 +182,7 @@ const written = (
     fieldAt,
     windows: nextWindows,
     ...(previous.floor === undefined ? {} : { floor: previous.floor }),
-    ...(revision === undefined ? {} : { revision }),
+    ...(nextRevision === undefined ? {} : { revision: nextRevision, revisionFields }),
   }
 }
 
@@ -219,7 +247,7 @@ export const writeEntities = (
       write.updatedAt ?? now,
       write.windows,
       write.oldestAt,
-      write.revision ?? held?.revision,
+      write.revision,
     )
   }
   return next ?? store

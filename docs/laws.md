@@ -8,10 +8,13 @@ from the question a rule answers to the declaration that holds it, and the
 order to reach for them in.
 
 It is not a package. The declarations live in `foldkit-entity` (the shape of a
-row, what every row and change holds, when a write applies) and `foldkit-guard`
-(who may). Their interpreters (the server's writer, the client's pre-send
-check, a form, the database's constraints) read the same declaration, so a rule
-is written once.
+row, what every row and change holds, when a write applies, the states a row
+passes through), `foldkit-guard` (who may) and `foldkit-sync` (what a shared
+document holds). Their interpreters (the server's writer, the journal, the
+client's pre-send check, a form, the database's constraints) read the same
+declaration, so a rule is written once. Two tools answer whether the
+declarations are enough: `Laws.check` judges every write against every rule,
+and the graph asks which rules nothing has shown kept.
 
 ## Where does a rule go
 
@@ -26,13 +29,22 @@ declaration, and the refusal a caller sees.
 | The row after a write | Invariant (state) | `Entity.invariant` | `Invalid` | the server's writer, where it commits |
 | The row before and after | Invariant (transition) | `Entity.invariant`, reading `before` | `Invalid` | the server's writer, where it commits |
 | The row before, and the input | Precondition | `Write.update(…, { when })` | `Unmet` | the server's writer, where it commits |
+| The state a row is in, and the one a write leaves | Precondition and postcondition | `Entity.refine`, then `{ from, becomes }` | `Unmet`, or `Invalid` for a `becomes` only the writer can judge | the server's writer, where it commits |
 | The principal and the row | Authorization | `Guards.attach` | `Forbidden` | `foldkit-guard`'s server, before the writer |
+| The shared snapshot a durable Message leaves | Invariant (document) | `laws` on `forApplication(…).make` | `Invalid`, with the law's id | the journal, where it commits |
+
+`Data.can` is in no row: it declares nothing. It reads the rows above over what
+the client holds and says whether the server would refuse (see [Asking before
+sending](#asking-before-sending-datacan)).
 
 A write lands only when all of these hold:
 
 ```text
 authorization AND precondition AND invariants (state and transition)
 ```
+
+A shared document's operation lands when `authorize` AND its laws hold: the
+same shape, one level up.
 
 Authorization keeps its alternatives inside its own kind: `Update:
 [isOwner, isManager]` says who may. Invariants and preconditions are never
@@ -210,7 +222,51 @@ is valid for any writer, a precondition asks whether this write makes sense
 from where the row is. Another write over the same row is not bound by this
 write's `when`.
 
-### 6. A guard, for who may
+### 6. A state, for where a write starts and where it leaves the row
+
+A `when` that says "the row is a draft" is a state, and a state a product
+passes through is named in many places: a query, a write's start, a write's
+end. Name it once, on the Entity, as a value:
+
+```ts
+const Draft = Entity.refine(Product, 'Draft', { status: 'draft' })
+const Published = Entity.refine(Product, 'Published', { status: 'published' })
+
+const Release = Mutation.write(
+  'Release',
+  Write.update(
+    Entity.input(
+      Product,
+      Schema.Struct({ id: Schema.String, status: Schema.Literal('published') }),
+    ),
+    { id: 'id', from: Draft, becomes: Published },
+  ),
+)
+```
+
+`from: Draft` joins the state's predicate to the write's `when`, so a row in
+another state is refused as `Unmet`: the same refusal, with no second way to
+write it. `becomes: Published` is a claim that every row the write can start
+from is published once it lands. Where the write is declared, the claim is
+checked by enumerating those rows: one the patch cannot keep throws there,
+naming a row it breaks. A claim over numbers cannot be enumerated (a sale
+`becomes` in stock), so it becomes the write's own postcondition: the writer
+judges it where the write commits and refuses it as `Invalid`.
+
+A state is a value, not another descriptor of `Product`. Every reader of an
+Entity (the store, the Drizzle compiler, a guard, a form) would have to tell a
+descriptor of a state apart from the Entity, and one that did not would treat
+`Draft` as `Product` and say nothing. `Query.from(Draft)` asks for the rows in
+the state, and `Draft.is(row)` is a type guard over a row you hold; a
+Selection is never narrowed by state, since a held row is updated in place
+and goes on being read after it left.
+
+A state reads its own row alone to be a write's `from` or `becomes`, because a
+writer judges the row it writes, in the statement that writes it. A state that
+reaches another row (`Expr.exists`, `Expr.path`) is a query's and a guard
+rule's, not a write's.
+
+### 7. A guard, for who may
 
 Authority is decided over the principal and the row, on the server, and is
 never an invariant:
@@ -240,13 +296,251 @@ A caller the rules refuse gets `Forbidden`, and the guard speaks first so a
 refusal discloses nothing about the row's state: someone who may not write a
 row never learns it is not a draft.
 
+### 8. A document's law, for what every shared snapshot holds
+
+A shared document is state with an owner too: the server's journal. A rule
+about what the document holds after a durable Message, whoever sent it and
+whichever Message it was, is a `laws` entry on the document's contract:
+
+```ts
+import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
+import type * as Update from 'foldkit/update'
+import { Evidence, Graph, MessageSet, Module, Projection, Surface } from 'foldkit-surface'
+import { DocumentId, forApplication } from 'foldkit-sync'
+
+const BoardModel = Schema.Struct({
+  todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
+})
+type BoardModel = typeof BoardModel.Type
+const BoardMessage = defineMessageUnion({
+  CreatedTodo: { id: Schema.String, title: Schema.String },
+  DuplicatedTodo: { id: Schema.String, copyId: Schema.String },
+})
+type BoardMessage = typeof BoardMessage.Type
+type Return = Update.Return<BoardModel, BoardMessage>
+
+const update = (model: BoardModel, message: BoardMessage): Return =>
+  BoardMessage.match<Return>(message, {
+    CreatedTodo: ({ id, title }) => ({
+      model: modifyFields(model, { todos: () => [...model.todos, { id, title }] }),
+    }),
+    DuplicatedTodo: ({ id, copyId }) => ({
+      model: modifyFields(model, {
+        todos: () =>
+          model.todos.flatMap(todo => (todo.id === id ? [todo, { ...todo, id: copyId }] : [todo])),
+      }),
+    }),
+  })
+
+const BoardApp = Surface.application({
+  Model: BoardModel,
+  Message: BoardMessage,
+  initial: { todos: [] },
+  update,
+})
+
+const Board = forApplication(BoardApp).make({
+  documentId: DocumentId.make('capped-board'),
+  shared: Projection.pick(BoardApp.model.todos),
+  durable: MessageSet.make(BoardApp, [BoardMessage.CreatedTodo, BoardMessage.DuplicatedTodo]),
+  laws: {
+    atMost100Todos: {
+      holds: ({ after }) => after.todos.length <= 100,
+      message: 'A board holds 100 todos',
+      path: ['todos'],
+    },
+  },
+})
+```
+
+The journal calls `holds` with the snapshot before and the one the operation
+leaves, after `reduce` and before the append is written. A refusal is
+`Invalid` with the law's id as `rule`, as an Entity's is, and a second durable
+Message that grows the list is refused at 100 with no rule of its own. The
+replica judges its optimistic snapshot first and fails with `LawBrokenError`
+before the outbox is written; that is a hint, and the server judges again.
+
+`holds` reads the shared fields alone, and sees no principal and no Message:
+who may is `authorize`, and a law is never one of its alternatives. This is
+the rule about the data one transition writes, at the document's level: what
+the Message did to the snapshot is judged, whichever Message it was.
+
+## Check them all: `Laws.check`
+
+Declaring rules does not show the writes keep them. `Laws.check` judges each
+declared write against each invariant of its Entity, and reports the arrows
+the writes make between the Entity's states. It is pure, reads declarations
+only, and needs no database:
+
+```ts
+import { Option } from 'effect'
+import { Laws } from 'foldkit-entity'
+
+const Restock = Mutation.write(
+  'Restock',
+  Write.update(
+    Entity.input(Product, Schema.Struct({ id: Schema.String, quantity: Schema.Int }), {
+      quantity: Entity.unmapped,
+    }),
+    { id: 'id', increment: { stock: 'quantity' } },
+  ),
+)
+
+const report = Laws.check({ writes: [Publish, Release, Restock] })
+Laws.show(report)
+```
+
+```text
+Product
+  Draft -> Published   Publish   undeclared
+  Draft -> Published   Release   holds
+  Draft                          unreached
+  Published                      terminal
+
+Publish   x reservedWithinStock   kept: writes no member it reads
+Release   x reservedWithinStock   kept: writes no member it reads
+Restock   x reservedWithinStock   undecided: stock is incremented
+```
+
+The report has two halves, and neither is a failure. The pairs (a write
+against an invariant) say whether the write can break the rule; the findings
+say what the writes do to the states. A write an invariant can refuse is
+legitimate, and the check reports it rather than fails on it. What fails a
+test is the [graph's `law-unwitnessed`](#who-shows-a-law-is-kept-evidence).
+Each pair and finding has one repair:
+
+| The check says | It means | Repair |
+| --- | --- | --- |
+| `kept` | The write cannot break the rule: it writes no member the invariant reads, or every row it can start from was enumerated | None. It issues an `Enumerated` record. |
+| `refused` (a pair) | From these rows the write leaves a row that breaks the invariant | If the writer should refuse it, nothing: that is the law working, and a line of `Evidence.runtimeOnly` says so. If the write should never break it, narrow its `when` or `from`, or its input, so those rows cannot start it. |
+| `undecided` | The rule reads a number, text, an increment or an operator the table lacks, so the rows cannot be enumerated | Show it kept another way: a walk through the real writer, a scenario, or a `runtimeOnly` line with the reason. Or state the rule over a finite field. |
+| `holds` | A declared `becomes`, proved where the write is declared | None. |
+| `enforced` | A `becomes` enumeration could not decide, kept by the write's postcondition where it commits | None. The client's `Data.can` judges it too. |
+| `undeclared` | A write with no `becomes` takes a row from one state to another | If it is meant to, declare `from` and `becomes` (as `Release` does). If not, narrow the write. |
+| `refused` (an arrow) | Every row the arrow leaves breaks an invariant, so the writer refuses it | If the invariant forbids the move (a published product stays published), it is the rule at work. If not, the write or the rule is wrong. |
+| `unreached` | No write leaves a row in the state | Declare the write that enters it, or the state is dead. Rows that only arrive by import or raw SQL are reported unreached, truthfully: the check knows declared writes alone. |
+| `terminal` | No write starts from the state | Nothing, if it is final. Otherwise declare the write that leaves it. |
+
+A transition that is no declared write (an import, another package's
+command) is an entry with a `Footprint`: what its author says it writes, or
+`Footprint.unknown`, which writes every member and is `undecided` against
+every invariant. `npx foldkit-plus laws src/laws.ts#report` prints the same report
+for a module that exports it, and an example keeps it as text in a checked-in
+file, so a write added later changes a file a reviewer sees
+([`examples/writes/LAWS.md`](https://github.com/doeixd/foldkit-plus/blob/main/examples/writes/LAWS.md)).
+
+## Who shows a law is kept: evidence
+
+A write that writes what a rule reads could break it. The graph does not guess
+whether it does; it asks what showed it did not. Evidence is a typed record
+issued by whatever produced it, and each kind says how much it proves:
+
+| Kind | Issued by | What it shows |
+| --- | --- | --- |
+| `Enumerated` | `Laws.check`, for each pair it decided `kept` by reading the declarations | Read off the declarations: the write touches nothing the rule reads, or every row it can start from was judged. A proof, not a sample. |
+| `Walked` | `Walk.run` (`foldkit-remote/testing`), when no walk failed | Seeded sequences of Messages, through the real writer, never broke the law. Says which seeds passed, not that none can. |
+| `Scenario` | `Scenario.run` (`foldkit-remote/testing`), per runner with no mismatch | One written case ran on each backend and agreed. |
+| `RuntimeOnly` | `Evidence.runtimeOnly`, by hand, with a `why` | Only the writer or the journal refuses it in production, and nothing earlier covers it. A reasoned admission, not a test. |
+
+A record typed by hand, or a copy of one, was issued by no producer and the
+graph refuses it (`evidence-unmatched`), so evidence cannot be forged by
+writing the object. `Graph.validate` (`foldkit-surface`) asks the one question
+over a Module of contracts, and each finding names a pair and what is missing:
+
+```ts
+import { Evidence, Graph, Module, Surface } from 'foldkit-surface'
+import { Remote } from 'foldkit-remote'
+
+const ShopApp = Surface.application({
+  Model: Schema.Struct({ remote: Remote.Model }),
+  Message: Remote.Message,
+})
+const ShopModule = Module.make(ShopApp, [
+  Remote.make({
+    model: ShopApp.model.remote,
+    entities: [Product],
+    mutations: [Publish, Release, Restock],
+  }),
+])
+
+const enumerated = report.pairs.flatMap(pair => Option.toArray(pair.evidence))
+
+Graph.validate(ShopModule, { evidence: enumerated }).map(finding => finding.message)
+// ['write:Restock writes Product.stock, which Product.reservedWithinStock reads, and no evidence shows it keeps Product.reservedWithinStock']
+
+const restocked = Evidence.runtimeOnly({
+  transition: 'write:Restock',
+  law: 'Product.reservedWithinStock',
+  why: 'the writer judges the row a restock leaves, and refuses one that leaves reserved over stock',
+})
+Graph.validate(ShopModule, { evidence: [...enumerated, restocked] }) // []
+```
+
+To clear a `law-unwitnessed` finding, give the pair evidence, from the
+strongest that can be had: a proof when `Laws.check` can enumerate it, a walk
+or a scenario through the real writer when it cannot, and a `runtimeOnly` line
+when the writer's refusal is the whole story. The finding names the
+transition and the law, in the ids the graph uses (`write:Restock`,
+`Product.reservedWithinStock`; `durable:CreatedTodo`,
+`sync:capped-board.atMost100Todos`).
+
+A document's law is asked of every durable Message, because each writes the
+whole shared slice and a law is a function that may read all of it:
+
+```ts
+const BoardModule = Module.make(BoardApp, [Board])
+
+Graph.validate(BoardModule).map(finding => finding.message)
+// ['durable:CreatedTodo writes todos, which sync:capped-board.atMost100Todos reads, and no evidence shows it keeps sync:capped-board.atMost100Todos',
+//  'durable:DuplicatedTodo writes todos, which sync:capped-board.atMost100Todos reads, and no evidence shows it keeps sync:capped-board.atMost100Todos']
+```
+
+That is the point: a durable Message added to the document later is reported
+until a walk or a scenario draws it, or a line says the journal's judge is its
+evidence. A local Message has no `writes` edge yet (`modifyFields` names its
+fields only at run time), so a law over the local Model has no
+`law-unwitnessed`; a walk over it still runs. `Graph.toMarkdown` writes the
+same table (each law, each transition that can break it, its evidence) to set
+in a document.
+
+## Asking before sending: `Data.can`
+
+`Data.can` is not a rule. It reads the rules above over the rows the client
+holds and answers, with no I/O, whether the server would refuse a declared
+write, in the server's own order: a held `may` (`Forbidden`), the `when` and
+`from` (`Unmet`), then the invariants of the row the write leaves (`Invalid`):
+
+```ts
+const Data = Remote.make({
+  model: ShopApp.model.remote,
+  entities: [Product],
+  mutations: [Publish, Release, Restock],
+})
+
+Data.can({ remote: Remote.initial }, Release, { id: 'p1', status: 'published' })
+// Can.Undecided: Product p1 is not held
+```
+
+The answer is `Can.Yes`, `Can.No({ refusal })` or `Can.Undecided({ reasons })`,
+and `Undecided` is the common case for a row not read yet or a field a rule
+needs. It is a hint to grey a control. `Data.mutate` does not consult it and
+still sends the write, because a write whose `when` is false over the held row
+is not always `Unmet` on the server (publishing a published product is
+answered as written, as a retry would be), and a held row may be stale. The
+full section, with the three answers, is in [Declared
+writes](./declared-writes.md#asking-before-sending-datacan);
+`Data.capability` and `Data.available` give an agent capability the same answer
+([Agents](./agents.md#a-capability-over-a-declared-write)).
+
 ## Who owns the decision
 
 | Owner | Decides | Only hints |
 | --- | --- | --- |
 | The server's writer (`foldkit-remote-drizzle`, with `foldkit-guard`'s server) | every refusal above, over the row version it writes | |
+| The journal (`foldkit-durable`, served by `foldkit-sync`) | a document's laws, over the snapshot before and the one an operation leaves | the replica's `LawBrokenError`, judged over its optimistic snapshot |
 | The database | a state invariant as a `CHECK`, against raw SQL too | a transition invariant, which a `CHECK` cannot see |
-| The client (`Data.mutate`) | | `Forbidden` and `Invalid` it can already tell from the rows it holds; it refuses nothing it cannot decide |
+| The client (`Data.mutate`, `Data.can`) | | `Forbidden` and `Invalid` it can already tell from the rows it holds, and with `Data.can`, `Unmet`; it refuses nothing it cannot decide |
 | A form and Crud | | an invariant over an input that sets every field it reads, shown beside its path |
 
 A write the client cannot judge is sent, and the server's answer is the truth.
@@ -265,21 +559,93 @@ when the answer arrives.
   nothing already stored. Write it so rows that held before still hold, or
   repair them first; the next write of each broken row is refused until it
   leaves a valid one.
+- **A document law added to live documents.** A law judges the snapshot an
+  operation leaves, strictly, whatever the one before held: a document that
+  already breaks it refuses every operation that leaves it broken, including
+  one that only partly repairs it. That is the Entity's rule, so "the law
+  holds" has one meaning. To let live documents shrink toward a new cap, write
+  the law in its monotone form, over `before` too:
+
+  ```ts
+  const Shrinking = forApplication(BoardApp).make({
+    documentId: DocumentId.make('shrinking-board'),
+    shared: Projection.pick(BoardApp.model.todos),
+    durable: MessageSet.make(BoardApp, [BoardMessage.CreatedTodo]),
+    laws: {
+      atMost100Todos: {
+        holds: ({ before, after }) =>
+          after.todos.length <= Math.max(100, before.todos.length),
+        message: 'A board holds 100 todos',
+        path: ['todos'],
+      },
+    },
+  })
+  ```
+
+  An operation may now leave a long board no longer than it found it, so
+  removals land while growth stops at the cap. Before the deploy, find the
+  stored snapshots the strict form would refuse: `Board.judge(snapshot,
+  snapshot)` answers `Option.some(law)` for each. Judging a law only when the
+  operation changes what it reads is not offered: a law is a function, and
+  what it reads is not known.
 - **A lost answer.** A write that lands and whose answer is lost is retried
   with the same operation id. Which guarantee a retry gets depends on the
   write, not on its rules: see
   [Declared writes](./declared-writes.md#retries-three-different-guarantees).
 
+## When a state depends on the past, store the fact
+
+A refinement's `build` is given `row` and nothing else, an invariant `before`
+and `after`, and a document law the snapshot before and after: no rule can
+read older than the row before it. "Was ever published" is not
+expressible as a predicate, and it is not a gap to work around with history.
+The fact is a field, written by the write that makes it true, and the rule
+reads the field:
+
+```ts
+const ListingFields = Entity.define(
+  'Listing',
+  Schema.Struct({
+    id: Schema.String,
+    status: Schema.Literals(['draft', 'published']),
+    everPublished: Schema.Boolean,
+  }),
+)
+const Listing = ListingFields.pipe(
+  Entity.invariant(
+    'everPublishedStays',
+    ({ before, after }) =>
+      Expr.or(Expr.not(Expr.eq(before.everPublished, true)), Expr.eq(after.everPublished, true)),
+    { message: 'A listing once published stays marked', path: ['everPublished'] },
+  ),
+)
+const WasPublished = Entity.refine(Listing, 'WasPublished', { everPublished: true })
+```
+
+The state `WasPublished` now reads one row, so a write may start from it
+(`from: WasPublished`), a query may ask for it, and `Laws.check` can enumerate
+it. The same holds for a document: store the count or the flag in the shared
+slice and write the law over it, rather than asking the law what happened
+earlier. A rule over several rows (a total over a list) is not a declaration
+at all but a handler's concern; see [Declared
+writes](./declared-writes.md#who-owns-what).
+
 ## Limits
 
 - Invariants read stored rows only: not another Entity, not an input, not a
   principal. Who may is a guard's; whether this write applies now is its `when`.
-- A rule that reads the past of a row, beyond its row before, is not
-  expressible: a predicate is given the row before and after, nothing older.
-  Store the fact the rule needs as a field.
+- A rule reads the row or snapshot before and after, nothing older: [store the
+  fact](#when-a-state-depends-on-the-past-store-the-fact) the rule needs.
 - A rule across several rows (a total over a list) is a handler's
   concern, not a declaration's; see
   [Declared writes](./declared-writes.md#who-owns-what).
+- A state that reaches another row is a query's and a guard rule's, and no
+  write's `from` or `becomes`.
+- `Laws.check` enumerates finite fields (literals, unions of them, booleans)
+  and decides nothing else: a number or text rule is `undecided`
+  until a walk, a scenario or a `runtimeOnly` line covers it.
+- A local Message has no `writes` edge in the graph yet, so a law over the
+  local Model has no `law-unwitnessed`.
 
 ## Reference
 
@@ -288,3 +654,12 @@ when the answer arrives.
 - [`foldkit-entity`](../packages/entity/README.md#what-every-row-and-change-must-hold-invariants):
   invariants, variants, derived members.
 - [`foldkit-guard`](../packages/guard/README.md): rules, and serving writes.
+- [`foldkit-sync`](../packages/sync/README.md#laws-what-every-snapshot-keeps):
+  a document's laws.
+- [`foldkit-surface`](../packages/surface/README.md#laws-in-the-graph): the
+  graph, `Graph.validate` and its rules.
+- [`foldkit-metadata`](../packages/metadata/README.md#evidence): evidence
+  records and their producers.
+- [`foldkit-remote`](../packages/remote/README.md#scenarios-a-write-as-data-run-against-the-real-thing):
+  `Scenario`; `Walk` is in the [skill's Remote
+  reference](https://github.com/doeixd/foldkit-plus/blob/main/skills/foldkit-plus/references/remote.md).

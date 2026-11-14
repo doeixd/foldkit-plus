@@ -123,6 +123,14 @@ describe('detach and replace', () => {
     expect(names(view)).toEqual(['A', 'Validates', 'C'])
   })
 
+  it('attachAll attaches every Behavior of a list, in its order, after what was there', () => {
+    const listed = FieldView.pipe(
+      Behavior.attach(clicks('A')),
+      Behavior.attachAll([Validates, clicks('C')]),
+    )
+    expect(names(listed)).toEqual(['A', 'Validates', 'C'])
+  })
+
   it('replace puts the new Mixin in the old one’s place', () => {
     const Other = Field.behavior({}, { name: 'Other' })
     expect(names(view.pipe(SlotView.replace('Validates', Other.mixin)))).toEqual([

@@ -171,9 +171,11 @@ What each call does:
   the selected members in the Selection's order, each with its `key`,
   `member`, a `label` found the way a form finds one (the schema's `title`,
   else `Form.label` metadata, else the key), and a `display`.
-  `live: true` asks for the list live (`liveQuery`): rows another
-  page writes join, change and leave it while it is shown, given a server
-  whose live source watches lists (`pollLive`).
+  `live: liveQuery` (from `foldkit-remote/live`) reads the list live: rows
+  another page writes join, change and leave it while it is shown, given a
+  server whose live source watches lists (`pollLive`). The option takes the
+  function rather than a flag so that a page reading no list live keeps none
+  of Remote's live modules.
 - **`Authors.at`** binds it to your Remote domain and your Model. It still does
   no I/O.
 - **`AuthorList.active`** is the requirement: while `input` gives a value, the

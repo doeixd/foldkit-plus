@@ -3,6 +3,7 @@
  * `pnpm mutate packages/remote-domain/test/adapter/adapter.mutations.ts`.
  */
 const file = '../../src/adapter/layer.ts'
+const rows = '../../src/adapter/relations.ts'
 const tests = ['packages/remote-domain/test/adapter/adapter.test.ts']
 
 export default [
@@ -26,7 +27,7 @@ export default [
     name: 'a read asks for every snapshot at once',
     edits: [
       {
-        file,
+        file: rows,
         find: '{ concurrency: SNAPSHOTS_AT_ONCE }',
         replace: "{ concurrency: 'unbounded' }",
       },
@@ -37,7 +38,7 @@ export default [
     name: 'rows carry no revision for Remote to order them by',
     edits: [
       {
-        file,
+        file: rows,
         find: 'const revision = state[binding.revision]',
         replace: 'const revision = undefined',
       },
@@ -122,9 +123,9 @@ export default [
     name: 'a read the View is behind on fails rather than name the row behind',
     edits: [
       {
-        file,
-        find: '                  Option.isSome(receipt)\n                    ? Effect.succeed',
-        replace: '                  false\n                    ? Effect.succeed',
+        file: rows,
+        find: "return Option.isSome(receipt)\n        ? ({ _tag: 'Behind' } as const)",
+        replace: "return false\n        ? ({ _tag: 'Behind' } as const)",
       },
     ],
     tests,
@@ -161,8 +162,8 @@ export default [
     name: 'a row validate hides fails the read',
     edits: [
       {
-        file,
-        find: 'Rejected: () => Effect.succeed(Option.some({ state: null, cursor: 0 })),',
+        file: rows,
+        find: 'Rejected: () => Effect.succeedSome<Snapshot>({ state: null, cursor: 0 }),',
         replace: "Rejected: () => Effect.fail(new RemoteUnreachable({ message: 'hidden' })),",
       },
     ],
@@ -218,9 +219,9 @@ export default [
     edits: [
       {
         file,
-        find: '                        onSome: () =>\n                          snapshotAt(binding, requirement.id, receipt).pipe(',
+        find: '                          onSome: () =>\n                            snapshotAt(binding, requirement.id, receipt).pipe(',
         replace:
-          '                        onSome: () =>\n                          Effect.succeedSome(snapshot).pipe(',
+          '                          onSome: () =>\n                            Effect.succeedSome(snapshot).pipe(',
       },
     ],
     tests,

@@ -31,8 +31,8 @@ export default [
   edit(
     'a written row forgets the revision it held',
     store,
-    '      write.revision ?? held?.revision,\n',
-    '      write.revision,\n',
+    '  const nextRevision = revision ?? previous.revision\n',
+    '  const nextRevision = revision\n',
   ),
   edit(
     'a live patch ignores the revision held',

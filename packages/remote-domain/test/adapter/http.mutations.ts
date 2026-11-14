@@ -20,7 +20,7 @@ export default [
     name: 'a lost reply is not read as the Api being unreachable',
     edits: [
       {
-        file: '../../src/adapter/layer.ts',
+        file: '../../src/adapter/relations.ts',
         find: 'if (Schema.is(RpcClientError)(error))',
         replace: 'if (false)',
       },

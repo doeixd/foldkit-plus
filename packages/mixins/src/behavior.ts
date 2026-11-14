@@ -240,4 +240,38 @@ export const attach =
       ViewProvides | Provides
     >
 
-export const Behavior = { slot, forSlots, attach } as const
+/** What each Behavior of a list supplies, as one union. */
+type ProvidesOfAll<Behaviors> =
+  Behaviors extends NamedBehavior<any, any, any, infer Provides> ? Provides : never
+
+/**
+ * Attaches a list of Behaviors in one step, in order, and the view supplies
+ * what each of them does: for a factory that hands back several
+ * (`Overlay.behaviors`), so a pipe that then calls `A11y.conform` stays typed.
+ */
+export const attachAll =
+  <
+    BehaviorSlots,
+    Message,
+    Input,
+    // `const`, so a literal list keeps each member's own supplies.
+    const Behaviors extends ReadonlyArray<NamedBehavior<BehaviorSlots, Input, Message, never>>,
+  >(
+    // Typed again beside `Behaviors`, so `Input` and `Message` are inferred from the members
+    // and a member over another `Input` is refused where it stands.
+    behaviors: Behaviors & ReadonlyArray<NamedBehavior<BehaviorSlots, Input, Message, never>>,
+  ) =>
+  <ViewSlots, ViewProvides extends string = never>(
+    view: SlotView.SlotView<ViewSlots, Input, Message, ViewProvides>,
+  ): SlotView.SlotView<
+    ViewSlots,
+    Input,
+    Message,
+    ViewProvides | ProvidesOfAll<Behaviors[number]>
+  > =>
+    behaviors.reduce<SlotView.SlotView<ViewSlots, Input, Message, any>>(
+      (built, behavior) => SlotView.attach(behavior.mixin)(built),
+      view,
+    )
+
+export const Behavior = { slot, forSlots, attach, attachAll } as const

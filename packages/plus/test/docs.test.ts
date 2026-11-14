@@ -268,3 +268,32 @@ describe('outlineText', () => {
     expect(outlineText(docs, Option.some('mirror'))).toEqual(Option.none())
   })
 })
+
+describe('the repository answers where a rule goes', () => {
+  // Read from the real skill and package READMEs, so a heading renamed or a
+  // section moved in the laws guide shows here, not in a user's terminal.
+  it('ranks the laws reference first', async () => {
+    const { readdirSync, readFileSync, existsSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const root = join(import.meta.dirname, '../../..')
+    const references = join(root, 'skills/foldkit-plus/references')
+    const fromSkill = readdirSync(references).map((file): Doc => ({
+      topic: file.replace(/\.md$/, ''),
+      label: `skill ${file}`,
+      path: join(references, file),
+      text: readFileSync(join(references, file), 'utf8'),
+    }))
+    const packages = join(root, 'packages')
+    const fromReadmes = readdirSync(packages)
+      .filter(name => existsSync(join(packages, name, 'README.md')))
+      .map((name): Doc => ({
+        topic: name,
+        label: `${name} README.md`,
+        path: join(packages, name, 'README.md'),
+        text: readFileSync(join(packages, name, 'README.md'), 'utf8'),
+      }))
+    const [first] = rank([...fromSkill, ...fromReadmes].flatMap(sectionsOf), 'where does a rule go')
+    expect(first?.section.headings.at(-1)).toBe('Where does a rule go')
+    expect(first?.section.doc.topic).toBe('laws')
+  })
+})

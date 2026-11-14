@@ -56,7 +56,7 @@ export const HoverCard = SlotView.forMessages<Message>()
     ),
   )
   .pipe(
-    ...HoverOverlay.map(Behavior.attach),
+    Behavior.attachAll(HoverOverlay),
     Behavior.attach(Placing.keepWithin(HoverCardSlots)({ panel: 'card' })),
     Style.attach(hoverCardStyle(HoverCardSlots)),
   )

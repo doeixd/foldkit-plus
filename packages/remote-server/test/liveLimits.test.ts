@@ -9,12 +9,15 @@ import { Effect, Exit, Layer, Schema, Stream } from 'effect'
 import { RpcTest } from 'effect/rpc'
 import {
   Entity,
+  LiveRequirement,
+  MAX_READ_AFTER,
   REMOTE_PROTOCOL_VERSION,
   Remote,
   RemoteClient,
   RemoteRpc,
   relationAlias,
   type ReadRequest,
+  type RowRevision,
 } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
 import { serveFetch } from '../src/fetch.js'
@@ -55,13 +58,22 @@ const recordingSource = () => {
 const open = (
   server: ServerDefinition<string>,
   requirements: ReadonlyArray<Requirement>,
-  options: { readonly hub?: LiveHub<string>; readonly maxIdsPerEntity?: number },
+  options: {
+    readonly hub?: LiveHub<string>
+    readonly maxIdsPerEntity?: number
+    readonly revisions?: ReadonlyArray<typeof RowRevision.Type>
+  },
 ) =>
   Effect.runPromise(
     Effect.gen(function* () {
       const client = yield* RpcTest.makeClient(RemoteRpc)
       return yield* client
-        .FoldkitRemoteLive({ version: REMOTE_PROTOCOL_VERSION, requirements, after: 0 })
+        .FoldkitRemoteLive({
+          version: REMOTE_PROTOCOL_VERSION,
+          requirements,
+          after: 0,
+          ...(options.revisions === undefined ? {} : { revisions: options.revisions }),
+        })
         .pipe(
           Stream.runDrain,
           Effect.timeoutOrElse({
@@ -84,6 +96,35 @@ const open = (
       ),
     ),
   )
+
+describe('the revisions a live subscription names', () => {
+  const revisionsFor = (count: number) =>
+    Array.from({ length: count }, (_, at) => ({ entity: 'Item', id: `i${at}`, revision: 1 }))
+
+  it('are refused when they outnumber its rows, before a live source is asked', async () => {
+    const { asked, source } = recordingSource()
+    const server = RemoteServer.make({ entities: [ItemSource], live: [source] })
+    const rows = requirementsFor(2)
+    expect(await open(server, rows, { revisions: revisionsFor(rows.length + 1) })).toMatchObject({
+      _tag: 'RemoteLiveRefused',
+      message: `More revisions than rows in one live subscription (${rows.length})`,
+    })
+    expect(asked).toEqual([])
+    expect(await open(server, rows, { revisions: revisionsFor(rows.length) })).toBe('Open')
+  })
+
+  it(`do not decode past ${MAX_READ_AFTER}`, () => {
+    const decode = Schema.decodeUnknownExit(LiveRequirement)
+    const request = (count: number) => ({
+      version: REMOTE_PROTOCOL_VERSION,
+      requirements: [],
+      after: 0,
+      revisions: revisionsFor(count),
+    })
+    expect(Exit.isSuccess(decode(request(MAX_READ_AFTER)))).toBe(true)
+    expect(Exit.isFailure(decode(request(MAX_READ_AFTER + 1)))).toBe(true)
+  })
+})
 
 describe('a live subscription over maxIdsPerEntity', () => {
   it('is refused before a live source is asked, and opens at the limit', async () => {

@@ -293,6 +293,7 @@ in a line.
 | Say what a feature observes and may cause, and check that nothing owns a field twice | `foldkit-surface` | [package README](./packages/surface) |
 | Declare a domain once (fields, relations, selections) for the client cache, the database binding, and forms to share | `foldkit-entity` | [One domain declaration](./docs/entity.md) |
 | Say once who may read and write what, and have every read, write, Sync edit and agent capability enforce it | `foldkit-guard` | [package README](./packages/guard) |
+| Decide where a rule about state goes (a Schema, an invariant, a state, a guard, a document's law), and check the writes keep it | `foldkit-entity` + `foldkit-guard` + `foldkit-sync` | [Laws](./docs/laws.md) |
 | Build a form from the input an operation accepts, with validation and a decoded value handed to the parent | `foldkit-form` (+ `foldkit-mixins-form` to draw it) | [package README](./packages/form) |
 | Join a form, a Remote mutation or query, and their Entity into an edit screen or a list | `foldkit-crud` (+ `foldkit-mixins-crud` to draw lists and details) | [package README](./packages/crud) |
 | Edit an interactive grid over rows the application owns: keyboard focus, ranges, typed editors, copy and paste, fill, 100,000 rows virtualized | `foldkit-data-grid` (+ `foldkit-mixins-data-grid` to draw it; experimental) | [package README](./packages/data-grid) |
