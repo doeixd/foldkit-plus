@@ -240,9 +240,12 @@ the chords it takes, each with Shift up and down (the moves ignore Shift), so
 printable key unless `typeahead` is `false`. Under `virtual` the route
 answers the Message alone; otherwise it also moves focus to the item. A
 `Keys.behavior` writes only `keydown`: the router's slot gets none of the
-primitive's other attributes, so draw `RovingTabindex.itemAttributes` on the
-items and `aria-activedescendant` on the container yourself, or attach the
-primitive's own `behavior` when no other route shares its slot.
+primitive's other attributes. `ListNavigation.item(Nav, args)(Slots)({ item,
+items })` is its item half, each item's tab stop and the `OnFocus` reporting
+it current; for the other primitives draw `RovingTabindex.itemAttributes` on
+the items. Draw `aria-activedescendant` on the container yourself under
+`virtual`, or attach the primitive's own `behavior` when no other route
+shares its slot.
 
 **`GridNavigation`** is the two-dimensional counterpart for cells laid out in
 rows of `columns` (a calendar grid, a swatch picker, an emoji palette). Its
@@ -759,17 +762,12 @@ Alt+Enter picks the row up (while it is held, Space, Enter and Alt+Enter drop
 it):
 
 ```ts standalone
-import { Option, Schema } from 'effect'
+import { Match, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { Behavior, Behaviors, Capability, Event, Slot, SlotView, Slots } from 'foldkit-mixins'
-import {
-  ListNavigation,
-  Reorder,
-  RovingTabindex,
-  Selection,
-} from 'foldkit-primitives/interaction'
+import { ListNavigation, Reorder, Selection } from 'foldkit-primitives/interaction'
 
 const { Keys } = Behaviors
 const Rows = Bundle.declare(Reorder.bundle, 'rows')
@@ -782,15 +780,21 @@ const Model = Schema.Struct({
   ids: Schema.Array(Schema.String),
 })
 type Model = typeof Model.Type
-const Message = defineMessageUnion({ ...Rows.cases, ...Nav.cases, ...Picks.cases })
+const Message = defineMessageUnion({
+  ...Rows.cases,
+  ...Nav.cases,
+  ...Picks.cases,
+  Selected: { id: Schema.String },
+})
 type Message = typeof Message.Type
 
 const navArgs = { orientation: 'vertical', loop: false, virtual: false, timeoutMs: 500, page: 5 } as const
 const pickArgs = { mode: 'single', allowEmpty: false } as const
 const Parent = Bundle.parent({ Model, Message })
+const Picked = Parent.at(Picks, { args: pickArgs })
 const assembly = Parent.assemble(
   Parent.at(Nav, { args: navArgs }),
-  Parent.at(Picks, { args: pickArgs }),
+  Picked,
   Parent.at(Rows, {
     onOut: (fact: Reorder.OutMessage) => (model: Model) => ({
       model: Reorder.OutMessage.match(fact, {
@@ -818,16 +822,18 @@ const Sorting = Reorder.behavior(Rows)(Listbox)({
   current: model => Option.fromNullishOr(model.nav.current),
   grab: [Keys.chord('Enter', { alt: true })],
 })
-// Space selects the row the keyboard is on, unless typeahead is mid-word.
+// Space selects the row the keyboard is on, unless typeahead is mid-word: the parent's own
+// Message, which `update` applies through Selection's helper.
 const select = Keys.route<Model, Message>('Select', {
   on: [Keys.chord(' ')],
   handle: ({ input }) =>
     input.nav.query === ''
-      ? Option.map(Option.fromNullishOr(input.nav.current), id =>
-          Picks.wrapper.make(Selection.Message.Activated({ id })),
-        )
+      ? Option.map(Option.fromNullishOr(input.nav.current), id => Message.Selected({ id }))
       : Option.none(),
 })
+const update = assembly.update((model, message) =>
+  Match.valueTags(message, { Selected: ({ id }) => Picked.helpers.activate(id)(model) }),
+)
 const navigation = ListNavigation.keys(Nav, navArgs)<Model, Message>({
   items,
   text: (model, index) => model.ids[index] ?? '',
@@ -852,23 +858,9 @@ const SortableListbox = Listbox.define((model, slots, h) =>
     Selection.behavior(Picks, pickArgs)(Listbox)({ container: 'list', item: 'option', items }),
   ),
   // The roving tab stop: ListNavigation's item half, since its key half is in the router above.
-  Behavior.attach(
-    Behavior.forSlots(ListboxSlots)<Model, Message>(
-      {
-        option: Behavior.slot({
-          attributes: ({ input, h, item }) =>
-            item === undefined
-              ? []
-              : RovingTabindex.itemAttributes(h, items(input), input.nav.current, item, false, id =>
-                  Nav.wrapper.make(ListNavigation.Message.Focused({ id })),
-                ),
-        }),
-      },
-      { name: 'RovingStop' },
-    ),
-  ),
+  Behavior.attach(ListNavigation.item(Nav, navArgs)(Listbox)({ item: 'option', items })),
 )
-void assembly
+void update
 void SortableListbox
 ```
 

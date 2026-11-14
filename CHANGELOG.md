@@ -226,7 +226,10 @@ version changed; `pnpm` skips versions already in the registry.
   `Keys.withShift(key, modifiers?)` is a named key as two chords. Each
   primitive's `behavior` is built on them; its attributes are unchanged.
   `ListNavigation`'s `commit` option still works, and is better written as a
-  route of your own.
+  route of your own. `ListNavigation.item(declared, args)(slots)({ item,
+  items })` is the item half beside such a router: each item's tab stop and
+  the `OnFocus` reporting it current, stating `item/focus-strategy` on a
+  binder, so no item attribute or `Focused` Message is written by hand.
 
 - `foldkit-mixins`, `foldkit-mixins-surface`: `SlotView.describe(view)` is a
   view as serializable data (its slots and each attachment in order, with what it

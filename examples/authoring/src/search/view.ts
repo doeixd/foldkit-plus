@@ -8,7 +8,7 @@
  */
 import { Option } from 'effect'
 import { Behavior, Behaviors, SlotView, Style } from 'foldkit-mixins'
-import { FocusRecovery, ListNavigation, RovingTabindex } from 'foldkit-primitives/interaction'
+import { FocusRecovery, ListNavigation } from 'foldkit-primitives/interaction'
 import { Message, Nav, fruitOf, navArgs, resultId, resultsOf, type Model } from './app.js'
 import { CompactSearchStyle, SearchSlots, SearchStyle, itemsOf } from './slots.js'
 
@@ -51,7 +51,8 @@ export const SearchKeys = Keys.behavior(Search)({
 /**
  * `aria-activedescendant` on the input once the keyboard has a result, and that
  * result's mark on the option. Before the first arrow nothing is current: the
- * field announces no result it has not moved to.
+ * field announces no result it has not moved to. The options take no focus
+ * (`virtual`), so they need nothing of `ListNavigation`'s item half.
  */
 export const Pointing = Search.behavior(
   {
@@ -64,19 +65,9 @@ export const Pointing = Search.behavior(
     },
     option: {
       attributes: ({ input, h, item }) =>
-        item === undefined
-          ? []
-          : [
-              ...RovingTabindex.itemAttributes(
-                h,
-                itemsOf(input),
-                input.results.current,
-                item,
-                true,
-                id => Nav.wrapper.make(ListNavigation.Message.Focused({ id })),
-              ),
-              ...(item.id === input.results.current ? [h.DataAttribute('active', '')] : []),
-            ],
+        item !== undefined && item.id === input.results.current
+          ? [h.DataAttribute('active', '')]
+          : [],
     },
   },
   { name: 'Pointing' },

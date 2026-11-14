@@ -15,13 +15,7 @@ import {
   SlotView,
   Style,
 } from 'foldkit-mixins'
-import {
-  FocusRecovery,
-  ListNavigation,
-  Reorder,
-  RovingTabindex,
-  Selection,
-} from 'foldkit-primitives/interaction'
+import { FocusRecovery, ListNavigation, Reorder, Selection } from 'foldkit-primitives/interaction'
 import { active, control, focus, panel, t } from '../style.js'
 import { Message, Nav, Picks, Rows, currentOf, navArgs, pickArgs, type Model } from './app.js'
 
@@ -34,7 +28,16 @@ export const SortableSlots = Slots.define({
 
 const Sortable = SlotView.over(SortableSlots)<Model, Message>()
 
-const itemsOf = (model: Model) => Behaviors.Collection.of(model.ids, { id: id => id })
+const rowsByModel = new WeakMap<Model, Behaviors.Collection.Items<string>>()
+
+/** The rows as one Collection, built once per Model: every row a Behavior draws asks for it. */
+export const itemsOf = (model: Model): Behaviors.Collection.Items<string> => {
+  const known = rowsByModel.get(model)
+  if (known !== undefined) return known
+  const items = Behaviors.Collection.of(model.ids, { id: id => id })
+  rowsByModel.set(model, items)
+  return items
+}
 
 export const Sorting = Reorder.behavior(Rows)(Sortable)({
   container: 'list',
@@ -50,7 +53,7 @@ const selects = Keys.route<Model, Message>('Select', {
   on: [Keys.chord(' ')],
   handle: ({ input }) =>
     input.nav.query === ''
-      ? Option.map(currentOf(input), id => Picks.wrapper.make(Selection.Message.Activated({ id })))
+      ? Option.map(currentOf(input), id => Message.Selected({ id }))
       : Option.none(),
 })
 
@@ -63,19 +66,7 @@ const navigates = ListNavigation.keys(
 })
 
 /** The roving stop: `ListNavigation`'s item half, since its key half is in the router above. */
-const RovingStop = Sortable.behavior(
-  {
-    option: {
-      attributes: ({ input, h, item }) =>
-        item === undefined
-          ? []
-          : RovingTabindex.itemAttributes(h, itemsOf(input), input.nav.current, item, false, id =>
-              Nav.wrapper.make(ListNavigation.Message.Focused({ id })),
-            ),
-    },
-  },
-  { name: 'RovingStop' },
-)
+const RovingStop = ListNavigation.item(Nav, navArgs)(Sortable)({ item: 'option', items: itemsOf })
 
 export const SortableStyle = Style.forSlots(SortableSlots)(
   {

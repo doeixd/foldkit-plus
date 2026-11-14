@@ -19,9 +19,22 @@ export const SearchSlots = Slots.define({
   status: Slot.make({ capability: Capability.Container }),
 })
 
-/** The results as one Collection, so identity, order and the keys agree. */
-export const itemsOf = (model: Model) =>
-  Behaviors.Collection.of(resultsOf(model), { id: fruit => resultId(model.id, fruit) })
+type Results = Behaviors.Collection.Items<string>
+const resultsByModel = new WeakMap<Model, Results>()
+
+/**
+ * The results as one Collection, so identity, order and the keys agree. Built
+ * once per Model: every option a Behavior draws asks for it.
+ */
+export const itemsOf = (model: Model): Results => {
+  const known = resultsByModel.get(model)
+  if (known !== undefined) return known
+  const items = Behaviors.Collection.of(resultsOf(model), {
+    id: fruit => resultId(model.id, fruit),
+  })
+  resultsByModel.set(model, items)
+  return items
+}
 
 /**
  * The look as a recipe: the default selection is what the field ships with,

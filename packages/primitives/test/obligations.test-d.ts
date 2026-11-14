@@ -168,3 +168,25 @@ pipe(
   // @ts-expect-error option/focus-strategy: the item slot is one of two, known only at run time.
   A11y.conform(Listbox),
 )
+
+// `ListNavigation.item`, the item half beside a router, states the item's focus strategy alone.
+const _itemHalf: Behavior.NamedBehavior<
+  typeof ListboxSlots,
+  Input,
+  Message,
+  'option/focus-strategy'
+> = ListNavigation.item(List, listArgs)(Options)({ item: 'option', items: itemsOf })
+// @ts-expect-error the item half supplies no navigation: the router's keys are the container's.
+const _itemNav: Behavior.NamedBehavior<typeof ListboxSlots, Input, Message, 'listbox/navigation'> =
+  ListNavigation.item(List, listArgs)(Options)({ item: 'option', items: itemsOf })
+// @ts-expect-error called with bare slots, it states nothing.
+const _itemBare: Behavior.NamedBehavior<
+  typeof ListboxSlots,
+  Input,
+  Message,
+  'option/focus-strategy'
+> = ListNavigation.item(List, listArgs)(ListboxSlots)<Input, Message>({
+  item: 'option',
+  items: itemsOf,
+})
+void [_itemHalf, _itemNav, _itemBare]

@@ -27,6 +27,11 @@ import {
   resultsOf,
   update as searchUpdate,
 } from '../src/search/app.js'
+import {
+  Message as SortableMessage,
+  initial as sortableInitial,
+  update as sortableUpdate,
+} from '../src/sortable/app.js'
 
 describe('the search field', () => {
   const start = searchInitial('s').model
@@ -156,5 +161,13 @@ describe('the list', () => {
     expect(listUpdate(blank, ListMessage.Committed()).model.items[2]?.title).toBe('Ship it')
     expect(listUpdate(drafted, ListMessage.Cancelled()).model.items[2]?.title).toBe('Ship it')
     expect(listUpdate(start, ListMessage.Committed()).model).toBe(start)
+  })
+})
+
+describe('the sortable listbox', () => {
+  it('selects the row Space names, through Selection’s helper', () => {
+    const start = sortableInitial().model
+    const picked = sortableUpdate(start, SortableMessage.Selected({ id: 'High' })).model
+    expect(picked.picks.selected).toEqual(['High'])
   })
 })

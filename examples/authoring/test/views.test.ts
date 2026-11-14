@@ -14,9 +14,10 @@ import { initial as saveInitial } from '../src/save/app.js'
 import { SaveEditor } from '../src/save/view.js'
 import { initialOf as searchInitial } from '../src/search/app.js'
 import { ExplicitSearchField } from '../src/search/explicit.js'
+import { itemsOf as resultsOf } from '../src/search/slots.js'
 import { CompactSearchField, SearchField } from '../src/search/view.js'
 import { initial as sortableInitial } from '../src/sortable/app.js'
-import { SortableListbox } from '../src/sortable/view.js'
+import { SortableListbox, itemsOf as rowsOf } from '../src/sortable/view.js'
 import { pageStylesheet } from '../src/style.js'
 
 const typed = { ...searchInitial('s').model, query: 'ap' }
@@ -71,5 +72,14 @@ describe('a row drawn without its id', () => {
       h: SlotView.inertBuilder<ListMessage>(),
     })
     expect(() => builders.row.attrs([], { index: 0 })).toThrow(/a row is drawn without its id/)
+  })
+})
+
+describe('the Collection every option asks for', () => {
+  it('is built once per Model, not once per option', () => {
+    const sortable = sortableInitial().model
+    expect(rowsOf(sortable)).toBe(rowsOf(sortable))
+    expect(resultsOf(typed)).toBe(resultsOf(typed))
+    expect(resultsOf({ ...typed })).not.toBe(resultsOf(typed))
   })
 })

@@ -239,7 +239,11 @@ option. The tests wait for the frame between presses (`Frames.track()` and
 container's single router. Before a grab the route answers only its grab chord
 (Alt+Enter here, since Space selects and Enter is free for a drop), so the
 arrows navigate; while a row is held it takes the arrows, and Space or Enter
-drops it. The listbox is conformed to nothing; it exists to show the seam.
+drops it. The router holds only keys, so the rows' tab stop is
+`ListNavigation.item`, the item half of the same placement, and Space answers
+the list's own `Selected({ id })`, which `update` applies with `Selection`'s
+`activate` helper. The listbox is conformed to nothing; it exists to show the
+seam.
 
 ### Editor: one save, three drivers
 
@@ -315,14 +319,11 @@ tree.
 ## Limits, said plainly
 
 - **The lint rules of the scaffold are not run here.** The example follows the
-  rule that matters most for a parent (a control a parent draws sends a Message
-  of the parent's own, never a child's), with one exception below, but
-  `@foldkit/oxlint-plugin` is not installed in this workspace, so no linter
-  confirms it.
-- **A `Presence` control sends the child's keyed Message.** `Presence` has no
-  helpers, so the dismiss button builds `GotPresence.make(id, Hide())` in the
-  view, as the primitive's own tests do. The plugin's rule is about `update`,
-  not the view.
+  rule that matters most for a parent (a control or a key route a parent draws
+  sends a Message of the parent's own, and `update` applies it through the
+  child's helpers: `Presences.helpers.hide(id)` for a dismiss,
+  `Picked.helpers.activate(id)` for Space), but `@foldkit/oxlint-plugin` is
+  not installed in this workspace, so no linter confirms it.
 - **The writer is not a declared write.** `SaveNote` is a `Mutation.make` with
   an in-process writer, so the example runs in a page with no server. A declared
   write that the client reads with `Data.can` and a SQL writer decides is

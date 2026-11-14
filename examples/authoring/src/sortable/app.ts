@@ -5,7 +5,7 @@
  * grab: Alt+Enter here. The list is the Model's; `Moved` is a fact, and
  * `update` applies it.
  */
-import { Option, Schema } from 'effect'
+import { Match, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
@@ -32,14 +32,21 @@ export const Model = Schema.Struct({
 })
 export type Model = typeof Model.Type
 
-export const Message = defineMessageUnion({ ...Rows.cases, ...Nav.cases, ...Picks.cases })
+export const Message = defineMessageUnion({
+  ...Rows.cases,
+  ...Nav.cases,
+  ...Picks.cases,
+  /** Space on the row the keyboard is on: the parent's word, which `Selection`'s helper applies. */
+  Selected: { id: Schema.String },
+})
 export type Message = typeof Message.Type
 
 const Parent = Bundle.parent({ Model, Message })
+const Picked = Parent.at(Picks, { args: pickArgs })
 
 export const assembly = Parent.assemble(
   Parent.at(Nav, { args: navArgs }),
-  Parent.at(Picks, { args: pickArgs }),
+  Picked,
   Parent.at(Rows, {
     onOut: (fact: Reorder.OutMessage) => (model: Model) => ({
       model: Reorder.OutMessage.match(fact, {
@@ -56,7 +63,11 @@ export const PRIORITIES: ReadonlyArray<string> = ['Urgent', 'High', 'Normal', 'L
 
 export const initial = () => assembly.initial({ ids: PRIORITIES })
 
-export const update = assembly.update(model => ({ model }))
+export const update = assembly.update((model, message) =>
+  Match.valueTags(message, {
+    Selected: ({ id }) => Picked.helpers.activate(id)(model),
+  }),
+)
 
 export const currentOf = (model: Model): Option.Option<string> =>
   Option.fromNullishOr(model.nav.current)

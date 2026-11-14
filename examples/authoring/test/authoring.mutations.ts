@@ -52,6 +52,39 @@ export default [
     tests: [views],
   },
   {
+    name: 'Space on a row selects nothing',
+    edits: [
+      {
+        file: '../src/sortable/app.ts',
+        find: 'Selected: ({ id }) => Picked.helpers.activate(id)(model),',
+        replace: 'Selected: () => ({ model }),',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the results are built again for every option',
+    edits: [
+      {
+        file: '../src/search/slots.ts',
+        find: '  resultsByModel.set(model, items)',
+        replace: '',
+      },
+    ],
+    tests: [views],
+  },
+  {
+    name: 'the rows are built again for every row',
+    edits: [
+      {
+        file: '../src/sortable/view.ts',
+        find: '  rowsByModel.set(model, items)',
+        replace: '',
+      },
+    ],
+    tests: [views],
+  },
+  {
     name: 'a result of another instance is picked',
     edits: [
       {
