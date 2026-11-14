@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`: `Behaviors.Keys` gives a slot's `keydown` one owner built
+  from named routes (`chord`, `printable`, `where`, `route`, `first`,
+  `behavior`, `focus`, `answer`). Two routes declaring one press are refused
+  when the Behavior is defined (`mixins:key-conflict`, naming the slot and
+  both) unless `Keys.first` orders them; a key no press reports is refused
+  where it is written (`mixins:unknown-key`). A `keydown` event conflict now
+  points at it (#554).
 - `foldkit-primitives`, `foldkit-mixins`: every Behavior factory (`ListNavigation`,
   `Selection`, `TreeNavigation`, `FocusScope`, `Behaviors.Disclosure`, and the
   rest) takes a `SlotView.over` binder where it takes the slots, so its options

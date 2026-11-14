@@ -192,6 +192,22 @@ required? })` deriving `<id>-label`/`-description`/`-error` and the `aria-*` lin
 the spinbutton role, values, and arrow/Page/Home/End stepping. Stateful Behaviors (roving
 tabindex, press, dismiss layers) are Bundles in `foldkit-primitives/interaction`.
 
+`Behaviors.Keys` gives a slot's `keydown` one owner, built from named routes, so Escape-to-clear,
+Alt+ArrowDown-to-open and a primitive's arrows share one input instead of failing
+`mixins:event-conflict`. `Keys.route(name, { on, handle })` declares its gestures
+(`Keys.chord('Escape')`, `Keys.chord('ArrowDown', { alt: true })`, `Keys.printable`, or an
+undeclared `Keys.where((key, modifiers) => …)`) and answers `Option<Message>`, or
+`Option.some(Keys.focus(id, message))` to move focus in the handler.
+`Keys.behavior(bound)({ slot, routes, name? })` (or `(Slots)<Input, Message>(…)`) requires the
+slot to publish `Event.KeyDown`. Two routes declaring one press throw `mixins:key-conflict`
+naming both when the Behavior is defined, unless `Keys.first(a, b)` orders them; a misspelt key
+(`Keys.chord('Esc')`) is a type error and throws `mixins:unknown-key`. A press asks its one
+declared route, then the `where` routes in list order; the first `Some` wins and is
+default-prevented, a declined key keeps its native effect, propagation is never stopped, IME
+composition keys reach no route, and a held key runs its route on every repeat (guard a
+once-only route in `update`). `Keys.answer(routes)(press)` is the same question asked without a
+page. Observing a key without owning it is a Subscription (`foldkit-primitives/events`).
+
 ### 3b. An application's own look
 
 An application styling its own markup declares the Slots by their style and fixes theme, layer
