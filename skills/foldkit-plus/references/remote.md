@@ -1054,12 +1054,17 @@ const result = await Walk.run({
   from: [{ name: 'loaded', start: loaded }, ...Walk.states(Model, { count: 20, seed: 7 })],
   step: (model, message) => Data.reduce(model, message), // may return a Promise
   violations: (before, message, after) => [{ law: 'below 100', message: '…' }], // [] when it holds
+  laws: ['below 100'], // every law violations judges; another name throws
+  transition: tag => `write:${tag}`, // its id in evidence; the tag by default
   seeds: 200,
   steps: 12,
   regressions: [{ name: 'a fixed case', from: loaded, case: () => message }], // run first
 })
 expect(result.failures).toEqual([]) // each: { start, seed, path, broken }
 ```
+
+With no failure, `result.evidence` holds a `Walked` record (`foldkit-metadata`'s `Evidence`, issued
+by `foldkit-remote/walk`) for each transition a walk drew against each law; with any failure, none.
 
 A failure names its start, seed and the cases applied. The same seed draws
 the same walk, so a seed in a test name stays reproducible. `Walk.states`
