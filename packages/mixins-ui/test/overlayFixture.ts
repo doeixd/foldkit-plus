@@ -322,7 +322,7 @@ export const mount = (options: Options = {}) => {
             }
           }
           case 'OpenOuter': {
-            const next = UiDialog.open(model.outer)
+            const next = Dialog.open(model.outer)
             return {
               model: { ...model, outer: next.model },
               commands: mapMessages(next.commands, (inner): Message => ({

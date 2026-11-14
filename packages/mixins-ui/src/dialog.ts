@@ -4,7 +4,7 @@ import {
   type Model as DialogModel,
   type RenderInfo,
 } from '@foldkit/ui/dialog'
-import { Effect, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import * as Command from 'foldkit/command'
 import * as Render from 'foldkit/render'
 import { Attr, Behavior, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
@@ -165,22 +165,56 @@ export const isLeaving = (model: DialogModel): boolean =>
   model.animation.transitionState === 'LeaveStart' ||
   model.animation.transitionState === 'LeaveAnimating'
 
+/** Whether nothing holds focus: the body is where it lands when the element that had it goes inert or leaves. */
+const focusLost = (): boolean =>
+  document.activeElement === null || document.activeElement === document.body
+
+/** Answers with the Dialog's own `CompletedReleaseDialogResources`, a no-op in its `update`: it has no Message for a focus Command. */
+const focusAnswered = DialogMessage.CompletedReleaseDialogResources
+
 /**
  * Focuses the element `id` names unless something already holds focus: the
  * body is where it lands when the opener left the page while the dialog was
  * open, as `Dom.closeDialog` refocuses its recorded element only if it is
- * still connected. It answers with the Dialog's own `CompletedReleaseDialogResources`,
- * a no-op in its `update`, since the Dialog has no Message of its own for it.
+ * still connected.
  */
 export const FocusFallback = Command.define('Dialog.FocusFallback', {
   args: { id: Schema.String },
-  messages: [DialogMessage.CompletedReleaseDialogResources],
+  messages: [focusAnswered],
   execute: ({ id }) =>
     Render.afterCommit.pipe(
       Effect.map(() => {
-        const held = document.activeElement
-        if (held === null || held === document.body) document.getElementById(id)?.focus()
-        return DialogMessage.CompletedReleaseDialogResources()
+        if (focusLost()) document.getElementById(id)?.focus()
+        return focusAnswered()
+      }),
+    ),
+})
+
+/** What `@foldkit/ui`'s `ShowDialog` focuses when no selector is given: the initial-focus mark. */
+const initialFocusSelector = '[data-foldkit-dialog-initial-focus]'
+const focusable =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+/**
+ * Puts focus back inside a dialog that was opened again mid-exit. Its panel
+ * was inert and so gave up focus, and upstream's second `ShowDialog` returns at
+ * once for a dialog it still holds, so nothing else places it. It goes where
+ * the open would have: the `focusSelector` or the initial-focus mark, else the
+ * first control. Which control had focus when the exit began is not in the
+ * Model, so it is not restored.
+ */
+export const RestoreFocus = Command.define('Dialog.RestoreFocus', {
+  args: { id: Schema.String, selector: Schema.String },
+  messages: [focusAnswered],
+  execute: ({ id, selector }) =>
+    Render.afterCommit.pipe(
+      Effect.map(() => {
+        const dialog = document.getElementById(id)
+        if (focusLost() && dialog !== null) {
+          const target = dialog.querySelector(selector) ?? dialog.querySelector(focusable)
+          if (target instanceof HTMLElement) target.focus()
+        }
+        return focusAnswered()
       }),
     ),
 })
@@ -194,7 +228,11 @@ export interface UpdateOptions {
   readonly focusFallback?: string
 }
 
-/** `@foldkit/ui`'s Dialog `update`, with the focus fallback after a close that lost focus. */
+/**
+ * `@foldkit/ui`'s Dialog `update`, plus two focus repairs: after a close that
+ * lost focus, `options.focusFallback`; and after an open that met the exit,
+ * focus back inside the dialog.
+ */
 export const update = (
   model: DialogModel,
   message: DialogMessage,
@@ -202,9 +240,22 @@ export const update = (
 ): ReturnType<typeof updateDialog> => {
   const next = updateDialog(model, message)
   const { focusFallback } = options
-  if (focusFallback === undefined || message._tag !== 'CompletedCloseDialog') return next
-  return { ...next, commands: [...(next.commands ?? []), FocusFallback({ id: focusFallback })] }
+  const extra: Array<ReturnType<typeof FocusFallback> | ReturnType<typeof RestoreFocus>> = []
+  if (message._tag === 'CompletedCloseDialog' && focusFallback !== undefined) {
+    extra.push(FocusFallback({ id: focusFallback }))
+  }
+  if (message._tag === 'RequestedOpen' && isLeaving(model)) {
+    const selector = Option.getOrElse(model.maybeFocusSelector, () => initialFocusSelector)
+    extra.push(RestoreFocus({ id: model.id, selector }))
+  }
+  return extra.length === 0 ? next : { ...next, commands: [...(next.commands ?? []), ...extra] }
 }
+
+/** `@foldkit/ui`'s `open`, through `update`: an open that meets the exit puts focus back. */
+export const open = (
+  model: DialogModel,
+  options: UpdateOptions = {},
+): ReturnType<typeof updateDialog> => update(model, DialogMessage.RequestedOpen(), options)
 
 /**
  * Whether `message` is the dialog dismissing itself: Escape, a press on the

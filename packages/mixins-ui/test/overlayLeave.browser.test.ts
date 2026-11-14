@@ -50,8 +50,8 @@ test('a leaving Dialog still holds the page, and gives focus to its trigger when
     const panel = byId(ids.outerPanel)
     // The panel is inert, so the control that held focus gives it up: it rests
     // on the body until the close hands it to the trigger.
+    await vi.waitFor(() => expect(active()).toBe('BODY'))
     expect(panel?.contains(document.activeElement)).toBe(false)
-    expect(active()).toBe('BODY')
     expect(isInert(ids.outsideButton)).toBe(true)
     expect(scrollLocked()).toBe(true)
     await gone(ids.outerPanel)
@@ -146,6 +146,15 @@ test('an open sent mid-exit leaves one open Dialog, holding the page, that close
     expect(isOpen(ids.outerDialog)).toBe(true)
     expect(byId(ids.outerPanel)?.hasAttribute('data-closed')).toBe(false)
     expect(byId(ids.outerPanel)?.hasAttribute('inert')).toBe(false)
+    // Focus went to the body while the panel was inert; the open puts it back inside.
+    await vi.waitFor(() =>
+      expect(byId(ids.outerDialog)?.contains(document.activeElement)).toBe(true),
+    )
+    // And Tab is still trapped: eight presses are more than the dialog has controls.
+    for (let press = 0; press < 8; press++) {
+      await userEvent.keyboard('{Tab}')
+      expect(byId(ids.outerDialog)?.contains(document.activeElement)).toBe(true)
+    }
     expect(isInert(ids.outsideButton)).toBe(true)
     expect(scrollLocked()).toBe(true)
 

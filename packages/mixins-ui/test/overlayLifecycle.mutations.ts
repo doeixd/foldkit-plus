@@ -86,8 +86,8 @@ export default [
     edits: [
       {
         file: '../src/dialog.ts',
-        find: "if (focusFallback === undefined || message._tag !== 'CompletedCloseDialog') return next",
-        replace: 'return next',
+        find: "if (message._tag === 'CompletedCloseDialog' && focusFallback !== undefined) {",
+        replace: 'if (false) {',
       },
     ],
     tests: [lifecycle],
@@ -97,11 +97,35 @@ export default [
     edits: [
       {
         file: '../src/dialog.ts',
-        find: 'if (held === null || held === document.body) document',
-        replace: 'if (held !== null) document',
+        find: 'if (focusLost()) document',
+        replace: 'if (true) document',
       },
     ],
     tests: [lifecycle],
+  },
+  {
+    name: 'an open that meets the exit puts no focus back in the Dialog',
+    edits: [
+      {
+        file: '../src/dialog.ts',
+        find: 'extra.push(RestoreFocus({ id: model.id, selector }))',
+        replace: '',
+      },
+    ],
+    tests: [leave],
+  },
+  {
+    name: 'the restored focus is taken from wherever it was',
+    edits: [
+      {
+        file: '../src/dialog.ts',
+        find: 'if (focusLost() && dialog !== null) {',
+        replace: 'if (dialog !== null) {',
+      },
+    ],
+    tests: [leave],
+    survives:
+      'The guard only matters when an open lands in the frame of the close, before the panel is drawn inert and focus has left; the runtime cannot be made to run both Messages in one frame from a test.',
   },
   {
     name: "a Listbox's panel writes no dir, so a portaled panel places for left to right",
