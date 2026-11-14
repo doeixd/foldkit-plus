@@ -13,7 +13,12 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // pays whether a column filters or not (see examples/data-grid's budget), and
 // the rest the page's filter input and price bounds. The ceiling is the
 // measure plus about 2%, rounded up to the next 500 bytes.
-const CEILING = 255_000
+// 2026-11-14, U-WP1 (#551, #556, #531): foldkit-mixins' resolver.js grew 814
+// bytes minified (both contributors named in every ownership diagnostic, and a
+// child attribute's Mount composed through its own boundary) and behavior.js
+// 406 (each Behavior's attachment metadata, which describe reads), measured by
+// minifying the two sources before and after. The page then measured 255,014.
+const CEILING = 255_500
 
 clientBudget({
   name: 'registry',
