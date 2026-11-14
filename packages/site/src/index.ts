@@ -154,6 +154,8 @@ export interface RouteField<Root, Route> {
 export interface SitePage<Parent, ParentMessage, R, P> {
   readonly node: SiteNode<any>
   readonly placed: P
+  /** The page's bodies when its Bundle is a `Bundle.lazy`, which `Site.codeFor` names. */
+  readonly code: Option.Option<Bundle.Loadable>
   /**
    * The child told of a route arrival: `None` for another node's route, for
    * a page with nothing to say, or when the child says nothing is needed.
@@ -472,6 +474,13 @@ const freezeMount = (mount: SiteMount): SiteMount =>
     node: mount.node,
     children: Object.freeze(mount.children.map(freezeMount)),
   })
+
+/** Whether a Bundle is a `Bundle.lazy`, whose bodies load on demand. */
+const isLoadable = (bundle: object): bundle is Bundle.Loadable =>
+  'load' in bundle &&
+  typeof bundle.load === 'function' &&
+  'isLoaded' in bundle &&
+  typeof bundle.isLoaded === 'function'
 
 /** A bare node: its tag from its route case, nothing annotated. */
 const baseNode = <Route extends { readonly _tag: string }>(
@@ -1014,6 +1023,29 @@ export const Site = {
   },
 
   /**
+   * The lazy bodies a route draws: the `code` of each page placed on its
+   * chain, root first, so a page nested under a node with lazy code of its
+   * own loads both. None for a route whose pages are all eager, or a tag the
+   * tree does not hold. Pure: nothing loads until a caller calls `load`.
+   *
+   * ```ts
+   * // Only this route's code loads to render or boot its page.
+   * SSR.entry({ ...config, lazy: model => Site.codeFor(AppSite, pages, model.route) }, plan, options)
+   * ```
+   *
+   * `Site.routing` reads the same when the reader points at a link, so a
+   * page's chunk is fetched before they follow it.
+   */
+  codeFor: (
+    site: SiteTree,
+    pages: ReadonlyArray<Pick<SitePage<any, any, any, any>, 'node' | 'code'>>,
+    route: { readonly _tag: string },
+  ): ReadonlyArray<Bundle.Loadable> =>
+    Site.chainOf(site, route).flatMap(node =>
+      pages.flatMap(page => (page.node === node ? Option.toArray(page.code) : [])),
+    ),
+
+  /**
    * The application's link-click and URL-change lifecycle as one wiring, so
    * `update` stops hand-writing those two branches. A click on a link the
    * tree holds navigates (pushing or replacing per `Site.historyOf`); on any
@@ -1096,7 +1128,8 @@ export const Site = {
      * reads what the Model would read there, the route already set:
      * `there => Data.preload(there, actives)`. An address no node holds, or
      * the route shown, reads nothing, and the Model is never changed: what
-     * was read lands as `read`'s own Messages.
+     * was read lands as `read`'s own Messages. A `pages` entry that is a
+     * `Bundle.lazy` on that route's chain has its bodies fetched too, once.
      */
     readonly preload?:
       | {
@@ -1134,6 +1167,19 @@ export const Site = {
       args: { href: Schema.String },
       messages: [config.completed],
       execute: ({ href }) => Navigation.load(href).pipe(Effect.as(config.completed())),
+    })
+    const pages = config.pages ?? []
+    const unloadedAt = (route: { readonly _tag: string }) =>
+      Site.codeFor(config.site, pages, route).filter(code => !code.isLoaded())
+    // A load that fails is forgotten by `Bundle.lazy`, so the page's own
+    // arrival loads again and reports it; a guess at intent reports nothing.
+    const LoadCode = Command.define('Site.LoadCode', {
+      args: { tag: Schema.String },
+      messages: [config.completed],
+      execute: ({ tag }) =>
+        Effect.promise(() =>
+          Promise.allSettled(unloadedAt({ _tag: tag }).map(code => code.load())),
+        ).pipe(Effect.as(config.completed())),
     })
     // Route values are plain data from the same constructors, so equal
     // addresses compare equal. Checked before every write, so an echo of our
@@ -1183,7 +1229,14 @@ export const Site = {
               onSome: next =>
                 sameRoute(config.route.get(model), next)
                   ? { model }
-                  : { model, commands: [preload.read(config.route.set(model, next))] },
+                  : {
+                      model,
+                      commands: [
+                        preload.read(config.route.set(model, next)),
+                        // Its page's chunk too, once: a loaded one asks for nothing.
+                        ...(unloadedAt(next).length === 0 ? [] : [LoadCode({ tag: next._tag })]),
+                      ],
+                    },
             }),
           )
         }
@@ -1226,7 +1279,7 @@ export const Site = {
               ? []
               : [(model: Root) => ({ model: navigated(model, navigationKind()) })]),
             model => ({ model: setRoute(model, next) }),
-            ...(config.pages ?? []).map(
+            ...pages.map(
               page => (model: Root) =>
                 Option.getOrElse(page.inform(model, next), () => ({ model })),
             ),
@@ -1272,6 +1325,9 @@ export const Site = {
    * Message, or nothing when the arrival needs no answer. Without it the
    * page is never informed. Bundles with OutMessages, and children that are
    * not Bundles, stay on `Bundle.at` and `Link.child` directly.
+   *
+   * A `Bundle.lazy` page becomes the page's `code` (`Site.codeFor`), and
+   * must have `changed`: its arrival is the Message that loads its bodies.
    */
   placement: <
     Route extends { readonly _tag: string },
@@ -1337,12 +1393,20 @@ export const Site = {
     >
   > => {
     const { link, changed } = config
+    const code = isLoadable(bundle) ? Option.some(bundle) : Option.none()
+    // A lazy page loads on its first Message: with none on arrival, a page
+    // reached by Back or a key press would draw its placeholder for good.
+    if (Option.isSome(code) && changed === undefined)
+      throw new Error(
+        `Site.placement: "${bundle.name}" is a Bundle.lazy, so its route's arrival must tell it (changed), which loads its bodies`,
+      )
     // `link` and `changed` are this helper's own: `Bundle.at` reads its
     // known keys, and a non-literal tolerates the extra properties.
     const placed = bundle.at(link, config)
     return {
       node,
       placed,
+      code,
       inform: (model, route) => {
         if (!Predicate.isTagged(route, node.tag) || changed === undefined) return Option.none()
         // Guarded by the tag the node was built from, which `Site.make`

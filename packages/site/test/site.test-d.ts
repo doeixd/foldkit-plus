@@ -156,6 +156,33 @@ export const ChildPageBadChanged = Site.placement(ChildNode, ChildBundle, {
   changed: () => 42,
 })
 
+// A `Bundle.lazy` page pairs with its node as an eager one does, and is its code.
+const LazyChild = Bundle.lazy(
+  {
+    name: 'LazyChild',
+    Model: ChildModel,
+    Message: ChildMessage,
+    init: () => ({ model: { text: '' } }),
+  },
+  async () => ({ update: (model: ChildModel) => ({ model }) }),
+)
+export const LazyChildPage = Site.placement(ChildNode, LazyChild, {
+  link: Link.field<ChildModelApp>()('child', Link.wrapper(ChildAppMessage.GotChild)),
+  changed: () => ChildMessage.Told({ text: 'arrived' }),
+})
+export const lazyCode: Option.Option<Bundle.Loadable> = LazyChildPage.code
+const CodeSite = Site.make(Home, ChildNode)
+// Lazy and eager pages in one list; what comes back loads.
+export const routeCode: ReadonlyArray<Bundle.Loadable> = Site.codeFor(
+  CodeSite,
+  [LazyChildPage, ChildPageBadChanged],
+  AppRoute.People({ searchText: Option.none() }),
+)
+// @ts-expect-error: a page names its code, or `Site.codeFor` cannot read it
+Site.codeFor(CodeSite, [{ node: ChildNode }], AppRoute.Home())
+// @ts-expect-error: a route value, not its tag
+Site.codeFor(CodeSite, [LazyChildPage], 'People')
+
 // The tree carries its routes: parsed to their union, built only from one of them.
 const Other = defineRouteUnion({ Away: {}, Lost: { path: Schema.String } })
 const PathsSite = Site.make(Site.mount(Home, [People]))
