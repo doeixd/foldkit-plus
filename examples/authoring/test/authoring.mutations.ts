@@ -12,8 +12,30 @@ export default [
     edits: [
       {
         file: '../src/popup/app.ts',
-        find: 'choice === undefined || choice.disabled === true',
-        replace: 'choice === undefined',
+        find: 'choice => choice.disabled !== true',
+        replace: '() => true',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'an option of another popup is chosen',
+    edits: [
+      {
+        file: '../src/popup/app.ts',
+        find: 'choice => choiceId(instance, choice) === id',
+        replace: 'choice => id.endsWith(`:${choice.id}`)',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the trigger names no chosen option',
+    edits: [
+      {
+        file: '../src/popup/app.ts',
+        find: 'onSome: choice => choice.label',
+        replace: "onSome: () => 'Choose'",
       },
     ],
     tests: [unit],

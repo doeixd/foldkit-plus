@@ -5,7 +5,7 @@
  * popup is open while the Model says so; picking an option chooses it and
  * closes, dismissing only closes.
  */
-import { Match, Schema } from 'effect'
+import { Array, Match, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
@@ -81,24 +81,24 @@ export const update = assembly.update((model, message) =>
   Match.valueTags(message, {
     Toggled: () => ({ model: modifyFields(model, { open: open => !open }) }),
     Opened: () => (model.open ? { model } : { model: modifyFields(model, { open: () => true }) }),
-    Picked: ({ id }) => {
-      const choice = choiceOf(model.id, id)
+    Picked: ({ id }) =>
       // A disabled option is refused here, since a click on one still sends its Message.
-      return choice === undefined || choice.disabled === true
-        ? { model }
-        : Picks.helpers.activate(id)(modifyFields(model, { open: () => false }))
-    },
+      Option.exists(choiceOf(model.id, id), choice => choice.disabled !== true)
+        ? Picks.helpers.activate(id)(modifyFields(model, { open: () => false }))
+        : { model },
   }),
 )
 
 /** The element id of a choice: the instance's `id`, then the choice. */
 export const choiceId = (instance: string, choice: Choice): string => `${instance}:${choice.id}`
 
-export const choiceOf = (instance: string, id: string): Choice | undefined =>
-  CHOICES.find(choice => choiceId(instance, choice) === id)
+const choiceOf = (instance: string, id: string): Option.Option<Choice> =>
+  Array.findFirst(CHOICES, choice => choiceId(instance, choice) === id)
 
 /** What the trigger says: the chosen option's label, or a prompt before one is chosen. */
 export const labelOf = (model: Pick<Model, 'id' | 'sel'>): string => {
-  const chosen = model.sel.selected[0]
-  return (chosen === undefined ? undefined : choiceOf(model.id, chosen)?.label) ?? 'Choose'
+  return Array.head(model.sel.selected).pipe(
+    Option.flatMap(chosen => choiceOf(model.id, chosen)),
+    Option.match({ onNone: () => 'Choose', onSome: choice => choice.label }),
+  )
 }

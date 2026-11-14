@@ -27,7 +27,6 @@ import {
   Sel,
   Stack,
   choiceId,
-  choiceOf,
   labelOf,
   layerId,
   navArgs,
@@ -185,5 +184,3 @@ export const ChoicePopup = Popup.define((model, slots, h) =>
   Style.attach(PopupStyle),
   A11y.conform(Listbox),
 )
-
-export { choiceOf }
