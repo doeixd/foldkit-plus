@@ -139,11 +139,28 @@ it('draws every element the same with the sheet pruned to the tokens it reads (#
       .filter(sampled)
       .map(node => {
         const style = getComputedStyle(node)
-        return Array.from(style)
-          .filter(property => !property.startsWith('--'))
-          .map(property => `${property}: ${style.getPropertyValue(property)}`)
-          .join('; ')
+        const name = node.id === '' ? node.tagName.toLowerCase() : `#${node.id}`
+        return {
+          name,
+          properties: new Map(
+            Array.from(style)
+              .filter(property => !property.startsWith('--'))
+              .map(property => [property, style.getPropertyValue(property)] as const),
+          ),
+        }
       })
+  type Drawn = ReturnType<typeof drawn>
+  // Each element that differs, with only the properties that differ, so a
+  // failure says what moved rather than printing a whole computed style.
+  const differences = (before: Drawn, after: Drawn) =>
+    after.flatMap((element, index) => {
+      const was = before[index]?.properties ?? new Map<string, string>()
+      const changed = Array.from(element.properties)
+        .filter(([property, value]) => was.get(property) !== value)
+        .map(([property, value]) => `${property}: ${was.get(property)} -> ${value}`)
+      return changed.length === 0 ? [] : [`${element.name}: ${changed.join('; ')}`]
+    })
+  const frame = () => new Promise(resolve => requestAnimationFrame(resolve))
   const settled = async () => {
     // A font landing or a transition running between the two reads would
     // change what is drawn, not the prune: the sheet holds the `@font-face`,
@@ -151,11 +168,25 @@ it('draws every element the same with the sheet pruned to the tokens it reads (#
     await Promise.all(Array.from(document.fonts, face => face.load()))
     await Promise.all(document.getAnimations().map(animation => animation.finished))
   }
-  await settled()
-  const before = drawn()
+  // The dropdown is placed by a Mount that measures what is drawn, so a sheet
+  // swap can move it a frame after the animations settle: read until two reads
+  // two frames apart agree. A wrong prune is a difference that stays, which
+  // this cannot hide.
+  const steady = async () => {
+    for (let tries = 0; tries < 20; tries++) {
+      await settled()
+      const first = drawn()
+      await frame()
+      await frame()
+      await settled()
+      const second = drawn()
+      if (differences(first, second).length === 0) return second
+    }
+    throw new Error('the page kept changing between reads')
+  }
+  const before = await steady()
   sheet.textContent = Inert.prune(full)
-  await settled()
-  const after = drawn()
-  expect(after.filter((style, index) => style !== before[index])).toEqual([])
+  const after = await steady()
+  expect(differences(before, after)).toEqual([])
   expect(sheet.textContent.length).toBeLessThan(full.length * 0.6)
 })
