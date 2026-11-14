@@ -20,7 +20,13 @@ export default [
   },
   {
     name: 'the first reading does not place the list',
-    edits: [{ file, find: 'model.from === 0 &&\n      model.placed', replace: 'model.from === 0' }],
+    edits: [
+      {
+        file,
+        find: 'height === model.viewport.height && model.placed',
+        replace: 'height === model.viewport.height',
+      },
+    ],
     tests: unit,
   },
   {
