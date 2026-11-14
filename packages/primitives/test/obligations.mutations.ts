@@ -9,15 +9,16 @@
  */
 const unit = ['packages/primitives/test/obligations.test.ts']
 
-const dropsProvides = (file: string, line: string) => ({
+const dropsProvides = (file: string, line: string, indent = '            ') => ({
   name: `${file} supplies nothing on that slot (${line})`,
-  edits: [{ file, find: `            provides: [${line}],\n`, replace: '' }],
+  edits: [{ file, find: `${indent}provides: [${line}],\n`, replace: '' }],
   tests: unit,
 })
 
 export default [
   dropsProvides('../src/interaction/list-navigation.ts', 'A11y.Navigation'),
-  dropsProvides('../src/interaction/list-navigation.ts', 'A11y.FocusStrategy'),
+  // `behavior` and `item` share the item's slot.
+  dropsProvides('../src/interaction/list-navigation.ts', 'A11y.FocusStrategy', '    '),
   dropsProvides('../src/interaction/roving-tabindex.ts', 'A11y.Navigation'),
   dropsProvides('../src/interaction/roving-tabindex.ts', 'A11y.FocusStrategy'),
   dropsProvides('../src/interaction/tree-navigation.ts', 'A11y.Navigation'),
