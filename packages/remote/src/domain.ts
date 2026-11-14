@@ -34,6 +34,7 @@ import type { Connection, Edge } from './connection.js'
 import { Entity, type EntityDescriptor, type FieldsFrom } from './entity.js'
 import {
   Capability,
+  Facts,
   Installs,
   connectionIdentity,
   edgesOf,
@@ -75,7 +76,6 @@ import {
 import { DerivedBy } from './derived.js'
 import type { MutationStatus } from './ledger.js'
 import type { MutationDescriptor } from './mutationDescriptor.js'
-import { domainFacts } from './graphFacts.js'
 import type { OptimisticOperation } from './optimistic.js'
 import {
   deadlineOf,
@@ -1386,7 +1386,13 @@ export const bindRemote = <
       observes: store.dependency.length === 0 ? [] : [store.dependency],
       messages: [],
       metadata: [],
-      facts: () => domainFacts(definition.mutations),
+      facts: () => {
+        const each = definition.mutations.flatMap(mutation => mutation[Facts]?.() ?? [])
+        return {
+          nodes: each.flatMap(facts => facts.nodes),
+          edges: each.flatMap(facts => facts.edges),
+        }
+      },
     },
   }
 }

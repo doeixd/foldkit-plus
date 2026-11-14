@@ -11,29 +11,30 @@ const edit = (name: string, find: string, replace: string, file = '../src/graphF
 
 export default [
   edit(
-    'a domain contributes no facts',
-    '      facts: () => domainFacts(definition.mutations),\n',
-    '',
+    'a domain joins no write’s facts',
+    'definition.mutations.flatMap(mutation => mutation[Facts]?.() ?? [])',
+    '[] as ReadonlyArray<never>',
     '../src/domain.ts',
   ),
   edit(
-    'a mutation with no write ends the facts',
-    '    if (write === undefined) continue\n',
-    '    if (write === undefined) return { nodes, edges }\n',
+    'a declared write holds no facts',
+    '    [Facts]: () => writeFacts(name, write),\n',
+    '',
+    '../src/mutationDescriptor.ts',
   ),
   edit(
     'a write writes nothing',
-    '    for (const key of written) edges.push(GraphEdge.Writes({ transition, ...member(entity, key) }))\n',
+    '      ...written.map(key => GraphEdge.Writes({ transition, ...member(key) })),\n',
     '',
   ),
   edit(
     'a declared becomes is no to edge',
-    '    for (const state of Option.toArray(write.becomes))\n',
-    '    for (const state of Option.toArray(write.from))\n',
+    '      ...Option.toArray(write.becomes).map(state =>',
+    '      ...Option.toArray(write.from).map(state =>',
   ),
   edit(
-    'an invariant reads only the row after',
-    '      for (const key of new Set([...held.before, ...held.after]))\n',
-    '      for (const key of new Set(held.before))\n',
+    'an invariant reads only the row before',
+    '        [...new Set([...held.before, ...held.after])].map(key =>',
+    '        [...new Set(held.before)].map(key =>',
   ),
 ]

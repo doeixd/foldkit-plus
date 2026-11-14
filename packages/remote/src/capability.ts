@@ -71,6 +71,13 @@ export const noCapabilities = (domain: string): Capabilities => ({
 /** Where a declaration holds what it installs on a domain that registers it. */
 export const Installs: unique symbol = Symbol.for('foldkit-remote/Installs')
 
+/**
+ * Where a declared write holds its facts for `Module.graph`, which the
+ * domain's contract joins: on the write, so a page that declares none carries
+ * no code to derive them.
+ */
+export const Facts: unique symbol = Symbol.for('foldkit-remote/Facts')
+
 /** What a declaration installs on a domain that registers it, as `Remote.make` binds it. */
 export type Install = (capabilities: Capabilities) => void
 

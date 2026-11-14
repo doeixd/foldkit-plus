@@ -17,11 +17,11 @@ export default [
     tests,
   },
   {
-    name: 'the domain contributes no facts',
+    name: 'a declared write holds no facts',
     edits: [
       {
-        file: '../../../packages/remote/src/domain.ts',
-        find: '      facts: () => domainFacts(definition.mutations),\n',
+        file: '../../../packages/remote/src/mutationDescriptor.ts',
+        find: '    [Facts]: () => writeFacts(name, write),\n',
         replace: '',
       },
     ],
