@@ -234,15 +234,14 @@ const labelOf = (element: Element): string => {
   return (copy.textContent ?? '').replace(/\s+/g, ' ').trim()
 }
 
-/** Whether the page shows `element`: laid out and not hidden or inert. */
-const shown = (element: Element): boolean => {
-  const style = getComputedStyle(element)
-  return (
-    style.display !== 'none' &&
-    style.visibility !== 'hidden' &&
-    element.closest('[inert], [hidden], [aria-hidden="true"]') === null
-  )
-}
+/**
+ * Whether the page shows `element`: laid out (no `display: none` on it or an
+ * ancestor, which a computed `display` of its own does not inherit), visible,
+ * and not inert or hidden from the accessibility tree.
+ */
+const shown = (element: Element): boolean =>
+  element.checkVisibility({ visibilityProperty: true }) &&
+  element.closest('[inert], [hidden], [aria-hidden="true"]') === null
 
 const axOf = (nodes: ReadonlyArray<AxNode>, role: string) =>
   nodes.filter(node => node.role === role)

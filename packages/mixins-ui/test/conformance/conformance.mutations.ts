@@ -45,6 +45,17 @@ export default [
     ],
     tests: checkbox,
   },
+  {
+    name: 'a row hidden by an ancestor reads as showing',
+    edits: [
+      edit(
+        conformance,
+        'element.checkVisibility({ visibilityProperty: true }) &&',
+        "getComputedStyle(element).display !== 'none' &&",
+      ),
+    ],
+    tests: [`${dir}scenarios.browser.test.ts`],
+  },
 
   // Listbox
   {
