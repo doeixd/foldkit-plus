@@ -780,9 +780,9 @@ Foldkit's own behaviour that we work around is listed in
   was 10px), and it does not inherit into the anonymous box holding the
   words. Measure a trimmed element's height before claiming the trim works.
 - **A knob set on a region does not reach a portaled panel.** Upstream's
-  Menu, Listbox and Combobox portal their panel to the document by default,
-  so a popup's `size` that set the step on its `wrapper` never reached its
-  rows, and a test that drew the slots as static markup passed. Set what a
+  popups portal their panel to the document by default (our Listbox and Combobox
+  draw in place unless given `portal: true`), so a portaled popup's `size`
+  that set the step on its `wrapper` never reached its rows, and a test that drew the slots as static markup passed. Set what a
   panel needs on the panel's own slot, and test a popup by opening the real
   component (`popupLadder.browser.test.ts`).
 - **A linked `export * as` is an object, and a page keeps all of it.** tsdown

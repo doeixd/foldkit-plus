@@ -133,6 +133,90 @@ version changed; `pnpm` skips versions already in the registry.
   (`FillLane`). `Option.none()` keeps `Fill.series`; of a longer answer the
   first `count` are taken, and each cell past a shorter one is reported in
   `refused` ("The column's series gave no text here"), not padded.
+- `foldkit-mixins`: the `Attr` tokens `AriaChecked`, `AriaLabelledby`,
+  `AriaControls`, `AriaReadonly`, `AriaRequired`, `AriaCurrent` and
+  `AriaValuenow`, for a slot to declare what it writes (#558). `Assembly.describe`
+  takes `support`: providers no Behavior declares (`A11y.native(...)`,
+  `A11y.delegated(...)`), so a pattern whose obligations the element or a
+  delegate supplies describes clean; an entry the pattern does not ask is
+  ignored (#552).
+- `foldkit-mixins-ui`: `SearchField` and `Recipes.SearchField`, a native
+  `type="search"` input named by `label` with a clear button drawn only while
+  there is text. The application owns the text; `onClear` is what the button and
+  Escape (on a field with text only) send, answered with `SearchField.Focus` to
+  put focus back on the input, and `routes` add keys beside Escape on the same
+  keydown owner (#558).
+- `foldkit-mixins-ui`: `Dialog.update(model, message, { focusFallback })` takes
+  the id of an element that gets focus when a close finds the opener removed from
+  the page, and an open that meets the exit puts focus back inside the dialog;
+  `Dialog.open(model, options?)` is `open` through it. `Dialog.isLeaving(model)`,
+  passed as `isLeaving` in the context of `Dialog.toView`, draws the panel `inert`
+  for the rest of its exit, so no press or key acts on it. `Sheet.init({
+  focusFallback })` does the same for a Sheet, which draws its own panel inert
+  while leaving (#558).
+- `foldkit-mixins-ui`: `Toast.keepFocus` hands focus to a neighbouring toast
+  when the one holding it is dismissed; `Command` takes `routes` (application
+  keys on its one keydown owner), moves the highlight ten rows on PageUp and
+  PageDown, and has `keepActiveInView`; `Drawer.keepFocus` moves focus to the
+  handle when the drawer closes with focus in its body; `HoverIntent.panelId(id)`
+  names the card's panel (#558).
+- `foldkit-mixins-ui`: the Combobox recipe takes `size: 'lg'`, and its clear
+  button stands on the touch floor (#558).
+- `foldkit-mixins-ui`: `Pagination` takes `words` (the stops' words and, through
+  `stopLabel`, their names), `Breadcrumb` and `ScrollArea` take `label`,
+  `Resizable.view` takes `id` (its handle's `aria-controls` names the first
+  panel), `Carousel.init` takes `reducedMotion` (with `autoplay` it begins
+  stopped, with the button to start it), `Card` takes `headingLevel`, `Steps`
+  takes `words` and draws each step's state in a `state` slot, and `CodeBlock`
+  announces a copy in a `status` slot (#558).
+- `foldkit-mixins-ui`: a dismissible `Alert` or `Card` is a `FocusRecovery` part:
+  with that Mount on the list holding them, dismissing the one that holds focus
+  hands it to a neighbour. `TreeView` opens the current row's siblings on `*`.
+  A Carousel slide out of view is `inert` (#558).
+- `foldkit-mixins-ui`: `Input.view` takes `name`, `readOnly`, `required`,
+  `autocomplete`, `inputMode`, `maxLength` and `attributes`, `Textarea.view`
+  takes `name`, `required`, `autocomplete` and `attributes`, and `PasswordInput`
+  and `NumberField` take `name` and `required`, so a form needs no hand-drawn
+  input; `foldkit-mixins-form` draws its fields through them. `Rating` takes a
+  `name` apart from its `id`. `CheckboxGroup` takes `name` and draws one
+  `hiddenInput` per checked value. `OtpField` takes `id`, `name`, `readOnly` and
+  `invalid`, and its cells have disabled and invalid looks. The FileDrop recipe
+  rings a zone whose input has keyboard focus and dims a disabled one (#558).
+- `foldkit-mixins-ui`: `NumberField.parseNumber(text, locale?)` reads text as a
+  locale writes a number, `locale` (or `format` with `parse`) makes the field
+  draw and accept the same text, and an empty field is `Option.none()` (see
+  Changed) (#558).
+- `foldkit-mixins-ui`: `WindowList` keeps the row holding focus drawn while it is
+  scrolled out of the window (`Message.Focused`, `Model.held`,
+  `WindowList.heldRow`), where `VirtualList` loses it; `WindowList.reveal(model,
+  index, align?)` and `WindowList.Reveal` scroll the page until a row far outside
+  the window is drawn and shown; and `findable` lets the browser's find in page
+  match rows that are not drawn, as `hidden="until-found"` stand-ins whose match
+  (`Message.Found`) reveals its row (`WindowList.supportsFindable`) (#558).
+- `foldkit-mixins-ui`: `Patterns.catalog` entries carry `support`, the provider
+  of each obligation their pattern declares, which the gate validates; Menu,
+  Menubar, Combobox, Command, CascadeSelect, Tabs, TreeView, RadioGroup, Switch,
+  CheckboxGroup, Slider, AngleSlider, Accordion, Disclosure, Segmented, Rating,
+  Calendar, Tour and Picker declare theirs. Patterns for Pagination, Breadcrumb,
+  Table, ScrollArea, Drawer, HoverIntent, Picker, ButtonGroup, WindowList, Card
+  and SearchField join the catalog, and a published `*Slots` that is neither in
+  the catalog nor on the gate's allowlist fails it (#558).
+- `foldkit-primitives`: `SpatialNavigation`: arrow keys move to the nearest item
+  drawn that way, for freely placed items (a board, a canvas). Items are measured
+  when the key is handled and never kept; Home and End follow the view's order;
+  directions are physical; disabled items are skipped; the tab stop is
+  RovingTabindex's; the rule is the pure `nearest(items, current, direction)`.
+- `foldkit-primitives`: `Lasso`: a rectangle drawn on a surface reports the
+  marked items it touches, again when the surface scrolls under a held pointer.
+  It starts on a press on the surface itself past the drag threshold (a finger
+  held still first), reads Shift at release, and Escape cancels. The parent folds
+  `Selection.replace` and `LiveAnnounce`.
+- `foldkit-primitives`: `InlineEdit`: a value edited in place in an input. Enter,
+  F2, a double click or a typed key starts; Enter saves, Escape cancels without
+  closing a dialog around it, and keys typed before the field is drawn are kept.
+  A changed value is the OutMessage `Committed`, which the parent can hand to
+  `refuse(committed, error)`; leaving the field commits or cancels per its args
+  and moves no focus.
 
 ### Changed
 
@@ -179,6 +263,61 @@ version changed; `pnpm` skips versions already in the registry.
   pass the one Guards.attach returned`. Before, such a descriptor was served
   as unguarded, and with `unguarded: 'allow'` a writer built from it let
   anyone write (#539). The client's hints (`may`, placement) are unchanged.
+- **Breaking:** `foldkit-mixins-ui`: `NumberField.view`'s `value` is an
+  `Option<number>` and `onChange` receives one (`Option.none()` once the text is
+  cleared); a number was required before, so an empty field could not be shown.
+  Its `format` now comes with a `parse` (or use `locale`), since what the field
+  draws is what it accepts (#558).
+- **Breaking:** `foldkit-mixins-ui`: `Drawer.view` takes `label` in place of
+  `labels: { open, closed }`; `aria-expanded` carries the state, so the name no
+  longer changes with it and is no longer announced twice (#558).
+- **Breaking:** `foldkit-mixins-ui`: `CascadeSelect` submits one hidden input per
+  level under `name`, where it joined the path with `/` (an id may hold any
+  character); its Model gains `typeahead` and its Message `QueryExpired`, so a
+  stored Model needs the field and a wrapping application passes the Message on.
+  Typing builds a query within half a second instead of jumping by one letter
+  (#558).
+- **Breaking:** `foldkit-mixins-ui`: `TreeView.Model` gains `typeahead` and the
+  Message `QueryExpired`, so a stored Model needs the field. Typed letters
+  accumulate into a word a pause clears, instead of matching the last key (#558).
+- **Breaking:** `foldkit-mixins-ui`: `WindowList.update` returns an
+  `Update.Return` (the model and, for a `Found` match, a Command) where it
+  returned `{ model }`, so an application's `update` returns the commands too;
+  `Model` gains `held` and `placed` (#558).
+- **Breaking:** `foldkit-mixins-ui`: `InputCopy.Model` gains `failed`, and its
+  Message `Failed`, which an application sends on `ClipboardMessage.CopyFailed`;
+  `InputCopy.view` takes `failed` and `failedLabel`. A refused copy was silent
+  (#558).
+- **Breaking:** `foldkit-mixins-ui`: Listbox and Combobox panels are drawn in
+  place, as the Menu's is, unless the application gives the anchor `portal: true`
+  (upstream portals by default), so a region's `size` and knobs reach their rows
+  (#558).
+- **Breaking:** `foldkit-mixins-ui`: in a Combobox, Home and End move the caret in
+  the text and no longer move the highlight. In a Command they stay the field's
+  too; an application adds them as `routes` (#558).
+- **Breaking:** `foldkit-mixins-ui`: Home in a Sidebar's resize handle collapses
+  the column (it went to the least width) and End goes to the widest; in a
+  Resizable, Home and End collapse a `collapsible` panel when they reach its side
+  (#558).
+- **Breaking:** `foldkit-mixins-ui`: a Pagination stop at an end and a disabled
+  Card's overlay are `aria-disabled` and send nothing, where each was a native
+  `disabled` button, so they keep focus; a selected Card link is
+  `aria-current="page"` (was `"true"`) (#558).
+- **Breaking:** `foldkit-mixins-ui`: `CheckboxGroup` writes `aria-invalid` on each
+  checkbox, and the `fieldset` is described by the error; a `fieldset` has no
+  such property (#558).
+- **Breaking:** `foldkit-mixins-ui`: `Skeleton` and `Spinner` are `role="status"`
+  only when given a `label`, and `aria-hidden` otherwise, so a page of
+  placeholders is not a page of empty live regions (#558).
+- `foldkit-mixins-ui`: a text field's description (`Input.field`,
+  `Textarea.field`) is an always-drawn `role="status"` span, so an error put into
+  it is announced; each toast is a keyed child of its own in the live regions and
+  is read by itself, the same words twice included; the HoverCard trigger carries
+  `aria-expanded` and, open, `aria-describedby` naming the panel; the
+  FloatingPanel's drag trigger is `role="button"`; the Drawer's body hides when
+  the slide ends, not as it starts; the Popover panel fades out as it leaves and
+  its open button keeps the hover film; the Nav names a panel in `aria-controls`
+  only while it is drawn and keys links by place as well as address (#558).
 
 ### Fixed
 
@@ -212,6 +351,18 @@ version changed; `pnpm` skips versions already in the registry.
   slice on the page and was stored as another; it is now neither applied nor
   submitted, and `onPersistenceFailure` gets a `ReplayError` that names the
   fields. It costs one more `update` per durable dispatch (#543).
+- `foldkit-mixins-ui`: a control in a leaving Dialog or Sheet no longer acts (the
+  panel is `inert` for the rest of the exit); a pressed action on a toast that is
+  already leaving no longer reports `Acted` again; a portaled Listbox panel is
+  placed for a right-to-left page; an invalid Listbox trigger or Combobox field is
+  announced and drawn, and a disabled one shows no hover; the filled Input and
+  Textarea keep the invalid edge; number, tags, password, OTP and InputCopy
+  controls and the segmented control keep the touch floor (#558).
+- `foldkit-mixins-ui`: a Pagination of one page still draws its summary and
+  page-size select; a Pagination end stop no longer drops focus; a Carousel slide
+  out of view no longer takes Tab and scrolls the track; a CodeBlock's final line
+  break is no extra numbered line; a windowed row holding focus no longer loses
+  it when scrolled out (#558).
 
 ## 0.40.0
 
