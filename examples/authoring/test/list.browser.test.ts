@@ -117,3 +117,14 @@ test('Add draws a row of its own, which can be dismissed like the others', async
   await vi.waitFor(() => expect(titles()).toHaveLength(4))
   expect(titles()[3]).toBe('New item 1')
 })
+
+test('a pointer drag from the grip lands the row after the one it is released over', async () => {
+  const grip = button('Move Write the guide')
+  const target = rows()[2]!
+  await userEvent.dragAndDrop(grip, target, {
+    targetPosition: { x: 40, y: target.getBoundingClientRect().height - 3 },
+  })
+  await vi.waitFor(() =>
+    expect(titles()).toEqual(['Review the pull request', 'Ship it', 'Write the guide']),
+  )
+})
