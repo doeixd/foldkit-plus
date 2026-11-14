@@ -37,7 +37,10 @@ import { Found, type PartDescriptor, type Parts, listParts } from './parts.js'
  * example through a Foldkit port or the same reference `update` runs on.
  */
 export interface AgentHost<Model, Message extends AnyMessage = AnyMessage, Principal = unknown> {
-  /** Reads the current Model. Called once per invocation, before validation. */
+  /**
+   * Reads the current Model. Called once per invocation, before validation:
+   * `available`, `authorize`, `applies` and `toMessage` all see that one value.
+   */
   readonly model: () => Model
   /**
    * Sends a Message into the Foldkit Runtime.
@@ -472,6 +475,19 @@ export const bind = <
             name,
             variant.tag,
             decided === false ? undefined : decided.reason,
+          )
+        }
+      }
+
+      // After authorization, never before: whether a call applies says what
+      // the Model holds, which a caller refused above must not learn.
+      if (variant.applies !== undefined) {
+        const applies = variant.applies({ principal, input: decoded, model })
+        if (applies !== true) {
+          return yield* CapabilityUnavailableError.of(
+            name,
+            variant.tag,
+            applies === false ? undefined : applies.reason,
           )
         }
       }
