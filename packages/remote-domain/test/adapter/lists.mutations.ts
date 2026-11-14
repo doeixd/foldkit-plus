@@ -81,6 +81,17 @@ export default [
     tests: lists,
   },
   {
+    name: 'a live list is not invalidated as its stream opens',
+    edits: [
+      {
+        file: query,
+        find: 'return Stream.concat(Stream.fromEffect(invalidate), moved)',
+        replace: 'return moved',
+      },
+    ],
+    tests: lists,
+  },
+  {
     name: 'a Query that answers no pages is bound',
     edits: [{ file: query, find: 'if (served.definition.paged !== true)', replace: 'if (false)' }],
     tests: lists,

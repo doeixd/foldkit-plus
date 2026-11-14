@@ -7,10 +7,24 @@
  */
 import { Effect, Fiber, Layer, Option, Ref, type Scope, Stream } from 'effect'
 import { RemoteClient, Remote, type LiveEvent, type QueryRequest } from 'foldkit-remote'
+import { liveQuery } from 'foldkit-remote/live'
 import { Law } from 'foldkit-remote/testing'
+import { defineMessageUnion } from 'foldkit/message'
+import { Entity } from 'foldkit-entity'
+import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { DomainRemote } from '../../src/index.js'
-import { Data, Products, Reserve, shop, ShopApi, Stocked, Suppliers } from './lists.js'
+import {
+  Data,
+  PageModel,
+  Products,
+  Related,
+  Reserve,
+  shop,
+  ShopApi,
+  Stocked,
+  Suppliers,
+} from './lists.js'
 
 type Shop = ReturnType<typeof shop>
 
@@ -196,6 +210,7 @@ describe("a write's answer", () => {
 })
 
 describe('a live list', () => {
+  /** What the list's live stream sends within a moment of opening. */
   const watch = (take: number) =>
     Effect.flatMap(RemoteClient, client =>
       client
@@ -204,13 +219,23 @@ describe('a live list', () => {
           queries: [{ query: 'Stocked', input: { shelf: 'main' }, window: { first: 10 } }],
           after: 7,
         })
-        .pipe(Stream.take(take), Stream.runCollect, Effect.forkChild),
+        .pipe(
+          Stream.take(take),
+          Stream.interruptWhen(Effect.sleep('300 millis')),
+          Stream.runCollect,
+          Effect.forkChild,
+        ),
     )
+  const invalidated = (cursor: number): LiveEvent => ({
+    _tag: 'ConnectionInvalidate',
+    connection: identity,
+    cursor,
+  })
 
-  it('is invalidated when a change of a row it lists moves what it lists', async () => {
+  it('is invalidated as it opens, then when a change of a row it lists moves what it lists', async () => {
     const events = await run(seeded =>
       Effect.gen(function* () {
-        const watching = yield* watch(1)
+        const watching = yield* watch(2)
         yield* Effect.sleep('50 millis')
         const client = yield* ShopApi.Client
         // p1 changes and stays listed: nothing to say of the list.
@@ -223,23 +248,96 @@ describe('a live list', () => {
         return yield* Fiber.join(watching)
       }),
     )
-    expect(events).toEqual([
-      { _tag: 'ConnectionInvalidate', connection: identity, cursor: 8 },
-    ] satisfies ReadonlyArray<LiveEvent>)
+    expect(events).toEqual([invalidated(8), invalidated(9)])
   })
 
-  it('says nothing while the rows it lists change and stay listed', async () => {
+  it('says nothing after it opens while the rows it lists change and stay listed', async () => {
     const events = await run(seeded =>
       Effect.gen(function* () {
-        const watching = yield* watch(1)
+        const watching = yield* watch(2)
         yield* Effect.sleep('50 millis')
         yield* (yield* ShopApi.Client).ReserveStock('p1', { quantity: 1, revision: 1 })
         yield* seeded.drain
-        yield* Effect.sleep('100 millis')
-        return yield* Fiber.interrupt(watching).pipe(Effect.as(Option.none()))
+        return yield* Fiber.join(watching)
       }),
     )
-    expect(events).toEqual(Option.none())
+    expect(events).toEqual([invalidated(8)])
+  })
+
+  // A server render listed p1, p2, p4 and p5; p3 joined (grace gave it to ada)
+  // before the browser opened its stream. No row the page holds changed, so
+  // only the invalidation at the start reaches the page, which reads p3.
+  it('brings a row that joined before the stream opened, as a page resumed from a render', async () => {
+    const { events, after } = await run(seeded =>
+      Effect.gen(function* () {
+        expect(ids((yield* ask({ first: 10 })).edges)).toEqual(['p1', 'p2', 'p4', 'p5'])
+        yield* (yield* ShopApi.Client).Transfer('p3', { ownerId: 'ada' })
+        yield* seeded.drain
+        const events = yield* Fiber.join(yield* watch(2))
+        return { events, after: ids((yield* ask({ first: 10 })).edges) }
+      }),
+    )
+    expect(events).toEqual([invalidated(8)])
+    expect(after).toEqual(['p1', 'p2', 'p3', 'p4', 'p5'])
+  })
+
+  // The stream broke, p3 joined in the gap, and Remote's restart re-reads the
+  // rows it follows, not its lists: the restarted stream's start asks the list again.
+  it('asks the list again when Remote restarts its stream after a join in the gap', async () => {
+    // A page's domain, made from an application's field so it has reads.
+    const App = Surface.application({
+      Model: PageModel,
+      Message: defineMessageUnion({ ...Remote.messages }),
+    })
+    const Page = Remote.make({
+      model: App.model.remote,
+      entities: [Related.Product, Related.Supplier],
+      queries: [Stocked],
+    })
+    const entry = Page.subscriptions({
+      list: Page.active('Stocked', () =>
+        Option.some(
+          liveQuery(
+            Page,
+            Stocked,
+            { shelf: 'main' },
+            { select: Entity.select(Related.Product, { stock: true }), first: 10 },
+          ),
+        ),
+      ),
+    })['list.live']
+    const held = Page.reduce(
+      { remote: Remote.initial },
+      {
+        _tag: 'ConnectionMerged',
+        connection: identity,
+        page: {
+          edges: ['p1', 'p2', 'p4', 'p5'].map(id => ({
+            key: `Product:${id}`,
+            ref: { entity: 'Product', id },
+          })),
+          start: { _tag: 'Terminal' },
+          end: { _tag: 'Terminal' },
+        },
+      },
+    )
+    const sent = await run(seeded =>
+      Effect.gen(function* () {
+        yield* (yield* ShopApi.Client).Transfer('p3', { ownerId: 'ada' })
+        yield* seeded.drain
+        const restarted = { ...entry.modelToDependencies(held), restarts: 1, failures: 1 }
+        return yield* entry
+          .dependenciesToStream(restarted)
+          .pipe(Stream.take(3), Stream.interruptWhen(Effect.sleep('500 millis')), Stream.runCollect)
+      }),
+    )
+    expect(sent.map(message => message._tag)).toEqual([
+      'RefreshStarted',
+      'GapCleared',
+      'LiveReceived',
+    ])
+    const after = sent.reduce((model, message) => Page.reduce(model, message), held)
+    expect(after.remote.connections[identity]?.stale).toBe(true)
   })
 })
 

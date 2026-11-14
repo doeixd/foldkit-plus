@@ -1061,7 +1061,12 @@ WP1 (alone: lockfile)
     watch's first frame, Q7), asks the list again on a change, and sends
     `ConnectionInvalidate` when its ids moved; it never sends `EntityDeleted`
     for a row that left. A row joining without a held row changing is not seen
-    until the list is read again.
+    until the list is read again. The review found the list compared against
+    the server's listing at stream start, not what the client holds: a row
+    joining between a server render and hydration, or in a restart's gap
+    (Remote's restart re-reads rows, not lists), was lost for good. The stream
+    now opens with one `ConnectionInvalidate`, so each start costs one read of
+    the list.
   - **Relations.** A View's state holds a `one` relation as the target's id or
     `null`; `view` refuses an Entity whose `one` relation the state lacks. A
     read answers the ref key and reads selected targets level by level through
@@ -1074,7 +1079,7 @@ WP1 (alone: lockfile)
     cluster owns, for every module that imports it (#332).
   - `Law.check` with `lists: [Stocked]` finds no disagreement for
     `ReserveStock` (`test/adapter/query.test.ts`); the `lists.mutations.ts`
-    spec's 20 mutations are each killed.
+    spec's 21 mutations are each killed.
   - The paging test asks each page through `RemoteClient.query` and merges them
     with Remote's own reducer (`ConnectionMerged`) into one list of four rows; it
     drives no running page's `Data.query`.
@@ -1092,6 +1097,17 @@ WP1 (alone: lockfile)
 - **Done when:** a page rendered on the server and hydrated makes no read
   before its first change, and a change made between render and hydrate
   arrives through `live`. Runs under jsdom with `renderToString`; no deploy.
+- **As built (2026-11-14).** `pageReader` (`foldkit-remote-domain/server`)
+  reads as the principal decided from the request, binds no command and opens
+  no live stream; `Remote.resume` carries each row's revision, and the
+  browser's live stream names it (`LiveRequirement.revisions`, protocol 7), so
+  the adapter sends no frame at or before it. The review found two gaps, fixed:
+  a partial read moves a row's revision while its other fields are older, so
+  the store now records the fields written at the revision and names a row only
+  when every field followed is among them (the capture carries them); and a
+  live list opens with one `ConnectionInvalidate`, so a page with a live list
+  reads that list once after hydrating (a row may have joined since the
+  render). A page of rows alone reads nothing.
 
 ### WP10: a Domain model as a client-test fixture
 

@@ -8,9 +8,9 @@
  *   entities = those rows as the View answers them, with what `select` asks
  *
  * Domain pages forward only (`after`, `take`), so a window from a list's end
- * (`last`, `before`) is refused. A Query has no watch: a live list is asked
- * again whenever a row it holds changes, and answers `ConnectionInvalidate`
- * when what it lists moved.
+ * (`last`, `before`) is refused. A Query has no watch: a live list is
+ * invalidated as its stream starts, asked again whenever a row it holds
+ * changes, and answers `ConnectionInvalidate` when what it lists moved.
  */
 import type * as Domain from '@alchemy.run/domain'
 import type { QueriesOf } from '@alchemy.run/domain/Api'
@@ -274,10 +274,13 @@ const sameIds = (left: ReadonlyArray<string>, right: ReadonlyArray<string>) =>
   left.length === right.length && left.every((id, index) => id === right[index])
 
 /**
- * A list read live: asked again whenever a row it lists changes, and
- * `ConnectionInvalidate` when what it lists moved, so the client reads it
- * again. A row that joins the list without a change to a row it holds is not
- * seen until the list is read again: a Domain Query has no watch.
+ * A list read live: `ConnectionInvalidate` once as the stream starts, then
+ * asked again whenever a row it lists changes, and `ConnectionInvalidate` when
+ * what it lists moved, so the client reads it again. The first is for what
+ * moved before the stream opened: the client's list may be a server render's,
+ * or one read before a break, and Remote's restart re-reads its rows, not its
+ * lists. After that, a row that joins the list without a change to a row it
+ * holds is not seen until the list is read again: a Domain Query has no watch.
  */
 export const liveQuery = (
   lists: Lists,
@@ -294,6 +297,11 @@ export const liveQuery = (
       )
       const held = yield* SubscriptionRef.make(yield* listed)
       const connection = queryIdentity(request.query, request.input)
+      const invalidate = Effect.map(next, (cursor): LiveEvent => ({
+        _tag: 'ConnectionInvalidate',
+        connection,
+        cursor,
+      }))
       // A frame of any listed row, after the first each watch sends of the row as it is.
       const changed = SubscriptionRef.changes(held).pipe(
         Stream.switchMap(ids =>
@@ -320,20 +328,17 @@ export const liveQuery = (
           ),
         ),
       )
-      return changed.pipe(
+      const moved = changed.pipe(
         Stream.mapEffect(() =>
           Effect.gen(function* () {
             const ids = yield* listed
             if (sameIds(ids, yield* SubscriptionRef.get(held))) return Option.none<LiveEvent>()
             yield* SubscriptionRef.set(held, ids)
-            return Option.some<LiveEvent>({
-              _tag: 'ConnectionInvalidate',
-              connection,
-              cursor: yield* next,
-            })
+            return Option.some(yield* invalidate)
           }),
         ),
         Stream.flatMap(event => Stream.fromIterable(Option.toArray(event))),
       )
+      return Stream.concat(Stream.fromEffect(invalidate), moved)
     }).pipe(asLive),
   )

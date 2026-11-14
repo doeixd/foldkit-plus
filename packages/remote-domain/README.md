@@ -315,6 +315,7 @@ server:  request -> principal (from the request) -> pageReader -> Data.satisfy -
            Remote.resume sends each row read, with its revision (and a floor, if any)
 browser: adopts the markup; the read entry plans nothing; the live stream names
          each row's revision, and the adapter sends no frame at or before it
+         (a live list is invalidated as its stream opens, and read once more)
 ```
 
 `pageReader` from `foldkit-remote-domain/server` is the reader a page render
@@ -455,10 +456,13 @@ DomainRemote.layer(ShopApi, { views: [Products], commands: [], queries: [Listed]
   by Remote, as for any page: the page writes it, and ends its floor, only at a
   newer revision than the one held; otherwise a read at its token does.
 - **A live list is asked again.** A Domain Query has no watch: the adapter
-  watches each row a live list holds, asks the list again when one changes, and
-  sends `ConnectionInvalidate` when what it lists moved (never `EntityDeleted`
-  for a row that only left the list). A row that joins the list with no change
-  to a row it holds is not seen until the list is read again.
+  sends `ConnectionInvalidate` once as a live list's stream opens, so the
+  client reads the list once more (the list it holds may be a server render's,
+  or one read before the stream broke); then it watches each row the list
+  holds, asks the list again when one changes, and sends `ConnectionInvalidate`
+  when what it lists moved (never `EntityDeleted` for a row that only left the
+  list). A row that joins the list while the stream is open, with no change to
+  a row it holds, is not seen until the list is read again.
 
 A View's state holds a **`one` relation** as the target's id, or `null`.
 `DomainRemote.view` refuses an Entity whose `one` relation the state does not
@@ -632,8 +636,9 @@ Policy, which is not built here. A lowered write holds no ledger,
 ## Limits
 
 - **Lists are a paged Domain Query's, read forward.** An unpaged Query cannot
-  answer a list, a window from a list's end is refused, and a live list sees a
-  row join it only when a row it holds changes or it is read again. Each listed
+  answer a list, a window from a list's end is refused, and a live list is read
+  once more each time its stream opens; while open, it sees a row join it only
+  when a row it holds changes or it is read again. Each listed
   row costs one View snapshot (sixteen at a time). A plain page carries no
   read-after token: Remote's wire has none for a query, so only a write's own
   answer reads its lists at the receipt. Relations are `one` relations held as

@@ -16,8 +16,9 @@ version changed; `pnpm` skips versions already in the registry.
   hides, and gives each its revision), paging is forward only (`last`,
   `before`, `first: 0` and a cursor over 1,024 characters are refused), a
   write's answer carries the lists the client asks back read at its receipt,
-  and a live list is asked again on a change of a row it holds and invalidated
-  when it moved. A View's state holds a `one` relation as the target's id; a
+  and a live list is invalidated as its stream opens (read once more, for what
+  moved before it opened), asked again on a change of a row it holds, and
+  invalidated when it moved. A View's state holds a `one` relation as the target's id; a
   read answers its ref key and reads a selected target through the target's
   own View in the same batch. `DomainRemote.view` refuses an Entity whose `one`
   relation its View's state lacks.

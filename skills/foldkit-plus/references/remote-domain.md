@@ -103,8 +103,8 @@ provided.
   Domain Query, given to `layer` as `queries`. The Query decides what is listed; each listed row is read through its
   Entity's View, which leaves out a row its `validate` hides and gives each its revision. Paging is Domain's, forward
   only: `last`/`before`, `first: 0` and a cursor over 1,024 characters are refused (`RemoteQueryError`). A write's answer
-  carries the lists the client asks back, read `atLeast` its receipt; a live list is asked again when a row it holds
-  changes and sends `ConnectionInvalidate` when it moved.
+  carries the lists the client asks back, read `atLeast` its receipt; a live list is invalidated once as its stream
+  opens (the client reads it once more), then asked again when a row it holds changes, and invalidated when it moved.
 - **`one` relations.** A View's state holds the target's id (or `null`); `view` refuses an Entity whose `one` relation
   it lacks. A read answers the ref key and reads a selected target through its own View in the same batch.
 - **First paint (`/server`).** `pageReader(Api, { views, resolvePrincipal, middleware })` is a server render's reader:
@@ -130,7 +130,8 @@ provided.
 ## Limits
 
 Lists come from paged Domain Queries only, read forward; a plain page carries no read-after token (the wire has none
-for a query), and a live list sees a row join only when a held row changes or it is read again. Relations are `one`
+for a query), and an open live list sees a row join only when a held row changes or it is read again (each time its
+stream opens, it is read once more). Relations are `one`
 relations held as ids; `many` relations, relation windows and live reads with relations fail by name. A row named in `behind` is asked again with its
 token after 1 s, doubling, at most 30 s. Open upstream behaviour in beta.86 (not yet reported):
 a reused `commandId` with other input or another principal returns the first receipt and skips `decide`; the View client
