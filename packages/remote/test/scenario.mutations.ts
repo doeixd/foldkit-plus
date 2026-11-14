@@ -14,6 +14,17 @@ const tests = [
 
 export default [
   {
+    name: 'the seeded row is matched by id alone',
+    edits: [
+      {
+        file: scenario,
+        find: 'each => each.entity.name === entity && String(',
+        replace: 'each => String(',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'the report check is skipped',
     edits: [
       {

@@ -180,6 +180,36 @@ describe('Scenario.run', () => {
     expect(() => Scenario.run(fromDraft, [], { report })).not.toThrow()
   })
 
+  it('reads the row the write aims at by its Entity as well as its id', () => {
+    const Other = Entity.define(
+      'Other',
+      Schema.Struct({ id: Schema.String, status: Schema.String }),
+    )
+    // Another Entity's row with the same id, published, seeded first.
+    const fromDraft = Scenario.write<Principal>({
+      ...revert,
+      given: [
+        { entity: Other, row: { id: 'n1', status: 'published' } },
+        { entity: Note, row: draft },
+      ],
+      when: [Revert, { id: 'n1', status: 'draft' }],
+      expect: Scenario.accepted({ status: 'draft' }),
+    })
+    expect(() => Scenario.run(fromDraft, [], { report })).not.toThrow()
+  })
+
+  it('takes only a declared write', () => {
+    const Rename = Mutation.make('Rename', {
+      Input: { id: Schema.String },
+      Output: { id: Schema.String },
+    })
+    Scenario.write<Principal>({
+      ...publish,
+      // @ts-expect-error a scenario's write is a declared one, whose row it reads
+      when: [Rename, { id: 'n1' }],
+    })
+  })
+
   it('throws when it expects a refusal by an invariant the report kept the write from breaking', () => {
     const wrong = Scenario.write<Principal>({
       ...publish,

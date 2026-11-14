@@ -27,7 +27,8 @@ import { stableStringify } from './query.js'
 import { REMOTE_PROTOCOL_VERSION } from './wire.js'
 import { Walk } from './walk.js'
 
-type AnyMutation = MutationDescriptor<string, any, any, any>
+/** A declared write (`Mutation.write`): a scenario reads the row it aims at by its Entity and id. */
+type AnyMutation = MutationDescriptor<string, any, any, any> & { readonly write: AnyWrite }
 
 /**
  * A refusal named by its declaration: an invariant (`Refusal.isInvalidBy`
@@ -120,24 +121,30 @@ const expectedDecision = ({ expect }: { readonly expect: WriteExpectation }): De
 
 /** The id of the row the write is aimed at, read from its encoded input. */
 const target = ({ when: [mutation, input] }: WriteScenario<unknown>): string => {
-  const key = mutation.write?.id.key ?? 'id'
+  const key = mutation.write.id.key
   const encoded = Schema.encodeUnknownSync(mutation.Input)(input) as Readonly<
     Record<string, unknown>
   >
   return String(encoded[key])
 }
 
-/** The rows `given` seeds for `id`, whichever Entity. */
-const seeded = (scenario: WriteScenario<unknown>, id: string): Row =>
-  scenario.given.find(({ row }) => String(row['id']) === id)?.row ?? {}
+/** The row `given` seeds for the one the write aims at: of its Entity, with its id. */
+const seeded = (scenario: WriteScenario<unknown>): Row => {
+  const entity = scenario.when[0].write.input.entity.name
+  const id = target(scenario)
+  return (
+    scenario.given.find(each => each.entity.name === entity && String(each.row['id']) === id)
+      ?.row ?? {}
+  )
+}
 
 /** The fields the scenario says the row holds afterwards: what the write changes, or the seeded ones. */
-const expectedRow = (scenario: WriteScenario<unknown>, id: string): Row =>
+const expectedRow = (scenario: WriteScenario<unknown>): Row =>
   Match.valueTags(scenario.expect, {
     Accepted: ({ row }) => row,
-    Refused: () => seeded(scenario, id),
-    Forbidden: () => seeded(scenario, id),
-    Unauthenticated: () => seeded(scenario, id),
+    Refused: () => seeded(scenario),
+    Forbidden: () => seeded(scenario),
+    Unauthenticated: () => seeded(scenario),
   })
 
 /** The fields of `row` that `of` names. */
@@ -268,16 +275,13 @@ const remote = <AppModel, Principal>(
             now: scenario.now,
           }),
         )
-        const wanted = expectedRow(scenario, id)
-        const entity = mutation.write?.input.entity.name
-        const read =
-          entity === undefined
-            ? undefined
-            : yield* client.read({
-                version: REMOTE_PROTOCOL_VERSION,
-                requests: [{ entity, id, fields: Object.keys(wanted) }],
-              })
-        const held = read?.entities.find(each => each.entity === entity && each.id === id)
+        const wanted = expectedRow(scenario)
+        const entity = mutation.write.input.entity.name
+        const read = yield* client.read({
+          version: REMOTE_PROTOCOL_VERSION,
+          requests: [{ entity, id, fields: Object.keys(wanted) }],
+        })
+        const held = read.entities.find(each => each.entity === entity && each.id === id)
         return { decision, wanted, held: (held?.values ?? {}) as Row }
       })
       const after = yield* served.pipe(
@@ -333,7 +337,7 @@ const agreesOn = (row: Row, partial: Row): boolean =>
 const checkAgainst = (scenario: WriteScenario<unknown>, report: LawsReport): void => {
   const [mutation] = scenario.when
   const encoded = encodedInput(scenario) as Row
-  const row = seeded(scenario, target(scenario))
+  const row = seeded(scenario)
   const pairs = report.pairs.filter(pair => pair.write === mutation.name)
   const fail = (what: string): never => {
     throw new Error(`[foldkit-remote] Scenario "${scenario.name}": ${what}`)
