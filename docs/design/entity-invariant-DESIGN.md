@@ -5,7 +5,8 @@
 with these differences from the sketch: the Drizzle writer reads its invariants
 from the binding (`bind` keeps them), since a binding does not keep its Entity;
 an invariant the database cannot compile is refused when the writer is made; a
-form judges invariants on submit only, through `Entity.judgeInput`; and
+form judges invariants through `Entity.judgeInput`, on submit, and since #542
+on each edit too when it is over the row it edits (`form.over`); and
 `invariantChecks` gives a `constraint` clause for both dialects, SQLite's to
 write in its `create table`. The guide is
 [Declared writes](../declared-writes.md#what-every-row-holds-an-invariant).

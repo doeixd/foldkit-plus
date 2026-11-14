@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-entity`, `foldkit-form`, `foldkit-crud`: a form judges an Entity's
+  invariants over the row it edits (#542, #543). `form.over(model, row)` keeps
+  the encoded row (`model.over`, stored as null when none, so an older Model
+  decodes), and invariants are judged over it with the form's values laid
+  over it, transitions included, on each edit once every key setting a field
+  the rule reads has been edited (`model.reached`), and on submit.
+  `Entity.rowFrom(entity, value)` gives the row from a read value, and
+  `Entity.judgedBy(input)` names what to load beside the input; `Crud.editor`
+  loads it and sets its form over the loaded row, so a quote form setting only
+  the discount loads `approvedBy` and refuses a discount over 15% as it is typed.
+
 - `foldkit-mixins`: `Behaviors.Keys` gives a slot's `keydown` one owner built
   from named routes (`chord`, `printable`, `where`, `route`, `first`,
   `behavior`, `focus`, `answer`). Two routes declaring one press are refused
@@ -151,6 +162,9 @@ version changed; `pnpm` skips versions already in the registry.
   `refused` ("The column's series gave no text here"), not padded.
 
 ### Changed
+
+- `Entity.judgeInput(input, value, { operators?, over? })` takes an options
+  object in place of the positional operator table (#542).
 
 - The workspace's Effect is `4.1.4` (was `4.1.1`), and `foldkit-plus setup`
   pins it and `@effect/*` at that release. Published packages still peer on

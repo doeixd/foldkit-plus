@@ -95,7 +95,9 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
 
 - **Open it** from your own `update`: `Placed.helpers.open(id)` (edit: empties the
   form, fills it when the value arrives), `.blank()` (create: nothing to load),
-  `.close()`.
+  `.close()`. An edit loads what the Entity's invariants read beside the form's keys
+  (`Entity.judgedBy`) and sets the form over the loaded row (`form.over`), so the form
+  judges them, transitions included, as keys are edited, before any save.
 - **Dispatch form Messages** as before: the editor's Messages are the form's own
   (`EditPostForm.Message.Changed(...)` wrapped in `Message.GotEditorMessage`).
 - **Read state:** `PostEditor.status(model)` is `Closed`, `Loading`, `NotFound`,
