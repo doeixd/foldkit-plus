@@ -247,7 +247,7 @@ export const GuardServer = {
                 Option.map(may, ({ answer }) => {
                   values.may = answer(record.values)
                 })
-                return { id: record.id, values }
+                return { ...record, values }
               },
             }
           },

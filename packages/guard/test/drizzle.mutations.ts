@@ -7,6 +7,17 @@ const tests = ['packages/guard/test/drizzle.test.ts']
 
 export default [
   {
+    name: 'a filtered record drops its revision',
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: 'return { ...record, values }',
+        replace: 'return { id: record.id, values }',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a refused Read admits every row',
     edits: [{ file, find: 'Never: () => nothing,', replace: 'Never: () => undefined,' }],
     tests,
