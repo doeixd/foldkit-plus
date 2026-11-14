@@ -16,6 +16,7 @@ import {
   supported,
   type AnyEntity,
   type AnyQuery,
+  type Invariant,
 } from 'foldkit-entity'
 import {
   Diagnostics,
@@ -618,20 +619,29 @@ export const GuardServer = {
     const attachment = enforced(entity)
     const hiddenByBody = new WeakMap<AnyQuery, ReadonlyArray<string>>()
     // An invariant reading a member a Read rule hides is still enforced, but named to no
-    // one: which one failed, and where, would say what that member holds.
+    // one: which one failed, and where, would say what that member holds. So is a write's
+    // postcondition reading one, which only the write carrying it names.
+    const readsRuled = (held: Invariant): boolean =>
+      Option.exists(attachment, ruled =>
+        [...held.before, ...held.after].some(key => readRuled(ruled, key)),
+      )
     const unnamed = new Set(
-      Option.match(attachment, {
-        onNone: () => [],
-        onSome: ruled =>
-          Entity.invariants(entity)
-            .filter(held => [...held.before, ...held.after].some(key => readRuled(ruled, key)))
-            .map(held => held.id),
-      }),
+      Entity.invariants(entity)
+        .filter(readsRuled)
+        .map(held => held.id),
     )
-    const told = <E>(error: E | RemoteInvalid): E | RemoteInvalid =>
-      error instanceof RemoteInvalid && Option.exists(error.rule, rule => unnamed.has(rule))
-        ? RemoteServer.invalid('The row would be invalid')
-        : error
+    const told =
+      (ensures: Invariant | undefined) =>
+      <E>(error: E | RemoteInvalid): E | RemoteInvalid =>
+        error instanceof RemoteInvalid &&
+        Option.exists(
+          error.rule,
+          rule =>
+            unnamed.has(rule) ||
+            (ensures !== undefined && rule === ensures.id && readsRuled(ensures)),
+        )
+          ? RemoteServer.invalid('The row would be invalid')
+          : error
     /**
      * Fails a write whose `when` reads, whose `expect` names, or whose
      * computed assignment reads, a member with a Read rule: Unmet or written,
@@ -877,6 +887,8 @@ export const GuardServer = {
       ...(writer.ledger === true ? { ledger: true } : {}),
       // Invariants are the writer's to judge, over the row its statement writes.
       ...(writer.invariants === true ? { invariants: true } : {}),
+      // So is a write's postcondition, which reaches the writer in the context it is handed.
+      ...(writer.postconditions === true ? { postconditions: true } : {}),
       // The rows a delete takes with it are the writer's to remove; the guard judges the row named.
       ...(writer.cascades === true ? { cascades: true } : {}),
       // So is refusing a row still pointed at, which only someone the rules let delete it learns.
@@ -935,7 +947,7 @@ export const GuardServer = {
               ),
             ),
           ),
-          told,
+          told(context.ensures),
         ),
       insert: context =>
         answeredOr(context, identity, () =>
@@ -963,7 +975,7 @@ export const GuardServer = {
               ...rule,
               condition: Condition.unsetting(rule.condition, unset),
             })), proposed, principal)
-            return yield* Effect.mapError(writer.insert(context), told)
+            return yield* Effect.mapError(writer.insert(context), told(context.ensures))
           }),
         ),
       delete: context =>

@@ -87,6 +87,24 @@ const SetCost = Mutation.write(
   }),
 )
 
+const InStock = Entity.refine(Item, 'InStock', ({ row }) => Expr.gt(row.stock, row.reserved))
+/** Over the cost, which a member may not read. */
+const Priced = Entity.refine(Item, 'Priced', ({ row }) => Expr.gt(row.cost, 8))
+const Restock = Mutation.write(
+  'Restock',
+  Write.update(Entity.input(Item, Schema.Struct({ id: Schema.String, stock: Schema.Number })), {
+    id: 'id',
+    becomes: InStock,
+  }),
+)
+const Reprice = Mutation.write(
+  'Reprice',
+  Write.update(Entity.input(Item, Schema.Struct({ id: Schema.String, cost: Schema.Number })), {
+    id: 'id',
+    becomes: Priced,
+  }),
+)
+
 const ada = Option.some<User>({ id: 'ada', role: 'member' })
 const grace = Option.some<User>({ id: 'grace', role: 'member' })
 const mo = Option.some<User>({ id: 'mo', role: 'manager' })
@@ -101,7 +119,12 @@ const open = () => {
   const guarded = GuardServer.writer(Item, Policy, writer(Db.Item), { revision: 'revision' })
   const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
     entities: [],
-    mutations: [RemoteServer.write(SetStock, guarded), RemoteServer.write(SetCost, guarded)],
+    mutations: [
+      RemoteServer.write(SetStock, guarded),
+      RemoteServer.write(SetCost, guarded),
+      RemoteServer.write(Restock, guarded),
+      RemoteServer.write(Reprice, guarded),
+    ],
   })
   const send = (principal: Option.Option<User>, mutation: string, input: unknown) =>
     Effect.runPromise(
@@ -161,5 +184,24 @@ describe('A guarded write over an Entity with invariants', () => {
       },
     })
     expect(row()).toEqual({ stock: 10, cost: 2 })
+  })
+
+  it("names a write's postcondition, and names none over a member a Read rule hides", async () => {
+    const { send, row } = open()
+    // 6 is above the 5 reserved, so only the postcondition, over the hidden cost, refuses it.
+    expect(await send(ada, 'Reprice', { id: 'i1', cost: 6 })).toMatchObject({
+      failure: {
+        refusal: { _tag: 'Invalid', rule: null, message: 'The row would be invalid', path: [] },
+      },
+    })
+    expect(row()).toEqual({ stock: 10, cost: 2 })
+    expect((await send(ada, 'Reprice', { id: 'i1', cost: 9 }))._tag).toBe('Success')
+    // Every invariant holds now, so only the postcondition can refuse.
+    expect(await send(ada, 'Restock', { id: 'i1', stock: 5 })).toMatchObject({
+      failure: {
+        refusal: { _tag: 'Invalid', rule: 'becomes:InStock', path: ['stock', 'reserved'] },
+      },
+    })
+    expect(row()).toEqual({ stock: 10, cost: 9 })
   })
 })
