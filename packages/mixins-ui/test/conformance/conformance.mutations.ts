@@ -586,8 +586,8 @@ export default [
     edits: [
       edit(
         focusScope,
-        'if (restore && previous instanceof HTMLElement',
-        'if (false && previous instanceof HTMLElement',
+        'if (restore) giveBack(element, way, below)',
+        'if (false) giveBack(element, way, below)',
       ),
     ],
     tests: dialog,
