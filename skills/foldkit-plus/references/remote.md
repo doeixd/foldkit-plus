@@ -1065,6 +1065,9 @@ expect(result.failures).toEqual([]) // each: { start, seed, path, broken }
 
 With no failure, `result.evidence` holds a `Walked` record (`foldkit-metadata`'s `Evidence`, issued
 by `foldkit-remote/walk`) for each transition a walk drew against each law; with any failure, none.
+A listed law that `violations` never checks still gets its records, on the author's word: list only
+laws `violations` judges, named as the graph names them (`Laws.law(invariant)`), and walk a check
+that is no law (what the writer answers) with a `Walk.run` of its own.
 
 A failure names its start, seed and the cases applied. The same seed draws
 the same walk, so a seed in a test name stays reproducible. `Walk.states`

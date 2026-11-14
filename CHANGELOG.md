@@ -23,7 +23,8 @@ version changed; `pnpm` skips versions already in the registry.
   `Keeps` edge only where every pair of that transition and law has a record),
   and `Laws.transition` and `Laws.law` the ids it and evidence use.
   `foldkit-remote/testing`: `Walk.run` takes `laws` (every law its
-  `violations` judges; another name throws) and an optional `transition`, and
+  `violations` judges; another name throws, and a listed law it never checks
+  still gets records, on the author's word) and an optional `transition`, and
   returns `evidence`, a `Walked` record per drawn transition per law when no
   walk failed. `pnpm evidence:check` refuses an `Evidence.issuer` call outside
   the producer modules.

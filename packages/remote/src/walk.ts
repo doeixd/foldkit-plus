@@ -44,7 +44,12 @@ export interface WalkOptions<Model, Message> {
   /** May answer later: a walk of declared writes goes through the writer. */
   readonly step: (model: Model, message: Message) => Model | Promise<Model>
   readonly violations: (before: Model, message: Message, after: Model) => ReadonlyArray<Violation>
-  /** Every law `violations` judges: a walk with no failure is evidence for each. */
+  /**
+   * Every law `violations` judges: a walk with no failure is evidence for
+   * each. A violation naming another law throws, but nothing can tell that
+   * `violations` checks a listed law at all: one it never checks still gets
+   * `Walked` records, on the author's word.
+   */
   readonly laws: ReadonlyArray<string>
   /** A drawn case's transition id in evidence, such as `write:Sell` for `Sell`; its tag by default. */
   readonly transition?: (tag: string) => string

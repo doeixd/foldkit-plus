@@ -8,12 +8,14 @@
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { Effect, Match, Option, Schema } from 'effect'
+import { Laws } from 'foldkit-entity'
+import { Evidence } from 'foldkit-metadata'
 import { databaseLayer } from 'foldkit-remote-drizzle'
 import { Walk } from 'foldkit-remote/testing'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { schema, server } from '../src/server.js'
-import { Restock, Sell } from '../src/domain.js'
+import { Restock, Sell, reservedWithinStock } from '../src/domain.js'
 
 /** The row's numbers, and how the last write was answered. */
 interface Stock {
@@ -81,10 +83,20 @@ const refusals = new Set([
 const legitimate = (answer: string) =>
   answer === 'written' || [...refusals].some(prefix => answer.startsWith(prefix))
 
-const violations = (before: Stock, message: Message, after: Stock) => [
-  ...(after.reserved > after.stock
-    ? [{ law: 'reservedWithinStock', message: `${after.reserved} reserved of ${after.stock}` }]
-    : []),
+const law = Laws.law(reservedWithinStock)
+
+/** The Entity's one law the walk judges, named as `Laws.law` and the graph name it. */
+const broken = (_before: Stock, _message: Message, after: Stock) =>
+  after.reserved > after.stock
+    ? [{ law, message: `${after.reserved} reserved of ${after.stock}` }]
+    : []
+
+/**
+ * What the writer must answer, judged by a walk of its own: these are checks
+ * of the writer and of Sell's own postcondition, not laws of the Entity, so
+ * their walk's records are not evidence for anything the graph holds.
+ */
+const checks = (before: Stock, message: Message, after: Stock) => [
   ...(!legitimate(after.answer) ? [{ law: 'refusal', message: `answered ${after.answer}` }] : []),
   ...(after.answer !== 'written' &&
   (after.stock !== before.stock || after.revision !== before.revision)
@@ -124,17 +136,40 @@ const { list } = Walk.cases<Stock, Message>()({
   },
 })
 
+const walk = {
+  cases: list,
+  from: [start('stocked', 10, 2), start('all reserved', 3, 3), start('empty', 0, 0)],
+  step,
+  transition: (tag: string) => `write:${tag}`,
+  seeds: 12,
+  steps: 15,
+}
+
 describe('Sell and Restock through the server', () => {
-  it('keep reservedWithinStock, and a refused sale leaves the row as it was', async () => {
+  it('keep reservedWithinStock, with a Walked record for each', async () => {
+    const result = await Walk.run({ ...walk, violations: broken, laws: [law] })
+    expect(result.failures).toEqual([])
+    expect(result.evidence.map(record => ({ ...record }))).toEqual(
+      [Sell, Restock].map(write => ({
+        ...Evidence.Walked({
+          transition: Laws.transition(write),
+          law: 'Product.reservedWithinStock',
+          seeds: 12,
+          steps: 15,
+          starts: ['stocked', 'all reserved', 'empty'],
+        }),
+      })),
+    )
+    expect(result.evidence.map(Evidence.issuedBy)).toEqual(
+      result.evidence.map(() => Option.some('foldkit-remote/walk')),
+    )
+  }, 60_000)
+
+  it('answer as the writer may, and a refused sale leaves the row as it was', async () => {
     const result = await Walk.run({
-      cases: list,
-      from: [start('stocked', 10, 2), start('all reserved', 3, 3), start('empty', 0, 0)],
-      step,
-      violations,
-      laws: ['reservedWithinStock', 'refusal', 'a refusal writes nothing', 'becomes:InStock'],
-      transition: tag => `write:${tag}`,
-      seeds: 12,
-      steps: 15,
+      ...walk,
+      violations: checks,
+      laws: ['refusal', 'a refusal writes nothing', 'becomes:InStock'],
     })
     expect(result.failures).toEqual([])
   }, 60_000)

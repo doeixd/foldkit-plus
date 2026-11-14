@@ -27,4 +27,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: "a Walked record names the case's tag, not its transition",
+    edits: [
+      {
+        file: '../../../packages/remote/src/walk.ts',
+        find: 'transition: transition(tag),',
+        replace: 'transition: tag,',
+      },
+    ],
+    tests,
+  },
 ]
