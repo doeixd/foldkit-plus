@@ -186,10 +186,12 @@ const copy = (model: NoteModel): Update.Return<NoteModel, NoteMessage> => ({
 | Draw only the visible rows of a long list | `Virtual` | [state](./state/README.md) |
 | Animate a value, or let an element leave before it is removed | `Tween`, `Spring`, `Presence` | [motion](./motion/README.md) |
 | Move with arrow keys through a toolbar, list, grid or tree | `RovingTabindex`, `ListNavigation`, `GridNavigation`, `TreeNavigation` | [interaction](./interaction/README.md) |
+| Move with arrow keys between freely placed items (a board, a canvas) | `SpatialNavigation` | [interaction](./interaction/README.md) |
 | Close a popup on Escape or an outside press | `DismissLayer`, `Overlay` | [interaction](./interaction/README.md) |
 | Press, long-press or drag | `Press`, `LongPress`, `Move`, `PointerDrag` | [interaction](./interaction/README.md) |
+| Select items by drawing a rectangle around them | `Lasso` with `Selection` | [interaction](./interaction/README.md) |
 | Read where the pointer is inside an element (a color area, a dial, a pad drawn on) | `PointerPosition` | [dom](./dom/README.md) |
-| Edit text in place | `EditableText` | [interaction](./interaction/README.md) |
+| Edit text in place | `EditableText` (a `contenteditable` label), `InlineEdit` (an `<input>`, with a refusal) | [interaction](./interaction/README.md) |
 | Tell a screen reader what changed | `LiveAnnounce` | [interaction](./interaction/README.md) |
 | Know whether the browser is online, or talk over a socket | `Online`, `websocket`, `sse` | [net](./net/README.md) |
 | Talk between tabs | `broadcastMessages`, `SharedHost` | [net](./net/README.md) |
@@ -213,7 +215,7 @@ reference: every Model shape, Message, argument, and failure rule.
 | [`time`](./time/README.md) | the clock | `Timer`, `Interval`, `ticks`, `debounce`, `Throttle`, `formatRelativeTime` |
 | [`state`](./state/README.md) | UI state with nowhere else to live | `Pagination`, `history`, `Locale`, `SelectionSet`, `Virtual`, `range`, layout math |
 | [`motion`](./motion/README.md) | animation | `Tween`, `Spring`, `Presence`, the `Motion` service |
-| [`interaction`](./interaction/README.md) | keyboard, pointer, and focus patterns, with their Behaviors | `RovingTabindex`, `Typeahead`, `ListNavigation`, `GridNavigation`, `TreeNavigation`, `FocusScope`, `FocusRecovery`, `Leaving`, `Press`, `LongPress`, `Move`, `Targets`, `PointerDrag`, `EditableText`, `FocusVisible`, `DismissLayer`, `Layers`, `Selection`, `LiveAnnounce` |
+| [`interaction`](./interaction/README.md) | keyboard, pointer, and focus patterns, with their Behaviors | `RovingTabindex`, `Typeahead`, `ListNavigation`, `GridNavigation`, `TreeNavigation`, `SpatialNavigation`, `FocusScope`, `FocusRecovery`, `Leaving`, `Press`, `LongPress`, `Move`, `Targets`, `PointerDrag`, `Lasso`, `EditableText`, `InlineEdit`, `FocusVisible`, `DismissLayer`, `Layers`, `Selection`, `LiveAnnounce` |
 | [`device`](./device/README.md) | hardware | `Geolocation`, `mediaDevices`, `mediaStream`, `permissions`, fullscreen |
 | [`events`](./events/README.md) | raw window events | `Visibility`, `WindowSize`, `Idle`, `InputModality`, `keyboardEvents`, `pointerEvents`, `scrollEvents`, `activeElementEvents`, `matchHotkey` |
 | [`observers`](./observers/README.md) | element observers | `Resize`, `Intersection`, `Mutation`, `Bounds` |

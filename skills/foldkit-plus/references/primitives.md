@@ -135,6 +135,16 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   `initial` back), `EditAsked { field }` on a double-click of one not editable yet. Text only;
   one line unless `aria-multiline="true"`. Focus returns to the (tabbable) container when the
   field an Enter or Escape ended goes away.
+- **A value edited in an `<input>`** (a title, a file name): `InlineEdit.bundle` (`{ id, blur:
+  'commit' | 'cancel' }`, slice `{ editing: Option<{ id, initial, draft, error }> }`) with
+  `InlineEdit.behavior(Declared, args)(Slots)<Model, Message>({ display, input, error?, value, disabled?, routes? })`
+  (the input slot publishes `keydown`). Enter, F2 or a double click on the display starts, text
+  selected; a printable key starts over with it, and keys before the field is drawn go on the draft.
+  Enter and Escape are `Behaviors.Keyboard` routes (Escape closes no dialog around it). A changed
+  value is the OutMessage `Committed { id, value, initial }`; `onOut` saves it or folds
+  `refuse(out, error)`, which keeps the draft open with `aria-invalid`. Blur commits or cancels
+  and moves no focus; Enter or Escape returns focus to the display only from nothing. Give the
+  field an `aria-label`.
 - **Dragging one item onto another** (reorder a tree or a canvas):
   `PointerDrag.behavior(Slots)<Input, Message>({ container, attribute, toMessage })`
   (Mount `PointerDrag({ attribute })` in `/dom`): `DragStarted { id }` past a 4px
@@ -149,6 +159,21 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   found nearest the container first, and each fact carries `region: boolean`, so `over: null`
   with `region: true` is the region's empty space. `part: attribute` reports an element
   marked by it as `{ id, zone: 'inside', part }`: a node's empty Region, say.
+- **Freely placed items** (a board, a canvas): `SpatialNavigation.bundle` (`{ id }`, slice
+  `{ current: Option<string> }`) with `SpatialNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items })`.
+  An arrow is `Arrowed { direction }`; a Command measures the drawn items after the next commit and
+  focuses the nearest that way (`nearest(items, current, direction)`: centre ahead, the 45° cone
+  first, ahead + 2 x aside, ties to the first listed), scrolled into view `nearest`. Physical
+  directions; Home/End by the view's order; disabled and undrawn items skipped; nothing that way
+  is `Stayed`. Tab stop and `OnFocus` are `RovingTabindex`'s.
+- **Rectangle selection:** `Lasso.behavior(Slots)<Input, Message>({ surface, attribute, toMessage })`
+  (Mount `Lasso({ attribute })` in `/dom`): a press on the surface itself (not an item, a control or
+  its scrollbar) past `DRAG_THRESHOLD` (a finger: held `HOLD_TO_DRAG_MS`) is `LassoStarted { x, y }`,
+  then `LassoMoved { rect, ids, shiftKey }` per move and per scroll (rect in the surface's scrolled
+  coordinates; overlap, not a shared edge), `LassoEnded { ids, shiftKey }` (Shift at release),
+  `LassoCancelled` (Escape, `pointercancel`). No selection inside: fold `Selection`'s
+  `replace(ids)` (a union with `selected` under Shift) and `LiveAnnounce`'s `announce`; the
+  keyboard way in is `Selection`'s own. Swallows the click a lasso ends with.
 - **Cells in rows:** `GridNavigation.bundle` (`{ columns, wrap, virtual, page? }`) with
   `GridNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items, direction? })`.
   Same Model slice and item attributes as `RovingTabindex`; arrows move within the row or
@@ -245,7 +270,8 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   overlap that side. `Anchor.behavior` portals and tracks; this places once.
 - **A parent's own decisions are helpers, never the child's Messages:** `Selection`'s
   `activate(id)`, `replace(ids)`, `clear()`; `TreeNavigation`'s `focus`, `open`, `close`,
-  `toggle(id)`; `focus(id)` on `RovingTabindex`, `ListNavigation`, `GridNavigation`;
+  `toggle(id)`; `focus(id)` on `RovingTabindex`, `ListNavigation`, `GridNavigation`, `SpatialNavigation`;
+  `InlineEdit.start(id, text)` and `refuse(committed, error)`;
   `Typeahead`'s `clear()`; `LiveAnnounce`'s `announce(text, politeness?)`. Call them on the
   placement (`Picks.helpers.activate(id)(model)`); a control the parent draws sends a parent
   Message and `update` calls the helper.

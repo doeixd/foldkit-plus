@@ -26,6 +26,7 @@ wraps.
 | `Leaving` | Mount | nothing | mark parts with `leaving(h)` |
 | `ScrollLock`, `HideOutside` | Mounts | nothing | |
 | `PointerPosition({ focus? })` | Mount | `PointerPressed`, `PointerMoved`, `PointerReleased` | `focus`: a selector |
+| `Lasso({ attribute })` | Mount | `LassoStarted`, `LassoMoved { rect, ids, shiftKey }`, `LassoEnded { ids, shiftKey }`, `LassoCancelled` | items marked by `attribute` |
 | `keepScroll(options?)` | entry | nothing | |
 | `pointedLinks(options?)` | stream | `Url` | `rest`: how long a hover or focus rests, default 50 ms |
 | `visibleLinks(options?)` | stream | `Url` | `atMost` (8), `margin` |
@@ -398,7 +399,10 @@ smaller).
 
 It is not `Move`, which reports how far the pointer went from where it went
 down and nothing about where in the element that is, nor `PointerDrag`, which
-says which marked element is under the pointer.
+says which marked element is under the pointer, nor `Lasso`, which draws a
+rectangle on a surface and reports the marked items it touches; the
+[interaction](../interaction/README.md) README shows `Lasso` handing them to
+`Selection`.
 
 ## `keepScroll`: the window's scroll across navigations
 
