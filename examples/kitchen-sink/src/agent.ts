@@ -7,8 +7,17 @@
  * contract into their respective surfaces.
  */
 import { Agent } from 'foldkit-agent'
+import { Schema } from 'effect'
 import { Projection } from 'foldkit-surface'
-import { AgentContext, App, Data, Message, ProjectSummary, ProjectsByOwner } from './stack.js'
+import {
+  AgentContext,
+  App,
+  CompleteTask,
+  Data,
+  Message,
+  ProjectSummary,
+  ProjectsByOwner,
+} from './stack.js'
 
 /** Who is calling the agent. A real application resolves this from a session. */
 export interface AgentPrincipal {
@@ -38,6 +47,18 @@ const projects = Data.query(
   { select: ProjectSummary, first: 25 },
 )
 
+/**
+ * A capability over a declared write takes its checks from the write (#533):
+ * a rule that forbids it refuses in `authorize`, and a task that is not open is
+ * refused in `applies`, which the agent asks only once `authorize` allowed, so a
+ * caller who may not write learns nothing of the task. No condition is written
+ * here: `CompleteTask`'s `when` is the one.
+ */
+const completeTask = Data.capability(
+  CompleteTask,
+  ({ input }: { input: { readonly id: string } }) => ({ id: input.id, status: 'done' }),
+)
+
 export const AppAgent = BoardAgent.make({
   // What an agent may see: the replicated notes and the current selection.
   context: AgentContext.projection(undefined),
@@ -60,6 +81,16 @@ export const AppAgent = BoardAgent.make({
     },
     RequestedRenameNote: { name: 'rename_note', description: 'Rename an existing note' },
     SelectedNote: 'Select a note, making the capabilities that act on one available',
+    RequestedCompleteTask: {
+      name: 'complete_task',
+      description: 'Complete an open task',
+      input: Schema.Struct({ id: Schema.String }),
+      toMessage: input => input,
+      ...completeTask,
+      // Written after the spread, so it replaces the write's: the principal's
+      // permission first, then the write's rules.
+      authorize: request => (request.principal.canWrite ? completeTask.authorize(request) : false),
+    },
   }),
 
   // A Projection is already what a resource wants: a schema and a pure read of

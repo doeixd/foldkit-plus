@@ -1616,6 +1616,9 @@ importers:
       foldkit-durable:
         specifier: workspace:*
         version: link:../../packages/durable
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../../packages/entity
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../packages/mixins

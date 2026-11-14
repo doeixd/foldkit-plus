@@ -19,8 +19,10 @@ import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Update from 'foldkit/update'
+import { Entity, Expr, Write } from 'foldkit-entity'
 import { Mutation, Query, Remote, RemoteClient, type RemoteMessageTag } from 'foldkit-remote'
 import {
+  bind,
   databaseLayer,
   entity,
   one,
@@ -28,6 +30,7 @@ import {
   returning,
   runStatement,
   source,
+  writer,
 } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
@@ -57,6 +60,8 @@ sqlite.exec(`
   INSERT INTO projects (id, name, owner_id, status) VALUES
     ('p1', 'Apollo', 'u1', 'active'),
     ('p2', 'Borealis', 'u1', 'archived');
+  CREATE TABLE tasks (id TEXT PRIMARY KEY, title TEXT NOT NULL, status TEXT NOT NULL);
+  INSERT INTO tasks (id, title, status) VALUES ('t1', 'Draft the brief', 'open'), ('t2', 'Book the room', 'done');
 `)
 
 export const db = drizzle({ client: sqlite })
@@ -72,6 +77,36 @@ export const projects = sqliteTable('projects', {
   ownerId: text('owner_id').notNull(),
   status: text('status').notNull(),
 })
+
+export const tasks = sqliteTable('tasks', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  status: text('status').notNull(),
+})
+
+/** An Entity declared once, which client and server both read, and a declared write over it. */
+export const Task = Entity.define(
+  'Task',
+  Schema.Struct({
+    id: Schema.String,
+    title: Schema.String,
+    status: Schema.Literals(['open', 'done']),
+  }),
+)
+const Db = bind({ Task }, { Task: { table: tasks } })
+
+/**
+ * A task is completed while it is open. The server refuses it otherwise, and
+ * the client reads the same `when` to tell an agent before it asks
+ * (`Data.capability` in `agent.ts`).
+ */
+export const CompleteTask = Mutation.write(
+  'CompleteTask',
+  Write.update(
+    Entity.input(Task, Schema.Struct({ id: Schema.String, status: Schema.Literal('done') })),
+    { id: 'id', when: () => Expr.eq(Task.fields.status, 'open') },
+  ),
+)
 
 /** The binding is the Remote `EntityDescriptor`; no second field declaration. */
 export const User = entity('User', users)
@@ -112,7 +147,7 @@ export const CreateProject = Mutation.make('CreateProject', {
  * subscriber that selects those fields receives them, re-read through the
  * entity source under its own principal. It needs only the entity sources.
  */
-const entitySources = [source(User), source(Project)]
+const entitySources = [source(User), source(Project), source(Db.Task)]
 export const liveHub = Effect.runSync(RemoteServer.liveHub(entitySources))
 
 const RenameProjectSource = RemoteServer.mutation(RenameProject, ({ input }) =>
@@ -189,6 +224,7 @@ export const Message = defineMessageUnion({
   Ping: {},
   RequestedCreateNote: { id: Schema.String, body: Schema.String },
   RequestedRenameNote: { id: Schema.String, body: Schema.String },
+  RequestedCompleteTask: { id: Schema.String },
   SelectedNote: { id: Schema.String },
   SelectedProject: { id: Schema.String },
 })
@@ -197,28 +233,36 @@ export type Message = typeof Message.Type
 /**
  * The application's own transitions. The assembly routes Remote's Messages
  * before `own` ever sees them; the tag check narrows the union for
- * `reduceNotes`, and its fallback arm is unreachable.
+ * `reduceOwn`, and its fallback arm is unreachable.
  */
-const ownUpdate = (model: Model, message: Message): Update.Return<Model, Message> =>
-  Remote.reduces(message) ? { model } : { model: reduceNotes(model, message) }
+const ownUpdate = (model: Model, message: Message): Update.Return<Model, Message, RemoteClient> =>
+  Remote.reduces(message) ? { model } : reduceOwn(model, message)
 
-const reduceNotes = (
+const reduceOwn = (
   model: Model,
   message: Exclude<Message, { readonly _tag: RemoteMessageTag }>,
-): Model =>
+): Update.Return<Model, Message, RemoteClient> =>
   Match.valueTags(message, {
-    Ping: () => model,
-    RequestedCreateNote: ({ id, body }) =>
-      modifyFields(model, {
+    RequestedCompleteTask: ({ id }) => {
+      const started = Data.mutate(model, CompleteTask, { id, status: 'done' })
+      return { model: started.model, commands: [started.command] }
+    },
+    Ping: () => ({ model }),
+    RequestedCreateNote: ({ id, body }) => ({
+      model: modifyFields(model, {
         notes: () =>
           model.notes.some(note => note.id === id) ? model.notes : [...model.notes, { id, body }],
       }),
-    RequestedRenameNote: ({ id, body }) =>
-      modifyFields(model, {
+    }),
+    RequestedRenameNote: ({ id, body }) => ({
+      model: modifyFields(model, {
         notes: () => model.notes.map(note => (note.id === id ? { ...note, body } : note)),
       }),
-    SelectedNote: ({ id }) => modifyFields(model, { selectedNoteId: () => Option.some(id) }),
-    SelectedProject: ({ id }) => modifyFields(model, { projectId: () => id }),
+    }),
+    SelectedNote: ({ id }) => ({
+      model: modifyFields(model, { selectedNoteId: () => Option.some(id) }),
+    }),
+    SelectedProject: ({ id }) => ({ model: modifyFields(model, { projectId: () => id }) }),
   })
 
 export const App = Surface.application({
@@ -237,8 +281,8 @@ export const App = Surface.application({
 /** The Remote domain, bound to `model.remote`: the application-facing operations live here. */
 export const Data = Remote.make({
   model: App.model.remote,
-  entities: [User, Project],
-  mutations: [RenameProject, CreateProject],
+  entities: [User, Project, Task],
+  mutations: [RenameProject, CreateProject, CompleteTask],
   queries: [ProjectsByOwner],
   // Run by tsx and tested by Vitest, never built for a reader: always verified.
   verifyPredictions: true,
@@ -336,7 +380,7 @@ export const openReplica = KitchenSync.openReplica(memoryStorage(), {
   replicaId: ReplicaId.make('kitchen-a'),
 })
 
-const Page = Bundle.parent({ Model: App.Model, Message })
+const Page = Bundle.parent({ Model: App.Model, Message }).withServices<RemoteClient>()
 
 /**
  * The one list of what joins the application: the Remote domain brings its
@@ -368,7 +412,12 @@ export const update: (
 export const serverClient = (principal: string): Layer.Layer<RemoteClient> => {
   const server = RemoteServer.make({
     entities: entitySources,
-    mutations: [RenameProjectSource, CreateProjectSource],
+    mutations: [
+      RenameProjectSource,
+      CreateProjectSource,
+      // The binding's writer judges the write's `when` where it commits.
+      RemoteServer.write(CompleteTask, writer(Db.Task)),
+    ],
     queries: [ProjectsByOwnerSource],
   })
   // Every source names a descriptor the domain declared.

@@ -26,7 +26,9 @@ describe('kitchen sink', () => {
 
     // foldkit-agent, bound to the application's own runtime
     expect(lines).toContain('headless board (read by its Subscription): Ready Apollo II')
-    expect(lines).toContain('capabilities: requested_create_note, rename_note, selected_note')
+    expect(lines).toContain(
+      'capabilities: requested_create_note, rename_note, selected_note, complete_task',
+    )
     expect(lines).toContain('agent create: completed')
     expect(lines).toContain('notes after agent: First note, From the agent')
 
@@ -34,9 +36,13 @@ describe('kitchen sink', () => {
     expect(lines).toContain(
       'webmcp call: Completed: RequestedCreateNote reached its declared state',
     )
-    expect(lines).toContain('mcp tools: requested_create_note, rename_note, selected_note')
-    expect(lines).toContain('a2a card: Kitchen Sink (3 skills)')
-    expect(lines).toContain('native actions: requested_create_note, rename_note, selected_note')
+    expect(lines).toContain(
+      'mcp tools: requested_create_note, rename_note, selected_note, complete_task',
+    )
+    expect(lines).toContain('a2a card: Kitchen Sink (4 skills)')
+    expect(lines).toContain(
+      'native actions: requested_create_note, rename_note, selected_note, complete_task',
+    )
 
     // foldkit-mixins + foldkit-mixins-surface + foldkit-mixins-ui
     expect(lines).toContain('rendered classes: board')
