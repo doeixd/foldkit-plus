@@ -345,9 +345,13 @@ export const Graph = {
   },
 }
 
-/** A finding of the three rules over the graph, in `Module.validate`'s shape. */
+/** A finding of the rules over the graph, in `Module.validate`'s shape. */
 export interface GraphFinding {
-  readonly rule: 'law-unwitnessed' | 'evidence-unmatched' | 'level-declared-twice'
+  readonly rule:
+    | 'law-unwitnessed'
+    | 'evidence-unmatched'
+    | 'level-declared-twice'
+    | 'transition-declared-twice'
   readonly contracts: ReadonlyArray<string>
   readonly message: string
 }
@@ -357,8 +361,9 @@ const sameSet = (a: ReadonlyArray<string>, b: ReadonlyArray<string>): boolean =>
 
 /**
  * Each pair a transition can break and nothing shows it keeps
- * (`law-unwitnessed`), each record not admitted (`evidence-unmatched`), and
- * each two closed Surfaces with one projection and one Message set
+ * (`law-unwitnessed`), each record not admitted (`evidence-unmatched`), each
+ * write two contracts declare (`transition-declared-twice`), and each two
+ * closed Surfaces with one projection and one Message set
  * (`level-declared-twice`).
  */
 export const graphFindings = (
@@ -382,6 +387,18 @@ export const graphFindings = (
   )
   for (const { contracts: named, message } of unmatched)
     findings.push({ rule: 'evidence-unmatched', contracts: named, message })
+  // A write is named by its name alone, in the graph and in evidence, so two contracts'
+  // writes of one name are one node no record can tell apart.
+  for (const { id, kind } of graph.nodes.filter(GraphNode.$is('Transition')))
+    if (kind === 'write') {
+      const named = contributors.get(`transition:${id}`) ?? []
+      if (named.length > 1)
+        findings.push({
+          rule: 'transition-declared-twice',
+          contracts: named,
+          message: `${id} is declared by ${named.join(' and ')}, so evidence naming it cannot say which`,
+        })
+    }
   const closed = [...new Set(contracts)].filter(contract => contract.closed === true)
   for (let i = 0; i < closed.length; i += 1)
     for (let j = i + 1; j < closed.length; j += 1) {

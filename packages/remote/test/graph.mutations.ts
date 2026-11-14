@@ -42,4 +42,10 @@ export default [
     "    node(LawNode.Transition({ id: by, kind: 'write', entity: entity.name }))",
     "    node(LawNode.Transition({ id: by, kind: 'write', entity: '' }))",
   ),
+  edit(
+    'a write two contracts declare is not reported',
+    '      if (named.length > 1)\n',
+    '      if (named.length > 2)\n',
+    '../../surface/src/graph.ts',
+  ),
 ]

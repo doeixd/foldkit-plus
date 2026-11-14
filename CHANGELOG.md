@@ -84,8 +84,9 @@ version changed; `pnpm` skips versions already in the registry.
   which, and a `Keeps` edge per record of `evidence` that is issued and joins
   its pair. `Module.validate` takes the same optional second argument and,
   given one with `evidence` (even `[]`), adds `law-unwitnessed` (a transition
-  writes a path a law reads, and no evidence keeps it), `evidence-unmatched`
-  and `level-declared-twice`; with one argument it answers as before;
+  writes a path a law reads, and no evidence keeps it), `evidence-unmatched`,
+  `level-declared-twice` and `transition-declared-twice` (two contracts
+  declare a write of one name); with one argument it answers as before;
   `Graph.breakersOf(graph, law)` names each transition that could break a law
   and its evidence; `Module.manifest`, `toMarkdown` and `toMermaid` take the
   option too, and the renderers add a Laws section. `Evidence` is re-exported

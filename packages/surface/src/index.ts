@@ -1850,6 +1850,7 @@ export interface Finding {
     | 'law-unwitnessed'
     | 'evidence-unmatched'
     | 'level-declared-twice'
+    | 'transition-declared-twice'
   /** `kind:name` of each contract involved. */
   readonly contracts: readonly string[]
   readonly message: string
@@ -1944,8 +1945,9 @@ export const Module = {
    * application does not declare. Given `evidence`, even none, also the rules
    * over the graph: a transition that writes what a law reads with no
    * evidence it keeps it (`law-unwitnessed`), a record of `evidence` not
-   * admitted (`evidence-unmatched`), and two closed Surfaces declared alike
-   * (`level-declared-twice`).
+   * admitted (`evidence-unmatched`), two closed Surfaces declared alike
+   * (`level-declared-twice`), and a write two contracts declare
+   * (`transition-declared-twice`).
    */
   validate: (module: Module<any, any, any>, options: GraphOptions = {}): readonly Finding[] => {
     const findings: Finding[] = []

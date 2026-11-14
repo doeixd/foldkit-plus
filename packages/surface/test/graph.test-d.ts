@@ -31,9 +31,9 @@ expectTypeOf(Module.validate(Plain, { evidence: [record] })).toEqualTypeOf<reado
 expectTypeOf(Graph.breakersOf(Module.graph(Plain), 'sync:todos.few')).toEqualTypeOf<
   ReadonlyArray<Breaker>
 >()
-expectTypeOf<'law-unwitnessed' | 'evidence-unmatched' | 'level-declared-twice'>().toExtend<
-  Finding['rule']
->()
+expectTypeOf<
+  'law-unwitnessed' | 'evidence-unmatched' | 'level-declared-twice' | 'transition-declared-twice'
+>().toExtend<Finding['rule']>()
 
 const _contract: Contract = {
   kind: 'sync',

@@ -197,3 +197,27 @@ describe('a delete in the Module graph', () => {
     expect(Module.validate(Removals, { evidence })).toEqual([])
   })
 })
+
+describe('two domains in the Module graph', () => {
+  const Two = Surface.application({
+    Model: Schema.Struct({ remote: Remote.Model, archive: Remote.Model }),
+    Message: defineMessageUnion({ ...Remote.messages }),
+  })
+  it('reports a write two of them declare, whose evidence could not say which it is', () => {
+    const module = Module.make(Two, [
+      Remote.make({ model: Two.model.remote, entities: [Product], mutations: [Sell] }),
+      Remote.make({ model: Two.model.archive, entities: [Product], mutations: [Sell] }),
+    ])
+    expect(
+      Module.validate(module, { evidence: [] })
+        .filter(finding => finding.rule === 'transition-declared-twice')
+        .map(finding => [finding.contracts, finding.message]),
+    ).toEqual([
+      [
+        ['remote:remote', 'remote:archive'],
+        'write:Sell is declared by remote:remote and remote:archive, so evidence naming it cannot say which',
+      ],
+    ])
+    expect(Module.validate(module)).toEqual([])
+  })
+})

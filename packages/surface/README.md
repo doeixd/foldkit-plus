@@ -539,13 +539,14 @@ Graph.breakersOf(Module.graph(Todos, { evidence: [judged] }), 'sync:todos.capped
 // [{ transition: 'durable:Added', paths: [['todos']], evidence: [judged] }]
 ```
 
-The three rules over the graph:
+The rules over the graph:
 
 | Rule | Reported when |
 | --- | --- |
 | `law-unwitnessed` | A transition writes a path a law reads (one within the other), and no evidence joins them. A pair sharing no path is never reported, but a law over a row's change (one reading `before`) reads the whole row, since a write leaving its members alone can still break it. |
 | `evidence-unmatched` | A record was issued by no producer (typed by hand, or a copy of one), or names a transition or law no contract declares, or a pair the graph does not join: a write and a law of two Entities, or a Message and a law over Model paths that do not overlap (two documents'). |
 | `level-declared-twice` | Two closed Surfaces observe the same paths and list the same Messages. |
+| `transition-declared-twice` | Two contracts declare a write of one name (`write:Sell` in two Remote domains): the graph and evidence name a write by its name, so neither can tell them apart. |
 
 So a durable Message added to a document, or a write added to a domain, is
 reported until a walk or a scenario draws it, or a line says why only
@@ -825,7 +826,8 @@ that may observe across those runtime boundaries without creating another one.
 - `Closure.reads`: whether a projection after a Message depends on the rest of the Model.
 - `Closure.violations`: the closed Surfaces a step broke, as `ClosureViolation`s; `Surface.make`'s and `App.surface`'s `closed`.
 - The law half of the contract graph: `Contract.laws`, `Module.graph`, the rules
-  `law-unwitnessed`, `evidence-unmatched` and `level-declared-twice`, and
+  `law-unwitnessed`, `evidence-unmatched`, `level-declared-twice` and
+  `transition-declared-twice`, and
   `Graph.breakersOf`. It owns the question, not the answers: each contract
   owns its declared laws, and the producers of `Evidence` own its records.
 - Actions (`Action.define`, `Action.run`): a named capability ending in a Message.

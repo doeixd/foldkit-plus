@@ -223,7 +223,7 @@ Surface.inspect(TodoDetail, { id: 't1' })   // { name, dependencies, metadata, e
 `Module.make` accepts a Surface without params, a `Contract`, or any value with a
 `contract` field (Sync, Remote, and Agent values). `validate` can report these
 rules: `foreign-contract`, `duplicate-name`, `ownership-overlap`,
-`message-claimed-twice`, `unknown-path`, `unknown-message`, and three over the
+`message-claimed-twice`, `unknown-path`, `unknown-message`, and four over the
 law graph below.
 
 **Which transitions can break which laws, and what shows they do not.** A
@@ -245,7 +245,7 @@ const evidence = [
   ...records,
   Evidence.runtimeOnly({ transition: 'write:Revert', law: 'Product.publishedStaysPublished', why: 'the writer refuses it' }),
 ]
-Module.validate(Project, { evidence })   // + law-unwitnessed, evidence-unmatched, level-declared-twice
+Module.validate(Project, { evidence })   // + law-unwitnessed, evidence-unmatched, level-declared-twice, transition-declared-twice
 Graph.breakersOf(Module.graph(Project, { evidence }), 'Product.reservedWithinStock')
 // [{ transition, paths, evidence }]: each transition writing what the law reads
 Module.toMarkdown(Project, { evidence }) // adds a Laws table: law, transition, evidence
@@ -255,8 +255,9 @@ Module.toMarkdown(Project, { evidence }) // adds a Laws table: law, transition, 
 other; a transition invariant reads its whole row) and no admitted record joins them. `evidence-unmatched`: a record typed
 by hand or copied (no issuer), or naming a transition or law no contract
 declares, or a write and a law of two Entities, or a Message and a law over disjoint Model paths
-(two documents'). `level-declared-twice`: two
-closed Surfaces over the same paths and Messages. The three run only when
+(two documents'). `transition-declared-twice`: two contracts declare a write of one name, which
+evidence cannot tell apart. `level-declared-twice`: two
+closed Surfaces over the same paths and Messages. The four run only when
 `evidence` is passed (`[]` for none); one argument answers as before. A local Message has
 no `writes` edge yet (foldkit/foldkit#1655). `examples/writes/test/graph.test.ts`
 is the worked case.
