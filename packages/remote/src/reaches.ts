@@ -35,7 +35,7 @@ const isMutation = (
 /**
  * What `write` may write, or none when no declaration says: a `Write`'s members
  * (`Write.writes`), or the fields a mutation's `Derived` or `Declared`
- * footprint names of its Entity. An `Unknown` footprint is no word either.
+ * footprint names of its Entity, as in-place updates. An `Unknown` footprint is no word either.
  */
 const wroteOf = (write: AnyWrite | MutationDescriptor<any, any, any, any>): Wrote | undefined => {
   const declared = isMutation(write) ? write.write : write
@@ -67,7 +67,9 @@ const wroteOf = (write: AnyWrite | MutationDescriptor<any, any, any, any>): Wrot
  * `write` is a `Write`, or a mutation declared with `Mutation.write`. A
  * mutation declared with `Mutation.make` answers `Unknown`, as does a query
  * with no body; a handler mutation wins when both apply. A mutation that names
- * a `Declared` footprint is read as a write of those fields.
+ * a `Declared` footprint is read as an in-place update of those fields only: a
+ * command that creates or deletes rows, or changes relations, declares
+ * `Footprint.unknown`, or its lists read `Unaffected` where they are not.
  *
  * ```ts
  * Reach.match(reaches(RenameCategory, InToys), {

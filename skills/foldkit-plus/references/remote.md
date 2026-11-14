@@ -676,7 +676,7 @@ order (the server's `orderBy` decides it) by any change to a row it holds. `Data
 a path, an exists with its `where`, a path from the viewer) by owner identity, and answers a `Reach`: `Reads`,
 `Unaffected`, or `Unknown({ why: 'NoBody' | 'Handler' })` for a `Query.make` query or a `Mutation.make` handler.
 A mutation that is no `Write` may carry a `footprint` (`{ entity, footprint }`, which `Imported.mutation` of
-`foldkit-remote-domain/imported` sets): a `Declared` one is read as a write of those fields, an `Unknown` one as a handler.
+`foldkit-remote-domain/imported` sets): a `Declared` one is read as an in-place update of those fields only (a command that creates or deletes rows, or changes relations, must declare `Footprint.unknown`, or `reachedBy` under-reports), an `Unknown` one as a handler.
 Never `Unaffected` where the declarations are silent; `explain`'s `reachedBy` lists the registered mutations that `Reads` a list.
 
 **Declared writes.** `Mutation.write(name, Write.update(input, { id }))` (or

@@ -2313,6 +2313,12 @@ mutations whose write `Reads` the list; a handler mutation is never listed.
 The answer says what a declaration allows, not what a given invocation
 changed, so a `Reads` is a possibility and `Unaffected` is a guarantee.
 
+A mutation that is no `Write` may carry a `footprint` (`MutationDescriptor.footprint`). A
+`Declared` footprint covers in-place updates of the fields it lists, and nothing else: a command
+that creates or deletes rows, or changes relations, must declare `Footprint.unknown`, or `reaches`
+reads it `Unaffected` for a list the command does change and `reachedBy` under-reports. `reaches`
+serves `explain`, not the refresh after a mutation, which does not read it.
+
 ### What became of a write
 
 `Data.mutation(model, requestId)` reads what became of it from the Model:
