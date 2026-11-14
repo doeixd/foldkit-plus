@@ -33,11 +33,44 @@ export default [
     edits: [
       {
         file: '../src/pagination.ts',
-        find: 'if (Math.floor(options.pageCount) < 2) return h.empty',
-        replace: 'if (Math.floor(options.pageCount) < 1) return h.empty',
+        find: 'const lone = Math.floor(options.pageCount) < 2',
+        replace: 'const lone = Math.floor(options.pageCount) < 1',
       },
     ],
     tests,
+  },
+  {
+    name: 'a lone page drops the summary and the size choice',
+    edits: [
+      {
+        file: '../src/pagination.ts',
+        find: 'if (lone && options.range === undefined) return h.empty',
+        replace: 'if (lone) return h.empty',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an end stop disables natively and drops the focus',
+    edits: [
+      {
+        file: '../src/pagination.ts',
+        find: '...(atEnd ? [h.AriaDisabled(true)] : [h.OnClick(options.onPage(page))]),',
+        replace: 'h.OnClick(options.onPage(page)), h.Disabled(atEnd),',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/pagination.browser.test.ts'],
+  },
+  {
+    name: 'the page stops are unkeyed',
+    edits: [
+      {
+        file: '../src/pagination.ts',
+        find: 'h.Key(`page-${item}`),',
+        replace: '',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/pagination.browser.test.ts'],
   },
   {
     name: 'choosing a stop stays put',

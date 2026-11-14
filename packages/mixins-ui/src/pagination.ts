@@ -5,8 +5,9 @@ import type { MixinList } from './resolve.js'
 /**
  * Page navigation publishes its regions as slots; it owns no state, only the
  * controlled page it is given. The application moves the page in `onPage`;
- * this draws where it is. A single page — or none — draws nothing, since
- * there is nowhere to go.
+ * this draws where it is. A single page — or none — has nowhere to go, so it
+ * draws no stops; with a `range` it still draws the summary and the page-size
+ * choice, since choosing a size above the row count must leave a way back.
  */
 export const PaginationSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -130,7 +131,8 @@ export const summaryOf = <Message>(page: number, range: PaginationRange<Message>
 }
 
 export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<Message>): Html => {
-  if (Math.floor(options.pageCount) < 2) return h.empty
+  const lone = Math.floor(options.pageCount) < 2
+  if (lone && options.range === undefined) return h.empty
   const builders = SlotView.buildersFor(
     PaginationSlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
@@ -146,9 +148,9 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
   ) =>
     h.button(
       builders[slot].attrs([
-        h.OnClick(options.onPage(page)),
-        h.Disabled(atEnd),
+        h.Key(slot),
         h.AriaLabel(`${text} page`),
+        ...(atEnd ? [h.AriaDisabled(true)] : [h.OnClick(options.onPage(page))]),
       ]),
       [text],
     )
@@ -159,7 +161,7 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
     range === undefined || choose === undefined
       ? []
       : [
-          h.label(builders.perPage.attrs(), [
+          h.label(builders.perPage.attrs([h.Key('per-page')]), [
             choose.label ?? 'Rows per page',
             h.select(
               builders.perPageSelect.attrs([h.OnChange(value => choose.onPerPage(Number(value)))]),
@@ -172,35 +174,41 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
             ),
           ]),
         ]
+  const stops = lone
+    ? []
+    : [
+        ...(ends ? [stop(1, 'first', 'First', current === 1)] : []),
+        stop(current - 1, 'prev', 'Previous', current === 1),
+        ...(options.numbered === false
+          ? []
+          : itemsOf(current, count, options).map((item, index) =>
+              item === 'ellipsis'
+                ? h.span(builders.ellipsis.attrs([h.Key(`ellipsis-${index}`)]), ['…'])
+                : h.button(
+                    builders.page.attrs([
+                      h.Key(`page-${item}`),
+                      h.OnClick(options.onPage(item)),
+                      ...(item === current ? [h.AriaCurrent('page')] : []),
+                    ]),
+                    item === current
+                      ? [
+                          String(item),
+                          h.span(builders.pageCount.attrs([h.AriaHidden(true)]), [` / ${count}`]),
+                        ]
+                      : [String(item)],
+                  ),
+            )),
+        stop(current + 1, 'next', 'Next', current === count),
+        ...(ends ? [stop(count, 'last', 'Last', current === count)] : []),
+      ]
   return h.nav(
     builders.root.attrs([h.AriaLabel(options.label ?? 'Pagination'), h.Role('navigation')]),
     [
       ...(range === undefined
         ? []
-        : [h.span(builders.summary.attrs(), [summaryOf(current, range)])]),
+        : [h.span(builders.summary.attrs([h.Key('summary')]), [summaryOf(current, range)])]),
       ...perPage,
-      ...(ends ? [stop(1, 'first', 'First', current === 1)] : []),
-      stop(current - 1, 'prev', 'Previous', current === 1),
-      ...(options.numbered === false
-        ? []
-        : itemsOf(current, count, options).map(item =>
-            item === 'ellipsis'
-              ? h.span(builders.ellipsis.attrs(), ['…'])
-              : h.button(
-                  builders.page.attrs([
-                    h.OnClick(options.onPage(item)),
-                    ...(item === current ? [h.AriaCurrent('page')] : []),
-                  ]),
-                  item === current
-                    ? [
-                        String(item),
-                        h.span(builders.pageCount.attrs([h.AriaHidden(true)]), [` / ${count}`]),
-                      ]
-                    : [String(item)],
-                ),
-          )),
-      stop(current + 1, 'next', 'Next', current === count),
-      ...(ends ? [stop(count, 'last', 'Last', current === count)] : []),
+      ...stops,
     ],
   )
 }

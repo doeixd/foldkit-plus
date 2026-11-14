@@ -170,13 +170,32 @@ describe('Pagination view', () => {
       'Next',
     ])
     expect(Inert.value(buttons[1], 'aria-current')).toBe('page')
-    expect(Inert.value(buttons[0], 'disabled')).toBe(true)
-    expect(Inert.value(buttons[4], 'disabled')).toBe(false)
+    expect(Inert.value(buttons[0], 'aria-disabled')).toBe('true')
+    expect(Inert.value(buttons[4], 'aria-disabled')).toBeUndefined()
   })
 
   it('draws nothing for a single page or none', () => {
     expect(drawn(1, 1)).toBe(h.empty)
     expect(drawn(1, 0)).toBe(h.empty)
+  })
+
+  it('keeps the summary and the page-size choice on a single page, with no stops', () => {
+    const nav = view<Message>(
+      {
+        page: 1,
+        pageCount: 1,
+        onPage: page => Message.Go({ page }),
+        range: {
+          total: 97,
+          perPage: 100,
+          choose: { sizes: [10, 100], onPerPage: perPage => Message.Go({ page: perPage }) },
+        },
+      },
+      h,
+    )
+    expect(Inert.byTag(nav, 'button')).toEqual([])
+    expect(Inert.byTag(nav, 'select')).toHaveLength(1)
+    expect(Inert.text(Inert.byTag(nav, 'span')[0])).toBe('1–97 of 97')
   })
 
   /** Each stop's name: its label, or the words a reader hears, which leave out what is `aria-hidden`. */
@@ -222,8 +241,8 @@ describe('Pagination view', () => {
       'Next page',
       'Last page',
     ])
-    expect(Inert.value(buttons[0], 'disabled')).toBe(true)
-    expect(Inert.value(buttons.at(-1), 'disabled')).toBe(false)
+    expect(Inert.value(buttons[0], 'aria-disabled')).toBe('true')
+    expect(Inert.value(buttons.at(-1), 'aria-disabled')).toBeUndefined()
     expect(asked.at(-1)).toBe(3)
   })
 
