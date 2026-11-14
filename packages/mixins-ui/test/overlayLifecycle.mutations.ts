@@ -128,6 +128,17 @@ export default [
       'The guard only matters when an open lands in the frame of the close, before the panel is drawn inert and focus has left; the runtime cannot be made to run both Messages in one frame from a test.',
   },
   {
+    name: 'a Sheet is not given the focus fallback it was configured with',
+    edits: [
+      {
+        file: '../src/sheet.ts',
+        find: 'onSome: focusFallback => ({ focusFallback }),',
+        replace: 'onSome: () => ({}),',
+      },
+    ],
+    tests: [lifecycle],
+  },
+  {
     name: "a Listbox's panel writes no dir, so a portaled panel places for left to right",
     edits: [
       {

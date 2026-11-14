@@ -17,6 +17,7 @@ import {
   present,
   scrollLocked,
 } from './overlayFixture.js'
+import { open as openSheet } from './sheetFixture.js'
 
 afterEach(cleanup)
 
@@ -377,5 +378,27 @@ test('a Menu row that opens a Dialog leaves focus in that Dialog', async () => {
     expect(isInert(ids.openInner)).toBe(true)
   } finally {
     handle.dispose()
+  }
+})
+
+// A Sheet opened with no opener on the page has nothing to hand focus back to.
+test.each([
+  {
+    title: 'names a fallback',
+    config: { focusFallback: 'sheet-fallback' },
+    landing: 'sheet-fallback',
+  },
+  { title: 'names none', config: {}, landing: 'BODY' },
+])('a Sheet that $title leaves focus on $landing after it closes', async ({ config, landing }) => {
+  const outside = document.createElement('button')
+  outside.id = 'sheet-fallback'
+  document.body.append(outside)
+  const { dispose } = await openSheet({ side: 'bottom', isAnimated: false, ...config })
+  try {
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(byId('edge-panel')).toBeNull())
+    await vi.waitFor(() => expect(active()).toBe(landing))
+  } finally {
+    dispose()
   }
 })

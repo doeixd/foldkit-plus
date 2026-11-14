@@ -165,9 +165,14 @@ export const isLeaving = (model: DialogModel): boolean =>
   model.animation.transitionState === 'LeaveStart' ||
   model.animation.transitionState === 'LeaveAnimating'
 
-/** Whether nothing holds focus: the body is where it lands when the element that had it goes inert or leaves. */
-const focusLost = (): boolean =>
-  document.activeElement === null || document.activeElement === document.body
+/**
+ * Whether nothing usable holds focus: the body, or the dialog that just
+ * closed, which keeps focus when it was the only thing in it to take it.
+ */
+const focusLost = (): boolean => {
+  const held = document.activeElement
+  return held === null || held === document.body || held.matches('dialog:not([open])')
+}
 
 /** Answers with the Dialog's own `CompletedReleaseDialogResources`, a no-op in its `update`: it has no Message for a focus Command. */
 const focusAnswered = DialogMessage.CompletedReleaseDialogResources

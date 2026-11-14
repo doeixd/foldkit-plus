@@ -40,7 +40,14 @@ import * as Mount from 'foldkit/mount'
 import { modifyFields } from 'foldkit/struct'
 import type { ReturnWithOutMessage } from 'foldkit/update'
 import { Swipe } from 'foldkit-primitives/dom'
-import { isLeaving, resolve as resolveDialog, type ResolvedDialog } from './dialog.js'
+import {
+  isLeaving,
+  open as openDialog,
+  resolve as resolveDialog,
+  update as updateDialog,
+  type ResolvedDialog,
+  type UpdateOptions,
+} from './dialog.js'
 import type { MixinList } from './resolve.js'
 
 export const Side = Schema.Literals(['top', 'right', 'bottom', 'left'])
@@ -72,6 +79,8 @@ export const Model = Schema.Struct({
    * far it has come toward the edge, in pixels (negative is away from it).
    */
   drag: Schema.Option(Schema.Struct({ size: Schema.Number, delta: Schema.Number })),
+  /** The id of the element that takes focus when a close finds the opener gone, as `Dialog.update`'s `focusFallback`. */
+  focusFallback: Schema.Option(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -108,6 +117,8 @@ export interface InitConfig {
   readonly isAnimated?: boolean
   /** How it is swiped. */
   readonly swipe?: SwipeConfig
+  /** The id of an element to take focus when a close finds the opener removed, as `Dialog.update`'s `focusFallback`. */
+  readonly focusFallback?: string
 }
 
 /** How a Sheet or a Drawer is swiped; every field has the default its doc names. */
@@ -154,6 +165,7 @@ export const init = (config: InitConfig): Model => {
     dismissible: config.dismissible ?? true,
     ...swipeOf(`Sheet ${config.id}`, config.swipe),
     drag: Option.none(),
+    focusFallback: Option.fromUndefinedOr(config.focusFallback),
   }
 }
 
@@ -182,9 +194,16 @@ const dialogStep = (
   }
 }
 
+/** The Dialog's `update` options this Sheet was given. */
+const dialogOptions = (model: Model): UpdateOptions =>
+  Option.match(model.focusFallback, {
+    onNone: () => ({}),
+    onSome: focusFallback => ({ focusFallback }),
+  })
+
 /** Opens the Sheet at its `opensAt` point. */
 export const open = (model: Model): Return =>
-  dialogStep(model, UiDialog.open(model.dialog), { at: model.opensAt })
+  dialogStep(model, openDialog(model.dialog, dialogOptions(model)), { at: model.opensAt })
 
 /** Closes the Sheet; a no-op when it is closed. */
 export const close = (model: Model): Return => dialogStep(model, UiDialog.close(model.dialog))
@@ -232,7 +251,8 @@ export const settle = (release: {
 /** The Sheet after `message`; the same Model when nothing changes. */
 export const update = (model: Model, message: Message): Return =>
   Message.match(message, {
-    GotDialog: ({ message }) => dialogStep(model, UiDialog.update(model.dialog, message)),
+    GotDialog: ({ message }) =>
+      dialogStep(model, updateDialog(model.dialog, message, dialogOptions(model))),
     Grabbed: ({ size }) => ({
       model: modifyFields(model, { drag: () => Option.some({ size, delta: 0 }) }),
     }),
