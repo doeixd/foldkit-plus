@@ -785,7 +785,7 @@ export const stylesheet: string = Style.stylesheet(
 - `foldkit-mixins-ui` exports `Patterns`: an `A11y.pattern` per adapter plus `Patterns.catalog`
   (`{ name, pattern, slots, tier, roles, floor }`; `Listbox` and `Checkbox` also name obligations
   a custom view is conformed to, while an adapter is only validated), and adapters for `HoverIntent` and `Anchor`
-  (`Anchor.behavior(Slots)({ floating, config })`; `Anchor.topLayer(mount)` for an in-place panel, above).
+  (`Anchor.behavior(Slots)({ floating, config })`; `Anchor.topLayer(mount)` for an in-place panel, above). A panel upstream portals to the document is given its region's custom properties as it leaves (`Anchor.inheritRegion(mount)`, which Menu, Listbox and Combobox apply and the `Anchor` Mount does itself), so a compact region still reaches it; not a Popover or Tooltip with `portal: true`.
 - `Style.attach`/`Behavior.attach` return new views; the original is untouched.
 - Rule-based CSS is data, and arrives with what draws it: in a browser, a class a Slot draws is
   appended once to a `<style data-foldkit-styles>` (made only when needed; it declares the
