@@ -19,16 +19,16 @@ const App = Surface.application({
 })
 const Plain = Module.make(App, [])
 
-// The second parameter is optional: every call made before the graph stands.
 expectTypeOf(Module.validate(Plain)).toEqualTypeOf<readonly Finding[]>()
-expectTypeOf(Module.toMarkdown(Plain)).toEqualTypeOf<string>()
+expectTypeOf(Graph.validate(Plain)).toEqualTypeOf<readonly Finding[]>()
 const record = Evidence.runtimeOnly({
   transition: 'durable:Added',
   law: 'sync:todos.few',
   why: 'x',
 })
-expectTypeOf(Module.validate(Plain, { evidence: [record] })).toEqualTypeOf<readonly Finding[]>()
-expectTypeOf(Graph.breakersOf(Module.graph(Plain), 'sync:todos.few')).toEqualTypeOf<
+expectTypeOf(Graph.validate(Plain, { evidence: [record] })).toEqualTypeOf<readonly Finding[]>()
+expectTypeOf(Graph.toMarkdown(Plain, { evidence: [record] })).toEqualTypeOf<string>()
+expectTypeOf(Graph.breakersOf(Graph.of(Plain), 'sync:todos.few')).toEqualTypeOf<
   ReadonlyArray<Breaker>
 >()
 expectTypeOf<
@@ -61,4 +61,7 @@ const _derived: Contract = {
 }
 
 // @ts-expect-error evidence is a list of records, not one
-Module.validate(Plain, { evidence: record })
+Graph.validate(Plain, { evidence: record })
+
+// @ts-expect-error `Module` asks no law rule: evidence is `Graph.validate`'s
+Module.validate(Plain, { evidence: [record] })

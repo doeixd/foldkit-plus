@@ -70,7 +70,7 @@ const Shop = Module.make(App, [Data])
 const law = Laws.law(reservedWithinStock)
 
 describe('a Remote domain in the Module graph', () => {
-  const graph = Module.graph(Shop)
+  const graph = Graph.of(Shop)
 
   it('contributes a transition per declared write, none for a mutation with none, and what each writes', () => {
     expect(graph.nodes.filter(GraphNode.$is('Transition')).map(node => node.id)).toEqual([
@@ -113,13 +113,13 @@ describe('a Remote domain in the Module graph', () => {
   it('names Sell, and Sell alone, as what can break the law, until evidence keeps it', () => {
     expect(Graph.breakersOf(graph, law).map(breaker => breaker.transition)).toEqual(['write:Sell'])
     expect(Module.validate(Shop)).toEqual([])
-    expect(
-      Module.validate(Shop, { evidence: [] }).map(finding => [finding.rule, ...finding.contracts]),
-    ).toEqual([['law-unwitnessed', 'remote:remote']])
+    expect(Graph.validate(Shop).map(finding => [finding.rule, ...finding.contracts])).toEqual([
+      ['law-unwitnessed', 'remote:remote'],
+    ])
     const report = Laws.check({ writes: [Publish, Sell, Rename] })
     // The check's records keep the pairs it decided; Sell's, undecided over a computed stock, is not one.
     const enumerated = report.pairs.flatMap(pair => Option.toArray(pair.evidence))
-    expect(Module.validate(Shop, { evidence: enumerated }).map(finding => finding.rule)).toEqual([
+    expect(Graph.validate(Shop, { evidence: enumerated }).map(finding => finding.rule)).toEqual([
       'law-unwitnessed',
     ])
   })
@@ -136,7 +136,7 @@ describe('a Remote domain in the Module graph', () => {
 
   it('contributes nothing for a domain with no declared write', () => {
     const reads = Remote.make({ model: App.model.remote, entities: [Product] })
-    expect(Module.graph(Module.make(App, [reads])).nodes.filter(GraphNode.$is('Law'))).toEqual([])
+    expect(Graph.of(Module.make(App, [reads])).nodes.filter(GraphNode.$is('Law'))).toEqual([])
   })
 })
 
@@ -167,13 +167,11 @@ describe('a transition invariant in the Module graph', () => {
       'Refused',
     ])
     expect(
-      Graph.breakersOf(Module.graph(Revisions), Laws.law(statusMoves)).map(
+      Graph.breakersOf(Graph.of(Revisions), Laws.law(statusMoves)).map(
         breaker => breaker.transition,
       ),
     ).toEqual(['write:Retitle'])
-    expect(Module.validate(Revisions, { evidence: [] }).map(finding => finding.rule)).toEqual([
-      'law-unwitnessed',
-    ])
+    expect(Graph.validate(Revisions).map(finding => finding.rule)).toEqual(['law-unwitnessed'])
   })
 })
 
@@ -193,8 +191,8 @@ describe('a delete in the Module graph', () => {
     expect(evidence.map(record => `${record.transition} ${record.law}`)).toEqual([
       `write:Remove ${law}`,
     ])
-    expect(Graph.breakersOf(Module.graph(Removals), law)).toEqual([])
-    expect(Module.validate(Removals, { evidence })).toEqual([])
+    expect(Graph.breakersOf(Graph.of(Removals), law)).toEqual([])
+    expect(Graph.validate(Removals, { evidence })).toEqual([])
   })
 })
 
@@ -209,7 +207,7 @@ describe('two domains in the Module graph', () => {
       Remote.make({ model: Two.model.archive, entities: [Product], mutations: [Sell] }),
     ])
     expect(
-      Module.validate(module, { evidence: [] })
+      Graph.validate(module)
         .filter(finding => finding.rule === 'transition-declared-twice')
         .map(finding => [finding.contracts, finding.message]),
     ).toEqual([

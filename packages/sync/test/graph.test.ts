@@ -100,7 +100,7 @@ const unwitnessed = (
 describe('a capped document in the Module graph', () => {
   it('contributes its law, a transition per durable and server-only tag, and what each reads and writes', () => {
     const document = capped([Message.CreatedTodo])
-    const graph = Module.graph(Module.make(App, [document]))
+    const graph = Graph.of(Module.make(App, [document]))
     expect(Graph.breakersOf(graph, law).map(each => [each.transition, each.paths])).toEqual([
       ['durable:CreatedTodo', [['todos']]],
       ['durable:ImportedTodo', [['todos']]],
@@ -116,7 +116,7 @@ describe('a capped document in the Module graph', () => {
 
   it('is clean once each durable Message has evidence', () => {
     const document = capped([Message.CreatedTodo])
-    const findings = Module.validate(Module.make(App, [document]), {
+    const findings = Graph.validate(Module.make(App, [document]), {
       evidence: [...createdEvidence(document), imported],
     })
     expect(findings).toEqual([])
@@ -124,7 +124,7 @@ describe('a capped document in the Module graph', () => {
 
   it('reports a durable Message added with no evidence', () => {
     const document = capped([Message.CreatedTodo, Message.RemovedTodo])
-    const findings = Module.validate(Module.make(App, [document]), {
+    const findings = Graph.validate(Module.make(App, [document]), {
       evidence: [...createdEvidence(document), imported],
     })
     expect(unwitnessed(findings)).toEqual([
@@ -139,7 +139,7 @@ describe('a capped document in the Module graph', () => {
       shared,
       durable: MessageSet.make(App, [Message.CreatedTodo]),
     })
-    expect(Module.validate(Module.make(App, [plain]))).toEqual([])
+    expect(Graph.validate(Module.make(App, [plain]))).toEqual([])
   })
 })
 
@@ -161,7 +161,7 @@ describe('two documents in the Module graph', () => {
     Evidence.runtimeOnly({ transition, law: judged, why: 'the journal judges it' })
 
   it('joins a record only to a pair of one document, whose slices overlap', () => {
-    const unmatched = Module.validate(both, {
+    const unmatched = Graph.validate(both, {
       evidence: [
         runtimeOnly('durable:CreatedTodo', 'sync:filters.shortFilter'),
         runtimeOnly('durable:ChangedFilter', 'sync:filters.shortFilter'),

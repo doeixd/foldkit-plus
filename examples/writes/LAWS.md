@@ -27,7 +27,7 @@ Sell      x becomes:InStock           undecided: stock is incremented
 
 ## Evidence
 
-What keeps each law against each write that can break it, as `Module.toMarkdown`
+What keeps each law against each write that can break it, as `Graph.toMarkdown`
 says with the evidence `test/shop.ts` gathers: the check's records, the walk of
 `Sell` and `Restock` through the server, and one line for the refused revert.
 

@@ -1,17 +1,18 @@
 /**
  * The law half of the contract graph (#537): which transitions write what
  * which laws read, and what shows each keeps each. A contract declares its
- * laws and transitions as plain data (`Contract.laws`), and the graph derives
- * their nodes and edges here, when asked, so only a caller of `Module.graph`
- * or `validate` carries that code; a closed Surface contributes a level from
- * its flag; tests contribute evidence. The graph is data, and
- * `Module.validate` asks its one question of it: is every transition that can
- * break a law witnessed keeping it?
+ * laws and transitions as plain data (`Contract.laws`), and `Graph` derives
+ * their nodes and edges here, when asked; a closed Surface contributes a
+ * level from its flag; tests contribute evidence. `Graph` is its own module
+ * so a page that reads `Module` alone carries none of it. `Graph.validate`
+ * asks the graph's one question: is every transition that can break a law
+ * witnessed keeping it?
  */
 import { Data, Option } from 'effect'
 import { lawFactsOf, type LawEntry } from 'foldkit-entity'
 import { Evidence } from 'foldkit-metadata'
-import type { Contract } from './index.js'
+import type { Contract, Finding, Module } from './index.js'
+import { labelOf, pathText, tableCell } from './text.js'
 
 /** Where a path is: a Model field (`['todos']`) or an Entity member (`['Product', 'stock']`). */
 export type GraphSpace = 'model' | 'entity'
@@ -60,13 +61,13 @@ export type GraphEdge = Data.TaggedEnum<{
 }>
 export const GraphEdge = /* @__PURE__ */ Data.taggedEnum<GraphEdge>()
 
-/** Nodes and edges, as `Module.graph` returns them. */
+/** Nodes and edges, as `Graph.of` returns them. */
 export interface GraphFacts {
   readonly nodes: ReadonlyArray<GraphNode>
   readonly edges: ReadonlyArray<GraphEdge>
 }
 
-/** What a contract declares of its laws, read by `Module.graph` when asked. */
+/** What a contract declares of its laws, read by `Graph.of` when asked. */
 export interface ContractLaws {
   /**
    * Laws over the contract's Model slice, by id, as a Sync document declares
@@ -87,7 +88,7 @@ export interface ContractLaws {
 /** An application's graph: every contract's facts, its closed Surfaces, and the evidence admitted. */
 export interface Graph extends GraphFacts {}
 
-/** What `Module.graph` and the rules over it read beside the contracts. */
+/** What `Graph` reads beside the contracts. */
 export interface GraphOptions {
   /**
    * Records that a transition keeps a law: what a test's walks and scenarios
@@ -112,20 +113,18 @@ interface Located {
 }
 
 /** A record not admitted, and why, for `evidence-unmatched`. */
-export interface Unmatched {
+interface Unmatched {
   readonly record: Evidence
   readonly contracts: ReadonlyArray<string>
   readonly message: string
 }
 
 /** The graph, with who contributed each law and transition and what evidence was turned away. */
-export interface Assembled {
+interface Assembled {
   readonly graph: Graph
   readonly contributors: ReadonlyMap<string, ReadonlyArray<string>>
   readonly unmatched: ReadonlyArray<Unmatched>
 }
-
-export const labelOf = (contract: Contract): string => `${contract.kind}:${contract.name}`
 
 const isPrefix = (prefix: ReadonlyArray<string>, path: ReadonlyArray<string>): boolean =>
   prefix.length <= path.length && prefix.every((segment, index) => segment === path[index])
@@ -136,8 +135,6 @@ const overlaps = (a: Located, b: Located): boolean =>
   a.path.length > 0 &&
   b.path.length > 0 &&
   (isPrefix(a.path, b.path) || isPrefix(b.path, a.path))
-
-export const pathText = (path: ReadonlyArray<string>): string => path.join('.')
 
 const keyOf = (value: unknown): string => JSON.stringify(value)
 
@@ -166,7 +163,7 @@ const factsOf = (contract: Contract, laws: ContractLaws): GraphFacts => {
 }
 
 /** The contracts' declared laws, their closed Surfaces as levels, and the evidence that joins a pair. */
-export const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): Assembled => {
+const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): Assembled => {
   const nodes = new Map<string, GraphNode>()
   const edges = new Map<string, GraphEdge>()
   const contributors = new Map<string, Array<string>>()
@@ -311,7 +308,7 @@ export const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptio
 }
 
 /** The ids of the graph's laws, in the order contracts declared them. */
-export const lawsOf = (graph: Graph): ReadonlyArray<string> =>
+const lawsOf = (graph: Graph): ReadonlyArray<string> =>
   graph.nodes.filter(GraphNode.$is('Law')).map(law => law.id)
 
 const breakers = (graph: Graph, law: string): ReadonlyArray<Breaker> => {
@@ -331,52 +328,21 @@ const breakers = (graph: Graph, law: string): ReadonlyArray<Breaker> => {
   })
 }
 
-export const Graph = {
-  /**
-   * Each transition that writes a path `law` reads, which is each that could
-   * break it, and the evidence admitted that it keeps it. Throws for a law
-   * the graph does not hold, which a misspelt id would otherwise answer with
-   * nothing.
-   */
-  breakersOf: (graph: Graph, law: string): ReadonlyArray<Breaker> => {
-    if (!lawsOf(graph).includes(law))
-      throw new Error(`Graph.breakersOf: the graph holds no law ${law}`)
-    return breakers(graph, law)
-  },
-}
-
-/** A finding of the rules over the graph, in `Module.validate`'s shape. */
-export interface GraphFinding {
-  readonly rule:
-    | 'law-unwitnessed'
-    | 'evidence-unmatched'
-    | 'level-declared-twice'
-    | 'transition-declared-twice'
-  readonly contracts: ReadonlyArray<string>
-  readonly message: string
-}
-
 const sameSet = (a: ReadonlyArray<string>, b: ReadonlyArray<string>): boolean =>
   a.length === b.length && a.every(each => b.includes(each)) && b.every(each => a.includes(each))
 
-/**
- * Each pair a transition can break and nothing shows it keeps
- * (`law-unwitnessed`), each record not admitted (`evidence-unmatched`), each
- * write two contracts declare (`transition-declared-twice`), and each two
- * closed Surfaces with one projection and one Message set
- * (`level-declared-twice`).
- */
-export const graphFindings = (
+/** The rules over the graph, as `Graph.validate` documents them. */
+const findingsOf = (
   contracts: ReadonlyArray<Contract>,
   { graph, contributors, unmatched }: Assembled,
-): ReadonlyArray<GraphFinding> => {
+): readonly Finding[] => {
   const involved = (transition: string, law: string) => [
     ...new Set([
       ...(contributors.get(`transition:${transition}`) ?? []),
       ...(contributors.get(`law:${law}`) ?? []),
     ]),
   ]
-  const findings: Array<GraphFinding> = lawsOf(graph).flatMap(law =>
+  const findings: Array<Finding> = lawsOf(graph).flatMap(law =>
     breakers(graph, law)
       .filter(breaker => breaker.evidence.length === 0)
       .map(({ transition, paths }) => ({
@@ -417,7 +383,7 @@ export const graphFindings = (
 }
 
 /** One line of a record, for the renderers. */
-export const evidenceText = (record: Evidence): string =>
+const evidenceText = (record: Evidence): string =>
   Evidence.$match(record, {
     Enumerated: () => 'enumerated',
     Walked: ({ seeds, steps, starts }) =>
@@ -425,3 +391,109 @@ export const evidenceText = (record: Evidence): string =>
     Scenario: ({ name, runner }) => `scenario on ${runner}: ${name}`,
     RuntimeOnly: ({ why }) => `runtime only: ${why}`,
   })
+
+/**
+ * The laws of a Module's contracts as a graph, the rules over it, and its
+ * renderers. `Module` asks who owns what; `Graph` asks which transitions can
+ * break which laws and what shows they keep them. A page that imports only
+ * `Module` carries none of this.
+ *
+ * ```ts
+ * Graph.validate(Shop, { evidence })   // law-unwitnessed, evidence-unmatched, …
+ * Graph.toMarkdown(Shop, { evidence }) // the Laws section
+ * ```
+ */
+export const Graph = {
+  /**
+   * The contracts' laws as a graph: what each contract's `laws` declare, a
+   * level and a `closure:<name>` law per closed Surface, which level refines
+   * which, and a `keeps` edge per record of `evidence` that is issued and
+   * joins its pair. Pure, and computed each time it is asked.
+   */
+  of: (module: Module<any, any, any>, options: GraphOptions = {}): Graph =>
+    assemble(module.contracts, options).graph,
+
+  /**
+   * Each transition that writes a path `law` reads, which is each that could
+   * break it, and the evidence admitted that it keeps it. Throws for a law
+   * the graph does not hold, which a misspelt id would otherwise answer with
+   * nothing.
+   */
+  breakersOf: (graph: Graph, law: string): ReadonlyArray<Breaker> => {
+    if (!lawsOf(graph).includes(law))
+      throw new Error(`Graph.breakersOf: the graph holds no law ${law}`)
+    return breakers(graph, law)
+  },
+
+  /**
+   * The rules over the graph, which `Module.validate` does not ask: each
+   * transition that writes what a law reads with no evidence it keeps it
+   * (`law-unwitnessed`), each record of `evidence` not admitted
+   * (`evidence-unmatched`), each write two contracts declare
+   * (`transition-declared-twice`), and each two closed Surfaces with one
+   * projection and one Message set (`level-declared-twice`). With no
+   * `evidence`, every pair a transition can break is unwitnessed.
+   */
+  validate: (module: Module<any, any, any>, options: GraphOptions = {}): readonly Finding[] =>
+    findingsOf(module.contracts, assemble(module.contracts, options)),
+
+  /**
+   * A Laws section in Markdown, to set beside `Module.toMarkdown`'s: each law
+   * by each transition that writes what it reads and its evidence, then
+   * `Graph.validate`'s findings.
+   */
+  toMarkdown: (module: Module<any, any, any>, options: GraphOptions = {}): string => {
+    const assembled = assemble(module.contracts, options)
+    const { graph } = assembled
+    const laws = lawsOf(graph)
+    const lines = ['## Laws', '']
+    if (laws.length === 0) lines.push('No contract declares a law.')
+    else {
+      lines.push('| Law | Transition | Evidence |', '| --- | --- | --- |')
+      for (const law of laws) {
+        const found = breakers(graph, law)
+        if (found.length === 0) lines.push(`| ${tableCell(law)} | | nothing writes what it reads |`)
+        for (const { transition, evidence } of found)
+          lines.push(
+            `| ${tableCell(law)} | ${tableCell(transition)} | ${evidence.length === 0 ? '**none**' : tableCell(evidence.map(evidenceText).join('; '))} |`,
+          )
+      }
+    }
+    const findings = findingsOf(module.contracts, assembled)
+    if (findings.length > 0) {
+      lines.push('', '### Findings', '')
+      for (const finding of findings) lines.push(`- **${finding.rule}** ${finding.message}`)
+    }
+    return lines.join('\n')
+  },
+
+  /**
+   * The laws as a Mermaid flowchart of their own: a node per law and per
+   * transition that writes what one reads, a solid edge from each shown
+   * keeping it, labelled with its kinds of evidence, and a dotted one from
+   * each with none.
+   */
+  toMermaid: (module: Module<any, any, any>, options: GraphOptions = {}): string => {
+    const graph = Graph.of(module, options)
+    const laws = lawsOf(graph)
+    const lines = ['flowchart LR', ...laws.map((law, index) => `  l${index}["${law}"]`)]
+    const transitions: string[] = []
+    const transitionId = (id: string): string => {
+      if (!transitions.includes(id)) {
+        transitions.push(id)
+        lines.push(`  t${transitions.length - 1}["${id}"]`)
+      }
+      return `t${transitions.indexOf(id)}`
+    }
+    const arrows = laws.flatMap((law, index) =>
+      breakers(graph, law).map(({ transition, evidence }) => {
+        const from = transitionId(transition)
+        return evidence.length === 0
+          ? `  ${from} -.->|unwitnessed| l${index}`
+          : `  ${from} -->|${[...new Set(evidence.map(record => record._tag))].join(', ')}| l${index}`
+      }),
+    )
+    lines.push(...arrows)
+    return lines.join('\n')
+  },
+}

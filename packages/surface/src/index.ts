@@ -27,17 +27,8 @@ export {
   type MetadataSummary,
 } from 'foldkit-metadata'
 export { Closure, type ClosureProjection, ClosureViolation } from './closure.js'
-import {
-  assemble,
-  evidenceText,
-  Graph,
-  graphFindings,
-  labelOf,
-  lawsOf,
-  pathText,
-  type ContractLaws,
-  type GraphOptions,
-} from './graph.js'
+import type { ContractLaws } from './graph.js'
+import { labelOf, pathText, tableCell } from './text.js'
 export {
   Graph,
   GraphEdge,
@@ -1783,8 +1774,8 @@ export interface Contract {
   readonly closed?: true
   /**
    * The laws the contract holds and the transitions that can break them, as
-   * the declarations themselves: `Module.graph` derives their nodes and edges
-   * when asked, so a page that never asks carries none of that code. Absent
+   * the declarations themselves: `Graph.of` derives their nodes and edges
+   * when asked, so a page that never imports `Graph` carries none of that code. Absent
    * for a contract with none.
    */
   readonly laws?: ContractLaws | undefined
@@ -1840,6 +1831,7 @@ export interface Module<
 }
 
 export interface Finding {
+  /** The last four are `Graph.validate`'s, over the laws; the rest are `Module.validate`'s. */
   readonly rule:
     | 'foreign-contract'
     | 'duplicate-name'
@@ -1877,12 +1869,6 @@ export type ModuleItem<Root> =
   | Surface<Root, any, any, void>
 
 const label = labelOf
-/** Metadata summaries are application data (a query's input), so they cannot break the table. */
-const tableCell = (text: string): string =>
-  text
-    .replace(/\\/g, '\\\\')
-    .replace(/\|/g, '\\|')
-    .replace(/\r\n?|\n/g, ' ')
 const pathKey = pathText
 const isPrefix = (prefix: readonly string[], path: readonly string[]): boolean =>
   prefix.length <= path.length && prefix.every((segment, index) => segment === path[index])
@@ -1930,26 +1916,13 @@ export const Module = {
   }),
 
   /**
-   * The contracts' laws as a graph: what each contract's `laws` declare, a level and a
-   * `closure:<name>` law per closed Surface, which level refines which, and a
-   * `keeps` edge per record of `evidence` that is issued and joins its pair.
-   * Pure, and computed each time it is asked.
-   */
-  graph: (module: Module<any, any, any>, options: GraphOptions = {}): Graph =>
-    assemble(module.contracts, options).graph,
-
-  /**
    * Cross-contract invariants the types cannot express: a contract from another
    * application, a duplicate `kind:name`, two owners of overlapping Model paths,
    * a Message recorded by two replication contracts, and a path or Message the
-   * application does not declare. Given `evidence`, even none, also the rules
-   * over the graph: a transition that writes what a law reads with no
-   * evidence it keeps it (`law-unwitnessed`), a record of `evidence` not
-   * admitted (`evidence-unmatched`), two closed Surfaces declared alike
-   * (`level-declared-twice`), and a write two contracts declare
-   * (`transition-declared-twice`).
+   * application does not declare. The rules over the contracts' laws are
+   * `Graph.validate`'s.
    */
-  validate: (module: Module<any, any, any>, options: GraphOptions = {}): readonly Finding[] => {
+  validate: (module: Module<any, any, any>): readonly Finding[] => {
     const findings: Finding[] = []
     const fields = new Set(Object.keys(module.app.Model.fields))
     const tags = new Set(applicationTags(module.app))
@@ -2018,11 +1991,6 @@ export const Module = {
           })
         else recorded.set(tag, contract)
       }
-
-    // The graph's rules ask what evidence shows, so they run only when evidence is passed, even
-    // none: a call with one argument answers as it did before the graph.
-    if (options.evidence !== undefined)
-      findings.push(...graphFindings(module.contracts, assemble(module.contracts, options)))
     return findings
   },
 
@@ -2031,7 +1999,7 @@ export const Module = {
    * no contract does), every contract, and the findings. Reproducible for a
    * given Module, so it can be committed and diffed.
    */
-  manifest: (module: Module<any, any, any>, options: GraphOptions = {}): ModuleManifest => {
+  manifest: (module: Module<any, any, any>): ModuleManifest => {
     const ownership: Ownership[] = []
     const owning = owners(module)
     for (const field of Object.keys(module.app.Model.fields)) {
@@ -2052,17 +2020,16 @@ export const Module = {
       messages: applicationTags(module.app),
       ownership,
       contracts: module.contracts.map(({ owner: _owner, laws: _laws, ...rest }) => rest),
-      findings: Module.validate(module, options),
+      findings: Module.validate(module),
     }
   },
 
   /**
-   * The manifest as Markdown: the ownership tree, a table of contracts, each
-   * law by each transition that writes what it reads and its evidence, and
-   * findings.
+   * The manifest as Markdown: the ownership tree, a table of contracts, and
+   * findings. `Graph.toMarkdown` writes the laws.
    */
-  toMarkdown: (module: Module<any, any, any>, options: GraphOptions = {}): string => {
-    const manifest = Module.manifest(module, options)
+  toMarkdown: (module: Module<any, any, any>): string => {
+    const manifest = Module.manifest(module)
     const lines: string[] = ['```text', 'Model']
     const width = Math.max(0, ...manifest.ownership.map(row => pathKey(row.path).length))
     manifest.ownership.forEach((row, index) => {
@@ -2081,20 +2048,6 @@ export const Module = {
       lines.push(
         `| ${contract.kind}:${contract.name} | ${contract.owns.map(pathKey).join(', ')} | ${contract.observes.map(pathKey).join(', ')} | ${contract.messages.join(', ')} | ${tableCell(contract.metadata.map(summary => `${summary.name}: ${summary.entries.join(', ')}`).join('; '))} |`,
       )
-    const graph = Module.graph(module, options)
-    const laws = lawsOf(graph)
-    if (laws.length > 0) {
-      lines.push('', '## Laws', '', '| Law | Transition | Evidence |', '| --- | --- | --- |')
-      for (const law of laws) {
-        const breakers = Graph.breakersOf(graph, law)
-        if (breakers.length === 0)
-          lines.push(`| ${tableCell(law)} | | nothing writes what it reads |`)
-        for (const { transition, evidence } of breakers)
-          lines.push(
-            `| ${tableCell(law)} | ${tableCell(transition)} | ${evidence.length === 0 ? '**none**' : tableCell(evidence.map(evidenceText).join('; '))} |`,
-          )
-      }
-    }
     if (manifest.findings.length > 0) {
       lines.push('', '## Findings', '')
       for (const finding of manifest.findings)
@@ -2105,12 +2058,11 @@ export const Module = {
 
   /**
    * The manifest as a Mermaid flowchart: Model fields in a subgraph, one node
-   * per contract, a solid edge for ownership and a dotted edge for observation;
-   * then each law, with a solid edge from each transition shown keeping it and
-   * a dotted one from each that writes what it reads with no evidence.
+   * per contract, a solid edge for ownership and a dotted edge for observation.
+   * `Graph.toMermaid` draws the laws.
    */
-  toMermaid: (module: Module<any, any, any>, options: GraphOptions = {}): string => {
-    const manifest = Module.manifest(module, options)
+  toMermaid: (module: Module<any, any, any>): string => {
+    const manifest = Module.manifest(module)
     const lines = ['flowchart LR', '  subgraph Model']
     manifest.fields.forEach((field, index) => lines.push(`    f${index}["${field}"]`))
     lines.push('  end')
@@ -2131,28 +2083,6 @@ export const Module = {
           lines.push(`  c${index} -.-> ${field}`)
       }
     })
-    const graph = Module.graph(module, options)
-    const laws = lawsOf(graph)
-    if (laws.length === 0) return lines.join('\n')
-    const transitions: string[] = []
-    const transitionId = (id: string): string => {
-      if (!transitions.includes(id)) {
-        transitions.push(id)
-        lines.push(`    t${transitions.length - 1}["${id}"]`)
-      }
-      return `t${transitions.indexOf(id)}`
-    }
-    lines.push('  subgraph Laws')
-    laws.forEach((law, index) => lines.push(`    l${index}["${law}"]`))
-    const arrows = laws.flatMap((law, index) =>
-      Graph.breakersOf(graph, law).map(({ transition, evidence }) => {
-        const from = transitionId(transition)
-        return evidence.length === 0
-          ? `  ${from} -.->|unwitnessed| l${index}`
-          : `  ${from} -->|${[...new Set(evidence.map(record => record._tag))].join(', ')}| l${index}`
-      }),
-    )
-    lines.push('  end', ...arrows)
     return lines.join('\n')
   },
 }

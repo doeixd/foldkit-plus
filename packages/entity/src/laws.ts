@@ -601,7 +601,7 @@ const facts = (report: LawReport): LawFacts => {
  * every field), a law per invariant of its Entity and the members it reads,
  * the Entity's states, and a write's `from` and `becomes`. Nothing is
  * enumerated, since whether a transition keeps a law is evidence. What
- * `foldkit-surface`'s `Module.graph` derives a contract's `laws.entities`
+ * `foldkit-surface`'s `Graph.of` derives a contract's `laws.entities`
  * with; a function by name, so that path does not carry `Laws.check`.
  */
 export const lawFactsOf = (entries: ReadonlyArray<LawEntry>): LawFacts => {

@@ -1,7 +1,7 @@
 /**
  * The law half of the contract graph (#537): the laws contracts declare, the
- * levels closed Surfaces make, the evidence admitted, and the three rules
- * `Module.validate` asks over them.
+ * levels closed Surfaces make, the evidence admitted, and the rules
+ * `Graph.validate` asks over them.
  */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
@@ -121,9 +121,9 @@ const Laws = Module.make(App, [document, shop])
 const rulesOf = (findings: ReadonlyArray<{ readonly rule: string }>) =>
   findings.map(finding => finding.rule)
 
-describe('Module.graph', () => {
+describe('Graph.of', () => {
   it('holds what each contract declares, its owners, and the paths its edges name', () => {
-    const graph = Module.graph(Laws)
+    const graph = Graph.of(Laws)
     expect(graph.nodes.filter(GraphNode.$is('Owner')).map(node => ({ ...node }))).toEqual([
       { _tag: 'Owner', kind: 'sync', name: 'todos' },
       { _tag: 'Owner', kind: 'remote', name: 'shop' },
@@ -148,7 +148,7 @@ describe('Module.graph', () => {
   })
 
   it('draws a document’s transitions from its Messages, even with no law', () => {
-    const graph = Module.graph(Module.make(App, [{ ...document, laws: { model: [] } }]))
+    const graph = Graph.of(Module.make(App, [{ ...document, laws: { model: [] } }]))
     expect(graph.nodes.filter(GraphNode.$is('Transition')).map(node => node.id)).toEqual([
       'durable:CreatedTodo',
       'durable:RemovedTodo',
@@ -163,7 +163,7 @@ describe('Module.graph', () => {
 
 describe('law-unwitnessed', () => {
   it('reports each transition that writes what a law reads, and no pair sharing no path', () => {
-    const findings = Module.validate(Laws, { evidence: [] }).filter(
+    const findings = Graph.validate(Laws, { evidence: [] }).filter(
       finding => finding.rule === 'law-unwitnessed',
     )
     expect(findings.map(finding => finding.message)).toEqual([
@@ -190,14 +190,14 @@ describe('law-unwitnessed', () => {
       messages: ['ChangedFilter'],
       laws: { model: [] },
     }
-    const graph = Module.graph(Module.make(App, [titles, retitled]))
+    const graph = Graph.of(Module.make(App, [titles, retitled]))
     expect(Graph.breakersOf(graph, 'sync:titles.short').map(each => each.transition)).toEqual([
       'durable:ChangedFilter',
     ])
   })
 
   it('stops for a pair once an issued record joins it', () => {
-    const findings = Module.validate(Laws, {
+    const findings = Graph.validate(Laws, {
       evidence: [
         kept('durable:CreatedTodo', 'sync:todos.capped'),
         kept('durable:RemovedTodo', 'sync:todos.capped'),
@@ -211,7 +211,7 @@ describe('law-unwitnessed', () => {
 
 describe('evidence-unmatched', () => {
   const unmatched = (evidence: ReadonlyArray<Evidence>) =>
-    Module.validate(Laws, { evidence }).filter(finding => finding.rule === 'evidence-unmatched')
+    Graph.validate(Laws, { evidence }).filter(finding => finding.rule === 'evidence-unmatched')
 
   it('refuses a record typed by hand, and does not count it', () => {
     const typed = Evidence.Walked({
@@ -221,7 +221,7 @@ describe('evidence-unmatched', () => {
       steps: 12,
       starts: ['loaded'],
     })
-    const findings = Module.validate(Laws, { evidence: [typed] })
+    const findings = Graph.validate(Laws, { evidence: [typed] })
     expect(findings.filter(finding => finding.rule === 'evidence-unmatched')).toEqual([
       {
         rule: 'evidence-unmatched',
@@ -232,7 +232,7 @@ describe('evidence-unmatched', () => {
     ])
     expect(findings.some(finding => finding.message.startsWith('write:Sell writes'))).toBe(true)
     expect(
-      Graph.breakersOf(Module.graph(Laws, { evidence: [typed] }), 'Product.reservedWithinStock'),
+      Graph.breakersOf(Graph.of(Laws, { evidence: [typed] }), 'Product.reservedWithinStock'),
     ).toEqual([{ transition: 'write:Sell', paths: [['Product', 'stock']], evidence: [] }])
   })
 
@@ -278,7 +278,7 @@ describe('closed Surfaces', () => {
     })
 
   it('are levels with a closure law reading their paths, which a durable Message must witness', () => {
-    const graph = Module.graph(Module.make(App, [document, closed('Narrow', 'todos')]))
+    const graph = Graph.of(Module.make(App, [document, closed('Narrow', 'todos')]))
     expect(graph.nodes.filter(GraphNode.$is('Level')).map(level => level.surface)).toEqual([
       'Narrow',
     ])
@@ -292,22 +292,19 @@ describe('closed Surfaces', () => {
   })
 
   it('refine one another by containment, the wider refining the narrower', () => {
-    const graph = Module.graph(
-      Module.make(App, [closed('Narrow', 'todos'), closed('Wide', 'both')]),
-    )
+    const graph = Graph.of(Module.make(App, [closed('Narrow', 'todos'), closed('Wide', 'both')]))
     expect(graph.edges.filter(GraphEdge.$is('Refines')).map(edge => ({ ...edge }))).toEqual([
       { _tag: 'Refines', level: 'Wide', of: 'Narrow' },
     ])
   })
 
   it('are reported when two are declared over the same paths and Messages', () => {
-    const findings = Module.validate(
+    const findings = Graph.validate(
       Module.make(App, [
         closed('One', 'todos'),
         closed('Two', 'todos'),
         closed('Other', 'todos', [Message.RemovedTodo]),
       ]),
-      { evidence: [] },
     )
     expect(findings.filter(finding => finding.rule === 'level-declared-twice')).toEqual([
       {
@@ -317,7 +314,7 @@ describe('closed Surfaces', () => {
       },
     ])
     expect(
-      Module.graph(Module.make(App, [closed('One', 'todos'), closed('Two', 'todos')])).edges.filter(
+      Graph.of(Module.make(App, [closed('One', 'todos'), closed('Two', 'todos')])).edges.filter(
         GraphEdge.$is('Refines'),
       ),
     ).toEqual([])
@@ -327,7 +324,7 @@ describe('closed Surfaces', () => {
 describe('Graph.breakersOf', () => {
   it('names each transition that writes what the law reads, with its evidence', () => {
     const record = kept('write:Sell', 'Product.reservedWithinStock')
-    const graph = Module.graph(Laws, { evidence: [record] })
+    const graph = Graph.of(Laws, { evidence: [record] })
     expect(Graph.breakersOf(graph, 'Product.reservedWithinStock')).toEqual([
       { transition: 'write:Sell', paths: [['Product', 'stock']], evidence: [record] },
     ])
@@ -335,7 +332,7 @@ describe('Graph.breakersOf', () => {
   })
 
   it('throws for a law the graph does not hold', () => {
-    expect(() => Graph.breakersOf(Module.graph(Laws), 'Product.reservedWithinStok')).toThrow(
+    expect(() => Graph.breakersOf(Graph.of(Laws), 'Product.reservedWithinStok')).toThrow(
       'Graph.breakersOf: the graph holds no law Product.reservedWithinStok',
     )
   })
@@ -344,9 +341,9 @@ describe('Graph.breakersOf', () => {
 describe('the renderers', () => {
   const evidence = [kept('write:Sell', 'Product.reservedWithinStock')]
 
-  it('add a Laws section to the Markdown: law by transition by evidence', () => {
-    const markdown = Module.toMarkdown(Laws, { evidence })
-    expect(markdown).toContain(
+  it('write a Laws section in Markdown: law by transition by evidence, then the findings', () => {
+    const markdown = Graph.toMarkdown(Laws, { evidence })
+    expect(markdown).toBe(
       [
         '## Laws',
         '',
@@ -356,29 +353,39 @@ describe('the renderers', () => {
         '| sync:todos.capped | durable:RemovedTodo | **none** |',
         '| Product.reservedWithinStock | write:Sell | runtime only: only the writer refuses it |',
         '| Order.paidOnce | write:Pay | **none** |',
+        '',
+        '### Findings',
+        '',
+        ...Graph.validate(Laws, { evidence }).map(
+          finding => `- **${finding.rule}** ${finding.message}`,
+        ),
       ].join('\n'),
     )
-    expect(markdown.indexOf('## Laws')).toBeLessThan(markdown.indexOf('## Findings'))
+    expect(rulesOf(Graph.validate(Laws, { evidence }))).toEqual([
+      'law-unwitnessed',
+      'law-unwitnessed',
+      'law-unwitnessed',
+    ])
   })
 
-  it('leave the Laws section out of a Module with no law', () => {
+  it('say a Module with no law declares none, and draw none', () => {
     const plain = Module.make(App, [{ ...document, laws: undefined }])
-    expect(Module.toMarkdown(plain)).not.toContain('## Laws')
-    expect(Module.toMermaid(plain)).not.toContain('subgraph Laws')
+    expect(Graph.toMarkdown(plain)).toBe('## Laws\n\nNo contract declares a law.')
+    expect(Graph.toMermaid(plain)).toBe('flowchart LR')
   })
 
   it('draw each law in Mermaid, a solid edge for evidence and a dotted one for none', () => {
-    const mermaid = Module.toMermaid(Laws, { evidence })
-    expect(mermaid).toContain('  subgraph Laws')
-    expect(mermaid).toContain('    l1["Product.reservedWithinStock"]')
-    expect(mermaid).toContain('    t2["write:Sell"]')
+    const mermaid = Graph.toMermaid(Laws, { evidence })
+    expect(mermaid).toContain('  l1["Product.reservedWithinStock"]')
+    expect(mermaid).toContain('  t2["write:Sell"]')
     expect(mermaid).toContain('  t2 -->|RuntimeOnly| l1')
     expect(mermaid).toContain('  t0 -.->|unwitnessed| l0')
   })
 })
 
-describe('Module.validate with one argument', () => {
-  it('answers as before the graph, whose rules ask what evidence shows', () => {
+describe('Module', () => {
+  // A page that reads only `Module` reaches none of the graph's code (see the registry budget).
+  it('asks none of the graph’s rules, and renders no law', () => {
     const alike = (name: string) =>
       Surface.make(App, name, {
         model: ({ model }) => Projection.struct({ todos: model.todos }),
@@ -388,16 +395,10 @@ describe('Module.validate with one argument', () => {
     const module = Module.make(App, [document, shop, alike('One'), alike('Two')])
     expect(Module.validate(module)).toEqual([])
     expect(Module.manifest(module).findings).toEqual([])
-    expect(rulesOf(Module.validate(module, { evidence: [] }))).toContain('law-unwitnessed')
-  })
-})
-
-describe('a Module with no laws', () => {
-  it('validates with one argument as it did before the graph', () => {
-    const plain = Module.make(App, [
-      { ...document, laws: undefined },
-      { ...shop, laws: undefined },
-    ])
-    expect(Module.validate(plain)).toEqual([])
+    expect(Module.toMarkdown(module)).not.toContain('Laws')
+    expect(Module.toMermaid(module)).not.toContain('capped')
+    expect(rulesOf(Graph.validate(module))).toEqual(
+      expect.arrayContaining(['law-unwitnessed', 'level-declared-twice']),
+    )
   })
 })

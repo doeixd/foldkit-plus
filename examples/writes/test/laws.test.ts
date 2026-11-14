@@ -6,18 +6,18 @@
  * test fails until the change is looked at (`vitest -u` writes it).
  */
 import { Laws } from 'foldkit-entity'
-import { Module } from 'foldkit-surface'
+import { Graph } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { report } from '../src/laws.js'
 import { Shop, enumerated, reverted, walked } from './shop.js'
 
 describe('the laws of the declared writes', () => {
   it('are kept as text in LAWS.md, with the evidence for each', async () => {
-    const markdown = Module.toMarkdown(Shop, {
+    const markdown = Graph.toMarkdown(Shop, {
       evidence: [...enumerated, ...(await walked()), reverted],
     })
     // Every pair is witnessed: the graph has nothing to report.
-    expect(markdown).not.toContain('## Findings')
+    expect(markdown).not.toContain('### Findings')
     const table = markdown.slice(markdown.indexOf('| Law |')).split('\n\n')[0]!
     await expect(
       [
@@ -33,7 +33,7 @@ describe('the laws of the declared writes', () => {
         '',
         '## Evidence',
         '',
-        'What keeps each law against each write that can break it, as `Module.toMarkdown`',
+        'What keeps each law against each write that can break it, as `Graph.toMarkdown`',
         "says with the evidence `test/shop.ts` gathers: the check's records, the walk of",
         '`Sell` and `Restock` through the server, and one line for the refused revert.',
         '',

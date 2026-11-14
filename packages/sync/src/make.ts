@@ -650,7 +650,7 @@ const build = <
       messages,
       metadata: [],
       // Each law reads the whole slice and each durable or server-only tag writes it, drawn by
-      // `Module.graph` when asked.
+      // `Graph.of` when asked.
       laws: { model: Object.keys(laws) },
     }
     return {

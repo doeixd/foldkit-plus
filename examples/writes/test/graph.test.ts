@@ -19,14 +19,14 @@ beforeAll(async () => {
 
 /** Each unwitnessed pair, as `transition x law`. */
 const unwitnessed = (evidence: ReadonlyArray<Evidence>) =>
-  Module.validate(Shop, { evidence })
+  Graph.validate(Shop, { evidence })
     .filter(finding => finding.rule === 'law-unwitnessed')
     .map(finding => finding.message.replace(/^(\S+) writes .*, which (\S+) reads.*$/, '$1 x $2'))
 
 describe('the declared writes in the Module graph', () => {
   it('hold a transition for each write Laws.check judges', () => {
     expect(
-      Module.graph(Shop)
+      Graph.of(Shop)
         .nodes.filter(GraphNode.$is('Transition'))
         .map(node => node.id),
     ).toEqual([...new Set(report.pairs.map(pair => Laws.transition({ name: pair.write })))])
@@ -54,11 +54,11 @@ describe('the declared writes in the Module graph', () => {
     expect(unwitnessed([...enumerated, ...walk])).toEqual([
       'write:Revert x Product.publishedStaysPublished',
     ])
-    expect(Module.validate(Shop, { evidence: [...enumerated, ...walk, reverted] })).toEqual([])
+    expect(Graph.validate(Shop, { evidence: [...enumerated, ...walk, reverted] })).toEqual([])
   })
 
   it('answer what can make reserved exceed stock: Sell and Restock, and their walk', () => {
-    const graph = Module.graph(Shop, { evidence: [...enumerated, ...walk] })
+    const graph = Graph.of(Shop, { evidence: [...enumerated, ...walk] })
     const breakers = Graph.breakersOf(graph, 'Product.reservedWithinStock')
     expect(breakers.map(breaker => [breaker.transition, breaker.paths])).toEqual([
       ['write:Restock', [['Product', 'stock']]],
@@ -83,7 +83,7 @@ describe('the declared writes in the Module graph', () => {
       law: 'Order.paidOnce',
       why: 'a law nothing declares',
     })
-    const findings = Module.validate(Shop, {
+    const findings = Graph.validate(Shop, {
       evidence: [...enumerated, ...walk, reverted, typed, stranger],
     })
     expect(findings.map(finding => finding.rule)).toEqual([
@@ -125,7 +125,7 @@ describe('a second Entity beside the products', () => {
     Evidence.runtimeOnly({ transition, law, why: 'the other Entity’s pair' })
 
   it('refuse a record joining a write of one Entity to a law of the other, both declared', () => {
-    const findings = Module.validate(Orders, {
+    const findings = Graph.validate(Orders, {
       evidence: [
         crossed('write:Sell', Laws.law(paidOnce)),
         crossed('write:Pay', 'Product.reservedWithinStock'),

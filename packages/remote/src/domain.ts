@@ -1379,7 +1379,7 @@ export const bindRemote = <
       observes: store.dependency.length === 0 ? [] : [store.dependency],
       messages: [],
       metadata: [],
-      // Its declared writes, as written; `Module.graph` derives their laws when asked.
+      // Its declared writes, as written; `Graph.of` derives their laws when asked.
       laws: {
         entities: definition.mutations.flatMap(({ name, write }) =>
           write === undefined ? [] : [{ name, write }],

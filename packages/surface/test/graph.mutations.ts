@@ -1,5 +1,5 @@
 /**
- * The graph and its three rules: `pnpm mutate packages/surface/test/graph.mutations.ts`.
+ * The graph, its rules and its renderers: `pnpm mutate packages/surface/test/graph.mutations.ts`.
  */
 const tests = ['packages/surface/test/graph.test.ts']
 
@@ -11,16 +11,14 @@ const edit = (name: string, find: string, replace: string, file = '../src/graph.
 
 export default [
   edit(
-    'the rules over the graph are dropped',
-    '      findings.push(...graphFindings(module.contracts, assemble(module.contracts, options)))\n',
-    '      void options\n',
-    '../src/index.ts',
+    'Graph.validate asks no rule',
+    '    findingsOf(module.contracts, assemble(module.contracts, options)),',
+    '    [],',
   ),
   edit(
-    'one argument runs the rules over the graph',
-    '    if (options.evidence !== undefined)\n',
-    '    if (true)\n',
-    '../src/index.ts',
+    'the Laws section leaves out the findings',
+    '    if (findings.length > 0) {',
+    '    if (false) {',
   ),
   edit(
     'law-unwitnessed is dropped',
