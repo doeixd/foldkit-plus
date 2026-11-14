@@ -307,8 +307,8 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
    [decisions-2026-11-12-build-deferred.md](./docs/design/decisions-2026-11-12-build-deferred.md)
 4. **Laws on every state owner** (#541 and its parts #533 to #540, #542,
    #543), fifteen work packages. Built on the branch: WP1, WP5, WP8a (wave 1), WP2,
-   WP3, WP4 (all but `sell.walk.test.ts`, which waited on WP2), WP6, WP13 (wave 2,
-   PR #559), WP7, WP9, WP10 (wave 3, PR #560). The rest: not started. "After"
+   WP3, WP4, WP6, WP13 (wave 2, PR #559), WP7, WP9, WP10 (wave 3, PR #560),
+   WP11, WP15 and WP4's example half (wave 4, PR #561). The rest: not started. "After"
    names the packages that land first; models are the note's.
    [541-laws-DESIGN.md](./docs/design/541-laws-DESIGN.md) §9
    - WP1 descriptors: invariants on the identity, a bare guarded descriptor
@@ -336,7 +336,7 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
    - WP15 `foldkit-plus laws` (#536). Sonnet. After: 2.
 5. **`@alchemy.run/domain` as a second authority** (#544 to #547), work
    packages A-WP1 to A-WP11. Built: A-WP1 (Effect 4.1.4, merged in #550), A-WP2a and
-   A-WP3 (PR #559), A-WP2b (PR #560). The rest: not started. A-WP6 repeats
+   A-WP3 (PR #559), A-WP2b (PR #560), A-WP4, A-WP5 (PR #561). The rest: not started. A-WP6 repeats
    in small after each of A-WP7 to A-WP11.
    [544-547-alchemy-DESIGN.md](./docs/design/544-547-alchemy-DESIGN.md) §8
    - A-WP1 the package skeleton, Domain installed, the probe as a test
@@ -375,7 +375,8 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
    with interaction and recovery, inspection, agent parts, and the UI SDK
    audit. Work packages U-WP1 to U-WP15 (with U-WP1b and U-WP3b). Built:
    U-WP1, U-WP8, U-WP11 (the audit, `docs/design/558-audit-FINDINGS.md`),
-   U-WP15 (PR #559), U-WP1b, U-WP3 (PR #560). The rest: not started.
+   U-WP15 (PR #559), U-WP1b, U-WP3 (PR #560), U-WP2, U-WP3b (PR #561). The rest:
+   not started.
    First, in parallel: U-WP1, U-WP8, U-WP11.
    [551-558-ui-authoring-DESIGN.md](./docs/design/551-558-ui-authoring-DESIGN.md) §12
    - U-WP1 attachments a view remembers, contributors named in conflicts,
