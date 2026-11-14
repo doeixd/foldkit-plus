@@ -25,8 +25,9 @@ version changed; `pnpm` skips versions already in the registry.
 - `examples/authoring`: a search field, an editable and reorderable list, a popup conformed to the listbox pattern, a sortable listbox and an editor an agent can save, each assembled from primitives; the save is asserted once for a person, an agent in the page and an agent headless, and the type cost of `SlotView.over` is measured (#551, #556, #557, #558).
 - `foldkit-remote-domain/server`: `pageReader(Api, { views, resolvePrincipal,
   middleware })`, the reader a server render reads a Domain model through in
-  process, as the principal decided from the request and through a middleware
-  built for that principal alone. It binds no command, opens no live stream and
+  process, as the principal decided from the request (a navigation's resolver,
+  `AuthServer.host(…).navigation.resolvePrincipal`, fits without a cast) and through a
+  middleware built for that principal alone. It binds no command, opens no live stream and
   notes every read private. The adapter's `live` sends no frame at or before a
   revision the client names (`LiveRequirement.revisions`), so a page resumed
   from a server render reads nothing it was handed; `examples/writes-domain`
@@ -456,6 +457,17 @@ version changed; `pnpm` skips versions already in the registry.
   `refused` ("The column's series gave no text here"), not padded.
 
 ### Changed
+
+- **Breaking:** `foldkit-mixins`: a view's `pipe` (and a Slot's and a knob
+  theme's) takes typed steps only, and no spread array. The catch-all that
+  took one was the overload TypeScript reported when the typed steps refused
+  a call, so an `A11y.conform` after several attachments was judged against
+  the view before them and listed every obligation, met or not; the error
+  now names only what the steps before it leave owed. A list of Behaviors is
+  one step, `Behavior.attachAll(list)`, which supplies what each member does:
+  write `.pipe(Behavior.attachAll(overlay), …)` where
+  `.pipe(...overlay.map(Behavior.attach))` was (`overlay` from
+  `Overlay.behaviors`).
 
 - `foldkit-primitives`: `DismissLayer` hears Escape in the bubble phase and
   skips one whose `defaultPrevented` is set, so an input inside a layer that

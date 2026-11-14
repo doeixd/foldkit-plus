@@ -3,10 +3,12 @@
  * one `@ts-expect-error` of its own, beside the call it accepts, so a check
  * that fails open shows as an unused directive.
  */
-import type { Layer } from 'effect'
+import { type Effect, Layer, type Option } from 'effect'
+import type { NavigationRequest, RemoteUnauthenticated, ScriptedRequest } from 'foldkit-remote'
 import { expectTypeOf } from 'vitest'
 import { DomainRemote, type Forbid, type Outcome } from '../src/index.js'
 import type { RejectionsOf } from '../src/lower/index.js'
+import { pageReader } from '../src/adapter/resume.js'
 import { Fixture } from '../src/testing.js'
 import { ProductEntity, Reserve, Session, SessionLive, Shop, ShopApi } from './adapter/fixture.js'
 
@@ -106,3 +108,26 @@ const sessioned = Fixture.make(ShopApi, {
   bindings: hostedBindings,
 })
 expectTypeOf<Layer.Services<typeof sessioned.layer>>().toEqualTypeOf<never>()
+
+// A page reader takes a navigation's resolver, as `AuthServer.host(…).navigation` holds it,
+// and refuses one typed for a script's request, which would refuse every signed-in reader.
+declare const navigation: (
+  request: NavigationRequest,
+) => Effect.Effect<Option.Option<string>, RemoteUnauthenticated>
+declare const scripted: (
+  request: ScriptedRequest,
+) => Effect.Effect<Option.Option<string>, RemoteUnauthenticated>
+const pageViews = [
+  DomainRemote.view(ProductEntity, ShopApi, 'ProductRow', { revision: 'revision' }),
+]
+pageReader(ShopApi, {
+  views: pageViews,
+  resolvePrincipal: navigation,
+  middleware: () => Layer.empty,
+})
+pageReader(ShopApi, {
+  views: pageViews,
+  // @ts-expect-error a script's resolver reads a header a navigation never carries
+  resolvePrincipal: scripted,
+  middleware: () => Layer.empty,
+})

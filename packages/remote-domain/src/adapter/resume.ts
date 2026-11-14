@@ -7,7 +7,12 @@
  * was handed.
  */
 import { Effect, Layer, type Duration, type Option, type Scope, Stream } from 'effect'
-import { RemoteClient, RemoteLiveError, type RemoteUnauthenticated } from 'foldkit-remote'
+import {
+  RemoteClient,
+  RemoteLiveError,
+  type NavigationRequest,
+  type RemoteUnauthenticated,
+} from 'foldkit-remote'
 import { CachedRead, PageReads } from 'foldkit-surface'
 import type { AnyApi, ViewBinding } from './binding.js'
 import { layer } from './layer.js'
@@ -29,10 +34,13 @@ export interface PageReaderConfig<A extends InProcessApi, M, Env, RP> {
   /**
    * Who the page's request is, decided from the request itself (a session
    * cookie through a resolver), none for a visitor. Refusing fails the render
-   * `Unauthenticated`, as a 401 would.
+   * `Unauthenticated`, as a 401 would. A resolver taking any `Request` fits,
+   * and so does a navigation's (`AuthServer.host(…).navigation`'s); one typed
+   * for a script's request does not, since a navigation carries no header a
+   * script adds.
    */
   readonly resolvePrincipal: (
-    request: Request,
+    request: NavigationRequest,
     env: Env,
   ) => Effect.Effect<Option.Option<string>, RemoteUnauthenticated, RP>
   /**
@@ -71,17 +79,21 @@ const noted = (read: string) =>
  * provided; provide it to the pre-read itself
  * (`Data.satisfy(…).pipe(Effect.provide(reader))`).
  */
-export const pageReader =
-  <A extends InProcessApi, M, Env = unknown, RP = never>(
-    api: A,
-    config: PageReaderConfig<A, M, Env, RP>,
-  ) =>
-  (
+export const pageReader = <A extends InProcessApi, M, Env = unknown, RP = never>(
+  api: A,
+  config: PageReaderConfig<A, M, Env, RP>,
+) => {
+  // Every request read for is a page's: the brand is only what keeps a script's resolver out.
+  const resolvePrincipal = config.resolvePrincipal as (
+    request: Request,
+    env: Env,
+  ) => Effect.Effect<Option.Option<string>, RemoteUnauthenticated, RP>
+  return (
     request: Request,
     env: Env,
   ): Layer.Layer<RemoteClient, RemoteUnauthenticated, RP | HostedOf<A, M>> =>
     Layer.unwrap(
-      Effect.map(config.resolvePrincipal(request, env), principal => {
+      Effect.map(resolvePrincipal(request, env), principal => {
         const client = Layer.effect(api.Client, api.clientInProcess).pipe(
           Layer.provide(config.middleware(principal)),
         )
@@ -107,3 +119,4 @@ export const pageReader =
         ).pipe(Layer.provide(reads), Layer.provide(client))
       }),
     ) as Layer.Layer<RemoteClient, RemoteUnauthenticated, RP | HostedOf<A, M>>
+}
