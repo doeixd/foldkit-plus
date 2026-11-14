@@ -226,6 +226,13 @@ describe('Reorder.places', () => {
       Reorder.places({ items: tree, held: 'step', parent, accepts: id => folders.has(id) }).origin,
     ).toEqual(Option.some(inside('guide')))
   })
+  it('starts an only child inside its parent, which takes back what it holds whatever accepts says', () => {
+    const under = (id: string) => (id === 'c' ? Option.some('p') : Option.none())
+    expect(Reorder.places({ items: ['p', 'c', 'q'], held: 'c', parent: under })).toEqual({
+      places: [before('p'), inside('p'), before('q'), after('q')],
+      origin: Option.some(inside('p')),
+    })
+  })
 })
 
 describe('Reorder.apply', () => {

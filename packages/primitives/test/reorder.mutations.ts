@@ -43,8 +43,14 @@ export default [
   ),
   one(
     'a folder gets no inside place',
-    "if (accepts(id) && !opens) found.push({ id, zone: 'inside' })",
+    "if (takes(id) && !opens) found.push({ id, zone: 'inside' })",
     '',
+    [unit],
+  ),
+  one(
+    "an only child's parent that accepts nothing gives it no place to start from",
+    'accepts(id) || Option.contains(home, id)',
+    'accepts(id)',
     [unit],
   ),
   one('a branch that ends gets no place after it', "found.push({ id: at, zone: 'after' })", '', [

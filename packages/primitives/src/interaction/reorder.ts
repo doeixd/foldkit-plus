@@ -174,7 +174,7 @@ export const bundle = Bundle.make('Reorder', {
 export interface Places {
   /** In the order the arrows walk them. */
   readonly places: ReadonlyArray<Place>
-  /** The place the item holds now, where a key grab starts; none when no place names it. */
+  /** The place the item holds now, where a key grab starts; none only when `items` lacks it or holds nothing else. */
   readonly origin: Option.Option<Place>
 }
 
@@ -227,7 +227,7 @@ export const movesIntoItself = (options: {
 /**
  * The places `held` can go, in walking order. For each row that shows, but
  * the held one and its own rows: `before` it, then `inside` it when it accepts
- * items and shows none of its own; after the last row of a branch, `after` each
+ * items (or is the held one's parent) and shows none of its own; after the last row of a branch, `after` each
  * level that ends there. So a list of n rows offers n places (the gaps around
  * the others), and no two places are the same position.
  */
@@ -246,6 +246,9 @@ export const places = (options: {
       onSome: expected => Option.contains(above, expected),
     })
   }
+  const home = parentOf(options.held)
+  // The held item's own parent takes it back whatever `accepts` says: it holds it now.
+  const takes = (id: string) => accepts(id) || Option.contains(home, id)
   const rows = options.items.filter(id => !within(id, options.held, parentOf))
   const found: Array<Place> = []
   rows.forEach((id, index) => {
@@ -255,7 +258,7 @@ export const places = (options: {
       onNone: () => false,
       onSome: q => parentIs(q, Option.some(id)),
     })
-    if (accepts(id) && !opens) found.push({ id, zone: 'inside' })
+    if (takes(id) && !opens) found.push({ id, zone: 'inside' })
     if (opens) return
     // The levels that end between this row and the next: `after` each, up to the next row's siblings.
     const stop = Option.flatMap(next, parentOf)
@@ -269,7 +272,6 @@ export const places = (options: {
   })
   // Where the held item is: before its next sibling, after its previous one, or inside its parent.
   const heldAt = options.items.indexOf(options.held)
-  const home = parentOf(options.held)
   const isSibling = (id: string) => parentIs(id, home)
   const next = options.items.slice(heldAt + 1).find(id => !within(id, options.held, parentOf))
   const previous = options.items.slice(0, Math.max(heldAt, 0)).reverse().find(isSibling)
