@@ -160,7 +160,10 @@ export const ReadRequest: Schema.Codec<Requirement, Requirement> = Schema.Struct
   readRequestFields,
 ) as unknown as Schema.Codec<Requirement, Requirement>
 
-/** A batch may name at most this many rows in `after`, a stream in `floors`, an answer in `behind` or `after.rows`. */
+/**
+ * A batch may name at most this many rows in `after`, a stream in `floors` or
+ * `revisions`, an answer in `behind` or `after.rows`.
+ */
 export const MAX_READ_AFTER = 256
 
 /**
@@ -440,9 +443,10 @@ export const LiveRequirement = Schema.Struct({
   /**
    * Rows of `requirements` the client holds whole at a revision (a server
    * render's, resumed): the stream may leave out their state at or before
-   * it, which the client has. A server that keeps no revision ignores it.
+   * it, which the client has. A server that keeps no revision ignores it;
+   * `foldkit-remote-server` refuses more of them than `requirements`.
    */
-  revisions: Schema.optional(Schema.Array(RowRevision)),
+  revisions: Schema.optional(Schema.Array(RowRevision).check(Schema.isMaxLength(MAX_READ_AFTER))),
 })
 
 /**

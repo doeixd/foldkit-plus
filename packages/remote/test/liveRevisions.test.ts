@@ -9,8 +9,9 @@ import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Entity, Remote, RemoteClient } from '../src/index.js'
 import { live } from '../src/live.js'
+import { liveReads } from '../src/liveReads.js'
 import type { EntityEntry } from '../src/store.js'
-import { REMOTE_PROTOCOL_VERSION } from '../src/wire.js'
+import { MAX_READ_AFTER, REMOTE_PROTOCOL_VERSION } from '../src/wire.js'
 
 const Product = Entity.make(
   'Product',
@@ -155,6 +156,26 @@ describe('A live stream over rows the store holds', () => {
     })
     expect(overlaid.remote.entities['Product:p1']?.revision).toBe(4)
     expect(revisionsOf(overlaid)).toEqual([])
+  })
+
+  it('names at most as many as the wire takes', () => {
+    const many = Array.from({ length: MAX_READ_AFTER + 1 }, (_, at) => `p${at}`)
+    const model = Data.reduce(
+      { remote: Remote.initial },
+      {
+        _tag: 'ReadReceived',
+        requests: many.map(id => ({ entity: 'Product', id, fields: ['name'] })),
+        result: {
+          entities: many.map(id => ({ entity: 'Product', id, values: { name: id }, revision: 1 })),
+          settled: [],
+        },
+        now: 0,
+      },
+    )
+    const requirements = many.map(id => ({ entity: 'Product', id, fields: ['name'] }))
+    expect(liveReads.heldRevisions(model.remote.entities, requirements)).toHaveLength(
+      MAX_READ_AFTER,
+    )
   })
 
   it('does not restart the stream when a revision moves', () => {

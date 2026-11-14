@@ -15,11 +15,12 @@ import { liveStreamKey } from './liveState.js'
 import { belongsEncoded } from './matching.js'
 import { entityKey } from './store.js'
 import { tableOf } from './table.js'
-import type {
-  RemoteLiveError,
-  RemoteLiveRefused,
-  RemoteProtocolError,
-  RemoteUnauthenticated,
+import {
+  MAX_READ_AFTER,
+  type RemoteLiveError,
+  type RemoteLiveRefused,
+  type RemoteProtocolError,
+  type RemoteUnauthenticated,
 } from './wire.js'
 
 /** The wait before a stream's restart after `failures` breaks in a row: Sync's transport backoff. */
@@ -148,23 +149,26 @@ const stream: LiveCapability['stream'] = (
  * it at that revision is one the store has. A row whose revision a partial
  * write moved holds its other fields from an older revision, so it is left
  * out for any of them; so is a floored row, since only a read at its token,
- * which may answer that same revision, ends the floor.
+ * which may answer that same revision, ends the floor. At most
+ * `MAX_READ_AFTER`, as the wire takes: a row past them is sent in full.
  */
 const heldRevisions: LiveCapability['heldRevisions'] = (store, requirements) =>
-  requirements.flatMap(({ entity, id, fields }) => {
-    const held = store[entityKey(entity, id)]
-    return held?.revision === undefined ||
-      held.tombstone ||
-      held.floor !== undefined ||
-      !fields.every(
-        field =>
-          held.present.has(field) &&
-          !held.stale.has(field) &&
-          held.revisionFields?.has(field) === true,
-      )
-      ? []
-      : [{ entity, id, revision: held.revision }]
-  })
+  requirements
+    .flatMap(({ entity, id, fields }) => {
+      const held = store[entityKey(entity, id)]
+      return held?.revision === undefined ||
+        held.tombstone ||
+        held.floor !== undefined ||
+        !fields.every(
+          field =>
+            held.present.has(field) &&
+            !held.stale.has(field) &&
+            held.revisionFields?.has(field) === true,
+        )
+        ? []
+        : [{ entity, id, revision: held.revision }]
+    })
+    .slice(0, MAX_READ_AFTER)
 
 export const liveReads: LiveCapability = {
   applyEntity: applyEntityEvent,

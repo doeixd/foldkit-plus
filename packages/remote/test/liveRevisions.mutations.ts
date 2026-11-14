@@ -10,7 +10,7 @@ const tests = ['packages/remote/test/liveRevisions.test.ts']
 export default [
   {
     name: 'a row held to a write is named at its revision',
-    edits: [{ file: reads, find: '      held.floor !== undefined ||\n', replace: '' }],
+    edits: [{ file: reads, find: '        held.floor !== undefined ||\n', replace: '' }],
     tests,
   },
   {
@@ -18,7 +18,7 @@ export default [
     edits: [
       {
         file: reads,
-        find: ' &&\n          !held.stale.has(field) &&',
+        find: ' &&\n            !held.stale.has(field) &&',
         replace: ' &&',
       },
     ],
@@ -29,7 +29,7 @@ export default [
     edits: [
       {
         file: reads,
-        find: '          held.present.has(field) &&\n',
+        find: '            held.present.has(field) &&\n',
         replace: '',
       },
     ],
@@ -40,7 +40,7 @@ export default [
     edits: [
       {
         file: reads,
-        find: ' &&\n          held.revisionFields?.has(field) === true',
+        find: ' &&\n            held.revisionFields?.has(field) === true',
         replace: '',
       },
     ],
@@ -80,8 +80,13 @@ export default [
     tests: ['examples/writes-domain/test/ssr.test.ts'],
   },
   {
+    name: 'a stream names more revisions than the wire takes',
+    edits: [{ file: reads, find: '    .slice(0, MAX_READ_AFTER)\n', replace: '' }],
+    tests,
+  },
+  {
     name: 'a tombstone is named at its revision',
-    edits: [{ file: reads, find: '      held.tombstone ||\n', replace: '' }],
+    edits: [{ file: reads, find: '        held.tombstone ||\n', replace: '' }],
     tests,
   },
   {
